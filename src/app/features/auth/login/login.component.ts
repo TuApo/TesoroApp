@@ -1,6 +1,5 @@
 import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, Validators } from '@angular/forms';
-import { ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
 import { LoginService } from '../service/login.service';
@@ -31,7 +30,6 @@ export class LoginComponent implements OnInit {
     private fb: FormBuilder,
     private loginS: LoginService,
     private router: Router,
-    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -74,7 +72,6 @@ export class LoginComponent implements OnInit {
     }
 
     this.loading = true;
-    this.cdr.markForCheck();
     try {
       const resp = await this.loginS.login(login, password); // { token, user }
       if (!resp?.token || !resp?.user) {
@@ -112,7 +109,6 @@ export class LoginComponent implements OnInit {
       }
     } finally {
       this.loading = false;
-      this.cdr.markForCheck();
     }
   }
 }

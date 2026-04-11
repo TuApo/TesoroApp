@@ -30,8 +30,7 @@ import {
     BoardModalComponent
   ],
   templateUrl: './dashboard-page.component.html',
-  styleUrl: './dashboard-page.component.css',
-  host: { class: 'madter-theme' }
+  styleUrl: './dashboard-page.component.css'
 })
 export class DashboardPageComponent {
   private fb = inject(FormBuilder);

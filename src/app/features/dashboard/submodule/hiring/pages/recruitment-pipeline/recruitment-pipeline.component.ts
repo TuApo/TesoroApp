@@ -1,6 +1,6 @@
 import { 
   Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef, PLATFORM_ID,
-  afterNextRender, ChangeDetectorRef
+  afterNextRender
 , ChangeDetectionStrategy } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
@@ -90,23 +90,8 @@ type BioKind = 'foto' | 'huella' | 'firma';
 export class RecruitmentPipelineComponent {
   // ───────── Signals de estado ─────────
   candidatoSeleccionado = signal<any | null>(null);
-
-  nombreCandidato = computed(() => {
-    const c = this.candidatoSeleccionado();
-    return c
-      ? [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
-        .map(v => (v ?? '').toString().trim())
-        .filter(v => v.length > 0)
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-      : '';
-  });
-
-  numeroDocumento = computed(() => {
-    const c = this.candidatoSeleccionado();
-    return c?.numero_documento != null ? String(c.numero_documento).trim() : '';
-  });
+  nombreCandidato: string = '';
+  numeroDocumento: string = '';
 
   // Previews locales
   fotoDataUrl = signal<string | null>(null);
@@ -177,7 +162,6 @@ export class RecruitmentPipelineComponent {
   private homeService = inject(HomeService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
-  private cdr = inject(ChangeDetectorRef);
 
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
@@ -288,6 +272,8 @@ export class RecruitmentPipelineComponent {
     // 2) Cédula + biometría (embebida y refresh opcional)
     effect(() => {
       if (!this.isBrowser()) return;
+      this.getFullName();
+      this.getNumeroDocumento();
 
       const cand = this.candidatoSeleccionado();
       const ced = cand?.numero_documento ? String(cand.numero_documento) : null;
@@ -410,8 +396,25 @@ export class RecruitmentPipelineComponent {
     console.log('Candidato seleccionado:', candidato);
   }
 
+  getFullName(): void {
+    const c = this.candidatoSeleccionado();
+    this.nombreCandidato = c
+      ? [c.primer_nombre, c.segundo_nombre, c.primer_apellido, c.segundo_apellido]
+        .map(v => (v ?? '').toString().trim())
+        .filter(v => v.length > 0)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      : '';
+  }
+
+  getNumeroDocumento(): void {
+    const c = this.candidatoSeleccionado();
+    this.numeroDocumento = c?.numero_documento != null ? String(c.numero_documento).trim() : '';
+  }
+
   generacionDocumentos(): void {
-    this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.numeroDocumento()]);
+    this.router.navigate(['dashboard/hiring/generate-contracting-documents', this.numeroDocumento]);
   }
 
   // ───────── CONFIRMACIÓN CONTACTO ─────────
@@ -556,7 +559,7 @@ export class RecruitmentPipelineComponent {
            proceso.rechazado = true;
            this.candidatoSeleccionado.set({ ...cand });
         }
-        Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato()} ha sido desactivado.`, 'success');
+        Swal.fire('¡Baja exitosa!', `El contrato de ${this.nombreCandidato} ha sido desactivado.`, 'success');
       } catch (err) {
         Swal.close();
         console.error(err);
@@ -887,7 +890,7 @@ export class RecruitmentPipelineComponent {
 
   // ───────── Tabla ─────────
   mostrarTabla(): void {
-    const ced = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento();
+    const ced = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
     if (!ced) return;
 
     Swal.fire({
@@ -960,7 +963,7 @@ export class RecruitmentPipelineComponent {
           maxWidth: '95vw',
           height: '80vh',
           data: {
-            title: `Procesos de ${this.nombreCandidato() || ced}`,
+            title: `Procesos de ${this.nombreCandidato || ced}`,
             rows: mappedData,
             columns,
             pageSize: 12,
@@ -996,7 +999,7 @@ export class RecruitmentPipelineComponent {
     const result = await firstValueFrom(ref.afterClosed());
     if (!result) return;
 
-    const numero = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento();
+    const numero = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
     if (!numero) {
       await Swal.fire('Información', 'Selecciona un candidato antes de tomar la foto.', 'info');
       return;
