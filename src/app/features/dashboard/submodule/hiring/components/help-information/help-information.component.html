@@ -1,272 +1,269 @@
-<mat-tab-group class="help-tabs" animationDuration="300ms">
+<!--
+  Selección ya no apila dos barras de pestañas. La superficie del paso la
+  gobierna <app-form-entrevista>: pinta la ficha del candidato a la izquierda
+  y el área de trabajo a la derecha. Este componente sigue siendo el dueño de
+  la Remisión — su formulario, sus validaciones y su guardado no cambiaron —,
+  solo que ahora se PROYECTA dentro de esa área como una pestaña más.
 
-  <!-- ────────────────────────── TAB 1 ─ Info personal ───────────────────────── -->
-  <mat-tab class="tab-info">
-    <ng-template mat-tab-label>
-      <mat-icon>person</mat-icon>
-      Entrevista
-    </ng-template>
+  La remisión se proyecta siempre, aunque su pestaña no esté activa: el área
+  de trabajo la oculta con CSS en vez de destruirla, porque destruirla borraba
+  la vacante elegida cada vez que se cambiaba de pestaña.
+-->
+<app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"
+  [modificacionForzada]="modificacionForzada()"
+  [modificadoPor]="modificadoPor()"
+  [consultaSeq]="consultaSeq()"
+  [fotoUrl]="fotoUrl()"
+  [datosObra]="datosObra()"
+  [bloqueado]="bloqueado()"
+  (fotoSolicitada)="fotoSolicitada.emit()"
+  (irAPaso)="irAPaso.emit($event)"
+  (guardado)="guardado.emit()">
 
-    <!-- HelpInformationComponent.html -->
-    <app-form-entrevista [candidatoSeleccionado]="candidatoSeleccionado()"
-      [modificacionForzada]="modificacionForzada()"
-      [modificadoPor]="modificadoPor()"
-      [consultaSeq]="consultaSeq()"
-      (guardado)="guardado.emit()"></app-form-entrevista>
-
-  </mat-tab>
-
-  <!-- ───────────────────────── TAB 4 ─ Vacantes ───────────────────────── -->
-  <mat-tab>
-    <ng-template mat-tab-label>
-      <mat-icon>work</mat-icon>
-      Remisión
-    </ng-template>
-
-    <!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador) -->
-    @if (bloqueado()) {
-      <div class="bloqueo-espera-banner">
-        <mat-icon>hourglass_top</mat-icon>
-        <div>
-          <strong>Candidato {{ motivoBloqueo() }}.</strong>
-          No se puede remitir ni asignar vacante. Cambia la observación del evaluador
-          (pestaña <em>Entrevista</em>) a "APLICA" para habilitar esta sección.
-        </div>
+  <!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador) -->
+  @if (bloqueado()) {
+    <div class="bloqueo-espera-banner">
+      <mat-icon>hourglass_top</mat-icon>
+      <div>
+        <strong>Candidato {{ motivoBloqueo() }}.</strong>
+        No se puede remitir ni asignar vacante. Cambia la observación del evaluador
+        (pestaña <em>Entrevista</em>) a "APLICA" para habilitar esta sección.
       </div>
-    }
+    </div>
+  }
 
-    <form [formGroup]="vacantesForm" class="form-tab" [class.bloqueado-espera]="bloqueado()">
+  <form [formGroup]="vacantesForm" class="form-tab" [class.bloqueado-espera]="bloqueado()">
 
 
-      <!-- ═══ Selector Único: Empresa → Finca → Cargo ═══ -->
-      <div class="unified-selector">
-        <mat-form-field class="example-full-width" appearance="outline">
-          <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
-          <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
-            [disabled]="(isRemisionReadOnly() && isPreloadedVacancy()) || bloqueado()" [disableOptionCentering]="true"
-            panelClass="custom-select-panel">
+    <!-- ═══ Selector Único: Empresa → Finca → Cargo ═══ -->
+    <div class="unified-selector">
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
+        <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
+          [disabled]="(isRemisionReadOnly() && isPreloadedVacancy()) || bloqueado()" [disableOptionCentering]="true"
+          panelClass="custom-select-panel">
 
-            <mat-select-trigger>
-              @if (vacanteSeleccionada(); as v) {
-                <div class="trigger-wrap">
-                  <span class="trigger-title">{{ v.empresaUsuariaSolicita }} - {{ v.finca || 'Sin finca' }} - {{ v.cargo
-                  || 'Sin cargo' }}</span>
-                  <span class="spacer"></span>
-                  <div class="badges-row">
-                    <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
-                    <span class="pill pill-warn">Falt {{ falt(v) }}</span>
-                    <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
-                    <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
-                    <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
-                    <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
-                    <span class="pill pill-ok">Firm {{ firm(v) }}</span>
-                  </div>
+          <mat-select-trigger>
+            @if (vacanteSeleccionada(); as v) {
+              <div class="trigger-wrap">
+                <span class="trigger-title">{{ v.empresaUsuariaSolicita }} - {{ v.finca || 'Sin finca' }} - {{ v.cargo
+                || 'Sin cargo' }}</span>
+                <span class="spacer"></span>
+                <div class="badges-row">
+                  <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
+                  <span class="pill pill-warn">Falt {{ falt(v) }}</span>
+                  <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
+                  <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
+                  <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
+                  <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
+                  <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                 </div>
-              } @else if (limpiarVacante()) {
-                <span class="trigger-title trigger-sin-vacante">Sin vacante (se quitará al guardar)</span>
-              } @else {
-                Selecciona…
+              </div>
+            } @else if (limpiarVacante()) {
+              <span class="trigger-title trigger-sin-vacante">Sin vacante (se quitará al guardar)</span>
+            } @else {
+              Selecciona…
+            }
+          </mat-select-trigger>
+
+          <!-- Buscador interno con FormControl -->
+          <div class="panel-search"
+            (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <mat-form-field appearance="outline" class="panel-search-field">
+              <mat-icon matPrefix class="panel-search-icon">search</mat-icon>
+              <input matInput [formControl]="searchVacanteCtrl" placeholder="Buscar empresa, finca o cargo...">
+              @if (searchVacanteCtrl.value) {
+                <button matSuffix mat-icon-button aria-label="Limpiar"
+                  (click)="searchVacanteCtrl.setValue(''); $event.stopPropagation()">
+                  <mat-icon>close</mat-icon>
+                </button>
               }
-            </mat-select-trigger>
+            </mat-form-field>
+          </div>
 
-            <!-- Buscador interno con FormControl -->
-            <div class="panel-search"
-              (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-              <mat-form-field appearance="outline" class="panel-search-field">
-                <mat-icon matPrefix class="panel-search-icon">search</mat-icon>
-                <input matInput [formControl]="searchVacanteCtrl" placeholder="Buscar empresa, finca o cargo...">
-                @if (searchVacanteCtrl.value) {
-                  <button matSuffix mat-icon-button aria-label="Limpiar"
-                    (click)="searchVacanteCtrl.setValue(''); $event.stopPropagation()">
-                    <mat-icon>close</mat-icon>
-                  </button>
-                }
-              </mat-form-field>
-            </div>
+          <!-- Opción para quitar la asignación de vacante (limpiar) -->
+          <mat-option [value]="SIN_VACANTE" class="opcion-sin-vacante">
+            <mat-icon>block</mat-icon>
+            Sin vacante (quitar asignación)
+          </mat-option>
 
-            <!-- Opción para quitar la asignación de vacante (limpiar) -->
-            <mat-option [value]="SIN_VACANTE" class="opcion-sin-vacante">
-              <mat-icon>block</mat-icon>
-              Sin vacante (quitar asignación)
-            </mat-option>
-
-            @for (emp of vacantesAgrupadas(); track emp.empresa) {
-              <!-- 1er Nivel: Empresa -->
-              <mat-optgroup [label]="emp.empresa">
-                <ng-container>
-                  @for (f of emp.fincas; track f.finca) {
-                  <!-- 2do Nivel: Finca (simulada como label deshabilitada) -->
-                  <mat-option disabled class="finca-option">
-                    <mat-icon>business</mat-icon>
-                    Finca: {{ f.finca }}
-                  </mat-option>
-                  <!-- 3er Nivel: Cargo / Vacante -->
-                  @for (v of f.vacantes; track v.id) {
-                    <mat-option [value]="v.id" class="vacante-mat-option">
-                      <div class="vacante-option">
-                        <div class="row-1">
-                          <mat-icon class="row-1-icon">work_outline</mat-icon>
-                          <span class="cargo"><strong>{{ v.cargo || 'Sin cargo' }}</strong></span>
-                          <span class="spacer"></span>
-                          <div class="badges-row">
-                            <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
-                            <span class="pill pill-warn">Falt {{ falt(v) }}</span>
-                            <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
-                            <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
-                            <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
-                            <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
-                            <span class="pill pill-ok">Firm {{ firm(v) }}</span>
-                          </div>
-                        </div>
-                        <div class="row-2">
-                          {{ oficinasResumen(v.oficinasQueContratan) }} · {{ formatShortDate(v.fechaPublicado) }} · Cod:
-                          {{ v.codigoElite || 'N/A' }}
+          @for (emp of vacantesAgrupadas(); track emp.empresa) {
+            <!-- 1er Nivel: Empresa -->
+            <mat-optgroup [label]="emp.empresa">
+              <ng-container>
+                @for (f of emp.fincas; track f.finca) {
+                <!-- 2do Nivel: Finca (simulada como label deshabilitada) -->
+                <mat-option disabled class="finca-option">
+                  <mat-icon>business</mat-icon>
+                  Finca: {{ f.finca }}
+                </mat-option>
+                <!-- 3er Nivel: Cargo / Vacante -->
+                @for (v of f.vacantes; track v.id) {
+                  <mat-option [value]="v.id" class="vacante-mat-option">
+                    <div class="vacante-option">
+                      <div class="row-1">
+                        <mat-icon class="row-1-icon">work_outline</mat-icon>
+                        <span class="cargo"><strong>{{ v.cargo || 'Sin cargo' }}</strong></span>
+                        <span class="spacer"></span>
+                        <div class="badges-row">
+                          <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
+                          <span class="pill pill-warn">Falt {{ falt(v) }}</span>
+                          <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
+                          <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
+                          <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
+                          <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
+                          <span class="pill pill-ok">Firm {{ firm(v) }}</span>
                         </div>
                       </div>
-                    </mat-option>
-                  }
+                      <div class="row-2">
+                        {{ oficinasResumen(v.oficinasQueContratan) }} · {{ formatShortDate(v.fechaPublicado) }} · Cod:
+                        {{ v.codigoElite || 'N/A' }}
+                      </div>
+                    </div>
+                  </mat-option>
                 }
-                </ng-container>
-              </mat-optgroup>
-            }
-
-            @if (!vacantesAgrupadas().length) {
-              <mat-option disabled>
-                Sin vacantes disponibles
-              </mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-      </div>
-
-
-      <!-- Resumen -->
-      <div class="grid">
-        <mat-form-field class="example-full-width" appearance="outline">
-          <mat-label>Tipo</mat-label>
-          <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event.value)">
-            <!-- El value se conserva ("Autorización de ingreso") porque es lo que se
-                 persiste en vacante_tipo y con lo que comparan isAutorizacion()/
-                 onTipoChange(); solo cambia el rótulo visible a "Contratación inmediata". -->
-            <mat-option value="Autorización de ingreso">Contratación inmediata</mat-option>
-            <mat-option value="Prueba técnica">Prueba técnica</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <!-- Empresa usuaria -->
-        @if (isAutorizacion() || isPrueba()) {
-          <mat-form-field class="example-full-width" appearance="outline">
-            <mat-label>Empresa usuaria</mat-label>
-            <input matInput formControlName="empresaUsuaria">
-          </mat-form-field>
-        }
-
-        <!-- Cargo -->
-        @if (isAutorizacion() || isPrueba()) {
-          <mat-form-field class="example-full-width" appearance="outline">
-            <mat-label>Cargo</mat-label>
-            <input matInput formControlName="cargo">
-          </mat-form-field>
-        }
-
-        <!-- SOLO Autorización de ingreso -->
-        @if (isAutorizacion()) {
-          <mat-form-field class="example-full-width" appearance="outline">
-            <mat-label>Fecha ingreso</mat-label>
-            <input matInput [matDatepicker]="pickerIngreso" formControlName="fechaIngreso" autocomplete="off" readonly
-              (focus)="pickerIngreso.open()" (click)="pickerIngreso.open()">
-              <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
-              <mat-datepicker #pickerIngreso></mat-datepicker>
-            </mat-form-field>
-            <mat-form-field class="example-full-width" appearance="outline">
-              <mat-label>Salario</mat-label>
-              <input matInput type="text" formControlName="salario" thousandSeparator>
-            </mat-form-field>
-          }
-
-          <!-- SOLO Prueba técnica -->
-          @if (isPrueba()) {
-            <mat-form-field class="example-full-width" appearance="outline">
-              <mat-label>Área</mat-label>
-              <input matInput formControlName="area">
-            </mat-form-field>
-            <mat-form-field class="example-full-width" appearance="outline">
-              <mat-label>Fecha de prueba</mat-label>
-              <input matInput [matDatepicker]="pickerPrueba" formControlName="fechaPruebaEntrevista" autocomplete="off"
-                readonly (focus)="pickerPrueba.open()" (click)="pickerPrueba.open()">
-                <mat-datepicker-toggle matSuffix [for]="pickerPrueba"></mat-datepicker-toggle>
-                <mat-datepicker #pickerPrueba></mat-datepicker>
-              </mat-form-field>
-              <mat-form-field class="example-full-width" appearance="outline">
-                <mat-label>Hora de prueba</mat-label>
-                <input matInput type="time" formControlName="horaPruebaEntrevista">
-              </mat-form-field>
-              <mat-form-field class="example-full-width" appearance="outline">
-                <mat-label>Dirección de la empresa</mat-label>
-                <input matInput formControlName="direccionEmpresa">
-              </mat-form-field>
-            }
-          </div>
-
-          <!-- ═══ Resultado de la prueba técnica: "No pasó" ═══ -->
-          @if (isPrueba()) {
-            <div class="no-paso-block">
-              @if (noPasoPrueba()) {
-                <div class="no-paso-banner">
-                  <mat-icon>cancel</mat-icon>
-                  <div class="no-paso-info">
-                    <strong>No pasó la prueba técnica.</strong>
-                    @if (noPasoPruebaAt()) {
-                      <span class="no-paso-fecha">Fecha: {{ formatShortDate(noPasoPruebaAt()) }}</span>
-                    }
-                    @if (motivoNoPaso()) {
-                      <div class="no-paso-motivo">Motivo: {{ motivoNoPaso() }}</div>
-                    }
-                  </div>
-                </div>
               }
-
-              <div class="no-paso-actions">
-                <button mat-stroked-button color="warn" type="button"
-                  [disabled]="vacantesForm.disabled || bloqueado()"
-                  (click)="marcarNoPasoPrueba()">
-                  <mat-icon>thumb_down</mat-icon>
-                  {{ noPasoPrueba() ? 'Editar motivo (no pasó)' : 'No pasó la prueba técnica' }}
-                </button>
-                @if (noPasoPrueba()) {
-                  <button mat-button type="button" [disabled]="bloqueado()" (click)="quitarNoPasoPrueba()">
-                    Quitar marca
-                  </button>
-                }
-              </div>
-            </div>
+              </ng-container>
+            </mat-optgroup>
           }
 
+          @if (!vacantesAgrupadas().length) {
+            <mat-option disabled>
+              Sin vacantes disponibles
+            </mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+    </div>
+
+
+    <!-- Resumen -->
+    <div class="grid">
+      <mat-form-field class="example-full-width" appearance="outline">
+        <mat-label>Tipo</mat-label>
+        <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event.value)">
+          <!-- El value se conserva ("Autorización de ingreso") porque es lo que se
+               persiste en vacante_tipo y con lo que comparan isAutorizacion()/
+               onTipoChange(); solo cambia el rótulo visible a "Contratación inmediata". -->
+          <mat-option value="Autorización de ingreso">Contratación inmediata</mat-option>
+          <mat-option value="Prueba técnica">Prueba técnica</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <!-- Empresa usuaria -->
+      @if (isAutorizacion() || isPrueba()) {
+        <mat-form-field class="example-full-width" appearance="outline">
+          <mat-label>Empresa usuaria</mat-label>
+          <input matInput formControlName="empresaUsuaria">
+        </mat-form-field>
+      }
+
+      <!-- Cargo -->
+      @if (isAutorizacion() || isPrueba()) {
+        <mat-form-field class="example-full-width" appearance="outline">
+          <mat-label>Cargo</mat-label>
+          <input matInput formControlName="cargo">
+        </mat-form-field>
+      }
+
+      <!-- SOLO Autorización de ingreso -->
+      @if (isAutorizacion()) {
+        <mat-form-field class="example-full-width" appearance="outline">
+          <mat-label>Fecha ingreso</mat-label>
+          <input matInput [matDatepicker]="pickerIngreso" formControlName="fechaIngreso" autocomplete="off" readonly
+            (focus)="pickerIngreso.open()" (click)="pickerIngreso.open()">
+            <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
+            <mat-datepicker #pickerIngreso></mat-datepicker>
+          </mat-form-field>
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Salario</mat-label>
+            <input matInput type="text" formControlName="salario" thousandSeparator>
+          </mat-form-field>
+        }
+
+        <!-- SOLO Prueba técnica -->
+        @if (isPrueba()) {
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Área</mat-label>
+            <input matInput formControlName="area">
+          </mat-form-field>
+          <mat-form-field class="example-full-width" appearance="outline">
+            <mat-label>Fecha de prueba</mat-label>
+            <input matInput [matDatepicker]="pickerPrueba" formControlName="fechaPruebaEntrevista" autocomplete="off"
+              readonly (focus)="pickerPrueba.open()" (click)="pickerPrueba.open()">
+              <mat-datepicker-toggle matSuffix [for]="pickerPrueba"></mat-datepicker-toggle>
+              <mat-datepicker #pickerPrueba></mat-datepicker>
+            </mat-form-field>
+            <mat-form-field class="example-full-width" appearance="outline">
+              <mat-label>Hora de prueba</mat-label>
+              <input matInput type="time" formControlName="horaPruebaEntrevista">
+            </mat-form-field>
+            <mat-form-field class="example-full-width" appearance="outline">
+              <mat-label>Dirección de la empresa</mat-label>
+              <input matInput formControlName="direccionEmpresa">
+            </mat-form-field>
+          }
+        </div>
+
+        <!-- ═══ Resultado de la prueba técnica: "No pasó" ═══ -->
+        @if (isPrueba()) {
+          <div class="no-paso-block">
+            @if (noPasoPrueba()) {
+              <div class="no-paso-banner">
+                <mat-icon>cancel</mat-icon>
+                <div class="no-paso-info">
+                  <strong>No pasó la prueba técnica.</strong>
+                  @if (noPasoPruebaAt()) {
+                    <span class="no-paso-fecha">Fecha: {{ formatShortDate(noPasoPruebaAt()) }}</span>
+                  }
+                  @if (motivoNoPaso()) {
+                    <div class="no-paso-motivo">Motivo: {{ motivoNoPaso() }}</div>
+                  }
+                </div>
+              </div>
+            }
+
+            <div class="no-paso-actions">
+              <button mat-stroked-button color="warn" type="button"
+                [disabled]="vacantesForm.disabled || bloqueado()"
+                (click)="marcarNoPasoPrueba()">
+                <mat-icon>thumb_down</mat-icon>
+                {{ noPasoPrueba() ? 'Editar motivo (no pasó)' : 'No pasó la prueba técnica' }}
+              </button>
+              @if (noPasoPrueba()) {
+                <button mat-button type="button" [disabled]="bloqueado()" (click)="quitarNoPasoPrueba()">
+                  Quitar marca
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="actions">
+          <!-- Formato de calidad para llevar a la empresa. No guarda nada: solo
+               arma el PDF con lo que ya está en pantalla, así que se ofrece
+               también a quien tiene la remisión en solo lectura. -->
+          <button mat-stroked-button type="button"
+            [disabled]="bloqueado() || !candidatoSeleccionado()?.numero_documento"
+            matTooltip="Genera el formato de remisión (Apoyo o Tu Alianza) para imprimir"
+            (click)="generarRemision()">
+            <mat-icon>assignment</mat-icon>
+            Remisión
+          </button>
+        </div>
+
+        @if (!(isRemisionReadOnly() && isPreloadedVacancy())) {
           <div class="actions">
-            <!-- Formato de calidad para llevar a la empresa. No guarda nada: solo
-                 arma el PDF con lo que ya está en pantalla, así que se ofrece
-                 también a quien tiene la remisión en solo lectura. -->
-            <button mat-stroked-button type="button"
-              [disabled]="bloqueado() || !candidatoSeleccionado()?.numero_documento"
-              matTooltip="Genera el formato de remisión (Apoyo o Tu Alianza) para imprimir"
-              (click)="generarRemision()">
-              <mat-icon>assignment</mat-icon>
-              Remisión
+            <button type="button"
+              [class.btn-managerial]="!limpiarVacante()"
+              [class.btn-quitar]="limpiarVacante()"
+              [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
+              (click)="guardarVacantes()">
+              <mat-icon>{{ limpiarVacante() ? 'delete_outline' : 'save' }}</mat-icon>
+              {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
             </button>
           </div>
+        }
+      </form>
 
-          @if (!(isRemisionReadOnly() && isPreloadedVacancy())) {
-            <div class="actions">
-              <button type="button"
-                [class.btn-managerial]="!limpiarVacante()"
-                [class.btn-quitar]="limpiarVacante()"
-                [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
-                (click)="guardarVacantes()">
-                <mat-icon>{{ limpiarVacante() ? 'delete_outline' : 'save' }}</mat-icon>
-                {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
-              </button>
-            </div>
-          }
-        </form>
-      </mat-tab>
-    </mat-tab-group>
+</app-form-entrevista>

@@ -11,186 +11,353 @@
 </div>
 
 <div mat-dialog-content>
-  <form [formGroup]="vacanteForm">
+  <!--
+    El formulario dejó de ser una rejilla plana de 18 campos. Ahora va por
+    secciones, en el orden en que se diligencia: primero el centro de costo
+    (que es el que TRAE empresa, dirección y temporal), luego la vacante, la
+    vinculación, el reparto por municipio y por último las oficinas.
+  -->
+  <form [formGroup]="vacanteForm" class="vac-form">
 
-    <!-- ===================== Total personas ===================== -->
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('personasSolicitadas')}">
-      <mat-label>Personas solicitadas (total)</mat-label>
-      <input matInput type="number" formControlName="personasSolicitadas" min="1" step="1">
+    <!-- ══════════ 1 · Centro de costo ══════════ -->
+    <section class="vac-sec">
+      <header class="vac-sec-head">
+        <span class="vac-sec-num">1</span>
+        <h3 class="vac-sec-title">Centro de costo</h3>
+        <span class="vac-sec-hint">Elígelo primero: de aquí salen la empresa, la dirección y la temporal</span>
+      </header>
 
-      @if (vacanteForm.get('personasSolicitadas')?.hasError('required')) {
-        <mat-error>
-          Indique el número total de personas solicitadas.
-        </mat-error>
-      }
-      @if (vacanteForm.get('personasSolicitadas')?.hasError('min')) {
-        <mat-error>
-          Debe ser un valor mayor o igual a 1.
-        </mat-error>
-      }
-    </mat-form-field>
-
-    <!-- ===================== Campos básicos ===================== -->
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('cargo')}">
-      <mat-label>Cargo</mat-label>
-      <input type="text" matInput formControlName="cargo" [matAutocomplete]="autoCargo">
-      <mat-autocomplete #autoCargo="matAutocomplete">
-        @for (cargo of (filteredCargos | async) ?? []; track cargo) {
-          <mat-option [value]="cargo">
-            {{ cargo }}
-          </mat-option>
-        }
-      </mat-autocomplete>
-      @if (vacanteForm.get('cargo')?.hasError('required')) {
-        <mat-error>
-          El cargo es obligatorio.
-        </mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('finca')}">
-      <mat-label>Centro de Costo</mat-label>
-      <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto">
-      <mat-autocomplete #autoCentroCosto="matAutocomplete" (optionSelected)="onCentroCostoSelected($event)">
-        @for (centro of (filteredCentrosCostos | async) ?? []; track centro) {
-          <mat-option [value]="centro">
-            {{ centro }}
-          </mat-option>
-        }
-      </mat-autocomplete>
-      @if (vacanteForm.get('finca')?.hasError('required')) {
-        <mat-error>
-          El centro de costo es obligatorio.
-        </mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('direccion')}">
-      <mat-label>Dirección</mat-label>
-      <input matInput formControlName="direccion">
-      @if (vacanteForm.get('direccion')?.hasError('required')) {
-        <mat-error>
-          La dirección es obligatoria.
-        </mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('empresaUsuariaSolicita')}">
-      <mat-label>Empresa</mat-label>
-      <input matInput formControlName="empresaUsuariaSolicita">
-      @if (vacanteForm.get('empresaUsuariaSolicita')?.hasError('required')) {
-        <mat-error>
-          La empresa usuaria es obligatoria.
-        </mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('temporal')}">
-      <mat-label>Temporal</mat-label>
-      <mat-select formControlName="temporal">
-        <mat-option value="APOYO LABORAL SAS">APOYO LABORAL SAS</mat-option>
-        <mat-option value="TU ALIANZA SAS">TU ALIANZA SAS</mat-option>
-      </mat-select>
-      @if (vacanteForm.get('temporal')?.hasError('required')) {
-        <mat-error>
-          La temporal es obligatoria.
-        </mat-error>
-      }
-    </mat-form-field>
-
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('area')}">
-      <mat-label>Área</mat-label>
-      <mat-select formControlName="area">
-        @for (area of areas; track area) {
-          <mat-option [value]="area">{{ area }}</mat-option>
-        }
-      </mat-select>
-      @if (vacanteForm.get('area')?.hasError('required')) {
-        <mat-error>
-          Seleccione un área.
-        </mat-error>
-      }
-    </mat-form-field>
-
-    <!-- salario -->
-    <mat-form-field [ngClass]="{'input-obligatorio': isRequired('salario')}">
-      <mat-label>Salario</mat-label>
-      <input
-        matInput
-        type="text"
-        formControlName="salario"
-        (input)="formatSalary($event)"
-        (blur)="onBlur($event)">
-        @if (vacanteForm.get('salario')?.hasError('required')) {
-          <mat-error>
-            El salario es obligatorio.
-          </mat-error>
-        }
-        @if (vacanteForm.get('salario')?.hasError('min')) {
-          <mat-error>
-            Ingrese un valor mayor o igual a 0.
-          </mat-error>
-        }
-      </mat-form-field>
-
-      <!-- ===================== Fecha de ingreso (solo Contratación inmediata) =====================
-           El toggle "Tiene Fecha de Ingreso" se maneja automáticamente y NO se muestra:
-           la fecha de ingreso aparece y es obligatoria solo cuando la vacante es de
-           Contratación inmediata; al cambiar de opción el dato se borra. -->
-      @if (vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
-        <mat-form-field
-          [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
-          <mat-label>Fecha de Ingreso</mat-label>
-          <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
-          <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
-          <mat-datepicker #picker2></mat-datepicker>
-          @if (vacanteForm.get('fechadeIngreso')?.hasError('required')) {
+      <div class="vac-grid">
+        <mat-form-field class="vac-col-2" [ngClass]="{'input-obligatorio': isRequired('finca')}">
+          <mat-label>Centro de Costo</mat-label>
+          <input type="text" matInput formControlName="finca" [matAutocomplete]="autoCentroCosto">
+          <mat-autocomplete #autoCentroCosto="matAutocomplete" (optionSelected)="onCentroCostoSelected($event)">
+            @for (centro of (filteredCentrosCostos | async) ?? []; track centro) {
+              <mat-option [value]="centro">
+                {{ centro }}
+              </mat-option>
+            }
+          </mat-autocomplete>
+          @if (vacanteForm.get('finca')?.hasError('required')) {
             <mat-error>
-              La fecha de ingreso es obligatoria.
+              El centro de costo es obligatorio.
             </mat-error>
           }
         </mat-form-field>
-      }
+      </div>
 
-      <mat-form-field [ngClass]="{'input-obligatorio': isRequired('auxilioTransporte')}">
-        <mat-label>Auxilio Transporte</mat-label>
-        <mat-select formControlName="auxilioTransporte">
-          <mat-option value="Si">Sí</mat-option>
-          <mat-option value="No">No</mat-option>
-        </mat-select>
-        @if (vacanteForm.get('auxilioTransporte')?.hasError('required')) {
-          <mat-error>
-            Indique si incluye auxilio de transporte.
-          </mat-error>
+      <!-- Lo que trajo el centro de costo. Sigue siendo editable: si se ajusta,
+           se marca, porque a partir de ahí ya no coincide con su ficha. -->
+      <div class="vac-heredado" [class.vac-heredado-activo]="!!heredadoDe">
+        <div class="vac-heredado-tag">
+          <mat-icon>{{ heredadoDe ? 'link' : 'link_off' }}</mat-icon>
+          @if (heredadoDe) {
+            <span class="vac-heredado-txt">
+              Datos que trae <strong>{{ heredadoDe }}</strong> · puedes ajustarlos
+            </span>
+          } @else {
+            <span class="vac-heredado-txt">
+              Se completan solos al elegir el centro de costo
+            </span>
+          }
+
+          @if (hayAjustes) {
+            <button type="button" class="vac-restaurar" (click)="restaurarHeredados()"
+                    matTooltip="Volver a los valores del centro de costo">
+              <mat-icon>undo</mat-icon> Restaurar
+            </button>
+          }
+        </div>
+
+        <div class="vac-grid">
+          <mat-form-field [class.vac-ajustado]="fueAjustado('empresa')"
+                          [ngClass]="{'input-obligatorio': isRequired('empresaUsuariaSolicita')}">
+            <mat-label>Empresa</mat-label>
+            <input matInput formControlName="empresaUsuariaSolicita">
+            @if (fueAjustado('empresa')) {
+              <mat-hint class="vac-hint-ajustado">Ajustado a mano</mat-hint>
+            }
+            @if (vacanteForm.get('empresaUsuariaSolicita')?.hasError('required')) {
+              <mat-error>
+                La empresa usuaria es obligatoria.
+              </mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field [class.vac-ajustado]="fueAjustado('direccion')"
+                          [ngClass]="{'input-obligatorio': isRequired('direccion')}">
+            <mat-label>Dirección</mat-label>
+            <input matInput formControlName="direccion">
+            @if (fueAjustado('direccion')) {
+              <mat-hint class="vac-hint-ajustado">Ajustado a mano</mat-hint>
+            }
+            @if (vacanteForm.get('direccion')?.hasError('required')) {
+              <mat-error>
+                La dirección es obligatoria.
+              </mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field [class.vac-ajustado]="fueAjustado('temporal')"
+                          [ngClass]="{'input-obligatorio': isRequired('temporal')}">
+            <mat-label>Temporal</mat-label>
+            <mat-select formControlName="temporal">
+              <mat-option value="APOYO LABORAL SAS">APOYO LABORAL SAS</mat-option>
+              <mat-option value="TU ALIANZA SAS">TU ALIANZA SAS</mat-option>
+            </mat-select>
+            @if (fueAjustado('temporal')) {
+              <mat-hint class="vac-hint-ajustado">Ajustado a mano</mat-hint>
+            }
+            @if (vacanteForm.get('temporal')?.hasError('required')) {
+              <mat-error>
+                La temporal es obligatoria.
+              </mat-error>
+            }
+          </mat-form-field>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ 2 · La vacante ══════════ -->
+    <section class="vac-sec">
+      <header class="vac-sec-head">
+        <span class="vac-sec-num">2</span>
+        <h3 class="vac-sec-title">La vacante</h3>
+        <span class="vac-sec-hint">Qué se busca y en qué condiciones</span>
+      </header>
+
+      <div class="vac-grid">
+        <mat-form-field class="vac-col-2" [ngClass]="{'input-obligatorio': isRequired('cargo')}">
+          <mat-label>Cargo</mat-label>
+          <input type="text" matInput formControlName="cargo" [matAutocomplete]="autoCargo">
+          <mat-autocomplete #autoCargo="matAutocomplete">
+            @for (cargo of (filteredCargos | async) ?? []; track cargo) {
+              <mat-option [value]="cargo">
+                {{ cargo }}
+              </mat-option>
+            }
+          </mat-autocomplete>
+          @if (vacanteForm.get('cargo')?.hasError('required')) {
+            <mat-error>
+              El cargo es obligatorio.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('area')}">
+          <mat-label>Área</mat-label>
+          <mat-select formControlName="area">
+            @for (area of areas; track area) {
+              <mat-option [value]="area">{{ area }}</mat-option>
+            }
+          </mat-select>
+          @if (vacanteForm.get('area')?.hasError('required')) {
+            <mat-error>
+              Seleccione un área.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('personasSolicitadas')}">
+          <mat-label>Personas solicitadas (total)</mat-label>
+          <input matInput type="number" formControlName="personasSolicitadas" min="1" step="1">
+          @if (vacanteForm.get('personasSolicitadas')?.hasError('required')) {
+            <mat-error>
+              Indique el número total de personas solicitadas.
+            </mat-error>
+          }
+          @if (vacanteForm.get('personasSolicitadas')?.hasError('min')) {
+            <mat-error>
+              Debe ser un valor mayor o igual a 1.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('salario')}">
+          <mat-label>Salario</mat-label>
+          <input
+            matInput
+            type="text"
+            formControlName="salario"
+            (input)="formatSalary($event)"
+            (blur)="onBlur($event)">
+          @if (vacanteForm.get('salario')?.hasError('required')) {
+            <mat-error>
+              El salario es obligatorio.
+            </mat-error>
+          }
+          @if (vacanteForm.get('salario')?.hasError('min')) {
+            <mat-error>
+              Ingrese un valor mayor o igual a 0.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('auxilioTransporte')}">
+          <mat-label>Auxilio Transporte</mat-label>
+          <mat-select formControlName="auxilioTransporte">
+            <mat-option value="Si">Sí</mat-option>
+            <mat-option value="No">No</mat-option>
+          </mat-select>
+          @if (vacanteForm.get('auxilioTransporte')?.hasError('required')) {
+            <mat-error>
+              Indique si incluye auxilio de transporte.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tipoContratacion')}">
+          <mat-label>Tipo de Contratación</mat-label>
+          <mat-select formControlName="tipoContratacion">
+            <mat-option value="Obra Labor">Obra Labor</mat-option>
+            <mat-option value="Fijo Inferior a un año">Fijo Inferior a un año</mat-option>
+            <mat-option value="Fijo a un año">Fijo a un año</mat-option>
+            <mat-option value="Indefinido">Indefinido</mat-option>
+          </mat-select>
+          @if (vacanteForm.get('tipoContratacion')?.hasError('required')) {
+            <mat-error>
+              Seleccione el tipo de contratación.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('experiencia')}">
+          <mat-label>Requiere Experiencia</mat-label>
+          <mat-select formControlName="experiencia">
+            <mat-option value="SI">Sí</mat-option>
+            <mat-option value="NO">No</mat-option>
+            <mat-option value="AMBAS">Ambas</mat-option>
+          </mat-select>
+          @if (vacanteForm.get('experiencia')?.hasError('required')) {
+            <mat-error>
+              Indique si requiere experiencia.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field>
+          <mat-label>Código Bot</mat-label>
+          <input matInput formControlName="codigoElite">
+        </mat-form-field>
+
+        <mat-form-field class="vac-col-full" [ngClass]="{'input-obligatorio': isRequired('descripcion')}">
+          <mat-label>Descripción</mat-label>
+          <input matInput formControlName="descripcion">
+          @if (vacanteForm.get('descripcion')?.hasError('required')) {
+            <mat-error>
+              La descripción es obligatoria.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field class="vac-col-full">
+          <mat-label>Observación Vacante</mat-label>
+          <input matInput formControlName="observacionVacante">
+        </mat-form-field>
+      </div>
+    </section>
+
+    <!-- ══════════ 3 · Vinculación ══════════ -->
+    <section class="vac-sec">
+      <header class="vac-sec-head">
+        <span class="vac-sec-num">3</span>
+        <h3 class="vac-sec-title">Vinculación</h3>
+        <span class="vac-sec-hint">Prueba técnica o contratación inmediata</span>
+      </header>
+
+      <div class="vac-grid">
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('pruebaOContratacion')}">
+          <mat-label>Prueba o Contratación</mat-label>
+          <mat-select formControlName="pruebaOContratacion">
+            <mat-option value="Prueba">Prueba técnica</mat-option>
+            <mat-option value="Contratación">Contratación inmediata</mat-option>
+          </mat-select>
+          @if (vacanteForm.get('pruebaOContratacion')?.hasError('required')) {
+            <mat-error>
+              Seleccione el tipo de vinculación.
+            </mat-error>
+          }
+        </mat-form-field>
+
+        <!-- Fecha de ingreso: solo en Contratación inmediata. El toggle "Tiene
+             Fecha de Ingreso" se maneja solo y no se muestra; al cambiar de
+             opción el dato se borra. -->
+        @if (vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
+          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
+            <mat-label>Fecha de Ingreso</mat-label>
+            <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
+            <mat-datepicker-toggle matSuffix [for]="picker2"></mat-datepicker-toggle>
+            <mat-datepicker #picker2></mat-datepicker>
+            @if (vacanteForm.get('fechadeIngreso')?.hasError('required')) {
+              <mat-error>
+                La fecha de ingreso es obligatoria.
+              </mat-error>
+            }
+          </mat-form-field>
         }
-      </mat-form-field>
 
-      <!-- ===================== Municipios ===================== -->
-      <mat-form-field appearance="fill" [ngClass]="{'input-obligatorio': isRequired('municipio')}">
-        <mat-label>Municipio(s)</mat-label>
+        @if (vacanteForm.get('pruebaOContratacion')?.value === 'Prueba') {
+          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('fechadePruebatecnica')}">
+            <mat-label>Fecha de Prueba Técnica</mat-label>
+            <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica">
+            <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
+            <mat-datepicker #picker1></mat-datepicker>
+            @if (vacanteForm.get('fechadePruebatecnica')?.hasError('required')) {
+              <mat-error>
+                La fecha de la prueba es obligatoria.
+              </mat-error>
+            }
+          </mat-form-field>
 
-        <mat-select
-          formControlName="municipio"
-          multiple
-          panelClass="select-panel"
-          (openedChange)="resetFiltroMunicipio()">
+          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('horadePruebatecnica')}">
+            <mat-label>Hora de Prueba Técnica</mat-label>
+            <input matInput type="time" formControlName="horadePruebatecnica">
+            @if (vacanteForm.get('horadePruebatecnica')?.hasError('required')) {
+              <mat-error>
+                La hora de la prueba es obligatoria.
+              </mat-error>
+            }
+          </mat-form-field>
 
-          <mat-option disabled class="no-select filtro-option">
-            <input
-              matInput
-              placeholder="Buscar municipio..."
-              [(ngModel)]="municipioFiltro"
-              (ngModelChange)="filtrarMunicipios()"
-              [ngModelOptions]="{standalone: true}"
-              (keydown)="$event.stopPropagation()"
-              (click)="$event.stopPropagation()">
+          <mat-form-field>
+            <mat-label>Ubicación Prueba Técnica</mat-label>
+            <input matInput formControlName="ubicacionPruebaTecnica">
+          </mat-form-field>
+        }
+      </div>
+    </section>
+
+    <!-- ══════════ 4 · Dónde y cuántos ══════════ -->
+    <section class="vac-sec">
+      <header class="vac-sec-head">
+        <span class="vac-sec-num">4</span>
+        <h3 class="vac-sec-title">Dónde y cuántos</h3>
+        <span class="vac-sec-hint">Reparte el total solicitado entre los municipios</span>
+      </header>
+
+      <div class="vac-grid">
+        <mat-form-field class="vac-col-2" appearance="fill"
+                        [ngClass]="{'input-obligatorio': isRequired('municipio')}">
+          <mat-label>Municipio(s)</mat-label>
+          <mat-select
+            formControlName="municipio"
+            multiple
+            panelClass="select-panel"
+            (openedChange)="resetFiltroMunicipio()">
+            <mat-option disabled class="no-select filtro-option">
+              <input
+                matInput
+                placeholder="Buscar municipio..."
+                [(ngModel)]="municipioFiltro"
+                (ngModelChange)="filtrarMunicipios()"
+                [ngModelOptions]="{standalone: true}"
+                (keydown)="$event.stopPropagation()"
+                (click)="$event.stopPropagation()">
             </mat-option>
-
             @for (m of municipiosFiltrados; track m) {
               <mat-option [value]="m">{{ m }}</mat-option>
             }
           </mat-select>
-
           @if (vacanteForm.get('municipio')?.hasError('required')) {
             <mat-error>
               Seleccione al menos un municipio.
@@ -198,226 +365,133 @@
           }
         </mat-form-field>
 
-        <!-- ===================== Barrio (se agrega a la distribución) ===================== -->
-        <mat-form-field appearance="fill">
+        <mat-form-field class="vac-col-2" appearance="fill">
           <mat-label>Agregar barrio</mat-label>
           <input
             matInput
             placeholder="Escribe el barrio"
             formControlName="barrio"
             (keyup.enter)="onAddBarrioFromForm()">
+          <button
+            mat-icon-button
+            matSuffix
+            aria-label="Agregar barrio"
+            type="button"
+            (click)="onAddBarrioFromForm()"
+            [disabled]="!(vacanteForm.get('barrio')?.value || '').toString().trim()">
+            <mat-icon>add</mat-icon>
+          </button>
+          <mat-hint>Se añadirá abajo como “B - Nombre del barrio”.</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <div formArrayName="municipiosDistribucion">
+        @for (fg of municipiosDistribucion.controls; track fg; let i = $index) {
+          <div [formGroupName]="i" class="row-muni">
+            <mat-form-field>
+              <mat-label>Municipio</mat-label>
+              <input matInput formControlName="municipio" readonly>
+            </mat-form-field>
+            <mat-form-field [ngClass]="{'input-obligatorio': isRequired(fg.get('cantidad'))}">
+              <mat-label>Cantidad</mat-label>
+              <input matInput type="number" formControlName="cantidad" min="0" step="1">
+              @if (fg.get('cantidad')?.hasError('required')) {
+                <mat-error>
+                  La cantidad es obligatoria.
+                </mat-error>
+              }
+              @if (fg.get('cantidad')?.hasError('min')) {
+                <mat-error>
+                  La cantidad no puede ser negativa.
+                </mat-error>
+              }
+            </mat-form-field>
+          </div>
+        }
+      </div>
+
+      <!-- Resumen del reparto. El restante en rojo cuando aún falta por asignar
+           evita descubrir el descuadre solo al pulsar Guardar. -->
+      <div class="resumen-muni">
+        <span><strong>Total asignado:</strong> {{ totalAsignado }}</span>
+        <span [class.resumen-pendiente]="restante !== 0"><strong>Restante:</strong> {{ restante }}</span>
+      </div>
+
+      @if (vacanteForm.hasError('excesoMunicipios') || vacanteForm.hasError('sumaNoIgualTotal')) {
+        <div class="error-dist">
+          @if (vacanteForm.hasError('excesoMunicipios')) {
+            La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+          } @else {
+            La suma por municipio ({{ totalAsignado }}) debe ser igual al total solicitado ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+          }
+        </div>
+      }
+    </section>
+
+    <!-- ══════════ 5 · Oficinas que contratan ══════════ -->
+    <section class="vac-sec">
+      <header class="vac-sec-head">
+        <span class="vac-sec-num">5</span>
+        <h3 class="vac-sec-title">Oficinas que contratan</h3>
+        <span class="vac-sec-hint">Quiénes pueden tomar esta vacante y si tienen ruta</span>
+      </header>
+
+      <div class="vac-grid">
+        <mat-form-field class="vac-col-2" [ngClass]="{'input-obligatorio': isRequired('oficinasSeleccionadas')}">
+          <mat-label>Seleccione las oficinas que pueden contratar</mat-label>
+          <mat-select formControlName="oficinasSeleccionadas" multiple>
+            @for (sede of sedes; track sede) {
+              <mat-option [value]="sede.nombre">{{ sede.nombre }}</mat-option>
+            }
+          </mat-select>
+          @if (vacanteForm.get('oficinasSeleccionadas')?.hasError('required')) {
+            <mat-error>
+              Seleccione al menos una oficina.
+            </mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <div formArrayName="oficinasQueContratan">
+        @for (oficinaCtrl of oficinasQueContratan.controls; track oficinaCtrl; let i = $index) {
+          <div [formGroupName]="i">
+            <mat-form-field [ngClass]="{'input-obligatorio': isRequired(oficinaCtrl.get('nombre'))}">
+              <mat-label>Nombre de Oficina</mat-label>
+              <input matInput formControlName="nombre" readonly>
+              @if (oficinaCtrl.get('nombre')?.hasError('required')) {
+                <mat-error>
+                  El nombre de la oficina es obligatorio.
+                </mat-error>
+              }
+            </mat-form-field>
+            <mat-checkbox formControlName="ruta">¿Tiene Ruta?</mat-checkbox>
             <button
               mat-icon-button
-              matSuffix
-              aria-label="Agregar barrio"
+              class="btn-eliminar-oficina"
               type="button"
-              (click)="onAddBarrioFromForm()"
-              [disabled]="!(vacanteForm.get('barrio')?.value || '').toString().trim()">
-              <mat-icon>add</mat-icon>
+              (click)="eliminarOficina(i)"
+              matTooltip="Eliminar oficina"
+              aria-label="Eliminar oficina">
+              <mat-icon>delete</mat-icon>
             </button>
-            <mat-hint>Se añadirá abajo como “B - Nombre del barrio”.</mat-hint>
-          </mat-form-field>
-
-          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('pruebaOContratacion')}">
-            <mat-label>Prueba o Contratación</mat-label>
-            <mat-select formControlName="pruebaOContratacion">
-              <mat-option value="Prueba">Prueba técnica</mat-option>
-              <mat-option value="Contratación">Contratación inmediata</mat-option>
-            </mat-select>
-            @if (vacanteForm.get('pruebaOContratacion')?.hasError('required')) {
-              <mat-error>
-                Seleccione el tipo de vinculación.
-              </mat-error>
-            }
-          </mat-form-field>
-
-          <!-- Campos visibles SOLO si es Prueba -->
-          @if (vacanteForm.get('pruebaOContratacion')?.value === 'Prueba') {
-            <mat-form-field
-              [ngClass]="{'input-obligatorio': isRequired('fechadePruebatecnica')}">
-              <mat-label>Fecha de Prueba Técnica</mat-label>
-              <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica">
-              <mat-datepicker-toggle matSuffix [for]="picker1"></mat-datepicker-toggle>
-              <mat-datepicker #picker1></mat-datepicker>
-              @if (vacanteForm.get('fechadePruebatecnica')?.hasError('required')) {
-                <mat-error>
-                  La fecha de la prueba es obligatoria.
-                </mat-error>
-              }
-            </mat-form-field>
-          }
-
-          @if (vacanteForm.get('pruebaOContratacion')?.value === 'Prueba') {
-            <mat-form-field
-              [ngClass]="{'input-obligatorio': isRequired('horadePruebatecnica')}">
-              <mat-label>Hora de Prueba Técnica</mat-label>
-              <input matInput type="time" formControlName="horadePruebatecnica">
-              @if (vacanteForm.get('horadePruebatecnica')?.hasError('required')) {
-                <mat-error>
-                  La hora de la prueba es obligatoria.
-                </mat-error>
-              }
-            </mat-form-field>
-          }
-
-          @if (vacanteForm.get('pruebaOContratacion')?.value === 'Prueba') {
-            <mat-form-field>
-              <mat-label>Ubicación Prueba Técnica</mat-label>
-              <input matInput formControlName="ubicacionPruebaTecnica">
-            </mat-form-field>
-          }
-
-          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('descripcion')}">
-            <mat-label>Descripción</mat-label>
-            <input matInput formControlName="descripcion">
-            @if (vacanteForm.get('descripcion')?.hasError('required')) {
-              <mat-error>
-                La descripción es obligatoria.
-              </mat-error>
-            }
-          </mat-form-field>
-
-          <mat-form-field>
-            <mat-label>Observación Vacante</mat-label>
-            <input matInput formControlName="observacionVacante">
-          </mat-form-field>
-
-          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tipoContratacion')}">
-            <mat-label>Tipo de Contratación</mat-label>
-            <mat-select formControlName="tipoContratacion">
-              <mat-option value="Obra Labor">Obra Labor</mat-option>
-              <mat-option value="Fijo Inferior a un año">Fijo Inferior a un año</mat-option>
-              <mat-option value="Fijo a un año">Fijo a un año</mat-option>
-              <mat-option value="Indefinido">Indefinido</mat-option>
-            </mat-select>
-            @if (vacanteForm.get('tipoContratacion')?.hasError('required')) {
-              <mat-error>
-                Seleccione el tipo de contratación.
-              </mat-error>
-            }
-          </mat-form-field>
-
-          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('experiencia')}">
-            <mat-label>Requiere Experiencia</mat-label>
-            <mat-select formControlName="experiencia">
-              <mat-option value="SI">Sí</mat-option>
-              <mat-option value="NO">No</mat-option>
-              <mat-option value="AMBAS">Ambas</mat-option>
-            </mat-select>
-            @if (vacanteForm.get('experiencia')?.hasError('required')) {
-              <mat-error>
-                Indique si requiere experiencia.
-              </mat-error>
-            }
-          </mat-form-field>
-
-          <mat-form-field>
-            <mat-label>Código Bot</mat-label>
-            <input matInput formControlName="codigoElite">
-          </mat-form-field>
-
-          <!-- ===================== Distribución por municipio ===================== -->
-          <h3 class="section-title">Distribución por municipio</h3>
-
-          <div formArrayName="municipiosDistribucion">
-            @for (fg of municipiosDistribucion.controls; track fg; let i = $index) {
-              <div
-                [formGroupName]="i"
-                class="row-muni">
-                <mat-form-field>
-                  <mat-label>Municipio</mat-label>
-                  <input matInput formControlName="municipio" readonly>
-                </mat-form-field>
-                <mat-form-field [ngClass]="{'input-obligatorio': isRequired(fg.get('cantidad'))}">
-                  <mat-label>Cantidad</mat-label>
-                  <input matInput type="number" formControlName="cantidad" min="0" step="1">
-                  @if (fg.get('cantidad')?.hasError('required')) {
-                    <mat-error>
-                      La cantidad es obligatoria.
-                    </mat-error>
-                  }
-                  @if (fg.get('cantidad')?.hasError('min')) {
-                    <mat-error>
-                      La cantidad no puede ser negativa.
-                    </mat-error>
-                  }
-                </mat-form-field>
-              </div>
-            }
           </div>
-
-          <!-- ===================== Resumen + errores (OPCIÓN B) ===================== -->
-          <div class="resumen-muni" style="display:flex; gap:16px; align-items:center; margin:8px 0;">
-            <span><strong>Total asignado:</strong> {{ totalAsignado }}</span>
-            <span><strong>Restante:</strong> {{ restante }}</span>
-          </div>
-
-          <!-- ✅ ERRORES BIEN UBICADOS: debajo del resumen -->
-          @if (vacanteForm.hasError('excesoMunicipios') || vacanteForm.hasError('sumaNoIgualTotal')) {
-            <div
-              class="error-dist"
-              style="margin: 6px 0 12px 0; font-size: 12px; color: #d32f2f; font-weight: 700;">
-              @if (vacanteForm.hasError('excesoMunicipios')) {
-                La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
-              } @else {
-                La suma por municipio ({{ totalAsignado }}) debe ser igual al total solicitado ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
-              }
-            </div>
-          }
-
-          <!-- ===================== Oficinas ===================== -->
-          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('oficinasSeleccionadas')}">
-            <mat-label>Seleccione las oficinas que pueden contratar</mat-label>
-
-            <mat-select formControlName="oficinasSeleccionadas" multiple>
-              @for (sede of sedes; track sede) {
-                <mat-option [value]="sede.nombre">{{ sede.nombre }}</mat-option>
-              }
-            </mat-select>
-
-            @if (vacanteForm.get('oficinasSeleccionadas')?.hasError('required')) {
-              <mat-error>
-                Seleccione al menos una oficina.
-              </mat-error>
-            }
-          </mat-form-field>
-
-          <h3 class="section-title">Oficinas Que Contratan</h3>
-          <div formArrayName="oficinasQueContratan">
-            @for (oficinaCtrl of oficinasQueContratan.controls; track oficinaCtrl; let i = $index) {
-              <div [formGroupName]="i">
-                <mat-form-field [ngClass]="{'input-obligatorio': isRequired(oficinaCtrl.get('nombre'))}">
-                  <mat-label>Nombre de Oficina</mat-label>
-                  <input matInput formControlName="nombre" readonly>
-                  @if (oficinaCtrl.get('nombre')?.hasError('required')) {
-                    <mat-error>
-                      El nombre de la oficina es obligatorio.
-                    </mat-error>
-                  }
-                </mat-form-field>
-                <mat-checkbox formControlName="ruta">¿Tiene Ruta?</mat-checkbox>
-                <button
-                  mat-icon-button
-                  class="btn-eliminar-oficina"
-                  type="button"
-                  (click)="eliminarOficina(i)"
-                  matTooltip="Eliminar oficina"
-                  aria-label="Eliminar oficina">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </div>
-            }
-          </div>
-
-        </form>
+        }
       </div>
 
-      <div mat-dialog-actions class="dialog-footer">
-        <button mat-button type="button" class="btn-cancel" (click)="cancelar()">
-          Cancelar
-        </button>
+      @if (!oficinasQueContratan.controls.length) {
+        <p class="vac-vacio">Aún no hay oficinas seleccionadas.</p>
+      }
+    </section>
 
-        <button mat-flat-button type="button" class="btn-managerial" (click)="guardar()">
-          <mat-icon>save</mat-icon> Guardar
-        </button>
-      </div>
+  </form>
+</div>
+
+<div mat-dialog-actions class="dialog-footer">
+  <button mat-button type="button" class="btn-cancel" (click)="cancelar()">
+    Cancelar
+  </button>
+
+  <button mat-flat-button type="button" class="btn-managerial" (click)="guardar()">
+    <mat-icon>save</mat-icon> Guardar
+  </button>
+</div>

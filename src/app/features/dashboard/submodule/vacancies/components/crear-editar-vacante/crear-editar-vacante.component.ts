@@ -27,6 +27,7 @@ import { MatNativeDateModule, MAT_DATE_FORMATS, DateAdapter, MAT_DATE_LOCALE } f
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MomentDateAdapter } from '@angular/material-moment-adapter';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { Observable, Subject, of } from 'rxjs';
 import { catchError, map, startWith, takeUntil } from 'rxjs/operators';
@@ -72,6 +73,7 @@ type DepCiudades = { ciudades: string[] };
     MatAutocompleteModule,
     FormsModule,
     MatChipsModule,
+    MatTooltipModule,
   ],
   templateUrl: './crear-editar-vacante.component.html',
   styleUrls: ['./crear-editar-vacante.component.css'],
@@ -104,6 +106,59 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   centrosCostos: string[] = [];
   filteredCentrosCostos: Observable<string[]> = of([]);
+
+  // ==========================================================================
+  // PROCEDENCIA DE LOS DATOS HEREDADOS DEL CENTRO DE COSTO
+  // ==========================================================================
+  /*
+   * Empresa, Dirección y Temporal no se escriben a mano: los trae el centro de
+   * costo (`onCentroCostoSelected`). En la pantalla vieja eso era invisible —
+   * tres campos idénticos al resto que "se llenaban solos" y nadie sabía de
+   * dónde salían ni si podía tocarlos. Ahora el formulario los agrupa y dice
+   * de qué centro vienen, y marca el que se haya ajustado a mano para que la
+   * diferencia con la ficha del centro de costo quede a la vista antes de
+   * guardar.
+   */
+
+  /** Centro de costo que rellenó los tres campos. `null` = todavía ninguno. */
+  heredadoDe: string | null = null;
+
+  /** Lo que trajo ese centro, tal cual, para detectar ajustes manuales. */
+  private heredado: { empresa: string; direccion: string; temporal: string } | null = null;
+
+  /** Normaliza para comparar: lo que importa es el dato, no mayúsculas ni bordes. */
+  private norm(v: unknown): string {
+    return (v ?? '').toString().trim().toUpperCase();
+  }
+
+  /**
+   * El valor actual del campo ya no coincide con el que trajo el centro de
+   * costo. Sólo tiene sentido cuando hubo herencia previa.
+   */
+  fueAjustado(campo: 'empresa' | 'direccion' | 'temporal'): boolean {
+    if (!this.heredado) return false;
+    const actual =
+      campo === 'empresa' ? this.vacanteForm?.get('empresaUsuariaSolicita')?.value
+      : campo === 'direccion' ? this.vacanteForm?.get('direccion')?.value
+      : this.vacanteForm?.get('temporal')?.value;
+    return this.norm(actual) !== this.norm(this.heredado[campo]);
+  }
+
+  /** ¿Hay algún ajuste manual sobre lo que trajo el centro de costo? */
+  get hayAjustes(): boolean {
+    return this.fueAjustado('empresa') || this.fueAjustado('direccion') || this.fueAjustado('temporal');
+  }
+
+  /** Vuelve a poner los tres campos como los dejó el centro de costo. */
+  restaurarHeredados(): void {
+    if (!this.heredado) return;
+    this.vacanteForm.patchValue({
+      empresaUsuariaSolicita: this.heredado.empresa || null,
+      direccion: this.heredado.direccion || null,
+      temporal: this.heredado.temporal || null,
+    });
+    this.cdr.markForCheck();
+  }
 
   municipiosColombia: string[] = [];
   municipiosFiltrados: string[] = [];
@@ -325,7 +380,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .subscribe((v: unknown) => this.applyPruebaContratacion(String(v ?? '')));
   }
 
-  ngOnDestroy(): void {  }
+  ngOnDestroy(): void {
+  }
 
   // ---------- Validaciones condicionales ----------
   /**
@@ -668,6 +724,15 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           direccion: finca?.direccion ?? null,
           temporal: temporalCanon,
         });
+
+        // Guardamos de dónde vino y con qué valores, para poder mostrar la
+        // procedencia y detectar después un ajuste manual.
+        this.heredadoDe = nombre;
+        this.heredado = {
+          empresa: (finca?.empresa ?? '').toString(),
+          direccion: (finca?.direccion ?? '').toString(),
+          temporal: (temporalCanon ?? '').toString(),
+        };
         // `temporal` es un mat-select: su valor lo escribe el CVA, pero el
         // texto visible del trigger sí depende de un ciclo de detección.
         this.cdr.markForCheck();

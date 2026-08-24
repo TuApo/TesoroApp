@@ -722,3 +722,616 @@ mat-icon,
     justify-content: center;
   }
 }
+/* ==========================================================================
+   FICHA DEL CANDIDATO + ÁREA DE TRABAJO
+   Rediseño de Selección: la persona a la izquierda, el trabajo a la derecha.
+   Paleta: tokens de marca de styles.css. El lima es SOLO relleno de acción
+   (con navy encima); nunca texto lima sobre blanco.
+   ========================================================================== */
+
+.ficha-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+  flex: 1;
+  min-height: 0;
+  padding: 4px 4px 0;
+  box-sizing: border-box;
+}
+
+/* ───────────────────────── Ficha (columna izquierda) ───────────────────── */
+.ficha {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  position: sticky;
+  top: 4px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+/* Barra fina en vez de la del sistema: la ficha es angosta y la nativa come
+   ~16px de ancho útil en Windows. */
+.ficha::-webkit-scrollbar { width: 6px; }
+.ficha::-webkit-scrollbar-thumb {
+  background: var(--slate-300);
+  border-radius: 999px;
+}
+
+.ficha-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--navy);
+  color: #fff;
+}
+
+.ficha-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ficha-head-title {
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.ficha-head-hint {
+  font-size: .72rem;
+  color: rgba(255, 255, 255, .68);
+}
+
+.ficha-head-icon {
+  color: rgba(255, 255, 255, .55);
+  flex: none;
+}
+
+/* ── Identidad: foto + nombre ── */
+.ficha-id {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.ficha-foto {
+  position: relative;
+  flex: none;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: 2px solid var(--slate-200);
+  border-radius: 50%;
+  background: var(--slate-100);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+.ficha-foto:hover,
+.ficha-foto:focus-visible {
+  border-color: var(--lime);
+  box-shadow: 0 0 0 4px rgba(140, 213, 10, .18);
+  outline: none;
+}
+
+.ficha-foto-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ficha-foto-iniciales {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--slate-500);
+  letter-spacing: .04em;
+}
+
+/* El badge de cámara se recorta contra el borde redondo del botón, así que
+   va pegado abajo-derecha y sin desbordar. */
+.ficha-foto-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  background: var(--lime);
+  border-radius: 50% 0 50% 50%;
+}
+
+.ficha-foto-badge mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  color: var(--navy);
+}
+
+.ficha-id-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ficha-nombre {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--navy-deep);
+  overflow-wrap: anywhere;
+}
+
+.ficha-id-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ficha-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ficha-chip mat-icon {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Bloques de la ficha ── */
+.fblock {
+  background: var(--surface);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.fblock-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.fblock-head:hover { background: var(--slate-50); }
+
+.fblock-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.fblock-dot-blue   { background: #3b82f6; }
+.fblock-dot-indigo { background: #6366f1; }
+.fblock-dot-cyan   { background: #06b6d4; }
+.fblock-dot-purple { background: #a855f7; }
+.fblock-dot-amber  { background: var(--warning); }
+
+.fblock-title {
+  flex: 1;
+  min-width: 0;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--slate-700);
+}
+
+/* Contador de obligatorios sin llenar: ámbar, que es el token de "atención"
+   del proyecto (el rojo queda reservado a errores ya cometidos). */
+.fblock-faltan {
+  flex: none;
+  min-width: 18px;
+  padding: 1px 6px;
+  font-size: .68rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+}
+
+.fblock-chevron {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--slate-400);
+}
+
+.fblock-body {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--slate-200);
+}
+
+.fblock-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 12px;
+  padding: 6px 10px;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--navy);
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.fblock-link:hover { background: var(--slate-200); }
+
+.fblock-link mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Fila de dato ── */
+.frow + .frow { border-top: 1px solid var(--slate-100); }
+
+.frow-read {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "label lapiz" "value lapiz";
+  align-items: center;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+
+.frow-read:hover,
+.frow-read:focus-visible {
+  background: var(--slate-50);
+  outline: none;
+}
+
+.frow-plana {
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px;
+}
+
+.frow-label {
+  grid-area: label;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--slate-500);
+}
+
+.frow-value {
+  grid-area: value;
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--navy-deep);
+  min-width: 0;
+}
+
+.frow-value-break { overflow-wrap: anywhere; }
+
+.frow-vacio {
+  color: var(--slate-400);
+  font-weight: 500;
+}
+
+/* El lápiz aparece al pasar por encima: en reposo la ficha se lee como una
+   ficha, no como un formulario lleno de iconos. */
+.frow-lapiz {
+  grid-area: lapiz;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--slate-400);
+  opacity: 0;
+  transition: opacity .14s ease;
+}
+
+.frow-read:hover .frow-lapiz,
+.frow-read:focus-visible .frow-lapiz { opacity: 1; }
+
+/* ── Fila en edición ── */
+.frow-abierta {
+  background: var(--slate-50);
+  box-shadow: inset 3px 0 0 var(--lime);
+}
+
+.frow-editor {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+}
+
+.frow-editor-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.frow-field {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Controles compactos: la ficha mide 380px y los campos M3 por defecto se
+   comen esa altura en tres filas. */
+.frow-editor .frow-field {
+  --mat-form-field-outlined-container-shape: 9px;
+  font-size: .84rem;
+}
+
+.frow-editor .frow-field .mat-mdc-form-field-subscript-wrapper {
+  min-height: 0;
+}
+
+.frow-listo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--lime);
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.frow-listo:hover { filter: brightness(.94); }
+
+.frow-listo-ancho {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  margin-top: 0;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.frow-listo mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* Hijos dentro de la ficha */
+.fhijos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fhijo {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px dashed var(--slate-300);
+  border-radius: 10px;
+}
+
+.fhijo-titulo {
+  margin-bottom: 6px;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+/* ─────────────────── Área de trabajo (columna derecha) ─────────────────── */
+.taller {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.taller-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid var(--slate-200);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.ttab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--slate-500);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color .14s ease, background .14s ease, border-color .14s ease;
+}
+
+.ttab:hover {
+  background: var(--slate-50);
+  color: var(--navy);
+}
+
+.ttab mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.ttab-activa {
+  color: var(--navy-deep);
+  background: var(--slate-50);
+  border-bottom-color: var(--lime);
+  font-weight: 700;
+}
+
+/* Las dos pestañas que saltan a otro paso se marcan distinto: no son un
+   panel de aquí, son un enlace. La flecha lo dice sin texto extra. */
+.ttab-salto { color: var(--slate-400); }
+
+.ttab-flecha {
+  font-size: 14px !important;
+  width: 14px !important;
+  height: 14px !important;
+  opacity: .55;
+}
+
+.ttab-faltan {
+  min-width: 17px;
+  padding: 0 5px;
+  font-size: .66rem;
+  font-weight: 800;
+  line-height: 17px;
+  text-align: center;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+}
+
+.ttab-candado {
+  font-size: 14px !important;
+  width: 14px !important;
+  height: 14px !important;
+  color: var(--warn-fg);
+}
+
+.taller-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+/* La remisión no se destruye al cambiar de pestaña: perdería lo escrito. */
+.taller-oculto { display: none !important; }
+
+/* Dentro del área de trabajo las secciones ya no necesitan su propia caja:
+   la caja es el panel. */
+.taller-panel .section {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.taller-panel .section + .section {
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--slate-200);
+}
+
+/* ───────────────────────────── Responsivo ──────────────────────────────── */
+/* Por debajo de 1100px la ficha deja de ser columna y pasa a ser cabecera:
+   a un ancho menor los campos de la ficha quedan por debajo de lo legible. */
+@media (max-width: 1100px) {
+  .ficha-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ficha {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 900px) {
+  .ficha-layout {
+    gap: 12px;
+    padding: 0;
+  }
+
+  .ttab {
+    padding: 9px 11px;
+    font-size: .78rem;
+  }
+
+  .ttab span { display: none; }
+  .ttab-activa span { display: inline; }
+
+  .taller-panel { padding: 14px; }
+}
+
+@media (max-width: 600px) {
+  .ficha-id {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .ficha-foto {
+    width: 60px;
+    height: 60px;
+  }
+
+  .ficha-nombre { font-size: .92rem; }
+
+  .taller-panel { padding: 10px; }
+
+  .frow-editor { padding: 10px; }
+}

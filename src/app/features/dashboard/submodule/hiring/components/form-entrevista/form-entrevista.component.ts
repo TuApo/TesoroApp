@@ -8,7 +8,9 @@ import {
   NgZone,
   OnInit,
   output,
+  signal,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import {
   FormArray,
   FormBuilder,
@@ -183,6 +185,369 @@ export class FormEntrevistaComponent implements OnInit {
     'ZIPAQUIRÁ',
     'BRIGADA',
   ] as const;
+
+  // ==========================================================================
+  // FICHA DEL CANDIDATO — panel lateral vivo + área de trabajo por pestañas
+  // ==========================================================================
+  /*
+   * La vista de Selección dejó de ser un formulario de 900 líneas en scroll
+   * único. Ahora son dos piezas:
+   *
+   *   izquierda  — la FICHA: foto + los datos de la persona, siempre visibles.
+   *                Cada dato se edita EN SITIO (click en la fila → el control
+   *                real del formulario aparece ahí mismo). No es una copia de
+   *                solo lectura: son los mismos `formControlName` de siempre,
+   *                así que validadores, catálogos y el guardado no cambian.
+   *   derecha    — el ÁREA DE TRABAJO: una barra de 5 pestañas con lo que hay
+   *                que hacer con la persona al frente.
+   *
+   * El objetivo es que quien entrevista tenga a la vista a quién tiene enfrente
+   * mientras trabaja, y pueda corregir un dato mal capturado sin perder el
+   * sitio donde iba.
+   */
+
+  /** Pestañas del área de trabajo. `remision` se proyecta desde el padre. */
+  readonly panel = signal<'entrevista' | 'formacion' | 'remision'>('entrevista');
+
+  /**
+   * Fila de la ficha que está en modo edición (`null` = todo en lectura).
+   * Una sola a la vez: abrir otra cierra la anterior, que es lo que hace que
+   * el panel siga siendo legible mientras se corrige.
+   */
+  readonly filaEnEdicion = signal<string | null>(null);
+
+  /** Bloques de la ficha plegados por el usuario. */
+  private readonly plegados = signal<ReadonlySet<string>>(new Set<string>());
+
+  /** Foto del candidato, resuelta por el pipeline (doc subido o biometría). */
+  fotoUrl = input<string | null>(null);
+  /** Datos de la obra/vacante remitida, ya formateados por el padre. */
+  datosObra = input<{ label: string; value: string | null }[]>([]);
+  /** Candidato EN ESPERA o NO APLICA: la remisión queda bloqueada. */
+  bloqueado = input<boolean>(false);
+
+  /** Click en la foto → el pipeline abre la cámara. */
+  fotoSolicitada = output<void>();
+  /** Salto a un paso del stepper superior (exámenes / contratación). */
+  irAPaso = output<'salud' | 'contratacion'>();
+
+  // ── Catálogos como mapa código → descripción, para pintar la ficha ────────
+  // El formulario guarda códigos; la ficha tiene que mostrar el texto. Estos
+  // mapas se alimentan de los MISMOS observables cacheados que usan los
+  // selects, así que no añaden ni una petición.
+  private toMapa = (opts: CatalogValue[] | null): Record<string, string> => {
+    const m: Record<string, string> = {};
+    for (const o of opts ?? []) {
+      const k = String(o?.['codigo'] ?? '').trim();
+      if (k) m[k] = String(o?.['descripcion'] ?? k);
+    }
+    return m;
+  };
+
+  private readonly mapaTipoDoc = toSignal(
+    this.tipoDocOpciones$.pipe(map(this.toMapa)), { initialValue: {} as Record<string, string> });
+  private readonly mapaEstadoCivil = toSignal(
+    this.estadoCivilOpciones$.pipe(map(this.toMapa)), { initialValue: {} as Record<string, string> });
+  private readonly mapaConQuienVive = toSignal(
+    this.conQuienViveOpciones$.pipe(map(this.toMapa)), { initialValue: {} as Record<string, string> });
+  private readonly mapaParentescos = toSignal(
+    this.parentescosOpciones$.pipe(map(this.toMapa)), { initialValue: {} as Record<string, string> });
+
+  // ── Navegación del área de trabajo ───────────────────────────────────────
+  /**
+   * `salud` y `contratacion` no viven aquí: son los pasos 4 y 5 del stepper de
+   * arriba. La pestaña los ofrece igual y emite hacia el pipeline, para que
+   * desde Selección se alcance todo sin volver a buscar el paso a mano.
+   */
+  abrirPanel(p: 'entrevista' | 'formacion' | 'remision' | 'salud' | 'contratacion'): void {
+    if (p === 'salud' || p === 'contratacion') {
+      this.irAPaso.emit(p);
+      return;
+    }
+    this.panel.set(p);
+    this.filaEnEdicion.set(null);
+  }
+
+  // ── Edición en línea dentro de la ficha ──────────────────────────────────
+  /** ¿Esta fila está mostrando su control editable? */
+  editando(clave: string): boolean {
+    return this.filaEnEdicion() === clave;
+  }
+
+  /**
+   * Abre la fila para editar y deja el foco dentro. El `setTimeout` espera a
+   * que Angular pinte el control: sin eso el `querySelector` corre contra el
+   * DOM viejo y el foco se pierde, que es justo lo que obliga a dar dos clicks.
+   */
+  editarFila(clave: string): void {
+    this.filaEnEdicion.set(clave);
+    setTimeout(() => {
+      const campo = document.querySelector<HTMLElement>(
+        `[data-fila="${clave}"] input, [data-fila="${clave}"] .mat-mdc-select`
+      );
+      campo?.focus();
+    });
+  }
+
+  /** Cierra la edición. Nada que guardar aquí: el control ya es el del form. */
+  cerrarFila(): void {
+    this.filaEnEdicion.set(null);
+  }
+
+  /** Cierra con Escape sin tocar el valor tecleado. */
+  onFilaKeydown(ev: KeyboardEvent): void {
+    if (ev.key === 'Escape') {
+      ev.stopPropagation();
+      this.cerrarFila();
+    }
+  }
+
+  // ── Plegado de bloques ───────────────────────────────────────────────────
+  plegado(bloque: string): boolean {
+    return this.plegados().has(bloque);
+  }
+
+  alternarBloque(bloque: string): void {
+    const s = new Set(this.plegados());
+    s.has(bloque) ? s.delete(bloque) : s.add(bloque);
+    this.plegados.set(s);
+  }
+
+  // ── Lectura de valores para la ficha ─────────────────────────────────────
+  /**
+   * Getters, no `computed`: los valores viven en un `FormGroup`, que no es
+   * señal. Como getter se reevalúan en cada ciclo de detección del componente
+   * — y escribir en un campo del propio template dispara ese ciclo — así que
+   * la ficha se actualiza mientras se teclea. Un `computed` en cambio se
+   * quedaría congelado en el primer valor.
+   */
+  private val(nombre: string): any {
+    return this.formVacante?.get(nombre)?.value ?? null;
+  }
+
+  /** Texto de un control, o `null` si está vacío (la ficha pinta “—”). */
+  texto(nombre: string): string | null {
+    const v = this.val(nombre);
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    return s.length ? s : null;
+  }
+
+  /** Igual que `texto`, pero traduciendo el código por el catálogo. */
+  textoCatalogo(nombre: string, catalogo: 'tipoDoc' | 'estadoCivil' | 'parentescos'): string | null {
+    const v = this.texto(nombre);
+    if (!v) return null;
+    const mapa =
+      catalogo === 'tipoDoc' ? this.mapaTipoDoc()
+      : catalogo === 'estadoCivil' ? this.mapaEstadoCivil()
+      : this.mapaParentescos();
+    return mapa[v] ?? v;
+  }
+
+  /** Fecha del form (Date o string ISO) en dd/MM/yyyy. */
+  fecha(nombre: string): string | null {
+    const v = this.val(nombre);
+    if (!v) return null;
+    const d = v instanceof Date ? v : new Date(v);
+    if (isNaN(d.getTime())) return String(v);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
+  }
+
+  /** Nombre completo, como lo arma el resto de la plataforma. */
+  get nombreFicha(): string | null {
+    const partes = ['primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido']
+      .map((c) => this.texto(c))
+      .filter(Boolean);
+    return partes.length ? partes.join(' ') : null;
+  }
+
+  /** Iniciales para el avatar cuando todavía no hay foto. */
+  get inicialesFicha(): string {
+    const n = this.texto('primer_nombre')?.[0] ?? '';
+    const a = this.texto('primer_apellido')?.[0] ?? '';
+    const i = `${n}${a}`.trim().toUpperCase();
+    return i || '—';
+  }
+
+  /** "CC 52757899" para la cabecera de la ficha. */
+  get documentoFicha(): string | null {
+    const num = this.texto('numero_documento');
+    if (!num) return null;
+    const tipo = this.texto('tipo_doc');
+    return tipo ? `${tipo} ${num}` : num;
+  }
+
+  /** `personas_con_quien_convive` es multi-select: se pinta como lista. */
+  get conQuienVive(): string | null {
+    const v = this.val('personas_con_quien_convive');
+    const arr: string[] = Array.isArray(v) ? v : v ? [v] : [];
+    if (!arr.length) return null;
+    const mapa = this.mapaConQuienVive();
+    return arr.map((c) => mapa[String(c)] ?? String(c)).join(', ');
+  }
+
+  /** `hace_cuanto_vive` guarda un código; la ficha muestra el texto. */
+  private static readonly TIEMPO_ZONA: Record<string, string> = {
+    MENOS_DE_UN_MES: 'Menos de un mes',
+    UN_MES: 'Un mes',
+    MAS_DE_2_MESES: 'Más de 2 meses',
+    MAS_DE_6_MESES: 'Más de 6 meses',
+    LIFETIME: 'Toda la vida',
+  };
+
+  get tiempoEnZona(): string | null {
+    const v = this.texto('hace_cuanto_vive');
+    return v ? (FormEntrevistaComponent.TIEMPO_ZONA[v] ?? v) : null;
+  }
+
+  /** "Sí · 2 hijos" / "No". */
+  get resumenHijos(): string | null {
+    const tiene = this.val('tieneHijos');
+    if (tiene !== true && tiene !== false) return null;
+    if (tiene !== true) return 'No';
+    const n = this.texto('numeroHijos');
+    return n ? `Sí · ${n} ${Number(n) === 1 ? 'hijo' : 'hijos'}` : 'Sí';
+  }
+
+  /** "YOLANDA CASTRO · Hermana" — nombre y parentesco en una sola fila. */
+  referencia(campoNombre: string, campoParentesco: string): string | null {
+    const nombre = this.texto(campoNombre);
+    if (!nombre) return null;
+    const par = this.textoCatalogo(campoParentesco, 'parentescos');
+    return par ? `${nombre} · ${par}` : nombre;
+  }
+
+  /** Datos de obra que sí traen valor: los vacíos no ocupan sitio en la ficha. */
+  get obraConDatos(): { label: string; value: string | null }[] {
+    return (this.datosObra() ?? []).filter((d) => !!d?.value);
+  }
+
+  /**
+   * Nº de campos obligatorios sin llenar en cada bloque. Es el contador rojo
+   * de la pestaña/bloque: dice dónde falta algo sin obligar a recorrerlo todo.
+   */
+  private faltantesDe(campos: readonly string[]): number {
+    if (!this.formVacante) return 0;
+    return campos.filter((c) => this.formVacante.get(c)?.invalid).length;
+  }
+
+  /**
+   * Dónde vive cada control en la vista nueva: fila de la ficha o pestaña del
+   * área de trabajo.
+   *
+   * Hace falta porque la vista ya no lo pinta todo a la vez. Antes el
+   * formulario era un scroll único y bastaba con `querySelector` del primer
+   * `.ng-invalid` para llevar al usuario al error; ahora un obligatorio vacío
+   * puede estar en una fila cerrada o en una pestaña que no es la activa, y
+   * ahí no hay nodo que buscar. Este mapa permite ABRIR el sitio antes de
+   * intentar resaltarlo.
+   */
+  private static readonly UBICACION: ReadonlyArray<
+    readonly [string, 'identificacion' | 'personales' | 'contacto' | 'familia', string]
+  > = [
+    ['oficina', 'identificacion', 'oficina'],
+    ['tipo_doc', 'identificacion', 'documento'],
+    ['numero_documento', 'identificacion', 'documento'],
+    ['fecha_expedicion', 'identificacion', 'expedicion'],
+    ['mpio_expedicion', 'identificacion', 'expedicion'],
+    ['primer_nombre', 'personales', 'nombres'],
+    ['segundo_nombre', 'personales', 'nombres'],
+    ['primer_apellido', 'personales', 'nombres'],
+    ['segundo_apellido', 'personales', 'nombres'],
+    ['fecha_nacimiento', 'personales', 'nacimiento'],
+    ['mpio_nacimiento', 'personales', 'nacimiento'],
+    ['sexo', 'personales', 'sexo'],
+    ['estado_civil', 'personales', 'estado_civil'],
+    ['correo_electronico', 'contacto', 'correo'],
+    ['password', 'contacto', 'correo'],
+    ['celular', 'contacto', 'telefonos'],
+    ['whatsapp', 'contacto', 'telefonos'],
+    ['direccion_de_residencia', 'contacto', 'direccion'],
+    ['barrio', 'contacto', 'direccion'],
+    ['personas_con_quien_convive', 'contacto', 'convivencia'],
+    ['hace_cuanto_vive', 'contacto', 'convivencia'],
+    ['tieneHijos', 'familia', 'hijos'],
+    ['numeroHijos', 'familia', 'hijos'],
+    ['cuidadorHijos', 'familia', 'hijos'],
+    ['hijos', 'familia', 'hijos'],
+    ['nombreReferenciaFamiliar1', 'familia', 'ref-familiares'],
+    ['parentescoReferenciaFamiliar1', 'familia', 'ref-familiares'],
+    ['nombreReferenciaFamiliar2', 'familia', 'ref-familiares'],
+    ['parentescoReferenciaFamiliar2', 'familia', 'ref-familiares'],
+    ['nombreReferenciaPersonal1', 'familia', 'ref-personales'],
+    ['parentescoReferenciaPersonal1', 'familia', 'ref-personales'],
+    ['nombreReferenciaPersonal2', 'familia', 'ref-personales'],
+    ['parentescoReferenciaPersonal2', 'familia', 'ref-personales'],
+  ];
+
+  /** Controles que se editan en el área de trabajo, y en qué pestaña. */
+  private static readonly UBICACION_PANEL: ReadonlyArray<readonly [string, 'formacion' | 'entrevista']> = [
+    ['nivel', 'formacion'],
+    ['estudiaActualmente', 'formacion'],
+    ['proyeccion1Ano', 'formacion'],
+    ['experienciaFlores', 'formacion'],
+    ['tipoExperienciaFlores', 'formacion'],
+    ['otroExperiencia', 'formacion'],
+    ['experiencias', 'formacion'],
+    ['comoSeEntero', 'entrevista'],
+    ['referenciado', 'entrevista'],
+    ['nombreReferenciado', 'entrevista'],
+    ['aplicaObservacion', 'entrevista'],
+    ['motivoEspera', 'entrevista'],
+    ['motivoNoAplica', 'entrevista'],
+  ];
+
+  /**
+   * Deja a la vista el primer campo obligatorio que falta: abre su pestaña o
+   * despliega su fila en la ficha. Sin esto, "Revise los campos en rojo" podía
+   * señalar un rojo que no estaba en pantalla.
+   *
+   * @returns true si tuvo que abrir algo (el llamador espera un ciclo de
+   *          render antes de buscar el nodo en el DOM).
+   */
+  private revelarPrimerInvalido(): boolean {
+    if (!this.formVacante) return false;
+
+    for (const [campo, bloque, fila] of FormEntrevistaComponent.UBICACION) {
+      if (!this.formVacante.get(campo)?.invalid) continue;
+      const s = new Set(this.plegados());
+      s.delete(bloque);
+      this.plegados.set(s);
+      this.filaEnEdicion.set(fila);
+      return true;
+    }
+
+    for (const [campo, destino] of FormEntrevistaComponent.UBICACION_PANEL) {
+      if (!this.formVacante.get(campo)?.invalid) continue;
+      if (this.panel() !== destino) {
+        this.panel.set(destino);
+        return true;
+      }
+      return false;
+    }
+
+    return false;
+  }
+
+  get faltanIdentificacion(): number { return this.faltantesDe(this.step1Fields); }
+  get faltanPersonales(): number { return this.faltantesDe(this.step2Fields); }
+  get faltanContacto(): number { return this.faltantesDe(this.step3Fields); }
+  get faltanFamilia(): number {
+    return this.faltantesDe(['tieneHijos', 'cuidadorHijos', 'numeroHijos']);
+  }
+  get faltanFormacion(): number {
+    return this.faltantesDe([
+      'nivel', 'estudiaActualmente', 'proyeccion1Ano', 'experienciaFlores', 'tipoExperienciaFlores',
+    ]);
+  }
+  get faltanEntrevista(): number {
+    return this.faltantesDe([
+      'comoSeEntero', 'referenciado', 'nombreReferenciado',
+      'aplicaObservacion', 'motivoEspera', 'motivoNoAplica',
+    ]);
+  }
 
   // Campos usados para validar cada bloque
   private readonly step1Fields = [
@@ -1399,6 +1764,11 @@ export class FormEntrevistaComponent implements OnInit {
         confirmButtonColor: '#3085d6',
       });
 
+      // Abre la pestaña / fila donde vive el error ANTES de buscarlo en el DOM:
+      // en la vista nueva no todo está pintado a la vez.
+      this.revelarPrimerInvalido();
+      this.cdr.markForCheck();
+
       setTimeout(() => {
         const firstInvalidControl = document.querySelector(
           'mat-form-field.mat-form-field-invalid, .ng-invalid[formControlName], .ng-invalid[formGroupName], .ng-invalid[formArrayName]'
@@ -1413,15 +1783,10 @@ export class FormEntrevistaComponent implements OnInit {
           const focusable = firstInvalidControl.querySelector('input, select, textarea') as HTMLElement;
           if (focusable) focusable.focus();
 
-          // Scroll más suave y calculando el offset para evitar el header fijo
-          const headerOffset = 100;
-          const elementPosition = firstInvalidControl.getBoundingClientRect().top;
-          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-
-          window.scrollTo({
-            top: offsetPosition,
-            behavior: 'smooth'
-          });
+          // El scroll ya no lo hace la ventana sino el contenedor interno (la
+          // ficha o el panel de trabajo), así que se delega en el navegador:
+          // `scrollIntoView` sube por el árbol y mueve el que corresponda.
+          firstInvalidControl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 150);
 
