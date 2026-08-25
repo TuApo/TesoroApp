@@ -27,6 +27,7 @@ import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
 import { Observable, firstValueFrom, map, merge, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
 
 import colombia from '../../../../../../data/colombia.json';
@@ -43,6 +44,10 @@ import {
 } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 import { avanceDeForm } from '../../shared/progreso.util';
+import {
+  BloqueFicha,
+  FichaEditarDialogComponent,
+} from '../ficha-editar/ficha-editar.dialog';
 
 @Component({
   selector: 'app-form-entrevista',
@@ -220,6 +225,7 @@ export class FormEntrevistaComponent implements OnInit {
    */
   private readonly nav = inject(PipelineNavService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dialog = inject(MatDialog);
   readonly panel = this.nav.panelSeleccion;
 
   /**
@@ -629,12 +635,13 @@ export class FormEntrevistaComponent implements OnInit {
   private revelarPrimerInvalido(): boolean {
     if (!this.formVacante) return false;
 
-    for (const [campo, bloque, fila] of FormEntrevistaComponent.UBICACION) {
+    // Los campos de la ficha ya no se editan en sitio —la ficha del pipeline es
+    // de lectura—, así que "revelar" es abrir el diálogo en el bloque donde
+    // está el hueco. Antes esto desplegaba filas de una ficha que este
+    // componente dejó de pintar, y el aviso señalaba un rojo invisible.
+    for (const [campo, bloque] of FormEntrevistaComponent.UBICACION) {
       if (!this.formVacante.get(campo)?.invalid) continue;
-      const s = new Set(this.plegados());
-      s.delete(bloque);
-      this.plegados.set(s);
-      this.filaEnEdicion.set(fila);
+      this.abrirEdicionFicha(bloque);
       return true;
     }
 
@@ -908,6 +915,15 @@ export class FormEntrevistaComponent implements OnInit {
       if (this.panel() === 'ia') this.pedirAnalisis();
     });
 
+    // El lápiz de la ficha pide editar; el formulario con esos campos es este,
+    // así que el diálogo se abre desde aquí.
+    effect(() => {
+      const bloque = this.nav.edicionFicha();
+      if (!bloque) return;
+      this.nav.edicionFicha.set(null);
+      this.abrirEdicionFicha(bloque);
+    });
+
     // Avance de Entrevista y Formación para los dos railes. Se escucha también
     // `statusChanges` porque los obligatorios de estos bloques aparecen y
     // desaparecen según las respuestas (referenciado, motivo de espera…), y eso
@@ -916,6 +932,51 @@ export class FormEntrevistaComponent implements OnInit {
       .pipe(startWith(null), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.publicarAvances());
     this.publicarAvances();
+  }
+
+  /**
+   * Abre el diálogo de edición de la ficha.
+   *
+   * `'todos'` pinta los cuatro bloques —es el lápiz de la cabecera— y
+   * cualquier otro valor pinta solo el suyo, que es el lápiz de cada bloque.
+   * Trabaja sobre ESTE formulario, así que al aceptar se guarda por el camino
+   * de siempre (`onSubmit`) y no hay una segunda ruta de guardado.
+   */
+  abrirEdicionFicha(bloque: string): void {
+    const TODOS: readonly BloqueFicha[] = ['identificacion', 'personales', 'contacto', 'familia'];
+    const ROTULO: Record<BloqueFicha, string> = {
+      identificacion: 'Identificación y documento',
+      personales: 'Datos personales',
+      contacto: 'Contacto y domicilio',
+      familia: 'Familia y referencias',
+    };
+
+    const uno = TODOS.find((b) => b === bloque);
+    const bloques = uno ? [uno] : TODOS;
+
+    this.dialog
+      .open(FichaEditarDialogComponent, {
+        width: uno ? '760px' : '980px',
+        maxWidth: '95vw',
+        autoFocus: false,
+        restoreFocus: false,
+        data: {
+          form: this.formVacante,
+          bloques,
+          titulo: uno ? ROTULO[uno] : 'Datos del candidato',
+          oficinas: this.oficinas,
+          ciudades: this.allCities,
+          tipoDoc$: this.tipoDocOpciones$,
+          estadoCivil$: this.estadoCivilOpciones$,
+          conQuienVive$: this.conQuienViveOpciones$,
+          parentescos$: this.parentescosOpciones$,
+        },
+      })
+      .afterClosed()
+      .subscribe((r) => {
+        this.cdr.markForCheck();
+        if (r === 'guardar') this.onSubmit();
+      });
   }
 
   /** Campos que se miran para el % de cada pestaña del área de trabajo. */

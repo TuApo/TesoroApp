@@ -1100,6 +1100,18 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     this.tabIndex.set(sub.tab);
   }
 
+  /**
+   * El lápiz de la ficha. No edita aquí: publica QUÉ se quiere editar y lo
+   * recoge `form-entrevista`, que es el dueño del formulario con esos campos.
+   */
+  editarFicha(bloque: string): void {
+    if (!this.candidatoSeleccionado()?.numero_documento) {
+      this.abrirPromptDocumento();
+      return;
+    }
+    this.nav.pedirEdicion(bloque);
+  }
+
   abrirSubContratacion(sub: SubPasoContratacion): void {
     if (this.bloqueoContratoTabs()) return;
     this.nav.subContratacion.set(sub.idx);

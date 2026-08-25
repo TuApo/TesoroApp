@@ -1,0 +1,105 @@
+@import "../../shared/tokens.css";
+
+:host { display: block; }
+
+.fe-titulo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+.fe-titulo mat-icon {
+  font-size: 21px;
+  width: 21px;
+  height: 21px;
+  color: var(--slate-500);
+}
+
+.fe-cuerpo {
+  padding-top: 8px !important;
+  /* Editando la ficha entera son cuatro bloques: sin tope, el diálogo se sale
+     de pantalla en portátiles y el botón Guardar queda fuera de alcance. */
+  max-height: min(72vh, 720px);
+}
+
+.fe-bloque + .fe-bloque {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--slate-200);
+}
+
+.fe-bloque-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.fe-bloque-head h3 {
+  margin: 0;
+  font-size: .76rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--slate-700);
+}
+
+.fe-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Mismos colores que los puntos de la ficha: se reconoce qué bloque se abrió. */
+.fe-dot-blue   { background: #3b82f6; }
+.fe-dot-indigo { background: #6366f1; }
+.fe-dot-cyan   { background: #06b6d4; }
+.fe-dot-purple { background: #a855f7; }
+
+.fe-sub {
+  margin: 4px 0 10px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.fe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 4px 14px;
+}
+
+.fe-ancho { grid-column: 1 / -1; }
+
+.fe-acciones {
+  gap: 8px;
+  padding: 12px 24px 18px !important;
+}
+
+.fe-spacer { flex: 1; }
+
+.fe-aviso {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--warn-fg);
+}
+
+.fe-aviso mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 600px) {
+  .fe-grid { grid-template-columns: minmax(0, 1fr); }
+}

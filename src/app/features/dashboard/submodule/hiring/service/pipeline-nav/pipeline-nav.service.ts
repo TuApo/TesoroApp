@@ -37,6 +37,22 @@ export class PipelineNavService {
   /** Sub-paso abierto dentro de Contratación (índice del mat-tab-group hijo). */
   readonly subContratacion = signal<number>(0);
 
+  /**
+   * Bloque de la ficha que se pidió editar, o `null` cuando no hay nada pedido.
+   *
+   * La ficha la pinta el pipeline, pero los CAMPOS viven en el formulario de
+   * `form-entrevista`, tres componentes más abajo. El lápiz publica aquí qué
+   * quiere editar y el dueño del formulario abre el diálogo: es el mismo
+   * camino que ya usan el rail y los avances.
+   *
+   * `'todos'` = la ficha entera; si no, el id del bloque.
+   */
+  readonly edicionFicha = signal<string | null>(null);
+
+  pedirEdicion(bloque: string): void {
+    this.edicionFicha.set(bloque);
+  }
+
   private readonly _avances = signal<Readonly<Partial<Record<ClaveAvance, Avance>>>>({});
   readonly avances = this._avances.asReadonly();
 
@@ -72,5 +88,6 @@ export class PipelineNavService {
     this._avances.set({});
     this.panelSeleccion.set('entrevista');
     this.subContratacion.set(0);
+    this.edicionFicha.set(null);
   }
 }

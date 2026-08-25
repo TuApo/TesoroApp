@@ -1,0 +1,311 @@
+<h2 mat-dialog-title class="fe-titulo">
+  <mat-icon>edit_note</mat-icon>
+  {{ data.titulo }}
+</h2>
+
+<mat-dialog-content class="fe-cuerpo">
+  <form [formGroup]="data.form" autocomplete="off">
+
+    @if (tiene('identificacion')) {
+      <section class="fe-bloque">
+        <header class="fe-bloque-head">
+          <span class="fe-dot fe-dot-blue"></span>
+          <h3>Identificación y documento</h3>
+        </header>
+
+        <div class="fe-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Oficina *</mat-label>
+            <mat-select formControlName="oficina">
+              @for (o of data.oficinas; track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+            </mat-select>
+            @if (data.form.get('oficina')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de documento *</mat-label>
+            <mat-select formControlName="tipo_doc">
+              @for (op of (data.tipoDoc$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+              }
+            </mat-select>
+            @if (data.form.get('tipo_doc')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Número de documento *</mat-label>
+            <input matInput formControlName="numero_documento" />
+            @if (data.form.get('numero_documento')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+            @if (data.form.get('numero_documento')?.hasError('pattern')) {
+              <mat-error>Solo dígitos, o una X delante para los que no son cédula.</mat-error>
+            }
+            @if (data.form.get('numero_documento')?.hasError('minlength')
+              || data.form.get('numero_documento')?.hasError('maxlength')) {
+              <mat-error>Entre 6 y 15 caracteres.</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Fecha de expedición *</mat-label>
+            <input matInput [matDatepicker]="pExp" formControlName="fecha_expedicion" readonly
+                   (focus)="pExp.open()" (click)="pExp.open()" />
+            <mat-datepicker-toggle matSuffix [for]="pExp"></mat-datepicker-toggle>
+            <mat-datepicker #pExp></mat-datepicker>
+            @if (data.form.get('fecha_expedicion')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Municipio de expedición *</mat-label>
+            <input matInput formControlName="mpio_expedicion" [matAutocomplete]="acExp"
+                   (input)="filtrarCiudades('mpio_expedicion')" />
+            <mat-autocomplete #acExp="matAutocomplete">
+              @for (c of ciudadesExpedicion(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+            </mat-autocomplete>
+            @if (data.form.get('mpio_expedicion')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+        </div>
+      </section>
+    }
+
+    @if (tiene('personales')) {
+      <section class="fe-bloque">
+        <header class="fe-bloque-head">
+          <span class="fe-dot fe-dot-indigo"></span>
+          <h3>Datos personales</h3>
+        </header>
+
+        <div class="fe-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Primer nombre *</mat-label>
+            <input matInput formControlName="primer_nombre" />
+            @if (data.form.get('primer_nombre')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Segundo nombre</mat-label>
+            <input matInput formControlName="segundo_nombre" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Primer apellido *</mat-label>
+            <input matInput formControlName="primer_apellido" />
+            @if (data.form.get('primer_apellido')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Segundo apellido</mat-label>
+            <input matInput formControlName="segundo_apellido" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Fecha de nacimiento *</mat-label>
+            <input matInput [matDatepicker]="pNac" formControlName="fecha_nacimiento" readonly
+                   (focus)="pNac.open()" (click)="pNac.open()" />
+            <mat-datepicker-toggle matSuffix [for]="pNac"></mat-datepicker-toggle>
+            <mat-datepicker #pNac></mat-datepicker>
+            @if (data.form.get('fecha_nacimiento')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Lugar de nacimiento *</mat-label>
+            <input matInput formControlName="mpio_nacimiento" [matAutocomplete]="acNac"
+                   (input)="filtrarCiudades('mpio_nacimiento')" />
+            <mat-autocomplete #acNac="matAutocomplete">
+              @for (c of ciudadesNacimiento(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+            </mat-autocomplete>
+            @if (data.form.get('mpio_nacimiento')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Sexo *</mat-label>
+            <mat-select formControlName="sexo">
+              <mat-option value="F">Femenino</mat-option>
+              <mat-option value="M">Masculino</mat-option>
+            </mat-select>
+            @if (data.form.get('sexo')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Estado civil *</mat-label>
+            <mat-select formControlName="estado_civil">
+              @for (op of (data.estadoCivil$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+              }
+            </mat-select>
+            @if (data.form.get('estado_civil')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+        </div>
+      </section>
+    }
+
+    @if (tiene('contacto')) {
+      <section class="fe-bloque">
+        <header class="fe-bloque-head">
+          <span class="fe-dot fe-dot-cyan"></span>
+          <h3>Contacto y domicilio</h3>
+        </header>
+
+        <div class="fe-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Correo electrónico *</mat-label>
+            <input matInput type="email" formControlName="correo_electronico" />
+            @if (data.form.get('correo_electronico')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+            @if (data.form.get('correo_electronico')?.hasError('email')) { <mat-error>Correo no válido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Contraseña del correo</mat-label>
+            <input matInput formControlName="password" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Celular *</mat-label>
+            <input matInput formControlName="celular" inputmode="numeric" />
+            @if (data.form.get('celular')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+            @if (data.form.get('celular')?.hasError('pattern')) {
+              <mat-error>Debe empezar por 3 y tener 10 dígitos.</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>WhatsApp</mat-label>
+            <input matInput formControlName="whatsapp" inputmode="numeric" />
+            @if (data.form.get('whatsapp')?.hasError('pattern')) {
+              <mat-error>Debe empezar por 3 y tener 10 dígitos.</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="fe-ancho">
+            <mat-label>Dirección de residencia *</mat-label>
+            <input matInput formControlName="direccion_de_residencia" />
+            @if (data.form.get('direccion_de_residencia')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Barrio *</mat-label>
+            <input matInput formControlName="barrio" />
+            @if (data.form.get('barrio')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Vive con *</mat-label>
+            <mat-select formControlName="personas_con_quien_convive">
+              @for (op of (data.conQuienVive$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+              }
+            </mat-select>
+            @if (data.form.get('personas_con_quien_convive')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Hace cuánto vive ahí *</mat-label>
+            <input matInput formControlName="hace_cuanto_vive" />
+            @if (data.form.get('hace_cuanto_vive')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+        </div>
+      </section>
+    }
+
+    @if (tiene('familia')) {
+      <section class="fe-bloque">
+        <header class="fe-bloque-head">
+          <span class="fe-dot fe-dot-purple"></span>
+          <h3>Familia y referencias</h3>
+        </header>
+
+        <div class="fe-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>¿Tiene hijos? *</mat-label>
+            <mat-select formControlName="tieneHijos">
+              <mat-option [value]="true">Sí</mat-option>
+              <mat-option [value]="false">No</mat-option>
+            </mat-select>
+            @if (data.form.get('tieneHijos')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Cuántos hijos</mat-label>
+            <input matInput type="number" min="0" formControlName="numeroHijos" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Quién los cuida</mat-label>
+            <input matInput formControlName="cuidadorHijos" />
+          </mat-form-field>
+        </div>
+
+        <!-- Las referencias van en parejas nombre + parentesco: sueltas, no se
+             sabía qué parentesco correspondía a qué nombre. -->
+        <p class="fe-sub">Referencias familiares</p>
+        <div class="fe-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre · familiar 1</mat-label>
+            <input matInput formControlName="nombreReferenciaFamiliar1" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Parentesco · familiar 1</mat-label>
+            <mat-select formControlName="parentescoReferenciaFamiliar1">
+              @for (op of (data.parentescos$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre · familiar 2</mat-label>
+            <input matInput formControlName="nombreReferenciaFamiliar2" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Parentesco · familiar 2</mat-label>
+            <mat-select formControlName="parentescoReferenciaFamiliar2">
+              @for (op of (data.parentescos$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <p class="fe-sub">Referencias personales</p>
+        <div class="fe-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre · personal 1</mat-label>
+            <input matInput formControlName="nombreReferenciaPersonal1" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Parentesco · personal 1</mat-label>
+            <mat-select formControlName="parentescoReferenciaPersonal1">
+              @for (op of (data.parentescos$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Nombre · personal 2</mat-label>
+            <input matInput formControlName="nombreReferenciaPersonal2" />
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Parentesco · personal 2</mat-label>
+            <mat-select formControlName="parentescoReferenciaPersonal2">
+              @for (op of (data.parentescos$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </section>
+    }
+  </form>
+</mat-dialog-content>
+
+<mat-dialog-actions class="fe-acciones">
+  @if (hayErrores) {
+    <span class="fe-aviso">
+      <mat-icon>error_outline</mat-icon>
+      Hay obligatorios sin llenar en rojo.
+    </span>
+  }
+  <span class="fe-spacer"></span>
+  <button mat-button type="button" (click)="cancelar()">Cancelar</button>
+  <button mat-flat-button color="primary" type="button" (click)="guardar()">
+    <mat-icon>save</mat-icon> Guardar
+  </button>
+</mat-dialog-actions>
