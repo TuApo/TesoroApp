@@ -25,11 +25,20 @@ export interface RolePermissionsData {
   rol: Rol;
 }
 
-/** Permiso según tu JSON real */
+/**
+ * Permiso tal y como llega de /gestion_admin/modulos/arbol-permisos/.
+ *
+ * OJO con `accion`: el backend (ModuloService.toConPermisos) la serializa como
+ * STRING plano —`"accion": "LEER"`— no como objeto. Este tipo la declaraba solo
+ * como `{nombre, etiqueta}`, así que el código hacía `p.accion?.nombre` sobre
+ * una cadena: daba undefined, ningún permiso se indexaba y el diálogo salía sin
+ * un solo interruptor. Se aceptan las dos formas para no depender de que
+ * backend y frontend se desplieguen a la vez.
+ */
 export interface PermisoNode {
   id: string;
-  nombre: string;                   // p.ej. "COMERCIALIZADORA:LEER" (no se muestra)
-  accion?: { nombre: string; etiqueta: string }; // no se usa en UI
+  nombre: string;                   // p.ej. "COMERCIALIZADORA:LEER"
+  accion?: string | { nombre?: string; etiqueta?: string } | null;
 }
 
 /** Nodo de módulo según tu JSON real */
@@ -218,13 +227,27 @@ export class RolPermissionsDialogComponent implements OnInit {
       return this.actionSynonyms[key];
     };
 
+    /**
+     * De dónde sacar la acción de un permiso. El backend manda `accion` como
+     * string ("LEER"); toleramos también la forma objeto y, como último recurso,
+     * el sufijo de `nombre` ("COMERCIALIZADORA:LEER" -> "LEER"), que es como se
+     * componen los nombres de permiso.
+     */
+    const accionDe = (p: PermisoNode): string | undefined => {
+      const a = p.accion;
+      if (typeof a === 'string' && a.trim()) return a;
+      if (a && typeof a === 'object') return a.nombre || a.etiqueta || undefined;
+      const tras = p.nombre?.split(':').pop();
+      return tras && tras !== p.nombre ? tras : undefined;
+    };
+
     const visit = (n: NodoModulo) => {
       nameMap.set(n.id, n.nombre);
 
       if (n.permisos?.length) {
         const acc = permsMap.get(n.id) || {};
         for (const p of n.permisos) {
-          const can = toCanonical(p.accion?.nombre || p.accion?.etiqueta);
+          const can = toCanonical(accionDe(p));
           if (can && this.ACTIONS.includes(can)) acc[can] = p.id;
         }
         permsMap.set(n.id, acc);

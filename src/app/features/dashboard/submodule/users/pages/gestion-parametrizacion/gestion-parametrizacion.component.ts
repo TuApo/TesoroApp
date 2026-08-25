@@ -1,10 +1,13 @@
 // src/app/features/parametrizacion/components/gestion-parametrizacion/gestion-parametrizacion.component.ts
 import {  Component, OnInit, inject, signal , ChangeDetectionStrategy } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { StandardFilterTable,  } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { SharedModule } from '@/app/shared/shared.module';
@@ -12,6 +15,14 @@ import { DynamicFormDialogComponent, FieldConfig } from '@/app/shared/components
 import { MetaConfigDialogComponent } from '../../components/meta-config-dialog/meta-config-dialog.component';
 import { GestionParametrizacionService, MetaTabla } from '../../services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+
+interface AppRelease {
+  version: string;
+  filename: string;
+  url: string;
+  releaseDate: string;
+  sizeMB: number;
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,17 +34,23 @@ import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
     MatSnackBarModule,
     MatDialogModule,
     MatIconModule,
-    MatButtonModule
+    MatButtonModule,
+    MatProgressSpinnerModule,
+    MatTooltipModule,
 ],
   templateUrl: './gestion-parametrizacion.component.html',
-  styleUrls: ['./gestion-parametrizacion.component.css'] // ✅ styleUrls (plural)
+  styleUrls: ['./gestion-parametrizacion.component.css']
 } )
+
 export class GestionParametrizacionComponent implements OnInit {
   private svc = inject(GestionParametrizacionService);
+  private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
 
   data = signal<MetaTabla[]>([]);
+  appRelease = signal<AppRelease | null>(null);
+  cargandoVersion = signal(true);
 
   // Columnas (incluye 'actions' para botones Campos/Valores)
   columns: ColumnDefinition[] = [
@@ -44,9 +61,10 @@ export class GestionParametrizacionComponent implements OnInit {
       name: 'activo',
       header: 'Activo',
       type: 'status',
+      // Estado por excepción: "Activo" es lo esperado y se deja en neutro (sin entrada
+      // en statusConfig el badge hereda el color de la celda). Solo se resalta "Inactivo".
       statusConfig: {
-        true: { color: '#0b8043', background: '#e6f4ea' },
-        false: { color: '#a50e0e', background: '#fce8e6' },
+        false: { color: 'var(--warn-fg)', background: 'var(--warn-bg)' },
       },
     },
     { name: 'updated_at', header: 'Actualizado', type: 'date' },
@@ -57,6 +75,23 @@ export class GestionParametrizacionComponent implements OnInit {
 
   ngOnInit(): void {
     this.cargarTablas();
+    this.cargarVersionApp();
+  }
+
+  cargarVersionApp(): void {
+    this.http.get<AppRelease>('/downloads/latest.json').subscribe({
+      next: release => { this.appRelease.set(release); this.cargandoVersion.set(false); },
+      error: () => this.cargandoVersion.set(false),
+    });
+  }
+
+  descargarAppEscritorio(): void {
+    const release = this.appRelease();
+    if (!release) return;
+    const a = document.createElement('a');
+    a.href = release.url;
+    a.download = release.filename;
+    a.click();
   }
 
   cargarTablas(): void {
@@ -69,8 +104,9 @@ export class GestionParametrizacionComponent implements OnInit {
   // === Crear ===
   onNuevaTabla(): void {
     const fields = this.buildTablaFields(false);
+    // 50vw se quedaba en ~180px en móvil y desbordaba el formulario.
     const ref = this.dialog.open(DynamicFormDialogComponent, {
-      width: '50vw',
+      width: 'min(560px, 95vw)',
       data: { title: 'Nueva MetaTabla', submitText: 'Crear', fields }
     });
 
@@ -84,10 +120,11 @@ export class GestionParametrizacionComponent implements OnInit {
   }
 
   // === Editar (click de fila) ===
+  // El código sólo puede cambiar al crear: en edición es la clave que identifica la tabla.
   onEditarTabla(tabla: MetaTabla): void {
     const fields = this.buildTablaFields(true);
     const ref = this.dialog.open(DynamicFormDialogComponent, {
-      width: '50vw',
+      width: 'min(560px, 95vw)',
       data: {
         title: `Editar: ${tabla.codigo}`,
         submitText: 'Guardar',
@@ -110,43 +147,6 @@ export class GestionParametrizacionComponent implements OnInit {
         error: () => this.snack.open('No se pudo actualizar la tabla', 'Cerrar', { duration: 3500 })
       });
     });
-  }
-
-  /**
-   * Recibe el click de fila desde <app-standard-filter-table>.
-   * Si el hijo emitió la fila, edita de una; si no, intenta extraerla.
-   */
-  onRowClick(evt: any): void {
-    // Caso típico: la fila directamente
-    if (this.isMetaTabla(evt)) {
-      this.onEditarTabla(evt);
-      return;
-    }
-    // CustomEvent con detail
-    const detail = evt?.detail;
-    if (detail && this.isMetaTabla(detail)) {
-      this.onEditarTabla(detail);
-      return;
-    }
-    // {row}|{data}|{item}
-    const candidate = evt?.row ?? evt?.data ?? evt?.item ?? null;
-    if (candidate && this.isMetaTabla(candidate)) {
-      this.onEditarTabla(candidate);
-      return;
-    }
-    // Índice
-    const idx = typeof evt?.index === 'number' ? evt.index : undefined;
-    if (typeof idx === 'number') {
-      const arr = this.data();
-      if (arr[idx]) this.onEditarTabla(arr[idx]);
-    }
-  }
-
-  private isMetaTabla(x: any): x is MetaTabla {
-    return !!x && typeof x === 'object'
-      && typeof x.codigo === 'string'
-      && 'allow_extra_fields' in x
-      && 'activo' in x;
   }
 
   private buildTablaFields(isEdit: boolean): FieldConfig[] {

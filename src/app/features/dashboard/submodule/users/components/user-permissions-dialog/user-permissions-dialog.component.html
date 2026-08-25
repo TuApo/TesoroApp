@@ -30,7 +30,7 @@
     <!-- State: Loading -->
     @if (loading()) {
       <div class="state-loading">
-        <mat-spinner diameter="40" color="primary"></mat-spinner>
+        <mat-spinner diameter="40"></mat-spinner>
         <span class="loading-text">Cargando permisos...</span>
       </div>
     } @else {
@@ -179,7 +179,7 @@
   <ng-template #toggleTpl let-r let-action="action" let-label="label" let-cell="cell">
     @if (hasAction(r.modulo_id, action)) {
       <div class="toggle-container" [matTooltip]="cell.tooltip" matTooltipClass="multiline-tooltip">
-        <mat-slide-toggle color="primary" [checked]="cell.efectivo" (change)="onToggle(r, action, $event.checked)"
+        <mat-slide-toggle [checked]="cell.efectivo" (change)="onToggle(r, action, $event.checked)"
           [class.is-override]="cell.otorgado || cell.revocado" [attr.aria-label]="'Alternar ' + label">
         </mat-slide-toggle>
         <!-- Mini indicator for overrides -->
@@ -205,7 +205,7 @@
             <span class="mobile-override-badge">•</span>
           }
         </span>
-        <mat-slide-toggle class="mobile-toggle" color="primary" [checked]="cell.efectivo"
+        <mat-slide-toggle class="mobile-toggle" [checked]="cell.efectivo"
           (change)="onToggle(r, action, $event.checked)">
         </mat-slide-toggle>
       </div>
@@ -225,7 +225,7 @@
     </div>
     <div class="footer-actions">
       <button mat-button type="button" (click)="close()" [disabled]="saving()">Cancelar</button>
-      <button mat-flat-button color="primary" (click)="guardar()" [disabled]="saving()" class="btn-save">
+      <button mat-flat-button (click)="guardar()" [disabled]="saving()" class="btn-save">
         @if (saving()) {
           <mat-spinner diameter="18" mode="indeterminate" class="spinner-btn"></mat-spinner>
           <span>Guardando...</span>

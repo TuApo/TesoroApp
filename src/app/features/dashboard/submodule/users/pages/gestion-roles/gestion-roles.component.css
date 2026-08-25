@@ -1,11 +1,30 @@
+/* === LAYOUT: alto exacto, sin scroll de página ===
+   :host toma el alto que le da .dashboard-page-wrapper y ahoga su scroll
+   (el wrapper es `overflow: auto` por defecto). Así la página llena la
+   pantalla exacta y el único que scrollea es el cuerpo de la tabla. */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 /* === MANAGERIAL PREMIUM THEME === */
 .premium-card {
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #f1f5f9;
-  background-color: #ffffff;
+  border: 1px solid var(--slate-100);
+  background-color: var(--surface);
   overflow: hidden;
-  margin-bottom: 24px;
+  /* el margen inferior sobraba: la card ya termina donde termina la pantalla */
+  margin: 0;
+  /* eslabón 1 de la cadena flex: crece hasta el alto del host y puede encoger */
+  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .card-header-premium {
@@ -13,10 +32,12 @@
   align-items: center;
   padding: 24px 32px 20px 32px !important;
   border-bottom: none;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-    position: relative;
-    overflow: hidden;
+  background: linear-gradient(135deg, var(--slate-900) 0%, #1e293b 60%, var(--slate-700) 100%);
+  position: relative;
+  overflow: hidden;
   border-radius: 16px;
+  /* la cabecera nunca cede alto: lo cede la tabla */
+  flex-shrink: 0;
 }
 
 .header-content {
@@ -34,6 +55,7 @@
   background-color: rgba(255, 255, 255, 0.1);
   color: #ffffff;
   border-radius: 12px;
+  flex-shrink: 0;
 }
 
 .header-icon {
@@ -75,17 +97,22 @@
 
 .btn-refresh {
   color: #cbd5e1;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background-color 0.2s ease;
+  flex-shrink: 0;
 }
 
-.btn-refresh:hover {
+.btn-refresh:hover:not(:disabled) {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.1);
 }
 
+.btn-refresh:disabled {
+  opacity: 0.45;
+}
+
 .btn-managerial {
-  background-color: #192030 !important;
-  color: #8DD603 !important;
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
   border-radius: 8px !important;
   padding: 0 20px !important;
   height: 40px !important;
@@ -98,77 +125,245 @@
 .btn-managerial:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25) !important;
-  background-color: #8DD603 !important;
-  color: #192030 !important;
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
 }
 
 .card-content {
   padding: 24px 32px 32px 32px !important;
+  position: relative;
+  /* eslabón 2: min-height:0 es lo que permite encoger por debajo del
+     contenido; sin él el alto se escaparía al scroll de la página. */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* red de seguridad para pantallas muy bajas (la tabla compartida trae un
+     min-height propio): antes scrollear la card que recortar el paginador. */
+  overflow: auto;
 }
 
-/* Banner de información */
-.info-banner {
+/* eslabón 3: la tabla compartida (:host height:100%) llena el hueco y
+   scrollea por dentro. min-height:0 para que pueda encoger. */
+app-standard-filter-table {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Loading State */
+.table-loading-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  background: var(--slate-50);
+  border-radius: 8px;
+  color: var(--slate-500);
+  gap: 16px;
+}
+
+.loading-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+/* === ESTADOS VACÍOS === */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 12px;
+  /* la card ya ocupa toda la pantalla: el estado vacío se centra en ella */
+  flex: 1 1 auto;
+}
+
+.empty-illustration {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: #f8fafc;
-  /* muy tenue */
-  color: #0f172a;
-  /* casi negro */
-  border: 1px solid #e2e8f0;
-  /* borde suave */
-  margin-bottom: 10px;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: rgba(33, 38, 60, 0.06);
+  color: var(--navy);
+  margin-bottom: 4px;
 }
 
-.info-banner mat-icon {
-  font-size: 20px;
-  height: 20px;
-  width: 20px;
+.empty-illustration mat-icon {
+  font-size: 44px;
+  width: 44px;
+  height: 44px;
 }
 
-/* Chips: solo ícono en remove (tamaño consistente) */
-mat-chip-row button[matChipRemove] mat-icon {
-  font-size: 18px;
-  line-height: 18px;
+/* El fallo de carga es una excepción, no un estado normal: ámbar */
+.empty-error .empty-illustration {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
 }
 
-/* En la tabla: botón X sin borde/caja extra, solo ícono */
-.mod-name {
+.empty-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--slate-900);
+  margin: 0;
+}
+
+.empty-text {
+  font-size: 0.88rem;
+  color: var(--slate-500);
+  margin: 0;
+  max-width: 360px;
+}
+
+/* === ACCIONES POR FILA === */
+.actions-flex {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
-.mod-name>span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* En reposo todo es navy neutro: el color solo aparece al interactuar */
+.action-btn {
+  color: var(--navy);
+  transition: color 0.2s ease, background-color 0.2s ease;
 }
 
-.mod-name button[mat-icon-button] {
-  padding: 0;
-  /* sin espacio extra */
-  line-height: 1;
+.action-btn:hover {
+  background-color: rgba(140, 213, 10, 0.12);
 }
 
-.mod-name button[mat-icon-button] mat-icon {
-  font-size: 18px;
-  /* ícono discreto y consistente con chips */
-  height: 18px;
-  width: 18px;
+.action-btn-delete:hover {
+  background-color: #fef3f2;
+  color: var(--danger);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 1100px) {
+  .card-header-premium {
+    padding: 20px 24px 18px 24px !important;
+  }
+
+  .card-content {
+    padding: 20px 24px 24px 24px !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .titulo {
+    font-size: 1.25rem !important;
+  }
+
+  /* En móvil el alto fijo se suelta: la página vuelve a scrollear. */
+  :host {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .premium-card {
+    flex: 0 0 auto;
+  }
+
+  .card-content {
+    overflow: visible;
+  }
+
+  .empty-state {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  /* En táctil no hay hover: las acciones de fila deben leerse siempre */
+  .actions-flex {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 600px) {
+  .card-header-premium {
+    padding: 16px 16px 14px 16px !important;
+    border-radius: 12px;
+  }
+
+  .header-content {
+    gap: 12px;
+  }
+
+  .header-icon-container {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .header-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .titulo {
+    font-size: 1.1rem !important;
+  }
+
+  .subtitulo {
+    font-size: 0.78rem !important;
+  }
+
+  .card-content {
+    padding: 16px 12px 20px 12px !important;
+  }
+
+  .header-actions .btn-managerial {
+    flex: 1 1 auto;
+  }
+
+  .table-loading-state {
+    height: 160px;
+  }
+
+  .empty-state {
+    padding: 32px 16px;
+  }
+
+  .empty-illustration {
+    width: 64px;
+    height: 64px;
+  }
+
+  .empty-illustration mat-icon {
+    font-size: 34px;
+    width: 34px;
+    height: 34px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .btn-managerial,
+  .btn-refresh,
+  .action-btn {
+    transition: none !important;
+  }
+
+  .btn-managerial:hover {
+    transform: none;
+  }
 }
 
 .card-header-premium::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -20%;
-    width: 400px;
-    height: 400px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
-    pointer-events: none;
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
+  pointer-events: none;
 }

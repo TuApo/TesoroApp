@@ -1,11 +1,12 @@
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
-import {  Component, computed, inject, OnInit, signal , ChangeDetectionStrategy } from '@angular/core';
+import { Component, computed, inject, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatMenuModule } from '@angular/material/menu';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { GestionRolesSService, Rol } from '../../services/gestion-roles/gestion-roles-s.service';
 import { MatDialog } from '@angular/material/dialog';
-import { ColumnConfig, ColumnDefinition, ColumnType } from '../../../../../../shared/models/advanced-table-interface';
+import { ColumnConfig, ColumnDefinition } from '../../../../../../shared/models/advanced-table-interface';
 import { MatCardModule } from '@angular/material/card';
 import Swal from 'sweetalert2';
 import { finalize } from 'rxjs/operators';
@@ -19,23 +20,27 @@ import { RolUpsertDialogComponent } from '../../components/rol-upsert-dialog/rol
     StandardFilterTable,
     MatIconModule,
     MatButtonModule,
-    MatMenuModule,
+    MatTooltipModule,
+    MatProgressSpinnerModule,
     MatCardModule
   ],
   templateUrl: './gestion-roles.component.html',
   styleUrl: './gestion-roles.component.css'
-} )
+})
 export class GestionRolesComponent implements OnInit {
   private rolesSvc = inject(GestionRolesSService);
   private dialog = inject(MatDialog);
 
-  loading = signal(false);
+  loading = signal(true);
   roles = signal<Rol[]>([]);
+
+  /** La última carga falló: distingue "sin roles" de "no se pudo cargar". */
+  loadError = signal(false);
 
   /** Definición tipo ColumnConfig (tu modelo) */
   columnsCfg: ColumnConfig[] = [
     { columnDef: 'nombre', header: 'Nombre', type: 'text' },
-    { columnDef: 'actions', header: 'Acciones', type: 'actions', align: 'end', editable: false },
+    { columnDef: 'actions', header: 'Acciones', type: 'actions', align: 'end', editable: false, width: '150px' },
   ];
 
   /** Mapeo al ColumnDefinition que consume la tabla */
@@ -48,6 +53,8 @@ export class GestionRolesComponent implements OnInit {
       width: c.width,
       align: (c.align === 'start' ? 'left' : c.align === 'end' ? 'right' : 'center'),
       filterable: c.type !== 'actions',
+      // Ordenar por la columna de acciones no significa nada
+      sortable: c.type !== 'actions',
       options: c.options?.map(o => o.value),
     }))
   );
@@ -61,16 +68,21 @@ export class GestionRolesComponent implements OnInit {
     this.rolesSvc.list().subscribe({
       next: (items) => {
         this.roles.set(items ?? []);
+        this.loadError.set(false);
         this.loading.set(false);
       },
       error: () => {
         this.loading.set(false);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'No se pudieron cargar los roles.',
-          confirmButtonText: 'Entendido',
-        });
+        this.loadError.set(true);
+        // Con la tabla ya poblada el estado de error no se ve: hace falta avisar.
+        if (this.roles().length > 0) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudieron recargar los roles.',
+            confirmButtonText: 'Entendido',
+          });
+        }
       },
     });
   }
@@ -109,6 +121,8 @@ export class GestionRolesComponent implements OnInit {
       title: '¿Eliminar rol?',
       html: `Se eliminará el rol <b>${row.nombre}</b>. Esta acción no se puede deshacer.`,
       showCancelButton: true,
+      confirmButtonColor: '#b42318',
+      cancelButtonColor: '#64748b',
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
       reverseButtons: true,
@@ -117,7 +131,7 @@ export class GestionRolesComponent implements OnInit {
 
     if (!isConfirmed) return;
 
-    // 👇 Mostrar loader SIN await
+    // Sin await: el loader debe quedar abierto mientras corre la petición.
     Swal.fire({
       title: 'Eliminando...',
       icon: 'info',
@@ -127,7 +141,7 @@ export class GestionRolesComponent implements OnInit {
     });
 
     this.rolesSvc.delete(row.id)
-      .pipe(finalize(() => Swal.close())) // 👈 cierra el loader pase lo que pase
+      .pipe(finalize(() => Swal.close()))
       .subscribe({
         next: () => {
           this.toastOk('Rol eliminado');
@@ -154,12 +168,10 @@ export class GestionRolesComponent implements OnInit {
     });
     ref.afterClosed().subscribe(r => {
       if (r?.ok) {
-        // opcional: refrescar lista
         this.refresh();
       }
     });
   }
-
 
   /** Toast de éxito */
   private toastOk(title: string) {

@@ -18,7 +18,7 @@
         }
       </div>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Tipo de documento</mat-label>
         <mat-select formControlName="tipo_documento">
           <mat-option value="CC">Cédula (CC)</mat-option>
@@ -30,9 +30,12 @@
         @if (form.get('tipo_documento')?.hasError('required')) {
           <mat-error>El tipo es requerido</mat-error>
         }
+        @if (form.get('tipo_documento')?.hasError('serverError')) {
+          <mat-error>{{ form.get('tipo_documento')?.getError('serverError') }}</mat-error>
+        }
       </mat-form-field>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Cédula</mat-label>
         <input matInput formControlName="numero_de_documento" autocomplete="off" inputmode="numeric">
         <mat-icon matPrefix>badge</mat-icon>
@@ -42,9 +45,12 @@
         @if (form.get('numero_de_documento')?.hasError('minlength')) {
           <mat-error>Mínimo 4 caracteres</mat-error>
         }
+        @if (form.get('numero_de_documento')?.hasError('serverError')) {
+          <mat-error>{{ form.get('numero_de_documento')?.getError('serverError') }}</mat-error>
+        }
       </mat-form-field>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Correo electrónico</mat-label>
         <input matInput formControlName="correo_electronico" placeholder="ejemplo@correo.com" autocomplete="email" type="email">
         <mat-icon matPrefix>alternate_email</mat-icon>
@@ -54,6 +60,9 @@
         @if (form.get('correo_electronico')?.hasError('email')) {
           <mat-error>Formato de correo inválido</mat-error>
         }
+        @if (form.get('correo_electronico')?.hasError('serverError')) {
+          <mat-error>{{ form.get('correo_electronico')?.getError('serverError') }}</mat-error>
+        }
       </mat-form-field>
 
       <!-- ============ Asignación ============ -->
@@ -61,20 +70,7 @@
         <h3 class="section-title">Asignación</h3>
       </div>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Rol</mat-label>
-        <mat-select formControlName="rol_id">
-          @for (r of roles(); track r) {
-            <mat-option [value]="r.id">{{ r.nombre }}</mat-option>
-          }
-        </mat-select>
-        <mat-icon matPrefix>manage_accounts</mat-icon>
-        @if (form.get('rol_id')?.hasError('required')) {
-          <mat-error>Debes seleccionar un rol</mat-error>
-        }
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Empresa</mat-label>
         <mat-select formControlName="empresa_id">
           <mat-option [value]="null">— Sin empresa —</mat-option>
@@ -85,23 +81,200 @@
         <mat-icon matPrefix>business</mat-icon>
       </mat-form-field>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
-        <mat-label>Sede</mat-label>
-        <mat-select formControlName="sede_id">
-          <mat-option [value]="null">— Sin sede —</mat-option>
-          @for (s of sedes(); track s) {
-            <mat-option [value]="s.id">{{ s.nombre }}</mat-option>
+      <!-- ── Roles (multi-rol con temporizador) ── -->
+      <div class="asig-block span-full">
+        <div class="asig-head">
+          <mat-icon>manage_accounts</mat-icon>
+          <span class="asig-title">Roles</span>
+          <span class="asig-hint">La estrella marca el rol principal; el reloj limita su vigencia.</span>
+        </div>
+
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="asig-add">
+          <mat-label>Agregar rol…</mat-label>
+          <mat-select #selRol (selectionChange)="agregarRol($event.value); selRol.writeValue(null)">
+            @for (r of rolesDisponibles(); track r.id) {
+              <mat-option [value]="r.id">{{ r.nombre }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>add_circle_outline</mat-icon>
+        </mat-form-field>
+
+        @if (!rolesAsignados().length && rolesTocados()) {
+          <div class="asig-error">
+            <mat-icon>error_outline</mat-icon>
+            <span>Debes asignar al menos un rol</span>
+          </div>
+        }
+
+        <div class="asig-list">
+          @for (r of rolesAsignados(); track r.id) {
+            <div class="asig-item" [class.asig-item--vencido]="esVencido(r)">
+              <button mat-icon-button type="button" class="asig-star"
+                (click)="marcarRolPrincipal(r.id)"
+                [matTooltip]="r.es_principal ? 'Rol principal' : 'Marcar como principal'">
+                <mat-icon [class.star-on]="r.es_principal">{{ r.es_principal ? 'star' : 'star_outline' }}</mat-icon>
+              </button>
+              <span class="asig-nombre">{{ r.nombre }}</span>
+              @if (r.es_principal) { <span class="asig-chip asig-chip--principal">Principal</span> }
+              @if (esVencido(r)) { <span class="asig-chip asig-chip--vencido">Vencido</span> }
+              <span class="asig-vigencia" [class.asig-vigencia--activa]="!!r.vigente_hasta && !esVencido(r)">
+                {{ vigenciaLabel(r) }}
+              </span>
+              <button mat-icon-button type="button" [matMenuTriggerFor]="menuVigencia"
+                (click)="abrirMenuVigencia(r.id)" matTooltip="Temporizador: hasta cuándo tendrá este rol">
+                <mat-icon>schedule</mat-icon>
+              </button>
+              <button mat-icon-button type="button" class="asig-quitar" (click)="quitarRol(r.id)" matTooltip="Quitar rol">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+            @if (vigenciaEnEdicion() === r.id) {
+              <div class="asig-item asig-item--fecha">
+                <mat-icon>event</mat-icon>
+                <label class="asig-fecha-label">Vigente hasta:</label>
+                <input type="datetime-local" class="asig-fecha-input"
+                  [value]="vigenciaLocalDe(r)" (change)="setVigenciaFecha(r.id, $event)">
+              </div>
+            }
+          } @empty {
+            <div class="asig-vacio">Sin roles asignados. Agrega al menos uno.</div>
           }
-        </mat-select>
-        <mat-icon matPrefix>location_city</mat-icon>
-      </mat-form-field>
+        </div>
+      </div>
+
+      <mat-menu #menuVigencia="matMenu">
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(null)">
+          <mat-icon>all_inclusive</mat-icon><span>Sin límite (indefinido)</span>
+        </button>
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(1)">
+          <mat-icon>schedule</mat-icon><span>1 día</span>
+        </button>
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(7)">
+          <mat-icon>schedule</mat-icon><span>1 semana</span>
+        </button>
+        <button mat-menu-item type="button" (click)="setVigenciaPreset(30)">
+          <mat-icon>schedule</mat-icon><span>30 días</span>
+        </button>
+        <button mat-menu-item type="button" (click)="abrirVigenciaPersonalizada()">
+          <mat-icon>event</mat-icon><span>Elegir fecha y hora…</span>
+        </button>
+      </mat-menu>
+
+      <!-- ── Sedes (multi-sede) ── -->
+      <div class="asig-block span-full">
+        <div class="asig-head">
+          <mat-icon>location_city</mat-icon>
+          <span class="asig-title">Sedes</span>
+          <span class="asig-hint">La estrella marca la sede principal.</span>
+        </div>
+
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="asig-add">
+          <mat-label>Agregar sede…</mat-label>
+          <mat-select #selSede (selectionChange)="agregarSede($event.value); selSede.writeValue(null)">
+            @for (s of sedesDisponibles(); track s.id) {
+              <mat-option [value]="s.id">{{ s.nombre }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>add_circle_outline</mat-icon>
+        </mat-form-field>
+
+        <div class="asig-list">
+          @for (s of sedesAsignadas(); track s.id) {
+            <div class="asig-item">
+              <button mat-icon-button type="button" class="asig-star"
+                (click)="marcarSedePrincipal(s.id)"
+                [matTooltip]="s.es_principal ? 'Sede principal' : 'Marcar como principal'">
+                <mat-icon [class.star-on]="s.es_principal">{{ s.es_principal ? 'star' : 'star_outline' }}</mat-icon>
+              </button>
+              <span class="asig-nombre">{{ s.nombre }}</span>
+              @if (s.es_principal) { <span class="asig-chip asig-chip--principal">Principal</span> }
+              <span class="asig-vigencia"></span>
+              <button mat-icon-button type="button" class="asig-quitar" (click)="quitarSede(s.id)" matTooltip="Quitar sede">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @empty {
+            <div class="asig-vacio">Sin sedes asignadas (opcional).</div>
+          }
+        </div>
+      </div>
+
+      <!-- ── Grupos y etiquetas (audiencia, NO permisos) ── -->
+      <div class="asig-block span-full">
+        <div class="asig-head">
+          <mat-icon>sell</mat-icon>
+          <span class="asig-title">Grupos y etiquetas</span>
+          <span class="asig-hint">
+            Marcan a quién va dirigido algo (finca, empresa usuaria, etiqueta propia).
+            No dan permisos: eso lo sigue decidiendo el rol.
+          </span>
+        </div>
+
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="asig-add">
+          <mat-label>Agregar grupo o etiqueta…</mat-label>
+          <mat-select #selGrupo (selectionChange)="agregarGrupo($event.value); selGrupo.writeValue(null)">
+            @for (g of gruposDisponibles(); track g.id) {
+              <mat-option [value]="g.id">{{ g.nombre }} · {{ nombreTipoGrupo(g.tipo) }}</mat-option>
+            }
+          </mat-select>
+          <mat-icon matPrefix>add_circle_outline</mat-icon>
+        </mat-form-field>
+
+        <div class="asig-list">
+          @for (g of gruposAsignados(); track g.id) {
+            <div class="asig-item">
+              <span class="asig-punto" [style.background]="g.color || '#21263c'" aria-hidden="true"></span>
+              <span class="asig-nombre">{{ g.nombre }}</span>
+              <span class="asig-chip">{{ nombreTipoGrupo(g.tipo) }}</span>
+              <span class="asig-vigencia"></span>
+              <button mat-icon-button type="button" class="asig-quitar" (click)="quitarGrupo(g.id)"
+                      matTooltip="Quitar del grupo">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @empty {
+            <div class="asig-vacio">Sin grupos ni etiquetas (opcional).</div>
+          }
+        </div>
+      </div>
 
       <!-- ============ Datos personales ============ -->
       <div class="section-head span-full">
         <h3 class="section-title">Datos personales</h3>
       </div>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <!-- Foto de perfil: se reescala en el navegador antes de subirla -->
+      <div class="foto-row span-full">
+        <div class="foto-preview" [class.foto-preview--vacia]="!foto()">
+          @if (fotoCargando()) {
+            <mat-progress-spinner mode="indeterminate" diameter="28"></mat-progress-spinner>
+          } @else if (foto()) {
+            <img [src]="foto()" alt="Foto de perfil" class="foto-img">
+          } @else {
+            <span class="foto-iniciales">{{ iniciales() }}</span>
+          }
+        </div>
+
+        <div class="foto-acciones">
+          <span class="foto-label">Foto de perfil</span>
+          <span class="foto-hint">JPG o PNG. Se recorta en cuadrado y se reduce a 256 px.</span>
+          <div class="foto-botones">
+            <button mat-stroked-button type="button" (click)="fileFoto.click()" [disabled]="fotoCargando()">
+              <mat-icon>photo_camera</mat-icon>
+              <span>{{ foto() ? 'Cambiar foto' : 'Subir foto' }}</span>
+            </button>
+            @if (foto()) {
+              <button mat-button type="button" class="foto-quitar" (click)="quitarFoto()" [disabled]="fotoCargando()">
+                <mat-icon>delete_outline</mat-icon>
+                <span>Quitar</span>
+              </button>
+            }
+          </div>
+          <input #fileFoto type="file" accept="image/*" hidden (change)="onArchivoFoto($event)">
+        </div>
+      </div>
+
+      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Nombres</mat-label>
         <input matInput formControlName="nombres" autocomplete="given-name">
         <mat-icon matPrefix>person</mat-icon>
@@ -111,9 +284,12 @@
         @if (form.get('nombres')?.hasError('minlength')) {
           <mat-error>Mínimo 2 caracteres</mat-error>
         }
+        @if (form.get('nombres')?.hasError('serverError')) {
+          <mat-error>{{ form.get('nombres')?.getError('serverError') }}</mat-error>
+        }
       </mat-form-field>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Apellidos</mat-label>
         <input matInput formControlName="apellidos" autocomplete="family-name">
         <mat-icon matPrefix>person_outline</mat-icon>
@@ -123,9 +299,12 @@
         @if (form.get('apellidos')?.hasError('minlength')) {
           <mat-error>Mínimo 2 caracteres</mat-error>
         }
+        @if (form.get('apellidos')?.hasError('serverError')) {
+          <mat-error>{{ form.get('apellidos')?.getError('serverError') }}</mat-error>
+        }
       </mat-form-field>
 
-      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-form-field appearance="outline" subscriptSizing="fixed">
         <mat-label>Celular</mat-label>
         <input matInput formControlName="celular" type="tel" placeholder="300 123 4567" autocomplete="tel">
         <mat-icon matPrefix>phone</mat-icon>
@@ -133,19 +312,19 @@
 
       <!-- ============ Estado y seguridad ============ -->
       <div class="toggles-row span-full">
-        <mat-slide-toggle formControlName="estado_solicitudes" color="primary">
+        <mat-slide-toggle formControlName="estado_solicitudes">
           Usuario activo
         </mat-slide-toggle>
 
         @if (!isCreate()) {
-          <mat-slide-toggle [checked]="changePw()" (change)="onToggleChangePw($event.checked)" color="primary">
+          <mat-slide-toggle [checked]="changePw()" (change)="onToggleChangePw($event.checked)">
             Cambiar contraseña
           </mat-slide-toggle>
         }
       </div>
 
       @if (isCreate() || changePw()) {
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="span-half-1">
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="span-half-1">
           <mat-label>Contraseña</mat-label>
           <input matInput [type]="hidePw() ? 'password' : 'text'" formControlName="password" autocomplete="new-password">
           <mat-icon matPrefix>lock</mat-icon>
@@ -157,11 +336,11 @@
             <mat-error>La contraseña es requerida</mat-error>
           }
           @if (form.get('password')?.hasError('minlength')) {
-            <mat-error>Mínimo 8 caracteres</mat-error>
+            <mat-error>Mínimo 12 caracteres</mat-error>
           }
         </mat-form-field>
 
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="span-half-2">
+        <mat-form-field appearance="outline" subscriptSizing="fixed" class="span-half-2">
           <mat-label>Confirmar contraseña</mat-label>
           <input matInput [type]="hidePw2() ? 'password' : 'text'" formControlName="password2" autocomplete="new-password">
           <mat-icon matPrefix>lock_outline</mat-icon>
@@ -171,6 +350,9 @@
           </button>
           @if (form.get('password2')?.hasError('required')) {
             <mat-error>Confirma la contraseña</mat-error>
+          }
+          @if (form.get('password2')?.hasError('minlength')) {
+            <mat-error>Mínimo 12 caracteres</mat-error>
           }
           @if (form.get('password2')?.hasError('mismatch')) {
             <mat-error>Las contraseñas no coinciden</mat-error>
@@ -188,7 +370,8 @@
 
 <mat-dialog-actions align="end" class="dlg-actions">
   <button mat-stroked-button mat-dialog-close type="button">Cancelar</button>
-  <button mat-flat-button color="primary" [disabled]="form.invalid || saving()" type="submit" [attr.form]="'userForm'">
+  <button mat-flat-button class="btn-managerial" [disabled]="form.invalid || saving()" type="submit"
+    [attr.form]="'userForm'">
     @if (!saving()) {
       <span>{{ isCreate() ? 'Crear usuario' : 'Guardar cambios' }}</span>
     }

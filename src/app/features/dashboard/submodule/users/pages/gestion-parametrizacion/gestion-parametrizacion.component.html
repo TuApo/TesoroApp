@@ -6,8 +6,8 @@
       </div>
       <div class="header-text">
         <mat-card-title class="titulo">Gestión de Parametrización</mat-card-title>
-        <mat-card-subtitle class="subtitulo">Generación e interacción con variables globales y metatablas
-          maestras.</mat-card-subtitle>
+        <mat-card-subtitle class="subtitulo">Variables globales y metatablas maestras. Haz clic en una fila para
+          editarla.</mat-card-subtitle>
       </div>
     </div>
     <span class="grow"></span>
@@ -31,26 +31,47 @@
 
   <mat-card-content class="card-content">
 
+    <!-- Aplicación de Escritorio -->
+    <div class="desktop-strip">
+      <div class="desktop-strip-icon">
+        <mat-icon>computer</mat-icon>
+      </div>
+      <div class="desktop-strip-info">
+        <span class="desktop-strip-label">Aplicación de Escritorio</span>
+        @if (cargandoVersion()) {
+          <span class="desktop-strip-version">Verificando versión...</span>
+        } @else if (appRelease()) {
+          <span class="desktop-strip-version">v{{ appRelease()!.version }} &mdash; {{ appRelease()!.releaseDate }} &mdash; {{ appRelease()!.sizeMB }} MB</span>
+        } @else {
+          <span class="desktop-strip-version desktop-strip-unavailable">No disponible</span>
+        }
+      </div>
+      <button
+        mat-flat-button
+        class="btn-download-app"
+        [disabled]="!appRelease()"
+        (click)="descargarAppEscritorio()"
+        matTooltip="Descargar instalador de Gestión Tesorería para Windows">
+        <mat-icon>download</mat-icon>
+        Descargar .exe
+      </button>
+    </div>
+
     <app-standard-filter-table [data]="data()" [columnDefinitions]="columns" [pageSizeOptions]="pageSizeOptions"
-      [defaultPageSize]="defaultPageSize" (rowClicked)="onRowClick($event)">
+      [defaultPageSize]="defaultPageSize" [enableRowClick]="true" (rowClicked)="onEditarTabla($event)">
 
-      <!-- ✅ Acciones por fila (con mat-menu) -->
+      <!-- Acciones por fila: siempre visibles (en táctil no hay hover) -->
       <ng-template #actionsTemplate let-row>
-        <button mat-icon-button [matMenuTriggerFor]="rowMenu" (click)="$event.stopPropagation()" matTooltip="Acciones">
-          <mat-icon>more_vert</mat-icon>
-        </button>
-
-        <mat-menu #rowMenu="matMenu">
-          <button mat-menu-item (click)="$event.stopPropagation(); openMetaConfig(row, 'campos')">
+        <div class="row-actions">
+          <button mat-icon-button class="row-action" (click)="openMetaConfig(row, 'campos')"
+            matTooltip="Configurar campos">
             <mat-icon>view_list</mat-icon>
-            <span>Configurar campos</span>
           </button>
-
-          <button mat-menu-item (click)="$event.stopPropagation(); openMetaConfig(row, 'valores')">
+          <button mat-icon-button class="row-action" (click)="openMetaConfig(row, 'valores')"
+            matTooltip="Gestionar valores">
             <mat-icon>dataset</mat-icon>
-            <span>Gestionar valores</span>
           </button>
-        </mat-menu>
+        </div>
       </ng-template>
     </app-standard-filter-table>
   </mat-card-content>

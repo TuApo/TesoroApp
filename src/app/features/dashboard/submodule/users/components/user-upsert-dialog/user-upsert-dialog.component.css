@@ -147,6 +147,31 @@
   gap: 8px;
 }
 
+/* Acción primaria: navy en reposo, lima al interactuar */
+.btn-managerial {
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.2s ease, color 0.2s ease !important;
+}
+
+.btn-managerial:hover:not([disabled]) {
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
+}
+
+/* El spinner del botón hereda el color del label para sobrevivir a la inversión del hover */
+.saving-indicator mat-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-managerial {
+    transition: none !important;
+  }
+}
+
 /* Responsive: 2 columnas */
 @media (max-width: 900px) {
   .form-grid {
@@ -163,4 +188,240 @@
   .span-2,
   .span-half-1,
   .span-half-2 { grid-column: span 1; }
+}
+
+/* ===== Foto de perfil ===== */
+.foto-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 4px 0 8px;
+}
+
+.foto-preview {
+  width: 88px;
+  height: 88px;
+  flex: 0 0 88px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.foto-preview--vacia {
+  border-style: dashed;
+}
+
+.foto-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.foto-iniciales {
+  font-size: 28px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 1px;
+}
+
+.foto-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.foto-label {
+  font-weight: 600;
+  color: var(--navy, #0f172a);
+}
+
+.foto-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.foto-botones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.foto-quitar {
+  color: #b42318;
+}
+
+@media (max-width: 600px) {
+  .foto-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ── Asignaciones múltiples de roles y sedes (V40) ── */
+.asig-block {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f8fafc;
+}
+
+.asig-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #0f172a;
+}
+
+.asig-head mat-icon {
+  color: #475569;
+}
+
+.asig-title {
+  font-weight: 600;
+}
+
+.asig-hint {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: auto;
+  text-align: right;
+}
+
+.asig-add {
+  width: min(320px, 100%);
+}
+
+.asig-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asig-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+.asig-item--vencido {
+  background: #fef3f2;
+  border-color: #fecdca;
+}
+
+.asig-item--fecha {
+  padding: 8px 12px;
+  margin-left: 24px;
+  color: #475569;
+}
+
+.asig-fecha-label {
+  font-size: 13px;
+  color: #475569;
+}
+
+.asig-fecha-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  color: #0f172a;
+  background: #fff;
+}
+
+.asig-nombre {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.asig-chip {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.asig-chip--principal {
+  color: #067647;
+  background: #ecfdf3;
+}
+
+.asig-chip--vencido {
+  color: #b42318;
+  background: #fef3f2;
+}
+
+.asig-vigencia {
+  margin-left: auto;
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.asig-vigencia--activa {
+  color: #b54708;
+  font-weight: 600;
+}
+
+.asig-star .star-on {
+  color: #f59e0b;
+}
+
+.asig-quitar {
+  color: #94a3b8;
+}
+
+.asig-quitar:hover {
+  color: #b42318;
+}
+
+.asig-vacio {
+  font-size: 13px;
+  color: #94a3b8;
+  padding: 6px 2px;
+}
+
+.asig-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #b42318;
+  font-size: 13px;
+  margin: -4px 0 8px;
+}
+
+.asig-error mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+@media (max-width: 600px) {
+  .asig-hint {
+    display: none;
+  }
+  .asig-vigencia {
+    font-size: 11px;
+  }
+}
+
+/* Chip de color del grupo/etiqueta, alineado con el resto de la fila de asignación. */
+.asig-punto {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  margin: 0 6px 0 12px;
+  border-radius: 50%;
 }

@@ -12,24 +12,63 @@
     </div>
     <span class="grow"></span>
 
-    <!-- Acciones Generales -->
-    <button mat-flat-button class="btn-managerial" (click)="openCreateDialog()">
-      <mat-icon>person_add</mat-icon>
-      <span>Nuevo Usuario</span>
-    </button>
+    <!-- .header-actions: la regla global de styles.css lo pasa a fila completa al envolver en móvil -->
+    <div class="header-actions">
+      <button mat-icon-button (click)="reloadUsers()" matTooltip="Recargar tabla" class="btn-refresh"
+        [disabled]="loading()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+      <button mat-flat-button class="btn-managerial" (click)="openCreateDialog()">
+        <mat-icon>person_add</mat-icon>
+        <span>Nuevo Usuario</span>
+      </button>
+    </div>
   </mat-card-header>
 
   <mat-card-content class="card-content">
-    <!-- Loading State: Local Spinner -->
-    @if (loading()) {
+    @if (loading() && rows().length === 0) {
+    <!-- Carga inicial (o reintento): aún no hay nada que preservar en pantalla -->
     <div class="table-loading-state">
-      <mat-spinner diameter="48" color="primary"></mat-spinner>
+      <mat-spinner diameter="48"></mat-spinner>
       <span class="loading-text">Cargando lista de usuarios...</span>
     </div>
+    } @else if (loadError() && rows().length === 0) {
+    <div class="empty-state empty-error">
+      <div class="empty-illustration">
+        <mat-icon>cloud_off</mat-icon>
+      </div>
+      <h3 class="empty-title">No se pudo cargar la lista</h3>
+      <p class="empty-text">
+        Revise su conexión e inténtelo de nuevo. Si el problema persiste, avise al área de sistemas.
+      </p>
+      <button mat-flat-button class="btn-managerial" (click)="reloadUsers(true)">
+        <mat-icon>refresh</mat-icon>
+        <span>Reintentar</span>
+      </button>
+    </div>
+    } @else if (rows().length === 0) {
+    <div class="empty-state">
+      <div class="empty-illustration">
+        <mat-icon>group_add</mat-icon>
+      </div>
+      <h3 class="empty-title">Aún no hay usuarios</h3>
+      <p class="empty-text">
+        Cree el primer usuario para asignarle una sede, un rol y sus permisos de acceso.
+      </p>
+      <button mat-flat-button class="btn-managerial" (click)="openCreateDialog()">
+        <mat-icon>person_add</mat-icon>
+        <span>Crear primer usuario</span>
+      </button>
+    </div>
     } @else {
-    <!-- Data Table -->
+    <!-- La tabla sigue montada durante las recargas: su overlay evita perder filtros y página -->
     <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [pageSizeOptions]="[10, 20, 50]"
-      [defaultPageSize]="10">
+      [defaultPageSize]="10" [isLoading]="loading()">
+
+      <!-- Avatar por fila: cada uno pide su propia foto sólo si el listado dice que la tiene -->
+      <ng-template appCellTemplate="foto" let-row>
+        <app-user-avatar [userId]="row.id" [tieneFoto]="row.tiene_foto" [iniciales]="row.iniciales" />
+      </ng-template>
 
       <!-- Acciones por fila -->
       <ng-template #actionsTemplate let-row>
@@ -41,8 +80,15 @@
             class="action-btn-perm">
             <mat-icon>admin_panel_settings</mat-icon>
           </button>
-          <button mat-icon-button (click)="deleteUser(row)" matTooltip="Eliminar" class="action-btn-delete">
-            <mat-icon>delete</mat-icon>
+          <!-- Baja reversible: conserva la fila y su historial. La destructiva es la de al lado. -->
+          <button mat-icon-button (click)="toggleActivo(row)"
+            [matTooltip]="row.estado ? 'Inactivar (conserva los datos)' : 'Activar'"
+            [class.action-btn-activate]="!row.estado" [class.action-btn-deactivate]="row.estado">
+            <mat-icon>{{ row.estado ? 'block' : 'check_circle' }}</mat-icon>
+          </button>
+          <button mat-icon-button (click)="deleteUser(row)" matTooltip="Eliminar definitivamente"
+            class="action-btn-delete">
+            <mat-icon>delete_forever</mat-icon>
           </button>
         </div>
       </ng-template>

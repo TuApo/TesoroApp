@@ -14,9 +14,9 @@
   align-items: center;
   margin: 0 0 24px 0 !important;
   padding: 24px 32px 20px 32px !important;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-    position: relative;
-    overflow: hidden;
+  background: linear-gradient(135deg, var(--slate-900) 0%, #1e293b 60%, var(--slate-700) 100%);
+  position: relative;
+  overflow: hidden;
   color: #ffffff !important;
 }
 
@@ -77,6 +77,25 @@ mat-dialog-actions {
   gap: 8px;
 }
 
+/* Acción primaria: navy en reposo, lima al interactuar */
+.btn-managerial {
+  background-color: var(--navy) !important;
+  color: var(--lime) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.2s ease, color 0.2s ease !important;
+}
+
+.btn-managerial:hover:not([disabled]) {
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
+}
+
+/* El spinner del botón hereda el color del label para sobrevivir a la inversión del hover */
+.saving mat-progress-spinner {
+  --mdc-circular-progress-active-indicator-color: currentColor;
+}
+
 /* Estados de botón */
 button[mat-flat-button][disabled],
 button[mat-stroked-button][disabled] {
@@ -94,12 +113,24 @@ button[mat-stroked-button][disabled] {
 }
 
 /* Responsive */
-@media (max-width: 420px) {
+@media (max-width: 600px) {
   :host {
     --pad: 16px;
   }
 
+  .dlg-header-premium {
+    padding: 16px 16px 14px 16px !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* min-width fijo: sin esto el formulario desborda el diálogo en móvil */
   .form {
     min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-managerial {
+    transition: none !important;
   }
 }

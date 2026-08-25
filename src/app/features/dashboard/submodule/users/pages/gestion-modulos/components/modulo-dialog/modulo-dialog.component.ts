@@ -19,8 +19,6 @@ export interface ModuloDialogData {
   orden?: number;
   /** Si es true, oculta el campo "orden" (lo gestiona el padre con next-orden). */
   autoOrden?: boolean;
-  /** @deprecated reservado para compat. */
-  previouslyUsedIcons?: string[];
 }
 
 interface IconSuggestion {
@@ -183,6 +181,11 @@ export class ModuloDialogComponent {
       { icon: 'business', label: 'Empresa' },
       { icon: 'apartment', label: 'Edificio' },
       { icon: 'corporate_fare', label: 'Corporativo' }
+    ]},
+    { match: ['costo', 'ceco', 'centro de cost'], suggestions: [
+      { icon: 'account_balance_wallet', label: 'Cartera' },
+      { icon: 'account_tree', label: 'Estructura' },
+      { icon: 'request_quote', label: 'Factura' }
     ]},
     { match: ['tick'], suggestions: [
       { icon: 'confirmation_number', label: 'Ticket' },
@@ -398,11 +401,6 @@ export class ModuloDialogComponent {
 
   seleccionarIcono(icono: string): void {
     this.form.get('icono')?.setValue(icono);
-  }
-
-  /** Indica si las sugerencias actuales son automáticas (basadas en el nombre). */
-  get sonSugerenciasInteligentes(): boolean {
-    return this.iconosSugeridosPorNombre().length > 0;
   }
 
   get iconoActual(): string {

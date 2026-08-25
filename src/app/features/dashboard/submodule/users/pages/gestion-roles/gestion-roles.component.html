@@ -14,46 +14,70 @@
 
     <!-- Acciones Generales -->
     <div class="header-actions">
-      <button mat-icon-button (click)="refresh()" matTooltip="Recargar tabla" class="btn-refresh">
+      <button mat-icon-button (click)="refresh()" matTooltip="Recargar tabla" class="btn-refresh"
+        [disabled]="loading()">
         <mat-icon>refresh</mat-icon>
       </button>
       <button mat-flat-button class="btn-managerial" (click)="nuevo()">
-        <mat-icon>person_add</mat-icon>
+        <mat-icon>add_moderator</mat-icon>
         <span>Crear Rol</span>
       </button>
     </div>
   </mat-card-header>
 
   <mat-card-content class="card-content">
-    <app-standard-filter-table [data]="roles()" [columnDefinitions]="columns()">
+    @if (loading() && roles().length === 0) {
+    <div class="table-loading-state">
+      <mat-spinner diameter="48"></mat-spinner>
+      <span class="loading-text">Cargando roles...</span>
+    </div>
+    } @else if (loadError() && roles().length === 0) {
+    <div class="empty-state empty-error">
+      <div class="empty-illustration">
+        <mat-icon>cloud_off</mat-icon>
+      </div>
+      <h3 class="empty-title">No se pudo cargar la lista</h3>
+      <p class="empty-text">
+        Revise su conexión e inténtelo de nuevo. Si el problema persiste, avise al área de sistemas.
+      </p>
+      <button mat-flat-button class="btn-managerial" (click)="refresh()">
+        <mat-icon>refresh</mat-icon>
+        <span>Reintentar</span>
+      </button>
+    </div>
+    } @else if (roles().length === 0) {
+    <div class="empty-state">
+      <div class="empty-illustration">
+        <mat-icon>shield_person</mat-icon>
+      </div>
+      <h3 class="empty-title">Aún no hay roles</h3>
+      <p class="empty-text">
+        Cree el primer rol para agrupar permisos y asignarlos a los usuarios.
+      </p>
+      <button mat-flat-button class="btn-managerial" (click)="nuevo()">
+        <mat-icon>add_moderator</mat-icon>
+        <span>Crear primer rol</span>
+      </button>
+    </div>
+    } @else {
+    <app-standard-filter-table [data]="roles()" [columnDefinitions]="columns()" [isLoading]="loading()">
 
-      <!-- Acciones por fila (con MatMenu) -->
+      <!-- Acciones por fila: visibles en línea, no enterradas en un menú -->
       <ng-template #actionsTemplate let-row>
-        <!-- Trigger -->
-        <button mat-icon-button [matMenuTriggerFor]="rowMenu" matTooltip="Acciones" aria-label="Acciones"
-          data-row-click-ignore="true" (click)="$event.stopPropagation()">
-          <mat-icon>more_vert</mat-icon>
-        </button>
-
-        <!-- Menu por fila -->
-        <mat-menu #rowMenu="matMenu">
-          <button mat-menu-item (click)="permisos(row)">
+        <div class="actions-flex" data-row-click-ignore="true" (click)="$event.stopPropagation()">
+          <button mat-icon-button (click)="permisos(row)" matTooltip="Gestionar permisos" class="action-btn">
             <mat-icon>lock</mat-icon>
-            <span>Permisos</span>
           </button>
-
-          <button mat-menu-item (click)="editar(row)">
+          <button mat-icon-button (click)="editar(row)" matTooltip="Editar rol" class="action-btn">
             <mat-icon>edit</mat-icon>
-            <span>Editar</span>
           </button>
-
-          <button mat-menu-item (click)="eliminar(row)">
-            <mat-icon color="warn">delete</mat-icon>
-            <span>Eliminar</span>
+          <button mat-icon-button (click)="eliminar(row)" matTooltip="Eliminar" class="action-btn action-btn-delete">
+            <mat-icon>delete</mat-icon>
           </button>
-        </mat-menu>
+        </div>
       </ng-template>
 
     </app-standard-filter-table>
+    }
   </mat-card-content>
 </mat-card>

@@ -44,4 +44,28 @@ export class LoginService {
 
     return result;
   }
+
+  // OTP Recovery — Paso 1: solicitar código
+  async solicitarOtp(login: string): Promise<{ correo_enmascarado: string }> {
+    return firstValueFrom(
+      this.http.post<{ correo_enmascarado: string }>(`${this.apiUrl}/solicitar-otp/`, { login })
+    );
+  }
+
+  // OTP Recovery — Paso 2: verificar código
+  async verificarOtp(login: string, codigo: string): Promise<{ reset_token: string }> {
+    return firstValueFrom(
+      this.http.post<{ reset_token: string }>(`${this.apiUrl}/verificar-otp/`, { login, codigo })
+    );
+  }
+
+  // OTP Recovery — Paso 3: nueva contraseña
+  async resetContrasena(resetToken: string, nuevaContrasena: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post(`${this.apiUrl}/reset-contrasena/`, {
+        reset_token: resetToken,
+        nueva_contrasena: nuevaContrasena,
+      })
+    );
+  }
 }

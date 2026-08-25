@@ -1,0 +1,136 @@
+<div class="dp-head">
+  <mat-icon>person_search</mat-icon>
+  <div>
+    <h2 class="dp-title">¿A quién vas a atender?</h2>
+    <p class="dp-sub">Documento, nombre, correo o teléfono. Si la cédula quedó mal escrita, búscala por otro dato.</p>
+  </div>
+</div>
+
+@if (!corrigiendo()) {
+  <div class="dp-body">
+    <mat-form-field appearance="outline" class="dp-tipo">
+      <mat-label>Tipo de documento</mat-label>
+      <mat-select [(ngModel)]="tipoDoc">
+        @for (t of tiposDocumento; track t.value) {
+          <mat-option [value]="t.value">{{ t.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="dp-num">
+      <mat-label>Buscar</mat-label>
+      <input matInput cdkFocusInitial [(ngModel)]="numero" autocomplete="off"
+             placeholder="1005851506 · Maria Gomez · 300... · correo@..."
+             (ngModelChange)="onEscribe($event)" (keyup.enter)="buscarTalCual()" />
+      @if (buscando()) { <mat-icon matSuffix class="dp-spin">progress_activity</mat-icon> }
+      <mat-hint>Desde 3 caracteres. Enter busca tal cual lo escribiste.</mat-hint>
+    </mat-form-field>
+  </div>
+
+  <div class="dp-lista">
+    @for (p of resultados(); track p.id) {
+      <div class="dp-item">
+        <button type="button" class="dp-item-main" (click)="elegir(p)">
+          <div class="dp-item-top">
+            <span class="dp-nombre">{{ p.nombre || 'Sin nombre' }}</span>
+            <span class="dp-doc">{{ p.tipo_doc || 'CC' }} {{ p.numero_documento }}</span>
+            @if (p.contrato_activo) {
+              <span class="dp-tag dp-tag-ok">Contrato activo</span>
+            } @else if (p.contratado) {
+              <span class="dp-tag">Contratado</span>
+            }
+          </div>
+          <div class="dp-item-sub">
+            @if (p.oficina)        { <span><mat-icon>store</mat-icon>{{ p.oficina }}</span> }
+            @if (p.celular)        { <span><mat-icon>call</mat-icon>{{ p.celular }}</span> }
+            @if (p.email)          { <span class="dp-break"><mat-icon>mail</mat-icon>{{ p.email }}</span> }
+            @if (p.vacante_cargo)  { <span class="dp-break"><mat-icon>work</mat-icon>{{ p.vacante_cargo }}</span> }
+            @if (p.codigo_contrato){ <span><mat-icon>badge</mat-icon>{{ p.codigo_contrato }}</span> }
+            <span><mat-icon>description</mat-icon>{{ p.documentos }} doc.</span>
+          </div>
+        </button>
+
+        <button type="button" class="dp-item-fix"
+                matTooltip="Corregir el documento de esta persona"
+                (click)="abrirCorreccion(p)">
+          <mat-icon>edit_note</mat-icon>
+        </button>
+      </div>
+    } @empty {
+      @if (buscado() && !buscando()) {
+        <p class="dp-vacio">Nadie coincide con eso. Puedes buscar el documento tal cual con Enter.</p>
+      }
+    }
+  </div>
+
+  <div mat-dialog-actions align="end" class="dp-actions">
+    <button mat-button type="button" (click)="ref.close()">Ahora no</button>
+    <button mat-flat-button color="primary" type="button"
+            [disabled]="!numero.trim()" (click)="buscarTalCual()">
+      <mat-icon>search</mat-icon> Usar tal cual
+    </button>
+  </div>
+
+} @else {
+  <!-- ── Corrección del documento ─────────────────────────────────────── -->
+  @if (corrigiendo(); as p) {
+    <div class="dp-fix">
+      <div class="dp-fix-aviso">
+        <mat-icon>warning</mat-icon>
+        <div>
+          Vas a cambiar la cédula de <strong>{{ p.nombre }}</strong>. Es la llave con la que se cruza
+          toda la plataforma: contratación, documentos, nómina y su acceso. Queda registrado en
+          <strong>Logs y Auditoría</strong> a tu nombre.
+        </div>
+      </div>
+
+      <div class="dp-fix-campos">
+        <mat-form-field appearance="outline">
+          <mat-label>Documento actual</mat-label>
+          <input matInput [value]="p.numero_documento" readonly />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Documento corregido</mat-label>
+          <input matInput [ngModel]="nuevoDoc()" (ngModelChange)="nuevoDoc.set($event)"
+                 autocomplete="off" placeholder="Solo dígitos, o X al inicio" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="dp-fix-motivo">
+          <mat-label>Motivo (queda en la auditoría)</mat-label>
+          <input matInput [ngModel]="motivo()" (ngModelChange)="motivo.set($event)"
+                 placeholder="Ej: se digitó mal al registrar" />
+        </mat-form-field>
+      </div>
+
+      <!-- Primero el impacto, después el cambio: nadie debería aplicar esto
+           sin ver a cuántos registros llega. -->
+      @if (simulacion(); as s) {
+        <div class="dp-impacto">
+          <h4><mat-icon>fact_check</mat-icon> Se cambiarían {{ s.filasTotales }} registro(s)</h4>
+          <div class="dp-impacto-lista">
+            @for (t of tablas(s); track t.tabla) {
+              <span class="dp-impacto-item"><b>{{ t.filas }}</b> {{ t.tabla }}</span>
+            }
+          </div>
+          @if (s.avisos?.length) {
+            <p class="dp-impacto-aviso">Tablas que no se pudieron revisar: {{ s.avisos.join(' · ') }}</p>
+          }
+        </div>
+      }
+
+      <div mat-dialog-actions align="end" class="dp-actions">
+        <button mat-button type="button" (click)="cancelarCorreccion()">Volver</button>
+        <button mat-stroked-button type="button"
+                [disabled]="!nuevoDoc().trim()" (click)="simular()">
+          <mat-icon>fact_check</mat-icon> Ver impacto
+        </button>
+        <button mat-flat-button type="button" class="dp-btn-peligro"
+                [disabled]="!simulacion() || aplicando()" (click)="aplicar()">
+          <mat-icon>published_with_changes</mat-icon>
+          {{ aplicando() ? 'Cambiando…' : 'Cambiar la cédula' }}
+        </button>
+      </div>
+    </div>
+  }
+}

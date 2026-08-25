@@ -1,3 +1,16 @@
+/* === LAYOUT: alto exacto, sin scroll de página ===
+   :host toma el alto que le da .dashboard-page-wrapper y ahoga su scroll
+   (el wrapper es `overflow: auto` por defecto). Así la página llena la
+   pantalla exacta y el único que scrollea es el cuerpo de la tabla. */
+:host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
 /* === MANAGERIAL PREMIUM THEME === */
 .premium-card {
     border-radius: 16px !important;
@@ -5,7 +18,13 @@
     border: 1px solid #f1f5f9;
     background-color: #ffffff;
     overflow: hidden;
-    margin-bottom: 24px;
+    /* el margen inferior sobraba: la card ya termina donde termina la pantalla */
+    margin: 0;
+    /* eslabón 1 de la cadena flex: crece hasta el alto del host y puede encoger */
+    flex: 1 1 auto;
+    display: flex !important;
+    flex-direction: column;
+    min-height: 0;
 }
 
 .card-header-premium {
@@ -13,10 +32,12 @@
     align-items: center;
     padding: 24px 32px 20px 32px !important;
     border-bottom: none;
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
     position: relative;
     overflow: hidden;
     border-radius: 16px;
+    /* la cabecera nunca cede alto: lo cede la tabla */
+    flex-shrink: 0;
 }
 
 .header-content {
@@ -84,8 +105,8 @@
 }
 
 .btn-managerial {
-    background-color: #192030 !important;
-  color: #8DD603 !important;
+    background-color: #21263C !important;
+  color: #8CD50A !important;
     border-radius: 8px !important;
     padding: 0 20px !important;
     height: 40px !important;
@@ -98,14 +119,30 @@
 .btn-managerial:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25) !important;
-    background-color: #8DD603 !important;
-  color: #192030 !important;
+    background-color: #8CD50A !important;
+  color: #21263C !important;
 }
 
 /* Base Card Content Adjustment */
 .card-content {
     padding: 24px 32px 32px 32px !important;
     position: relative;
+    /* eslabón 2: min-height:0 es lo que permite encoger por debajo del
+       contenido; sin él el alto se escaparía al scroll de la página. */
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    /* red de seguridad para pantallas muy bajas (la tabla compartida trae un
+       min-height propio): antes scrollear la card que recortar el paginador. */
+    overflow: auto;
+}
+
+/* eslabón 3: la tabla compartida (:host height:100%) llena el hueco y
+   scrollea por dentro. min-height:0 para que pueda encoger. */
+app-standard-filter-table {
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .card-header-premium::before {
@@ -118,4 +155,169 @@
     border-radius: 50%;
     background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
     pointer-events: none;
+}
+
+/* === STRIP DESCARGA APP ESCRITORIO === */
+.desktop-strip {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 18px;
+    margin-bottom: 18px;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.desktop-strip-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(140, 213, 10, 0.15);
+    color: #8CD50A;
+    flex-shrink: 0;
+}
+
+.desktop-strip-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.desktop-strip-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    letter-spacing: 0.02em;
+}
+
+.desktop-strip-version {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 1px;
+}
+
+.desktop-strip-unavailable {
+    color: #ef4444;
+}
+
+.btn-download-app {
+    background-color: #8CD50A !important;
+    color: #21263C !important;
+    border-radius: 8px !important;
+    padding: 0 18px !important;
+    height: 36px !important;
+    font-weight: 700 !important;
+    font-size: 0.82rem !important;
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.btn-download-app:disabled {
+    opacity: 0.4 !important;
+}
+
+/* === ACCIONES POR FILA === */
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.row-action {
+    color: var(--slate-500);
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* El lima sobre blanco no llega a AA (1.80:1); va como relleno con el navy encima. */
+.row-action:hover {
+    background-color: var(--lime);
+    color: var(--navy);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 900px) {
+
+    /* En móvil el alto fijo se suelta: la página vuelve a scrollear. */
+    :host {
+        height: auto;
+        min-height: 0;
+        overflow: visible;
+    }
+
+    .premium-card {
+        flex: 0 0 auto;
+    }
+
+    .card-header-premium {
+        padding: 18px 20px 16px 20px !important;
+    }
+
+    .card-content {
+        padding: 16px 20px 24px 20px !important;
+        overflow: visible;
+    }
+
+    .titulo {
+        font-size: 1.2rem !important;
+    }
+
+    .header-actions {
+        gap: 8px;
+    }
+}
+
+@media (max-width: 600px) {
+    .premium-card {
+        margin-bottom: 16px;
+    }
+
+    .card-header-premium {
+        padding: 14px 16px !important;
+    }
+
+    .card-content {
+        padding: 12px 12px 20px 12px !important;
+    }
+
+    .header-content {
+        gap: 12px;
+    }
+
+    .header-icon-container {
+        width: 40px;
+        height: 40px;
+    }
+
+    .header-icon {
+        font-size: 24px;
+        width: 24px;
+        height: 24px;
+    }
+
+    /* El header envuelve en móvil (regla global): la acción primaria ocupa el ancho. */
+    .header-actions {
+        width: 100%;
+    }
+
+    .header-actions .btn-managerial {
+        flex: 1 1 auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .btn-managerial,
+    .btn-refresh,
+    .row-action {
+        transition: none !important;
+    }
+
+    .btn-managerial:hover {
+        transform: none;
+    }
 }

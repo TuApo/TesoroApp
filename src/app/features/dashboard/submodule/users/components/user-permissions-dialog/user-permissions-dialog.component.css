@@ -1,12 +1,11 @@
 /* --- CSS TOKENS & SHELL --- */
 :host {
-  /* Brand Palette (Managerial Premium) */
-  --brand: #21263c;
-  /* Navy Principal */
-  --brand-light: #2c426e;
-  /* Lighter Brand */
-  --accent: #8CD50A;
-  /* Verde Acento */
+  /* Alias locales a los tokens globales de styles.css: una sola fuente de verdad.
+     --brand-light era #2c426e (azul, fuera de paleta); ahora es el gris neutro
+     que ya se usa para texto secundario. */
+  --brand: var(--navy);
+  --brand-light: var(--slate-500);
+  --accent: var(--lime);
 
   --text-primary: #1e293b;
   --text-secondary: #64748b;
@@ -514,19 +513,39 @@ th.mat-header-cell {
   gap: 12px;
 }
 
+/* Acción primaria: navy en reposo, lima al interactuar */
 .btn-save {
   background-color: var(--brand) !important;
-  color: #fff !important;
+  color: var(--lime) !important;
+  font-weight: 600 !important;
+  transition: background-color 0.2s ease, color 0.2s ease !important;
+}
+
+.btn-save:hover:not([disabled]) {
+  background-color: var(--lime) !important;
+  color: var(--navy) !important;
+}
+
+/* El spinner hereda el color del label para sobrevivir a la inversión del hover */
+.btn-save .spinner-btn {
+  --mdc-circular-progress-active-indicator-color: currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-save {
+    transition: none !important;
+  }
 }
 
 /* --- SPINNER & STATES --- */
+/* currentColor, no blanco fijo: al hacer hover el boton se invierte a fondo
+   lima y un spinner blanco desapareceria. */
 .spinner-btn {
   margin-right: 8px;
-  color: white;
 }
 
 ::ng-deep .spinner-btn circle {
-  stroke: white !important;
+  stroke: currentColor !important;
 }
 
 .state-loading,

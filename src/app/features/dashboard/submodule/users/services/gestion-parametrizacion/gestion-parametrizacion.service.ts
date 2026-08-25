@@ -201,47 +201,42 @@ export class GestionParametrizacionService {
    *  ===========================
    *  GET /meta/tablas/TIPO_CONTRATO/valores/?activo=true&referencia=XYZ
    */
+  /** Cache de catálogos (por código+filtros): son datos de referencia estáticos y
+   *  form-entrevista los re-pedía en cada apertura de pestaña. shareReplay evita
+   *  el re-fetch dentro de la sesión (servicio singleton providedIn root). */
+  private valoresCodigoCache = new Map<string, Observable<MetaValor[]>>();
+
   listMetaValoresByTablaCodigo(
     codigo: string,
     filters: Omit<MetaValorFilters, 'tablaCodigo'> = {}
   ): Observable<MetaValor[]> {
+    const key = `${codigo}|${filters.activo ?? ''}|${filters.referencia ?? ''}|${filters.page ?? ''}|${filters.page_size ?? ''}`;
+    const cached = this.valoresCodigoCache.get(key);
+    if (cached) return cached;
+
     const params = this.qp({
       referencia: filters.referencia,
       activo: filters.activo,
       page: filters.page,
       page_size: filters.page_size,
     });
-    // Los catálogos son listas de dominio (parentescos, estados civiles,
-    // escolaridad…) que no cambian durante una sesión, y varios componentes
-    // piden los mismos. Se cachea la PETICIÓN, no el resultado: si dos
-    // componentes suscriben a la vez, comparten el mismo GET en vuelo.
-    const clave = `${codigo}|${params.toString()}`;
-    let cacheada = this.cacheValores.get(clave);
-    if (!cacheada) {
-      cacheada = this.http
-        .get<MetaValor[] | DRFPaginated<MetaValor>>(
-          `${this.base}/meta/tablas/${encodeURIComponent(codigo)}/valores/`,
-          { params }
-        )
-        .pipe(
-          this.unwrapMaybePaginated<MetaValor>(),
-          shareReplay({ bufferSize: 1, refCount: false }),
-        );
-      // Un error no se cachea: si el backend falló, el próximo debe reintentar.
-      this.cacheValores.set(clave, cacheada);
-      cacheada.subscribe({ error: () => this.cacheValores.delete(clave) });
-    }
-    return cacheada;
+    const obs = this.http
+      .get<MetaValor[] | DRFPaginated<MetaValor>>(
+        `${this.base}/meta/tablas/${encodeURIComponent(codigo)}/valores/`,
+        { params }
+      )
+      .pipe(this.unwrapMaybePaginated<MetaValor>(), shareReplay({ bufferSize: 1, refCount: false }));
+    this.valoresCodigoCache.set(key, obs);
+    // Un error no se cachea: si el backend falló, el próximo debe reintentar.
+    obs.subscribe({ error: () => this.valoresCodigoCache.delete(key) });
+    return obs;
   }
-
-  /** Catálogos ya pedidos, por (código + filtros). Ver `listMetaValoresByTablaCodigo`. */
-  private readonly cacheValores = new Map<string, Observable<MetaValor[]>>();
 
   /** Vacía el cache de catálogos (tras editarlos en parametrización). */
   invalidarCacheCatalogos(codigo?: string): void {
-    if (!codigo) { this.cacheValores.clear(); return; }
-    for (const k of [...this.cacheValores.keys()]) {
-      if (k.startsWith(`${codigo}|`)) this.cacheValores.delete(k);
+    if (!codigo) { this.valoresCodigoCache.clear(); return; }
+    for (const k of [...this.valoresCodigoCache.keys()]) {
+      if (k.startsWith(`${codigo}|`)) this.valoresCodigoCache.delete(k);
     }
   }
 

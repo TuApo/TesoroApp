@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -6,86 +6,59 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
+import Swal from 'sweetalert2';
 
-/** Lo que devuelve el diálogo, o `undefined` si se cerró sin buscar. */
+import {
+  BusquedaPersonaService, PersonaEncontrada, SimulacionCambio,
+} from '../../service/busqueda-persona/busqueda-persona.service';
+
 export interface DocumentoPrompt {
   tipoDoc: string;
   numero: string;
 }
 
 /**
- * Pide el documento al entrar al pipeline.
+ * Encuentra a la persona que se tiene al frente, aunque su cédula esté mal.
  *
- * Antes esto era la pestaña "Turnos": para atender a alguien había que entrar,
- * caer en un tablero de cola, buscar el campo y recién ahí escribir la cédula.
- * Con la persona al frente el primer gesto es siempre el mismo, así que se
- * pregunta de una y la vista arranca en Selección.
- *
- * El diálogo NO busca: solo recoge tipo y número. La búsqueda la sigue haciendo
- * `SearchForCandidateComponent`, que además consulta vetados, asegura el estado
- * del robot y encola. Duplicar eso aquí habría dejado dos caminos que se
- * desincronizan al primer cambio.
+ * Antes esto solo aceptaba un documento exacto. Si alguien lo digitó mal al
+ * registrar, la persona quedaba inencontrable: no aparecía por su cédula real
+ * —porque en base está la equivocada— ni había forma de llegar a ella. Ahora
+ * se busca también por nombre, correo y teléfono, cada coincidencia muestra lo
+ * que tiene registrado (oficina, vacante, contrato, documentos) para
+ * distinguir homónimos, y desde ahí se puede corregir el documento.
  */
 @Component({
   selector: 'app-documento-prompt-dialog',
   standalone: true,
   imports: [
     FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule,
-    MatSelectModule, MatButtonModule, MatIconModule,
+    MatSelectModule, MatButtonModule, MatIconModule, MatTooltipModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  styles: [`
-    .dp-head { display:flex; align-items:center; gap:12px; padding:18px 22px; background:var(--navy,#21263C); }
-    .dp-head mat-icon { color:var(--lime,#8CD50A); }
-    .dp-title { margin:0; font-size:1rem; font-weight:700; color:#fff; }
-    .dp-sub { margin:2px 0 0; font-size:.78rem; color:rgba(255,255,255,.65); }
-    .dp-body { display:flex; gap:12px; padding:20px 22px 4px; flex-wrap:wrap; }
-    .dp-tipo { flex:1 1 190px; min-width:0; }
-    .dp-num  { flex:2 1 240px; min-width:0; }
-    .dp-actions { padding:0 22px 18px; }
-  `],
-  template: `
-    <div class="dp-head">
-      <mat-icon>badge</mat-icon>
-      <div>
-        <h2 class="dp-title">¿A quién vas a atender?</h2>
-        <p class="dp-sub">Escribe el documento de la persona que tienes al frente.</p>
-      </div>
-    </div>
-
-    <div class="dp-body">
-      <mat-form-field appearance="outline" class="dp-tipo">
-        <mat-label>Tipo de documento</mat-label>
-        <mat-select [(ngModel)]="tipoDoc">
-          @for (t of tiposDocumento; track t.value) {
-            <mat-option [value]="t.value">{{ t.label }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-
-      <mat-form-field appearance="outline" class="dp-num">
-        <mat-label>Número de documento</mat-label>
-        <!-- cdkFocusInitial: el foco cae aquí, que es lo único que hay que teclear. -->
-        <input matInput cdkFocusInitial [(ngModel)]="numero" autocomplete="off"
-               placeholder="Ej: 1005851506" (keyup.enter)="buscar()" />
-        <mat-hint>Enter para buscar</mat-hint>
-      </mat-form-field>
-    </div>
-
-    <div mat-dialog-actions align="end" class="dp-actions">
-      <button mat-button type="button" (click)="ref.close()">Ahora no</button>
-      <button mat-flat-button color="primary" type="button"
-              [disabled]="!numero.trim()" (click)="buscar()">
-        <mat-icon>search</mat-icon> Buscar
-      </button>
-    </div>
-  `,
+  styleUrls: ['./documento-prompt.dialog.css'],
+  templateUrl: './documento-prompt.dialog.html',
 })
 export class DocumentoPromptDialogComponent {
+  private readonly srv = inject(BusquedaPersonaService);
+
   tipoDoc = 'CC';
   numero = '';
 
-  /** Misma lista que el buscador, para que el tipo elegido case con su búsqueda. */
+  readonly resultados = signal<PersonaEncontrada[]>([]);
+  readonly buscando = signal(false);
+  readonly buscado = signal(false);
+
+  /** Persona sobre la que se está corrigiendo el documento. */
+  readonly corrigiendo = signal<PersonaEncontrada | null>(null);
+  readonly nuevoDoc = signal('');
+  readonly motivo = signal('');
+  readonly simulacion = signal<SimulacionCambio | null>(null);
+  readonly aplicando = signal(false);
+
+  private readonly teclas$ = new Subject<string>();
+
   readonly tiposDocumento: ReadonlyArray<{ value: string; label: string }> = [
     { value: 'CC', label: 'C.C - Cédula de ciudadanía' },
     { value: 'CE', label: 'C.E - Cédula de extranjería' },
@@ -96,11 +69,114 @@ export class DocumentoPromptDialogComponent {
     { value: 'PA', label: 'PA - Pasaporte' },
   ];
 
-  constructor(readonly ref: MatDialogRef<DocumentoPromptDialogComponent, DocumentoPrompt>) {}
+  constructor(readonly ref: MatDialogRef<DocumentoPromptDialogComponent, DocumentoPrompt>) {
+    // Se busca mientras se escribe, pero con freno: sin debounce cada tecla
+    // dispara una consulta que cruza seis tablas.
+    this.teclas$
+      .pipe(
+        debounceTime(320),
+        distinctUntilChanged(),
+        switchMap((q) => {
+          this.buscando.set(true);
+          return this.srv.buscar(q);
+        }),
+      )
+      .subscribe({
+        next: (r) => { this.resultados.set(r ?? []); this.buscando.set(false); this.buscado.set(true); },
+        error: () => { this.resultados.set([]); this.buscando.set(false); this.buscado.set(true); },
+      });
+  }
 
-  buscar(): void {
-    const numero = this.numero.trim();
-    if (!numero) return;
-    this.ref.close({ tipoDoc: this.tipoDoc, numero });
+  onEscribe(v: string): void {
+    const t = (v ?? '').trim();
+    this.resultados.set([]);
+    this.buscado.set(false);
+    if (t.length >= 3) this.teclas$.next(t);
+  }
+
+  /** Se elige una coincidencia: se devuelve su documento REAL, no el tecleado. */
+  elegir(p: PersonaEncontrada): void {
+    this.ref.close({ tipoDoc: p.tipo_doc || this.tipoDoc, numero: p.numero_documento });
+  }
+
+  /** Buscar tal cual se escribió, sin elegir de la lista. */
+  buscarTalCual(): void {
+    const n = this.numero.trim();
+    if (!n) return;
+    this.ref.close({ tipoDoc: this.tipoDoc, numero: n });
+  }
+
+  // ── Corrección del documento ────────────────────────────────────────────
+  abrirCorreccion(p: PersonaEncontrada): void {
+    this.corrigiendo.set(p);
+    this.nuevoDoc.set('');
+    this.motivo.set('');
+    this.simulacion.set(null);
+  }
+
+  cancelarCorreccion(): void {
+    this.corrigiendo.set(null);
+    this.simulacion.set(null);
+  }
+
+  /** Primero se mira el impacto; recién después se puede aplicar. */
+  simular(): void {
+    const p = this.corrigiendo();
+    const nueva = this.nuevoDoc().trim();
+    if (!p || !nueva) return;
+
+    this.srv.simular(p.numero_documento, nueva).subscribe({
+      next: (s) => this.simulacion.set(s),
+      error: (e) => {
+        this.simulacion.set(null);
+        Swal.fire('No se puede', e?.error?.error ?? 'No se pudo calcular el impacto.', 'warning');
+      },
+    });
+  }
+
+  async aplicar(): Promise<void> {
+    const p = this.corrigiendo();
+    const s = this.simulacion();
+    const nueva = this.nuevoDoc().trim();
+    if (!p || !s || !nueva) return;
+
+    // Cambiar una cédula toca la llave con la que se cruza media plataforma.
+    // Se pide confirmación escrita, no un simple "aceptar".
+    const c = await Swal.fire({
+      icon: 'warning',
+      title: 'Vas a cambiar una cédula',
+      html:
+        `<p style="text-align:left">Se reemplazará <b>${p.numero_documento}</b> por <b>${nueva}</b> ` +
+        `en <b>${s.filasTotales}</b> registro(s) de toda la plataforma: contratación, documentos, ` +
+        `nómina y acceso.</p>` +
+        `<p style="text-align:left">Queda asentado en <b>Logs y Auditoría</b> a tu nombre.</p>` +
+        `<p style="text-align:left"><b>Esto no se deshace solo.</b> Escribe la cédula nueva para confirmar:</p>`,
+      input: 'text',
+      inputPlaceholder: nueva,
+      showCancelButton: true,
+      confirmButtonText: 'Cambiar la cédula',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b42318',
+      inputValidator: (v) => (v?.trim() === nueva ? null : 'No coincide con la cédula nueva.'),
+    });
+    if (!c.isConfirmed) return;
+
+    this.aplicando.set(true);
+    this.srv.cambiar(p.numero_documento, nueva, this.motivo().trim()).subscribe({
+      next: (r) => {
+        this.aplicando.set(false);
+        Swal.fire('Cédula corregida', `Se actualizaron ${r.filasTotales} registro(s).`, 'success');
+        this.ref.close({ tipoDoc: p.tipo_doc || this.tipoDoc, numero: nueva });
+      },
+      error: (e) => {
+        this.aplicando.set(false);
+        Swal.fire('No se pudo cambiar', e?.error?.error ?? 'Error al aplicar el cambio.', 'error');
+      },
+    });
+  }
+
+  /** Para pintar el impacto por tabla. */
+  tablas(s: SimulacionCambio): { tabla: string; filas: number }[] {
+    return Object.entries(s.porTabla ?? {}).map(([tabla, filas]) => ({ tabla, filas }));
   }
 }

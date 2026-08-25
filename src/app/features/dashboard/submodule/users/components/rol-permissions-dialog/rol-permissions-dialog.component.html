@@ -26,7 +26,7 @@
     <!-- State: Loading -->
     @if (loading()) {
       <div class="state-loading">
-        <mat-spinner diameter="40" color="primary"></mat-spinner>
+        <mat-spinner diameter="40"></mat-spinner>
         <span class="loading-text">Cargando estructura...</span>
       </div>
     } @else {
@@ -133,7 +133,7 @@
                     <mat-icon class="module-icon">description</mat-icon>
                     <span class="card-title">{{ row['modulo_nombre'] }}</span>
                   </div>
-                  <button mat-icon-button color="warn" (click)="quitarModulo(row['modulo_id'])"
+                  <button mat-icon-button class="btn-danger" (click)="quitarModulo(row['modulo_id'])"
                     aria-label="Limpiar módulo">
                     <mat-icon>delete_outline</mat-icon>
                   </button>
@@ -176,7 +176,7 @@
   <!-- Shared Toggle Template (Desktop) -->
   <ng-template #toggleTpl let-r let-action="action" let-label="label">
     @if (hasAction(r.modulo_id, action)) {
-      <mat-slide-toggle color="primary" [checked]="r[action]" (change)="toggleCell(r.modulo_id, action, $event.checked)"
+      <mat-slide-toggle [checked]="r[action]" (change)="toggleCell(r.modulo_id, action, $event.checked)"
         [attr.aria-label]="'Activar ' + label + ' para ' + r.modulo_nombre">
       </mat-slide-toggle>
     } @else {
@@ -189,7 +189,7 @@
     @if (hasAction(r['modulo_id'], action)) {
       <div class="mobile-toggle-wrapper">
         <span class="mobile-toggle-label">{{ label }}</span>
-        <mat-slide-toggle class="mobile-toggle" color="primary" [checked]="r[action]"
+        <mat-slide-toggle class="mobile-toggle" [checked]="r[action]"
           (change)="toggleCell(r['modulo_id'], action, $event.checked)">
         </mat-slide-toggle>
       </div>
@@ -206,7 +206,7 @@
     </div>
     <div class="footer-actions">
       <button mat-button type="button" (click)="close()" [disabled]="saving()">Cancelar</button>
-      <button mat-flat-button color="primary" (click)="save()" [disabled]="saving()" class="btn-save">
+      <button mat-flat-button (click)="save()" [disabled]="saving()" class="btn-save">
         @if (saving()) {
           <mat-spinner diameter="18" mode="indeterminate" class="spinner-btn"></mat-spinner>
           <span>Guardando...</span>
