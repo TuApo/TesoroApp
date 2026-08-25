@@ -318,4 +318,30 @@ button.active mat-icon { color: #7C3AED !important; }
   min-height: 0;
   border-radius: 12px;
   overflow: hidden;
+  /* El historial se repliega: la conversación se queda con el ancho entero.
+     Dentro del pipeline ya se llevan la pantalla la ficha y los dos railes, y
+     una columna más de 260px dejaba el chat en una rendija. Se abre con el
+     botón de la cabecera, montada encima y no quitando sitio. */
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ast-shell.ast-embebido .ast-side {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  width: 250px;
+  transform: translateX(-100%);
+  transition: transform .2s ease;
+  box-shadow: 12px 0 28px rgba(15, 23, 42, .18);
+}
+
+.ast-shell.ast-embebido.sidebar-open .ast-side { transform: none; }
+
+/* El botón que la abre solo se muestra en móvil; embebido hace falta siempre. */
+.ast-shell.ast-embebido .side-toggle { display: inline-flex !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ast-shell.ast-embebido .ast-side { transition: none; }
 }

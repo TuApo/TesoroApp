@@ -111,6 +111,16 @@ export class AsistenteIaComponent implements OnInit {
   conversacionesFiltradas = computed<ConvAst[]>(() => {
     const f = this.selectedFolder();
     const list = this.conversaciones();
+
+    // Embebido solo se ven las de ESTA persona. Mientras su carpeta no esté
+    // resuelta no se lista nada: enseñar el historial general —"¿cuántos
+    // empleados activos hay?"— junto a la conversación sobre quien se tiene al
+    // frente confunde de qué se está hablando.
+    if (this.embebido()) {
+      const propia = this.folderPersona();
+      return propia == null ? [] : list.filter((c) => c.folderId === propia);
+    }
+
     return f == null ? list : list.filter((c) => c.folderId === f);
   });
 

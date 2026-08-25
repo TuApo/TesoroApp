@@ -1145,7 +1145,11 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    * lista y sabe guardarla es `help-information`.
    */
   pedirVacante(): void {
-    if (!this.candidatoSeleccionado()?.numero_documento) {
+    // La guarda va sobre el CANDIDATO, no sobre su `numero_documento`: hay
+    // registros cargados a los que ese campo les llega vacío —la ficha los
+    // pinta con "CC · —"— y exigirlo mandaba al diálogo de búsqueda a alguien
+    // que ya tenía la persona en pantalla.
+    if (!this.candidatoSeleccionado()) {
       this.abrirPromptDocumento();
       return;
     }
@@ -1158,7 +1162,10 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    * recoge `form-entrevista`, que es el dueño del formulario con esos campos.
    */
   editarFicha(bloque: string): void {
-    if (!this.candidatoSeleccionado()?.numero_documento) {
+    // Mismo motivo que en `pedirVacante`: basta con que haya candidato. Y de
+    // hecho editar es JUSTO lo que hay que poder hacer cuando al registro le
+    // falta el documento.
+    if (!this.candidatoSeleccionado()) {
       this.abrirPromptDocumento();
       return;
     }

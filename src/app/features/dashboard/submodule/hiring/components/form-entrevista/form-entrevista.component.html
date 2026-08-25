@@ -587,8 +587,11 @@
 
     </div>
 
-    <!-- Barra de Enviar (siempre visible, fuera del scroll) -->
-    <div class="sticky-actions-bar">
+    <!-- Barra de Enviar (siempre visible, fuera del scroll).
+         En el chat no aparece: ahí no hay formulario que enviar —enviar es el
+         botón del propio chat— y tener dos "Enviar" en pantalla, uno de los
+         cuales manda la entrevista entera, es una trampa. -->
+    <div class="sticky-actions-bar" [class.oculta]="panel() === 'iaChat'">
       <span class="sticky-actions-hint">
         <mat-icon>info</mat-icon>
         Revisa la información antes de enviar
