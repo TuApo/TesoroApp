@@ -670,11 +670,19 @@ mat-icon,
 
 .ficha-layout {
   /* La ficha subió al pipeline; aquí solo queda el área de trabajo, que ya no
-     comparte fila con nadie y ocupa el ancho completo. */
+     comparte fila con nadie y ocupa el ancho completo.
+     
+     `align-items: start` y la fila acotada NO son decoración: con la ficha al
+     lado, `start` era lo correcto —dos columnas de altos distintos—, pero con
+     una sola columna hacía que `.taller` se midiera por su CONTENIDO en vez de
+     por el alto disponible. Entonces `.taller-panel` nunca tenía un alto que
+     limitar, no scrolleaba, y el panel crecía hasta que un ancestro con
+     `overflow: hidden` le cortaba lo de abajo. */
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
   flex: 1;
   min-height: 0;
   padding: 4px 4px 0;
@@ -1433,7 +1441,8 @@ mat-icon,
    entrevista: el cargo propuesto y cinco puntos por lado.
    ========================================================================== */
 .sug-card {
-  margin-top: 22px;
+  /* Encabeza la entrevista, así que el aire va debajo y no encima. */
+  margin: 0 0 22px;
   padding: 16px;
   border: 1px solid var(--slate-200);
   border-radius: var(--r-md);
