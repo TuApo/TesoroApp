@@ -51,96 +51,98 @@
       </div>
     }
 
-    <section class="dp-seccion">
-      <div class="dp-seccion-head">
-        <mat-icon>auto_fix_high</mat-icon>
-        <h4>Los genera la plataforma</h4>
-        <span class="dp-seccion-conteo">
-          {{ listosGenerables() }} / {{ generables().length }}
-        </span>
-      </div>
-      <ul class="dp-lista">
-        @for (d of generables(); track d.titulo) {
-          <li class="dp-item" [class.dp-item-listo]="d.listo" [class.dp-item-ocupado]="subiendo() === d.titulo">
-            <mat-icon class="dp-item-icon">{{ d.listo ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
-            <span class="dp-item-txt">{{ d.titulo }}</span>
+    <!-- ══ El paquete por ramas del árbol documental ══
+         Mismo reparto que la pantalla de generación (SECCION_LABELS /
+         getDocSeccion), para que un documento caiga en la misma rama se mire
+         por donde se mire. Dentro de cada rama se distingue lo que genera la
+         plataforma de lo que hay que subir, que es lo que cambia quién actúa. -->
+    @for (r of ramas(); track r.key) {
+      <section class="dp-seccion">
+        <div class="dp-seccion-head">
+          <mat-icon>{{ r.icon }}</mat-icon>
+          <h4>{{ r.label }}</h4>
+          <span class="dp-seccion-conteo">{{ r.listos }} / {{ r.items.length }}</span>
+        </div>
 
-            @if (!d.typeId) {
-              <span class="dp-item-nota"
-                    matTooltip="Todavía no tiene tipo en gestión documental: no se puede subir desde aquí">
-                sin tipo
+        <ul class="dp-lista">
+          @for (d of r.items; track d.titulo) {
+            <li class="dp-item" [class.dp-item-listo]="d.listo"
+                [class.dp-item-ocupado]="subiendo() === d.titulo">
+              <mat-icon class="dp-item-icon"
+                        [matTooltip]="d.listo ? 'Ya está en el expediente'
+                                    : (d.soloSubir ? 'Hay que subirlo' : 'Lo genera la plataforma')">
+                {{ d.listo ? 'check_circle' : (d.soloSubir ? 'cloud_upload' : 'auto_fix_high') }}
+              </mat-icon>
+
+              <span class="dp-item-cuerpo">
+                <span class="dp-item-txt">{{ d.titulo }}</span>
+                <span class="dp-item-estado">
+                  @if (d.listo) {
+                    {{ d.nombreArchivo || 'Subido' }}
+                  } @else if (d.soloSubir) {
+                    Por subir
+                  } @else {
+                    Se genera
+                  }
+                </span>
               </span>
-            } @else if (subiendo() === d.titulo) {
-              <mat-icon class="dp-item-spin">progress_activity</mat-icon>
-            } @else {
-              @if (d.fileUrl) {
-                <button type="button" class="dp-accion" matTooltip="Abrir el documento"
-                        (click)="ver(d)">
-                  <mat-icon>visibility</mat-icon>
+
+              @if (!d.typeId) {
+                <span class="dp-item-nota"
+                      matTooltip="Todavía no tiene tipo en gestión documental: no se puede subir desde aquí">
+                  sin tipo
+                </span>
+              } @else if (subiendo() === d.titulo) {
+                <mat-icon class="dp-item-spin">progress_activity</mat-icon>
+              } @else {
+                @if (d.fileUrl) {
+                  <button type="button" class="dp-accion" matTooltip="Previsualizar aquí"
+                          (click)="ver(d)">
+                    <mat-icon>visibility</mat-icon>
+                  </button>
+                  <button type="button" class="dp-accion" matTooltip="Descargar"
+                          (click)="descargar(d)">
+                    <mat-icon>download</mat-icon>
+                  </button>
+                }
+                <input type="file" hidden accept="application/pdf,image/*"
+                       #f (change)="subir($event, d)" />
+                <button type="button" class="dp-accion"
+                        [matTooltip]="d.listo ? 'Reemplazar el documento' : 'Subir el documento'"
+                        [disabled]="!!subiendo()"
+                        (click)="f.click()">
+                  <mat-icon>{{ d.listo ? 'swap_horiz' : 'upload_file' }}</mat-icon>
                 </button>
               }
-              <!-- Subir sin salir del pipeline. Reemplaza si ya había uno: el
-                   backend deja vigente el último de cada tipo. -->
-              <input type="file" hidden accept="application/pdf,image/*"
-                     #f (change)="subir($event, d)" />
-              <button type="button" class="dp-accion"
-                      [matTooltip]="d.listo ? 'Reemplazar el documento' : 'Subir el documento'"
-                      [disabled]="!!subiendo()"
-                      (click)="f.click()">
-                <mat-icon>{{ d.listo ? 'swap_horiz' : 'upload_file' }}</mat-icon>
-              </button>
-            }
-          </li>
-        } @empty {
-          <li class="dp-item dp-item-vacio">Ninguno para esta vacante.</li>
-        }
-      </ul>
-    </section>
-
-    <section class="dp-seccion">
-      <div class="dp-seccion-head">
-        <mat-icon>cloud_upload</mat-icon>
-        <h4>Hay que subirlos</h4>
-        <span class="dp-seccion-conteo">
-          {{ listosPorSubir() }} / {{ porSubir().length }}
-        </span>
-      </div>
-      <ul class="dp-lista">
-        @for (d of porSubir(); track d.titulo) {
-          <li class="dp-item" [class.dp-item-listo]="d.listo" [class.dp-item-ocupado]="subiendo() === d.titulo">
-            <mat-icon class="dp-item-icon">{{ d.listo ? 'check_circle' : 'cloud_upload' }}</mat-icon>
-            <span class="dp-item-txt">{{ d.titulo }}</span>
-
-            @if (!d.typeId) {
-              <span class="dp-item-nota"
-                    matTooltip="Todavía no tiene tipo en gestión documental: no se puede subir desde aquí">
-                sin tipo
-              </span>
-            } @else if (subiendo() === d.titulo) {
-              <mat-icon class="dp-item-spin">progress_activity</mat-icon>
-            } @else {
-              @if (d.fileUrl) {
-                <button type="button" class="dp-accion" matTooltip="Abrir el documento"
-                        (click)="ver(d)">
-                  <mat-icon>visibility</mat-icon>
-                </button>
-              }
-              <!-- Subir sin salir del pipeline. Reemplaza si ya había uno: el
-                   backend deja vigente el último de cada tipo. -->
-              <input type="file" hidden accept="application/pdf,image/*"
-                     #f (change)="subir($event, d)" />
-              <button type="button" class="dp-accion"
-                      [matTooltip]="d.listo ? 'Reemplazar el documento' : 'Subir el documento'"
-                      [disabled]="!!subiendo()"
-                      (click)="f.click()">
-                <mat-icon>{{ d.listo ? 'swap_horiz' : 'upload_file' }}</mat-icon>
-              </button>
-            }
-          </li>
-        } @empty {
-          <li class="dp-item dp-item-vacio">Ninguno para esta vacante.</li>
-        }
-      </ul>
-    </section>
+            </li>
+          }
+        </ul>
+      </section>
+    }
   }
 </div>
+
+<!-- Visor: el documento se revisa aquí mismo. Abrirlo fuera hacía perder el
+     sitio en mitad de la revisión del paquete. -->
+@if (visorSrc(); as src) {
+  <div class="dp-visor" (click)="cerrarVisor()">
+    <div class="dp-visor-caja" (click)="$event.stopPropagation()">
+      <header class="dp-visor-head">
+        <mat-icon>description</mat-icon>
+        <span class="dp-visor-titulo">{{ visorTitulo() }}</span>
+        <span class="dp-spacer"></span>
+        <button type="button" class="dp-accion" matTooltip="Descargar" (click)="descargar()">
+          <mat-icon>download</mat-icon>
+        </button>
+        <button type="button" class="dp-accion" matTooltip="Abrir fuera de la app"
+                (click)="abrirFuera()">
+          <mat-icon>open_in_new</mat-icon>
+        </button>
+        <button type="button" class="dp-accion" matTooltip="Cerrar" (click)="cerrarVisor()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+      <iframe [src]="src" class="dp-visor-frame" title="Documento"></iframe>
+    </div>
+  </div>
+}

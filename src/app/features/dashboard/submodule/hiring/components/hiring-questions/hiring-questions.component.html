@@ -563,6 +563,65 @@
 
                           <ng-template matTabContent>
                             <div class="tab-content-scrollable">
+
+                            <!-- ══ Identidad: foto, firma y cédula ══
+                                 Estaban repartidas entre el avatar de la ficha
+                                 y los iconos de la barra superior —que ya no
+                                 existe—, así que capturarlas obligaba a saber
+                                 dónde estaba cada una. Aquí, en el paso que se
+                                 llama Cédula & Huella, están las cuatro piezas
+                                 de identidad juntas. -->
+                            <div class="bio-grid">
+
+                              <div class="bio-card" [class.bio-lista]="!!nav.biometria().foto">
+                                <span class="bio-icono"><mat-icon>photo_camera</mat-icon></span>
+                                <span class="bio-txt">
+                                  <strong>Foto de perfil</strong>
+                                  <small>{{ nav.biometria().foto ? 'Capturada' : 'Sin capturar' }}</small>
+                                </span>
+                                @if (nav.biometria().foto; as u) {
+                                  <img class="bio-prev" [src]="u" alt="Foto del candidato"
+                                       referrerpolicy="no-referrer" />
+                                }
+                                <button type="button" class="bio-btn" (click)="nav.pedirFoto()">
+                                  <mat-icon>photo_camera</mat-icon>
+                                  {{ nav.biometria().foto ? 'Volver a tomar' : 'Tomar foto' }}
+                                </button>
+                              </div>
+
+                              <div class="bio-card" [class.bio-lista]="!!nav.biometria().firma">
+                                <span class="bio-icono"><mat-icon>draw</mat-icon></span>
+                                <span class="bio-txt">
+                                  <strong>Firma</strong>
+                                  <small>{{ nav.biometria().firma ? 'Registrada' : 'Sin registrar' }}</small>
+                                </span>
+                                @if (nav.biometria().firma; as u) {
+                                  <img class="bio-prev bio-prev-firma" [src]="u" alt="Firma"
+                                       referrerpolicy="no-referrer" />
+                                }
+                                <button type="button" class="bio-btn" (click)="abrirFirma()">
+                                  <mat-icon>draw</mat-icon>
+                                  {{ nav.biometria().firma ? 'Volver a firmar' : 'Firmar' }}
+                                </button>
+                              </div>
+
+                              <div class="bio-card" [class.bio-lista]="!!cedulaSubida()">
+                                <span class="bio-icono"><mat-icon>badge</mat-icon></span>
+                                <span class="bio-txt">
+                                  <strong>Cédula</strong>
+                                  <small>{{ cedulaSubida() ? 'En el expediente' : 'Sin subir' }}</small>
+                                </span>
+                                <input type="file" hidden accept="application/pdf,image/*"
+                                       #cedulaInput (change)="subirCedula($event)" />
+                                <button type="button" class="bio-btn"
+                                        [disabled]="subiendoCedula()"
+                                        (click)="cedulaInput.click()">
+                                  <mat-icon>{{ subiendoCedula() ? 'hourglass_empty' : 'upload_file' }}</mat-icon>
+                                  {{ cedulaSubida() ? 'Reemplazar' : 'Subir cédula' }}
+                                </button>
+                              </div>
+                            </div>
+
                             <!-- APOYO LABORAL T.S. S.A.S. -->
                             <mat-card class="fingerprint-card">
                               <mat-card-content>

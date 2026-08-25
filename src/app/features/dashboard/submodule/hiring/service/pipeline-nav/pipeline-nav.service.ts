@@ -1,6 +1,13 @@
 import { Injectable, signal } from '@angular/core';
 import { Avance, pctDe, sumarAvances } from '../../shared/progreso.util';
 
+/** URLs de la biometría; `null` cuando esa pieza aún no existe. */
+export interface BiometriaResumen {
+  foto: string | null;
+  firma: string | null;
+  huella: string | null;
+}
+
 /** Lo que la ficha muestra de la vacante remitida. */
 export interface VacanteAsignadaResumen {
   id: number;
@@ -89,6 +96,21 @@ export class PipelineNavService {
     this.pedidoVacante.update((n) => n + 1);
   }
 
+  /**
+   * Biometría de la persona, resuelta por el pipeline (documento subido o
+   * biometría embebida) y consumida por el paso Cédula & Huella, que es donde
+   * se captura. Sin este canal habría que repetir en Contratación toda la
+   * resolución de URLs que el pipeline ya hace.
+   */
+  readonly biometria = signal<BiometriaResumen>({ foto: null, firma: null, huella: null });
+
+  /** "Ábreme la cámara": la cámara y la subida viven en el pipeline. */
+  readonly pedidoFoto = signal<number>(0);
+
+  pedirFoto(): void {
+    this.pedidoFoto.update((n) => n + 1);
+  }
+
   private readonly _avances = signal<Readonly<Partial<Record<ClaveAvance, Avance>>>>({});
   readonly avances = this._avances.asReadonly();
 
@@ -126,5 +148,6 @@ export class PipelineNavService {
     this.subContratacion.set(0);
     this.edicionFicha.set(null);
     this.vacanteAsignada.set(null);
+    this.biometria.set({ foto: null, firma: null, huella: null });
   }
 }

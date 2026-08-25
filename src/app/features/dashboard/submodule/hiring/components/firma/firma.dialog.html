@@ -1,0 +1,24 @@
+<h2 mat-dialog-title class="fd-titulo">
+  <mat-icon>draw</mat-icon> Firma de la persona
+</h2>
+
+<mat-dialog-content class="fd-cuerpo">
+  <p class="fd-pista">Firma dentro del recuadro con el dedo, el ratón o el lápiz.</p>
+  <canvas #lienzo class="fd-lienzo"
+          (pointerdown)="alBajar($event)"
+          (pointermove)="alMover($event)"
+          (pointerup)="alSoltar($event)"
+          (pointercancel)="alSoltar($event)"
+          (pointerleave)="alSoltar($event)"></canvas>
+</mat-dialog-content>
+
+<mat-dialog-actions class="fd-acciones">
+  <button type="button" class="fd-limpiar" [disabled]="!firmado()" (click)="limpiar()">
+    <mat-icon>restart_alt</mat-icon> Limpiar
+  </button>
+  <span class="fd-spacer"></span>
+  <button mat-button type="button" (click)="cancelar()">Cancelar</button>
+  <button mat-flat-button color="primary" type="button" [disabled]="!firmado()" (click)="guardar()">
+    <mat-icon>check</mat-icon> Guardar firma
+  </button>
+</mat-dialog-actions>

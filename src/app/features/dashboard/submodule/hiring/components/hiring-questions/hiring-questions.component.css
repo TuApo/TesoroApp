@@ -821,3 +821,90 @@ button {
   flex: 1;
   min-width: 0;
 }
+
+
+/* ==========================================================================
+   IDENTIDAD (foto, firma, cédula) EN EL PASO CÉDULA & HUELLA
+   Estaban repartidas entre el avatar de la ficha y los iconos de la barra
+   superior —que ya no existe—, así que capturarlas obligaba a saber dónde
+   estaba cada una.
+   ========================================================================== */
+.bio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.bio-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.bio-lista {
+  border-color: #BBF7D0;
+  background: #F0FDF4;
+}
+
+.bio-icono {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #EEF2FF;
+  color: #4F46E5;
+}
+
+.bio-lista .bio-icono { background: #DCFCE7; color: #166534; }
+
+.bio-icono mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.bio-txt { display: flex; flex-direction: column; gap: 1px; }
+.bio-txt strong { font-size: .88rem; color: #171B2E; }
+.bio-txt small { font-size: .72rem; color: #64748B; }
+.bio-lista .bio-txt small { color: #166534; }
+
+/* Vista previa de lo capturado: se confirma sin abrir nada. */
+.bio-prev {
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  background: #fff;
+}
+
+.bio-prev-firma { object-fit: contain; padding: 4px; }
+
+.bio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: auto;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #21263C;
+  color: #fff;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bio-btn:disabled { opacity: .5; cursor: not-allowed; }
+.bio-btn mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+@media (max-width: 600px) {
+  .bio-grid { grid-template-columns: minmax(0, 1fr); }
+  .bio-prev { height: 130px; }
+}

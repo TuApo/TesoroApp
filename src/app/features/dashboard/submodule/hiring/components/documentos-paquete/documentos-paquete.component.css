@@ -188,11 +188,30 @@
 
 .dp-item-listo .dp-item-icon { color: var(--ok-fg); }
 
-.dp-item-txt {
+.dp-item-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   flex: 1;
+  min-width: 0;
+}
+
+.dp-item-txt {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* Qué le pasa a este documento: subido (con su nombre), por subir, o lo genera
+   la plataforma. Sin esto había que deducirlo del icono. */
+.dp-item-estado {
+  font-size: .68rem;
+  color: var(--slate-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dp-item-listo .dp-item-estado { color: var(--ok-fg); opacity: .85; }
 
 /* Documento sin tipo en gestión documental: no se puede saber si está, así
    que se dice en vez de pintarlo como pendiente. */
@@ -309,4 +328,77 @@
   font-size: 17px;
   width: 17px;
   height: 17px;
+}
+
+
+/* ==========================================================================
+   VISOR EN LA PROPIA PANTALLA
+   Revisar el paquete y tener que salir a otra pestaña por cada documento hacía
+   perder el sitio a mitad de la revisión.
+   ========================================================================== */
+.dp-visor {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, .58);
+}
+
+.dp-visor-caja {
+  display: flex;
+  flex-direction: column;
+  width: min(1000px, 100%);
+  height: min(88vh, 900px);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, .4);
+}
+
+.dp-visor-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--slate-200);
+}
+
+.dp-visor-head > mat-icon {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--slate-400);
+}
+
+.dp-visor-titulo {
+  min-width: 0;
+  font-size: .86rem;
+  font-weight: 700;
+  color: var(--navy-deep);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dp-spacer { flex: 1; }
+
+.dp-visor-frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+}
+
+@media (max-width: 700px) {
+  .dp-visor { padding: 0; }
+
+  .dp-visor-caja {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
 }

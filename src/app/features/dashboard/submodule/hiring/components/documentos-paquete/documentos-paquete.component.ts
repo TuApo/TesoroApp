@@ -21,7 +21,10 @@ import {
   TYPE_ID_POR_TITULO,
   esSoloSubir,
 } from '../../shared/paquete-documental.data';
-import { isDocumentoVisible } from '../generate-contracting-documents/documentos-por-empresa.config';
+import {
+  DocSeccion, SECCION_LABELS, getDocSeccion, isDocumentoVisible,
+} from '../generate-contracting-documents/documentos-por-empresa.config';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 /** Un documento del paquete y en qué va. */
 export interface ItemPaquete {
@@ -34,6 +37,19 @@ export interface ItemPaquete {
   typeId: number | null;
   /** URL del archivo cuando ya está subido, para poder abrirlo. */
   fileUrl: string | null;
+  /** Nombre con el que quedó guardado. */
+  nombreArchivo: string | null;
+  /** Rama del árbol documental a la que pertenece. */
+  seccion: DocSeccion | null;
+}
+
+/** Una rama del árbol documental, con lo que le toca a esta persona. */
+export interface RamaPaquete {
+  key: DocSeccion | 'otros';
+  label: string;
+  icon: string;
+  items: ItemPaquete[];
+  listos: number;
 }
 
 /**
@@ -70,7 +86,13 @@ export class DocumentosPaqueteComponent {
   readonly error = signal<string | null>(null);
 
   /** Lo que ya está en el expediente, por tipo: sirve para marcar y para abrir. */
-  private readonly docPorTipo = signal<ReadonlyMap<number, string>>(new Map());
+  private readonly docPorTipo = signal<ReadonlyMap<number, { url: string; nombre: string }>>(new Map());
+  private readonly sanitizer = inject(DomSanitizer);
+
+  /** Visor en la propia pantalla: abrir en otra pestaña pierde el sitio. */
+  readonly visorSrc = signal<SafeResourceUrl | null>(null);
+  readonly visorTitulo = signal<string>('');
+  readonly visorUrl = signal<string | null>(null);
   /** Código del contrato: acompaña a cada documento que se sube. */
   private codigoContratacion: string | null = null;
   /** Documento subiéndose ahora mismo (título), para bloquear su fila. */
@@ -126,12 +148,16 @@ export class DocumentosPaqueteComponent {
           const lista = Array.isArray(r)
             ? r
             : ((r as Record<string, unknown>)?.['results'] as unknown[]) ?? [];
-          const porTipo = new Map<number, string>();
+          const porTipo = new Map<number, { url: string; nombre: string }>();
           for (const d of lista as Array<Record<string, unknown>>) {
             const t = Number(d?.['type']);
             if (!Number.isFinite(t)) continue;
             // Se queda el primero: el backend ya devuelve el vigente de cada tipo.
-            if (!porTipo.has(t)) porTipo.set(t, String(d?.['file_url'] ?? ''));
+            if (porTipo.has(t)) continue;
+            porTipo.set(t, {
+              url: String(d?.['file_url'] ?? ''),
+              nombre: String(d?.['title'] ?? d?.['fileName'] ?? ''),
+            });
           }
           this.docPorTipo.set(porTipo);
           this.cargando.set(false);
@@ -157,13 +183,15 @@ export class DocumentosPaqueteComponent {
       .filter((t) => isDocumentoVisible(t, ctx))
       .map((titulo) => {
         const typeId = TYPE_ID_POR_TITULO[titulo] ?? null;
-        const url = typeId !== null ? presentes.get(typeId) ?? null : null;
+        const doc = typeId !== null ? presentes.get(typeId) ?? null : null;
         return {
           titulo,
           soloSubir: esSoloSubir(titulo),
-          listo: typeId !== null && presentes.has(typeId),
+          listo: !!doc,
           typeId,
-          fileUrl: url || null,
+          fileUrl: doc?.url || null,
+          nombreArchivo: doc?.nombre || null,
+          seccion: getDocSeccion(titulo),
         };
       });
   });
@@ -172,6 +200,37 @@ export class DocumentosPaqueteComponent {
   readonly generables = computed(() => this.items().filter((i) => !i.soloSubir));
   /** Los que hay que subir. */
   readonly porSubir = computed(() => this.items().filter((i) => i.soloSubir));
+
+  /**
+   * El paquete repartido por las ramas del árbol documental.
+   *
+   * Es el MISMO reparto que usa la pantalla de generación
+   * (`SECCION_LABELS` / `getDocSeccion`), para que un documento esté en la
+   * misma rama se mire por donde se mire. Las ramas vacías no se pintan, y lo
+   * que no tenga rama declarada cae en "Otros" en vez de desaparecer.
+   */
+  readonly ramas = computed<RamaPaquete[]>(() => {
+    const porRama = new Map<string, ItemPaquete[]>();
+    for (const it of this.items()) {
+      const k = it.seccion ?? 'otros';
+      const arr = porRama.get(k);
+      if (arr) arr.push(it); else porRama.set(k, [it]);
+    }
+
+    const out: RamaPaquete[] = [];
+    for (const s of SECCION_LABELS) {
+      const items = porRama.get(s.key);
+      if (!items?.length) continue;
+      out.push({ key: s.key, label: s.label, icon: s.icon, items,
+        listos: items.filter((i) => i.listo).length });
+    }
+    const otros = porRama.get('otros');
+    if (otros?.length) {
+      out.push({ key: 'otros', label: 'Otros', icon: 'folder', items: otros,
+        listos: otros.filter((i) => i.listo).length });
+    }
+    return out;
+  });
 
   readonly listosGenerables = computed(() => this.generables().filter((i) => i.listo).length);
   readonly listosPorSubir = computed(() => this.porSubir().filter((i) => i.listo).length);
@@ -200,10 +259,41 @@ export class DocumentosPaqueteComponent {
     });
   }
 
-  /** Abre el documento que ya está subido. */
+  /**
+   * Previsualiza el documento SIN salir de la pantalla.
+   *
+   * Abrirlo en el navegador del sistema hacía perder el sitio: se estaba
+   * revisando el paquete y había que volver a buscar a la persona.
+   */
   ver(item: ItemPaquete): void {
     if (!item.fileUrl) return;
-    this.ventanas.openExternal(item.fileUrl);
+    this.visorUrl.set(item.fileUrl);
+    this.visorTitulo.set(item.nombreArchivo || item.titulo);
+    this.visorSrc.set(this.sanitizer.bypassSecurityTrustResourceUrl(encodeURI(item.fileUrl)));
+  }
+
+  cerrarVisor(): void {
+    this.visorSrc.set(null);
+    this.visorUrl.set(null);
+    this.visorTitulo.set('');
+  }
+
+  /** Descarga el que se está viendo, o uno concreto de la lista. */
+  descargar(item?: ItemPaquete): void {
+    const url = item ? item.fileUrl : this.visorUrl();
+    if (!url) return;
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (item?.nombreArchivo || item?.titulo || this.visorTitulo() || 'documento') + '';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.click();
+  }
+
+  /** Abre el documento fuera de la app, para imprimirlo o guardarlo aparte. */
+  abrirFuera(item?: ItemPaquete): void {
+    const url = item ? item.fileUrl : this.visorUrl();
+    if (url) this.ventanas.openExternal(url);
   }
 
   /**

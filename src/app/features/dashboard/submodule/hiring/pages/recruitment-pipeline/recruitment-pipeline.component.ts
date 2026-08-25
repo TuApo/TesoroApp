@@ -1599,6 +1599,26 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       }
     });
 
+    // 5.9) Biometría al servicio compartido: el paso Cédula & Huella la pinta y
+    //      la captura, pero quien sabe resolver sus URLs es este componente.
+    effect(() => {
+      this.candidatoSeleccionado();
+      this.fotoDataUrl(); this.huellaDataUrl(); this.firmaDataUrl();
+      this.nav.biometria.set({
+        foto: this.avatarPhotoUrl(),
+        firma: this.bioLocalPub('firma') ?? this.getBioUrlPub('firma'),
+        huella: this.bioLocalPub('huella') ?? this.getBioUrlPub('huella'),
+      });
+    });
+
+    // 5.95) "Ábreme la cámara" desde Cédula & Huella.
+    effect(() => {
+      const n = this.nav.pedidoFoto();
+      if (n === this.pedidoFotoAtendido) return;
+      this.pedidoFotoAtendido = n;
+      if (n > 0) this.openCamera();
+    });
+
     // 6) Contrato ACTIVO ⇒ el rail y las pestañas quedan deshabilitados hasta
     //    dar de baja (o usar "Modificar de todas formas"); el banner rojo de
     //    arriba explica por qué y ofrece las dos salidas.
@@ -2978,6 +2998,12 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       case 'firma': return this.firmaDataUrl();
     }
   }
+
+  private pedidoFotoAtendido = 0;
+
+  /** Envoltorios públicos: los originales son privados y el effect los usa. */
+  private bioLocalPub(kind: BioKind): string | null { return this.bioLocal(kind); }
+  private getBioUrlPub(kind: BioKind): string | null { return this.getBioUrl(kind); }
 
   private openInNewTab(url: string) {
     // URLs http(s) → navegador del SO; data: / blob: → visor seguro.

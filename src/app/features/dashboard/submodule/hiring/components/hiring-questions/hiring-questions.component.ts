@@ -2,9 +2,11 @@ import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeD
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, merge, Observable } from 'rxjs';
+import { take } from 'rxjs/operators';
 import { startWith, map } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
 import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -35,6 +37,7 @@ import { TarjetasService } from '../../service/tarjetas.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 import { DocumentosPaqueteComponent } from '../documentos-paquete/documentos-paquete.component';
+import { FirmaDialogComponent } from '../firma/firma.dialog';
 import { avanceDeBanderas, avanceDeForm } from '../../shared/progreso.util';
 
 type LocalFile = { file: File | string; fileName: string };
@@ -71,8 +74,14 @@ export class HiringQuestionsComponent implements OnInit {
    * `mat-tab-group` leen y escriben la MISMA señal, así no hay dos estados
    * que sincronizar.
    */
-  private readonly nav = inject(PipelineNavService);
+  /** Público: la plantilla del paso Cédula & Huella lee la biometría de aquí. */
+  readonly nav = inject(PipelineNavService);
+  private readonly dialog = inject(MatDialog);
   readonly subIdx = this.nav.subContratacion;
+
+  /** La cédula ya está en el expediente (tipo 29, CEDULA). */
+  readonly cedulaSubida = signal<boolean>(false);
+  readonly subiendoCedula = signal<boolean>(false);
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
   /**
@@ -250,6 +259,79 @@ export class HiringQuestionsComponent implements OnInit {
       .subscribe(() => this.publicarAvances());
   }
 
+  /** Tipo con el que gestión documental guarda la cédula escaneada. */
+  private static readonly TIPO_CEDULA = 29;
+
+  /**
+   * Firma manuscrita.
+   *
+   * Se apoya en el diálogo de cámara NO: es un lienzo propio, porque firmar
+   * con el dedo o el ratón es lo que se hace en el mostrador. El PNG sube por
+   * el mismo endpoint de biometría que la foto y la huella.
+   */
+  abrirFirma(): void {
+    const cedula = this.cedulaDe();
+    if (!cedula) {
+      this.alert('info', 'Sin persona', 'Busca primero a la persona para registrar su firma.');
+      return;
+    }
+    this.dialog
+      .open(FirmaDialogComponent, {
+        width: '640px', maxWidth: '95vw', autoFocus: false,
+      })
+      .afterClosed()
+      .subscribe((file: File | undefined) => {
+        if (!file) return;
+        this.procesosService.uploadFirma(cedula, file).pipe(take(1)).subscribe({
+          next: () => {
+            this.alert('success', 'Firma registrada', 'Quedó guardada en el expediente.');
+            this.guardado.emit();
+          },
+          error: (e: any) => this.alert(
+            'error', 'No se pudo guardar',
+            mensajeDeErrorLog('uploadFirma', e, 'Inténtalo de nuevo.')),
+        });
+      });
+  }
+
+  /** Sube la cédula escaneada al expediente. */
+  subirCedula(evento: Event): void {
+    const input = evento.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    const cedula = this.cedulaDe();
+    if (!file || !cedula) return;
+
+    if (file.name.length > 100) {
+      this.alert('error', 'Nombre muy largo', 'Máximo 100 caracteres.');
+      return;
+    }
+
+    this.subiendoCedula.set(true);
+    this.docSvc
+      .guardarDocumento('Cedula', cedula, HiringQuestionsComponent.TIPO_CEDULA, file,
+        undefined, String(this.candidatoSeleccionado()?.tipo_doc || '').trim() || undefined)
+      .pipe(take(1))
+      .subscribe({
+        next: () => {
+          this.subiendoCedula.set(false);
+          this.cedulaSubida.set(true);
+          this.alert('success', 'Cédula subida', 'Quedó en el expediente.');
+          this.guardado.emit();
+        },
+        error: (e: any) => {
+          this.subiendoCedula.set(false);
+          this.alert('error', 'No se pudo subir',
+            mensajeDeErrorLog('subirCedula', e, 'Inténtalo de nuevo.'));
+        },
+      });
+  }
+
+  private cedulaDe(): string | null {
+    const c = this.candidatoSeleccionado();
+    return c?.numero_documento ? String(c.numero_documento) : null;
+  }
+
   /**
    * Cuánto lleva llenado cada sub-paso de Contratación.
    *
@@ -271,9 +353,13 @@ export class HiringQuestionsComponent implements OnInit {
     }
     this.nav.publicar('traslados', avanceDeBanderas(traslados));
 
+    // El paso se llama Cédula & Huella: cuenta las cuatro piezas de identidad.
     this.nav.publicar('huella', avanceDeBanderas([
       !!this.fingerprintImageApoyo,
       !!this.fingerprintImageTuAlianza,
+      !!this.nav.biometria().foto,
+      !!this.nav.biometria().firma,
+      this.cedulaSubida(),
     ]));
   }
 
