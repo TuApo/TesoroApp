@@ -1,0 +1,205 @@
+<div class="historico-page">
+
+  <header class="cabecera">
+    <h1>Histórico de envíos</h1>
+    <p class="sub">
+      Cada envío queda registrado con su destinatario, su documento y su
+      resultado. Es lo que se consulta cuando alguien dice que no le llegó.
+    </p>
+  </header>
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- ── Listado de lotes ───────────────────────────────────────────────── -->
+  @if (!loteAbierto()) {
+    <mat-card class="tarjeta">
+      <mat-card-content>
+        <div class="fila-filtros">
+          <mat-form-field appearance="outline">
+            <mat-label>Quincena</mat-label>
+            <mat-select [ngModel]="periodoFiltro()"
+                        (ngModelChange)="periodoFiltro.set($event); consultar(true)">
+              <mat-option [value]="null">Todas</mat-option>
+              @for (p of periodos(); track p.clave) {
+                <mat-option [value]="p.clave">{{ p.etiqueta }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select [ngModel]="estadoFiltro()"
+                        (ngModelChange)="estadoFiltro.set($event); consultar(true)">
+              <mat-option [value]="null">Todos</mat-option>
+              <mat-option value="PREPARADO">Preparado</mat-option>
+              <mat-option value="EN_CURSO">En curso</mat-option>
+              <mat-option value="COMPLETADO">Completado</mat-option>
+              <mat-option value="CON_ERRORES">Con errores</mat-option>
+              <mat-option value="CANCELADO">Cancelado</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        @if (hayLotes()) {
+          <table mat-table [dataSource]="lotes()" class="tabla">
+            <ng-container matColumnDef="fecha">
+              <th mat-header-cell *matHeaderCellDef>Fecha</th>
+              <td mat-cell *matCellDef="let l">{{ l.creado_en | date:'dd/MM/yyyy HH:mm' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="quincena">
+              <th mat-header-cell *matHeaderCellDef>Quincena</th>
+              <td mat-cell *matCellDef="let l"><strong>{{ l.periodo_etiqueta }}</strong></td>
+            </ng-container>
+
+            <ng-container matColumnDef="empresa">
+              <th mat-header-cell *matHeaderCellDef>Empresa</th>
+              <td mat-cell *matCellDef="let l">{{ nombreEmpresa(l.empresa) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="plantilla">
+              <th mat-header-cell *matHeaderCellDef>Plantilla</th>
+              <td mat-cell *matCellDef="let l" class="tenue">{{ l.plantilla_nombre || '—' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="totales">
+              <th mat-header-cell *matHeaderCellDef>Resultado</th>
+              <td mat-cell *matCellDef="let l">
+                <span class="chip chip-ok">{{ l.total_enviados }} enviados</span>
+                @if (l.total_fallidos > 0) {
+                  <span class="chip chip-alerta">{{ l.total_fallidos }} fallidos</span>
+                }
+                @if (l.total_omitidos > 0) {
+                  <span class="chip chip-neutro">{{ l.total_omitidos }} sin enviar</span>
+                }
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="estado">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let l">
+                <span class="chip" [class]="claseEstado(l.estado)">{{ etiquetaEstado(l.estado) }}</span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let l">
+                <button mat-stroked-button (click)="abrir(l)">Ver detalle</button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="columnasLotes"></tr>
+            <tr mat-row *matRowDef="let row; columns: columnasLotes;"></tr>
+          </table>
+
+          <mat-paginator [length]="totalLotes()" [pageIndex]="pagina()" [pageSize]="20"
+                         [hidePageSize]="true" (page)="onPaginaLotes($event)">
+          </mat-paginator>
+        } @else if (!cargando()) {
+          <p class="vacio">Todavía no hay envíos registrados.</p>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- ── Detalle de un lote ─────────────────────────────────────────────── -->
+  @if (loteAbierto(); as l) {
+    <mat-card class="tarjeta">
+      <mat-card-content>
+        <div class="detalle-cabecera">
+          <button mat-stroked-button (click)="cerrar()">
+            <mat-icon>arrow_back</mat-icon> Volver
+          </button>
+          <div>
+            <h3>{{ l.periodo_etiqueta }} · {{ nombreEmpresa(l.empresa) }}</h3>
+            <p class="tenue">
+              {{ l.creado_en | date:'dd/MM/yyyy HH:mm' }} ·
+              plantilla «{{ l.plantilla_nombre }}» ·
+              {{ l.total_enviados }} de {{ l.total }} enviados
+            </p>
+          </div>
+        </div>
+
+        <mat-form-field appearance="outline" class="filtro-estado">
+          <mat-label>Estado</mat-label>
+          <mat-select [ngModel]="estadoItems()"
+                      (ngModelChange)="estadoItems.set($event); paginaItems.set(0); cargarItems()">
+            <mat-option [value]="null">Todos</mat-option>
+            <mat-option value="ENVIADO">Enviados</mat-option>
+            <mat-option value="FALLIDO">Fallidos</mat-option>
+            <mat-option value="SIN_CORREO">Sin correo</mat-option>
+            <mat-option value="SIN_DOCUMENTO">Sin documento</mat-option>
+            <mat-option value="OMITIDO">Omitidos</mat-option>
+            <mat-option value="PENDIENTE">Pendientes</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <table mat-table [dataSource]="items()" class="tabla">
+          <ng-container matColumnDef="cedula">
+            <th mat-header-cell *matHeaderCellDef>Cédula</th>
+            <td mat-cell *matCellDef="let i"><strong>{{ i.cedula }}</strong></td>
+          </ng-container>
+
+          <ng-container matColumnDef="nombre">
+            <th mat-header-cell *matHeaderCellDef>Nombre</th>
+            <td mat-cell *matCellDef="let i">{{ i.nombre }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="correo">
+            <th mat-header-cell *matHeaderCellDef>Correo</th>
+            <td mat-cell *matCellDef="let i">
+              {{ i.correo || '—' }}
+              <!-- Saber si se usó el correo de la hoja o el corregido es lo
+                   primero que hace falta cuando alguien reclama. -->
+              @if (i.correo_origen === 'OVERRIDE') {
+                <span class="marca" matTooltip="Correo corregido con la plantilla de Excel">
+                  corregido
+                </span>
+              }
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="documento">
+            <th mat-header-cell *matHeaderCellDef>Documento</th>
+            <td mat-cell *matCellDef="let i">
+              @if (i.document_id) {
+                <button mat-stroked-button class="btn-doc" (click)="verDocumento(i)">
+                  <mat-icon>picture_as_pdf</mat-icon> Ver
+                </button>
+              } @else {
+                <span class="tenue">—</span>
+              }
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="estado">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let i">
+              <span class="chip" [class]="claseEstado(i.estado)">{{ etiquetaEstado(i.estado) }}</span>
+              @if (i.motivo) { <div class="tenue">{{ i.motivo }}</div> }
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="enviado">
+            <th mat-header-cell *matHeaderCellDef>Enviado</th>
+            <td mat-cell *matCellDef="let i" class="tenue">
+              {{ i.enviado_en ? (i.enviado_en | date:'dd/MM/yyyy HH:mm') : '—' }}
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columnasItems"></tr>
+          <tr mat-row *matRowDef="let row; columns: columnasItems;"></tr>
+        </table>
+
+        @if (!items().length && !cargando()) {
+          <p class="vacio">No hay destinatarios con ese estado.</p>
+        }
+
+        <mat-paginator [length]="totalItems()" [pageIndex]="paginaItems()" [pageSize]="50"
+                       [hidePageSize]="true" (page)="onPaginaItems($event)">
+        </mat-paginator>
+      </mat-card-content>
+    </mat-card>
+  }
+</div>

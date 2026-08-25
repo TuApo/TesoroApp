@@ -12,6 +12,9 @@
   --success-soft: #E4F4EC;
   --danger: #D43A2F;
   --danger-soft: #FCE9E7;
+  --warning: #B7791F;
+  --warning-soft: #FBF3E2;
+  --warning-line: #EBD9A8;
   --ink: #14181F;
   --ink-2: #4A4F58;
   --ink-3: #8A8F98;
@@ -434,18 +437,19 @@
 .concept-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: 12.5px;
+  line-height: 1.35;
   font-variant-numeric: tabular-nums;
   flex: 1;
 
   thead th {
     text-align: left;
-    font-size: 8.5px;
+    font-size: 9px;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: var(--ink-3);
-    font-weight: 600;
-    padding: 8px 14px;
+    letter-spacing: 0.12em;
+    color: var(--ink-2);
+    font-weight: 700;
+    padding: 9px 14px;
     background: #fff;
     border-bottom: 1px solid var(--line);
 
@@ -453,12 +457,12 @@
   }
 
   tbody td {
-    padding: 7px 14px;
+    padding: 9px 14px;
     border-bottom: 1px solid var(--line-soft);
-    color: var(--ink-2);
+    color: var(--ink);
 
-    &.concept { color: var(--ink); font-weight: 500; }
-    &.num { text-align: right; }
+    &.concept { color: var(--ink); font-weight: 600; }
+    &.num { text-align: right; color: var(--ink); font-weight: 500; }
   }
 
   tbody tr.empty-row td {
@@ -482,16 +486,79 @@
 
     &.num {
       text-align: right;
-      font-size: 14px;
+      font-size: 15px;
       letter-spacing: 0;
     }
   }
 }
 
-.devengo-block .concept-table tbody td.val { color: var(--success); font-weight: 600; }
-.deduccion-block .concept-table tbody td.val { color: var(--danger); font-weight: 600; }
+.devengo-block .concept-table tbody td.val { color: var(--success); font-weight: 700; }
+.deduccion-block .concept-table tbody td.val { color: var(--danger); font-weight: 700; }
 .devengo-block .concept-table tfoot td.total { color: var(--success); }
 .deduccion-block .concept-table tfoot td.total { color: var(--danger); }
+
+/* ── NOVEDADES DEL PERÍODO (informativas) ────────────────────────────── */
+
+.zero-pay-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--warning-line);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--ink-2);
+
+  mat-icon {
+    color: var(--warning);
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  b { color: var(--ink); }
+}
+
+.novedades-block { width: 100%; }
+
+.novedades-table {
+  td.concept .obs {
+    display: block;
+    margin-top: 3px;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--ink-3);
+    font-style: italic;
+    line-height: 1.4;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--secondary-soft);
+    color: var(--secondary);
+    font-size: 8.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+
+  td.num .unit {
+    margin-left: 3px;
+    font-size: 9px;
+    color: var(--ink-3);
+    text-transform: lowercase;
+  }
+
+  td.val .muted { color: var(--ink-4); }
+}
 
 /* ── NETO HERO ───────────────────────────────────────────────────────── */
 
@@ -758,5 +825,21 @@
       line-height: 1.55;
       margin-top: 2px;
     }
+  }
+}
+
+/* ── RESPONSIVE ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Concepto blocks: de 2 columnas a 1 columna en móvil */
+  .concepts-split {
+    grid-template-columns: 1fr;
+  }
+
+  /* Neto hero: de 2 columnas a columna única */
+  .neto-hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+
+    .amount { text-align: left; }
   }
 }

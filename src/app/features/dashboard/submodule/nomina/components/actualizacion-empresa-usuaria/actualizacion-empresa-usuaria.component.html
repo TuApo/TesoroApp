@@ -37,7 +37,30 @@
         </mat-autocomplete>
         <mat-hint>Obligatorio. Escribe para buscar y selecciona una empresa de la lista.</mat-hint>
       </mat-form-field>
+
+      <!-- Periodo: al asociarlo, la base cargada define la POBLACION de esa nomina -->
+      <mat-form-field appearance="outline" class="aeu__periodo">
+        <mat-label>Periodo de nómina</mat-label>
+        <mat-select [value]="periodoId()" (selectionChange)="onPeriodoSelected($event.value)"
+                    [disabled]="isStep('previewing') || empresaId() == null">
+          <mat-option [value]="null">— Sin asociar (solo actualizar datos) —</mat-option>
+          @for (p of periodos(); track p.id_periodo) {
+            <mat-option [value]="p.id_periodo">{{ p.descripcion }}</mat-option>
+          }
+        </mat-select>
+        <mat-icon matSuffix>event_repeat</mat-icon>
+        <mat-hint>Si eliges periodo, esta base será la nómina de ese periodo.</mat-hint>
+      </mat-form-field>
     </div>
+
+    @if (periodoId() != null) {
+      <div class="aeu__hint-block aeu__hint-ok">
+        <mat-icon>fact_check</mat-icon>
+        <span>Al confirmar, los empleados de este archivo quedarán como la
+          <strong>población de la nómina</strong> de ese periodo: el cálculo se hará
+          sobre ellos y no sobre todos los contratos activos históricos.</span>
+      </div>
+    }
 
     @if (empresaId() == null) {
       <div class="aeu__hint-block">

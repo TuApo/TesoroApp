@@ -95,6 +95,15 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
           <mat-error *ngIf="form.get('unidad')?.hasError('required')">Seleccione la unidad</mat-error>
         </mat-form-field>
 
+        <mat-form-field appearance="outline" class="field-agrupador">
+          <mat-label>Agrupador</mat-label>
+          <mat-select formControlName="agrupador">
+            <mat-option *ngFor="let a of AGRUPADORES" [value]="a.value">{{ a.label }}</mat-option>
+          </mat-select>
+          <mat-hint>Super-categoría de reporte (Ausencias / Incapacidades / Extras y Bonificaciones)</mat-hint>
+          <mat-error *ngIf="form.get('agrupador')?.hasError('required')">Seleccione el agrupador</mat-error>
+        </mat-form-field>
+
         <mat-form-field appearance="outline" class="field-categoria">
           <mat-label>Categoría funcional</mat-label>
           <mat-select formControlName="categoria">
@@ -170,7 +179,7 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
       grid-template-columns: 1fr 1fr;
       gap: 8px 16px;
     }
-    .field-descripcion, .toggle-row, .field-categoria,
+    .field-descripcion, .toggle-row, .field-categoria, .field-agrupador,
     .form-divider, .section-title, .section-hint { grid-column: 1 / -1; }
     .form-divider { margin: 8px 0 0; }
     .section-title {
@@ -203,6 +212,14 @@ export class ConceptoFormDialogComponent implements OnInit {
     'HORA_DOMINICAL_FEST', 'HORA_EXTRA', 'HORA_PERMISO', 'HORA_RECARGO',
     'VALOR_AJUSTE', 'VALOR_BONIFICACION', 'VALOR_DESCUENTO', 'VALOR_OTRO',
     'VALOR_PRESTACION', 'OTRO',
+  ];
+
+  /** Agrupador: super-categoría de reporte con EXACTAMENTE 3 valores (V29).
+   *  Al crear una novedad nueva solo se ofrecen estos tres. */
+  readonly AGRUPADORES = [
+    { value: 'AUSENCIAS', label: 'Ausencias' },
+    { value: 'INCAPACIDADES', label: 'Incapacidades' },
+    { value: 'EXTRAS_Y_BONIFICACIONES', label: 'Extras y Bonificaciones' },
   ];
 
   /** Tablas satélite donde el motor puede escribir una novedad importada.
@@ -294,6 +311,7 @@ export class ConceptoFormDialogComponent implements OnInit {
       naturaleza:    [c?.naturaleza ?? '', Validators.required],
       unidad:        [c?.unidad ?? 'DIA', Validators.required],
       categoria:     [c?.categoria ?? null],
+      agrupador:     [c?.agrupador ?? null, Validators.required],
       tabla_destino: [c?.tabla_destino ?? null],
       campo_destino: [c?.campo_destino ?? null],
       afecta_ibc:    [c?.afecta_ibc ?? false],

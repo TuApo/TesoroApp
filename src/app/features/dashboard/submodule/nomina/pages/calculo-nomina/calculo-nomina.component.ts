@@ -6,6 +6,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import {
   NominaService, Client, CostCenter,
   ConciliacionNovedades, DiagnosticoNovedad, GuardarLiquidacionPayload,
+  EmpleadoExcluido,
 } from '../../service/nomina/nomina.service';
 import Swal from 'sweetalert2';
 import { map, startWith } from 'rxjs/operators';
@@ -103,6 +104,8 @@ export class CalculoNominaComponent implements OnInit {
   // Flag separado del de "descargando plantilla" para no inhabilitar ambos
   // botones cuando solo está corriendo uno.
   guardandoNomina: boolean = false;
+  // Guardado parcial en curso (cierra solo los empleados sin bloqueantes).
+  guardandoParcial: boolean = false;
 
   // ── Incremento 2.6: snapshot server-side ───────────────────────────────
   // calculationId del último preview con novedades. El cierre envía SOLO esto.
@@ -137,6 +140,19 @@ export class CalculoNominaComponent implements OnInit {
     return !!this.calculationIdActivo && !this.guardando && !this.loading;
   }
 
+  /** ¿Se puede GUARDAR PARCIAL? Solo tiene sentido cuando el cierre total está
+   *  bloqueado (`puedeCerrarActivo=false`) pero hay un snapshot válido y vigente:
+   *  persiste los empleados sin bloqueantes y reporta los excluidos. Si el cierre
+   *  total ya es posible, se usa "GUARDAR NÓMINA" y este botón no aplica. */
+  get puedeGuardarParcial(): boolean {
+    if (this.guardandoNomina || this.guardandoParcial) return false;
+    if (this._empleadosCalculados.size === 0) return false;
+    if (!this.calculationIdActivo) return false;
+    if (this.puedeCerrarActivo) return false;   // si ya cierra completo, no es parcial
+    if (this.snapshotExpiraAt && new Date(this.snapshotExpiraAt).getTime() < Date.now()) return false;
+    return true;
+  }
+
   /** Incremento 2.7: tras un cálculo PLANO, conserva el snapshot devuelto por
    *  /payroll/calcular (calculation_id + conciliación). aplicarPreviewBackend ya
    *  invalidó el snapshot previo; aquí se fija el nuevo. */
@@ -162,7 +178,10 @@ export class CalculoNominaComponent implements OnInit {
 
   // Constantes de Ley / Negocio
   readonly SALARIO_MINIMO_2026 = 1500000; 
-  readonly HORAS_DIARIAS = 7.33;
+  // Jornada Ley 2101: 210 h/mes desde el 1-jul-2026 (antes 220 → 7,33).
+  // La fuente de verdad es el motor (CalcConstants.horasLaboralesMes); esta
+  // constante es solo de referencia y no debe usarse para calcular dinero.
+  readonly HORAS_DIARIAS = 7.0;
   
   constructor(
     private nominaService: NominaService,
@@ -871,6 +890,164 @@ export class CalculoNominaComponent implements OnInit {
         this.cdr.markForCheck();
       },
     });
+  }
+
+  /**
+   * Guardado PARCIAL: cierra la nómina SOLO para los empleados sin novedades
+   * bloqueantes y descarga un Excel con los excluidos (empleado + concepto +
+   * motivo) para su corrección. Se usa cuando el cierre total está bloqueado
+   * (`puedeCerrarActivo=false`). El backend re-valida el snapshot y persiste
+   * únicamente los limpios; los excluidos NO se guardan.
+   */
+  async guardarNominaParcial(): Promise<void> {
+    if (!this.periodoControl.value) {
+      Swal.fire('Atención', 'Seleccione el periodo de nómina.', 'warning'); return;
+    }
+    if (this._empleadosCalculados.size === 0) {
+      Swal.fire('Atención', 'Primero calcule la nómina antes de guardarla.', 'warning'); return;
+    }
+    if (!this.calculationIdActivo) {
+      Swal.fire('Genere la vista previa',
+        'Debe calcular la vista previa antes de guardar (cálculo verificable).', 'warning'); return;
+    }
+    if (this.guardandoParcial || this.guardandoNomina) return; // guard anti-doble-clic
+
+    const periodo = this.periodoControl.value;
+    const nBloq = this.conciliacionActiva?.total_bloqueantes ?? this.bloqueantesActivos.length;
+    const yaCalculada = String(periodo.estado || '').toUpperCase() === 'CALCULADA';
+
+    const conf = await Swal.fire({
+      icon: 'warning',
+      title: 'Guardar solo los que sí liquidan',
+      html: 'Se cerrará la nómina <strong>solo para los empleados sin novedades bloqueantes</strong>. '
+        + `Los empleados con novedades no procesables${nBloq ? ` (${nBloq} bloqueante[s])` : ''} `
+        + '<strong>NO se guardarán</strong> y se descargarán en un Excel para corregirlos.'
+        + (yaCalculada
+            ? '<br><br>El periodo ya está en CALCULADA: se sobreescribirán los registros existentes.' : ''),
+      showCancelButton: true,
+      confirmButtonText: 'Sí, guardar parcial',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!conf.isConfirmed) return;
+
+    const payload: GuardarLiquidacionPayload = {
+      periodo_id: periodo.id_periodo,
+      cliente_id: this.selectedCliente?.id_entidad ?? null,
+      calculation_id: this.calculationIdActivo,
+      parcial: true,
+    };
+
+    this.guardandoParcial = true;
+    this.cdr.markForCheck();
+
+    this.nominaService.guardarLiquidacion(payload).subscribe({
+      next: async (resp) => {
+        this.guardandoParcial = false;
+        if (periodo) periodo.estado = resp.estado_periodo;
+        // Exporta el reporte de excluidos ANTES de invalidar (usa datos en pantalla).
+        const excluidos = resp.excluidos || [];
+        if (excluidos.length) {
+          try { await this.exportarExcluidosBloqueantesExcel(excluidos); } catch { /* no bloquear el flujo */ }
+        }
+        this.cargarPeriodos();
+        this.invalidarCalculo();   // snapshot consumido
+        this.cdr.markForCheck();
+        if (resp.idempotent_replay) {
+          Swal.fire('Liquidación ya guardada',
+            'Esta liquidación ya había sido creada (replay idempotente); no se duplicó.', 'info');
+        } else {
+          Swal.fire('Nómina guardada (parcial)',
+            `${resp.creados_nomina} empleado(s) liquidado(s) y guardado(s). `
+            + `${resp.empleados_excluidos ?? excluidos.length} empleado(s) EXCLUIDO(S) por novedades `
+            + 'bloqueantes (descargados en Excel para corregir).',
+            'success');
+        }
+      },
+      error: (err: HttpErrorResponse) => {
+        this.guardandoParcial = false;
+        const body = err?.error || {};
+        if (err.status === 409) {
+          this.invalidarCalculo();
+          const cambios = (body.cambiosDetectados || []).join(', ');
+          Swal.fire('Cálculo desactualizado',
+            (body.mensaje || 'Los datos cambiaron desde la vista previa.')
+              + (cambios ? ` Cambios: ${cambios}.` : '') + ' Genere nuevamente el cálculo.', 'warning');
+        } else if (err.status === 422 && body.codigo === 'SIN_EMPLEADOS_LIQUIDABLES') {
+          Swal.fire('No hay nada que guardar',
+            body.mensaje || 'Todos los empleados tienen novedades bloqueantes; no hay empleados liquidables.',
+            'error');
+        } else if (err.status === 422 && body.codigo === 'CALCULATION_ID_REQUERIDO') {
+          this.invalidarCalculo();
+          Swal.fire('Recalcular requerido',
+            body.mensaje || 'Debe generar nuevamente la vista previa antes de guardar.', 'warning');
+        } else {
+          const msg = body.error || body.message || body.mensaje || 'No se pudo guardar la nómina parcial.';
+          Swal.fire('Error', msg, 'error');
+        }
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /**
+   * Excel con los empleados excluidos del guardado parcial: una fila por cada
+   * novedad bloqueante (empleado + concepto + motivo). Une la respuesta del
+   * backend (id_contrato + conceptos) con los datos en pantalla (nombre/doc/CECO).
+   */
+  private async exportarExcluidosBloqueantesExcel(excluidos: EmpleadoExcluido[]): Promise<void> {
+    const byContrato = new Map<number, any>();
+    this.contratos.forEach(c => byContrato.set(c.id_contrato, c));
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Excluidos por bloqueante');
+    sheet.columns = [
+      { header: 'Contrato', key: 'codigo_contrato', width: 15 },
+      { header: 'Documento', key: 'numero_documento', width: 15 },
+      { header: 'Empleado', key: 'empleado', width: 30 },
+      { header: 'Centro de Costo', key: 'centro_de_costo', width: 24 },
+      { header: 'Código Novedad', key: 'codigo', width: 16 },
+      { header: 'Descripción', key: 'descripcion', width: 34 },
+      { header: 'Clasificación', key: 'clasificacion', width: 18 },
+      { header: 'Valor', key: 'valor_total', width: 14 },
+      { header: 'Motivo', key: 'observacion', width: 48 },
+    ];
+    const headerRow = sheet.getRow(1);
+    headerRow.height = 22;
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: 'FFFFFF' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'B71C1C' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    excluidos.forEach(e => {
+      const c = byContrato.get(e.id_contrato) || {};
+      const empleado = `${c.primer_nombre || ''} ${c.segundo_nombre || ''} ${c.primer_apellido || ''} ${c.segundo_apellido || ''}`
+        .replace(/\s+/g, ' ').trim();
+      const conceptos = (e.conceptos_bloqueantes && e.conceptos_bloqueantes.length)
+        ? e.conceptos_bloqueantes
+        : [{ codigo: '', descripcion: '', naturaleza: '', clasificacion: '', valor_total: 0,
+             observacion: 'Bloqueante sin detalle' }];
+      conceptos.forEach(cb => {
+        sheet.addRow({
+          codigo_contrato: c.codigo_contrato,
+          numero_documento: c.numero_documento,
+          empleado,
+          centro_de_costo: c.centro_de_costo,
+          codigo: cb.codigo,
+          descripcion: cb.descripcion,
+          clasificacion: cb.clasificacion,
+          valor_total: Number(cb.valor_total) || 0,
+          observacion: cb.observacion,
+        });
+      });
+    });
+    sheet.getColumn('H').numFmt = '#,##0';   // columna Valor
+
+    const periodoDesc = this.periodoControl.value?.descripcion || 'Periodo';
+    const buffer = await workbook.xlsx.writeBuffer();
+    const nombre = `Excluidos_bloqueantes_${this.selectedCliente?.nombre_legal || 'Cliente'}_${periodoDesc}.xlsx`
+      .replace(/[\/\\?*\[\]:]/g, '_');
+    saveAs(new Blob([buffer]), nombre);
   }
 
 }

@@ -35,7 +35,14 @@ interface HomologadorCatalogRow extends HomologadorExterno {
   concepto_unidad?: string;
   concepto_activo: boolean;
   tiene_homologacion: boolean;
-  homologaciones_adicionales: number;
+  /** Total de mapeos externos que comparten este concepto interno (>1 => la fila
+   *  es colapsable y despliega todos los mapeos al hacer clic). */
+  mapeos_grupo: number;
+  /** Todas las homologaciones (mapeos externos) del concepto interno. El principal
+   *  es mapeos[0] y es el que resume la fila; el panel colapsable lista todos. */
+  mapeos: HomologadorExterno[];
+  /** Clave estable para rastrear el estado expandido/colapsado entre reordenamientos. */
+  clave: string;
 }
 
 @Component({
@@ -341,95 +348,158 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
       porConcepto.set(homologacion.concepto, actuales);
     }
 
-    const ordenarPorFecha = (lista: HomologadorExterno[]): HomologadorExterno[] =>
-      lista.slice().sort((a, b) => {
-        const fechaA = a.actualizado_at ?? a.creado_at ?? '';
-        const fechaB = b.actualizado_at ?? b.creado_at ?? '';
-        return fechaB.localeCompare(fechaA);
-      });
+    // Ordena los mapeos de un mismo concepto por codigo externo (natural) para que
+    // las filas del mismo concepto queden contiguas y en orden estable.
+    const ordenarPorCodigo = (lista: HomologadorExterno[]): HomologadorExterno[] =>
+      lista.slice().sort((a, b) =>
+        (a.codigo_externo ?? '').localeCompare(b.codigo_externo ?? '', undefined, { numeric: true }));
 
-    const filasConcepto = this.conceptos.map((concepto) => {
-      const homologaciones = ordenarPorFecha(porConcepto.get(concepto.id_concepto!) ?? []);
-      const principal = homologaciones[0];
-
-      return {
-        id_homologacion: principal?.id_homologacion,
-        concepto: concepto.id_concepto!,
-        concepto_codigo: concepto.codigo,
-        concepto_descripcion: concepto.descripcion,
-        concepto_naturaleza: concepto.naturaleza_display ?? concepto.naturaleza,
-        concepto_unidad: concepto.unidad_display ?? concepto.unidad,
-        entidad_externa: this.selectedCliente!.id_entidad,
-        entidad_nombre: this.selectedCliente!.nombre_legal,
-        entidad_nit: this.selectedCliente!.nit,
-        codigo_externo: principal?.codigo_externo ?? '',
-        concepto_externo: principal?.concepto_externo ?? '',
-        clasificacion_externa: principal?.clasificacion_externa ?? '',
-        tabla_operativa_destino: principal?.tabla_operativa_destino ?? '',
-        campo_operativo_destino: principal?.campo_operativo_destino ?? '',
-        estado_homologacion: principal?.estado_homologacion ?? 'SIN_HOMOLOGACION',
-        estado_display: principal?.estado_display,
-        observacion: principal?.observacion ?? '',
-        activo: principal?.activo ?? false,
-        creado_at: principal?.creado_at,
-        actualizado_at: principal?.actualizado_at,
-        concepto_activo: concepto.activo,
-        tiene_homologacion: !!principal,
-        homologaciones_adicionales: Math.max(0, homologaciones.length - 1),
-      };
-    });
+    // UNA FILA POR CONCEPTO INTERNO. Si tiene varios mapeos externos (mismo codigo con
+    // distinto concepto_externo, o varios codigos), se adjuntan todos en `mapeos` y la
+    // fila se vuelve colapsable: al hacer clic despliega un panel con todos, cada uno
+    // editable/activable por separado. Los conceptos sin homologar quedan "pendientes".
+    const filasConcepto: HomologadorCatalogRow[] = this.conceptos.map((concepto) =>
+      this.filaCatalogo(concepto, ordenarPorCodigo(porConcepto.get(concepto.id_concepto!) ?? [])));
 
     // Filas huerfanas: homologaciones cuyo concepto interno no esta en this.conceptos
-    // (concepto inexistente -> concepto null en el DTO, o concepto inactivo no devuelto
-    // por /conceptos?activo=true). Sin esto la homologacion existe en BD pero nunca se
-    // dibuja, porque el catalogo se reconstruye recorriendo solo los conceptos activos.
+    // (concepto inexistente o inactivo no devuelto por /conceptos?activo=true). Sin
+    // esto la homologacion existe en BD pero nunca se dibuja. Se agrupan igual y son
+    // colapsables por concepto (o por id de homologacion cuando el concepto es null).
     const idsConcepto = new Set(this.conceptos.map((concepto) => concepto.id_concepto));
     const porHuerfana = new Map<string, HomologadorExterno[]>();
-    for (const homologacion of this.homologacionesEmpresa) {
-      if (homologacion.concepto != null && idsConcepto.has(homologacion.concepto)) continue;
-      const clave = homologacion.concepto != null
-        ? `c${homologacion.concepto}`
-        : `h${homologacion.id_homologacion}`;
+    for (const h of this.homologacionesEmpresa) {
+      if (h.concepto != null && idsConcepto.has(h.concepto)) continue;
+      const clave = h.concepto != null ? `c${h.concepto}` : `h${h.id_homologacion}`;
       const actuales = porHuerfana.get(clave) ?? [];
-      actuales.push(homologacion);
+      actuales.push(h);
       porHuerfana.set(clave, actuales);
     }
-
     const filasHuerfanas: HomologadorCatalogRow[] = [];
     for (const grupo of porHuerfana.values()) {
-      const homologaciones = ordenarPorFecha(grupo);
-      const principal = homologaciones[0];
-      filasHuerfanas.push({
-        id_homologacion: principal.id_homologacion,
-        concepto: principal.concepto,
-        concepto_codigo: principal.concepto_codigo ?? '',
-        concepto_descripcion: principal.concepto_descripcion
-          ?? `(Concepto interno ${principal.concepto ?? 'N/D'} no disponible)`,
-        concepto_naturaleza: principal.concepto_naturaleza,
-        concepto_unidad: undefined,
-        entidad_externa: this.selectedCliente!.id_entidad,
-        entidad_nombre: this.selectedCliente!.nombre_legal,
-        entidad_nit: this.selectedCliente!.nit,
-        codigo_externo: principal.codigo_externo ?? '',
-        concepto_externo: principal.concepto_externo ?? '',
-        clasificacion_externa: principal.clasificacion_externa ?? '',
-        tabla_operativa_destino: principal.tabla_operativa_destino ?? '',
-        campo_operativo_destino: principal.campo_operativo_destino ?? '',
-        estado_homologacion: principal.estado_homologacion ?? 'SIN_HOMOLOGACION',
-        estado_display: principal.estado_display,
-        observacion: principal.observacion ?? '',
-        activo: principal.activo ?? false,
-        creado_at: principal.creado_at,
-        actualizado_at: principal.actualizado_at,
-        concepto_activo: false,
-        tiene_homologacion: true,
-        homologaciones_adicionales: Math.max(0, homologaciones.length - 1),
-      });
+      filasHuerfanas.push(this.filaHuerfana(ordenarPorCodigo(grupo)));
     }
 
     this.catalogoConceptos = [...filasConcepto, ...filasHuerfanas];
 
     this.aplicarFiltros();
+  }
+
+  /** Construye la fila de un concepto interno con TODOS sus mapeos externos adjuntos.
+   *  El principal (mapeos[0]) resume la fila; el panel colapsable lista todos. Lista
+   *  vacia => fila "pendiente". */
+  private filaCatalogo(concepto: ConceptoNomina, mapeos: HomologadorExterno[]): HomologadorCatalogRow {
+    const principal = mapeos[0];
+    return {
+      id_homologacion: principal?.id_homologacion,
+      concepto: concepto.id_concepto!,
+      concepto_codigo: concepto.codigo,
+      concepto_descripcion: concepto.descripcion,
+      concepto_naturaleza: concepto.naturaleza_display ?? concepto.naturaleza,
+      concepto_unidad: concepto.unidad_display ?? concepto.unidad,
+      entidad_externa: this.selectedCliente!.id_entidad,
+      entidad_nombre: this.selectedCliente!.nombre_legal,
+      entidad_nit: this.selectedCliente!.nit,
+      codigo_externo: principal?.codigo_externo ?? '',
+      concepto_externo: principal?.concepto_externo ?? '',
+      clasificacion_externa: principal?.clasificacion_externa ?? '',
+      tabla_operativa_destino: principal?.tabla_operativa_destino ?? '',
+      campo_operativo_destino: principal?.campo_operativo_destino ?? '',
+      estado_homologacion: principal?.estado_homologacion ?? 'SIN_HOMOLOGACION',
+      estado_display: principal?.estado_display,
+      observacion: principal?.observacion ?? '',
+      activo: principal?.activo ?? false,
+      creado_at: principal?.creado_at,
+      actualizado_at: principal?.actualizado_at,
+      concepto_activo: concepto.activo,
+      tiene_homologacion: !!principal,
+      mapeos_grupo: mapeos.length,
+      mapeos,
+      clave: `c${concepto.id_concepto}`,
+    };
+  }
+
+  /** Fila huerfana: el concepto interno no esta en el catalogo activo; se usan los
+   *  campos denormalizados de la homologacion principal. */
+  private filaHuerfana(mapeos: HomologadorExterno[]): HomologadorCatalogRow {
+    const principal = mapeos[0];
+    return {
+      id_homologacion: principal.id_homologacion,
+      concepto: principal.concepto,
+      concepto_codigo: principal.concepto_codigo ?? '',
+      concepto_descripcion: principal.concepto_descripcion
+        ?? `(Concepto interno ${principal.concepto ?? 'N/D'} no disponible)`,
+      concepto_naturaleza: principal.concepto_naturaleza,
+      concepto_unidad: undefined,
+      entidad_externa: this.selectedCliente!.id_entidad,
+      entidad_nombre: this.selectedCliente!.nombre_legal,
+      entidad_nit: this.selectedCliente!.nit,
+      codigo_externo: principal.codigo_externo ?? '',
+      concepto_externo: principal.concepto_externo ?? '',
+      clasificacion_externa: principal.clasificacion_externa ?? '',
+      tabla_operativa_destino: principal.tabla_operativa_destino ?? '',
+      campo_operativo_destino: principal.campo_operativo_destino ?? '',
+      estado_homologacion: principal.estado_homologacion ?? 'SIN_HOMOLOGACION',
+      estado_display: principal.estado_display,
+      observacion: principal.observacion ?? '',
+      activo: principal.activo ?? false,
+      creado_at: principal.creado_at,
+      actualizado_at: principal.actualizado_at,
+      concepto_activo: false,
+      tiene_homologacion: true,
+      mapeos_grupo: mapeos.length,
+      mapeos,
+      clave: principal.concepto != null ? `c${principal.concepto}` : `h${principal.id_homologacion}`,
+    };
+  }
+
+  // ── Expansion (panel colapsable de mapeos) ───────────────────────────────
+  expandidas = new Set<string>();
+
+  esExpandible(row: HomologadorCatalogRow): boolean {
+    return (row.mapeos_grupo ?? 0) > 1;
+  }
+
+  estaExpandida(row: HomologadorCatalogRow): boolean {
+    return this.expandidas.has(row.clave);
+  }
+
+  toggleExpand(row: HomologadorCatalogRow): void {
+    if (!this.esExpandible(row)) return;
+    if (this.expandidas.has(row.clave)) this.expandidas.delete(row.clave);
+    else this.expandidas.add(row.clave);
+    this.cdr.markForCheck();
+  }
+
+  /** Editar un mapeo concreto desde el panel colapsable. */
+  abrirDialogoEditarMapeo(mapeo: HomologadorExterno): void {
+    const ref = this.dialog.open(HomologadorFormDialogComponent, {
+      width: '680px',
+      data: {
+        homologacion: mapeo,
+        entidadId: mapeo.entidad_externa ?? this.selectedCliente?.id_entidad,
+        conceptoSugerido: this.conceptos.find((concepto) => concepto.id_concepto === mapeo.concepto) ?? null,
+      },
+    });
+    ref.afterClosed().subscribe((ok) => {
+      if (ok) this.cargarHomologaciones();
+    });
+  }
+
+  /** Activar/desactivar un mapeo concreto desde el panel colapsable. */
+  toggleActivoMapeo(mapeo: HomologadorExterno): void {
+    if (!mapeo.id_homologacion) return;
+    const nuevoEstado = !mapeo.activo;
+    this.nominaService.actualizarHomologacion(mapeo.id_homologacion, { activo: nuevoEstado }).subscribe({
+      next: () => {
+        mapeo.activo = nuevoEstado;
+        this.snackBar.open(`Homologacion ${nuevoEstado ? 'activada' : 'desactivada'}`, 'Cerrar', { duration: 2000 });
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.snackBar.open('Error al actualizar estado', 'Cerrar', { duration: 3000 });
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   aplicarFiltros(): void {
@@ -447,16 +517,21 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
       if (this.filterActivo !== '' && String(item.activo) !== this.filterActivo) return false;
       if (!search) return true;
 
-      return [
+      const camposFila = [
         item.concepto_codigo,
         item.concepto_descripcion,
         item.concepto_naturaleza,
         item.concepto_unidad,
-        item.codigo_externo,
-        item.concepto_externo,
-        item.clasificacion_externa,
-        item.observacion,
-      ].some((value) => (value ?? '').toLowerCase().includes(search));
+      ];
+      // Incluye TODOS los mapeos (no solo el principal) para que buscar un codigo o
+      // concepto externo escondido en el panel colapsable encuentre igual la fila.
+      const camposMapeos = (item.mapeos ?? []).flatMap((m) => [
+        m.codigo_externo,
+        m.concepto_externo,
+        m.clasificacion_externa,
+        m.observacion,
+      ]);
+      return [...camposFila, ...camposMapeos].some((value) => (value ?? '').toLowerCase().includes(search));
     });
 
     this.paginator?.firstPage();

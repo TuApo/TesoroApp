@@ -1,0 +1,32 @@
+<div class="visor">
+  <header class="cabecera">
+    <div class="titulo">
+      <mat-icon>picture_as_pdf</mat-icon>
+      <div>
+        <strong>{{ titulo() }}</strong>
+        @if (data.cedula) { <div class="tenue">Cédula {{ data.cedula }}</div> }
+      </div>
+    </div>
+    <div class="acciones">
+      <button mat-stroked-button (click)="descargar()" [disabled]="!urlSegura()">
+        <mat-icon>download</mat-icon> Descargar
+      </button>
+      <button mat-icon-button (click)="cerrar()" aria-label="Cerrar">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </header>
+
+  @if (cargando()) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    <p class="estado">Abriendo documento…</p>
+  } @else if (error(); as e) {
+    <div class="estado error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ e }}</span>
+    </div>
+  } @else if (urlSegura(); as url) {
+    <!-- object URL local: ya no pasa por el gateway, así que no necesita JWT. -->
+    <iframe class="marco" [src]="url" title="Documento"></iframe>
+  }
+</div>

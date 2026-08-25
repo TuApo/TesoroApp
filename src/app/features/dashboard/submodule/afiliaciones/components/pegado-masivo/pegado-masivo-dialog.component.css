@@ -1,0 +1,163 @@
+/* Paleta alineada con confirmacion-ingresos.css (slate + acentos). */
+
+.pm-title { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0; }
+
+.pm-body { min-width: min(1100px, 88vw); max-height: 68vh; }
+
+.pm-hint { color: #64748b; font-size: 0.88rem; margin: 0.5rem 0 1rem; line-height: 1.45; }
+
+.pm-textarea { width: 100%; }
+.pm-textarea textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; }
+
+/* Chips de resumen */
+.pm-resumen { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin: 0.25rem 0 0.75rem; }
+.pm-chip {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.3rem 0.7rem; border-radius: 999px;
+  font-size: 0.82rem; white-space: nowrap;
+}
+.pm-chip mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.pm-chip.ok     { background: #d1fae5; color: #065f46; }
+.pm-chip.neutro { background: #e2e8f0; color: #334155; }
+.pm-chip.warn   { background: #ffedd5; color: #9a3412; }
+.pm-chip.bad    { background: #fee2e2; color: #991b1b; }
+.pm-linkbtn { min-width: 0 !important; padding: 0 0.35rem !important; line-height: 1.2 !important; font-size: 0.78rem; }
+
+.pm-muestra { font-size: 0.8rem; color: #64748b; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.pm-muestra-label { font-family: inherit; color: #94a3b8; margin-right: 0.4rem; }
+
+/* Datos de la confirmación */
+.pm-config {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem;
+  padding: 0.75rem 1rem; margin-bottom: 0.75rem;
+  background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px;
+}
+.pm-field { width: 210px; }
+.pm-field-nota { flex: 1; min-width: 200px; }
+.pm-config ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+
+/* Tabla de preview */
+.pm-tabla-wrap {
+  overflow: auto; max-height: 42vh;
+  border: 1px solid #e2e8f0; border-radius: 12px; background: #fff;
+}
+.pm-tabla { width: 100%; border-collapse: collapse; min-width: 900px; }
+.pm-tabla th {
+  position: sticky; top: 0; z-index: 1;
+  background: #f8fafc; color: #475569;
+  font-weight: 600; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.03em;
+  text-align: left; padding: 0.55rem 0.75rem; border-bottom: 2px solid #e2e8f0; white-space: nowrap;
+}
+.pm-tabla td {
+  padding: 0.4rem 0.75rem; font-size: 0.83rem; color: #334155;
+  border-bottom: 1px solid #f1f5f9; white-space: nowrap;
+}
+.pm-tabla tr.fila-mala td { background: #fff7f7; color: #b91c1c; }
+.pm-tabla tr.fila-off td { opacity: 0.5; }
+.c-check { width: 44px; }
+.c-cedula { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.sub { color: #94a3b8; }
+
+mat-icon.mini { font-size: 16px; width: 16px; height: 16px; vertical-align: middle; color: #94a3b8; }
+mat-icon.mini.warn { color: #ea580c; }
+
+/* Las 4 banderas actuales */
+.c-flags { display: flex; align-items: center; gap: 0.25rem; }
+.fl {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #e2e8f0; color: #94a3b8;
+  font-size: 0.68rem; font-weight: 700;
+}
+.fl.on { background: #16a34a; color: #fff; }
+
+.c-res .res { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; font-weight: 600; }
+.res.ok     { color: #16a34a; }
+.res.neutro { color: #94a3b8; font-weight: 500; }
+.res.bad    { color: #b91c1c; }
+
+.pm-mas { padding: 0.6rem 0.75rem; font-size: 0.82rem; color: #64748b; background: #f8fafc; border-top: 1px solid #e2e8f0; }
+.pm-mas-nota { color: #94a3b8; }
+
+.pm-actions { padding: 0.75rem 1.5rem; gap: 0.5rem; }
+.pm-spacer { flex: 1; }
+
+/* Renglón de avance bajo la barra de progreso. */
+.pm-avance {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.35rem 1.5rem 0;
+  font-size: 0.78rem; color: #475569;
+}
+.pm-avance-pct {
+  font-weight: 700; color: #1d4ed8;
+  min-width: 3.2rem;                 /* evita que el texto salte al pasar de 9% a 10% */
+  font-variant-numeric: tabular-nums;
+}
+.pm-avance-txt { color: #334155; }
+.pm-avance-eta { color: #64748b; }
+.pm-avance-seg { color: #94a3b8; font-variant-numeric: tabular-nums; }
+
+/* ── Responsive ────────────────────────────────────────────────────────
+   El diálogo se abre a pantalla completa en móvil (ver `panelClass` en
+   confirmacion-ingresos.ts) y el preview deja de ser tabla: cada fila
+   pasa a ser una tarjeta, porque 7 columnas no caben en un teléfono. */
+
+@media (max-width: 900px) {
+  .pm-body { min-width: 0; max-height: none; }
+  .pm-field, .pm-field-nota { width: 100%; min-width: 0; }
+  .pm-config { padding: 0.6rem 0.7rem; }
+}
+
+@media (max-width: 768px) {
+  .pm-avance { padding: 0.35rem 1rem 0; flex-wrap: wrap; }
+  .pm-tabla-wrap { max-height: none; border: 0; border-radius: 0; overflow: visible; }
+  .pm-tabla { min-width: 0; display: block; }
+  .pm-tabla thead { display: none; }
+  .pm-tabla tbody { display: block; }
+
+  .pm-tabla tr {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 0.15rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0.5rem 0.6rem;
+    margin-bottom: 0.5rem;
+    background: #fff;
+  }
+  .pm-tabla tr.fila-mala { background: #fff7f7; border-color: #fecaca; }
+
+  .pm-tabla td {
+    display: block;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    grid-column: 2;
+  }
+  /* El check ocupa la primera columna y abarca la cédula y el nombre. */
+  .pm-tabla td.c-check { grid-column: 1; grid-row: 1 / span 2; width: auto; }
+  .pm-tabla td.c-cedula { font-weight: 600; color: #0f172a; }
+
+  /* Las celdas de detalle se rotulan con el encabezado que se ocultó. */
+  .pm-tabla td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.03em;
+    color: #94a3b8; margin-top: 0.35rem;
+  }
+  .pm-tabla td.c-flags { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
+  .pm-tabla td.c-flags::before { width: 100%; }
+
+  .pm-actions { flex-wrap: wrap; padding: 0.75rem 1rem; }
+  .pm-actions button { flex: 1 1 45%; height: 42px; }
+  .pm-spacer { display: none; }
+  .pm-btn-pdf { flex-basis: 100%; }
+}
+
+/* Diálogo a pantalla completa en móvil. */
+::ng-deep .pm-dialog-movil .mat-mdc-dialog-surface {
+  border-radius: 0;
+  max-height: 100dvh;
+  height: 100dvh;
+}

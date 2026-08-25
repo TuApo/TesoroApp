@@ -1,0 +1,158 @@
+<div class="ct-page">
+
+  <div class="ct-header">
+    <h2>Configuración de Temporales</h2>
+    <p class="ct-subtitle">Datos legales, firma y sello que aparecen en los documentos de afiliación generados.</p>
+  </div>
+
+  @if (cargando()) {
+    <div class="ct-loading"><mat-spinner diameter="40"></mat-spinner></div>
+  }
+
+  <div class="ct-layout">
+
+    <!-- Lista lateral de temporales -->
+    <div class="ct-sidebar">
+      @for (t of temporales(); track t.id) {
+        <div class="ct-item" [class.selected]="seleccionado()?.id === t.id" (click)="seleccionar(t)">
+          <div class="ct-item-nombre">{{ t.nombreDisplay }}</div>
+          <div class="ct-item-key">{{ t.temporalKey }}</div>
+          <div class="ct-item-chips">
+            @if (t.tieneFirma) { <span class="chip chip-ok">Firma ✓</span> }
+            @else               { <span class="chip chip-warn">Sin firma</span> }
+            @if (t.tieneSello) { <span class="chip chip-ok">Sello ✓</span> }
+            @else               { <span class="chip chip-warn">Sin sello</span> }
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Panel de edición -->
+    @if (seleccionado(); as t) {
+      <div class="ct-panel">
+        <form [formGroup]="form" (ngSubmit)="guardar()">
+
+          <mat-card class="ct-card">
+            <mat-card-header>
+              <mat-card-title>{{ t.temporalKey }}</mat-card-title>
+              <mat-card-subtitle>Datos que van impresos en los documentos</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="ct-fields">
+                <mat-form-field appearance="outline" class="full">
+                  <mat-label>Razón social</mat-label>
+                  <input matInput formControlName="nombreDisplay" placeholder="Ej: APOYO LABORAL TS SAS">
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>NIT</mat-label>
+                  <input matInput formControlName="nit" placeholder="900814587-1">
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Correo</mat-label>
+                  <input matInput formControlName="email" type="email">
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full">
+                  <mat-label>Dirección</mat-label>
+                  <input matInput formControlName="direccion">
+                </mat-form-field>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Imágenes -->
+          <div class="ct-imgs">
+
+            <mat-card class="ct-img-card">
+              <mat-card-header>
+                <mat-card-title>
+                  <mat-icon>draw</mat-icon> Firma del representante
+                </mat-card-title>
+                <mat-card-subtitle>
+                  Se inserta en los campos de tipo "Firma" de los documentos.
+                  Usa una imagen PNG transparente o con fondo blanco.
+                </mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                @if (firmaPreview()) {
+                  <div class="img-preview">
+                    <img [src]="firmaPreview()!" alt="Firma">
+                  </div>
+                } @else {
+                  <div class="img-placeholder">
+                    <mat-icon>image_not_supported</mat-icon>
+                    <span>Sin imagen configurada</span>
+                  </div>
+                }
+                <div class="img-actions">
+                  <label class="btn-upload">
+                    <mat-icon>upload</mat-icon> Cargar imagen
+                    <input type="file" accept="image/*" (change)="onFirmaChange($event)" hidden>
+                  </label>
+                  @if (firmaPreview()) {
+                    <button type="button" mat-icon-button color="warn"
+                            matTooltip="Quitar imagen" (click)="limpiarFirma()">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  }
+                </div>
+              </mat-card-content>
+            </mat-card>
+
+            <mat-card class="ct-img-card">
+              <mat-card-header>
+                <mat-card-title>
+                  <mat-icon>verified</mat-icon> Sello / Logotipo
+                </mat-card-title>
+                <mat-card-subtitle>
+                  Se inserta en los campos de tipo "Imagen" configurados con fuente "sello_imagen".
+                </mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                @if (selloPreview()) {
+                  <div class="img-preview">
+                    <img [src]="selloPreview()!" alt="Sello">
+                  </div>
+                } @else {
+                  <div class="img-placeholder">
+                    <mat-icon>image_not_supported</mat-icon>
+                    <span>Sin imagen configurada</span>
+                  </div>
+                }
+                <div class="img-actions">
+                  <label class="btn-upload">
+                    <mat-icon>upload</mat-icon> Cargar imagen
+                    <input type="file" accept="image/*" (change)="onSelloChange($event)" hidden>
+                  </label>
+                  @if (selloPreview()) {
+                    <button type="button" mat-icon-button color="warn"
+                            matTooltip="Quitar imagen" (click)="limpiarSello()">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  }
+                </div>
+              </mat-card-content>
+            </mat-card>
+
+          </div><!-- /ct-imgs -->
+
+          <div class="ct-footer">
+            <button mat-raised-button color="primary" type="submit"
+                    [disabled]="!form.valid || guardando()">
+              @if (guardando()) { <mat-spinner diameter="18"></mat-spinner> }
+              @else { <mat-icon>save</mat-icon> }
+              Guardar configuración
+            </button>
+          </div>
+
+        </form>
+      </div>
+    } @else {
+      <div class="ct-empty">
+        <mat-icon>touch_app</mat-icon>
+        <p>Selecciona una temporal para editar su configuración</p>
+      </div>
+    }
+
+  </div>
+
+</div>

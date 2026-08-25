@@ -90,6 +90,44 @@
     </mat-card-content>
   </mat-card>
 
+  <!-- Resumen de módulo: estado de TODAS las nóminas del filtro actual -->
+  <div class="dashboard-panel" *ngIf="resumen">
+    <div class="dashboard-header">
+      <mat-icon>insights</mat-icon>
+      <div class="dashboard-title">
+        <strong>Resumen de nóminas del periodo</strong>
+        <span class="dashboard-sub">{{ resumenContexto }}</span>
+      </div>
+      <mat-spinner *ngIf="resumenLoading" diameter="20" class="dashboard-spinner"></mat-spinner>
+    </div>
+
+    <div class="dashboard-cards">
+      <mat-card class="dash-card total">
+        <mat-icon>receipt_long</mat-icon>
+        <div class="dash-value">{{ resumen.total_nominas }}</div>
+        <div class="dash-label">Total nóminas</div>
+      </mat-card>
+
+      <mat-card class="dash-card pendiente">
+        <mat-icon>schedule</mat-icon>
+        <div class="dash-value">{{ resumen.pendientes }}</div>
+        <div class="dash-label">Pendientes</div>
+      </mat-card>
+
+      <mat-card class="dash-card aprobada">
+        <mat-icon>task_alt</mat-icon>
+        <div class="dash-value">{{ resumen.aprobadas }}</div>
+        <div class="dash-label">Aprobadas</div>
+      </mat-card>
+
+      <mat-card class="dash-card pagada">
+        <mat-icon>paid</mat-icon>
+        <div class="dash-value">{{ resumen.pagadas }}</div>
+        <div class="dash-label">Pagadas</div>
+      </mat-card>
+    </div>
+  </div>
+
   <div class="table-container mat-elevation-z8">
     <div class="loading-shade" *ngIf="isLoading">
       <mat-spinner></mat-spinner>

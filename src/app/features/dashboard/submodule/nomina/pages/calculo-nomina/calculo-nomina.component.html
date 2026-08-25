@@ -84,7 +84,7 @@
             <button mat-raised-button class="btn-large full-width btn-novedades"
                     (click)="abrirCalcularConPlantilla()"
                     [disabled]="!selectedCliente || !periodoControl.value || loading"
-                    matTooltip="Sube un Excel con novedades (cédula + concepto + valor). El backend resuelve cada cédula contra los empleados, homologa los conceptos vía el Homologador y calcula la nómina sin persistir novedades.">
+                    matTooltip="Sube la plantilla de novedades (cédula + concepto + valor). El backend homologa los conceptos vía el Homologador y calcula la nómina.">
               <mat-icon>upload_file</mat-icon>
               NOVEDADES
             </button>
@@ -197,6 +197,14 @@
       <mat-icon *ngIf="!guardando">download</mat-icon>
       <mat-spinner *ngIf="guardando" diameter="20"></mat-spinner>
       DESCARGAR CÁLCULO PARCIAL
+    </button>
+    <button *ngIf="calculationIdActivo && !puedeCerrarActivo"
+            mat-flat-button color="warn" (click)="guardarNominaParcial()"
+            [disabled]="!puedeGuardarParcial || periodoControl.value?.estado === 'VALIDADA' || periodoControl.value?.estado === 'FINALIZADA'"
+            matTooltip="Cierra la nómina SOLO para los empleados sin novedades bloqueantes y descarga un Excel con los excluidos para corregirlos. Los excluidos no se guardan.">
+      <mat-icon *ngIf="!guardandoParcial">save_as</mat-icon>
+      <mat-spinner *ngIf="guardandoParcial" diameter="20"></mat-spinner>
+      GUARDAR PARCIAL
     </button>
     <button mat-flat-button color="primary" (click)="guardarNomina()"
             [disabled]="!puedeGuardar || periodoControl.value?.estado === 'VALIDADA' || periodoControl.value?.estado === 'FINALIZADA'"

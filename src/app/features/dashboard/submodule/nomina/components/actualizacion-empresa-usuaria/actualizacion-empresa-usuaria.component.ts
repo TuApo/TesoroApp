@@ -18,6 +18,7 @@ import {
 } from '../../service/nomina/nomina.service';
 import { ValidationPreviewDialogComponent } from '@/app/shared/components/validation-preview-dialog/validation-preview-dialog.component';
 import { PreviewIssue, PreviewSchema } from 'src/app/shared/model/validation-preview';
+import { MatSelectModule } from '@angular/material/select';
 
 type Step = 'select' | 'previewing' | 'done' | 'error';
 
@@ -38,7 +39,7 @@ type Step = 'select' | 'previewing' | 'done' | 'error';
   imports: [
     CommonModule, MatIconModule, MatButtonModule,
     MatFormFieldModule, MatInputModule, MatAutocompleteModule,
-    MatProgressBarModule, MatDialogModule,
+    MatProgressBarModule, MatDialogModule, MatSelectModule,
   ],
   templateUrl: './actualizacion-empresa-usuaria.component.html',
   styleUrl: './actualizacion-empresa-usuaria.component.css',
@@ -51,6 +52,9 @@ export class ActualizacionEmpresaUsuariaComponent implements OnInit {
   empresaId = signal<number | null>(null);
   /** Texto escrito en el autocomplete (filtra empresas por nombre o NIT). */
   empresaQuery = signal('');
+  /** Periodo al que se asocia la base. null = solo actualizar datos. */
+  periodoId = signal<number | null>(null);
+  periodos = signal<any[]>([]);
   selectedFile = signal<File | null>(null);
   isDragging = signal(false);
 
@@ -99,10 +103,25 @@ export class ActualizacionEmpresaUsuariaComponent implements OnInit {
     }
   }
 
+  onPeriodoSelected(id: number | null): void { this.periodoId.set(id); }
+
+  /** Periodos disponibles para asociar la base. Se cargan al elegir empresa. */
+  private cargarPeriodos(): void {
+    this.svc.getPeriodos().subscribe({
+      next: (ps: any[]) => this.periodos.set(ps ?? []),
+      error: () => this.periodos.set([]),
+    });
+  }
+
   onEmpresaSelected(empresa: Client): void {
     this.empresaId.set(empresa.id_entidad);
     this.empresaQuery.set(empresa.nombre_legal);
     this.resetState();
+    // El censo es por (periodo, EMPRESA): al cambiar de empresa se limpia el
+    // periodo a propósito. Si se arrastrara, la base de la empresa nueva se
+    // asociaría en silencio al periodo elegido para la anterior.
+    this.periodoId.set(null);
+    this.cargarPeriodos();
   }
 
   displayEmpresa = (e: Client | string | null): string =>
@@ -189,7 +208,8 @@ export class ActualizacionEmpresaUsuariaComponent implements OnInit {
       // que el modal cierre; el desglose real (actualizadas/omitidas) va en el
       // resultado final. El backend nunca aplica filas con error (las valida).
       const serverValidate = async () => {
-        const res = await firstValueFrom(this.svc.importarActualizacionEmpresa(id, token));
+        const res = await firstValueFrom(
+          this.svc.importarActualizacionEmpresa(id, token, this.periodoId()));
         return { acceptedItemIds: allIds, errors: [] as PreviewIssue[], serverResult: res };
       };
 

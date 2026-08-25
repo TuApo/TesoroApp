@@ -2,20 +2,65 @@
 
   <!-- Filtros -->
   <app-afiliaciones-filters-bar
+    [oficinas]="(oficinas$ | async) || []"
+    [responsables]="(responsables$ | async) || []"
     (rangeChanged)="onDateRangeChanged($event)"
-    (searchChanged)="onSearchChanged($event)">
+    (searchChanged)="onSearchChanged($event)"
+    (empresaChanged)="onEmpresaChanged($event)"
+    (oficinaChanged)="onOficinaChanged($event)"
+    (responsableChanged)="onResponsableChanged($event)"
+    (baseChanged)="onBaseFechaChanged($event)">
   </app-afiliaciones-filters-bar>
 
   <!-- KPIs -->
   <app-afiliaciones-kpi-strip [kpis]="kpiSummary$ | async">
   </app-afiliaciones-kpi-strip>
 
+  <!-- Evolución de la contratación en el tiempo -->
+  <div class="chart-grid full-width-chart">
+    <app-chart-card
+      title="Evolución de Contrataciones"
+      [subtitle]="((dim1$ | async) === 'oficina' ? 'Contrataciones por oficina' : 'Contrataciones por empresa (Apoyo Laboral y Tu Alianza)')
+        + ', por ' + ((gran$ | async) === 'dia' ? 'día (usa el rango de fechas de arriba)' : 'mes (histórico)')
+        + ' de ' + (baseFechaLabel$ | async)"
+      [loading]="(cargandoTimeline1$ | async) ?? false">
+      <div actions class="dim-toggle">
+        <mat-button-toggle-group [value]="gran$ | async" (change)="setGran($event.value)" style="margin-right:8px">
+          <mat-button-toggle value="mes">Por Mes</mat-button-toggle>
+          <mat-button-toggle value="dia">Por Día</mat-button-toggle>
+        </mat-button-toggle-group>
+        <mat-button-toggle-group [value]="dim1$ | async" (change)="setDim1($event.value)">
+          <mat-button-toggle value="oficina">Por Oficina</mat-button-toggle>
+          <mat-button-toggle value="empresa">Por Empresa</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+      <app-contratacion-timeline-chart
+        [points]="timelinePrincipal$ | async"
+        [maxSeries]="10">
+      </app-contratacion-timeline-chart>
+    </app-chart-card>
+  </div>
+
+  <!-- Contratación por responsable en el tiempo -->
+  <div class="chart-grid full-width-chart">
+    <app-chart-card
+      title="Contratación por Responsable"
+      [subtitle]="'Contrataciones por responsable, por ' + ((gran$ | async) === 'dia' ? 'día (usa el rango de fechas de arriba)' : 'mes (histórico)') + ' de ' + (baseFechaLabel$ | async)"
+      [loading]="(cargandoTimelineResp$ | async) ?? false">
+      <app-contratacion-timeline-chart
+        [points]="timelineResponsable$ | async"
+        [maxSeries]="10">
+      </app-contratacion-timeline-chart>
+    </app-chart-card>
+  </div>
+
   <!-- Resumen por Oficina y Empresa -->
   <div class="chart-grid summary-charts">
 
     <!-- Resumen por Oficina -->
     <app-chart-card title="Resumen por Oficina"
-      subtitle="Total de contrataciones agrupadas por oficina" [loading]="false">
+      subtitle="Total de contrataciones agrupadas por oficina"
+      [loading]="(cargandoResumen$ | async) ?? false">
       @if (resumenOficinas$ | async; as oficinas) {
         <div class="resumen-list">
           @for (item of oficinas; track item.oficina) {
@@ -49,7 +94,8 @@
 
     <!-- Resumen por Empresa -->
     <app-chart-card title="Resumen por Empresa"
-      subtitle="Total de contrataciones agrupadas por empresa" [loading]="false">
+      subtitle="Total de contrataciones agrupadas por empresa"
+      [loading]="(cargandoResumen$ | async) ?? false">
       @if (resumenEmpresas$ | async; as empresas) {
         <div class="resumen-list">
           @for (item of empresas; track item.empresa) {
@@ -85,10 +131,17 @@
   <!-- Tabla consolidada -->
   <div class="chart-grid full-width-chart">
     <app-chart-card title="Consolidado de Contrataciones"
-      subtitle="Detalle de todas las contrataciones 2.0 con fecha de ingreso en el rango seleccionado"
-      [loading]="false">
-      <app-contrataciones-table [data]="contrataciones$ | async">
-      </app-contrataciones-table>
+      [subtitle]="'Detalle filtrado y ordenado por ' + (baseFechaLabel$ | async) + ' en el rango seleccionado'"
+      [loading]="(cargandoTabla$ | async) ?? false">
+      @if (tablePage$ | async; as tp) {
+        <app-contrataciones-table
+          [data]="tp.rows"
+          [total]="tp.total"
+          [pageIndex]="(page$ | async)?.page || 0"
+          [pageSize]="(page$ | async)?.size || 50"
+          (pageChange)="onPageChange($event)">
+        </app-contrataciones-table>
+      }
     </app-chart-card>
   </div>
 

@@ -1,0 +1,337 @@
+<div class="novedades-container">
+
+  <!-- ── Encabezado + selección de contexto ─────────────────────────────── -->
+  <mat-card class="premium-card header-card">
+    <mat-card-header>
+      <div mat-card-avatar class="header-icon">
+        <mat-icon>post_add</mat-icon>
+      </div>
+      <mat-card-title>Novedades</mat-card-title>
+      <mat-card-subtitle>
+        Registre y almacene las novedades del periodo — el cálculo de nómina las tomará de aquí
+      </mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <div class="context-row">
+        <mat-form-field appearance="outline" class="flex-grow">
+          <mat-label>Empresa Usuaria</mat-label>
+          <mat-icon matPrefix>business</mat-icon>
+          <input type="text" matInput [formControl]="clientControl" [matAutocomplete]="autoC"
+                 placeholder="Seleccione la empresa usuaria...">
+          <button mat-icon-button matSuffix *ngIf="clienteSel" (click)="limpiarEmpresa($event)"
+                  matTooltip="Quitar empresa" aria-label="Quitar empresa">
+            <mat-icon>close</mat-icon>
+          </button>
+          <mat-autocomplete #autoC="matAutocomplete" [displayWith]="displayClient">
+            <mat-option *ngFor="let cli of filteredClientes$ | async" [value]="cli">
+              {{ cli.nombre_legal }}
+            </mat-option>
+          </mat-autocomplete>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="flex-grow">
+          <mat-label>Periodo de Nómina</mat-label>
+          <mat-icon matPrefix>event_repeat</mat-icon>
+          <input type="text" matInput [formControl]="periodoControl" [matAutocomplete]="autoP"
+                 placeholder="Seleccione el periodo destino...">
+          <button mat-icon-button matSuffix *ngIf="periodoSel" (click)="limpiarPeriodo($event)"
+                  matTooltip="Quitar periodo" aria-label="Quitar periodo">
+            <mat-icon>close</mat-icon>
+          </button>
+          <mat-autocomplete #autoP="matAutocomplete" [displayWith]="displayPeriodo">
+            <mat-option *ngFor="let p of filteredPeriodos$ | async" [value]="p">
+              <div class="periodo-option">
+                <span>{{ p.descripcion }}</span>
+                <small>{{ p.fecha_inicio | date:'dd MMM' }} — {{ p.fecha_fin | date:'dd MMM yyyy' }}</small>
+              </div>
+            </mat-option>
+          </mat-autocomplete>
+        </mat-form-field>
+      </div>
+
+      <!-- Resumen del contexto elegido -->
+      <div class="context-chips" *ngIf="contextoListo">
+        <span class="ctx-chip ctx-empresa">
+          <mat-icon>business</mat-icon>{{ clienteSel!.nombre_legal }}
+        </span>
+        <span class="ctx-chip ctx-periodo">
+          <mat-icon>date_range</mat-icon>
+          {{ periodoSel!.descripcion }}
+          <em>({{ periodoSel!.fecha_inicio | date:'dd MMM' }} — {{ periodoSel!.fecha_fin | date:'dd MMM yyyy' }})</em>
+        </span>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── Estado vacío: falta elegir contexto ────────────────────────────── -->
+  <mat-card class="premium-card hero-card" *ngIf="!contextoListo">
+    <div class="hero">
+      <div class="hero-icon"><mat-icon>fact_check</mat-icon></div>
+      <h2>Comience seleccionando el contexto</h2>
+      <p>Las novedades quedan almacenadas para una empresa usuaria y un periodo concreto.</p>
+      <div class="hero-steps">
+        <div class="hero-step" [class.done]="clienteSel">
+          <span class="step-num">{{ clienteSel ? '✓' : '1' }}</span>
+          <div>
+            <strong>Empresa usuaria</strong>
+            <small>{{ clienteSel ? clienteSel!.nombre_legal : 'Elija a quién aplican las novedades' }}</small>
+          </div>
+        </div>
+        <mat-icon class="step-arrow">chevron_right</mat-icon>
+        <div class="hero-step" [class.done]="periodoSel">
+          <span class="step-num">{{ periodoSel ? '✓' : '2' }}</span>
+          <div>
+            <strong>Periodo de nómina</strong>
+            <small>{{ periodoSel ? periodoSel!.descripcion : 'Elija el periodo destino' }}</small>
+          </div>
+        </div>
+        <mat-icon class="step-arrow">chevron_right</mat-icon>
+        <div class="hero-step">
+          <span class="step-num">3</span>
+          <div>
+            <strong>Registre novedades</strong>
+            <small>Horas, días o valores por empleado</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </mat-card>
+
+  <!-- ── Cuerpo del módulo (contexto listo) ─────────────────────────────── -->
+  <ng-container *ngIf="contextoListo">
+
+    <!-- KPIs del histórico común por estado (§37) -->
+    <div class="kpis">
+      <div class="kpi kpi-primary">
+        <div class="kpi-icon"><mat-icon>playlist_add_check</mat-icon></div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpis.total | number }}</span>
+          <span class="kpi-label">Novedades ({{ kpis.origen_tnl }} TNL · {{ kpis.origen_manual }} manuales)</span>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon kpi-icon-time"><mat-icon>pending_actions</mat-icon></div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpis.pendientes | number }}</span>
+          <span class="kpi-label">Pendientes</span>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon kpi-icon-up"><mat-icon>rule</mat-icon></div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpis.parcialmente_aplicadas | number }}</span>
+          <span class="kpi-label">Parcialmente aplicadas</span>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon kpi-icon-people"><mat-icon>task_alt</mat-icon></div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpis.aplicadas | number }}</span>
+          <span class="kpi-label">Aplicadas</span>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon kpi-icon-down"><mat-icon>link_off</mat-icon></div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpis.sin_homologacion | number }}</span>
+          <span class="kpi-label">Sin homologación</span>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-icon kpi-icon-money"><mat-icon>report</mat-icon></div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpis.rechazadas + kpis.bloqueadas | number }}</span>
+          <span class="kpi-label">Rechazadas / bloqueadas</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra de herramientas -->
+    <mat-card class="premium-card toolbar-card">
+      <div class="toolbar">
+        <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+          <mat-label>Buscar</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput [formControl]="queryControl"
+                 placeholder="Empleado, documento, código o concepto...">
+        </mat-form-field>
+
+        <mat-button-toggle-group class="nat-toggle" [value]="filtroOrigen"
+                                 (change)="cambiarFiltroOrigen($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle value="TODOS">Todas</mat-button-toggle>
+          <mat-button-toggle value="TNL">TNL</mat-button-toggle>
+          <mat-button-toggle value="MANUAL">Manuales</mat-button-toggle>
+        </mat-button-toggle-group>
+
+        <mat-button-toggle-group class="nat-toggle" [value]="filtroNaturaleza"
+                                 (change)="cambiarFiltroNaturaleza($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle value="TODAS">Todas</mat-button-toggle>
+          <mat-button-toggle value="DEVENGO">Devengos</mat-button-toggle>
+          <mat-button-toggle value="DEDUCCION">Deducciones</mat-button-toggle>
+          <mat-button-toggle value="OTRO">Informativas</mat-button-toggle>
+        </mat-button-toggle-group>
+
+        <span class="toolbar-spacer"></span>
+
+        <input type="file" #tnlFileInput hidden
+               accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+               (change)="onArchivoTnl($event)">
+        <button mat-stroked-button class="btn-export" (click)="abrirSelectorTnl()"
+                [disabled]="importandoTnl"
+                matTooltip="Cargar el archivo TNL: cada fila queda en el histórico con su origen">
+          <mat-icon>{{ importandoTnl ? 'hourglass_top' : 'upload_file' }}</mat-icon>
+          {{ importandoTnl ? 'Importando…' : 'Importar TNL' }}
+        </button>
+        <button mat-stroked-button class="btn-export" (click)="generarIpanema()"
+                [disabled]="generandoIpanema"
+                matTooltip="Excel operacional IPANEMA generado desde la base de datos">
+          <mat-icon>{{ generandoIpanema ? 'hourglass_top' : 'grid_on' }}</mat-icon>
+          {{ generandoIpanema ? 'Generando…' : 'Excel IPANEMA' }}
+        </button>
+        <button mat-stroked-button class="btn-export" (click)="exportarExcel()"
+                [disabled]="!dataSource.data.length" matTooltip="Descargar lo listado en Excel">
+          <mat-icon>file_download</mat-icon>
+          Exportar
+        </button>
+        <button mat-flat-button color="primary" class="btn-nueva" (click)="nuevaNovedad()">
+          <mat-icon>add</mat-icon>
+          NUEVA NOVEDAD
+        </button>
+      </div>
+    </mat-card>
+
+    <!-- Tabla -->
+    <div class="table-container mat-elevation-z8">
+      <div class="loading-shade" *ngIf="isLoading">
+        <mat-spinner></mat-spinner>
+      </div>
+
+      <table mat-table [dataSource]="dataSource" matSort>
+
+        <ng-container matColumnDef="origen">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Origen </th>
+          <td mat-cell *matCellDef="let row">
+            <span class="badge" [ngClass]="row.origen === 'TNL' ? 'origen-tnl' : 'origen-manual'"
+                  [matTooltip]="row.archivo_origen ? (row.archivo_origen + (row.fila_origen ? ' · fila ' + row.fila_origen : '')) : ''">
+              {{ row.origen }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="empleado">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Empleado </th>
+          <td mat-cell *matCellDef="let row">
+            <div class="emp-cell">
+              <strong>{{ row.nombre_empleado || '—' }}</strong>
+              <small>{{ row.documento }}</small>
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="concepto">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Concepto </th>
+          <td mat-cell *matCellDef="let row">
+            <div class="concepto-cell">
+              <span class="chip-codigo">{{ row.codigo_concepto }}</span>
+              <span class="concepto-desc">{{ row.descripcion_concepto }}</span>
+            </div>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="naturaleza">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Naturaleza </th>
+          <td mat-cell *matCellDef="let row">
+            <span class="badge" [ngClass]="badgeNaturaleza(row.naturaleza)">
+              {{ row.naturaleza || 'INFORMATIVA' }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="cantidad">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Cantidad </th>
+          <td mat-cell *matCellDef="let row">
+            <span *ngIf="row.horas != null || row.dias != null" class="cantidad-cell">
+              <ng-container *ngIf="row.horas != null">{{ row.horas | number:'1.0-2' }} <em>h</em></ng-container>
+              <ng-container *ngIf="row.horas != null && row.dias != null"> · </ng-container>
+              <ng-container *ngIf="row.dias != null">{{ row.dias | number:'1.0-2' }} <em>días</em></ng-container>
+            </span>
+            <span *ngIf="row.horas == null && row.dias == null" class="muted">—</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="fechas">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Fechas </th>
+          <td mat-cell *matCellDef="let row">
+            <span *ngIf="row.fecha_inicio" class="fechas-cell">
+              {{ row.fecha_inicio | date:'dd MMM' }}
+              <ng-container *ngIf="row.fecha_fin && row.fecha_fin !== row.fecha_inicio">
+                → {{ row.fecha_fin | date:'dd MMM' }}
+              </ng-container>
+            </span>
+            <span *ngIf="!row.fecha_inicio" class="muted">—</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="valor">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Valor </th>
+          <td mat-cell *matCellDef="let row">
+            <span *ngIf="row.valor != null" class="valor-cell">
+              {{ row.valor | currency:'COP':'symbol-narrow':'1.0-0' }}
+            </span>
+            <span *ngIf="row.valor == null" class="muted">—</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="estado">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header> Estado </th>
+          <td mat-cell *matCellDef="let row">
+            <span class="badge" [ngClass]="badgeEstado(row.estado)"
+                  [matTooltip]="(row.motivo || '') + (row.aplicaciones ? ' · ' + row.aplicaciones + ' aplicación(es)' : '')">
+              {{ etiquetaEstado(row.estado) }}
+            </span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="acciones">
+          <th mat-header-cell *matHeaderCellDef class="th-acciones"> Acciones </th>
+          <td mat-cell *matCellDef="let row" class="td-acciones">
+            <ng-container *ngIf="esEditable(row)">
+              <button mat-icon-button color="primary" matTooltip="Editar novedad" (click)="editarNovedad(row)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" matTooltip="Anular novedad" (click)="anularNovedad(row)">
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </ng-container>
+            <span *ngIf="!esEditable(row)" class="muted"
+                  [matTooltip]="row.origen === 'TNL'
+                    ? 'Las novedades TNL se gestionan desde su importación'
+                    : 'Ya fue aplicada por un cierre: se conserva en el histórico'">—</span>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+        <tr class="mat-row" *matNoDataRow>
+          <td class="mat-cell" colspan="9">
+            <div class="empty-state" *ngIf="!isLoading">
+              <mat-icon>note_add</mat-icon>
+              <p *ngIf="!novedades.length">Aún no hay novedades para este periodo: regístrelas o importe el TNL.</p>
+              <p *ngIf="novedades.length">Ninguna novedad coincide con el filtro actual.</p>
+              <button *ngIf="!novedades.length" mat-flat-button color="primary"
+                      (click)="nuevaNovedad()">
+                <mat-icon>add</mat-icon>
+                Registrar la primera novedad
+              </button>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <mat-paginator [pageSizeOptions]="[25, 50, 100]" showFirstLastButtons
+                     aria-label="Seleccionar página"></mat-paginator>
+    </div>
+  </ng-container>
+</div>

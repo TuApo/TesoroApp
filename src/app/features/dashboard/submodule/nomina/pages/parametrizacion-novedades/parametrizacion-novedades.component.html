@@ -55,6 +55,18 @@
           </mat-select>
         </mat-form-field>
 
+        <!-- Filtro Agrupador -->
+        <mat-form-field appearance="outline" style="width:230px">
+          <mat-label>Agrupador</mat-label>
+          <mat-select [(ngModel)]="filterAgrupador" (ngModelChange)="aplicarFiltros()">
+            <mat-option value="">Todos</mat-option>
+            <mat-option value="AUSENCIAS">Ausencias</mat-option>
+            <mat-option value="INCAPACIDADES">Incapacidades</mat-option>
+            <mat-option value="EXTRAS_Y_BONIFICACIONES">Extras y Bonificaciones</mat-option>
+            <mat-option value="SIN">Sin agrupar</mat-option>
+          </mat-select>
+        </mat-form-field>
+
         <div class="actions-row">
           <button mat-stroked-button (click)="limpiarFiltros()" [disabled]="isLoading">
             <mat-icon>filter_alt_off</mat-icon> Limpiar

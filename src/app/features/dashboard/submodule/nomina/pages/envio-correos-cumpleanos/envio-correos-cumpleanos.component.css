@@ -1,0 +1,425 @@
+/* Envío de correos → Cumpleaños. */
+
+.cumple-page {
+  padding: 16px 20px 48px;
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.cabecera { margin-bottom: 16px; }
+
+.cabecera h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.sub {
+  margin: 0 0 12px;
+  max-width: 78ch;
+  color: rgba(0, 0, 0, .6);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+.menudo {
+  color: rgba(0, 0, 0, .55);
+  font-size: .8rem;
+}
+
+.tab-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-top: 16px;
+}
+
+.tarjeta { border-radius: 10px; }
+
+.tarjeta h3 {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.fila-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ── Barra del día ───────────────────────────────────────────────────────── */
+
+.fila-fecha {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.empuje { flex: 1 1 auto; }
+
+.resumen-dia { display: flex; gap: 20px; }
+
+.dato { display: flex; flex-direction: column; line-height: 1.1; }
+.dato .numero { font-size: 1.6rem; font-weight: 600; }
+.dato .etiqueta { font-size: .78rem; color: rgba(0, 0, 0, .55); }
+.dato.malo .numero { color: #b3261e; }
+
+.ya-enviado {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, .035);
+  border-radius: 8px;
+}
+
+/* ── Bandas de aviso ─────────────────────────────────────────────────────── */
+
+.banda {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: .88rem;
+  margin: 8px 0;
+}
+
+.banda.aviso {
+  background: #fff4e5;
+  color: #7a4b00;
+}
+
+.banda mat-icon { flex: 0 0 auto; }
+
+/* ── Tablas ──────────────────────────────────────────────────────────────── */
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .88rem;
+  margin-top: 8px;
+}
+
+.tabla th,
+.tabla td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, .07);
+}
+
+.tabla th {
+  font-weight: 600;
+  color: rgba(0, 0, 0, .6);
+  font-size: .8rem;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+
+.tabla .num { text-align: right; }
+.tabla tr.inactiva { opacity: .55; }
+.tabla .motivo { color: #8a4b00; font-size: .82rem; }
+
+.sin-correo {
+  color: #b3261e;
+  font-style: italic;
+}
+
+.vacio {
+  margin: 16px 0;
+  color: rgba(0, 0, 0, .5);
+  font-size: .9rem;
+}
+
+/* ── Pastillas de estado ─────────────────────────────────────────────────── */
+
+.pastilla {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: .76rem;
+  font-weight: 600;
+  background: rgba(0, 0, 0, .06);
+  color: rgba(0, 0, 0, .7);
+  white-space: nowrap;
+}
+
+.pastilla.ok { background: #e6f4ea; color: #1e6c33; }
+.pastilla.mal { background: #fce8e6; color: #b3261e; }
+.pastilla.aviso { background: #fff4e5; color: #7a4b00; }
+.pastilla.neutro { background: rgba(0, 0, 0, .06); color: rgba(0, 0, 0, .6); }
+
+mat-icon.ok { color: #1e6c33; }
+mat-icon.mal { color: #b3261e; }
+mat-icon.aviso { color: #b06000; }
+
+mat-icon.mini {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Padrón ──────────────────────────────────────────────────────────────── */
+
+.acciones {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 12px 0 4px;
+}
+
+.filtros {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filtros .ancho { flex: 1 1 320px; }
+
+.resultado-carga {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: 8px;
+}
+
+.contadores {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.avisos {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: .82rem;
+  color: #7a4b00;
+}
+
+.avisos li { margin-bottom: 3px; }
+
+/* ── Configuración ───────────────────────────────────────────────────────── */
+
+.fila-campos {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.fila-campos .ancho { flex: 1 1 340px; }
+.fila-campos .corto { width: 130px; }
+
+.preview {
+  margin-top: 14px;
+  border: 1px solid rgba(0, 0, 0, .12);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.preview-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, .03);
+  border-bottom: 1px solid rgba(0, 0, 0, .08);
+}
+
+/*
+ * El correo trae su propio ancho fijo de 600px y sus estilos en línea. Se le da
+ * su propio marco con scroll para que no desborde la tarjeta ni herede nada de
+ * la app: lo que se ve aquí tiene que ser lo que llega al buzón.
+ */
+.preview-cuerpo {
+  max-height: 560px;
+  overflow: auto;
+  background: #fff;
+  padding: 8px;
+}
+
+/* ── Estado de error ─────────────────────────────────────────────────────── */
+
+.estado-error {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.estado-error mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  color: rgba(0, 0, 0, .3);
+}
+
+.estado-error p { margin: 4px 0 0; }
+.estado-error > div { flex: 1 1 auto; }
+
+/* ── Buscador ────────────────────────────────────────────────────────────── */
+
+.fila-buscador {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.fila-buscador .ancho { flex: 1 1 auto; }
+
+/* ── Calendario + lista ──────────────────────────────────────────────────── */
+
+.columnas {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.calendario { flex: 0 0 340px; }
+.lista-dia { flex: 1 1 460px; min-width: 0; }
+
+.cal-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.cal-titulo {
+  flex: 1 1 auto;
+  text-align: center;
+  text-transform: capitalize;
+  font-size: 1rem;
+}
+
+.cal-semana {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.cal-dow {
+  text-align: center;
+  font-size: .72rem;
+  font-weight: 600;
+  color: rgba(0, 0, 0, .45);
+  padding-bottom: 2px;
+}
+
+/*
+ * Cada día es un botón: se navega con teclado y el foco se ve, que en una
+ * rejilla de <div> con (click) se pierde.
+ */
+.cal-dia {
+  position: relative;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, .03);
+  color: rgba(0, 0, 0, .7);
+  font: inherit;
+  font-size: .82rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 0;
+}
+
+.cal-dia:hover { background: rgba(0, 0, 0, .07); }
+.cal-dia.vacio { background: transparent; cursor: default; }
+
+.cal-dia.con-cumples {
+  background: #e8f0fe;
+  color: #134DA8;
+  font-weight: 600;
+}
+
+.cal-dia.enviado {
+  background: #e6f4ea;
+  color: #1e6c33;
+}
+
+.cal-dia.hoy { border-color: rgba(0, 0, 0, .35); }
+
+.cal-dia.sel {
+  outline: 2px solid #134DA8;
+  outline-offset: -2px;
+}
+
+.cal-dia .num { line-height: 1; }
+
+.cal-dia .punto {
+  font-size: .62rem;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .75);
+}
+
+.cal-leyenda {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: .75rem;
+  color: rgba(0, 0, 0, .55);
+}
+
+.cal-leyenda .mues {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+
+.mues.con-cumples { background: #e8f0fe; }
+.mues.enviado { background: #e6f4ea; }
+
+/* ── Plantilla por temporal ──────────────────────────────────────────────── */
+
+.fila-plantilla {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+}
+
+.etiqueta-empresa {
+  flex: 0 0 210px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.fila-plantilla .ancho { flex: 1 1 280px; }
+
+.corto-medio { width: 200px; }
+
+.alerta {
+  color: #7a4b00;
+  margin: -4px 0 4px 210px;
+}
+
+@media (max-width: 720px) {
+  .calendario { flex: 1 1 100%; }
+  .etiqueta-empresa { flex: 1 1 100%; }
+  .alerta { margin-left: 0; }
+}

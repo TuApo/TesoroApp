@@ -1,0 +1,142 @@
+<mat-card class="ee-card">
+  <!-- Encabezado -->
+  <div class="ee-header">
+    <div class="ee-title">
+      <mat-icon>account_balance</mat-icon>
+      <div>
+        <h1>Entidades Externas</h1>
+        <p>Administración de entidades externas de nómina (empresas usuarias, EPS, AFP, bancos, CCF…) con borrado lógico</p>
+      </div>
+    </div>
+    <button mat-flat-button color="primary" (click)="abrirDialogoCrear()">
+      <mat-icon>add_business</mat-icon>
+      Nueva entidad
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="ee-filtros">
+    <mat-form-field appearance="outline" class="f-search">
+      <mat-label>Buscar</mat-label>
+      <input matInput [ngModel]="filterSearch" (ngModelChange)="onSearchChange($event)"
+             placeholder="Nombre, NIT o código">
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-tipo">
+      <mat-label>Tipo</mat-label>
+      <mat-select [(ngModel)]="filterTipo" (selectionChange)="onServerFilterChange()">
+        <mat-option value="">Todos</mat-option>
+        <mat-option *ngFor="let t of TIPOS" [value]="t.value">{{ t.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-estado">
+      <mat-label>Estado</mat-label>
+      <mat-select [(ngModel)]="filterEstado" (selectionChange)="onServerFilterChange()">
+        <mat-option value="activas">Activas</mat-option>
+        <mat-option value="inactivas">Inactivas</mat-option>
+        <mat-option value="todas">Todas</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="limpiarFiltros()">
+      <mat-icon>filter_alt_off</mat-icon>
+      Limpiar
+    </button>
+
+    <span class="ee-count" *ngIf="!isLoading">{{ dataSource.data.length }} entidad(es)</span>
+  </div>
+
+  <!-- Cargando -->
+  <div class="ee-loading" *ngIf="isLoading">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <!-- Tabla -->
+  <div class="ee-table-wrap" *ngIf="!isLoading">
+    <table mat-table [dataSource]="dataSource" matSort class="ee-table">
+
+      <ng-container matColumnDef="nombre">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Nombre</th>
+        <td mat-cell *matCellDef="let e">
+          <div class="cell-nombre">
+            <span class="nombre-legal">{{ e.nombre }}</span>
+            <span class="nombre-comercial" *ngIf="e.nombre_comercial">{{ e.nombre_comercial }}</span>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="nit">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>NIT</th>
+        <td mat-cell *matCellDef="let e">{{ e.nit || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="codigo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Código</th>
+        <td mat-cell *matCellDef="let e">{{ e.codigo || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="tipo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Tipo</th>
+        <td mat-cell *matCellDef="let e">
+          <span class="tipo-chip" [attr.data-tipo]="e.tipo">{{ tipoLabel(e.tipo) }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="activo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
+        <td mat-cell *matCellDef="let e">
+          <span class="estado-chip" [class.activa]="e.activo" [class.inactiva]="!e.activo">
+            <mat-icon>{{ e.activo ? 'check_circle' : 'cancel' }}</mat-icon>
+            {{ e.activo ? 'Activa' : 'Inactiva' }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="centros_costo_count">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Centros de costo</th>
+        <td mat-cell *matCellDef="let e">
+          <span class="num-badge" *ngIf="aplicaConteos(e); else naCeco">{{ e.centros_costo_count }}</span>
+          <ng-template #naCeco><span class="na">—</span></ng-template>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="contratos_count">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Contratos</th>
+        <td mat-cell *matCellDef="let e">
+          <span class="num-badge" *ngIf="aplicaConteos(e); else naCont">{{ e.contratos_count }}</span>
+          <ng-template #naCont><span class="na">—</span></ng-template>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="acciones">
+        <th mat-header-cell *matHeaderCellDef>Acciones</th>
+        <td mat-cell *matCellDef="let e">
+          <button mat-icon-button color="primary" (click)="abrirDialogoEditar(e)" matTooltip="Editar">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" *ngIf="e.activo"
+                  (click)="desactivar(e)" matTooltip="Desactivar">
+            <mat-icon>block</mat-icon>
+          </button>
+          <button mat-icon-button *ngIf="!e.activo" class="btn-reactivar"
+                  (click)="reactivar(e)" matTooltip="Reactivar">
+            <mat-icon>restart_alt</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+          [class.fila-inactiva]="!row.activo"></tr>
+    </table>
+
+    <div class="ee-empty" *ngIf="dataSource.data.length === 0">
+      <mat-icon>inbox</mat-icon>
+      <p>No hay entidades que coincidan con el filtro.</p>
+    </div>
+
+    <mat-paginator [pageSizeOptions]="[10, 25, 50, 100]" [pageSize]="25" showFirstLastButtons></mat-paginator>
+  </div>
+</mat-card>

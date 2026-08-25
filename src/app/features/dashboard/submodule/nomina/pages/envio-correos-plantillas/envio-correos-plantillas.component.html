@@ -1,0 +1,216 @@
+<div class="plantillas-page">
+
+  <header class="cabecera">
+    <div>
+      <h1>Plantillas de correo</h1>
+      <p class="sub">
+        El correo que reciben las personas. Pega aquí el HTML de Stripo tal cual,
+        comprueba en la vista previa que sobrevivió, y destaca las que uses a
+        diario para tenerlas arriba.
+      </p>
+    </div>
+    <button mat-flat-button color="primary" (click)="nueva()">
+      <mat-icon>add</mat-icon> Nueva plantilla
+    </button>
+  </header>
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- ── Editor ─────────────────────────────────────────────────────────── -->
+  @if (borrador(); as b) {
+    <mat-card class="tarjeta editor">
+      <mat-card-content>
+        <div class="fila-cabecera">
+          <h3>{{ b.id ? 'Editar plantilla' : 'Nueva plantilla' }}</h3>
+          <button mat-stroked-button (click)="cerrarEditor()">
+            <mat-icon>close</mat-icon> Cerrar
+          </button>
+        </div>
+
+        <div class="fila-campos">
+          <mat-form-field appearance="outline" class="ancho">
+            <mat-label>Nombre</mat-label>
+            <input matInput [ngModel]="b.nombre"
+                   (ngModelChange)="actualizar('nombre', $event)"
+                   placeholder="Ej. Desprendible de nómina - Apoyo Laboral" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Empresa</mat-label>
+            <mat-select [ngModel]="b.empresa" (ngModelChange)="actualizar('empresa', $event)">
+              <mat-option [value]="null">Todas</mat-option>
+              <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+              <mat-option value="ALIANZA">Tu Alianza</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo</mat-label>
+            <mat-select [ngModel]="b.tipo" (ngModelChange)="actualizar('tipo', $event)">
+              <mat-option [value]="null">Todos</mat-option>
+              <mat-option value="NOMINA">Nómina</mat-option>
+              <mat-option value="LIQUIDACION">Liquidación</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Documento</mat-label>
+            <mat-select [ngModel]="b.modo_documento"
+                        (ngModelChange)="actualizar('modo_documento', $event)">
+              <mat-option value="ADJUNTO">PDF adjunto</mat-option>
+              <mat-option value="ENLACE">Enlace</mat-option>
+              <mat-option value="AMBOS">Adjunto + enlace</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="fila-flags">
+          <mat-checkbox [ngModel]="b.destacada" (ngModelChange)="actualizar('destacada', $event)">
+            Destacada (aparece primero)
+          </mat-checkbox>
+          <mat-checkbox [ngModel]="b.activo" (ngModelChange)="actualizar('activo', $event)">
+            Activa
+          </mat-checkbox>
+        </div>
+
+        <mat-form-field appearance="outline" class="ancho-total">
+          <mat-label>Asunto (admite campos)</mat-label>
+          <input matInput [ngModel]="b.asunto" (ngModelChange)="actualizar('asunto', $event)" />
+          <mat-hint>Ej. {{ '{{nombre}}' }}, te enviamos tu desprendible de {{ '{{quincena}}' }}</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="ancho-total cuerpo">
+          <mat-label>Cuerpo HTML</mat-label>
+          <textarea matInput rows="14" spellcheck="false"
+                    [ngModel]="b.cuerpo_html"
+                    (ngModelChange)="actualizar('cuerpo_html', $event)"></textarea>
+        </mat-form-field>
+
+        @if (placeholdersDesconocidos().length) {
+          <div class="advertencia">
+            <mat-icon>warning_amber</mat-icon>
+            <span>
+              Campos que el sistema no conoce y se enviarán tal cual:
+              @for (x of placeholdersDesconocidos(); track x) { <code>{{ '{{' }}{{ x }}{{ '}}' }}</code> }
+              — revisa que no sean erratas.
+            </span>
+          </div>
+        }
+
+        <mat-expansion-panel class="campos">
+          <mat-expansion-panel-header>
+            <mat-panel-title>Campos disponibles ({{ campos().length }})</mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="lista-campos">
+            @for (c of campos(); track c.campo) {
+              <button mat-stroked-button class="chip-campo" (click)="insertarCampo(c.campo)"
+                      [matTooltip]="c.descripcion">
+                {{ c.campo }}
+              </button>
+            }
+          </div>
+        </mat-expansion-panel>
+
+        <div class="fila-acciones">
+          <div class="preview-controles">
+            <mat-form-field appearance="outline" class="compacto">
+              <mat-label>Previsualizar con</mat-label>
+              <mat-select [ngModel]="periodoPreview()"
+                          (ngModelChange)="periodoPreview.set($event); previsualizar()">
+                @for (p of periodos(); track p.clave) {
+                  <mat-option [value]="p.clave">{{ p.etiqueta }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <button mat-stroked-button (click)="previsualizar()">
+              <mat-icon>visibility</mat-icon> Ver cómo queda
+            </button>
+          </div>
+          <button mat-flat-button color="primary" (click)="guardar()" [disabled]="guardando()">
+            <mat-icon>save</mat-icon> Guardar
+          </button>
+        </div>
+
+        @if (preview(); as pv) {
+          @if (!pv.con_datos_reales) {
+            <div class="advertencia"><mat-icon>info</mat-icon><span>{{ pv.aviso }}</span></div>
+          }
+          <div class="sobre">
+            <div class="sobre-cabecera">
+              <div><span class="etq">Para:</span> {{ pv.destinatario_ejemplo || '(ejemplo)' }}</div>
+              <div><span class="etq">Asunto:</span> <b>{{ pv.asunto }}</b></div>
+            </div>
+            <div class="sobre-cuerpo" [innerHTML]="previewHtml()"></div>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- ── Destacadas ─────────────────────────────────────────────────────── -->
+  @if (destacadas().length) {
+    <h3 class="titulo-grupo"><mat-icon class="estrella">star</mat-icon> Destacadas</h3>
+    <div class="rejilla">
+      @for (p of destacadas(); track p.id) {
+        <mat-card class="plantilla destacada">
+          <mat-card-content>
+            <div class="plantilla-cabecera">
+              <strong>{{ p.nombre }}</strong>
+              <button mat-icon-button (click)="alternarDestacada(p)"
+                      matTooltip="Quitar de destacadas">
+                <mat-icon class="estrella">star</mat-icon>
+              </button>
+            </div>
+            <div class="tenue">{{ nombreEmpresa(p.empresa) }} · {{ nombreTipo(p.tipo) }}</div>
+            <div class="asunto">{{ p.asunto }}</div>
+            <div class="acciones">
+              <button mat-stroked-button (click)="editar(p)">
+                <mat-icon>edit</mat-icon> Editar
+              </button>
+              <button mat-stroked-button (click)="duplicar(p)">
+                <mat-icon>content_copy</mat-icon> Duplicar
+              </button>
+              @if (!p.activo) { <span class="chip-neutro">Inactiva</span> }
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
+
+  <!-- ── Resto ──────────────────────────────────────────────────────────── -->
+  @if (resto().length) {
+    <h3 class="titulo-grupo">Todas las demás</h3>
+    <div class="rejilla">
+      @for (p of resto(); track p.id) {
+        <mat-card class="plantilla" [class.inactiva]="!p.activo">
+          <mat-card-content>
+            <div class="plantilla-cabecera">
+              <strong>{{ p.nombre }}</strong>
+              <button mat-icon-button (click)="alternarDestacada(p)" matTooltip="Destacar">
+                <mat-icon>star_border</mat-icon>
+              </button>
+            </div>
+            <div class="tenue">{{ nombreEmpresa(p.empresa) }} · {{ nombreTipo(p.tipo) }}</div>
+            <div class="asunto">{{ p.asunto }}</div>
+            <div class="acciones">
+              <button mat-stroked-button (click)="editar(p)">
+                <mat-icon>edit</mat-icon> Editar
+              </button>
+              <button mat-stroked-button (click)="duplicar(p)">
+                <mat-icon>content_copy</mat-icon> Duplicar
+              </button>
+              <button mat-stroked-button (click)="alternarActiva(p)">
+                {{ p.activo ? 'Desactivar' : 'Activar' }}
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
+
+  @if (!plantillas().length && !cargando()) {
+    <p class="vacio">Todavía no hay plantillas. Crea la primera.</p>
+  }
+</div>

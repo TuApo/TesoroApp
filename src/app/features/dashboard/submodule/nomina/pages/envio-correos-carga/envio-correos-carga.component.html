@@ -1,0 +1,476 @@
+<div class="carga-page">
+
+  <header class="cabecera">
+    <div>
+      <h1>Carga por carpeta</h1>
+      <p class="sub">
+        Selecciona la carpeta del corte tal como está organizada. Cada archivo se
+        identifica por la cédula de su nombre y entra a gestión documental con la
+        jerarquía intacta — sin enlaces de Drive.
+      </p>
+    </div>
+    @if (preview()) {
+      <button mat-stroked-button color="warn" (click)="cancelar()" [disabled]="subiendo()">
+        <mat-icon>close</mat-icon> Descartar
+      </button>
+    }
+  </header>
+
+  <!-- ── Paso 1: elegir carpeta ─────────────────────────────────────────── -->
+  @if (!preview()) {
+    <mat-card class="zona-drop">
+      <mat-card-content>
+        <mat-icon class="icono-grande">drive_folder_upload</mat-icon>
+        <h2>Selecciona la carpeta raíz del corte</h2>
+        <p>
+          Por ejemplo <code>pdf NOMINA 1Q AGOSTO 2026</code>,
+          <code>PDF LIQ RET 2Q JUL-26</code> o <code>Liquidaciones 13-08-2026</code>.
+          Se leen también las subcarpetas.
+        </p>
+
+        <mat-form-field appearance="outline" class="campo-empresa">
+          <mat-label>Empresa</mat-label>
+          <mat-select [ngModel]="empresa()" (ngModelChange)="empresa.set($event)">
+            <mat-option [value]="null">Sin especificar</mat-option>
+            <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+            <mat-option value="ALIANZA">Tu Alianza</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <button mat-flat-button color="primary" (click)="abrirSelectorCarpeta()" [disabled]="cargando()">
+          <mat-icon>folder_open</mat-icon> Elegir carpeta
+        </button>
+
+        <!-- webkitdirectory: da los File con webkitRelativePath, que es la
+             jerarquía completa. No es estándar pero lo soportan Chrome, Edge,
+             Firefox y Safari, que es donde corre esto. -->
+        <input #inputCarpeta type="file" hidden webkitdirectory directory multiple
+               (change)="onCarpetaSeleccionada($event)" />
+
+        @if (cargando()) {
+          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          <p class="analizando">Analizando {{ totalSeleccionados() }} archivo(s)…</p>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Cargas anteriores: entrar a revisar qué se subió sin repetir el proceso -->
+    @if (lotesPrevios().length) {
+      <mat-card class="tarjeta">
+        <mat-card-content>
+          <h3>Cargas anteriores</h3>
+          <p class="ayuda">Abre una para ver sus documentos y previsualizarlos.</p>
+
+          <table mat-table [dataSource]="lotesPrevios()" class="tabla">
+            <ng-container matColumnDef="carpeta">
+              <th mat-header-cell *matHeaderCellDef>Carpeta</th>
+              <td mat-cell *matCellDef="let l"><strong>{{ l.carpeta_raiz }}</strong></td>
+            </ng-container>
+            <ng-container matColumnDef="quincena">
+              <th mat-header-cell *matHeaderCellDef>Quincena</th>
+              <td mat-cell *matCellDef="let l">{{ l.periodo_etiqueta || '—' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="empresa">
+              <th mat-header-cell *matHeaderCellDef>Empresa</th>
+              <td mat-cell *matCellDef="let l" class="tenue">{{ nombreEmpresa(l.empresa) }}</td>
+            </ng-container>
+            <ng-container matColumnDef="archivos">
+              <th mat-header-cell *matHeaderCellDef>Archivos</th>
+              <td mat-cell *matCellDef="let l">
+                <span class="chip chip-ok">{{ l.total_cargados }} cargados</span>
+                @if (l.total_errores > 0) {
+                  <span class="chip chip-alerta">{{ l.total_errores }} error(es)</span>
+                }
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="estado">
+              <th mat-header-cell *matHeaderCellDef>Estado</th>
+              <td mat-cell *matCellDef="let l" class="tenue">{{ l.estado }}</td>
+            </ng-container>
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let l">
+                <button mat-stroked-button (click)="abrirLotePrevio(l.lote_id)">Ver contenido</button>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="columnasLotes"></tr>
+            <tr mat-row *matRowDef="let row; columns: columnasLotes;"></tr>
+          </table>
+        </mat-card-content>
+      </mat-card>
+    }
+  }
+
+  <!-- ── Paso 2: previsualizador ────────────────────────────────────────── -->
+  @if (preview(); as p) {
+
+    <mat-card class="tarjeta-lote">
+      <mat-card-content>
+        <div class="lote-grid">
+          <div class="lote-campo">
+            <span class="etiqueta">Carpeta raíz</span>
+            <strong class="valor">{{ p.lote.carpeta_raiz }}</strong>
+          </div>
+          <div class="lote-campo">
+            <span class="etiqueta">Archivos</span>
+            <strong class="valor">{{ p.lote.total_archivos }}</strong>
+          </div>
+
+          <div class="lote-campo">
+            <span class="etiqueta">Empresa</span>
+            <mat-form-field appearance="outline" class="compacto">
+              <mat-select [ngModel]="empresa()"
+                          (ngModelChange)="empresa.set($event); aplicarEmpresa()"
+                          [disabled]="subiendo()">
+                <mat-option [value]="null">Sin especificar</mat-option>
+                <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+                <mat-option value="ALIANZA">Tu Alianza</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="lote-campo quincena">
+            <span class="etiqueta">
+              Quincena
+              @if (p.lote.periodo_inferido) {
+                <mat-icon class="icono-aviso"
+                          matTooltip="Se dedujo de la fecha del nombre de la carpeta. Confírmala.">
+                  help_outline
+                </mat-icon>
+              }
+            </span>
+            <div class="selector-quincena">
+              <mat-form-field appearance="outline" class="compacto">
+                <mat-select [ngModel]="anioSel()" (ngModelChange)="anioSel.set($event)"
+                            placeholder="Año" [disabled]="subiendo()">
+                  @for (a of anios(); track a) {
+                    <mat-option [value]="a">{{ a }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="compacto">
+                <mat-select [ngModel]="mesSel()" (ngModelChange)="mesSel.set($event)"
+                            placeholder="Mes" [disabled]="subiendo()">
+                  @for (m of meses; track m.v) {
+                    <mat-option [value]="m.v">{{ m.n }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="compacto">
+                <mat-select [ngModel]="quincenaSel()" (ngModelChange)="quincenaSel.set($event)"
+                            placeholder="Quincena" [disabled]="subiendo()">
+                  <mat-option value="1Q">1ª quincena</mat-option>
+                  <mat-option value="2Q">2ª quincena</mat-option>
+                  <mat-option value="MES">Mes completo</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <button mat-stroked-button (click)="aplicarQuincena()" [disabled]="subiendo()">
+                Aplicar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="chips-resumen">
+          @for (r of resumen(); track r.estado) {
+            <span class="chip" [class]="claseEstado(r.estado)">
+              <strong>{{ r.total }}</strong> {{ etiquetaEstado(r.estado) }}
+            </span>
+          }
+        </div>
+
+        @for (a of advertencias(); track a) {
+          <div class="advertencia">
+            <mat-icon>warning_amber</mat-icon><span>{{ a }}</span>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Jerarquía de carpetas con su clasificación -->
+    <mat-card class="tarjeta">
+      <mat-card-content>
+        <h3>Carpetas detectadas</h3>
+        <p class="ayuda">
+          Si una carpeta mezcla categorías (el caso de <code>CERTI_CARTAS</code>),
+          elige aquí el tipo y se aplica a todos sus archivos de una vez.
+        </p>
+
+        <table mat-table [dataSource]="carpetas()" class="tabla">
+          <ng-container matColumnDef="ruta">
+            <th mat-header-cell *matHeaderCellDef>Carpeta</th>
+            <td mat-cell *matCellDef="let c">
+              <span class="sangria" [style.padding-left.px]="c.profundidad * 16">
+                <mat-icon class="icono-carpeta">folder</mat-icon>{{ c.ruta || '(raíz)' }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="archivos">
+            <th mat-header-cell *matHeaderCellDef>Archivos</th>
+            <td mat-cell *matCellDef="let c">{{ c.total_archivos }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="tipo">
+            <th mat-header-cell *matHeaderCellDef>Tipo documental</th>
+            <td mat-cell *matCellDef="let c">
+              @if (c.type_name && !c.ambigua) {
+                <span class="tipo-ok"><mat-icon>check_circle</mat-icon>{{ c.type_name }}</span>
+              } @else {
+                <mat-form-field appearance="outline" class="compacto">
+                  <mat-select placeholder="Elegir tipo" [disabled]="subiendo()"
+                              (selectionChange)="aplicarTipoACarpeta(c.ruta, $event.value)">
+                    @for (t of tipos(); track t.id) {
+                      <mat-option [value]="t.id">{{ t.name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columnasCarpetas"></tr>
+          <tr mat-row *matRowDef="let row; columns: columnasCarpetas;"></tr>
+        </table>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Excepciones a resolver -->
+    @if (porResolver().length) {
+      <mat-card class="tarjeta">
+        <mat-card-content>
+          <h3>Archivos por resolver ({{ porResolver().length }})</h3>
+          <p class="ayuda">
+            Estos no se van a subir hasta que tengan cédula y tipo. Los duplicados
+            se listan para que veas qué se va a omitir, no hace falta tocarlos.
+          </p>
+
+          <table mat-table [dataSource]="porResolver()" class="tabla">
+            <ng-container matColumnDef="archivo">
+              <th mat-header-cell *matHeaderCellDef>Archivo</th>
+              <td mat-cell *matCellDef="let i">
+                <div class="nombre-archivo">{{ i.nombre_archivo }}</div>
+                <div class="tamano">{{ tamanoLegible(i.tamano_bytes) }}</div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="carpeta">
+              <th mat-header-cell *matHeaderCellDef>Carpeta</th>
+              <td mat-cell *matCellDef="let i" class="ruta">{{ i.ruta_relativa }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="cedula">
+              <th mat-header-cell *matHeaderCellDef>Cédula</th>
+              <td mat-cell *matCellDef="let i">
+                @if (i.cedula) {
+                  <strong>{{ i.cedula }}</strong>
+                } @else {
+                  <mat-form-field appearance="outline" class="compacto">
+                    <input matInput placeholder="Cédula" #inputCed
+                           (keyup.enter)="fijarCedulaItem(i, inputCed.value)"
+                           [disabled]="subiendo()" />
+                  </mat-form-field>
+                }
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="tipo">
+              <th mat-header-cell *matHeaderCellDef>Tipo</th>
+              <td mat-cell *matCellDef="let i">
+                @if (i.type_name) {
+                  {{ i.type_name }}
+                } @else {
+                  <mat-form-field appearance="outline" class="compacto">
+                    <mat-select placeholder="Elegir" [disabled]="subiendo()"
+                                (selectionChange)="fijarTipoItem(i, $event.value)">
+                      @for (t of tipos(); track t.id) {
+                        <mat-option [value]="t.id">{{ t.name }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                }
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="motivo">
+              <th mat-header-cell *matHeaderCellDef>Motivo</th>
+              <td mat-cell *matCellDef="let i">
+                <span class="chip" [class]="claseEstado(i.estado)">{{ etiquetaEstado(i.estado) }}</span>
+                <div class="motivo">{{ i.motivo }}</div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let i">
+                @if (i.estado !== 'OMITIDO' && i.estado !== 'DUPLICADO') {
+                  <button mat-icon-button matTooltip="No subir este archivo"
+                          (click)="omitirItem(i)" [disabled]="subiendo()">
+                    <mat-icon>block</mat-icon>
+                  </button>
+                }
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="columnasResolver"></tr>
+            <tr mat-row *matRowDef="let row; columns: columnasResolver;"></tr>
+          </table>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- ── Paso 3: subir, con tabla de proceso ──────────────────────────── -->
+    <mat-card class="tarjeta acciones-finales">
+      <mat-card-content>
+        @if (subiendo()) {
+          <div class="progreso-cabecera">
+            <div>
+              <strong>Subiendo…</strong> {{ subidos() }} de {{ totalASubir() }} archivo(s)
+              · tanda {{ tandasHechas() }} de {{ tandas().length }}
+            </div>
+            <span class="tenue">{{ progreso() }}%</span>
+          </div>
+          <mat-progress-bar mode="determinate" [value]="progreso()"></mat-progress-bar>
+        } @else {
+          <div class="fila-acciones">
+            <div>
+              <strong>{{ pendientes() }}</strong> archivo(s) listos para subir
+              @if (!p.lote.periodo_clave) {
+                <span class="bloqueo">— falta seleccionar la quincena</span>
+              }
+            </div>
+            <button mat-flat-button color="primary" (click)="subir()"
+                    [disabled]="!p.listo_para_subir || cargando()">
+              <mat-icon>cloud_upload</mat-icon> Subir a gestión documental
+            </button>
+          </div>
+        }
+
+        <!-- Tabla de proceso: qué hace cada tanda, en vivo -->
+        @if (tandas().length) {
+          <h4 class="titulo-proceso">
+            Proceso de carga
+            <span class="tenue">— {{ tandas().length }} tanda(s), hasta 3 en paralelo</span>
+          </h4>
+          <div class="tabla-scroll">
+            <table mat-table [dataSource]="tandas()" class="tabla">
+              <ng-container matColumnDef="n">
+                <th mat-header-cell *matHeaderCellDef>#</th>
+                <td mat-cell *matCellDef="let t">{{ t.n }}</td>
+              </ng-container>
+              <ng-container matColumnDef="carpeta">
+                <th mat-header-cell *matHeaderCellDef>Carpeta</th>
+                <td mat-cell *matCellDef="let t" class="ruta">{{ t.carpeta }}</td>
+              </ng-container>
+              <ng-container matColumnDef="archivos">
+                <th mat-header-cell *matHeaderCellDef>Archivos</th>
+                <td mat-cell *matCellDef="let t">{{ t.archivos }}</td>
+              </ng-container>
+              <ng-container matColumnDef="estado">
+                <th mat-header-cell *matHeaderCellDef>Estado</th>
+                <td mat-cell *matCellDef="let t">
+                  <span class="chip" [class]="claseTanda(t.estado)">
+                    @if (t.estado === 'SUBIENDO') { <mat-icon class="girando">sync</mat-icon> }
+                    {{ etiquetaTanda(t.estado) }}
+                  </span>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="resultado">
+                <th mat-header-cell *matHeaderCellDef>Resultado</th>
+                <td mat-cell *matCellDef="let t">
+                  @if (t.estado === 'HECHA' || t.estado === 'CON_ERRORES') {
+                    {{ t.cargados }} cargados
+                    @if (t.errores > 0) { <span class="fallidos">· {{ t.errores }} con error</span> }
+                  } @else { <span class="tenue">—</span> }
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="tiempo">
+                <th mat-header-cell *matHeaderCellDef>Tiempo</th>
+                <td mat-cell *matCellDef="let t" class="tenue">
+                  {{ t.segundos !== null ? t.segundos + ' s' : '—' }}
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="columnasTandas"></tr>
+              <tr mat-row *matRowDef="let row; columns: columnasTandas;"></tr>
+            </table>
+          </div>
+        }
+
+        @if (erroresSubida().length) {
+          <div class="errores">
+            <h4>{{ erroresSubida().length }} archivo(s) fallaron</h4>
+            <ul>
+              @for (e of erroresSubida(); track e.ruta) {
+                <li><code>{{ e.ruta }}</code> — {{ e.motivo }}</li>
+              }
+            </ul>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ── Contenido de la carga: documentos con previsualización ────────── -->
+    @if (yaCargados() > 0) {
+      <mat-card class="tarjeta">
+        <mat-card-content>
+          <div class="fila-cabecera">
+            <div>
+              <h3>Documentos de esta carga</h3>
+              <p class="ayuda">
+                {{ yaCargados() }} documento(s) en gestión documental.
+                Ábrelos para comprobar que subió lo correcto.
+              </p>
+            </div>
+            <button mat-stroked-button (click)="cargarDocumentos()">
+              <mat-icon>refresh</mat-icon> Actualizar
+            </button>
+          </div>
+
+          @if (documentos().length) {
+            <table mat-table [dataSource]="documentos()" class="tabla">
+              <ng-container matColumnDef="cedula">
+                <th mat-header-cell *matHeaderCellDef>Cédula</th>
+                <td mat-cell *matCellDef="let d"><strong>{{ d.cedula }}</strong></td>
+              </ng-container>
+              <ng-container matColumnDef="archivo">
+                <th mat-header-cell *matHeaderCellDef>Archivo</th>
+                <td mat-cell *matCellDef="let d">
+                  <div>{{ d.nombre_archivo }}</div>
+                  <div class="ruta">{{ d.ruta_relativa }}</div>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="tipo">
+                <th mat-header-cell *matHeaderCellDef>Tipo</th>
+                <td mat-cell *matCellDef="let d" class="tenue">{{ d.type_name || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="tamano">
+                <th mat-header-cell *matHeaderCellDef>Tamaño</th>
+                <td mat-cell *matCellDef="let d" class="tenue">{{ tamanoLegible(d.tamano_bytes) }}</td>
+              </ng-container>
+              <ng-container matColumnDef="acciones">
+                <th mat-header-cell *matHeaderCellDef></th>
+                <td mat-cell *matCellDef="let d">
+                  <button mat-stroked-button class="btn-doc" (click)="verDocumento(d)"
+                          [disabled]="!d.document_id">
+                    <mat-icon>visibility</mat-icon> Ver
+                  </button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="columnasDocumentos"></tr>
+              <tr mat-row *matRowDef="let row; columns: columnasDocumentos;"></tr>
+            </table>
+
+            <mat-paginator [length]="totalDocumentos()" [pageIndex]="paginaDocumentos()"
+                           [pageSize]="50" [hidePageSize]="true"
+                           (page)="onPaginaDocumentos($event)">
+            </mat-paginator>
+          } @else {
+            <button mat-stroked-button (click)="cargarDocumentos()">
+              <mat-icon>list</mat-icon> Ver los {{ yaCargados() }} documentos
+            </button>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+  }
+</div>

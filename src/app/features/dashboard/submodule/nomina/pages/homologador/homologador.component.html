@@ -150,7 +150,7 @@
       <p>Escriba el nombre o NIT de una empresa usuaria para ver y gestionar su catalogo de conceptos homologados.</p>
     </div>
 
-    <table mat-table [dataSource]="dataSource" matSort
+    <table mat-table [dataSource]="dataSource" matSort multiTemplateDataRows
            *ngIf="selectedCliente && !isLoading"
            class="full-width">
 
@@ -191,9 +191,12 @@
         <td mat-cell *matCellDef="let row">
           <div *ngIf="row.concepto_externo" class="cell-main">{{ row.concepto_externo }}</div>
           <span *ngIf="!row.concepto_externo" class="text-pending">Sin homologacion</span>
-          <div class="cell-extra" *ngIf="row.homologaciones_adicionales > 0">
-            +{{ row.homologaciones_adicionales }} adicional{{ row.homologaciones_adicionales > 1 ? 'es' : '' }}
-          </div>
+          <button *ngIf="esExpandible(row)" type="button" class="mapeos-toggle"
+                  (click)="$event.stopPropagation(); toggleExpand(row)"
+                  [matTooltip]="estaExpandida(row) ? 'Ocultar mapeos' : 'Ver los ' + row.mapeos_grupo + ' mapeos de este concepto'">
+            <mat-icon class="mapeos-chevron" [class.abierto]="estaExpandida(row)">expand_more</mat-icon>
+            {{ row.mapeos_grupo }} mapeos
+          </button>
         </td>
       </ng-container>
 
@@ -224,6 +227,7 @@
           <mat-slide-toggle
             [checked]="row.activo"
             (change)="toggleActivo(row)"
+            (click)="$event.stopPropagation()"
             color="primary"
             [matTooltip]="row.activo ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'">
           </mat-slide-toggle>
@@ -234,16 +238,50 @@
       <ng-container matColumnDef="acciones">
         <th mat-header-cell *matHeaderCellDef></th>
         <td mat-cell *matCellDef="let row">
-          <button mat-icon-button color="primary" (click)="abrirDialogoEditar(row)" matTooltip="Editar homologacion">
+          <button mat-icon-button color="primary" (click)="$event.stopPropagation(); abrirDialogoEditar(row)"
+                  [matTooltip]="esExpandible(row) ? 'Editar el mapeo principal' : 'Editar homologacion'">
             <mat-icon>edit</mat-icon>
           </button>
+        </td>
+      </ng-container>
+
+      <!-- Panel colapsable: lista TODOS los mapeos externos del concepto -->
+      <ng-container matColumnDef="expandedDetail">
+        <td mat-cell *matCellDef="let row" [attr.colspan]="displayedColumns.length">
+          <div class="mapeos-panel" *ngIf="estaExpandida(row) && esExpandible(row)">
+            <div class="mapeos-panel-titulo">
+              <mat-icon>account_tree</mat-icon>
+              {{ row.mapeos_grupo }} mapeos externos → {{ row.concepto_descripcion }}
+            </div>
+            <div class="mapeo-item" *ngFor="let m of row.mapeos" [class.mapeo-inactivo]="!m.activo">
+              <code class="code-chip code-ext" *ngIf="m.codigo_externo">{{ m.codigo_externo }}</code>
+              <span class="mapeo-nombre">{{ m.concepto_externo || '(sin nombre)' }}</span>
+              <span class="abrev-tag" *ngIf="m.clasificacion_externa">{{ m.clasificacion_externa }}</span>
+              <span class="badge-estado" [ngClass]="ESTADO_LABELS[m.estado_homologacion]?.color || ''">
+                <mat-icon class="badge-estado-icon">{{ ESTADO_LABELS[m.estado_homologacion]?.icon || 'help' }}</mat-icon>
+                {{ ESTADO_LABELS[m.estado_homologacion]?.label || m.estado_homologacion }}
+              </span>
+              <span class="mapeo-spacer"></span>
+              <mat-slide-toggle [checked]="m.activo" (change)="toggleActivoMapeo(m)" color="primary"
+                                [matTooltip]="m.activo ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'">
+              </mat-slide-toggle>
+              <button mat-icon-button color="primary" (click)="abrirDialogoEditarMapeo(m)" matTooltip="Editar este mapeo">
+                <mat-icon>edit</mat-icon>
+              </button>
+            </div>
+          </div>
         </td>
       </ng-container>
 
       <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
       <tr mat-row *matRowDef="let row; columns: displayedColumns;"
           [class.row-inactiva]="!row.activo"
-          [class.row-pending]="!row.tiene_homologacion"></tr>
+          [class.row-pending]="!row.tiene_homologacion"
+          [class.row-expandible]="esExpandible(row)"
+          [class.row-expandida]="estaExpandida(row)"
+          (click)="toggleExpand(row)"></tr>
+      <tr mat-row *matRowDef="let row; columns: ['expandedDetail'];"
+          class="detail-row" [class.detail-hidden]="!estaExpandida(row) || !esExpandible(row)"></tr>
 
       <tr class="mat-row" *matNoDataRow>
         <td class="mat-cell" colspan="8">

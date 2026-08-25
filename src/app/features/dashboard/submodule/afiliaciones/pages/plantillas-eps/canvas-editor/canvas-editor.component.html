@@ -1,0 +1,396 @@
+<div class="editor-root">
+
+  <!-- ══ Barra superior ══════════════════════════════════════════════════════ -->
+  <div class="editor-toolbar">
+    <div class="toolbar-left">
+      <span class="toolbar-title">Editor Visual</span>
+      <span class="page-info">Página {{ paginaActual() }} / {{ paginas.length }}</span>
+    </div>
+    <div class="toolbar-actions">
+      <button mat-stroked-button (click)="mostrarAgregarCampo = !mostrarAgregarCampo"
+              matTooltip="Agregar campo (se puede repetir el mismo campo)">
+        <mat-icon>add_box</mat-icon> Campo
+      </button>
+      <button mat-stroked-button (click)="mostrarPanelFuentes = !mostrarPanelFuentes"
+              matTooltip="Gestionar fuentes tipográficas">
+        <mat-icon>text_fields</mat-icon> Fuentes
+      </button>
+      <button mat-raised-button color="primary" (click)="guardar()"
+              matTooltip="Guardar páginas y emitir campos al formulario">
+        <mat-icon>save</mat-icon> Guardar
+      </button>
+    </div>
+  </div>
+
+  <!-- ══ Panel: Agregar campo ════════════════════════════════════════════════ -->
+  @if (mostrarAgregarCampo) {
+    <div class="floating-panel">
+      <div class="panel-header">
+        <strong>Campos disponibles</strong>
+        <small class="panel-hint">Clic para agregar (se puede repetir)</small>
+        <button mat-icon-button (click)="mostrarAgregarCampo = false">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <div class="campos-disponibles-list">
+        @for (cd of camposDisponibles; track cd.campo) {
+          <div class="campo-disponible-item" (click)="agregarCampoDesdeDisponible(cd)">
+            <span class="campo-key">{{ cd.campo }}</span>
+            <span class="campo-label">{{ cd.etiqueta }}</span>
+            <span class="campo-fuente-tag">{{ cd.fuente }}</span>
+          </div>
+        }
+        @if (!camposDisponibles.length) {
+          <p class="empty-msg">No hay campos disponibles cargados.</p>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ══ Panel: Fuentes ══════════════════════════════════════════════════════ -->
+  @if (mostrarPanelFuentes) {
+    <div class="floating-panel fuentes-panel">
+      <div class="panel-header">
+        <strong>Fuentes tipográficas</strong>
+        <button mat-icon-button (click)="mostrarPanelFuentes = false">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <div class="fuentes-lista">
+        @for (f of fuentes; track f.id) {
+          <div class="fuente-item">
+            <span class="fuente-nombre">{{ f.nombre }}</span>
+            <span class="fuente-familia">{{ f.cssFamilia }}</span>
+            <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="eliminarFuente(f.id)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        }
+        @if (!fuentes.length) {
+          <p class="empty-msg">No hay fuentes personalizadas.</p>
+        }
+      </div>
+
+      <mat-divider></mat-divider>
+
+      <div class="fuente-upload">
+        <p class="upload-title"><strong>Subir nueva fuente (TTF / OTF)</strong></p>
+        <label class="file-label">
+          <mat-icon>upload_file</mat-icon>
+          Seleccionar archivo
+          <input type="file" accept=".ttf,.otf" (change)="onFuenteFileChange($event)" hidden>
+        </label>
+        <input type="text" class="inline-input" placeholder="Nombre para mostrar"
+               [(ngModel)]="nuevaFuente.nombre">
+        <input type="text" class="inline-input" placeholder="CSS font-family (exacto)"
+               [(ngModel)]="nuevaFuente.cssFamilia">
+        <button mat-raised-button color="accent" (click)="subirFuente()"
+                [disabled]="subiendoFuente || !nuevaFuente.archivoB64">
+          <mat-icon>cloud_upload</mat-icon>
+          {{ subiendoFuente ? 'Subiendo...' : 'Subir fuente' }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- ══ Cuerpo principal: páginas + canvas + propiedades ════════════════════ -->
+  <div class="editor-body">
+
+    <!-- ── Columna izquierda: lista de páginas ── -->
+    <aside class="pages-sidebar">
+      <div class="pages-header">
+        <span class="pages-title">Páginas</span>
+        <button mat-icon-button matTooltip="Agregar página" (click)="agregarPagina()">
+          <mat-icon>add</mat-icon>
+        </button>
+      </div>
+
+      @for (pag of paginas; track pag.numero) {
+        <div class="page-thumb"
+             [class.active]="paginaActual() === pag.numero"
+             (click)="paginaActual.set(pag.numero)">
+          <div class="thumb-preview"
+               [style.aspect-ratio]="pag.tamano === 'CARTA' ? '215.9/279.4' : '215.9/330.2'">
+            @if (imagenesFondo.get(pag.numero)) {
+              <img [src]="imagenesFondo.get(pag.numero)" alt="Fondo p{{ pag.numero }}">
+            } @else {
+              <mat-icon class="thumb-empty-icon">insert_photo</mat-icon>
+            }
+          </div>
+          <span class="thumb-label">Pág. {{ pag.numero }}</span>
+          <span class="thumb-tamano">{{ pag.tamano }}</span>
+        </div>
+      }
+
+      @if (paginas.length > 0) {
+        <div class="page-options">
+          <mat-divider></mat-divider>
+          <p class="page-opts-title">Página {{ paginaActual() }}</p>
+
+          <label class="opt-label">Tamaño:</label>
+          <select class="inline-select"
+                  [ngModel]="paginas[paginaActual() - 1]?.tamano"
+                  (ngModelChange)="cambiarTamanoPagina(paginaActual(), $event)">
+            @for (t of tamanos; track t.value) {
+              <option [value]="t.value">{{ t.value }}</option>
+            }
+          </select>
+
+          <div class="fondo-controls">
+            <label class="file-label sm">
+              <mat-icon>image</mat-icon>
+              {{ imagenesFondo.get(paginaActual()) ? 'Cambiar fondo' : 'Subir fondo' }}
+              <input type="file" accept="image/png,image/jpeg"
+                     (change)="onFondoFileChange($event, paginaActual())" hidden>
+            </label>
+            @if (imagenesFondo.get(paginaActual())) {
+              <button mat-icon-button color="warn" matTooltip="Quitar fondo"
+                      (click)="quitarFondo(paginaActual())">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
+          </div>
+
+          <button mat-stroked-button color="warn" class="btn-delete-page"
+                  [disabled]="paginas.length <= 1"
+                  (click)="eliminarPaginaActual()">
+            <mat-icon>delete</mat-icon> Eliminar página
+          </button>
+        </div>
+      }
+    </aside>
+
+    <!-- ── Canvas central (responsivo) ── -->
+    <main class="canvas-area" #canvasArea>
+      <div class="canvas-scroll-wrapper">
+        <div class="canvas-container"
+             [style.width.px]="canvasWidthPx"
+             [style.height.px]="canvasHeightPx"
+             (click)="deseleccionar()">
+
+          @if (fondoActual()) {
+            <img class="canvas-bg" [src]="fondoActual()" alt="Fondo">
+          }
+
+          @for (campo of camposPaginaActual(); track campo._uid) {
+            <div class="campo-chip"
+                 [ngStyle]="campoStyle(campo)"
+                 [class.selected]="campoSeleccionado() === campo"
+                 [class.inactive]="!campo.activo"
+                 (mousedown)="onCampoMouseDown(campo, $event)"
+                 (click)="seleccionarCampo(campo, $event)">
+              {{ campoLabel(campo) }}
+
+              <!-- Handles de redimensionar (visibles solo cuando está seleccionado) -->
+              @if (campoSeleccionado() === campo) {
+                <div class="rh rh-nw" (mousedown)="onResizeMouseDown(campo, 'resize-nw', $event)"></div>
+                <div class="rh rh-n"  (mousedown)="onResizeMouseDown(campo, 'resize-n',  $event)"></div>
+                <div class="rh rh-ne" (mousedown)="onResizeMouseDown(campo, 'resize-ne', $event)"></div>
+                <div class="rh rh-e"  (mousedown)="onResizeMouseDown(campo, 'resize-e',  $event)"></div>
+                <div class="rh rh-se" (mousedown)="onResizeMouseDown(campo, 'resize-se', $event)"></div>
+                <div class="rh rh-s"  (mousedown)="onResizeMouseDown(campo, 'resize-s',  $event)"></div>
+                <div class="rh rh-sw" (mousedown)="onResizeMouseDown(campo, 'resize-sw', $event)"></div>
+                <div class="rh rh-w"  (mousedown)="onResizeMouseDown(campo, 'resize-w',  $event)"></div>
+              }
+            </div>
+          }
+
+          <!-- Guías de cuadrícula cada 10 mm -->
+          <div class="canvas-guide-overlay"
+               [style.background-size]="guideGridPx + 'px ' + guideGridPx + 'px'"
+               aria-hidden="true"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ── Panel derecho: propiedades del campo seleccionado ── -->
+    <aside class="properties-panel">
+      @if (campoSeleccionado(); as sel) {
+        <div class="prop-header">
+          <div class="prop-header-title">
+            <strong>{{ campoLabel(sel) }}</strong>
+            @if (sel.placeholder !== (sel.campoFuente || sel.placeholder)) {
+              <small class="prop-placeholder-hint">{{ sel.placeholder }}</small>
+            }
+          </div>
+          <div class="prop-header-actions">
+            <button mat-icon-button matTooltip="Duplicar" (click)="duplicarCampoSeleccionado()">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+            <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="eliminarCampoSeleccionado()">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <!-- Posición y dimensiones -->
+        <div class="prop-section">
+          <p class="prop-section-title">Posición y tamaño</p>
+          <div class="prop-grid">
+            <label>X (mm)</label>
+            <input type="number" class="prop-input" step="0.5"
+                   [(ngModel)]="sel.posX" (ngModelChange)="cdr.markForCheck()">
+            <label>Y (mm)</label>
+            <input type="number" class="prop-input" step="0.5"
+                   [(ngModel)]="sel.posY" (ngModelChange)="cdr.markForCheck()">
+            <label>Ancho (mm)</label>
+            <input type="number" class="prop-input" step="1" min="1"
+                   [(ngModel)]="sel.ancho" (ngModelChange)="cdr.markForCheck()">
+            <label>Alto (mm)</label>
+            <input type="number" class="prop-input" step="0.5" min="1"
+                   [(ngModel)]="sel.alto" (ngModelChange)="cdr.markForCheck()">
+          </div>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <!-- Tipografía -->
+        <div class="prop-section">
+          <p class="prop-section-title">Tipografía</p>
+
+          <label class="prop-label">Tamaño (pt)</label>
+          <input type="number" class="prop-input" step="0.5" min="4" max="72"
+                 [(ngModel)]="sel.fontSize" (ngModelChange)="cdr.markForCheck()">
+
+          <label class="prop-label">Fuente estándar</label>
+          <select class="prop-select"
+                  [ngModel]="isEstandar ? (sel.fontFamily || 'Helvetica') : ''"
+                  (ngModelChange)="setFontFamily(sel, $event)">
+            @for (ff of fuentesEstandar; track ff) {
+              <option [value]="ff">{{ ff }}</option>
+            }
+          </select>
+
+          @if (fuentes.length > 0) {
+            <label class="prop-label">Fuente personalizada</label>
+            <select class="prop-select"
+                    [ngModel]="sel.fontFamily?.startsWith('custom:') ? sel.fontFamily : ''"
+                    (ngModelChange)="sel.fontFamily = $event; cdr.markForCheck()">
+              <option value="">-- ninguna --</option>
+              @for (f of fuentes; track f.id) {
+                <option [value]="'custom:' + f.id">{{ f.nombre }}</option>
+              }
+            </select>
+          }
+
+          <label class="prop-label">Color</label>
+          <input type="color" class="prop-color"
+                 [ngModel]="sel.fontColor || '#000000'"
+                 (ngModelChange)="sel.fontColor = $event; cdr.markForCheck()">
+
+          <div class="prop-toggles">
+            <label class="toggle-label">
+              <input type="checkbox" [(ngModel)]="sel.fontBold"
+                     (ngModelChange)="cdr.markForCheck()">
+              <strong>N</strong> Negrita
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" [(ngModel)]="sel.fontItalic"
+                     (ngModelChange)="cdr.markForCheck()">
+              <em>K</em> Cursiva
+            </label>
+          </div>
+
+          <label class="prop-label">Alineación</label>
+          <div class="align-buttons">
+            @for (al of ['LEFT','CENTER','RIGHT']; track al) {
+              <button mat-icon-button [class.active-align]="sel.textAlign === al"
+                      (click)="sel.textAlign = $any(al); cdr.markForCheck()"
+                      [matTooltip]="al">
+                <mat-icon>format_align_{{ al.toLowerCase() }}</mat-icon>
+              </button>
+            }
+          </div>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <!-- Fuente de datos -->
+        <div class="prop-section">
+          <p class="prop-section-title">Fuente de datos</p>
+
+          <label class="prop-label">Fuente</label>
+          <select class="prop-select" [(ngModel)]="sel.fuente"
+                  (ngModelChange)="cdr.markForCheck()">
+            <option value="CONTRATACION">Contratación</option>
+            <option value="TEMPORAL_CONFIG">Config temporal</option>
+            <option value="LITERAL">Valor fijo</option>
+            <option value="CALCULADO">Fórmula</option>
+          </select>
+
+          @if (sel.fuente === 'CONTRATACION') {
+            <label class="prop-label">Campo fuente</label>
+            <select class="prop-select" [(ngModel)]="sel.campoFuente"
+                    (ngModelChange)="cdr.markForCheck()">
+              <option value="">-- elegir --</option>
+              @for (cd of camposDisponibles; track cd.campo) {
+                @if (cd.fuente === 'CONTRATACION') {
+                  <option [value]="cd.campo">{{ cd.etiqueta }}</option>
+                }
+              }
+            </select>
+          }
+          @if (sel.fuente === 'TEMPORAL_CONFIG') {
+            <label class="prop-label">Campo temporal</label>
+            <select class="prop-select" [(ngModel)]="sel.fuenteConfigCampo"
+                    (ngModelChange)="cdr.markForCheck()">
+              <option value="">-- elegir --</option>
+              @for (cd of camposDisponibles; track cd.campo) {
+                @if (cd.fuente === 'TEMPORAL_CONFIG') {
+                  <option [value]="cd.campo">{{ cd.etiqueta }}</option>
+                }
+              }
+            </select>
+          }
+          @if (sel.fuente === 'LITERAL') {
+            <label class="prop-label">Valor fijo</label>
+            <input type="text" class="prop-input"
+                   [(ngModel)]="sel.valorLiteral" (ngModelChange)="cdr.markForCheck()">
+          }
+          @if (sel.fuente === 'CALCULADO') {
+            <label class="prop-label">Fórmula</label>
+            <input type="text" class="prop-input"
+                   placeholder='CONCAT(primer_nombre," ",segundo_nombre)'
+                   [(ngModel)]="sel.formula" (ngModelChange)="cdr.markForCheck()">
+          }
+
+          <label class="prop-label">Tipo render</label>
+          <select class="prop-select" [(ngModel)]="sel.tipoRender"
+                  (ngModelChange)="cdr.markForCheck()">
+            <option value="TEXTO">Texto</option>
+            <option value="FECHA">Fecha</option>
+            <option value="NUMERO">Número</option>
+            <option value="BOOL">Sí / No</option>
+            <option value="FIRMA">Firma</option>
+          </select>
+
+          @if (sel.tipoRender === 'FECHA') {
+            <label class="prop-label">Formato</label>
+            <input type="text" class="prop-input" placeholder="dd/MM/yyyy"
+                   [(ngModel)]="sel.formato" (ngModelChange)="cdr.markForCheck()">
+          }
+        </div>
+
+        <div class="prop-section">
+          <label class="toggle-label">
+            <input type="checkbox" [(ngModel)]="sel.activo"
+                   (ngModelChange)="cdr.markForCheck()">
+            Campo activo
+          </label>
+        </div>
+
+      } @else {
+        <div class="prop-empty">
+          <mat-icon>touch_app</mat-icon>
+          <p>Haz clic en un campo del canvas para editar sus propiedades.</p>
+          <p class="prop-empty-sub">Usa <strong>Campo</strong> para agregar (puedes poner el mismo varias veces).</p>
+        </div>
+      }
+    </aside>
+
+  </div><!-- /editor-body -->
+
+</div><!-- /editor-root -->

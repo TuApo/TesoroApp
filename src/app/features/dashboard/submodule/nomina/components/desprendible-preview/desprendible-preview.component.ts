@@ -10,7 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import {
-  NominaService, DesprendibleData, DesprendibleConcepto,
+  NominaService, DesprendibleData, DesprendibleConcepto, DesprendibleNovedad,
 } from '../../service/nomina/nomina.service';
 
 // Locale es-CO está pre-empaquetada en Angular; registrarla una sola vez por
@@ -59,6 +59,18 @@ export class DesprendiblePreviewComponent implements OnInit {
    *  public/logos/. Path relativo para que funcione bajo cualquier base href.
    *  Misma origin = sin problema CORS al embed en html2canvas. */
   readonly logoSrc = computed(() => this.desprendible()?.empresa?.logo_url || 'logos/Logo_AL.png');
+
+  /** Novedades informativas del período (incapacidad, ausencia, suspensión,
+   *  sanción, permiso, luto…). No mueven el neto pero explican el resultado. */
+  readonly novedadesInformativas = computed<DesprendibleNovedad[]>(
+    () => this.desprendible()?.novedades_informativas ?? []);
+
+  /** True cuando la liquidación no arroja pago neto. En ese caso la sección de
+   *  novedades resalta el motivo (qué novedad quitó / redujo el pago). */
+  readonly sinPago = computed(() => {
+    const neto = this.desprendible()?.totales?.neto_pagar;
+    return neto == null || neto <= 0;
+  });
 
   ngOnInit(): void {
     this.svc.getDesprendible(this.data.idNominaEmp).subscribe({
@@ -124,6 +136,22 @@ export class DesprendiblePreviewComponent implements OnInit {
   /** Helper para iterar por concepto sin colisionar con ngFor en HTML. */
   trackConcepto(_i: number, c: DesprendibleConcepto): string {
     return c.codigo_concepto + '|' + (c.valor ?? 0);
+  }
+
+  /** Track para las novedades informativas (código + índice: puede repetirse
+   *  el mismo código con distinto detalle en un período). */
+  trackNovedad(i: number, n: DesprendibleNovedad): string {
+    return n.codigo_concepto + '|' + i;
+  }
+
+  /** Etiqueta legible de la naturaleza de una novedad informativa. */
+  naturalezaLabel(n: string | null | undefined): string {
+    switch ((n ?? '').toUpperCase()) {
+      case 'INFORMATIVO':
+      case 'INFORMATIVA': return 'Informativa';
+      case 'OTRO': return 'Novedad';
+      default: return n ?? 'Novedad';
+    }
   }
 
   /** Devuelve "—" para valores vacíos/nulos/cero, manteniendo la convención

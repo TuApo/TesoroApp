@@ -1,0 +1,225 @@
+<h2 mat-dialog-title class="pm-title">
+  <mat-icon>content_paste_go</mat-icon>
+  Cambio masivo de estado — pegar desde Excel
+</h2>
+
+<!--
+  Avance REAL de la operación: el trabajo se manda por lotes y la barra avanza con cada lote
+  que el servidor responde. Mientras no haya respondido el primero se usa buffer (la barra se
+  mueve sin mentir un porcentaje que todavía no existe).
+-->
+@if (cargando || guardando || pdfGenerando) {
+  @if (avance) {
+    <mat-progress-bar [mode]="avance.lote > 0 ? 'determinate' : 'buffer'"
+                      [value]="avance.porcentaje"></mat-progress-bar>
+    <div class="pm-avance">
+      <span class="pm-avance-pct">{{ avance.porcentaje }}%</span>
+      <span class="pm-avance-txt">{{ avanceTexto }}</span>
+      <span class="pm-spacer"></span>
+      @if (avanceRestante) { <span class="pm-avance-eta">{{ avanceRestante }}</span> }
+      <span class="pm-avance-seg">{{ segundos }} s</span>
+    </div>
+  } @else {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+}
+
+<mat-dialog-content class="pm-body">
+
+  <!-- ── PASO 1: pegar ────────────────────────────────────────────── -->
+  @if (paso === 'pegar') {
+    <p class="pm-hint">
+      Copia las filas desde Excel (o desde cualquier tabla) y pégalas aquí. Se detecta sola la
+      columna de cédulas; las demás columnas se ignoran. Puedes pegar el bloque completo con
+      encabezados.
+    </p>
+
+    <mat-form-field appearance="outline" class="pm-textarea">
+      <mat-label>Pega aquí (Ctrl+V)</mat-label>
+      <textarea matInput rows="10" [(ngModel)]="texto" (ngModelChange)="detectar()"
+                placeholder="1234567&#10;7654321&#10;X1122334"></textarea>
+    </mat-form-field>
+
+    <div class="pm-resumen">
+      <span class="pm-chip ok"><strong>{{ cedulas.length }}</strong> cédulas detectadas</span>
+      @if (duplicadas > 0) {
+        <span class="pm-chip neutro" matTooltip="Repetidas en el pegado; se procesan una sola vez">
+          {{ duplicadas }} duplicadas
+        </span>
+      }
+      @if (descartadas > 0) {
+        <span class="pm-chip neutro" matTooltip="Celdas que no tienen forma de cédula (encabezados, texto)">
+          {{ descartadas }} celdas descartadas
+        </span>
+      }
+    </div>
+
+    @if (cedulas.length > 0) {
+      <div class="pm-muestra">
+        <span class="pm-muestra-label">Muestra:</span>
+        {{ cedulas.slice(0, 12).join(' · ') }}@if (cedulas.length > 12) { <span> … </span> }
+      </div>
+    }
+  }
+
+  <!-- ── PASO 2: preview ──────────────────────────────────────────── -->
+  @if (paso === 'preview') {
+
+    <!-- Datos de la confirmación -->
+    <div class="pm-config">
+      <mat-form-field appearance="outline" class="pm-field">
+        <mat-label>Validación a cambiar</mat-label>
+        <mat-select [(ngModel)]="validador">
+          @for (v of validadores; track v.v) { <mat-option [value]="v.v">{{ v.label }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="pm-field">
+        <mat-label>Canal</mat-label>
+        <mat-select [(ngModel)]="canal">
+          @for (c of canales; track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="pm-field pm-field-nota">
+        <mat-label>Nota (opcional)</mat-label>
+        <input matInput [(ngModel)]="nota" maxlength="500">
+      </mat-form-field>
+
+      <mat-slide-toggle [(ngModel)]="reconfirmar" color="primary"
+                        matTooltip="Vuelve a marcar a quien ya estaba confirmado; sobrescribe quién y cuándo lo confirmó">
+        Re-confirmar las ya confirmadas
+      </mat-slide-toggle>
+    </div>
+
+    <!-- Qué va a pasar -->
+    <div class="pm-resumen">
+      <span class="pm-chip ok">
+        <mat-icon>verified</mat-icon> <strong>{{ totalCambian }}</strong> se confirmarán
+      </span>
+      @if (totalSinCambio > 0) {
+        <span class="pm-chip neutro" matTooltip="Ya tienen esa validación marcada">
+          {{ totalSinCambio }} sin cambio
+        </span>
+      }
+      @if (totalExcluidas > 0) {
+        <span class="pm-chip neutro">{{ totalExcluidas }} excluidas</span>
+      }
+      @if (totalNoHallado > 0) {
+        <span class="pm-chip bad">
+          <mat-icon>error_outline</mat-icon> {{ totalNoHallado }} no encontradas
+          <button mat-button class="pm-linkbtn" (click)="copiarNoHalladas()">copiar</button>
+        </span>
+      }
+      @if (totalInactivos > 0) {
+        <span class="pm-chip warn" matTooltip="Contrato marcado como inactivo">
+          <mat-icon>warning_amber</mat-icon> {{ totalInactivos }} con contrato inactivo
+        </span>
+      }
+    </div>
+
+    <div class="pm-tabla-wrap">
+      <table class="pm-tabla">
+        <thead>
+          <tr>
+            <th class="c-check">
+              <mat-checkbox [checked]="totalCambian + totalSinCambio > 0 && totalExcluidas === 0"
+                            (change)="incluirTodas($event.checked)"
+                            matTooltip="Incluir / excluir todas"></mat-checkbox>
+            </th>
+            <th>Cédula</th>
+            <th>Nombre</th>
+            <th>Oficina / Finca</th>
+            <th>Ingreso</th>
+            <th matTooltip="Afiliaciones · Coordinador · Nómina · Pago SS">Estado actual</th>
+            <th>Resultado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of filasVisibles; track f.item.entrada) {
+            <tr [class.fila-mala]="!f.item.encontrado" [class.fila-off]="!f.incluida">
+              <td class="c-check">
+                <mat-checkbox [(ngModel)]="f.incluida" [disabled]="!f.item.encontrado"></mat-checkbox>
+              </td>
+              <td class="c-cedula">
+                {{ f.item.cedula || f.item.entrada }}
+                @if (f.item.contratos > 1) {
+                  <mat-icon class="mini" matTooltip="Tiene {{ f.item.contratos }} contratos; se usa el más reciente">layers</mat-icon>
+                }
+              </td>
+              <td data-label="Nombre">{{ f.item.nombreCompleto || '—' }}</td>
+              <td data-label="Oficina / Finca">{{ f.item.oficina || '—' }}<span class="sub">{{ f.item.finca ? ' · ' + f.item.finca : '' }}</span></td>
+              <td data-label="Ingreso">{{ f.item.fechaIngreso ? (f.item.fechaIngreso | date:'dd/MM/yyyy') : '—' }}</td>
+              <td class="c-flags" data-label="Estado actual">
+                @if (f.item.encontrado) {
+                  <span class="fl" [class.on]="f.item.ingresoConfirmado" matTooltip="Afiliaciones">A</span>
+                  <span class="fl" [class.on]="f.item.coordConfirmado"   matTooltip="Coordinador de finca">C</span>
+                  <span class="fl" [class.on]="f.item.nominaConfirmado"  matTooltip="Nómina">N</span>
+                  <span class="fl" [class.on]="f.item.pagoConfirmado"    matTooltip="Pago de seguridad social">P</span>
+                  @if (f.item.activo === false) {
+                    <mat-icon class="mini warn" matTooltip="Contrato inactivo">warning_amber</mat-icon>
+                  }
+                } @else { — }
+              </td>
+              <td class="c-res" data-label="Resultado">
+                @switch (efecto(f)) {
+                  @case ('cambia')        { <span class="res ok"><mat-icon class="mini">arrow_forward</mat-icon> Confirmar</span> }
+                  @case ('sin-cambio')    { <span class="res neutro">Ya confirmada</span> }
+                  @case ('excluida')      { <span class="res neutro">Excluida</span> }
+                  @case ('no-encontrada') { <span class="res bad">No encontrada</span> }
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      @if (hayOcultas) {
+        <div class="pm-mas">
+          Mostrando {{ filasVisibles.length }} de {{ filas.length }} filas.
+          <button mat-button color="primary" (click)="mostrarTodas = true">Mostrar todas</button>
+          <span class="pm-mas-nota">(la confirmación aplica a todas, no solo a las visibles)</span>
+        </div>
+      }
+    </div>
+  }
+
+</mat-dialog-content>
+
+<mat-dialog-actions class="pm-actions">
+  @if (paso === 'pegar') {
+    <button mat-stroked-button (click)="leerPortapapeles()">
+      <mat-icon>content_paste</mat-icon> Leer del portapapeles
+    </button>
+    <button mat-button [disabled]="!texto || cargando" (click)="limpiar()">Limpiar</button>
+    <span class="pm-spacer"></span>
+    <button mat-button [disabled]="cargando" (click)="cerrar()">Cancelar</button>
+    <!-- Icono y texto van sin @if adentro: partir el contenido del botón rompe la proyección
+         del mat-icon en su slot y el botón queda descuadrado. Solo cambia el contenido. -->
+    <button mat-flat-button color="primary" [disabled]="!cedulas.length || cargando" (click)="buscar()">
+      <mat-icon>{{ cargando ? 'hourglass_top' : 'arrow_forward' }}</mat-icon>
+      <span>{{ cargando ? ('Consultando… ' + (avance?.porcentaje || 0) + '%') : 'Continuar' }}</span>
+    </button>
+  } @else {
+    <button mat-stroked-button [disabled]="guardando || pdfGenerando" (click)="volverAPegar()">
+      <mat-icon>arrow_back</mat-icon> Volver a pegar
+    </button>
+    <!-- El PDF va aparte de la confirmación: se puede sacar el formato sin cambiar ningún estado. -->
+    <button mat-stroked-button color="warn" class="pm-btn-pdf"
+            [disabled]="!totalPdf || guardando || pdfGenerando" (click)="generarPdf()"
+            matTooltip="Formato de afiliación de las personas incluidas: una página por persona, con la relación al frente">
+      <mat-icon>{{ pdfGenerando ? 'hourglass_top' : 'picture_as_pdf' }}</mat-icon>
+      <span>{{ pdfGenerando ? 'Generando PDF…' : ('PDF afiliación (' + totalPdf + ')') }}</span>
+    </button>
+    <span class="pm-spacer"></span>
+    <!-- Cerrar queda bloqueado mientras se aplica: los lotes ya enviados se guardaron y
+         cerrar a mitad dejaría al operador sin saber cuántos alcanzaron a pasar. -->
+    <button mat-button [disabled]="guardando" (click)="cerrar()">Cancelar</button>
+    <button mat-flat-button color="primary" [disabled]="!totalCambian || guardando || pdfGenerando" (click)="confirmar()">
+      <mat-icon>{{ guardando ? 'hourglass_top' : 'verified' }}</mat-icon>
+      <span>{{ guardando
+        ? ('Confirmando… ' + (avance?.hechas || 0) + '/' + (avance?.total || totalCambian))
+        : ('Confirmar ' + totalCambian + ' · ' + validadorLabel) }}</span>
+    </button>
+  }
+</mat-dialog-actions>

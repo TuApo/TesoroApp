@@ -1,0 +1,265 @@
+<div class="envio-page">
+
+  <header class="cabecera">
+    <h1>Enviar correos</h1>
+    <p class="sub">
+      Todo el envío del modelo antiguo en una pantalla: quincena, plantilla del
+      correo con vista previa real, corrección de correos por Excel y envío por
+      tandas. Cada envío queda en el histórico.
+    </p>
+  </header>
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- ── 1. Qué se envía ────────────────────────────────────────────────── -->
+  <mat-card class="tarjeta">
+    <mat-card-content>
+      <h3><span class="paso">1</span> Qué se envía</h3>
+
+      <div class="fila-filtros">
+        <mat-form-field appearance="outline">
+          <mat-label>Quincena</mat-label>
+          <mat-select [ngModel]="periodoSel()"
+                      (ngModelChange)="periodoSel.set($event); onCambioSeleccion()">
+            @for (p of periodos(); track p.clave) {
+              <mat-option [value]="p.clave">{{ p.etiqueta }} ({{ p.total_filas }})</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Empresa</mat-label>
+          <mat-select [ngModel]="empresaSel()"
+                      (ngModelChange)="empresaSel.set($event); onCambioSeleccion()">
+            <mat-option [value]="null">Ambas</mat-option>
+            <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+            <mat-option value="ALIANZA">Tu Alianza</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo</mat-label>
+          <mat-select [ngModel]="tipoSel()"
+                      (ngModelChange)="tipoSel.set($event); onCambioSeleccion()">
+            <mat-option value="NOMINA">Nómina</mat-option>
+            <mat-option value="LIQUIDACION">Liquidación</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Documento a adjuntar</mat-label>
+          <mat-select [ngModel]="typeIdSel()"
+                      (ngModelChange)="typeIdSel.set($event); onCambioSeleccion()">
+            <mat-option [value]="null">Cualquiera</mat-option>
+            @for (t of tipos(); track t.id) {
+              <mat-option [value]="t.id">{{ t.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <mat-checkbox [ngModel]="omitirYaEnviados()" (ngModelChange)="omitirYaEnviados.set($event)">
+        No volver a enviar a quien ya recibió este documento en esta quincena
+      </mat-checkbox>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── 2. Plantilla y vista previa ────────────────────────────────────── -->
+  <mat-card class="tarjeta">
+    <mat-card-content>
+      <h3><span class="paso">2</span> El correo que van a recibir</h3>
+
+      <div class="fila-filtros">
+        <mat-form-field appearance="outline" class="ancho">
+          <mat-label>Plantilla</mat-label>
+          <mat-select [ngModel]="plantillaSel()"
+                      (ngModelChange)="plantillaSel.set($event); refrescarPreview()">
+            <mat-option [value]="null">Automática (la más específica)</mat-option>
+            @for (p of plantillas(); track p.id) {
+              <mat-option [value]="p.id">{{ p.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-stroked-button (click)="refrescarPreview()">
+          <mat-icon>refresh</mat-icon> Actualizar vista previa
+        </button>
+      </div>
+
+      @if (preview(); as pv) {
+        @if (!pv.con_datos_reales) {
+          <div class="advertencia">
+            <mat-icon>warning_amber</mat-icon>
+            <span>{{ pv.aviso }}</span>
+          </div>
+        }
+
+        <div class="sobre">
+          <div class="sobre-cabecera">
+            <div><span class="etq">Para:</span> {{ pv.destinatario_ejemplo || '(ejemplo)' }}</div>
+            <div><span class="etq">Asunto:</span> <b>{{ pv.asunto }}</b></div>
+            <div>
+              <span class="etq">Documento:</span>
+              @if (pv.modo_documento === 'ADJUNTO') { PDF adjunto }
+              @else if (pv.modo_documento === 'ENLACE') { enlace a la plataforma }
+              @else { PDF adjunto + enlace }
+            </div>
+          </div>
+          <!-- Renderizado tal como llega: el HTML lo produce el backend con los
+               valores ya escapados. -->
+          <div class="sobre-cuerpo" [innerHTML]="previewHtml()"></div>
+        </div>
+      }
+
+      <mat-expansion-panel class="campos">
+        <mat-expansion-panel-header>
+          <mat-panel-title>Campos disponibles en la plantilla</mat-panel-title>
+        </mat-expansion-panel-header>
+        <ul class="lista-campos">
+          @for (c of campos(); track c.campo) {
+            <li><code>{{ c.campo }}</code> — {{ c.descripcion }}</li>
+          }
+        </ul>
+      </mat-expansion-panel>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── 3. Correos ─────────────────────────────────────────────────────── -->
+  <mat-card class="tarjeta">
+    <mat-card-content>
+      <h3><span class="paso">3</span> Correos de la gente</h3>
+      <p class="ayuda">
+        Descarga el Excel con la quincena ya cargada, completa los correos que
+        falten y vuelve a subirlo. Se guarda como corrección: el correo original
+        de la hoja no se pierde.
+      </p>
+      <div class="fila-acciones-inline">
+        <button mat-stroked-button (click)="descargarExcel()" [disabled]="!periodoSel()">
+          <mat-icon>download</mat-icon> Descargar plantilla
+        </button>
+        <button mat-stroked-button (click)="abrirSelectorExcel()">
+          <mat-icon>upload_file</mat-icon> Subir corregido
+        </button>
+        <input #inputExcel type="file" hidden accept=".xlsx,.xls"
+               (change)="onExcelSeleccionado($event)" />
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── 4. Preparar ────────────────────────────────────────────────────── -->
+  <mat-card class="tarjeta">
+    <mat-card-content>
+      <h3><span class="paso">4</span> Revisar antes de enviar</h3>
+
+      @if (!detalle()) {
+        <p class="ayuda">
+          Se arma la lista cruzando la hoja, el correo vigente y el documento
+          cargado. No se envía nada todavía.
+        </p>
+        <button mat-flat-button color="primary" (click)="preparar()"
+                [disabled]="!periodoSel() || cargando()">
+          <mat-icon>fact_check</mat-icon> Preparar envío
+        </button>
+      } @else {
+        <div class="chips-resumen">
+          @for (r of resumen(); track r.estado) {
+            <span class="chip" [class]="claseEstado(r.estado)">
+              <strong>{{ r.total }}</strong> {{ etiquetaEstado(r.estado) }}
+            </span>
+          }
+        </div>
+
+        @for (a of advertencias(); track a) {
+          <div class="advertencia"><mat-icon>warning_amber</mat-icon><span>{{ a }}</span></div>
+        }
+
+        @if (problemas().length) {
+          <mat-expansion-panel class="problemas">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                {{ problemas().length }} caso(s) que no se van a enviar
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+
+            <table mat-table [dataSource]="problemas()" class="tabla">
+              <ng-container matColumnDef="cedula">
+                <th mat-header-cell *matHeaderCellDef>Cédula</th>
+                <td mat-cell *matCellDef="let i"><strong>{{ i.cedula }}</strong></td>
+              </ng-container>
+              <ng-container matColumnDef="nombre">
+                <th mat-header-cell *matHeaderCellDef>Nombre</th>
+                <td mat-cell *matCellDef="let i">{{ i.nombre }}</td>
+              </ng-container>
+              <ng-container matColumnDef="correo">
+                <th mat-header-cell *matHeaderCellDef>Correo</th>
+                <td mat-cell *matCellDef="let i" class="tenue">{{ i.correo || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="estado">
+                <th mat-header-cell *matHeaderCellDef>Estado</th>
+                <td mat-cell *matCellDef="let i">
+                  <span class="chip" [class]="claseEstado(i.estado)">
+                    {{ etiquetaEstado(i.estado) }}
+                  </span>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="motivo">
+                <th mat-header-cell *matHeaderCellDef>Motivo</th>
+                <td mat-cell *matCellDef="let i" class="tenue">{{ i.motivo }}</td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="columnasProblemas"></tr>
+              <tr mat-row *matRowDef="let row; columns: columnasProblemas;"></tr>
+            </table>
+          </mat-expansion-panel>
+        }
+
+        <button mat-stroked-button (click)="preparar()" [disabled]="cargando() || enviando()">
+          <mat-icon>refresh</mat-icon> Volver a preparar
+        </button>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── 5. Enviar ──────────────────────────────────────────────────────── -->
+  @if (detalle(); as d) {
+    <mat-card class="tarjeta enviar">
+      <mat-card-content>
+        <h3><span class="paso">5</span> Enviar</h3>
+
+        @if (enviando()) {
+          <p class="progreso-texto">Enviando… {{ enviados() }} de {{ totalAEnviar() }}</p>
+          <mat-progress-bar mode="determinate" [value]="progreso()"></mat-progress-bar>
+        } @else {
+          <div class="fila-acciones">
+            <div>
+              <strong>{{ listos() }}</strong> correo(s) listos para enviar
+              @if (d.lote.total_fallidos > 0) {
+                <span class="fallidos">· {{ d.lote.total_fallidos }} fallidos</span>
+              }
+            </div>
+            <div class="botones">
+              @if (d.lote.total_fallidos > 0) {
+                <button mat-stroked-button (click)="reintentar()" [disabled]="cargando()">
+                  <mat-icon>replay</mat-icon> Reintentar fallidos
+                </button>
+              }
+              <button mat-flat-button color="warn" (click)="enviar()"
+                      [disabled]="listos() === 0 || cargando()">
+                <mat-icon>send</mat-icon> Enviar {{ listos() }} correo(s)
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (fallosEnvio().length) {
+          <div class="errores">
+            <h4>{{ fallosEnvio().length }} envío(s) fallaron</h4>
+            <ul>
+              @for (f of fallosEnvio(); track f.cedula) {
+                <li><b>{{ f.cedula }}</b> ({{ f.correo }}) — {{ f.motivo }}</li>
+              }
+            </ul>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+</div>

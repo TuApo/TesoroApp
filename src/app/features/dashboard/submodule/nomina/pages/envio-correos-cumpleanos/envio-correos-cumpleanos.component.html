@@ -1,0 +1,653 @@
+<div class="cumple-page">
+
+  <header class="cabecera">
+    <div>
+      <h1>Cumpleaños</h1>
+      <p class="sub">
+        El saludo sale solo el día del cumpleaños, con la plantilla de la temporal
+        de cada persona. La lista de quién lo recibe viene del Excel del padrón:
+        súbelo y se pone al día — quien aparece queda activo, quien no aparece
+        deja de recibirlo.
+      </p>
+    </div>
+  </header>
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- Estado de error: nunca una pantalla en blanco sin explicación. -->
+  @if (errorCarga(); as err) {
+    <mat-card class="tarjeta">
+      <mat-card-content class="estado-error">
+        <mat-icon>cloud_off</mat-icon>
+        <div>
+          <b>No se pudo cargar el submódulo</b>
+          <p class="menudo">{{ err }}</p>
+          <p class="menudo">
+            Si el módulo se acaba de instalar, puede que ms-payroll todavía no
+            esté desplegado con esta funcionalidad.
+          </p>
+        </div>
+        <button mat-flat-button color="primary" (click)="reintentarCarga()">
+          <mat-icon>refresh</mat-icon> Reintentar
+        </button>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (!errorCarga()) {
+    @if (avisoConfig(); as aviso) {
+      <div class="banda aviso">
+        <mat-icon>info</mat-icon><span>{{ aviso }}</span>
+      </div>
+    }
+
+    <mat-tab-group animationDuration="0ms">
+
+      <!-- ══ HOY ══════════════════════════════════════════════════════════ -->
+      <mat-tab label="Hoy">
+        <div class="tab-cuerpo">
+
+          <!-- Buscador: filtra el calendario Y la lista -->
+          <mat-card class="tarjeta">
+            <mat-card-content>
+              <div class="fila-buscador">
+                <mat-form-field appearance="outline" class="ancho">
+                  <mat-label>Buscar persona, cédula, finca, correo o temporal</mat-label>
+                  <mat-icon matPrefix>search</mat-icon>
+                  <input matInput [ngModel]="busqueda()"
+                         (keyup.enter)="buscar($any($event.target).value)"
+                         (ngModelChange)="busqueda.set($event)"
+                         placeholder="Ej. maría alianza" />
+                  @if (busqueda()) {
+                    <button matSuffix mat-icon-button (click)="limpiarBusqueda()"
+                            matTooltip="Limpiar">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  }
+                </mat-form-field>
+                <button mat-flat-button color="primary" (click)="buscar(busqueda())">
+                  Buscar
+                </button>
+              </div>
+              @if (busqueda()) {
+                <p class="menudo">
+                  El calendario muestra solo los días donde cumple alguien que coincide.
+                </p>
+              }
+            </mat-card-content>
+          </mat-card>
+
+          <div class="columnas">
+
+            <!-- Calendario -->
+            <mat-card class="tarjeta calendario">
+              <mat-card-content>
+                <div class="cal-cabecera">
+                  <button mat-icon-button (click)="irAMes(-1)" matTooltip="Mes anterior">
+                    <mat-icon>chevron_left</mat-icon>
+                  </button>
+                  <b class="cal-titulo">{{ nombreMes() }}</b>
+                  <button mat-icon-button (click)="irAMes(1)" matTooltip="Mes siguiente">
+                    <mat-icon>chevron_right</mat-icon>
+                  </button>
+                  <button mat-button (click)="irAHoy()">Hoy</button>
+                </div>
+
+                <div class="cal-semana">
+                  @for (d of DIAS_SEMANA; track d) { <span class="cal-dow">{{ d }}</span> }
+                </div>
+
+                @for (semana of semanas(); track $index) {
+                  <div class="cal-semana">
+                    @for (celda of semana; track $index) {
+                      @if (celda) {
+                        <button class="cal-dia"
+                                [class.con-cumples]="celda.total > 0"
+                                [class.enviado]="celda.enviado"
+                                [class.hoy]="celda.esHoy"
+                                [class.sel]="celda.fecha === fechaSel()"
+                                (click)="elegirDia(celda)"
+                                [matTooltip]="celda.total > 0
+                                  ? celda.total + ' cumpleaños' + (celda.enviado ? ' · ya enviado' : '')
+                                  : 'Sin cumpleaños'">
+                          <span class="num">{{ celda.dia }}</span>
+                          @if (celda.total > 0) {
+                            <span class="punto">{{ celda.total }}</span>
+                          }
+                        </button>
+                      } @else {
+                        <span class="cal-dia vacio"></span>
+                      }
+                    }
+                  </div>
+                }
+
+                <div class="cal-leyenda">
+                  <span><i class="mues con-cumples"></i> con cumpleaños</span>
+                  <span><i class="mues enviado"></i> ya enviado</span>
+                  @if (calendario(); as c) {
+                    <span class="empuje"></span>
+                    <span class="menudo">{{ c.total }} en el mes</span>
+                  }
+                </div>
+              </mat-card-content>
+            </mat-card>
+
+            <!-- Lista del día -->
+            <mat-card class="tarjeta lista-dia">
+              <mat-card-content>
+                @if (hoy(); as d) {
+                  <div class="fila-cabecera">
+                    <div>
+                      <h3>{{ d.fecha }}</h3>
+                      <span class="menudo">
+                        {{ d.total }} cumpleaños
+                        @if (d.sin_correo > 0) { · {{ d.sin_correo }} sin correo }
+                      </span>
+                    </div>
+
+                    @if (d.ya_enviado && d.envio) {
+                      <div class="ya-enviado">
+                        <mat-icon [class]="claseEstado(d.envio.estado)">task_alt</mat-icon>
+                        <div>
+                          <b>Ya se envió</b>
+                          <div class="menudo">
+                            {{ d.envio.total_enviados }} enviado(s),
+                            {{ d.envio.total_fallidos }} fallido(s) ·
+                            {{ d.envio.origen === 'AUTOMATICO' ? 'automático' : 'manual' }}
+                          </div>
+                        </div>
+                        <button mat-stroked-button (click)="verDetalle(d.envio.id)">Detalle</button>
+                        @if (d.envio.total_fallidos > 0) {
+                          <button mat-flat-button color="primary" [disabled]="enviando()"
+                                  (click)="reintentar(d.envio.id)"
+                                  matTooltip="Reintenta solo los fallidos. Quien ya recibió el saludo no lo recibe otra vez.">
+                            <mat-icon>refresh</mat-icon> Reintentar
+                          </button>
+                        }
+                      </div>
+                    } @else if (d.total > 0) {
+                      <button mat-flat-button color="primary" [disabled]="enviando()"
+                              (click)="enviarAhora()">
+                        <mat-icon>send</mat-icon> Enviar ahora
+                      </button>
+                    }
+                  </div>
+
+                  @if (d.total === 0) {
+                    <p class="vacio">
+                      @if (busqueda()) {
+                        Ese día no cumple años nadie que coincida con «{{ busqueda() }}».
+                      } @else {
+                        Ese día no cumple años nadie del padrón activo.
+                      }
+                    </p>
+                  } @else {
+                    <table class="tabla">
+                      <thead>
+                        <tr>
+                          <th>Cédula</th><th>Nombre</th><th>Temporal</th>
+                          <th>Finca</th><th>Correo</th><th class="num">Edad</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (p of d.personas; track p.id) {
+                          <tr>
+                            <td>{{ p.cedula }}</td>
+                            <td>{{ p.nombre || '—' }}</td>
+                            <td>
+                              @if (p.empresa) {
+                                <span class="pastilla neutro">{{ p.empresa_nombre }}</span>
+                              } @else {
+                                <span class="pastilla aviso"
+                                      matTooltip="Sin empresa en el padrón: recibirá la plantilla por defecto.">
+                                  sin temporal
+                                </span>
+                              }
+                            </td>
+                            <td>{{ p.finca || '—' }}</td>
+                            <td [class.sin-correo]="!p.correo">{{ p.correo || 'sin correo' }}</td>
+                            <td class="num">{{ p.edad ?? '—' }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  }
+                }
+              </mat-card-content>
+            </mat-card>
+          </div>
+
+          <!-- Resultados del buscador en todo el mes -->
+          @if (calendario(); as c) {
+            @if (c.coincidencias.length) {
+              <mat-card class="tarjeta">
+                <mat-card-content>
+                  <h3>Coincidencias en {{ nombreMes() }}</h3>
+                  <table class="tabla">
+                    <thead>
+                      <tr><th>Cumple</th><th>Cédula</th><th>Nombre</th><th>Temporal</th><th>Correo</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      @for (p of c.coincidencias; track p.id) {
+                        <tr>
+                          <td>{{ p.cumple_dia }}</td>
+                          <td>{{ p.cedula }}</td>
+                          <td>{{ p.nombre || '—' }}</td>
+                          <td>{{ p.empresa_nombre || '—' }}</td>
+                          <td [class.sin-correo]="!p.correo">{{ p.correo || 'sin correo' }}</td>
+                          <td><button mat-button (click)="irAPersona(p)">Ir al día</button></td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </mat-card-content>
+              </mat-card>
+            }
+          }
+
+          <!-- Detalle de un envío -->
+          @if (detalleEnvio(); as det) {
+            <mat-card class="tarjeta">
+              <mat-card-content>
+                <div class="fila-cabecera">
+                  <h3>Envío del {{ det.envio.fecha }}</h3>
+                  <button mat-stroked-button (click)="detalleEnvio.set(null)">
+                    <mat-icon>close</mat-icon> Cerrar
+                  </button>
+                </div>
+                @if (det.envio.detalle) { <p class="menudo">{{ det.envio.detalle }}</p> }
+                <table class="tabla">
+                  <thead>
+                    <tr><th></th><th>Cédula</th><th>Nombre</th><th>Correo</th>
+                        <th>Plantilla</th><th>Estado</th><th>Motivo</th></tr>
+                  </thead>
+                  <tbody>
+                    @for (i of det.items; track i.id) {
+                      <tr>
+                        <td><mat-icon class="mini" [class]="claseEstado(i.estado)">{{ iconoEstado(i.estado) }}</mat-icon></td>
+                        <td>{{ i.cedula }}</td>
+                        <td>{{ i.nombre || '—' }}</td>
+                        <td>{{ i.correo || '—' }}</td>
+                        <td>{{ i.plantilla_nombre || '—' }}</td>
+                        <td>{{ i.estado }}</td>
+                        <td class="motivo">{{ i.motivo || '' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+          }
+
+          <!-- Historial -->
+          <mat-card class="tarjeta">
+            <mat-card-content>
+              <h3>Últimos envíos</h3>
+              @if (envios().length === 0) {
+                <p class="vacio">Todavía no se ha enviado ningún saludo.</p>
+              } @else {
+                <table class="tabla">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th><th>Origen</th><th>Estado</th>
+                      <th class="num">Enviados</th><th class="num">Fallidos</th>
+                      <th class="num">Sin enviar</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (e of envios(); track e.id) {
+                      <tr>
+                        <td>{{ e.fecha }}</td>
+                        <td>{{ e.origen === 'AUTOMATICO' ? 'automático' : 'manual' }}</td>
+                        <td><span class="pastilla" [class]="claseEstado(e.estado)">{{ e.estado }}</span></td>
+                        <td class="num">{{ e.total_enviados }}</td>
+                        <td class="num">{{ e.total_fallidos }}</td>
+                        <td class="num">{{ e.total_omitidos }}</td>
+                        <td><button mat-button (click)="verDetalle(e.id)">Ver</button></td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+            </mat-card-content>
+          </mat-card>
+
+        </div>
+      </mat-tab>
+
+      <!-- ══ PADRÓN ═══════════════════════════════════════════════════════ -->
+      <mat-tab label="Padrón">
+        <div class="tab-cuerpo">
+
+          <mat-card class="tarjeta">
+            <mat-card-content>
+              <h3>El Excel manda</h3>
+              <p class="sub">
+                Descarga el padrón activo, corrígelo y vuelve a subirlo. Las columnas
+                esperadas son <b>Cédula, Nombre, Ingreso, Finca, Correo Electrónico,
+                Fecha Nacimiento</b> y <b>Empresa</b> (APOYO o ALIANZA). Al subirlo,
+                quien aparezca queda activo y quien no aparezca queda inactivo — sin
+                borrar nada, así que un archivo equivocado se arregla volviendo a
+                subir el bueno.
+              </p>
+
+              <div class="acciones">
+                <button mat-stroked-button (click)="descargarPadron()">
+                  <mat-icon>download</mat-icon> Descargar Excel
+                </button>
+                <button mat-flat-button color="primary" [disabled]="subiendo()"
+                        (click)="entrada.click()">
+                  <mat-icon>upload_file</mat-icon> Subir Excel
+                </button>
+                <input #entrada type="file" accept=".xlsx" hidden (change)="subirPadron($event)" />
+
+                @if (padron(); as p) {
+                  <span class="empuje"></span>
+                  <span class="pastilla ok">{{ p.total_activos }} activas</span>
+                  <span class="pastilla neutro">{{ p.total_inactivos }} inactivas</span>
+                  @if (p.total_sin_empresa > 0) {
+                    <span class="pastilla aviso"
+                          matTooltip="Sin empresa en el padrón: reciben la plantilla por defecto.">
+                      {{ p.total_sin_empresa }} sin temporal
+                    </span>
+                  }
+                }
+              </div>
+
+              @if (subiendo()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+              @if (ultimaCarga(); as c) {
+                <div class="resultado-carga">
+                  <div class="fila-cabecera">
+                    <b>{{ c.nombre_archivo }}</b>
+                    <button mat-icon-button (click)="ultimaCarga.set(null)"><mat-icon>close</mat-icon></button>
+                  </div>
+                  <div class="contadores">
+                    <span class="pastilla ok">{{ c.nuevos }} nuevas</span>
+                    <span class="pastilla neutro">{{ c.actualizados }} actualizadas</span>
+                    <span class="pastilla ok">{{ c.reactivados }} reactivadas</span>
+                    <span class="pastilla" [class.aviso]="c.inactivados > 0">{{ c.inactivados }} inactivadas</span>
+                    <span class="pastilla" [class.aviso]="c.sin_empresa > 0">{{ c.sin_empresa }} sin temporal</span>
+                    <span class="pastilla" [class.mal]="c.invalidos > 0">{{ c.invalidos }} con problemas</span>
+                  </div>
+                  @if (c.avisos.length) {
+                    <ul class="avisos">
+                      @for (a of c.avisos; track a) { <li>{{ a }}</li> }
+                    </ul>
+                  }
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="tarjeta">
+            <mat-card-content>
+              <div class="filtros">
+                <mat-form-field appearance="outline">
+                  <mat-label>Estado</mat-label>
+                  <mat-select [ngModel]="filtroActivo()"
+                              (ngModelChange)="filtroActivo.set($event); filtrar()">
+                    <mat-option value="true">Activas</mat-option>
+                    <mat-option value="false">Inactivas</mat-option>
+                    <mat-option value="todos">Todas</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Temporal</mat-label>
+                  <mat-select [ngModel]="filtroEmpresa()"
+                              (ngModelChange)="filtroEmpresa.set($event); filtrar()">
+                    <mat-option value="todos">Todas</mat-option>
+                    <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+                    <mat-option value="ALIANZA">Tu Alianza</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="ancho">
+                  <mat-label>Buscar por cédula, nombre, finca o correo</mat-label>
+                  <input matInput [ngModel]="busquedaPadron()" (ngModelChange)="busquedaPadron.set($event)"
+                         (keyup.enter)="filtrar()" />
+                  <button matSuffix mat-icon-button (click)="filtrar()"><mat-icon>search</mat-icon></button>
+                </mat-form-field>
+              </div>
+
+              @if (padron(); as p) {
+                <table class="tabla">
+                  <thead>
+                    <tr>
+                      <th>Cédula</th><th>Nombre</th><th>Temporal</th><th>Ingreso</th>
+                      <th>Finca</th><th>Correo</th><th>Nacimiento</th><th>Estado</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (persona of p.content; track persona.id) {
+                      <tr [class.inactiva]="!persona.activo">
+                        <td>{{ persona.cedula }}</td>
+                        <td>{{ persona.nombre || '—' }}</td>
+                        <td>
+                          @if (persona.empresa) {
+                            <span class="pastilla neutro">{{ persona.empresa_nombre }}</span>
+                          } @else {
+                            <span class="pastilla aviso">sin temporal</span>
+                          }
+                        </td>
+                        <td>{{ persona.fecha_ingreso || '—' }}</td>
+                        <td>{{ persona.finca || '—' }}</td>
+                        <td [class.sin-correo]="!persona.correo">{{ persona.correo || 'sin correo' }}</td>
+                        <td [class.sin-correo]="!persona.fecha_nacimiento">
+                          {{ persona.fecha_nacimiento || 'sin fecha' }}
+                        </td>
+                        <td>
+                          <span class="pastilla" [class.ok]="persona.activo" [class.neutro]="!persona.activo">
+                            {{ persona.activo ? 'activa' : 'inactiva' }}
+                          </span>
+                        </td>
+                        <td>
+                          <button mat-button (click)="cambiarActivo(persona, !persona.activo)"
+                                  matTooltip="Cambio manual. La próxima carga del Excel vuelve a mandar.">
+                            {{ persona.activo ? 'Inactivar' : 'Activar' }}
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+
+                <mat-paginator [length]="p.total" [pageSize]="p.size" [pageIndex]="p.page"
+                               [pageSizeOptions]="[25, 50, 100, 200]"
+                               (page)="paginar($event)"></mat-paginator>
+              }
+            </mat-card-content>
+          </mat-card>
+
+          @if (cargas().length) {
+            <mat-card class="tarjeta">
+              <mat-card-content>
+                <h3>Cargas anteriores</h3>
+                <table class="tabla">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th><th>Archivo</th><th>Quién</th>
+                      <th class="num">Filas</th><th class="num">Nuevas</th>
+                      <th class="num">Inactivadas</th><th class="num">Sin temporal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (c of cargas(); track c.id) {
+                      <tr>
+                        <td>{{ c.creado_en | date:'dd/MM/yyyy HH:mm' }}</td>
+                        <td>{{ c.nombre_archivo || '—' }}</td>
+                        <td>{{ c.cargado_por || '—' }}</td>
+                        <td class="num">{{ c.total_filas }}</td>
+                        <td class="num">{{ c.nuevos }}</td>
+                        <td class="num">{{ c.inactivados }}</td>
+                        <td class="num">{{ c.sin_empresa }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </mat-card-content>
+            </mat-card>
+          }
+
+        </div>
+      </mat-tab>
+
+      <!-- ══ CONFIGURACIÓN ════════════════════════════════════════════════ -->
+      <mat-tab label="Configuración">
+        <div class="tab-cuerpo">
+
+          @if (configuracion(); as c) {
+            <mat-card class="tarjeta">
+              <mat-card-content>
+                <h3>Una plantilla por temporal</h3>
+                <p class="sub">
+                  Cada persona recibe la plantilla de su empresa, según la columna
+                  <b>Empresa</b> del padrón. Las plantillas se redactan en
+                  <b>Correos electrónicos → Plantillas de correo</b>, eligiendo el
+                  origen <b>Cumpleaños</b>, y hay que <b>publicarlas</b> para que
+                  aparezcan aquí.
+                </p>
+
+                @if (c.aviso_opciones) {
+                  <div class="banda aviso">
+                    <mat-icon>warning</mat-icon><span>{{ c.aviso_opciones }}</span>
+                  </div>
+                }
+
+                @for (p of c.plantillas; track p.empresa) {
+                  <div class="fila-plantilla">
+                    <div class="etiqueta-empresa">
+                      <b>{{ p.empresa_nombre }}</b>
+                      <span class="menudo">
+                        {{ p.personas }} persona(s)
+                        @if (p.empresa === 'DEFECTO') { sin temporal en el padrón }
+                      </span>
+                    </div>
+
+                    <mat-form-field appearance="outline" class="ancho">
+                      <mat-label>Plantilla</mat-label>
+                      <mat-select [ngModel]="p.plantilla_id"
+                                  (ngModelChange)="elegirPlantilla(p.empresa, $event)">
+                        <mat-option [value]="null">— sin plantilla —</mat-option>
+                        @for (o of c.opciones; track o.id) {
+                          <mat-option [value]="o.id">{{ o.nombre }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+
+                    <button mat-stroked-button [disabled]="!p.plantilla_id"
+                            (click)="verPreview(p.empresa)">
+                      <mat-icon>visibility</mat-icon> Ver
+                    </button>
+                  </div>
+
+                  @if (!p.plantilla_id && p.personas > 0) {
+                    <p class="menudo alerta">
+                      Estas {{ p.personas }} personas no recibirán el saludo hasta que elijas una plantilla.
+                    </p>
+                  }
+                }
+
+                @if (preview(); as pv) {
+                  <div class="preview">
+                    <div class="preview-cabecera">
+                      <div>
+                        <div class="menudo">
+                          Asunto @if (pv.plantilla_nombre) { · {{ pv.plantilla_nombre }} }
+                        </div>
+                        <b>{{ pv.asunto }}</b>
+                      </div>
+                      <button mat-icon-button (click)="preview.set(null)"><mat-icon>close</mat-icon></button>
+                    </div>
+                    <div class="preview-cuerpo" [innerHTML]="previewHtml()"></div>
+                  </div>
+                }
+              </mat-card-content>
+            </mat-card>
+
+            <mat-card class="tarjeta">
+              <mat-card-content>
+                <h3>Envío automático</h3>
+                <p class="sub">
+                  Con esto encendido, el saludo sale solo el día del cumpleaños, a la
+                  hora que indiques ({{ c.config.zona }}). Si el sistema estuvo caído a
+                  esa hora, sale en cuanto vuelve — y nunca dos veces el mismo día.
+                </p>
+
+                <div class="fila-campos">
+                  <mat-slide-toggle [ngModel]="c.config.auto_activo"
+                                    (ngModelChange)="guardarConfig({ auto_activo: $event })">
+                    {{ c.config.auto_activo ? 'Encendido' : 'Apagado' }}
+                  </mat-slide-toggle>
+
+                  <mat-form-field appearance="outline" class="corto">
+                    <mat-label>Hora</mat-label>
+                    <input matInput type="number" min="0" max="23" [ngModel]="c.config.hora_envio"
+                           (change)="guardarConfig({ hora_envio: +$any($event.target).value })" />
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="corto">
+                    <mat-label>Minuto</mat-label>
+                    <input matInput type="number" min="0" max="59" [ngModel]="c.config.minuto_envio"
+                           (change)="guardarConfig({ minuto_envio: +$any($event.target).value })" />
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="corto"
+                                  matTooltip="Tope de seguridad: si un día salieran más, el resto queda registrado como omitido en vez de enviarse.">
+                    <mat-label>Máx. por día</mat-label>
+                    <input matInput type="number" min="1" [ngModel]="c.config.max_por_dia"
+                           (change)="guardarConfig({ max_por_dia: +$any($event.target).value })" />
+                  </mat-form-field>
+                </div>
+
+                @if (c.config.actualizado_en) {
+                  <p class="menudo">
+                    Última modificación: {{ c.config.actualizado_en | date:'dd/MM/yyyy HH:mm' }}
+                    @if (c.config.actualizado_por) { por {{ c.config.actualizado_por }} }
+                  </p>
+                }
+              </mat-card-content>
+            </mat-card>
+
+            <mat-card class="tarjeta">
+              <mat-card-content>
+                <h3>Correo de prueba</h3>
+                <p class="sub">
+                  Manda una muestra a la dirección que quieras para ver cómo llega de
+                  verdad. No cuenta como el envío del día ni le llega a nadie más.
+                </p>
+                <div class="fila-campos">
+                  <mat-form-field appearance="outline" class="corto-medio">
+                    <mat-label>Plantilla de</mat-label>
+                    <mat-select [ngModel]="empresaPrueba()" (ngModelChange)="empresaPrueba.set($event)">
+                      @for (p of c.plantillas; track p.empresa) {
+                        <mat-option [value]="p.empresa" [disabled]="!p.plantilla_id">
+                          {{ p.empresa_nombre }}
+                        </mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="ancho">
+                    <mat-label>Correo de destino</mat-label>
+                    <input matInput type="email" [ngModel]="correoPrueba()"
+                           (ngModelChange)="correoPrueba.set($event)"
+                           placeholder="tu.correo@empresa.com" />
+                  </mat-form-field>
+                  <button mat-flat-button color="primary" [disabled]="enviando()"
+                          (click)="enviarPrueba()">
+                    <mat-icon>outgoing_mail</mat-icon> Enviar prueba
+                  </button>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          }
+
+        </div>
+      </mat-tab>
+
+    </mat-tab-group>
+  }
+</div>

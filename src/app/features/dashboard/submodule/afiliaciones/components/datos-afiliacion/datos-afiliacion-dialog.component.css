@@ -1,0 +1,117 @@
+/* Paleta alineada con el resto de afiliaciones (slate + acentos). */
+
+.da-title { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0; }
+.da-title-txt { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.da-title-txt small { font-size: 0.78rem; color: #64748b; font-weight: 400; }
+.da-ced { color: #94a3b8; }
+
+.da-body { min-width: min(920px, 90vw); max-height: 70vh; }
+
+/* Resumen: qué falta y qué está sin guardar */
+.da-resumen {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+  padding: 0.5rem 0 0.75rem;
+}
+.da-spacer { flex: 1; }
+.da-chip {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0.28rem 0.7rem; border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600; white-space: nowrap;
+}
+.da-chip mat-icon { font-size: 17px; width: 17px; height: 17px; }
+.da-chip.ok   { background: #d1fae5; color: #065f46; }
+.da-chip.warn { background: #fef3c7; color: #92400e; }
+.da-chip.info { background: #dbeafe; color: #1e40af; }
+
+/* Avisos que se quedan a la vista (no snackbar) */
+.da-alerta {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  padding: 0.6rem 0.8rem; border-radius: 10px; margin-bottom: 0.6rem;
+  font-size: 0.84rem; line-height: 1.4;
+}
+.da-alerta mat-icon { flex-shrink: 0; font-size: 20px; width: 20px; height: 20px; }
+.da-alerta.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+.da-alerta.bad  { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+
+/* Secciones y rejilla de campos */
+.da-seccion { margin-bottom: 0.5rem; }
+.da-seccion h4 {
+  display: flex; align-items: center; gap: 0.4rem;
+  margin: 0.75rem 0 0.6rem; font-size: 0.85rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; color: #1d4ed8;
+  padding-bottom: 0.35rem; border-bottom: 2px solid #dbeafe;
+}
+.da-seccion h4 mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.da-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.15rem 0.75rem;
+}
+.da-ancho { grid-column: span 2; }
+
+.da-body ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+
+/* Estado de cada campo: cambiado / vacío / sugerido.
+   El borde es lo único que se toca: pintar el fondo de un input de Material pelea con el
+   propio componente y se ve sucio al enfocar. */
+.da-cambiado ::ng-deep .mdc-notched-outline__leading,
+.da-cambiado ::ng-deep .mdc-notched-outline__notch,
+.da-cambiado ::ng-deep .mdc-notched-outline__trailing {
+  border-color: #2563eb !important;
+  border-width: 2px !important;
+}
+.da-vacio ::ng-deep .mdc-notched-outline__leading,
+.da-vacio ::ng-deep .mdc-notched-outline__notch,
+.da-vacio ::ng-deep .mdc-notched-outline__trailing {
+  border-color: #fbbf24 !important;
+}
+.da-sugerido ::ng-deep .mat-mdc-input-element,
+.da-sugerido ::ng-deep .mat-mdc-select-value-text { color: #b45309; font-style: italic; }
+
+.da-ayuda { color: #94a3b8; font-size: 18px; width: 18px; height: 18px; cursor: help; }
+
+.da-nota {
+  display: flex; align-items: flex-start; gap: 0.4rem;
+  font-size: 0.8rem; color: #64748b; line-height: 1.45;
+  background: #f8fafc; border: 1px solid #eef2f7; border-radius: 10px;
+  padding: 0.6rem 0.75rem; margin: 0.9rem 0 0.6rem;
+}
+mat-icon.mini { font-size: 16px; width: 16px; height: 16px; }
+
+/* Historial */
+.da-hist { box-shadow: none !important; border: 1px solid #e2e8f0; border-radius: 10px !important; }
+.da-vacio-txt { color: #94a3b8; font-size: 0.85rem; margin: 0; }
+.da-hist-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.da-hist-item { padding: 0.5rem 0.7rem; border: 1px solid #f1f5f9; border-radius: 8px; background: #f8fafc; }
+.da-hist-top { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.da-hist-campo { font-size: 0.82rem; font-weight: 700; color: #1e293b; }
+.da-hist-meta { font-size: 0.72rem; color: #94a3b8; }
+.da-hist-diff {
+  display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+  margin-top: 0.25rem; font-size: 0.82rem;
+}
+.da-antes { color: #b91c1c; text-decoration: line-through; overflow-wrap: anywhere; }
+.da-despues { color: #065f46; font-weight: 600; overflow-wrap: anywhere; }
+
+.da-actions { padding: 0.75rem 1.5rem; gap: 0.5rem; }
+
+/* ── Responsive: en móvil el diálogo va a pantalla completa ────────────── */
+@media (max-width: 900px) {
+  .da-body { min-width: 0; max-height: none; }
+  .da-grid { grid-template-columns: 1fr; }
+  .da-ancho { grid-column: span 1; }
+}
+
+@media (max-width: 768px) {
+  .da-resumen { padding-top: 0.25rem; }
+  .da-actions { flex-wrap: wrap; padding: 0.75rem 1rem; }
+  .da-actions button { flex: 1 1 45%; height: 44px; }
+  .da-spacer { display: none; }
+}
+
+::ng-deep .da-dialog-movil .mat-mdc-dialog-surface {
+  border-radius: 0;
+  max-height: 100dvh;
+  height: 100dvh;
+}

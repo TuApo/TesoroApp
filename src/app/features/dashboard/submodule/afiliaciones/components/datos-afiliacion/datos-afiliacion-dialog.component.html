@@ -1,0 +1,158 @@
+<h2 mat-dialog-title class="da-title">
+  <mat-icon>fact_check</mat-icon>
+  <div class="da-title-txt">
+    <span>Datos de afiliación</span>
+    <small>{{ ficha?.nombreCompleto || data.nombre || '' }}
+      @if (ficha?.cedula || data.cedula) { <span class="da-ced">· {{ ficha?.cedula || data.cedula }}</span> }
+    </small>
+  </div>
+</h2>
+
+@if (cargando || guardando) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+<mat-dialog-content class="da-body">
+
+  @if (error) {
+    <div class="da-alerta bad">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error }}</span>
+    </div>
+  }
+
+  @if (!cargando && ficha) {
+
+    <!-- Qué falta y qué se tocó: lo primero que se necesita saber -->
+    <div class="da-resumen">
+      @if (totalVacios > 0) {
+        <span class="da-chip warn" matTooltip="Campos sin dato; los documentos saldrán con esos espacios en blanco">
+          <mat-icon>report_problem</mat-icon> {{ totalVacios }} sin completar
+        </span>
+      } @else {
+        <span class="da-chip ok"><mat-icon>task_alt</mat-icon> Los 23 datos están completos</span>
+      }
+      @if (hayCambios) {
+        <span class="da-chip info"><mat-icon>edit</mat-icon> {{ camposCambiados.length }} sin guardar</span>
+      }
+      <span class="da-spacer"></span>
+      <button mat-button [disabled]="!hayCambios || guardando" (click)="deshacer()">
+        <mat-icon>undo</mat-icon> Deshacer
+      </button>
+    </div>
+
+    <!-- Avisos del último guardado: se quedan fijos, no son un snackbar -->
+    @for (a of avisos; track a) {
+      <div class="da-alerta warn">
+        <mat-icon>warning_amber</mat-icon>
+        <span>{{ a }}</span>
+      </div>
+    }
+
+    <!-- Cambiar la cédula reasigna documentos/ADRES/traslados: se avisa ANTES de guardar -->
+    @if (cedulaCambiada) {
+      <div class="da-alerta warn">
+        <mat-icon>key</mat-icon>
+        <span>
+          Vas a cambiar la <strong>cédula</strong>. Los documentos, el ADRES y los traslados se
+          cruzan por ese número: los que están cargados con la cédula anterior dejarán de aparecer.
+        </span>
+      </div>
+    }
+
+    <!-- ── Los 23 campos, en el orden del formato del área ───────────
+         Bucle tipado a propósito: dentro de un ng-template el contexto llega como `any` y
+         `form[c.key]` no compila con strictTemplates. -->
+    @for (s of secciones; track s.titulo) {
+      <section class="da-seccion">
+        <h4><mat-icon>{{ s.icono }}</mat-icon> {{ s.titulo }}</h4>
+        <div class="da-grid">
+          @for (c of s.campos; track c.key) {
+            <mat-form-field appearance="outline"
+                            [class.da-ancho]="c.ancho"
+                            [class.da-cambiado]="cambiado(c.key)"
+                            [class.da-vacio]="vacio(c.key)"
+                            [class.da-sugerido]="esSugerido(c.key)">
+              <mat-label>{{ c.label }}</mat-label>
+
+              @switch (c.tipo) {
+                @case ('select') {
+                  <mat-select [(ngModel)]="form[c.key]" [name]="c.key">
+                    <mat-option value="">(sin dato)</mat-option>
+                    @for (o of c.opciones; track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+                  </mat-select>
+                }
+                @case ('fecha') {
+                  <input matInput type="date" [(ngModel)]="form[c.key]" [name]="c.key">
+                }
+                @case ('email') {
+                  <input matInput type="email" [(ngModel)]="form[c.key]" [name]="c.key" maxlength="255">
+                }
+                @case ('tel') {
+                  <input matInput type="tel" [(ngModel)]="form[c.key]" [name]="c.key" maxlength="15">
+                }
+                @default {
+                  <input matInput [(ngModel)]="form[c.key]" [name]="c.key" maxlength="255">
+                }
+              }
+
+              @if (c.ayuda) {
+                <mat-icon matSuffix class="da-ayuda" [matTooltip]="c.ayuda">info_outline</mat-icon>
+              }
+            </mat-form-field>
+          }
+        </div>
+      </section>
+    }
+
+    <p class="da-nota">
+      <mat-icon class="mini">lightbulb</mat-icon>
+      Un campo que se deja vacío <strong>no borra</strong> el dato: significa «no lo toques».
+      Lo que se guarda aquí corrige el dato en contratación, así que también arregla el tablero
+      de contratación y los documentos de vinculación.
+    </p>
+
+    <!-- ── Historial: quién cambió qué ──────────────────────────────── -->
+    <mat-expansion-panel class="da-hist" [(expanded)]="verHistorial">
+      <mat-expansion-panel-header>
+        <mat-panel-title>
+          <mat-icon class="mini">history</mat-icon>&nbsp;Historial de cambios
+        </mat-panel-title>
+        <mat-panel-description>
+          {{ historial.length ? historial.length + ' edición(es)' : 'sin ediciones' }}
+        </mat-panel-description>
+      </mat-expansion-panel-header>
+
+      @if (historial.length === 0) {
+        <p class="da-vacio-txt">Nadie ha editado estos datos desde afiliaciones.</p>
+      } @else {
+        <div class="da-hist-list">
+          @for (h of historial; track h.id) {
+            <div class="da-hist-item">
+              <div class="da-hist-top">
+                <span class="da-hist-campo">{{ campoLabel(h.campo) }}</span>
+                <span class="da-hist-meta">
+                  {{ h.usuario || 'anónimo' }} · {{ h.createdAt ? (h.createdAt | date:'dd/MM/yyyy HH:mm') : '' }}
+                </span>
+              </div>
+              <div class="da-hist-diff">
+                <span class="da-antes">{{ h.valorAnterior || '(vacío)' }}</span>
+                <mat-icon class="mini">arrow_forward</mat-icon>
+                <span class="da-despues">{{ h.valorNuevo || '(vacío)' }}</span>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </mat-expansion-panel>
+  }
+
+</mat-dialog-content>
+
+<mat-dialog-actions class="da-actions">
+  <button mat-button [disabled]="guardando" (click)="cerrar()">Cerrar</button>
+  <span class="da-spacer"></span>
+  <button mat-flat-button color="primary" [disabled]="!hayCambios || guardando || cargando"
+          (click)="guardar()">
+    <mat-icon>{{ guardando ? 'hourglass_top' : 'save' }}</mat-icon>
+    <span>{{ guardando ? 'Guardando…' : ('Guardar ' + camposCambiados.length + ' cambio(s)') }}</span>
+  </button>
+</mat-dialog-actions>

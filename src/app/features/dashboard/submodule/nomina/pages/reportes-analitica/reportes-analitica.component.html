@@ -1,0 +1,234 @@
+<div class="reportes-page">
+
+  <!-- Encabezado -->
+  <div class="page-head">
+    <div>
+      <h1 class="title"><mat-icon>insights</mat-icon> Analítica de nómina</h1>
+      <p class="subtitle">Analítica de nómina — novedades y montos liquidados por periodo, tipo, empresa usuaria y centro de costo.</p>
+    </div>
+    <button mat-stroked-button color="primary" (click)="reload()" [disabled]="loadingNov() || loadingNom()">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <mat-card class="filtros-card">
+    <div class="filtros">
+      <mat-form-field appearance="outline" class="f-year">
+        <mat-label>Año</mat-label>
+        <mat-select [ngModel]="selectedAnio()" (ngModelChange)="onAnio($event)">
+          <mat-option [value]="null">Todos</mat-option>
+          @for (a of anios(); track a) { <mat-option [value]="a">{{ a }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="f-empresa">
+        <mat-label>Empresa usuaria</mat-label>
+        <mat-select [ngModel]="selectedEmpresa()" (ngModelChange)="onEmpresa($event)"
+                    panelClass="rep-select-panel" (openedChange)="onEmpresaPanel($event)">
+          <div class="rep-select-search" (click)="$event.stopPropagation()">
+            <mat-icon>search</mat-icon>
+            <input type="text" placeholder="Buscar empresa…"
+                   [ngModel]="empresaFilter()" (ngModelChange)="empresaFilter.set($event)"
+                   (keydown)="$event.stopPropagation()">
+          </div>
+          <mat-option [value]="null">Todas</mat-option>
+          @for (e of empresasFiltradas(); track e.id_entidad) {
+            <mat-option [value]="e.id_entidad">{{ e.nombre_legal }}</mat-option>
+          }
+          @if (empresasFiltradas().length === 0) {
+            <div class="rep-select-empty">Sin coincidencias</div>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="f-ceco">
+        <mat-label>Centros de costo</mat-label>
+        <mat-select multiple [ngModel]="selectedCecos()" (ngModelChange)="onCecos($event)"
+                    panelClass="rep-select-panel" (openedChange)="onCecoPanel($event)">
+          <div class="rep-select-search" (click)="$event.stopPropagation()">
+            <mat-icon>search</mat-icon>
+            <input type="text" placeholder="Buscar centro de costo…"
+                   [ngModel]="cecoFilter()" (ngModelChange)="cecoFilter.set($event)"
+                   (keydown)="$event.stopPropagation()">
+          </div>
+          @for (c of cecosFiltrados(); track c.id_ceco) {
+            <mat-option [value]="c.id_ceco">{{ c.codigo_interno }} · {{ c.nombre }}</mat-option>
+          }
+          @if (cecosFiltrados().length === 0) {
+            <div class="rep-select-empty">Sin coincidencias</div>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      @if (tab() === 0) {
+        <mat-form-field appearance="outline" class="f-agrupador">
+          <mat-label>Agrupador</mat-label>
+          <mat-select [ngModel]="selectedAgrupador()" (ngModelChange)="onAgrupador($event)">
+            <mat-option [value]="null">Todos</mat-option>
+            @for (a of AGRUPADORES; track a.value) {
+              <mat-option [value]="a.value">{{ a.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+
+      @if (tab() === 0) {
+        <mat-form-field appearance="outline" class="f-tipo">
+          <mat-label>Tipo de novedad</mat-label>
+          <mat-select multiple [ngModel]="selectedCodigos()" (ngModelChange)="onCodigos($event)"
+                      panelClass="rep-select-panel" (openedChange)="onCodigoPanel($event)">
+            <div class="rep-select-search" (click)="$event.stopPropagation()">
+              <mat-icon>search</mat-icon>
+              <input type="text" placeholder="Buscar tipo de novedad…"
+                     [ngModel]="codigoFilter()" (ngModelChange)="codigoFilter.set($event)"
+                     (keydown)="$event.stopPropagation()">
+            </div>
+            @for (t of tiposFiltrados(); track t.codigo) {
+              <mat-option [value]="t.codigo">{{ t.descripcion || t.codigo }} · {{ int(t.conteo) }}</mat-option>
+            }
+            @if (tiposFiltrados().length === 0) {
+              <div class="rep-select-empty">Sin coincidencias</div>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+
+      @if (tab() === 1) {
+        <mat-form-field appearance="outline" class="f-estado">
+          <mat-label>Estado de pago</mat-label>
+          <mat-select [ngModel]="selectedEstado()" (ngModelChange)="onEstado($event)">
+            <mat-option [value]="null">Todos</mat-option>
+            @for (s of estados; track s) { <mat-option [value]="s">{{ s }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+      }
+
+      <div class="f-gran">
+        <span class="f-gran-label">Agrupar por</span>
+        <mat-button-toggle-group [ngModel]="granularidad()" (ngModelChange)="onGranularidad($event)" hideSingleSelectionIndicator>
+          @for (g of granularidades; track g.value) {
+            <mat-button-toggle [value]="g.value">{{ g.label }}</mat-button-toggle>
+          }
+        </mat-button-toggle-group>
+      </div>
+
+      @if (mostrarPeriodo()) {
+        <mat-form-field appearance="outline" class="f-periodo">
+          <mat-label>{{ periodoLabel() }}</mat-label>
+          <mat-select [ngModel]="selectedPeriodoClave()" (ngModelChange)="onPeriodo($event)" panelClass="rep-select-panel">
+            <mat-option [value]="null">Todo el año</mat-option>
+            @for (b of buckets(); track b.clave) {
+              <mat-option [value]="b.clave">{{ b.etiqueta }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+
+      <button mat-button (click)="limpiarFiltros()" class="f-clear" matTooltip="Restablecer filtros">
+        <mat-icon>filter_alt_off</mat-icon> Limpiar
+      </button>
+    </div>
+  </mat-card>
+
+  <!-- Pestañas -->
+  <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="onTab($event)" animationDuration="200ms">
+
+    <!-- ════════════ NOVEDADES ════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">event_note</mat-icon> Novedades</ng-template>
+
+      <div class="tab-body">
+        <div class="kpis">
+          <div class="kpi kpi-primary">
+            <div class="kpi-icon"><mat-icon>event_note</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ int(dataNov()?.resumen?.totalNovedades) }}</span><span class="kpi-label">Novedades</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-icon"><mat-icon>payments</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ money(dataNov()?.resumen?.valorTotal) }}</span><span class="kpi-label">Valor total</span></div>
+          </div>
+          <div class="kpi kpi-up">
+            <div class="kpi-icon"><mat-icon>trending_up</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ money(dataNov()?.resumen?.valorDevengos) }}</span><span class="kpi-label">Devengos</span></div>
+          </div>
+          <div class="kpi kpi-down">
+            <div class="kpi-icon"><mat-icon>trending_down</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ money(dataNov()?.resumen?.valorDeducciones) }}</span><span class="kpi-label">Deducciones</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-icon"><mat-icon>groups</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ int(dataNov()?.resumen?.empleadosConNovedad) }}</span><span class="kpi-label">Empleados</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-icon"><mat-icon>calendar_month</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ int(dataNov()?.resumen?.periodos) }}</span><span class="kpi-label">Periodos</span></div>
+          </div>
+        </div>
+
+        @if (loadingNov()) {
+          <div class="state-box"><mat-spinner diameter="44"></mat-spinner><p>Cargando analítica…</p></div>
+        } @else if (!hayNovedades()) {
+          <div class="state-box empty"><mat-icon>bar_chart</mat-icon><p>No hay novedades para los filtros seleccionados.</p><span>Ajusta el año, la empresa usuaria o los centros de costo.</span></div>
+        } @else {
+          <div class="charts-grid">
+            <mat-card class="chart-card span-2"><div class="chart-title">Evolución de novedades</div><div echarts [options]="serieNovOption()" class="echart tall"></div></mat-card>
+            <mat-card class="chart-card"><div class="chart-title">Novedades por tipo</div><div echarts [options]="porTipoOption()" class="echart"></div></mat-card>
+            <mat-card class="chart-card"><div class="chart-title">Por naturaleza</div><div echarts [options]="porNaturalezaOption()" class="echart"></div></mat-card>
+            <mat-card class="chart-card"><div class="chart-title">Por clasificación</div><div echarts [options]="porClasificacionOption()" class="echart"></div></mat-card>
+            <mat-card class="chart-card"><div class="chart-title">Novedades por empresa usuaria</div><div echarts [options]="porEmpresaNovOption()" class="echart"></div></mat-card>
+            <mat-card class="chart-card"><div class="chart-title">Novedades por centro de costo</div><div echarts [options]="porCecoNovOption()" class="echart"></div></mat-card>
+          </div>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ════════════ NÓMINA PAGADA ════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">payments</mat-icon> Nómina Pagada</ng-template>
+
+      <div class="tab-body">
+        <div class="kpis">
+          <div class="kpi kpi-primary">
+            <div class="kpi-icon"><mat-icon>account_balance_wallet</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ money(dataNom()?.resumen?.totalNeto) }}</span><span class="kpi-label">Neto pagado</span></div>
+          </div>
+          <div class="kpi kpi-up">
+            <div class="kpi-icon"><mat-icon>trending_up</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ money(dataNom()?.resumen?.totalDevengado) }}</span><span class="kpi-label">Devengado</span></div>
+          </div>
+          <div class="kpi kpi-down">
+            <div class="kpi-icon"><mat-icon>trending_down</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ money(dataNom()?.resumen?.totalDeducido) }}</span><span class="kpi-label">Deducido</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-icon"><mat-icon>account_balance</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ money(dataNom()?.resumen?.totalIbc) }}</span><span class="kpi-label">IBC</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-icon"><mat-icon>receipt_long</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ int(dataNom()?.resumen?.totalNominas) }}</span><span class="kpi-label">Nóminas</span></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-icon"><mat-icon>groups</mat-icon></div>
+            <div class="kpi-body"><span class="kpi-value">{{ int(dataNom()?.resumen?.empleados) }}</span><span class="kpi-label">Empleados</span></div>
+          </div>
+        </div>
+
+        @if (loadingNom()) {
+          <div class="state-box"><mat-spinner diameter="44"></mat-spinner><p>Cargando analítica…</p></div>
+        } @else if (!hayNomina()) {
+          <div class="state-box empty"><mat-icon>bar_chart</mat-icon><p>No hay nóminas liquidadas para los filtros seleccionados.</p><span>Ajusta el año, la empresa usuaria, los centros de costo o el estado.</span></div>
+        } @else {
+          <div class="charts-grid">
+            <mat-card class="chart-card span-2"><div class="chart-title">Evolución de lo liquidado</div><div echarts [options]="serieNomOption()" class="echart tall"></div></mat-card>
+            <mat-card class="chart-card"><div class="chart-title">Neto por estado de pago</div><div echarts [options]="porEstadoOption()" class="echart"></div></mat-card>
+            <mat-card class="chart-card"><div class="chart-title">Neto por empresa usuaria</div><div echarts [options]="porEmpresaNomOption()" class="echart"></div></mat-card>
+            <mat-card class="chart-card span-2"><div class="chart-title">Neto por centro de costo</div><div echarts [options]="porCecoNomOption()" class="echart"></div></mat-card>
+          </div>
+        }
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+</div>

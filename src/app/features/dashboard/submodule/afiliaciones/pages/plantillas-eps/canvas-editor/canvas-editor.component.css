@@ -1,0 +1,334 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Canvas Editor — Editor visual de plantillas EPS (V39)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 500px;
+}
+
+/* ── Barra superior ────────────────────────────────────────────────────────── */
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  gap: 12px;
+}
+.toolbar-left { display: flex; align-items: center; gap: 12px; }
+.toolbar-title { font-weight: 600; font-size: .95rem; color: #1e293b; }
+.page-info { font-size: .78rem; color: #64748b; background: #e2e8f0; padding: 2px 8px; border-radius: 10px; }
+.toolbar-actions { display: flex; gap: 8px; }
+
+/* ── Panel flotante (campos disponibles / fuentes) ─────────────────────────── */
+.floating-panel {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  width: 460px;
+  max-height: 440px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+  gap: 8px;
+}
+.panel-hint { font-size: .7rem; color: #94a3b8; flex: 1; }
+
+/* Campos disponibles */
+.campos-disponibles-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 8px;
+}
+.campo-disponible-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.campo-disponible-item:hover { background: #f0f9ff; }
+.campo-key  { font-family: monospace; font-size: .8rem; color: #1d4ed8; min-width: 120px; }
+.campo-label { font-size: .82rem; color: #374151; flex: 1; }
+.campo-fuente-tag {
+  font-size: .68rem; background: #ede9fe; color: #5b21b6;
+  padding: 2px 6px; border-radius: 8px; white-space: nowrap;
+}
+
+/* Fuentes */
+.fuentes-panel { width: 380px; }
+.fuentes-lista { overflow-y: auto; max-height: 160px; padding: 8px; }
+.fuente-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 6px;
+}
+.fuente-item:hover { background: #f8fafc; }
+.fuente-nombre { font-size: .82rem; font-weight: 600; flex: 1; color: #1e293b; }
+.fuente-familia { font-family: monospace; font-size: .75rem; color: #6b7280; }
+.fuente-upload { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.upload-title { margin: 0 0 4px; font-size: .82rem; }
+
+/* ── Cuerpo del editor ─────────────────────────────────────────────────────── */
+.editor-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+}
+.editor-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Sidebar de páginas ────────────────────────────────────────────────────── */
+.pages-sidebar {
+  width: 140px;
+  flex-shrink: 0;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 16px;
+}
+.pages-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.pages-title { font-size: .82rem; font-weight: 600; color: #374151; }
+
+.page-thumb {
+  padding: 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background .12s;
+}
+.page-thumb:hover { background: #f0f9ff; }
+.page-thumb.active { background: #eff6ff; border-left: 3px solid #3b82f6; }
+.thumb-preview {
+  width: 100%;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.thumb-preview img { width: 100%; height: 100%; object-fit: cover; }
+.thumb-empty-icon { color: #cbd5e1; font-size: 2rem !important; }
+.thumb-label { font-size: .75rem; font-weight: 600; color: #1e293b; display: block; }
+.thumb-tamano { font-size: .65rem; color: #94a3b8; display: block; }
+
+.page-options { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.page-opts-title { font-size: .78rem; font-weight: 600; color: #374151; margin: 4px 0 2px; }
+.opt-label { font-size: .75rem; color: #6b7280; }
+.fondo-controls { display: flex; align-items: center; gap: 4px; }
+.btn-delete-page { margin-top: 4px; font-size: .75rem; }
+
+/* ── Canvas central ─────────────────────────────────────────────────────────
+   Responsivo: se adapta al ancho disponible.
+   canvas-area ocupa el espacio restante del flex-row.
+   canvas-scroll-wrapper expande a todo el ancho.
+   canvas-container tiene tamaño fijo calculado por el componente.
+   ─────────────────────────────────────────────────────────────────────────── */
+.canvas-area {
+  flex: 1;
+  overflow: auto;
+  background: #94a3b8;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.canvas-scroll-wrapper {
+  width: 100%;
+  min-height: 100%;
+}
+.canvas-container {
+  position: relative;
+  background: white;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  overflow: visible; /* handles salen 4px fuera */
+  user-select: none;
+}
+.canvas-bg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  object-fit: fill;
+  pointer-events: none;
+}
+.canvas-guide-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(100,116,139,.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(100,116,139,.06) 1px, transparent 1px);
+  /* background-size es calculado dinámicamente via [style.background-size] */
+}
+
+/* ── Chips de campo en el canvas ────────────────────────────────────────────── */
+.campo-chip {
+  position: absolute;
+  cursor: move;
+  border: 1px dashed #94a3b8;
+  border-radius: 2px;
+  background: rgba(255,255,255,.55);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 1px 4px;
+  font-size: .65rem;
+  color: #1e3a5f;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  transition: box-shadow .1s;
+}
+.campo-chip:hover { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+.campo-chip.selected {
+  border: 2px solid #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,.3);
+  background: rgba(219,234,254,.55);
+  z-index: 10;
+  overflow: visible; /* para que los handles queden visibles */
+}
+.campo-chip.inactive { opacity: .35; border-style: dotted; }
+
+/* ── Handles de redimensionar ────────────────────────────────────────────────
+   8 puntos: esquinas (nw ne se sw) + bordes (n e s w)
+   ─────────────────────────────────────────────────────────────────────────── */
+.rh {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #3b82f6;
+  border: 1.5px solid white;
+  border-radius: 2px;
+  z-index: 20;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+/* Esquinas */
+.rh-nw { top: -4px;           left: -4px;              cursor: nw-resize; }
+.rh-ne { top: -4px;           right: -4px;             cursor: ne-resize; }
+.rh-se { bottom: -4px;        right: -4px;             cursor: se-resize; }
+.rh-sw { bottom: -4px;        left: -4px;              cursor: sw-resize; }
+/* Bordes */
+.rh-n  { top: -4px;           left: calc(50% - 4px);  cursor: n-resize; }
+.rh-e  { top: calc(50% - 4px); right: -4px;            cursor: e-resize; }
+.rh-s  { bottom: -4px;        left: calc(50% - 4px);  cursor: s-resize; }
+.rh-w  { top: calc(50% - 4px); left: -4px;             cursor: w-resize; }
+
+/* ── Panel de propiedades ───────────────────────────────────────────────────── */
+.properties-panel {
+  width: 240px;
+  flex-shrink: 0;
+  border-left: 1px solid #e2e8f0;
+  background: white;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.prop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+  gap: 4px;
+}
+.prop-header-title { display: flex; flex-direction: column; min-width: 0; }
+.prop-header strong { font-size: .82rem; color: #1e293b; word-break: break-all; }
+.prop-placeholder-hint { font-size: .68rem; color: #94a3b8; font-family: monospace; }
+.prop-header-actions { display: flex; gap: 2px; flex-shrink: 0; }
+
+.prop-section { padding: 10px 12px; }
+.prop-section-title { font-size: .72rem; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .05em; margin: 0 0 8px; }
+.prop-grid { display: grid; grid-template-columns: 60px 1fr; gap: 5px 6px; align-items: center; }
+.prop-grid label { font-size: .75rem; color: #6b7280; }
+
+.prop-label { font-size: .75rem; color: #6b7280; display: block; margin: 6px 0 2px; }
+.prop-input {
+  width: 100%; border: 1px solid #e2e8f0; border-radius: 4px;
+  padding: 4px 7px; font-size: .8rem; background: white; box-sizing: border-box;
+}
+.prop-input:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+.prop-select {
+  width: 100%; border: 1px solid #e2e8f0; border-radius: 4px;
+  padding: 4px 7px; font-size: .8rem; background: white;
+}
+.prop-color { width: 40px; height: 28px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px; cursor: pointer; }
+
+.prop-toggles { display: flex; gap: 12px; margin: 6px 0; }
+.toggle-label { display: flex; align-items: center; gap: 5px; font-size: .78rem; color: #374151; cursor: pointer; }
+.toggle-label input[type=checkbox] { cursor: pointer; }
+
+.align-buttons { display: flex; gap: 4px; }
+.align-buttons button.active-align { background: #eff6ff; color: #3b82f6; }
+
+.prop-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  text-align: center;
+  padding: 24px 16px;
+  gap: 8px;
+}
+.prop-empty mat-icon { font-size: 2.5rem !important; width: auto !important; height: auto !important; }
+.prop-empty p { font-size: .82rem; margin: 0; color: #64748b; }
+.prop-empty-sub { font-size: .75rem; color: #94a3b8; }
+
+/* ── Utilidades compartidas ─────────────────────────────────────────────────── */
+.inline-input {
+  width: 100%; border: 1px solid #e2e8f0; border-radius: 4px;
+  padding: 5px 8px; font-size: .82rem; background: white; box-sizing: border-box;
+}
+.inline-input:focus { outline: 2px solid #3b82f6; border-color: transparent; }
+.inline-select {
+  width: 100%; border: 1px solid #e2e8f0; border-radius: 4px;
+  padding: 4px 7px; font-size: .8rem; background: white;
+}
+.file-label {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  font-size: .78rem; color: #3b82f6; background: #eff6ff; border: 1px solid #bfdbfe;
+  border-radius: 4px; padding: 5px 10px; transition: background .12s;
+}
+.file-label:hover { background: #dbeafe; }
+.file-label.sm { padding: 3px 7px; font-size: .72rem; }
+.file-label mat-icon { font-size: 1rem !important; width: 16px !important; height: 16px !important; }
+
+.empty-msg { font-size: .78rem; color: #94a3b8; text-align: center; padding: 12px; }

@@ -23,6 +23,7 @@ import {
   CostCenter,
   EstadoPagoNomina,
   ESTADOS_PAGO_NOMINA,
+  HistoricoResumen,
 } from '../../service/nomina/nomina.service';
 import {
   DesprendiblePreviewComponent,
@@ -95,6 +96,24 @@ export class HistoricoNominaComponent implements OnInit {
 
   isLoading = false;
 
+  /**
+   * Resumen "de módulo" del histórico: total y desglose por estado de TODAS
+   * las nóminas del filtro actual (empresa + periodo + centros + búsqueda).
+   * Se llena tras "BUSCAR EN HISTÓRICO" y queda fijo encima de la tabla. El
+   * conteo lo hace el backend, no solo lo cargado en pantalla. `null` antes
+   * de la primera búsqueda.
+   */
+  resumen: HistoricoResumen | null = null;
+  resumenLoading = false;
+  /** Texto descriptivo del filtro (empresa · periodo) para la cabecera. */
+  resumenContexto = '';
+  /**
+   * Filtro exacto de la última búsqueda. Se reutiliza para recargar el
+   * resumen tras un cambio de estado (sin refrescar la página) usando los
+   * MISMOS params que la tabla mostrada, no el estado actual del formulario.
+   */
+  private ultimoFiltroResumen: any = null;
+
   constructor(
     private nominaService: NominaService,
     private cdr: ChangeDetectorRef,
@@ -119,6 +138,30 @@ export class HistoricoNominaComponent implements OnInit {
         autoFocus: false,
       },
     );
+  }
+
+  /**
+   * Carga el resumen "de módulo" (total / pendientes / aprobadas / pagadas)
+   * del filtro actual. Usa los mismos params que la búsqueda para que los
+   * conteos casen con la tabla. Solo lectura: no afecta histórico, cálculo
+   * ni desprendible. En error deja el resumen anterior oculto sin romper el
+   * flujo.
+   */
+  private cargarResumen(params: any): void {
+    this.resumenLoading = true;
+    this.cdr.markForCheck();
+    this.nominaService.getResumenHistorico(params).subscribe({
+      next: (res) => {
+        this.resumen = res;
+        this.resumenLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.resumen = null;
+        this.resumenLoading = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   ngOnInit(): void {
@@ -242,7 +285,14 @@ export class HistoricoNominaComponent implements OnInit {
 
     this.isLoading = true;
     this.selectedIds.clear();
+    this.resumen = null; // el resumen anterior queda obsoleto al re-buscar
+    // Contexto para la cabecera del resumen (empresa · periodo).
+    const empresaTxt = this.clientControl.value?.nombre_legal || 'Todas las empresas';
+    this.resumenContexto = `${empresaTxt} · ${periodo.descripcion}`;
     this.cdr.markForCheck();
+    // Resumen de módulo: conteo en backend sobre TODO el filtro (en paralelo).
+    this.ultimoFiltroResumen = { ...params };
+    this.cargarResumen(params);
     this.nominaService.getHistorico(params).subscribe({
       next: (data) => {
         this.historicoDataSource.data = data;
@@ -341,6 +391,12 @@ export class HistoricoNominaComponent implements OnInit {
         this.selectedIds.clear();
         this.isLoading = false;
         this.cdr.markForCheck();
+        // Actualiza el tablero de resumen con el estado ya persistido en BD,
+        // sin refrescar la página. Reusa el filtro de la última búsqueda para
+        // que los conteos sigan casando con la tabla.
+        if (this.ultimoFiltroResumen) {
+          this.cargarResumen(this.ultimoFiltroResumen);
+        }
         Swal.fire(
           'Estado actualizado',
           `${resp.actualizados} de ${resp.solicitados} nómina(s) cambiadas a ${resp.estado}.`,

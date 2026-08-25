@@ -14,7 +14,8 @@ import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import {
-  NominaService, CalculoConNovedadesResponse, ConceptoSinHomologar,
+  NominaService, CalculoConNovedadesResponse, ConceptoSinHomologar, TnlSaldoPendiente,
+  TnlImportacionResponse,
 } from '../../service/nomina/nomina.service';
 
 type Step = 'select' | 'calculando' | 'done' | 'error';
@@ -93,6 +94,20 @@ type DialogData = {
 
         <!-- DONE -->
         <div *ngSwitchCase="'done'" class="cn-body">
+          <!-- §9: identidad del insumo, visible en pantalla -->
+          <div class="cn-archivo">
+            <mat-icon>description</mat-icon>
+            <span>
+              <strong>{{ conc()?.nombre_archivo || fileName() || '(sin archivo)' }}</strong>
+              · origen <strong>{{ conc()?.origen_novedades }}</strong>
+              · {{ conc()?.cantidad_filas_normalizadas || 0 }} fila(s) procesadas
+              <ng-container *ngIf="imp() as i">
+                · TNL: {{ i.filas_insertadas }} nuevas, {{ i.filas_duplicadas }} ya existentes,
+                {{ i.filas_rechazadas }} rechazadas, {{ i.filas_bloqueadas }} bloqueadas
+              </ng-container>
+            </span>
+          </div>
+
           <div *ngIf="warnings().length" class="cn-warnings">
             <div *ngFor="let w of warnings()" class="cn-warn">
               <mat-icon>warning</mat-icon><span>{{ w }}</span>
@@ -106,7 +121,7 @@ type DialogData = {
             </div>
             <div class="cn-stat cn-stat-accent">
               <strong>{{ result()?.contratos_con_novedad || 0 }}</strong>
-              <span>con novedades del Excel</span>
+              <span>con novedades aplicadas</span>
             </div>
             <div class="cn-stat">
               <strong>{{ result()?.totales?.neto | number:'1.0-0' }}</strong>
@@ -116,17 +131,17 @@ type DialogData = {
           <p class="cn-hint cn-explainer">
             Se liquidaron <strong>{{ result()?.contratos_calculados || 0 }}</strong>
             empleados del cliente con contrato vigente en este periodo.
-            Las novedades del Excel se aplicaron únicamente a los
+            Las novedades se aplicaron únicamente a los
             <strong>{{ result()?.contratos_con_novedad || 0 }}</strong>
-            empleados que aparecen en él; el resto recibió nómina base
+            empleados con movimiento en la quincena; el resto recibió nómina base
             (sueldo + auxilio + aportes).
           </p>
 
-          <!-- Embudo de cédulas: Excel → en sistema → con contrato del cliente → resueltas -->
+          <!-- Embudo de cédulas: novedad → en sistema → con contrato del cliente -->
           <div class="cn-funnel">
             <div class="cn-funnel-step">
               <span class="cn-funnel-num">{{ result()?.cedulas_excel || 0 }}</span>
-              <span class="cn-funnel-lbl">en Excel</span>
+              <span class="cn-funnel-lbl">con novedad</span>
             </div>
             <mat-icon>arrow_forward</mat-icon>
             <div class="cn-funnel-step">
@@ -139,6 +154,48 @@ type DialogData = {
               <span class="cn-funnel-lbl">con contrato del cliente</span>
             </div>
           </div>
+
+          <!-- Saldo TNL: qué se consume ahora y qué arrastra la quincena siguiente -->
+          <ng-container *ngIf="saldosTnl().length">
+            <h4>Novedades TNL de este periodo ({{ saldosTnl().length }})</h4>
+            <p class="cn-hint">
+              <strong>Nada se consume en el preview.</strong> Los días pendientes aparecerán
+              solos en el siguiente periodo con el que la novedad cruce; sólo un cierre
+              exitoso los marca como aplicados.
+            </p>
+            <table mat-table [dataSource]="saldosTnl()" class="cn-table">
+              <ng-container matColumnDef="documento">
+                <th mat-header-cell *matHeaderCellDef>Documento</th>
+                <td mat-cell *matCellDef="let s">{{ s.documento }}</td>
+              </ng-container>
+              <ng-container matColumnDef="concepto">
+                <th mat-header-cell *matHeaderCellDef>Concepto</th>
+                <td mat-cell *matCellDef="let s">{{ s.codigo_concepto }} · {{ s.descripcion_concepto }}</td>
+              </ng-container>
+              <ng-container matColumnDef="rango">
+                <th mat-header-cell *matHeaderCellDef>Rango</th>
+                <td mat-cell *matCellDef="let s">{{ s.fecha_inicio }} → {{ s.fecha_fin }}</td>
+              </ng-container>
+              <ng-container matColumnDef="ahora">
+                <th mat-header-cell *matHeaderCellDef>Días esta quincena</th>
+                <td mat-cell *matCellDef="let s"><strong>{{ s.dias_en_este_periodo }}</strong></td>
+              </ng-container>
+              <ng-container matColumnDef="pendiente">
+                <th mat-header-cell *matHeaderCellDef>Quedan pendientes</th>
+                <td mat-cell *matCellDef="let s">
+                  <span class="cn-saldo" [class.cn-saldo-on]="s.dias_pendientes_despues > 0">
+                    {{ s.dias_pendientes_despues }}
+                  </span>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="estado">
+                <th mat-header-cell *matHeaderCellDef>Quedará en</th>
+                <td mat-cell *matCellDef="let s">{{ s.estado_proyectado }}</td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="colsSaldo"></tr>
+              <tr mat-row *matRowDef="let row; columns: colsSaldo"></tr>
+            </table>
+          </ng-container>
 
           <ng-container *ngIf="conceptosSinHomologar().length">
             <h4>Conceptos sin homologar ({{ conceptosSinHomologar().length }})</h4>
@@ -255,6 +312,11 @@ type DialogData = {
     .cn-error mat-icon { font-size: 40px; width: 40px; height: 40px; color: #c62828; }
     .cn-actions { padding: 12px 20px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #eee; }
     h4 { margin: 16px 0 6px; font-size: 14px; }
+    .cn-archivo { display: flex; gap: 8px; align-items: center; background: #eef4ff;
+                   border-radius: 6px; padding: 9px 12px; margin-bottom: 14px; font-size: 12.5px; }
+    .cn-archivo mat-icon { color: #1976d2; font-size: 18px; width: 18px; height: 18px; }
+    .cn-saldo { padding: 2px 9px; border-radius: 10px; background: #eceff1; color: #546e7a; font-size: 12px; }
+    .cn-saldo-on { background: #fff3e0; color: #ef6c00; font-weight: 600; }
   `],
 })
 export class CalcularConNovedadesDialogComponent {
@@ -264,11 +326,24 @@ export class CalcularConNovedadesDialogComponent {
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
+  readonly colsSaldo = ['documento', 'concepto', 'rango', 'ahora', 'pendiente', 'estado'];
+
   step = signal<Step>('select');
   fileName = signal('');
   errorMsg = signal('');
   hojasDisponibles = signal<string[]>([]);
   result = signal<CalculoConNovedadesResponse | null>(null);
+  /** Resultado de la carga del TNL que precedió a este cálculo. */
+  imp = signal<TnlImportacionResponse | null>(null);
+
+  /** Conciliación del preview (identidad del archivo, origen, filas). */
+  conc = computed<any>(() => this.result()?.conciliacion || null);
+
+  /** Saldo por registro TNL que publica la conciliación del preview. La tabla sólo
+   *  aparece si el cliente tiene TNL cargado; para los demás queda vacía. */
+  saldosTnl = computed<TnlSaldoPendiente[]>(
+    () => (this.result()?.conciliacion as any)?.tnl_saldo_pendiente || [],
+  );
 
   conceptosSinHomologar = computed<ConceptoSinHomologar[]>(
     () => this.result()?.conceptos_sin_homologar || [],
@@ -306,6 +381,10 @@ export class CalcularConNovedadesDialogComponent {
     }
     this.fileName.set(f.name);
     this.step.set('calculando');
+    this.enviar(f);
+  }
+
+  private enviar(f: File | null): void {
 
     this.svc.calcularConNovedadesExcel(f, this.data.periodo_id, this.data.cliente_id, {
       contratoIds: this.data.contrato_ids,

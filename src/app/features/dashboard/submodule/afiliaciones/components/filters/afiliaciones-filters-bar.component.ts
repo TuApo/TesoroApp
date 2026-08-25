@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, ChangeDetectionStrategy } from '@angular/core';
 
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,12 +7,14 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
 import { FormsModule } from '@angular/forms';
 import * as _moment from 'moment';
 // @ts-ignore
 const moment = _moment.default || _moment;
 
-import { AfiliacionesDateRange } from '../../models/afiliaciones-dashboard.models';
+import { AfiliacionesDateRange, EmpresaUsuariaOpcion } from '../../models/afiliaciones-dashboard.models';
+import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
 
 @Component({
   selector: 'app-afiliaciones-filters-bar',
@@ -25,6 +27,7 @@ import { AfiliacionesDateRange } from '../../models/afiliaciones-dashboard.model
     MatNativeDateModule,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     FormsModule
   ],
   template: `
@@ -36,6 +39,16 @@ import { AfiliacionesDateRange } from '../../models/afiliaciones-dashboard.model
         </div>
 
         <div class="filters-actions">
+          <mat-form-field appearance="outline" class="base-field">
+            <mat-label>Filtrar por</mat-label>
+            <mat-select [(ngModel)]="baseSel" name="base"
+                        (selectionChange)="onBaseChange($event.value)">
+              <mat-option value="firma">Fecha de firma de contrato</mat-option>
+              <mat-option value="ingreso">Fecha de ingreso</mat-option>
+              <mat-option value="registro">Fecha de registro</mat-option>
+            </mat-select>
+          </mat-form-field>
+
           <div class="quick-ranges">
             <button mat-stroked-button color="primary" [class.active-range]="activeRange === 'hoy'" (click)="setRange('hoy')">Hoy</button>
             <button mat-stroked-button color="primary" [class.active-range]="activeRange === 'ayer'" (click)="setRange('ayer')">Ayer</button>
@@ -64,6 +77,58 @@ import { AfiliacionesDateRange } from '../../models/afiliaciones-dashboard.model
               Aplicar
             </button>
           </form>
+
+          <mat-form-field appearance="outline" class="empresa-field">
+            <mat-label>Empresa</mat-label>
+            <mat-select [(ngModel)]="empresaSel" name="empresa"
+                        (selectionChange)="onEmpresaChange($event.value)">
+              <mat-option value="">Todas</mat-option>
+              <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+              <mat-option value="TU_ALIANZA">Tu Alianza</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!--
+            Empresa USUARIA (el cliente donde trabaja la persona), distinta de la temporal
+            que contrata. Solo aparece si quien usa la barra pasó opciones: el tablero
+            analítico no la filtra y no debe verle un selector vacío.
+            El conteo al lado separa las empresas reales del ruido del formulario, donde hay
+            entradas sueltas con una sola contratación.
+          -->
+          @if (empresasUsuarias.length) {
+            <mat-form-field appearance="outline" class="empresa-usuaria-field">
+              <mat-label>Empresa usuaria</mat-label>
+              <mat-select [(ngModel)]="empresaUsuariaSel" name="empresaUsuaria"
+                          (selectionChange)="onEmpresaUsuariaChange($event.value)">
+                <mat-option value="">Todas</mat-option>
+                @for (e of empresasUsuarias; track e.clave) {
+                  <mat-option [value]="e.clave">{{ e.etiqueta }} ({{ e.total }})</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          }
+
+          <mat-form-field appearance="outline" class="oficina-field">
+            <mat-label>Oficina</mat-label>
+            <mat-select [(ngModel)]="oficinaSel" name="oficina"
+                        (selectionChange)="onOficinaChange($event.value)">
+              <mat-option value="">Todas</mat-option>
+              @for (o of oficinas; track o) {
+                <mat-option [value]="o">{{ o }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="responsable-field">
+            <mat-label>Responsable</mat-label>
+            <mat-select [(ngModel)]="responsableSel" name="responsable"
+                        (selectionChange)="onResponsableChange($event.value)">
+              <mat-option value="">Todos</mat-option>
+              @for (r of responsables; track r) {
+                <mat-option [value]="r">{{ r }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
 
           <mat-form-field appearance="outline" class="search-field">
             <mat-label>Buscar</mat-label>
@@ -141,7 +206,12 @@ import { AfiliacionesDateRange } from '../../models/afiliaciones-dashboard.model
     }
 
     ::ng-deep .date-field .mat-mdc-form-field-subscript-wrapper,
-    ::ng-deep .search-field .mat-mdc-form-field-subscript-wrapper {
+    ::ng-deep .search-field .mat-mdc-form-field-subscript-wrapper,
+    ::ng-deep .empresa-field .mat-mdc-form-field-subscript-wrapper,
+    ::ng-deep .empresa-usuaria-field .mat-mdc-form-field-subscript-wrapper,
+    ::ng-deep .oficina-field .mat-mdc-form-field-subscript-wrapper,
+    ::ng-deep .base-field .mat-mdc-form-field-subscript-wrapper,
+    ::ng-deep .responsable-field .mat-mdc-form-field-subscript-wrapper {
       display: none;
     }
 
@@ -161,12 +231,19 @@ import { AfiliacionesDateRange } from '../../models/afiliaciones-dashboard.model
     }
 
     .search-field { width: 240px; }
+    .empresa-field { width: 170px; }
+    /* Más ancha que las otras: las razones sociales son largas ("THE ELITE FLOWER S.A.S C.I"). */
+    .empresa-usuaria-field { width: 250px; }
+    .oficina-field { width: 180px; }
+    .responsable-field { width: 200px; }
+    .base-field { width: 230px; }
 
     @media (max-width: 900px) {
       .filters-content { flex-direction: column; align-items: flex-start; }
       .filters-actions { flex-direction: column; align-items: stretch; width: 100%; }
       .date-range-form { flex-direction: column; align-items: stretch; }
-      .date-field, .search-field { width: 100%; }
+      .date-field, .search-field, .empresa-field, .empresa-usuaria-field, .oficina-field,
+      .responsable-field, .base-field { width: 100%; }
       .date-separator { text-align: center; }
       .apply-btn { width: 100%; }
       .quick-ranges { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); }
@@ -177,14 +254,34 @@ import { AfiliacionesDateRange } from '../../models/afiliaciones-dashboard.model
 export class AfiliacionesFiltersBarComponent implements OnInit {
   @Output() rangeChanged = new EventEmitter<AfiliacionesDateRange>();
   @Output() searchChanged = new EventEmitter<string>();
+  @Output() empresaChanged = new EventEmitter<string>();
+  /** Empresa usuaria (cliente): emite la CLAVE normalizada, no la etiqueta. */
+  @Output() empresaUsuariaChanged = new EventEmitter<string>();
+  @Output() oficinaChanged = new EventEmitter<string>();
+  @Output() responsableChanged = new EventEmitter<string>();
+  /** Anclaje del rango: gobierna KPIs, resúmenes, catálogos y tabla a la vez. */
+  @Output() baseChanged = new EventEmitter<BaseFecha>();
 
-  activeRange = 'hoy';
+  /** Opciones dinámicas (derivadas de los datos cargados). */
+  @Input() oficinas: string[] = [];
+  @Input() responsables: string[] = [];
+  /** Vacío = el selector de empresa usuaria no se muestra. */
+  @Input() empresasUsuarias: EmpresaUsuariaOpcion[] = [];
+
+  activeRange = 'estemes';
   customStart: Date | null = null;
   customEnd: Date | null = null;
   searchTerm = '';
+  empresaSel = '';
+  empresaUsuariaSel = '';
+  oficinaSel = '';
+  responsableSel = '';
+  /** Debe coincidir con el default del servicio (BaseFecha = 'firma'). */
+  baseSel: BaseFecha = 'firma';
 
   ngOnInit() {
-    this.setRange('hoy');
+    // Arranca en "Este Mes" para que las gráficas temporales tengan varios días.
+    this.setRange('estemes');
   }
 
   setRange(type: string) {
@@ -223,6 +320,31 @@ export class AfiliacionesFiltersBarComponent implements OnInit {
 
   onSearchChange(term: string) {
     this.searchChanged.emit(term);
+  }
+
+  onEmpresaChange(empresa: string) {
+    this.empresaSel = empresa;
+    this.empresaChanged.emit(empresa);
+  }
+
+  onEmpresaUsuariaChange(clave: string) {
+    this.empresaUsuariaSel = clave;
+    this.empresaUsuariaChanged.emit(clave);
+  }
+
+  onOficinaChange(oficina: string) {
+    this.oficinaSel = oficina;
+    this.oficinaChanged.emit(oficina);
+  }
+
+  onResponsableChange(responsable: string) {
+    this.responsableSel = responsable;
+    this.responsableChanged.emit(responsable);
+  }
+
+  onBaseChange(base: BaseFecha) {
+    this.baseSel = base;
+    this.baseChanged.emit(base);
   }
 
   private emitRange(start: Date, end: Date) {

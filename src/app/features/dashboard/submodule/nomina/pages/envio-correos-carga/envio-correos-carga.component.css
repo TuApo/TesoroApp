@@ -1,0 +1,357 @@
+/* Envío de correos (modelo antiguo) → Carga por carpeta.
+   Paleta y espaciados alineados con el resto de pantallas de nómina. */
+
+.carga-page {
+  padding: 16px 20px 48px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Cabecera ─────────────────────────────────────────────────────────── */
+.cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.cabecera h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.sub {
+  margin: 0;
+  max-width: 70ch;
+  color: rgba(0, 0, 0, .6);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+/* ── Zona de selección ────────────────────────────────────────────────── */
+.zona-drop {
+  border: 2px dashed rgba(0, 0, 0, .18);
+  border-radius: 12px;
+  background: #fafafa;
+}
+
+.zona-drop mat-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.zona-drop h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.zona-drop p {
+  margin: 0;
+  max-width: 62ch;
+  color: rgba(0, 0, 0, .6);
+  font-size: .875rem;
+  line-height: 1.5;
+}
+
+.icono-grande {
+  width: 56px;
+  height: 56px;
+  font-size: 56px;
+  color: #134DA8;
+}
+
+.campo-empresa { width: 260px; }
+
+.analizando {
+  margin-top: 4px;
+  font-size: .85rem;
+  color: rgba(0, 0, 0, .6);
+}
+
+.zona-drop mat-progress-bar { width: min(420px, 100%); }
+
+/* ── Tarjetas ─────────────────────────────────────────────────────────── */
+.tarjeta,
+.tarjeta-lote { margin-bottom: 16px; }
+
+.tarjeta h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ayuda {
+  margin: 0 0 14px;
+  color: rgba(0, 0, 0, .6);
+  font-size: .85rem;
+  line-height: 1.45;
+}
+
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .06);
+  font-size: .85em;
+}
+
+/* ── Encabezado del lote ──────────────────────────────────────────────── */
+.lote-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px 24px;
+  align-items: start;
+}
+
+.lote-campo { display: flex; flex-direction: column; gap: 4px; }
+
+.lote-campo.quincena { grid-column: span 2; }
+
+.etiqueta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: rgba(0, 0, 0, .5);
+}
+
+.valor {
+  font-size: 1rem;
+  word-break: break-word;
+}
+
+.icono-aviso {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  color: #b26a00;
+  cursor: help;
+}
+
+.selector-quincena {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.compacto { width: 150px; }
+
+/* Material deja mucho hueco inferior por el hint; aquí no se usa. */
+.compacto ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
+
+/* ── Chips de resumen ─────────────────────────────────────────────────── */
+.chips-resumen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font-size: .8rem;
+  white-space: nowrap;
+}
+
+.chip strong { font-weight: 700; }
+
+.chip-ok { background: #e6f4ea; color: #14622c; }
+.chip-neutro { background: rgba(0, 0, 0, .07); color: rgba(0, 0, 0, .68); }
+.chip-alerta { background: #fdece7; color: #9c2d12; }
+
+/* ── Advertencias ─────────────────────────────────────────────────────── */
+.advertencia {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid #f5a623;
+  border-radius: 4px;
+  background: #fff8e8;
+  color: #6b4a00;
+  font-size: .85rem;
+  line-height: 1.45;
+}
+
+.advertencia mat-icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+}
+
+/* ── Tablas ───────────────────────────────────────────────────────────── */
+.tabla { width: 100%; }
+
+.tabla td { padding: 8px 12px 8px 0; vertical-align: top; }
+
+.sangria {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icono-carpeta {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  color: #f5a623;
+}
+
+.tipo-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #14622c;
+  font-weight: 500;
+}
+
+.tipo-ok mat-icon {
+  width: 17px;
+  height: 17px;
+  font-size: 17px;
+}
+
+.nombre-archivo {
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.tamano,
+.motivo {
+  margin-top: 2px;
+  color: rgba(0, 0, 0, .55);
+  font-size: .78rem;
+  line-height: 1.35;
+}
+
+.ruta {
+  max-width: 320px;
+  color: rgba(0, 0, 0, .6);
+  font-size: .78rem;
+  word-break: break-all;
+}
+
+/* ── Acciones finales ─────────────────────────────────────────────────── */
+.fila-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bloqueo { color: #9c2d12; font-weight: 500; }
+
+.progreso-texto {
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+
+.errores {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-left: 3px solid #d93025;
+  border-radius: 4px;
+  background: #fdece7;
+}
+
+.errores h4 {
+  margin: 0 0 8px;
+  font-size: .9rem;
+  color: #9c2d12;
+}
+
+.errores ul {
+  margin: 0;
+  padding-left: 18px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.errores li {
+  margin-bottom: 4px;
+  font-size: .82rem;
+  line-height: 1.4;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .carga-page { padding: 12px 12px 40px; }
+  .lote-campo.quincena { grid-column: span 1; }
+  .compacto { width: 100%; min-width: 120px; }
+  .ruta { max-width: 180px; }
+}
+
+/* ── Tabla de proceso de la subida ────────────────────────────────────── */
+.progreso-cabecera {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.titulo-proceso {
+  margin: 22px 0 10px;
+  font-size: .95rem;
+  font-weight: 600;
+}
+
+.titulo-proceso .tenue { font-weight: 400; }
+
+/* Con 200+ tandas la tabla no puede empujar la página hasta el infinito. */
+.tabla-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  border: 1px solid rgba(0, 0, 0, .1);
+  border-radius: 6px;
+}
+
+.chip-info { background: #e8f0fe; color: #134DA8; }
+
+.girando {
+  width: 14px;
+  height: 14px;
+  font-size: 14px;
+  animation: gira 1.1s linear infinite;
+}
+
+@keyframes gira { to { transform: rotate(360deg); } }
+
+/* Respeta a quien pide menos movimiento en el sistema. */
+@media (prefers-reduced-motion: reduce) {
+  .girando { animation: none; }
+}
+
+.fallidos { color: #9c2d12; }
+
+/* ── Contenido de la carga ────────────────────────────────────────────── */
+.fila-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fila-cabecera h3 { margin-bottom: 4px; }
+
+.btn-doc {
+  --mdc-outlined-button-container-height: 30px;
+  font-size: .78rem;
+}

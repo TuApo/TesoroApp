@@ -209,6 +209,71 @@
             </div>
           </section>
 
+          <!-- NOVEDADES DEL PERÍODO (informativas / no monetarias) -->
+          <section class="novedades">
+            <div class="section-head">
+              <span class="num">2</span>
+              <span class="title">Novedades del Período</span>
+              <span class="subtitle">— incapacidades, ausencias, sanciones y demás novedades informativas</span>
+              <span class="rule"></span>
+            </div>
+
+            @if (sinPago()) {
+              <div class="zero-pay-note">
+                <mat-icon>info</mat-icon>
+                <span>
+                  Este período <b>no registra pago neto</b>. El motivo está en las
+                  novedades listadas a continuación y en las deducciones del período
+                  — qué novedad redujo o suspendió el pago (incapacidad, sanción,
+                  ausencia, descuentos, etc.).
+                </span>
+              </div>
+            }
+
+            <div class="concept-block novedades-block">
+              <table class="concept-table novedades-table">
+                <thead>
+                  <tr>
+                    <th>Novedad</th>
+                    <th>Tipo</th>
+                    <th class="num">Cant.</th>
+                    <th class="num">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (nov of novedadesInformativas(); track trackNovedad($index, nov)) {
+                    <tr>
+                      <td class="concept">
+                        {{ nov.nombre_concepto }}
+                        @if (nov.observacion) {
+                          <span class="obs">{{ nov.observacion }}</span>
+                        }
+                      </td>
+                      <td><span class="tag">{{ naturalezaLabel(nov.naturaleza) }}</span></td>
+                      <td class="num">
+                        {{ formatCantidad(nov.cantidad) }}
+                        @if (nov.unidad && nov.cantidad) {
+                          <span class="unit">{{ nov.unidad | lowercase }}</span>
+                        }
+                      </td>
+                      <td class="num val">
+                        @if (nov.valor) {
+                          $ {{ nov.valor | number:'1.0-0':'es-CO' }}
+                        } @else {
+                          <span class="muted">—</span>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr class="empty-row">
+                      <td colspan="4">Sin novedades informativas registradas para este período.</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+
           <!-- NETO HERO -->
           <div class="neto-hero">
             <div class="left">
@@ -231,7 +296,7 @@
           <!-- PRÉSTAMOS / SALDOS -->
           <section>
             <div class="section-head">
-              <span class="num">2</span>
+              <span class="num">3</span>
               <span class="title">Préstamos y Saldos</span>
               <span class="subtitle">— información adicional</span>
               <span class="rule"></span>
@@ -323,7 +388,7 @@
           <!-- OBSERVACIONES -->
           <section class="observations">
             <div class="section-head">
-              <span class="num">3</span>
+              <span class="num">4</span>
               <span class="title">Observaciones</span>
               <span class="subtitle">— notas o aclaraciones del período</span>
               <span class="rule"></span>

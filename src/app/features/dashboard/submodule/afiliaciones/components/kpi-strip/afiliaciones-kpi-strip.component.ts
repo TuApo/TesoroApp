@@ -117,6 +117,16 @@ import { AfiliacionesKpiSummary } from '../../models/afiliaciones-dashboard.mode
       margin-bottom: 2rem;
     }
 
+    /* En el celular, 6 tarjetas apiladas dejan el resto del tablero fuera de la
+       primera pantalla: se compactan a dos por fila. */
+    @media (max-width: 640px) {
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.6rem;
+        margin-bottom: 1.25rem;
+      }
+    }
+
     .kpi-card {
       border-radius: 16px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
@@ -192,6 +202,17 @@ import { AfiliacionesKpiSummary } from '../../models/afiliaciones-dashboard.mode
     .bg-rose-100 { background-color: #ffe4e6; }
     .text-orange { color: #f97316; }
     .bg-orange-100 { background-color: #ffedd5; }
+
+    /* Tarjeta compacta en móvil: el icono estorba más de lo que aporta cuando
+       el ancho disponible es la mitad de la pantalla. */
+    @media (max-width: 640px) {
+      mat-card-content { padding: 0.75rem !important; }
+      .kpi-label { font-size: 0.66rem; letter-spacing: 0.03em; }
+      .kpi-value { font-size: 1.5rem; }
+      .kpi-icon-bg { width: 34px; height: 34px; border-radius: 10px; }
+      .kpi-icon-bg mat-icon { width: 20px; height: 20px; font-size: 20px; }
+      .hover-lift:hover { transform: none; }
+    }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush
 })

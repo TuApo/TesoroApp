@@ -1,0 +1,290 @@
+<div class="cruce-page">
+
+  <header class="cabecera">
+    <h1>Cruce por quincena</h1>
+    <p class="sub">
+      De la gente que va en el corte, quién tiene ya su archivo cargado y a quién
+      le falta. Donde el documento está en la plataforma se abre desde aquí; el
+      enlace de Drive queda solo como respaldo del histórico.
+    </p>
+  </header>
+
+  <!-- ── Filtros ────────────────────────────────────────────────────────── -->
+  <mat-card class="tarjeta filtros">
+    <mat-card-content>
+      <div class="fila-filtros">
+        <mat-form-field appearance="outline">
+          <mat-label>Quincena</mat-label>
+          <mat-select [ngModel]="periodoSel()"
+                      (ngModelChange)="periodoSel.set($event); consultar(true)">
+            @for (p of periodos(); track p.clave) {
+              <mat-option [value]="p.clave">
+                {{ p.etiqueta }} <span class="conteo">({{ p.total_filas }})</span>
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Qué se envía</mat-label>
+          <mat-select [ngModel]="tipoEnvioSel()"
+                      (ngModelChange)="tipoEnvioSel.set($event)">
+            <mat-option value="NOMINA">Nómina</mat-option>
+            <mat-option value="LIQUIDACION">Liquidación</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de documento</mat-label>
+          <mat-select [ngModel]="tipoSel()"
+                      (ngModelChange)="tipoSel.set($event); consultar(true)">
+            <mat-option [value]="null">Todos</mat-option>
+            @for (t of tipos(); track t.id) {
+              <mat-option [value]="t.id">{{ t.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Empresa</mat-label>
+          <mat-select [ngModel]="empresaSel()"
+                      (ngModelChange)="empresaSel.set($event); consultar(true)">
+            <mat-option [value]="null">Ambas</mat-option>
+            <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+            <mat-option value="ALIANZA">Tu Alianza</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select [ngModel]="estadoSel()"
+                      (ngModelChange)="estadoSel.set($event); consultar(true)">
+            <mat-option value="TODOS">Todos</mat-option>
+            <mat-option value="FALTANTES">Sin archivo</mat-option>
+            <mat-option value="SUBIDOS">Con archivo</mat-option>
+            <mat-option value="SIN_CORREO">Sin correo</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="buscador">
+          <mat-label>Cédula o nombre</mat-label>
+          <input matInput [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+                 (keyup.enter)="consultar(true)" placeholder="Buscar…" />
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+
+        <button mat-flat-button color="primary" (click)="consultar(true)" [disabled]="cargando()">
+          <mat-icon>filter_alt</mat-icon> Aplicar
+        </button>
+      </div>
+
+      @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ── Resumen del corte ──────────────────────────────────────────────── -->
+  @if (resumen(); as r) {
+    <div class="tarjetas-resumen">
+      <mat-card class="kpi">
+        <span class="kpi-valor">{{ r.total_personas }}</span>
+        <span class="kpi-nombre">Personas en el corte</span>
+      </mat-card>
+      <mat-card class="kpi ok">
+        <span class="kpi-valor">{{ r.subidos }}</span>
+        <span class="kpi-nombre">Con archivo ({{ porcentaje(r.subidos, r.total_personas) }}%)</span>
+      </mat-card>
+      <mat-card class="kpi alerta">
+        <span class="kpi-valor">{{ r.faltantes }}</span>
+        <span class="kpi-nombre">Sin archivo</span>
+      </mat-card>
+      <mat-card class="kpi aviso">
+        <span class="kpi-valor">{{ r.sin_correo }}</span>
+        <span class="kpi-nombre">Sin correo en esta página</span>
+      </mat-card>
+      @if (r.archivos_huerfanos > 0) {
+        <mat-card class="kpi alerta">
+          <span class="kpi-valor">{{ r.archivos_huerfanos }}</span>
+          <span class="kpi-nombre">Archivos que no están en la hoja</span>
+        </mat-card>
+      }
+    </div>
+  }
+
+  @for (a of advertencias(); track a) {
+    <div class="advertencia"><mat-icon>warning_amber</mat-icon><span>{{ a }}</span></div>
+  }
+
+  <!-- ── Cargas de documentos a cruzar ──────────────────────────────────── -->
+  @if (cargas().length) {
+    <mat-card class="tarjeta">
+      <mat-card-content>
+        <div class="fila-cabecera">
+          <div>
+            <h3>Cargas de documentos de esta quincena</h3>
+            <p class="ayuda">
+              Marca las que entran en el envío. Una <b>liquidación</b> son varias:
+              la liquidación va en una carpeta y sus anexos (cartas de retiro,
+              certificaciones, cesantías) en otras. Sin marcar nada se cruzan todas.
+            </p>
+          </div>
+          @if (cargasSel().length) {
+            <button mat-stroked-button (click)="limpiarCargas()">
+              <mat-icon>clear_all</mat-icon> Quitar selección
+            </button>
+          }
+        </div>
+
+        <div class="cargas">
+          @for (c of cargas(); track c.lote_id) {
+            <label class="carga" [class.elegida]="cargaSeleccionada(c.lote_id)">
+              <mat-checkbox [checked]="cargaSeleccionada(c.lote_id)"
+                            (change)="alternarCarga(c.lote_id)">
+              </mat-checkbox>
+              <div class="carga-datos">
+                <strong>{{ c.carpeta_raiz }}</strong>
+                <div class="tenue">
+                  {{ c.total_cargados }} documento(s)
+                  @if (c.empresa) { · {{ nombreEmpresa(c.empresa) }} }
+                </div>
+                <div class="tipos">
+                  @for (t of c.tipos; track t) { <span class="pill-tipo">{{ t }}</span> }
+                </div>
+              </div>
+            </label>
+          }
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ── Crear el borrador ────────────────────────────────────────────── -->
+    <mat-card class="tarjeta borrador">
+      <mat-card-content>
+        <div class="fila-acciones">
+          <div>
+            <h3>Preparar el envío</h3>
+            <p class="ayuda">
+              Se arma el borrador con estas cargas: cada persona lleva TODOS sus
+              documentos adjuntos. No se manda ningún correo todavía.
+            </p>
+          </div>
+          <div class="acciones-borrador">
+            <mat-form-field appearance="outline" class="plantilla">
+              <mat-label>Plantilla</mat-label>
+              <mat-select [ngModel]="plantillaSel()" (ngModelChange)="plantillaSel.set($event)">
+                <mat-option [value]="null">Automática</mat-option>
+                @for (p of plantillas(); track p.id) {
+                  <mat-option [value]="p.id">{{ p.nombre }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <button mat-flat-button color="primary" (click)="crearBorrador()"
+                    [disabled]="creandoBorrador() || cargando()">
+              <mat-icon>drafts</mat-icon> Crear borrador de envío
+            </button>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  <!-- ── Tabla ──────────────────────────────────────────────────────────── -->
+  @if (datos(); as d) {
+    <mat-card class="tarjeta">
+      <mat-card-content>
+        <table mat-table [dataSource]="filas()" class="tabla">
+
+          <ng-container matColumnDef="cedula">
+            <th mat-header-cell *matHeaderCellDef>Cédula</th>
+            <td mat-cell *matCellDef="let f"><strong>{{ f.cedula }}</strong></td>
+          </ng-container>
+
+          <ng-container matColumnDef="nombre">
+            <th mat-header-cell *matHeaderCellDef>Nombre</th>
+            <td mat-cell *matCellDef="let f">{{ f.nombre }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="finca">
+            <th mat-header-cell *matHeaderCellDef>Finca</th>
+            <td mat-cell *matCellDef="let f" class="tenue">{{ f.finca || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="correo">
+            <th mat-header-cell *matHeaderCellDef>Correo</th>
+            <td mat-cell *matCellDef="let f">
+              @if (f.sin_correo) {
+                <span class="pill alerta" matTooltip="Sin correo no se le podrá enviar nada">
+                  <mat-icon>mail_outline</mat-icon> Sin correo
+                </span>
+              } @else {
+                <span class="correo">{{ f.correo }}</span>
+              }
+            </td>
+          </ng-container>
+
+          <!-- Columna de respaldo cuando no hay cargas elegidas: sin tipos que
+               desglosar, al menos se ve quién tiene documento y quién no. -->
+          <ng-container matColumnDef="archivo">
+            <th mat-header-cell *matHeaderCellDef>Archivo</th>
+            <td mat-cell *matCellDef="let f">
+              @if (f.estado_archivo === 'SUBIDO') {
+                <button mat-stroked-button class="btn-doc" (click)="verDocumento(f)">
+                  <mat-icon>picture_as_pdf</mat-icon> Ver documento
+                </button>
+                <div class="tenue">{{ f.nombre_archivo }} · {{ tamanoLegible(f.tamano_bytes) }}</div>
+              } @else {
+                <span class="pill alerta"><mat-icon>error_outline</mat-icon> Falta</span>
+                <!-- Respaldo del histórico: las filas viejas solo tienen el
+                     enlace de Drive y no se van a migrar. -->
+                @if (f.link_legacy && f.link_legacy.startsWith('http')) {
+                  <a class="link-legacy" [href]="f.link_legacy" target="_blank" rel="noopener"
+                     matTooltip="Enlace antiguo de Drive (no está en la plataforma)">
+                    <mat-icon>link</mat-icon> Enlace antiguo
+                  </a>
+                }
+              }
+            </td>
+          </ng-container>
+
+          <!-- Una columna por tipo documental presente en las cargas elegidas:
+               reproduce la hoja original (Desprendibles, Certificaciones,
+               Cartas de retiro...) para ver a quién le falta QUÉ. -->
+          @for (col of columnas(); track col) {
+            @if (esColumnaTipo(col)) {
+              <ng-container [matColumnDef]="col">
+                <th mat-header-cell *matHeaderCellDef>{{ tipoDeColumna(col) }}</th>
+                <td mat-cell *matCellDef="let f">
+                  @if (documentoDeTipo(f, tipoDeColumna(col)); as doc) {
+                    <button mat-stroked-button class="btn-doc"
+                            (click)="verDocumentoDe(f, doc)"
+                            [matTooltip]="doc.carpeta_raiz || ''">
+                      <mat-icon>visibility</mat-icon> Ver
+                    </button>
+                  } @else {
+                    <span class="pill alerta"><mat-icon>remove</mat-icon> Falta</span>
+                  }
+                </td>
+              </ng-container>
+            }
+          }
+
+          <ng-container matColumnDef="enviado">
+            <th mat-header-cell *matHeaderCellDef>Envío</th>
+            <td mat-cell *matCellDef="let f" class="tenue">{{ f.confirmacion_envio || '—' }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="columnas()"></tr>
+          <tr mat-row *matRowDef="let row; columns: columnas();"></tr>
+        </table>
+
+        @if (!filas().length && !cargando()) {
+          <p class="vacio">No hay filas para los filtros seleccionados.</p>
+        }
+
+        <mat-paginator [length]="d.total_elements" [pageIndex]="d.page"
+                       [pageSize]="tamanoPagina()" [pageSizeOptions]="[25, 50, 100, 200]"
+                       (page)="onPagina($event)">
+        </mat-paginator>
+      </mat-card-content>
+    </mat-card>
+  }
+</div>

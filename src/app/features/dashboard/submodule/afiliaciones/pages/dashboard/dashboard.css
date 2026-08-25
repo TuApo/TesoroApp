@@ -7,6 +7,8 @@
   display: flex;
   flex-direction: column;
   padding-bottom: 2rem;
+  min-width: 0;
+  max-width: 100%;
   animation: fadeIn 0.4s ease-out forwards;
 }
 
@@ -14,6 +16,13 @@
   display: grid;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
+  min-width: 0;
+}
+
+/* Evita que la tabla ancha (min-width:1200px) empuje la página:
+   los items grid deben poder encoger para que el scroll quede DENTRO de la tarjeta. */
+.chart-grid > * {
+  min-width: 0;
 }
 
 .summary-charts {
@@ -22,6 +31,24 @@
 
 .full-width-chart {
   grid-template-columns: 1fr;
+}
+
+/* Las gráficas temporales necesitan una altura explícita para que ECharts
+   se dibuje (el contenedor flex del chart-card no impone alto por sí solo). */
+.full-width-chart app-contratacion-timeline-chart {
+  display: block;
+  width: 100%;
+  height: 380px;
+}
+
+/* Toggle de dimensión (Por Oficina / Por Empresa) en el header de la tarjeta */
+.dim-toggle ::ng-deep .mat-button-toggle-group {
+  border-radius: 8px;
+}
+
+.dim-toggle ::ng-deep .mat-button-toggle-checked {
+  background-color: #eff6ff;
+  color: #1d4ed8;
 }
 
 /* Resumen list items */
@@ -140,4 +167,19 @@
   .summary-charts {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 768px) {
+  .chart-grid { gap: 0.9rem; margin-bottom: 0.9rem; }
+
+  /* Las series temporales pierden legibilidad antes que altura: se recortan
+     para que quepan tablero y tabla sin scroll interminable. */
+  .full-width-chart app-contratacion-timeline-chart { height: 260px; }
+
+  .dim-toggle { width: 100%; }
+  .dim-toggle ::ng-deep .mat-button-toggle-group { width: 100%; }
+  .dim-toggle ::ng-deep .mat-button-toggle { flex: 1; }
+
+  .resumen-list { max-height: 320px; }
+  .resumen-info { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
 }

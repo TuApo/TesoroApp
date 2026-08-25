@@ -59,7 +59,16 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
 
   filterUnidad = '';
   filterNaturaleza = '';
+  filterAgrupador = '';
   filterSearch = '';
+
+  /** Agrupador: super-categoría de reporte (V29). El valor '' = todos,
+   *  'SIN' = sin agrupar (agrupador NULL en BD). */
+  readonly AGRUPADOR_LABELS: Record<string, string> = {
+    AUSENCIAS: 'Ausencias',
+    INCAPACIDADES: 'Incapacidades',
+    EXTRAS_Y_BONIFICACIONES: 'Extras y Bonificaciones',
+  };
 
   readonly UNIDAD_LABELS: Record<string, { label: string; icon: string; color: string }> = {
     DIA:   { label: 'Día',   icon: 'today',        color: 'unidad-dia' },
@@ -116,13 +125,18 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
     const q = (this.filterSearch || '').trim().toLowerCase();
     const u = this.filterUnidad || '';
     const n = this.filterNaturaleza || '';
+    const g = this.filterAgrupador || '';
     this.dataSource.data = this.allConceptos.filter(c => {
       if (u && c.unidad !== u) return false;
       if (n && c.naturaleza !== n) return false;
+      if (g) {
+        if (g === 'SIN') { if (c.agrupador) return false; }
+        else if (c.agrupador !== g) return false;
+      }
       if (q) {
         const blob = [
           c.codigo, c.descripcion, c.abreviatura,
-          c.naturaleza, c.unidad,
+          c.naturaleza, c.unidad, c.agrupador,
         ].filter(Boolean).join(' ').toLowerCase();
         if (!blob.includes(q)) return false;
       }
@@ -179,6 +193,7 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
   limpiarFiltros(): void {
     this.filterUnidad = '';
     this.filterNaturaleza = '';
+    this.filterAgrupador = '';
     this.filterSearch = '';
     this.aplicarFiltros();
   }

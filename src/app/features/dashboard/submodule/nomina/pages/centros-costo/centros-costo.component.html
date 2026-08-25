@@ -1,0 +1,137 @@
+<mat-card class="cc-card">
+  <!-- Encabezado -->
+  <div class="cc-header">
+    <div class="cc-title">
+      <mat-icon>account_tree</mat-icon>
+      <div>
+        <h1>Centros de Costo</h1>
+        <p>Administración de centros de costo por empresa usuaria (mantenimiento con borrado lógico)</p>
+      </div>
+    </div>
+    <button mat-flat-button color="primary" (click)="abrirDialogoCrear()">
+      <mat-icon>add</mat-icon>
+      Nuevo centro de costo
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="cc-filtros">
+    <mat-form-field appearance="outline" class="f-search">
+      <mat-label>Buscar</mat-label>
+      <input matInput [ngModel]="filterSearch" (ngModelChange)="onSearchChange($event)"
+             placeholder="Nombre, código o empresa usuaria">
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-empresa">
+      <mat-label>Empresa usuaria</mat-label>
+      <input type="text" matInput [formControl]="empresaControl" [matAutocomplete]="autoEmp"
+             placeholder="Escriba para filtrar…">
+      <mat-autocomplete #autoEmp="matAutocomplete" [displayWith]="displayEmpresa">
+        <mat-option [value]="''">Todas</mat-option>
+        <mat-option *ngFor="let e of filteredEmpresas$ | async" [value]="e">{{ e.nombre_legal }}</mat-option>
+      </mat-autocomplete>
+      <mat-icon matSuffix>business</mat-icon>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-estado">
+      <mat-label>Estado</mat-label>
+      <mat-select [(ngModel)]="filterEstado" (selectionChange)="onFiltroServerChange()">
+        <mat-option value="activos">Activos</mat-option>
+        <mat-option value="inactivos">Inactivos</mat-option>
+        <mat-option value="todos">Todos</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="limpiarFiltros()">
+      <mat-icon>filter_alt_off</mat-icon>
+      Limpiar
+    </button>
+
+    <span class="cc-count" *ngIf="!isLoading">{{ dataSource.data.length }} centro(s)</span>
+  </div>
+
+  <!-- Cargando -->
+  <div class="cc-loading" *ngIf="isLoading">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <!-- Tabla -->
+  <div class="cc-table-wrap" *ngIf="!isLoading">
+    <table mat-table [dataSource]="dataSource" matSort class="cc-table">
+
+      <ng-container matColumnDef="codigo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Código</th>
+        <td mat-cell *matCellDef="let c">
+          <code class="code-chip" *ngIf="c.codigo_interno">{{ c.codigo_interno }}</code>
+          <span *ngIf="!c.codigo_interno" class="text-muted">—</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="nombre">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Nombre</th>
+        <td mat-cell *matCellDef="let c"><span class="nombre">{{ c.nombre }}</span></td>
+      </ng-container>
+
+      <ng-container matColumnDef="empresa">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Empresa usuaria</th>
+        <td mat-cell *matCellDef="let c">{{ c.empresa_usuaria_nombre || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="sede">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Sede física</th>
+        <td mat-cell *matCellDef="let c">{{ c.sede_fisica || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="direccion">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Dirección</th>
+        <td mat-cell *matCellDef="let c">{{ c.direccion || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="estado">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="estado-chip" [class.activo]="c.active" [class.inactivo]="!c.active">
+            <mat-icon>{{ c.active ? 'check_circle' : 'cancel' }}</mat-icon>
+            {{ c.active ? 'Activo' : 'Inactivo' }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="contratos">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Contratos</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="num-badge" [matTooltip]="'Contratos asociados'">{{ c.contratos_count }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="acciones">
+        <th mat-header-cell *matHeaderCellDef>Acciones</th>
+        <td mat-cell *matCellDef="let c">
+          <button mat-icon-button color="primary" (click)="abrirDialogoEditar(c)" matTooltip="Editar">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" *ngIf="c.active"
+                  (click)="desactivar(c)" matTooltip="Desactivar">
+            <mat-icon>block</mat-icon>
+          </button>
+          <button mat-icon-button *ngIf="!c.active" class="btn-reactivar"
+                  (click)="reactivar(c)" matTooltip="Reactivar">
+            <mat-icon>restart_alt</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+          [class.fila-inactiva]="!row.active"></tr>
+    </table>
+
+    <div class="cc-empty" *ngIf="dataSource.data.length === 0">
+      <mat-icon>inbox</mat-icon>
+      <p>No hay centros de costo que coincidan con el filtro.</p>
+    </div>
+
+    <mat-paginator [pageSizeOptions]="[10, 25, 50, 100]" [pageSize]="25" showFirstLastButtons></mat-paginator>
+  </div>
+</mat-card>
