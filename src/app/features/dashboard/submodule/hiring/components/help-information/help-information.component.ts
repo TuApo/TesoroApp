@@ -96,6 +96,34 @@ export class HelpInformationComponent implements OnInit {
    *  recargue el candidato. */
   guardado = output<void>();
 
+  /** Foto del candidato ya resuelta por el pipeline; la pinta la ficha. */
+  fotoUrl = input<string | null>(null);
+  /** Click en la foto de la ficha → el pipeline abre el diálogo de cámara. */
+  fotoSolicitada = output<void>();
+  /** La ficha ofrece los pasos 4 y 5; el pipeline mueve el stepper. */
+  irAPaso = output<'salud' | 'contratacion'>();
+
+  /**
+   * Datos de la obra para la ficha del candidato.
+   *
+   * Se arma aquí y no en la ficha porque la vacante es de este componente: la
+   * ficha solo sabe pintar pares etiqueta/valor. Los vacíos se descartan al
+   * pintar, así que una vacante a medio diligenciar no deja filas en blanco.
+   */
+  readonly datosObra = computed<{ label: string; value: string | null }[]>(() => {
+    const v = this.vacanteSeleccionada();
+    if (!v) return [];
+    return [
+      { label: 'Empresa usuaria', value: v.empresaUsuariaSolicita ?? null },
+      { label: 'Centro de costo', value: v.finca ?? null },
+      { label: 'Cargo', value: v.cargo ?? null },
+      { label: 'Dirección', value: v.ubicacionPruebaTecnica ?? null },
+      { label: 'Descripción de la obra', value: v.descripcion ?? null },
+      { label: 'Ciudad de labor', value: v.area ?? null },
+      { label: 'Empresa grupo Elite', value: v.temporal ?? null },
+    ];
+  });
+
   /** Inyecta las banderas de override en cualquier payload de update-by-document. */
   private withOverride(payload: ProcesoUpdateByDocumentRequest): ProcesoUpdateByDocumentRequest {
     if (!this.modificacionForzada()) return payload;

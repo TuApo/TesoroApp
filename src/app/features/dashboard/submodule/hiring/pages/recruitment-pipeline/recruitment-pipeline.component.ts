@@ -875,6 +875,28 @@ export class RecruitmentPipelineComponent {
    */
   readonly tabIndex = signal(0);
 
+  /**
+   * Salto desde la ficha de Selección a los pasos 4 (exámenes) y 5
+   * (contratación) del stepper.
+   *
+   * La ficha ofrece esos dos pasos como pestaña para que, con la persona al
+   * frente, no haya que volver arriba a buscarlos. Respeta el mismo bloqueo
+   * que los tabs: con contrato activo no se entra sin dar de baja o usar
+   * "Modificar de todas formas", igual que si se hiciera click en el paso.
+   */
+  irAPaso(paso: 'salud' | 'contratacion'): void {
+    if (this.bloqueoContratoTabs()) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Contrato activo',
+        text: 'Dé de baja el contrato activo o use "Modificar de todas formas" para continuar.',
+        confirmButtonColor: '#21263C',
+      });
+      return;
+    }
+    this.tabIndex.set(paso === 'salud' ? 3 : 4);
+  }
+
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({
     ips: ['', Validators.required],

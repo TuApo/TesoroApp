@@ -27,6 +27,7 @@ import { MatNativeDateModule, MAT_DATE_FORMATS, DateAdapter, MAT_DATE_LOCALE } f
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MomentDateAdapter } from '@angular/material-moment-adapter';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { Observable, Subject, of } from 'rxjs';
 import { catchError, map, startWith, takeUntil } from 'rxjs/operators';
@@ -78,6 +79,7 @@ type DepCiudades = { ciudades: string[] };
     MatAutocompleteModule,
     FormsModule,
     MatChipsModule,
+    MatTooltipModule,
   ],
   templateUrl: './crear-editar-vacante.component.html',
   styleUrls: ['./crear-editar-vacante.component.css'],
@@ -132,6 +134,68 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   /** Finca cuyos datos ya se trajeron del maestro; evita recargas repetidas. */
   private fincaAplicada = '';
+
+  // ==========================================================================
+  // PROCEDENCIA DE LOS DATOS QUE TRAE EL CENTRO DE COSTO
+  // ==========================================================================
+  /*
+   * `aplicarFinca` rellena empresa, direccion, temporal y —cuando el maestro
+   * los da sin ambiguedad— salario y auxilio de transporte. En la pantalla
+   * vieja eso era invisible: campos identicos al resto que "se llenaban solos",
+   * sin decir de donde ni si podian tocarse. Ahora el formulario los agrupa,
+   * dice de que centro vienen y marca el que se haya ajustado a mano, para que
+   * la diferencia con la ficha del maestro se vea ANTES de guardar.
+   */
+
+  /** Centro de costo que rellenó los campos. `null` = todavía ninguno. */
+  heredadoDe: string | null = null;
+
+  /**
+   * Lo que trajo ese centro, por nombre de control. Solo lleva los campos que
+   * de verdad llegaron: si el maestro no dio salario, ese campo no es heredado
+   * y no debe marcarse como "ajustado" al digitarlo.
+   */
+  private heredado: Record<string, string> = {};
+
+  /** Orden en que la ficha pinta los campos heredados. */
+  readonly CAMPOS_HEREDADOS = [
+    { control: 'empresaUsuariaSolicita', label: 'Empresa' },
+    { control: 'direccion', label: 'Dirección' },
+    { control: 'temporal', label: 'Temporal' },
+    { control: 'salario', label: 'Salario' },
+    { control: 'auxilioTransporte', label: 'Auxilio Transporte' },
+  ] as const;
+
+  private norm(v: unknown): string {
+    return (v ?? '').toString().trim().toUpperCase();
+  }
+
+  /** Ese control lo trajo el centro de costo (aunque luego se haya tocado). */
+  esHeredado(control: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.heredado, control);
+  }
+
+  /** El valor actual ya no coincide con el que trajo el centro de costo. */
+  fueAjustado(control: string): boolean {
+    if (!this.esHeredado(control)) return false;
+    return this.norm(this.vacanteForm?.get(control)?.value) !== this.norm(this.heredado[control]);
+  }
+
+  get hayAjustes(): boolean {
+    return Object.keys(this.heredado).some((c) => this.fueAjustado(c));
+  }
+
+  /** Vuelve a poner los campos como los dejó el centro de costo. */
+  restaurarHeredados(): void {
+    if (!Object.keys(this.heredado).length) return;
+    const patch: Record<string, unknown> = {};
+    for (const [c, v] of Object.entries(this.heredado)) {
+      patch[c] = c === 'salario' ? Number(v) : (v || null);
+    }
+    // Sin markForCheck: este componente no es OnPush y el botón que llama aquí
+    // es un listener de plantilla, que en zoneless ya agenda la detección.
+    this.vacanteForm.patchValue(patch);
+  }
 
   constructor(
     private fb: FormBuilder,
@@ -748,6 +812,15 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         }
 
         this.vacanteForm.patchValue(patch);
+
+        // Deja constancia de QUÉ trajo el maestro y con qué valores. Se guarda
+        // desde `patch` y no de una lista fija porque salario y auxilio solo
+        // entran a veces: si no llegaron, no son heredados.
+        this.heredadoDe = limpio || q;
+        this.heredado = {};
+        for (const c of ['empresaUsuariaSolicita', 'direccion', 'temporal', 'salario', 'auxilioTransporte']) {
+          if (c in patch) this.heredado[c] = (patch[c] ?? '').toString();
+        }
 
         // La temporal del maestro es la que decide de qué hoja sale la labor,
         // así que la descripción se recalcula después de tenerla.

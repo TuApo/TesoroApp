@@ -6,33 +6,30 @@
   /* espacio para footer sticky */
 }
 
-/* Grid del formulario (4–5 campos por fila según ancho) */
-.mat-mdc-dialog-content form {
-  display: grid !important;
-  gap: 12px 16px !important;
-  align-items: start !important;
-  grid-auto-flow: dense !important;
-  grid-template-columns: 1fr !important;
-  /* móvil */
+/* El formulario ya no es una rejilla plana: es una columna de secciones, y la
+   rejilla vive DENTRO de cada una (.vac-grid). Antes los 18 campos caían en una
+   sola cuadrícula de 5 columnas sin ninguna agrupación, así que nada indicaba
+   qué campo tenía que ver con cuál. */
+.mat-mdc-dialog-content form.vac-form {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 22px !important;
 }
 
-@media (min-width:720px) {
-  .mat-mdc-dialog-content form {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
+.vac-grid {
+  display: grid;
+  gap: 12px 16px;
+  align-items: start;
+  grid-template-columns: 1fr; /* móvil */
 }
 
-@media (min-width:1024px) {
-  .mat-mdc-dialog-content form {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
-}
+@media (min-width:720px)  { .vac-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width:1024px) { .vac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width:1400px) { .vac-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
-@media (min-width:1400px) {
-  .mat-mdc-dialog-content form {
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-  }
-}
+/* Campos que piden más aire (cargo, centro de costo, municipios, oficinas). */
+@media (min-width:720px) { .vac-col-2 { grid-column: span 2; } }
+.vac-col-full { grid-column: 1 / -1; }
 
 /* Los campos llenan su celda sí o sí */
 mat-form-field,
@@ -52,14 +49,6 @@ mat-form-field,
   white-space: normal !important;
   text-overflow: clip !important;
   overflow: visible !important;
-}
-
-/* Títulos/bloques que deben ocupar todo el ancho del formulario */
-h3.titulo,
-[formArrayName="municipiosDistribucion"],
-[formArrayName="oficinasQueContratan"],
-.resumen-muni {
-  grid-column: 1 / -1 !important;
 }
 
 /* ================== 3 POR FILA: DISTRIBUCIÓN POR MUNICIPIO ================== */
@@ -335,4 +324,170 @@ h3.titulo,
 }
 .btn-managerial-icon:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ==========================================================================
+   SECCIONES DEL FORMULARIO Y PROCEDENCIA DE LOS DATOS
+   Paleta: tokens de marca (navy estructura, lima solo interacción, ámbar aviso).
+   ========================================================================== */
+
+.vac-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vac-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 9px;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.vac-sec-num {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #21263C;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.vac-sec-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #21263C;
+  letter-spacing: -0.01em;
+}
+
+.vac-sec-hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ── Bloque de datos heredados del centro de costo ────────────────────────
+   Empresa, dirección y temporal no se escriben: los trae el centro de costo.
+   Encerrarlos y etiquetarlos es todo el punto: antes eran tres campos iguales
+   al resto que se rellenaban solos, sin decir de dónde. */
+.vac-heredado {
+  padding: 12px;
+  border: 1px dashed #d8e0ea;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+/* Con centro de costo elegido el bloque deja de ser un placeholder: se marca
+   con el filo lima, que en este proyecto significa "esto ya actuó". */
+.vac-heredado-activo {
+  border-style: solid;
+  border-color: #e8edf3;
+  box-shadow: inset 3px 0 0 #8CD50A;
+}
+
+.vac-heredado-tag {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.vac-heredado-tag mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: #94a3b8;
+}
+
+.vac-heredado-activo .vac-heredado-tag mat-icon { color: #334155; }
+
+.vac-heredado-txt strong { color: #21263C; }
+
+.vac-restaurar {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border: 1px solid #f2dcac;
+  border-radius: 999px;
+  background: #fdf4e3;
+  color: #925a06;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vac-restaurar:hover { filter: brightness(.97); }
+
+.vac-restaurar mat-icon {
+  font-size: 14px !important;
+  width: 14px !important;
+  height: 14px !important;
+  color: #925a06 !important;
+}
+
+/* Campo heredado que se tocó a mano: ya no coincide con la ficha del centro
+   de costo, y eso conviene verlo ANTES de guardar. */
+.vac-ajustado .mat-mdc-text-field-wrapper {
+  background: #fdf4e3 !important;
+}
+
+.vac-hint-ajustado {
+  color: #925a06 !important;
+  font-weight: 600;
+}
+
+/* ── Resumen del reparto por municipio ── */
+.resumen-muni {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #334155;
+}
+
+.resumen-pendiente {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fdf4e3;
+  border: 1px solid #f2dcac;
+  color: #925a06;
+  font-weight: 700;
+}
+
+.error-dist {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d32f2f;
+}
+
+.vac-vacio {
+  margin: 0;
+  font-size: 12.5px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* ── Responsivo ── */
+@media (max-width: 900px) {
+  .vac-sec-hint { flex-basis: 100%; }
+  .vac-col-2 { grid-column: auto; }
+}
+
+@media (max-width: 600px) {
+  .vac-heredado { padding: 10px; }
+  .vac-restaurar { margin-left: 0; }
 }
