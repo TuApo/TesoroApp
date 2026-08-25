@@ -118,7 +118,19 @@
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Centro de costo carnet</mat-label>
           <input matInput formControlName="carnetCentroCosto">
-          <mat-hint>Es el que se imprime en el carnet. Si se deja vacío, se usa Ccostos.</mat-hint>
+          @if (carnetCaeAlCodigo) {
+            <mat-hint class="hint-alerta">
+              Vacío: el carnet imprimirá «{{ carnetImprime }}», que es el código de Ccostos y no un
+              nombre. Debería decir algo como APOYO POSTCOSECHA o POSCOSECHA. CARNATION.
+            </mat-hint>
+          } @else if (carnetImprime) {
+            <mat-hint>El carnet imprimirá «{{ carnetImprime }}».</mat-hint>
+          } @else {
+            <mat-hint>
+              Es el que se imprime en el carnet. Sale solo del maestro de centros de costo
+              (columna «Centro de costo»): APOYO POSTCOSECHA, FLORES EL FUTURO, EL COLEGIO.
+            </mat-hint>
+          }
         </mat-form-field>
 
         <!-- Datos de nómina: se prellenan desde el centro de costo y quedan editables -->
@@ -154,7 +166,16 @@
 
         <mat-form-field appearance="outline" class="example-full-width">
           <mat-label>Auxilio de Transporte</mat-label>
-          <input matInput formControlName="auxilioTransporte" type="text">
+          <input matInput formControlName="auxilioTransporte" type="text" placeholder="Sin dato">
+          @if (auxilioOrigen === 'vacante') {
+            <mat-hint>Lo trae la vacante.</mat-hint>
+          } @else if (auxilioOrigen === 'maestro') {
+            <mat-hint>La vacante no lo traía: sale del maestro de centros de costo.</mat-hint>
+          } @else {
+            <mat-hint class="hint-alerta">
+              Sin dato: ni la vacante ni el maestro lo definen sin ambigüedad. Verifícalo antes de contratar.
+            </mat-hint>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="example-full-width">

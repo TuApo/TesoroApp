@@ -758,8 +758,10 @@ export class HiringQuestionsComponent implements OnInit {
       if (ctx !== this._loadCtx) return;
       // Coincidencia exacta por Ccostos; si no, la primera del resultado.
       const norm = (v: any) => String(v ?? '').trim().toUpperCase();
-      const fila = (filas || []).find(f => norm(campo(f, 'Ccostos', 'ccostos')) === norm(cc))
-        ?? (filas || [])[0];
+      // Todas las filas del MISMO Ccostos, no solo la primera: el auxilio de
+      // más abajo necesita saber si entre ellas hay desacuerdo.
+      const delMismoCc = (filas || []).filter(f => norm(campo(f, 'Ccostos', 'ccostos')) === norm(cc));
+      const fila = delMismoCc[0] ?? (filas || [])[0];
       if (!fila) return;
 
       const poner = (control: string, valor: string) => {
@@ -788,6 +790,25 @@ export class HiringQuestionsComponent implements OnInit {
       poner('sucursal', centroCosto);
       poner('carnetCentroCosto', centroCosto);
       poner('codigoCompania', resolverCodigoCompania(empresa));
+
+      // Auxilio desde la fila exacta del Ccostos, pero solo si todas las filas
+      // de ese Ccostos coinciden: hay Ccostos con subcentros que difieren
+      // (RESROS: 5 con auxilio y 1 sin él) y tomar el de la primera fila metía
+      // un dato de nómina inventado. Nunca pisa lo que ya haya: la vacante y el
+      // maestro por finca ya corrieron antes que esto.
+      const auxCtrl = this.pagoTransporteForm.get('auxilioTransporte');
+      if (auxCtrl && !auxCtrl.value && delMismoCc.length) {
+        const auxValores = new Set(
+          delMismoCc.map(f => norm(campo(f, 'AUXILIO DE TRANSPORTE', 'auxilio_transporte'))),
+        );
+        if (auxValores.size === 1) {
+          const aux = this.toSiNo([...auxValores][0]);
+          if (aux) {
+            auxCtrl.setValue(aux, { emitEvent: false });
+            this.auxilioOrigen = 'maestro';
+          }
+        }
+      }
 
       this.ccostosAutollenado = cc.toUpperCase();
 
@@ -941,6 +962,33 @@ export class HiringQuestionsComponent implements OnInit {
   private ccostosAutollenado = '';
 
   /**
+   * De dónde salió el auxilio de transporte que se está mostrando.
+   * `null` = no se pudo resolver, y la pantalla lo dice en vez de fingir un 'No'.
+   */
+  auxilioOrigen: 'vacante' | 'maestro' | null = null;
+
+  /**
+   * Lo que va a quedar IMPRESO en el carnet.
+   *
+   * Espeja la regla del generador (`carnet_centro_costo || Ccentro_de_costos`,
+   * en carnet-masivo-dialog y generate-contracting-documents): con el campo
+   * vacío el carnet no sale en blanco, sale con el CÓDIGO del Ccostos. Se
+   * muestra en pantalla porque ese es el modo silencioso de equivocarse —
+   * imprimir "APYRO" donde debía decir "APOYO POSTCOSECHA".
+   */
+  get carnetImprime(): string {
+    const propio = String(this.pagoTransporteForm?.get('carnetCentroCosto')?.value ?? '').trim();
+    if (propio) return propio;
+    return String(this.pagoTransporteForm?.get('Ccostos')?.value ?? '').trim();
+  }
+
+  /** true cuando lo que se va a imprimir es el código de Ccostos, no un nombre. */
+  get carnetCaeAlCodigo(): boolean {
+    const propio = String(this.pagoTransporteForm?.get('carnetCentroCosto')?.value ?? '').trim();
+    return !propio && !!this.carnetImprime;
+  }
+
+  /**
    * Prellena los datos de nómina cruzando la vacante con el maestro de centros
    * de costo. El backend resuelve el cruce (los nombres de finca se escribieron
    * por separado en las dos tablas y casi nunca coinciden literal).
@@ -991,6 +1039,21 @@ export class HiringQuestionsComponent implements OnInit {
     soloSiVacio('sucursal', comun.centro_de_costo);
     soloSiVacio('carnetCentroCosto', comun.centro_de_costo);
     soloSiVacio('codigoCompania', resolverCodigoCompania(comun.empresa));
+
+    // Auxilio de transporte: lo manda la vacante, pero hay vacantes viejas y
+    // procesos sin publicación que no lo traen. El maestro es la segunda
+    // fuente y solo responde cuando TODAS las filas de la finca coinciden
+    // (difieren entre subcentros en ~1 de cada 5), así que lo que llega acá
+    // no es una adivinanza. Si tampoco lo sabe, el campo queda vacío a
+    // propósito y la pantalla lo dice: es mejor que un 'No' inventado.
+    const auxCtrl = this.pagoTransporteForm.get('auxilioTransporte');
+    if (auxCtrl && !auxCtrl.value) {
+      const auxMaestro = this.toSiNo(comun.auxilio_transporte);
+      if (auxMaestro) {
+        auxCtrl.setValue(auxMaestro, { emitEvent: false });
+        this.auxilioOrigen = 'maestro';
+      }
+    }
 
     // La temporal del maestro es más confiable que la de la vacante: en la
     // vacante se escoge a mano de una lista de dos opciones.
@@ -1509,14 +1572,27 @@ export class HiringQuestionsComponent implements OnInit {
       .catch(err => { Swal.fire('Error', 'No se pudo descargar el archivo', 'error'); throw err; });
   }
 
-  private toSiNo(v: any): 'Sí' | 'No' {
+  /**
+   * 'Sí' / 'No' del auxilio, o `null` cuando NO hay dato.
+   *
+   * Antes cualquier valor vacío caía en 'No' y la pestaña mostraba "sin
+   * auxilio" como si fuera un hecho de la vacante — justo lo que el parche de
+   * `auxilioTransporte: null` quería evitar, deshecho una capa más abajo.
+   * Distinguir "no tiene" de "no se sabe" es lo que permite avisarlo en
+   * pantalla y buscar el dato en el maestro de centros de costo.
+   */
+  private toSiNo(v: any): 'Sí' | 'No' | null {
+    if (v === null || v === undefined || v === '') return null;
     if (typeof v === 'boolean') return v ? 'Sí' : 'No';
     if (typeof v === 'number') return v > 0 ? 'Sí' : 'No';
     if (typeof v === 'string') {
       const s = v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-      return ['si', 'sí', 'true', '1', 'x', 's'].includes(s) ? 'Sí' : 'No';
+      if (!s) return null;
+      if (['si', 'true', '1', 'x', 's'].includes(s)) return 'Sí';
+      if (['no', 'false', '0', 'n'].includes(s)) return 'No';
+      return null;
     }
-    return 'No';
+    return null;
   }
 
   // ───────── Carga integral reactiva ─────────
@@ -1591,6 +1667,10 @@ export class HiringQuestionsComponent implements OnInit {
     }
     this.ultimaCedulaCargada = cedActual;
     this.ultimaCargaKey = cargaKey;
+
+    // Cada carga re-resuelve de dónde sale el auxilio; sin esto la pantalla
+    // seguía diciendo "viene de la vacante" con el dato del candidato anterior.
+    this.auxilioOrigen = null;
 
     const contr = proc?.contrato;
     const isEmptyValue = (v: any) => v === null || v === '' || (typeof v === 'boolean' && v === false);
@@ -1668,6 +1748,7 @@ export class HiringQuestionsComponent implements OnInit {
         const salarioFromVac = vac?.salario != null ? toNum(vac.salario) : null;
 
         const auxFromVac = this.toSiNo(vac?.auxilioTransporte);
+        if (auxFromVac) this.auxilioOrigen = 'vacante';
 
         this.pagoTransporteForm.patchValue({
           salario: salarioFromProc ?? salarioFromVac,
