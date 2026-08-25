@@ -33,6 +33,7 @@ import { FormsModule, FormArray, FormBuilder, FormGroup, Validators, ReactiveFor
 import { SharedModule } from '@/app/shared/shared.module';
 import { SearchForCandidateComponent } from '../../components/search-for-candidate/search-for-candidate.component';
 import { DocumentoPromptDialogComponent, DocumentoPrompt } from './documento-prompt.dialog';
+import { FichaCandidatoComponent } from '../../components/ficha-candidato/ficha-candidato.component';
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
 import { HiringQuestionsComponent } from '../../components/hiring-questions/hiring-questions.component';
 import { HelpInformationComponent } from '../../components/help-information/help-information.component';
@@ -116,6 +117,7 @@ type BioKind = 'foto' | 'huella' | 'firma';
     MatButtonToggleModule,
     SharedModule,
     MatMenuModule,
+    FichaCandidatoComponent,
     SearchForCandidateComponent, SelectionQuestionsComponent, HiringQuestionsComponent, HelpInformationComponent,
     RouterLink
   ],
@@ -904,12 +906,24 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    * ni una línea de la lógica de los pasos.
    */
   readonly pasos = [
-    { idx: 0, label: 'Turnos',              icon: 'search' },
     { idx: 1, label: 'Antecedentes',        icon: 'thumb_up' },
     { idx: 2, label: 'Selección',           icon: 'rate_review' },
     { idx: 3, label: 'Exámenes de ingreso', icon: 'medical_information' },
     { idx: 4, label: 'Contratación',        icon: 'how_to_reg' },
   ] as const;
+
+  /**
+   * Turnos ya no es un paso.
+   *
+   * La cola del día dejó de ser una pantalla: se busca por documento desde el
+   * diálogo y las acciones que vivían ahí (Excel, carnés, refrescar) están en
+   * el menú de la barra. El tab 0 sigue EXISTIENDO pero oculto, porque es
+   * quien aloja a `SearchForCandidateComponent`, que hace la búsqueda real.
+   */
+  readonly TAB_BUSCADOR = 0;
+
+  /** Documento tal como se tecleó, para contrastarlo con el que está en base. */
+  readonly documentoBuscado = signal<string | null>(null);
 
   /** Turnos (0) siempre entra; el resto respeta el bloqueo por contrato activo. */
   pasoBloqueado(idx: number): boolean {
@@ -980,6 +994,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
         if (!r) return;
         const b = this.buscador;
         if (!b) return;
+        this.documentoBuscado.set(r.numero);
         b.tipoDocSeleccionado = r.tipoDoc;
         b.cedula = r.numero;
         b.buscarCandidato();

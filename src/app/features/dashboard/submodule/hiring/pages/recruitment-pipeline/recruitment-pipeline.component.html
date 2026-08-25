@@ -369,6 +369,18 @@
          (.tab-group .mat-mdc-tab-header) y este rail es quien la gobierna: el
          grupo conserva el contenido y el estado de cada pestaña. -->
     <div class="pipeline-shell">
+      <!-- Los datos de la persona se quedan quietos: lo que cambia es el panel
+           de la derecha. Antes vivían dentro de Selección y desaparecían al
+           pasar a Antecedentes o Contratación. -->
+      <app-ficha-candidato
+        [candidato]="candidatoSeleccionado()"
+        [fotoUrl]="avatarPhotoUrl()"
+        [documentoBuscado]="documentoBuscado()"
+        (fotoSolicitada)="openCamera()"
+        (corregirDocumento)="abrirPromptDocumento()"
+        (editar)="abrirPromptDocumento()">
+      </app-ficha-candidato>
+
       <nav class="rail" role="tablist" aria-label="Pasos del proceso">
         @for (p of pasos; track p.idx) {
           <button type="button"

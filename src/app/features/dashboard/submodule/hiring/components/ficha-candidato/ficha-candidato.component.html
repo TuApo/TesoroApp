@@ -1,0 +1,110 @@
+<aside class="ficha" aria-label="Datos del candidato">
+
+  <header class="ficha-head">
+    <div class="ficha-head-text">
+      <span class="ficha-head-title">Datos del candidato</span>
+      <span class="ficha-head-hint">Siempre a la vista</span>
+    </div>
+    <button type="button" class="ficha-head-editar"
+            [disabled]="!candidato()"
+            matTooltip="Editar los datos" (click)="editar.emit('identificacion')">
+      <mat-icon>edit</mat-icon>
+    </button>
+  </header>
+
+  <!-- Identidad -->
+  <div class="ficha-id">
+    <button type="button" class="ficha-foto"
+            [class.ficha-foto-vacia]="!fotoUrl()"
+            [disabled]="!candidato()"
+            matTooltip="Tomar o actualizar la foto" matTooltipPosition="right"
+            (click)="fotoSolicitada.emit()">
+      @if (fotoUrl()) {
+        <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato" referrerpolicy="no-referrer" />
+      } @else {
+        <span class="ficha-foto-iniciales">{{ iniciales() }}</span>
+      }
+      @if (candidato()) {
+        <span class="ficha-foto-badge" aria-hidden="true"><mat-icon>photo_camera</mat-icon></span>
+      }
+    </button>
+
+    <div class="ficha-id-text">
+      <h2 class="ficha-nombre">{{ nombre() || 'Sin candidato' }}</h2>
+
+      <!-- El documento buscado, junto a la información: es la llave con la que
+           se entró y hay que poder contrastarla con la que está en base. -->
+      <div class="ficha-doc-linea">
+        <span class="ficha-chip ficha-chip-doc">
+          <mat-icon>badge</mat-icon>{{ tipoDoc() }} {{ documento() || documentoBuscado() || '—' }}
+        </span>
+        <button type="button" class="ficha-corregir"
+                matTooltip="Buscar por otros datos o corregir el documento"
+                (click)="corregirDocumento.emit()">
+          <mat-icon>manage_search</mat-icon>
+        </button>
+      </div>
+
+      @if (documentoDifiere()) {
+        <div class="ficha-aviso-doc">
+          <mat-icon>info</mat-icon>
+          Buscaste <strong>{{ documentoBuscado() }}</strong> y este registro tiene
+          <strong>{{ documento() }}</strong>.
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (!candidato()) {
+    <p class="ficha-sin">Busca una persona por documento para ver su información.</p>
+  } @else {
+
+    <!-- Bloques -->
+    @for (b of [
+      { id: 'identificacion', titulo: 'Identificación y documento', dot: 'blue',   filas: identificacion() },
+      { id: 'personales',     titulo: 'Datos personales',           dot: 'indigo', filas: personales() },
+      { id: 'contacto',       titulo: 'Contacto y domicilio',       dot: 'cyan',   filas: contacto() },
+      { id: 'familia',        titulo: 'Familia y referencias',      dot: 'purple', filas: familia() }
+    ]; track b.id) {
+      <section class="fblock">
+        <button type="button" class="fblock-head" (click)="alternar(b.id)"
+                [attr.aria-expanded]="!plegado(b.id)">
+          <span class="fblock-dot" [class]="'fblock-dot fblock-dot-' + b.dot"></span>
+          <span class="fblock-title">{{ b.titulo }}</span>
+          <span class="fblock-lapiz" matTooltip="Editar este bloque"
+                (click)="$event.stopPropagation(); editar.emit(b.id)">
+            <mat-icon>edit</mat-icon>
+          </span>
+          <mat-icon class="fblock-chevron">{{ plegado(b.id) ? 'expand_more' : 'expand_less' }}</mat-icon>
+        </button>
+
+        @if (!plegado(b.id)) {
+          <div class="fblock-body">
+            @for (f of b.filas; track f.label) {
+              <div class="frow frow-plana">
+                <span class="frow-label">{{ f.label }}</span>
+                <span class="frow-value" [class.frow-vacio]="!f.value"
+                      [class.frow-value-break]="f.break">{{ f.value || '—' }}</span>
+              </div>
+            }
+
+            <!-- Comprobación de contacto: se hace donde está el dato, no en otra
+                 pantalla, porque es lo que se verifica con la persona delante. -->
+            @if (b.id === 'contacto') {
+              <div class="fverif">
+                <span class="fverif-item" [class.fverif-ok]="correoConfirmado()">
+                  <mat-icon>{{ correoConfirmado() ? 'mark_email_read' : 'mail' }}</mat-icon>
+                  {{ correoConfirmado() ? 'Correo comprobado' : 'Correo sin comprobar' }}
+                </span>
+                <span class="fverif-item" [class.fverif-ok]="whatsappConfirmado()">
+                  <mat-icon>{{ whatsappConfirmado() ? 'verified' : 'chat' }}</mat-icon>
+                  {{ whatsappConfirmado() ? 'WhatsApp comprobado' : 'WhatsApp sin comprobar' }}
+                </span>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+  }
+</aside>

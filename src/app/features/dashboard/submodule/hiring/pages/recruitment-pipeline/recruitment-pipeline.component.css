@@ -1366,3 +1366,46 @@ mat-tab-group {
     max-height: none;
   }
 }
+
+/* ── La ficha, fija a la izquierda del rail ──────────────────────────────────
+   Es la base de todas las vistas: no se desmonta al cambiar de paso. */
+.pipeline-shell app-ficha-candidato {
+  flex: none;
+  width: 340px;
+  max-width: 100%;
+  padding-right: 14px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* El contenido del paso entra con un desplazamiento corto: da a entender que
+   cambió el panel y no la pantalla entera. */
+:host ::ng-deep .tab-group .mat-mdc-tab-body-active .tab-content-scrollable {
+  animation: panel-entra .22s ease-out;
+}
+
+@keyframes panel-entra {
+  from { opacity: 0; transform: translateX(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host ::ng-deep .tab-group .mat-mdc-tab-body-active .tab-content-scrollable {
+    animation: none;
+  }
+}
+
+@media (max-width: 1200px) {
+  .pipeline-shell app-ficha-candidato {
+    width: 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  .pipeline-shell app-ficha-candidato {
+    width: auto;
+    padding-right: 0;
+    padding-bottom: 12px;
+    overflow: visible;
+  }
+}

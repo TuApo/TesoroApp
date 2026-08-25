@@ -1,0 +1,531 @@
+/* ───────────────────────── Ficha (columna izquierda) ───────────────────── */
+.ficha {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  position: sticky;
+  top: 4px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+/* Barra fina en vez de la del sistema: la ficha es angosta y la nativa come
+   ~16px de ancho útil en Windows. */
+.ficha::-webkit-scrollbar { width: 6px; }
+.ficha::-webkit-scrollbar-thumb {
+  background: var(--slate-300);
+  border-radius: 999px;
+}
+
+.ficha-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--navy);
+  color: #fff;
+}
+
+.ficha-head-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ficha-head-title {
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.ficha-head-hint {
+  font-size: .72rem;
+  color: rgba(255, 255, 255, .68);
+}
+
+.ficha-head-icon {
+  color: rgba(255, 255, 255, .55);
+  flex: none;
+}
+
+/* ── Identidad: foto + nombre ── */
+.ficha-id {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.ficha-foto {
+  position: relative;
+  flex: none;
+  width: 76px;
+  height: 76px;
+  padding: 0;
+  border: 2px solid var(--slate-200);
+  border-radius: 50%;
+  background: var(--slate-100);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+.ficha-foto:hover,
+.ficha-foto:focus-visible {
+  border-color: var(--lime);
+  box-shadow: 0 0 0 4px rgba(140, 213, 10, .18);
+  outline: none;
+}
+
+.ficha-foto-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ficha-foto-iniciales {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--slate-500);
+  letter-spacing: .04em;
+}
+
+/* El badge de cámara se recorta contra el borde redondo del botón, así que
+   va pegado abajo-derecha y sin desbordar. */
+.ficha-foto-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  background: var(--lime);
+  border-radius: 50% 0 50% 50%;
+}
+
+.ficha-foto-badge mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+  color: var(--navy);
+}
+
+.ficha-id-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ficha-nombre {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--navy-deep);
+  overflow-wrap: anywhere;
+}
+
+.ficha-id-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ficha-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: .72rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.ficha-chip mat-icon {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Bloques de la ficha ── */
+.fblock {
+  background: var(--surface);
+  border: 1px solid var(--slate-200);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.fblock-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.fblock-head:hover { background: var(--slate-50); }
+
+.fblock-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.fblock-dot-blue   { background: #3b82f6; }
+.fblock-dot-indigo { background: #6366f1; }
+.fblock-dot-cyan   { background: #06b6d4; }
+.fblock-dot-purple { background: #a855f7; }
+.fblock-dot-amber  { background: var(--warning); }
+
+.fblock-title {
+  flex: 1;
+  min-width: 0;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--slate-700);
+}
+
+/* Contador de obligatorios sin llenar: ámbar, que es el token de "atención"
+   del proyecto (el rojo queda reservado a errores ya cometidos). */
+.fblock-faltan {
+  flex: none;
+  min-width: 18px;
+  padding: 1px 6px;
+  font-size: .68rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+}
+
+.fblock-chevron {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--slate-400);
+}
+
+.fblock-body {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--slate-200);
+}
+
+.fblock-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 12px;
+  padding: 6px 10px;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--navy);
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.fblock-link:hover { background: var(--slate-200); }
+
+.fblock-link mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Fila de dato ── */
+.frow + .frow { border-top: 1px solid var(--slate-100); }
+
+.frow-read {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "label lapiz" "value lapiz";
+  align-items: center;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+
+.frow-read:hover,
+.frow-read:focus-visible {
+  background: var(--slate-50);
+  outline: none;
+}
+
+.frow-plana {
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px;
+}
+
+.frow-label {
+  grid-area: label;
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: var(--slate-500);
+}
+
+.frow-value {
+  grid-area: value;
+  font-size: .84rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--navy-deep);
+  min-width: 0;
+}
+
+.frow-value-break { overflow-wrap: anywhere; }
+
+.frow-vacio {
+  color: var(--slate-400);
+  font-weight: 500;
+}
+
+/* El lápiz aparece al pasar por encima: en reposo la ficha se lee como una
+   ficha, no como un formulario lleno de iconos. */
+.frow-lapiz {
+  grid-area: lapiz;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--slate-400);
+  opacity: 0;
+  transition: opacity .14s ease;
+}
+
+.frow-read:hover .frow-lapiz,
+.frow-read:focus-visible .frow-lapiz { opacity: 1; }
+
+/* ── Fila en edición ── */
+.frow-abierta {
+  background: var(--slate-50);
+  box-shadow: inset 3px 0 0 var(--lime);
+}
+
+.frow-editor {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+}
+
+.frow-editor-stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.frow-field {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Controles compactos: la ficha mide 380px y los campos M3 por defecto se
+   comen esa altura en tres filas. */
+.frow-editor .frow-field {
+  --mat-form-field-outlined-container-shape: 9px;
+  font-size: .84rem;
+}
+
+.frow-editor .frow-field .mat-mdc-form-field-subscript-wrapper {
+  min-height: 0;
+}
+
+.frow-listo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--lime);
+  color: var(--navy);
+  cursor: pointer;
+}
+
+.frow-listo:hover { filter: brightness(.94); }
+
+.frow-listo-ancho {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 34px;
+  margin-top: 0;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.frow-listo mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* Hijos dentro de la ficha */
+.fhijos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fhijo {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px dashed var(--slate-300);
+  border-radius: 10px;
+}
+
+.fhijo-titulo {
+  margin-bottom: 6px;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+
+
+/* ── Añadidos del componente propio ──────────────────────────────────────── */
+:host { display: block; }
+
+.ficha-head-editar {
+  display: grid;
+  place-items: center;
+  width: 30px; height: 30px;
+  flex: none;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255,255,255,.12);
+  color: #fff;
+  cursor: pointer;
+}
+.ficha-head-editar:hover:not(:disabled) { background: rgba(255,255,255,.22); }
+.ficha-head-editar:disabled { opacity: .4; cursor: not-allowed; }
+.ficha-head-editar mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+.ficha-doc-linea { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.ficha-chip-doc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.ficha-corregir {
+  display: grid; place-items: center;
+  width: 26px; height: 26px;
+  border: 1px solid var(--slate-200);
+  border-radius: 7px;
+  background: var(--slate-50);
+  color: var(--slate-500);
+  cursor: pointer;
+}
+.ficha-corregir:hover { background: var(--slate-200); color: var(--navy); }
+.ficha-corregir mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+/* Se buscó un documento y salió otro: casi siempre es una cédula mal digitada
+   al registrar, así que se avisa en vez de dejarlo pasar callando. */
+.ficha-aviso-doc {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: 6px; padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-fg);
+  font-size: .72rem;
+  line-height: 1.35;
+}
+.ficha-aviso-doc mat-icon { flex: none; font-size: 14px; width: 14px; height: 14px; }
+
+.ficha-sin {
+  margin: 0;
+  padding: 18px 14px;
+  text-align: center;
+  font-size: .82rem;
+  color: var(--slate-400);
+  background: var(--surface);
+  border: 1px dashed var(--slate-300);
+  border-radius: var(--r-md);
+}
+
+/* El lápiz por bloque: abre el diálogo en esa sección. */
+.fblock-lapiz {
+  display: grid; place-items: center;
+  flex: none;
+  width: 24px; height: 24px;
+  border-radius: 6px;
+  color: var(--slate-400);
+  opacity: 0;
+  transition: opacity .14s ease, background .14s ease;
+}
+.fblock-head:hover .fblock-lapiz { opacity: 1; }
+.fblock-lapiz:hover { background: var(--slate-200); color: var(--navy); }
+.fblock-lapiz mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+/* Comprobación de correo y WhatsApp, junto al dato. */
+.fverif {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px 12px;
+}
+.fverif-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 600;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-fg);
+}
+.fverif-ok {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+  color: var(--ok-fg);
+}
+.fverif-item mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+/* La ficha ya no es sticky por su cuenta: la altura la gobierna el pipeline. */
+.ficha { position: static; max-height: none; overflow: visible; }
