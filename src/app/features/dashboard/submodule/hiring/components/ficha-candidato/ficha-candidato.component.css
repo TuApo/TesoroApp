@@ -1,23 +1,14 @@
+@import "../../shared/tokens.css";
+
 /* ───────────────────────── Ficha (columna izquierda) ───────────────────── */
+/* Quien hace scroll es el HOST (`app-ficha-candidato` en el pipeline). Este
+   contenedor NO debe scrollear también: dos cajas desplazables anidadas
+   pintaban dos barras pegadas y el contenido se movía a saltos. */
 .ficha {
   display: flex;
   flex-direction: column;
   gap: 10px;
   min-width: 0;
-  position: sticky;
-  top: 4px;
-  max-height: calc(100vh - 260px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 4px;
-}
-
-/* Barra fina en vez de la del sistema: la ficha es angosta y la nativa come
-   ~16px de ancho útil en Windows. */
-.ficha::-webkit-scrollbar { width: 6px; }
-.ficha::-webkit-scrollbar-thumb {
-  background: var(--slate-300);
-  border-radius: 999px;
 }
 
 .ficha-head {
@@ -57,11 +48,15 @@
 }
 
 /* ── Identidad: foto + nombre ── */
+/* Foto arriba, número debajo y el nombre a lo ancho. En dos columnas el
+   nombre se quedaba con ~170px y los nombres largos caían en tres renglones,
+   con la mitad de la tarjeta vacía. */
 .ficha-id {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 14px;
+  gap: 10px;
+  padding: 16px 14px;
   background: var(--surface);
   border: 1px solid var(--slate-200);
   border-radius: var(--r-md);
@@ -78,7 +73,6 @@
   border-radius: 50%;
   background: var(--slate-100);
   cursor: pointer;
-  overflow: hidden;
   transition: border-color .16s ease, box-shadow .16s ease;
 }
 
@@ -89,11 +83,14 @@
   outline: none;
 }
 
+/* El recorte redondo lo hace cada hijo, no el botón: con `overflow: hidden`
+   en el botón el badge de la cámara se comía media esquina. */
 .ficha-foto-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 50%;
 }
 
 .ficha-foto-iniciales {
@@ -101,24 +98,26 @@
   place-items: center;
   width: 100%;
   height: 100%;
+  border-radius: 50%;
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--slate-500);
   letter-spacing: .04em;
 }
 
-/* El badge de cámara se recorta contra el borde redondo del botón, así que
-   va pegado abajo-derecha y sin desbordar. */
+/* Badge de cámara: un círculo limpio montado sobre el borde de la foto, con
+   un aro del color del fondo para que se despegue de la imagen. */
 .ficha-foto-badge {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: -2px;
+  bottom: -2px;
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   background: var(--lime);
-  border-radius: 50% 0 50% 50%;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
 }
 
 .ficha-foto-badge mat-icon {
@@ -128,11 +127,25 @@
   color: var(--navy);
 }
 
+/* La foto y el documento van juntos en una columna: el número es la llave con
+   la que se busca a la persona, así que vive pegado a su cara y no perdido
+   entre los demás datos. */
+.ficha-id-foto {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
 .ficha-id-text {
+  width: 100%;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
+  text-align: center;
 }
 
 .ficha-nombre {
@@ -291,14 +304,22 @@
   outline: none;
 }
 
+/* Etiqueta encima del valor, apiladas.
+   Ojo: esto era `display: grid` sin `grid-template-areas`, mientras que
+   `.frow-label` y `.frow-value` traen `grid-area: label` / `grid-area: value`.
+   Sin áreas declaradas esos nombres no resuelven a ninguna línea y los dos
+   elementos caen en la MISMA celda: la etiqueta y el dato se pintaban
+   literalmente uno encima del otro. Aquí se apila con flex y el `grid-area`
+   queda acotado a `.frow-read`, que sí declara sus áreas. */
 .frow-plana {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
   padding: 9px 12px;
+  min-width: 0;
 }
 
 .frow-label {
-  grid-area: label;
   font-size: .68rem;
   font-weight: 600;
   letter-spacing: .04em;
@@ -306,13 +327,15 @@
 }
 
 .frow-value {
-  grid-area: value;
   font-size: .84rem;
   font-weight: 600;
   line-height: 1.35;
   color: var(--navy-deep);
   min-width: 0;
 }
+
+.frow-read .frow-label { grid-area: label; }
+.frow-read .frow-value { grid-area: value; }
 
 .frow-value-break { overflow-wrap: anywhere; }
 
@@ -450,7 +473,7 @@
 .ficha-head-editar:disabled { opacity: .4; cursor: not-allowed; }
 .ficha-head-editar mat-icon { font-size: 17px; width: 17px; height: 17px; }
 
-.ficha-doc-linea { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ficha-doc-linea { display: flex; align-items: center; justify-content: center; gap: 4px; }
 
 .ficha-chip-doc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 

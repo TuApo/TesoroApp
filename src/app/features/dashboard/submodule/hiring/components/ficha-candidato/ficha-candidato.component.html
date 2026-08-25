@@ -14,36 +14,44 @@
 
   <!-- Identidad -->
   <div class="ficha-id">
-    <button type="button" class="ficha-foto"
-            [class.ficha-foto-vacia]="!fotoUrl()"
-            [disabled]="!candidato()"
-            matTooltip="Tomar o actualizar la foto" matTooltipPosition="right"
-            (click)="fotoSolicitada.emit()">
-      @if (fotoUrl()) {
-        <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato" referrerpolicy="no-referrer" />
-      } @else {
-        <span class="ficha-foto-iniciales">{{ iniciales() }}</span>
-      }
-      @if (candidato()) {
-        <span class="ficha-foto-badge" aria-hidden="true"><mat-icon>photo_camera</mat-icon></span>
-      }
-    </button>
+    <div class="ficha-id-foto">
+      <button type="button" class="ficha-foto"
+              [class.ficha-foto-vacia]="!fotoUrl()"
+              [disabled]="!candidato()"
+              matTooltip="Tomar o actualizar la foto" matTooltipPosition="right"
+              (click)="fotoSolicitada.emit()">
+        @if (fotoUrl()) {
+          <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato" referrerpolicy="no-referrer" />
+        } @else {
+          <span class="ficha-foto-iniciales">{{ iniciales() }}</span>
+        }
+        @if (candidato()) {
+          <span class="ficha-foto-badge" aria-hidden="true"><mat-icon>photo_camera</mat-icon></span>
+        }
+      </button>
 
-    <div class="ficha-id-text">
-      <h2 class="ficha-nombre">{{ nombre() || 'Sin candidato' }}</h2>
-
-      <!-- El documento buscado, junto a la información: es la llave con la que
-           se entró y hay que poder contrastarla con la que está en base. -->
+      <!-- El documento, DEBAJO de la foto: es la llave con la que se entra y
+           con la que se contrasta lo que está en base. La lupa abre el diálogo
+           de búsqueda, que es la única puerta para traer a otra persona. -->
       <div class="ficha-doc-linea">
         <span class="ficha-chip ficha-chip-doc">
           <mat-icon>badge</mat-icon>{{ tipoDoc() }} {{ documento() || documentoBuscado() || '—' }}
         </span>
         <button type="button" class="ficha-corregir"
-                matTooltip="Buscar por otros datos o corregir el documento"
+                matTooltip="Buscar otra persona o corregir el documento"
                 (click)="corregirDocumento.emit()">
           <mat-icon>manage_search</mat-icon>
         </button>
       </div>
+    </div>
+
+    <div class="ficha-id-text">
+      <!-- Con documento pero sin nombre NO es "sin candidato": es un registro
+           al que le falta el nombre, y decirlo así evita creer que no se
+           encontró a nadie. -->
+      <h2 class="ficha-nombre">
+        {{ nombre() || (candidato() ? 'Sin nombre registrado' : 'Sin candidato') }}
+      </h2>
 
       @if (documentoDifiere()) {
         <div class="ficha-aviso-doc">

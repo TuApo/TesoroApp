@@ -381,40 +381,128 @@
         (editar)="abrirPromptDocumento()">
       </app-ficha-candidato>
 
-      <nav class="rail" role="tablist" aria-label="Pasos del proceso">
-        @for (p of pasos; track p.idx) {
-          <button type="button"
-                  class="rail-item"
-                  role="tab"
-                  [class.rail-activa]="tabIndex() === p.idx"
-                  [class.rail-hecha]="p.idx === 3 && examenesYaCargados()"
-                  [attr.aria-selected]="tabIndex() === p.idx"
-                  [disabled]="pasoBloqueado(p.idx)"
-                  [matTooltip]="pasoBloqueado(p.idx) ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : p.label"
-                  matTooltipPosition="right"
-                  (click)="seleccionarPaso(p.idx)">
-            <mat-icon>{{ p.idx === 3 && examenesYaCargados() ? 'check_circle' : p.icon }}</mat-icon>
-            <span class="rail-txt">{{ p.label }}</span>
-          </button>
-        }
-      </nav>
+      <!-- ══════════════════════════════════════════════════════════════════
+           NAVEGACIÓN EN DOS CAPAS
+           Capa 1 · los dos momentos del proceso (Selección / Contratación).
+           Capa 2 · los pasos del momento abierto.
+           El `mat-tab-group` sigue mandando sobre el contenido; los railes
+           solo lo gobiernan. Cada botón lleva su porcentaje de llenado para
+           que se vea de un vistazo qué queda pendiente y dónde.
+           ══════════════════════════════════════════════════════════════════ -->
+      <div class="rails">
+
+        <nav class="rail rail-capa1" role="tablist" aria-label="Momentos del proceso">
+          @for (c of capas; track c.id) {
+            @let pctC = pctCapa(c.id);
+            <button type="button" class="capa" role="tab"
+                    [class.capa-activa]="capaActiva() === c.id"
+                    [attr.aria-selected]="capaActiva() === c.id"
+                    [disabled]="bloqueoContratoTabs()"
+                    [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleCapa(c.label, c.id)"
+                    matTooltipPosition="right"
+                    (click)="abrirCapa(c.id)">
+              <span class="capa-anillo"
+                    [class.anillo-lleno]="pctC === 100"
+                    [style.background]="fondoAnillo(pctC)">
+                <span class="capa-anillo-centro">
+                  <mat-icon>{{ pctC === 100 ? 'check' : c.icon }}</mat-icon>
+                </span>
+              </span>
+              <span class="capa-txt">{{ c.label }}</span>
+              <span class="capa-pct">{{ pctC === null ? '—' : pctC + '%' }}</span>
+            </button>
+          }
+        </nav>
+
+        <nav class="rail rail-capa2" role="tablist"
+             [attr.aria-label]="capaActiva() === 'seleccion' ? 'Pasos de Selección' : 'Pasos de Contratación'">
+
+          <span class="rail-capa2-titulo">
+            {{ capaActiva() === 'seleccion' ? 'Selección' : 'Contratación' }}
+          </span>
+
+          @if (capaActiva() === 'seleccion') {
+            @for (s of subSeleccion; track s.id) {
+              @let pctS = pctSub(s.clave);
+              <button type="button" class="sub" role="tab"
+                      [class.sub-activo]="subSeleccionActivo() === s.id"
+                      [class.sub-completo]="pctS === 100"
+                      [attr.aria-selected]="subSeleccionActivo() === s.id"
+                      [disabled]="bloqueoContratoTabs()"
+                      [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleAvance(s.label, s.clave)"
+                      matTooltipPosition="right"
+                      (click)="abrirSubSeleccion(s)">
+                <mat-icon class="sub-icon">{{ pctS === 100 ? 'check_circle' : s.icon }}</mat-icon>
+                <span class="sub-cuerpo">
+                  <span class="sub-fila">
+                    <span class="sub-txt">{{ s.label }}</span>
+                    <span class="sub-pct">{{ pctS === null ? '' : pctS + '%' }}</span>
+                  </span>
+                  @if (pctS !== null) {
+                    <span class="sub-barra">
+                      <span class="sub-barra-fill" [style.width.%]="pctS"></span>
+                    </span>
+                  }
+                </span>
+              </button>
+            }
+          } @else {
+            @for (s of subContratacion; track s.id) {
+              @let pctS = pctSub(s.clave);
+              <button type="button" class="sub" role="tab"
+                      [class.sub-activo]="subContratacionActivo() === s.idx"
+                      [class.sub-completo]="pctS === 100"
+                      [attr.aria-selected]="subContratacionActivo() === s.idx"
+                      [disabled]="bloqueoContratoTabs()"
+                      [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleAvance(s.label, s.clave)"
+                      matTooltipPosition="right"
+                      (click)="abrirSubContratacion(s)">
+                <mat-icon class="sub-icon">{{ pctS === 100 ? 'check_circle' : s.icon }}</mat-icon>
+                <span class="sub-cuerpo">
+                  <span class="sub-fila">
+                    <span class="sub-txt">{{ s.label }}</span>
+                    <span class="sub-pct">{{ pctS === null ? '' : pctS + '%' }}</span>
+                  </span>
+                  @if (pctS !== null) {
+                    <span class="sub-barra">
+                      <span class="sub-barra-fill" [style.width.%]="pctS"></span>
+                    </span>
+                  }
+                </span>
+              </button>
+            }
+          }
+        </nav>
+      </div>
+
+    <!-- Contrato activo: el panel de trabajo se tapa, no se destruye. Antes
+         esto se resolvía saltando a la pestaña 0 (Turnos); sin esa pantalla,
+         el salto dejaba un panel en blanco. Ocultar en vez de desmontar
+         conserva lo escrito para cuando se entre con "Modificar de todas
+         formas". -->
+    @if (bloqueoContratoTabs()) {
+      <div class="contrato-lock">
+        <mat-icon class="contrato-lock-icon">lock</mat-icon>
+        <h3 class="contrato-lock-titulo">Proceso bloqueado</h3>
+        <p class="contrato-lock-texto">
+          {{ nombreCandidato || 'Esta persona' }} tiene un contrato vigente.
+          Dale de baja el contrato o entra con <strong>Modificar de todas formas</strong>
+          —los dos botones están en el aviso de arriba— para seguir con el proceso.
+        </p>
+      </div>
+    }
 
     <mat-tab-group class="tab-group"
+      [class.tab-group-oculto]="bloqueoContratoTabs()"
       [selectedIndex]="tabIndex()"
       (selectedIndexChange)="tabIndex.set($event)">
-      <mat-tab>
-        <ng-template mat-tab-label>
-          <div class="tab">
-            <mat-icon>search</mat-icon>
-            Turnos
-          </div>
-        </ng-template>
-        <div class="tab-content-scrollable">
-          <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)"
-            (carnetMasivo)="abrirCarnetMasivo($event)">
-          </app-search-for-candidate>
-        </div>
-      </mat-tab>
+      <!-- Pestaña 0 · vacía a propósito.
+           Turnos dejó de ser una pantalla: la cola del día y el buscador ya no
+           se muestran, se busca por el diálogo de documento. El tab se queda
+           como hueco para NO renumerar las pestañas 1..4, que están cableadas
+           en el rail, en `irAPaso` y en los saltos del formulario. Nadie
+           navega hasta aquí. -->
+      <mat-tab></mat-tab>
 
       <mat-tab [disabled]="bloqueoContratoTabs()">
         <ng-template mat-tab-label>
@@ -683,6 +771,18 @@
           </mat-tab>
 
         </mat-tab-group>
+
+      <!-- El buscador ya no se ve, pero SIGUE siendo quien busca de verdad: el
+           diálogo de documento le escribe la cédula y llama a su
+           `buscarCandidato()`, que además consulta vetados, asegura el estado
+           del robot y encola en la tabla del día. Vive fuera del grupo de
+           pestañas para que exista siempre; dentro solo se instanciaba al
+           abrir su pestaña, y esa pestaña ya no se abre nunca. -->
+      <div class="buscador-oculto" aria-hidden="true">
+        <app-search-for-candidate (candidatoSeleccionado)="onCandidatoSeleccionado($event)"
+          (carnetMasivo)="abrirCarnetMasivo($event)">
+        </app-search-for-candidate>
+      </div>
     </div>
       </mat-card-content>
     </mat-card>

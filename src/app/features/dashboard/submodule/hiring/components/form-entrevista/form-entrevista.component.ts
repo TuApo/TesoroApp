@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  DestroyRef,
   effect,
   inject,
   input,
@@ -10,7 +11,7 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormArray,
   FormBuilder,
@@ -24,7 +25,7 @@ import {
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
-import { Observable, firstValueFrom, map, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
+import { Observable, firstValueFrom, map, merge, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
@@ -40,6 +41,8 @@ import {
   GestionParametrizacionService,
   CatalogValue,
 } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { avanceDeForm } from '../../shared/progreso.util';
 
 @Component({
   selector: 'app-form-entrevista',
@@ -207,8 +210,17 @@ export class FormEntrevistaComponent implements OnInit {
    * sitio donde iba.
    */
 
-  /** Pestañas del área de trabajo. `remision` se proyecta desde el padre. */
-  readonly panel = signal<'entrevista' | 'formacion' | 'remision' | 'ia'>('entrevista');
+  /**
+   * Pestaña abierta del área de trabajo. `remision` se proyecta desde el padre.
+   *
+   * Ya no es estado local: el rail de la izquierda del pipeline es quien pinta
+   * estas pestañas, y el rail vive tres componentes más arriba. La señal la
+   * guarda `PipelineNavService`, así que rail y panel son el mismo dato en vez
+   * de dos copias que había que mantener sincronizadas.
+   */
+  private readonly nav = inject(PipelineNavService);
+  private readonly destroyRef = inject(DestroyRef);
+  readonly panel = this.nav.panelSeleccion;
 
   /**
    * Fila de la ficha que está en modo edición (`null` = todo en lectura).
@@ -853,6 +865,45 @@ export class FormEntrevistaComponent implements OnInit {
     if (u) {
       this.firma = `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''} - ${u?.rol?.nombre ?? ''}`.trim();
     }
+
+    // El análisis de IA se pedía desde `abrirPanel`, pero ahora quien abre la
+    // pestaña es el rail del pipeline, que escribe la señal directamente. Se
+    // reacciona a la señal para que dé igual por dónde se haya entrado.
+    effect(() => {
+      if (this.panel() === 'ia') this.pedirAnalisis();
+    });
+
+    // Avance de Entrevista y Formación para los dos railes. Se escucha también
+    // `statusChanges` porque los obligatorios de estos bloques aparecen y
+    // desaparecen según las respuestas (referenciado, motivo de espera…), y eso
+    // cambia cuántas casillas hay que llenar, no solo cuáles están llenas.
+    merge(this.formVacante.valueChanges, this.formVacante.statusChanges)
+      .pipe(startWith(null), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.publicarAvances());
+    this.publicarAvances();
+  }
+
+  /** Campos que se miran para el % de cada pestaña del área de trabajo. */
+  private static readonly CAMPOS_ENTREVISTA = [
+    'comoSeEntero', 'referenciado', 'nombreReferenciado', 'aplicaObservacion',
+    'motivoEspera', 'motivoNoAplica', 'relacionFamiliar', 'desempenoLaboral',
+    'felicitaciones', 'situacionConflictiva', 'actividadesDiferentes',
+  ] as const;
+
+  private static readonly CAMPOS_FORMACION = [
+    'nivel', 'estudiaActualmente', 'proyeccion1Ano', 'experienciaFlores',
+    'tipoExperienciaFlores', 'otroExperiencia',
+  ] as const;
+
+  private publicarAvances(): void {
+    this.nav.publicar(
+      'entrevista',
+      avanceDeForm(this.formVacante, FormEntrevistaComponent.CAMPOS_ENTREVISTA),
+    );
+    this.nav.publicar(
+      'formacion',
+      avanceDeForm(this.formVacante, FormEntrevistaComponent.CAMPOS_FORMACION),
+    );
   }
 
   private normalizeText(v: any): string {

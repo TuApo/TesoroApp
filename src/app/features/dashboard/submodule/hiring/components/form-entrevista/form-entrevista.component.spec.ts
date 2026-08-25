@@ -19,6 +19,7 @@ import { FormEntrevistaComponent } from './form-entrevista.component';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 
 /** Opciones que devuelven los catálogos del backend. */
 const CATALOGO = [
@@ -69,6 +70,9 @@ describe('FormEntrevistaComponent', () => {
     await TestBed.configureTestingModule({
       imports: [FormEntrevistaComponent, NoopAnimationsModule],
       providers: [
+        // El rail de dos capas lo provee `RecruitmentPipelineComponent`; probando
+        // el hijo suelto hay que darlo a mano.
+        PipelineNavService,
         { provide: RegistroProcesoContratacion, useValue: candidatos },
         { provide: GestionParametrizacionService, useValue: catalogos },
         // `SeleccionEstadoService` es solo signals, sin HTTP: se usa el REAL.

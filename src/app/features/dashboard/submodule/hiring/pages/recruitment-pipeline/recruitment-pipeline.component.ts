@@ -81,6 +81,12 @@ import { ElectronWindowService } from '@/app/core/services/electron-window.servi
 import { getLocalStorageItem } from '@/app/core/utils/safe-storage';
 
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+import {
+  ClaveAvance,
+  PanelSeleccion,
+  PipelineNavService,
+} from '../../service/pipeline-nav/pipeline-nav.service';
+import { Avance, avanceDeForm, pctDe, sumarAvances } from '../../shared/progreso.util';
 
 export const MY_DATE_FORMATS: MatDateFormats = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -107,6 +113,38 @@ type ServerDocInfo = {
 type ExamenResultadoForm = { aptoStatus?: string };
 type BioKind = 'foto' | 'huella' | 'firma';
 
+/** Los dos momentos del proceso: capa 1 del rail. */
+type CapaId = 'seleccion' | 'contratacion';
+
+interface CapaPipeline {
+  readonly id: CapaId;
+  readonly label: string;
+  readonly icon: string;
+  /** Bloques cuyo avance se suma para dar el % de la capa. */
+  readonly claves: readonly ClaveAvance[];
+}
+
+interface SubPasoSeleccion {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  /** Pestaña del `mat-tab-group` de este componente. */
+  readonly tab: number;
+  /** Sub-pestaña del área de trabajo, cuando comparte la pestaña 2. */
+  readonly panel: PanelSeleccion | null;
+  /** Bloque que reporta el avance; `null` si no se mide. */
+  readonly clave: ClaveAvance | null;
+}
+
+interface SubPasoContratacion {
+  readonly id: string;
+  readonly label: string;
+  readonly icon: string;
+  /** Índice del `mat-tab-group` de `app-hiring-questions`. */
+  readonly idx: number;
+  readonly clave: ClaveAvance;
+}
+
 @Component({
   selector: 'app-recruitment-pipeline',
   standalone: true,
@@ -124,6 +162,7 @@ type BioKind = 'foto' | 'huella' | 'firma';
   templateUrl: './recruitment-pipeline.component.html',
   styleUrls: ['./recruitment-pipeline.component.css'],
   providers: [
+    PipelineNavService,
     { provide: LOCALE_ID, useValue: 'es-CO' },
     { provide: MAT_DATE_LOCALE, useValue: 'es-CO' },
     { provide: DateAdapter, useClass: MomentDateAdapter, deps: [MAT_DATE_LOCALE] },
@@ -897,28 +936,178 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    */
   readonly tabIndex = signal(2);
 
-  /**
-   * Los pasos, para el rail vertical de la izquierda.
+  // ==========================================================================
+  // NAVEGACIÓN EN DOS CAPAS
+  // ==========================================================================
+  /*
+   * El proceso son DOS cosas: seleccionar a la persona y contratarla. Todo lo
+   * demás son pasos dentro de una de esas dos.
    *
-   * El `mat-tab-group` sigue siendo el que manda —conserva el contenido y el
-   * estado de cada pestaña—, pero su cabecera horizontal se oculta por CSS y
-   * quien la gobierna es este rail. Así el cambio es de presentación y no toca
-   * ni una línea de la lógica de los pasos.
+   * Antes el rail mezclaba niveles —Antecedentes y Exámenes al lado de
+   * Selección, cuando en realidad ocurren DENTRO de ella— y encima Selección
+   * abría una segunda barra horizontal arriba del contenido. Eran tres
+   * navegaciones distintas compitiendo por la misma pantalla.
+   *
+   * Ahora es una sola idea repetida: capa 1 (los dos momentos) a la izquierda,
+   * capa 2 (los pasos del momento abierto) pegada a su derecha, contenido al
+   * final. Contratación ya funcionaba así; esto lo generaliza.
+   *
+   * El `mat-tab-group` sigue siendo el dueño del contenido y del estado de
+   * cada pestaña: su cabecera se oculta por CSS y los railes la gobiernan.
    */
-  readonly pasos = [
-    { idx: 1, label: 'Antecedentes',        icon: 'thumb_up' },
-    { idx: 2, label: 'Selección',           icon: 'rate_review' },
-    { idx: 3, label: 'Exámenes de ingreso', icon: 'medical_information' },
-    { idx: 4, label: 'Contratación',        icon: 'how_to_reg' },
-  ] as const;
+  private readonly nav = inject(PipelineNavService);
+
+  /** Bloques que suman al avance de cada capa. */
+  private readonly AVANCES_SELECCION: readonly ClaveAvance[] = [
+    'entrevista', 'formacion', 'antecedentes', 'remision', 'examenes',
+  ];
+  private readonly AVANCES_CONTRATACION: readonly ClaveAvance[] = [
+    'pago', 'obra', 'referencias', 'traslados', 'huella',
+  ];
+
+  readonly capas: readonly CapaPipeline[] = [
+    { id: 'seleccion',    label: 'Selección',    icon: 'how_to_reg',        claves: this.AVANCES_SELECCION },
+    { id: 'contratacion', label: 'Contratación', icon: 'assignment_turned_in', claves: this.AVANCES_CONTRATACION },
+  ];
 
   /**
-   * Turnos ya no es un paso.
+   * Los pasos de Selección.
    *
-   * La cola del día dejó de ser una pantalla: se busca por documento desde el
-   * diálogo y las acciones que vivían ahí (Excel, carnés, refrescar) están en
-   * el menú de la barra. El tab 0 sigue EXISTIENDO pero oculto, porque es
-   * quien aloja a `SearchForCandidateComponent`, que hace la búsqueda real.
+   * `tab` es la pestaña del grupo de este componente y `panel` la sub-pestaña
+   * del área de trabajo (que vive dentro de la pestaña 2). Antecedentes y
+   * Exámenes son pestañas propias; Entrevista, Formación, Remisión e IA
+   * comparten la 2 y se distinguen por el panel.
+   */
+  readonly subSeleccion: readonly SubPasoSeleccion[] = [
+    { id: 'entrevista',   label: 'Entrevista',             icon: 'rate_review',         tab: 2, panel: 'entrevista', clave: 'entrevista' },
+    { id: 'formacion',    label: 'Formación y laboral',    icon: 'school',              tab: 2, panel: 'formacion',  clave: 'formacion' },
+    { id: 'antecedentes', label: 'Antecedentes',           icon: 'gavel',               tab: 1, panel: null,         clave: 'antecedentes' },
+    { id: 'remision',     label: 'Remisión',               icon: 'work',                tab: 2, panel: 'remision',   clave: 'remision' },
+    { id: 'examenes',     label: 'Exámenes de ingreso',    icon: 'medical_information', tab: 3, panel: null,         clave: 'examenes' },
+    { id: 'ia',           label: 'Inteligencia artificial', icon: 'auto_awesome',       tab: 2, panel: 'ia',         clave: null },
+  ];
+
+  /** Los pasos de Contratación. El contenido lo pinta `app-hiring-questions`. */
+  readonly subContratacion: readonly SubPasoContratacion[] = [
+    { id: 'pago',        label: 'Pago y Transporte', icon: 'payments',    idx: 0, clave: 'pago' },
+    { id: 'obra',        label: 'Datos de obra',     icon: 'engineering', idx: 1, clave: 'obra' },
+    { id: 'referencias', label: 'Referencias',       icon: 'groups',      idx: 2, clave: 'referencias' },
+    { id: 'traslados',   label: 'Traslados',         icon: 'swap_horiz',  idx: 3, clave: 'traslados' },
+    { id: 'huella',      label: 'Cédula & Huella',   icon: 'fingerprint', idx: 4, clave: 'huella' },
+  ];
+
+  /** Capa 1 abierta. La 4 es Contratación; 1, 2 y 3 son pasos de Selección. */
+  readonly capaActiva = computed<CapaId>(() =>
+    this.tabIndex() === 4 ? 'contratacion' : 'seleccion');
+
+  /** Paso de Selección abierto: la pestaña manda, salvo dentro de la 2. */
+  readonly subSeleccionActivo = computed<string>(() => {
+    const t = this.tabIndex();
+    if (t === 1) return 'antecedentes';
+    if (t === 3) return 'examenes';
+    return this.nav.panelSeleccion();
+  });
+
+  /** Paso de Contratación abierto (lo comparte con `app-hiring-questions`). */
+  readonly subContratacionActivo = this.nav.subContratacion;
+
+  /** Último paso de Selección visitado, para volver donde se dejó. */
+  private readonly ultimoSubSeleccion = signal<string>('entrevista');
+
+  readonly avanceSeleccion = computed<Avance>(() => this.nav.agregado(this.AVANCES_SELECCION));
+  readonly avanceContratacion = computed<Avance>(() => this.nav.agregado(this.AVANCES_CONTRATACION));
+
+  /** % de una capa. `null` = todavía no hay nada medible que mostrar. */
+  pctCapa(id: CapaId): number | null {
+    const a = id === 'seleccion' ? this.avanceSeleccion() : this.avanceContratacion();
+    return a.total > 0 ? pctDe(a) : null;
+  }
+
+  /**
+   * Fondo del anillo de la capa 1: el arco lima ES el porcentaje.
+   *
+   * Se arma aquí y no con una variable CSS para no depender de que el binding
+   * a custom properties llegue intacto: el degradado sale ya resuelto.
+   */
+  fondoAnillo(pct: number | null): string {
+    if (pct === null) return 'rgba(255, 255, 255, .14)';
+    return `conic-gradient(var(--lime, #8CD50A) ${pct}%, rgba(255, 255, 255, .16) 0)`;
+  }
+
+  /** % de un sub-paso. `null` en los que no son formulario (IA). */
+  pctSub(clave: ClaveAvance | null): number | null {
+    if (!clave) return null;
+    const a = this.nav.avance(clave);
+    return a && a.total > 0 ? pctDe(a) : null;
+  }
+
+  /** Rótulo del avance para el tooltip: dice exactamente qué falta. */
+  detalleAvance(label: string, clave: ClaveAvance | null): string {
+    if (!clave) return label;
+    const a = this.nav.avance(clave);
+    if (!a || a.total <= 0) return label;
+    const faltan = Math.max(0, a.total - a.hechos);
+    return faltan === 0
+      ? `${label} · completo (${a.hechos} de ${a.total})`
+      : `${label} · ${a.hechos} de ${a.total} · faltan ${faltan}`;
+  }
+
+  detalleCapa(label: string, id: CapaId): string {
+    const a = id === 'seleccion' ? this.avanceSeleccion() : this.avanceContratacion();
+    if (a.total <= 0) return label;
+    const faltan = Math.max(0, a.total - a.hechos);
+    return faltan === 0
+      ? `${label} · completo (${a.hechos} de ${a.total})`
+      : `${label} · ${a.hechos} de ${a.total} campos · faltan ${faltan}`;
+  }
+
+  abrirCapa(id: CapaId): void {
+    if (this.bloqueoContratoTabs()) return;
+    if (id === 'contratacion') {
+      this.tabIndex.set(4);
+      return;
+    }
+    const sub = this.subSeleccion.find((s) => s.id === this.ultimoSubSeleccion());
+    this.abrirSubSeleccion(sub ?? this.subSeleccion[0]);
+  }
+
+  abrirSubSeleccion(sub: SubPasoSeleccion): void {
+    if (this.bloqueoContratoTabs()) return;
+    this.ultimoSubSeleccion.set(sub.id);
+    if (sub.panel) this.nav.panelSeleccion.set(sub.panel);
+    this.tabIndex.set(sub.tab);
+  }
+
+  abrirSubContratacion(sub: SubPasoContratacion): void {
+    if (this.bloqueoContratoTabs()) return;
+    this.nav.subContratacion.set(sub.idx);
+    this.tabIndex.set(4);
+  }
+
+  /**
+   * Avance de Exámenes de ingreso.
+   *
+   * No sale de un hijo: el formulario vive aquí. Cuenta IPS y lista de
+   * exámenes, más un apto/no apto por cada examen marcado.
+   */
+  private publicarAvanceExamenes(): void {
+    const base = avanceDeForm(this.formGroup3, ['ips', 'selectedExams']);
+    const filas = this.selectedExamsArray.controls;
+    const porExamen: Avance = {
+      hechos: filas.filter((c) => !!(c.value as ExamenResultadoForm)?.aptoStatus).length,
+      total: filas.length,
+    };
+    this.nav.publicar('examenes', sumarAvances([base, porExamen]));
+  }
+
+  /**
+   * Turnos ya no es un paso NI una pantalla.
+   *
+   * La cola del día y el buscador dejaron de mostrarse: se busca por documento
+   * desde el diálogo, y las acciones que vivían ahí (Excel, carnés, refrescar)
+   * están en el menú de la barra. `SearchForCandidateComponent` sigue montado
+   * —fuera del grupo de pestañas y oculto— porque es quien hace la búsqueda
+   * real. La pestaña 0 quedó como hueco para no renumerar las demás.
    */
   readonly TAB_BUSCADOR = 0;
 
@@ -934,6 +1123,10 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     if (this.pasoBloqueado(idx)) return;
     this.tabIndex.set(idx);
   }
+
+  /** Mensaje único del bloqueo por contrato activo, para los dos railes. */
+  readonly MOTIVO_BLOQUEO =
+    'Dé de baja el contrato activo o usa Modificar de todas formas para continuar';
 
   // ==========================================================================
   // PROMPT DE DOCUMENTO AL ENTRAR
@@ -1138,6 +1331,14 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       .pipe(startWith(this.selectedExamsArray.value), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.recalcHayNoApto());
 
+    // 1.2) Publicar el avance de Exámenes al rail. Se escucha el formulario
+    //      entero (no solo el FormArray) porque IPS y la lista de exámenes
+    //      también cuentan, y se escucha `statusChanges` porque habilitar o
+    //      deshabilitar un campo cambia cuántas casillas hay que llenar.
+    merge(this.formGroup3.valueChanges, this.formGroup3.statusChanges)
+      .pipe(startWith(null), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.publicarAvanceExamenes());
+
     // 2) Cédula + biometría (embebida y refresh opcional)
     //
     // OJO con lo que dispara este effect: `candidatoSeleccionado` se re-setea
@@ -1303,13 +1504,14 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       }
     });
 
-    // 6) Contrato ACTIVO ⇒ sólo "Turnos" disponible. Si el candidato
-    //    consultado tiene contrato activo forzamos el primer tab; los demás
-    //    quedan deshabilitados en la plantilla hasta darle de baja. El override
-    //    "Modificar de todas formas" libera esta restricción.
-    effect(() => {
-      if (this.bloqueoContratoTabs()) this.tabIndex.set(0);
-    });
+    // 6) Contrato ACTIVO ⇒ el rail y las pestañas quedan deshabilitados hasta
+    //    dar de baja (o usar "Modificar de todas formas"); el banner rojo de
+    //    arriba explica por qué y ofrece las dos salidas.
+    //
+    //    Antes esto además saltaba a la pestaña 0 para dejar solo "Turnos".
+    //    Turnos ya no es una pantalla, así que ese salto mandaba al usuario a
+    //    un panel vacío. Se queda donde estaba: ve el paso bloqueado y el
+    //    motivo, que es la información útil.
   }
 
   // ───────── API UI ────────

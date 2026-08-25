@@ -8,6 +8,9 @@
 @import "@fontsource/oswald/600.css";
 @import "@fontsource/oswald/700.css";
 
+/* Paleta de la superficie de Selección (ver tokens.css). */
+@import "../../shared/tokens.css";
+
 /* ========= Base ========= */
 html,
 body,
@@ -1123,81 +1126,8 @@ mat-icon,
   overflow: hidden;
 }
 
-.taller-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 8px 8px 0;
-  border-bottom: 1px solid var(--slate-200);
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.ttab {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex: none;
-  padding: 10px 14px;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  border-radius: 10px 10px 0 0;
-  background: transparent;
-  font-size: .82rem;
-  font-weight: 600;
-  color: var(--slate-500);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: color .14s ease, background .14s ease, border-color .14s ease;
-}
-
-.ttab:hover {
-  background: var(--slate-50);
-  color: var(--navy);
-}
-
-.ttab mat-icon {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-}
-
-.ttab-activa {
-  color: var(--navy-deep);
-  background: var(--slate-50);
-  border-bottom-color: var(--lime);
-  font-weight: 700;
-}
-
-/* Las dos pestañas que saltan a otro paso se marcan distinto: no son un
-   panel de aquí, son un enlace. La flecha lo dice sin texto extra. */
-.ttab-salto { color: var(--slate-400); }
-
-.ttab-flecha {
-  font-size: 14px !important;
-  width: 14px !important;
-  height: 14px !important;
-  opacity: .55;
-}
-
-.ttab-faltan {
-  min-width: 17px;
-  padding: 0 5px;
-  font-size: .66rem;
-  font-weight: 800;
-  line-height: 17px;
-  text-align: center;
-  color: var(--warn-fg);
-  background: var(--warn-bg);
-  border: 1px solid var(--warn-border);
-  border-radius: 999px;
-}
-
-.ttab-candado {
-  font-size: 14px !important;
-  width: 14px !important;
-  height: 14px !important;
-  color: var(--warn-fg);
-}
+/* La barra de pestañas de esta área se fue al rail lateral del pipeline; aquí
+   solo queda el panel. Ver `.rails` en recruitment-pipeline.component.css. */
 
 .taller-panel {
   flex: 1;
@@ -1244,14 +1174,6 @@ mat-icon,
     gap: 12px;
     padding: 0;
   }
-
-  .ttab {
-    padding: 9px 11px;
-    font-size: .78rem;
-  }
-
-  .ttab span { display: none; }
-  .ttab-activa span { display: inline; }
 
   .taller-panel { padding: 14px; }
 }
@@ -1482,8 +1404,6 @@ mat-icon,
   height: 15px;
 }
 
-.ttab-ia mat-icon { color: #6366f1; }
-.ttab-ia.ttab-activa mat-icon { color: var(--navy-deep); }
 
 @media (max-width: 600px) {
   .ia-head { gap: 8px; }

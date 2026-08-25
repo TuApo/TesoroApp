@@ -1226,9 +1226,10 @@ mat-tab-group {
 }
 
 /* ==========================================================================
-   RAIL VERTICAL DE PASOS
-   La cabecera horizontal del mat-tab-group se oculta y este rail la sustituye.
-   El grupo sigue mandando sobre el contenido: esto es solo presentación.
+   NAVEGACIÓN EN DOS CAPAS
+   Capa 1 = los dos momentos del proceso. Capa 2 = los pasos del que esté
+   abierto. La cabecera horizontal del mat-tab-group se oculta y estos railes
+   la sustituyen: el grupo sigue mandando sobre el contenido.
    ========================================================================== */
 
 .pipeline-shell {
@@ -1250,132 +1251,361 @@ mat-tab-group {
   min-width: 0;
 }
 
+/* Las dos capas viajan juntas: una sola pieza de navegación pegada al
+   contenido, no dos barras sueltas compitiendo. */
+.rails {
+  display: flex;
+  flex: none;
+  min-height: 0;
+  border-radius: 16px 0 0 16px;
+  overflow: hidden;
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06);
+}
+
 .rail {
   display: flex;
   flex-direction: column;
   flex: none;
-  width: 58px;
-  padding: 6px 0;
-  background: var(--navy, #21263C);
-  border-radius: 14px 0 0 14px;
+  min-height: 0;
 }
 
-.rail-item {
+/* ── Capa 1 · los dos momentos ──────────────────────────────────────────── */
+.rail-capa1 {
+  width: 104px;
+  padding: 12px 8px;
+  gap: 10px;
+  background: var(--navy, #21263C);
+}
+
+.capa {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  flex: 1;
-  min-height: 96px;
-  padding: 14px 0;
+  padding: 14px 6px 12px;
   border: 0;
+  border-radius: 14px;
   background: transparent;
-  color: rgba(255, 255, 255, .62);
+  color: rgba(255, 255, 255, .60);
   cursor: pointer;
-  transition: background .15s ease, color .15s ease;
+  font: inherit;
+  text-align: center;
+  transition: background .16s ease, color .16s ease;
 }
 
-.rail-item:hover:not(:disabled) {
-  background: rgba(255, 255, 255, .06);
+.capa:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .07);
   color: #fff;
 }
 
-/* Activo: filo lima a la izquierda. El lima solo como relleno, nunca como
-   texto sobre blanco (aquí va sobre navy, que sí da contraste). */
-.rail-activa {
-  background: rgba(255, 255, 255, .10);
+.capa-activa {
+  background: rgba(255, 255, 255, .12);
   color: #fff;
 }
 
-.rail-activa::before {
+/* Filo lima del activo. El lima solo como relleno sobre navy: como texto
+   sobre blanco no da contraste. */
+.capa-activa::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 8px;
-  bottom: 8px;
+  left: -8px;
+  top: 12px;
+  bottom: 12px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--lime, #8CD50A);
 }
 
-.rail-item:disabled {
-  opacity: .38;
+.capa:disabled {
+  opacity: .34;
   cursor: not-allowed;
 }
 
-.rail-item mat-icon {
-  flex: none;
+/* El anillo ES el porcentaje: el arco lima avanza con --pct. Se lee la mitad
+   de la información sin necesidad de mirar el número. */
+/* El fondo (el arco de progreso) lo pone el componente con `fondoAnillo()`. */
+.capa-anillo {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  transition: background .35s ease;
+}
+
+.capa-anillo-centro {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--navy, #21263C);
+}
+
+.capa-activa .capa-anillo-centro {
+  background: #2A3050;
+}
+
+.capa-anillo mat-icon {
   font-size: 20px;
   width: 20px;
   height: 20px;
+  color: inherit;
 }
 
-.rail-hecha mat-icon { color: var(--lime, #8CD50A); }
+.anillo-lleno mat-icon {
+  color: var(--lime, #8CD50A);
+}
 
-/* El texto gira para que quepan cinco pasos en 58px de ancho. */
-.rail-txt {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-size: .74rem;
+.capa-txt {
+  font-size: .76rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: .01em;
+}
+
+.capa-pct {
+  font-size: .68rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, .55);
+}
+
+.capa-activa .capa-pct { color: var(--lime, #8CD50A); }
+
+/* ── Capa 2 · los pasos del momento abierto ─────────────────────────────── */
+.rail-capa2 {
+  width: 218px;
+  padding: 12px 10px;
+  gap: 3px;
+  background: #2A3050;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.rail-capa2-titulo {
+  padding: 2px 8px 8px;
+  font-size: .64rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .40);
+}
+
+.sub {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, .66);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background .16s ease, color .16s ease;
+}
+
+.sub:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .07);
+  color: #fff;
+}
+
+.sub-activo {
+  background: rgba(255, 255, 255, .13);
+  color: #fff;
+}
+
+.sub:disabled {
+  opacity: .34;
+  cursor: not-allowed;
+}
+
+.sub-icon {
+  flex: none;
+  margin-top: 1px;
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+}
+
+.sub-completo .sub-icon { color: var(--lime, #8CD50A); }
+
+.sub-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sub-fila {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Los rótulos largos ("Exámenes de ingreso", "Inteligencia artificial") se
+   parten en dos líneas en vez de recortarse: un paso a medio nombre no se
+   reconoce de un vistazo, que es justo para lo que sirve el rail. */
+.sub-txt {
+  flex: 1;
+  min-width: 0;
+  font-size: .78rem;
   font-weight: 600;
-  letter-spacing: .02em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-height: 130px;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
 }
 
-/* ── Responsivo: en pantallas cortas el rail se acuesta arriba ─────────────
-   Con menos de 640px de alto los cinco pasos no caben en vertical sin que el
-   texto se corte, así que vuelve a ser una barra horizontal. */
-@media (max-width: 900px), (max-height: 640px) {
+.sub-pct {
+  flex: none;
+  padding-top: 1px;
+  font-size: .66rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, .48);
+}
+
+.sub-activo .sub-pct,
+.sub-completo .sub-pct { color: var(--lime, #8CD50A); }
+
+.sub-barra {
+  display: block;
+  height: 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, .14);
+  overflow: hidden;
+}
+
+.sub-barra-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--lime, #8CD50A);
+  transition: width .35s ease;
+}
+
+/* ── Responsivo ───────────────────────────────────────────────────────────
+   Con poca altura o poco ancho las dos capas se acuestan: la 1 como una fila
+   de dos botones y la 2 como una tira desplazable debajo. Apiladas en
+   vertical no caben sin cortar los rótulos. */
+@media (max-width: 1100px), (max-height: 640px) {
   .pipeline-shell {
     flex-direction: column;
   }
 
-  .rail {
+  .rails {
+    flex-direction: column;
+    border-radius: 16px 16px 0 0;
+    box-shadow: none;
+  }
+
+  .rail-capa1 {
     flex-direction: row;
     width: auto;
-    padding: 0 4px;
-    border-radius: 14px 14px 0 0;
-    overflow-x: auto;
+    padding: 8px;
   }
 
-  .rail-item {
-    min-height: 0;
-    flex: none;
+  .capa {
+    flex: 1;
     flex-direction: row;
-    gap: 6px;
-    padding: 10px 14px;
+    justify-content: center;
+    padding: 8px 12px;
   }
 
-  .rail-activa::before {
-    left: 8px;
-    right: 8px;
+  .capa-activa::before {
+    left: 12px;
+    right: 12px;
     top: auto;
-    bottom: 0;
+    bottom: -4px;
     width: auto;
     height: 3px;
     border-radius: 3px 3px 0 0;
   }
 
-  .rail-txt {
-    writing-mode: horizontal-tb;
-    transform: none;
-    max-height: none;
+  .capa-anillo { width: 34px; height: 34px; }
+  .capa-anillo-centro { width: 26px; height: 26px; }
+  .capa-anillo mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  .rail-capa2 {
+    flex-direction: row;
+    width: auto;
+    padding: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .rail-capa2-titulo { display: none; }
+
+  .sub {
+    flex: none;
+    min-width: 172px;
   }
 }
+
+/* ── Bloqueo por contrato activo ────────────────────────────────────────── */
+.tab-group-oculto { display: none !important; }
+
+.contrato-lock {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+  color: var(--slate-500, #64748B);
+}
+
+.contrato-lock-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  color: var(--slate-300, #CBD5E1);
+}
+
+.contrato-lock-titulo {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--navy-deep, #171B2E);
+}
+
+.contrato-lock-texto {
+  margin: 0;
+  max-width: 46ch;
+  font-size: .84rem;
+  line-height: 1.5;
+}
+
+/* El buscador está montado siempre pero no se ve: es el motor de la búsqueda
+   por documento, no una pantalla. `display: none` basta — el componente se
+   crea igual y el `@ViewChild` lo encuentra. */
+.buscador-oculto { display: none; }
 
 /* ── La ficha, fija a la izquierda del rail ──────────────────────────────────
    Es la base de todas las vistas: no se desmonta al cambiar de paso. */
 .pipeline-shell app-ficha-candidato {
+  display: block;
   flex: none;
   width: 340px;
   max-width: 100%;
   padding-right: 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Barra fina en vez de la del sistema: la ficha es angosta y la nativa se come
+   ~16px de ancho útil. */
+.pipeline-shell app-ficha-candidato::-webkit-scrollbar { width: 6px; }
+.pipeline-shell app-ficha-candidato::-webkit-scrollbar-thumb {
+  background: var(--slate-300, #CBD5E1);
+  border-radius: 999px;
 }
 
 /* El contenido del paso entra con un desplazamiento corto: da a entender que
@@ -1395,13 +1625,19 @@ mat-tab-group {
   }
 }
 
-@media (max-width: 1200px) {
+/* Entre 1100 y 1440 la ficha y los dos railes se comen el ancho útil, así que
+   ceden los tres a la vez y el contenido conserva su sitio. */
+@media (max-width: 1440px) {
   .pipeline-shell app-ficha-candidato {
     width: 300px;
+    padding-right: 10px;
   }
+
+  .rail-capa1 { width: 92px; }
+  .rail-capa2 { width: 194px; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .pipeline-shell app-ficha-candidato {
     width: auto;
     padding-right: 0;

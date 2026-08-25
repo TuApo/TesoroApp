@@ -1,6 +1,7 @@
-import {  Component, effect, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
+import {  Component, DestroyRef, effect, inject, input, output , ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, merge, startWith } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import Swal from 'sweetalert2';
 import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
@@ -17,6 +18,8 @@ import type { AntecedentesPayload } from '../../service/registro-proceso-contrat
 import { RobotsService } from '../../service/robots/robots.service';
 import type { ResultadosAntecedentes } from '../../service/robots/robots.service';
 import { procesoDeAntecedentes } from '../../pages/recruitment-pipeline/contrato.rules';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { avanceDeForm } from '../../shared/progreso.util';
 
 /* ===================== Tipos ===================== */
 type UploadedFileInfo = {
@@ -242,6 +245,9 @@ export class SelectionQuestionsComponent implements OnDestroy {
   };
 
 
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly nav = inject(PipelineNavService);
+
   constructor(
     private fb: FormBuilder,
     private docsSrv: GestionDocumentalService,
@@ -267,6 +273,12 @@ export class SelectionQuestionsComponent implements OnDestroy {
       medidasCorrectivas: [''],
       semanasCotizadas: [null],
     });
+
+    // Avance de Antecedentes para el rail del pipeline: los 7 obligatorios
+    // (los opcionales no cuentan, porque no son lo que falta por llenar).
+    merge(this.antecedentes.valueChanges, this.antecedentes.statusChanges)
+      .pipe(startWith(null), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.nav.publicar('antecedentes', avanceDeForm(this.antecedentes)));
 
     // Reacciona al candidato seleccionado
     effect(() => {

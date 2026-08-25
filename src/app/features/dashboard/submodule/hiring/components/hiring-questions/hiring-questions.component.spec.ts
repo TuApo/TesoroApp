@@ -21,6 +21,7 @@ import { FarmsService } from '../../../farms/services/farms/farms.service';
 import { TarjetasService } from '../../service/tarjetas.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 
 function candidato(contrato: any = {}) {
   return {
@@ -57,6 +58,9 @@ describe('HiringQuestionsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [HiringQuestionsComponent, NoopAnimationsModule],
       providers: [
+        // El rail de dos capas lo provee `RecruitmentPipelineComponent`; probando
+        // el hijo suelto hay que darlo a mano.
+        PipelineNavService,
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: RegistroProcesoContratacion, useValue: procesos },

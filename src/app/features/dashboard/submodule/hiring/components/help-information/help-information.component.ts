@@ -12,7 +12,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatNativeDateModule } from '@angular/material/core';
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { catchError, startWith } from 'rxjs/operators';
-import { of, firstValueFrom } from 'rxjs';
+import { of, firstValueFrom, merge } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
@@ -25,6 +25,8 @@ import { MatDialog } from '@angular/material/dialog';
 import { RemisionDialogComponent, RemisionDialogData } from './remision-dialog.component';
 import { TemporalRemision } from './remision-fill';
 import { procesoDelContrato } from '../../pages/recruitment-pipeline/contrato.rules';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { Avance, tieneValor } from '../../shared/progreso.util';
 
 // ================== Constantes ==================
 export const MY_DATE_FORMATS = {
@@ -136,6 +138,7 @@ export class HelpInformationComponent implements OnInit {
   private vacantesService = inject(VacantesService);
   public utilService = inject(UtilityServiceService);
   private destroyRef = inject(DestroyRef);
+  private readonly nav = inject(PipelineNavService);
   private gc = inject(RegistroProcesoContratacion);
   private seleccionEstado = inject(SeleccionEstadoService);
   private dialog = inject(MatDialog);
@@ -310,6 +313,46 @@ export class HelpInformationComponent implements OnInit {
     return { finalizado: false, faltan: faltanMaxima, enProgreso: hayEnProgreso };
   });
 
+  /**
+   * Cuánto lleva llenada la Remisión.
+   *
+   * Las casillas cambian con el tipo: una contratación inmediata necesita
+   * fecha de ingreso y salario; una prueba técnica, área, fecha, hora y
+   * dirección. Contar siempre las nueve dejaría la barra clavada a la mitad
+   * en los dos casos.
+   */
+  private publicarAvanceRemision(): void {
+    const val = (c: string) => tieneValor(this.vacantesForm.get(c)?.value);
+
+    // La vacante asignada es la primera casilla. "Quitar vacante" es una
+    // decisión tomada, así que también cuenta como respondida.
+    const casillas: boolean[] = [
+      this.selectedVacanteId() != null || this.limpiarVacante(),
+      val('tipo'),
+    ];
+
+    if (this.isAutorizacion() || this.isPrueba()) {
+      casillas.push(val('empresaUsuaria'), val('cargo'));
+    }
+    if (this.isAutorizacion()) {
+      casillas.push(val('fechaIngreso'), val('salario'));
+    }
+    if (this.isPrueba()) {
+      casillas.push(
+        val('area'),
+        val('fechaPruebaEntrevista'),
+        val('horaPruebaEntrevista'),
+        val('direccionEmpresa'),
+      );
+    }
+
+    const avance: Avance = {
+      hechos: casillas.filter(Boolean).length,
+      total: casillas.length,
+    };
+    this.nav.publicar('remision', avance);
+  }
+
   // ========= Constructor =========
   constructor() {
     // --- Form principal (inyectamos tipoCtrl para observarlo como signal)
@@ -329,6 +372,25 @@ export class HelpInformationComponent implements OnInit {
     effect(() => {
       this.onInputsChanged(this.candidatoSeleccionado());
     });
+
+    // --- Avance de la Remisión para el rail del pipeline.
+    // No se mide con `avanceDeForm`: aquí no hay `Validators.required` (el
+    // formulario se guarda a medias a propósito) y lo que de verdad falta
+    // depende del tipo elegido. La vacante asignada cuenta como una casilla
+    // más, porque sin ella la remisión no sirve para nada.
+    effect(() => {
+      // Leer las señales DENTRO del effect es lo que lo vuelve a disparar:
+      // tipo, vacante elegida y "quitar vacante" cambian qué campos aplican.
+      this.isAutorizacion();
+      this.isPrueba();
+      this.selectedVacanteId();
+      this.limpiarVacante();
+      this.publicarAvanceRemision();
+    });
+
+    merge(this.vacantesForm.valueChanges, this.vacantesForm.statusChanges)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.publicarAvanceRemision());
 
     // --- Effect: mantener vacanteSeleccionada sincronizada al cambiar id o lista
     effect(() => {

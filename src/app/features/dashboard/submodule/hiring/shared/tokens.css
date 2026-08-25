@@ -1,0 +1,34 @@
+/* ==========================================================================
+   PALETA DE LA SUPERFICIE DE SELECCIÓN
+   La ficha del candidato y el área de trabajo se escribieron contra estos
+   tokens, pero nunca se declararon en ningún sitio con alcance sobre ellos:
+   `--navy` y `--lime` solo existen dentro de los estilos de
+   `document-management`, que son de componente y no salen de ahí.
+   El resultado era que el navegador DESCARTABA cada declaración que los
+   usaba —bordes, fondos, el color apagado de las etiquetas— y la ficha se
+   veía sin cajas, con la etiqueta del mismo color que el dato.
+   Se declaran aquí y cada componente que los use importa este archivo, que
+   los deja en su `:host` sin filtrarse al resto de la aplicación.
+   ========================================================================== */
+:host {
+  --navy: #21263C;
+  --navy-deep: #171B2E;
+  --lime: #8CD50A;
+
+  --slate-50:  #F8FAFC;
+  --slate-100: #F1F5F9;
+  --slate-200: #E2E8F0;
+  --slate-300: #CBD5E1;
+  --slate-400: #94A3B8;
+  --slate-500: #64748B;
+  --slate-700: #334155;
+
+  /* Avisos: ámbar para lo que falta, verde para lo comprobado. */
+  --warn-bg:     #FEF3C7;
+  --warn-border: #FDE68A;
+  --warn-fg:     #92400E;
+
+  --ok-bg:     #DCFCE7;
+  --ok-border: #BBF7D0;
+  --ok-fg:     #166534;
+}

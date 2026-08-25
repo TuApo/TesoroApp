@@ -21,6 +21,7 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 
 describe('HelpInformationComponent', () => {
   let fixture: ComponentFixture<HelpInformationComponent>;
@@ -34,6 +35,9 @@ describe('HelpInformationComponent', () => {
     await TestBed.configureTestingModule({
       imports: [HelpInformationComponent, NoopAnimationsModule],
       providers: [
+        // El rail de dos capas lo provee `RecruitmentPipelineComponent`; probando
+        // el hijo suelto hay que darlo a mano.
+        PipelineNavService,
         // El hijo `form-entrevista` lee la ruta para preasignar la oficina.
         provideRouter([]),
         {

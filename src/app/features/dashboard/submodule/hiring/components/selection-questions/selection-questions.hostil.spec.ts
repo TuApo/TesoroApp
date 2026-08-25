@@ -17,6 +17,7 @@ import { GestionDocumentalService } from '../../service/gestion-documental/gesti
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { RobotsService } from '../../service/robots/robots.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 
 describe('SelectionQuestions — uso torpe', () => {
   let fixture: ComponentFixture<SelectionQuestionsComponent>;
@@ -43,6 +44,9 @@ describe('SelectionQuestions — uso torpe', () => {
     await TestBed.configureTestingModule({
       imports: [SelectionQuestionsComponent, NoopAnimationsModule],
       providers: [
+        // El rail de dos capas lo provee `RecruitmentPipelineComponent`; probando
+        // el hijo suelto hay que darlo a mano.
+        PipelineNavService,
         { provide: GestionDocumentalService, useValue: docsSrv },
         { provide: RegistroProcesoContratacion, useValue: rpc },
         { provide: RobotsService, useValue: robots },

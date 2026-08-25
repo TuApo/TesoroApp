@@ -21,49 +21,11 @@
            ══════════════════════════════════════════════════════════════════ -->
       <div class="taller">
 
-        <nav class="taller-tabs" role="tablist" aria-label="Área de trabajo">
-          <button type="button" class="ttab" role="tab" [class.ttab-activa]="panel() === 'entrevista'"
-                  [attr.aria-selected]="panel() === 'entrevista'" (click)="abrirPanel('entrevista')">
-            <mat-icon>rate_review</mat-icon>
-            <span>Entrevista</span>
-            @if (faltanEntrevista) { <span class="ttab-faltan">{{ faltanEntrevista }}</span> }
-          </button>
-
-          <button type="button" class="ttab" role="tab" [class.ttab-activa]="panel() === 'formacion'"
-                  [attr.aria-selected]="panel() === 'formacion'" (click)="abrirPanel('formacion')">
-            <mat-icon>school</mat-icon>
-            <span>Formación y laboral</span>
-            @if (faltanFormacion) { <span class="ttab-faltan">{{ faltanFormacion }}</span> }
-          </button>
-
-          <button type="button" class="ttab" role="tab" [class.ttab-activa]="panel() === 'remision'"
-                  [attr.aria-selected]="panel() === 'remision'" (click)="abrirPanel('remision')">
-            <mat-icon>work</mat-icon>
-            <span>Remisión</span>
-            @if (bloqueado()) { <mat-icon class="ttab-candado" matTooltip="Candidato en espera o no aplica">lock</mat-icon> }
-          </button>
-
-          <button type="button" class="ttab ttab-ia" role="tab" [class.ttab-activa]="panel() === 'ia'"
-                  [attr.aria-selected]="panel() === 'ia'" (click)="abrirPanel('ia')">
-            <mat-icon>auto_awesome</mat-icon>
-            <span>Inteligencia artificial</span>
-          </button>
-
-          <button type="button" class="ttab ttab-salto" role="tab" [attr.aria-selected]="false"
-                  matTooltip="Ir al paso 4 del proceso" (click)="abrirPanel('salud')">
-            <mat-icon>medical_information</mat-icon>
-            <span>Salud ocupacional</span>
-            <mat-icon class="ttab-flecha">arrow_forward</mat-icon>
-          </button>
-
-          <button type="button" class="ttab ttab-salto" role="tab" [attr.aria-selected]="false"
-                  matTooltip="Ir al paso 5 del proceso" (click)="abrirPanel('contratacion')">
-            <mat-icon>assignment_turned_in</mat-icon>
-            <span>Contratación</span>
-            <mat-icon class="ttab-flecha">arrow_forward</mat-icon>
-          </button>
-        </nav>
-
+        <!-- La barra de pestañas de aquí arriba se fue al rail lateral del
+             pipeline: era una tercera navegación apilada sobre las otras dos y
+             obligaba a mirar en dos sitios para saber dónde se estaba. El
+             panel visible lo decide `panel()`, que ahora es la misma señal que
+             pinta el rail (PipelineNavService). -->
         <div class="taller-panel">
 
           <!-- ── Panel · Entrevista ─────────────────────────────────────── -->

@@ -10,21 +10,11 @@
   </div>
 }
 
-<!-- Segundo rail: los sub-pasos de Contratación. La cabecera del grupo se
-     oculta por CSS y este rail la sustituye, igual que en el pipeline. -->
+<!-- El rail de los sub-pasos de Contratación se fue al pipeline, junto al de
+     Selección: las dos capas de navegación viven en el mismo sitio y se leen
+     igual. La cabecera del grupo sigue oculta por CSS; quien manda sobre la
+     pestaña visible es `subIdx`, que es la señal compartida del rail. -->
 <div class="hq-shell">
-  <nav class="rail rail-sub" role="tablist" aria-label="Pasos de contratación">
-    @for (sp of subPasos; track sp.idx) {
-      <button type="button" class="rail-item" role="tab"
-              [class.rail-activa]="subIdx() === sp.idx"
-              [attr.aria-selected]="subIdx() === sp.idx"
-              [matTooltip]="sp.label" matTooltipPosition="right"
-              (click)="subIdx.set(sp.idx)">
-        <mat-icon>{{ sp.icon }}</mat-icon>
-        <span class="rail-txt">{{ sp.label }}</span>
-      </button>
-    }
-  </nav>
 
 <mat-tab-group class="tab-group" [class.bloqueado-espera]="bloqueado()"
   [selectedIndex]="subIdx()" (selectedIndexChange)="subIdx.set($event)">

@@ -1,7 +1,7 @@
 import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom, Observable } from 'rxjs';
+import { firstValueFrom, merge, Observable } from 'rxjs';
 import { startWith, map } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -33,6 +33,8 @@ import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TarjetasService } from '../../service/tarjetas.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
+import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { avanceDeBanderas, avanceDeForm } from '../../shared/progreso.util';
 
 type LocalFile = { file: File | string; fileName: string };
 type ServerDocInfo = {
@@ -57,23 +59,19 @@ type ServerDocInfo = {
 export class HiringQuestionsComponent implements OnInit {
 
   // ==========================================================================
-  // RAIL VERTICAL DE SUB-PASOS
+  // SUB-PASOS DE CONTRATACIÓN
   // ==========================================================================
   /*
-   * Contratación tiene cinco sub-pestañas y vive dentro del paso 5, que a su
-   * vez cuelga del rail de la izquierda. Con la cabecera horizontal quedaban
-   * dos filas de pestañas apiladas sobre el contenido y ya no se sabía cuál
-   * mandaba. Ahora es un segundo rail, pegado al primero.
+   * Contratación tiene cinco sub-pasos. El rail que los pinta ya no vive aquí:
+   * lo pinta el pipeline junto al de Selección, para que las dos capas de
+   * navegación se vean y se entiendan igual. Aquí solo queda el contenido.
+   *
+   * La pestaña abierta se comparte por `PipelineNavService`: rail y
+   * `mat-tab-group` leen y escriben la MISMA señal, así no hay dos estados
+   * que sincronizar.
    */
-  readonly subPasos = [
-    { idx: 0, label: 'Pago y Transporte', icon: 'payments' },
-    { idx: 1, label: 'Datos de obra',     icon: 'engineering' },
-    { idx: 2, label: 'Referencias',       icon: 'groups' },
-    { idx: 3, label: 'Traslados',         icon: 'swap_horiz' },
-    { idx: 4, label: 'Cédula & Huella',   icon: 'fingerprint' },
-  ] as const;
-
-  readonly subIdx = signal(0);
+  private readonly nav = inject(PipelineNavService);
+  readonly subIdx = this.nav.subContratacion;
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
   /**
@@ -235,6 +233,47 @@ export class HiringQuestionsComponent implements OnInit {
     this.pagoTransporteForm.get('fechaIngreso')?.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.sugerirDescripcionObra());
+
+    // Avance de los cinco sub-pasos para el rail del pipeline. Se escucha
+    // también `statusChanges`: los obligatorios de Pago y Transporte cambian
+    // con la forma de pago (Daviplata no pide tarjeta ni contraseña), y eso
+    // mueve el denominador, no solo el numerador.
+    merge(
+      this.pagoTransporteForm.valueChanges, this.pagoTransporteForm.statusChanges,
+      this.datosObraForm.valueChanges,
+      this.referenciasForm.valueChanges,
+      this.trasladosForm.valueChanges, this.trasladosForm.statusChanges,
+      this.huellaForm.valueChanges,
+    )
+      .pipe(startWith(null), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.publicarAvances());
+  }
+
+  /**
+   * Cuánto lleva llenado cada sub-paso de Contratación.
+   *
+   * Pago, Datos de obra y Referencias se miden solos desde su formulario.
+   * Traslados y Cédula & Huella no: en Traslados las casillas dependen de si
+   * la persona se traslada o no, y la huella no es un campo sino dos capturas
+   * del lector.
+   */
+  private publicarAvances(): void {
+    this.nav.publicar('pago', avanceDeForm(this.pagoTransporteForm));
+    this.nav.publicar('obra', avanceDeForm(this.datosObraForm));
+    this.nav.publicar('referencias', avanceDeForm(this.referenciasForm));
+
+    const opcion = String(this.trasladosForm.get('opcion_traslado_eps')?.value ?? '').toUpperCase();
+    const traslados: boolean[] = [!!opcion];
+    if (opcion === 'SI') {
+      traslados.push(!!this.trasladosForm.get('eps_a_trasladar')?.value);
+      traslados.push(!!this.uploadedFiles['traslado']);
+    }
+    this.nav.publicar('traslados', avanceDeBanderas(traslados));
+
+    this.nav.publicar('huella', avanceDeBanderas([
+      !!this.fingerprintImageApoyo,
+      !!this.fingerprintImageTuAlianza,
+    ]));
   }
 
   /** True cuando la lista de tarjetas YA respondió (aunque venga vacía). */
@@ -1355,6 +1394,9 @@ export class HiringQuestionsComponent implements OnInit {
       if (empresaSlug === 'apoyo-laboral') this.fingerprintImageApoyo = d;
       else if (empresaSlug === 'tu-alianza') this.fingerprintImageTuAlianza = d;
       if (kind === 'ID') this.fingerprintImageID = d; else this.fingerprintImagePD = d;
+      // La huella no pasa por ningún FormControl: si no se avisa aquí, el rail
+      // se queda diciendo que falta algo que ya se capturó.
+      this.publicarAvances();
     };
 
     // ── Consentimiento obligatorio para Índice Derecho ──
