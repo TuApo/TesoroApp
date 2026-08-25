@@ -43,7 +43,7 @@ import {
   CatalogValue,
 } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
-import { avanceDeForm } from '../../shared/progreso.util';
+import { Avance, avanceDeForm } from '../../shared/progreso.util';
 import {
   BloqueFicha,
   FichaEditarDialogComponent,
@@ -1041,6 +1041,30 @@ export class FormEntrevistaComponent implements OnInit {
       'formacion',
       avanceDeForm(this.formVacante, FormEntrevistaComponent.CAMPOS_FORMACION),
     );
+    this.publicarAvanceFicha();
+  }
+
+  /**
+   * Avance de cada bloque de la ficha, con LAS MISMAS reglas del formulario de
+   * la vacante: cuentan los obligatorios habilitados, que son justo los que
+   * impiden guardar. Así el 100% de la ficha significa lo mismo que el 100%
+   * del rail, y no dos cosas parecidas.
+   *
+   * Los campos de cada bloque salen de `UBICACION`, que ya dice dónde vive
+   * cada control —lo usa el aviso de "revise los campos en rojo"—. Escribir
+   * una segunda lista era garantía de que se separaran a la primera que
+   * alguien moviera un campo de bloque.
+   */
+  private publicarAvanceFicha(): void {
+    const porBloque: Record<string, Avance> = {};
+    const campos: Record<string, string[]> = {};
+    for (const [campo, bloque] of FormEntrevistaComponent.UBICACION) {
+      (campos[bloque] ??= []).push(campo);
+    }
+    for (const [bloque, lista] of Object.entries(campos)) {
+      porBloque[bloque] = avanceDeForm(this.formVacante, lista);
+    }
+    this.nav.avanceFicha.set(porBloque);
   }
 
   private normalizeText(v: any): string {

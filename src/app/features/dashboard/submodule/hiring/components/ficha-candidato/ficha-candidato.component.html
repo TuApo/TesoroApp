@@ -3,8 +3,27 @@
   <header class="ficha-head">
     <div class="ficha-head-text">
       <span class="ficha-head-title">Datos del candidato</span>
-      <span class="ficha-head-hint">Siempre a la vista</span>
+      <span class="ficha-head-hint">
+        @if (pctTotal(); as p) {
+          {{ fichaCompleta() ? 'Datos completos' : 'Faltan datos por llenar' }}
+        } @else {
+          Siempre a la vista
+        }
+      </span>
     </div>
+
+    <!-- El total, con las mismas reglas que el formulario: si está al 100%, la
+         entrevista se puede guardar sin que salte nada en rojo. -->
+    @if (pctTotal(); as p) {
+      <span class="ficha-head-anillo"
+            [class.anillo-lleno]="fichaCompleta()"
+            [style.background]="fondoAnillo(p)"
+            [matTooltip]="fichaCompleta()
+              ? 'Todos los datos obligatorios están llenos'
+              : 'Faltan ' + (avanceTotal().total - avanceTotal().hechos) + ' de ' + avanceTotal().total">
+        <span class="ficha-head-anillo-centro">{{ p }}<small>%</small></span>
+      </span>
+    }
     <button type="button" class="ficha-head-editar"
             [disabled]="!candidato()"
             matTooltip="Editar todos los datos" (click)="editar.emit('todos')">
@@ -110,6 +129,14 @@
                 [attr.aria-expanded]="!plegado(b.id)">
           <span class="fblock-dot" [class]="'fblock-dot fblock-dot-' + b.dot"></span>
           <span class="fblock-title">{{ b.titulo }}</span>
+          @let pb = pct(b.id);
+          @if (pb !== null) {
+            <span class="fblock-pct" [class.fblock-pct-ok]="pb === 100"
+                  [matTooltip]="detalle(b.id, b.titulo)">
+              @if (pb === 100) { <mat-icon>check_circle</mat-icon> }
+              {{ pb }}%
+            </span>
+          }
           <span class="fblock-lapiz" matTooltip="Editar este bloque"
                 (click)="$event.stopPropagation(); editar.emit(b.id)">
             <mat-icon>edit</mat-icon>

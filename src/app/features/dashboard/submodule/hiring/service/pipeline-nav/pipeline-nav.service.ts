@@ -62,6 +62,21 @@ export class PipelineNavService {
   readonly subContratacion = signal<number>(0);
 
   /**
+   * Cuánto lleva llenado cada bloque de la ficha.
+   *
+   * Lo publica `form-entrevista`, que es el dueño del formulario, y lo pinta la
+   * ficha del pipeline. Se mide con LAS MISMAS reglas que el formulario de la
+   * vacante —los obligatorios habilitados, vía `avanceDeForm`— para que el
+   * porcentaje de la ficha y el del rail no puedan discrepar: si un campo
+   * bloquea el guardado, cuenta como pendiente en los dos sitios.
+   *
+   * Va aparte de `ClaveAvance` a propósito: son los datos de la PERSONA, no un
+   * paso del proceso, y meterlos en el agregado de Selección movería un número
+   * que ya se está usando para otra cosa.
+   */
+  readonly avanceFicha = signal<Readonly<Record<string, Avance>>>({});
+
+  /**
    * Bloque de la ficha que se pidió editar, o `null` cuando no hay nada pedido.
    *
    * La ficha la pinta el pipeline, pero los CAMPOS viven en el formulario de
@@ -149,5 +164,6 @@ export class PipelineNavService {
     this.edicionFicha.set(null);
     this.vacanteAsignada.set(null);
     this.biometria.set({ foto: null, firma: null, huella: null });
+    this.avanceFicha.set({});
   }
 }

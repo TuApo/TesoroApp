@@ -1140,6 +1140,9 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   /** Vacante remitida, tal como la publica `help-information`. */
   readonly vacanteAsignada = this.nav.vacanteAsignada;
 
+  /** Avance de los bloques de la ficha, medido por `form-entrevista`. */
+  readonly avanceFicha = this.nav.avanceFicha;
+
   /**
    * Cambiar la vacante. Igual que el lápiz: aquí solo se pide; quien tiene la
    * lista y sabe guardarla es `help-information`.

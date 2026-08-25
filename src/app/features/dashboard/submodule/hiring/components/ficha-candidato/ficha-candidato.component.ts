@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
 import { VacanteAsignadaResumen } from '../../service/pipeline-nav/pipeline-nav.service';
+import { Avance, pctDe, sumarAvances } from '../../shared/progreso.util';
 
 /** Una fila de la ficha: etiqueta, valor y a qué bloque pertenece para editar. */
 interface Fila {
@@ -34,6 +35,12 @@ export class FichaCandidatoComponent {
   fotoUrl = input<string | null>(null);
   /** Vacante a la que se remite. `null` = todavía sin asignar. */
   vacante = input<VacanteAsignadaResumen | null>(null);
+  /**
+   * Cuánto lleva llenado cada bloque, medido con las MISMAS reglas del
+   * formulario de la vacante. Lo calcula `form-entrevista` y llega por el
+   * pipeline; aquí solo se pinta.
+   */
+  avances = input<Readonly<Record<string, Avance>>>({});
   /** Documento tal como se tecleó en el diálogo de búsqueda. */
   documentoBuscado = input<string | null>(null);
 
@@ -51,6 +58,42 @@ export class FichaCandidatoComponent {
   asignarVacante = output<void>();
 
   private readonly plegados = signal<ReadonlySet<string>>(new Set<string>());
+
+  /** % de un bloque; `null` cuando ese bloque no tiene nada que medir. */
+  pct(bloque: string): number | null {
+    const a = this.avances()[bloque];
+    return a && a.total > 0 ? pctDe(a) : null;
+  }
+
+  /** El total de la ficha: la suma de todos sus bloques. */
+  readonly avanceTotal = computed<Avance>(() =>
+    sumarAvances(Object.values(this.avances())));
+
+  readonly pctTotal = computed<number | null>(() => {
+    const a = this.avanceTotal();
+    return a.total > 0 ? pctDe(a) : null;
+  });
+
+  readonly fichaCompleta = computed<boolean>(() => {
+    const a = this.avanceTotal();
+    return a.total > 0 && a.hechos >= a.total;
+  });
+
+  /** Qué falta, en palabras. Es lo que se lee antes de mandar a contratar. */
+  detalle(bloque: string, titulo: string): string {
+    const a = this.avances()[bloque];
+    if (!a || a.total <= 0) return titulo;
+    const faltan = Math.max(0, a.total - a.hechos);
+    return faltan === 0
+      ? `${titulo} · completo`
+      : `${titulo} · ${a.hechos} de ${a.total} · faltan ${faltan}`;
+  }
+
+  /** El arco del anillo. Se arma aquí para no depender del binding a CSS vars. */
+  fondoAnillo(pct: number | null): string {
+    if (pct === null) return 'rgba(255, 255, 255, .16)';
+    return `conic-gradient(var(--lime, #8CD50A) ${pct}%, rgba(255, 255, 255, .2) 0)`;
+  }
 
   plegado(b: string): boolean { return this.plegados().has(b); }
 
