@@ -34,6 +34,8 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { docParaEnviar } from '@/app/shared/utils/tipo-doc.util';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
+import { AnalisisIaService, AnalisisCandidato } from '../../service/analisis-ia/analisis-ia.service';
+import { Router } from '@angular/router';
 import {
   GestionParametrizacionService,
   CatalogValue,
@@ -206,7 +208,7 @@ export class FormEntrevistaComponent implements OnInit {
    */
 
   /** Pestañas del área de trabajo. `remision` se proyecta desde el padre. */
-  readonly panel = signal<'entrevista' | 'formacion' | 'remision'>('entrevista');
+  readonly panel = signal<'entrevista' | 'formacion' | 'remision' | 'ia'>('entrevista');
 
   /**
    * Fila de la ficha que está en modo edición (`null` = todo en lectura).
@@ -258,13 +260,84 @@ export class FormEntrevistaComponent implements OnInit {
    * arriba. La pestaña los ofrece igual y emite hacia el pipeline, para que
    * desde Selección se alcance todo sin volver a buscar el paso a mano.
    */
-  abrirPanel(p: 'entrevista' | 'formacion' | 'remision' | 'salud' | 'contratacion'): void {
+  abrirPanel(p: 'entrevista' | 'formacion' | 'remision' | 'ia' | 'salud' | 'contratacion'): void {
     if (p === 'salud' || p === 'contratacion') {
       this.irAPaso.emit(p);
       return;
     }
     this.panel.set(p);
     this.filaEnEdicion.set(null);
+    // El análisis se pide al entrar, no al cargar el candidato: es una llamada
+    // cara y la mayoría de las atenciones no la necesitan.
+    if (p === 'ia') this.pedirAnalisis();
+  }
+
+  // ==========================================================================
+  // PESTAÑA DE INTELIGENCIA ARTIFICIAL
+  // ==========================================================================
+  /*
+   * Resume lo que la plataforma sabe de la persona y lo contrasta con la
+   * vacante a la que va: qué juega a favor, qué en contra y qué falta por
+   * preguntar. El expediente lo junta ms-ai desde ms-hr, ms-documents y
+   * ms-payroll; aquí solo se pide y se pinta.
+   */
+  private readonly analisisIa = inject(AnalisisIaService);
+  private readonly router = inject(Router);
+
+  readonly analisis = signal<AnalisisCandidato | null>(null);
+  readonly analizando = signal(false);
+  readonly errorAnalisis = signal<string | null>(null);
+
+  /** Cédula ya analizada, para no repetir la llamada al volver a la pestaña. */
+  private analisisDe: string | null = null;
+
+  /** Se dispara al abrir la pestaña; el usuario puede forzar con "Rehacer". */
+  pedirAnalisis(forzar = false): void {
+    const cedula = this.texto('numero_documento');
+    if (!cedula) {
+      this.errorAnalisis.set('Busca primero a la persona: sin documento no hay expediente que analizar.');
+      return;
+    }
+    if (!forzar && this.analisisDe === cedula && this.analisis()) return;
+    if (this.analizando()) return;
+
+    this.analizando.set(true);
+    this.errorAnalisis.set(null);
+
+    const vacante = this.obraConDatos.length ? this.obraConDatos : null;
+    this.analisisIa.analizar(cedula, vacante).subscribe({
+      next: (r) => {
+        this.analisis.set(r);
+        this.analisisDe = cedula;
+        this.analizando.set(false);
+        this.cdr.markForCheck();
+      },
+      error: (e) => {
+        console.error('[analisis-ia]', e);
+        this.errorAnalisis.set(
+          'No se pudo generar el análisis. Puede ser que el proveedor de IA no esté configurado.');
+        this.analizando.set(false);
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  /**
+   * Abre el Asistente IA llevándose la cédula.
+   *
+   * El chat usa la MISMA fuente que este análisis (la tool
+   * `expedienteCompletoPorCedula` de ms-ai), así que la conversación arranca
+   * sabiendo de quién se habla y no hay que repetirle los datos.
+   */
+  continuarEnChat(): void {
+    const cedula = this.texto('numero_documento');
+    if (!cedula) return;
+    this.router.navigate(['/dashboard/herramientas-ia/asistente'], {
+      queryParams: {
+        cedula,
+        q: `Analiza a la persona con cédula ${cedula} usando su expediente completo.`,
+      },
+    });
   }
 
   // ── Edición en línea dentro de la ficha ──────────────────────────────────

@@ -1271,3 +1271,219 @@ mat-icon,
 
   .frow-editor { padding: 10px; }
 }
+
+/* ==========================================================================
+   PANEL DE INTELIGENCIA ARTIFICIAL
+   ========================================================================== */
+
+.ia-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--slate-200);
+}
+
+.ia-head-txt { min-width: 0; }
+.ia-head-spacer { flex: 1; }
+
+.ia-sub {
+  margin: 2px 0 0;
+  font-size: .76rem;
+  color: var(--slate-500);
+}
+
+.ia-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--navy);
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ia-btn:hover { filter: brightness(1.12); }
+
+.ia-btn-ghost {
+  background: var(--slate-100);
+  color: var(--navy);
+  border: 1px solid var(--slate-200);
+}
+
+.ia-btn-ghost:hover { background: var(--slate-200); filter: none; }
+
+.ia-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.ia-btn mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.ia-cargando,
+.ia-error {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  font-size: .86rem;
+  color: var(--slate-700);
+}
+
+.ia-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b42318;
+}
+
+.ia-spin { animation: ia-giro 1.1s linear infinite; }
+
+@keyframes ia-giro { to { transform: rotate(360deg); } }
+
+/* Sin animación para quien la haya desactivado en el sistema. */
+@media (prefers-reduced-motion: reduce) {
+  .ia-spin { animation: none; }
+}
+
+.ia-resumen {
+  margin: 0 0 14px;
+  font-size: .92rem;
+  line-height: 1.55;
+  color: var(--navy-deep);
+}
+
+.ia-ajuste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: .84rem;
+  background: var(--slate-100);
+  border: 1px solid var(--slate-200);
+  color: var(--slate-700);
+}
+
+.ia-ajuste[data-nivel="alto"]  { background: var(--ok-bg);   border-color: var(--ok-border);   color: var(--ok-fg); }
+.ia-ajuste[data-nivel="medio"] { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg); }
+.ia-ajuste[data-nivel="bajo"]  { background: #fef2f2;        border-color: #fecaca;            color: #b42318; }
+
+.ia-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 14px;
+}
+
+.ia-col {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--slate-200);
+  background: var(--surface);
+}
+
+.ia-col h4,
+.ia-bloque h4 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--slate-700);
+}
+
+.ia-col h4 mat-icon,
+.ia-bloque h4 mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.ia-col-ok     { box-shadow: inset 3px 0 0 var(--ok-fg); }
+.ia-col-no     { box-shadow: inset 3px 0 0 #b42318; }
+.ia-col-riesgo { box-shadow: inset 3px 0 0 var(--warning); }
+
+.ia-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 0;
+  border-top: 1px solid var(--slate-100);
+}
+
+.ia-item:first-of-type { border-top: 0; padding-top: 0; }
+
+.ia-punto {
+  font-size: .85rem;
+  line-height: 1.4;
+  color: var(--navy-deep);
+}
+
+/* La evidencia es el campo del expediente del que sale el punto: sin ella no
+   hay forma de comprobar si la IA se lo invento. */
+.ia-evi {
+  font-size: .72rem;
+  color: var(--slate-500);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.ia-vacio {
+  margin: 0;
+  font-size: .8rem;
+  color: var(--slate-400);
+  font-style: italic;
+}
+
+.ia-bloque {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--slate-200);
+  background: var(--slate-50);
+}
+
+.ia-bloque ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: .85rem;
+  line-height: 1.6;
+  color: var(--slate-700);
+}
+
+.ia-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 18px 0 0;
+  font-size: .76rem;
+  color: var(--slate-500);
+}
+
+.ia-nota mat-icon {
+  flex: none;
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.ttab-ia mat-icon { color: #6366f1; }
+.ttab-ia.ttab-activa mat-icon { color: var(--navy-deep); }
+
+@media (max-width: 600px) {
+  .ia-head { gap: 8px; }
+  .ia-btn { flex: 1 1 auto; justify-content: center; }
+}

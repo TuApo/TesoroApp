@@ -834,6 +834,12 @@
             @if (bloqueado()) { <mat-icon class="ttab-candado" matTooltip="Candidato en espera o no aplica">lock</mat-icon> }
           </button>
 
+          <button type="button" class="ttab ttab-ia" role="tab" [class.ttab-activa]="panel() === 'ia'"
+                  [attr.aria-selected]="panel() === 'ia'" (click)="abrirPanel('ia')">
+            <mat-icon>auto_awesome</mat-icon>
+            <span>Inteligencia artificial</span>
+          </button>
+
           <button type="button" class="ttab ttab-salto" role="tab" [attr.aria-selected]="false"
                   matTooltip="Ir al paso 4 del proceso" (click)="abrirPanel('salud')">
             <mat-icon>medical_information</mat-icon>
@@ -1178,6 +1184,105 @@
                   </div>
                 }
               </div>
+            </section>
+          }
+
+          <!-- ── Panel · Inteligencia artificial ────────────────────────── -->
+          @if (panel() === 'ia') {
+            <section class="section ia-panel">
+              <div class="ia-head">
+                <span class="section-icon-wrap section-icon-indigo">
+                  <mat-icon inline="true" aria-hidden="true">auto_awesome</mat-icon>
+                </span>
+                <div class="ia-head-txt">
+                  <h3 class="section-title">Lectura del expediente</h3>
+                  <p class="ia-sub">Lo que la plataforma sabe de la persona, contrastado con la vacante.</p>
+                </div>
+                <span class="ia-head-spacer"></span>
+                <button type="button" class="ia-btn ia-btn-ghost"
+                        [disabled]="analizando()" (click)="pedirAnalisis(true)">
+                  <mat-icon>refresh</mat-icon> Rehacer
+                </button>
+                <button type="button" class="ia-btn" (click)="continuarEnChat()">
+                  <mat-icon>forum</mat-icon> Seguir en el chat
+                </button>
+              </div>
+
+              @if (analizando()) {
+                <div class="ia-cargando">
+                  <mat-icon class="ia-spin">progress_activity</mat-icon>
+                  Leyendo el expediente completo…
+                </div>
+              } @else if (errorAnalisis()) {
+                <div class="ia-error">
+                  <mat-icon>error_outline</mat-icon> {{ errorAnalisis() }}
+                </div>
+              } @else if (analisis(); as a) {
+                @if (a.resumen) {
+                  <p class="ia-resumen">{{ a.resumen }}</p>
+                }
+
+                @if (a.ajusteVacante?.nivel) {
+                  <div class="ia-ajuste" [attr.data-nivel]="a.ajusteVacante?.nivel">
+                    <strong>Ajuste a la vacante: {{ a.ajusteVacante?.nivel }}</strong>
+                    @if (a.ajusteVacante?.porque) { <span>· {{ a.ajusteVacante?.porque }}</span> }
+                  </div>
+                }
+
+                <div class="ia-cols">
+                  <div class="ia-col ia-col-ok">
+                    <h4><mat-icon>thumb_up</mat-icon> A favor</h4>
+                    @for (x of a.aFavor ?? []; track x.punto) {
+                      <div class="ia-item">
+                        <span class="ia-punto">{{ x.punto }}</span>
+                        @if (x.evidencia) { <span class="ia-evi">{{ x.evidencia }}</span> }
+                      </div>
+                    } @empty { <p class="ia-vacio">Sin puntos a favor registrados.</p> }
+                  </div>
+
+                  <div class="ia-col ia-col-no">
+                    <h4><mat-icon>thumb_down</mat-icon> En contra</h4>
+                    @for (x of a.enContra ?? []; track x.punto) {
+                      <div class="ia-item">
+                        <span class="ia-punto">{{ x.punto }}</span>
+                        @if (x.evidencia) { <span class="ia-evi">{{ x.evidencia }}</span> }
+                      </div>
+                    } @empty { <p class="ia-vacio">Sin puntos en contra registrados.</p> }
+                  </div>
+
+                  <div class="ia-col ia-col-riesgo">
+                    <h4><mat-icon>report_problem</mat-icon> Riesgos</h4>
+                    @for (x of a.riesgos ?? []; track x.punto) {
+                      <div class="ia-item">
+                        <span class="ia-punto">{{ x.punto }}</span>
+                        @if (x.evidencia) { <span class="ia-evi">{{ x.evidencia }}</span> }
+                      </div>
+                    } @empty { <p class="ia-vacio">Sin riesgos señalados.</p> }
+                  </div>
+                </div>
+
+                @if ((a.datosQueFaltan ?? []).length) {
+                  <div class="ia-bloque">
+                    <h4><mat-icon>help_outline</mat-icon> Datos que faltan</h4>
+                    <ul>@for (d of a.datosQueFaltan ?? []; track d) { <li>{{ d }}</li> }</ul>
+                  </div>
+                }
+
+                @if ((a.preguntasSugeridas ?? []).length) {
+                  <div class="ia-bloque">
+                    <h4><mat-icon>quiz</mat-icon> Para preguntarle en la entrevista</h4>
+                    <ul>@for (q of a.preguntasSugeridas ?? []; track q) { <li>{{ q }}</li> }</ul>
+                  </div>
+                }
+
+                <p class="ia-nota">
+                  <mat-icon>info</mat-icon>
+                  Esto es una lectura automática del expediente, no una decisión. Verifica cada punto
+                  antes de usarlo.
+                </p>
+              } @else {
+                <div class="ia-cargando">Abre esta pestaña con una persona cargada para leer su expediente.</div>
+              }
             </section>
           }
 
