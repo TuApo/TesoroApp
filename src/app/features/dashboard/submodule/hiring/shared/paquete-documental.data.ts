@@ -94,10 +94,17 @@ export const DOCUMENTOS_PAQUETE: readonly string[] = [
   'Formato de Bonificación Ipanema',
   ];
 
-// typeMap: documento → ID de tipo en backend.
-// IDs ≥ 200 son PLACEHOLDERS para los docs nuevos. Hay que crearlos
-// en gestion_documental y reemplazar acá con el ID real antes de habilitar la subida.
+// Documento → ID de tipo en gestión documental.
+//
+// El ID ES el contrato con el backend: la subida manda el número, no el
+// nombre. Los del rango 201..220 estuvieron un tiempo como "placeholders a la
+// espera de crearse"; ya existen y están sembrados por la V15 de ms-documents,
+// así que si aquí se toca un número hay que tocarlo también allá.
 export const TYPE_ID_POR_TITULO: Readonly<Record<string, number>> = {
+  // El carnet lo genera el pipeline (tipo 102, CARNET). Faltaba en el mapa, así
+  // que en el módulo Documentos salía como "sin tipo" y no se podía ni ver ni
+  // resubir, aunque el tipo llevaba tiempo creado.
+  'Carnet': 102,
   // Existentes
   'Contrato': 25,
   'Autorización de Datos': 26,
