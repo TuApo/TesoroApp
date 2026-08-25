@@ -1,0 +1,287 @@
+<div class="viz">
+  <!-- ── Tipo de visualización ──────────────────────────────────────────── -->
+  <div class="tipos">
+    @for (t of tipos; track t.valor) {
+      <button type="button" class="tipo" [class.tipo--on]="store.visualizacion().tipo === t.valor"
+              [matTooltip]="t.ayuda" (click)="fijarTipo(t.valor)">
+        <mat-icon>{{ t.icono }}</mat-icon>
+        <span>{{ t.etiqueta }}</span>
+      </button>
+    }
+  </div>
+
+  @if (!esTabla()) {
+    <!-- ── DATOS: dimensión, desglose y métricas ────────────────────────── -->
+    <section class="bloque">
+      <h3 class="bloque__t"><mat-icon>data_usage</mat-icon> Datos de la gráfica</h3>
+
+      <!-- Dimensión -->
+      @if (!esKpi()) {
+        <label class="campo-lbl">
+          Dimensión
+          <span class="campo-ayuda">lo que se compara: empresa, oficina, mes…</span>
+        </label>
+
+        @if (dimension(); as d) {
+          <div class="ficha ficha--dim">
+            <mat-icon>category</mat-icon>
+            <div class="ficha__txt">
+              <b>{{ d.alias }}</b>
+              @if (esFecha(d)) {
+                <select class="ficha__sel" [value]="d.transformacion ?? ''"
+                        (change)="cambiarAgrupacionFecha($any($event.target).value)"
+                        aria-label="Agrupar la fecha">
+                  <option value="">Fecha exacta</option>
+                  @for (t of transformaciones; track t.valor) {
+                    <option [value]="t.valor">{{ t.etiqueta }}</option>
+                  }
+                </select>
+              }
+            </div>
+            <button mat-icon-button (click)="quitarDimension()" matTooltip="Quitar dimensión">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        } @else {
+          <button mat-stroked-button class="añadir" [matMenuTriggerFor]="menuDim">
+            <mat-icon>add</mat-icon> Elegir dimensión
+          </button>
+        }
+
+        <mat-menu #menuDim="matMenu" class="menu-datos">
+          @for (f of dimensionesDisponibles(); track f.id) {
+            <button mat-menu-item (click)="usarComoDimension(f)">
+              <mat-icon>view_column</mat-icon> {{ f.alias }}
+            </button>
+          }
+          @if (dimensionesDisponibles().length) { <mat-divider></mat-divider> }
+          @for (t of camposPorTabla(); track t.clave) {
+            <button mat-menu-item [matMenuTriggerFor]="subDim">
+              <mat-icon>{{ t.icono }}</mat-icon> {{ t.nombre }}
+            </button>
+            <mat-menu #subDim="matMenu" class="menu-datos">
+              @for (c of camposDimension(t.campos); track c.clave) {
+                <button mat-menu-item (click)="elegirDimension(c)">
+                  <mat-icon>{{ iconoTipo(c) }}</mat-icon> {{ c.nombre }}
+                </button>
+              }
+            </mat-menu>
+          }
+        </mat-menu>
+
+        <!-- Desglose por serie -->
+        @if (admiteSerie()) {
+          <label class="campo-lbl">
+            Desglose <span class="campo-ayuda">opcional: una serie por cada valor</span>
+          </label>
+          @if (serie(); as s) {
+            <div class="ficha">
+              <mat-icon>layers</mat-icon>
+              <div class="ficha__txt"><b>{{ s.alias }}</b></div>
+              <button mat-icon-button (click)="quitarSerie()" matTooltip="Quitar desglose">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <button mat-stroked-button class="añadir" [matMenuTriggerFor]="menuSerie">
+              <mat-icon>add</mat-icon> Añadir desglose
+            </button>
+            <mat-menu #menuSerie="matMenu" class="menu-datos">
+              @for (t of camposPorTabla(); track t.clave) {
+                <button mat-menu-item [matMenuTriggerFor]="subSerie">
+                  <mat-icon>{{ t.icono }}</mat-icon> {{ t.nombre }}
+                </button>
+                <mat-menu #subSerie="matMenu" class="menu-datos">
+                  @for (c of camposDimension(t.campos); track c.clave) {
+                    <button mat-menu-item (click)="elegirSerie(c)">
+                      <mat-icon>{{ iconoTipo(c) }}</mat-icon> {{ c.nombre }}
+                    </button>
+                  }
+                </mat-menu>
+              }
+            </mat-menu>
+          }
+        }
+      }
+
+      <!-- Métricas -->
+      <label class="campo-lbl">
+        {{ esKpi() ? 'Indicador' : 'Métrica(s)' }}
+        <span class="campo-ayuda">lo que se mide: cantidad, total, promedio…</span>
+      </label>
+
+      @if (esKpi()) {
+        @if (metricaKpi(); as m) {
+          <div class="ficha ficha--met">
+            <mat-icon>functions</mat-icon>
+            <div class="ficha__txt"><b>{{ m.alias }}</b></div>
+            <button mat-icon-button (click)="quitarMetrica(m.id)" matTooltip="Quitar">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+      } @else {
+        @for (m of metricas(); track m.id) {
+          <div class="ficha ficha--met">
+            <mat-icon>functions</mat-icon>
+            <div class="ficha__txt"><b>{{ m.alias }}</b></div>
+            <button mat-icon-button (click)="quitarMetrica(m.id)" matTooltip="Quitar métrica">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+      }
+
+      @if (esKpi() ? !metricaKpi() : (admiteVariasMetricas() || !metricas().length)) {
+        <button mat-stroked-button class="añadir" [matMenuTriggerFor]="menuMet">
+          <mat-icon>add</mat-icon> {{ metricas().length || metricaKpi() ? 'Añadir métrica' : 'Elegir métrica' }}
+        </button>
+      }
+
+      <mat-menu #menuMet="matMenu" class="menu-datos">
+        <button mat-menu-item class="destacado" (click)="agregarConteo()">
+          <mat-icon>tag</mat-icon>
+          <span><b>Cantidad de registros</b><small>cuántas filas hay en cada grupo</small></span>
+        </button>
+        <mat-divider></mat-divider>
+        @for (f of metricasDisponibles(); track f.id) {
+          <button mat-menu-item (click)="usarComoMetrica(f)">
+            <mat-icon>functions</mat-icon> {{ f.alias }}
+          </button>
+        }
+        @if (metricasDisponibles().length) { <mat-divider></mat-divider> }
+        @for (t of camposPorTabla(); track t.clave) {
+          <button mat-menu-item [matMenuTriggerFor]="subMet">
+            <mat-icon>{{ t.icono }}</mat-icon> {{ t.nombre }}
+          </button>
+          <mat-menu #subMet="matMenu" class="menu-datos">
+            @for (c of camposMetrica(t.campos); track c.clave) {
+              <button mat-menu-item [matMenuTriggerFor]="subAgg">
+                <mat-icon>{{ iconoTipo(c) }}</mat-icon> {{ c.nombre }}
+              </button>
+              <mat-menu #subAgg="matMenu">
+                @for (a of c.agregaciones; track a) {
+                  <button mat-menu-item (click)="agregarMetrica(c, $any(a))">
+                    {{ rotuloAgregacion(a) }}
+                  </button>
+                }
+              </mat-menu>
+            }
+            @if (!camposMetrica(t.campos).length) {
+              <button mat-menu-item disabled>Sin campos numéricos</button>
+            }
+          </mat-menu>
+        }
+      </mat-menu>
+
+      <!-- Aviso de columnas que parten los datos -->
+      @if (columnasQueSobran().length) {
+        <div class="aviso">
+          <mat-icon>call_split</mat-icon>
+          <div>
+            <b>El reporte trae {{ columnasQueSobran().length }} columna(s) que la gráfica no usa</b>
+            <p>
+              Al agrupar, esas columnas también parten los datos y la gráfica sale
+              fragmentada: {{ nombresQueSobran() }}.
+            </p>
+            <button mat-flat-button color="primary" (click)="limpiarParaGrafica()">
+              Dejar solo lo que usa la gráfica
+            </button>
+          </div>
+        </div>
+      }
+    </section>
+
+    <!-- ── OPCIONES ─────────────────────────────────────────────────────── -->
+    <section class="bloque">
+      <h3 class="bloque__t"><mat-icon>palette</mat-icon> Presentación</h3>
+
+      <div class="campos">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Título</mat-label>
+          <input matInput [ngModel]="store.visualizacion().titulo ?? ''"
+                 (ngModelChange)="store.fijarVisualizacion({ titulo: $event || null })"
+                 placeholder="Opcional">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Subtítulo</mat-label>
+          <input matInput [ngModel]="store.visualizacion().subtitulo ?? ''"
+                 (ngModelChange)="store.fijarVisualizacion({ subtitulo: $event || null })"
+                 placeholder="Opcional">
+        </mat-form-field>
+
+        @if (esKpi()) {
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Comparar contra</mat-label>
+            <mat-select [ngModel]="store.visualizacion().kpi_comparacion ?? ''"
+                        (ngModelChange)="store.fijarVisualizacion({ kpi_comparacion: $event || null })">
+              <mat-option value="">Sin comparación</mat-option>
+              @for (f of metricasDisponibles(); track f.id) {
+                <mat-option [value]="f.id">{{ f.alias }}</mat-option>
+              }
+            </mat-select>
+            <mat-hint>Otra métrica del reporte (p. ej. el periodo anterior)</mat-hint>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Sufijo</mat-label>
+            <input matInput [ngModel]="store.visualizacion().kpi_sufijo ?? ''"
+                   (ngModelChange)="store.fijarVisualizacion({ kpi_sufijo: $event || null })"
+                   placeholder="p. ej. personas">
+          </mat-form-field>
+        } @else {
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Mostrar solo los primeros</mat-label>
+            <input matInput type="number" min="0" max="100"
+                   [ngModel]="store.visualizacion().top_n ?? ''"
+                   (ngModelChange)="store.fijarVisualizacion({ top_n: $event ? +$event : null })"
+                   placeholder="Todos">
+            <mat-hint>Top N por la primera métrica</mat-hint>
+          </mat-form-field>
+        }
+      </div>
+
+      @if (!esKpi()) {
+        <div class="switches">
+          <mat-slide-toggle [ngModel]="store.visualizacion().leyenda ?? true"
+                            (ngModelChange)="store.fijarVisualizacion({ leyenda: $event })">
+            Leyenda
+          </mat-slide-toggle>
+          <mat-slide-toggle [ngModel]="store.visualizacion().etiquetas ?? false"
+                            (ngModelChange)="store.fijarVisualizacion({ etiquetas: $event })">
+            Valores sobre la gráfica
+          </mat-slide-toggle>
+          @if (admiteOrientacion()) {
+            <mat-button-toggle-group [ngModel]="store.visualizacion().orientacion ?? 'vertical'"
+                                     (ngModelChange)="store.fijarVisualizacion({ orientacion: $event })"
+                                     class="orient">
+              <mat-button-toggle value="vertical" matTooltip="Vertical"><mat-icon>bar_chart</mat-icon></mat-button-toggle>
+              <mat-button-toggle value="horizontal" matTooltip="Horizontal"><mat-icon>align_horizontal_left</mat-icon></mat-button-toggle>
+            </mat-button-toggle-group>
+          }
+        </div>
+      }
+    </section>
+  } @else {
+    <section class="bloque">
+      <h3 class="bloque__t"><mat-icon>table_rows</mat-icon> Opciones de la tabla</h3>
+      <div class="switches">
+        <mat-slide-toggle [ngModel]="store.visualizacion().mostrar_totales ?? false"
+                          (ngModelChange)="store.fijarVisualizacion({ mostrar_totales: $event })">
+          Mostrar totales al pie
+        </mat-slide-toggle>
+        <mat-slide-toggle [ngModel]="store.distinct()"
+                          (ngModelChange)="store.distinct.set($event); store.refrescar()"
+                          matTooltip="Elimina filas repetidas. Útil tras relacionar tablas uno a muchos.">
+          Solo filas distintas
+        </mat-slide-toggle>
+      </div>
+      <p class="pista">
+        <mat-icon>lightbulb</mat-icon>
+        Elige cualquier gráfica arriba para resumir estos datos. Se te propondrá una
+        dimensión y la métrica «cantidad de registros» automáticamente.
+      </p>
+    </section>
+  }
+</div>

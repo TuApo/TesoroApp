@@ -181,8 +181,8 @@
               Filtros
             </button>
 
-            <!-- View Mode (Desktop) -->
-            <div class="sf-view-toggle desktop-only">
+            <!-- View Mode Toggle -->
+            <div class="sf-view-toggle">
               <mat-icon [class.active]="viewMode==='table'">table_rows</mat-icon>
               <mat-slide-toggle [checked]="viewMode === 'cards'" (change)="setViewMode($event)" color="primary">
               </mat-slide-toggle>
@@ -197,6 +197,52 @@
               <button mat-menu-item (click)="exportTable('pdf')"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
               <button mat-menu-item (click)="exportTable('excel')"><mat-icon>table_view</mat-icon> Excel</button>
             </mat-menu>
+
+            <!-- Rejilla: plantillas, columnas y copiado -->
+            @if (enableGrid) {
+              <button mat-icon-button [matMenuTriggerFor]="gridMenu" matTooltip="Disposición de la tabla">
+                <mat-icon>view_column</mat-icon>
+              </button>
+              <mat-menu #gridMenu="matMenu">
+                <button mat-menu-item (click)="copiarSeleccion(true)" [disabled]="!sel.hayseleccion">
+                  <mat-icon>content_copy</mat-icon>
+                  Copiar selección con encabezados
+                </button>
+                <button mat-menu-item (click)="agregarColumnaVacia()">
+                  <mat-icon>add_box</mat-icon> Añadir columna vacía
+                </button>
+                <button mat-menu-item (click)="abrirOrganizador()">
+                  <mat-icon>swap_vert</mat-icon> Organizar columnas
+                </button>
+                <mat-divider></mat-divider>
+
+                @if (enableTemplates && storageKey) {
+                  <button mat-menu-item (click)="guardarPlantilla()">
+                    <mat-icon>bookmark_add</mat-icon> Guardar como plantilla
+                  </button>
+                  @if (plantillas.length) {
+                    <mat-divider></mat-divider>
+                    @for (p of plantillas; track p.id) {
+                      <button mat-menu-item (click)="aplicarPlantilla(p)"
+                              [class.sf-plt-activa]="plantillaAplicada === p.id">
+                        <mat-icon>{{ p.es_base ? 'push_pin' : (p.visibilidad === 'PUBLICA' ? 'public' : 'lock') }}</mat-icon>
+                        <span class="sf-plt-nombre">{{ p.nombre }}</span>
+                        @if (p.editable) {
+                          <span class="sf-plt-x" (click)="eliminarPlantilla(p, $event)"
+                                matTooltip="Eliminar plantilla">
+                            <mat-icon>delete_outline</mat-icon>
+                          </span>
+                        }
+                      </button>
+                    }
+                  }
+                  <mat-divider></mat-divider>
+                }
+                <button mat-menu-item (click)="restablecerDisposicion()">
+                  <mat-icon>restart_alt</mat-icon> Restablecer disposición
+                </button>
+              </mat-menu>
+            }
 
             <!-- Create -->
             @if (createRoute && createRoute.length) {
@@ -243,6 +289,45 @@
           </div>
         }
 
+        <!-- Organizador de columnas -->
+        @if (organizadorAbierto) {
+          <div class="sf-org-backdrop" (click)="cerrarOrganizador()"></div>
+          <div class="sf-org" role="dialog" aria-label="Organizar columnas">
+            <header class="sf-org__head">
+              <h2>Organizar columnas</h2>
+              <button type="button" class="sf-org__x" (click)="cerrarOrganizador()" aria-label="Cerrar">
+                <mat-icon>close</mat-icon>
+              </button>
+            </header>
+            <p class="sf-org__hint">Arrastra para reordenar. El interruptor muestra u oculta.</p>
+
+            <div class="sf-org__list" cdkDropList (cdkDropListDropped)="organizadorDrop($event)">
+              @for (c of columnasOrganizables; track c.name; let i = $index) {
+                <div class="sf-org__row" cdkDrag>
+                  <mat-icon class="sf-org__grip" cdkDragHandle>drag_indicator</mat-icon>
+                  <span class="sf-org__name">
+                    {{ c.header || c.name }}
+                    @if (esColumnaVacia(c.name)) { <em class="sf-org__tag">vacía</em> }
+                  </span>
+                  <button type="button" class="sf-org__mv" (click)="moverEnOrganizador(i, -1)"
+                          [disabled]="i === 0" aria-label="Subir"><mat-icon>arrow_upward</mat-icon></button>
+                  <button type="button" class="sf-org__mv" (click)="moverEnOrganizador(i, 1)"
+                          [disabled]="i === columnasOrganizables.length - 1" aria-label="Bajar">
+                    <mat-icon>arrow_downward</mat-icon>
+                  </button>
+                  <mat-slide-toggle color="primary" [checked]="isColumnVisible(c.name)"
+                                    (change)="toggleColumn(c.name, $event.checked)"></mat-slide-toggle>
+                </div>
+              }
+            </div>
+
+            <footer class="sf-org__foot">
+              <button mat-stroked-button type="button" (click)="cerrarOrganizador()">Cancelar</button>
+              <button mat-flat-button color="primary" type="button" (click)="aplicarOrganizador()">Aplicar</button>
+            </footer>
+          </div>
+        }
+
         <!-- CONTENT: Table or Cards -->
         <div class="sf-content-area">
 
@@ -255,10 +340,31 @@
           }
 
           @if (viewMode === 'table') {
-            <div class="sf-table-wrapper">
+            <div class="sf-table-wrapper"
+                 [attr.tabindex]="enableGrid ? 0 : null"
+                 (keydown)="onGridKeyDown($event)"
+                 (mouseup)="onGridMouseUp()"
+                 (mouseleave)="onGridMouseUp()">
               <table mat-table ngSkipHydration [dataSource]="dataSource" matSort class="sf-table"
                 [class.sf-density-compact]="density === 'compact'"
-                [class.sf-density-comfortable]="density === 'comfortable'">
+                [class.sf-density-comfortable]="density === 'comfortable'"
+                [class.sf-grid]="enableGrid">
+
+                <!-- Columna índice: número de fila y asidero para seleccionar la fila entera -->
+                @if (enableGrid) {
+                  <ng-container matColumnDef="__indice" sticky>
+                    <th mat-header-cell *matHeaderCellDef class="sf-idx-cell sf-idx-head"
+                        (click)="sel.seleccionarTodo(); $event.stopPropagation()"
+                        matTooltip="Seleccionar toda la tabla">
+                      <mat-icon class="sf-idx-all">select_all</mat-icon>
+                    </th>
+                    <td mat-cell *matCellDef="let row; let i = index" class="sf-idx-cell"
+                        [class.sf-idx-sel]="sel.filaEnRango(i)"
+                        (mousedown)="onSeleccionarFila(i, $event)">
+                      {{ numeroFila(i) }}
+                    </td>
+                  </ng-container>
+                }
 
                 <!-- Checkbox Column -->
                 @if (enableSelection) {
@@ -278,15 +384,129 @@
                 }
 
                 <!-- Dynamic Columns -->
-                @for (col of visibleColumns; track trackByCol($index, col)) {
+                @for (col of visibleColumns; track trackByCol($index, col); let ci = $index) {
                   <ng-container [matColumnDef]="col.name" [sticky]="!!col.stickyStart"
                     [stickyEnd]="!!col.stickyEnd || col.name === 'actions'">
 
                     <th mat-header-cell *matHeaderCellDef mat-sort-header [disabled]="!isSortable(col)"
                       [class.header-align-right]="col.type === 'number'" [style.width]="col.width || null"
-                      [style.minWidth]="col.width || null">
+                      [style.minWidth]="col.width || null"
+                      [class.sf-col-sel]="enableGrid && sel.columnaEnRango(ci)">
                       <div style="display: flex; align-items: center; justify-content: space-between; gap: 4px; width: 100%;">
-                        <span>{{ col.header }}</span>
+                        <!-- El nombre es el asidero para seleccionar la columna entera. Va en su
+                             propio span y detiene la propagación para no disparar el ordenamiento. -->
+                        <span [class.sf-col-grip]="enableGrid"
+                              (mousedown)="enableGrid ? onSeleccionarColumna(ci, $event) : null"
+                              [matTooltip]="enableGrid ? 'Clic para seleccionar la columna' : ''">
+                          {{ col.header }}
+                        </span>
+
+                        @if (enableGrid && esColumnaVacia(col.name)) {
+                          <span class="sf-vacia-tools">
+                            <button type="button" class="sf-vacia-btn" (click)="renombrarColumnaVacia(col, $event)"
+                                    matTooltip="Renombrar"><mat-icon>edit</mat-icon></button>
+                            <button type="button" class="sf-vacia-btn" (click)="quitarColumnaVacia(col, $event)"
+                                    matTooltip="Quitar columna"><mat-icon>close</mat-icon></button>
+                          </span>
+                        }
+
+                        <!-- Filtro de la columna, en su propio encabezado. Antes sólo se
+                             podía filtrar abriendo el drawer y buscando la columna en una
+                             lista; aquí el control está donde está el dato. Cada tipo trae
+                             el suyo (texto con operador, número con rango, lista múltiple). -->
+                        @if (col.filterable !== false && filterForms[col.name] && col.name !== 'actions'
+                             && !esColumnaVacia(col.name)) {
+                          <button type="button" class="sf-hfilter"
+                                  [class.on]="tieneFiltroActivo(col.name)"
+                                  [matMenuTriggerFor]="filtroCol"
+                                  (click)="$event.stopPropagation()"
+                                  [matTooltip]="'Filtrar por ' + col.header">
+                            <mat-icon>{{ tieneFiltroActivo(col.name) ? 'filter_alt' : 'more_vert' }}</mat-icon>
+                          </button>
+
+                          <mat-menu #filtroCol="matMenu" class="sf-hfilter-menu">
+                            <div class="sf-hfilter-panel" (click)="$event.stopPropagation()"
+                                 [formGroup]="filterForms[col.name]">
+                              <div class="sf-hfilter-title">{{ col.header }}</div>
+
+                              @switch (col.type) {
+                                @case ('number') {
+                                  <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                    <mat-select formControlName="operator">
+                                      @for (op of numberOperators; track op.val) {
+                                        <mat-option [value]="op.val">{{ op.label }}</mat-option>
+                                      }
+                                    </mat-select>
+                                  </mat-form-field>
+
+                                  @if (filterForms[col.name].value.operator === 'range') {
+                                    <div class="sf-hfilter-row">
+                                      <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                        <input matInput type="number" formControlName="min" placeholder="Mín">
+                                      </mat-form-field>
+                                      <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                        <input matInput type="number" formControlName="max" placeholder="Máx">
+                                      </mat-form-field>
+                                    </div>
+                                  } @else {
+                                    <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                      <input matInput type="number" formControlName="value" placeholder="Valor">
+                                    </mat-form-field>
+                                  }
+                                }
+
+                                @case ('select') {
+                                  <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                    <mat-select formControlName="value" multiple placeholder="Seleccionar">
+                                      @for (opt of (col.options || yesNoOptions); track opt) {
+                                        <mat-option [value]="opt">{{ opt }}</mat-option>
+                                      }
+                                    </mat-select>
+                                  </mat-form-field>
+                                }
+
+                                @case ('status') {
+                                  <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                    <mat-select formControlName="value" multiple placeholder="Seleccionar">
+                                      @for (opt of (col.options || yesNoOptions); track opt) {
+                                        <mat-option [value]="opt">{{ opt }}</mat-option>
+                                      }
+                                    </mat-select>
+                                  </mat-form-field>
+                                }
+
+                                @case ('date') {
+                                  <p class="sf-hfilter-hint">
+                                    El rango de fechas se aplica desde <strong>Filtros</strong>.
+                                  </p>
+                                }
+
+                                @default {
+                                  <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                    <mat-select formControlName="operator">
+                                      @for (op of textOperators; track op.val) {
+                                        <mat-option [value]="op.val">{{ op.label }}</mat-option>
+                                      }
+                                    </mat-select>
+                                  </mat-form-field>
+                                  <mat-form-field appearance="outline" class="sf-hfilter-ff">
+                                    <input matInput formControlName="value" placeholder="Valor">
+                                  </mat-form-field>
+                                }
+                              }
+
+                              <div class="sf-hfilter-foot">
+                                <button type="button" class="sf-hfilter-link"
+                                        (click)="clearSingleFilter(col.name)">Limpiar</button>
+                                @if (enableGrid) {
+                                  <button type="button" class="sf-hfilter-link"
+                                          (click)="onSeleccionarColumna(ci, $event)">Seleccionar columna</button>
+                                }
+                              </div>
+                            </div>
+                          </mat-menu>
+                        }
+
                         @if (headerActionTemplate) {
                           <ng-container [ngTemplateOutlet]="headerActionTemplate"
                                       [ngTemplateOutletContext]="{ $implicit: col }">
@@ -295,8 +515,13 @@
                       </div>
                     </th>
 
-                    <td mat-cell *matCellDef="let row" [style.width]="col.width || null" [style.minWidth]="col.width || null"
-                      [class.cell-number]="col.type === 'number'">
+                    <td mat-cell *matCellDef="let row; let ri = index"
+                      [style.width]="col.width || null" [style.minWidth]="col.width || null"
+                      [class.cell-number]="col.type === 'number'"
+                      [class.sf-cell-sel]="enableGrid && sel.estaSeleccionada(ri, ci)"
+                      [class.sf-cell-activa]="enableGrid && sel.esCeldaActiva(ri, ci)"
+                      (mousedown)="enableGrid ? onCeldaMouseDown(ri, ci, $event) : null"
+                      (mouseenter)="enableGrid ? onCeldaMouseEnter(ri, ci) : null">
 
                       <!-- Actions -->
                       @if (col.name === 'actions') {
@@ -326,10 +551,13 @@
                       }
 
                       <!-- Standard Render -->
+                      <!-- Una columna vacía no pinta nada: no existe en los datos y formatCell
+                           devolvería '-'. En blanco es justo su utilidad (hueco para rellenar). -->
                       @if (
                         col.name !== 'actions' &&
                         col.name !== 'attachment' &&
                         col.name !== 'semaforo' &&
+                        !esColumnaVacia(col.name) &&
                         !((col.name === 'estado' || col.name.startsWith('type_')) && estadoTemplate) &&
                         !customTemplates[col.name]
                         ) {
@@ -339,30 +567,20 @@
                           </a>
                         } @else {
                           @switch (col.type) {
-                            @case ('date') {
-                              <span [matTooltip]="(row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy')) || ''"
-                                matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">{{ row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy') }}</span>
-                            }
+                            @case ('date') { {{ row[col.name] | date: (col.dateFormat || 'dd/MM/yyyy') }} }
                               @case ('status') {
                                 <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
-                                  [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background"
-                                  [matTooltip]="getStatusLabel(col.name, row[col.name]) || ''"
-                                  matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">
+                                  [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
                                   {{ getStatusLabel(col.name, row[col.name]) }}
                                 </span>
                               }
                               @case ('custom') {
                                 <span class="sf-custom-badge" [style.color]="getCustomStyles(col.name, row[col.name]).color"
-                                  [style.backgroundColor]="getCustomStyles(col.name, row[col.name]).background"
-                                  [matTooltip]="(row[col.name] ?? '') + ''"
-                                  matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">
+                                  [style.backgroundColor]="getCustomStyles(col.name, row[col.name]).background">
                                   {{ row[col.name] }}
                                 </span>
                               }
-                              @default {
-                                <span [matTooltip]="(row[col.name] ?? '') + ''"
-                                  matTooltipShowDelay="300" matTooltipClass="sf-cell-tip">{{ row[col.name] ?? '-' }}</span>
-                              }
+                              @default { {{ formatCell(row[col.name], col) }} }
                               }
                             }
                           }
@@ -430,14 +648,14 @@
                                   }
                                 } @else {
                                   @switch (col.type) {
-                                    @case ('date') { {{ row[col.name] | date:(col.dateFormat || 'dd/MM/yyyy') }} }
+                                    @case ('date') { {{ row[col.name] | date: (col.dateFormat || 'dd/MM/yyyy') }} }
                                       @case ('status') {
                                         <span class="sf-status-badge" [style.color]="getStatusStyles(col.name, row[col.name]).color"
                                           [style.backgroundColor]="getStatusStyles(col.name, row[col.name]).background">
                                           {{ getStatusLabel(col.name, row[col.name]) }}
                                         </span>
                                       }
-                                      @default { {{ row[col.name] ?? '-' }} }
+                                      @default { {{ formatCell(row[col.name], col) }} }
                                       }
                                     }
                                   </div>
@@ -450,8 +668,38 @@
                     }
                   </div>
 
-                  <mat-paginator [pageSizeOptions]="pageSizeOptions" [pageSize]="defaultPageSize"
-                  showFirstLastButtons></mat-paginator>
+                  <!-- Pie: estado de la selección + paginación + escape a la consulta completa -->
+                  <div class="sf-pie">
+                    @if (enableGrid && sel.hayseleccion) {
+                      <div class="sf-selinfo" role="status">
+                        <mat-icon>highlight_alt</mat-icon>
+                        <span>{{ sel.conteo() | number }} {{ sel.conteo() === 1 ? 'celda' : 'celdas' }}</span>
+                        <button type="button" class="sf-selinfo__btn" (click)="copiarSeleccion()">
+                          <mat-icon>content_copy</mat-icon> Copiar
+                        </button>
+                        <button type="button" class="sf-selinfo__btn" (click)="sel.limpiar()">
+                          Limpiar
+                        </button>
+                      </div>
+                    }
+
+                    <!-- Sólo aparece si el padre suscribió (extendedQuery): es él quien sabe
+                         traer el conjunto completo y lo que cuesta. -->
+                    @if (extendedQuery.observed && !extendedQueryDone) {
+                      <button mat-stroked-button type="button" class="sf-extensa"
+                              (click)="pedirConsultaExtensa()" [disabled]="extendedQueryLoading">
+                        @if (extendedQueryLoading) {
+                          <mat-spinner diameter="16"></mat-spinner>
+                        } @else {
+                          <mat-icon>unfold_more</mat-icon>
+                        }
+                        {{ extendedQueryLabel }}
+                      </button>
+                    }
+
+                    <mat-paginator [pageSizeOptions]="pageSizeOptions" [pageSize]="defaultPageSize"
+                    showFirstLastButtons></mat-paginator>
+                  </div>
 
                 </div>
               </mat-drawer-content>

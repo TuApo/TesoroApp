@@ -1,0 +1,283 @@
+<div class="xi-fondo" (click)="cerrar.emit()">
+  <div class="xi-hoja" role="dialog" aria-modal="true" aria-labelledby="xi-titulo" (click)="$event.stopPropagation()">
+
+    <div class="xi-head">
+      <div class="xi-head__texto">
+        <h2 class="xi-titulo" id="xi-titulo">Crear formularios desde Excel</h2>
+        <p class="xi-sub">
+          Baja la plantilla ya parametrizada, llénala y súbela: el formulario aparece armado
+          en el constructor para revisarlo antes de guardar.
+        </p>
+      </div>
+      <button type="button" class="xi-cerrar" (click)="cerrar.emit()" aria-label="Cerrar">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+
+    <div class="xi-tabs" role="tablist">
+      <button type="button" role="tab" class="xi-tab" [class.xi-tab--activa]="pestana() === 'plantilla'"
+              [attr.aria-selected]="pestana() === 'plantilla'" (click)="pestana.set('plantilla')">
+        <span class="material-symbols-outlined" aria-hidden="true">download</span>
+        1 · Descargar plantilla
+      </button>
+      <button type="button" role="tab" class="xi-tab" [class.xi-tab--activa]="pestana() === 'cargar'"
+              [attr.aria-selected]="pestana() === 'cargar'" (click)="pestana.set('cargar')">
+        <span class="material-symbols-outlined" aria-hidden="true">upload_file</span>
+        2 · Cargar archivo
+      </button>
+    </div>
+
+    <div class="xi-cuerpo">
+
+      <!-- ═══ Paso 1: parametrizar y descargar ═══════════════════════ -->
+      @if (pestana() === 'plantilla') {
+
+        <p class="xi-ayuda">
+          Lo que definas aquí queda escrito DENTRO del archivo. Al cargarlo, el formulario
+          vuelve con su destino, sus permisos y su recorrido ya puestos.
+        </p>
+
+        <div class="xi-modo">
+          <button type="button" class="xi-modo__op" [class.xi-modo__op--sel]="modo() === 'individual'"
+                  (click)="modo.set('individual')">
+            <span class="material-symbols-outlined" aria-hidden="true">description</span>
+            <span class="xi-modo__t">Un formulario</span>
+            <span class="xi-modo__d">El archivo arma un solo formulario.</span>
+          </button>
+          <button type="button" class="xi-modo__op" [class.xi-modo__op--sel]="modo() === 'masivo'"
+                  (click)="modo.set('masivo')">
+            <span class="material-symbols-outlined" aria-hidden="true">library_books</span>
+            <span class="xi-modo__t">Varios formularios</span>
+            <span class="xi-modo__d">Una fila por formulario, todos con el mismo destino.</span>
+          </button>
+        </div>
+
+        @if (modo() === 'masivo') {
+          <label class="xi-campo xi-campo--corto">
+            <span>¿Cuántos formularios prellenamos?</span>
+            <input type="number" min="1" max="50" [ngModel]="cuantos()"
+                   (ngModelChange)="cuantos.set($event)">
+            <small>Siempre puedes agregar más filas en el Excel.</small>
+          </label>
+        }
+
+        <div class="xi-grid">
+          <label class="xi-campo">
+            <span>Nombre del formulario</span>
+            <input type="text" maxlength="200" [ngModel]="nombre()" (ngModelChange)="nombre.set($event)"
+                   placeholder="Ej. Control de visitas a fincas">
+          </label>
+          <label class="xi-campo">
+            <span>Categoría</span>
+            <input type="text" maxlength="100" [ngModel]="categoria()" (ngModelChange)="categoria.set($event)"
+                   placeholder="Ej. Operaciones">
+          </label>
+          <label class="xi-campo xi-campo--ancho">
+            <span>Descripción</span>
+            <input type="text" maxlength="400" [ngModel]="descripcion()" (ngModelChange)="descripcion.set($event)"
+                   placeholder="Para qué sirve y cuándo se llena">
+          </label>
+        </div>
+
+        <h3 class="xi-seccion">¿A quién se le presta?</h3>
+        <p class="xi-ayuda xi-ayuda--tenue">
+          Los roles marcados reciben el permiso de llenado y ven la entrada en su menú.
+        </p>
+        @if (cargandoRoles()) {
+          <p class="xi-ayuda">Cargando roles…</p>
+        } @else if (!roles().length) {
+          <p class="xi-ayuda">No se pudieron cargar los roles; podrás asignarlos después en el constructor.</p>
+        } @else {
+          <div class="xi-roles">
+            @for (r of roles(); track r.id) {
+              <label class="xi-rol" [class.xi-rol--sel]="rolMarcado(r.id)">
+                <input type="checkbox" [checked]="rolMarcado(r.id)" (change)="alternarRol(r.id)">
+                <span>{{ r.nombre }}</span>
+              </label>
+            }
+          </div>
+        }
+
+        <h3 class="xi-seccion">¿Dónde queda en el menú?</h3>
+        <app-module-tree-picker [value]="moduloId()" (nodeChange)="moduloElegido($event)"></app-module-tree-picker>
+
+        <div class="xi-grid">
+          <label class="xi-campo">
+            <span>Etiqueta en el menú</span>
+            <input type="text" maxlength="120" [ngModel]="etiquetaMenu()" (ngModelChange)="etiquetaMenu.set($event)"
+                   [placeholder]="nombre() || 'El nombre del formulario'">
+          </label>
+          <label class="xi-campo">
+            <span>Ícono</span>
+            <input type="text" maxlength="60" [ngModel]="icono()" (ngModelChange)="icono.set($event)"
+                   placeholder="dynamic_form">
+          </label>
+        </div>
+
+        <label class="xi-check">
+          <input type="checkbox" [checked]="menuRespuestas()" (change)="menuRespuestas.set(!menuRespuestas())">
+          <span>Crear también la entrada «ver respuestas»</span>
+        </label>
+
+        <h3 class="xi-seccion">Cómo se llena</h3>
+        <div class="xi-opciones">
+          <label class="xi-check">
+            <input type="checkbox" [checked]="pasoAPaso()" (change)="pasoAPaso.set(!pasoAPaso())">
+            <span>Paso a paso (una sección por pantalla)</span>
+          </label>
+          <label class="xi-check">
+            <input type="checkbox" [checked]="esPublico()" (change)="esPublico.set(!esPublico())">
+            <span>Público (se puede compartir por enlace)</span>
+          </label>
+          <label class="xi-check">
+            <input type="checkbox" [checked]="conEjemplos()" (change)="conEjemplos.set(!conEjemplos())">
+            <span>Incluir la hoja «Ejemplos» con una pregunta de cada tipo</span>
+          </label>
+        </div>
+
+        <div class="xi-resumen">
+          <p><span class="material-symbols-outlined" aria-hidden="true">place</span> {{ resumenDestino() }}</p>
+          <p><span class="material-symbols-outlined" aria-hidden="true">group</span> {{ resumenRoles() }}</p>
+        </div>
+      }
+
+      <!-- ═══ Paso 2: cargar y revisar ═══════════════════════════════ -->
+      @if (pestana() === 'cargar') {
+
+        <div class="xi-soltar" (drop)="soltarArchivo($event)" (dragover)="permitirSoltar($event)">
+          <span class="material-symbols-outlined xi-soltar__icono" aria-hidden="true">upload_file</span>
+          <p>Arrastra aquí el Excel lleno, o</p>
+          <label class="xi-btn xi-btn--primary">
+            <input type="file" accept=".xlsx,.xlsm,.xls" hidden (change)="archivoElegido($event)">
+            <span class="material-symbols-outlined" aria-hidden="true">folder_open</span>
+            Elegir archivo
+          </label>
+          @if (archivo(); as a) { <p class="xi-soltar__nombre">{{ a.name }}</p> }
+        </div>
+
+        @if (leyendo()) {
+          <p class="xi-ayuda">Leyendo el archivo…</p>
+        }
+
+        @if (errorCarga(); as e) {
+          <p class="xi-error" role="alert">
+            <span class="material-symbols-outlined" aria-hidden="true">error</span> {{ e }}
+          </p>
+        }
+
+        @if (resultado(); as r) {
+          <div class="xi-totales">
+            <div class="xi-kpi"><b>{{ r.total_forms }}</b><span>formulario(s)</span></div>
+            <div class="xi-kpi xi-kpi--ok"><b>{{ r.valid_forms }}</b><span>listos para crear</span></div>
+            <div class="xi-kpi"><b>{{ r.total_fields }}</b><span>preguntas</span></div>
+          </div>
+
+          @for (e of r.errors; track $index) {
+            <p class="xi-error" role="alert">
+              <span class="material-symbols-outlined" aria-hidden="true">error</span> {{ e }}
+            </p>
+          }
+          @for (w of r.warnings; track $index) {
+            <p class="xi-aviso">
+              <span class="material-symbols-outlined" aria-hidden="true">info</span> {{ w }}
+            </p>
+          }
+
+          @for (f of r.forms; track f.row_code) {
+            <article class="xi-form" [class.xi-form--mal]="!f.valid">
+              <button type="button" class="xi-form__head" (click)="alternarDetalle(f.row_code)"
+                      [attr.aria-expanded]="abierto() === f.row_code">
+                <span class="material-symbols-outlined xi-form__estado"
+                      [class.xi-form__estado--ok]="f.valid" aria-hidden="true">
+                  {{ f.valid ? 'check_circle' : 'cancel' }}
+                </span>
+                <span class="xi-form__texto">
+                  <span class="xi-form__nombre">{{ f.form.name || '(sin nombre)' }}</span>
+                  <span class="xi-form__meta">
+                    {{ f.row_code }} · {{ f.sections_count }} sección(es) · {{ f.fields_count }} pregunta(s)
+                    @if (f.placement?.parent_module_label) { · {{ f.placement.parent_module_label }} }
+                  </span>
+                </span>
+                <span class="material-symbols-outlined" aria-hidden="true">
+                  {{ abierto() === f.row_code ? 'expand_less' : 'expand_more' }}
+                </span>
+              </button>
+
+              @if (abierto() === f.row_code) {
+                <div class="xi-form__detalle">
+                  @for (e of f.errors; track $index) {
+                    <p class="xi-error"><span class="material-symbols-outlined" aria-hidden="true">error</span> {{ e }}</p>
+                  }
+                  @for (w of f.warnings; track $index) {
+                    <p class="xi-aviso"><span class="material-symbols-outlined" aria-hidden="true">info</span> {{ w }}</p>
+                  }
+
+                  @if (f.placement?.fill_role_names?.length) {
+                    <p class="xi-ayuda xi-ayuda--tenue">
+                      Lo llenan: {{ f.placement.fill_role_names?.join(', ') }}
+                    </p>
+                  }
+
+                  <ul class="xi-preguntas">
+                    @for (p of preguntasDe(f); track $index) {
+                      <li>
+                        <span class="xi-preguntas__sec">{{ p.seccion }}</span>
+                        <span class="xi-preguntas__label">{{ p.label }}</span>
+                        @if (p.obligatoria) { <span class="xi-chip xi-chip--req">obligatoria</span> }
+                        <span class="xi-chip">{{ p.tipo }}</span>
+                      </li>
+                    } @empty {
+                      <li class="xi-ayuda">Este formulario no trae preguntas.</li>
+                    }
+                  </ul>
+                </div>
+              }
+
+              <div class="xi-form__pie">
+                <button type="button" class="xi-btn xi-btn--primary" [disabled]="!f.valid"
+                        (click)="abrirEnConstructor(f)">
+                  <span class="material-symbols-outlined" aria-hidden="true">edit_note</span>
+                  Abrir en el constructor
+                </button>
+              </div>
+            </article>
+          }
+
+          @if (cuantosValidos() > 1) {
+            <div class="xi-masivo">
+              <p class="xi-ayuda">
+                También puedes crear los {{ cuantosValidos() }} formularios válidos de una vez,
+                con el destino y los permisos que trae el archivo.
+              </p>
+              <button type="button" class="xi-btn xi-btn--primary" [disabled]="creando()" (click)="crearTodos()">
+                <span class="material-symbols-outlined" aria-hidden="true">playlist_add_check</span>
+                {{ creando() ? 'Creando…' : 'Crear los ' + cuantosValidos() + ' formularios' }}
+              </button>
+            </div>
+          }
+
+          @if (resultadosCreacion().length) {
+            <ul class="xi-resultados">
+              @for (rc of resultadosCreacion(); track $index) {
+                <li [class.xi-resultados--mal]="!rc.ok">
+                  <span class="material-symbols-outlined" aria-hidden="true">{{ rc.ok ? 'check' : 'close' }}</span>
+                  <b>{{ rc.nombre }}</b> — {{ rc.detalle }}
+                </li>
+              }
+            </ul>
+          }
+        }
+      }
+    </div>
+
+    <div class="xi-pie">
+      <button type="button" class="xi-btn xi-btn--claro" (click)="cerrar.emit()">Cerrar</button>
+      @if (pestana() === 'plantilla') {
+        <button type="button" class="xi-btn xi-btn--primary" [disabled]="descargando()" (click)="descargarPlantilla()">
+          <span class="material-symbols-outlined" aria-hidden="true">download</span>
+          {{ descargando() ? 'Preparando…' : 'Descargar plantilla' }}
+        </button>
+      }
+    </div>
+  </div>
+</div>

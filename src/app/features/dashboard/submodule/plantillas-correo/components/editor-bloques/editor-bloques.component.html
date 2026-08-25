@@ -1,0 +1,73 @@
+<div class="eb">
+  <!-- Paleta: un clic añade al final. Se añade al final y no en el punto de
+       inserción porque un correo se escribe de arriba abajo. -->
+  <div class="eb__paleta">
+    <div class="eb__paleta-tit">Bloques</div>
+    @for (t of paleta; track t.tipo) {
+      <button type="button" class="eb__chip" (click)="agregar(t)"
+              [matTooltip]="t.ayuda" matTooltipPosition="right" matTooltipClass="eb__tip">
+        <mat-icon>{{ t.icono }}</mat-icon>
+        <span>{{ t.etiqueta }}</span>
+      </button>
+    }
+  </div>
+
+  <!-- Lienzo -->
+  <div class="eb__lienzo" cdkDropList (cdkDropListDropped)="soltar($event)"
+       [style.--ancho.px]="documento().tema.anchoPx"
+       [style.background]="documento().tema.colorFondo">
+
+    @if (!bloques().length) {
+      <div class="eb__vacio">
+        <mat-icon>drag_indicator</mat-icon>
+        <p>El correo está vacío. Añade un bloque desde la izquierda.</p>
+      </div>
+    }
+
+    @for (b of bloques(); track b.id) {
+      <div class="eb__bloque" cdkDrag
+           [class.eb__bloque--sel]="seleccionado() === b.id"
+           (click)="seleccionar.emit(b.id)"
+           (cdkDragStarted)="arrastrando.set(true)"
+           (cdkDragEnded)="arrastrando.set(false)">
+
+        <div class="eb__asa" cdkDragHandle matTooltip="Arrastra para reordenar">
+          <mat-icon>drag_indicator</mat-icon>
+        </div>
+
+        <div class="eb__cuerpo">
+          <div class="eb__cab">
+            <mat-icon class="eb__tipo-icono">{{ iconoDe(b.tipo) }}</mat-icon>
+            <span class="eb__tipo">{{ etiquetaDe(b.tipo) }}</span>
+            @for (v of variablesDe(b); track v) {
+              <code class="eb__var">{{ marcador(v) }}</code>
+            }
+          </div>
+
+          <div class="eb__resumen">
+            @if (b.tipo === 'IMAGEN' && urlMiniatura(b)) {
+              <img class="eb__mini" [src]="urlMiniatura(b)" [alt]="b.props['alt'] || ''" />
+            }
+            <span>{{ resumen(b) }}</span>
+          </div>
+        </div>
+
+        <div class="eb__acciones">
+          <button type="button" mat-icon-button matTooltip="Subir" (click)="mover(b, -1, $event)">
+            <mat-icon>keyboard_arrow_up</mat-icon>
+          </button>
+          <button type="button" mat-icon-button matTooltip="Bajar" (click)="mover(b, 1, $event)">
+            <mat-icon>keyboard_arrow_down</mat-icon>
+          </button>
+          <button type="button" mat-icon-button matTooltip="Duplicar" (click)="duplicar(b, $event)">
+            <mat-icon>content_copy</mat-icon>
+          </button>
+          <button type="button" mat-icon-button matTooltip="Eliminar" class="eb__borrar"
+                  (click)="$event.stopPropagation(); eliminarBloque.emit(b)">
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+</div>

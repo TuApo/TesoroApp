@@ -1,0 +1,88 @@
+<section class="mc-page">
+
+  <header class="mc-head">
+    <div>
+      <h1><mat-icon>badge</mat-icon> Mi carné digital</h1>
+      <p>Tu identificación de la plataforma. Toca la tarjeta para ver el reverso.</p>
+    </div>
+    <button type="button" class="mc-refrescar" (click)="cargar()" [disabled]="cargando()">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+  </header>
+
+  <div class="mc-body">
+
+    <div class="mc-col-carnet">
+      @if (cargando()) {
+        <div class="mc-estado">
+          <mat-icon class="spin">autorenew</mat-icon>
+          <span>Generando tu carné…</span>
+        </div>
+      } @else if (error()) {
+        <div class="mc-estado mc-estado--error">
+          <mat-icon>error_outline</mat-icon>
+          <p>{{ error() }}</p>
+          <button type="button" class="mc-refrescar" (click)="cargar()">
+            <mat-icon>refresh</mat-icon> Reintentar
+          </button>
+        </div>
+      } @else if (carnet(); as c) {
+        <app-carnet-card
+          [carnet]="c"
+          [foto]="foto()"
+          [nombreFallback]="nombreFallback()"
+          [cargoFallback]="cargoFallback()" />
+      }
+    </div>
+
+    <aside class="mc-col-ayuda">
+      <article class="mc-tip">
+        <mat-icon>qr_code_2</mat-icon>
+        <div>
+          <h3>El QR del reverso</h3>
+          <p>
+            Identifica quién eres ante quien lo escanee desde la plataforma. Es único y va
+            firmado: un QR hecho por fuera no valida.
+          </p>
+        </div>
+      </article>
+
+      <article class="mc-tip">
+        <mat-icon>water_drop</mat-icon>
+        <div>
+          <h3>El sello con la hora</h3>
+          <p>
+            Corre en vivo mientras el carné esté abierto. Si a alguien le muestran una captura,
+            la hora del sello no coincidirá con la de ese momento.
+          </p>
+        </div>
+      </article>
+
+      <article class="mc-tip">
+        <mat-icon>photo_camera</mat-icon>
+        <div>
+          <h3>La foto</h3>
+          <p>
+            Sale de tu ficha de contratación. Si no hay, se usa la que tengas en
+            <strong>Configuración › Cuenta</strong>.
+          </p>
+        </div>
+      </article>
+
+      @if (carnet(); as c) {
+        @if (!c.esEmpleado) {
+          <article class="mc-tip mc-tip--aviso">
+            <mat-icon>info_outline</mat-icon>
+            <div>
+              <h3>Carné administrativo</h3>
+              <p>
+                No tienes ficha en contratación, así que el reverso sale sin EPS ni contrato.
+                Los datos vienen de tu usuario de la plataforma.
+              </p>
+            </div>
+          </article>
+        }
+      }
+    </aside>
+  </div>
+</section>

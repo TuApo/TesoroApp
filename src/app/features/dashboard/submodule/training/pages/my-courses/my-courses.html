@@ -1,0 +1,68 @@
+<section class="pantalla">
+  <header class="cabecera">
+    <h1>Mis capacitaciones</h1>
+    <button type="button" class="boton-secundario" (click)="verCertificados()">
+      <mat-icon>workspace_premium</mat-icon>
+      Certificados
+    </button>
+  </header>
+
+  @if (!offline.enLinea) {
+    <p class="aviso aviso-offline">
+      <mat-icon>cloud_off</mat-icon>
+      Estás sin conexión. Puedes seguir estudiando lo que ya descargaste.
+    </p>
+  }
+
+  @if (offline.pendientes() > 0) {
+    <p class="aviso aviso-pendiente">
+      <mat-icon>sync</mat-icon>
+      {{ offline.pendientes() }} cambio(s) guardado(s) en el teléfono, pendientes de enviar.
+    </p>
+  }
+
+  @if (cargando()) {
+    <p class="cargando">Cargando tus cursos…</p>
+  } @else if (error()) {
+    <div class="aviso aviso-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button type="button" class="boton-principal" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (ordenados().length === 0) {
+    <div class="vacio">
+      <mat-icon>school</mat-icon>
+      <p>Todavía no tienes cursos asignados.</p>
+      <p class="vacio-detalle">Cuando te asignen uno, aparecerá aquí.</p>
+    </div>
+  } @else {
+    <ul class="lista">
+      @for (curso of ordenados(); track curso.enrollment_id) {
+        <li class="tarjeta">
+          <div class="tarjeta-cabecera">
+            <h2>{{ curso.curso_nombre }}</h2>
+            <span class="estado" [class]="clase(curso)">{{ etiqueta(curso) }}</span>
+          </div>
+
+          <mat-progress-bar mode="determinate" [value]="curso.porcentaje_curso"></mat-progress-bar>
+          <p class="avance">
+            {{ curso.lecciones_completadas }} de {{ curso.lecciones_obligatorias }} lecciones
+            · {{ curso.porcentaje_curso }}%
+          </p>
+
+          @if (curso.contenido_completo && curso.requiere_evaluacion
+                && curso.estado_matricula !== 'APROBADO') {
+            <p class="nota-atencion">
+              <mat-icon>assignment_turned_in</mat-icon>
+              Terminaste el contenido. Te falta presentar la evaluación.
+            </p>
+          }
+
+          <button type="button" class="boton-principal boton-grande" (click)="abrir(curso)">
+            {{ textoBoton(curso) }}
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</section>

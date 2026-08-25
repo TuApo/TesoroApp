@@ -1,0 +1,271 @@
+<h2 mat-dialog-title class="ih__titulo">
+  <mat-icon>upload_file</mat-icon>
+  Importar una plantilla de correo
+</h2>
+
+<mat-dialog-content class="ih__cuerpo">
+  @if (analizando() || guardando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <mat-stepper orientation="horizontal" [linear]="true" #stepper>
+
+    <!-- ── 1 · Archivo ──────────────────────────────────────────────────── -->
+    <mat-step [completed]="!!analisis()" label="Archivo">
+      <p class="ih__intro">
+        Sube el <code>.html</code> exportado de Stripo, Mailchimp o el que tengas hecho a mano.
+        Se guarda <strong>tal cual</strong> —tablas anidadas, CSS embebido y condicionales de
+        Outlook incluidos—; lo único que se quita es el marcado ejecutable, que ningún cliente
+        de correo ejecuta de todos modos.
+      </p>
+
+      <mat-form-field appearance="outline" class="ih__campo">
+        <mat-label>Origen de datos con el que emparejar</mat-label>
+        <mat-select [ngModel]="origenCodigo()" (ngModelChange)="cambiarOrigen($event)">
+          <mat-option [value]="null">— Sin origen —</mat-option>
+          @for (o of datos.origenes; track o.id) {
+            <mat-option [value]="o.codigo">{{ o.nombre }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>
+          Decide contra qué variables se sugiere el emparejado. Si lo cambias después de
+          analizar, las sugerencias se recalculan.
+        </mat-hint>
+      </mat-form-field>
+
+      <div class="ih__zona" (drop)="soltarArchivo($event)" (dragover)="permitirSoltar($event)"
+           (click)="entrada.click()" role="button" tabindex="0"
+           (keydown.enter)="entrada.click()">
+        <mat-icon>cloud_upload</mat-icon>
+        <div>
+          <strong>Arrastra el archivo aquí</strong> o haz clic para elegirlo
+          <div class="ih__zona-sub">Formato .html · hasta 5 MB</div>
+        </div>
+      </div>
+      <input #entrada type="file" hidden accept=".html,.htm,text/html" (change)="elegirArchivo($event)" />
+
+      <details class="ih__pegar">
+        <summary>…o pega el HTML directamente</summary>
+        <textarea class="ih__textarea" spellcheck="false" rows="8"
+                  placeholder="&lt;!DOCTYPE html&gt;…"
+                  [ngModel]="htmlPegado()" (ngModelChange)="htmlPegado.set($event)"></textarea>
+        <button mat-stroked-button [disabled]="!htmlPegado().trim()" (click)="analizarPegado()">
+          <mat-icon>search</mat-icon> Analizar lo pegado
+        </button>
+        <p class="ih__nota">
+          Si lo copias desde una celda de Excel las comillas vienen duplicadas; se detecta y se
+          arregla solo.
+        </p>
+      </details>
+
+      @if (analisis(); as a) {
+        <div class="ih__resumen">
+          <mat-icon>check_circle</mat-icon>
+          <div>
+            <strong>{{ nombreArchivo() }}</strong> · {{ pesoLegible() }}
+            · {{ a.placeholders.length }} marcador(es) · {{ a.imagenes.length }} imagen(es)
+          </div>
+        </div>
+
+        @for (aviso of a.avisos; track aviso) {
+          <div class="ih__aviso"><mat-icon>info</mat-icon><span>{{ aviso }}</span></div>
+        }
+      }
+
+      <div class="ih__pasos">
+        <button mat-flat-button color="primary" matStepperNext [disabled]="!analisis()">
+          Siguiente
+        </button>
+      </div>
+    </mat-step>
+
+    <!-- ── 2 · Variables ────────────────────────────────────────────────── -->
+    <mat-step label="Variables">
+      @if (analisis(); as a) {
+        @if (!a.placeholders.length) {
+          <p class="ih__intro">
+            Esta plantilla no cita ningún marcador de variable. No hay nada que emparejar:
+            pasa al paso siguiente.
+          </p>
+        } @else {
+          <div class="ih__cab-paso">
+            <p class="ih__intro">
+              Cada marcador de la plantilla se enlaza con una variable del catálogo. Los que
+              dejes <em>sin emparejar</em> se enviarán <strong>literales, entre llaves</strong>,
+              dentro del correo.
+            </p>
+            <button mat-stroked-button (click)="aceptarTodasLasSugerencias()">
+              <mat-icon>auto_fix_high</mat-icon> Aceptar sugerencias
+            </button>
+          </div>
+
+          <div class="ih__tabla">
+            @for (p of a.placeholders; track p.nombre) {
+              <div class="ih__fila" [class.ih__fila--sin]="!mapeoDe(p.nombre)">
+                <div class="ih__origen">
+                  <code>{{ marcador(p.nombre) }}</code>
+                  <span class="ih__veces">{{ p.apariciones }}×</span>
+                </div>
+
+                <mat-icon class="ih__flecha">east</mat-icon>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ih__destino">
+                  <mat-select [ngModel]="mapeoDe(p.nombre)"
+                              (ngModelChange)="$event ? mapear(p.nombre, $event) : dejarLiteral(p.nombre)">
+                    <mat-option [value]="''">— Dejar literal —</mat-option>
+                    @for (v of variablesPlanas(); track v.id) {
+                      <mat-option [value]="v.clave">{{ v.grupo }} · {{ v.etiqueta }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-icon class="ih__porque" [matTooltip]="p.nota || explicacion(p.procedencia)">
+                  {{ mapeoDe(p.nombre) ? 'help_outline' : 'warning_amber' }}
+                </mat-icon>
+              </div>
+            }
+          </div>
+
+          @if (sinEquivalente().length) {
+            <div class="ih__aviso ih__aviso--ojo">
+              <mat-icon>warning_amber</mat-icon>
+              <span>
+                {{ sinEquivalente().length }} marcador(es) quedarán literales. Es lo correcto para
+                los que no tienen equivalente (por ejemplo los de Nómina en una plantilla de
+                Contratación), pero revísalos: se verán entre llaves en el correo.
+              </span>
+            </div>
+          }
+        }
+      }
+      <div class="ih__pasos">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <button mat-flat-button color="primary" matStepperNext>Siguiente</button>
+      </div>
+    </mat-step>
+
+    <!-- ── 3 · Imágenes ─────────────────────────────────────────────────── -->
+    <mat-step label="Imágenes">
+      @if (analisis(); as a) {
+        @if (!a.imagenes.length) {
+          <p class="ih__intro">La plantilla no cita imágenes externas.</p>
+        } @else {
+          <div class="ih__cab-paso">
+            <p class="ih__intro">
+              Trae las imágenes a la biblioteca para que dejen de depender de un servidor ajeno.
+              Si el CDN de origen caduca o alguien borra esa cuenta, los correos ya enviados
+              <strong>y los futuros</strong> salen con recuadros rotos.
+            </p>
+            <div class="ih__acciones-lote">
+              <button mat-stroked-button (click)="todasLasImagenes(true)">Marcar todas</button>
+              <button mat-stroked-button (click)="todasLasImagenes(false)">Ninguna</button>
+            </div>
+          </div>
+
+          <div class="ih__imagenes">
+            @for (img of a.imagenes; track img.url) {
+              <div class="ih__img" [class.ih__img--no]="!img.descargable">
+                <mat-checkbox [disabled]="!img.descargable"
+                              [checked]="estaElegida(img.url)"
+                              (change)="alternarImagen(img.url)"></mat-checkbox>
+                <img class="ih__img-vista" [src]="img.url" [alt]="img.nombre_sugerido" loading="lazy" />
+                <div class="ih__img-info">
+                  <div class="ih__img-nom">{{ img.nombre_sugerido }}</div>
+                  <div class="ih__img-url" [title]="img.url">{{ img.url }}</div>
+                  @if (!img.descargable) {
+                    <div class="ih__img-motivo">
+                      <mat-icon>block</mat-icon> {{ img.motivo_rechazo }}
+                    </div>
+                  } @else {
+                    <div class="ih__img-veces">{{ img.apariciones }} uso(s) en la plantilla</div>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+      <div class="ih__pasos">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <button mat-flat-button color="primary" matStepperNext>Siguiente</button>
+      </div>
+    </mat-step>
+
+    <!-- ── 4 · Destino ──────────────────────────────────────────────────── -->
+    <mat-step label="Destino">
+      <mat-form-field appearance="outline" class="ih__campo">
+        <mat-label>Dónde guardarla</mat-label>
+        <mat-select [ngModel]="plantillaDestinoId()" (ngModelChange)="plantillaDestinoId.set($event)">
+          <mat-option [value]="null">Crear una plantilla nueva</mat-option>
+          @for (p of datos.plantillas; track p.id) {
+            <mat-option [value]="p.id">Nueva versión de: {{ p.nombre }}</mat-option>
+          }
+        </mat-select>
+        <mat-hint>
+          Añadirla a una plantilla existente conserva su código y su histórico de versiones.
+        </mat-hint>
+      </mat-form-field>
+
+      @if (avisaBorrador()) {
+        <div class="ih__aviso ih__aviso--ojo">
+          <mat-icon>warning_amber</mat-icon>
+          <span>
+            «{{ plantillaDestino()!.nombre }}» tiene un borrador sin publicar y se reemplazará por
+            lo importado. Las versiones ya publicadas siguen intactas en el histórico.
+          </span>
+        </div>
+      }
+
+      @if (!plantillaDestinoId()) {
+        <mat-form-field appearance="outline" class="ih__campo">
+          <mat-label>Nombre de la plantilla</mat-label>
+          <input matInput [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="ih__campo">
+          <mat-label>Categoría</mat-label>
+          <input matInput [ngModel]="categoria()" (ngModelChange)="categoria.set($event)"
+                 placeholder="CONTRATACION, NOMINA…" />
+        </mat-form-field>
+      }
+
+      <mat-form-field appearance="outline" class="ih__campo">
+        <mat-label>Asunto</mat-label>
+        <input matInput [ngModel]="asunto()" (ngModelChange)="asunto.set($event)" />
+        <mat-hint>Propuesto desde el &lt;title&gt; del archivo. Admite variables.</mat-hint>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ih__campo">
+        <mat-label>Cómo viajan las imágenes traídas</mat-label>
+        <mat-select [ngModel]="modoImagenes()" (ngModelChange)="modoImagenes.set($event)">
+          <mat-option value="URL">Remotas — el correo pesa poco; el cliente puede bloquearlas</mat-option>
+          <mat-option value="CID">Incrustadas — se ven siempre; el correo pesa más</mat-option>
+        </mat-select>
+        <mat-hint>
+          Una plantilla con muchas imágenes grandes, como esta, suele querer remotas para un
+          envío masivo.
+        </mat-hint>
+      </mat-form-field>
+
+      <div class="ih__balance">
+        <div><strong>{{ totalEmparejados() }}</strong> marcadores emparejados</div>
+        <div><strong>{{ sinEquivalente().length }}</strong> quedan literales</div>
+        <div><strong>{{ imagenesElegidas().size }}</strong> imágenes a la biblioteca</div>
+      </div>
+
+      <p class="ih__nota">
+        Se guarda como <strong>borrador</strong>: nada se envía hasta que la revises en el editor
+        y pulses Publicar.
+      </p>
+
+      <div class="ih__pasos">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <button mat-flat-button color="primary" [disabled]="guardando()" (click)="importar()">
+          <mat-icon>save</mat-icon> Importar
+        </button>
+      </div>
+    </mat-step>
+  </mat-stepper>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button [mat-dialog-close]="null">Cancelar</button>
+</mat-dialog-actions>

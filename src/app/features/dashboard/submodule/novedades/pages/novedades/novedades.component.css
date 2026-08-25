@@ -1,0 +1,144 @@
+.center { display: flex; justify-content: center; padding: 48px; }
+
+/* ── Hero ─────────────────────────────────────────────────────── */
+.hero {
+  position: relative; overflow: hidden;
+  background: var(--mt-hero) !important; color: #fff !important;
+  border: none !important; border-radius: var(--mt-r) !important;
+  box-shadow: var(--mt-shadow-hover) !important;
+  padding: 26px 28px !important;
+  display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start;
+  margin-bottom: 20px;
+}
+.hero::before { content: ''; position: absolute; inset: 0; background: var(--mt-hero-ring); pointer-events: none; }
+.hero > * { position: relative; z-index: 1; }
+.eyebrow { margin: 0 0 8px; color: var(--mt-accent) !important; letter-spacing: 0.16em; text-transform: uppercase; font-size: 11px; font-weight: 700; }
+.hero-copy h1 { margin: 0 0 8px; font-size: 1.6rem; font-weight: 700; letter-spacing: -.02em; color: #fff !important; }
+.hero-text { margin: 0 0 14px; color: rgba(255,255,255,.78) !important; }
+.hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.hero-actions button { border-radius: 12px !important; font-weight: 600; }
+.hero-actions .mat-mdc-outlined-button { color: #fff !important; border-color: rgba(255,255,255,.35) !important; background: rgba(255,255,255,.07); }
+.hero-actions .mat-mdc-outlined-button:hover { background: rgba(255,255,255,.14); }
+.hero-actions .mat-mdc-raised-button { background: var(--mt-accent) !important; color: #17300a !important; box-shadow: 0 10px 22px rgba(140,213,10,.34) !important; }
+
+.unread-badge { text-align: center; padding: 16px; background: rgba(255,255,255,.12); border-radius: 14px; }
+.badge-count { display: block; font-size: 2rem; font-weight: 700; color: #fff; }
+.unread-badge span:last-child { font-size: .8rem; color: rgba(255,255,255,.75); }
+
+/* ── Filter chips ─────────────────────────────────────────────── */
+.filter-row {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 999px;
+  border: 1.5px solid var(--mt-border, #e5e7eb);
+  background: var(--mt-surface, #fff); color: var(--mt-text-secondary, #6b7280);
+  font-size: .8rem; font-weight: 600; cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.filter-chip mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.filter-chip:hover { border-color: var(--mt-accent, #8cd50a); }
+.filter-chip.active {
+  background: var(--mt-accent, #8cd50a); border-color: var(--mt-accent, #8cd50a);
+  color: #17300a;
+}
+
+/* ── Notification list ────────────────────────────────────────── */
+.notif-list { display: grid; gap: 8px; }
+
+.notif-card {
+  display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px;
+  background: var(--mt-surface, #fff); border-radius: 14px;
+  border: 1px solid var(--mt-border, #e5e7eb);
+  transition: background .15s, box-shadow .15s;
+  position: relative;
+}
+.notif-card.clickable { cursor: pointer; }
+.notif-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+.notif-card.unread {
+  background: var(--mt-surface-accent, #eff6ff);
+  border-color: var(--mt-border-accent, #bfdbfe);
+}
+
+.notif-icon {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.notif-icon mat-icon { font-size: 20px; width: 20px; height: 20px; }
+
+.notif-body { flex: 1; min-width: 0; }
+.notif-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 3px; }
+.notif-header strong { font-size: .88rem; color: var(--mt-text, #111827); }
+.notif-time { font-size: .7rem; color: #9ca3af; white-space: nowrap; flex-shrink: 0; }
+.notif-msg { margin: 0 0 8px; font-size: .82rem; color: var(--mt-text-secondary, #374151); line-height: 1.4; }
+
+.notif-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.type-badge {
+  padding: 2px 8px; border-radius: 999px; font-size: .68rem; font-weight: 700;
+}
+.unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #2563eb; margin-left: auto; }
+.notif-go {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: .72rem; font-weight: 600; color: #2563eb;
+  opacity: 0; transition: opacity .15s;
+}
+.notif-go mat-icon { width: 15px; height: 15px; font-size: 15px; }
+.notif-card.clickable:hover .notif-go { opacity: 1; }
+
+/* ── Delete button ───────────────────────────────────────────── */
+.btn-delete {
+  flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+  border: none; background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: #9ca3af;
+  transition: background .15s, color .15s; opacity: 0;
+}
+.notif-card:hover .btn-delete { opacity: 1; }
+.btn-delete:hover { background: #fee2e2; color: #dc2626; }
+.btn-delete mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+/* ── Load more ───────────────────────────────────────────────── */
+.load-more-row { display: flex; justify-content: center; padding: 20px 0; }
+.load-more-row button { border-radius: 12px !important; font-weight: 600; gap: 6px; }
+
+/* ── Empty ───────────────────────────────────────────────────── */
+.empty { text-align: center; padding: 48px; color: #6b7280; }
+.empty mat-icon { font-size: 48px; width: 48px; height: 48px; color: #9ca3af; display: block; margin: 0 auto 12px; }
+.empty h3 { margin: 0 0 8px; }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  :host { display: block; padding-bottom: 80px; }
+  .hero { padding: 18px 14px !important; }
+  .hero-copy h1 { font-size: 1.4rem; }
+  .hero-actions { flex-wrap: wrap; gap: 8px; }
+  .hero { grid-template-columns: 1fr; }
+  .unread-badge { display: none; }
+}
+
+/* ── Urgencia ────────────────────────────────────────────────────────────────
+   Realce independiente del color del tipo: ese lo elige quien configura el
+   catálogo y podría coincidir con el de un aviso informativo. */
+.notif-card.urgente {
+  border-left: 3px solid #dc2626;
+}
+
+.urgencia-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.urgencia-badge mat-icon {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+}

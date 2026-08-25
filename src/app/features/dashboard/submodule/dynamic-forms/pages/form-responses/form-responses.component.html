@@ -1,0 +1,321 @@
+<div class="respuestas-page">
+  <mat-card class="premium-card">
+
+    <!-- Header estándar de la plataforma -->
+    <mat-card-header class="card-header-premium">
+      <div class="header-content">
+        <a mat-icon-button class="btn-volver" [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos']"
+           matTooltip="Volver al listado de formularios"
+           aria-label="Volver al listado de formularios">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        </a>
+        <div class="header-icon-container">
+          <span class="material-symbols-outlined header-icon" aria-hidden="true">fact_check</span>
+        </div>
+        <div class="header-text">
+          <mat-card-title class="titulo">Respuestas · {{ form()?.name || 'Formulario' }}</mat-card-title>
+          <mat-card-subtitle class="subtitulo">
+            {{ total() }} respuesta(s)
+            @if (form()?.current_version) { · versión vigente v{{ form()?.current_version }} }
+          </mat-card-subtitle>
+        </div>
+        <div class="grow"></div>
+      </div>
+
+      <div class="header-actions">
+        <a mat-stroked-button class="btn-header" [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos', formId(), 'analitica']">
+          <span class="material-symbols-outlined" aria-hidden="true">monitoring</span>
+          Analítica
+        </a>
+        <button mat-flat-button class="btn-header btn-header--primario"
+                (click)="exportarExcel()"
+                [disabled]="exportando() || total() === 0"
+                matTooltip="Excel con los filtros aplicados (versión y estado)">
+          <span class="material-symbols-outlined" aria-hidden="true">download</span>
+          {{ exportando() ? 'Descargando…' : 'Exportar Excel' }}
+        </button>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content class="contenido">
+
+      <!-- Resumen IA del formulario: de qué trata y qué dicen las respuestas.
+           Es el ÚLTIMO generado (vive en ms-forms) y se queda tal cual hasta que
+           alguien pida uno nuevo; regenerar cuesta una llamada al modelo. -->
+      @if (form(); as f) {
+      <section class="panel-resumen" aria-label="Resumen del formulario generado con IA">
+        <div class="resumen-icono" aria-hidden="true">
+          <span class="material-symbols-outlined">auto_awesome</span>
+        </div>
+
+        <div class="resumen-cuerpo">
+          <div class="resumen-titulo">
+            <span>Resumen IA</span>
+            @if (resumenDesactualizado()) {
+              <span class="chip-stale"
+                    [matTooltip]="'Hay respuestas nuevas desde que se generó (' + (f.ai_summary_submissions ?? 0) + ' de ' + f.submissions_count + ')'">
+                Desactualizado
+              </span>
+            }
+            @if (f.ai_summary_at) {
+              <span class="resumen-fecha">· generado el {{ f.ai_summary_at | date:'dd/MM/yyyy HH:mm' }}</span>
+            }
+          </div>
+
+          @if (f.ai_summary) {
+            <p class="resumen-formulario">{{ f.ai_summary }}</p>
+            @if (f.ai_responses_summary) {
+              <p class="resumen-respuestas">
+                <span class="material-symbols-outlined icono-respuestas" aria-hidden="true">insights</span>
+                {{ f.ai_responses_summary }}
+              </p>
+            }
+          } @else {
+            <p class="resumen-vacio">
+              Aún no se ha generado un resumen de este formulario. Genéralo para saber de un
+              vistazo qué pide y qué están respondiendo.
+            </p>
+          }
+        </div>
+
+        <button mat-stroked-button class="btn-resumen"
+                (click)="generarResumen()"
+                [disabled]="resumenCargando()">
+          @if (resumenCargando()) {
+            <mat-spinner diameter="16"></mat-spinner>
+            <span>Generando…</span>
+          } @else {
+            <span class="material-symbols-outlined" aria-hidden="true">
+              {{ f.ai_summary ? 'autorenew' : 'auto_awesome' }}
+            </span>
+            <span>{{ f.ai_summary ? 'Regenerar' : 'Generar resumen' }}</span>
+          }
+        </button>
+      </section>
+      }
+
+      <!-- Filtros -->
+      <div class="filtros">
+        <mat-form-field appearance="outline" class="filtro">
+          <mat-label>Versión</mat-label>
+          <mat-select [value]="versionFiltro()" (selectionChange)="onVersionChange($event.value)">
+            <mat-option [value]="null">Todas las versiones</mat-option>
+            @for (v of versiones(); track v.id) {
+              <mat-option [value]="v.version">
+                v{{ v.version }} · {{ v.status === 'PUBLISHED' ? 'vigente' : 'obsoleta' }}
+                @if (v.submissions_count != null) { · {{ v.submissions_count }} resp. }
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filtro">
+          <mat-label>Estado</mat-label>
+          <mat-select [value]="estadoFiltro()" (selectionChange)="onEstadoChange($event.value)">
+            @for (e of ESTADOS; track e.valor) {
+              <mat-option [value]="e.valor">{{ e.etiqueta }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      @if (cargando()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Cargando respuestas"></mat-progress-bar>
+      }
+
+      <!-- Dos maneras de leer lo mismo. Los filtros de arriba mandan sobre las dos. -->
+      @if (filas().length > 0) {
+        @if (truncado()) {
+          <p class="aviso-tope" role="status">
+            <span class="material-symbols-outlined" aria-hidden="true">filter_alt</span>
+            Se cargaron las {{ filas().length }} respuestas más recientes de {{ total() }}.
+            Filtra por versión o estado para acotar, o usa <b>Exportar Excel</b>, que trae todas.
+          </p>
+        }
+
+        <mat-tab-group class="pestanas" [selectedIndex]="pestana()"
+                       (selectedIndexChange)="onPestana($event)"
+                       animationDuration="150ms">
+
+          <!-- ── TABLA: la tabla estándar de la plataforma ────────────────── -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span class="material-symbols-outlined" aria-hidden="true">table_rows</span>
+              Tabla
+            </ng-template>
+
+            <div class="tab-cuerpo">
+              @if (columnasRecortadas()) {
+                <p class="aviso-tope" role="status">
+                  <span class="material-symbols-outlined" aria-hidden="true">view_column</span>
+                  El formulario tiene muchas preguntas: se muestran las primeras como columnas.
+                  El Excel las trae todas.
+                </p>
+              }
+
+              <app-standard-filter-table
+                  [data]="filasTabla()"
+                  [columnDefinitions]="columnasTabla()"
+                  [pageSizeOptions]="[10, 25, 50, 100]"
+                  [defaultPageSize]="25"
+                  [tableTitle]="'Respuestas'"
+                  [isLoading]="cargando()"
+                  [enableRowClick]="true"
+                  [storageKey]="claveTabla()"
+                  (rowClicked)="abrirFicha($event)">
+
+                <!-- Ver / aprobar / rechazar, lo mismo que ofrece la ficha -->
+                <ng-template #actionsTemplate let-row>
+                  <div class="acciones-fila">
+                    <button mat-icon-button (click)="abrirFicha(row)"
+                            matTooltip="Ver la respuesta completa" aria-label="Ver la respuesta completa">
+                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                    </button>
+                    @if (row._s.status === 'SUBMITTED') {
+                      <button mat-icon-button class="btn-aprobar"
+                              (click)="cambiarEstado(row._s, 'APPROVED')"
+                              [disabled]="procesandoId() === row._s.id"
+                              matTooltip="Aprobar" aria-label="Aprobar respuesta">
+                        <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                      </button>
+                      <button mat-icon-button class="btn-rechazar"
+                              (click)="cambiarEstado(row._s, 'REJECTED')"
+                              [disabled]="procesandoId() === row._s.id"
+                              matTooltip="Rechazar" aria-label="Rechazar respuesta">
+                        <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
+                      </button>
+                    }
+                  </div>
+                </ng-template>
+              </app-standard-filter-table>
+            </div>
+          </mat-tab>
+
+          <!-- ── INDIVIDUAL: una respuesta a la vez, campo por campo ───────── -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span class="material-symbols-outlined" aria-hidden="true">description</span>
+              Individual
+            </ng-template>
+
+            <div class="tab-cuerpo ficha-layout">
+
+              <!-- Selector: qué respuesta se está viendo -->
+              <aside class="ficha-lista" aria-label="Respuestas">
+                @for (fila of filas(); track fila.id) {
+                  <button type="button" class="ficha-item"
+                          [class.ficha-item--activa]="seleccionada()?.id === fila.id"
+                          (click)="seleccionar(fila.id)">
+                    <span class="ficha-item__cabecera">
+                      <span class="ficha-item__id">#{{ fila.id }}</span>
+                      <span [class]="estadoClase(fila.status)">{{ estadoEtiqueta(fila.status) }}</span>
+                    </span>
+                    <span class="ficha-item__fecha">
+                      {{ fila.submitted_at ? (fila.submitted_at | date:'dd/MM/yyyy HH:mm') : 'Sin enviar' }}
+                    </span>
+                    @if (resumenFila(fila); as resumen) {
+                      <span class="ficha-item__resumen">{{ resumen }}</span>
+                    }
+                  </button>
+                }
+              </aside>
+
+              <!-- Ficha de la respuesta abierta -->
+              <section class="ficha-detalle">
+                @if (seleccionada(); as sel) {
+                  <header class="ficha-head">
+                    <div class="ficha-head__texto">
+                      <h2 class="ficha-titulo">
+                        Respuesta #{{ sel.id }}
+                        <span [class]="estadoClase(sel.status)">{{ estadoEtiqueta(sel.status) }}</span>
+                      </h2>
+                      <p class="ficha-meta">
+                        {{ sel.version != null ? 'v' + sel.version : 'sin versión' }}
+                        · {{ sel.submitted_at ? (sel.submitted_at | date:'dd/MM/yyyy HH:mm') : 'sin enviar' }}
+                        · {{ usuarioDe(sel) }}
+                      </p>
+                    </div>
+
+                    <div class="ficha-nav">
+                      <button mat-icon-button (click)="mover(-1)" [disabled]="indiceActual() <= 0"
+                              matTooltip="Anterior" aria-label="Respuesta anterior">
+                        <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+                      </button>
+                      <span class="ficha-nav__pos">{{ indiceActual() + 1 }} de {{ filas().length }}</span>
+                      <button mat-icon-button (click)="mover(1)"
+                              [disabled]="indiceActual() >= filas().length - 1"
+                              matTooltip="Siguiente" aria-label="Respuesta siguiente">
+                        <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+                      </button>
+                    </div>
+                  </header>
+
+                  <div class="ficha-acciones">
+                    @if (sel.status === 'SUBMITTED') {
+                      <button mat-stroked-button class="btn-aprobar"
+                              (click)="cambiarEstado(sel, 'APPROVED')"
+                              [disabled]="procesandoId() === sel.id">
+                        <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                        Aprobar
+                      </button>
+                      <button mat-stroked-button class="btn-rechazar"
+                              (click)="cambiarEstado(sel, 'REJECTED')"
+                              [disabled]="procesandoId() === sel.id">
+                        <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
+                        Rechazar
+                      </button>
+                    }
+                    <a mat-stroked-button [routerLink]="[sel.id]"
+                       matTooltip="Traza completa, adjuntos y PDF">
+                      <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+                      Detalle completo
+                    </a>
+                  </div>
+
+                  @if (fichaCargando()) {
+                    <p class="ficha-vacia" role="status">
+                      <span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span>
+                      Cargando el formato de la versión…
+                    </p>
+                  } @else {
+                    <!-- Cada valor lo pinta el renderer por su TIPO REAL: una foto se ve
+                         como foto y un archivo como chip descargable. -->
+                    @for (vm of seccionesVista(); track vm.sec.code ?? $index) {
+                      <section class="ficha-seccion">
+                        @if (vm.sec.title) { <h3 class="ficha-seccion__titulo">{{ vm.sec.title }}</h3> }
+                        @if (vm.campos.length === 0) {
+                          <p class="ficha-seccion__vacia">Esta sección no tiene campos.</p>
+                        }
+                        <div class="ficha-campos">
+                          @for (f of vm.campos; track f.name ?? f.label) {
+                            <div class="ficha-campo">
+                              <app-field-renderer
+                                  [field]="f"
+                                  mode="readonly"
+                                  [value]="valorDe(vm, f)"
+                                  [sectionValues]="f.type === 'SECTION' ? vm.valores : null"
+                                  [downloadUrlFn]="downloadUrlFn" />
+                            </div>
+                          }
+                        </div>
+                      </section>
+                    }
+                  }
+                } @else {
+                  <p class="ficha-vacia">Elige una respuesta de la lista.</p>
+                }
+              </section>
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+
+      } @else if (!cargando()) {
+        <div class="vacio">
+          <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
+          <p>No hay respuestas con los filtros actuales.</p>
+        </div>
+      }
+
+    </mat-card-content>
+  </mat-card>
+</div>

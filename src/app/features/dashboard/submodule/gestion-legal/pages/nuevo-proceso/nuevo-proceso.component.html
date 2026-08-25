@@ -1,0 +1,151 @@
+<div class="nuevo-proceso-container">
+
+  <!-- Encabezado -->
+  <div class="page-header">
+    <button mat-icon-button (click)="cancelar()" matTooltip="Cancelar y volver">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div>
+      <h1>Nuevo Proceso Legal</h1>
+      <p>Complete los datos para radicar un nuevo proceso</p>
+    </div>
+  </div>
+
+  <mat-stepper [orientation]="stepperOrientation" linear #stepper class="proceso-stepper">
+
+    <!-- PASO 1: Selección de tipo -->
+    <mat-step [completed]="tipoSeleccionado !== null" label="Tipo de proceso">
+
+      <div class="step-content">
+        <h2 class="step-title">Seleccione el tipo de proceso laboral</h2>
+
+        <div class="loading-tipos" *ngIf="cargandoTipos">
+          <mat-spinner diameter="40"></mat-spinner>
+          <span>Cargando tipos...</span>
+        </div>
+
+        <div class="tipos-grid" *ngIf="!cargandoTipos">
+          <div class="tipo-card"
+            *ngFor="let t of tipos"
+            [class.tipo-seleccionado]="tipoSeleccionado?.id === t.id"
+            [style.--tipo-color]="t.colorHex || '#1565c0'"
+            (click)="seleccionarTipo(t)">
+            <div class="tipo-icono">
+              <mat-icon>{{ iconoTipo(t.icono) }}</mat-icon>
+            </div>
+            <div class="tipo-info">
+              <span class="tipo-nombre">{{ t.nombre }}</span>
+              <span class="tipo-codigo">{{ t.codigo }}</span>
+            </div>
+            <mat-icon class="tipo-check" *ngIf="tipoSeleccionado?.id === t.id">check_circle</mat-icon>
+          </div>
+
+          <!-- Tipos de fallback si el API no tiene datos -->
+          <div class="tipos-vacio" *ngIf="tipos.length === 0">
+            <mat-icon>info_outline</mat-icon>
+            <p>No se encontraron tipos de proceso. Verifique la conexión con el servicio.</p>
+          </div>
+        </div>
+
+        <div class="step-actions">
+          <button mat-button (click)="cancelar()">Cancelar</button>
+          <button mat-flat-button color="primary" matStepperNext
+            [disabled]="!tipoSeleccionado">
+            Siguiente <mat-icon>arrow_forward</mat-icon>
+          </button>
+        </div>
+      </div>
+    </mat-step>
+
+    <!-- PASO 2: Datos del proceso -->
+    <mat-step [stepControl]="form" label="Datos del proceso">
+
+      <div class="step-content">
+        <h2 class="step-title">
+          Datos del proceso
+          <span class="tipo-seleccionado-label" *ngIf="tipoSeleccionado"
+            [style.color]="tipoSeleccionado.colorHex">
+            — {{ tipoSeleccionado.nombre }}
+          </span>
+        </h2>
+
+        <form [formGroup]="form" class="proceso-form">
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Cédula del trabajador *</mat-label>
+              <mat-icon matPrefix>badge</mat-icon>
+              <input matInput formControlName="trabajadorCedula" placeholder="Ej. 1234567890">
+              <mat-error *ngIf="form.get('trabajadorCedula')?.hasError('required')">
+                La cédula es obligatoria
+              </mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Nombre completo del trabajador *</mat-label>
+              <mat-icon matPrefix>person</mat-icon>
+              <input matInput formControlName="trabajadorNombre" placeholder="Nombre completo">
+              <mat-error *ngIf="form.get('trabajadorNombre')?.hasError('required')">
+                El nombre es obligatorio
+              </mat-error>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Empresa (opcional)</mat-label>
+              <mat-icon matPrefix>business</mat-icon>
+              <input matInput formControlName="empresaNombre" placeholder="Nombre de la empresa">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Fecha de inicio *</mat-label>
+              <input matInput [matDatepicker]="pickerInicio" formControlName="fechaInicio">
+              <mat-datepicker-toggle matIconSuffix [for]="pickerInicio"></mat-datepicker-toggle>
+              <mat-datepicker #pickerInicio></mat-datepicker>
+              <mat-error *ngIf="form.get('fechaInicio')?.hasError('required')">
+                La fecha es obligatoria
+              </mat-error>
+            </mat-form-field>
+          </div>
+
+          <div class="form-row">
+            <mat-form-field appearance="outline" class="form-field">
+              <mat-label>Responsable (opcional)</mat-label>
+              <mat-icon matPrefix>person_outline</mat-icon>
+              <input matInput formControlName="responsableId" placeholder="ID o nombre del responsable">
+            </mat-form-field>
+          </div>
+
+          <mat-form-field appearance="outline" class="form-field full-width">
+            <mat-label>Descripción de los hechos</mat-label>
+            <textarea matInput formControlName="descripcionHechos" rows="4"
+              placeholder="Describe los hechos relevantes del proceso..."></textarea>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="form-field full-width">
+            <mat-label>Pretensiones</mat-label>
+            <textarea matInput formControlName="pretensiones" rows="3"
+              placeholder="Pretensiones del demandante..."></textarea>
+          </mat-form-field>
+
+        </form>
+
+        <div class="step-actions">
+          <button mat-button matStepperPrevious>
+            <mat-icon>arrow_back</mat-icon> Anterior
+          </button>
+          <button mat-button (click)="cancelar()">Cancelar</button>
+          <button mat-flat-button color="primary"
+            [disabled]="form.invalid || enviando"
+            (click)="enviar()">
+            <mat-spinner *ngIf="enviando" diameter="20" style="display:inline-block"></mat-spinner>
+            <mat-icon *ngIf="!enviando">save</mat-icon>
+            {{ enviando ? 'Creando...' : 'Crear Proceso' }}
+          </button>
+        </div>
+      </div>
+    </mat-step>
+
+  </mat-stepper>
+</div>

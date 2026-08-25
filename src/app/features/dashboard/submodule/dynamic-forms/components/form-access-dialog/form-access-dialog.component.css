@@ -1,0 +1,303 @@
+/* Permisos por rol de un formulario dinámico. Una tarjeta por rol con sus capacidades en
+   línea: la matriz completa (roles × 9 permisos × N columnas) en una cuadrícula clásica no
+   cabe en un diálogo y obliga a hacer scroll en dos ejes para marcar una casilla. */
+
+.fad-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--navy, #21263c);
+}
+
+.fad-form { font-weight: 500; color: var(--muted, #64748b); }
+
+.fad-contenido { padding-top: 10px !important; max-height: 72vh; }
+
+.fad-grow { flex: 1 1 auto; }
+
+.fad-error,
+.fad-aviso-ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+}
+
+.fad-error { background: #fee2e2; color: #991b1b; }
+.fad-aviso-ok { background: #dcfce7; color: #166534; }
+
+/* ── Bloques ─────────────────────────────────────────────────────────── */
+
+.fad-bloque {
+  padding: 16px 0;
+  border-top: 1px solid var(--slate-100, #f1f5f9);
+}
+
+.fad-bloque:first-of-type { border-top: none; padding-top: 4px; }
+
+.fad-cabecera-bloque {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.fad-cabecera-bloque h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy, #21263c);
+}
+
+.fad-agregar { width: 230px; margin-bottom: -1.25em; }
+
+.fad-ayuda {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted, #64748b);
+}
+
+.fad-ayuda--fina { font-size: 0.76rem; }
+
+.fad-vacio {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--slate-300, #cbd5e1);
+  border-radius: 12px;
+  background: var(--slate-50, #f8fafc);
+  font-size: 0.82rem;
+  color: var(--muted, #64748b);
+}
+
+/* ── Tarjeta de rol ──────────────────────────────────────────────────── */
+
+.fad-rol {
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.fad-rol-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.fad-rol-cabecera mat-icon { font-size: 20px; width: 20px; height: 20px; color: var(--muted, #64748b); }
+
+.fad-rol-nombre {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--navy, #21263c);
+}
+
+.fad-capacidades {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+  gap: 4px 12px;
+}
+
+.fad-capacidades mat-checkbox { font-size: 0.83rem; }
+
+/* ── Columnas por rol ────────────────────────────────────────────────── */
+
+.fad-columnas-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 10px;
+  background: var(--slate-50, #f8fafc);
+  color: var(--slate-700, #334155);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fad-columnas-toggle:hover { border-color: var(--slate-300, #cbd5e1); }
+
+.fad-columnas-toggle:focus-visible {
+  outline: 2px solid var(--lime, #8cd50a);
+  outline-offset: 2px;
+}
+
+.fad-columnas-toggle mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--muted, #64748b); }
+.fad-chevron { margin-left: auto; transition: transform 0.18s ease; }
+.fad-chevron.abierto { transform: rotate(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .fad-chevron { transition: none; }
+}
+
+.fad-columnas {
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--slate-50, #f8fafc);
+}
+
+.fad-columnas-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 2px 12px;
+  margin-top: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.fad-columnas-lista mat-checkbox { font-size: 0.82rem; }
+
+/* ── Control del proceso ─────────────────────────────────────────────── */
+
+.fad-proceso {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--slate-50, #f8fafc);
+}
+
+.fad-llave { width: 100%; max-width: 460px; }
+
+.fad-guardar {
+  background-color: var(--lime, #8cd50a) !important;
+  color: var(--navy, #21263c) !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 700px) {
+  .fad-agregar { width: 100%; }
+  .fad-capacidades { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Selector de destinatario (rol · grupo/finca · oficina · persona) ── */
+
+.fad-sujetos {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px dashed var(--slate-200, #e8edf3);
+  border-radius: 12px;
+  background: var(--slate-50, #f8fafc);
+}
+
+.fad-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fad-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--slate-700, #334155);
+  cursor: pointer;
+}
+
+.fad-tab mat-icon {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+.fad-tab--activo {
+  background: var(--navy, #21263c);
+  border-color: var(--navy, #21263c);
+  color: #fff;
+}
+
+.fad-buscar { width: 100%; }
+
+.fad-opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px;
+  max-height: 210px;
+  overflow-y: auto;
+}
+
+.fad-opcion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.fad-opcion:hover { border-color: var(--navy, #21263c); }
+
+.fad-opcion mat-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
+  line-height: 18px;
+  color: var(--slate-500, #64748b);
+}
+
+.fad-opcion-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fad-opcion-nombre {
+  font-size: 0.86rem;
+  color: var(--navy, #21263c);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fad-opcion-detalle {
+  font-size: 0.74rem;
+  color: var(--muted, #94a3b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Chip con el tipo de destinatario, en la fila de la regla. */
+.fad-sujeto-tipo {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--slate-100, #f1f5f9);
+  color: var(--slate-600, #475569);
+  font-size: 0.72rem;
+  font-weight: 600;
+}

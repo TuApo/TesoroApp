@@ -1,0 +1,121 @@
+<header class="hero">
+  <div class="hero-copy">
+    <p class="eyebrow">Novedades</p>
+    <h1>Centro de novedades</h1>
+    <p class="hero-text">
+      Todo lo que pasa en la plataforma en un solo sitio: avisos de tus módulos y
+      comunicados generales.
+    </p>
+    <div class="hero-actions">
+      @if (unread() > 0) {
+        <button mat-raised-button color="primary" (click)="leerTodas()">
+          <mat-icon>done_all</mat-icon> Marcar todas leídas
+        </button>
+      }
+      @if (leidas() > 0) {
+        <button mat-stroked-button
+          matTooltip="Saca las leídas de la bandeja. Siguen en el histórico."
+          (click)="archivarLeidas()">
+          <mat-icon>inventory_2</mat-icon> Archivar leídas
+        </button>
+      }
+      <button mat-stroked-button (click)="volver()">
+        <mat-icon>arrow_back</mat-icon> Dashboard
+      </button>
+    </div>
+  </div>
+  @if (unread() > 0) {
+    <div class="unread-badge">
+      <span class="badge-count">{{ unread() }}</span>
+      <span>sin leer</span>
+    </div>
+  }
+</header>
+
+<!-- Filtros: los dos transversales + uno por tipo del catálogo del backend. -->
+<div class="filter-row">
+  <button class="filter-chip" [class.active]="filtro() === 'todas'" (click)="setFiltro('todas')">
+    <mat-icon>notifications</mat-icon> Todas
+  </button>
+  <button class="filter-chip" [class.active]="filtro() === 'no-leidas'" (click)="setFiltro('no-leidas')">
+    <mat-icon>mark_email_unread</mat-icon> No leídas
+  </button>
+  @for (t of tipos(); track t.clave) {
+    <button class="filter-chip" [class.active]="filtro() === t.clave" (click)="setFiltro(t.clave)">
+      <mat-icon>{{ t.icono }}</mat-icon> {{ t.nombre }}
+    </button>
+  }
+</div>
+
+@if (loading()) {
+  <div class="center"><mat-spinner diameter="40"></mat-spinner></div>
+} @else if (items().length === 0) {
+  <div class="empty">
+    <mat-icon>notifications_off</mat-icon>
+    <h3>Sin novedades</h3>
+    <p>
+      @if (filtro() === 'no-leidas') { No tienes novedades sin leer. }
+      @else if (filtro() !== 'todas') { No hay novedades de este tipo. }
+      @else { Cuando haya actividad en tus módulos, aparecerá aquí. }
+    </p>
+  </div>
+} @else {
+  <div class="notif-list">
+    @for (n of items(); track n.id) {
+      <div class="notif-card"
+        [class.unread]="!n.leida"
+        [class.urgente]="destacada(n)"
+        [class.clickable]="esNavegable(n)"
+        (click)="abrir(n)">
+
+        <div class="notif-icon" [style.background]="n.color + '15'" [style.color]="n.color">
+          <mat-icon>{{ n.icono }}</mat-icon>
+        </div>
+
+        <div class="notif-body">
+          <div class="notif-header">
+            <strong>{{ n.titulo }}</strong>
+            <span class="notif-time">{{ n.creada_en | date:'d MMM, y h:mm a' }}</span>
+          </div>
+          @if (n.mensaje) { <p class="notif-msg">{{ n.mensaje }}</p> }
+          <div class="notif-meta">
+            @if (n.tipo_nombre) {
+              <span class="type-badge" [style.background]="n.color + '18'" [style.color]="n.color">
+                {{ n.tipo_nombre }}
+              </span>
+            }
+            @if (destacada(n)) {
+              <span class="urgencia-badge">
+                <mat-icon>priority_high</mat-icon> {{ n.urgencia }}
+              </span>
+            }
+            @if (esNavegable(n)) {
+              <span class="notif-go"><mat-icon>arrow_forward</mat-icon> Ir</span>
+            }
+            @if (!n.leida) { <span class="unread-dot"></span> }
+          </div>
+        </div>
+
+        <button class="btn-delete" [disabled]="estaArchivando(n.id)"
+          matTooltip="Archivar. Sigue disponible en el histórico."
+          (click)="archivar($event, n)">
+          @if (estaArchivando(n.id)) {
+            <mat-spinner diameter="14"></mat-spinner>
+          } @else {
+            <mat-icon>inventory_2</mat-icon>
+          }
+        </button>
+
+      </div>
+    }
+  </div>
+
+  @if (hasMore()) {
+    <div class="load-more-row">
+      <button mat-stroked-button (click)="cargarMas()" [disabled]="loadingMore()">
+        @if (loadingMore()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>expand_more</mat-icon> }
+        Cargar más
+      </button>
+    </div>
+  }
+}

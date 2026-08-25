@@ -1,0 +1,174 @@
+/* Correos electrónicos — mismos tokens visuales que Entidades Externas. */
+
+.ce-card {
+  margin: 16px;
+  padding: 20px 24px 8px;
+  border-radius: 12px;
+}
+
+/* Encabezado */
+.ce-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.ce-title { display: flex; align-items: center; gap: 12px; }
+.ce-title mat-icon { font-size: 34px; width: 34px; height: 34px; color: #3f51b5; }
+.ce-title h1 { margin: 0; font-size: 22px; font-weight: 600; }
+.ce-title p { margin: 2px 0 0; font-size: 13px; color: #666; max-width: 640px; }
+
+/* Indicadores */
+.ce-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.kpi {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: 10px;
+  background: #f5f6fa; border: 1px solid #e7e9f3;
+}
+.kpi mat-icon { font-size: 26px; width: 26px; height: 26px; color: #3f51b5; }
+.kpi > div { display: flex; flex-direction: column; line-height: 1.15; }
+.kpi-valor { font-size: 20px; font-weight: 700; color: #23262f; }
+.kpi-label { font-size: 12px; color: #6b6f80; }
+.kpi-ok    { background: #e9f7ee; border-color: #cfe9d9; }
+.kpi-ok mat-icon { color: #1e7e34; }
+.kpi-cuota { background: #eef1fb; border-color: #d6dcf5; }
+.kpi-env   { background: #eef7f7; border-color: #cfe4e6; }
+.kpi-env mat-icon { color: #00838f; }
+.kpi-disp  { background: #fff6e6; border-color: #f5e2bf; }
+.kpi-disp mat-icon { color: #b26a00; }
+
+/* Filtros */
+.ce-filtros {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.f-search { width: 300px; max-width: 100%; }
+.f-sel { width: 190px; }
+.ce-count { margin-left: auto; font-size: 13px; color: #666; }
+
+/* Indicador de frescura del auto-refresco */
+.ce-frescura {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #1e7e34;
+  background: #e9f7ee; border: 1px solid #cfe9d9;
+  border-radius: 999px; padding: 3px 10px;
+}
+.ce-frescura.pausado { color: #6b6f80; background: #f1f1f1; border-color: #e0e0e0; }
+.ce-frescura mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.ce-frescura .pulso {
+  width: 7px; height: 7px; border-radius: 50%; background: #1e7e34;
+  animation: ce-latido 2s ease-in-out infinite;
+}
+@keyframes ce-latido {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: .35; transform: scale(.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ce-frescura .pulso { animation: none; }
+}
+
+/* Loading / vacío / error */
+.ce-loading { display: flex; justify-content: center; padding: 48px 0; }
+.ce-empty, .ce-error {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 40px 0; color: #999;
+}
+.ce-empty mat-icon, .ce-error mat-icon { font-size: 40px; width: 40px; height: 40px; }
+.ce-error { color: #b3261e; }
+
+/* Tabla */
+.ce-table-wrap { overflow-x: auto; }
+.ce-table { width: 100%; }
+.fila-inactiva { opacity: 0.62; }
+
+.cell-direccion { display: flex; flex-direction: column; }
+.cell-direccion .dir { font-weight: 500; }
+.cell-direccion .cred {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 11px; color: #1e7e34;
+}
+.cell-direccion .cred.sin { color: #b26a00; }
+.cell-direccion .cred mat-icon { font-size: 13px; width: 13px; height: 13px; }
+
+.sub-fecha { font-size: 11px; color: #999; margin-top: 2px; }
+
+.estado-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  white-space: nowrap;
+}
+.estado-chip mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.estado-chip.activa { background: #e6f4ea; color: #1e7e34; }
+.estado-chip.inactiva { background: #f1f1f1; color: #777; }
+
+/* Estados de verificación, diferenciados por color */
+.estado-verificada     { background: #e6f4ea; color: #1e7e34; }
+.estado-pendiente      { background: #fff4e5; color: #b26a00; }
+.estado-error-auth     { background: #fdecea; color: #b3261e; }
+.estado-error-conexion { background: #fce4ec; color: #ad1457; }
+.estado-error-config   { background: #ede7f6; color: #5e35b1; }
+.estado-deshabilitada  { background: #f1f1f1; color: #777; }
+
+/* Chip de proveedor */
+.prov-chip {
+  display: inline-block; padding: 2px 10px; border-radius: 6px;
+  font-size: 12px; font-weight: 600; background: #eef1fb; color: #3f51b5;
+  white-space: nowrap;
+}
+.prov-chip[data-prov="GMAIL"]       { background: #fdecea; color: #b3261e; }
+.prov-chip[data-prov="OUTLOOK"]     { background: #e8f0fe; color: #1a56db; }
+.prov-chip[data-prov="YANDEX"]      { background: #fff4e5; color: #b26a00; }
+.prov-chip[data-prov="SMTP_PROPIO"] { background: #e0f7fa; color: #00838f; }
+.prov-chip[data-prov="OTRO"]        { background: #f1f1f1; color: #666; }
+
+.num-badge {
+  display: inline-block; min-width: 28px; text-align: center;
+  padding: 2px 8px; border-radius: 6px; background: #f1f1f1; color: #777; font-weight: 600;
+}
+.num-badge.aporta { background: #e9f7ee; color: #1e7e34; }
+.num-badge.agotado { background: #fdecea; color: #b3261e; }
+
+/* Columna Disponible: número + barra de consumo del día */
+.cell-disponible { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.cell-disponible .barra {
+  display: block; width: 68px; height: 4px; border-radius: 2px; background: #e6e8f0; overflow: hidden;
+}
+.cell-disponible .relleno { display: block; height: 100%; background: #3f51b5; transition: width .3s ease; }
+
+/* Acciones en rejilla 2×2: los 4 botones apilados verticalmente estiraban
+   demasiado la altura de la fila. Botones e iconos reducidos para compactar. */
+.acciones-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 30px);
+  grid-auto-rows: 30px;
+  gap: 2px;
+  justify-content: start;
+  align-content: center;
+}
+.acciones-grid .mat-mdc-icon-button {
+  width: 30px; height: 30px; padding: 0; line-height: 30px;
+  --mdc-icon-button-state-layer-size: 30px;
+}
+.acciones-grid .mat-mdc-icon-button mat-icon {
+  font-size: 17px; width: 17px; height: 17px; line-height: 17px;
+}
+.acciones-grid mat-spinner { display: inline-block; }
+
+/* Filas más compactas: con la rejilla ya no hace falta tanto alto. */
+.ce-table .mat-mdc-cell { padding-top: 6px; padding-bottom: 6px; }
+
+.btn-reactivar { color: #1e7e34; }
+.btn-verificar { color: #00838f; }
+.btn-enviar { color: #3f51b5; }
+.btn-enviar mat-spinner { display: inline-block; }
+.btn-verificar mat-spinner { display: inline-block; }

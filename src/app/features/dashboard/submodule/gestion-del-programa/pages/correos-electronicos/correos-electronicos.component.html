@@ -1,0 +1,273 @@
+<mat-card class="ce-card">
+  <!-- Encabezado -->
+  <div class="ce-header">
+    <div class="ce-title">
+      <mat-icon>email</mat-icon>
+      <div>
+        <h1>Correos electrónicos</h1>
+        <p>Cuentas remitentes que usa la plataforma para enviar correo. Cada cuenta activa
+           y verificada aporta su disponible diario, con corte automático al {{ umbralCorte }}%.</p>
+      </div>
+    </div>
+    <button mat-flat-button color="primary" (click)="abrirDialogoCrear()">
+      <mat-icon>add</mat-icon>
+      Nueva cuenta
+    </button>
+  </div>
+
+  <!-- Indicadores -->
+  <div class="ce-kpis">
+    <div class="kpi">
+      <mat-icon>account_circle</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ resumen?.cuentas_activas ?? '—' }}</span>
+        <span class="kpi-label">Cuentas activas</span>
+      </div>
+    </div>
+    <div class="kpi kpi-ok">
+      <mat-icon>verified</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ resumen?.cuentas_verificadas ?? '—' }}</span>
+        <span class="kpi-label">Cuentas verificadas</span>
+      </div>
+    </div>
+    <div class="kpi kpi-cuota">
+      <mat-icon>mark_email_read</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ (resumen?.cuota_total ?? 0) | number }}</span>
+        <span class="kpi-label">Disponible declarado</span>
+      </div>
+    </div>
+    <div class="kpi kpi-env">
+      <mat-icon>send</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ (resumen?.enviados_hoy ?? 0) | number }}</span>
+        <span class="kpi-label">Enviados hoy</span>
+      </div>
+    </div>
+    <div class="kpi kpi-disp">
+      <mat-icon>outgoing_mail</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ (resumen?.disponible_hoy ?? 0) | number }}</span>
+        <span class="kpi-label">Disponible hoy (corte al {{ umbralCorte }}%)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="ce-filtros">
+    <mat-form-field appearance="outline" class="f-search">
+      <mat-label>Buscar</mat-label>
+      <input matInput [ngModel]="filterSearch" (ngModelChange)="onSearchChange($event)"
+             placeholder="Correo, nombre, propósito o host">
+      <mat-icon matSuffix>search</mat-icon>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-sel">
+      <mat-label>Proveedor</mat-label>
+      <mat-select [(ngModel)]="filterProveedor" (selectionChange)="onServerFilterChange()">
+        <mat-option value="">Todos</mat-option>
+        <mat-option *ngFor="let p of PROVEEDORES" [value]="p.value">{{ p.label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-sel">
+      <mat-label>Estado</mat-label>
+      <mat-select [(ngModel)]="filterEstado" (selectionChange)="onServerFilterChange()">
+        <mat-option value="activas">Activas</mat-option>
+        <mat-option value="inactivas">Inactivas</mat-option>
+        <mat-option value="todas">Todas</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-sel">
+      <mat-label>Verificación</mat-label>
+      <mat-select [(ngModel)]="filterVerificacion" (selectionChange)="onServerFilterChange()">
+        <mat-option value="">Todas</mat-option>
+        <mat-option *ngFor="let e of ESTADOS" [value]="e">{{ estadoMeta(e).label }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="limpiarFiltros()">
+      <mat-icon>filter_alt_off</mat-icon>
+      Limpiar
+    </button>
+
+    <span class="ce-count" *ngIf="!isLoading">{{ dataSource.data.length }} cuenta(s)</span>
+
+    <!-- Estado del auto-refresco -->
+    <span class="ce-frescura" [class.pausado]="!autoRefresco">
+      <span class="pulso" *ngIf="autoRefresco"></span>
+      <mat-icon *ngIf="!autoRefresco">pause_circle</mat-icon>
+      {{ autoRefresco ? textoFrescura : 'actualización automática en pausa' }}
+    </span>
+    <button mat-icon-button (click)="cargar()" matTooltip="Actualizar ahora">
+      <mat-icon>refresh</mat-icon>
+    </button>
+    <button mat-icon-button (click)="toggleAutoRefresco()"
+            [matTooltip]="autoRefresco ? 'Pausar actualización automática' : 'Reanudar actualización automática'">
+      <mat-icon>{{ autoRefresco ? 'pause' : 'play_arrow' }}</mat-icon>
+    </button>
+  </div>
+
+  <!-- Cargando -->
+  <div class="ce-loading" *ngIf="isLoading">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <!-- Error de carga -->
+  <div class="ce-error" *ngIf="!isLoading && cargaFallida">
+    <mat-icon>cloud_off</mat-icon>
+    <p>No fue posible cargar las cuentas de correo.</p>
+    <button mat-stroked-button color="primary" (click)="cargar()">
+      <mat-icon>refresh</mat-icon>
+      Reintentar
+    </button>
+  </div>
+
+  <!-- Tabla -->
+  <div class="ce-table-wrap" *ngIf="!isLoading && !cargaFallida">
+    <table mat-table [dataSource]="dataSource" matSort class="ce-table">
+
+      <ng-container matColumnDef="direccion">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Dirección</th>
+        <td mat-cell *matCellDef="let c">
+          <div class="cell-direccion">
+            <span class="dir">{{ c.direccion }}</span>
+            <span class="cred" *ngIf="c.credencial_configurada" matTooltip="Credencial SMTP configurada (cifrada)">
+              <mat-icon>lock</mat-icon> Credencial configurada
+            </span>
+            <span class="cred sin" *ngIf="!c.credencial_configurada">
+              <mat-icon>lock_open</mat-icon> Sin credencial
+            </span>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="nombre_mostrar">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Remitente</th>
+        <td mat-cell *matCellDef="let c">{{ c.nombre_mostrar || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="proveedor">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Proveedor</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="prov-chip" [attr.data-prov]="c.proveedor">{{ proveedorLabel(c.proveedor) }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="proposito">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Propósito</th>
+        <td mat-cell *matCellDef="let c">{{ c.proposito || '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="enviados_hoy">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Enviados hoy</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="num-badge" matTooltip="Correos realmente enviados por esta cuenta hoy">
+            {{ c.enviados_hoy | number }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="disponible_hoy">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Disponible</th>
+        <td mat-cell *matCellDef="let c">
+          <div class="cell-disponible">
+            <span class="num-badge" [class.aporta]="c.disponible_hoy > 0"
+                  [class.agotado]="c.aporta_cuota && c.disponible_hoy === 0"
+                  [matTooltip]="'Le quedan ' + (c.disponible_hoy | number) + ' de ' + (c.limite_efectivo | number)">
+              {{ c.disponible_hoy | number }}
+            </span>
+            <span class="barra" *ngIf="c.limite_efectivo > 0">
+              <span class="relleno" [style.width.%]="porcentajeUso(c)"></span>
+            </span>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="limite_efectivo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Corte automático</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="num-badge"
+                [matTooltip]="'Tope del día: ' + c.umbral_corte_pct + '% de ' + (c.cuota_diaria | number)">
+            {{ c.limite_efectivo | number }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="estado_verificacion">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Verificación</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="estado-chip" [ngClass]="estadoMeta(c.estado_verificacion).clase"
+                [matTooltip]="c.mensaje_ultima_verificacion || ''">
+            <mat-icon>{{ estadoMeta(c.estado_verificacion).icon }}</mat-icon>
+            {{ estadoMeta(c.estado_verificacion).label }}
+          </span>
+          <div class="sub-fecha" *ngIf="c.ultima_verificacion">
+            {{ c.ultima_verificacion | date:'dd/MM/yyyy HH:mm' }}
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="activo">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="estado-chip" [class.activa]="c.activo" [class.inactiva]="!c.activo">
+            <mat-icon>{{ c.activo ? 'check_circle' : 'cancel' }}</mat-icon>
+            {{ c.activo ? 'Activa' : 'Inactiva' }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actualizado_en">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Actualizada</th>
+        <td mat-cell *matCellDef="let c">
+          {{ (c.actualizado_en || c.creado_en) ? ((c.actualizado_en || c.creado_en) | date:'dd/MM/yyyy HH:mm') : '—' }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="acciones">
+        <th mat-header-cell *matHeaderCellDef>Acciones</th>
+        <td mat-cell *matCellDef="let c">
+          <div class="acciones-grid">
+          <button mat-icon-button color="primary" (click)="abrirDialogoEditar(c)" matTooltip="Ver / editar">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button class="btn-enviar" *ngIf="c.aporta_cuota && c.disponible_hoy > 0"
+                  (click)="enviarPrueba(c)" [disabled]="enviandoId === c.id"
+                  matTooltip="Enviar un correo de prueba (consume cuota)">
+            <mat-spinner *ngIf="enviandoId === c.id" diameter="16"></mat-spinner>
+            <mat-icon *ngIf="enviandoId !== c.id">send</mat-icon>
+          </button>
+          <button mat-icon-button class="btn-verificar" *ngIf="c.activo"
+                  (click)="verificar(c)" [disabled]="verificandoId === c.id"
+                  matTooltip="Verificar conexión SMTP">
+            <mat-spinner *ngIf="verificandoId === c.id" diameter="16"></mat-spinner>
+            <mat-icon *ngIf="verificandoId !== c.id">wifi_tethering</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" *ngIf="c.activo"
+                  (click)="desactivar(c)" matTooltip="Desactivar">
+            <mat-icon>block</mat-icon>
+          </button>
+          <button mat-icon-button *ngIf="!c.activo" class="btn-reactivar"
+                  (click)="reactivar(c)" matTooltip="Reactivar">
+            <mat-icon>restart_alt</mat-icon>
+          </button>
+          </div>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+          [class.fila-inactiva]="!row.activo"></tr>
+    </table>
+
+    <div class="ce-empty" *ngIf="dataSource.data.length === 0">
+      <mat-icon>mark_email_unread</mat-icon>
+      <p>No hay cuentas de correo que coincidan con el filtro.</p>
+    </div>
+
+    <mat-paginator [pageSizeOptions]="[10, 25, 50, 100]" [pageSize]="25" showFirstLastButtons></mat-paginator>
+  </div>
+</mat-card>

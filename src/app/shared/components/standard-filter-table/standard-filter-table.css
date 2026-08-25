@@ -7,27 +7,32 @@
   height: 100%;
   width: 100%;
 
-  /* --- PALETA CORPORATIVA --- */
-  --sft-base: #21263C;
-  --sft-accent: #8CD50A;
+  /* --- PALETA CORPORATIVA ---
+     Esta tabla la usan 22 páginas: lo que se toque aquí las mueve todas.
+     Los tokens cuelgan de los globales de styles.css para que no vuelvan
+     a derivar. Lógica: navy=estructura, slate=superficie, lima=SOLO
+     interacción, ámbar=excepción. */
+  --sft-base: var(--navy, #21263C);
+  --sft-accent: var(--lime, #8CD50A);
 
-  /* --- PALETA UI (Derived/Neutral) --- */
-  --sft-bg-app: #f9fafb;
-  --sft-text-main: #333333;
-  --sft-text-secondary: #666666;
-  --sft-border: #e0e0e0;
+  /* --- PALETA UI (escala slate, no grises sueltos) --- */
+  --sft-bg-app: var(--slate-50, #f8fafc);
+  --sft-text-main: var(--slate-900, #0f172a);
+  --sft-text-secondary: var(--slate-500, #64748b);
+  --sft-border: var(--slate-200, #e8edf3);
 
   /* Tablet Theme Props */
   --sft-header-bg: var(--sft-base);
   --sft-header-text: #ffffff;
-  --sft-row-even-bg: #F8FAFC;
-  /* Softer even row */
+  --sft-row-even-bg: var(--slate-50, #f8fafc);
 
-  /* Zebra / Hover */
-  --sft-hover-bg: #E0E7FF;
-  /* Light Indigo hover */
-  --sft-selected-bg: #DBEAFE;
-  /* Blue 100 */
+  /* Hover y selección.
+     Venían #E0E7FF (índigo) y #DBEAFE (azul): dos colores que no existen
+     en la marca, y eran lo primero que veías al pasar el mouse por
+     cualquier fila de la app. Ahora hover = slate (neutro) y selección =
+     un velo de lima, que es el color reservado a la interacción. */
+  --sft-hover-bg: var(--slate-100, #f1f5f9);
+  --sft-selected-bg: rgba(140, 213, 10, 0.07);
   --sft-selected-border: var(--sft-accent);
 
   /* Drawer specific */
@@ -42,8 +47,20 @@
 .sf-drawer-container {
   width: 100%;
   height: 100%;
-  min-height: 500px;
+  /* Sin min-height fijo: ahora las páginas ocupan height:100% del wrapper y
+     ahogan su scroll, así que un suelo de 500px desbordaba la página en
+     pantallas bajas y devolvía el scroll al wrapper —justo lo contrario de
+     lo que se busca. min-height:0 deja que la tabla encoja hasta el alto real. */
+  min-height: 0;
   background-color: var(--sft-bg-app);
+}
+
+/* En móvil sí conviene un suelo: ahí la página vuelve a scrollear y una tabla
+   de 100px no sirve de nada. */
+@media (max-width: 900px) {
+  .sf-drawer-container {
+    min-height: 420px;
+  }
 }
 
 .sf-filter-drawer {
@@ -132,13 +149,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--slate-200, #e8edf3);
   border-radius: 6px;
   transition: background-color 0.2s;
 }
 
 .sf-col-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--slate-100, #f1f5f9);
 }
 
 .sf-col-item-left {
@@ -150,7 +167,7 @@
 }
 
 .sf-col-filter-toggle {
-  color: #ccc;
+  color: var(--slate-400, #94a3b8);
   transform: scale(0.9);
 }
 
@@ -161,8 +178,8 @@
 /* Filter Blocks */
 .sf-filter-block {
   margin-bottom: 24px;
-  background: #fcfcfc;
-  border: 1px solid #eee;
+  background: var(--slate-50, #f8fafc);
+  border: 1px solid var(--slate-200, #e8edf3);
   border-radius: 8px;
   padding: 12px;
 }
@@ -273,7 +290,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  background: #f1f3f4;
+  background: var(--slate-100, #f1f5f9);
   border-radius: 24px;
   padding: 0 12px;
   height: 40px;
@@ -384,7 +401,7 @@
 
 .sf-chip-x:hover {
   opacity: 1;
-  color: #d32f2f;
+  color: #b42318;
 }
 
 .sf-chip-x mat-icon {
@@ -433,16 +450,16 @@
 }
 
 .sf-table-wrapper::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--slate-100, #f1f5f9);
 }
 
 .sf-table-wrapper::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--slate-300, #d8e0ea);
   border-radius: 4px;
 }
 
 .sf-table-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--slate-400, #94a3b8);
 }
 
 .sf-table {
@@ -521,10 +538,30 @@
   background-color: #fff;
   transition: background-color 0.15s ease-in-out;
 
+  /* Una celda hereda vertical-align:baseline, así que iconos y botones se
+     alineaban a la línea base del texto en vez de al centro. Con el wrapping
+     de abajo una celda puede ocupar 2 líneas, y entonces el icono se quedaba
+     pegado arriba, cuadrado con la primera línea. */
+  vertical-align: middle;
+
   /* Text Wrapping */
   white-space: normal;
   overflow-wrap: anywhere;
   max-width: 300px;
+}
+
+/* Los iconos dentro de celda son inline por defecto y arrastran el
+   espacio de línea (descender), que es lo que los baja 1-2px respecto
+   al texto. Con flex se centran de verdad. */
+.sf-table td mat-icon,
+.sf-table td .mat-mdc-icon-button {
+  vertical-align: middle;
+}
+
+.sf-table td .mat-mdc-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Number cells align right */
@@ -559,6 +596,8 @@
   min-width: 48px;
   padding: 0 8px !important;
   text-align: center;
+  /* El checkbox tampoco se centraba: misma herencia de baseline */
+  vertical-align: middle;
 }
 
 /* Ensure sticky checkbox sits on top */
@@ -682,7 +721,7 @@
 .sf-no-data-illustration {
   width: 120px;
   height: 120px;
-  background: #f3f4f6;
+  background: var(--slate-100, #f1f5f9);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -757,7 +796,7 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--slate-200, #e8edf3);
   padding-top: 12px;
 }
 
@@ -789,3 +828,333 @@
     animation: none !important;
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════════
+   REJILLA TIPO HOJA DE CÁLCULO
+   Selección por rango, columna índice, columnas vacías y organizador.
+   Fondos OPACOS y sin backdrop-filter: en el APK (Capacitor/Android WebView)
+   el desenfoque tras elementos fijos produce texto fantasma.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* El wrapper recibe el foco para capturar el teclado, pero sin anillo azul del
+   navegador: la celda activa ya indica dónde está el cursor. */
+.sf-table-wrapper:focus { outline: none; }
+.sf-table-wrapper:focus-visible { outline: 2px solid var(--navy, #21263C); outline-offset: -2px; }
+
+/* En modo rejilla el texto no se selecciona con el ratón: arrastrar es "seleccionar
+   celdas", y el resalte nativo del navegador se pisaría con el nuestro. */
+.sf-table.sf-grid td,
+.sf-table.sf-grid th {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Columna índice ──────────────────────────────────────────────────────── */
+
+.sf-idx-cell {
+  width: 46px;
+  min-width: 46px;
+  max-width: 46px;
+  text-align: center;
+  padding: 0 4px !important;
+  background: var(--slate-50, #f8fafc);
+  color: var(--slate-500, #64748b);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border-right: 1px solid var(--slate-200, #e8edf3);
+}
+
+.sf-idx-cell:hover { background: var(--slate-100, #f1f5f9); }
+
+/* Fila dentro del rango: el índice se tiñe para que se vea el bloque completo
+   aunque la tabla esté desplazada horizontalmente. */
+.sf-idx-sel {
+  background: var(--slate-200, #e8edf3);
+  color: var(--slate-900, #0f172a);
+  font-weight: 600;
+}
+
+.sf-idx-head { text-align: center; }
+.sf-idx-all { font-size: 18px; opacity: 0.55; }
+.sf-idx-head:hover .sf-idx-all { opacity: 1; }
+
+/* ── Selección de celdas ─────────────────────────────────────────────────── */
+
+.sf-cell-sel {
+  /* color-mix mantiene el tinte sobre cualquier fondo de fila (par/impar,
+     resaltados de estado) en vez de aplastarlo con un color plano. */
+  background: color-mix(in srgb, var(--navy, #21263C) 10%, transparent);
+}
+
+/* La celda activa (el "cursor") lleva borde completo, como en Excel. Se usa
+   outline y no border para no descuadrar el ancho de la celda. */
+.sf-cell-activa {
+  outline: 2px solid var(--navy, #21263C);
+  outline-offset: -2px;
+  background: color-mix(in srgb, var(--navy, #21263C) 16%, transparent);
+}
+
+/* Encabezado de una columna dentro del rango. */
+.sf-col-sel {
+  background: color-mix(in srgb, var(--navy, #21263C) 12%, var(--surface, #fff)) !important;
+}
+
+.sf-col-grip { cursor: pointer; }
+.sf-col-grip:hover { text-decoration: underline dotted; }
+
+/* ── Columnas vacías ─────────────────────────────────────────────────────── */
+
+.sf-vacia-tools { display: inline-flex; gap: 2px; }
+
+.sf-vacia-btn {
+  border: 0;
+  background: transparent;
+  padding: 2px;
+  line-height: 0;
+  cursor: pointer;
+  color: var(--slate-400, #94a3b8);
+  border-radius: 4px;
+}
+
+.sf-vacia-btn:hover { background: var(--slate-100, #f1f5f9); color: var(--slate-700, #334155); }
+.sf-vacia-btn .mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+/* ── Pie: selección + consulta extensa + paginador ───────────────────────── */
+
+.sf-pie {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sf-pie mat-paginator { margin-left: auto; }
+
+.sf-selinfo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--slate-100, #f1f5f9);
+  color: var(--slate-700, #334155);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sf-selinfo .mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+.sf-selinfo__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--navy, #21263C);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.sf-selinfo__btn:hover { background: var(--slate-200, #e8edf3); }
+
+.sf-extensa { white-space: nowrap; }
+.sf-extensa mat-spinner { display: inline-block; margin-right: 6px; }
+
+/* ── Menú de plantillas ──────────────────────────────────────────────────── */
+
+.sf-plt-activa { font-weight: 700; }
+.sf-plt-nombre { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+.sf-plt-x {
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--slate-400, #94a3b8);
+  border-radius: 4px;
+}
+
+.sf-plt-x:hover { color: var(--danger, #b42318); }
+.sf-plt-x .mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+/* ── Organizador de columnas ─────────────────────────────────────────────── */
+
+.sf-org-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.sf-org {
+  position: fixed;
+  z-index: 901;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(560px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface, #fff);
+  border-radius: var(--r-lg, 18px);
+  box-shadow: 0 24px 48px -16px rgba(15, 23, 42, 0.45);
+  padding: 16px;
+}
+
+.sf-org__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sf-org__head h2 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text, #111827); }
+
+.sf-org__x {
+  border: 0; background: transparent; cursor: pointer; line-height: 0;
+  color: var(--slate-400, #94a3b8); padding: 4px; border-radius: 50%;
+}
+.sf-org__x:hover { background: var(--slate-100, #f1f5f9); }
+
+.sf-org__hint {
+  margin: 6px 0 12px;
+  font-size: 0.78rem;
+  color: var(--muted, rgba(17, 24, 39, 0.62));
+}
+
+.sf-org__list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--r-sm, 10px);
+}
+
+.sf-org__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface, #fff);
+  border-bottom: 1px solid var(--slate-100, #f1f5f9);
+}
+
+.sf-org__row:last-child { border-bottom: 0; }
+
+.sf-org__grip { cursor: grab; color: var(--slate-400, #94a3b8); }
+.sf-org__grip:active { cursor: grabbing; }
+
+.sf-org__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--text, #111827);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sf-org__tag {
+  font-size: 0.7rem;
+  font-style: normal;
+  color: var(--slate-400, #94a3b8);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 999px;
+  padding: 0 6px;
+  margin-left: 6px;
+}
+
+.sf-org__mv {
+  border: 0; background: transparent; cursor: pointer; line-height: 0;
+  color: var(--slate-400, #94a3b8); padding: 2px; border-radius: 4px;
+}
+.sf-org__mv:hover:not(:disabled) { background: var(--slate-100, #f1f5f9); color: var(--slate-700, #334155); }
+.sf-org__mv:disabled { opacity: 0.3; cursor: default; }
+.sf-org__mv .mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.sf-org__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+/* Fila en vuelo mientras se arrastra en el organizador. */
+.cdk-drag-preview.sf-org__row {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--r-sm, 10px);
+  box-shadow: 0 12px 24px -8px rgba(15, 23, 42, 0.35);
+}
+
+.cdk-drag-placeholder { opacity: 0.35; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cdk-drag-animating { transition: none !important; }
+}
+
+/* ── Filtro por columna en el encabezado ─────────────────────────────────── */
+
+.sf-hfilter {
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 2px;
+  line-height: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--slate-400, #94a3b8);
+}
+
+.sf-hfilter:hover { background: var(--slate-100, #f1f5f9); color: var(--slate-700, #334155); }
+.sf-hfilter.on { color: var(--navy, #21263C); }
+.sf-hfilter .mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+.sf-hfilter-panel {
+  padding: 12px 14px 6px;
+  min-width: 232px;
+  /* Los controles heredarían el cursor de "no seleccionable" de la rejilla. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.sf-hfilter-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--slate-400, #94a3b8);
+  margin-bottom: 8px;
+}
+
+.sf-hfilter-ff { width: 100%; }
+.sf-hfilter-row { display: flex; gap: 8px; }
+.sf-hfilter-row .sf-hfilter-ff { flex: 1; }
+
+.sf-hfilter-hint {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  color: var(--muted, rgba(17, 24, 39, 0.62));
+}
+
+.sf-hfilter-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--slate-100, #f1f5f9);
+  padding-top: 6px;
+}
+
+.sf-hfilter-link {
+  border: 0;
+  background: transparent;
+  color: var(--navy, #21263C);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.sf-hfilter-link:hover { background: var(--slate-100, #f1f5f9); }

@@ -1,0 +1,72 @@
+/* El lienzo imita el ancho real del correo (600 px por defecto) para que la
+   estructura se juzgue con las proporciones que tendrá, no con las del panel. */
+.eb { display: flex; gap: 16px; align-items: flex-start; min-height: 0; }
+
+.eb__paleta {
+  flex: 0 0 132px; display: flex; flex-direction: column; gap: 4px;
+  position: sticky; top: 0;
+}
+.eb__paleta-tit {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: #94a3b8; padding: 4px 6px;
+}
+.eb__chip {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 9px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+}
+.eb__chip:hover { border-color: #0f766e; background: rgba(15, 118, 110, .06); }
+.eb__chip mat-icon { font-size: 18px; width: 18px; height: 18px; color: #0f766e; }
+
+.eb__lienzo {
+  flex: 1 1 auto; min-width: 0; max-width: calc(var(--ancho, 600) * 1px + 96px);
+  padding: 16px; border-radius: 10px; display: flex; flex-direction: column; gap: 8px;
+}
+
+.eb__vacio {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 48px 16px; color: #94a3b8; text-align: center;
+  border: 2px dashed #cbd5e1; border-radius: 10px; background: rgba(255,255,255,.6);
+}
+.eb__vacio p { margin: 0; font-size: 13px; }
+
+.eb__bloque {
+  display: flex; align-items: stretch; gap: 6px; background: #fff;
+  border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 6px 6px 0; cursor: pointer;
+}
+.eb__bloque:hover { border-color: #94a3b8; }
+.eb__bloque--sel { border-color: #0f766e; box-shadow: 0 0 0 2px rgba(15, 118, 110, .18); }
+
+.eb__asa { display: flex; align-items: center; padding: 0 2px; color: #cbd5e1; cursor: grab; }
+.eb__asa:active { cursor: grabbing; }
+.eb__asa mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.eb__cuerpo { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.eb__cab { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.eb__tipo-icono { font-size: 15px; width: 15px; height: 15px; color: #0f766e; }
+.eb__tipo { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #64748b; }
+.eb__var { font-size: 10px; color: #0f766e; background: rgba(15,118,110,.1); padding: 0 4px; border-radius: 3px; }
+
+.eb__resumen {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; color: #334155;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.eb__mini { width: 34px; height: 34px; object-fit: cover; border-radius: 4px; flex: 0 0 auto; }
+
+.eb__acciones { display: flex; align-items: center; opacity: 0; transition: opacity .12s; }
+.eb__bloque:hover .eb__acciones, .eb__bloque--sel .eb__acciones { opacity: 1; }
+.eb__acciones button { width: 30px; height: 30px; line-height: 30px; }
+.eb__acciones mat-icon { font-size: 17px; width: 17px; height: 17px; }
+.eb__borrar mat-icon { color: #dc2626; }
+
+/* Estados de arrastre del CDK. */
+.cdk-drag-preview { box-shadow: 0 8px 24px rgba(0,0,0,.2); border-radius: 8px; }
+.cdk-drag-placeholder { opacity: .35; }
+.cdk-drop-list-dragging .eb__bloque:not(.cdk-drag-placeholder) { transition: transform .2s cubic-bezier(0,0,.2,1); }
+
+@media (max-width: 900px) {
+  .eb { flex-direction: column; }
+  .eb__paleta { flex-direction: row; flex-wrap: wrap; width: 100%; position: static; }
+  .eb__chip { width: auto; }
+  .eb__lienzo { max-width: 100%; width: 100%; }
+}

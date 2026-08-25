@@ -19,11 +19,21 @@ export interface ColumnDefinition {
   name: string;
   header: string;
   type: 'text' | 'number' | 'date' | 'select' | 'status' | 'custom';
+  /**
+   * Formato de presentación para columnas numéricas. Sin esto, `type:'number'`
+   * pinta el valor crudo (`1300000`, `12.5`) porque la tabla cae al @default.
+   * Es opcional: quien no lo declare sigue viendo exactamente lo de antes.
+   */
+  format?: 'currency' | 'percent' | 'decimal';
+  /**
+   * Patrón del DatePipe para columnas `type:'date'`. Sin esto se pinta 'dd/MM/yyyy',
+   * que es lo de siempre; declararlo permite mostrar la hora ('dd/MM/yyyy HH:mm')
+   * cuando el dato es un instante y no una fecha suelta.
+   */
+  dateFormat?: string;
   options?: string[];
   statusConfig?: Record<string, { color: string; background: string }>;
   customClassConfig?: Record<string, { color: string; background: string }>;
-  /** Formato del DatePipe para columnas type:'date'. Por defecto 'dd/MM/yyyy'. Ej: 'dd/MM/yyyy HH:mm' para fecha + hora. */
-  dateFormat?: string;
   width?: string;
   filterable?: boolean;
   sortable?: boolean; // por defecto true; desactivar en columnas como actions/attachment

@@ -1,0 +1,168 @@
+<div class="chat-shell" [class.sidebar-open]="sidebarOpen()">
+
+  <!-- ── Historial (carpetas + conversaciones) ─────────────────────────── -->
+  <aside class="chat-side">
+    <div class="side-head">
+      <span class="side-title">Historial</span>
+      <div class="side-head-actions">
+        <button mat-icon-button matTooltip="Nueva carpeta" (click)="crearCarpeta()"><mat-icon>create_new_folder</mat-icon></button>
+        <button mat-icon-button color="primary" matTooltip="Nueva conversación" (click)="nuevaConversacion()"><mat-icon>add_comment</mat-icon></button>
+      </div>
+    </div>
+
+    <div class="folder-chips">
+      <button class="folder-chip" [class.active]="selectedFolder() === null" (click)="seleccionarFolder(null)">
+        <mat-icon>inbox</mat-icon> Todas
+      </button>
+      @for (f of folders(); track f.id) {
+        <button class="folder-chip" [class.active]="selectedFolder() === f.id" (click)="seleccionarFolder(f.id)">
+          <mat-icon>folder</mat-icon> {{ f.nombre }} <span class="fc-count">{{ f.conversaciones }}</span>
+          <mat-icon class="fc-del" (click)="eliminarCarpeta(f, $event)">close</mat-icon>
+        </button>
+      }
+    </div>
+
+    <div class="conv-list">
+      @for (c of conversacionesFiltradas(); track c.id) {
+        <div class="conv-item" [class.active]="activeConvId() === c.id" (click)="abrirConversacion(c.id)">
+          <mat-icon class="conv-ico">chat_bubble_outline</mat-icon>
+          <span class="conv-title">{{ c.titulo }}</span>
+          <button mat-icon-button class="conv-menu" [matMenuTriggerFor]="menu" (click)="$event.stopPropagation()">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #menu="matMenu">
+            <button mat-menu-item (click)="renombrarConversacion(c, $event)"><mat-icon>edit</mat-icon> Renombrar</button>
+            <button mat-menu-item [matMenuTriggerFor]="mover"><mat-icon>drive_file_move</mat-icon> Mover a…</button>
+            <button mat-menu-item (click)="eliminarConversacion(c, $event)"><mat-icon>delete</mat-icon> Eliminar</button>
+          </mat-menu>
+          <mat-menu #mover="matMenu">
+            <button mat-menu-item (click)="moverAConversacion(c, null)">Sin carpeta</button>
+            @for (f of folders(); track f.id) {
+              <button mat-menu-item (click)="moverAConversacion(c, f.id)">{{ f.nombre }}</button>
+            }
+          </mat-menu>
+        </div>
+      }
+      @if (conversacionesFiltradas().length === 0) {
+        <div class="conv-empty">Aún no hay conversaciones.</div>
+      }
+    </div>
+  </aside>
+
+  <!-- ── Panel principal ───────────────────────────────────────────────── -->
+  <section class="chat-main">
+    <div class="main-head">
+      <button mat-icon-button class="side-toggle" (click)="sidebarOpen.set(!sidebarOpen())"><mat-icon>menu</mat-icon></button>
+      <span class="main-title">{{ activeTitulo() }}</span>
+      <button mat-stroked-button class="new-btn" (click)="nuevaConversacion()"><mat-icon>add</mat-icon> Nueva</button>
+    </div>
+
+    <!-- Filtro de datos (finca / empresa / año): define el alcance con el que la IA responde -->
+    <div class="chat-filters">
+      <mat-form-field appearance="outline" class="cf-emp">
+        <mat-label>Empresa</mat-label>
+        <mat-select [ngModel]="selectedEmpresa()" (ngModelChange)="onEmpresaDatos($event)">
+          <mat-option [value]="null">Todas</mat-option>
+          @for (e of empresas(); track e.id_entidad) { <mat-option [value]="e.id_entidad">{{ e.nombre_legal }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="cf-finca">
+        <mat-label>Finca (centro de costo)</mat-label>
+        <mat-select multiple [ngModel]="selectedFincas()" (ngModelChange)="onFincasDatos($event)">
+          @for (c of fincas(); track c.id_ceco) { <mat-option [value]="c.id_ceco">{{ c.codigo_interno }} · {{ c.nombre }}</mat-option> }
+          @if (fincas().length === 0) { <div class="rep-select-empty">Sin fincas</div> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="cf-anio">
+        <mat-label>Año</mat-label>
+        <mat-select [ngModel]="selectedAnio()" (ngModelChange)="onAnioDatos($event)">
+          <mat-option [value]="null">Todos</mat-option>
+          @for (a of anios(); track a) { <mat-option [value]="a">{{ a }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <span class="cf-scope" [class.loading]="loadingDatos()" matTooltip="Las respuestas usan los datos reales de nómina de este alcance">
+        <mat-icon>storage</mat-icon>
+        @if (loadingDatos()) { <span>Cargando datos…</span> }
+        @else if (analisisScope()) { <span>Datos: <b>{{ scopeLabel() }}</b></span> }
+        @else { <span>Sin datos en el alcance</span> }
+      </span>
+    </div>
+
+    @if (error()) {
+      <div class="chat-error"><mat-icon>error_outline</mat-icon> {{ error() }} <button mat-icon-button (click)="error.set(null)"><mat-icon>close</mat-icon></button></div>
+    }
+
+    <div class="msgs" #scrollBox>
+      @if (loadingConv()) {
+        <div class="loading-conv"><mat-progress-spinner mode="indeterminate" diameter="34"></mat-progress-spinner></div>
+      } @else if (vacio()) {
+        <div class="welcome">
+          <div class="welcome-icon"><mat-icon>auto_awesome</mat-icon></div>
+          <h3>Asistente de Nómina IA</h3>
+          <p>Conozco tus nóminas, novedades, IBC, aportes y anomalías. Pregúntame lo que necesites o prueba una sugerencia:</p>
+          <div class="preguntas">
+            @for (q of preguntas; track q) {
+              <button class="preg-chip" (click)="usarPregunta(q)"><mat-icon>bolt</mat-icon> {{ q }}</button>
+            }
+          </div>
+        </div>
+      } @else {
+        @for (m of mensajes(); track m.id) {
+          <div class="msg" [class.user]="m.rol === 'user'">
+            @if (m.rol === 'user') {
+              <div class="bubble user-bubble">{{ m.contenido }}</div>
+            } @else {
+              <div class="bubble assistant-bubble"><app-markdown-message [content]="m.contenido"></app-markdown-message></div>
+            }
+          </div>
+        }
+        @if (sending()) {
+          <div class="msg"><div class="bubble assistant-bubble typing"><span></span><span></span><span></span></div></div>
+        }
+      }
+    </div>
+
+    <!-- Composer -->
+    <div class="composer">
+      @if (adjuntos().length) {
+        <div class="adj-list">
+          @for (a of adjuntos(); track $index) {
+            <span class="adj-chip">
+              <mat-icon>description</mat-icon> {{ a.nombre }}
+              @if (!a.textoExtraido) { <mat-icon class="adj-warn" matTooltip="Se enviará solo como referencia (no legible como texto)">info</mat-icon> }
+              <mat-icon class="adj-del" (click)="quitarAdjunto($index)">close</mat-icon>
+            </span>
+          }
+        </div>
+      }
+      @if (recording()) { <div class="rec-hint"><span class="rec-dot"></span> Grabando… toca el micrófono para detener</div> }
+      @if (transcribing()) { <div class="transcribing"><mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner> Transcribiendo audio…</div> }
+
+      <div class="composer-row">
+        <button mat-icon-button matTooltip="Adjuntar archivo" (click)="abrirArchivos()"><mat-icon>attach_file</mat-icon></button>
+        @if (capacidades().transcripcion) {
+          <button mat-icon-button [class.recording]="recording()" [disabled]="transcribing()" (click)="toggleGrabar()"
+                  [matTooltip]="recording() ? 'Detener y transcribir' : 'Grabar audio'">
+            <mat-icon>{{ recording() ? 'stop_circle' : 'mic' }}</mat-icon>
+          </button>
+        }
+        @if (capacidades().webSearch) {
+          <button mat-icon-button [class.active]="webSearchOn()" (click)="toggleWebSearch()"
+                  [matTooltip]="webSearchOn() ? 'Búsqueda web activada' : 'Búsqueda web'">
+            <mat-icon>public</mat-icon>
+          </button>
+        }
+        <textarea class="composer-input" rows="1" placeholder="Escribe tu pregunta sobre nómina…"
+                  [ngModel]="draft()" (ngModelChange)="draft.set($event)" (keydown)="onKeydown($event)"></textarea>
+        <button mat-flat-button color="primary" class="send-btn" [disabled]="sending()" (click)="enviar()">
+          <mat-icon>{{ sending() ? 'hourglass_top' : 'send' }}</mat-icon>
+        </button>
+      </div>
+      <div class="composer-hint">Enter para enviar · Shift+Enter para salto de línea · las respuestas pueden incluir gráficas.</div>
+      <input #fileInput type="file" multiple hidden (change)="onFiles($event)">
+    </div>
+  </section>
+
+  <!-- backdrop para cerrar el sidebar en móvil -->
+  <div class="side-backdrop" (click)="sidebarOpen.set(false)"></div>
+</div>

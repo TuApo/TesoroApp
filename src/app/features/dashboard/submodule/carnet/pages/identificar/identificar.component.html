@@ -1,0 +1,199 @@
+<section class="id-page">
+
+  <header class="id-head">
+    <div>
+      <h1><mat-icon>badge</mat-icon> Identificación de personal</h1>
+      <p>Escanea el carné o busca por cédula para ver quién es y continuar el trámite.</p>
+    </div>
+    @if (carnet()) {
+      <button type="button" class="id-btn-ghost" (click)="limpiar()">
+        <mat-icon>close</mat-icon> Nueva consulta
+      </button>
+    }
+  </header>
+
+  <div class="id-grid">
+
+    <!-- ══════════ COLUMNA IZQUIERDA: entrada ══════════ -->
+    <div class="id-col-entrada">
+
+      <div class="id-card">
+        <h2 class="id-card-t"><mat-icon>qr_code_scanner</mat-icon> Escanear carné</h2>
+        <app-qr-scanner (leido)="onQrLeido($event)" />
+      </div>
+
+      <div class="id-card">
+        <h2 class="id-card-t"><mat-icon>search</mat-icon> Buscar por cédula</h2>
+        <p class="id-card-sub">
+          Para cuando no hay carné a la mano, el QR no se deja leer o la cámara no está
+          disponible.
+        </p>
+        <form class="id-form" (ngSubmit)="buscarPorCedula()">
+          <input
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="Número de documento"
+            [ngModel]="cedula()"
+            (ngModelChange)="cedula.set($event)"
+            name="cedula" />
+          <button type="submit" class="id-btn" [disabled]="buscando() || !cedula().trim()">
+            <mat-icon>person_search</mat-icon> Buscar
+          </button>
+        </form>
+      </div>
+
+      @if (error()) {
+        <p class="id-error"><mat-icon>error_outline</mat-icon> {{ error() }}</p>
+      }
+    </div>
+
+    <!-- ══════════ COLUMNA DERECHA: ficha ══════════ -->
+    <div class="id-col-ficha">
+
+      @if (buscando()) {
+        <div class="id-vacio">
+          <mat-icon class="spin">autorenew</mat-icon>
+          <p>Consultando…</p>
+        </div>
+      } @else if (!carnet() && !verificacion()) {
+        <div class="id-vacio">
+          <mat-icon>badge</mat-icon>
+          <p>Aquí aparecerá la persona identificada.</p>
+        </div>
+      } @else {
+
+        @if (selloVerificacion; as sello) {
+          <div class="id-sello" [class]="sello.clase">
+            <mat-icon>{{ sello.icono }}</mat-icon>
+            <div>
+              <strong>{{ sello.texto }}</strong>
+              @if (verificacion(); as v) { <span>{{ v.mensaje }}</span> }
+            </div>
+          </div>
+        }
+
+        @if (carnet(); as c) {
+          <article class="id-ficha">
+
+            <div class="id-ficha-top">
+              <div class="id-foto">
+                @if (foto()) {
+                  <img [src]="foto()" alt="Foto de {{ c.nombreCompleto }}" />
+                } @else {
+                  <span>{{ iniciales() }}</span>
+                }
+              </div>
+
+              <div class="id-ficha-id">
+                <h2>{{ val(c.nombreCompleto) }}</h2>
+                <p class="id-cargo">{{ val(c.cargo) }}</p>
+                <p class="id-doc">
+                  <mat-icon>badge</mat-icon>
+                  {{ c.tipoDocumento ? c.tipoDocumento + ' ' : '' }}{{ val(c.cedula) }}
+                </p>
+                <span class="id-estado" [class]="'is-' + c.estado.toLowerCase()">
+                  {{ etiquetaEstado(c) }}
+                </span>
+                @if (!c.esEmpleado) {
+                  <span class="id-chip-admin" matTooltip="Sin ficha en contratación">
+                    Personal administrativo
+                  </span>
+                }
+              </div>
+            </div>
+
+            <dl class="id-campos">
+              <div>
+                <dt>Finca / centro de costo</dt>
+                <dd>{{ val(c.centroCosto) }}</dd>
+              </div>
+              <div>
+                <dt>Empresa</dt>
+                <dd>{{ val(c.empresa) }}</dd>
+              </div>
+              <div>
+                <dt>Oficina</dt>
+                <dd>{{ val(c.oficina) }}</dd>
+              </div>
+              <div>
+                <dt>Fecha de ingreso</dt>
+                <dd>
+                  {{ fecha(c.fechaIngreso) }}
+                  @if (antiguedad(c.fechaIngreso); as ant) {
+                    <small>({{ ant }})</small>
+                  }
+                </dd>
+              </div>
+              @if (c.fechaRetiro) {
+                <div>
+                  <dt>Fecha de retiro</dt>
+                  <dd class="is-alerta">{{ fecha(c.fechaRetiro) }}</dd>
+                </div>
+              }
+              <div>
+                <dt>Contrato</dt>
+                <dd>{{ val(c.numeroContrato) }}</dd>
+              </div>
+              <div>
+                <dt>Temporal</dt>
+                <dd>{{ val(c.temporal) }}</dd>
+              </div>
+              <div>
+                <dt>EPS</dt>
+                <dd>{{ val(c.eps) }}</dd>
+              </div>
+              <div>
+                <dt>Fondo de pensiones</dt>
+                <dd>{{ val(c.afp) }}</dd>
+              </div>
+              <div>
+                <dt>ARL</dt>
+                <dd>{{ val(c.arl) }}</dd>
+              </div>
+              <div>
+                <dt>RH</dt>
+                <dd>{{ val(c.rh) }}</dd>
+              </div>
+            </dl>
+          </article>
+
+          <!-- Accesos rápidos a los módulos donde sigue el trámite -->
+          <section class="id-accesos">
+            <h3><mat-icon>bolt</mat-icon> Continuar en…</h3>
+            <div class="id-accesos-grid">
+              @for (a of accesos; track a.ruta) {
+                <button type="button" class="id-acceso" (click)="irA(a)" [matTooltip]="a.descripcion">
+                  <span class="id-acceso-ico" [style.background]="a.color">
+                    <mat-icon>{{ a.icono }}</mat-icon>
+                  </span>
+                  <span class="id-acceso-txt">
+                    <strong>{{ a.etiqueta }}</strong>
+                    <small>{{ a.descripcion }}</small>
+                  </span>
+                </button>
+              }
+            </div>
+          </section>
+
+          @if (historial().length) {
+            <section class="id-historial">
+              <h3><mat-icon>history</mat-icon> Últimas verificaciones</h3>
+              <ul>
+                @for (h of historial(); track h.escaneadoEn) {
+                  <li>
+                    <span class="id-h-res" [class]="'is-' + h.resultado.toLowerCase()">{{ h.resultado }}</span>
+                    <span class="id-h-meta">
+                      {{ h.origen }} · {{ h.docEscaneador || 'sin identificar' }}
+                    </span>
+                    <span class="id-h-fecha">{{ fechaHora(h.escaneadoEn) }}</span>
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        }
+      }
+    </div>
+  </div>
+</section>

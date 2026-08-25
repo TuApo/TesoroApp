@@ -1,0 +1,168 @@
+/* Estilos comunes de los componentes de campo de Formularios Dinámicos.
+   Hereda los tokens de marca de styles.css (navy estructura, slate superficie,
+   lima SOLO interacción). Cada componente los importa vía styleUrls. */
+
+.df-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.df-field__label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--navy, #21263c);
+}
+
+.df-field__req {
+  color: #c0392b;
+  margin-left: 2px;
+}
+
+.df-field__desc {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--slate-500, #64748b);
+}
+
+.df-field__input,
+.df-field__select,
+.df-field__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  border: 1px solid var(--slate-300, #cbd5e1);
+  border-radius: var(--r-sm, 10px);
+  font: inherit;
+  background: var(--surface, #fff);
+  color: var(--navy-deep, #0f172a);
+}
+
+.df-field__input:focus-visible,
+.df-field__select:focus-visible,
+.df-field__textarea:focus-visible {
+  outline: 2px solid var(--lime, #8cd50a);
+  outline-offset: 1px;
+  border-color: var(--navy, #21263c);
+}
+
+.df-field__input:disabled,
+.df-field__select:disabled,
+.df-field__textarea:disabled {
+  background: var(--slate-50, #f8fafc);
+  color: var(--slate-500, #64748b);
+}
+
+.df-field--error .df-field__input,
+.df-field--error .df-field__select,
+.df-field--error .df-field__textarea {
+  border-color: #c0392b;
+}
+
+.df-field__error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #c0392b;
+}
+
+.df-field__value {
+  margin: 0;
+  padding: 6px 0;
+  color: var(--navy-deep, #0f172a);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Grupos de opciones (radio / checkbox) */
+.df-field__options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.df-field__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+  color: var(--navy-deep, #0f172a);
+  cursor: pointer;
+}
+
+.df-field__option input {
+  accent-color: var(--navy, #21263c);
+  width: 16px;
+  height: 16px;
+}
+
+/* Adjuntos / media */
+.df-field__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.df-field__file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--slate-300, #cbd5e1);
+  border-radius: var(--r-sm, 10px);
+  background: var(--slate-50, #f8fafc);
+  font-size: 0.85rem;
+  max-width: 100%;
+}
+
+.df-field__file-chip .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.df-field__thumb {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: var(--r-sm, 10px);
+  border: 1px solid var(--slate-300, #cbd5e1);
+  cursor: zoom-in;
+  background: var(--slate-50, #f8fafc);
+}
+
+.df-field__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--slate-300, #cbd5e1);
+  border-radius: var(--r-sm, 10px);
+  background: var(--surface, #fff);
+  color: var(--navy, #21263c);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.df-field__btn:hover:not(:disabled) {
+  border-color: var(--navy, #21263c);
+}
+
+.df-field__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.df-field__btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+/* Comentario informativo (COMMENT) */
+.df-field__info {
+  padding: 10px 12px;
+  border-left: 3px solid var(--navy, #21263c);
+  background: var(--slate-50, #f8fafc);
+  border-radius: 0 var(--r-sm, 10px) var(--r-sm, 10px) 0;
+  color: var(--slate-700, #334155);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}

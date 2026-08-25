@@ -1,0 +1,263 @@
+/* Detalle de respuesta — Formularios Dinámicos.
+   Tokens de marca de styles.css: navy estructura, slate superficie, lima SOLO interacción. */
+
+.detalle-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0.5rem 0.25rem 2rem;
+}
+
+/* ── Header estándar (card-header-premium, mismo look de las 28 páginas) ── */
+.card-header-premium {
+  display: flex;
+  align-items: center;
+  padding: 22px 28px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  flex-shrink: 0;
+}
+
+.card-header-premium::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1;
+  width: 100%;
+}
+
+.header-icon-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 46px;
+  width: 46px;
+  height: 46px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-radius: 12px;
+}
+
+.header-icon { font-size: 26px; }
+
+.header-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.titulo {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 2px 0;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.subtitulo {
+  font-size: 0.84rem;
+  color: #cbd5e1;
+  margin: 0;
+}
+
+.grow { flex: 1; }
+
+/* Metadatos dentro del header: versión, estado, fecha y autor */
+.header-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.meta-item .material-symbols-outlined { font-size: 16px; }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.badge--version   { background: rgba(255, 255, 255, 0.14); color: #ffffff; }
+.badge--draft     { background: rgba(148, 163, 184, 0.28); color: #e2e8f0; }
+.badge--submitted { background: rgba(245, 158, 11, 0.26);  color: #fcd34d; }
+.badge--approved  { background: rgba(140, 213, 10, 0.24);  color: #d3f58c; }
+.badge--rejected  { background: rgba(239, 68, 68, 0.26);   color: #fca5a5; }
+
+/* Botones del header (fondo oscuro: el mat-button estándar no contrasta) */
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  z-index: 1;
+}
+
+.hbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hbtn .material-symbols-outlined { font-size: 18px; }
+
+.hbtn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.hbtn:focus-visible {
+  outline: 2px solid var(--lime, #8cd50a);
+  outline-offset: 2px;
+}
+
+.hbtn--ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+.hbtn--ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); }
+
+/* Lima = acción primaria; el navy encima da 8.27:1 de contraste */
+.hbtn--aprobar {
+  background: var(--lime, #8cd50a);
+  color: var(--navy, #21263c);
+}
+.hbtn--aprobar:hover:not(:disabled) { filter: brightness(1.06); }
+
+.hbtn--rechazar {
+  background: rgba(180, 35, 24, 0.85);
+  color: #ffffff;
+}
+.hbtn--rechazar:hover:not(:disabled) { background: #b42318; }
+
+.hbtn--reintentar {
+  background: var(--surface, #fff);
+  border-color: var(--slate-300, #cbd5e1);
+  color: var(--navy, #21263c);
+}
+.hbtn--reintentar:hover:not(:disabled) { border-color: var(--navy, #21263c); }
+
+/* ── Banner de versión histórica (sutil, tono aviso) ── */
+.banner-version {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--warn-bg, #fdf4e3);
+  border: 1px solid var(--warn-border, #f2dcac);
+  border-radius: 12px;
+  color: var(--warn-fg, #925a06);
+  font-size: 0.88rem;
+}
+
+.banner-version .material-symbols-outlined { font-size: 20px; }
+
+/* ── Estados de carga y error ── */
+.estado-vacio,
+.estado-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 16px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 14px;
+  color: var(--slate-500, #64748b);
+  text-align: center;
+}
+
+.estado-error { color: var(--danger, #b42318); }
+.estado-error p { margin: 0; }
+.estado-error .material-symbols-outlined { font-size: 34px; }
+
+.giro {
+  font-size: 32px;
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Secciones de la respuesta ── */
+.seccion-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-sm, 0 6px 14px rgba(17, 24, 39, 0.08));
+}
+
+.seccion-titulo {
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--slate-100, #f1f5f9);
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--navy, #21263c);
+}
+
+.seccion-vacia {
+  margin: 0;
+  color: var(--slate-500, #64748b);
+  font-size: 0.88rem;
+}
+
+/* Grilla de 2 columnas; TEXT_LONG, SECTION y ui.full_width ocupan la fila entera
+   (misma regla de ancho completo que aplica el renderer dentro de los grupos). */
+.campos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+.campo-celda { min-width: 0; }
+.campo-celda--full { grid-column: 1 / -1; }
+
+@media (max-width: 700px) {
+  .campos-grid { grid-template-columns: 1fr; }
+  .campo-celda--full { grid-column: auto; }
+
+  .card-header-premium { padding: 18px 16px; }
+  .header-content { flex-wrap: wrap; row-gap: 10px; }
+  .header-actions { width: 100%; }
+  .hbtn { flex: 1 1 auto; justify-content: center; }
+}

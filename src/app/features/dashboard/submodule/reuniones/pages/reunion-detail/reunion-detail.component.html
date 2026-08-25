@@ -1,0 +1,347 @@
+<section class="pagina">
+  <a routerLink="/dashboard/reuniones" class="volver"><mat-icon inline>arrow_back</mat-icon> Reuniones</a>
+
+  @if (cargando()) {
+    <div class="esqueleto-ficha"></div>
+  } @else if (detalle(); as d) {
+    <header class="cabecera">
+      <div>
+        <span class="codigo">{{ d.resumen.code }}</span>
+        <h1>{{ d.resumen.name }}</h1>
+        <div class="meta">
+          @if (d.resumen.held_on) { <span><mat-icon inline>event</mat-icon> {{ d.resumen.held_on }}</span> }
+          @if (d.resumen.system_name) { <span><mat-icon inline>dns</mat-icon> {{ d.resumen.system_name }}</span> }
+          @if (d.resumen.module_name) { <span><mat-icon inline>widgets</mat-icon> {{ d.resumen.module_name }}</span> }
+          @if (d.requesting_area) { <span><mat-icon inline>apartment</mat-icon> {{ d.requesting_area }}</span> }
+          @if (d.resumen.confidentiality === 'RESTRINGIDA') {
+            <span class="restringida"><mat-icon inline>lock</mat-icon> Restringida</span>
+          }
+        </div>
+      </div>
+    </header>
+
+    <nav class="pestanas" role="tablist">
+      <button role="tab" [class.activa]="pestana() === 'resumen'" (click)="pestana.set('resumen')">Resumen</button>
+      <button role="tab" [class.activa]="pestana() === 'grabacion'" (click)="pestana.set('grabacion')">
+        Grabación @if (grabaciones().length) { <span class="pill">{{ grabaciones().length }}</span> }
+      </button>
+      <button role="tab" [class.activa]="pestana() === 'transcripcion'" (click)="pestana.set('transcripcion')">
+        Transcripción
+      </button>
+    </nav>
+
+    @if (error()) { <p class="alerta">{{ error() }}</p> }
+
+    <!-- ── RESUMEN ─────────────────────────────────────────────────────── -->
+    @if (pestana() === 'resumen') {
+      <div class="rejilla-2">
+        <article class="panel">
+          <h2>Contexto</h2>
+          @if (d.objective) { <p class="parrafo"><strong>Objetivo.</strong> {{ d.objective }}</p> }
+          @if (d.context) { <p class="parrafo">{{ d.context }}</p> }
+          @if (!d.objective && !d.context) {
+            <p class="vacio-inline">Sin objetivo ni contexto registrados todavía.</p>
+          }
+          <dl class="datos">
+            <div><dt>Tipo</dt><dd>{{ d.resumen.meeting_type }}</dd></div>
+            <div><dt>Modalidad</dt><dd>{{ d.resumen.modality }}</dd></div>
+            @if (d.location) { <div><dt>Lugar</dt><dd>{{ d.location }}</dd></div> }
+            @if (d.meeting_url) {
+              <div><dt>Enlace</dt><dd><a [href]="d.meeting_url" target="_blank" rel="noopener">Abrir reunión</a></dd></div>
+            }
+            @if (d.resumen.duration_min) { <div><dt>Duración</dt><dd>{{ d.resumen.duration_min }} min</dd></div> }
+          </dl>
+          @if (d.related_areas.length) {
+            <div class="etiquetas">
+              @for (a of d.related_areas; track a) { <span class="etiqueta">{{ a }}</span> }
+            </div>
+          }
+        </article>
+
+        <article class="panel">
+          <h2>Participantes <span class="contador">{{ d.participants.length }}</span></h2>
+          @if (!d.participants.length) {
+            <p class="vacio-inline">Nadie registrado. Agregar quién estuvo es lo que permite atribuir después cada requisito a una persona.</p>
+          }
+          <ul class="participantes">
+            @for (p of d.participants; track p.id) {
+              <li>
+                <div>
+                  <strong>{{ p.display_name }}</strong>
+                  <span class="tipo">{{ p.participant_type }}</span>
+                  @if (p.is_external) { <span class="externo">externo</span> }
+                  @if (p.area || p.position) {
+                    <small>{{ [p.position, p.area].join(' · ') }}</small>
+                  }
+                </div>
+                <button type="button" class="icono" (click)="quitarParticipante(p.id)"
+                        matTooltip="Quitar participante"><mat-icon>close</mat-icon></button>
+              </li>
+            }
+          </ul>
+
+          <form class="alta-participante" (ngSubmit)="agregarParticipante()">
+            <input type="text" placeholder="Nombres" [ngModel]="nuevoParticipante().first_name"
+                   name="first_name" (ngModelChange)="actualizarNuevo('first_name', $event)" />
+            <input type="text" placeholder="Apellidos" [ngModel]="nuevoParticipante().last_name"
+                   name="last_name" (ngModelChange)="actualizarNuevo('last_name', $event)" />
+            <input type="text" placeholder="Cargo" [ngModel]="nuevoParticipante().position"
+                   name="position" (ngModelChange)="actualizarNuevo('position', $event)" />
+            <input type="text" placeholder="Área" [ngModel]="nuevoParticipante().area"
+                   name="area" (ngModelChange)="actualizarNuevo('area', $event)" />
+            <select [ngModel]="nuevoParticipante().participant_type" name="participant_type"
+                    (ngModelChange)="actualizarNuevo('participant_type', $event)">
+              @for (t of TIPOS_PARTICIPANTE; track t) { <option [value]="t">{{ t }}</option> }
+            </select>
+            <button type="submit" class="btn primario" [disabled]="agregandoParticipante()">
+              <mat-icon inline>person_add</mat-icon> Agregar
+            </button>
+          </form>
+        </article>
+      </div>
+    }
+
+    <!-- ── GRABACIÓN ───────────────────────────────────────────────────── -->
+    @if (pestana() === 'grabacion') {
+      <div class="rejilla-2">
+        <article class="panel">
+          <h2>Subir una grabación</h2>
+          <p class="ayuda">
+            Audio (MP3, WAV, M4A, AAC, OGG) o vídeo (MP4, MOV, WEBM). Se sube por partes:
+            si se corta la red o cierra el navegador, al volver a elegir el mismo archivo continúa donde iba.
+          </p>
+
+          <label class="zona-subida">
+            <input type="file" accept="audio/*,video/*" (change)="elegirArchivo($event)"
+                   [disabled]="subidas.estado().fase === 'subiendo'" />
+            <mat-icon>upload_file</mat-icon>
+            <span>Elegir archivo</span>
+          </label>
+
+          @if (subidas.estado(); as s) {
+            @if (s.fase !== 'inactiva') {
+              <div class="progreso">
+                <div class="barra"><div class="relleno" [style.width.%]="s.porcentaje"></div></div>
+                <div class="progreso-texto">
+                  <strong>
+                    @switch (s.fase) {
+                      @case ('iniciando') { Preparando la subida }
+                      @case ('subiendo') { Subiendo grabación }
+                      @case ('ensamblando') { Uniendo las partes }
+                      @case ('lista') { Grabación subida }
+                      @case ('pausada') { Subida pausada }
+                      @case ('error') { Se interrumpió la subida }
+                    }
+                  </strong>
+                  <span>{{ s.porcentaje }}%</span>
+                </div>
+                @if (s.mensaje) { <p class="nota">{{ s.mensaje }}</p> }
+                @if (s.fase === 'subiendo') {
+                  <button type="button" class="btn" (click)="subidas.cancelar()">Pausar</button>
+                }
+              </div>
+            }
+          }
+        </article>
+
+        <article class="panel">
+          <h2>Grabar aquí mismo</h2>
+          @if (!puedeGrabar) {
+            <p class="vacio-inline">Este navegador no permite grabar. Suba el archivo de audio en su lugar.</p>
+          } @else {
+            <p class="ayuda">
+              Cada 15 segundos el fragmento grabado se envía al servidor. Al pulsar
+              <strong>Finalizar</strong> ya está casi todo arriba: un fallo al final no se lleva la reunión.
+            </p>
+            @if (grabador.estado(); as g) {
+              <div class="grabador" [attr.data-fase]="g.fase">
+                <div class="cronometro">
+                  @if (g.fase === 'grabando') { <span class="punto-rec"></span> }
+                  {{ reloj(g.segundos * 1000) }}
+                </div>
+                <div class="botones">
+                  @if (g.fase === 'inactivo' || g.fase === 'listo' || g.fase === 'error') {
+                    <button type="button" class="btn primario" (click)="iniciarGrabacion(false)">
+                      <mat-icon inline>mic</mat-icon> Grabar audio
+                    </button>
+                    <button type="button" class="btn" (click)="iniciarGrabacion(true)">
+                      <mat-icon inline>videocam</mat-icon> Audio y vídeo
+                    </button>
+                  }
+                  @if (g.fase === 'grabando') {
+                    <button type="button" class="btn" (click)="grabador.pausar()">
+                      <mat-icon inline>pause</mat-icon> Pausar
+                    </button>
+                    <button type="button" class="btn primario" (click)="finalizarGrabacion()">
+                      <mat-icon inline>stop</mat-icon> Finalizar
+                    </button>
+                  }
+                  @if (g.fase === 'pausado') {
+                    <button type="button" class="btn" (click)="grabador.continuar()">
+                      <mat-icon inline>play_arrow</mat-icon> Continuar
+                    </button>
+                    <button type="button" class="btn primario" (click)="finalizarGrabacion()">
+                      <mat-icon inline>stop</mat-icon> Finalizar
+                    </button>
+                  }
+                  @if (g.fase === 'grabando' || g.fase === 'pausado') {
+                    <button type="button" class="btn peligro" (click)="grabador.cancelar()">Descartar</button>
+                  }
+                </div>
+                @if (g.fase === 'grabando' || g.fase === 'pausado' || g.fase === 'finalizando') {
+                  <p class="nota">
+                    {{ g.fragmentosEnviados }} fragmentos guardados
+                    @if (g.fragmentosPendientes) { · {{ g.fragmentosPendientes }} en camino }
+                  </p>
+                }
+                @if (g.mensaje) { <p class="nota">{{ g.mensaje }}</p> }
+              </div>
+            }
+          }
+        </article>
+      </div>
+
+      <article class="panel">
+        <h2>Grabaciones de esta reunión</h2>
+        @if (!grabaciones().length) {
+          <p class="vacio-inline">Todavía no hay ninguna grabación.</p>
+        } @else {
+          <ul class="grabaciones">
+            @for (g of grabaciones(); track g.id) {
+              <li [class.activa]="grabacionActiva()?.id === g.id" (click)="seleccionarGrabacion(g)">
+                <mat-icon>{{ g.kind === 'VIDEO' ? 'movie' : 'graphic_eq' }}</mat-icon>
+                <div class="datos-grabacion">
+                  <strong>{{ g.original_filename || 'Grabación' }}</strong>
+                  <small>
+                    {{ pesoLegible(g.size_bytes) }}
+                    @if (g.duration_ms) { · {{ reloj(g.duration_ms) }} }
+                    @if (g.segments_count) { · {{ g.segments_count }} intervenciones }
+                    @if (g.source === 'RECORDED') { · grabada en la app }
+                  </small>
+                  @if (g.stage_error) { <small class="error-etapa">{{ g.stage_error }}</small> }
+                </div>
+                <span class="etapa" [attr.data-etapa]="g.status">
+                  @if (enCurso(g)) { <span class="girando"></span> }
+                  {{ etiquetaEtapa(g) }}
+                </span>
+              </li>
+            }
+          </ul>
+        }
+      </article>
+    }
+
+    <!-- ── TRANSCRIPCIÓN ───────────────────────────────────────────────── -->
+    @if (pestana() === 'transcripcion') {
+      @if (!grabacionActiva()) {
+        <p class="vacio-inline">Seleccione una grabación en la pestaña anterior.</p>
+      } @else if (cargandoTranscripcion()) {
+        <div class="esqueleto-ficha"></div>
+      } @else if (!transcripcion()) {
+        <div class="vacio">
+          <mat-icon>hourglass_empty</mat-icon>
+          <h2>Todavía no hay transcripción</h2>
+          <p>Estado del procesamiento: <strong>{{ etiquetaEtapa(grabacionActiva()!) }}</strong>.
+             Esta pantalla se actualiza sola cuando termine.</p>
+        </div>
+      } @else {
+        <div class="rejilla-transcripcion">
+          <!-- Reproductor y hablantes -->
+          <aside class="panel lateral">
+            @if (urlAudio()) {
+              <audio #reproductor controls preload="metadata" class="reproductor"
+                     [src]="urlAudio()" (timeupdate)="alAvanzar()"></audio>
+            } @else {
+              <p class="vacio-inline">Sin permiso para escuchar esta grabación.</p>
+            }
+
+            <h3>Hablantes</h3>
+            @if (transcripcion()!.speakers_approximate) {
+              <p class="aviso">
+                <mat-icon inline>info</mat-icon>
+                La separación de hablantes es <strong>aproximada</strong>. Asígnelos a un participante
+                para confirmarla; no hace falta volver a transcribir.
+              </p>
+            }
+            @if (!transcripcion()!.speakers.length) {
+              <p class="vacio-inline">La transcripción no trae hablantes separados.</p>
+            }
+            <ul class="hablantes">
+              @for (h of transcripcion()!.speakers; track h.id) {
+                <li>
+                  <span class="etiqueta-hablante">{{ h.label }}</span>
+                  <select [value]="h.participant_id ?? ''"
+                          (change)="asignarHablante(h.id, $any($event.target).value)">
+                    <option value="">Sin asignar</option>
+                    @for (p of d.participants; track p.id) {
+                      <option [value]="p.id">{{ p.display_name }}</option>
+                    }
+                  </select>
+                </li>
+              }
+            </ul>
+
+            <h3>Buscar en la reunión</h3>
+            <div class="campo-busqueda">
+              <input type="search" placeholder="Ej: aprobación" [ngModel]="consulta()"
+                     (ngModelChange)="consulta.set($event)" (keyup.enter)="buscar()" />
+              <button type="button" class="icono" (click)="buscar()"><mat-icon>search</mat-icon></button>
+            </div>
+            @if (coincidencias(); as cs) {
+              <p class="nota">«{{ consulta() }}» aparece {{ cs.length }} {{ cs.length === 1 ? 'vez' : 'veces' }}</p>
+              <ul class="coincidencias">
+                @for (c of cs; track c.start_ms) {
+                  <li><button type="button" (click)="saltarA(c.start_ms)">
+                    <span class="tiempo">{{ reloj(c.start_ms) }}</span>
+                    <span class="fragmento">{{ c.text }}</span>
+                  </button></li>
+                }
+              </ul>
+            }
+          </aside>
+
+          <!-- Transcripción sincronizada -->
+          <article class="panel transcripcion">
+            <header class="cabecera-transcripcion">
+              <h2>Transcripción</h2>
+              <small>
+                {{ transcripcion()!.segments_count }} intervenciones ·
+                {{ transcripcion()!.words_count }} palabras
+                @if (transcripcion()!.model) { · {{ transcripcion()!.model }} }
+              </small>
+            </header>
+
+            <cdk-virtual-scroll-viewport itemSize="86" class="lista-segmentos">
+              <div *cdkVirtualFor="let s of segmentos(); trackBy: porId"
+                   class="segmento" [class.activo]="segmentoActivo() === s.id">
+                <button type="button" class="tiempo" (click)="saltarA(s.start_ms)"
+                        matTooltip="Reproducir desde aquí">
+                  {{ reloj(s.start_ms) }}
+                </button>
+                <div class="cuerpo">
+                  <span class="quien">{{ s.speaker_name || s.speaker_label || 'Sin identificar' }}</span>
+                  @if (editandoSegmento() === s.id) {
+                    <textarea rows="2" [ngModel]="textoEditado()"
+                              (ngModelChange)="textoEditado.set($event)"></textarea>
+                    <div class="acciones-edicion">
+                      <button type="button" class="btn" (click)="editandoSegmento.set(null)">Cancelar</button>
+                      <button type="button" class="btn primario" (click)="guardarEdicion(s)">Guardar</button>
+                    </div>
+                  } @else {
+                    <p (dblclick)="empezarEdicion(s)">{{ s.text }}</p>
+                    @if (s.edited) {
+                      <small class="corregido" [matTooltip]="'Original: ' + (s.text_original || '')">
+                        <mat-icon inline>edit</mat-icon> corregido
+                      </small>
+                    }
+                  }
+                </div>
+              </div>
+            </cdk-virtual-scroll-viewport>
+            <p class="nota pie">Doble clic sobre una intervención para corregir el texto. Se conserva el original.</p>
+          </article>
+        </div>
+      }
+    }
+  }
+</section>

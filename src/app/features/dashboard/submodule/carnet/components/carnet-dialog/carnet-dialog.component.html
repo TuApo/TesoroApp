@@ -1,0 +1,43 @@
+<div class="cd-shell">
+
+  <header class="cd-head">
+    <div class="cd-head-txt">
+      <mat-icon>badge</mat-icon>
+      <span>Mi carné digital</span>
+    </div>
+    <button type="button" class="cd-cerrar" (click)="cerrar()" aria-label="Cerrar">
+      <mat-icon>close</mat-icon>
+    </button>
+  </header>
+
+  <div class="cd-body">
+    @if (cargando()) {
+      <div class="cd-estado">
+        <mat-icon class="spin">autorenew</mat-icon>
+        <span>Generando tu carné…</span>
+      </div>
+    } @else if (error()) {
+      <div class="cd-estado cd-estado--error">
+        <mat-icon>error_outline</mat-icon>
+        <p>{{ error() }}</p>
+        <button type="button" class="cd-btn" (click)="cargar()">
+          <mat-icon>refresh</mat-icon> Reintentar
+        </button>
+      </div>
+    } @else if (carnet(); as c) {
+      <app-carnet-card
+        [carnet]="c"
+        [foto]="foto()"
+        [nombreFallback]="nombreFallback()"
+        [cargoFallback]="cargoFallback()" />
+    }
+  </div>
+
+  @if (!cargando() && !error()) {
+    <footer class="cd-pie">
+      <button type="button" class="cd-btn cd-btn--ghost" (click)="verCompleto()">
+        <mat-icon>open_in_full</mat-icon> Abrir en pantalla completa
+      </button>
+    </footer>
+  }
+</div>

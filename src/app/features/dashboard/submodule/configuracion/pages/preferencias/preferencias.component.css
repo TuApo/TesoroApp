@@ -1,0 +1,55 @@
+:host { display: block; }
+
+/* ===== Base compartida ===== */
+.cfg-card {
+  background: var(--cfg-surface, #fff);
+  border: 1px solid var(--cfg-border, #e2e8f0);
+  border-radius: var(--cfg-radius, 16px);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.cfg-card:last-child { margin-bottom: 0; }
+.cfg-card__head { margin-bottom: 16px; }
+.cfg-card__title { font-size: 1.05rem; font-weight: 700; color: var(--cfg-ink, #0f172a); margin: 0; }
+.cfg-card__hint { margin: 4px 0 0; font-size: 0.83rem; color: var(--cfg-muted, #64748b); }
+
+.action-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 14px 0; border-top: 1px solid var(--cfg-border, #e2e8f0);
+}
+.action-row:first-of-type { border-top: none; padding-top: 0; }
+.action-row:last-child { padding-bottom: 0; }
+.action-row__text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 220px; }
+.action-row__title { font-weight: 600; color: var(--cfg-ink, #0f172a); font-size: 0.92rem; }
+.action-row__desc { font-size: 0.8rem; color: var(--cfg-muted, #64748b); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: inherit; font-size: 0.88rem; font-weight: 600;
+  border-radius: 10px; padding: 10px 16px; border: 1px solid transparent;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .1s ease;
+}
+.btn .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.btn:active { transform: translateY(1px); }
+.btn--ghost { background: #fff; color: var(--cfg-ink, #0f172a); border-color: var(--cfg-border, #e2e8f0); }
+.btn--ghost:hover { background: var(--cfg-surface-2, #f8fafc); }
+
+/* ===== Estadísticas de almacenamiento ===== */
+.stat-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px; margin-bottom: 18px;
+}
+.stat {
+  background: var(--cfg-surface-2, #f8fafc);
+  border: 1px solid var(--cfg-border, #e2e8f0);
+  border-radius: 12px; padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.stat__value { font-size: 1.35rem; font-weight: 800; color: var(--cfg-ink, #0f172a); letter-spacing: -0.02em; }
+.stat__label { font-size: 0.78rem; color: var(--cfg-muted, #64748b); }
+
+@media (max-width: 480px) {
+  .cfg-card { padding: 16px; }
+  .action-row { align-items: stretch; }
+  .btn { justify-content: center; width: 100%; }
+}

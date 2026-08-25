@@ -1,0 +1,294 @@
+<mat-card class="premium-card">
+
+  <!-- Header estándar de la plataforma -->
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">dynamic_form</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Formularios Dinámicos</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Crea, publica y administra los formularios de la plataforma.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <div class="header-actions">
+      <button mat-icon-button class="btn-refresh" (click)="cargar()" [disabled]="loading()"
+              matTooltip="Actualizar" aria-label="Actualizar listado de formularios">
+        <mat-icon>refresh</mat-icon>
+      </button>
+      <button mat-stroked-button class="btn-origenes"
+              [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/origenes']"
+              matTooltip="Tablas parametrizadas que alimentan las preguntas de selección">
+        <mat-icon>table_chart</mat-icon>
+        <span>Orígenes de opciones</span>
+      </button>
+      <button mat-stroked-button class="btn-origenes" (click)="importarAbierto.set(true)"
+              matTooltip="Descargar la plantilla parametrizada o cargar formularios desde un Excel">
+        <mat-icon>upload_file</mat-icon>
+        <span>Desde Excel</span>
+      </button>
+      <button mat-flat-button class="btn-managerial"
+              [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/builder']">
+        <mat-icon>add</mat-icon>
+        <span>Nuevo formulario</span>
+      </button>
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+
+    <!-- Filtros propios del listado. La BÚSQUEDA la aporta la tabla estándar
+         (modo servidor): tenerla aquí también sería dos cajas para lo mismo. -->
+    <div class="filters-row">
+      <mat-button-toggle-group class="filtro-estado" [value]="filtro()" (change)="setFiltro($event)"
+                               aria-label="Filtrar formularios por estado">
+        <mat-button-toggle value="todos">Todos</mat-button-toggle>
+        <mat-button-toggle value="activos">Activos</mat-button-toggle>
+        <mat-button-toggle value="inactivos">Inactivos</mat-button-toggle>
+      </mat-button-toggle-group>
+
+      <mat-button-toggle-group class="filtro-estado" [value]="filtroUbic()" (change)="setFiltroUbic($event)"
+                               aria-label="Filtrar por ubicación en el menú">
+        <mat-button-toggle value="todos" matTooltip="Cualquier ubicación">Ubicación: todas</mat-button-toggle>
+        <mat-button-toggle value="LINKED">Publicados</mat-button-toggle>
+        <mat-button-toggle value="PENDING">Pendientes</mat-button-toggle>
+        <mat-button-toggle value="UNLINKED">Desvinculados</mat-button-toggle>
+        <mat-button-toggle value="FAILED">Con error</mat-button-toggle>
+      </mat-button-toggle-group>
+
+      <span class="grow"></span>
+      <span class="total-label" aria-live="polite">{{ total() }} formulario(s)</span>
+    </div>
+
+    @if (loadError() && filas().length === 0) {
+      <!-- Falló la carga: estado con reintento -->
+      <div class="estado-vacio" role="alert">
+        <span class="material-symbols-outlined vacio-icon">cloud_off</span>
+        <p>No se pudo cargar el listado de formularios.</p>
+        <button mat-stroked-button (click)="cargar()">
+          <mat-icon>refresh</mat-icon>
+          Reintentar
+        </button>
+      </div>
+    } @else if (!loading() && filas().length === 0) {
+      <!-- Sin resultados -->
+      <div class="estado-vacio">
+        <span class="material-symbols-outlined vacio-icon">quiz</span>
+        <p>No hay formularios que coincidan con la búsqueda.</p>
+        <button mat-flat-button class="btn-managerial"
+                [routerLink]="['/dashboard/gestion-del-programa/formularios-dinamicos/builder']">
+          <mat-icon>add</mat-icon>
+          Crear el primero
+        </button>
+      </div>
+    } @else {
+      <!-- Tabla estándar de la plataforma. serverSide: `data` ya es la página que
+           devolvió ms-forms; el buscador y el paginador avisan para pedir la siguiente. -->
+      <app-standard-filter-table
+        [data]="filas()"
+        [columnDefinitions]="columnas"
+        [pageSizeOptions]="[10, 25, 50]"
+        [defaultPageSize]="size()"
+        [tableTitle]="'Formularios dinámicos'"
+        [isLoading]="loading()"
+        [serverSide]="true"
+        [totalCount]="total()"
+        storageKey="dynamic-forms-list"
+        [enableRowClick]="true"
+        (rowClicked)="abrir($event)"
+        (pageChange)="onPageChange($event)"
+        (searchChange)="onServerSearch($event)">
+
+        <!-- Formulario: nombre visible + código técnico (el que usan las integraciones) -->
+        <ng-template appCellTemplate="formulario" let-row>
+          <div class="celda-nombre" [class.inactivo]="!row._f.active">
+            <span class="nombre">{{ row._f.name }}</span>
+            <span class="codigo">{{ row._f.code }}</span>
+          </div>
+        </ng-template>
+
+        <!-- Resumen IA: qué es el formulario y qué dicen sus respuestas.
+             Se muestra SIEMPRE el último generado; solo cambia cuando alguien
+             pide uno nuevo (regenerar cuesta una llamada al modelo). -->
+        <ng-template appCellTemplate="resumen_ia" let-row>
+          <div class="celda-resumen" [class.generando]="resumenBusyId() === row._f.id">
+            @if (row._f.ai_summary) {
+              <button type="button" class="resumen-texto" (click)="verResumen(row._f)"
+                      [matTooltip]="'Ver el resumen completo'"
+                      [attr.aria-label]="'Ver el resumen de ' + row._f.name">
+                <span class="resumen-formulario">{{ row._f.ai_summary }}</span>
+                @if (row._f.ai_responses_summary) {
+                  <span class="resumen-respuestas">
+                    <mat-icon class="icono-respuestas" aria-hidden="true">insights</mat-icon>
+                    {{ row._f.ai_responses_summary }}
+                  </span>
+                }
+              </button>
+              <div class="resumen-pie">
+                <span class="resumen-fecha">{{ row._f.ai_summary_at | date:'dd/MM/yyyy' }}</span>
+                @if (resumenDesactualizado(row._f)) {
+                  <span class="chip chip-stale"
+                        [matTooltip]="'Hay respuestas nuevas desde que se generó (' + (row._f.ai_summary_submissions ?? 0) + ' de ' + row._f.submissions_count + ')'">
+                    Desactualizado
+                  </span>
+                }
+                <button mat-icon-button class="btn-resumen" (click)="generarResumen(row._f)"
+                        [disabled]="resumenBusyId() !== null"
+                        matTooltip="Generar un resumen nuevo con IA"
+                        [attr.aria-label]="'Regenerar el resumen de ' + row._f.name">
+                  <mat-icon>autorenew</mat-icon>
+                </button>
+              </div>
+            } @else {
+              <button mat-stroked-button class="btn-generar" (click)="generarResumen(row._f)"
+                      [disabled]="resumenBusyId() !== null"
+                      matTooltip="Explica de qué trata el formulario y qué dicen sus respuestas">
+                <mat-icon>auto_awesome</mat-icon>
+                <span>Generar resumen</span>
+              </button>
+            }
+            @if (resumenBusyId() === row._f.id) {
+              <div class="resumen-cargando" role="status">
+                <mat-spinner diameter="16"></mat-spinner>
+                <span>Generando…</span>
+              </div>
+            }
+          </div>
+        </ng-template>
+
+        <!-- Versión publicada vigente -->
+        <ng-template appCellTemplate="version" let-row>
+          @if (row._f.current_version != null) {
+            <span class="chip chip-version">v{{ row._f.current_version }}</span>
+          } @else {
+            <span class="sin-dato">Sin publicar</span>
+          }
+        </ng-template>
+
+        <!-- Ubicación en el menú (placement_status) -->
+        <ng-template appCellTemplate="ubicacion" let-row>
+          @if (estadoUbic(row._f) === 'LINKED') {
+            <span class="celda-ruta" [matTooltip]="row._f.route_path || row._f.menu_label || ''">
+              {{ row._f.route_path || row._f.menu_label || '—' }}
+            </span>
+          } @else if (estadoUbic(row._f) === 'PENDING') {
+            <span class="chip chip-neutro">Pendiente</span>
+          } @else if (estadoUbic(row._f) === 'UNLINKED') {
+            <span class="chip chip-inactivo">Desvinculado</span>
+          } @else {
+            <span class="chip chip-error"
+                  [matTooltip]="row._f.placement_error || 'La ubicación quedó en error'">
+              Error
+            </span>
+          }
+        </ng-template>
+
+        <!-- Acciones por fila.
+             Abrir el formulario ya no es una acción: se hace pulsando la fila, que lleva a
+             la pantalla con las cinco vistas en pestañas. Aquí quedan solo los tres atajos
+             que se usan sin querer navegar. El resto vive en el menú de más acciones. -->
+        <ng-template #actionsTemplate let-row>
+          <div class="acciones-fila">
+            <button mat-icon-button matTooltip="Ver respuestas" aria-label="Ver respuestas"
+                    (click)="$event.stopPropagation()"
+                    [routerLink]="[base, row._f.id, 'respuestas']">
+              <mat-icon>list_alt</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Editar estructura" aria-label="Editar estructura"
+                    (click)="$event.stopPropagation()"
+                    [routerLink]="[base, row._f.id, 'editar']">
+              <mat-icon>design_services</mat-icon>
+            </button>
+            <button mat-icon-button (click)="$event.stopPropagation(); generarResumen(row._f)"
+                    [disabled]="resumenBusyId() !== null"
+                    [matTooltip]="row._f.ai_summary ? 'Regenerar resumen IA' : 'Generar resumen IA'"
+                    [attr.aria-label]="'Generar el resumen IA de ' + row._f.name">
+              <mat-icon>auto_awesome</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Más acciones" aria-label="Más acciones"
+                    (click)="$event.stopPropagation()"
+                    [matMenuTriggerFor]="menuFila" [disabled]="busyId() === row._f.id">
+              <mat-icon>more_vert</mat-icon>
+            </button>
+            <mat-menu #menuFila="matMenu">
+              <button mat-menu-item (click)="abrirVista(row._f.id, '')">
+                <mat-icon>open_in_full</mat-icon>
+                <span>Abrir formulario</span>
+              </button>
+              <button mat-menu-item (click)="abrirVista(row._f.id, '/proceso')">
+                <mat-icon>fact_check</mat-icon>
+                <span>Control del proceso</span>
+              </button>
+              <button mat-menu-item (click)="abrirVista(row._f.id, '/soportes')">
+                <mat-icon>attach_file</mat-icon>
+                <span>Soportes</span>
+              </button>
+              <button mat-menu-item (click)="abrirVista(row._f.id, '/analitica')">
+                <mat-icon>monitoring</mat-icon>
+                <span>Analítica</span>
+              </button>
+
+              <!-- Ubicación en el menú -->
+              @if (estadoUbic(row._f) === 'PENDING' || estadoUbic(row._f) === 'UNLINKED') {
+                <button mat-menu-item (click)="publicar(row._f)">
+                  <mat-icon>playlist_add</mat-icon>
+                  <span>Publicar en el menú</span>
+                </button>
+              }
+              @if (estadoUbic(row._f) === 'LINKED') {
+                <button mat-menu-item (click)="moverRenombrar(row._f)">
+                  <mat-icon>drive_file_move</mat-icon>
+                  <span>Mover / renombrar</span>
+                </button>
+                <button mat-menu-item (click)="desvincular(row._f)">
+                  <mat-icon>link_off</mat-icon>
+                  <span>Desvincular del menú</span>
+                </button>
+              }
+              @if (estadoUbic(row._f) === 'FAILED') {
+                <button mat-menu-item (click)="reintentarUbicacion(row._f)">
+                  <mat-icon>autorenew</mat-icon>
+                  <span>Reintentar ubicación</span>
+                </button>
+              }
+
+              <button mat-menu-item (click)="abrirPermisos(row._f)">
+                <mat-icon>admin_panel_settings</mat-icon>
+                <span>Permisos y control del proceso</span>
+              </button>
+
+              <button mat-menu-item (click)="abrirLinksPublicos(row._f)">
+                <mat-icon>link</mat-icon>
+                <span>Links públicos</span>
+              </button>
+              <button mat-menu-item (click)="duplicar(row._f)">
+                <mat-icon>content_copy</mat-icon>
+                <span>Duplicar</span>
+              </button>
+              <button mat-menu-item (click)="toggleActivo(row._f)">
+                <mat-icon>{{ row._f.active ? 'toggle_off' : 'toggle_on' }}</mat-icon>
+                <span>{{ row._f.active ? 'Desactivar' : 'Activar' }}</span>
+              </button>
+              @if (esAdmin) {
+                <button mat-menu-item class="menu-peligro" (click)="eliminarDefinitivo(row._f)">
+                  <mat-icon class="icono-peligro">delete_forever</mat-icon>
+                  <span>Eliminar definitivo</span>
+                </button>
+              }
+            </mat-menu>
+          </div>
+        </ng-template>
+      </app-standard-filter-table>
+    }
+  </mat-card-content>
+</mat-card>
+
+<!-- Carga por Excel: plantilla ya parametrizada + carga individual o masiva. -->
+@if (importarAbierto()) {
+  <app-excel-import-dialog
+    (abrir)="abrirImportado($event)"
+    (creados)="trasCrearMasivo($event)"
+    (cerrar)="importarAbierto.set(false)">
+  </app-excel-import-dialog>
+}

@@ -1,0 +1,100 @@
+/* Diálogo de regla — mismos tokens que el diálogo de cuenta remitente. */
+
+.dialog-header { display: flex; align-items: center; gap: 12px; padding: 20px 24px 12px; }
+.dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+h2[mat-dialog-title] { margin: 0; font-size: 18px; }
+.dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+mat-dialog-content { padding: 16px 24px !important; }
+mat-dialog-actions { padding: 12px 24px 16px !important; }
+mat-dialog-actions mat-spinner { margin-right: 8px; }
+
+.aviso {
+  display: flex; align-items: flex-start; gap: 8px;
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; line-height: 1.35;
+}
+.aviso mat-icon { font-size: 18px; width: 18px; height: 18px; margin-top: 1px; flex: 0 0 auto; }
+.aviso-warn { background: #fff4e5; color: #8a5300; border: 1px solid #ffd8a8; }
+.aviso-info { background: #eef2ff; color: #33408a; border: 1px solid #c7d2fe; }
+
+/* Secciones numeradas: la regla se lee como una frase, no como una tabla. */
+.form-secciones { display: flex; flex-direction: column; gap: 4px; }
+.seccion { padding: 12px 0 4px; border-top: 1px solid #edeef4; }
+.seccion:first-child { border-top: none; padding-top: 4px; }
+.seccion h3 {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #23262f;
+}
+.paso {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #3f51b5; color: #fff; font-size: 11px; font-weight: 700;
+}
+.opcional { font-weight: 400; font-size: 12px; color: #8a8fa3; }
+.seccion-ayuda { margin: 0 0 10px; font-size: 12px; color: #6b6f80; line-height: 1.4; }
+.seccion-ayuda code, .placeholders code {
+  background: #f2f3f7; border: 1px solid #e3e5ee; border-radius: 4px;
+  padding: 1px 5px; font-size: 11px;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+.ancho-total { width: 100%; }
+.op-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: middle; margin-right: 6px; }
+
+/* Condiciones */
+.condicion { display: flex; align-items: flex-start; gap: 8px; }
+.c-campo { flex: 1 1 200px; }
+.c-op { flex: 0 0 190px; }
+.c-valor { flex: 1 1 200px; }
+.condicion button { margin-top: 12px; }
+.json-crudo {
+  background: #fff; border: 1px solid #f0d0a8; border-radius: 6px;
+  padding: 6px 8px; margin: 6px 0; font-size: 11px;
+  max-height: 120px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+}
+
+/* Audiencia */
+.toggle-campo { display: flex; flex-direction: column; gap: 4px; padding: 8px 0 16px; }
+.toggle-ayuda { font-size: 12px; color: #6b6f80; line-height: 1.4; }
+
+.selector-audiencia {
+  border: 1px solid #e3e5ee; border-radius: 10px; padding: 12px; margin-top: 4px;
+  background: #fafbfe;
+}
+.sel-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sel-buscar { flex: 1 1 220px; }
+.sel-contador { font-size: 12px; color: #6b6f80; white-space: nowrap; }
+.sel-cargando { display: flex; justify-content: center; padding: 16px 0; }
+.sel-lista { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; }
+.sel-item { padding: 3px 2px; border-radius: 6px; }
+.sel-item:hover { background: #f0f2fa; }
+.sel-nombre { font-size: 13px; }
+.sel-detalle { display: block; font-size: 11px; color: #8a8fa3; }
+.sel-vacio { font-size: 12px; color: #8a8fa3; padding: 12px 4px; margin: 0; }
+
+/* Canales */
+.canales-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 8px; margin-bottom: 12px;
+}
+.canal {
+  border: 1px solid #e3e5ee; border-radius: 10px; padding: 10px 12px; background: #fafbfe;
+}
+.canal-nombre { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.canal-nombre mat-icon { font-size: 18px; width: 18px; height: 18px; color: #3f51b5; }
+.canal-ayuda { display: block; font-size: 11px; color: #6b6f80; line-height: 1.35; margin-top: 2px; }
+/* Canal declarado pero sin entrega real: que se note antes de marcarlo. */
+.canal-no-disponible { border-style: dashed; opacity: .8; }
+.canal-no-disponible .canal-nombre mat-icon { color: #b9bdcc; }
+
+/* Placeholders detectados en la plantilla */
+.placeholders {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 12px; color: #6b6f80; padding: 4px 0 8px;
+}
+.placeholders mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+@media (max-width: 720px) {
+  .grid-2, .canales-grid { grid-template-columns: 1fr; }
+  .condicion { flex-wrap: wrap; }
+  .c-op, .c-campo, .c-valor { flex: 1 1 100%; }
+}

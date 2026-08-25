@@ -1,0 +1,188 @@
+<!-- Filtros -->
+<mat-card class="filtros-card">
+  <div class="filtros">
+    <mat-form-field appearance="outline" class="f-year">
+      <mat-label>Año</mat-label>
+      <mat-select [ngModel]="selectedAnio()" (ngModelChange)="onAnio($event)">
+        <mat-option [value]="null">Todos</mat-option>
+        @for (a of anios(); track a) { <mat-option [value]="a">{{ a }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-empresa">
+      <mat-label>Empresa usuaria</mat-label>
+      <mat-select [ngModel]="selectedEmpresa()" (ngModelChange)="onEmpresa($event)"
+                  panelClass="rep-select-panel" (openedChange)="onEmpresaPanel($event)">
+        <div class="rep-select-search" (click)="$event.stopPropagation()">
+          <mat-icon>search</mat-icon>
+          <input type="text" placeholder="Buscar empresa…"
+                 [ngModel]="empresaFilter()" (ngModelChange)="empresaFilter.set($event)"
+                 (keydown)="$event.stopPropagation()">
+        </div>
+        <mat-option [value]="null">Todas</mat-option>
+        @for (e of empresasFiltradas(); track e.id_entidad) {
+          <mat-option [value]="e.id_entidad">{{ e.nombre_legal }}</mat-option>
+        }
+        @if (empresasFiltradas().length === 0) { <div class="rep-select-empty">Sin coincidencias</div> }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-ceco">
+      <mat-label>Centros de costo</mat-label>
+      <mat-select multiple [ngModel]="selectedCecos()" (ngModelChange)="onCecos($event)"
+                  panelClass="rep-select-panel" (openedChange)="onCecoPanel($event)">
+        <div class="rep-select-search" (click)="$event.stopPropagation()">
+          <mat-icon>search</mat-icon>
+          <input type="text" placeholder="Buscar centro de costo…"
+                 [ngModel]="cecoFilter()" (ngModelChange)="cecoFilter.set($event)"
+                 (keydown)="$event.stopPropagation()">
+        </div>
+        @for (c of cecosFiltrados(); track c.id_ceco) {
+          <mat-option [value]="c.id_ceco">{{ c.codigo_interno }} · {{ c.nombre }}</mat-option>
+        }
+        @if (cecosFiltrados().length === 0) { <div class="rep-select-empty">Sin coincidencias</div> }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="f-estado">
+      <mat-label>Estado nómina</mat-label>
+      <mat-select [ngModel]="selectedEstado()" (ngModelChange)="onEstado($event)">
+        <mat-option [value]="null">Todas</mat-option>
+        @for (e of estados; track e) { <mat-option [value]="e">{{ e }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+
+    @if (mostrarPeriodo()) {
+      <mat-form-field appearance="outline" class="f-periodo">
+        <mat-label>{{ periodoLabel() }}</mat-label>
+        <mat-select [ngModel]="selectedPeriodoClave()" (ngModelChange)="onPeriodo($event)">
+          <mat-option [value]="null">Todo el año</mat-option>
+          @for (b of buckets(); track b.clave) { <mat-option [value]="b.clave">{{ b.etiqueta }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+    }
+
+    <div class="f-gran">
+      <span class="f-gran-label">Granularidad</span>
+      <mat-button-toggle-group [value]="granularidad()" (change)="onGranularidad($event.value)" hideSingleSelectionIndicator>
+        @for (g of granularidades; track g.value) { <mat-button-toggle [value]="g.value">{{ g.label }}</mat-button-toggle> }
+      </mat-button-toggle-group>
+    </div>
+
+    <span class="spacer"></span>
+    <button mat-icon-button class="f-clear" matTooltip="Limpiar filtros" (click)="limpiar()"><mat-icon>filter_alt_off</mat-icon></button>
+    <button mat-flat-button color="primary" (click)="analizar()" [disabled]="loading()">
+      <mat-icon>analytics</mat-icon> Analizar
+    </button>
+  </div>
+</mat-card>
+
+<!-- Estados -->
+@if (loading()) {
+  <div class="state-box"><mat-progress-spinner mode="indeterminate" diameter="42"></mat-progress-spinner><p>Analizando nóminas…</p></div>
+} @else if (!hayDatos()) {
+  <div class="state-box empty">
+    <mat-icon>query_stats</mat-icon>
+    <p>Sin datos para el filtro seleccionado</p>
+    <span>Ajusta el año, la empresa o el estado y vuelve a analizar.</span>
+  </div>
+} @else {
+
+  <!-- KPIs comparados -->
+  <div class="kpis">
+    @for (k of kpis(); track k.metrica) {
+      <div class="kpi" [class.kpi-up]="k.direccion === 'SUBE'" [class.kpi-down]="k.direccion === 'BAJA'">
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpiFmt(k) }}</span>
+          <span class="kpi-label">{{ k.etiqueta }}</span>
+          @if (k.deltaPct != null) {
+            <span class="kpi-delta" [class.up]="k.direccion === 'SUBE'" [class.down]="k.direccion === 'BAJA'">
+              <mat-icon>{{ deltaIcon(k) }}</mat-icon> {{ deltaLabel(k) }}
+            </span>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- Anomalías -->
+  @if (anomalias().length) {
+    <mat-card class="anom-card">
+      <div class="anom-head">
+        <h3><mat-icon>warning_amber</mat-icon> Datos anómalos e inconsistencias</h3>
+        <span class="anom-count">{{ anomalias().length }} detectada(s)</span>
+      </div>
+      <ul class="anom-list">
+        @for (a of anomalias(); track a.id) {
+          <li class="anom-item" [class]="sevClass(a.severidad)">
+            <span class="anom-sev">{{ a.severidad }}</span>
+            <span class="anom-msg">{{ a.mensaje }}</span>
+            <span class="anom-tag">{{ a.metricaEtiqueta }} · {{ a.periodoEtiqueta }}</span>
+          </li>
+        }
+      </ul>
+    </mat-card>
+  } @else {
+    <mat-card class="anom-card ok">
+      <span><mat-icon>check_circle</mat-icon> No se detectaron anomalías relevantes frente al historial en este filtro.</span>
+    </mat-card>
+  }
+
+  <!-- Gráficas -->
+  <div class="charts-grid">
+    <div class="chart-card span-2">
+      <div class="chart-title">Evolución: devengado, deducido y neto</div>
+      <div echarts [options]="serieOption()" class="echart"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">IBC y aportes por periodo</div>
+      <div echarts [options]="ibcAportesOption()" class="echart"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Empleados por periodo</div>
+      <div echarts [options]="empleadosOption()" class="echart"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top empresas usuarias (neto)</div>
+      <div echarts [options]="topEmpresasOption()" class="echart"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top novedades (valor)</div>
+      <div echarts [options]="topNovedadesOption()" class="echart"></div>
+    </div>
+    @if (analisis()?.facturacion?.disponible) {
+      <div class="chart-card span-2">
+        <div class="chart-title">Facturación (AIU / costo vs. factura) y margen</div>
+        <div echarts [options]="facturacionOption()" class="echart"></div>
+      </div>
+    }
+  </div>
+
+  <!-- Informe IA -->
+  <mat-card class="informe-card">
+    <div class="informe-head">
+      <h3><mat-icon>auto_awesome</mat-icon> Informe redactado por IA</h3>
+      <div class="informe-actions">
+        <button mat-flat-button color="primary" (click)="generarInforme()" [disabled]="loadingInforme()">
+          <mat-icon>{{ informe() ? 'refresh' : 'auto_awesome' }}</mat-icon>
+          {{ informe() ? 'Regenerar' : 'Generar informe IA' }}
+        </button>
+        @if (informe()) {
+          <button mat-stroked-button color="primary" (click)="conversarInforme()">
+            <mat-icon>forum</mat-icon> Conversar este informe
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (loadingInforme()) {
+      <div class="state-box mini"><mat-progress-spinner mode="indeterminate" diameter="34"></mat-progress-spinner><p>Redactando informe…</p></div>
+    } @else if (errorInforme()) {
+      <div class="informe-error"><mat-icon>error_outline</mat-icon> {{ errorInforme() }}</div>
+    } @else if (informe()) {
+      <app-markdown-message [content]="informe()!.narrativa"></app-markdown-message>
+    } @else {
+      <p class="informe-hint">Genera un informe ejecutivo en lenguaje natural con hallazgos, anomalías y recomendaciones a partir del análisis.</p>
+    }
+  </mat-card>
+}

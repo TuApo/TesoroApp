@@ -1,0 +1,197 @@
+<div class="runtime-page">
+
+  <!-- Header estándar de página (card-header-premium) + portada opcional del tema -->
+  <header class="card-header-premium" role="banner" [class.card-header-premium--portada]="portadaUrl()">
+    @if (portadaUrl(); as url) {
+      <img class="header-portada" [src]="url" [alt]="portadaAlt()" aria-hidden="true" />
+      <span class="header-velo" aria-hidden="true"></span>
+    }
+    <div class="header-content">
+      <div class="header-icon-container">
+        <span class="material-symbols-outlined header-icon" aria-hidden="true">{{ iconoHeader() }}</span>
+      </div>
+      <div class="header-text">
+        <h1 class="titulo">{{ structure()?.form_name || 'Formulario' }}</h1>
+        @if (structure()?.form_description) {
+          <p class="subtitulo">{{ structure()?.form_description }}</p>
+        }
+      </div>
+    </div>
+  </header>
+
+  @switch (estado()) {
+
+    @case ('cargando') {
+      <div class="runtime-estado" role="status" aria-live="polite">
+        <span class="spinner spinner--grande" aria-hidden="true"></span>
+        <p>Cargando formulario…</p>
+      </div>
+    }
+
+    @case ('error') {
+      <div class="runtime-estado runtime-estado--error" role="alert">
+        <span class="material-symbols-outlined runtime-estado__icono" aria-hidden="true">error</span>
+        <p>{{ errorCarga() }}</p>
+        <div class="runtime-estado__acciones">
+          <button type="button" class="btn btn--primario" (click)="recargar()">
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+            Reintentar
+          </button>
+          <button type="button" class="btn btn--secundario" (click)="volver()">
+            <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+            Volver
+          </button>
+        </div>
+      </div>
+    }
+
+    @default {
+
+      @if (enviado()) {
+        <!-- ÉXITO: pantalla de gracias -->
+        <section class="runtime-gracias" role="status">
+          <span class="material-symbols-outlined runtime-gracias__icono" aria-hidden="true">task_alt</span>
+          <h2 class="runtime-gracias__titulo">¡Respuesta enviada!</h2>
+          <p class="runtime-gracias__texto">
+            Gracias por diligenciar «{{ structure()?.form_name }}». Tu respuesta quedó registrada correctamente.
+          </p>
+          <div class="runtime-gracias__acciones">
+            <button type="button" class="btn btn--primario" (click)="enviarOtra()">
+              <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+              Enviar otra respuesta
+            </button>
+            <button type="button" class="btn btn--secundario" (click)="volver()">
+              <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+              Volver
+            </button>
+          </div>
+        </section>
+
+      } @else if (structure(); as st) {
+
+        <!-- ASISTENTE: una sección por paso. Solo cuando el formulario tiene 2+ secciones
+             y su tema no pidió explícitamente el llenado de corrido. -->
+        @if (esWizard()) {
+          <nav class="runtime-pasos" aria-label="Progreso del formulario">
+            <!-- Los pasos son los del RECORRIDO: con ramificaciones, las secciones que
+                 las respuestas descartan no se listan (y reaparecen si se cambia). -->
+            <ol class="runtime-pasos__lista">
+              @for (p of pasosRuta(); track p.code; let k = $index) {
+                <li class="runtime-paso"
+                    [class.runtime-paso--actual]="p.indice === paso()"
+                    [class.runtime-paso--hecho]="k < pasoEnRuta()">
+                  <button type="button" class="runtime-paso__btn"
+                          [disabled]="k > pasoEnRuta()"
+                          [attr.aria-current]="p.indice === paso() ? 'step' : null"
+                          (click)="irAPaso(p.indice)">
+                    <span class="runtime-paso__num" aria-hidden="true">
+                      @if (k < pasoEnRuta()) {
+                        <span class="material-symbols-outlined">check</span>
+                      } @else {
+                        {{ k + 1 }}
+                      }
+                    </span>
+                    <span class="runtime-paso__txt">{{ p.titulo }}</span>
+                  </button>
+                </li>
+              }
+            </ol>
+            @if (mostrarProgreso()) {
+              <div class="runtime-barra" role="progressbar" aria-label="Progreso"
+                   [attr.aria-valuenow]="pasoEnRuta() + 1" aria-valuemin="1"
+                   [attr.aria-valuemax]="pasosRuta().length">
+                <span class="runtime-barra__relleno" [style.width.%]="progresoPct()"></span>
+              </div>
+              <p class="runtime-pasos__contador">Paso {{ pasoEnRuta() + 1 }} de {{ pasosRuta().length }}</p>
+            }
+          </nav>
+        }
+
+        <form class="runtime-form" (submit)="onSubmit($event)" novalidate [attr.aria-busy]="enviando()">
+
+          <div class="runtime-scroll" #zonaScroll>
+            @for (sec of seccionesVisibles(); track sectionKey(sec, indiceReal($index))) {
+              @let secKey = sectionKey(sec, indiceReal($index));
+              <section class="runtime-seccion">
+                @if (sec.title) {
+                  <h2 class="runtime-seccion__titulo">{{ sec.title }}</h2>
+                }
+                <div class="runtime-grid">
+                  @for (f of sec.fields; track fieldKey(f)) {
+                    <div class="runtime-celda" [id]="'df-anchor-' + fieldKey(f)"
+                         [class.runtime-celda--full]="esAnchoCompleto(f)">
+                      <app-field-renderer
+                          [field]="f"
+                          mode="preview"
+                          [value]="valorDe(secKey, f)"
+                          [sectionValues]="f.type === 'SECTION' ? seccionValores(secKey) : null"
+                          [formValues]="seccionValores(secKey)"
+                          [showErrors]="showErrors()"
+                          [uploadFn]="uploadFn"
+                          [downloadUrlFn]="downloadUrlFn"
+                          (valueChange)="setValue(secKey, fieldKey(f), $event)"
+                          (childChange)="setValue(secKey, fieldKey($event.field), $event.value)" />
+                    </div>
+                  }
+                </div>
+              </section>
+            }
+          </div>
+
+          <!-- Barra de acciones -->
+          <div class="runtime-acciones">
+            @if (subiendo() > 0) {
+              <span class="runtime-subiendo" role="status" aria-live="polite">
+                <span class="spinner" aria-hidden="true"></span>
+                Subiendo archivos… ({{ subiendo() }})
+              </span>
+            }
+            @if (draftId(); as id) {
+              <span class="runtime-borrador">Borrador #{{ id }} guardado</span>
+            }
+
+            @if (esWizard() && pasoEnRuta() > 0) {
+              <button type="button" class="btn btn--secundario"
+                      (click)="anterior()"
+                      [disabled]="enviando() || guardandoBorrador()">
+                <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+                Anterior
+              </button>
+            }
+
+            <button type="button" class="btn btn--secundario"
+                    (click)="guardarBorrador()"
+                    [disabled]="enviando() || guardandoBorrador()">
+              @if (guardandoBorrador()) {
+                <span class="spinner" aria-hidden="true"></span>
+              } @else {
+                <span class="material-symbols-outlined" aria-hidden="true">save</span>
+              }
+              Guardar borrador
+            </button>
+
+            @if (esWizard() && !esUltimoPaso()) {
+              <button type="button" class="btn btn--primario"
+                      (click)="siguiente()"
+                      [disabled]="enviando() || guardandoBorrador()">
+                Siguiente
+                <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+              </button>
+            } @else {
+              <button type="submit" class="btn btn--primario"
+                      [disabled]="enviando() || guardandoBorrador()">
+                @if (enviando()) {
+                  <span class="spinner" aria-hidden="true"></span>
+                } @else {
+                  <span class="material-symbols-outlined" aria-hidden="true">send</span>
+                }
+                {{ enviando() ? 'Enviando…' : 'Enviar' }}
+              </button>
+            }
+          </div>
+
+        </form>
+      }
+    }
+  }
+</div>

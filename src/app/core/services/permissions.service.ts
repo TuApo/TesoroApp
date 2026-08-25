@@ -13,9 +13,25 @@ export const PERMISSION_NODE_IDS = {
 interface PermNode {
   id: string;
   nombre?: string;
+  ruta?: string;
+  icono?: string;
   acciones?: string[];
   permiso_ids?: Record<string, string>;
   hijos?: PermNode[];
+}
+
+/**
+ * Módulo navegable (con pantalla propia) que el usuario puede leer.
+ * Es lo que consume el menú inteligente del header para buscar por nombre.
+ */
+export interface ModuloAccesible {
+  id: string;
+  nombre: string;
+  /** Ruta absoluta ya normalizada, p. ej. `/dashboard/nomina/novedades`. */
+  ruta: string;
+  icono: string;
+  /** Nombres de los módulos padre, del más externo al más cercano. */
+  padres: string[];
 }
 
 const READ_KEYS = new Set(['VER', 'LEER', 'READ', 'VIEW']);
@@ -27,6 +43,25 @@ const ADMIN_ROLE_NAMES = new Set([
   'SUPER ADMIN',
   'SUPERADMIN',
 ]);
+
+/**
+ * Roles que ven los nodos "ADMINISTRATIVO" del arbol. Espejo de
+ * NavbarComponent.PRIVILEGED_ROLES: el buscador no debe ofrecer modulos que
+ * el menu lateral esconde.
+ */
+const PRIVILEGED_MENU_ROLES = new Set(['ADMIN', 'GERENCIA']);
+
+const ADMINISTRATIVE_NODE_NAMES = new Set(['administrativo', 'administrativos']);
+
+/** minusculas, sin acentos y sin espacios repetidos: para comparar nombres. */
+export function normalizarTexto(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
 
 /**
  * Patrones de URL que identifican endpoints exclusivos del modulo SELECCION
@@ -96,6 +131,86 @@ export class PermissionsService {
   canUseSeleccionPipeline(): boolean {
     if (this.isAdmin()) return false;
     return this.hasReadPermission(PERMISSION_NODE_IDS.SELECCION);
+  }
+
+  /**
+   * True si el usuario actual puede navegar a la URL dada según el árbol de
+   * permisos. Se busca el nodo cuya ruta sea el prefijo más largo de la URL
+   * (misma normalización de ruta que usa el navbar al pintar el menú) y se
+   * evalúa su lectura. Fail-open deliberado: sin árbol cargado, o si la URL
+   * no corresponde a ningún módulo del árbol (home, cuenta, cambiar
+   * contraseña…), se permite — solo se bloquea lo que SÍ está modelado en el
+   * árbol y no es legible para el usuario.
+   */
+  canReadRoute(url: string): boolean {
+    const tree = this.loadTree();
+    if (!tree || !url) return true;
+
+    const destino = url.split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
+    let mejorLen = -1;
+    let permitido = true;
+
+    const visitar = (n: PermNode) => {
+      const ruta = this.rutaAbsoluta(n);
+      if (ruta && (destino === ruta || destino.startsWith(ruta + '/'))) {
+        if (ruta.length > mejorLen) {
+          mejorLen = ruta.length;
+          permitido = this.canRead(n);
+        } else if (ruta.length === mejorLen && !permitido) {
+          // Varios nodos pueden compartir ruta (alias): basta uno legible.
+          permitido = this.canRead(n);
+        }
+      }
+      (n.hijos ?? []).forEach(h => visitar(h));
+    };
+    tree.forEach(n => visitar(n));
+    return permitido;
+  }
+
+  /**
+   * Lista plana de los módulos navegables que el usuario puede leer, cada uno
+   * con la cadena de padres para mostrarla como migaja. Misma fuente y mismas
+   * reglas de visibilidad que usa el navbar al pintar el menú (lectura + ocultar
+   * "ADMINISTRATIVO" a roles no privilegiados), para que el buscador nunca
+   * ofrezca una pantalla que el menú no muestra y el guard bloquearía.
+   */
+  listReadableModules(): ModuloAccesible[] {
+    const tree = this.loadTree();
+    if (!tree) return [];
+
+    const privilegiado = PRIVILEGED_MENU_ROLES.has(this.getNormalizedRoleName());
+    const modulos: ModuloAccesible[] = [];
+    const rutasVistas = new Set<string>();
+
+    const visitar = (n: PermNode, padres: string[]) => {
+      const nombre = (n?.nombre ?? '').trim();
+      if (!privilegiado && ADMINISTRATIVE_NODE_NAMES.has(normalizarTexto(nombre))) return;
+      if (!this.canRead(n)) return;
+
+      const ruta = this.rutaAbsoluta(n);
+      // Los contenedores puros (sin ruta propia o apuntando al home) no son
+      // destino: solo aportan su nombre a la migaja de los hijos.
+      if (nombre && ruta && ruta !== '/dashboard' && !rutasVistas.has(ruta)) {
+        rutasVistas.add(ruta);
+        modulos.push({ id: n.id, nombre, ruta, icono: (n.icono ?? '').trim(), padres });
+      }
+
+      const hijos = n.hijos ?? [];
+      if (hijos.length) {
+        const siguiente = nombre ? [...padres, nombre] : padres;
+        hijos.forEach(h => visitar(h, siguiente));
+      }
+    };
+
+    tree.forEach(n => visitar(n, []));
+    return modulos;
+  }
+
+  private rutaAbsoluta(n: PermNode): string | null {
+    const ruta = (n?.ruta ?? '').trim();
+    if (!ruta) return null;
+    const abs = ruta.startsWith('/') ? ruta : `/dashboard/${ruta}`;
+    return abs.replace(/\/+$/, '');
   }
 
   private getRoleName(): string {

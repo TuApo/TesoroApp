@@ -1,6 +1,7 @@
 import { SelectionModel } from '@angular/cdk/collections';
 import { CdkTableModule } from '@angular/cdk/table';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CommonModule, isPlatformBrowser, formatCurrency, formatDate, formatNumber } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -24,7 +25,9 @@ import {
   ContentChildren,
   QueryList,
   AfterContentInit,
+  inject,
 } from '@angular/core';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -52,6 +55,10 @@ import { debounceTime, startWith } from 'rxjs/operators';
 
 import { ActiveFilter, ColumnDefinition, FilterOperator } from '../../models/advanced-table-interface';
 import { ColumnCellTemplateDirective } from '../../directives/column-cell-template.directive';
+import { GridSelection, aTsv } from './grid-selection';
+import {
+  TableTemplateService, ConfigPlantilla, ColumnaPlantilla, PlantillaTabla, VisibilidadPlantilla,
+} from '../../services/table-template.service';
 import { getLocalStorageItem, setLocalStorageItem } from '../../../core/utils/safe-storage';
 
 type DateRangeGroup = FormGroup<{
@@ -88,6 +95,7 @@ type ViewMode = 'table' | 'cards';
     MatSidenavModule,
     MatSlideToggleModule,
     MatDividerModule,
+    DragDropModule,
     RouterModule,
   ],
   changeDetection: ChangeDetectionStrategy.Default,
@@ -103,9 +111,11 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   private colsDiffer: IterableDiffer<ColumnDefinition>;
 
   // =========================
-  // Toggle vista (desktop)
+  // Toggle vista (tabla / tarjetas)
   // =========================
   viewMode: ViewMode = 'table';
+  private breakpointObserver = inject(BreakpointObserver);
+
   setViewMode(ev: MatSlideToggleChange): void {
     this.viewMode = ev.checked ? 'cards' : 'table';
     this.saveState();
@@ -155,6 +165,29 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   @Input() storageKey?: string;
 
   @Output() rowClicked = new EventEmitter<any>();
+
+  /**
+   * Modo servidor. Por defecto false: las 21 páginas que ya usan esta tabla
+   * siguen paginando y filtrando en cliente, exactamente igual que antes.
+   *
+   * Con serverSide=true la tabla deja de recortar y ordenar por su cuenta:
+   * asume que `data` YA es la página pedida, usa `totalCount` para el largo del
+   * paginador, y avisa al padre con (pageChange)/(searchChange) para que sea él
+   * quien pida los datos. Existe porque manage-workers tenía que descargar
+   * 50.190 filas (37 MB) para mostrar 10.
+   */
+  @Input() serverSide = false;
+  @Output() pageChange = new EventEmitter<{ page: number; size: number }>();
+  @Output() searchChange = new EventEmitter<string>();
+  /**
+   * Ordenamiento en SERVIDOR. Solo emite con serverSide=true: en modo cliente la
+   * tabla sigue ordenando ella misma sobre el dataSource, como siempre.
+   *
+   * Sin esto, una tabla en modo servidor solo podía ordenar la página que tenía a
+   * la vista, que es justo lo que no sirve cuando el conjunto tiene 50.000 filas y
+   * lo que se busca es "el mayor de todos".
+   */
+  @Output() sortChange = new EventEmitter<{ active: string; direction: 'asc' | 'desc' | '' }>();
 
   // Tabla
   displayedColumns: string[] = [];
@@ -221,6 +254,590 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   // Select Search Caches
   selectSearchControls: Record<string, FormControl<string>> = {};
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REJILLA TIPO HOJA DE CÁLCULO
+  // Selección por rango, copiado al portapapeles, reordenar y añadir columnas,
+  // y plantillas de disposición compartibles.
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Capacidades de rejilla. Encendidas por defecto: son aditivas (no cambian lo que se
+   * pinta si nadie las usa) y la decisión fue que salgan en todas las tablas a la vez.
+   * Una tabla que necesite el comportamiento anterior las apaga con [enableGrid]="false".
+   */
+  @Input() enableGrid = true;
+
+  /**
+   * Plantillas de disposición. Requieren `storageKey` (es el table_key con el que se
+   * guardan): sin él no hay forma de saber a qué tabla pertenece una plantilla, así que
+   * quedan apagadas aunque enableGrid esté activo.
+   */
+  @Input() enableTemplates = true;
+
+  /**
+   * "Consulta extensa": la tabla pagina SIEMPRE, y este botón es la vía explícita para
+   * pedir el conjunto completo. Se declara desde el padre porque sólo él sabe cómo
+   * traerlo (y cuánto cuesta). Sin (extendedQuery) suscrito, el botón no aparece.
+   */
+  @Output() extendedQuery = new EventEmitter<void>();
+  @Input() extendedQueryLabel = 'Consulta extensa';
+  /** Lo pone el padre mientras trae el conjunto completo. */
+  @Input() extendedQueryLoading = false;
+  /** El padre lo enciende cuando el listado ya es el conjunto completo. */
+  @Input() extendedQueryDone = false;
+
+  private readonly templates = inject(TableTemplateService);
+
+  readonly sel = new GridSelection();
+
+  /**
+   * Orden de columnas elegido por el usuario. Vacío = el orden en que llegaron en
+   * columnDefinitions (comportamiento de siempre). Se guarda por nombre y no por índice
+   * para que sobreviva a que el padre añada o quite columnas entre visitas.
+   */
+  columnOrder: string[] = [];
+
+  /**
+   * Columnas VACÍAS añadidas por el usuario: no existen en los datos, se pintan en blanco
+   * y sirven para dejar huecos al armar un formato (imprimir y rellenar a mano, o pegar
+   * en Excel con las casillas ya puestas).
+   */
+  emptyColumns: ColumnDefinition[] = [];
+  private emptySeq = 0;
+
+  /** Prefijo reservado. Permite distinguir una columna vacía sin llevar un registro aparte. */
+  private static readonly PREFIJO_VACIA = '__vacia_';
+
+  esColumnaVacia(name: string): boolean {
+    return name.startsWith(StandardFilterTable.PREFIJO_VACIA);
+  }
+
+  // ── Plantillas ────────────────────────────────────────────────────────────
+
+  plantillas: PlantillaTabla[] = [];
+  plantillaAplicada: string | null = null;
+  cargandoPlantillas = false;
+
+  private get puedeUsarPlantillas(): boolean {
+    return this.enableGrid && this.enableTemplates && !!this.storageKey;
+  }
+
+  private cargarPlantillas(): void {
+    if (!this.puedeUsarPlantillas) return;
+    this.cargandoPlantillas = true;
+    this.uiSubs.add(this.templates.listar(this.storageKey!).subscribe(ps => {
+      this.plantillas = ps;
+      this.cargandoPlantillas = false;
+      // La base se aplica sola, pero sólo si el usuario no ha tocado nada todavía:
+      // pisarle una disposición que acaba de armar sería peor que no tener plantillas.
+      const base = ps.find(x => x.es_base);
+      if (base && !this.plantillaAplicada && this.columnOrder.length === 0 && this.emptyColumns.length === 0) {
+        this.aplicarPlantilla(base);
+      }
+      this.cdr.markForCheck();
+    }));
+  }
+
+  aplicarPlantilla(p: PlantillaTabla): void {
+    const cfg = this.templates.parseConfig(p);
+    if (!cfg) {
+      Swal.fire({ icon: 'warning', title: 'Plantilla ilegible',
+        text: 'Se guardó con un formato que esta versión no entiende.' });
+      return;
+    }
+
+    // Las columnas vacías de la plantilla se recrean; las reales sólo se reordenan y se
+    // muestran u ocultan. Una plantilla NUNCA inventa columnas de datos: si se guardó con
+    // una columna que el padre ya no envía, simplemente no aparece.
+    this.emptyColumns = cfg.columnas
+      .filter(c => c.vacia)
+      .map(c => ({ name: c.name, header: c.header || '', type: 'text',
+                   width: c.width, filterable: false, sortable: false } as ColumnDefinition));
+    this.emptySeq = this.emptyColumns.length;
+
+    const conocidas = new Set([
+      ...(this.columnDefinitions || []).map(c => c.name),
+      ...this.emptyColumns.map(c => c.name),
+    ]);
+
+    this.columnOrder = cfg.columnas.map(c => c.name).filter(n => conocidas.has(n));
+
+    this.visibleColumnNames = new Set(
+      cfg.columnas.filter(c => c.visible && conocidas.has(c.name)).map(c => c.name));
+    // 'actions' no es del usuario: si la tabla la tiene, va siempre.
+    if ((this.columnDefinitions || []).some(c => c.name === 'actions')) {
+      this.visibleColumnNames.add('actions');
+    }
+
+    for (const c of cfg.columnas) {
+      if (!c.width) continue;
+      const def = this.colByName.get(c.name) || this.emptyColumns.find(e => e.name === c.name);
+      if (def) def.width = c.width;
+    }
+
+    this.plantillaAplicada = p.id;
+    this.recomputeVisibleColumns();
+    this.sel.limpiar();
+    this.cdr.markForCheck();
+  }
+
+  /** Disposición actual, lista para guardarse. */
+  private configActual(): ConfigPlantilla {
+    const columnas: ColumnaPlantilla[] = this.todasLasColumnas().map(c => ({
+      name: c.name,
+      visible: this.visibleColumnNames.has(c.name),
+      width: c.width,
+      vacia: this.esColumnaVacia(c.name) || undefined,
+      header: this.esColumnaVacia(c.name) ? c.header : undefined,
+    }));
+    return { v: 1, columnas };
+  }
+
+  async guardarPlantilla(): Promise<void> {
+    if (!this.puedeUsarPlantillas) return;
+
+    const { value: form } = await Swal.fire<{ nombre: string; visibilidad: VisibilidadPlantilla; base: boolean }>({
+      title: 'Guardar plantilla',
+      html:
+        '<input id="plt-nombre" class="swal2-input" placeholder="Nombre de la plantilla" maxlength="120">' +
+        '<select id="plt-vis" class="swal2-select">' +
+        '<option value="PRIVADA">Privada (solo yo)</option>' +
+        '<option value="PUBLICA">Pública (todo el equipo)</option>' +
+        '</select>' +
+        '<label style="display:flex;align-items:center;gap:8px;justify-content:center;margin-top:8px">' +
+        '<input type="checkbox" id="plt-base"> Aplicar automáticamente al abrir</label>',
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const nombre = (document.getElementById('plt-nombre') as HTMLInputElement)?.value?.trim();
+        if (!nombre) { Swal.showValidationMessage('Ponle un nombre'); return false as any; }
+        return {
+          nombre,
+          visibilidad: (document.getElementById('plt-vis') as HTMLSelectElement)?.value as VisibilidadPlantilla,
+          base: (document.getElementById('plt-base') as HTMLInputElement)?.checked,
+        };
+      },
+    });
+
+    if (!form) return;
+
+    this.templates.guardar({
+      tableKey: this.storageKey!,
+      nombre: form.nombre,
+      config: this.configActual(),
+      visibilidad: form.visibilidad,
+      esBase: form.base,
+    }).subscribe({
+      next: (p) => {
+        this.plantillaAplicada = p.id;
+        this.cargarPlantillas();
+        Swal.fire({ icon: 'success', title: 'Plantilla guardada', timer: 1400, showConfirmButton: false });
+      },
+      error: (e) => Swal.fire({ icon: 'error', title: 'No se pudo guardar',
+        text: e?.error?.message || 'Revisa tu conexión e inténtalo de nuevo.' }),
+    });
+  }
+
+  eliminarPlantilla(p: PlantillaTabla, ev?: Event): void {
+    ev?.stopPropagation();
+    if (!p.editable) return;
+    Swal.fire({
+      icon: 'warning', title: `¿Eliminar "${p.nombre}"?`,
+      text: p.visibilidad === 'PUBLICA' ? 'Es pública: dejará de estar disponible para el equipo.' : '',
+      showCancelButton: true, confirmButtonText: 'Eliminar', cancelButtonText: 'Cancelar',
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      this.templates.eliminar(this.storageKey!, p.id).subscribe({
+        next: () => {
+          if (this.plantillaAplicada === p.id) this.plantillaAplicada = null;
+          this.cargarPlantillas();
+        },
+        error: () => Swal.fire({ icon: 'error', title: 'No se pudo eliminar' }),
+      });
+    });
+  }
+
+  restablecerDisposicion(): void {
+    this.columnOrder = [];
+    this.emptyColumns = [];
+    this.emptySeq = 0;
+    this.plantillaAplicada = null;
+    this.visibleColumnNames = new Set((this.columnDefinitions || []).map(c => c.name));
+    this.recomputeVisibleColumns();
+    this.sel.limpiar();
+    this.cdr.markForCheck();
+  }
+
+  // ── Columnas: orden y columnas vacías ─────────────────────────────────────
+
+  /** Reales + vacías, en el orden elegido por el usuario. Fuente única del orden. */
+  todasLasColumnas(): ColumnDefinition[] {
+    const reales = this.columnDefinitions || [];
+    const todas = [...reales, ...this.emptyColumns];
+    if (this.columnOrder.length === 0) return todas;
+
+    const pos = new Map(this.columnOrder.map((n, i) => [n, i]));
+    // Las que no están en el orden guardado (columna nueva del padre) van al final,
+    // conservando su orden relativo: aparecer es mejor que desaparecer.
+    return [...todas].sort((a, b) =>
+      (pos.get(a.name) ?? Number.MAX_SAFE_INTEGER) - (pos.get(b.name) ?? Number.MAX_SAFE_INTEGER));
+  }
+
+  agregarColumnaVacia(): void {
+    const name = `${StandardFilterTable.PREFIJO_VACIA}${++this.emptySeq}`;
+    this.emptyColumns.push({
+      name, header: 'Nueva columna', type: 'text',
+      filterable: false, sortable: false, width: '160px',
+    } as ColumnDefinition);
+
+    // Se inserta al final del orden actual para que aparezca donde el usuario la ve nacer.
+    this.columnOrder = this.todasLasColumnas().map(c => c.name);
+    this.visibleColumnNames.add(name);
+    this.recomputeVisibleColumns();
+    this.cdr.markForCheck();
+  }
+
+  async renombrarColumnaVacia(col: ColumnDefinition, ev?: Event): Promise<void> {
+    ev?.stopPropagation();
+    const { value } = await Swal.fire({
+      title: 'Nombre de la columna', input: 'text', inputValue: col.header || '',
+      showCancelButton: true, confirmButtonText: 'Guardar', cancelButtonText: 'Cancelar',
+    });
+    if (value === undefined || value === null) return;
+    col.header = String(value).trim() || 'Nueva columna';
+    this.cdr.markForCheck();
+  }
+
+  quitarColumnaVacia(col: ColumnDefinition, ev?: Event): void {
+    ev?.stopPropagation();
+    this.emptyColumns = this.emptyColumns.filter(c => c.name !== col.name);
+    this.columnOrder = this.columnOrder.filter(n => n !== col.name);
+    this.visibleColumnNames.delete(col.name);
+    this.recomputeVisibleColumns();
+    this.sel.limpiar();
+    this.cdr.markForCheck();
+  }
+
+  /** Arrastrar un encabezado. El índice que llega es sobre `visibleColumns`. */
+  reordenarColumnas(ev: CdkDragDrop<ColumnDefinition[]>): void {
+    if (ev.previousIndex === ev.currentIndex) return;
+
+    // Se reordena sobre la lista VISIBLE y luego se reconstruye el orden completo
+    // intercalando las ocultas donde estaban: mover una visible no debe barajar las
+    // que el usuario tiene apagadas.
+    const visibles = [...this.visibleColumns];
+    moveItemInArray(visibles, ev.previousIndex, ev.currentIndex);
+
+    const nuevoOrdenVisible = visibles.map(c => c.name);
+    let i = 0;
+    this.columnOrder = this.todasLasColumnas().map(c =>
+      this.visibleColumnNames.has(c.name) ? nuevoOrdenVisible[i++] : c.name);
+
+    this.recomputeVisibleColumns();
+    this.sel.limpiar();
+    this.cdr.markForCheck();
+  }
+
+  // ── Selección de celdas ───────────────────────────────────────────────────
+
+  /**
+   * Filas que la tabla está pintando AHORA, en su orden real.
+   *
+   * Las alimenta `dataSource.connect()`, que emite exactamente lo que mat-table renderiza
+   * (filtrado → ordenado → paginado). Derivarlas a mano de `filteredData` recortando por
+   * el paginador da filas equivocadas en cuanto hay un orden activo: `filteredData` está
+   * filtrado pero NO ordenado, así que copiar una selección sobre una tabla ordenada
+   * devolvía los datos de otras filas.
+   */
+  private filasRenderizadas: any[] = [];
+
+  private get filasVisibles(): any[] {
+    return this.filasRenderizadas;
+  }
+
+  /** Mantiene `filasRenderizadas` al día y recorta la selección si la rejilla encoge. */
+  private escucharFilasRenderizadas(): void {
+    this.uiSubs.add(this.dataSource.connect().subscribe(rows => {
+      this.filasRenderizadas = rows ?? [];
+      this.sincronizarTamanoSeleccion();
+    }));
+  }
+
+  private sincronizarTamanoSeleccion(): void {
+    this.sel.redimensionar(this.filasVisibles.length, this.visibleColumns.length);
+  }
+
+  onCeldaMouseDown(fila: number, col: number, ev: MouseEvent): void {
+    if (!this.enableGrid || ev.button !== 0) return;
+    this.sincronizarTamanoSeleccion();
+    this.sel.iniciarEn(fila, col, ev.shiftKey);
+    this.cdr.markForCheck();
+  }
+
+  onCeldaMouseEnter(fila: number, col: number): void {
+    if (!this.enableGrid) return;
+    this.sel.arrastrarHasta(fila, col);
+    this.cdr.markForCheck();
+  }
+
+  onSeleccionarFila(fila: number, ev: MouseEvent): void {
+    if (!this.enableGrid) return;
+    this.sincronizarTamanoSeleccion();
+    this.sel.seleccionarFila(fila, ev.shiftKey);
+    this.cdr.markForCheck();
+  }
+
+  onSeleccionarColumna(col: number, ev: MouseEvent): void {
+    if (!this.enableGrid) return;
+    ev.stopPropagation(); // no disparar el ordenamiento del encabezado
+    this.sincronizarTamanoSeleccion();
+    this.sel.seleccionarColumna(col, ev.shiftKey);
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Teclado de la rejilla. Se escucha en el contenedor (no en window) para no secuestrar
+   * las flechas ni Ctrl+C del resto de la página: sólo actúa cuando el foco está dentro
+   * de la tabla y no en un campo de texto.
+   */
+  onGridKeyDown(ev: KeyboardEvent): void {
+    if (!this.enableGrid) return;
+
+    const t = ev.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) {
+      return;
+    }
+
+    this.sincronizarTamanoSeleccion();
+    const ctrl = ev.ctrlKey || ev.metaKey;
+
+    if (ctrl && (ev.key === 'c' || ev.key === 'C')) {
+      if (this.sel.hayseleccion) { ev.preventDefault(); this.copiarSeleccion(); }
+      return;
+    }
+    if (ctrl && (ev.key === 'a' || ev.key === 'A')) {
+      ev.preventDefault(); this.sel.seleccionarTodo(); this.cdr.markForCheck(); return;
+    }
+    if (ev.key === 'Escape') { this.sel.limpiar(); this.cdr.markForCheck(); return; }
+
+    const saltos: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1],
+      Enter: [1, 0], Tab: [0, 1],
+    };
+
+    if (ctrl && (ev.key === 'Home' || ev.key === 'End')) {
+      ev.preventDefault();
+      this.sel.irABorde(ev.key === 'Home' ? 'inicio' : 'fin', ev.shiftKey);
+      this.cdr.markForCheck();
+      return;
+    }
+
+    const salto = saltos[ev.key];
+    if (!salto) return;
+
+    // Tab sin selección debe seguir tabulando por la página, no quedar atrapado.
+    if (ev.key === 'Tab' && !this.sel.hayseleccion) return;
+
+    ev.preventDefault();
+    this.sel.mover(salto[0], salto[1], ev.shiftKey);
+    this.cdr.markForCheck();
+  }
+
+  /** Suelta el arrastre aunque el botón se levante fuera de la tabla. */
+  onGridMouseUp(): void {
+    this.sel.terminarArrastre();
+  }
+
+  /**
+   * Texto de una celda TAL COMO SE VE. Copiar tiene que dar lo mismo que la pantalla:
+   * por eso replica el formato de la plantilla (fecha corta, etiqueta de estado, moneda)
+   * en vez de volcar el valor crudo del objeto.
+   */
+  textoCelda(row: any, col: ColumnDefinition): string {
+    if (this.esColumnaVacia(col.name)) return '';
+
+    const v = row?.[col.name];
+    if (v === null || v === undefined) return '';
+
+    switch (col.type) {
+      case 'date': {
+        const d = v instanceof Date ? v : new Date(v);
+        if (isNaN(d.getTime())) return String(v);
+        // Mismo patrón que la plantilla (incluida la hora si la columna la pide).
+        return formatDate(d, col.dateFormat ?? 'dd/MM/yyyy', 'es-CO');
+      }
+      case 'status':
+        return this.getStatusLabel(col.name, v);
+      case 'custom':
+        return String(v);
+      default:
+        return this.formatCell(v, col);
+    }
+  }
+
+  /** Matriz de textos del rango seleccionado. */
+  private matrizSeleccionada(): string[][] {
+    const r = this.sel.rango();
+    if (!r) return [];
+    const filas = this.filasVisibles;
+    const cols = this.visibleColumns;
+
+    const out: string[][] = [];
+    for (let f = r.filaIni; f <= r.filaFin && f < filas.length; f++) {
+      const linea: string[] = [];
+      for (let c = r.colIni; c <= r.colFin && c < cols.length; c++) {
+        linea.push(this.textoCelda(filas[f], cols[c]));
+      }
+      out.push(linea);
+    }
+    return out;
+  }
+
+  /** Títulos de las columnas que abarca el rango, en el orden en que se ven. */
+  private encabezadosSeleccionados(): string[] {
+    const r = this.sel.rango();
+    if (!r) return [];
+    const out: string[] = [];
+    for (let c = r.colIni; c <= r.colFin && c < this.visibleColumns.length; c++) {
+      out.push(this.visibleColumns[c].header ?? this.visibleColumns[c].name);
+    }
+    return out;
+  }
+
+  /**
+   * Copia el rango como TSV: se pega directo en Excel, Sheets o Calc.
+   *
+   * Si la selección toma las columnas ENTERAS (seleccionar todo, clic en el encabezado de
+   * una columna, o un arrastre de la primera a la última fila) la cabecera va sola, sin
+   * pedirla: pegar un bloque de columnas sin sus títulos obliga a adivinar qué es cada una.
+   * Para un trozo suelto de celdas no se añade — ahí estorbaría.
+   */
+  async copiarSeleccion(conEncabezados = false): Promise<void> {
+    const matriz = this.matrizSeleccionada();
+    if (!matriz.length) return;
+
+    const conCabecera = conEncabezados || this.sel.cubreTodasLasFilas();
+    if (conCabecera) matriz.unshift(this.encabezadosSeleccionados());
+
+    const texto = aTsv(matriz);
+    const celdas = this.sel.conteo();
+
+    try {
+      await navigator.clipboard.writeText(texto);
+      this.avisoCopiado(celdas, conCabecera);
+    } catch {
+      // navigator.clipboard exige contexto seguro y permiso; en el APK y en HTTP plano
+      // puede no estar. El textarea + execCommand sigue funcionando ahí.
+      if (this.copiarFallback(texto)) this.avisoCopiado(celdas, conCabecera);
+      else Swal.fire({ icon: 'error', title: 'No se pudo copiar',
+        text: 'El navegador bloqueó el acceso al portapapeles.' });
+    }
+  }
+
+  private copiarFallback(texto: string): boolean {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private avisoCopiado(celdas: number, conCabecera = false): void {
+    Swal.fire({
+      toast: true, position: 'bottom-end', icon: 'success',
+      title: `${celdas} ${celdas === 1 ? 'celda copiada' : 'celdas copiadas'}`,
+      text: conCabecera ? 'Con los encabezados de columna' : undefined,
+      showConfirmButton: false, timer: 1200,
+    });
+  }
+
+  /** Número de fila que se pinta en la columna índice (1-based sobre la página). */
+  numeroFila(indice: number): number {
+    if (this.serverSide || !this.paginator) return indice + 1;
+    return this.paginator.pageIndex * this.paginator.pageSize + indice + 1;
+  }
+
+  pedirConsultaExtensa(): void {
+    this.extendedQuery.emit();
+  }
+
+  /**
+   * ¿Esta columna tiene filtro puesto? Pinta el icono del encabezado en estado activo,
+   * para que se vea DÓNDE se está filtrando sin abrir menú por menú.
+   *
+   * Un array vacío (multi-select sin nada elegido) no cuenta como filtro; 0 y false sí,
+   * porque son valores legítimos que el usuario pudo escribir.
+   */
+  tieneFiltroActivo(name: string): boolean {
+    const fg = this.filterForms[name];
+    if (!fg) return false;
+    const { value, min, max } = fg.value ?? {};
+    const puesto = (v: any) =>
+      v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && v.length === 0);
+    return puesto(value) || puesto(min) || puesto(max);
+  }
+
+  // ── Organizador de columnas ───────────────────────────────────────────────
+
+  /**
+   * Panel para reordenar y mostrar/ocultar columnas.
+   *
+   * Se arrastra en una lista VERTICAL, no sobre los encabezados de la tabla. Dos razones:
+   * arrastrar un <th> de mat-table pelea con el sticky y con el ordenamiento del propio
+   * encabezado, y sobre todo esta app corre también como APK Android, donde arrastrar una
+   * cabecera estrecha con el dedo es inservible. Una lista vertical se maneja igual con
+   * ratón que con el dedo.
+   */
+  organizadorAbierto = false;
+  columnasOrganizables: ColumnDefinition[] = [];
+
+  abrirOrganizador(): void {
+    this.columnasOrganizables = this.todasLasColumnas().filter(c => c.name !== 'actions');
+    this.organizadorAbierto = true;
+    this.cdr.markForCheck();
+  }
+
+  cerrarOrganizador(): void {
+    this.organizadorAbierto = false;
+    this.cdr.markForCheck();
+  }
+
+  organizadorDrop(ev: CdkDragDrop<ColumnDefinition[]>): void {
+    moveItemInArray(this.columnasOrganizables, ev.previousIndex, ev.currentIndex);
+  }
+
+  aplicarOrganizador(): void {
+    // 'actions' se excluyó de la lista editable, así que se vuelve a añadir al final
+    // para no perderla del orden.
+    const orden = this.columnasOrganizables.map(c => c.name);
+    if ((this.columnDefinitions || []).some(c => c.name === 'actions')) orden.push('actions');
+
+    this.columnOrder = orden;
+    this.recomputeVisibleColumns();
+    this.sel.limpiar();
+    this.organizadorAbierto = false;
+    this.cdr.markForCheck();
+  }
+
+  /** Mover una posición sin arrastrar: accesible por teclado y cómodo en móvil. */
+  moverEnOrganizador(i: number, delta: number): void {
+    const j = i + delta;
+    if (j < 0 || j >= this.columnasOrganizables.length) return;
+    moveItemInArray(this.columnasOrganizables, i, j);
+    this.cdr.markForCheck();
+  }
+
   constructor(
     private cdr: ChangeDetectorRef,
     private differs: IterableDiffers,
@@ -251,8 +868,21 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
       this.loadState();
     }
 
+    // Auto-switch a cards en mobile, tabla en desktop
+    this.uiSubs.add(
+      this.breakpointObserver.observe('(max-width: 900px)').subscribe(result => {
+        this.viewMode = result.matches ? 'cards' : 'table';
+        this.cdr.detectChanges();
+      })
+    );
+
     this.initializeTable();
     this.applyFilters();
+
+    // Después de initializeTable: cargarPlantillas puede aplicar una disposición y
+    // necesita que colByName y las columnas visibles ya existan.
+    this.escucharFilasRenderizadas();
+    this.cargarPlantillas();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -319,6 +949,15 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     if (this.sort) {
       this.dataSource.sort = this.sort;
 
+      // Modo servidor: el clic en la cabecera no ordena aquí, se lo pide al padre.
+      this.uiSubs.add(this.sort.sortChange.subscribe(ev => {
+        if (!this.serverSide) return;
+        this.sortChange.emit({
+          active: ev.active,
+          direction: ev.direction as 'asc' | 'desc' | '',
+        });
+      }));
+
       this.dataSource.sortingDataAccessor = (item: any, property: string) => {
         const col = this.colByName.get(property);
         const raw = item?.[property];
@@ -341,11 +980,21 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     }
 
     if (this.paginator) {
-      this.dataSource.paginator = this.paginator;
+      // En modo servidor NO se ata el paginador al dataSource: si se atara,
+      // recortaría OTRA VEZ la página que ya viene recortada del backend
+      // (mostraría 10 de las 50 que llegaron).
+      if (!this.serverSide) {
+        this.dataSource.paginator = this.paginator;
+      }
       this.paginator.pageSize = this.defaultPageSize;
 
       this.syncPaginatorLength();
-      this.uiSubs.add(this.paginator.page.subscribe(() => this.cdr.detectChanges()));
+      this.uiSubs.add(this.paginator.page.subscribe(e => {
+        if (this.serverSide) {
+          this.pageChange.emit({ page: e.pageIndex, size: e.pageSize });
+        }
+        this.cdr.detectChanges();
+      }));
     }
 
     // primer render con data actual
@@ -455,9 +1104,21 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
       ...Object.values(this.filterForms).map(g => g.valueChanges.pipe(startWith(g.value)))
     ];
 
+    // En modo servidor la búsqueda global la resuelve el backend: se avisa al
+    // padre en vez de filtrar en cliente (filtrar aquí solo miraría la página
+    // actual, así que "buscar" devolvería resultados falsos: los 50 de esta
+    // página en vez de los 50.190 del universo).
+    if (this.serverSide) {
+      this.filterSubs.add(
+        this.globalSearch.valueChanges.pipe(debounceTime(400)).subscribe(v => {
+          this.searchChange.emit((v ?? '').toString().trim());
+        })
+      );
+    }
+
     this.filterSubs.add(
       merge(...streams).pipe(debounceTime(120)).subscribe(() => {
-        this.applyFilters();
+        if (!this.serverSide) this.applyFilters();
         this.refreshSticky();
         this.cdr.detectChanges();
       }),
@@ -520,11 +1181,21 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   }
 
   private recomputeVisibleColumns(): void {
-    this.visibleColumns = (this.columnDefinitions || []).filter((c) => this.visibleColumnNames.has(c.name));
+    // todasLasColumnas() aplica el orden del usuario y suma las columnas vacías; antes
+    // esto filtraba columnDefinitions directamente, así que el orden lo imponía el padre
+    // y no había forma de reubicar nada.
+    this.visibleColumns = this.todasLasColumnas().filter((c) => this.visibleColumnNames.has(c.name));
 
     const cols = this.visibleColumns.map((c) => c.name);
-    this.displayedColumns = this.enableSelection ? ['select', ...cols] : cols;
+    // La columna del número de fila va primero y es el asidero para seleccionar la fila
+    // entera, igual que en una hoja de cálculo.
+    const previas = [
+      ...(this.enableGrid ? ['__indice'] : []),
+      ...(this.enableSelection ? ['select'] : []),
+    ];
+    this.displayedColumns = [...previas, ...cols];
 
+    this.sincronizarTamanoSeleccion();
     this.refreshSticky();
     this.saveState();
   }
@@ -957,136 +1628,118 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
     }
   }
 
-  /** Días entre 1899-12-30 (epoch de Excel) y 1970-01-01 (epoch de JS). */
-  private static readonly EXCEL_EPOCH_OFFSET = 25569;
+  /** Columnas que no llevan dato exportable (botones y adornos de la fila). */
+  private static readonly COLUMNAS_SIN_DATO = ['actions', 'attachment', 'semaforo'];
 
   /**
-   * Exporta lo que se ve: columnas visibles, encabezados de la tabla y valores
-   * con el mismo formato de pantalla.
+   * Excel de LO QUE SE VE: las columnas VISIBLES, con su encabezado y en el orden en
+   * pantalla, y cada celda con el mismo texto que pinta la tabla.
    *
-   * Las fechas se escriben como serial de Excel calculado a mano a partir de la
-   * hora LOCAL. SheetJS 0.18.5 desplaza los Date de JS al convertirlos: una
-   * fecha `2026-07-28T05:00:00+00:00` (= 28/07 00:00 en Colombia) terminaba
-   * escrita como `27/07/2026 23:59`. Armando el serial nosotros, Excel muestra
-   * la misma hora que la tabla y la celda sigue siendo fecha real
-   * (ordenable y filtrable), no texto.
+   * Antes se volcaba `json_to_sheet(filas)` crudo, así que la hoja salía con la CLAVE
+   * INTERNA del objeto como título —«c_sec_1__nombre_completo», «_s»— en vez de la
+   * pregunta, y arrastraba campos que ni siquiera están en la tabla. Números y fechas
+   * viajan como número y fecha (no como texto) para que la hoja se pueda ordenar y sumar.
    */
   private exportToExcel(): void {
-    const data = this.dataSource.filteredData?.length ? this.dataSource.filteredData : (this.data || []);
-
-    const cols = (this.visibleColumns?.length ? this.visibleColumns : this.columnDefinitions) || [];
-    const exportables = cols.filter(
-      (c) => c.type !== 'custom' && !['actions', 'attachment', 'semaforo'].includes(c.name),
+    const cols = this.visibleColumns.filter(
+      (c) => !StandardFilterTable.COLUMNAS_SIN_DATO.includes(c.name),
     );
+    const filas = this.filasParaExportar();
 
-    const wb: XLSX.WorkBook = XLSX.utils.book_new();
-
-    // Sin definición de columnas no hay nada que formatear: volcado crudo.
-    if (exportables.length === 0) {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), 'Datos');
-      XLSX.writeFile(wb, this.buildExportFileName());
+    if (!cols.length || !filas.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Nada que exportar',
+        text: 'No hay filas visibles con los filtros aplicados.',
+        timer: 2500,
+        showConfirmButton: false,
+      });
       return;
     }
 
-    const aoa: any[][] = [exportables.map((c) => c.header || c.name)];
-    for (const row of data) {
-      aoa.push(exportables.map((c) => this.toExcelValue(row?.[c.name], c)));
-    }
+    const aoa: (string | number | Date)[][] = [cols.map((c) => c.header ?? c.name)];
+    for (const fila of filas) aoa.push(cols.map((c) => this.celdaParaExcel(fila, c)));
 
     const ws: XLSX.WorkSheet = XLSX.utils.aoa_to_sheet(aoa);
+    this.aplicarFormatosExcel(ws, cols, filas.length);
+    ws['!cols'] = cols.map((c, i) => ({ wch: this.anchoColumnaExcel(aoa, i, c) }));
 
-    // Los valores de fecha ya van como número (serial); aquí solo se les pone
-    // el formato de visualización que corresponda a la columna.
-    exportables.forEach((c, colIdx) => {
-      if (c.type !== 'date') return;
-      const z = this.excelDateFormat(c.dateFormat);
-      for (let r = 1; r < aoa.length; r++) {
-        const cell = ws[XLSX.utils.encode_cell({ r, c: colIdx })];
-        if (cell && cell.t === 'n') cell.z = z;
-      }
-    });
-
-    ws['!cols'] = exportables.map((c) => ({
-      wch: Math.min(45, Math.max(12, String(c.header || c.name).length + 4)),
-    }));
-    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: exportables.length - 1 } }) };
-
+    const wb: XLSX.WorkBook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Datos');
-    XLSX.writeFile(wb, this.buildExportFileName());
-  }
-
-  /** Convierte el valor de una celda al tipo que corresponde en Excel. */
-  private toExcelValue(value: any, col: ColumnDefinition): any {
-    if (value === null || value === undefined || value === '') return '';
-
-    if (col.type === 'date') {
-      const serial = this.toExcelSerial(value);
-      return serial === null ? String(value) : serial;
-    }
-
-    if (col.type === 'number') {
-      const n = Number(value);
-      return isNaN(n) ? String(value) : n;
-    }
-
-    if (Array.isArray(value)) {
-      const planos = value.filter((v) => v === null || typeof v !== 'object');
-      return planos.length === value.length ? planos.join(', ') : `${value.length} elemento(s)`;
-    }
-    if (typeof value === 'object') return '';
-
-    return value;
+    XLSX.writeFile(wb, this.nombreArchivoExcel());
   }
 
   /**
-   * Serial de Excel usando la hora LOCAL del valor.
-   * Un string `YYYY-MM-DD` se interpreta como fecha local a propósito: `new Date()`
-   * lo trataría como UTC y en Colombia se correría al día anterior.
+   * Lo filtrado ENTERO (no solo la página a la vista) y en el orden que impone el
+   * encabezado, que es lo que espera quien exporta después de filtrar y ordenar.
+   * Si el filtro no deja nada, no quedan filas: antes se caía al `data` original y la
+   * hoja salía con TODO, justo lo contrario de lo que se pidió.
    */
-  private toExcelSerial(value: any): number | null {
-    let d: Date;
-    if (value instanceof Date) {
-      d = value;
-    } else {
-      const s = String(value).trim();
-      const soloFecha = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
-      d = soloFecha
-        ? new Date(Number(soloFecha[1]), Number(soloFecha[2]) - 1, Number(soloFecha[3]))
-        : new Date(s);
+  private filasParaExportar(): any[] {
+    const base = this.dataSource.filteredData ?? this.dataSource.data ?? this.data ?? [];
+    const sort = this.dataSource.sort;
+    return sort?.active ? this.dataSource.sortData(base.slice(), sort) : base;
+  }
+
+  /** Valor de una celda para la hoja: número, fecha o el texto tal como se ve. */
+  private celdaParaExcel(row: any, col: ColumnDefinition): string | number | Date {
+    const crudo = row?.[col.name];
+    const vacio = crudo === null || crudo === undefined || crudo === '';
+
+    if (col.type === 'number' && !vacio) {
+      const n = typeof crudo === 'number' ? crudo : Number(crudo);
+      if (Number.isFinite(n)) return n;
     }
-    if (isNaN(d.getTime())) return null;
-
-    const wall = Date.UTC(
-      d.getFullYear(),
-      d.getMonth(),
-      d.getDate(),
-      d.getHours(),
-      d.getMinutes(),
-      d.getSeconds(),
-      d.getMilliseconds(),
-    );
-    return StandardFilterTable.EXCEL_EPOCH_OFFSET + wall / 86400000;
+    if (col.type === 'date' && !vacio) {
+      const d = crudo instanceof Date ? crudo : new Date(crudo);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return this.textoCelda(row, col);
   }
 
-  /** Traduce el formato del DatePipe a un numFmt de Excel (con o sin hora). */
-  private excelDateFormat(dateFormat?: string): string {
-    const f = dateFormat || 'dd/MM/yyyy';
-    return /[Hhms]/.test(f) ? 'dd/mm/yyyy hh:mm' : 'dd/mm/yyyy';
+  /** Pinta cada columna con el formato de Excel equivalente al de la pantalla. */
+  private aplicarFormatosExcel(ws: XLSX.WorkSheet, cols: ColumnDefinition[], filas: number): void {
+    for (let c = 0; c < cols.length; c++) {
+      const z = this.formatoExcel(cols[c]);
+      if (!z) continue;
+      for (let r = 1; r <= filas; r++) {
+        const cell = ws[XLSX.utils.encode_cell({ r, c })];
+        if (cell && (cell.t === 'n' || cell.t === 'd')) cell.z = z;
+      }
+    }
   }
 
-  /** `consolidado_por_oficina_20260728_1930.xlsx` */
-  private buildExportFileName(): string {
-    const base =
-      (this.tableTitle || 'export')
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '')
-        .replace(/[^a-zA-Z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .toLowerCase() || 'export';
+  /** Formato de celda de Excel para la columna, o null si es texto plano. */
+  private formatoExcel(col: ColumnDefinition): string | null {
+    // El patrón del DatePipe sirve tal cual en minúsculas: 'dd/MM/yyyy HH:mm' → 'dd/mm/yyyy hh:mm'
+    // (en Excel los 'mm' que siguen a 'hh' son minutos, igual que allá).
+    if (col.type === 'date') return (col.dateFormat ?? 'dd/MM/yyyy').toLowerCase();
+    if (col.type !== 'number') return null;
+    switch (col.format) {
+      case 'currency':
+        return '"$"#,##0';
+      case 'percent':
+        return '#,##0.## "%"';
+      default:
+        return null;
+    }
+  }
 
-    const d = new Date();
-    const p = (n: number) => String(n).padStart(2, '0');
-    return `${base}_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.xlsx`;
+  /** Ancho de columna a ojo, mirando el encabezado y las primeras filas. */
+  private anchoColumnaExcel(aoa: (string | number | Date)[][], col: number, def: ColumnDefinition): number {
+    let max = String(def.header ?? def.name).length;
+    for (let r = 1; r < aoa.length && r <= 200; r++) {
+      const v = aoa[r][col];
+      const largo = v instanceof Date ? 16 : String(v ?? '').length;
+      if (largo > max) max = largo;
+    }
+    return Math.min(60, Math.max(10, max + 2));
+  }
+
+  /** «Respuestas · Encuesta 2026-08-19.xlsx» en vez del anónimo «export.xlsx». */
+  private nombreArchivoExcel(): string {
+    const base = (this.tableTitle || 'Tabla').replace(/[\\/:*?"<>|]/g, '').trim().slice(0, 60);
+    return `${base || 'Tabla'} ${formatDate(new Date(), 'yyyy-MM-dd', 'es-CO')}.xlsx`;
   }
 
   // =========================
@@ -1132,7 +1785,12 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
       visibleColumnNames: Array.from(this.visibleColumnNames),
       filterEnabledByCol: this.filterEnabledByCol,
       viewMode: this.viewMode,
-      density: this.density
+      density: this.density,
+      // El orden y las columnas vacías también se guardan en local: es la disposición
+      // "de trabajo" del usuario en ESTE equipo. Las plantillas del servidor son otra
+      // cosa —disposiciones con nombre, y compartibles— y no se pisan entre sí.
+      columnOrder: this.columnOrder,
+      emptyColumns: this.emptyColumns.map(c => ({ name: c.name, header: c.header, width: c.width })),
     };
 
     try {
@@ -1160,6 +1818,25 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
       if (state.viewMode) this.viewMode = state.viewMode;
       if (state.density) this.density = state.density;
 
+      if (Array.isArray(state.emptyColumns)) {
+        this.emptyColumns = state.emptyColumns
+          .filter((c: any) => c && typeof c.name === 'string' && this.esColumnaVacia(c.name))
+          .map((c: any) => ({
+            name: c.name, header: c.header || 'Nueva columna', type: 'text',
+            width: c.width || '160px', filterable: false, sortable: false,
+          } as ColumnDefinition));
+        // El contador se reanuda por encima del mayor sufijo guardado, o dos columnas
+        // creadas en sesiones distintas chocarían de nombre.
+        this.emptySeq = this.emptyColumns.reduce((max, c) => {
+          const n = parseInt(c.name.slice(StandardFilterTable.PREFIJO_VACIA.length), 10);
+          return isNaN(n) ? max : Math.max(max, n);
+        }, 0);
+      }
+
+      if (Array.isArray(state.columnOrder)) {
+        this.columnOrder = state.columnOrder.filter((n: any) => typeof n === 'string');
+      }
+
     } catch (e) {
       console.error('Error loading table state', e);
     }
@@ -1168,5 +1845,41 @@ export class StandardFilterTable implements OnInit, OnChanges, AfterViewInit, Do
   // Get date cols for dropdown
   getDateColumns(): ColumnDefinition[] {
     return this.columnDefinitions?.filter(c => c.type === 'date') || [];
+  }
+
+  /**
+   * Presentación de la celda. Sin esto una columna `type:'number'` pintaba el
+   * valor crudo: 1300000 en vez de $1.300.000, o 12.5 en vez de 12,5 %.
+   *
+   * Se formatea SOLO si la columna declara `format`, así que las 22 páginas que
+   * usan esta tabla siguen viendo exactamente lo mismo hasta que lo pidan.
+   *
+   * Se fuerza es-CO en vez de heredar LOCALE_ID: main.ts registra el locale
+   * es-CO pero nunca lo provee, así que los pipes de la app caen en en-US y
+   * pintarían $1,300,000 (formato gringo) en una app colombiana.
+   */
+  formatCell(value: any, col: ColumnDefinition): string {
+    // Sin `format` se replica EXACTAMENTE lo de antes (`row[col.name] ?? '-'`).
+    // Ojo: `??` no atrapa cadena vacía ni 0, y así debe seguir siendo — hay 49
+    // columnas numéricas en la app que dependen de este comportamiento.
+    if (!col.format) return String(value ?? '-');
+
+    if (value === null || value === undefined || value === '') return '-';
+
+    const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(n)) return String(value);
+
+    switch (col.format) {
+      case 'currency':
+        return formatCurrency(n, 'es-CO', '$', 'COP', '1.0-0');
+      case 'percent':
+        // No se usa el pipe percent: multiplicaría por 100 y aquí el valor ya
+        // viene como porcentaje (12.5 significa 12,5 %).
+        return `${formatNumber(n, 'es-CO', '1.0-2')} %`;
+      case 'decimal':
+        return formatNumber(n, 'es-CO', '1.0-2');
+      default:
+        return String(value);
+    }
   }
 }

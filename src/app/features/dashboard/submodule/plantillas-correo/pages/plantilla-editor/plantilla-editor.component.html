@@ -1,0 +1,298 @@
+<div class="ed">
+  <!-- ── Barra superior ──────────────────────────────────────────────────── -->
+  <div class="ed__barra">
+    <a mat-icon-button routerLink="/dashboard/gestion-del-programa/plantillas-correo"
+       matTooltip="Volver al listado">
+      <mat-icon>arrow_back</mat-icon>
+    </a>
+
+    <div class="ed__ident">
+      <div class="ed__nombre">{{ plantilla()?.nombre || 'Plantilla' }}</div>
+      <div class="ed__meta">
+        <code>{{ plantilla()?.codigo }}</code>
+        @if (plantilla()?.origen_codigo) {
+          · origen {{ plantilla()!.origen_codigo }}
+        } @else {
+          · <span class="ed__aviso-inline">sin origen de datos</span>
+        }
+      </div>
+    </div>
+
+    @if (plantilla()?.tiene_borrador) {
+      <mat-chip class="ed__chip ed__chip--borrador">
+        <mat-icon matChipAvatar>edit_note</mat-icon> Cambios sin publicar
+      </mat-chip>
+    } @else if (plantilla()?.estado === 'PUBLICADA') {
+      <mat-chip class="ed__chip ed__chip--pub">
+        <mat-icon matChipAvatar>check_circle</mat-icon> Publicada v{{ plantilla()!.version_publicada }}
+      </mat-chip>
+    }
+
+    <span class="ed__estado">
+      @if (guardando()) {
+        <mat-icon class="ed__girando">sync</mat-icon> Guardando…
+      } @else if (haycambios()) {
+        <mat-icon>edit</mat-icon> Sin guardar
+      } @else if (ultimoGuardado()) {
+        <mat-icon>cloud_done</mat-icon> Guardado {{ ultimoGuardado() | date: 'HH:mm:ss' }}
+      }
+    </span>
+
+    <span class="ed__flex"></span>
+
+    <button mat-stroked-button (click)="importarHtml()"
+            matTooltip="Trae un HTML ya hecho (Stripo, Mailchimp) como versión nueva de esta plantilla">
+      <mat-icon>upload_file</mat-icon> Importar HTML
+    </button>
+
+    <button mat-stroked-button (click)="enviarPrueba()" matTooltip="Envía el correo real a una dirección. Consume cuota.">
+      <mat-icon>outgoing_mail</mat-icon> Enviar prueba
+    </button>
+
+    <button mat-flat-button color="primary" [disabled]="!puedePublicar() || publicando()" (click)="publicar()">
+      <mat-icon>publish</mat-icon> Publicar
+    </button>
+
+    <button mat-icon-button [matMenuTriggerFor]="menu" matTooltip="Más acciones">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #menu="matMenu">
+      <button mat-menu-item (click)="guardarBorrador(false)">
+        <mat-icon>save</mat-icon> Guardar ahora
+      </button>
+      <button mat-menu-item [disabled]="!plantilla()?.tiene_borrador" (click)="descartarBorrador()">
+        <mat-icon>undo</mat-icon> Descartar borrador
+      </button>
+      <mat-divider></mat-divider>
+      @for (v of detalle()?.versiones ?? []; track v.id) {
+        <button mat-menu-item (click)="restaurar(v.id)">
+          <mat-icon>history</mat-icon>
+          v{{ v.numero }} · {{ v.estado }}
+          @if (v.publicado_en) { · {{ v.publicado_en | date: 'dd/MM/yy' }} }
+        </button>
+      }
+    </mat-menu>
+  </div>
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  @if (desconocidas().length) {
+    <div class="ed__alerta">
+      <mat-icon>error_outline</mat-icon>
+      <div>
+        <strong>Variables que el catálogo no conoce:</strong>
+        <code>{{ desconocidas().join(', ') }}</code>.
+        Se enviarán tal cual, entre llaves, en el cuerpo del correo. Revísalas antes de publicar.
+      </div>
+    </div>
+  }
+
+  <!-- ── Cabecera del mensaje ────────────────────────────────────────────── -->
+  <mat-card class="ed__cabecera">
+    <div class="ed__cab-fila">
+      <mat-form-field appearance="outline" class="ed__asunto" subscriptSizing="dynamic">
+        <mat-label>Asunto</mat-label>
+        <input matInput [ngModel]="asunto()" (ngModelChange)="asunto.set($event); cambioCabecera()" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ed__preheader" subscriptSizing="dynamic">
+        <mat-label>Preencabezado</mat-label>
+        <input matInput [ngModel]="preencabezado()"
+               (ngModelChange)="preencabezado.set($event); cambioCabecera()" />
+        <mat-hint>El texto gris que la bandeja muestra tras el asunto. Si lo dejas vacío, el cliente lo saca del cuerpo.</mat-hint>
+      </mat-form-field>
+    </div>
+  </mat-card>
+
+  <!-- ── Cuerpo: editor + paneles ────────────────────────────────────────── -->
+  <div class="ed__cuerpo">
+    <div class="ed__central">
+      <mat-button-toggle-group class="ed__modo" [value]="modoEdicion()"
+                               (change)="cambiarModo($event.value)" hideSingleSelectionIndicator>
+        <mat-button-toggle value="BLOQUES">
+          <mat-icon>dashboard_customize</mat-icon> Bloques
+        </mat-button-toggle>
+        <mat-button-toggle value="HTML"
+                           matTooltip="Para plantillas ya hechas (Stripo, Mailchimp). Se guardan tal cual: ningún editor las reescribe.">
+          <mat-icon>code</mat-icon> HTML
+        </mat-button-toggle>
+      </mat-button-toggle-group>
+
+      <mat-tab-group class="ed__tabs" animationDuration="120ms">
+        <mat-tab label="Diseño">
+          <!-- Lienzo y vista previa a la vez, con divisor arrastrable. Antes eran
+               dos pestañas, y ese ida y vuelta es justo lo que hace que la gente
+               deje de mirar la previa y publique a ciegas. -->
+          <app-panel-divisible clave="editor-correo" [inicial]="56" [minimo]="30" [maximo]="78"
+                               [colapsado]="previaOculta()" etiquetaIzquierda="el lienzo">
+            <div panelIzquierdo class="ed__col-izq">
+              @if (modoEdicion() === 'BLOQUES') {
+                <app-editor-bloques
+                  [documento]="documento()"
+                  [activos]="activos()"
+                  [seleccionado]="seleccionadoId()"
+                  (documentoChange)="cambioDocumento($event)"
+                  (seleccionar)="seleccionadoId.set($event)"
+                  (eliminarBloque)="eliminarBloque($event)" />
+              } @else {
+                <div class="ed__html">
+                  <p class="ed__html-ayuda">
+                    <mat-icon>info</mat-icon>
+                    Pega aquí el HTML completo del correo. Se guarda tal cual —tablas anidadas,
+                    CSS embebido y comentarios condicionales de Outlook incluidos— y solo se le
+                    interpolan las variables. Lo único que se elimina es lo ejecutable
+                    (<code>script</code>, manejadores <code>onclick</code>).
+                    Para traer un archivo con sus imágenes y emparejar sus marcadores, usa
+                    <strong>Importar HTML</strong>.
+                  </p>
+                  <textarea class="ed__html-area" spellcheck="false"
+                            [ngModel]="htmlCrudo()"
+                            (ngModelChange)="htmlCrudo.set($event); cambioCabecera()"></textarea>
+                </div>
+              }
+            </div>
+
+            <div panelDerecho class="ed__col-der">
+              <div class="ed__previa-barra">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ed__buscar-sujeto">
+                  <mat-label>Previsualizar con datos de…</mat-label>
+                  <input matInput placeholder="Nombre o cédula (mínimo 3 caracteres)"
+                         (input)="buscarSujetos($any($event.target).value)" />
+                  @if (buscandoSujetos()) { <mat-icon matSuffix class="ed__girando">sync</mat-icon> }
+                </mat-form-field>
+
+                <button mat-icon-button (click)="recargarPreview()" matTooltip="Actualizar la vista previa">
+                  <mat-icon>refresh</mat-icon>
+                </button>
+                <button mat-icon-button (click)="alternarPrevia()" matTooltip="Ocultar la vista previa">
+                  <mat-icon>right_panel_close</mat-icon>
+                </button>
+              </div>
+
+              @if (sujeto(); as s) {
+                <mat-chip-set>
+                  <mat-chip (removed)="elegirSujeto(null)">
+                    {{ s.etiqueta }}
+                    <button matChipRemove><mat-icon>cancel</mat-icon></button>
+                  </mat-chip>
+                </mat-chip-set>
+              }
+
+              @if (sujetos().length) {
+                <div class="ed__sujetos">
+                  @for (s of sujetos(); track s.clave) {
+                    <button type="button" class="ed__sujeto" (click)="elegirSujeto(s); sujetos.set([])">
+                      <span class="ed__sujeto-nom">{{ s.etiqueta }}</span>
+                      <span class="ed__sujeto-det">{{ s.detalle }}</span>
+                      @if (s.correo) { <span class="ed__sujeto-mail">{{ s.correo }}</span> }
+                    </button>
+                  }
+                </div>
+              }
+
+              @if (cargandoPreview()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+              @if (preview(); as p) {
+                <app-preview-correo
+                  [html]="p.cuerpo_html"
+                  [asunto]="p.asunto"
+                  [preencabezado]="p.preencabezado"
+                  [datosReales]="p.datos_reales"
+                  [nombreSujeto]="p.nombre_sujeto"
+                  [sinResolver]="p.variables_sin_resolver" />
+              } @else if (!cargandoPreview()) {
+                <div class="ed__previa-vacia">
+                  <mat-icon>visibility_off</mat-icon>
+                  <p>La vista previa no está disponible. Guarda un cambio o pulsa Actualizar.</p>
+                </div>
+              }
+            </div>
+          </app-panel-divisible>
+
+          @if (previaOculta()) {
+            <button mat-stroked-button class="ed__mostrar-previa" (click)="alternarPrevia()">
+              <mat-icon>right_panel_open</mat-icon> Mostrar la vista previa
+            </button>
+          }
+        </mat-tab>
+
+        <mat-tab label="Estilo">
+          <div class="ed__tema">
+            <mat-form-field appearance="outline">
+              <mat-label>Tipografía</mat-label>
+              <mat-select [ngModel]="documento().tema.fuente"
+                          (ngModelChange)="cambioTema('fuente', $event)">
+                @for (f of fuentes; track f.valor) {
+                  <mat-option [value]="f.valor">{{ f.etiqueta }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Solo fuentes seguras: una fuente web no carga en Outlook ni en Gmail móvil.</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Ancho del correo (px)</mat-label>
+              <input matInput type="number" min="320" max="900"
+                     [ngModel]="documento().tema.anchoPx"
+                     (ngModelChange)="cambioTema('anchoPx', +$event)" />
+              <mat-hint>600 px es el estándar del sector.</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Tamaño base del texto (px)</mat-label>
+              <input matInput type="number" min="11" max="24"
+                     [ngModel]="documento().tema.tamanoBase"
+                     (ngModelChange)="cambioTema('tamanoBase', +$event)" />
+            </mat-form-field>
+
+            <div class="ed__colores">
+              <label>Fondo <input type="color" [ngModel]="documento().tema.colorFondo"
+                                  (ngModelChange)="cambioTema('colorFondo', $event)" /></label>
+              <label>Lienzo <input type="color" [ngModel]="documento().tema.colorLienzo"
+                                   (ngModelChange)="cambioTema('colorLienzo', $event)" /></label>
+              <label>Texto <input type="color" [ngModel]="documento().tema.colorTexto"
+                                  (ngModelChange)="cambioTema('colorTexto', $event)" /></label>
+              <label>Enlaces <input type="color" [ngModel]="documento().tema.colorEnlace"
+                                    (ngModelChange)="cambioTema('colorEnlace', $event)" /></label>
+              <label>Botones <input type="color" [ngModel]="documento().tema.colorPrimario"
+                                    (ngModelChange)="cambioTema('colorPrimario', $event)" /></label>
+            </div>
+
+            <p class="ed__nota-tema">
+              El tema solo afecta a las plantillas de <strong>bloques</strong>. Una plantilla
+              importada en modo HTML trae sus propios estilos y no se toca.
+            </p>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Cómo viajan las imágenes</mat-label>
+              <mat-select [ngModel]="modoImagenes()"
+                          (ngModelChange)="modoImagenes.set($event); cambioCabecera()">
+                <mat-option value="CID">Incrustadas — se ven siempre, el correo pesa más</mat-option>
+                <mat-option value="URL">Remotas — el correo pesa poco, el cliente puede bloquearlas</mat-option>
+              </mat-select>
+              <mat-hint>Para correos a una persona, incrustadas. Para envíos masivos, remotas.</mat-hint>
+            </mat-form-field>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+
+    <!-- Panel derecho: propiedades del bloque + variables -->
+    <aside class="ed__lateral">
+      <mat-card class="ed__panel">
+        <div class="ed__panel-tit">
+          <mat-icon>tune</mat-icon> Propiedades
+        </div>
+        <app-props-bloque
+          [bloque]="bloqueSeleccionado()"
+          [activos]="activos()"
+          (cambio)="cambioBloque($event)" />
+      </mat-card>
+
+      <mat-card class="ed__panel ed__panel--vars">
+        <app-panel-variables
+          [catalogo]="catalogo()"
+          (insertar)="insertarVariable($event)" />
+      </mat-card>
+    </aside>
+  </div>
+</div>

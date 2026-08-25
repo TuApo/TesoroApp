@@ -1,0 +1,299 @@
+<div class="dialog-header">
+  <mat-icon class="dialog-icon">{{ esEdicion ? 'edit_note' : 'add_alert' }}</mat-icon>
+  <div>
+    <h2 mat-dialog-title>{{ esEdicion ? 'Editar regla' : 'Nueva regla de notificación' }}</h2>
+    <p class="dialog-subtitle">Cuando pase algo, a quién avisar, por dónde y con qué texto</p>
+  </div>
+</div>
+
+<mat-divider></mat-divider>
+
+<mat-dialog-content>
+  <div class="aviso aviso-info" *ngIf="!esEdicion">
+    <mat-icon>science</mat-icon>
+    <span>La regla se crea <b>desactivada</b>. Simúlala desde el listado para ver a quién le
+      llegaría y, solo entonces, actívala.</span>
+  </div>
+
+  <form [formGroup]="form" class="form-secciones">
+
+    <!-- 1 · Cuándo -->
+    <section class="seccion">
+      <h3><span class="paso">1</span> Cuándo se dispara</h3>
+
+      <div class="grid-2">
+        <mat-form-field appearance="outline">
+          <mat-label>Evento del sistema</mat-label>
+          <input matInput formControlName="evento_clave" [matAutocomplete]="autoEventos"
+                 placeholder="matder.assignment" maxlength="120">
+          <mat-icon matSuffix>bolt</mat-icon>
+          <mat-hint>Clave que publica el módulo de origen</mat-hint>
+          <mat-error *ngIf="form.get('evento_clave')?.hasError('required')">
+            El evento es obligatorio
+          </mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Tipo de notificación</mat-label>
+          <mat-select formControlName="tipo_id">
+            <mat-option *ngFor="let t of tipos" [value]="t.id">
+              <mat-icon class="op-icon" [style.color]="t.color">{{ t.icono }}</mat-icon>
+              {{ t.nombre }}
+            </mat-option>
+          </mat-select>
+          <mat-hint>Define ícono, color y urgencia por defecto</mat-hint>
+          <mat-error *ngIf="form.get('tipo_id')?.hasError('required')">El tipo es obligatorio</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre de la regla</mat-label>
+          <input matInput formControlName="nombre" placeholder="Matder · Asignación de tarjeta" maxlength="150">
+          <mat-error *ngIf="form.get('nombre')?.hasError('required')">El nombre es obligatorio</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Descripción</mat-label>
+          <input matInput formControlName="descripcion" maxlength="255"
+                 placeholder="Para qué sirve esta regla">
+          <mat-hint>Opcional</mat-hint>
+        </mat-form-field>
+      </div>
+
+      <mat-autocomplete #autoEventos="matAutocomplete">
+        <mat-option *ngFor="let e of eventosConocidos" [value]="e">{{ e }}</mat-option>
+      </mat-autocomplete>
+    </section>
+
+    <!-- 2 · Condición -->
+    <section class="seccion">
+      <h3><span class="paso">2</span> Solo si… <span class="opcional">(opcional)</span></h3>
+      <p class="seccion-ayuda">
+        Sin condiciones la regla dispara con cada evento. Con varias, se exigen
+        <b>todas</b> a la vez.
+      </p>
+
+      <div class="aviso aviso-warn" *ngIf="condicionIlegible">
+        <mat-icon>warning</mat-icon>
+        <div>
+          <span>La condición guardada no se puede interpretar, así que se deja intacta y de solo
+            lectura. <b>Una condición ilegible impide que la regla dispare.</b></span>
+          <pre class="json-crudo">{{ condicionCruda }}</pre>
+          <button mat-stroked-button color="warn" type="button" (click)="reiniciarCondicion()">
+            <mat-icon>restart_alt</mat-icon>
+            Descartar y empezar de cero
+          </button>
+        </div>
+      </div>
+
+      <ng-container *ngIf="!condicionIlegible">
+        <div class="condicion" *ngFor="let c of condiciones; let i = index">
+          <mat-form-field appearance="outline" class="c-campo">
+            <mat-label>Campo del evento</mat-label>
+            <input matInput [ngModel]="c.campo" (ngModelChange)="c.campo = $event"
+                   [ngModelOptions]="{ standalone: true }" placeholder="destino">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="c-op">
+            <mat-label>Comparación</mat-label>
+            <mat-select [ngModel]="c.op" (ngModelChange)="c.op = $event; onOperadorChange(c)"
+                        [ngModelOptions]="{ standalone: true }">
+              <mat-option *ngFor="let o of OPERADORES" [value]="o.value">{{ o.label }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="c-valor" *ngIf="opPideValor(c.op)">
+            <mat-label>Valor</mat-label>
+            <input matInput [ngModel]="valorTexto(c)" (ngModelChange)="setValor(c, $event)"
+                   [ngModelOptions]="{ standalone: true }"
+                   [placeholder]="opEsLista(c.op) ? 'CONTRATACION, GESTION_HUMANA' : 'CONTRATACION'">
+            <mat-hint *ngIf="opEsLista(c.op)">Separa las opciones con comas</mat-hint>
+          </mat-form-field>
+
+          <button mat-icon-button type="button" (click)="quitarCondicion(i)" matTooltip="Quitar">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <button mat-stroked-button type="button" (click)="agregarCondicion()">
+          <mat-icon>add</mat-icon>
+          Agregar condición
+        </button>
+      </ng-container>
+    </section>
+
+    <!-- 3 · A quién -->
+    <section class="seccion">
+      <h3><span class="paso">3</span> A quién le llega</h3>
+
+      <div class="grid-2">
+        <mat-form-field appearance="outline">
+          <mat-label>Audiencia</mat-label>
+          <mat-select formControlName="audiencia_modo">
+            <mat-option *ngFor="let m of MODOS" [value]="m.value">
+              <mat-icon class="op-icon">{{ m.icono }}</mat-icon>
+              {{ m.label }}
+            </mat-option>
+          </mat-select>
+          <mat-hint>{{ modoAyuda }}</mat-hint>
+        </mat-form-field>
+
+        <div class="toggle-campo">
+          <mat-slide-toggle color="primary" formControlName="excluir_actor">
+            No avisar a quien provocó el hecho
+          </mat-slide-toggle>
+          <span class="toggle-ayuda">
+            Actívalo para que nadie se auto-notifique. Apágalo cuando el aviso sea
+            justamente para quien actuó (por ejemplo «asignaste una tarea a…»).
+          </span>
+        </div>
+      </div>
+
+      <div class="aviso aviso-warn" *ngIf="modoEsTodos">
+        <mat-icon>groups</mat-icon>
+        <span>Esta regla alcanzará a <b>todos los usuarios activos</b>. Simúlala antes de
+          activarla: los mensajes entregados no se pueden recoger.</span>
+      </div>
+
+      <div class="selector-audiencia" *ngIf="modoPideIds">
+        <div class="sel-header">
+          <mat-form-field appearance="outline" class="sel-buscar">
+            <mat-label>Buscar</mat-label>
+            <input matInput [ngModel]="filtroOpciones" (ngModelChange)="filtroOpciones = $event"
+                   [ngModelOptions]="{ standalone: true }" placeholder="Filtrar la lista">
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+          <span class="sel-contador">{{ audienciaSel.length }} seleccionado(s)</span>
+        </div>
+
+        <div class="sel-cargando" *ngIf="cargandoOpciones">
+          <mat-spinner diameter="26"></mat-spinner>
+        </div>
+
+        <div class="sel-lista" *ngIf="!cargandoOpciones">
+          <label class="sel-item" *ngFor="let o of opcionesFiltradas">
+            <mat-checkbox color="primary"
+                          [checked]="audienciaSel.includes(o.id)"
+                          (change)="$event.checked
+                            ? audienciaSel = audienciaSel.concat([o.id])
+                            : audienciaSel = audienciaSel.filter(x => x !== o.id)">
+              <span class="sel-nombre">{{ o.nombre }}</span>
+              <span class="sel-detalle" *ngIf="o.detalle">{{ o.detalle }}</span>
+            </mat-checkbox>
+          </label>
+          <p class="sel-vacio" *ngIf="!opcionesFiltradas.length">
+            No hay opciones que coincidan.
+          </p>
+        </div>
+
+        <div class="aviso aviso-warn" *ngIf="seleccionHuerfana.length">
+          <mat-icon>link_off</mat-icon>
+          <span>{{ seleccionHuerfana.length }} elemento(s) seleccionado(s) ya no existen en el
+            catálogo. Se conservan hasta que guardes; revísalos.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4 · Qué dice -->
+    <section class="seccion">
+      <h3><span class="paso">4</span> Qué dice</h3>
+      <p class="seccion-ayuda">
+        Usa <code>{{ EJ_PLACEHOLDER }}</code> para insertar datos del evento; se admite ruta con
+        puntos, como <code>{{ EJ_RUTA }}</code>.
+      </p>
+
+      <mat-form-field appearance="outline" class="ancho-total">
+        <mat-label>Título</mat-label>
+        <input matInput formControlName="plantilla_titulo" maxlength="500"
+               [placeholder]="EJ_TITULO">
+        <mat-error *ngIf="form.get('plantilla_titulo')?.hasError('required')">
+          El título es obligatorio
+        </mat-error>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ancho-total">
+        <mat-label>Mensaje</mat-label>
+        <textarea matInput formControlName="plantilla_mensaje" rows="3"
+                  [placeholder]="EJ_MENSAJE"></textarea>
+        <mat-hint>Opcional</mat-hint>
+      </mat-form-field>
+
+      <div class="placeholders" *ngIf="placeholdersEnUso.length">
+        <mat-icon>data_object</mat-icon>
+        <span>El evento tendrá que traer:</span>
+        <code *ngFor="let p of placeholdersEnUso">{{ p }}</code>
+      </div>
+    </section>
+
+    <!-- 5 · Por dónde -->
+    <section class="seccion">
+      <h3><span class="paso">5</span> Por dónde se entrega</h3>
+
+      <div class="canales-grid">
+        <label class="canal" *ngFor="let c of CANALES" [class.canal-no-disponible]="!c.disponible">
+          <mat-checkbox color="primary" [checked]="canalMarcado(c.value)"
+                        (change)="alternarCanal(c.value, $event.checked)">
+            <span class="canal-nombre">
+              <mat-icon>{{ c.icono }}</mat-icon>
+              {{ c.label }}
+            </span>
+            <span class="canal-ayuda">{{ c.ayuda }}</span>
+          </mat-checkbox>
+        </label>
+      </div>
+
+      <div class="grid-2">
+        <mat-form-field appearance="outline">
+          <mat-label>Urgencia</mat-label>
+          <mat-select formControlName="urgencia">
+            <mat-option [value]="null">La del tipo (por defecto)</mat-option>
+            <mat-option *ngFor="let u of URGENCIAS" [value]="u.value">{{ u.label }}</mat-option>
+          </mat-select>
+          <mat-hint>Solo para forzar algo distinto a lo que dice el tipo</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>No repetir durante (minutos)</mat-label>
+          <input matInput type="number" formControlName="dedup_ventana_min" min="1" max="20160"
+                 placeholder="1380">
+          <mat-icon matSuffix>timer</mat-icon>
+          <mat-hint>Vacío = sin deduplicación. 1380 = 23 horas</mat-hint>
+          <mat-error *ngIf="form.get('dedup_ventana_min')?.hasError('min')">Mínimo 1 minuto</mat-error>
+          <mat-error *ngIf="form.get('dedup_ventana_min')?.hasError('max')">Máximo 14 días</mat-error>
+        </mat-form-field>
+      </div>
+    </section>
+
+    <!-- 6 · Destino -->
+    <section class="seccion">
+      <h3><span class="paso">6</span> Al hacer clic</h3>
+
+      <div class="grid-2">
+        <mat-form-field appearance="outline">
+          <mat-label>Llevar a</mat-label>
+          <mat-select formControlName="destino_tipo">
+            <mat-option *ngFor="let d of DESTINOS" [value]="d.value">{{ d.label }}</mat-option>
+          </mat-select>
+          <mat-hint>{{ destinoAyuda }}</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" *ngIf="destinoPideValor">
+          <mat-label>Destino</mat-label>
+          <input matInput formControlName="destino_valor" [placeholder]="destinoEjemplo" maxlength="512">
+          <mat-error *ngIf="form.get('destino_valor')?.hasError('required')">
+            Este destino necesita un valor
+          </mat-error>
+        </mat-form-field>
+      </div>
+    </section>
+  </form>
+</mat-dialog-content>
+
+<mat-divider></mat-divider>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cancelar()" [disabled]="guardando">Cancelar</button>
+  <button mat-flat-button color="primary" type="button" (click)="guardar()" [disabled]="guardando">
+    <mat-spinner diameter="18" *ngIf="guardando"></mat-spinner>
+    <mat-icon *ngIf="!guardando">save</mat-icon>
+    {{ esEdicion ? 'Guardar cambios' : 'Crear regla' }}
+  </button>
+</mat-dialog-actions>

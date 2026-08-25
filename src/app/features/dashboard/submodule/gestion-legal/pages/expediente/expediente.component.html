@@ -1,0 +1,271 @@
+<div class="expediente-container">
+
+  <!-- Spinner de carga principal -->
+  <div class="loading-page" *ngIf="cargandoProceso">
+    <mat-spinner diameter="48"></mat-spinner>
+    <span>Cargando expediente...</span>
+  </div>
+
+  <ng-container *ngIf="!cargandoProceso && proceso">
+    <!-- Encabezado del proceso -->
+    <div class="expediente-header">
+      <div class="header-left">
+        <button mat-icon-button (click)="volver()" matTooltip="Volver a bandeja">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <div class="proceso-info">
+          <div class="radicado-row">
+            <span class="radicado-badge">{{ proceso.radicado }}</span>
+            <span class="tipo-badge" [style.background]="'#e3f2fd'" [style.color]="'#1565c0'">
+              {{ proceso.tipoNombre }}
+            </span>
+            <span class="estado-chip" [ngClass]="colorSemaforoClass(proceso.colorSemaforo)">
+              {{ proceso.estadoNombre }}
+            </span>
+          </div>
+          <div class="trabajador-row">
+            <mat-icon class="worker-icon">person</mat-icon>
+            <strong>{{ proceso.trabajadorNombre }}</strong>
+            <span class="cedula-text">— CC {{ proceso.trabajadorCedula }}</span>
+            <span *ngIf="proceso.empresaNombre" class="empresa-text">| {{ proceso.empresaNombre }}</span>
+          </div>
+          <div class="meta-row">
+            <span><mat-icon class="meta-icon">calendar_today</mat-icon> Inicio: {{ proceso.fechaInicio | date:'dd/MM/yyyy' }}</span>
+            <span *ngIf="proceso.responsableId"><mat-icon class="meta-icon">person_outline</mat-icon> Responsable: {{ proceso.responsableId }}</span>
+            <span><mat-icon class="meta-icon">description</mat-icon> {{ proceso.actuacionesCount }} actuaciones · {{ proceso.documentosCount }} docs</span>
+          </div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button mat-stroked-button (click)="abrirCambiarEstado()">
+          <mat-icon>swap_horiz</mat-icon>
+          Cambiar estado
+        </button>
+        <button mat-stroked-button color="accent" (click)="analizarConIA()">
+          <mat-icon>smart_toy</mat-icon>
+          Analizar con IA
+        </button>
+      </div>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Tabs -->
+    <mat-tab-group animationDuration="200ms" class="expediente-tabs">
+
+      <!-- TAB: Actuaciones -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon>timeline</mat-icon>&nbsp;Actuaciones
+        </ng-template>
+
+        <div class="tab-content">
+          <div class="tab-toolbar">
+            <span class="tab-count">{{ actuaciones.length }} actuación(es)</span>
+            <button mat-flat-button color="primary" (click)="abrirNuevaActuacion()">
+              <mat-icon>add</mat-icon> Registrar Actuación
+            </button>
+          </div>
+
+          <div class="loading-tab" *ngIf="cargandoActuaciones">
+            <mat-spinner diameter="32"></mat-spinner>
+          </div>
+
+          <div class="timeline" *ngIf="!cargandoActuaciones">
+            <div class="sin-datos" *ngIf="actuaciones.length === 0">
+              <mat-icon>history_toggle_off</mat-icon>
+              <p>No hay actuaciones registradas</p>
+            </div>
+
+            <div class="timeline-item" *ngFor="let a of actuaciones">
+              <div class="timeline-icon">
+                <mat-icon>{{ actuacionIcono(a.tipo) }}</mat-icon>
+              </div>
+              <div class="timeline-body">
+                <div class="timeline-header">
+                  <strong class="actuacion-titulo">{{ a.titulo }}</strong>
+                  <span class="actuacion-tipo-chip">{{ a.tipo }}</span>
+                  <span class="actuacion-fecha">{{ a.fechaActuacion | date:'dd/MM/yyyy' }}</span>
+                </div>
+                <p class="actuacion-desc" *ngIf="a.descripcion">{{ a.descripcion }}</p>
+                <div class="actuacion-estado-change" *ngIf="a.estadoAnteriorNombre || a.estadoNuevoNombre">
+                  <span class="estado-ant">{{ a.estadoAnteriorNombre }}</span>
+                  <mat-icon class="arrow-icon">arrow_forward</mat-icon>
+                  <span class="estado-nuevo">{{ a.estadoNuevoNombre }}</span>
+                </div>
+                <span class="actuacion-por">Por: {{ a.realizadoPor }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- TAB: Documentos -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon>folder</mat-icon>&nbsp;Documentos
+        </ng-template>
+
+        <div class="tab-content">
+          <div class="tab-toolbar">
+            <span class="tab-count">{{ documentos.length }} documento(s)</span>
+            <button mat-flat-button color="primary" [disabled]="subiendoDocumento"
+              (click)="abrirSubirDocumento()">
+              <mat-icon>upload</mat-icon>
+              {{ subiendoDocumento ? 'Subiendo...' : 'Subir Documento' }}
+            </button>
+          </div>
+
+          <div class="loading-tab" *ngIf="cargandoDocumentos">
+            <mat-spinner diameter="32"></mat-spinner>
+          </div>
+
+          <div class="documentos-grid" *ngIf="!cargandoDocumentos">
+            <div class="sin-datos" *ngIf="documentos.length === 0">
+              <mat-icon>folder_off</mat-icon>
+              <p>No hay documentos adjuntos</p>
+            </div>
+
+            <mat-card class="doc-card" *ngFor="let d of documentos" appearance="outlined">
+              <mat-card-content>
+                <div class="doc-header">
+                  <mat-icon class="doc-icon">description</mat-icon>
+                  <div class="doc-info">
+                    <span class="doc-nombre">{{ d.nombre }}</span>
+                    <span class="doc-tipo">{{ d.docTipoNombre }}</span>
+                    <span *ngIf="d.actuacionId" class="doc-actuacion-badge">
+                      <mat-icon class="badge-icon">link</mat-icon>
+                      {{ actuacionLabel(d.actuacionId) }}
+                    </span>
+                  </div>
+                </div>
+                <div class="doc-meta">
+                  <span>{{ formatBytes(d.tamanoByte) }}</span>
+                  <span>{{ d.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
+                  <span>{{ d.subidoPor }}</span>
+                  <span *ngIf="!d.esVersionActual" class="version-badge">v{{ d.version }}</span>
+                </div>
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-button color="primary" (click)="descargarDocumento(d.id)">
+                  <mat-icon>download</mat-icon> Descargar
+                </button>
+              </mat-card-actions>
+            </mat-card>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- TAB: Términos -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon>timer</mat-icon>&nbsp;Términos
+        </ng-template>
+
+        <div class="tab-content">
+          <div class="loading-tab" *ngIf="cargandoTerminos">
+            <mat-spinner diameter="32"></mat-spinner>
+          </div>
+
+          <div *ngIf="!cargandoTerminos">
+            <div class="sin-datos" *ngIf="terminos.length === 0">
+              <mat-icon>event_busy</mat-icon>
+              <p>No hay términos registrados para este proceso</p>
+            </div>
+
+            <div class="tabla-terminos-wrap" *ngIf="terminos.length > 0">
+              <table mat-table [dataSource]="terminos" class="tabla-terminos">
+
+                <ng-container matColumnDef="tipo">
+                  <th mat-header-cell *matHeaderCellDef>Tipo</th>
+                  <td mat-cell *matCellDef="let t">{{ t.tipo }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="descripcion">
+                  <th mat-header-cell *matHeaderCellDef>Descripción</th>
+                  <td mat-cell *matCellDef="let t">{{ t.descripcion || '—' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="fechaInicio">
+                  <th mat-header-cell *matHeaderCellDef>Fecha inicio</th>
+                  <td mat-cell *matCellDef="let t">{{ t.fechaInicio | date:'dd/MM/yyyy' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="fechaVencimiento">
+                  <th mat-header-cell *matHeaderCellDef>Vencimiento</th>
+                  <td mat-cell *matCellDef="let t">{{ t.fechaVencimiento | date:'dd/MM/yyyy' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="estado">
+                  <th mat-header-cell *matHeaderCellDef>Estado</th>
+                  <td mat-cell *matCellDef="let t">
+                    <span class="termino-estado-chip" [ngClass]="terminoEstadoClass(t)">
+                      {{ terminoEstadoLabel(t) }}
+                    </span>
+                    <span class="dias-habiles">{{ t.diasHabiles }}d hábiles</span>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="columnasTerminos"></tr>
+                <tr mat-row *matRowDef="let row; columns: columnasTerminos;"></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- TAB: Partes -->
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon>groups</mat-icon>&nbsp;Partes
+        </ng-template>
+
+        <div class="tab-content">
+          <div class="loading-tab" *ngIf="cargandoPartes">
+            <mat-spinner diameter="32"></mat-spinner>
+          </div>
+
+          <div *ngIf="!cargandoPartes">
+            <div class="sin-datos" *ngIf="partes.length === 0">
+              <mat-icon>person_off</mat-icon>
+              <p>No hay partes registradas en este proceso</p>
+            </div>
+
+            <div class="partes-grid" *ngIf="partes.length > 0">
+              <mat-card class="parte-card" *ngFor="let p of partes" appearance="outlined">
+                <mat-card-header>
+                  <mat-icon mat-card-avatar>{{ p.tipo === 'DEMANDANTE' ? 'person' : p.tipo === 'DEMANDADO' ? 'person_remove' : 'gavel' }}</mat-icon>
+                  <mat-card-title>{{ p.nombre }}</mat-card-title>
+                  <mat-card-subtitle>
+                    <span class="tipo-parte-chip" [ngClass]="'tipo-' + p.tipo.toLowerCase()">
+                      {{ tipoParteLabel(p.tipo) }}
+                    </span>
+                  </mat-card-subtitle>
+                </mat-card-header>
+                <mat-card-content>
+                  <div class="parte-datos">
+                    <span *ngIf="p.cedula"><mat-icon>badge</mat-icon> CC {{ p.cedula }}</span>
+                    <span *ngIf="p.nit"><mat-icon>business</mat-icon> NIT {{ p.nit }}</span>
+                    <span *ngIf="p.correo"><mat-icon>email</mat-icon> {{ p.correo }}</span>
+                    <span *ngIf="p.telefono"><mat-icon>phone</mat-icon> {{ p.telefono }}</span>
+                    <span *ngIf="p.direccion"><mat-icon>location_on</mat-icon> {{ p.direccion }}</span>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+
+    </mat-tab-group>
+
+  </ng-container>
+
+  <!-- Sin proceso -->
+  <div class="sin-datos page-error" *ngIf="!cargandoProceso && !proceso">
+    <mat-icon>error_outline</mat-icon>
+    <p>No se encontró el proceso legal</p>
+    <button mat-flat-button color="primary" (click)="volver()">Volver a la bandeja</button>
+  </div>
+
+</div>

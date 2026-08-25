@@ -1,0 +1,96 @@
+:host { display: block; }
+
+/* ===== Base compartida ===== */
+.cfg-card {
+  background: var(--cfg-surface, #fff);
+  border: 1px solid var(--cfg-border, #e2e8f0);
+  border-radius: var(--cfg-radius, 16px);
+  padding: 20px;
+}
+.cfg-card__head { margin-bottom: 16px; }
+.cfg-card__head--row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.cfg-card__title { font-size: 1.05rem; font-weight: 700; color: var(--cfg-ink, #0f172a); margin: 0; }
+.cfg-card__hint { margin: 4px 0 0; font-size: 0.83rem; color: var(--cfg-muted, #64748b); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: inherit; font-size: 0.88rem; font-weight: 600;
+  border-radius: 10px; padding: 10px 16px; border: 1px solid transparent;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .1s ease;
+}
+.btn .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.btn:active { transform: translateY(1px); }
+.btn--primary { background: var(--cfg-accent, #2563eb); color: #fff; }
+.btn--primary:hover { filter: brightness(1.05); }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+.notice {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border-radius: 12px; margin-bottom: 14px;
+  background: #f1f5f9; color: #475569; font-size: 0.85rem;
+}
+.notice .mat-icon { font-size: 20px; width: 20px; height: 20px; flex: 0 0 auto; }
+.notice--warn { background: #fef3c7; color: #92400e; }
+
+/* ===== Lista de sedes ===== */
+.sede-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.sede-item {
+  width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; cursor: pointer;
+  background: var(--cfg-surface-2, #f8fafc);
+  border: 1px solid var(--cfg-border, #e2e8f0);
+  border-radius: 12px;
+  font-family: inherit; text-align: left;
+  transition: border-color .18s ease, background-color .18s ease;
+}
+.sede-item:hover { border-color: #cbd5e1; }
+.sede-item.is-selected {
+  border-color: var(--cfg-accent, #2563eb);
+  background: var(--cfg-accent-soft, #eff6ff);
+}
+
+.sede-item__radio {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%;
+  border: 2px solid #cbd5e1; background: #fff; position: relative;
+  transition: border-color .18s ease;
+}
+.sede-item.is-selected .sede-item__radio { border-color: var(--cfg-accent, #2563eb); }
+.sede-item.is-selected .sede-item__radio::after {
+  content: ''; position: absolute; inset: 3px; border-radius: 50%;
+  background: var(--cfg-accent, #2563eb);
+}
+
+.sede-item__name { flex: 1 1 auto; font-weight: 600; color: var(--cfg-ink, #0f172a); font-size: 0.92rem; }
+
+.sede-item__badge {
+  flex: 0 0 auto; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; color: #166534; background: #dcfce7;
+  padding: 3px 9px; border-radius: 999px;
+}
+
+.cfg-actions { display: flex; justify-content: flex-end; margin-top: 18px; }
+
+@media (max-width: 480px) {
+  .cfg-card { padding: 16px; }
+  .cfg-actions { justify-content: stretch; }
+  .cfg-actions .btn { justify-content: center; width: 100%; }
+}
+
+/* ── Multi-sede (V40): agrupación "Tus sedes" / "Otras sedes" ── */
+.notice--info { background: #eff6ff; color: #1e40af; }
+
+.sede-group__label {
+  display: flex; align-items: center; gap: 6px;
+  margin: 14px 0 8px; font-size: 0.78rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: #475569;
+}
+
+.sede-group__label mat-icon {
+  font-size: 16px; width: 16px; height: 16px; color: #f59e0b;
+}
+
+.sede-group__label--otras { color: #94a3b8; }
+
+.sede-item__badge--asignada { color: #1e40af; background: #dbeafe; }

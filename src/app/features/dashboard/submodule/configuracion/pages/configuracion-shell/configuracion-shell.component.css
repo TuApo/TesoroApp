@@ -1,0 +1,217 @@
+:host {
+  /* Tokens compartidos: heredados por las páginas hijas vía custom properties
+     (las custom properties cascadean por el DOM aunque Angular encapsule los
+     selectores). Cada página puede leerlos con var(--cfg-*). */
+  --cfg-accent: #2563eb;
+  --cfg-accent-soft: #eff6ff;
+  --cfg-ink: #0f172a;
+  --cfg-muted: #64748b;
+  --cfg-border: #e2e8f0;
+  --cfg-surface: #ffffff;
+  --cfg-surface-2: #f8fafc;
+  --cfg-radius: 16px;
+
+  display: block;
+  width: 100%;
+}
+
+.cfg {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px 20px 40px;
+  box-sizing: border-box;
+}
+
+/* ===== Cabecera ===== */
+.cfg-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.cfg-header__icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1d2538, #2b3654);
+  color: #fff;
+}
+
+.cfg-header__icon .mat-icon {
+  font-size: 26px;
+  width: 26px;
+  height: 26px;
+}
+
+.cfg-header__title {
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--cfg-ink);
+  margin: 0;
+}
+
+.cfg-header__subtitle {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  color: var(--cfg-muted);
+}
+
+/* ===== Layout body: rail + contenido ===== */
+.cfg-body {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+/* ===== Navegación entre secciones ===== */
+.cfg-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--cfg-surface);
+  border: 1px solid var(--cfg-border);
+  border-radius: var(--cfg-radius);
+  padding: 10px;
+  position: sticky;
+  top: 16px;
+}
+
+.cfg-nav__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--cfg-ink);
+  border: 1px solid transparent;
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.cfg-nav__item:hover {
+  background: var(--cfg-surface-2);
+}
+
+.cfg-nav__item.is-active {
+  background: var(--cfg-accent-soft);
+  border-color: #bfdbfe;
+}
+
+.cfg-nav__icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cfg-surface-2);
+  color: var(--cfg-muted);
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+
+.cfg-nav__item.is-active .cfg-nav__icon {
+  background: var(--cfg-accent);
+  color: #fff;
+}
+
+.cfg-nav__labels {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cfg-nav__title {
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.cfg-nav__desc {
+  font-size: 0.76rem;
+  color: var(--cfg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cfg-nav__chevron {
+  flex: 0 0 auto;
+  color: #cbd5e1;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.cfg-nav__item.is-active .cfg-nav__chevron {
+  color: var(--cfg-accent);
+}
+
+/* ===== Contenido de la página activa ===== */
+.cfg-content {
+  min-width: 0;
+}
+
+/* ===== Responsive: móvil / tablet ===== */
+@media (max-width: 860px) {
+  .cfg {
+    padding: 16px 14px 40px;
+  }
+
+  .cfg-body {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  /* La navegación pasa a tira horizontal deslizable arriba del contenido. */
+  .cfg-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    position: static;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .cfg-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cfg-nav__item {
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 130px;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .cfg-nav__desc {
+    display: none;
+  }
+
+  .cfg-nav__chevron {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .cfg-header__title {
+    font-size: 1.35rem;
+  }
+
+  .cfg-nav__item {
+    min-width: 108px;
+  }
+}

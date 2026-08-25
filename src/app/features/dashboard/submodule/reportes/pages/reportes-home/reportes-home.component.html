@@ -1,0 +1,260 @@
+<div class="rp">
+  <!-- ── Encabezado ─────────────────────────────────────────────────────── -->
+  <header class="rp__head">
+    <div class="rp__title">
+      <h1>Reportes y Analítica</h1>
+      <p>Construye reportes y tableros sobre los datos de la operación, sin escribir una consulta.</p>
+    </div>
+    <div class="rp__acciones">
+      @if (esAdmin()) {
+        <button mat-stroked-button routerLink="/dashboard/reportes/catalogo"
+                matTooltip="Qué tablas y columnas se pueden reportar, y quién puede verlas">
+          <mat-icon>schema</mat-icon> Catálogo de datos
+        </button>
+        <button mat-stroked-button routerLink="/dashboard/reportes/auditoria"
+                matTooltip="Quién consultó, exportó o modificó datos">
+          <mat-icon>policy</mat-icon> Auditoría
+        </button>
+      }
+      @if (puedeConstruir()) {
+        <button mat-stroked-button (click)="nuevoTablero()">
+          <mat-icon>add_chart</mat-icon> Nuevo tablero
+        </button>
+        <button mat-flat-button color="primary" (click)="nuevoReporte()">
+          <mat-icon>add</mat-icon> Nuevo reporte
+        </button>
+      }
+    </div>
+  </header>
+
+  <!-- ── Recientes ──────────────────────────────────────────────────────── -->
+  @if (recientes().length && pestana() !== 'TABLEROS') {
+    <section class="recientes">
+      <h2 class="sec-t"><mat-icon>history</mat-icon> Continuar donde ibas</h2>
+      <div class="recientes__fila">
+        @for (r of recientes(); track r.id) {
+          <button type="button" class="reciente" (click)="abrir(r)">
+            <mat-icon class="reciente__ico">{{ iconoTipo(r.tipo) }}</mat-icon>
+            <div class="reciente__txt">
+              <b>{{ r.nombre }}</b>
+              <span>{{ hace(r.fecha_actualizacion) }}</span>
+            </div>
+          </button>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- ── Pestañas + filtros ─────────────────────────────────────────────── -->
+  <nav class="tabs" role="tablist">
+    @for (p of pestanas; track p.id) {
+      <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === p.id"
+              [attr.aria-selected]="pestana() === p.id" (click)="cambiarPestana(p.id)">
+        <mat-icon>{{ p.icono }}</mat-icon>
+        <span>{{ p.etiqueta }}</span>
+      </button>
+    }
+  </nav>
+
+  <div class="filtros">
+    <div class="buscador">
+      <mat-icon>search</mat-icon>
+      <input type="text" [value]="texto" (input)="alEscribir($any($event.target).value)"
+             placeholder="Buscar por nombre o descripción…" aria-label="Buscar reportes">
+      @if (texto) {
+        <button mat-icon-button (click)="alEscribir('')" aria-label="Limpiar"><mat-icon>close</mat-icon></button>
+      }
+    </div>
+
+    @if (pestana() !== 'TABLEROS') {
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="f">
+        <mat-label>Categoría</mat-label>
+        <mat-select [(ngModel)]="categoria" (ngModelChange)="cargar()">
+          <mat-option value="">Todas</mat-option>
+          @for (c of categorias(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="f">
+        <mat-label>Tipo</mat-label>
+        <mat-select [(ngModel)]="tipo" (ngModelChange)="cargar()">
+          <mat-option value="">Todos</mat-option>
+          <mat-option value="TABLA">Tabla</mat-option>
+          <mat-option value="GRAFICA">Gráfica</mat-option>
+          <mat-option value="KPI">Indicador</mat-option>
+          <mat-option value="MIXTO">Mixto</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="f">
+        <mat-label>Estado</mat-label>
+        <mat-select [(ngModel)]="estado" (ngModelChange)="cargar()">
+          <mat-option value="">Todos</mat-option>
+          <mat-option value="PUBLICADO">Publicado</mat-option>
+          <mat-option value="BORRADOR">Borrador</mat-option>
+          <mat-option value="ARCHIVADO">Archivado</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="f">
+        <mat-label>Ordenar por</mat-label>
+        <mat-select [(ngModel)]="ordenarPor" (ngModelChange)="cargar()">
+          <mat-option value="actualizacion">Última modificación</mat-option>
+          <mat-option value="creacion">Fecha de creación</mat-option>
+          <mat-option value="nombre">Nombre</mat-option>
+          <mat-option value="ejecuciones">Más usados</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      @if (hayFiltros()) {
+        <button mat-button (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon> Limpiar</button>
+      }
+    }
+  </div>
+
+  @if (cargando() || cargandoTableros()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- ── Tableros ───────────────────────────────────────────────────────── -->
+  @if (pestana() === 'TABLEROS') {
+    @if (cargandoTableros()) {
+      <div class="rejilla">
+        @for (i of [1,2,3,4,5,6]; track i) { <div class="skel"></div> }
+      </div>
+    } @else if (tableros().length) {
+      <div class="rejilla">
+        @for (t of tableros(); track t.id) {
+          <article class="tarjeta" (click)="abrirTablero(t)" tabindex="0"
+                   (keydown.enter)="abrirTablero(t)">
+            <div class="tarjeta__top">
+              <span class="tarjeta__ico tarjeta__ico--dash"><mat-icon>dashboard</mat-icon></span>
+              <button mat-icon-button class="tarjeta__fav" (click)="favoritoTablero(t, $event)"
+                      [matTooltip]="t.es_favorito ? 'Quitar de favoritos' : 'Marcar como favorito'">
+                <mat-icon [class.fav--on]="t.es_favorito">{{ t.es_favorito ? 'star' : 'star_border' }}</mat-icon>
+              </button>
+            </div>
+            <h3 class="tarjeta__nombre">{{ t.nombre }}</h3>
+            <p class="tarjeta__desc">{{ t.descripcion || 'Sin descripción' }}</p>
+            <div class="tarjeta__meta">
+              <span><mat-icon>widgets</mat-icon> {{ t.widgets }} componentes</span>
+              <span><mat-icon>{{ iconoVisibilidad(t.visibilidad) }}</mat-icon> {{ rotuloVisibilidad(t.visibilidad) }}</span>
+            </div>
+            <div class="tarjeta__pie">
+              <span class="autor">{{ t.es_mio ? 'Tuyo' : (t.creado_por_nombre || 'Otro usuario') }}</span>
+              <span class="fecha">{{ hace(t.fecha_actualizacion) }}</span>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <div class="vacio">
+        <mat-icon>dashboard</mat-icon>
+        <h3>Todavía no hay tableros</h3>
+        <p>Un tablero reúne indicadores, gráficas y tablas en una sola pantalla, con filtros comunes.</p>
+        @if (puedeConstruir()) {
+          <button mat-flat-button color="primary" (click)="nuevoTablero()">
+            <mat-icon>add_chart</mat-icon> Crear el primero
+          </button>
+        }
+      </div>
+    }
+  }
+
+  <!-- ── Reportes ───────────────────────────────────────────────────────── -->
+  @else {
+    @if (cargando()) {
+      <div class="rejilla">
+        @for (i of [1,2,3,4,5,6,7,8]; track i) { <div class="skel"></div> }
+      </div>
+    } @else if (reportes().length) {
+      <div class="rejilla">
+        @for (r of reportes(); track r.id) {
+          <article class="tarjeta" (click)="abrir(r)" tabindex="0" (keydown.enter)="abrir(r)">
+            <div class="tarjeta__top">
+              <span class="tarjeta__ico"><mat-icon>{{ iconoTipo(r.tipo) }}</mat-icon></span>
+              <span class="chip" [class]="colorEstado(r.estado)">{{ rotuloEstado(r.estado) }}</span>
+              <button mat-icon-button class="tarjeta__fav" (click)="favorito(r, $event)"
+                      [matTooltip]="r.es_favorito ? 'Quitar de favoritos' : 'Marcar como favorito'">
+                <mat-icon [class.fav--on]="r.es_favorito">{{ r.es_favorito ? 'star' : 'star_border' }}</mat-icon>
+              </button>
+              <button mat-icon-button class="tarjeta__menu" [matMenuTriggerFor]="menu"
+                      (click)="$event.stopPropagation()" aria-label="Más acciones">
+                <mat-icon>more_vert</mat-icon>
+              </button>
+
+              <mat-menu #menu="matMenu">
+                <button mat-menu-item (click)="abrir(r)">
+                  <mat-icon>open_in_new</mat-icon> Abrir
+                </button>
+                @if (r.puede_editar) {
+                  <button mat-menu-item (click)="abrir(r)"><mat-icon>edit</mat-icon> Editar</button>
+                }
+                <button mat-menu-item (click)="duplicar(r)"><mat-icon>content_copy</mat-icon> Duplicar</button>
+                @if (r.puede_editar) {
+                  <button mat-menu-item (click)="compartir(r)"><mat-icon>share</mat-icon> Compartir</button>
+                }
+                <button mat-menu-item [matMenuTriggerFor]="menuExp">
+                  <mat-icon>download</mat-icon> Exportar
+                </button>
+                @if (r.puede_editar) {
+                  <button mat-menu-item class="peligro" (click)="eliminar(r)">
+                    <mat-icon>delete_outline</mat-icon> Eliminar
+                  </button>
+                }
+              </mat-menu>
+              <mat-menu #menuExp="matMenu">
+                <button mat-menu-item (click)="exportar(r, 'XLSX')"><mat-icon>table_view</mat-icon> Excel</button>
+                <button mat-menu-item (click)="exportar(r, 'CSV')"><mat-icon>description</mat-icon> CSV</button>
+                <button mat-menu-item (click)="exportar(r, 'PDF')"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
+              </mat-menu>
+            </div>
+
+            <h3 class="tarjeta__nombre">{{ r.nombre }}</h3>
+            <p class="tarjeta__desc">{{ r.descripcion || 'Sin descripción' }}</p>
+
+            @if (r.datasets.length) {
+              <p class="tarjeta__tablas" [matTooltip]="nombreTablas(r.datasets)">
+                <mat-icon>table_chart</mat-icon>{{ nombreTablas(r.datasets) }}
+              </p>
+            }
+
+            <div class="tarjeta__meta">
+              @if (r.categoria) { <span class="cat">{{ r.categoria }}</span> }
+              <span><mat-icon>{{ iconoVisibilidad(r.visibilidad) }}</mat-icon> {{ rotuloVisibilidad(r.visibilidad) }}</span>
+              @if (r.ejecuciones) { <span><mat-icon>play_arrow</mat-icon> {{ r.ejecuciones }}</span> }
+            </div>
+
+            <div class="tarjeta__pie">
+              <span class="autor">{{ r.es_mio ? 'Tuyo' : (r.creado_por_nombre || 'Compartido') }}</span>
+              <span class="fecha">{{ hace(r.fecha_actualizacion) }}</span>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <div class="vacio">
+        <mat-icon>{{ hayFiltros() ? 'search_off' : 'insights' }}</mat-icon>
+        @if (hayFiltros()) {
+          <h3>Nada coincide con la búsqueda</h3>
+          <p>Prueba con otras palabras o quita algún filtro.</p>
+          <button mat-stroked-button (click)="limpiarFiltros()">Limpiar filtros</button>
+        } @else if (pestana() === 'FAVORITOS') {
+          <h3>Aún no marcaste favoritos</h3>
+          <p>Toca la estrella de un reporte para tenerlo siempre a mano.</p>
+        } @else if (pestana() === 'COMPARTIDOS') {
+          <h3>Nadie te ha compartido reportes</h3>
+          <p>Cuando alguien comparta uno contigo, aparecerá aquí.</p>
+        } @else {
+          <h3>Todavía no hay reportes</h3>
+          <p>Empieza eligiendo una tabla, marca las columnas que te interesan y listo.</p>
+          @if (puedeConstruir()) {
+            <button mat-flat-button color="primary" (click)="nuevoReporte()">
+              <mat-icon>add</mat-icon> Crear el primero
+            </button>
+          } @else {
+            <p class="vacio__nota">Tu rol puede consultar reportes, pero no crearlos.</p>
+          }
+        }
+      </div>
+    }
+  }
+</div>

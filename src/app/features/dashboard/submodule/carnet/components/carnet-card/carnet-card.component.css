@@ -1,0 +1,416 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Carné digital — dos caras + sello de agua.
+
+   REGLAS DE COMPOSICIÓN (WebView de Android / Capacitor):
+     · fondos SIEMPRE opacos;
+     · `isolation: isolate` por cara, para que el sello no atraviese a la otra;
+     · nada de `backdrop-filter` ni `mask-image` — en esta app producen texto
+       fantasma y sangrado dentro del WebView.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.carnet-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+
+/* ── giro ────────────────────────────────────────────────────────────── */
+
+.carnet-flip {
+  width: 100%;
+  max-width: 352px;
+  /* Proporción ID-1 en vertical (54 / 85,6). Es el tamaño que la gente reconoce
+     como carné y el que hace que el QR quede grande sin desbordar en un móvil. */
+  aspect-ratio: 54 / 85.6;
+  perspective: 1600px;
+}
+
+.carnet-caras {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+.carnet-caras.is-reverso {
+  transform: rotateY(180deg);
+}
+
+.carnet-cara {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  overflow: hidden;
+  isolation: isolate;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+}
+
+.carnet-cara--frente {
+  /* Fondo opaco (no rgba sobre transparente): el degradado es de color a color. */
+  background: linear-gradient(160deg, #0f2c52 0%, #17457f 55%, #1d5aa8 100%);
+  color: #ffffff;
+}
+
+.carnet-cara--reverso {
+  transform: rotateY(180deg);
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+/* ── sello de agua ───────────────────────────────────────────────────── */
+
+.carnet-sello {
+  position: absolute;
+  /* Se desborda a propósito: girado 24°, un `inset: 0` dejaría las esquinas limpias. */
+  inset: -30%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+  transform: rotate(-24deg);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.carnet-sello-linea {
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  font-family: 'Roboto', system-ui, sans-serif;
+}
+
+/* Filas impares desplazadas: sin esto el sello se lee como un bloque y deja
+   franjas verticales limpias justo donde se podría recortar una captura. */
+.carnet-sello-linea:nth-child(even) {
+  margin-left: -60px;
+}
+
+.carnet-sello--oscuro .carnet-sello-linea {
+  color: rgba(255, 255, 255, 0.16);
+}
+
+.carnet-sello--claro .carnet-sello-linea {
+  color: rgba(15, 23, 42, 0.11);
+}
+
+/* ── cara frontal ────────────────────────────────────────────────────── */
+
+.cf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.cf-logo {
+  height: 26px;
+  width: auto;
+  /* El logo es oscuro sobre fondo claro; en el carné va sobre azul. */
+  filter: brightness(0) invert(1);
+}
+
+.cf-tipo {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  opacity: 0.82;
+}
+
+.cf-cuerpo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 8px;
+  min-height: 0;
+}
+
+.cf-foto {
+  width: 116px;
+  height: 116px;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #0b1e39;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(2, 12, 27, 0.35);
+}
+
+.cf-foto img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cf-foto-iniciales {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #cfe1ff;
+}
+
+.cf-datos {
+  width: 100%;
+  text-align: center;
+  min-width: 0;
+}
+
+.cf-nombre {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.cf-cargo {
+  margin: 4px 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  color: #b9d3f6;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.cf-campos {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.cf-campos dt {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #9dbfe8;
+}
+
+.cf-campos dd {
+  margin: 1px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cf-cedula {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  letter-spacing: 1.5px;
+}
+
+.cf-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.cf-estado {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #64748b;
+  color: #ffffff;
+}
+
+.cf-estado.is-activo { background: #16a34a; }
+.cf-estado.is-retirado { background: #dc2626; }
+.cf-estado.is-sin_contrato { background: #64748b; }
+
+.cf-ingreso {
+  font-size: 10px;
+  font-weight: 600;
+  color: #b9d3f6;
+}
+
+/* ── cara trasera ────────────────────────────────────────────────────── */
+
+.cr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 13px 16px;
+  background: #0f2c52;
+  color: #ffffff;
+}
+
+.cr-titulo {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+}
+
+.cr-cedula {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.cr-cuerpo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 8px;
+  min-height: 0;
+}
+
+.cr-campos {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px 12px;
+}
+
+.cr-campos dt {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.cr-campos dd {
+  margin: 1px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.cr-qr {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.cr-qr img {
+  width: 132px;
+  height: 132px;
+  display: block;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 5px;
+  border: 1px solid #e2e8f0;
+}
+
+.cr-qr-vacio {
+  width: 132px;
+  height: 132px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #94a3b8;
+}
+
+.cr-qr-vacio mat-icon {
+  font-size: 46px;
+  width: 46px;
+  height: 46px;
+}
+
+.cr-qr-pie {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.cr-pie {
+  padding: 9px 16px 12px;
+  font-size: 8.5px;
+  line-height: 1.4;
+  text-align: center;
+  color: #64748b;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* ── acciones ────────────────────────────────────────────────────────── */
+
+.carnet-acciones {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.carnet-girar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #0f2c52;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.carnet-girar:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.carnet-girar mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.carnet-validez {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.carnet-validez mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+/* Pantallas muy angostas: la tarjeta se encoge antes que desbordar. */
+@media (max-width: 380px) {
+  .carnet-flip { max-width: 300px; }
+  .cf-foto { width: 100px; height: 100px; }
+  .cr-qr img, .cr-qr-vacio { width: 116px; height: 116px; }
+}

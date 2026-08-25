@@ -1,0 +1,59 @@
+:host { display: block; }
+
+/* ===== Base compartida ===== */
+.cfg-card {
+  background: var(--cfg-surface, #fff);
+  border: 1px solid var(--cfg-border, #e2e8f0);
+  border-radius: var(--cfg-radius, 16px);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.cfg-card:last-child { margin-bottom: 0; }
+.cfg-card__head { margin-bottom: 16px; }
+.cfg-card__title { font-size: 1.05rem; font-weight: 700; color: var(--cfg-ink, #0f172a); margin: 0; }
+.cfg-card__hint { margin: 4px 0 0; font-size: 0.83rem; color: var(--cfg-muted, #64748b); }
+
+.field-list { display: flex; flex-direction: column; gap: 0; margin: 0; }
+.field {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 0; border-top: 1px solid var(--cfg-border, #e2e8f0); margin: 0;
+}
+.field:first-child { border-top: none; }
+.field__label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.85rem; color: var(--cfg-muted, #64748b); margin: 0; font-weight: 500;
+}
+.field__label .mat-icon { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
+.field__value { font-size: 0.9rem; font-weight: 600; color: var(--cfg-ink, #0f172a); margin: 0; text-align: right; word-break: break-word; }
+
+/* ===== Bloque destacado de versión ===== */
+.about { text-align: center; }
+.about__brand { display: flex; justify-content: center; margin-bottom: 16px; }
+.about__logo { height: 44px; width: auto; object-fit: contain; }
+
+.about__version {
+  display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+}
+.about__v { font-size: 2rem; font-weight: 800; color: var(--cfg-ink, #0f172a); letter-spacing: -0.03em; }
+
+.about__platform {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.82rem; font-weight: 700; letter-spacing: .02em;
+  padding: 5px 12px; border-radius: 999px;
+  background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+}
+.about__platform .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+/* Color por plataforma para que sea evidente en qué dispositivo se corre. */
+.about__platform[data-key="android"] { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.about__platform[data-key="electron"] { background: #f5f3ff; color: #6d28d9; border-color: #ddd6fe; }
+.about__platform[data-key="ios"] { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+
+.about__tagline { margin: 12px 0 0; font-size: 0.82rem; color: var(--cfg-muted, #64748b); }
+
+@media (max-width: 480px) {
+  .cfg-card { padding: 16px; }
+  .field { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .field__value { text-align: left; }
+  .about__v { font-size: 1.7rem; }
+}

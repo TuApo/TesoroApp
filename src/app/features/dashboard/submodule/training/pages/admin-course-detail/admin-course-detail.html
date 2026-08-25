@@ -1,0 +1,204 @@
+<section class="pantalla">
+  @if (cargando()) {
+    <p class="cargando">Abriendo el curso…</p>
+  } @else if (error()) {
+    <div class="aviso-error">
+      <mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+      <button type="button" class="btn-primario" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (curso(); as c) {
+    <header class="cabecera">
+      <button type="button" class="btn-icono" (click)="volver()" aria-label="Volver al catálogo">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div class="titulo">
+        <h1>{{ c.nombre }}</h1>
+        <p class="subtitulo">
+          <span class="mono">{{ c.codigo }}</span>
+          · {{ c.modalidad_default }}
+          · {{ c.vigencia_meses ? 'vence a los ' + c.vigencia_meses + ' meses' : 'no vence' }}
+        </p>
+      </div>
+    </header>
+
+    <!-- ── Versiones ── -->
+    <div class="barra-versiones">
+      <div class="selector">
+        <label for="version">Versión</label>
+        <select id="version" [ngModel]="versionActivaId()" (ngModelChange)="cambiarVersion($event)">
+          @for (v of versiones(); track v.id) {
+            <option [value]="v.id">v{{ v.version }} — {{ v.estado }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="acciones-version">
+        @if (editable()) {
+          <span class="chip chip-borrador">Borrador · se puede editar</span>
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="publicar()">
+            <mat-icon>publish</mat-icon> Publicar versión
+          </button>
+        } @else {
+          <span class="chip chip-publicado">Publicada · contenido congelado</span>
+          <button type="button" class="btn-secundario" [disabled]="ocupado()" (click)="nuevaVersion()">
+            <mat-icon>content_copy</mat-icon> Crear versión para editar
+          </button>
+        }
+      </div>
+    </div>
+
+    @if (!editable()) {
+      <p class="nota-inmutable">
+        <mat-icon>lock</mat-icon>
+        Esta versión ya está publicada, así que su contenido no se toca: hay gente que la cursó
+        con este contenido exacto y su certificado lo respalda. Para cambiar algo, crea una
+        versión nueva —se copia todo— y publícala cuando esté lista.
+      </p>
+    }
+
+    <!-- ── Contenido ── -->
+    <div class="resumen">
+      <span><strong>{{ contenido()?.modulos?.length ?? 0 }}</strong> módulo(s)</span>
+      <span><strong>{{ totalLecciones() }}</strong> lección(es)</span>
+    </div>
+
+    @for (m of contenido()?.modulos ?? []; track m.id) {
+      <div class="modulo">
+        <div class="modulo-cabecera">
+          <div>
+            <h2>{{ m.nombre }}</h2>
+            @if (m.descripcion) { <p class="modulo-desc">{{ m.descripcion }}</p> }
+          </div>
+          @if (editable()) {
+            <div class="modulo-acciones">
+              <button type="button" class="btn-secundario pequeno" (click)="abrirNuevaLeccion(m)">
+                <mat-icon>add</mat-icon> Lección
+              </button>
+              <button type="button" class="btn-icono peligro" title="Eliminar módulo"
+                      (click)="eliminarModulo(m)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+
+        @if (nuevaLeccion(); as nl) {
+          @if (nl.moduleId === m.id) {
+            <div class="form-inline">
+              <label>
+                <span>Nombre de la lección *</span>
+                <input type="text" [(ngModel)]="nl.nombre" placeholder="Ej: Uso correcto del arnés" />
+              </label>
+              <label>
+                <span>Tipo</span>
+                <select [(ngModel)]="nl.tipo">
+                  <option value="VIDEO">Vídeo</option>
+                  <option value="PDF">PDF</option>
+                  <option value="TEXTO">Texto</option>
+                  <option value="ENLACE">Enlace externo</option>
+                </select>
+              </label>
+              <label>
+                <span>Duración (min)</span>
+                <input type="number" min="1" [(ngModel)]="nl.duracion_min" />
+              </label>
+              @if (nl.tipo === 'TEXTO' || nl.tipo === 'ENLACE') {
+                <label class="ancho-completo">
+                  <span>{{ nl.tipo === 'TEXTO' ? 'Contenido' : 'URL' }}</span>
+                  <textarea rows="3" [(ngModel)]="nl.contenido"></textarea>
+                </label>
+              }
+              <div class="form-acciones">
+                <button type="button" class="btn-secundario" (click)="nuevaLeccion.set(null)">Cancelar</button>
+                <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarLeccion()">
+                  Agregar lección
+                </button>
+              </div>
+            </div>
+          }
+        }
+
+        @if ((m.lecciones ?? []).length === 0) {
+          <p class="modulo-vacio">Este módulo todavía no tiene lecciones.</p>
+        }
+
+        @for (l of m.lecciones ?? []; track l.id) {
+          <div class="leccion">
+            <div class="leccion-info">
+              <mat-icon>{{ iconoDe(l.tipo) }}</mat-icon>
+              <div>
+                <strong>{{ l.nombre }}</strong>
+                <div class="leccion-meta">
+                  {{ l.tipo }}
+                  @if (l.duracion_min) { · {{ l.duracion_min }} min }
+                  @if (l.obligatoria) { · obligatoria }
+                </div>
+              </div>
+            </div>
+
+            @if (editable()) {
+              <div class="leccion-acciones">
+                <label class="btn-secundario pequeno subir">
+                  <mat-icon>upload</mat-icon>
+                  {{ subiendo() === l.id ? 'Subiendo…' : 'Subir archivo' }}
+                  <input type="file" hidden [disabled]="subiendo() === l.id"
+                         (change)="subirMaterial(l, $event)" />
+                </label>
+                <button type="button" class="btn-icono" title="Agregar enlace"
+                        (click)="agregarEnlace(l)">
+                  <mat-icon>link</mat-icon>
+                </button>
+                <button type="button" class="btn-icono peligro" title="Eliminar lección"
+                        (click)="eliminarLeccion(l)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+
+          @if ((l.recursos ?? []).length > 0) {
+            <ul class="recursos">
+              @for (r of l.recursos ?? []; track r.id) {
+                <li>
+                  <mat-icon>attach_file</mat-icon>
+                  <span>{{ r.titulo || 'Material' }}</span>
+                  @if (editable()) {
+                    <button type="button" class="btn-icono peligro pequeno"
+                            title="Quitar material" (click)="quitarRecurso(r.id)">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        }
+      </div>
+    }
+
+    @if (editable()) {
+      @if (nuevoModulo(); as nm) {
+        <div class="form-inline">
+          <label class="ancho-completo">
+            <span>Nombre del módulo *</span>
+            <input type="text" [(ngModel)]="nm.nombre" placeholder="Ej: Riesgo de caída" />
+          </label>
+          <label class="ancho-completo">
+            <span>Descripción</span>
+            <input type="text" [(ngModel)]="nm.descripcion" />
+          </label>
+          <div class="form-acciones">
+            <button type="button" class="btn-secundario" (click)="nuevoModulo.set(null)">Cancelar</button>
+            <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarModulo()">
+              Agregar módulo
+            </button>
+          </div>
+        </div>
+      } @else {
+        <button type="button" class="btn-secundario ancho" (click)="abrirNuevoModulo()">
+          <mat-icon>add</mat-icon> Agregar módulo
+        </button>
+      }
+    }
+  }
+</section>

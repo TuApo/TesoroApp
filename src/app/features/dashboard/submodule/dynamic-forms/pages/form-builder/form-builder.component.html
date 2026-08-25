@@ -1,0 +1,679 @@
+<div class="fb-page">
+
+  <!-- Header estándar de página -->
+  <header class="card-header-premium" role="banner">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <span class="material-symbols-outlined header-icon" aria-hidden="true">dynamic_form</span>
+      </div>
+      <div class="header-text">
+        <h1 class="titulo">{{ esEdicion() ? 'Editar formulario' : 'Nuevo formulario' }}</h1>
+        <p class="subtitulo">
+          @if (esEdicion()) {
+            Al publicar se creará la versión v{{ versionActual() + 1 }} · {{ totalCampos() }} campos
+          } @else {
+            Crea secciones, agrégales campos y pruébalo en móvil o escritorio · {{ totalCampos() }} campos
+          }
+        </p>
+      </div>
+      <span class="grow"></span>
+      <div class="header-actions">
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="irAlListado()">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+          Volver
+        </button>
+        <!-- Ghost como "Volver": en el header oscuro la única acción llena es la de guardar. -->
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="mostrarInicio.set(true)"
+                [disabled]="cargando()"
+                title="Plantillas y borrador con IA">
+          <span class="material-symbols-outlined" aria-hidden="true">dashboard_customize</span>
+          Plantillas
+        </button>
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="asistenteAbierto.set(true)"
+                [disabled]="cargando()"
+                title="Pedirle a la IA las preguntas que faltan">
+          <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+          Asistente IA
+        </button>
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="importarAbierto.set(true)"
+                [disabled]="cargando()"
+                title="Descargar la plantilla parametrizada o cargar las preguntas desde un Excel">
+          <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
+          Desde Excel
+        </button>
+        <button type="button" class="fb-btn fb-btn--primary"
+                (click)="guardar()"
+                [disabled]="guardando() || cargando()">
+          <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
+          @if (guardando()) {
+            Guardando…
+          } @else if (esEdicion()) {
+            Publicar v{{ versionActual() + 1 }}
+          } @else {
+            Crear formulario
+          }
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (cargando()) {
+    <p class="fb-cargando" role="status">
+      <span class="material-symbols-outlined" aria-hidden="true">hourglass_top</span>
+      Cargando el formulario…
+    </p>
+  } @else {
+
+    <!-- 2 columnas: canvas | vista previa. El grupo CDK conecta las listas de las
+         secciones entre sí (arrastrar un campo de una sección a otra). -->
+    <div class="fb-layout" [class.fb-layout--ancha]="vistaPrevia() === 'escritorio'" cdkDropListGroup>
+
+      <!-- IZQUIERDA: metadatos + permisos + secciones -->
+      <main class="fb-col fb-col--canvas">
+
+        <section class="fb-panel">
+          <button type="button" class="fb-panel__toggle"
+                  [attr.aria-expanded]="panelAbierto('datos')"
+                  aria-controls="fb-panel-datos"
+                  (click)="alternarPanel('datos')">
+            <span class="material-symbols-outlined" aria-hidden="true">description</span>
+            <span class="fb-panel__nombre">Datos del formulario</span>
+            @if (!panelAbierto('datos')) {
+              <span class="fb-panel__resumen">{{ resumenDatos() }}</span>
+            }
+            <span class="material-symbols-outlined fb-panel__chevron"
+                  [class.fb-panel__chevron--abierto]="panelAbierto('datos')"
+                  aria-hidden="true">expand_more</span>
+          </button>
+          @if (panelAbierto('datos')) {
+          <div class="fb-meta" id="fb-panel-datos">
+            <div class="fb-campo">
+              <label for="fb-nombre">Nombre <span class="fb-req" aria-hidden="true">*</span></label>
+              <input id="fb-nombre" type="text" maxlength="150" required
+                     [ngModel]="nombre()" (ngModelChange)="nombre.set($event)"
+                     placeholder="Ej. Inspección de finca" />
+            </div>
+            <div class="fb-campo">
+              <label for="fb-categoria">Categoría</label>
+              <input id="fb-categoria" type="text" maxlength="80"
+                     [ngModel]="categoria()" (ngModelChange)="categoria.set($event)"
+                     placeholder="Ej. Operaciones" />
+            </div>
+            <div class="fb-campo fb-campo--full">
+              <label for="fb-descripcion">Descripción</label>
+              <textarea id="fb-descripcion" rows="2" maxlength="500"
+                        [ngModel]="descripcion()" (ngModelChange)="descripcion.set($event)"
+                        placeholder="Para qué sirve este formulario"></textarea>
+            </div>
+            <label class="fb-switch fb-campo--full">
+              <input type="checkbox"
+                     [ngModel]="esPublico()" (ngModelChange)="esPublico.set($event)" />
+              <span class="fb-switch__pista" aria-hidden="true"></span>
+              <span>Visible para otros usuarios</span>
+            </label>
+          </div>
+          }
+        </section>
+
+        <!-- Diseño: tema visual + cómo se recorre el formulario al llenarlo -->
+        <section class="fb-panel">
+          <button type="button" class="fb-panel__toggle"
+                  [attr.aria-expanded]="panelAbierto('diseno')"
+                  aria-controls="fb-panel-diseno"
+                  (click)="alternarPanel('diseno')">
+            <span class="material-symbols-outlined" aria-hidden="true">palette</span>
+            <span class="fb-panel__nombre">Diseño y recorrido</span>
+            @if (!panelAbierto('diseno')) {
+              <span class="fb-panel__resumen">{{ resumenDiseno() }}</span>
+            }
+            <span class="material-symbols-outlined fb-panel__chevron"
+                  [class.fb-panel__chevron--abierto]="panelAbierto('diseno')"
+                  aria-hidden="true">expand_more</span>
+          </button>
+          @if (panelAbierto('diseno')) {
+          <div class="fb-diseno" id="fb-panel-diseno">
+
+            <!-- Presets -->
+            <p class="fb-ayuda">Elige un punto de partida y ajústalo; la vista previa de la derecha muestra el resultado real.</p>
+            <div class="fb-presets">
+              @for (p of presets; track p.id) {
+                <button type="button" class="fb-preset"
+                        [class.fb-preset--activo]="tema().preset === p.id"
+                        [title]="p.nombre"
+                        (click)="aplicarPreset(p)">
+                  <span class="fb-preset__muestra"
+                        [style.background]="'linear-gradient(135deg,' + p.theme.header_from + ',' + p.theme.header_to + ')'">
+                    <span class="fb-preset__punto" [style.background]="p.theme.primary || '#8cd50a'"></span>
+                  </span>
+                  <span class="fb-preset__nombre">{{ p.nombre }}</span>
+                </button>
+              }
+            </div>
+
+            <!-- Colores sueltos -->
+            <div class="fb-colores">
+              <label class="fb-color">
+                <span>Acción</span>
+                <input type="color" [value]="temaVista().primary"
+                       (change)="cambiarTema('primary', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Texto sobre acción</span>
+                <input type="color" [value]="temaVista().on_primary"
+                       (change)="cambiarTema('on_primary', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Cabecera (desde)</span>
+                <input type="color" [value]="temaVista().header_from"
+                       (change)="cambiarTema('header_from', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Cabecera (hasta)</span>
+                <input type="color" [value]="temaVista().header_to"
+                       (change)="cambiarTema('header_to', $any($event.target).value)" />
+              </label>
+              <label class="fb-color">
+                <span>Fondo</span>
+                <input type="color" [value]="temaVista().bg"
+                       (change)="cambiarTema('bg', $any($event.target).value)" />
+              </label>
+              <div class="fb-campo">
+                <label for="fb-icono">Icono (Material Symbols)</label>
+                <input id="fb-icono" type="text" maxlength="40"
+                       [value]="temaVista().icon"
+                       (change)="cambiarTema('icon', $any($event.target).value)"
+                       placeholder="edit_note" />
+              </div>
+              <div class="fb-campo">
+                <label for="fb-densidad">Densidad</label>
+                <select id="fb-densidad" [value]="temaVista().density"
+                        (change)="cambiarTema('density', $any($event.target).value)">
+                  <option value="comoda">Cómoda</option>
+                  <option value="compacta">Compacta</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Portada -->
+            <div class="fb-portada">
+              <div class="fb-portada__vista">
+                @if (portadaUrl(); as url) {
+                  <img [src]="url" alt="Portada del formulario" />
+                } @else {
+                  <span class="fb-portada__vacia">
+                    <span class="material-symbols-outlined" aria-hidden="true">image</span>
+                    Sin portada
+                  </span>
+                }
+              </div>
+              <div class="fb-portada__acciones">
+                <label class="fb-btn fb-btn--claro" [class.fb-btn--ocupado]="generandoPortada()">
+                  <span class="material-symbols-outlined" aria-hidden="true">upload</span>
+                  {{ generandoPortada() ? 'Subiendo…' : 'Subir imagen' }}
+                  <input type="file" accept="image/*" hidden
+                         [disabled]="generandoPortada()" (change)="subirPortada($event)" />
+                </label>
+                @if (portadaUrl()) {
+                  <button type="button" class="fb-btn fb-btn--claro" (click)="quitarPortada()">
+                    <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                    Quitar
+                  </button>
+                }
+              </div>
+            </div>
+
+            <!-- Portada con IA: el prompt se escribe, se refina y solo entonces se genera -->
+            <div class="fb-prompt">
+              <div class="fb-campo fb-campo--full">
+                <label for="fb-prompt">Cómo quieres la portada</label>
+                <textarea id="fb-prompt" rows="3" maxlength="900"
+                          [ngModel]="promptPortada()" (ngModelChange)="promptPortada.set($event)"
+                          placeholder="Ej. campos de flores al amanecer con invernaderos al fondo, tonos verdes"></textarea>
+              </div>
+
+              <div class="fb-prompt__barra">
+                <div class="fb-campo fb-prompt__estilo">
+                  <label for="fb-estilo">Estilo</label>
+                  <select id="fb-estilo" [value]="estiloPortada()"
+                          (change)="estiloPortada.set($any($event.target).value)">
+                    <option value="">Sin preferencia</option>
+                    @for (e of estilosPortada; track e.id) {
+                      <option [value]="e.id">{{ e.nombre }}</option>
+                    }
+                  </select>
+                </div>
+
+                <button type="button" class="fb-btn fb-btn--claro"
+                        (click)="refinarPrompt()" [disabled]="refinando() || generandoPortada()">
+                  <span class="material-symbols-outlined" aria-hidden="true">auto_fix_high</span>
+                  {{ refinando() ? 'Refinando…' : 'Refinar prompt' }}
+                </button>
+
+                @if (promptPortada().trim()) {
+                  <button type="button" class="fb-btn fb-btn--claro" (click)="restablecerPrompt()"
+                          [disabled]="refinando() || generandoPortada()">
+                    <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                    Restablecer
+                  </button>
+                }
+
+                <button type="button" class="fb-btn fb-btn--ia"
+                        (click)="generarPortada()" [disabled]="generandoPortada() || refinando()">
+                  <span class="material-symbols-outlined" aria-hidden="true">auto_awesome</span>
+                  {{ generandoPortada() ? 'Generando…' : 'Generar con IA' }}
+                </button>
+              </div>
+
+              <p class="fb-ayuda fb-prompt__nota">
+                Refinar solo reescribe el texto —es gratis y puedes repetirlo—; generar
+                sí crea la imagen y tiene costo.
+              </p>
+
+              @if (notasPrompt(); as notas) {
+                <div class="fb-ia__resultado">
+                  @if (notas.resumen) { <p class="fb-ia__resumen">{{ notas.resumen }}</p> }
+                  @if (notas.tips.length) {
+                    <ul class="fb-ia__tips">
+                      @for (t of notas.tips; track $index) { <li>{{ t }}</li> }
+                    </ul>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Sugerencia de la IA -->
+            <div class="fb-ia">
+              <button type="button" class="fb-btn fb-btn--ia"
+                      (click)="sugerirDiseno()" [disabled]="sugiriendo()">
+                <span class="material-symbols-outlined" aria-hidden="true">tips_and_updates</span>
+                {{ sugiriendo() ? 'Pensando…' : 'Sugerir diseño con IA' }}
+              </button>
+              @if (sugerencia(); as sug) {
+                <div class="fb-ia__resultado">
+                  @if (sug.resumen) { <p class="fb-ia__resumen">{{ sug.resumen }}</p> }
+                  @if (sug.tips.length) {
+                    <ul class="fb-ia__tips">
+                      @for (t of sug.tips; track $index) { <li>{{ t }}</li> }
+                    </ul>
+                  }
+                </div>
+              }
+            </div>
+
+            <!-- Recorrido -->
+            <label class="fb-switch fb-campo--full">
+              <input type="checkbox"
+                     [ngModel]="pasoAPaso()" (ngModelChange)="pasoAPaso.set($event)" />
+              <span class="fb-switch__pista" aria-hidden="true"></span>
+              <span>Llenar paso a paso (una sección por pantalla)</span>
+            </label>
+            @if (pasoAPaso()) {
+              <label class="fb-switch fb-campo--full">
+                <input type="checkbox"
+                       [ngModel]="mostrarProgreso()" (ngModelChange)="mostrarProgreso.set($event)" />
+                <span class="fb-switch__pista" aria-hidden="true"></span>
+                <span>Mostrar barra de progreso</span>
+              </label>
+              <p class="fb-ayuda">
+                Con una sola sección el asistente no se activa: el formulario se llena de corrido.
+              </p>
+            }
+
+            @if (esEdicion()) {
+              <button type="button" class="fb-btn fb-btn--claro fb-diseno__aplicar"
+                      (click)="aplicarDisenoAhora()" [disabled]="guardando()">
+                <span class="material-symbols-outlined" aria-hidden="true">brush</span>
+                Aplicar solo el diseño (sin publicar versión)
+              </button>
+            }
+          </div>
+          }
+        </section>
+
+        <!-- Permisos: quién ve qué. Los roles de MENÚ solo en creación; la matriz por rol
+             y el control del proceso, siempre (en edición el diálogo guarda por su cuenta). -->
+        <section class="fb-panel">
+          <button type="button" class="fb-panel__toggle"
+                  [attr.aria-expanded]="panelAbierto('permisos')"
+                  aria-controls="fb-panel-permisos"
+                  (click)="alternarPanel('permisos')">
+            <span class="material-symbols-outlined" aria-hidden="true">group</span>
+            <span class="fb-panel__nombre">Permisos y control del proceso</span>
+            <span class="fb-panel__resumen">{{ resumenAcceso() }}</span>
+            <span class="material-symbols-outlined fb-panel__chevron"
+                  [class.fb-panel__chevron--abierto]="panelAbierto('permisos')"
+                  aria-hidden="true">expand_more</span>
+          </button>
+          @if (panelAbierto('permisos')) {
+          <div id="fb-panel-permisos">
+
+          <p class="fb-ayuda">
+            Define a quién va dirigido —por su rol, por su finca o empresa usuaria, por su
+            oficina o por su nombre— y qué ve dentro: solo el formulario, o también sus
+            respuestas, el control del proceso o la analítica, hasta el detalle de qué
+            columnas puede llenar.
+          </p>
+          <button type="button" class="fb-btn-secundario" (click)="abrirPermisos()">
+            <span class="material-symbols-outlined" aria-hidden="true">admin_panel_settings</span>
+            Configurar permisos
+          </button>
+
+          @if (!esEdicion()) {
+            <!-- El menú lo reparte ms-auth-admin por ROL: no es una segunda lista que
+                 marcar, sale de los permisos de arriba. -->
+            <p class="fb-ayuda fb-ayuda--separada">
+              @if (rolesDelMenu().length) {
+                Verán la entrada en su menú lateral los roles con permiso de llenar:
+              } @else {
+                Ningún rol tiene todavía permiso de llenar, así que la entrada no aparecerá
+                en el menú de nadie. Los destinatarios por finca, oficina o nombre siempre
+                abren el formulario por su enlace.
+              }
+            </p>
+            @if (rolesDelMenu().length) {
+              <div class="fb-roles">
+                @for (rol of rolesDelMenu(); track rol.id) {
+                  <span class="fb-rol fb-rol--activo">{{ rol.nombre }}</span>
+                }
+              </div>
+            }
+          }
+          </div>
+          }
+        </section>
+
+        <!-- Ubicación en el menú: editable SOLO en creación (en edición se gestiona desde el listado) -->
+        @if (!esEdicion()) {
+          <section class="fb-panel">
+            <button type="button" class="fb-panel__toggle"
+                    [attr.aria-expanded]="panelAbierto('ubicacion')"
+                    aria-controls="fb-panel-ubicacion"
+                    (click)="alternarPanel('ubicacion')">
+              <span class="material-symbols-outlined" aria-hidden="true">account_tree</span>
+              <span class="fb-panel__nombre">Ubicación en el menú</span>
+              <span class="fb-panel__resumen">{{ resumenUbicacion() }}</span>
+              <span class="material-symbols-outlined fb-panel__chevron"
+                    [class.fb-panel__chevron--abierto]="panelAbierto('ubicacion')"
+                    aria-hidden="true">expand_more</span>
+            </button>
+            @if (panelAbierto('ubicacion')) {
+            <div id="fb-panel-ubicacion">
+            <p class="fb-ayuda">
+              Elige dónde aparecerá el formulario en el menú lateral. Puedes dejarlo sin publicar
+              y ubicarlo más tarde desde el listado.
+            </p>
+
+            <label class="fb-switch">
+              <input type="checkbox"
+                     [ngModel]="noPublicar()" (ngModelChange)="noPublicar.set($event)" />
+              <span class="fb-switch__pista" aria-hidden="true"></span>
+              <span>No publicar por ahora (queda pendiente)</span>
+            </label>
+
+            @if (!noPublicar()) {
+              <div class="fb-meta" style="margin-top: 10px;">
+                <div class="fb-campo fb-campo--full">
+                  <label>Módulo padre</label>
+                  <app-module-tree-picker [value]="ubicPadre()"
+                                          (valueChange)="ubicPadre.set($event)"
+                                          (nodeChange)="ubicPadreNodo.set($event)" />
+                </div>
+
+                <div class="fb-campo">
+                  <label for="fb-ubic-label">Etiqueta en el menú</label>
+                  <input id="fb-ubic-label" type="text" maxlength="120"
+                         [ngModel]="ubicLabel()" (ngModelChange)="ubicLabel.set($event)"
+                         [placeholder]="nombre() || 'Nombre visible en el menú'" />
+                </div>
+
+                <div class="fb-campo">
+                  <label for="fb-ubic-orden">Orden</label>
+                  <input id="fb-ubic-orden" type="number" min="0" step="1"
+                         [ngModel]="ubicOrden()" (ngModelChange)="ubicOrden.set($event)"
+                         placeholder="Automático" />
+                </div>
+
+                <div class="fb-campo fb-campo--full">
+                  <label for="fb-ubic-icono">Icono (Material Symbol)</label>
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <input id="fb-ubic-icono" type="text" maxlength="60" style="flex:1 1 auto; min-width:0;"
+                           [ngModel]="ubicIcono()" (ngModelChange)="ubicIcono.set($event)"
+                           placeholder="dynamic_form" />
+                    <span style="flex-shrink:0; width:44px; height:44px; border:1px solid var(--slate-200);
+                                 border-radius:10px; display:inline-flex; align-items:center; justify-content:center;
+                                 background: var(--slate-50);">
+                      <span class="material-symbols-outlined" aria-hidden="true"
+                            style="font-size:24px; color:var(--navy);">{{ ubicIcono() || 'dynamic_form' }}</span>
+                    </span>
+                  </div>
+                </div>
+
+                <label class="fb-switch fb-campo--full">
+                  <input type="checkbox"
+                         [ngModel]="ubicRespuestas()" (ngModelChange)="ubicRespuestas.set($event)" />
+                  <span class="fb-switch__pista" aria-hidden="true"></span>
+                  <span>Crear también entrada para ver respuestas</span>
+                </label>
+
+                @if (rutaUbicPreview()) {
+                  <div class="fb-campo--full"
+                       style="display:flex; flex-direction:column; gap:10px; padding:12px;
+                              border:1px dashed var(--slate-200); border-radius:12px; background:var(--slate-50);">
+                    <div style="display:flex; align-items:center; gap:8px; min-width:0; color:var(--slate-700);">
+                      <span class="material-symbols-outlined" aria-hidden="true"
+                            style="font-size:20px; color:var(--slate-500); flex-shrink:0;">link</span>
+                      <code style="overflow-x:auto; white-space:nowrap; font-family:'Roboto Mono',monospace;
+                                   font-size:0.82rem; color:var(--navy);">{{ rutaUbicPreview() }}</code>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                      <span style="font-size:0.78rem; color:var(--muted);">En el menú:</span>
+                      <span style="display:inline-flex; align-items:center; gap:10px; padding:8px 14px;
+                                   border-radius:10px; background:var(--navy); color:#fff; max-width:100%;">
+                        <span class="material-symbols-outlined" aria-hidden="true"
+                              style="font-size:20px; color:var(--lime); flex-shrink:0;">{{ ubicIcono() || 'dynamic_form' }}</span>
+                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                          {{ ubicLabel().trim() || nombre() || 'Formulario' }}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+            </div>
+            }
+          </section>
+        } @else {
+          <section class="fb-panel">
+            <button type="button" class="fb-panel__toggle"
+                    [attr.aria-expanded]="panelAbierto('ubicacion')"
+                    aria-controls="fb-panel-ubicacion-edicion"
+                    (click)="alternarPanel('ubicacion')">
+              <span class="material-symbols-outlined" aria-hidden="true">account_tree</span>
+              <span class="fb-panel__nombre">Ubicación en el menú</span>
+              <span class="fb-panel__resumen">Se gestiona desde el listado</span>
+              <span class="material-symbols-outlined fb-panel__chevron"
+                    [class.fb-panel__chevron--abierto]="panelAbierto('ubicacion')"
+                    aria-hidden="true">expand_more</span>
+            </button>
+            @if (panelAbierto('ubicacion')) {
+              <p class="fb-ayuda" id="fb-panel-ubicacion-edicion">
+                La ubicación en el menú (Publicar / Mover / Desvincular) se gestiona desde el listado.
+                Editar la estructura no la modifica.
+              </p>
+            }
+          </section>
+        }
+
+        <!-- Secciones con las tarjetas de campo -->
+        @for (sec of sections(); track $index; let si = $index) {
+          <section class="fb-seccion"
+                   [class.fb-seccion--activa]="si === seccionActiva()"
+                   (click)="seccionActiva.set(si)"
+                   (focusin)="seccionActiva.set(si)">
+            <div class="fb-seccion__head">
+              <span class="material-symbols-outlined" aria-hidden="true">view_agenda</span>
+              <input class="fb-seccion__titulo" type="text" maxlength="120"
+                     [ngModel]="sec.title ?? ''"
+                     (ngModelChange)="renombrarSeccion(si, $event)"
+                     placeholder="Título de la sección (opcional)"
+                     [attr.aria-label]="'Título de la sección ' + (si + 1)" />
+              @if (si === seccionActiva()) {
+                <span class="fb-seccion__badge">Activa</span>
+              }
+              <span class="fb-seccion__conteo">{{ sec.fields.length }} campos</span>
+              <button type="button" class="fb-seccion__agregar"
+                      (click)="abrirPickerDeCampo(si)"
+                      [attr.aria-label]="'Agregar un campo a la sección ' + (si + 1)">
+                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                Agregar campo
+              </button>
+              <button type="button" class="fb-icono fb-icono--danger"
+                      [disabled]="sec.fields.length > 0"
+                      (click)="quitarSeccion(si)"
+                      title="Quitar sección (solo si está vacía)"
+                      [attr.aria-label]="'Quitar la sección ' + (si + 1)">
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </div>
+
+            <!-- Ruta de respuestas: a dónde ir al terminar esta sección -->
+            @if (destinosDesde(si).length > 1 || destinoDeSeccion(si)) {
+              <div class="fb-ruta">
+                <span class="material-symbols-outlined" aria-hidden="true">alt_route</span>
+                <label [attr.for]="'fb-ruta-' + si">Al terminar esta sección, ir a</label>
+                <select [id]="'fb-ruta-' + si"
+                        [value]="destinoDeSeccion(si)"
+                        (change)="cambiarDestinoDeSeccion(si, $any($event.target).value)">
+                  <option value="">La siguiente sección</option>
+                  @for (d of destinosDesde(si); track d.code) {
+                    <option [value]="d.code">{{ d.nombre }}</option>
+                  }
+                </select>
+                <span class="fb-ruta__nota">Las respuestas con regla propia mandan sobre esto.</span>
+              </div>
+            }
+
+            <div class="fb-seccion__lista"
+                 cdkDropList
+                 [id]="'fb-sec-' + si"
+                 [cdkDropListData]="si"
+                 (cdkDropListDropped)="soltarCampo($event, si)">
+              @for (campo of sec.fields; track $index; let fi = $index) {
+                <!-- Punto de inserción: aparece al pasar el mouse (o al enfocarlo) por
+                     el hueco entre dos preguntas y mete el campo nuevo justo ahí. -->
+                <button type="button" class="fb-insertar"
+                        (click)="abrirPickerDeCampo(si, fi)"
+                        [attr.aria-label]="'Insertar un campo antes de ' + (campo.label || ('la pregunta ' + (fi + 1))) + ', en la sección ' + (si + 1)">
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                  <span class="fb-insertar__pill">
+                    <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                    Insertar campo aquí
+                  </span>
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                </button>
+                <div class="fb-carta" cdkDrag [cdkDragData]="campo">
+                  <div class="fb-carta__placeholder" *cdkDragPlaceholder></div>
+                  <button type="button" class="fb-handle" cdkDragHandle
+                          title="Arrastrar para reordenar o mover de sección"
+                          aria-label="Arrastrar para reordenar o mover de sección">
+                    <span class="material-symbols-outlined">drag_indicator</span>
+                  </button>
+                  <app-field-config-card class="fb-carta__card"
+                      [field]="campo"
+                      [types]="tipos()"
+                      [siblings]="camposEncadenables(si, fi)"
+                      [destinos]="destinosDesde(si)"
+                      (fieldChange)="actualizarCampo(si, fi, $event)"
+                      (duplicateField)="duplicarCampo(si, fi)"
+                      (removeField)="quitarCampo(si, fi)"
+                      (extractChild)="sacarDeSeccion(si, fi, $event)" />
+                </div>
+              } @empty {
+                <div class="fb-vacia">
+                  <p class="fb-vacia__texto">Esta sección todavía no tiene preguntas.</p>
+                  <button type="button" class="fb-vacia__boton" (click)="abrirPickerDeCampo(si)">
+                    <span class="material-symbols-outlined" aria-hidden="true">add_circle</span>
+                    Agregar la primera pregunta
+                  </button>
+                </div>
+              }
+              @if (sec.fields.length) {
+                <!-- Último hueco: cierra la serie de puntos de inserción con el "al final". -->
+                <button type="button" class="fb-insertar fb-insertar--final"
+                        (click)="abrirPickerDeCampo(si, sec.fields.length)"
+                        [attr.aria-label]="'Agregar un campo al final de la sección ' + (si + 1)">
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                  <span class="fb-insertar__pill">
+                    <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                    Agregar campo al final
+                  </span>
+                  <span class="fb-insertar__linea" aria-hidden="true"></span>
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        <button type="button" class="fb-agregar-seccion" (click)="agregarSeccion()">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span>
+          Agregar sección
+        </button>
+      </main>
+
+      <!-- DERECHA: vista previa en vivo (derivada del estado), en móvil o escritorio -->
+      <aside class="fb-col fb-col--preview">
+        <app-form-preview
+            [formName]="nombre()"
+            [formDescription]="descripcion()"
+            [sections]="sections()"
+            [theme]="tema()"
+            [wizard]="pasoAPaso()"
+            [dispositivo]="vistaPrevia()"
+            (dispositivoChange)="cambiarVistaPrevia($event)" />
+      </aside>
+    </div>
+
+    <!-- Selector de tipo de campo: única vía en móvil, y el "agregar" de cada sección -->
+    @if (pickerAbierto()) {
+      <app-field-type-picker
+          [types]="tipos()"
+          [destino]="destinoDelPicker()"
+          [ubicacion]="ubicacionDelPicker()"
+          (elegir)="agregarDesdePicker($event)"
+          (cerrar)="cerrarPickerDeCampo()" />
+    }
+
+    <!-- Asistente de preguntas: propone lo que falta y el usuario elige qué entra -->
+    @if (asistenteAbierto()) {
+      <app-ai-questions-dialog
+          [contexto]="contextoIa()"
+          [tipos]="tipos()"
+          [seccionActiva]="seccionActiva()"
+          (insertar)="insertarPropuestas($event)"
+          (cerrar)="asistenteAbierto.set(false)" />
+    }
+  }
+
+  <!-- Punto de partida: plantilla, borrador con IA o lienzo en blanco. Se abre solo al
+       crear; en edición, a petición (y ahí lo elegido se agrega o reemplaza, con aviso). -->
+  @if (mostrarInicio()) {
+    <app-form-start
+        [tipos]="tipos()"
+        [edicion]="totalCampos() > 0"
+        [contexto]="contextoIa()"
+        (elegir)="aplicarInicio($event)" />
+  }
+
+  <!-- Carga por Excel: baja la plantilla ya parametrizada y sube el archivo lleno; lo
+       leído se vuelca aquí mismo, sin guardar nada. -->
+  @if (importarAbierto()) {
+    <app-excel-import-dialog
+        [nombreInicial]="nombre()"
+        [descripcionInicial]="descripcion()"
+        [categoriaInicial]="categoria()"
+        (abrir)="aplicarImportado($event)"
+        (creados)="irAlListado()"
+        (cerrar)="importarAbierto.set(false)" />
+  }
+</div>

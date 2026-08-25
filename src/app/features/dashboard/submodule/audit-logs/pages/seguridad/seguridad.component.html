@@ -1,0 +1,170 @@
+<div class="seguridad-container">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-title">
+      <mat-icon class="header-icon">security</mat-icon>
+      <div>
+        <h1>Eventos de Seguridad</h1>
+        <p>Logins, cambios de contraseña, OTP y accesos denegados</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats cards -->
+  <div class="stats-grid" *ngIf="stats">
+    <mat-card class="stat-card success-card">
+      <mat-icon class="stat-icon">login</mat-icon>
+      <div class="stat-body">
+        <span class="stat-num">{{ stats.login_exitosos | number }}</span>
+        <span class="stat-label">Accesos exitosos (30d)</span>
+      </div>
+    </mat-card>
+    <mat-card class="stat-card danger-card">
+      <mat-icon class="stat-icon">gpp_bad</mat-icon>
+      <div class="stat-body">
+        <span class="stat-num">{{ stats.login_fallidos | number }}</span>
+        <span class="stat-label">Intentos fallidos (30d)</span>
+      </div>
+    </mat-card>
+    <mat-card class="stat-card warn-card">
+      <mat-icon class="stat-icon">lock_reset</mat-icon>
+      <div class="stat-body">
+        <span class="stat-num">{{ stats.cambio_clave | number }}</span>
+        <span class="stat-label">Cambios de clave (30d)</span>
+      </div>
+    </mat-card>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filtros-bar">
+    <mat-form-field appearance="outline" class="filtro-field">
+      <mat-label>Usuario / email</mat-label>
+      <mat-icon matPrefix>person_search</mat-icon>
+      <input matInput [formControl]="filtroActor" placeholder="email del usuario">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filtro-field">
+      <mat-label>Estado</mat-label>
+      <mat-select [formControl]="filtroExito">
+        <mat-option [value]="null">Todos</mat-option>
+        <mat-option [value]="true">Solo exitosos</mat-option>
+        <mat-option [value]="false">Solo fallidos</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="limpiar()" matTooltip="Limpiar filtros">
+      <mat-icon>filter_alt_off</mat-icon>
+    </button>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-overlay" *ngIf="cargando">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  @if (!cargando) {
+    <!-- Vista tabla (desktop) -->
+    @if (!isMobile) {
+      <div class="tabla-wrapper">
+        <table mat-table [dataSource]="eventos" class="tabla-seguridad mat-elevation-z1">
+
+          <ng-container matColumnDef="occurredAt">
+            <th mat-header-cell *matHeaderCellDef>Fecha y hora</th>
+            <td mat-cell *matCellDef="let e" class="td-fecha">{{ formatDate(e.occurred_at) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="actorEmail">
+            <th mat-header-cell *matHeaderCellDef>Usuario</th>
+            <td mat-cell *matCellDef="let e">{{ e.actor_email ?? '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="action">
+            <th mat-header-cell *matHeaderCellDef>Evento</th>
+            <td mat-cell *matCellDef="let e">
+              <span class="event-label"
+                    [class.label-fail]="!e.success"
+                    [class.label-ok]="e.success">
+                {{ labelAccion(e.action) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="ip">
+            <th mat-header-cell *matHeaderCellDef>Dirección IP</th>
+            <td mat-cell *matCellDef="let e" class="td-mono">{{ e.ip ?? '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="userAgent">
+            <th mat-header-cell *matHeaderCellDef>Navegador</th>
+            <td mat-cell *matCellDef="let e">{{ abreviarUA(e.user_agent) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="success">
+            <th mat-header-cell *matHeaderCellDef>Estado</th>
+            <td mat-cell *matCellDef="let e">
+              <mat-icon [class.icon-ok]="e.success" [class.icon-fail]="!e.success"
+                        [matTooltip]="e.success ? 'Exitoso' : 'Fallido'">
+                {{ e.success ? 'verified_user' : 'gpp_bad' }}
+              </mat-icon>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"
+              class="fila-evento" [class.fila-fail]="!row.success"></tr>
+        </table>
+
+        <div class="empty-state" *ngIf="eventos.length === 0">
+          <mat-icon>shield</mat-icon>
+          <p>No hay eventos de seguridad con los filtros actuales.</p>
+        </div>
+      </div>
+    }
+
+    <!-- Vista tarjetas (mobile) -->
+    @if (isMobile) {
+      <div class="mobile-cards">
+        @for (e of eventos; track e.id) {
+          <div class="event-card" [class.card-fail]="!e.success">
+            <div class="card-top">
+              <span class="event-label" [class.label-fail]="!e.success" [class.label-ok]="e.success">
+                {{ labelAccion(e.action) }}
+              </span>
+              <mat-icon [class.icon-ok]="e.success" [class.icon-fail]="!e.success"
+                        [matTooltip]="e.success ? 'Exitoso' : 'Fallido'">
+                {{ e.success ? 'verified_user' : 'gpp_bad' }}
+              </mat-icon>
+            </div>
+            <div class="card-row">
+              <span class="card-label">Fecha y hora</span>
+              <span class="card-val">{{ formatDate(e.occurred_at) }}</span>
+            </div>
+            <div class="card-row">
+              <span class="card-label">Usuario</span>
+              <span class="card-val">{{ e.actor_email ?? '—' }}</span>
+            </div>
+            <div class="card-row">
+              <span class="card-label">IP · Navegador</span>
+              <span class="card-val card-mono">{{ e.ip ?? '—' }} · {{ abreviarUA(e.user_agent) }}</span>
+            </div>
+          </div>
+        }
+        @if (eventos.length === 0) {
+          <div class="empty-state">
+            <mat-icon>shield</mat-icon>
+            <p>No hay eventos de seguridad con los filtros actuales.</p>
+          </div>
+        }
+      </div>
+    }
+  }
+
+  <mat-paginator *ngIf="!cargando && totalElements > 0"
+    [length]="totalElements"
+    [pageSize]="pageSize"
+    [pageSizeOptions]="[25, 50, 100]"
+    [pageIndex]="pageIndex"
+    (page)="onPage($event)">
+  </mat-paginator>
+</div>

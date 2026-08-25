@@ -1,0 +1,232 @@
+<h2 mat-dialog-title class="fad-titulo">
+  <mat-icon aria-hidden="true">admin_panel_settings</mat-icon>
+  Permisos y control del proceso
+  @if (data.formName) {
+    <span class="fad-form">· {{ data.formName }}</span>
+  }
+</h2>
+
+@if (guardando()) {
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+}
+
+<mat-dialog-content class="fad-contenido">
+
+  @if (error()) {
+    <div class="fad-error" role="alert">
+      <mat-icon aria-hidden="true">error</mat-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+  @if (aviso()) {
+    <div class="fad-aviso-ok" role="status">
+      <mat-icon aria-hidden="true">check_circle</mat-icon>
+      <span>{{ aviso() }}</span>
+    </div>
+  }
+
+  <!-- ── Modo de acceso ─────────────────────────────────────────────── -->
+  <section class="fad-bloque">
+    <mat-slide-toggle [checked]="porRoles()" (change)="porRoles.set($event.checked)">
+      Restringir el acceso
+    </mat-slide-toggle>
+    <p class="fad-ayuda">
+      Apagado, el formulario funciona como siempre: lo gestionan su creador y los
+      administradores, y el resto solo lo llena.
+      Encendido, solo entra quien aparezca abajo —por su rol, por su finca o empresa
+      usuaria, por su oficina o por su nombre— y con lo que le concedas. Quien caiga en
+      varias reglas suma lo de todas.
+    </p>
+    <p class="fad-ayuda fad-ayuda--fina">
+      Para que además le aparezca en el MENÚ hace falta que su rol tenga acceso: el menú lo
+      reparte ms-auth-admin por rol. Con finca, oficina o persona el formulario se abre por
+      su enlace y quien no esté en la lista recibe un aviso claro.
+    </p>
+  </section>
+
+  @if (porRoles()) {
+    <!-- ── Matriz de roles ──────────────────────────────────────────── -->
+    <section class="fad-bloque">
+      <div class="fad-cabecera-bloque">
+        <h3>Quién entra y qué puede hacer</h3>
+      </div>
+
+      <!-- Dar acceso a: rol, grupo/finca, oficina o persona. Cuatro dimensiones de lo
+           mismo, así que comparten fila y capacidades. -->
+      <div class="fad-sujetos">
+        <div class="fad-tabs" role="tablist" aria-label="Tipo de destinatario">
+          @for (t of tiposSujeto; track t) {
+            <button type="button" class="fad-tab" role="tab"
+                    [class.fad-tab--activo]="tipoActivo() === t"
+                    [attr.aria-selected]="tipoActivo() === t"
+                    (click)="tipoActivo.set(t); busquedaSujeto.set('')">
+              <mat-icon aria-hidden="true">{{ iconoSujeto[t] }}</mat-icon>
+              {{ nombreSujeto[t] }}
+            </button>
+          }
+        </div>
+
+        <mat-form-field appearance="outline" class="fad-buscar">
+          <mat-label>Buscar {{ nombreSujeto[tipoActivo()].toLowerCase() }}</mat-label>
+          <input matInput [ngModel]="busquedaSujeto()" (ngModelChange)="busquedaSujeto.set($event)"
+                 [placeholder]="tipoActivo() === 'USUARIO' ? 'Nombre, documento o correo…' : 'Nombre…'" />
+          <mat-icon matSuffix aria-hidden="true">search</mat-icon>
+        </mat-form-field>
+
+        @if (cargandoRoles()) {
+          <p class="fad-ayuda" role="status">Cargando catálogos…</p>
+        } @else if (exigeBuscar()) {
+          <p class="fad-ayuda">Escribe al menos dos letras para buscar a la persona.</p>
+        } @else if (sujetosDisponibles().length === 0) {
+          <p class="fad-ayuda">
+            @if (tipoActivo() === 'GRUPO') {
+              No hay grupos disponibles. Créalos en «Grupos y etiquetas» (o sincroniza el
+              catálogo para traer las fincas y empresas usuarias).
+            } @else {
+              No queda ninguno por agregar.
+            }
+          </p>
+        } @else {
+          <div class="fad-opciones">
+            @for (su of sujetosDisponibles(); track su.id) {
+              <button type="button" class="fad-opcion" (click)="agregarSujeto(su)">
+                <mat-icon aria-hidden="true">add</mat-icon>
+                <span class="fad-opcion-texto">
+                  <span class="fad-opcion-nombre">{{ su.nombre }}</span>
+                  @if (su.detalle) { <span class="fad-opcion-detalle">{{ su.detalle }}</span> }
+                </span>
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      @if (reglas().length === 0) {
+        <p class="fad-vacio">
+          Todavía no hay nadie configurado. Agrega un rol, una finca, una oficina o una
+          persona para empezar a repartir permisos; mientras tanto, solo el creador y los
+          administradores verán algo más que el formulario.
+        </p>
+      }
+
+      @for (regla of reglas(); track claveDe(regla)) {
+        @let clave = claveDe(regla);
+        <div class="fad-rol">
+          <div class="fad-rol-cabecera">
+            <mat-icon aria-hidden="true">{{ iconoSujeto[tipoDe(regla)] }}</mat-icon>
+            <span class="fad-rol-nombre">{{ nombreDe(regla) }}</span>
+            <span class="fad-sujeto-tipo">{{ nombreSujeto[tipoDe(regla)] }}</span>
+            <span class="fad-grow"></span>
+            <button mat-icon-button (click)="quitarRegla(clave)"
+                    [attr.aria-label]="'Quitar ' + nombreDe(regla)"
+                    matTooltip="Quitar de los permisos">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+
+          <div class="fad-capacidades">
+            @for (cap of capacidades; track cap.key) {
+              <mat-checkbox
+                [checked]="valorCapacidad(regla, cap.key)"
+                (change)="alternarCapacidad(clave, cap.key, $event.checked)"
+                [matTooltip]="cap.hint">
+                {{ cap.label }}
+              </mat-checkbox>
+            }
+          </div>
+
+          <!-- Columnas que este rol puede escribir: el control fino que pide el proceso -->
+          @if (hayColumnas()) {
+            <button type="button" class="fad-columnas-toggle"
+                    (click)="alternarColumnas(clave)"
+                    [attr.aria-expanded]="rolExpandido() === clave">
+              <mat-icon aria-hidden="true">view_column</mat-icon>
+              <span>Puede llenar: <b>{{ resumenColumnas(regla) }}</b></span>
+              <mat-icon class="fad-chevron" [class.abierto]="rolExpandido() === clave"
+                        aria-hidden="true">expand_more</mat-icon>
+            </button>
+
+            @if (rolExpandido() === clave) {
+              <div class="fad-columnas">
+                <mat-checkbox [checked]="todasLasColumnas(regla)"
+                              (change)="alternarTodasLasColumnas(clave, $event.checked)">
+                  <b>Todas las columnas</b>
+                </mat-checkbox>
+                <div class="fad-columnas-lista">
+                  @for (col of columnas(); track col.key) {
+                    <mat-checkbox
+                      [checked]="columnaEditable(regla, col.key)"
+                      [disabled]="todasLasColumnas(regla)"
+                      (change)="alternarColumna(clave, col.key, $event.checked)"
+                      [matTooltip]="col.section_title || col.section">
+                      {{ col.label }}
+                    </mat-checkbox>
+                  }
+                </div>
+                <p class="fad-ayuda fad-ayuda--fina">
+                  Las columnas que no marques no se pueden escribir ni desde la pantalla ni
+                  desde una carga masiva: el servidor las ignora aunque vengan en el archivo.
+                </p>
+              </div>
+            }
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ── Control del proceso ────────────────────────────────────────── -->
+  <section class="fad-bloque">
+    <mat-slide-toggle [checked]="procesoActivo()" (change)="procesoActivo.set($event.checked)">
+      Activar el control del proceso
+    </mat-slide-toggle>
+    <p class="fad-ayuda">
+      Agrega una quinta pestaña al formulario con el seguimiento del dato: estado de cada
+      registro, si cambió después de enviarse, quién lo tocó, y carga masiva para llenarlo
+      o corregirlo en bloque.
+    </p>
+
+    @if (procesoActivo()) {
+      <div class="fad-proceso">
+        <mat-form-field appearance="outline" class="fad-llave">
+          <mat-label>Campo llave (para cruzar las cargas masivas)</mat-label>
+          <mat-select [value]="campoLlave()" (selectionChange)="campoLlave.set($event.value)">
+            <mat-option [value]="null">Sin campo llave (solo por ID)</mat-option>
+            @for (col of columnas(); track col.key) {
+              <mat-option [value]="col.key">{{ col.label }}</mat-option>
+            }
+          </mat-select>
+          <mat-hint>
+            Es la columna que identifica al registro en el negocio: cédula, contrato, radicado…
+          </mat-hint>
+        </mat-form-field>
+
+        <mat-slide-toggle [checked]="permitirEditarEnviadas()"
+                          (change)="permitirEditarEnviadas.set($event.checked)">
+          Permitir editar respuestas ya enviadas
+        </mat-slide-toggle>
+        <p class="fad-ayuda fad-ayuda--fina">
+          Sin esto solo se pueden corregir borradores. Con esto, quien tenga el permiso puede
+          corregir un registro enviado — y cada corrección queda en el historial con su autor,
+          su fecha y el valor anterior.
+        </p>
+
+        @if (data.formId && campoLlave()) {
+          <button mat-stroked-button (click)="reindexar()" [disabled]="guardando()"
+                  matTooltip="Rellena la llave en los registros que ya existían. No modifica ningún dato.">
+            <mat-icon>sync</mat-icon>
+            Reindexar la llave en los registros existentes
+          </button>
+        }
+      </div>
+    }
+  </section>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cerrar()" [disabled]="guardando()">Cancelar</button>
+  <button mat-flat-button class="fad-guardar" (click)="guardar()" [disabled]="guardando()">
+    <mat-icon>save</mat-icon>
+    {{ data.formId ? 'Guardar permisos' : 'Aplicar al formulario' }}
+  </button>
+</mat-dialog-actions>

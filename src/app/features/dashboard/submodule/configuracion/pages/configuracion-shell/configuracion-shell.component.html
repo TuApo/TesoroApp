@@ -1,0 +1,38 @@
+<section class="cfg">
+  <header class="cfg-header">
+    <div class="cfg-header__icon">
+      <mat-icon fontSet="material-symbols-outlined">settings</mat-icon>
+    </div>
+    <div class="cfg-header__text">
+      <h1 class="cfg-header__title">Configuración</h1>
+      <p class="cfg-header__subtitle">Administra tu cuenta y las preferencias de la app</p>
+    </div>
+  </header>
+
+  <div class="cfg-body">
+    <!-- Navegación entre páginas de configuración -->
+    <nav class="cfg-nav" aria-label="Secciones de configuración">
+      @for (s of sections; track trackByRuta($index, s)) {
+        <a
+          class="cfg-nav__item"
+          [routerLink]="s.ruta"
+          routerLinkActive="is-active"
+          [attr.aria-label]="s.titulo">
+          <span class="cfg-nav__icon">
+            <mat-icon fontSet="material-symbols-outlined">{{ s.icono }}</mat-icon>
+          </span>
+          <span class="cfg-nav__labels">
+            <span class="cfg-nav__title">{{ s.titulo }}</span>
+            <span class="cfg-nav__desc">{{ s.descripcion }}</span>
+          </span>
+          <mat-icon class="cfg-nav__chevron" fontSet="material-symbols-outlined">chevron_right</mat-icon>
+        </a>
+      }
+    </nav>
+
+    <!-- Página activa -->
+    <div class="cfg-content">
+      <router-outlet></router-outlet>
+    </div>
+  </div>
+</section>

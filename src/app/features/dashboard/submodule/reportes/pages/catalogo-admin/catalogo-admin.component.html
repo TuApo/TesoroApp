@@ -1,0 +1,179 @@
+<div class="cat">
+  <header class="cat__head">
+    <button mat-icon-button routerLink="/dashboard/reportes" matTooltip="Volver">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div>
+      <h1>Catálogo de datos</h1>
+      <p>Qué tablas y columnas se pueden reportar, cómo se llaman y quién puede verlas.</p>
+    </div>
+    <span class="cat__sp"></span>
+    <button mat-stroked-button (click)="refrescar()">
+      <mat-icon>refresh</mat-icon> Releer el esquema
+    </button>
+  </header>
+
+  @if (cargando() || guardando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  @if (diagnostico(); as d) {
+    <div class="resumen">
+      <div class="metrica"><b>{{ d.origenes }}</b><span>orígenes</span></div>
+      <div class="metrica"><b>{{ d.datasets }}</b><span>tablas expuestas</span></div>
+      <div class="metrica"><b>{{ d.campos }}</b><span>columnas</span></div>
+      <div class="metrica"><b>{{ d.relaciones }}</b><span>relaciones</span></div>
+      <div class="metrica metrica--v"><b>v{{ d.version }}</b><span>versión del catálogo</span></div>
+    </div>
+  }
+
+  @if (incidencias().length) {
+    <div class="incid">
+      <h3><mat-icon>report_problem</mat-icon> {{ incidencias().length }} incidencia(s) al cargar el catálogo</h3>
+      <p class="incid__ayuda">
+        Suelen aparecer cuando una migración renombra o elimina una columna que el catálogo
+        todavía referencia. Esas entradas se ignoran hasta corregirlas.
+      </p>
+      <ul>
+        @for (i of incidencias(); track $index) { <li>{{ i }}</li> }
+      </ul>
+    </div>
+  }
+
+  <mat-tab-group animationDuration="120ms">
+    <!-- ── Tablas ya expuestas ─────────────────────────────────────────── -->
+    <mat-tab label="Expuestas">
+      <div class="cuerpo">
+        <div class="buscador">
+          <mat-icon>search</mat-icon>
+          <input type="text" [(ngModel)]="busqueda" placeholder="Buscar tabla…">
+        </div>
+
+        @for (d of datasets(); track d.clave) {
+          <mat-expansion-panel class="ds" (opened)="verPermisos(d)">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon>{{ d.icono }}</mat-icon>
+                <b>{{ d.nombre }}</b>
+                <code>{{ d.esquema }}.{{ d.tabla_fisica }}</code>
+              </mat-panel-title>
+              <mat-panel-description>
+                {{ d.campos.length }} columnas
+                @if (camposSensibles(d)) {
+                  <span class="sens"><mat-icon>shield</mat-icon>{{ camposSensibles(d) }} sensibles</span>
+                }
+                @if (d.editable) { <span class="edit"><mat-icon>edit_note</mat-icon>editable</span> }
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="ds__cuerpo">
+              <div class="ds__acciones">
+                <button mat-stroked-button (click)="pedirRol(d.clave)">
+                  <mat-icon>person_add</mat-icon> Dar acceso a un rol
+                </button>
+                <button mat-stroked-button class="peligro" (click)="quitarTabla(d)">
+                  <mat-icon>visibility_off</mat-icon> Quitar del catálogo
+                </button>
+              </div>
+
+              <h4>Quién puede consultarla</h4>
+              @if (permisos()[d.clave]; as ps) {
+                @if (ps.length) {
+                  <div class="permisos">
+                    @for (p of ps; track p.sujeto_ref) {
+                      <span class="perm">
+                        <mat-icon>badge</mat-icon>{{ p.sujeto_ref }}
+                        @if (p.puede_ver_sensibles) { <em matTooltip="Incluye campos sensibles">+sensibles</em> }
+                        <button mat-icon-button (click)="quitarPermiso(d.clave, p.sujeto_ref)">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      </span>
+                    }
+                  </div>
+                } @else {
+                  <p class="nota">Solo los administradores del módulo. Agrega un rol para ampliarlo.</p>
+                }
+              }
+
+              <h4>Columnas</h4>
+              <div class="cols">
+                @for (c of d.campos; track c.clave) {
+                  <div class="col">
+                    <span class="col__n">{{ c.nombre }}</span>
+                    <code>{{ c.columna }}</code>
+                    <span class="col__t">{{ c.tipo }}</span>
+                    @if (c.sensible) { <mat-icon class="col__s" matTooltip="Sensible">shield</mat-icon> }
+                    @if (c.agregable) { <mat-icon class="col__a" matTooltip="Se puede sumar/promediar">functions</mat-icon> }
+                    @if (c.editable) { <mat-icon class="col__e" matTooltip="Editable desde el reporte">edit</mat-icon> }
+                  </div>
+                }
+              </div>
+            </div>
+          </mat-expansion-panel>
+        }
+
+        @if (!datasets().length) {
+          <p class="nota">No hay tablas expuestas todavía. Ve a «Agregar tablas».</p>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ── Agregar tablas ──────────────────────────────────────────────── -->
+    <mat-tab label="Agregar tablas">
+      <div class="cuerpo">
+        <mat-form-field appearance="outline" class="esq">
+          <mat-label>Esquema</mat-label>
+          <mat-select [ngModel]="esquemaSeleccionado()"
+                      (ngModelChange)="esquemaSeleccionado.set($event); cargarEsquema()">
+            @for (e of esquemas(); track e) { <mat-option [value]="e">{{ e }}</mat-option> }
+          </mat-select>
+          <mat-hint>Solo aparecen los esquemas autorizados en la configuración del servicio</mat-hint>
+        </mat-form-field>
+
+        <div class="tablas">
+          @for (t of tablasDisponibles(); track t.tabla) {
+            <div class="tabla" [class.tabla--ya]="t.ya_expuesta">
+              <mat-icon>{{ t.ya_expuesta ? 'check_circle' : 'table_chart' }}</mat-icon>
+              <div class="tabla__txt">
+                <b>{{ aTitulo(t.tabla) }}</b>
+                <code>{{ t.esquema }}.{{ t.tabla }}</code>
+                <span>{{ t.columnas.length }} columnas</span>
+              </div>
+              @if (!t.ya_expuesta) {
+                <button mat-stroked-button (click)="exponerTabla(t)">
+                  <mat-icon>add</mat-icon> Exponer
+                </button>
+              } @else {
+                <span class="ya">Ya expuesta</span>
+              }
+            </div>
+          }
+          @if (!tablasDisponibles().length) {
+            <p class="nota">Elige un esquema para ver sus tablas.</p>
+          }
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- ── Relaciones sugeridas ────────────────────────────────────────── -->
+    <mat-tab label="Relaciones sugeridas">
+      <div class="cuerpo">
+        <p class="nota">
+          Estas relaciones se deducen de las llaves foráneas reales del esquema y todavía
+          no están en el catálogo. Agregarlas permite que el constructor una esas tablas.
+        </p>
+        @for (r of relacionesSugeridas(); track r.clave) {
+          <div class="rel">
+            <mat-icon>link</mat-icon>
+            <div class="rel__txt">
+              <b>{{ r.nombre }}</b>
+              <code>{{ r.dataset_izq }}.{{ r.columna_izq }} = {{ r.dataset_der }}.{{ r.columna_der }}</code>
+            </div>
+            <button mat-stroked-button (click)="crearRelacion(r)"><mat-icon>add</mat-icon> Agregar</button>
+          </div>
+        }
+        @if (!relacionesSugeridas().length) {
+          <p class="nota">No hay relaciones nuevas por sugerir en este esquema.</p>
+        }
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

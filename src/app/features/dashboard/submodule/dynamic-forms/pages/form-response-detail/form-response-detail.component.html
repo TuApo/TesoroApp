@@ -1,0 +1,116 @@
+<div class="detalle-layout">
+
+  <!-- Header estándar de página -->
+  <header class="card-header-premium" role="banner">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <span class="material-symbols-outlined header-icon" aria-hidden="true">fact_check</span>
+      </div>
+      <div class="header-text">
+        <h1 class="titulo">{{ tituloFormulario() }}</h1>
+        <p class="subtitulo">Detalle de la respuesta #{{ submissionId() }}</p>
+        @if (submission()) {
+          <div class="header-meta">
+            @if (versionLabel()) {
+              <span class="badge badge--version">{{ versionLabel() }}</span>
+            }
+            <span [class]="'badge ' + estadoClase()">{{ estadoLabel() }}</span>
+            <span class="meta-item">
+              <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+              {{ etiquetaFecha() }}: {{ fechaEnvio() | date:'dd/MM/yyyy HH:mm' }}
+            </span>
+            <span class="meta-item">
+              <span class="material-symbols-outlined" aria-hidden="true">person</span>
+              {{ autor() }}
+            </span>
+          </div>
+        }
+      </div>
+      <div class="grow"></div>
+      <div class="header-actions">
+        <a class="hbtn hbtn--ghost" [routerLink]="['..']" title="Volver al listado de respuestas">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+          Volver
+        </a>
+        <button type="button" class="hbtn hbtn--ghost"
+                (click)="exportarPdf()"
+                [disabled]="exportando() || !submission() || !estructura()">
+          <span class="material-symbols-outlined" aria-hidden="true">picture_as_pdf</span>
+          {{ exportando() ? 'Generando…' : 'Exportar PDF' }}
+        </button>
+        @if (esEnviada()) {
+          <button type="button" class="hbtn hbtn--aprobar"
+                  (click)="cambiarEstado('APPROVED')" [disabled]="cambiandoEstado()">
+            <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+            Aprobar
+          </button>
+          <button type="button" class="hbtn hbtn--rechazar"
+                  (click)="cambiarEstado('REJECTED')" [disabled]="cambiandoEstado()">
+            <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
+            Rechazar
+          </button>
+        }
+      </div>
+    </div>
+  </header>
+
+  <!-- Banner sutil: la respuesta pertenece a una versión ya reemplazada -->
+  @if (versionDeprecada()) {
+    <div class="banner-version" role="note">
+      <span class="material-symbols-outlined" aria-hidden="true">history</span>
+      Respondida con la versión {{ versionLabel() }} (estructura histórica)
+    </div>
+  }
+
+  <!-- Cargando -->
+  @if (cargando()) {
+    <div class="estado-vacio" aria-live="polite">
+      <span class="material-symbols-outlined giro" aria-hidden="true">progress_activity</span>
+      Cargando respuesta…
+    </div>
+  }
+
+  <!-- Error -->
+  @if (!cargando() && error()) {
+    <div class="estado-error" role="alert">
+      <span class="material-symbols-outlined" aria-hidden="true">error</span>
+      <p>{{ error() }}</p>
+      <button type="button" class="hbtn hbtn--reintentar" (click)="cargar()">
+        <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+        Reintentar
+      </button>
+    </div>
+  }
+
+  <!--
+    CUERPO: se recorre la ESTRUCTURA (de la versión de la respuesta) en orden y
+    cada campo se pinta con el motor de render en modo readonly, que despacha
+    por el TIPO REAL (PHOTO=miniatura, FILE=chips, LOCATION=coordenadas, …).
+    Nada de diálogos genéricos ni heurísticas por nombre de clave.
+  -->
+  @if (!cargando() && !error() && estructura()) {
+    @for (vm of seccionesVista(); track vm.sec.code ?? $index) {
+      <section class="seccion-card" [attr.aria-label]="vm.sec.title || 'Sección ' + ($index + 1)">
+        @if (vm.sec.title) {
+          <h2 class="seccion-titulo">{{ vm.sec.title }}</h2>
+        }
+        @if (vm.campos.length === 0) {
+          <p class="seccion-vacia">Esta sección no tiene campos.</p>
+        }
+        <div class="campos-grid">
+          @for (f of vm.campos; track f.name ?? f.label) {
+            <div class="campo-celda" [class.campo-celda--full]="esAnchoCompleto(f)">
+              <app-field-renderer
+                [field]="f"
+                mode="readonly"
+                [value]="valorDe(vm, f)"
+                [sectionValues]="f.type === 'SECTION' ? vm.valores : null"
+                [downloadUrlFn]="downloadUrlFn" />
+            </div>
+          }
+        </div>
+      </section>
+    }
+  }
+
+</div>

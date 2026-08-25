@@ -1,0 +1,315 @@
+<div class="resumen-container">
+
+  <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <mat-icon class="header-icon">dashboard</mat-icon>
+      <div>
+        <h1>Dashboard de Plataforma</h1>
+        <p>Vista unificada de todos los módulos · datos en tiempo real</p>
+      </div>
+    </div>
+    <button mat-stroked-button (click)="cargar()" [disabled]="loading" class="btn-refresh">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+  </div>
+
+  <!-- ══ FILTROS ════════════════════════════════════════════════════ -->
+  <div class="filtros-bar">
+    <div class="filtro-group">
+      <label class="filtro-label"><mat-icon>calendar_today</mat-icon> Desde</label>
+      <input type="date" class="filtro-input" [(ngModel)]="desde" [max]="hasta">
+    </div>
+    <div class="filtro-group">
+      <label class="filtro-label"><mat-icon>event</mat-icon> Hasta</label>
+      <input type="date" class="filtro-input" [(ngModel)]="hasta" [min]="desde">
+    </div>
+    <div class="filtro-group" *ngIf="sedes.length">
+      <label class="filtro-label"><mat-icon>location_on</mat-icon> Sede</label>
+      <select class="filtro-select" [(ngModel)]="selectedOficina">
+        <option value="">Todas las sedes</option>
+        <option *ngFor="let s of sedes" [value]="s.nombre ?? s.name">{{ s.nombre ?? s.name }}</option>
+      </select>
+    </div>
+    <button mat-flat-button color="primary" (click)="cargar()" [disabled]="loading">
+      <mat-icon>search</mat-icon> Aplicar filtros
+    </button>
+  </div>
+
+  <!-- ══ LOADING ════════════════════════════════════════════════════ -->
+  <div class="loading-bar" *ngIf="loading">
+    <mat-spinner diameter="24"></mat-spinner>
+    <span>Cargando datos de todos los módulos…</span>
+  </div>
+
+  <div class="grid-layout" *ngIf="!loading">
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SECCIÓN 1 · AUDITORÍA (full-width)
+    ══════════════════════════════════════════════════════════════ -->
+    <mat-card class="section-card full-width audit-card">
+      <div class="section-header audit-header">
+        <mat-icon>manage_search</mat-icon>
+        <span>Actividad de Plataforma</span>
+        <a [routerLink]="['/dashboard/audit-logs/actividad']" class="ver-mas">Ver detalle →</a>
+      </div>
+      <div class="kpis-row" *ngIf="auditStats; else auditNA">
+        <div class="kpi-mini" style="--accent: #3b82f6">
+          <span class="kpi-num">{{ n(auditStats.total_eventos) | number }}</span>
+          <span class="kpi-lbl">Eventos (30d)</span>
+        </div>
+        <div class="kpi-mini" style="--accent: #10b981">
+          <span class="kpi-num">{{ n(auditStats.login_exitosos) | number }}</span>
+          <span class="kpi-lbl">Accesos exitosos</span>
+        </div>
+        <div class="kpi-mini" style="--accent: #ef4444">
+          <span class="kpi-num">{{ n(auditStats.login_fallidos) | number }}</span>
+          <span class="kpi-lbl">Accesos fallidos</span>
+        </div>
+        <div class="kpi-mini" style="--accent: #f59e0b">
+          <span class="kpi-num">{{ n(auditStats.total_cambios) | number }}</span>
+          <span class="kpi-lbl">Cambios registrados</span>
+        </div>
+        <div class="kpi-mini" style="--accent: #8b5cf6">
+          <span class="kpi-num">{{ n(auditStats.cambios_hoy) | number }}</span>
+          <span class="kpi-lbl">Cambios hoy</span>
+        </div>
+        <div class="kpi-mini" style="--accent: #06b6d4" *ngIf="auditStats.top_actores?.length">
+          <span class="kpi-num" style="font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 120px;">
+            {{ auditStats.top_actores[0]?.nombre ?? '—' }}
+          </span>
+          <span class="kpi-lbl">Usuario más activo</span>
+        </div>
+      </div>
+      <ng-template #auditNA>
+        <div class="no-data">Sin datos de auditoría disponibles</div>
+      </ng-template>
+    </mat-card>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SECCIÓN 2 · CONTRATACIÓN
+    ══════════════════════════════════════════════════════════════ -->
+    <mat-card class="section-card contrat-card">
+      <div class="section-header contrat-header">
+        <mat-icon>account_tree</mat-icon>
+        <span>Pipeline de Contratación</span>
+        <a [routerLink]="['/dashboard/hiring/recruitment-pipeline']" class="ver-mas">Ver pipeline →</a>
+      </div>
+
+      <div *ngIf="contratacion; else noData">
+        <!-- KPIs -->
+        <div class="kpis-row">
+          <div class="kpi-mini" style="--accent: #3b82f6">
+            <span class="kpi-num">{{ n(contKpis.total_procesos ?? contKpis.totalProcesos) | number }}</span>
+            <span class="kpi-lbl">Total procesos</span>
+          </div>
+          <div class="kpi-mini" style="--accent: #10b981">
+            <span class="kpi-num">{{ n(contKpis.total_contratados ?? contKpis.totalContratados) | number }}</span>
+            <span class="kpi-lbl">Contratados</span>
+          </div>
+          <div class="kpi-mini" style="--accent: #f59e0b">
+            <span class="kpi-num">{{ n(contKpis.total_espera ?? contKpis.totalEspera) | number }}</span>
+            <span class="kpi-lbl">En espera</span>
+          </div>
+          <div class="kpi-mini" style="--accent: #ef4444">
+            <span class="kpi-num">{{ n(contKpis.total_rechazados ?? contKpis.totalRechazados) | number }}</span>
+            <span class="kpi-lbl">Rechazados</span>
+          </div>
+        </div>
+        <!-- Gráfica pipeline -->
+        <div class="chart-wrap" *ngIf="pipelineOpt && pipelineOpt['series']">
+          <div echarts [options]="pipelineOpt" class="echart pipeline-chart"></div>
+        </div>
+      </div>
+      <ng-template #noData>
+        <div class="no-data"><mat-icon>cloud_off</mat-icon> No disponible</div>
+      </ng-template>
+    </mat-card>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SECCIÓN 3 · AFILIACIONES
+    ══════════════════════════════════════════════════════════════ -->
+    <mat-card class="section-card afil-card">
+      <div class="section-header afil-header">
+        <mat-icon>people_alt</mat-icon>
+        <span>Afiliaciones</span>
+        <a [routerLink]="['/dashboard/afiliaciones']" class="ver-mas">Ver módulo →</a>
+      </div>
+
+      <div *ngIf="afiliaciones; else noDataAfil">
+        <div class="kpis-row">
+          <div class="kpi-mini" style="--accent: #6366f1">
+            <span class="kpi-num">{{ n(afilKpis.total_ingresos ?? afilKpis.totalIngresos) | number }}</span>
+            <span class="kpi-lbl">Total ingresos</span>
+          </div>
+          <div class="kpi-mini" style="--accent: #10b981">
+            <span class="kpi-num">{{ n(afilKpis.ingresos_hoy ?? afilKpis.ingresosHoy) | number }}</span>
+            <span class="kpi-lbl">Ingresos hoy</span>
+          </div>
+          <div class="kpi-mini" style="--accent: #f59e0b">
+            <span class="kpi-num">{{ n(afilKpis.total_pendientes ?? afilKpis.totalPendientes) | number }}</span>
+            <span class="kpi-lbl">Pendientes</span>
+          </div>
+          <div class="kpi-mini" style="--accent: #3b82f6">
+            <span class="kpi-num">{{ n(afilKpis.total_oficinas ?? afilKpis.totalOficinas) | number }}</span>
+            <span class="kpi-lbl">Oficinas activas</span>
+          </div>
+        </div>
+        <!-- Gráfica por oficina -->
+        <div class="chart-wrap" *ngIf="afilOficinaOpt && afilOficinaOpt['series']">
+          <p class="chart-title">Ingresos por oficina</p>
+          <div echarts [options]="afilOficinaOpt" class="echart oficina-chart"></div>
+        </div>
+      </div>
+      <ng-template #noDataAfil>
+        <div class="no-data"><mat-icon>cloud_off</mat-icon> No disponible</div>
+      </ng-template>
+    </mat-card>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SECCIÓN 4 · TESORERÍA
+    ══════════════════════════════════════════════════════════════ -->
+    <mat-card class="section-card tes-card">
+      <div class="section-header tes-header">
+        <mat-icon>account_balance_wallet</mat-icon>
+        <span>Tesorería</span>
+        <a [routerLink]="['/dashboard/treasury/manage-workers']" class="ver-mas">Ver módulo →</a>
+      </div>
+
+      <div *ngIf="tesStats; else noDataTes">
+        <div class="kpis-grid-2">
+          <div class="kpi-block" style="--c: #3b82f6">
+            <mat-icon class="kpi-icon-lg">people</mat-icon>
+            <div class="kpi-block-body">
+              <span class="kpi-block-num">{{ n(tesStats.totalPersonas ?? tesStats.total_personas) | number }}</span>
+              <span class="kpi-block-lbl">Total personas</span>
+            </div>
+          </div>
+          <div class="kpi-block" style="--c: #10b981">
+            <mat-icon class="kpi-icon-lg">verified_user</mat-icon>
+            <div class="kpi-block-body">
+              <span class="kpi-block-num">{{ n(tesStats.activos) | number }}</span>
+              <span class="kpi-block-lbl">Activos</span>
+            </div>
+          </div>
+          <div class="kpi-block" style="--c: #ef4444">
+            <mat-icon class="kpi-icon-lg">block</mat-icon>
+            <div class="kpi-block-body">
+              <span class="kpi-block-num">{{ n(tesStats.bloqueados) | number }}</span>
+              <span class="kpi-block-lbl">Bloqueados</span>
+            </div>
+          </div>
+          <div class="kpi-block" style="--c: #f59e0b">
+            <mat-icon class="kpi-icon-lg">receipt_long</mat-icon>
+            <div class="kpi-block-body">
+              <span class="kpi-block-num">{{ n(tesStats.transaccionesPendientes ?? tesStats.transacciones_pendientes) | number }}</span>
+              <span class="kpi-block-lbl">Transacc. pendientes</span>
+            </div>
+          </div>
+        </div>
+        <div class="saldo-total" *ngIf="tesStats.sumaSaldoPendiente != null || tesStats.suma_saldo_pendiente != null">
+          <mat-icon>payments</mat-icon>
+          <span>Saldo pendiente total:</span>
+          <strong>{{ currency(tesStats.sumaSaldoPendiente ?? tesStats.suma_saldo_pendiente) }}</strong>
+        </div>
+      </div>
+      <ng-template #noDataTes>
+        <div class="no-data"><mat-icon>cloud_off</mat-icon> No disponible</div>
+      </ng-template>
+    </mat-card>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SECCIÓN 5 · LEGAL
+    ══════════════════════════════════════════════════════════════ -->
+    <mat-card class="section-card legal-card">
+      <div class="section-header legal-header">
+        <mat-icon>gavel</mat-icon>
+        <span>Gestión Legal</span>
+        <a [routerLink]="['/dashboard/gestion-legal/bandeja']" class="ver-mas">Ver bandeja →</a>
+      </div>
+
+      <div *ngIf="legalPorTipo.length || legalPorEstado.length; else noDataLegal">
+        <!-- Resumen por estado -->
+        <div class="estados-chips" *ngIf="legalPorEstado.length">
+          <div class="estado-chip" *ngFor="let e of legalPorEstado">
+            <span class="estado-num">{{ n(e.total ?? e.count ?? 0) }}</span>
+            <span class="estado-lbl">{{ e.estado ?? e.nombre ?? e.name ?? '?' }}</span>
+          </div>
+        </div>
+        <!-- Gráfica donut -->
+        <div class="chart-wrap" *ngIf="legalOpt && legalOpt['series']">
+          <p class="chart-title">Procesos por tipo</p>
+          <div echarts [options]="legalOpt" class="echart donut-chart"></div>
+        </div>
+        <!-- Vencimientos próximos -->
+        <div class="vencimientos" *ngIf="legalVencimientos.length">
+          <p class="chart-title" style="margin-top:12px">Vencimientos próximos (30 días)</p>
+          <div class="venc-item" *ngFor="let v of legalVencimientos | slice:0:5">
+            <mat-icon class="venc-icon">warning_amber</mat-icon>
+            <div class="venc-body">
+              <span class="venc-tipo">{{ v.tipo_proceso ?? v.tipo ?? '?' }}</span>
+              <span class="venc-fecha">{{ formatDate(v.fecha_vencimiento ?? v.fecha ?? '') }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ng-template #noDataLegal>
+        <div class="no-data"><mat-icon>cloud_off</mat-icon> No disponible</div>
+      </ng-template>
+    </mat-card>
+
+    <!-- ══════════════════════════════════════════════════════════════
+         SECCIÓN 6 · SOPORTE / BUG TICKETS
+    ══════════════════════════════════════════════════════════════ -->
+    <mat-card class="section-card bug-card">
+      <div class="section-header bug-header">
+        <mat-icon>bug_report</mat-icon>
+        <span>Tickets de Soporte</span>
+        <a [routerLink]="['/dashboard/bug-tickets/bug-dashboard']" class="ver-mas">Ver tickets →</a>
+      </div>
+
+      <div *ngIf="bugStats; else noDataBug">
+        <!-- Estado resumido -->
+        <div class="bug-estados">
+          <div class="bug-estado-pill" [style.--bc]="'#ef4444'">
+            <span class="bug-num">{{ n(bugStats.abiertos ?? bugStats.abierto ?? 0) }}</span>
+            <span class="bug-lbl">Abiertos</span>
+          </div>
+          <div class="bug-estado-pill" [style.--bc]="'#f59e0b'">
+            <span class="bug-num">{{ n(bugStats.en_progreso ?? bugStats.enProgreso ?? 0) }}</span>
+            <span class="bug-lbl">En progreso</span>
+          </div>
+          <div class="bug-estado-pill" [style.--bc]="'#22c55e'">
+            <span class="bug-num">{{ n(bugStats.resueltos ?? bugStats.resuelto ?? 0) }}</span>
+            <span class="bug-lbl">Resueltos</span>
+          </div>
+          <div class="bug-estado-pill" [style.--bc]="'#94a3b8'">
+            <span class="bug-num">{{ n(bugStats.cerrados ?? bugStats.cerrado ?? 0) }}</span>
+            <span class="bug-lbl">Cerrados</span>
+          </div>
+        </div>
+        <!-- Gráfica por prioridad -->
+        <div class="chart-wrap" *ngIf="ticketOpt && ticketOpt['series']">
+          <p class="chart-title">Por prioridad</p>
+          <div echarts [options]="ticketOpt" class="echart ticket-chart"></div>
+        </div>
+        <!-- Por categoría -->
+        <div class="cat-list" *ngIf="bugCats.length">
+          <p class="chart-title" style="margin-top:8px">Por categoría</p>
+          <div class="cat-item" *ngFor="let c of bugCats">
+            <span class="cat-name">{{ c.key }}</span>
+            <span class="cat-bar-wrap">
+              <span class="cat-bar"
+                    [style.width.%]="(c.value / (bugStats.total ?? 1)) * 100"></span>
+            </span>
+            <span class="cat-count">{{ c.value }}</span>
+          </div>
+        </div>
+      </div>
+      <ng-template #noDataBug>
+        <div class="no-data"><mat-icon>cloud_off</mat-icon> No disponible</div>
+      </ng-template>
+    </mat-card>
+
+  </div><!-- /grid-layout -->
+</div>

@@ -1,0 +1,146 @@
+<section class="pagina">
+  <header class="cabecera">
+    <div>
+      <h1>Reuniones funcionales</h1>
+      <p class="sub">Levantamiento de necesidades, requisitos y decisiones con trazabilidad hasta el minuto exacto.</p>
+    </div>
+    <button type="button" class="btn primario" (click)="abrirAlta()">
+      <mat-icon>add</mat-icon> Nueva reunión
+    </button>
+  </header>
+
+  <div class="filtros">
+    <div class="campo-busqueda">
+      <mat-icon>search</mat-icon>
+      <input type="search" placeholder="Buscar por nombre u objetivo"
+             [ngModel]="filtroTexto()" (ngModelChange)="filtroTexto.set($event)"
+             (keyup.enter)="buscar()" />
+    </div>
+    <select [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event); buscar()">
+      @for (e of ESTADOS; track e.valor) {
+        <option [value]="e.valor">{{ e.etiqueta }}</option>
+      }
+    </select>
+    <button type="button" class="btn" (click)="buscar()">Buscar</button>
+  </div>
+
+  @if (error()) {
+    <p class="alerta">{{ error() }}</p>
+  }
+
+  @if (creando()) {
+    <form class="alta" (ngSubmit)="crear()">
+      <h2>Nueva reunión</h2>
+      <div class="rejilla">
+        <label>
+          <span>Nombre de la reunión *</span>
+          <input type="text" [ngModel]="nueva().name" name="name"
+                 (ngModelChange)="actualizarCampo('name', $event)"
+                 placeholder="Levantamiento módulo de novedades" required />
+        </label>
+        <label>
+          <span>Tipo</span>
+          <select [ngModel]="nueva().meeting_type" name="meeting_type"
+                  (ngModelChange)="actualizarCampo('meeting_type', $event)">
+            @for (t of TIPOS; track t) { <option [value]="t">{{ t }}</option> }
+          </select>
+        </label>
+        <label>
+          <span>Fecha</span>
+          <input type="date" [ngModel]="nueva().held_on" name="held_on"
+                 (ngModelChange)="actualizarCampo('held_on', $event)" />
+        </label>
+        <label>
+          <span>Modalidad</span>
+          <select [ngModel]="nueva().modality" name="modality"
+                  (ngModelChange)="actualizarCampo('modality', $event)">
+            <option value="VIRTUAL">Virtual</option>
+            <option value="PRESENCIAL">Presencial</option>
+            <option value="MIXTA">Mixta</option>
+          </select>
+        </label>
+        <label>
+          <span>Sistema</span>
+          <input type="text" [ngModel]="nueva().system_name" name="system_name"
+                 (ngModelChange)="actualizarCampo('system_name', $event)" placeholder="TesoroApp" />
+        </label>
+        <label>
+          <span>Módulo</span>
+          <input type="text" [ngModel]="nueva().module_name" name="module_name"
+                 (ngModelChange)="actualizarCampo('module_name', $event)" placeholder="Nómina" />
+        </label>
+        <label>
+          <span>Área solicitante</span>
+          <input type="text" [ngModel]="nueva().requesting_area" name="requesting_area"
+                 (ngModelChange)="actualizarCampo('requesting_area', $event)" placeholder="Recursos Humanos" />
+        </label>
+        <label>
+          <span>Confidencialidad</span>
+          <select [ngModel]="nueva().confidentiality" name="confidentiality"
+                  (ngModelChange)="actualizarCampo('confidentiality', $event)">
+            <option value="INTERNA">Interna</option>
+            <option value="RESTRINGIDA">Restringida</option>
+          </select>
+        </label>
+        <label class="ancho-total">
+          <span>Objetivo de la reunión</span>
+          <textarea rows="2" [ngModel]="nueva().objective" name="objective"
+                    (ngModelChange)="actualizarCampo('objective', $event)"
+                    placeholder="Qué se busca resolver o definir"></textarea>
+        </label>
+      </div>
+      <p class="pista">
+        <mat-icon inline>lock</mat-icon>
+        Una reunión <strong>restringida</strong> sólo la ven quienes se agreguen a su lista de acceso.
+      </p>
+      <div class="acciones">
+        <button type="button" class="btn" (click)="cerrarAlta()">Cancelar</button>
+        <button type="submit" class="btn primario" [disabled]="guardando()">
+          {{ guardando() ? 'Creando…' : 'Crear reunión' }}
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (cargando() && !reuniones().length) {
+    <div class="esqueleto">
+      @for (i of [1,2,3,4]; track i) { <div class="fila-esqueleto"></div> }
+    </div>
+  } @else if (!reuniones().length) {
+    <div class="vacio">
+      <mat-icon>mic_none</mat-icon>
+      <h2>Todavía no hay reuniones</h2>
+      <p>Cree la primera y suba o grabe el audio: el sistema la transcribe y la deja lista para analizar.</p>
+      <button type="button" class="btn primario" (click)="abrirAlta()">Nueva reunión</button>
+    </div>
+  } @else {
+    <ul class="lista">
+      @for (r of reuniones(); track r.id) {
+        <li class="tarjeta">
+          <a [routerLink]="['/dashboard/reuniones', r.id]" class="enlace">
+            <div class="linea-1">
+              <span class="codigo">{{ r.code }}</span>
+              <h3>{{ r.name }}</h3>
+              <span class="estado" [attr.data-estado]="r.status">{{ etiquetaEstado(r.status) }}</span>
+              @if (r.confidentiality === 'RESTRINGIDA') {
+                <mat-icon class="candado" matTooltip="Reunión restringida">lock</mat-icon>
+              }
+            </div>
+            <div class="linea-2">
+              @if (r.held_on) { <span><mat-icon inline>event</mat-icon> {{ r.held_on }}</span> }
+              @if (r.module_name) { <span><mat-icon inline>widgets</mat-icon> {{ r.module_name }}</span> }
+              <span><mat-icon inline>group</mat-icon> {{ r.participants_count }} participantes</span>
+              <span><mat-icon inline>graphic_eq</mat-icon> {{ r.recordings_count }} grabaciones</span>
+            </div>
+          </a>
+        </li>
+      }
+    </ul>
+
+    @if (hayMas()) {
+      <button type="button" class="btn mas" (click)="masResultados()" [disabled]="cargando()">
+        {{ cargando() ? 'Cargando…' : 'Ver más' }}
+      </button>
+    }
+  }
+</section>

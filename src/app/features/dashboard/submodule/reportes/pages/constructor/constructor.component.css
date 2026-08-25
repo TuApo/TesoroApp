@@ -1,0 +1,202 @@
+/* ============================================================================
+   Constructor visual de reportes.
+
+   Rejilla de tres columnas fija en escritorio; en pantallas chicas las columnas
+   laterales pasan a ser paneles superpuestos para que el centro —donde de verdad
+   se trabaja— conserve todo el ancho.
+   ========================================================================== */
+
+:host {
+  --rp-fondo: #f8fafc;
+  --rp-panel: #ffffff;
+  --rp-borde: #e2e8f0;
+  --rp-texto: #0f172a;
+  --rp-texto-suave: #64748b;
+  --rp-acento: #0284c7;
+
+  display: block;
+  height: 100%;
+  min-height: 0;
+  background: var(--rp-fondo);
+  color: var(--rp-texto);
+}
+
+:host-context(.dark-theme) {
+  --rp-fondo: #0f172a;
+  --rp-panel: #1e293b;
+  --rp-borde: #334155;
+  --rp-texto: #f1f5f9;
+  --rp-texto-suave: #94a3b8;
+}
+
+.cons { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+
+/* ── Barra superior ────────────────────────────────────────────────────── */
+.barra {
+  display: flex; align-items: center; gap: .4rem;
+  padding: .5rem .7rem; flex: 0 0 auto;
+  background: var(--rp-panel); border-bottom: 1px solid var(--rp-borde);
+}
+.barra__id { display: flex; flex-direction: column; min-width: 0; flex: 0 1 auto; }
+.barra__nombre {
+  border: 0; outline: 0; background: transparent; min-width: 140px; max-width: 380px;
+  font-size: 1rem; font-weight: 700; color: var(--rp-texto); padding: 0;
+  text-overflow: ellipsis;
+}
+.barra__nombre:focus { border-bottom: 2px solid var(--rp-acento); }
+.barra__sp { flex: 1; }
+
+.pasos { display: flex; gap: .55rem; flex-wrap: wrap; }
+.paso {
+  display: inline-flex; align-items: center; gap: .15rem;
+  font-size: .66rem; color: #cbd5e1;
+}
+.paso mat-icon { font-size: 13px; width: 13px; height: 13px; }
+.paso em { font-style: normal; }
+.paso--ok { color: #059669; }
+
+.singuardar {
+  font-size: .7rem; font-weight: 700; color: #b45309;
+  background: #fef3c7; border-radius: 999px; padding: 2px 9px;
+}
+
+/* ── Zona de trabajo ───────────────────────────────────────────────────── */
+.area {
+  flex: 1; min-height: 0; display: grid;
+  grid-template-columns: 288px minmax(0, 1fr) 350px;
+  gap: 0;
+}
+
+.panel {
+  display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  background: var(--rp-panel);
+}
+.panel--izq { border-right: 1px solid var(--rp-borde); padding: .7rem .5rem .5rem .7rem; }
+.panel--der { border-left: 1px solid var(--rp-borde); }
+
+.panel__cab {
+  display: flex; align-items: center; justify-content: space-between; flex: 0 0 auto;
+  padding: 0 .3rem .5rem;
+}
+.panel__cab h2 {
+  display: flex; align-items: center; gap: .35rem; margin: 0;
+  font-size: .78rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--rp-texto-suave);
+}
+.panel__cab mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+app-explorador-datos { flex: 1; min-height: 0; }
+
+/* ── Centro ────────────────────────────────────────────────────────────── */
+.centro {
+  min-width: 0; min-height: 0; overflow-y: auto;
+  padding: .8rem 1rem 2rem;
+  display: flex; flex-direction: column; gap: .7rem;
+}
+
+.centro__cab { display: flex; align-items: center; gap: .5rem; }
+.centro__sp { flex: 1; }
+.centro__meta { font-size: .72rem; color: var(--rp-texto-suave); }
+
+.vistas { display: inline-flex; border: 1px solid var(--rp-borde); border-radius: 10px; overflow: hidden; }
+.vistas button {
+  display: inline-flex; align-items: center; gap: .25rem;
+  border: 0; background: transparent; cursor: pointer;
+  padding: .32rem .7rem; font-size: .78rem; font-weight: 600; color: var(--rp-texto-suave);
+}
+.vistas button mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.vistas--on { background: var(--rp-acento); color: #fff !important; }
+
+.grafica-preview, .kpi-preview {
+  border: 1px solid var(--rp-borde); border-radius: 16px;
+  background: var(--rp-panel); padding: .8rem;
+}
+.kpi-preview { max-width: 340px; padding: 0; border: 0; }
+
+.avisos { display: flex; flex-direction: column; gap: .3rem; }
+.aviso {
+  display: flex; align-items: flex-start; gap: .4rem;
+  padding: .45rem .6rem; border-radius: 10px; font-size: .78rem;
+  background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+}
+.aviso mat-icon { font-size: 17px; width: 17px; height: 17px; flex: 0 0 auto; }
+
+.error {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .7rem .8rem; border-radius: 12px;
+  background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+}
+.error > mat-icon { font-size: 22px; width: 22px; height: 22px; }
+.error b { font-size: .85rem; }
+.error p { margin: .1rem 0 0; font-size: .8rem; }
+.error button { margin-left: auto; flex: 0 0 auto; }
+
+/* ── Panel de configuración ────────────────────────────────────────────── */
+.conf { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.conf ::ng-deep .mat-mdc-tab-body-wrapper { flex: 1; min-height: 0; }
+.conf ::ng-deep .mat-mdc-tab-labels { padding: 0 .3rem; }
+.conf ::ng-deep .mdc-tab { min-width: 0 !important; padding: 0 .55rem !important; }
+.conf mat-icon { margin-right: .2rem; }
+.tab-lbl { font-size: .74rem; }
+.cnt {
+  font-style: normal; font-size: .62rem; font-weight: 700;
+  background: var(--rp-acento); color: #fff; border-radius: 999px; padding: 0 5px; margin-left: 3px;
+}
+
+.conf__cuerpo { padding: .7rem .8rem 2rem; overflow-y: auto; height: 100%; }
+.conf__acciones { display: flex; gap: .4rem; margin-bottom: .6rem; flex-wrap: wrap; }
+.conf__acciones button { font-size: .78rem; }
+.conf__sub {
+  margin: 1rem 0 .4rem; font-size: .72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em; color: var(--rp-texto-suave);
+}
+.w100 { width: 100%; }
+
+.calc, .tabla-item {
+  display: flex; align-items: center; gap: .4rem; padding: .35rem .4rem; margin-bottom: .25rem;
+  border: 1px solid var(--rp-borde); border-radius: 10px;
+}
+.calc > mat-icon, .tabla-item > mat-icon { font-size: 17px; width: 17px; height: 17px; color: #7c3aed; }
+.tabla-item > mat-icon { color: var(--rp-texto-suave); }
+.calc__txt, .tabla-item__txt { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.calc__txt b, .tabla-item__txt b { font-size: .8rem; }
+.calc__txt code, .tabla-item__txt code {
+  font-size: .66rem; color: var(--rp-texto-suave);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.calc button, .tabla-item button { width: 26px; height: 26px; line-height: 26px; }
+.calc button mat-icon, .tabla-item button mat-icon { font-size: 15px; width: 15px; height: 15px; margin: 0; }
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+.solo-movil { display: none; }
+
+@media (max-width: 1200px) {
+  .area { grid-template-columns: minmax(0, 1fr); }
+  .solo-movil { display: inline-flex; }
+
+  .panel {
+    position: absolute; top: 0; bottom: 0; z-index: 30; width: min(320px, 88vw);
+    box-shadow: 0 0 40px rgba(15, 23, 42, .22);
+    transition: transform .2s ease;
+  }
+  .panel--izq { left: 0; }
+  .panel--der { right: 0; }
+  .panel--izq.panel--cerrado { transform: translateX(-102%); }
+  .panel--der.panel--cerrado { transform: translateX(102%); }
+  .area { position: relative; }
+}
+
+@media (max-width: 720px) {
+  .pasos { display: none; }
+  .centro { padding: .6rem .5rem 2rem; }
+  .barra__nombre { font-size: .92rem; min-width: 100px; }
+}
+
+@media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
+
+/* SweetAlert del SQL: monoespaciado y con scroll propio. */
+::ng-deep .rp-sql {
+  text-align: left; font-family: ui-monospace, Menlo, monospace; font-size: .78rem;
+  white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0;
+  padding: 1rem; border-radius: 10px; max-height: 55vh; overflow: auto;
+}

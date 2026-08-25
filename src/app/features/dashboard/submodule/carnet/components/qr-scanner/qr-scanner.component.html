@@ -1,0 +1,71 @@
+<div class="qs-wrap">
+
+  <div class="qs-visor" [class.is-activo]="activo">
+    <video #videoEl class="qs-video" muted playsinline></video>
+
+    @if (activo) {
+      <div class="qs-mira" aria-hidden="true">
+        <span class="qs-esq qs-esq--tl"></span>
+        <span class="qs-esq qs-esq--tr"></span>
+        <span class="qs-esq qs-esq--bl"></span>
+        <span class="qs-esq qs-esq--br"></span>
+      </div>
+
+      @if (camaras.length > 1) {
+        <button type="button" class="qs-flotante" (click)="cambiarCamara()"
+          matTooltip="Cambiar cámara" aria-label="Cambiar cámara">
+          <mat-icon>cameraswitch</mat-icon>
+        </button>
+      }
+    } @else if (cargando) {
+      <div class="qs-placeholder">
+        <mat-icon class="spin">autorenew</mat-icon>
+        <span>Abriendo la cámara…</span>
+      </div>
+    } @else {
+      <div class="qs-placeholder">
+        <mat-icon>qr_code_scanner</mat-icon>
+        <span>Cámara apagada</span>
+      </div>
+    }
+  </div>
+
+  @if (aviso) {
+    <p class="qs-aviso"><mat-icon>info_outline</mat-icon> {{ aviso }}</p>
+  }
+  @if (error) {
+    <p class="qs-error"><mat-icon>error_outline</mat-icon> {{ error }}</p>
+  }
+
+  <div class="qs-acciones">
+    @if (hayCamara) {
+      @if (!activo) {
+        <button type="button" class="qs-btn" (click)="iniciar()" [disabled]="cargando">
+          <mat-icon>photo_camera</mat-icon> Escanear carné
+        </button>
+      } @else {
+        <button type="button" class="qs-btn qs-btn--stop" (click)="detener()">
+          <mat-icon>stop_circle</mat-icon> Detener cámara
+        </button>
+      }
+    }
+
+    <!-- Red de seguridad: sin cámara utilizable, siempre se puede leer una foto del QR.
+         En móvil, `capture` hace que este botón abra directamente la cámara del sistema. -->
+    <button type="button" class="qs-btn qs-btn--ghost" (click)="abrirSelectorArchivo()"
+      [disabled]="cargando" matTooltip="Leer el QR desde una foto">
+      <mat-icon>image_search</mat-icon> Foto del QR
+    </button>
+
+    <input #archivoEl type="file" accept="image/*" capture="environment"
+      class="qs-file" (change)="onArchivo($event)" />
+  </div>
+
+  @if (activo) {
+    <p class="qs-hint">
+      <mat-icon>center_focus_strong</mat-icon>
+      Apunta al QR del reverso del carné
+      @if (motor === 'jsqr') { <span class="qs-motor">· lectura por software</span> }
+    </p>
+  }
+</div>

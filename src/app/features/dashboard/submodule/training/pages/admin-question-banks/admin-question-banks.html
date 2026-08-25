@@ -1,0 +1,224 @@
+<section class="pantalla">
+  @if (!bancoActivo()) {
+    <!-- ── Lista de bancos ── -->
+    <header class="cabecera">
+      <div>
+        <h1>Bancos de preguntas</h1>
+        <p class="subtitulo">
+          La bolsa de la que salen los quices y el examen. Un banco sin curso es transversal:
+          lo puede usar cualquiera.
+        </p>
+      </div>
+      <button type="button" class="btn-primario" (click)="abrirNuevoBanco()">
+        <mat-icon>add</mat-icon> Nuevo banco
+      </button>
+    </header>
+
+    @if (nuevoBanco(); as nb) {
+      <div class="panel">
+        <div class="campos">
+          <label>
+            <span>Nombre del banco *</span>
+            <input type="text" [(ngModel)]="nb.nombre" placeholder="Ej: Banco SST alturas" />
+          </label>
+          <label>
+            <span>Curso al que pertenece</span>
+            <select [(ngModel)]="nb.course_id">
+              <option value="">Transversal (cualquier curso)</option>
+              @for (c of cursos(); track c.id) {
+                <option [value]="c.id">{{ c.nombre }}</option>
+              }
+            </select>
+          </label>
+        </div>
+        <div class="acciones-panel">
+          <button type="button" class="btn-secundario" (click)="nuevoBanco.set(null)">Cancelar</button>
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarBanco()">
+            Crear banco
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (cargando()) {
+      <p class="cargando">Cargando…</p>
+    } @else if (error()) {
+      <div class="aviso-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+    } @else if (bancos().length === 0) {
+      <div class="vacio">
+        <mat-icon>quiz</mat-icon>
+        <p>Todavía no hay bancos de preguntas.</p>
+      </div>
+    } @else {
+      <div class="rejilla">
+        @for (b of bancos(); track b.id) {
+          <div class="tarjeta">
+            <div class="tarjeta-cab">
+              <h2>{{ b.nombre }}</h2>
+              <span class="chip" [class.chip-transversal]="b.transversal">
+                {{ b.transversal ? 'Transversal' : b.course_nombre }}
+              </span>
+            </div>
+            <p class="conteo">{{ b.total_preguntas }} pregunta(s)</p>
+            <div class="tarjeta-acciones">
+              <button type="button" class="btn-primario pequeno" (click)="abrirBanco(b)">
+                Ver preguntas
+              </button>
+              <button type="button" class="btn-icono peligro" title="Eliminar"
+                      (click)="eliminarBanco(b)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  } @else {
+    <!-- ── Preguntas de un banco ── -->
+    <header class="cabecera">
+      <div class="titulo-con-volver">
+        <button type="button" class="btn-icono" (click)="cerrarBanco()" aria-label="Volver">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <div>
+          <h1>{{ bancoActivo()!.nombre }}</h1>
+          <p class="subtitulo">{{ activas() }} activa(s) de {{ preguntas().length }}</p>
+        </div>
+      </div>
+      <button type="button" class="btn-primario" (click)="nuevaPregunta()">
+        <mat-icon>add</mat-icon> Nueva pregunta
+      </button>
+    </header>
+
+    @if (form(); as f) {
+      <div class="panel">
+        @if (f.versionar) {
+          <p class="nota-versionar">
+            <mat-icon>history</mat-icon>
+            Esta pregunta ya la respondió alguien, así que no se edita: al guardar se crea una
+            <strong>versión nueva</strong> y la original se retira de circulación. Los intentos
+            ya calificados siguen mostrando lo que de verdad se preguntó.
+          </p>
+        }
+
+        <label class="ancho-completo">
+          <span>Enunciado *</span>
+          <textarea rows="2" [(ngModel)]="f.enunciado"
+                    placeholder="¿Qué EPP es obligatorio para trabajo en alturas?"></textarea>
+        </label>
+
+        <div class="campos">
+          <label>
+            <span>Tipo de pregunta</span>
+            <select [ngModel]="f.tipo" (ngModelChange)="cambiarTipo($event)">
+              <option value="OPCION_MULTIPLE">Opción múltiple</option>
+              <option value="VERDADERO_FALSO">Verdadero / Falso</option>
+              <option value="EMPAREJAR">Emparejar</option>
+            </select>
+          </label>
+          <label>
+            <span>Explicación (se muestra tras responder)</span>
+            <input type="text" [(ngModel)]="f.explicacion" />
+          </label>
+        </div>
+
+        <h3 class="titulo-opciones">
+          {{ f.tipo === 'EMPAREJAR' ? 'Parejas' : 'Opciones de respuesta' }}
+        </h3>
+
+        @if (f.tipo === 'EMPAREJAR') {
+          <p class="ayuda">
+            Cada pareja son dos filas con la misma letra: el ítem y su contraparte. Al
+            estudiante se le muestran en dos columnas revueltas.
+          </p>
+        } @else if (f.tipo === 'OPCION_MULTIPLE') {
+          <p class="ayuda">Marca todas las correctas. Se acierta solo si las marca todas y ninguna de más.</p>
+        }
+
+        @for (o of f.opciones; track $index) {
+          <div class="opcion-fila">
+            @if (f.tipo === 'EMPAREJAR') {
+              <input class="clave" type="text" [(ngModel)]="o.pareja_clave" maxlength="8"
+                     placeholder="a" title="Letra de la pareja" />
+            } @else {
+              <button type="button" class="btn-marcar" [class.marcada]="o.correcta"
+                      (click)="marcarCorrecta($index)" title="Marcar como correcta">
+                <mat-icon>{{ o.correcta ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+              </button>
+            }
+            <input type="text" [(ngModel)]="o.texto" placeholder="Texto de la opción" />
+            <button type="button" class="btn-icono peligro" (click)="quitarOpcion($index)"
+                    title="Quitar">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+
+        @if (f.tipo === 'EMPAREJAR') {
+          <button type="button" class="btn-secundario pequeno" (click)="agregarPareja()">
+            <mat-icon>add</mat-icon> Agregar pareja
+          </button>
+        } @else if (f.tipo !== 'VERDADERO_FALSO') {
+          <button type="button" class="btn-secundario pequeno" (click)="agregarOpcion()">
+            <mat-icon>add</mat-icon> Agregar opción
+          </button>
+        }
+
+        <div class="acciones-panel">
+          <button type="button" class="btn-secundario" (click)="form.set(null)">Cancelar</button>
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarPregunta()">
+            {{ f.versionar ? 'Guardar como versión nueva' : (f.id ? 'Guardar cambios' : 'Crear pregunta') }}
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (preguntas().length === 0) {
+      <div class="vacio">
+        <mat-icon>help_outline</mat-icon>
+        <p>Este banco todavía no tiene preguntas.</p>
+      </div>
+    } @else {
+      @for (p of preguntas(); track p.id) {
+        <div class="pregunta" [class.retirada]="!p.activa">
+          <div class="pregunta-cab">
+            <div>
+              <strong>{{ p.enunciado }}</strong>
+              <div class="pregunta-meta">
+                {{ etiquetaTipo(p.tipo) }} · {{ p.opciones.length }} opción(es)
+                @if (!p.activa) { · <span class="texto-retirada">retirada</span> }
+                @if (p.ya_respondida) { · ya respondida }
+              </div>
+            </div>
+            <div class="pregunta-acciones">
+              <button type="button" class="btn-icono" title="Editar" (click)="editarPregunta(p)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              @if (p.activa) {
+                <button type="button" class="btn-icono" title="Retirar de circulación"
+                        (click)="retirar(p)"><mat-icon>visibility_off</mat-icon></button>
+              } @else {
+                <button type="button" class="btn-icono" title="Volver a usar"
+                        (click)="reactivar(p)"><mat-icon>visibility</mat-icon></button>
+              }
+              <button type="button" class="btn-icono peligro" title="Eliminar"
+                      (click)="eliminarPregunta(p)"><mat-icon>delete</mat-icon></button>
+            </div>
+          </div>
+          <ul class="opciones-lista">
+            @for (o of p.opciones; track o.id) {
+              <li [class.correcta]="o.correcta">
+                @if (p.tipo === 'EMPAREJAR') {
+                  <span class="clave-chip">{{ o.pareja_clave }}</span>
+                } @else {
+                  <mat-icon>{{ o.correcta ? 'check' : 'remove' }}</mat-icon>
+                }
+                {{ o.texto }}
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    }
+  }
+</section>

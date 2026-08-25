@@ -1,0 +1,370 @@
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">table_chart</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Orígenes de opciones</mat-card-title>
+        <mat-card-subtitle class="subtitulo">
+          Tablas parametrizadas que alimentan las preguntas de selección de los formularios.
+        </mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <div class="header-actions">
+      <button mat-stroked-button class="btn-clara" (click)="abrirNuevaTabla()">
+        <mat-icon>add_box</mat-icon> Nueva tabla
+      </button>
+      <button mat-flat-button class="btn-managerial" (click)="nuevo()">
+        <mat-icon>add</mat-icon> Nuevo origen
+      </button>
+    </div>
+  </mat-card-header>
+
+  @if (cargando() || guardando()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+
+  <mat-card-content class="card-content">
+
+    <!-- ============ Alta de tabla parametrizada ============ -->
+    @if (nuevaTabla()) {
+      <section class="panel">
+        <h3 class="panel__titulo">
+          <mat-icon>add_box</mat-icon> Nueva tabla parametrizada
+        </h3>
+        <p class="panel__hint">
+          Se guarda en el catálogo de la plataforma (el mismo de Usuarios › Gestión de
+          Parametrización), así que queda disponible para todos los formularios.
+        </p>
+
+        <div class="grid2">
+          <label>
+            <span>Código</span>
+            <input type="text" [ngModel]="tablaCodigo()" (ngModelChange)="tablaCodigo.set($event)"
+                   placeholder="CENTROS_DE_COSTO" />
+          </label>
+          <label>
+            <span>Descripción</span>
+            <input type="text" [ngModel]="tablaDescripcion()" (ngModelChange)="tablaDescripcion.set($event)"
+                   placeholder="Centros de costo por empresa" />
+          </label>
+        </div>
+
+        <h4 class="sub">Columnas</h4>
+        @for (c of tablaColumnas(); track $index) {
+          <div class="fila-col">
+            <input type="text" [ngModel]="c.campo"
+                   (ngModelChange)="cambiarColumna($index, { campo: $event })"
+                   placeholder="nombre" [attr.aria-label]="'Nombre de la columna ' + ($index + 1)" />
+            <select [ngModel]="c.tipo" (ngModelChange)="cambiarColumna($index, { tipo: $event })">
+              <option value="STRING">Texto</option>
+              <option value="NUMBER">Número</option>
+              <option value="BOOLEAN">Sí/No</option>
+              <option value="DATE">Fecha</option>
+            </select>
+            <button type="button" class="icon-btn icon-btn--danger"
+                    [disabled]="tablaColumnas().length <= 1"
+                    (click)="quitarColumna($index)" matTooltip="Quitar columna">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+        <button type="button" class="link-btn" (click)="agregarColumna()">
+          <mat-icon>add</mat-icon> Agregar columna
+        </button>
+
+        <h4 class="sub">Primeras filas</h4>
+        <div class="tabla-scroll">
+          <table class="mini">
+            <thead>
+              <tr>
+                @for (c of tablaColumnas(); track $index) {
+                  <th>{{ c.campo || '—' }}</th>
+                }
+                <th class="th-acciones"></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of tablaFilas(); track $index) {
+                <tr>
+                  @for (c of tablaColumnas(); track c.campo) {
+                    <td>
+                      <input type="text" [ngModel]="f[c.campo] || ''"
+                             (ngModelChange)="cambiarCelda($index, c.campo, $event)"
+                             [attr.aria-label]="c.campo + ' de la fila ' + ($index + 1)" />
+                    </td>
+                  }
+                  <td>
+                    <button type="button" class="icon-btn icon-btn--danger"
+                            [disabled]="tablaFilas().length <= 1"
+                            (click)="quitarFila($index)" matTooltip="Quitar fila">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <button type="button" class="link-btn" (click)="agregarFila()">
+          <mat-icon>add</mat-icon> Agregar fila
+        </button>
+
+        <div class="panel__acciones">
+          <button mat-stroked-button (click)="nuevaTabla.set(false)">Cancelar</button>
+          <button mat-flat-button class="btn-managerial" [disabled]="guardando()" (click)="guardarTabla()">
+            <mat-icon>save</mat-icon> Crear tabla
+          </button>
+        </div>
+      </section>
+    }
+
+    <!-- ============ Editor de origen ============ -->
+    @if (editando(); as ed) {
+      <section class="panel">
+        <h3 class="panel__titulo">
+          <mat-icon>tune</mat-icon>
+          {{ editandoId() ? 'Editar origen' : 'Nuevo origen' }}
+        </h3>
+
+        <div class="grid2">
+          <label>
+            <span>Nombre</span>
+            <input type="text" [ngModel]="ed.name" (ngModelChange)="cambiar({ name: $event })"
+                   placeholder="Centros de costo" />
+          </label>
+          <label>
+            <span>Tabla parametrizada</span>
+            <select [ngModel]="ed.catalog_code" (ngModelChange)="cambiarCatalogo($event)">
+              <option value="">— Elige una tabla —</option>
+              @for (c of catalogos(); track c.code) {
+                <option [value]="c.code">{{ c.code }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        <div class="grid3">
+          <label>
+            <span>Columna que se muestra</span>
+            <select [ngModel]="ed.label_field" (ngModelChange)="cambiar({ label_field: $event })">
+              <option value="">— Elige —</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+          </label>
+          <label>
+            <span>Columna de orden</span>
+            <select [ngModel]="ed.order_field || ''" (ngModelChange)="cambiar({ order_field: $event || null })">
+              <option value="">Alfabético</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+          </label>
+          <label>
+            <span>Clave para encadenar</span>
+            <select [ngModel]="ed.value_field || ''" (ngModelChange)="cambiar({ value_field: $event || null })">
+              <option value="">La misma que se muestra</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+          </label>
+        </div>
+
+        <h4 class="sub">Cascada</h4>
+        <div class="grid2">
+          <label>
+            <span>Depende del origen</span>
+            <select [ngModel]="ed.parent_source_id || ''"
+                    (ngModelChange)="cambiar({ parent_source_id: $event ? +$event : null })">
+              <option value="">— Ninguno —</option>
+              @for (o of candidatosPadre(); track o.id) {
+                <option [value]="o.id">{{ o.name }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            <span>Columna que enlaza con el padre</span>
+            <select [ngModel]="ed.parent_link_field || ''"
+                    (ngModelChange)="cambiar({ parent_link_field: $event || null })"
+                    [disabled]="!ed.parent_source_id">
+              <option value="">—</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+          </label>
+        </div>
+
+        <h4 class="sub">Reglas de visibilidad</h4>
+        <p class="panel__hint">
+          Se evalúan en el servidor contra quien llena el formulario. Una fila con la columna
+          de empresa vacía se considera común y la ve todo el mundo.
+        </p>
+        <div class="grid3">
+          <label>
+            <span>Columna de empresa</span>
+            <select [ngModel]="reglas.scope?.empresa_field || ''"
+                    (ngModelChange)="cambiarRegla({ scope: { empresa_field: $event || null, sede_field: reglas.scope?.sede_field ?? null, rol_field: reglas.scope?.rol_field ?? null } })">
+              <option value="">Sin filtro por empresa</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+          </label>
+          <label>
+            <span>Columna de sede</span>
+            <select [ngModel]="reglas.scope?.sede_field || ''"
+                    (ngModelChange)="cambiarRegla({ scope: { empresa_field: reglas.scope?.empresa_field ?? null, sede_field: $event || null, rol_field: reglas.scope?.rol_field ?? null } })">
+              <option value="">Sin filtro por sede</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+          </label>
+          <label>
+            <span>Columna de rol</span>
+            <select [ngModel]="reglas.scope?.rol_field || ''"
+                    (ngModelChange)="cambiarRegla({ scope: { empresa_field: reglas.scope?.empresa_field ?? null, sede_field: reglas.scope?.sede_field ?? null, rol_field: $event || null } })">
+              <option value="">Sin filtro por rol</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+          </label>
+        </div>
+
+        <div class="grid2">
+          <label>
+            <span>Roles que pueden usarlo</span>
+            <input type="text" [ngModel]="rolesTexto" (ngModelChange)="cambiarRoles($event)"
+                   placeholder="ADMIN, GERENCIA (vacío = todos)" />
+          </label>
+          <label>
+            <span>Permiso exigido</span>
+            <input type="text" [ngModel]="reglas.access?.permission || ''"
+                   (ngModelChange)="cambiarPermiso($event)"
+                   placeholder="Nomina:LEER (se hereda de los módulos padre)" />
+          </label>
+        </div>
+
+        <h4 class="sub">Filtros fijos</h4>
+        @for (f of filtros; track $index) {
+          <div class="fila-filtro">
+            <select [ngModel]="f.field" (ngModelChange)="cambiarFiltro($index, { field: $event })">
+              <option value="">— Columna —</option>
+              @for (col of columnas(); track col) { <option [value]="col">{{ col }}</option> }
+            </select>
+            <select [ngModel]="f.op" (ngModelChange)="cambiarFiltro($index, { op: $event })">
+              <option value="eq">es igual a</option>
+              <option value="ne">es distinto de</option>
+              <option value="in">está en (lista)</option>
+              <option value="not_in">no está en (lista)</option>
+              <option value="contains">contiene</option>
+              <option value="not_empty">tiene valor</option>
+              <option value="empty">está vacía</option>
+            </select>
+            <input type="text" [ngModel]="f.value || ''" (ngModelChange)="cambiarFiltro($index, { value: $event })"
+                   placeholder="valor" [disabled]="f.op === 'empty' || f.op === 'not_empty'" />
+            <button type="button" class="icon-btn icon-btn--danger" (click)="quitarFiltro($index)"
+                    matTooltip="Quitar filtro">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+        <button type="button" class="link-btn" (click)="agregarFiltro()">
+          <mat-icon>add</mat-icon> Agregar filtro
+        </button>
+
+        <label class="check">
+          <input type="checkbox" [ngModel]="ed.active !== false"
+                 (ngModelChange)="cambiar({ active: $event })" />
+          Activo
+        </label>
+
+        <div class="panel__acciones">
+          <button mat-stroked-button (click)="cerrarEditor()">Cancelar</button>
+          <button mat-flat-button class="btn-managerial" [disabled]="guardando()" (click)="guardar()">
+            <mat-icon>save</mat-icon> Guardar
+          </button>
+        </div>
+      </section>
+    }
+
+    <!-- ============ Listado ============ -->
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Origen</th>
+            <th>Tabla</th>
+            <th>Muestra</th>
+            <th>Cascada</th>
+            <th>Reglas</th>
+            <th class="th-acciones">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (o of origenes(); track o.id) {
+            <tr [class.inactivo]="!o.active">
+              <td>
+                <strong>{{ o.name }}</strong>
+                <span class="codigo">{{ o.code }}</span>
+              </td>
+              <td>{{ o.catalog_code }}</td>
+              <td>{{ o.label_field }}</td>
+              <td>
+                @if (o.parent_source_code) {
+                  {{ o.parent_source_code }} → {{ o.parent_link_field }}
+                } @else { — }
+              </td>
+              <td class="reglas">{{ resumenReglas(o) }}</td>
+              <td class="acciones">
+                <button type="button" class="icon-btn" (click)="probar(o)" matTooltip="Ver qué opciones devuelve">
+                  <mat-icon>play_arrow</mat-icon>
+                </button>
+                <button type="button" class="icon-btn" (click)="editar(o)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button type="button" class="icon-btn icon-btn--danger" (click)="eliminar(o)" matTooltip="Eliminar">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="vacio">
+                Todavía no hay orígenes. Crea una tabla parametrizada y luego un origen sobre ella
+                para usarla como opciones de un campo.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ============ Prueba de resolución ============ -->
+    @if (probando(); as code) {
+      <section class="panel panel--prueba">
+        <h3 class="panel__titulo">
+          <mat-icon>play_circle</mat-icon> Prueba de «{{ code }}»
+        </h3>
+        <p class="panel__hint">Esto es lo que vería alguien con TU sesión al llenar el formulario.</p>
+        <div class="fila-prueba">
+          <input type="text" [ngModel]="pruebaPadre()" (ngModelChange)="pruebaPadre.set($event)"
+                 placeholder="Valor del campo padre (si hay cascada)" />
+          <button mat-stroked-button (click)="resolverPrueba(code, pruebaPadre() || null)">
+            <mat-icon>refresh</mat-icon> Resolver
+          </button>
+          <button mat-stroked-button (click)="cerrarPrueba()">Cerrar</button>
+        </div>
+
+        @if (prueba(); as res) {
+          @if (res.restricted) {
+            <p class="aviso">
+              <mat-icon>info</mat-icon>
+              Sin opciones ({{ res.reason }}). {{ motivo(res.reason) }}
+            </p>
+          } @else {
+            <p class="ok">{{ res.total }} opción(es){{ res.truncated ? ' · lista recortada' : '' }}</p>
+            <ul class="opciones">
+              @for (o of res.options; track o.value) { <li>{{ o.label }}</li> }
+            </ul>
+          }
+        }
+      </section>
+    }
+
+  </mat-card-content>
+</mat-card>

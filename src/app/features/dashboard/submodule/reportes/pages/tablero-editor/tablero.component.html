@@ -1,0 +1,297 @@
+<div class="tb">
+  <header class="tb__head">
+    <button mat-icon-button (click)="volver()" matTooltip="Volver"><mat-icon>arrow_back</mat-icon></button>
+
+    <div class="tb__id">
+      @if (editando()) {
+        <input class="tb__nombre" type="text" [(ngModel)]="nombre" (ngModelChange)="sucio.set(true)"
+               placeholder="Nombre del tablero" aria-label="Nombre del tablero">
+        <input class="tb__desc" type="text" [(ngModel)]="descripcion" (ngModelChange)="sucio.set(true)"
+               placeholder="Descripción (opcional)" aria-label="Descripción">
+      } @else {
+        <h1>{{ nombre }}</h1>
+        @if (descripcion) { <p>{{ descripcion }}</p> }
+      }
+    </div>
+
+    <span class="tb__sp"></span>
+    @if (sucio()) { <span class="singuardar">Sin guardar</span> }
+
+    <button mat-icon-button (click)="refrescarDatos()" matTooltip="Actualizar datos"
+            [disabled]="cargandoDatos() || esNuevo()">
+      <mat-icon>refresh</mat-icon>
+    </button>
+
+    @if (tablero()?.puede_editar !== false) {
+      <button mat-stroked-button (click)="editando.set(!editando())">
+        <mat-icon>{{ editando() ? 'visibility' : 'edit' }}</mat-icon>
+        {{ editando() ? 'Ver' : 'Editar' }}
+      </button>
+    }
+
+    <button mat-icon-button [matMenuTriggerFor]="menu" matTooltip="Más opciones">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #menu="matMenu">
+      <button mat-menu-item (click)="compartir()"><mat-icon>share</mat-icon> Compartir</button>
+      @if (!esNuevo()) {
+        <button mat-menu-item class="peligro" (click)="eliminar()">
+          <mat-icon>delete_outline</mat-icon> Eliminar tablero
+        </button>
+      }
+    </mat-menu>
+
+    @if (editando()) {
+      <button mat-flat-button color="primary" (click)="guardar()" [disabled]="guardando()">
+        <mat-icon>save</mat-icon> Guardar
+      </button>
+    }
+  </header>
+
+  @if (cargando() || cargandoDatos() || guardando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- ── Filtros globales (§19) ─────────────────────────────────────────── -->
+  @if (filtrosGlobales().length || editando()) {
+    <section class="filtros">
+      <mat-icon class="filtros__ico">filter_alt</mat-icon>
+
+      @for (f of filtrosGlobales(); track f.id) {
+        <div class="fg">
+          <span class="fg__lbl">{{ f.etiqueta }}</span>
+          @if (f.tipo === 'FECHA' || f.tipo === 'FECHA_HORA') {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fg__campo">
+              <input matInput [matDatepicker]="d1" [value]="fechaDe(f, 0)" placeholder="Desde"
+                     (dateChange)="fijarValorFiltro(f.id, 0, isoDe($event.value)); refrescarDatos()">
+              <mat-datepicker-toggle matIconSuffix [for]="d1"></mat-datepicker-toggle>
+              <mat-datepicker #d1></mat-datepicker>
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fg__campo">
+              <input matInput [matDatepicker]="d2" [value]="fechaDe(f, 1)" placeholder="Hasta"
+                     (dateChange)="fijarValorFiltro(f.id, 1, isoDe($event.value)); refrescarDatos()">
+              <mat-datepicker-toggle matIconSuffix [for]="d2"></mat-datepicker-toggle>
+              <mat-datepicker #d2></mat-datepicker>
+            </mat-form-field>
+          } @else {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fg__campo fg__campo--ancho">
+              <mat-select multiple placeholder="Todos"
+                          [value]="$any(f.valores)"
+                          (openedChange)="$event && cargarValores(f)"
+                          (valueChange)="fijarValoresMultiples(f.id, $event)">
+                @for (v of opcionesDe(f); track v) {
+                  <mat-option [value]="v">{{ v }}</mat-option>
+                }
+                @if (!opcionesDe(f).length) {
+                  <mat-option disabled>Cargando valores…</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          }
+          @if (editando()) {
+            <button mat-icon-button class="fg__x" (click)="quitarFiltroGlobal(f.id)" matTooltip="Quitar filtro">
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </div>
+      }
+
+      @if (editando()) {
+        <button mat-stroked-button [matMenuTriggerFor]="menuFiltro" class="fg__add">
+          <mat-icon>add</mat-icon> Filtro global
+        </button>
+        <mat-menu #menuFiltro="matMenu" class="menu-alto">
+          @for (c of camposParaFiltro(); track c.clave) {
+            <button mat-menu-item (click)="agregarFiltroGlobal(c)">{{ c.nombre }}</button>
+          }
+          @if (!camposParaFiltro().length) {
+            <button mat-menu-item disabled>Agrega componentes para poder filtrarlos</button>
+          }
+        </mat-menu>
+      }
+
+      @if (filtrosGlobales().length) {
+        <button mat-button (click)="limpiarFiltros()" class="fg__limpiar">
+          <mat-icon>filter_alt_off</mat-icon> Limpiar
+        </button>
+      }
+    </section>
+  }
+
+  <!-- ── Componentes ────────────────────────────────────────────────────── -->
+  @if (editando()) {
+    <div class="agregar">
+      <span>Agregar:</span>
+      <button mat-stroked-button (click)="agregarWidget('KPI')"><mat-icon>speed</mat-icon> Indicador</button>
+      <button mat-stroked-button (click)="agregarWidget('GRAFICA')"><mat-icon>bar_chart</mat-icon> Gráfica</button>
+      <button mat-stroked-button (click)="agregarWidget('TABLA')"><mat-icon>table_rows</mat-icon> Tabla</button>
+    </div>
+  }
+
+  <div class="rejilla" cdkDropList (cdkDropListDropped)="soltarWidget($event)">
+    @for (w of widgets(); track w.id) {
+      <div class="widget" cdkDrag [cdkDragDisabled]="!editando()"
+           [style.grid-column]="'span ' + w.ancho"
+           [style.min-height.px]="w.alto * 130">
+        <div class="widget__cab">
+          @if (editando()) {
+            <mat-icon cdkDragHandle class="widget__grip" matTooltip="Arrastra para reordenar">drag_indicator</mat-icon>
+          }
+          <span class="widget__tit">{{ w.titulo || nombreReporte(w.report_id) }}</span>
+
+          @if (editando()) {
+            <button mat-icon-button [matMenuTriggerFor]="menuW" matTooltip="Configurar componente"
+                    (menuOpened)="cargarDetalle(w.report_id, w.id)">
+              <mat-icon>tune</mat-icon>
+            </button>
+            <mat-menu #menuW="matMenu">
+              <div class="menuw" (click)="$event.stopPropagation()">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w100">
+                  <mat-label>Reporte</mat-label>
+                  <mat-select [value]="w.report_id" (valueChange)="cambiarReporte(w.id!, $event)">
+                    @for (r of reportesDisponibles(); track r.id) {
+                      <mat-option [value]="r.id">{{ r.nombre }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w100">
+                  <mat-label>Título</mat-label>
+                  <input matInput [value]="w.titulo ?? ''"
+                         (change)="actualizarWidget(w.id!, { titulo: $any($event.target).value })">
+                </mat-form-field>
+                @if (w.tipo === 'GRAFICA') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w100">
+                    <mat-label>Tipo de gráfica</mat-label>
+                    <mat-select [value]="w.config?.tipo ?? 'BARRAS'"
+                                (valueChange)="ajustarConfig(w.id!, { tipo: $event })">
+                      <mat-option value="BARRAS">Barras</mat-option>
+                      <mat-option value="BARRAS_HORIZONTAL">Barras horizontales</mat-option>
+                      <mat-option value="BARRAS_APILADAS">Barras apiladas</mat-option>
+                      <mat-option value="LINEA">Línea</mat-option>
+                      <mat-option value="AREA">Área</mat-option>
+                      <mat-option value="CIRCULAR">Circular</mat-option>
+                      <mat-option value="DONA">Dona</mat-option>
+                      <mat-option value="TREEMAP">Treemap</mat-option>
+                      <mat-option value="FUNNEL">Embudo</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                }
+                @if (w.tipo !== 'TEXTO' && w.tipo !== 'TABLA') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w100">
+                    <mat-label>Dimensión</mat-label>
+                    <mat-select [value]="w.config?.dimension ?? ''"
+                                (valueChange)="ajustarConfig(w.id!, { dimension: $event || null })">
+                      <mat-option value="">Automática</mat-option>
+                      @for (f of dimensionesDe(w); track f.id) {
+                        <mat-option [value]="f.id">{{ f.alias }}</mat-option>
+                      }
+                    </mat-select>
+                    @if (!dimensionesDe(w).length) {
+                      <mat-hint>El reporte no tiene columnas para agrupar</mat-hint>
+                    }
+                  </mat-form-field>
+
+                  @if (w.tipo === 'KPI') {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w100">
+                      <mat-label>Indicador</mat-label>
+                      <mat-select [value]="w.config?.kpi_metrica ?? ''"
+                                  (valueChange)="ajustarConfig(w.id!, { kpi_metrica: $event || null })">
+                        <mat-option value="">Automático</mat-option>
+                        @for (f of metricasDe(w); track f.id) {
+                          <mat-option [value]="f.id">{{ f.alias }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  } @else {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="w100">
+                      <mat-label>Métrica(s)</mat-label>
+                      <mat-select multiple [value]="$any(w.config?.metricas ?? [])"
+                                  (valueChange)="ajustarConfig(w.id!, { metricas: $event })">
+                        @for (f of metricasDe(w); track f.id) {
+                          <mat-option [value]="f.id">{{ f.alias }}</mat-option>
+                        }
+                      </mat-select>
+                      @if (!metricasDe(w).length) {
+                        <mat-hint>El reporte no tiene métricas. Ábrelo y agrega una.</mat-hint>
+                      }
+                    </mat-form-field>
+                  }
+                }
+
+                <div class="tam">
+                  <span>Ancho</span>
+                  <button mat-icon-button (click)="redimensionar(w.id!, -2)"><mat-icon>remove</mat-icon></button>
+                  <b>{{ w.ancho }}/12</b>
+                  <button mat-icon-button (click)="redimensionar(w.id!, 2)"><mat-icon>add</mat-icon></button>
+                </div>
+                <div class="tam">
+                  <span>Alto</span>
+                  <button mat-icon-button (click)="cambiarAlto(w.id!, -1)"><mat-icon>remove</mat-icon></button>
+                  <b>{{ w.alto }}</b>
+                  <button mat-icon-button (click)="cambiarAlto(w.id!, 1)"><mat-icon>add</mat-icon></button>
+                </div>
+              </div>
+              <button mat-menu-item class="peligro" (click)="quitarWidget(w.id!)">
+                <mat-icon>delete_outline</mat-icon> Quitar componente
+              </button>
+            </mat-menu>
+          } @else if (w.report_id) {
+            <button mat-icon-button (click)="irAlReporte(w)" matTooltip="Abrir el reporte">
+              <mat-icon>open_in_new</mat-icon>
+            </button>
+          }
+        </div>
+
+        <div class="widget__cuerpo">
+          @if (datosDe(w); as d) {
+            @if (!d.ok) {
+              <div class="widget__err">
+                <mat-icon>block</mat-icon>
+                <span>{{ d.error }}</span>
+              </div>
+            } @else if (w.tipo === 'KPI') {
+              <app-kpi-card [resultado]="d.resultado ?? null" [config]="w.config ?? { tipo: 'KPI' }"
+                            [titulo]="w.titulo"></app-kpi-card>
+            } @else if (w.tipo === 'GRAFICA') {
+              <app-grafica-reporte [resultado]="d.resultado ?? null"
+                                   [config]="w.config ?? { tipo: 'BARRAS' }"
+                                   [alto]="w.alto * 130 - 60"></app-grafica-reporte>
+            } @else {
+              <app-tabla-resultados [resultado]="d.resultado ?? null" [servidor]="false"
+                                    [titulo]="w.titulo || ''"
+                                    [mensajeVacio]="'Sin datos con los filtros actuales.'">
+              </app-tabla-resultados>
+            }
+          } @else if (editando() && !estaCompleto(w)) {
+            <div class="widget__pendiente">
+              <mat-icon>tune</mat-icon>
+              <span>Falta elegir la métrica de este componente. Ábrelo con el engranaje.</span>
+            </div>
+          } @else if (esNuevo()) {
+            <div class="widget__pendiente">
+              <mat-icon>save</mat-icon>
+              <span>Guarda el tablero para ver los datos de este componente.</span>
+            </div>
+          } @else {
+            <div class="widget__skel"></div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  @if (!widgets().length && !cargando()) {
+    <div class="vacio">
+      <mat-icon>dashboard_customize</mat-icon>
+      <h3>Este tablero está vacío</h3>
+      <p>Agrega indicadores, gráficas y tablas a partir de los reportes que ya tienes.</p>
+      @if (editando()) {
+        <button mat-flat-button color="primary" (click)="agregarWidget('KPI')">
+          <mat-icon>add</mat-icon> Agregar el primero
+        </button>
+      } @else {
+        <button mat-flat-button color="primary" (click)="editando.set(true)">
+          <mat-icon>edit</mat-icon> Editar tablero
+        </button>
+      }
+    </div>
+  }
+</div>

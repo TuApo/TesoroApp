@@ -1,0 +1,237 @@
+@if (!bloque()) {
+  <p class="pb__vacio">Selecciona un bloque del lienzo para editarlo.</p>
+} @else {
+  @let b = bloque()!;
+
+  <div class="pb">
+    <!-- ── Contenido, según el tipo ─────────────────────────────────────── -->
+    @switch (b.tipo) {
+      @case ('TITULO') {
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Texto del título</mat-label>
+          <input matInput [ngModel]="b.props['texto']" (ngModelChange)="set('texto', $event)" />
+          <mat-hint>Admite variables: {{ EJEMPLO_VARIABLE }}</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Jerarquía</mat-label>
+          <mat-select [ngModel]="b.props['nivel']" (ngModelChange)="setNumero('nivel', $event)">
+            <mat-option [value]="1">Principal (26 px)</mat-option>
+            <mat-option [value]="2">Secundario (21 px)</mat-option>
+            <mat-option [value]="3">Terciario (18 px)</mat-option>
+          </mat-select>
+        </mat-form-field>
+      }
+
+      @case ('TEXTO') {
+        <label class="pb__label">Contenido</label>
+        <app-editor-texto-rico
+          [html]="b.props['html'] ?? ''"
+          (htmlChange)="set('html', $event)" />
+        <p class="pb__ayuda">
+          Escribe las variables entre llaves dobles o insértalas desde el panel de la derecha.
+        </p>
+      }
+
+      @case ('IMAGEN') {
+        <label class="pb__label">Imagen</label>
+        @if (urlDe(b.props['activoId'])) {
+          <img class="pb__preview" [src]="urlDe(b.props['activoId'])" [alt]="b.props['alt'] || ''" />
+        }
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>De la biblioteca</mat-label>
+          <mat-select [ngModel]="b.props['activoId']" (ngModelChange)="set('activoId', $event)">
+            <mat-option [value]="null">— Ninguna —</mat-option>
+            @for (a of imagenes(); track a.id) {
+              <mat-option [value]="a.id">{{ a.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button type="button" mat-stroked-button class="pb__accion"
+                (click)="elegirMedio.emit({ bloque: b, campo: 'activoId', tipo: 'IMAGEN' })">
+          <mat-icon>upload</mat-icon> Subir una imagen nueva
+        </button>
+
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Texto alternativo</mat-label>
+          <input matInput [ngModel]="b.props['alt']" (ngModelChange)="set('alt', $event)" />
+          <mat-hint>Es lo que se lee si la imagen no carga. No lo dejes vacío.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Enlace al pulsarla (opcional)</mat-label>
+          <input matInput [ngModel]="b.props['enlace']" (ngModelChange)="set('enlace', $event)"
+                 placeholder="https://…" />
+        </mat-form-field>
+
+        <label class="pb__label">Ancho: {{ b.props['anchoPct'] ?? 100 }}%</label>
+        <mat-slider min="10" max="100" step="5" discrete>
+          <input matSliderThumb [ngModel]="b.props['anchoPct'] ?? 100"
+                 (ngModelChange)="setNumero('anchoPct', $event)" />
+        </mat-slider>
+      }
+
+      @case ('VIDEO') {
+        <p class="pb__ayuda pb__ayuda--destacada">
+          <mat-icon>info</mat-icon>
+          Ningún cliente de correo reproduce vídeo incrustado. Lo que se envía es la miniatura
+          enlazada al vídeo, que es como lo resuelven todas las campañas serias.
+        </p>
+
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>De la biblioteca</mat-label>
+          <mat-select [ngModel]="null" (ngModelChange)="elegirVideo($event)">
+            @for (a of videos(); track a.id) {
+              <mat-option [value]="a.id">{{ a.nombre }}</mat-option>
+            }
+          </mat-select>
+          <mat-hint>Copia el enlace y la miniatura de golpe.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Enlace del vídeo</mat-label>
+          <input matInput [ngModel]="b.props['url']" (ngModelChange)="set('url', $event)"
+                 placeholder="https://youtu.be/…" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Miniatura</mat-label>
+          <mat-select [ngModel]="b.props['activoId']" (ngModelChange)="set('activoId', $event)">
+            <mat-option [value]="null">— Sin miniatura (botón de texto) —</mat-option>
+            @for (a of imagenes(); track a.id) {
+              <mat-option [value]="a.id">{{ a.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+
+      @case ('BOTON') {
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Texto del botón</mat-label>
+          <input matInput [ngModel]="b.props['texto']" (ngModelChange)="set('texto', $event)" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Destino</mat-label>
+          <input matInput [ngModel]="b.props['enlace']" (ngModelChange)="set('enlace', $event)"
+                 [placeholder]="EJEMPLO_ENLACE" />
+          <mat-hint>Puede ser una variable, por ejemplo el enlace propio de cada persona.</mat-hint>
+        </mat-form-field>
+
+        <div class="pb__fila">
+          <label class="pb__color">
+            Fondo
+            <input type="color" [ngModel]="b.props['colorFondo'] ?? '#0f766e'"
+                   (ngModelChange)="set('colorFondo', $event)" />
+          </label>
+          <label class="pb__color">
+            Texto
+            <input type="color" [ngModel]="b.props['colorTexto'] ?? '#ffffff'"
+                   (ngModelChange)="set('colorTexto', $event)" />
+          </label>
+        </div>
+      }
+
+      @case ('LISTA_DATOS') {
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Título de la tabla</mat-label>
+          <input matInput [ngModel]="b.props['titulo']" (ngModelChange)="set('titulo', $event)" />
+        </mat-form-field>
+
+        <label class="pb__label">Filas</label>
+        @for (f of filas(); track $index) {
+          <div class="pb__fila-datos">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Etiqueta</mat-label>
+              <input matInput [ngModel]="f.etiqueta"
+                     (ngModelChange)="editarFila($index, 'etiqueta', $event)" />
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Valor</mat-label>
+              <input matInput [ngModel]="f.valor"
+                     (ngModelChange)="editarFila($index, 'valor', $event)" />
+            </mat-form-field>
+            <button type="button" mat-icon-button (click)="quitarFila($index)" matTooltip="Quitar fila">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        }
+        <button type="button" mat-stroked-button class="pb__accion" (click)="agregarFila()">
+          <mat-icon>add</mat-icon> Añadir fila
+        </button>
+      }
+
+      @case ('SEPARADOR') {
+        <div class="pb__fila">
+          <label class="pb__color">
+            Color
+            <input type="color" [ngModel]="b.props['color'] ?? '#e5e7eb'"
+                   (ngModelChange)="set('color', $event)" />
+          </label>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Grosor (px)</mat-label>
+            <input matInput type="number" min="1" max="8"
+                   [ngModel]="b.props['grosorPx'] ?? 1" (ngModelChange)="setNumero('grosorPx', $event)" />
+          </mat-form-field>
+        </div>
+      }
+
+      @case ('ESPACIO') {
+        <label class="pb__label">Altura: {{ b.props['altoPx'] ?? 24 }} px</label>
+        <mat-slider min="4" max="96" step="4" discrete>
+          <input matSliderThumb [ngModel]="b.props['altoPx'] ?? 24"
+                 (ngModelChange)="setNumero('altoPx', $event)" />
+        </mat-slider>
+      }
+
+      @case ('COLUMNAS') {
+        <p class="pb__ayuda">
+          Las columnas se apilan solas en el móvil. El reparto de anchos es relativo:
+          50 y 50 es mitad y mitad; 70 y 30, dos tercios y un tercio.
+        </p>
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>Separación entre columnas (px)</mat-label>
+          <input matInput type="number" min="0" max="48"
+                 [ngModel]="b.props['espacioPx'] ?? 16" (ngModelChange)="setNumero('espacioPx', $event)" />
+        </mat-form-field>
+      }
+
+      @case ('HTML') {
+        <mat-form-field appearance="outline" class="pb__campo">
+          <mat-label>HTML</mat-label>
+          <textarea matInput rows="10" class="pb__mono"
+                    [ngModel]="b.props['html']" (ngModelChange)="set('html', $event)"></textarea>
+          <mat-hint>Se elimina lo ejecutable (script, manejadores onclick) antes de guardar.</mat-hint>
+        </mat-form-field>
+      }
+    }
+
+    <!-- ── Presentación, común a casi todos ─────────────────────────────── -->
+    @if (b.tipo !== 'ESPACIO') {
+      <div class="pb__seccion">Presentación</div>
+
+      @if (b.tipo !== 'SEPARADOR' && b.tipo !== 'COLUMNAS' && b.tipo !== 'HTML') {
+        <label class="pb__label">Alineación</label>
+        <mat-button-toggle-group [value]="b.props['alineacion'] ?? 'left'"
+                                 (change)="set('alineacion', $event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle value="left"><mat-icon>format_align_left</mat-icon></mat-button-toggle>
+          <mat-button-toggle value="center"><mat-icon>format_align_center</mat-icon></mat-button-toggle>
+          <mat-button-toggle value="right"><mat-icon>format_align_right</mat-icon></mat-button-toggle>
+        </mat-button-toggle-group>
+      }
+
+      <div class="pb__fila">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Margen vertical</mat-label>
+          <input matInput type="number" min="0" max="80"
+                 [ngModel]="b.props['paddingY'] ?? 16" (ngModelChange)="setNumero('paddingY', $event)" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Margen lateral</mat-label>
+          <input matInput type="number" min="0" max="80"
+                 [ngModel]="b.props['paddingX'] ?? 24" (ngModelChange)="setNumero('paddingX', $event)" />
+        </mat-form-field>
+      </div>
+    }
+  </div>
+}

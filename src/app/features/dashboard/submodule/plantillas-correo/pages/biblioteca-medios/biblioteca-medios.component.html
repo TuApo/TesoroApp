@@ -1,0 +1,87 @@
+<div class="bm">
+  <div class="bm__cab">
+    <a mat-icon-button routerLink=".." matTooltip="Volver a las plantillas">
+      <mat-icon>arrow_back</mat-icon>
+    </a>
+    <div>
+      <h1 class="bm__titulo">Biblioteca de medios</h1>
+      <p class="bm__sub">
+        Fotos y vídeos que el editor puede insertar. Las imágenes se incrustan en el correo,
+        así que se ven aunque el cliente del destinatario bloquee las imágenes remotas.
+      </p>
+    </div>
+    <span class="bm__flex"></span>
+
+    <button mat-stroked-button (click)="registrarVideo()">
+      <mat-icon>smart_display</mat-icon> Registrar vídeo
+    </button>
+    <button mat-flat-button color="primary" (click)="entrada.click()" [disabled]="subiendo()">
+      <mat-icon>upload</mat-icon> Subir imágenes
+    </button>
+    <input #entrada type="file" hidden multiple accept="image/jpeg,image/png,image/gif"
+           (change)="subir($event)" />
+  </div>
+
+  <mat-card class="bm__filtros">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="bm__buscar">
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput placeholder="Buscar por nombre o etiqueta"
+             [ngModel]="filtroTexto()" (ngModelChange)="filtroTexto.set($event); recargar()" />
+    </mat-form-field>
+
+    <mat-button-toggle-group [value]="filtroTipo()"
+                             (change)="filtroTipo.set($event.value); recargar()" hideSingleSelectionIndicator>
+      <mat-button-toggle value="TODOS">Todo</mat-button-toggle>
+      <mat-button-toggle value="IMAGEN">Imágenes</mat-button-toggle>
+      <mat-button-toggle value="VIDEO">Vídeos</mat-button-toggle>
+    </mat-button-toggle-group>
+  </mat-card>
+
+  @if (cargando() || subiendo()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  @if (!cargando() && !activos().length) {
+    <mat-card class="bm__vacio">
+      <mat-icon>perm_media</mat-icon>
+      <h2>La biblioteca está vacía</h2>
+      <p>
+        Sube el logo y las fotos que vayas a usar. Se admiten JPG, PNG y GIF hasta 2 MB:
+        son los únicos formatos que pintan todos los clientes de correo, incluido Outlook
+        de escritorio.
+      </p>
+    </mat-card>
+  }
+
+  <div class="bm__rejilla">
+    @for (a of activos(); track a.id) {
+      <mat-card class="bm__item">
+        <div class="bm__vista">
+          @if (a.tipo === 'IMAGEN') {
+            <img [src]="url(a)" [alt]="a.nombre" loading="lazy" />
+          } @else {
+            <div class="bm__video"><mat-icon>smart_display</mat-icon></div>
+          }
+        </div>
+
+        <div class="bm__info">
+          <div class="bm__nombre" [title]="a.nombre">{{ a.nombre }}</div>
+          <div class="bm__meta">
+            @if (a.tipo === 'IMAGEN') {
+              {{ a.ancho }}×{{ a.alto }} · <span [class.bm__pesada]="esPesada(a)">{{ peso(a) }}</span>
+            } @else {
+              <a [href]="a.url_externa" target="_blank" rel="noopener">Abrir vídeo</a>
+            }
+          </div>
+          @if (esPesada(a)) {
+            <div class="bm__aviso" matTooltip="Con imágenes incrustadas, el peso se multiplica por cada destinatario. Una imagen de encabezado bien exportada no llega a 200 KB.">
+              <mat-icon>warning</mat-icon> Pesada para correo
+            </div>
+          }
+        </div>
+
+        <button mat-icon-button class="bm__quitar" (click)="archivar(a)" matTooltip="Archivar">
+          <mat-icon>delete_outline</mat-icon>
+        </button>
+      </mat-card>
+    }
+  </div>
+</div>

@@ -1,0 +1,113 @@
+<div class="cfg-card">
+  <div class="cfg-card__head cfg-card__head--row">
+    <div>
+      <h2 class="cfg-card__title">Sede de trabajo</h2>
+      <p class="cfg-card__hint">Selecciona la sede desde la que estás operando.</p>
+    </div>
+    @if (cargando) {
+      <mat-spinner diameter="22"></mat-spinner>
+    }
+  </div>
+
+  @if (!isOnline) {
+    <div class="notice notice--warn">
+      <mat-icon fontSet="material-symbols-outlined">cloud_off</mat-icon>
+      <span>Sin conexión. Puedes ver las sedes en caché, pero necesitas red para cambiarla.</span>
+    </div>
+  }
+
+  @if (sedes.length === 0 && !cargando) {
+    <div class="notice">
+      <mat-icon fontSet="material-symbols-outlined">info</mat-icon>
+      <span>No hay sedes disponibles.</span>
+    </div>
+  } @else if (tieneVarias) {
+    <!-- Multi-sede (V40): el usuario ve primero SUS sedes asignadas. -->
+    <div class="notice notice--info">
+      <mat-icon fontSet="material-symbols-outlined">apartment</mat-icon>
+      <span>Tienes {{ sedesAsignadasIds.size }} sedes asignadas. La que elijas pasa a ser tu sede principal.</span>
+    </div>
+
+    <p class="sede-group__label">
+      <mat-icon fontSet="material-symbols-outlined">star</mat-icon>
+      Tus sedes asignadas
+    </p>
+    <ul class="sede-list" role="radiogroup" aria-label="Tus sedes asignadas">
+      @for (s of sedesPropias; track trackById($index, s)) {
+        <li>
+          <button
+            type="button"
+            class="sede-item"
+            role="radio"
+            [attr.aria-checked]="seleccionId === s.id"
+            [class.is-selected]="seleccionId === s.id"
+            (click)="seleccionar(s.id)">
+            <span class="sede-item__radio" aria-hidden="true"></span>
+            <span class="sede-item__name">{{ s.nombre }}</span>
+            @if (s.id === sedeActualId) {
+              <span class="sede-item__badge">Actual · Principal</span>
+            } @else {
+              <span class="sede-item__badge sede-item__badge--asignada">Asignada</span>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+
+    @if (sedesOtras.length) {
+      <p class="sede-group__label sede-group__label--otras">Otras sedes</p>
+      <ul class="sede-list" role="radiogroup" aria-label="Otras sedes">
+        @for (s of sedesOtras; track trackById($index, s)) {
+          <li>
+            <button
+              type="button"
+              class="sede-item"
+              role="radio"
+              [attr.aria-checked]="seleccionId === s.id"
+              [class.is-selected]="seleccionId === s.id"
+              (click)="seleccionar(s.id)">
+              <span class="sede-item__radio" aria-hidden="true"></span>
+              <span class="sede-item__name">{{ s.nombre }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  } @else {
+    <ul class="sede-list" role="radiogroup" aria-label="Sedes disponibles">
+      @for (s of sedes; track trackById($index, s)) {
+        <li>
+          <button
+            type="button"
+            class="sede-item"
+            role="radio"
+            [attr.aria-checked]="seleccionId === s.id"
+            [class.is-selected]="seleccionId === s.id"
+            (click)="seleccionar(s.id)">
+            <span class="sede-item__radio" aria-hidden="true"></span>
+            <span class="sede-item__name">{{ s.nombre }}</span>
+            @if (s.id === sedeActualId) {
+              <span class="sede-item__badge">Actual</span>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+  }
+
+  <div class="cfg-actions">
+    <button
+      type="button"
+      class="btn btn--primary"
+      [disabled]="!hayCambio || guardando || !isOnline"
+      (click)="guardar()">
+      @if (guardando) {
+        <mat-spinner diameter="16"></mat-spinner>
+        Guardando…
+      } @else {
+        <mat-icon fontSet="material-symbols-outlined">check</mat-icon>
+        Guardar sede
+      }
+    </button>
+  </div>
+</div>

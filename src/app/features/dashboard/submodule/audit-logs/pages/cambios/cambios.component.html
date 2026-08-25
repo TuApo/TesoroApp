@@ -1,0 +1,219 @@
+<div class="cambios-container">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-title">
+      <mat-icon class="header-icon">history</mat-icon>
+      <div>
+        <h1>Historial de Cambios</h1>
+        <p>Registro de creaciones, modificaciones y eliminaciones en la plataforma</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filtros-bar">
+    <mat-form-field appearance="outline" class="filtro-field">
+      <mat-label>Acción</mat-label>
+      <mat-select [formControl]="filtroAccion">
+        <mat-option [value]="null">Todas</mat-option>
+        <mat-option *ngFor="let a of acciones" [value]="a">{{ labelAccion(a) }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filtro-field">
+      <mat-label>Módulo</mat-label>
+      <mat-select [formControl]="filtroModulo">
+        <mat-option [value]="null">Todos</mat-option>
+        <mat-option *ngFor="let m of modulos" [value]="m">{{ m }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filtro-field">
+      <mat-label>Tipo de entidad</mat-label>
+      <mat-icon matPrefix>category</mat-icon>
+      <input matInput [formControl]="filtroEntidad" placeholder="ej: Contrato, Usuario">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filtro-field">
+      <mat-label>ID de entidad</mat-label>
+      <mat-icon matPrefix>tag</mat-icon>
+      <input matInput [formControl]="filtroEntidadId" placeholder="ID específico">
+    </mat-form-field>
+
+    <button mat-stroked-button (click)="limpiar()" matTooltip="Limpiar filtros">
+      <mat-icon>filter_alt_off</mat-icon>
+    </button>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-overlay" *ngIf="cargando">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+
+  <!-- Vista tarjetas mobile -->
+  @if (!cargando && isMobile) {
+    <div class="mobile-cards">
+      @for (c of cambios; track c.id) {
+        <div class="cambio-card">
+          <div class="card-top-row">
+            <span class="action-chip" [style.background]="colorAccion(c.accion)+'22'" [style.color]="colorAccion(c.accion)">{{ labelAccion(c.accion) }}</span>
+            <span class="modulo-chip">{{ c.modulo }}</span>
+          </div>
+          <div class="card-field">
+            <span class="card-label">Fecha</span>
+            <span class="card-val">{{ formatDate(c.occurred_at) }}</span>
+          </div>
+          <div class="card-field">
+            <span class="card-label">Usuario</span>
+            <span class="card-val">{{ c.actor_nombre || c.actor_email || '—' }}</span>
+          </div>
+          <div class="card-field">
+            <span class="card-label">Entidad</span>
+            <span class="card-val">{{ c.entidad }}{{ c.entidad_id ? ' · ' + (c.entidad_id | slice:0:12) : '' }}</span>
+          </div>
+          @if (c.campo) {
+            <div class="card-field">
+              <span class="card-label">Campo</span>
+              <span class="card-val card-mono">{{ c.campo }}</span>
+            </div>
+          }
+          @if (c.descripcion) {
+            <div class="card-field">
+              <span class="card-label">Descripción</span>
+              <span class="card-val card-desc">{{ c.descripcion }}</span>
+            </div>
+          }
+          @if (hasDetalle(c)) {
+            <button mat-stroked-button class="detalle-btn" (click)="toggleDetalle(c)">
+              <mat-icon>{{ expandedRow === c ? 'expand_less' : 'expand_more' }}</mat-icon>
+              {{ expandedRow === c ? 'Ocultar' : 'Ver cambio' }}
+            </button>
+            @if (expandedRow === c) {
+              <div class="diff-panel">
+                @if (c.valor_anterior) {
+                  <div class="diff-col before">
+                    <div class="diff-label"><mat-icon>remove_circle</mat-icon> Antes</div>
+                    <pre class="diff-content">{{ c.valor_anterior }}</pre>
+                  </div>
+                }
+                @if (c.valor_nuevo) {
+                  <div class="diff-col after">
+                    <div class="diff-label"><mat-icon>add_circle</mat-icon> Después</div>
+                    <pre class="diff-content">{{ c.valor_nuevo }}</pre>
+                  </div>
+                }
+              </div>
+            }
+          }
+        </div>
+      }
+      @if (cambios.length === 0) {
+        <div class="empty-state"><mat-icon>manage_search</mat-icon><p>Sin cambios con los filtros seleccionados.</p></div>
+      }
+    </div>
+  }
+
+  <!-- Vista tabla desktop -->
+  <div class="tabla-wrapper" *ngIf="!cargando && !isMobile">
+    <table mat-table [dataSource]="cambios" class="tabla-cambios mat-elevation-z1" multiTemplateDataRows>
+
+      <ng-container matColumnDef="occurredAt">
+        <th mat-header-cell *matHeaderCellDef>Fecha</th>
+        <td mat-cell *matCellDef="let c" class="td-fecha">{{ formatDate(c.occurred_at) }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="actor">
+        <th mat-header-cell *matHeaderCellDef>Actor</th>
+        <td mat-cell *matCellDef="let c">
+          <div class="actor-cell">
+            <span class="actor-email">{{ c.actor_email ?? '—' }}</span>
+            <span class="actor-rol" *ngIf="c.actor_rol">{{ c.actor_rol }}</span>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="modulo">
+        <th mat-header-cell *matHeaderCellDef>Módulo</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="modulo-chip">{{ c.modulo }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="entidad">
+        <th mat-header-cell *matHeaderCellDef>Entidad</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="entidad-text">{{ c.entidad }}</span>
+          <span class="entidad-id" *ngIf="c.entidad_id">· {{ c.entidad_id | slice:0:20 }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="accion">
+        <th mat-header-cell *matHeaderCellDef>Acción</th>
+        <td mat-cell *matCellDef="let c">
+          <span class="action-chip"
+                [style.background]="colorAccion(c.accion) + '22'"
+                [style.color]="colorAccion(c.accion)">
+            {{ labelAccion(c.accion) }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="campo">
+        <th mat-header-cell *matHeaderCellDef>Campo</th>
+        <td mat-cell *matCellDef="let c" class="td-mono">{{ c.campo ?? '—' }}</td>  <!-- campo no cambia -->
+      </ng-container>
+
+      <ng-container matColumnDef="descripcion">
+        <th mat-header-cell *matHeaderCellDef>Descripción</th>
+        <td mat-cell *matCellDef="let c" class="td-desc">{{ c.descripcion ?? '—' }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="detalle">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let c">
+          <button mat-icon-button *ngIf="hasDetalle(c)" (click)="toggleDetalle(c)"
+                  [matTooltip]="expandedRow === c ? 'Ocultar detalle' : 'Ver detalle'">
+            <mat-icon>{{ expandedRow === c ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <!-- Row de detalle expandida -->
+      <ng-container matColumnDef="expandedDetail">
+        <td mat-cell *matCellDef="let c" [attr.colspan]="displayedColumns.length">
+          <div class="detalle-row" *ngIf="c === expandedRow">
+            <div class="diff-panel" *ngIf="c.valor_anterior || c.valor_nuevo">
+              <div class="diff-col before" *ngIf="c.valor_anterior">
+                <div class="diff-label"><mat-icon>remove_circle</mat-icon> Antes</div>
+                <pre class="diff-content">{{ c.valor_anterior }}</pre>
+              </div>
+              <div class="diff-col after" *ngIf="c.valor_nuevo">
+                <div class="diff-label"><mat-icon>add_circle</mat-icon> Después</div>
+                <pre class="diff-content">{{ c.valor_nuevo }}</pre>
+              </div>
+            </div>
+          </div>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="fila-cambio"
+          [class.expanded-row]="expandedRow === row"></tr>
+      <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detalle-fila"></tr>
+    </table>
+
+    <div class="empty-state" *ngIf="cambios.length === 0">
+      <mat-icon>manage_search</mat-icon>
+      <p>No se encontraron cambios con los filtros seleccionados.</p>
+    </div>
+  </div>
+
+  <mat-paginator *ngIf="!cargando && totalElements > 0"
+    [length]="totalElements"
+    [pageSize]="pageSize"
+    [pageSizeOptions]="[25, 50, 100]"
+    [pageIndex]="pageIndex"
+    (page)="onPage($event)">
+  </mat-paginator>
+</div>

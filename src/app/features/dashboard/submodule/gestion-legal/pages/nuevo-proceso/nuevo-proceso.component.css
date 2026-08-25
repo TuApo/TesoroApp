@@ -1,0 +1,215 @@
+.nuevo-proceso-container {
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a237e;
+}
+
+.page-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+}
+
+/* Stepper */
+.proceso-stepper {
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+.step-content {
+  padding: 24px 0 8px;
+}
+
+.step-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 20px;
+}
+
+.tipo-seleccionado-label {
+  font-weight: 400;
+  font-size: 15px;
+}
+
+/* Grid de tipos */
+.loading-tipos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px;
+  color: #888;
+}
+
+.tipos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.tipo-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 2px solid #e0e0e0;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  position: relative;
+  background: #fff;
+  user-select: none;
+}
+
+.tipo-card:hover {
+  border-color: var(--tipo-color, #1565c0);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  transform: translateY(-1px);
+}
+
+.tipo-card.tipo-seleccionado {
+  border-color: var(--tipo-color, #1565c0);
+  background: color-mix(in srgb, var(--tipo-color, #1565c0) 8%, white);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tipo-color, #1565c0) 20%, transparent);
+}
+
+.tipo-icono {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tipo-color, #1565c0) 15%, white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tipo-icono mat-icon {
+  color: var(--tipo-color, #1565c0);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.tipo-info {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex: 1;
+}
+
+.tipo-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tipo-codigo {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tipo-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--tipo-color, #1565c0);
+}
+
+.tipos-vacio {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: #bbb;
+}
+
+.tipos-vacio mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  display: block;
+  margin: 0 auto 12px;
+}
+
+/* Formulario paso 2 */
+.proceso-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.form-field {
+  flex: 1;
+  min-width: 200px;
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* Acciones de paso */
+.step-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Responsive mobile ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .nuevo-proceso-container {
+    padding: 12px 12px calc(12px + 60px);
+  }
+
+  .page-header h1 { font-size: 18px; }
+
+  .tipos-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-field {
+    min-width: 0;
+  }
+
+  .step-actions {
+    justify-content: stretch;
+  }
+
+  .step-actions button {
+    flex: 1;
+  }
+}

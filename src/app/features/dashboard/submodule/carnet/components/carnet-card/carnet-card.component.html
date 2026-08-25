@@ -1,0 +1,149 @@
+<div class="carnet-wrap">
+
+  <div class="carnet-flip">
+    <div class="carnet-caras" [class.is-reverso]="cara() === 'reverso'">
+
+      <!-- ═════════════ CARA FRONTAL ═════════════ -->
+      <section class="carnet-cara carnet-cara--frente" [attr.aria-hidden]="cara() === 'reverso'">
+
+        <header class="cf-head">
+          <img class="cf-logo" src="logos/logo_alianza.svg" alt="Tu Apo" />
+          <span class="cf-tipo">CARNÉ DE IDENTIFICACIÓN</span>
+        </header>
+
+        <div class="cf-cuerpo">
+          <div class="cf-foto">
+            @if (foto) {
+              <img [src]="foto" alt="Foto de {{ nombre() }}" />
+            } @else {
+              <span class="cf-foto-iniciales">{{ iniciales() }}</span>
+            }
+          </div>
+
+          <div class="cf-datos">
+            <p class="cf-nombre">{{ nombre() }}</p>
+            <p class="cf-cargo">{{ cargo() }}</p>
+
+            <dl class="cf-campos">
+              <div>
+                <dt>{{ val(carnet.tipoDocumento) === '—' ? 'Documento' : carnet.tipoDocumento }}</dt>
+                <dd class="cf-cedula">{{ val(carnet.cedula) }}</dd>
+              </div>
+              @if (carnet.empresa) {
+                <div>
+                  <dt>Empresa</dt>
+                  <dd>{{ carnet.empresa }}</dd>
+                </div>
+              }
+              @if (carnet.centroCosto) {
+                <div>
+                  <dt>Finca / centro de costo</dt>
+                  <dd>{{ carnet.centroCosto }}</dd>
+                </div>
+              }
+              @if (carnet.oficina) {
+                <div>
+                  <dt>Oficina</dt>
+                  <dd>{{ carnet.oficina }}</dd>
+                </div>
+              }
+            </dl>
+          </div>
+        </div>
+
+        <footer class="cf-pie">
+          <span class="cf-estado" [class]="'is-' + carnet.estado.toLowerCase()">{{ etiquetaEstado }}</span>
+          @if (carnet.fechaIngreso) {
+            <span class="cf-ingreso">Ingreso: {{ fecha(carnet.fechaIngreso) }}</span>
+          }
+        </footer>
+
+        <!-- Sello de agua: SIEMPRE por encima del contenido de la cara. -->
+        <div class="carnet-sello carnet-sello--oscuro" aria-hidden="true">
+          @for (i of filasSello; track i) {
+            <span class="carnet-sello-linea">{{ textoSello() }} · {{ textoSello() }}</span>
+          }
+        </div>
+      </section>
+
+      <!-- ═════════════ CARA TRASERA ═════════════ -->
+      <section class="carnet-cara carnet-cara--reverso" [attr.aria-hidden]="cara() === 'frente'">
+
+        <header class="cr-head">
+          <span class="cr-titulo">SEGURIDAD SOCIAL</span>
+          <span class="cr-cedula">{{ val(carnet.cedula) }}</span>
+        </header>
+
+        <div class="cr-cuerpo">
+          <dl class="cr-campos">
+            <div>
+              <dt>EPS</dt>
+              <dd>{{ val(carnet.eps) }}</dd>
+            </div>
+            <div>
+              <dt>Fondo de pensiones</dt>
+              <dd>{{ val(carnet.afp) }}</dd>
+            </div>
+            <div>
+              <dt>ARL</dt>
+              <dd>{{ val(carnet.arl) }}</dd>
+            </div>
+            <div>
+              <dt>RH</dt>
+              <dd>{{ val(carnet.rh) }}</dd>
+            </div>
+            @if (carnet.numeroContrato) {
+              <div>
+                <dt>Contrato</dt>
+                <dd>{{ carnet.numeroContrato }}</dd>
+              </div>
+            }
+            @if (carnet.temporal) {
+              <div>
+                <dt>Temporal</dt>
+                <dd>{{ carnet.temporal }}</dd>
+              </div>
+            }
+          </dl>
+
+          <div class="cr-qr">
+            @if (qr()) {
+              <img [src]="qr()" alt="Código QR de identificación" />
+            } @else {
+              <div class="cr-qr-vacio">
+                <mat-icon>qr_code_2</mat-icon>
+              </div>
+            }
+            <span class="cr-qr-pie">Escanear para identificar</span>
+          </div>
+        </div>
+
+        <footer class="cr-pie">
+          Este carné es personal e intransferible. Verifíquelo en la plataforma TuApo.
+        </footer>
+
+        <div class="carnet-sello carnet-sello--claro" aria-hidden="true">
+          @for (i of filasSello; track i) {
+            <span class="carnet-sello-linea">{{ textoSello() }} · {{ textoSello() }}</span>
+          }
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="carnet-acciones">
+    <button type="button" class="carnet-girar" (click)="girar()"
+      [matTooltip]="cara() === 'frente' ? 'Ver el reverso' : 'Ver el frente'">
+      <mat-icon>flip</mat-icon>
+      {{ cara() === 'frente' ? 'Ver reverso' : 'Ver frente' }}
+    </button>
+
+    @if (!compacto) {
+      <span class="carnet-validez">
+        <mat-icon>schedule</mat-icon>
+        Generado {{ ahora() | date: 'dd/MM/yyyy HH:mm:ss' }}
+      </span>
+    }
+  </div>
+</div>

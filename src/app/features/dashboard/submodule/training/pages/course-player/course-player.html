@@ -1,0 +1,180 @@
+<section class="pantalla">
+  @if (cargando()) {
+    <p class="cargando">Abriendo el curso…</p>
+  } @else if (error()) {
+    <div class="aviso aviso-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button type="button" class="boton-principal" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (paquete(); as curso) {
+    <header class="cabecera">
+      <button type="button" class="boton-icono" (click)="volver()" aria-label="Volver a mis cursos">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <h1>{{ curso.curso_nombre }}</h1>
+    </header>
+
+    <div class="avance-global">
+      <mat-progress-bar mode="determinate"
+        [value]="completadas() / (lecciones().length || 1) * 100"></mat-progress-bar>
+      <p>{{ completadas() }} de {{ lecciones().length }} lecciones</p>
+    </div>
+
+    @if (!offline.enLinea) {
+      <p class="aviso aviso-offline">
+        <mat-icon>cloud_off</mat-icon>
+        Sin conexión. Puedes seguir con lo que ya descargaste.
+      </p>
+    }
+
+    <button type="button" class="boton-secundario boton-indice"
+            (click)="indiceAbierto.set(!indiceAbierto())">
+      <mat-icon>list</mat-icon>
+      {{ indiceAbierto() ? 'Ocultar' : 'Ver' }} el temario
+    </button>
+
+    @if (indiceAbierto()) {
+      <nav class="indice">
+        @for (modulo of curso.modulos; track modulo.id) {
+          <h2>{{ modulo.nombre }}</h2>
+          <ul>
+            @for (l of modulo.lecciones; track l.id) {
+              <li>
+                <button type="button" class="item-indice"
+                        [class.activa]="l.id === leccion()?.id"
+                        (click)="seleccionar(l)">
+                  <mat-icon>{{ l.estado === 'COMPLETADA' ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                  <span>{{ l.nombre }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </nav>
+    }
+
+    @if (leccion(); as l) {
+      <article class="leccion">
+        <h2>{{ l.nombre }}</h2>
+        @if (l.duracion_min) {
+          <p class="duracion"><mat-icon>schedule</mat-icon> {{ l.duracion_min }} min</p>
+        }
+
+        <!-- Visor por tipo de lección -->
+        @switch (l.tipo) {
+          @case ('TEXTO') {
+            <div class="contenido-texto" [innerHTML]="l.contenido"></div>
+          }
+          @case ('ENLACE') {
+            <a class="boton-principal boton-grande" [href]="l.contenido" target="_blank" rel="noopener">
+              Abrir el material
+            </a>
+          }
+          @default {
+            @if (l.recursos.length === 0) {
+              <p class="sin-material">Esta lección no tiene material adjunto.</p>
+            }
+          }
+        }
+
+        @if (l.recursos.length > 0) {
+          <ul class="recursos">
+            @for (r of l.recursos; track r.id) {
+              <li>
+                @if (r.url) {
+                  <a class="recurso" [href]="r.url" target="_blank" rel="noopener">
+                    <mat-icon>{{ r.tipo === 'VIDEO' ? 'play_circle' : 'description' }}</mat-icon>
+                    <span>{{ r.nombre || 'Material de la lección' }}</span>
+                  </a>
+                } @else {
+                  <!-- Archivo en ms-documents, servido por learning-ms con el JWT de la sesión -->
+                  <button type="button" class="recurso recurso-boton"
+                          [disabled]="descargandoMaterial() === r.id"
+                          (click)="abrirMaterial(r)">
+                    <mat-icon>{{ r.tipo === 'VIDEO' ? 'play_circle' : 'description' }}</mat-icon>
+                    <span>
+                      {{ r.nombre || 'Material de la lección' }}
+                      @if (descargandoMaterial() === r.id) { — abriendo… }
+                    </span>
+                  </button>
+
+                  @if (r.tipo === 'VIDEO' && urlMaterial(r.id); as fuente) {
+                    <video class="video" controls preload="none" [src]="fuente"></video>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        }
+
+        @if (l.actividades.length > 0) {
+          <div class="actividades">
+            <h3>Para entregar</h3>
+            @for (a of l.actividades; track a.id) {
+              <div class="actividad">
+                <strong>{{ a.titulo }}</strong>
+                @if (a.instrucciones) { <p>{{ a.instrucciones }}</p> }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- ── Quiz de comprobación ── -->
+        @if (l.quiz; as quiz) {
+          <div class="quiz">
+            <h3>Comprueba lo que entendiste</h3>
+
+            @if (resultadoQuiz(); as res) {
+              <div class="quiz-resultado">
+                <mat-icon>{{ res.correctas === res.total ? 'celebration' : 'menu_book' }}</mat-icon>
+                <p>Acertaste {{ res.correctas }} de {{ res.total }} ({{ res.nota }}%).</p>
+              </div>
+            } @else {
+              @for (p of quiz.preguntas; track p.id) {
+                <fieldset class="pregunta">
+                  <legend>{{ p.enunciado }}</legend>
+                  @if (p.tipo === 'OPCION_MULTIPLE') {
+                    <p class="ayuda">Puedes marcar más de una.</p>
+                  }
+                  @for (o of p.opciones; track o.id) {
+                    <button type="button" class="opcion"
+                            [class.marcada]="elegida(p.id, o.id)"
+                            (click)="elegir(p, o.id)">
+                      <mat-icon>{{ elegida(p.id, o.id) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+                      <span>{{ o.texto }}</span>
+                    </button>
+                  }
+                </fieldset>
+              }
+
+              <button type="button" class="boton-principal boton-grande"
+                      [disabled]="!quizCompleto || guardando()"
+                      (click)="enviarQuiz()">
+                Enviar respuestas
+              </button>
+            }
+          </div>
+        }
+
+        <div class="acciones">
+          @if (l.estado === 'COMPLETADA') {
+            <p class="hecho"><mat-icon>check_circle</mat-icon> Lección completada</p>
+          } @else {
+            <button type="button" class="boton-principal boton-grande"
+                    [disabled]="guardando()" (click)="completar(l)">
+              Marcar como vista
+            </button>
+          }
+        </div>
+      </article>
+    }
+
+    @if (curso.requiere_evaluacion && completadas() === lecciones().length) {
+      <div class="aviso aviso-pendiente">
+        <mat-icon>assignment_turned_in</mat-icon>
+        Terminaste el contenido. La evaluación final se presenta con conexión a internet.
+      </div>
+    }
+  }
+</section>

@@ -1,0 +1,272 @@
+<div class="soportes-page">
+  <mat-card class="premium-card">
+
+    <!-- Header estándar de la plataforma -->
+    <mat-card-header class="card-header-premium">
+      <div class="header-content">
+        <a mat-icon-button class="btn-volver" [routerLink]="[baseListado]"
+           matTooltip="Volver al listado de formularios"
+           aria-label="Volver al listado de formularios">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        </a>
+        <div class="header-icon-container">
+          <span class="material-symbols-outlined header-icon" aria-hidden="true">attach_file</span>
+        </div>
+        <div class="header-text">
+          <mat-card-title class="titulo">Soportes</mat-card-title>
+          <mat-card-subtitle class="subtitulo">
+            @if (hayFiltros()) {
+              {{ total() }} de {{ totalAll() }} archivo(s) adjunto(s)
+            } @else {
+              {{ totalAll() }} archivo(s) adjunto(s) en las respuestas
+            }
+          </mat-card-subtitle>
+        </div>
+        <div class="grow"></div>
+      </div>
+
+      <div class="header-actions">
+        <button mat-icon-button class="btn-refresh" (click)="abrirActividad()"
+                matTooltip="Actividad de descargas" aria-label="Ver actividad de descargas">
+          <span class="material-symbols-outlined" aria-hidden="true">history</span>
+        </button>
+        <button mat-icon-button class="btn-refresh" (click)="recargar()" [disabled]="cargando()"
+                matTooltip="Actualizar" aria-label="Actualizar soportes">
+          <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+        </button>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content class="contenido">
+
+      <!-- Buscador + clasificación -->
+      <div class="filtros">
+        <mat-form-field appearance="outline" class="filtro filtro--buscar">
+          <mat-label>Buscar soporte</mat-label>
+          <span class="material-symbols-outlined" matPrefix aria-hidden="true">search</span>
+          <input matInput [formControl]="buscador" autocomplete="off"
+                 placeholder="Cédula, pregunta, archivo, fecha…" />
+          @if (buscador.value) {
+            <button matSuffix mat-icon-button aria-label="Limpiar búsqueda"
+                    (click)="buscador.setValue('')">
+              <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
+          }
+          <mat-hint>Busca por palabras en todos los datos del soporte</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filtro">
+          <mat-label>Pregunta</mat-label>
+          <mat-select multiple [value]="filtroPreguntas()"
+                      (selectionChange)="onFiltroPreguntas($event.value)">
+            @for (p of preguntas(); track p.field_key) {
+              <mat-option [value]="p.field_key">
+                {{ p.field_label }} <span class="opt-conteo">({{ p.count }})</span>
+              </mat-option>
+            }
+          </mat-select>
+          @if (filtroPreguntas().length === 0) {
+            <mat-hint>Todas las preguntas</mat-hint>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="filtro">
+          <mat-label>Tipo de archivo</mat-label>
+          <mat-select multiple [value]="filtroTipos()"
+                      (selectionChange)="onFiltroTipos($event.value)">
+            @for (t of TIPOS; track t.valor) {
+              @if (conteoTipo(t.valor) > 0 || filtroTipos().includes(t.valor)) {
+                <mat-option [value]="t.valor">
+                  {{ t.etiqueta }} <span class="opt-conteo">({{ conteoTipo(t.valor) }})</span>
+                </mat-option>
+              }
+            }
+          </mat-select>
+          @if (filtroTipos().length === 0) {
+            <mat-hint>Todos los tipos</mat-hint>
+          }
+        </mat-form-field>
+
+        @if (hayFiltros()) {
+          <button mat-stroked-button class="btn-limpiar" (click)="limpiarFiltros()">
+            <span class="material-symbols-outlined" aria-hidden="true">filter_alt_off</span>
+            Quitar filtros
+          </button>
+        }
+      </div>
+
+      <!-- Barra de descarga: aparece cuando hay algo que llevarse -->
+      @if (!cargando() && total() > 0) {
+        <div class="barra-descarga" [class.barra-descarga--activa]="seleccionados() > 0">
+          <mat-checkbox class="chk-todos"
+                        [checked]="paginaCompleta()"
+                        [indeterminate]="!paginaCompleta() && seleccionados() > 0"
+                        (change)="alternarPagina()">
+            {{ paginaCompleta() ? 'Quitar esta página' : 'Marcar esta página' }}
+          </mat-checkbox>
+
+          @if (seleccionados() > 0) {
+            <span class="conteo-seleccion">
+              {{ seleccionados() }} seleccionado(s)
+              <button mat-button class="btn-limpiar-sel" (click)="limpiarSeleccion()">Limpiar</button>
+            </span>
+          }
+
+          <div class="grow"></div>
+
+          <mat-form-field appearance="outline" class="filtro filtro--agrupar">
+            <mat-label>Organizar el ZIP</mat-label>
+            <mat-select [value]="agrupacion()" (selectionChange)="agrupacion.set($event.value)">
+              @for (a of AGRUPACIONES; track a.valor) {
+                <mat-option [value]="a.valor" [matTooltip]="a.ayuda">{{ a.etiqueta }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <button mat-flat-button class="btn-zip"
+                  [disabled]="seleccionados() === 0 || armandoZip()"
+                  (click)="descargarSeleccion()">
+            <span class="material-symbols-outlined" aria-hidden="true">folder_zip</span>
+            {{ armandoZip() ? 'Preparando…' : 'Descargar selección' }}
+          </button>
+
+          <button mat-stroked-button class="btn-zip-todo"
+                  [disabled]="armandoZip()"
+                  (click)="descargarTodoLoFiltrado()"
+                  [matTooltip]="hayFiltros()
+                    ? 'Descarga los ' + total() + ' soportes que coinciden con los filtros'
+                    : 'Descarga los ' + total() + ' soportes del formulario'">
+            <span class="material-symbols-outlined" aria-hidden="true">download_for_offline</span>
+            Descargar {{ hayFiltros() ? 'lo filtrado' : 'todo' }} ({{ total() }})
+          </button>
+        </div>
+      }
+
+      @if (cargando()) {
+        <mat-progress-bar mode="indeterminate" aria-label="Cargando soportes"></mat-progress-bar>
+      }
+
+      @if (parcial()) {
+        <p class="aviso-parcial">
+          <span class="material-symbols-outlined" aria-hidden="true">info</span>
+          El formulario tiene tantos adjuntos que solo se rastrearon los más recientes.
+          Afine la búsqueda para llegar al resto.
+        </p>
+      }
+
+      @if (error()) {
+        <div class="estado estado--error" role="alert">
+          <span class="material-symbols-outlined" aria-hidden="true">cloud_off</span>
+          <p>{{ error() }}</p>
+          <button mat-stroked-button (click)="recargar()">
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+            Reintentar
+          </button>
+        </div>
+      } @else if (!cargando() && totalAll() === 0) {
+        <div class="estado">
+          <span class="material-symbols-outlined" aria-hidden="true">folder_off</span>
+          <p>Aún no hay soportes</p>
+          <span class="estado-sub">Cuando una respuesta adjunte archivos, aparecerán aquí.</span>
+        </div>
+      } @else if (!cargando() && total() === 0) {
+        <div class="estado">
+          <span class="material-symbols-outlined" aria-hidden="true">search_off</span>
+          <p>Ningún soporte coincide con la búsqueda</p>
+          <button mat-stroked-button (click)="limpiarFiltros()">Quitar filtros</button>
+        </div>
+      } @else {
+        <div class="grid-soportes">
+          @for (sf of filas(); track sf.submission_id + '-' + sf.document_id + '-' + sf.field_name) {
+            <article class="soporte-card" [attr.data-tipo]="categoriaMime(sf.mime_type)"
+                     [class.soporte-card--marcada]="estaSeleccionado(sf)">
+              <!-- Vista previa: miniatura para imágenes, icono para el resto -->
+              <div class="soporte-preview">
+                @if (esImagen(sf.mime_type) && miniaturas()[sf.document_id]) {
+                  <img class="soporte-thumb" [src]="miniaturas()[sf.document_id]"
+                       [alt]="sf.suggested_filename || 'Imagen adjunta'" loading="lazy" />
+                } @else {
+                  <span class="material-symbols-outlined soporte-icono" aria-hidden="true">
+                    {{ iconoPorMime(sf.mime_type) }}
+                  </span>
+                }
+                <span class="soporte-badge">{{ tipoLegible(sf.mime_type) }}</span>
+                <mat-checkbox class="soporte-check"
+                              [checked]="estaSeleccionado(sf)"
+                              (change)="alternarSeleccion(sf)"
+                              [attr.aria-label]="'Seleccionar ' + sf.suggested_filename">
+                </mat-checkbox>
+              </div>
+
+              <div class="soporte-body">
+                <p class="soporte-nombre" [title]="sf.suggested_filename">
+                  {{ sf.suggested_filename }}
+                </p>
+
+                <div class="soporte-etiquetas">
+                  @if (sf.record_key) {
+                    <span class="etq etq--llave"
+                          [matTooltip]="(sf.record_key_label || 'Documento') + ' de la respuesta'">
+                      <span class="material-symbols-outlined" aria-hidden="true">badge</span>
+                      {{ sf.record_key }}
+                    </span>
+                  }
+                  <button type="button" class="etq etq--pregunta" (click)="soloEstaPregunta(sf)"
+                          [matTooltip]="'Ver solo «' + sf.field_label + '»'">
+                    <span class="material-symbols-outlined" aria-hidden="true">help</span>
+                    {{ sf.field_label }}
+                  </button>
+                </div>
+
+                <dl class="soporte-meta">
+                  <div class="meta-fila">
+                    <dt>Tamaño</dt>
+                    <dd>{{ tamanoLegible(sf.size) }}</dd>
+                  </div>
+                  <div class="meta-fila">
+                    <dt>Respuesta</dt>
+                    <dd>
+                      <a class="meta-link"
+                         [routerLink]="[baseListado, formId(), 'respuestas', sf.submission_id]"
+                         matTooltip="Ver la respuesta origen">#{{ sf.submission_id }}</a>
+                    </dd>
+                  </div>
+                  <div class="meta-fila">
+                    <dt>Fecha</dt>
+                    <dd>{{ sf.submitted_at ? (sf.submitted_at | date:'dd/MM/yyyy HH:mm') : '—' }}</dd>
+                  </div>
+                  @if (sf.filename && sf.filename !== sf.suggested_filename) {
+                    <div class="meta-fila">
+                      <dt>Original</dt>
+                      <dd class="meta-campo" [title]="sf.filename">{{ sf.filename }}</dd>
+                    </div>
+                  }
+                </dl>
+              </div>
+
+              <div class="soporte-acciones">
+                <button mat-flat-button class="btn-descargar"
+                        (click)="descargar(sf)"
+                        [disabled]="descargandoId() === sf.document_id"
+                        [attr.aria-label]="'Descargar ' + sf.suggested_filename">
+                  <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                  {{ descargandoId() === sf.document_id ? 'Descargando…' : 'Descargar' }}
+                </button>
+              </div>
+            </article>
+          }
+        </div>
+
+        <mat-paginator
+          [length]="total()"
+          [pageIndex]="pagina()"
+          [pageSize]="tamano()"
+          [pageSizeOptions]="[12, 24, 48, 96]"
+          (page)="onPage($event)"
+          aria-label="Paginación de soportes">
+        </mat-paginator>
+      }
+
+    </mat-card-content>
+  </mat-card>
+</div>

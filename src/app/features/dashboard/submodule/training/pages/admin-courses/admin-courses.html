@@ -1,0 +1,131 @@
+<section class="pantalla">
+  <header class="cabecera">
+    <div>
+      <h1>Catálogo de cursos</h1>
+      <p class="subtitulo">Define qué formación existe. El contenido de cada curso se arma dentro.</p>
+    </div>
+    <button type="button" class="btn-primario" (click)="nuevo()">
+      <mat-icon>add</mat-icon> Nuevo curso
+    </button>
+  </header>
+
+  @if (editando(); as form) {
+    <div class="panel">
+      <h2>{{ form.id ? 'Editar curso' : 'Nuevo curso' }}</h2>
+
+      <div class="campos">
+        <label>
+          <span>Nombre del curso *</span>
+          <input type="text" [(ngModel)]="form.nombre" placeholder="Ej: Trabajo seguro en alturas" />
+        </label>
+
+        <label>
+          <span>Código</span>
+          <input type="text" [(ngModel)]="form.codigo" placeholder="Se genera del nombre si lo dejas vacío" />
+          <small>Identifica el curso en reportes y en el importador del histórico.</small>
+        </label>
+
+        <label class="ancho-completo">
+          <span>Descripción</span>
+          <textarea rows="2" [(ngModel)]="form.descripcion"
+                    placeholder="De qué trata y a quién va dirigido"></textarea>
+        </label>
+
+        <label>
+          <span>Modalidad</span>
+          <select [(ngModel)]="form.modalidad_default">
+            <option value="AUTOGESTIONADO">Autogestionado (a su ritmo)</option>
+            <option value="VIRTUAL_SINCRONICO">Virtual con horario</option>
+            <option value="PRESENCIAL">Presencial</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Vigencia en meses</span>
+          <input type="number" min="1" [(ngModel)]="form.vigencia_meses" placeholder="Vacío = no vence" />
+          <small>Cada cuánto hay que recertificar. Dispara los avisos de vencimiento.</small>
+        </label>
+
+        <label>
+          <span>Entidad capacitadora</span>
+          <input type="text" [(ngModel)]="form.entidad_capacitadora" />
+          <small>Sale impresa en el certificado.</small>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" [(ngModel)]="form.obligatorio" />
+          <span>Es formación obligatoria</span>
+        </label>
+      </div>
+
+      <div class="acciones-panel">
+        <button type="button" class="btn-secundario" (click)="cerrar()">Cancelar</button>
+        <button type="button" class="btn-primario" [disabled]="guardando()" (click)="guardar()">
+          {{ guardando() ? 'Guardando…' : (form.id ? 'Guardar cambios' : 'Crear y armar contenido') }}
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="barra-busqueda">
+    <mat-icon>search</mat-icon>
+    <input type="text" placeholder="Buscar por nombre o código"
+           [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
+  </div>
+
+  @if (cargando()) {
+    <p class="cargando">Cargando el catálogo…</p>
+  } @else if (error()) {
+    <div class="aviso-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button type="button" class="btn-primario" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (filtrados().length === 0) {
+    <div class="vacio">
+      <mat-icon>menu_book</mat-icon>
+      <p>{{ busqueda() ? 'Ningún curso coincide con la búsqueda.' : 'Todavía no hay cursos.' }}</p>
+      @if (!busqueda()) {
+        <button type="button" class="btn-primario" (click)="nuevo()">Crear el primero</button>
+      }
+    </div>
+  } @else {
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>Curso</th>
+          <th>Código</th>
+          <th>Modalidad</th>
+          <th>Vigencia</th>
+          <th>Estado</th>
+          <th class="acciones-col">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (c of filtrados(); track c.id) {
+          <tr>
+            <td>
+              <button type="button" class="enlace" (click)="abrir(c)">{{ c.nombre }}</button>
+              @if (c.obligatorio) { <span class="chip chip-obligatorio">Obligatorio</span> }
+            </td>
+            <td class="mono">{{ c.codigo }}</td>
+            <td>{{ c.modalidad_default }}</td>
+            <td>{{ c.vigencia_meses ? c.vigencia_meses + ' meses' : 'No vence' }}</td>
+            <td><span class="chip" [class]="estadoClase(c)">{{ estadoTexto(c) }}</span></td>
+            <td class="acciones-col">
+              <button type="button" class="btn-icono" title="Armar contenido" (click)="abrir(c)">
+                <mat-icon>library_books</mat-icon>
+              </button>
+              <button type="button" class="btn-icono" title="Editar datos" (click)="editar(c)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button type="button" class="btn-icono peligro" title="Archivar" (click)="archivar(c)">
+                <mat-icon>inventory_2</mat-icon>
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</section>

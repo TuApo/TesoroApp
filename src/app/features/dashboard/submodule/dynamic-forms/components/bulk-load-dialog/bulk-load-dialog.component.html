@@ -1,0 +1,274 @@
+<h2 mat-dialog-title class="blk-titulo">
+  <mat-icon aria-hidden="true">upload_file</mat-icon>
+  Carga masiva
+  <span class="blk-grow"></span>
+  <span class="blk-pasos" aria-label="Paso actual">
+    <span class="blk-paso" [class.activo]="paso() === 'cargar'">1. Archivo</span>
+    <mat-icon aria-hidden="true">chevron_right</mat-icon>
+    <span class="blk-paso" [class.activo]="paso() === 'preview'">2. Revisión</span>
+    <mat-icon aria-hidden="true">chevron_right</mat-icon>
+    <span class="blk-paso" [class.activo]="paso() === 'resultado'">3. Resultado</span>
+  </span>
+</h2>
+
+@if (cargando()) {
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+}
+
+<mat-dialog-content class="blk-contenido">
+
+  @if (error()) {
+    <div class="blk-error" role="alert">
+      <mat-icon aria-hidden="true">error</mat-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <!-- ══════════ Paso 1: archivo o pegado ══════════ -->
+  @if (paso() === 'cargar') {
+    <p class="blk-ayuda">
+      Sube el archivo o pega el bloque copiado de Excel. Nada se guarda todavía: primero
+      verás fila por fila qué va a pasar.
+    </p>
+
+    <div class="blk-modo">
+      <span class="blk-modo-label">Qué se permite en esta carga</span>
+      <mat-button-toggle-group [value]="modo()" (change)="cambiarModo($event.value)"
+                               aria-label="Modo de la carga masiva">
+        <mat-button-toggle value="UPSERT"
+                           matTooltip="Si la fila cruza con un registro lo actualiza; si no, lo crea">
+          Crear y actualizar
+        </mat-button-toggle>
+        <mat-button-toggle value="CREATE"
+                           matTooltip="Solo altas: una fila que cruce con un registro existente se rechaza">
+          Solo crear
+        </mat-button-toggle>
+        <mat-button-toggle value="UPDATE"
+                           matTooltip="Solo cambios: una fila que no cruce con nada se rechaza">
+          Solo actualizar
+        </mat-button-toggle>
+      </mat-button-toggle-group>
+    </div>
+
+    <div class="blk-opciones">
+      <div class="blk-opcion">
+        <mat-icon class="blk-opcion-icono" aria-hidden="true">description</mat-icon>
+        <h3>Plantilla</h3>
+        <p>
+          Trae exactamente las columnas que puedes llenar
+          ({{ data.columns.length }}) y las instrucciones.
+        </p>
+        <button mat-stroked-button (click)="descargarPlantilla()">
+          <mat-icon>download</mat-icon>
+          Descargar plantilla
+        </button>
+      </div>
+
+      <div class="blk-opcion">
+        <mat-icon class="blk-opcion-icono" aria-hidden="true">folder_open</mat-icon>
+        <h3>Subir archivo</h3>
+        <p>Formatos .xlsx, .xls o .csv. Se lee la primera hoja.</p>
+        <button mat-flat-button class="blk-primario" (click)="fileInput.click()">
+          <mat-icon>upload</mat-icon>
+          Elegir archivo
+        </button>
+        <input #fileInput type="file" hidden accept=".xlsx,.xls,.csv"
+               (change)="archivoElegido($event)" aria-label="Archivo de carga masiva">
+      </div>
+    </div>
+
+    <div class="blk-pegado">
+      <h3>…o pega desde Excel</h3>
+      <mat-form-field appearance="outline" class="blk-textarea">
+        <mat-label>Incluye la fila de encabezados</mat-label>
+        <textarea matInput rows="6" [(ngModel)]="textoPegado"
+                  placeholder="ID	Cedula	Nombre&#10;	1020304050	Ana Pérez"></textarea>
+      </mat-form-field>
+      <button mat-stroked-button (click)="usarPegado()" [disabled]="cargando()">
+        <mat-icon>content_paste_go</mat-icon>
+        Revisar lo pegado
+      </button>
+    </div>
+
+    @if (data.keyLabel) {
+      <p class="blk-nota">
+        <mat-icon aria-hidden="true">key</mat-icon>
+        Las filas sin <b>ID</b> se cruzan por <b>{{ data.keyLabel }}</b>. Si no coincide con
+        ningún registro, se crea uno nuevo.
+      </p>
+    } @else {
+      <p class="blk-nota">
+        <mat-icon aria-hidden="true">info</mat-icon>
+        Este formulario no tiene campo llave configurado: solo se pueden actualizar registros
+        indicando su <b>ID</b>.
+      </p>
+    }
+  }
+
+  <!-- ══════════ Paso 2: revisión ══════════ -->
+  @if (paso() === 'preview' && preview(); as p) {
+    <div class="blk-resumen">
+      <div class="blk-metrica blk-metrica--crear">
+        <span class="blk-numero">{{ p.to_create }}</span>
+        <span class="blk-etiqueta">se crean</span>
+      </div>
+      <div class="blk-metrica blk-metrica--actualizar">
+        <span class="blk-numero">{{ p.to_update }}</span>
+        <span class="blk-etiqueta">se actualizan</span>
+      </div>
+      <div class="blk-metrica blk-metrica--igual">
+        <span class="blk-numero">{{ p.no_change }}</span>
+        <span class="blk-etiqueta">sin cambios</span>
+      </div>
+      <div class="blk-metrica blk-metrica--error">
+        <span class="blk-numero">{{ p.with_errors }}</span>
+        <span class="blk-etiqueta">con error</span>
+      </div>
+      <div class="blk-archivo">
+        <mat-icon aria-hidden="true">description</mat-icon>
+        <span>{{ nombreArchivo() }} · {{ p.total_rows }} fila(s)</span>
+      </div>
+    </div>
+
+    @if (p.unknown_columns.length) {
+      <p class="blk-aviso">
+        <mat-icon aria-hidden="true">rule</mat-icon>
+        Columnas del archivo que no corresponden a ninguna pregunta y se ignoran:
+        <b>{{ p.unknown_columns.join(', ') }}</b>
+      </p>
+    }
+
+    @if (p.with_errors > 0) {
+      <p class="blk-aviso blk-aviso--error">
+        <mat-icon aria-hidden="true">warning</mat-icon>
+        Las filas con error <b>no se aplican</b>. Puedes corregirlas y volver a subir el
+        archivo, o aplicar ahora solo las {{ aplicables() }} filas válidas.
+      </p>
+    }
+
+    <div class="blk-tabla-scroll">
+      <table class="blk-tabla">
+        <thead>
+          <tr>
+            <th scope="col">Fila</th>
+            <th scope="col">Resultado</th>
+            <th scope="col">Registro</th>
+            <th scope="col">Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of filasVisibles(); track f.row_number) {
+            <tr [class.blk-fila--error]="f.outcome === 'ERROR'">
+              <td class="blk-num">{{ f.row_number }}</td>
+              <td>
+                <span class="blk-chip" [class]="claseResultado(f.outcome)">
+                  {{ etiquetaResultado(f.outcome) }}
+                </span>
+              </td>
+              <td class="blk-registro">
+                @if (f.submission_id) {
+                  <span class="blk-id">#{{ f.submission_id }}</span>
+                  <span class="blk-match">por {{ f.matched_by }}</span>
+                } @else if (f.record_key) {
+                  <span class="blk-llave">{{ f.record_key }}</span>
+                  <span class="blk-match">nuevo</span>
+                } @else {
+                  <span class="blk-sin-dato">—</span>
+                }
+              </td>
+              <td class="blk-detalle">
+                @if (f.errors.length) {
+                  <ul class="blk-errores">
+                    @for (e of f.errors; track e) { <li>{{ e }}</li> }
+                  </ul>
+                } @else if (f.changes.length) {
+                  <span class="blk-cambios">{{ resumenCambios(f) }}</span>
+                } @else {
+                  <span class="blk-sin-dato">Nada que cambiar</span>
+                }
+                @if (f.ignored_columns.length) {
+                  <span class="blk-ignoradas">
+                    <mat-icon aria-hidden="true">block</mat-icon>
+                    Sin permiso para escribir: {{ f.ignored_columns.join(', ') }}
+                  </span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (hayMas() && !mostrarTodas()) {
+      <button mat-button class="blk-mas" (click)="mostrarTodas.set(true)">
+        Mostrar las {{ p.rows.length }} filas revisadas
+      </button>
+    }
+  }
+
+  <!-- ══════════ Paso 3: resultado ══════════ -->
+  @if (paso() === 'resultado' && aplicado(); as r) {
+    <div class="blk-final">
+      <mat-icon class="blk-final-icono" aria-hidden="true">task_alt</mat-icon>
+      <h3>Carga aplicada</h3>
+      <p class="blk-final-detalle">
+        <b>{{ r.creados }}</b> creados ·
+        <b>{{ r.actualizados }}</b> actualizados ·
+        <b>{{ r.saltados }}</b> sin cambios
+        @if (r.errores > 0) {
+          · <b class="blk-final-error">{{ r.errores }}</b> con error
+        }
+      </p>
+      <p class="blk-final-nota">
+        Cada registro creado o modificado quedó con su entrada en el historial, atada a
+        este lote. Puedes verlo en el Excel, hoja «Cambios».
+      </p>
+
+      @if (fallidas().length) {
+        <div class="blk-tabla-scroll blk-tabla-fallidas">
+          <table class="blk-tabla">
+            <thead>
+              <tr><th scope="col">Fila</th><th scope="col">Motivo</th></tr>
+            </thead>
+            <tbody>
+              @for (f of fallidas(); track f.row_number) {
+                <tr>
+                  <td class="blk-num">{{ f.row_number }}</td>
+                  <td>
+                    <ul class="blk-errores">
+                      @for (e of f.errors; track e) { <li>{{ e }}</li> }
+                    </ul>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="blk-acciones">
+  @switch (paso()) {
+    @case ('cargar') {
+      <button mat-button (click)="cerrar()">Cancelar</button>
+    }
+    @case ('preview') {
+      <button mat-button (click)="volverACargar()" [disabled]="cargando()">
+        <mat-icon>arrow_back</mat-icon>
+        Cambiar archivo
+      </button>
+      <span class="blk-grow"></span>
+      <button mat-button (click)="cerrar()" [disabled]="cargando()">Cancelar</button>
+      <button mat-flat-button class="blk-primario" (click)="aplicar()"
+              [disabled]="cargando() || aplicables() === 0">
+        <mat-icon>done_all</mat-icon>
+        Aplicar {{ aplicables() }} fila(s)
+      </button>
+    }
+    @case ('resultado') {
+      <button mat-flat-button class="blk-primario" (click)="cerrar()">Cerrar</button>
+    }
+  }
+</mat-dialog-actions>

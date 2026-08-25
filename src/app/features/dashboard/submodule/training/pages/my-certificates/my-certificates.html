@@ -1,0 +1,56 @@
+<section class="pantalla">
+  <header class="cabecera">
+    <button type="button" class="boton-icono" (click)="volver()" aria-label="Volver a mis cursos">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <h1>Mis certificados</h1>
+  </header>
+
+  @if (cargando()) {
+    <p class="cargando">Cargando…</p>
+  } @else if (error()) {
+    <div class="aviso aviso-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button type="button" class="boton-principal" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (certificados().length === 0) {
+    <div class="vacio">
+      <mat-icon>workspace_premium</mat-icon>
+      <p>Todavía no tienes certificados.</p>
+      <p class="vacio-detalle">Aparecen aquí cuando apruebas un curso.</p>
+    </div>
+  } @else {
+    <ul class="lista">
+      @for (c of certificados(); track c.id) {
+        <li class="tarjeta">
+          <div class="tarjeta-cabecera">
+            <h2>{{ c.curso_nombre }}</h2>
+            <span class="estado" [class]="clase(c)">{{ estado(c) }}</span>
+          </div>
+
+          <dl class="datos">
+            <div><dt>Código</dt><dd class="codigo">{{ c.codigo }}</dd></div>
+            <div><dt>Emitido</dt><dd>{{ c.emitido_at | date:'d MMM y' }}</dd></div>
+            @if (c.vence_at) {
+              <div><dt>Vigente hasta</dt><dd>{{ c.vence_at | date:'d MMM y' }}</dd></div>
+            }
+            @if (c.nota != null) {
+              <div><dt>Nota</dt><dd>{{ c.nota }}</dd></div>
+            }
+          </dl>
+
+          @if (c.anulado) {
+            <p class="nota-anulado">Este certificado fue anulado y no se puede descargar.</p>
+          } @else {
+            <button type="button" class="boton-principal boton-grande"
+                    [disabled]="descargando() === c.id" (click)="descargar(c)">
+              <mat-icon>download</mat-icon>
+              {{ descargando() === c.id ? 'Generando…' : 'Descargar PDF' }}
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

@@ -1,0 +1,147 @@
+<div class="pl">
+  <div class="pl__cab">
+    <div>
+      <h1 class="pl__titulo">Plantillas de correo</h1>
+      <p class="pl__sub">
+        El cuerpo, el asunto y las variables de los correos que envía la plataforma.
+        Lo que se envía es siempre la versión <strong>publicada</strong>; el borrador se guarda
+        cuantas veces haga falta sin que nadie reciba nada distinto.
+      </p>
+    </div>
+    <span class="pl__flex"></span>
+    <a mat-stroked-button routerLink="medios" matTooltip="Fotos y vídeos que puedes insertar">
+      <mat-icon>perm_media</mat-icon> Biblioteca
+    </a>
+    <a mat-stroked-button routerLink="variables" matTooltip="Qué campos se pueden usar entre llaves">
+      <mat-icon>data_object</mat-icon> Variables
+    </a>
+    <button mat-stroked-button (click)="importar()"
+            matTooltip="Trae una plantilla ya hecha en HTML (Stripo, Mailchimp) al catálogo">
+      <mat-icon>upload_file</mat-icon> Importar HTML
+    </button>
+    <button mat-flat-button color="primary" (click)="crear()">
+      <mat-icon>add</mat-icon> Nueva plantilla
+    </button>
+  </div>
+
+  <mat-card class="pl__filtros">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pl__buscar">
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput placeholder="Buscar por nombre o código"
+             [ngModel]="filtroTexto()" (ngModelChange)="filtroTexto.set($event); recargar()" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Estado</mat-label>
+      <mat-select [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event); recargar()">
+        <mat-option value="TODOS">Todas</mat-option>
+        <mat-option value="PUBLICADA">Publicadas</mat-option>
+        <mat-option value="BORRADOR">En borrador</mat-option>
+        <mat-option value="ARCHIVADA">Archivadas</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Categoría</mat-label>
+      <mat-select [ngModel]="filtroCategoria()" (ngModelChange)="filtroCategoria.set($event); recargar()">
+        <mat-option [value]="''">Todas</mat-option>
+        @for (c of categorias(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+  </mat-card>
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  @if (!cargando() && !plantillas().length) {
+    <mat-card class="pl__vacio">
+      <mat-icon>mark_email_unread</mat-icon>
+      <h2>Todavía no hay plantillas</h2>
+      <p>
+        Crea la primera y elige un origen de datos: eso es lo que hace que el editor te ofrezca
+        las variables de contratación —nombre, cargo, fecha de ingreso, EPS— en vez de tener que
+        escribirlas a mano.
+      </p>
+      <div class="pl__vacio-acciones">
+        <button mat-stroked-button (click)="importar()">
+          <mat-icon>upload_file</mat-icon> Importar una que ya tengas
+        </button>
+        <button mat-flat-button color="primary" (click)="crear()">
+          <mat-icon>add</mat-icon> Crear la primera plantilla
+        </button>
+      </div>
+    </mat-card>
+  }
+
+  @if (destacadas().length) {
+    <div class="pl__seccion">Destacadas</div>
+    <div class="pl__rejilla">
+      @for (p of destacadas(); track p.id) {
+        <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: p }"></ng-container>
+      }
+    </div>
+  }
+
+  @if (resto().length) {
+    @if (destacadas().length) { <div class="pl__seccion">Todas</div> }
+    <div class="pl__rejilla">
+      @for (p of resto(); track p.id) {
+        <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: p }"></ng-container>
+      }
+    </div>
+  }
+</div>
+
+<ng-template #tarjeta let-p>
+  <mat-card class="pl__card" [class.pl__card--archivada]="p.estado === 'ARCHIVADA'">
+    <a class="pl__card-link" [routerLink]="[p.id]">
+      <div class="pl__card-cab">
+        <span class="pl__cat">{{ p.categoria }}</span>
+        @if (p.tiene_borrador) {
+          <mat-chip class="pl__chip pl__chip--borrador" matTooltip="Hay cambios guardados que aún no se envían a nadie">
+            Borrador
+          </mat-chip>
+        } @else if (p.estado === 'PUBLICADA') {
+          <mat-chip class="pl__chip pl__chip--pub">v{{ p.version_publicada }}</mat-chip>
+        } @else if (p.estado === 'ARCHIVADA') {
+          <mat-chip class="pl__chip">Archivada</mat-chip>
+        }
+      </div>
+
+      <h3 class="pl__nombre">{{ p.nombre }}</h3>
+      <p class="pl__asunto" [title]="p.asunto_actual">
+        <mat-icon>subject</mat-icon> {{ p.asunto_actual || '(sin asunto todavía)' }}
+      </p>
+      @if (p.descripcion) { <p class="pl__desc">{{ p.descripcion }}</p> }
+
+      <div class="pl__pie">
+        @if (nombreOrigen(p.origen_codigo); as origen) {
+          <span class="pl__origen"><mat-icon>dataset</mat-icon> {{ origen }}</span>
+        } @else {
+          <span class="pl__origen pl__origen--sin"><mat-icon>dataset</mat-icon> sin origen</span>
+        }
+        @if (p.actualizado_en) {
+          <span class="pl__fecha">{{ p.actualizado_en | date: 'dd/MM/yy HH:mm' }}</span>
+        }
+      </div>
+    </a>
+
+    <div class="pl__acciones">
+      <button mat-icon-button (click)="alternarDestacada(p)"
+              [matTooltip]="p.destacada ? 'Quitar de destacadas' : 'Destacar'">
+        <mat-icon>{{ p.destacada ? 'star' : 'star_border' }}</mat-icon>
+      </button>
+      <button mat-icon-button [matMenuTriggerFor]="m">
+        <mat-icon>more_vert</mat-icon>
+      </button>
+      <mat-menu #m="matMenu">
+        <a mat-menu-item [routerLink]="[p.id]"><mat-icon>edit</mat-icon> Editar</a>
+        <button mat-menu-item (click)="crear(p)"><mat-icon>content_copy</mat-icon> Duplicar</button>
+        @if (p.estado === 'ARCHIVADA') {
+          <button mat-menu-item (click)="reactivar(p)"><mat-icon>unarchive</mat-icon> Reactivar</button>
+        } @else {
+          <button mat-menu-item (click)="archivar(p)"><mat-icon>archive</mat-icon> Archivar</button>
+        }
+      </mat-menu>
+    </div>
+  </mat-card>
+</ng-template>

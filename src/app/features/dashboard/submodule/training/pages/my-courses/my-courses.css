@@ -1,0 +1,163 @@
+/*
+ * Móvil primero y alto contraste. El público son ~5.800 operarios con celular de gama baja,
+ * a veces con guantes y casi siempre con sol de frente: de ahí los objetivos táctiles de 48px,
+ * el texto de 16px para arriba y que el estado se diga en palabras además de en color.
+ */
+
+.pantalla {
+  padding: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+  color: #12252f;
+}
+
+.cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.cabecera h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #194262;
+  margin: 0;
+}
+
+/* ── Avisos ───────────────────────────────────────────────────────────────── */
+
+.aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 1rem;
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+
+.aviso-offline { background: #fff4d6; color: #6b4a00; border: 1px solid #e0b400; }
+.aviso-pendiente { background: #e6f0fb; color: #123a63; border: 1px solid #7aa8d8; }
+.aviso-error {
+  background: #fde8e8;
+  color: #7a1414;
+  border: 1px solid #d88a8a;
+  flex-wrap: wrap;
+}
+
+.cargando { font-size: 1.05rem; padding: 24px 0; }
+
+/* ── Lista de cursos ──────────────────────────────────────────────────────── */
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.tarjeta {
+  background: #fff;
+  border: 1px solid #d7e0e6;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .07);
+}
+
+.tarjeta-cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tarjeta-cabecera h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.estado {
+  font-size: .85rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Contraste >= 4.5:1 sobre el fondo del chip, no solo tono. */
+.estado-ok { background: #d6f0dd; color: #14532d; }
+.estado-mal { background: #fadada; color: #7a1414; }
+.estado-atencion { background: #ffe9c7; color: #6b3d00; }
+.estado-curso { background: #dfe9f5; color: #12395f; }
+
+.avance {
+  font-size: .95rem;
+  color: #40606f;
+  margin: 8px 0 12px;
+}
+
+.nota-atencion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff4d6;
+  color: #6b4a00;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: .95rem;
+  margin: 0 0 12px;
+}
+
+/* ── Botones ──────────────────────────────────────────────────────────────── */
+
+.boton-principal,
+.boton-secundario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;          /* objetivo tactil comodo con guantes */
+  padding: 0 18px;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.boton-principal { background: #194262; color: #fff; }
+.boton-principal:active { background: #0f2d45; }
+.boton-secundario { background: #fff; color: #194262; border-color: #194262; }
+
+.boton-grande { width: 100%; }
+
+.vacio {
+  text-align: center;
+  padding: 48px 16px;
+  color: #40606f;
+}
+
+.vacio mat-icon {
+  font-size: 48px;
+  height: 48px;
+  width: 48px;
+  color: #9db4c0;
+}
+
+.vacio-detalle { font-size: .95rem; }
+
+/* En pantalla grande el listado va en dos columnas; el móvil manda igual. */
+@media (min-width: 720px) {
+  .pantalla { padding: 24px; }
+  .cabecera h1 { font-size: 2rem; }
+  .lista { grid-template-columns: repeat(2, 1fr); }
+  .boton-grande { width: auto; min-width: 160px; }
+}

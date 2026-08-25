@@ -1,0 +1,295 @@
+<div class="cons">
+  <!-- ── Barra superior ─────────────────────────────────────────────────── -->
+  <header class="barra">
+    <button mat-icon-button (click)="volver()" matTooltip="Volver a Reportes">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+
+    <button mat-icon-button class="solo-movil" (click)="panelIzqAbierto.set(!panelIzqAbierto())"
+            matTooltip="Fuentes de datos">
+      <mat-icon>database</mat-icon>
+    </button>
+
+    <div class="barra__id">
+      <input class="barra__nombre" type="text" [value]="store.nombre()"
+             (change)="store.nombre.set($any($event.target).value)"
+             [disabled]="!store.puedeEditar()"
+             aria-label="Nombre del reporte">
+      <div class="pasos">
+        @for (p of pasos(); track p.n) {
+          <span class="paso" [class.paso--ok]="p.ok" [matTooltip]="p.t">
+            <mat-icon>{{ p.ok ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+            <em>{{ p.t }}</em>
+          </span>
+        }
+      </div>
+    </div>
+
+    <span class="barra__sp"></span>
+
+    @if (store.sucio()) { <span class="singuardar">Sin guardar</span> }
+
+    @if (asistenteDisponible()) {
+      <button mat-stroked-button (click)="crearConIA()" matTooltip="Describe el reporte en palabras">
+        <mat-icon>auto_awesome</mat-icon> Con IA
+      </button>
+    }
+
+    <button mat-icon-button [matMenuTriggerFor]="menuExport" matTooltip="Exportar"
+            [disabled]="!store.fields().length">
+      <mat-icon>download</mat-icon>
+    </button>
+    <mat-menu #menuExport="matMenu">
+      <button mat-menu-item (click)="exportar('XLSX', true)">
+        <mat-icon>table_view</mat-icon> Excel — reporte completo
+      </button>
+      <button mat-menu-item (click)="exportar('CSV', true)">
+        <mat-icon>description</mat-icon> CSV — reporte completo
+      </button>
+      <button mat-menu-item (click)="exportar('PDF', true)">
+        <mat-icon>picture_as_pdf</mat-icon> PDF
+      </button>
+      <button mat-menu-item (click)="exportar('XLSX', false)">
+        <mat-icon>visibility</mat-icon> Excel — solo lo que veo
+      </button>
+    </mat-menu>
+
+    <button mat-icon-button [matMenuTriggerFor]="menuMas" matTooltip="Más opciones">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+    <mat-menu #menuMas="matMenu">
+      <button mat-menu-item (click)="compartir()"><mat-icon>share</mat-icon> Compartir</button>
+      <button mat-menu-item (click)="store.refrescar()"><mat-icon>refresh</mat-icon> Actualizar vista previa</button>
+      @if (api.catalogo()?.es_admin) {
+        <button mat-menu-item (click)="verSql()"><mat-icon>code</mat-icon> Ver consulta generada</button>
+      }
+      <button mat-menu-item (click)="panelDerAbierto.set(!panelDerAbierto())">
+        <mat-icon>tune</mat-icon> {{ panelDerAbierto() ? 'Ocultar' : 'Mostrar' }} configuración
+      </button>
+    </mat-menu>
+
+    <button mat-flat-button color="primary" (click)="guardar()"
+            [disabled]="guardando() || !store.puedeEditar() || !store.fields().length">
+      <mat-icon>save</mat-icon> Guardar
+    </button>
+  </header>
+
+  @if (cargandoCatalogo() || guardando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- ── Zona de trabajo ────────────────────────────────────────────────── -->
+  <div class="area">
+    <!-- Panel izquierdo: explorador -->
+    <aside class="panel panel--izq" [class.panel--cerrado]="!panelIzqAbierto()">
+      <div class="panel__cab">
+        <h2><mat-icon>database</mat-icon> Fuentes de datos</h2>
+        <button mat-icon-button (click)="panelIzqAbierto.set(false)" class="solo-movil">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+      <app-explorador-datos (sinRelacion)="avisarSinRelacion($event)"></app-explorador-datos>
+    </aside>
+
+    <!-- Centro: vista previa -->
+    <main class="centro" cdkDropList (cdkDropListDropped)="soltarCampo($event)">
+      @if (store.advertencias().length) {
+        <div class="avisos">
+          @for (a of store.advertencias(); track $index) {
+            <div class="aviso"><mat-icon>warning_amber</mat-icon><span>{{ a }}</span></div>
+          }
+        </div>
+      }
+
+      @if (store.error(); as err) {
+        <div class="error">
+          <mat-icon>error_outline</mat-icon>
+          <div>
+            <b>No se pudo ejecutar la consulta</b>
+            <p>{{ err }}</p>
+          </div>
+          <button mat-stroked-button (click)="store.refrescar()">Reintentar</button>
+        </div>
+      }
+
+      <div class="centro__cab">
+        <div class="vistas">
+          <button type="button" [class.vistas--on]="!vistaDiagrama()" (click)="vistaDiagrama.set(false)">
+            <mat-icon>preview</mat-icon> Vista previa
+          </button>
+          <button type="button" [class.vistas--on]="vistaDiagrama()" (click)="vistaDiagrama.set(true)"
+                  matTooltip="Ver cómo se están relacionando las tablas">
+            <mat-icon>account_tree</mat-icon> Relaciones
+          </button>
+        </div>
+        <span class="centro__sp"></span>
+        @if (store.resultado(); as r) {
+          <span class="centro__meta">
+            {{ r.filas.length | number }} filas de muestra · {{ r.duracion_ms }} ms
+          </span>
+        }
+        <button mat-icon-button class="solo-movil" (click)="panelDerAbierto.set(!panelDerAbierto())"
+                matTooltip="Configuración">
+          <mat-icon>tune</mat-icon>
+        </button>
+      </div>
+
+      @if (vistaDiagrama()) {
+        <app-diagrama-relaciones></app-diagrama-relaciones>
+      } @else if (esKpi()) {
+        <div class="kpi-preview">
+          <app-kpi-card [resultado]="store.resultado()" [config]="store.visualizacion()"
+                        [cargando]="store.cargando()" [titulo]="store.nombre()"></app-kpi-card>
+        </div>
+        <app-tabla-resultados [resultado]="store.resultado()" [cargando]="store.cargando()"
+                              [titulo]="'Datos del indicador'" [servidor]="false"
+                              (ordenCambio)="alOrdenar($event)"
+                              (datoEditado)="store.refrescar()"></app-tabla-resultados>
+      } @else if (esGrafica()) {
+        <div class="grafica-preview">
+          <app-grafica-reporte [resultado]="store.resultado()" [config]="store.visualizacion()"
+                               [alto]="330"></app-grafica-reporte>
+        </div>
+        <app-tabla-resultados [resultado]="store.resultado()" [cargando]="store.cargando()"
+                              [titulo]="'Datos de la gráfica'" [servidor]="false"
+                              (ordenCambio)="alOrdenar($event)"
+                              (datoEditado)="store.refrescar()"></app-tabla-resultados>
+      } @else {
+        <app-tabla-resultados [resultado]="store.resultado()" [cargando]="store.cargando()"
+                              [titulo]="store.nombre()" [servidor]="false"
+                              [columnasTotalizadas]="store.visualizacion().columnas_totalizadas ?? []"
+                              (ordenCambio)="alOrdenar($event)"
+                              (datoEditado)="store.refrescar()"></app-tabla-resultados>
+      }
+    </main>
+
+    <!-- Panel derecho: configuración -->
+    <aside class="panel panel--der" [class.panel--cerrado]="!panelDerAbierto()">
+      <div class="panel__cab">
+        <h2><mat-icon>tune</mat-icon> Configuración</h2>
+        <button mat-icon-button (click)="panelDerAbierto.set(false)" class="solo-movil">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+
+      <mat-tab-group animationDuration="120ms" class="conf">
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon>view_column</mat-icon>
+            <span class="tab-lbl">Columnas</span>
+            @if (store.fields().length) { <em class="cnt">{{ store.fields().length }}</em> }
+          </ng-template>
+          <div class="conf__cuerpo">
+            <div class="conf__acciones">
+              <button mat-stroked-button (click)="nuevoCalculado()"
+                      [disabled]="!store.camposDisponibles().length">
+                <mat-icon>calculate</mat-icon> Campo calculado
+              </button>
+            </div>
+            <app-panel-columnas></app-panel-columnas>
+
+            @if (store.calculated().length) {
+              <h3 class="conf__sub">Campos calculados</h3>
+              @for (c of store.calculated(); track c.id) {
+                <div class="calc">
+                  <mat-icon>calculate</mat-icon>
+                  <div class="calc__txt">
+                    <b>{{ c.alias }}</b>
+                    <code>{{ c.expresion }}</code>
+                  </div>
+                  <button mat-icon-button (click)="editarCalculado(c.id)" matTooltip="Editar fórmula">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="store.quitarCalculado(c.id)" matTooltip="Quitar">
+                    <mat-icon>delete_outline</mat-icon>
+                  </button>
+                </div>
+              }
+            }
+          </div>
+        </mat-tab>
+
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon>filter_alt</mat-icon>
+            <span class="tab-lbl">Filtros</span>
+          </ng-template>
+          <div class="conf__cuerpo">
+            <app-constructor-filtros
+              [nodo]="store.filtros()"
+              [campos]="store.camposDisponibles()"
+              [operadores]="api.metadatos()?.operadores ?? []"
+              [esRaiz]="true"
+              (cambio)="store.fijarFiltros($event)">
+            </app-constructor-filtros>
+          </div>
+        </mat-tab>
+
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon>insights</mat-icon>
+            <span class="tab-lbl">Visualización</span>
+          </ng-template>
+          <div class="conf__cuerpo">
+            <app-panel-visualizacion></app-panel-visualizacion>
+          </div>
+        </mat-tab>
+
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon>settings</mat-icon>
+            <span class="tab-lbl">Detalles</span>
+          </ng-template>
+          <div class="conf__cuerpo">
+            <mat-form-field appearance="outline" class="w100">
+              <mat-label>Descripción</mat-label>
+              <textarea matInput rows="2" [value]="store.descripcion() ?? ''"
+                        (change)="store.descripcion.set($any($event.target).value || null)"
+                        placeholder="Para qué sirve este reporte"></textarea>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="w100">
+              <mat-label>Categoría</mat-label>
+              <input matInput [value]="store.categoria() ?? ''"
+                     (change)="store.categoria.set($any($event.target).value || null)"
+                     placeholder="p. ej. Contratación">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="w100">
+              <mat-label>Estado</mat-label>
+              <mat-select [value]="store.estado()" (valueChange)="store.estado.set($event)">
+                <mat-option value="BORRADOR">Borrador</mat-option>
+                <mat-option value="PUBLICADO">Publicado</mat-option>
+                <mat-option value="ARCHIVADO">Archivado</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="w100">
+              <mat-label>Máximo de filas del resultado</mat-label>
+              <input matInput type="number" min="1" [value]="store.topN() ?? ''"
+                     (change)="store.topN.set($any($event.target).value ? +$any($event.target).value : null)"
+                     placeholder="Sin límite propio">
+              <mat-hint>Útil para un «Top 10». El servidor aplica su propio tope de seguridad.</mat-hint>
+            </mat-form-field>
+
+            @if (store.tablas().length) {
+              <h3 class="conf__sub">Tablas del reporte</h3>
+              @for (t of store.tablas(); track t.clave) {
+                <div class="tabla-item">
+                  <mat-icon>{{ t.icono }}</mat-icon>
+                  <div class="tabla-item__txt">
+                    <b>{{ t.nombre }}</b>
+                    <code>{{ t.esquema }}.{{ t.tabla_fisica }}</code>
+                  </div>
+                  @if (t.clave !== store.root()) {
+                    <button mat-icon-button (click)="store.quitarTabla(t.clave)" matTooltip="Quitar">
+                      <mat-icon>link_off</mat-icon>
+                    </button>
+                  }
+                </div>
+              }
+            }
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </aside>
+  </div>
+</div>

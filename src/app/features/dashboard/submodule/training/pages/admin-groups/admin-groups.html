@@ -1,0 +1,246 @@
+<section class="pantalla">
+  @if (!grupoActivo()) {
+    <header class="cabecera">
+      <div>
+        <h1>Grupos</h1>
+        <p class="subtitulo">
+          Cohortes con fechas, instructor y lista de asistencia. Un curso autogestionado no
+          necesita grupo; todo lo que tiene fecha o sala, sí.
+        </p>
+      </div>
+      <button type="button" class="btn-primario" (click)="abrirNuevo()">
+        <mat-icon>add</mat-icon> Nuevo grupo
+      </button>
+    </header>
+
+    @if (nuevoGrupo(); as f) {
+      <div class="panel">
+        <div class="campos">
+          <label>
+            <span>Curso *</span>
+            <select [ngModel]="f.courseId" (ngModelChange)="elegirCurso($event)">
+              <option value="">Elige un curso</option>
+              @for (c of cursos(); track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+            </select>
+          </label>
+
+          <label>
+            <span>Versión *</span>
+            <select [(ngModel)]="f.course_version_id" [disabled]="!f.courseId">
+              <option value="">Elige la versión</option>
+              @for (v of versionesDelCursoElegido(); track v.id) {
+                <option [value]="v.id">v{{ v.version }} — {{ v.estado }}</option>
+              }
+            </select>
+            <small>Solo se puede matricular en una versión PUBLICADA.</small>
+          </label>
+
+          <label>
+            <span>Nombre del grupo *</span>
+            <input type="text" [(ngModel)]="f.nombre" placeholder="Ej: Alturas · El Rosal · marzo" />
+          </label>
+
+          <label>
+            <span>Modalidad</span>
+            <select [(ngModel)]="f.modalidad">
+              <option value="PRESENCIAL">Presencial</option>
+              <option value="VIRTUAL_SINCRONICO">Virtual con horario</option>
+              <option value="AUTOGESTIONADO">Autogestionado</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Cupo</span>
+            <input type="number" min="1" [(ngModel)]="f.cupo" placeholder="Vacío = sin límite" />
+          </label>
+
+          <label>
+            <span>Fecha de inicio</span>
+            <input type="date" [(ngModel)]="f.fecha_inicio" />
+          </label>
+
+          <label>
+            <span>Fecha de fin</span>
+            <input type="date" [(ngModel)]="f.fecha_fin" />
+          </label>
+        </div>
+
+        <div class="acciones-panel">
+          <button type="button" class="btn-secundario" (click)="nuevoGrupo.set(null)">Cancelar</button>
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarGrupo()">
+            Crear grupo
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (cargando()) {
+      <p class="cargando">Cargando…</p>
+    } @else if (error()) {
+      <div class="aviso-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+    } @else if (grupos().length === 0) {
+      <div class="vacio"><mat-icon>groups</mat-icon><p>Todavía no hay grupos.</p></div>
+    } @else {
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Grupo</th><th>Curso</th><th>Fechas</th><th>Ocupación</th><th>Estado</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (g of grupos(); track g.id) {
+            <tr>
+              <td><button type="button" class="enlace" (click)="abrir(g)">{{ g.nombre }}</button></td>
+              <td>{{ g.curso_nombre }}</td>
+              <td>
+                {{ g.fecha_inicio || '—' }}
+                @if (g.fecha_fin) { → {{ g.fecha_fin }} }
+              </td>
+              <td>
+                {{ g.matriculados }}@if (g.cupo) { / {{ g.cupo }} }
+                @if (g.cupos_libres === 0) { <span class="chip chip-mal">lleno</span> }
+              </td>
+              <td><span class="chip" [class]="claseEstado(g.estado)">{{ g.estado }}</span></td>
+              <td>
+                <button type="button" class="btn-secundario pequeno" (click)="abrir(g)">
+                  Gestionar
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  } @else {
+    <!-- ── Detalle del grupo ── -->
+    <header class="cabecera">
+      <div class="titulo-con-volver">
+        <button type="button" class="btn-icono" (click)="cerrar()" aria-label="Volver">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <div>
+          <h1>{{ grupoActivo()!.nombre }}</h1>
+          <p class="subtitulo">
+            {{ grupoActivo()!.curso_nombre }} · {{ grupoActivo()!.modalidad }}
+            · {{ grupoActivo()!.matriculados }} matriculado(s)
+          </p>
+        </div>
+      </div>
+      <div class="acciones-estado">
+        <span class="chip" [class]="claseEstado(grupoActivo()!.estado)">{{ grupoActivo()!.estado }}</span>
+        @if (grupoActivo()!.estado !== 'CERRADO') {
+          <button type="button" class="btn-secundario pequeno" (click)="cambiarEstado('EN_CURSO')">
+            Marcar en curso
+          </button>
+          <button type="button" class="btn-secundario pequeno" (click)="cambiarEstado('CERRADO')">
+            Cerrar grupo
+          </button>
+        } @else {
+          <button type="button" class="btn-secundario pequeno" (click)="cambiarEstado('ABIERTO')">
+            Reabrir
+          </button>
+        }
+      </div>
+    </header>
+
+    <div class="pestanas">
+      <button type="button" [class.activa]="pestana() === 'gente'" (click)="pestana.set('gente')">
+        Personas
+      </button>
+      <button type="button" [class.activa]="pestana() === 'asistencia'" (click)="verAsistencia()">
+        Asistencia
+      </button>
+    </div>
+
+    @if (pestana() === 'gente') {
+      <div class="panel">
+        <h2>Matricular por cédula</h2>
+        <p class="ayuda">
+          Pega las cédulas separadas por espacios, comas o saltos de línea — tal como salgan del
+          Excel. A quien todavía no exista en capacitaciones se le da de alta automáticamente.
+        </p>
+        <textarea rows="3" [ngModel]="cedulasPegadas()" (ngModelChange)="cedulasPegadas.set($event)"
+                  placeholder="1016083370  52998877&#10;X4889588"></textarea>
+        <div class="acciones-panel">
+          <button type="button" class="btn-primario" [disabled]="ocupado() || !cedulasPegadas().trim()"
+                  (click)="matricular()">
+            {{ ocupado() ? 'Matriculando…' : 'Matricular' }}
+          </button>
+        </div>
+      </div>
+
+      @if (matriculados().length === 0) {
+        <div class="vacio"><mat-icon>person_add</mat-icon><p>Todavía no hay nadie matriculado.</p></div>
+      } @else {
+        <table class="tabla">
+          <thead>
+            <tr><th>Persona</th><th>Cédula</th><th>Avance</th><th>Estado</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (m of matriculados(); track m.id) {
+              <tr>
+                <td>{{ m.persona_nombre || '(sin nombre)' }}</td>
+                <td class="mono">{{ m.cedula }}</td>
+                <td>{{ m.porcentaje }}%</td>
+                <td><span class="chip" [class]="claseMatricula(m.estado)">{{ m.estado }}</span></td>
+                <td>
+                  @if (m.estado !== 'ANULADO' && m.estado !== 'APROBADO') {
+                    <button type="button" class="btn-icono peligro" title="Anular matrícula"
+                            (click)="anular(m)"><mat-icon>person_remove</mat-icon></button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    } @else {
+      <div class="panel">
+        <div class="fila-fecha">
+          <label>
+            <span>Fecha de la sesión</span>
+            <input type="date" [ngModel]="fechaLista()"
+                   (ngModelChange)="fechaLista.set($event); cargarAsistencia()" />
+          </label>
+          <p class="ayuda">
+            Pasar lista dos veces el mismo día <strong>corrige</strong>, no duplica. No se
+            admiten fechas futuras.
+          </p>
+        </div>
+      </div>
+
+      @if (matriculados().length === 0) {
+        <div class="vacio"><mat-icon>fact_check</mat-icon><p>Matricula gente antes de pasar lista.</p></div>
+      } @else {
+        <table class="tabla">
+          <thead><tr><th>Persona</th><th>Cédula</th><th>Asistencia</th></tr></thead>
+          <tbody>
+            @for (m of matriculados(); track m.id) {
+              <tr>
+                <td>{{ m.persona_nombre || '(sin nombre)' }}</td>
+                <td class="mono">{{ m.cedula }}</td>
+                <td class="marcas">
+                  <button type="button" class="marca presente"
+                          [class.elegida]="marcaDe(m.id) === 'PRESENTE'"
+                          (click)="marcar(m.id, 'PRESENTE')">Presente</button>
+                  <button type="button" class="marca ausente"
+                          [class.elegida]="marcaDe(m.id) === 'AUSENTE'"
+                          (click)="marcar(m.id, 'AUSENTE')">Ausente</button>
+                  <button type="button" class="marca justificado"
+                          [class.elegida]="marcaDe(m.id) === 'JUSTIFICADO'"
+                          (click)="marcar(m.id, 'JUSTIFICADO')">Justificado</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        <div class="acciones-panel">
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarLista()">
+            Guardar lista
+          </button>
+        </div>
+      }
+    }
+  }
+</section>

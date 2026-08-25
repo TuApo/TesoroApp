@@ -1,0 +1,347 @@
+<mat-card class="nt-card">
+  <!-- Encabezado -->
+  <div class="nt-header">
+    <div class="nt-title">
+      <mat-icon>notifications_active</mat-icon>
+      <div>
+        <h1>Notificaciones</h1>
+        <p>Qué hecho genera un aviso, a quién le llega y por dónde. Los módulos solo publican
+           lo que pasó; todo lo demás se decide aquí, sin tocar código ni desplegar.</p>
+      </div>
+    </div>
+    <div class="nt-acciones-header">
+      <button mat-stroked-button (click)="cargar()" [disabled]="cargando" matTooltip="Volver a cargar">
+        <mat-icon>refresh</mat-icon>
+        Actualizar
+      </button>
+    </div>
+  </div>
+
+  <!-- Indicadores -->
+  <div class="nt-kpis">
+    <div class="kpi kpi-ok">
+      <mat-icon>rule</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ reglasActivas }}</span>
+        <span class="kpi-label">Reglas activas de {{ reglas.data.length }}</span>
+      </div>
+    </div>
+    <div class="kpi">
+      <mat-icon>bolt</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ eventosCubiertos }}</span>
+        <span class="kpi-label">Eventos cubiertos</span>
+      </div>
+    </div>
+    <div class="kpi kpi-cat">
+      <mat-icon>category</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ tiposActivos }}</span>
+        <span class="kpi-label">Tipos en el catálogo</span>
+      </div>
+    </div>
+    <div class="kpi kpi-mail">
+      <mat-icon>mail</mat-icon>
+      <div>
+        <span class="kpi-valor">{{ reglasConCorreo }}</span>
+        <span class="kpi-label">Reglas que envían correo</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="nt-aviso" *ngIf="cargaFallida">
+    <mat-icon>error_outline</mat-icon>
+    <span>No se pudo cargar la parametrización. Revisa que tengas rol de administrador y
+      vuelve a intentarlo.</span>
+  </div>
+
+  <mat-tab-group animationDuration="0ms" class="nt-tabs">
+
+    <!-- ══════════════ REGLAS ══════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">rule</mat-icon>
+        Reglas
+      </ng-template>
+
+      <div class="nt-tab-body">
+        <div class="nt-filtros">
+          <mat-form-field appearance="outline" class="f-search">
+            <mat-label>Buscar</mat-label>
+            <input matInput [ngModel]="filtroTexto" (ngModelChange)="onTextoChange($event)"
+                   placeholder="Nombre, evento, tipo o plantilla">
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="f-sel">
+            <mat-label>Evento</mat-label>
+            <mat-select [(ngModel)]="filtroEvento" (selectionChange)="onEventoChange()">
+              <mat-option value="">Todos</mat-option>
+              <mat-option *ngFor="let e of eventos" [value]="e">{{ e }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="f-sel">
+            <mat-label>Estado</mat-label>
+            <mat-select [(ngModel)]="filtroEstado" (selectionChange)="onEstadoChange()">
+              <mat-option value="todas">Todas</mat-option>
+              <mat-option value="activas">Activas</mat-option>
+              <mat-option value="inactivas">Inactivas</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <span class="nt-count">{{ reglas.filteredData.length }} regla(s)</span>
+
+          <button mat-flat-button color="primary" (click)="abrirCrearRegla()" [disabled]="!tipos.data.length">
+            <mat-icon>add</mat-icon>
+            Nueva regla
+          </button>
+        </div>
+
+        <div class="nt-spinner" *ngIf="cargando">
+          <mat-spinner diameter="36"></mat-spinner>
+        </div>
+
+        <div class="nt-tabla-wrap" *ngIf="!cargando">
+          <table mat-table [dataSource]="reglas" matSort class="nt-tabla nt-tabla-reglas" [trackBy]="trackById">
+
+            <ng-container matColumnDef="nombre">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header>Regla</th>
+              <td mat-cell *matCellDef="let r">
+                <div class="celda-principal">
+                  <span class="nombre">{{ r.nombre }}</span>
+                  <span class="sub" *ngIf="r.descripcion">{{ r.descripcion }}</span>
+                </div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="evento_clave">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header>Cuando pasa</th>
+              <td mat-cell *matCellDef="let r">
+                <code class="evento">{{ r.evento_clave }}</code>
+                <mat-icon class="mini-icon" *ngIf="tieneCondicion(r)"
+                          matTooltip="Solo dispara si se cumple una condición sobre el evento">filter_alt</mat-icon>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="tipo">
+              <th mat-header-cell *matHeaderCellDef>Tipo</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="chip-tipo" *ngIf="tipoDe(r) as t"
+                      [style.background]="t.color + '1a'" [style.color]="t.color"
+                      [matTooltip]="t.clave">
+                  <mat-icon [style.color]="t.color">{{ t.icono }}</mat-icon>
+                  {{ t.nombre }}
+                </span>
+                <span class="sin-dato" *ngIf="!tipoDe(r)">—</span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="audiencia">
+              <th mat-header-cell *matHeaderCellDef>A quién</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="audiencia" [class.audiencia-todos]="r.audiencia_modo === 'TODOS'">
+                  {{ audienciaDe(r) }}
+                </span>
+                <mat-icon class="mini-icon" *ngIf="!r.excluir_actor"
+                          matTooltip="No excluye a quien provocó el hecho: también se avisa a sí mismo">
+                  person_check
+                </mat-icon>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="canales">
+              <th mat-header-cell *matHeaderCellDef>Por dónde</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="canales">
+                  <mat-icon *ngFor="let c of r.canales"
+                            [class.canal-inerte]="!canalMeta(c).disponible"
+                            [matTooltip]="canalTooltip(c)">
+                    {{ canalMeta(c).icono }}
+                  </mat-icon>
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="urgencia">
+              <th mat-header-cell *matHeaderCellDef>Urgencia</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="chip-urg" [ngClass]="urgMeta(urgenciaDe(r)).clase"
+                      [matTooltip]="r.urgencia ? 'Fijada en la regla' : 'Heredada del tipo'">
+                  <mat-icon>{{ urgMeta(urgenciaDe(r)).icono }}</mat-icon>
+                  {{ urgMeta(urgenciaDe(r)).label }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="destino">
+              <th mat-header-cell *matHeaderCellDef>Al hacer clic</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="destino" [matTooltip]="r.destino_valor || ''">
+                  {{ destinoLabel(r.destino_tipo) }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="activo">
+              <th mat-header-cell *matHeaderCellDef>Activa</th>
+              <td mat-cell *matCellDef="let r">
+                <mat-slide-toggle #tgRegla color="primary" [checked]="r.activo"
+                                  [disabled]="alternandoId === r.id"
+                                  (change)="alternar(r, $event.checked, tgRegla)">
+                </mat-slide-toggle>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let r">
+                <button mat-icon-button color="primary" (click)="abrirSimular(r)"
+                        matTooltip="Simular: ver a quién le llegaría y con qué texto, sin enviar nada">
+                  <mat-icon>science</mat-icon>
+                </button>
+                <button mat-icon-button (click)="abrirEditarRegla(r)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="columnasReglas"></tr>
+            <tr mat-row *matRowDef="let row; columns: columnasReglas;"
+                [class.fila-inactiva]="!row.activo"></tr>
+          </table>
+
+          <div class="nt-vacio" *ngIf="!reglas.filteredData.length">
+            <mat-icon>rule_folder</mat-icon>
+            <p *ngIf="reglas.data.length">Ninguna regla coincide con el filtro.</p>
+            <p *ngIf="!reglas.data.length">
+              Todavía no hay reglas. Crea la primera para que un evento empiece a notificar.
+            </p>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- ══════════════ TIPOS ══════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon">category</mat-icon>
+        Tipos
+      </ng-template>
+
+      <div class="nt-tab-body">
+        <div class="nt-nota">
+          <mat-icon>lightbulb</mat-icon>
+          <span>El tipo define cómo se <b>ve</b> el aviso: ícono, color, urgencia por defecto y si
+            varios iguales se agrupan. La campana y la página de Novedades lo leen de aquí, así que
+            un tipo nuevo aparece solo, sin recompilar la app.</span>
+        </div>
+
+        <div class="nt-filtros">
+          <mat-form-field appearance="outline" class="f-search">
+            <mat-label>Buscar</mat-label>
+            <input matInput [ngModel]="filtroTexto" (ngModelChange)="onTextoChange($event)"
+                   placeholder="Clave, nombre o descripción">
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="f-sel">
+            <mat-label>Estado</mat-label>
+            <mat-select [(ngModel)]="filtroTipos" (selectionChange)="onFiltroTiposChange()">
+              <mat-option value="todos">Todos</mat-option>
+              <mat-option value="activos">Activos</mat-option>
+              <mat-option value="inactivos">Inactivos</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <span class="nt-count">{{ tiposVisibles.length }} tipo(s)</span>
+
+          <button mat-flat-button color="primary" (click)="abrirCrearTipo()">
+            <mat-icon>add</mat-icon>
+            Nuevo tipo
+          </button>
+        </div>
+
+        <div class="nt-tabla-wrap">
+          <table mat-table [dataSource]="tiposVisibles" class="nt-tabla nt-tabla-tipos" [trackBy]="trackById">
+
+            <ng-container matColumnDef="aspecto">
+              <th mat-header-cell *matHeaderCellDef>Aspecto</th>
+              <td mat-cell *matCellDef="let t">
+                <span class="avatar-tipo" [style.background]="t.color + '1a'" [style.color]="t.color">
+                  <mat-icon>{{ t.icono }}</mat-icon>
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="clave">
+              <th mat-header-cell *matHeaderCellDef>Clave</th>
+              <td mat-cell *matCellDef="let t"><code class="evento">{{ t.clave }}</code></td>
+            </ng-container>
+
+            <ng-container matColumnDef="nombre">
+              <th mat-header-cell *matHeaderCellDef>Nombre</th>
+              <td mat-cell *matCellDef="let t">
+                <div class="celda-principal">
+                  <span class="nombre">{{ t.nombre }}</span>
+                  <span class="sub" *ngIf="t.descripcion">{{ t.descripcion }}</span>
+                </div>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="urgencia_default">
+              <th mat-header-cell *matHeaderCellDef>Urgencia por defecto</th>
+              <td mat-cell *matCellDef="let t">
+                <span class="chip-urg" [ngClass]="urgMeta(t.urgencia_default).clase">
+                  <mat-icon>{{ urgMeta(t.urgencia_default).icono }}</mat-icon>
+                  {{ urgMeta(t.urgencia_default).label }}
+                </span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="agrupable">
+              <th mat-header-cell *matHeaderCellDef>Agrupable</th>
+              <td mat-cell *matCellDef="let t">
+                <mat-icon class="bool-icon" *ngIf="t.agrupable"
+                          matTooltip="Varios avisos iguales se colapsan en una línea">check_circle</mat-icon>
+                <span class="sin-dato" *ngIf="!t.agrupable">—</span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="orden">
+              <th mat-header-cell *matHeaderCellDef>Orden</th>
+              <td mat-cell *matCellDef="let t">{{ t.orden }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="activo">
+              <th mat-header-cell *matHeaderCellDef>Activo</th>
+              <td mat-cell *matCellDef="let t">
+                <mat-slide-toggle #tgTipo color="primary" [checked]="t.activo"
+                                  (change)="alternarTipo(t, $event.checked, tgTipo)">
+                </mat-slide-toggle>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="acciones">
+              <th mat-header-cell *matHeaderCellDef></th>
+              <td mat-cell *matCellDef="let t">
+                <button mat-icon-button (click)="abrirEditarTipo(t)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+              </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="columnasTipos"></tr>
+            <tr mat-row *matRowDef="let row; columns: columnasTipos;"
+                [class.fila-inactiva]="!row.activo"></tr>
+          </table>
+
+          <div class="nt-vacio" *ngIf="!tiposVisibles.length">
+            <mat-icon>category</mat-icon>
+            <p>No hay tipos que coincidan con el filtro.</p>
+          </div>
+        </div>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</mat-card>

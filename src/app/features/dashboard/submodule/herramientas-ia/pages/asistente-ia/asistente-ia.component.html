@@ -1,0 +1,215 @@
+<div class="ast-shell" [class.sidebar-open]="sidebarOpen()">
+
+  <!-- ── Historial lateral ────────────────────────────────────────────────── -->
+  <aside class="ast-side">
+    <div class="side-head">
+      <span class="side-title">Historial</span>
+      <div class="side-actions">
+        <button mat-icon-button matTooltip="Nueva carpeta" (click)="crearCarpeta()">
+          <mat-icon>create_new_folder</mat-icon>
+        </button>
+        <button mat-icon-button color="primary" matTooltip="Nueva conversación" (click)="nuevaConversacion()">
+          <mat-icon>add_comment</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- Filtro de carpetas -->
+    <div class="folder-chips">
+      <button class="folder-chip" [class.active]="selectedFolder() === null" (click)="seleccionarFolder(null)">
+        <mat-icon>inbox</mat-icon> Todas
+      </button>
+      @for (f of folders(); track f.id) {
+        <button class="folder-chip" [class.active]="selectedFolder() === f.id" (click)="seleccionarFolder(f.id)">
+          <mat-icon>folder</mat-icon> {{ f.nombre }}
+          <span class="fc-count">{{ f.conversaciones }}</span>
+          <mat-icon class="fc-del" (click)="eliminarCarpeta(f, $event)">close</mat-icon>
+        </button>
+      }
+    </div>
+
+    <!-- Lista de conversaciones -->
+    <div class="conv-list">
+      @for (c of conversacionesFiltradas(); track c.id) {
+        <div class="conv-item" [class.active]="activeConvId() === c.id" (click)="abrirConversacion(c.id)">
+          <mat-icon class="conv-ico">chat_bubble_outline</mat-icon>
+          <span class="conv-title">{{ c.titulo }}</span>
+          <button mat-icon-button class="conv-menu-btn" [matMenuTriggerFor]="convMenu"
+                  (click)="$event.stopPropagation()">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #convMenu="matMenu">
+            <button mat-menu-item (click)="renombrarConversacion(c, $event)">
+              <mat-icon>edit</mat-icon> Renombrar
+            </button>
+            <button mat-menu-item [matMenuTriggerFor]="moverMenu">
+              <mat-icon>drive_file_move</mat-icon> Mover a…
+            </button>
+            <button mat-menu-item (click)="eliminarConversacion(c, $event)">
+              <mat-icon>delete</mat-icon> Eliminar
+            </button>
+          </mat-menu>
+          <mat-menu #moverMenu="matMenu">
+            <button mat-menu-item (click)="moverConversacion(c, null)">Sin carpeta</button>
+            @for (f of folders(); track f.id) {
+              <button mat-menu-item (click)="moverConversacion(c, f.id)">{{ f.nombre }}</button>
+            }
+          </mat-menu>
+        </div>
+      }
+      @if (conversacionesFiltradas().length === 0) {
+        <div class="conv-empty">Aún no hay conversaciones.</div>
+      }
+    </div>
+
+    <!-- Panel de módulos en la barra lateral -->
+    <div class="modulos-panel">
+      <div class="modulos-panel-head" (click)="modulosPanelOpen.set(!modulosPanelOpen())">
+        <mat-icon>tune</mat-icon>
+        <span>Módulos</span>
+        <mat-icon class="panel-arrow">{{ modulosPanelOpen() ? 'expand_less' : 'expand_more' }}</mat-icon>
+      </div>
+      @if (modulosPanelOpen()) {
+        <div class="modulos-panel-body">
+          <button class="select-all-btn" (click)="seleccionarTodos()">Seleccionar todos</button>
+          @for (m of modulosDisponibles(); track m.clave) {
+            <label class="modulo-check">
+              <input type="checkbox" [checked]="moduloActivo(m.clave)" (change)="toggleModulo(m.clave)">
+              <mat-icon class="mod-ico">{{ m.icono }}</mat-icon>
+              <span>{{ m.nombre }}</span>
+            </label>
+          }
+        </div>
+      }
+    </div>
+  </aside>
+
+  <!-- ── Panel principal ────────────────────────────────────────────────── -->
+  <section class="ast-main">
+
+    <!-- Cabecera -->
+    <div class="main-head">
+      <button mat-icon-button class="side-toggle" (click)="sidebarOpen.set(!sidebarOpen())">
+        <mat-icon>menu</mat-icon>
+      </button>
+      <div class="main-head-info">
+        <span class="main-title">{{ activeTitulo() }}</span>
+        <span class="modulos-badge" matTooltip="Módulos activos para esta conversación"
+              (click)="modulosPanelOpen.set(!modulosPanelOpen())">
+          <mat-icon>tune</mat-icon> {{ modulosEtiqueta() }}
+        </span>
+      </div>
+      <button mat-stroked-button class="new-btn" (click)="nuevaConversacion()">
+        <mat-icon>add</mat-icon> Nueva
+      </button>
+    </div>
+
+    @if (error()) {
+      <div class="chat-error">
+        <mat-icon>error_outline</mat-icon> {{ error() }}
+        <button mat-icon-button (click)="error.set(null)"><mat-icon>close</mat-icon></button>
+      </div>
+    }
+
+    <!-- Área de mensajes -->
+    <div class="msgs" #scrollBox>
+      @if (loadingConv()) {
+        <div class="loading-conv">
+          <mat-progress-spinner mode="indeterminate" diameter="34"></mat-progress-spinner>
+        </div>
+      } @else if (vacio()) {
+        <div class="welcome">
+          <div class="welcome-icon"><mat-icon>auto_awesome</mat-icon></div>
+          <h3>Asistente IA</h3>
+          <p>Consulto información de toda la plataforma: nómina, contratación, documentos, tesorería, afiliaciones y salud. Pregúntame lo que necesites:</p>
+          <div class="preguntas">
+            @for (q of preguntas; track q) {
+              <button class="preg-chip" (click)="usarPregunta(q)">
+                <mat-icon>bolt</mat-icon> {{ q }}
+              </button>
+            }
+          </div>
+        </div>
+      } @else {
+        @for (m of mensajes(); track m.id) {
+          <div class="msg" [class.user]="m.rol === 'user'">
+            @if (m.rol === 'user') {
+              <div class="bubble user-bubble">{{ m.contenido }}</div>
+            } @else {
+              <div class="bubble assistant-bubble">
+                <app-markdown-message [content]="m.contenido"></app-markdown-message>
+              </div>
+            }
+          </div>
+        }
+        @if (sending()) {
+          <div class="msg">
+            <div class="bubble assistant-bubble typing">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <!-- Composer -->
+    <div class="composer">
+      @if (adjuntos().length) {
+        <div class="adj-list">
+          @for (a of adjuntos(); track $index) {
+            <span class="adj-chip">
+              <mat-icon>description</mat-icon> {{ a.nombre }}
+              @if (!a.textoExtraido) {
+                <mat-icon class="adj-warn" matTooltip="Solo como referencia (no legible como texto)">info</mat-icon>
+              }
+              <mat-icon class="adj-del" (click)="quitarAdjunto($index)">close</mat-icon>
+            </span>
+          }
+        </div>
+      }
+
+      @if (recording()) {
+        <div class="rec-hint"><span class="rec-dot"></span> Grabando… toca el micrófono para detener</div>
+      }
+      @if (transcribing()) {
+        <div class="transcribing">
+          <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner>
+          Transcribiendo audio…
+        </div>
+      }
+
+      <div class="composer-row">
+        <button mat-icon-button matTooltip="Adjuntar archivo" (click)="abrirArchivos()">
+          <mat-icon>attach_file</mat-icon>
+        </button>
+        @if (capacidades().transcripcion) {
+          <button mat-icon-button [class.recording]="recording()" [disabled]="transcribing()"
+                  (click)="toggleGrabar()"
+                  [matTooltip]="recording() ? 'Detener y transcribir' : 'Grabar audio'">
+            <mat-icon>{{ recording() ? 'stop_circle' : 'mic' }}</mat-icon>
+          </button>
+        }
+        @if (capacidades().webSearch) {
+          <button mat-icon-button [class.active]="webSearchOn()" (click)="toggleWebSearch()"
+                  [matTooltip]="webSearchOn() ? 'Búsqueda web activada' : 'Activar búsqueda web'">
+            <mat-icon>public</mat-icon>
+          </button>
+        }
+        <textarea class="composer-input" rows="1"
+                  placeholder="Pregunta sobre cualquier módulo de la plataforma…"
+                  [ngModel]="draft()" (ngModelChange)="draft.set($event)"
+                  (keydown)="onKeydown($event)"></textarea>
+        <button mat-flat-button color="primary" class="send-btn" [disabled]="sending()" (click)="enviar()">
+          <mat-icon>{{ sending() ? 'hourglass_top' : 'send' }}</mat-icon>
+        </button>
+      </div>
+      <div class="composer-hint">
+        Enter para enviar · Shift+Enter para salto de línea · las respuestas pueden incluir gráficas.
+      </div>
+      <input #fileInput type="file" multiple hidden (change)="onFiles($event)">
+    </div>
+  </section>
+
+  <!-- Backdrop para cerrar sidebar en móvil -->
+  <div class="side-backdrop" (click)="sidebarOpen.set(false)"></div>
+</div>

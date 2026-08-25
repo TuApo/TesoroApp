@@ -1,0 +1,202 @@
+.qs-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qs-visor {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+  overflow: hidden;
+  /* Fondo opaco: sobre transparente el WebView deja ver lo que hay debajo del vídeo. */
+  background: #0f172a;
+  border: 1px solid #cbd5e1;
+  isolation: isolate;
+}
+
+.qs-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.qs-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 13px;
+  background: #0f172a;
+}
+
+.qs-placeholder mat-icon {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+}
+
+/* Mira: cuatro esquinas, sin recuadro completo — deja ver el encuadre sin taparlo. */
+.qs-mira {
+  position: absolute;
+  inset: 18%;
+  pointer-events: none;
+}
+
+.qs-esq {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 3px solid #38bdf8;
+}
+
+.qs-esq--tl { top: 0; left: 0; border-right: 0; border-bottom: 0; border-radius: 8px 0 0 0; }
+.qs-esq--tr { top: 0; right: 0; border-left: 0; border-bottom: 0; border-radius: 0 8px 0 0; }
+.qs-esq--bl { bottom: 0; left: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 8px; }
+.qs-esq--br { bottom: 0; right: 0; border-left: 0; border-top: 0; border-radius: 0 0 8px 0; }
+
+.qs-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.qs-aviso mat-icon {
+  flex: none;
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.qs-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  color: #b91c1c;
+}
+
+.qs-error mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.qs-acciones {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.qs-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid #1d5aa8;
+  background: #1d5aa8;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.qs-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.qs-btn--stop {
+  background: #ffffff;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.qs-btn mat-icon {
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+}
+
+.spin {
+  animation: qs-spin 1s linear infinite;
+}
+
+@keyframes qs-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── botón flotante sobre el visor (cambiar cámara) ──────────────────── */
+
+.qs-flotante {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  /* Opaco: sobre translúcido, el WebView de Android deja ver el vídeo a través. */
+  background: #0f172a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(2, 12, 27, 0.4);
+}
+
+.qs-flotante:hover {
+  background: #1d5aa8;
+}
+
+.qs-btn--ghost {
+  background: #ffffff;
+  color: #0f2c52;
+  border-color: #cbd5e1;
+}
+
+.qs-btn--ghost:hover {
+  background: #f1f5f9;
+}
+
+/* El input de archivo se dispara desde el botón; nunca se ve. */
+.qs-file {
+  display: none;
+}
+
+.qs-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.qs-hint mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.qs-motor {
+  color: #94a3b8;
+}

@@ -1,0 +1,213 @@
+<mat-card class="premium-card fp-card">
+
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">fact_check</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Control del proceso</mat-card-title>
+        <mat-card-subtitle class="subtitulo">
+          Estado de cada registro, qué cambió y quién lo cambió.
+        </mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <div class="header-actions">
+      <button mat-icon-button (click)="cargar(); cargarResumen()" [disabled]="cargando()"
+              matTooltip="Actualizar" aria-label="Actualizar registros">
+        <mat-icon>refresh</mat-icon>
+      </button>
+      @if (puedeExportar()) {
+        <button mat-stroked-button (click)="exportar()" [disabled]="cargando()"
+                matTooltip="Excel con el último estado, el historial completo de cambios y las cargas masivas">
+          <mat-icon>download</mat-icon>
+          <span>Exportar</span>
+        </button>
+      }
+      @if (puedeCargar()) {
+        <button mat-flat-button class="btn-managerial" (click)="abrirCargaMasiva()">
+          <mat-icon>upload_file</mat-icon>
+          <span>Carga masiva</span>
+        </button>
+      }
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+
+    @if (cargando()) {
+      <mat-progress-bar mode="indeterminate" class="fp-barra"></mat-progress-bar>
+    }
+
+    <!-- Contadores: el pulso del proceso de un vistazo -->
+    @if (resumen(); as r) {
+      <div class="fp-tarjetas">
+        <button type="button" class="fp-tarjeta" [class.activa]="filtroEstado() === 'TODOS' && !soloCambiados()"
+                (click)="cambiarEstado('TODOS'); alternarCambiados(false)">
+          <span class="fp-numero">{{ r.total }}</span>
+          <span class="fp-etiqueta">Registros</span>
+        </button>
+        <button type="button" class="fp-tarjeta" [class.activa]="filtroEstado() === 'DRAFT'"
+                (click)="cambiarEstado('DRAFT')">
+          <span class="fp-numero">{{ r.drafts }}</span>
+          <span class="fp-etiqueta">Borradores</span>
+        </button>
+        <button type="button" class="fp-tarjeta" [class.activa]="filtroEstado() === 'SUBMITTED'"
+                (click)="cambiarEstado('SUBMITTED')">
+          <span class="fp-numero">{{ r.submitted }}</span>
+          <span class="fp-etiqueta">Enviados</span>
+        </button>
+        <button type="button" class="fp-tarjeta" [class.activa]="filtroEstado() === 'APPROVED'"
+                (click)="cambiarEstado('APPROVED')">
+          <span class="fp-numero">{{ r.approved }}</span>
+          <span class="fp-etiqueta">Aprobados</span>
+        </button>
+        <button type="button" class="fp-tarjeta" [class.activa]="filtroEstado() === 'REJECTED'"
+                (click)="cambiarEstado('REJECTED')">
+          <span class="fp-numero">{{ r.rejected }}</span>
+          <span class="fp-etiqueta">Rechazados</span>
+        </button>
+        <button type="button" class="fp-tarjeta fp-tarjeta--cambio" [class.activa]="soloCambiados()"
+                (click)="alternarCambiados(!soloCambiados())"
+                matTooltip="Registros que se modificaron después de enviarse">
+          <span class="fp-numero">{{ r.changed }}</span>
+          <span class="fp-etiqueta">Modificados</span>
+        </button>
+        <div class="fp-tarjeta fp-tarjeta--info">
+          <span class="fp-numero">{{ r.revisions }}</span>
+          <span class="fp-etiqueta">Cambios registrados</span>
+          @if (r.last_change_at) {
+            <span class="fp-pie">último: {{ r.last_change_at | date:'dd/MM/yyyy HH:mm' }}</span>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Filtros -->
+    <div class="fp-filtros">
+      @if (etiquetaLlave(); as llave) {
+        <mat-form-field appearance="outline" class="fp-buscar">
+          <mat-label>Buscar por {{ llave }}</mat-label>
+          <input matInput type="search" [ngModel]="busquedaLlave()"
+                 (ngModelChange)="buscarLlave($event)" placeholder="Ej. 1020304050">
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+      }
+      <mat-checkbox [checked]="soloCambiados()" (change)="alternarCambiados($event.checked)">
+        Solo los que cambiaron
+      </mat-checkbox>
+      <span class="grow"></span>
+      <span class="fp-total" aria-live="polite">{{ total() }} registro(s)</span>
+    </div>
+
+    @if (error()) {
+      <div class="fp-vacio" role="alert">
+        <span class="material-symbols-outlined fp-vacio-icono">cloud_off</span>
+        <p>{{ error() }}</p>
+        <button mat-stroked-button (click)="cargar()">
+          <mat-icon>refresh</mat-icon>
+          Reintentar
+        </button>
+      </div>
+    } @else if (!cargando() && filas().length === 0) {
+      <div class="fp-vacio">
+        <span class="material-symbols-outlined fp-vacio-icono">inbox</span>
+        <p>No hay registros que coincidan con el filtro.</p>
+        @if (puedeCargar()) {
+          <button mat-flat-button class="btn-managerial" (click)="abrirCargaMasiva()">
+            <mat-icon>upload_file</mat-icon>
+            Cargar datos desde un archivo
+          </button>
+        }
+      </div>
+    } @else {
+      <div class="fp-tabla-scroll">
+        <table class="fp-tabla">
+          <thead>
+            <tr>
+              <th scope="col" class="fp-col-id">ID</th>
+              @if (etiquetaLlave(); as llave) {
+                <th scope="col">{{ llave }}</th>
+              }
+              <th scope="col">Estado</th>
+              <th scope="col" class="fp-col-centro">Cambios</th>
+              <th scope="col">Último cambio</th>
+              @for (col of columnasVisibles(); track col.key) {
+                <th scope="col" [title]="col.section_title || ''">{{ col.label }}</th>
+              }
+              <th scope="col" class="fp-col-acciones">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (fila of filas(); track fila.id) {
+              <tr [class.fp-fila--cambiada]="fila.changed">
+                <td class="fp-col-id">{{ fila.id }}</td>
+                @if (etiquetaLlave()) {
+                  <td class="fp-llave">{{ fila.record_key || '—' }}</td>
+                }
+                <td>
+                  <span class="chip" [class]="claseEstado(fila.status)">{{ etiquetaEstado(fila.status) }}</span>
+                </td>
+                <td class="fp-col-centro">
+                  @if (fila.changed) {
+                    <span class="chip chip-cambio"
+                          [matTooltip]="'Se modificó después de enviarse · ' + (fila.revision_no - 1) + ' cambio(s)'">
+                      {{ fila.revision_no - 1 }}
+                    </span>
+                  } @else {
+                    <span class="fp-sin-dato">—</span>
+                  }
+                </td>
+                <td class="fp-cambio">
+                  @if (fila.last_change_at) {
+                    <span class="fp-fecha">{{ fila.last_change_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                    @if (fila.last_change_by) {
+                      <span class="fp-autor">{{ fila.last_change_by }}</span>
+                    }
+                  } @else {
+                    <span class="fp-sin-dato">—</span>
+                  }
+                </td>
+                @for (col of columnasVisibles(); track col.key) {
+                  <td class="fp-valor" [title]="valor(fila, col)">{{ valor(fila, col) || '—' }}</td>
+                }
+                <td class="fp-col-acciones">
+                  <button mat-icon-button (click)="verHistorial(fila)"
+                          matTooltip="Ver todo lo que le pasó a este registro"
+                          [attr.aria-label]="'Historial del registro ' + fila.id">
+                    <mat-icon>history</mat-icon>
+                  </button>
+                  @if (puedeEditar()) {
+                    <button mat-icon-button (click)="editar(fila)"
+                            matTooltip="Editar las columnas que tienes habilitadas"
+                            [attr.aria-label]="'Editar el registro ' + fila.id">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (hayColumnasOcultas()) {
+        <p class="fp-nota">
+          <mat-icon class="fp-nota-icono">info</mat-icon>
+          La tabla muestra las primeras columnas del formulario. El Excel las trae todas,
+          más el historial completo de cambios.
+        </p>
+      }
+
+      <mat-paginator
+        [length]="total()"
+        [pageIndex]="page()"
+        [pageSize]="size()"
+        [pageSizeOptions]="[10, 25, 50, 100]"
+        (page)="onPage($event)"
+        aria-label="Paginación de registros">
+      </mat-paginator>
+    }
+  </mat-card-content>
+</mat-card>

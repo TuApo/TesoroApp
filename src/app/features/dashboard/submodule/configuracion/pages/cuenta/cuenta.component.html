@@ -1,0 +1,141 @@
+<div class="cfg-card">
+  <div class="cfg-card__head">
+    <h2 class="cfg-card__title">Perfil</h2>
+    <p class="cfg-card__hint">Información de tu cuenta en la plataforma.</p>
+  </div>
+
+  <div class="profile">
+    <div class="profile__avatar-wrap">
+      @if (foto$ | async; as foto) {
+        <img class="profile__avatar-img" [src]="foto" alt="Foto de perfil" />
+      } @else {
+        <div class="profile__avatar" aria-hidden="true">{{ iniciales }}</div>
+      }
+      <button type="button" class="profile__avatar-edit" (click)="fotoInput.click()"
+        aria-label="Cambiar foto de perfil" title="Cambiar foto">
+        <mat-icon fontSet="material-symbols-outlined">photo_camera</mat-icon>
+      </button>
+    </div>
+    <div class="profile__main">
+      <p class="profile__name">{{ nombre || 'Usuario' }}</p>
+      @if (rolesVista.length) {
+        <div class="profile__roles">
+          @for (r of rolesVista; track r.nombre) {
+            <span class="profile__role" [class.profile__role--vencido]="r.vencido"
+              [title]="r.principal ? 'Rol principal' : 'Rol adicional'">
+              @if (r.principal) {
+                <mat-icon fontSet="material-symbols-outlined" class="profile__role-star">star</mat-icon>
+              }
+              {{ r.nombre }}
+              @if (r.vencido) {
+                <span class="profile__role-vig">· vencido</span>
+              } @else if (r.vigenteHasta) {
+                <span class="profile__role-vig">· hasta {{ vigenciaDe(r) }}</span>
+              }
+            </span>
+          }
+        </div>
+      }
+      <div class="profile__photo-actions">
+        <button type="button" class="btn-link" (click)="fotoInput.click()">
+          <mat-icon fontSet="material-symbols-outlined">upload</mat-icon> Subir foto
+        </button>
+        @if (foto$ | async) {
+          <button type="button" class="btn-link btn-link--danger" (click)="quitarFoto()">
+            <mat-icon fontSet="material-symbols-outlined">delete</mat-icon> Quitar
+          </button>
+        }
+      </div>
+      @if (fotoError) { <span class="profile__error">{{ fotoError }}</span> }
+    </div>
+  </div>
+
+  <input #fotoInput type="file" accept="image/*" hidden (change)="onFotoSeleccionada($event)" />
+
+  <dl class="field-list">
+    <div class="field">
+      <dt class="field__label"><mat-icon fontSet="material-symbols-outlined">badge</mat-icon> Documento</dt>
+      <dd class="field__value">{{ documento || '—' }}</dd>
+    </div>
+    <div class="field">
+      <dt class="field__label">
+        <mat-icon fontSet="material-symbols-outlined">location_city</mat-icon>
+        {{ sedesVista.length > 1 ? 'Sedes' : 'Sede' }}
+      </dt>
+      <dd class="field__value">
+        @if (sedesVista.length) {
+          <span class="sedes-chips">
+            @for (s of sedesVista; track s.nombre) {
+              <span class="sede-chip" [class.sede-chip--principal]="s.principal"
+                [title]="s.principal ? 'Sede principal' : 'Sede adicional'">
+                @if (s.principal) {
+                  <mat-icon fontSet="material-symbols-outlined" class="sede-chip__star">star</mat-icon>
+                }
+                {{ s.nombre }}
+              </span>
+            }
+          </span>
+        } @else {
+          —
+        }
+      </dd>
+    </div>
+    @if (correo) {
+      <div class="field">
+        <dt class="field__label"><mat-icon fontSet="material-symbols-outlined">mail</mat-icon> Correo</dt>
+        <dd class="field__value">{{ correo }}</dd>
+      </div>
+    }
+  </dl>
+</div>
+
+<div class="cfg-card">
+  <div class="cfg-card__head">
+    <h2 class="cfg-card__title">Seguridad</h2>
+    <p class="cfg-card__hint">Actualiza tu contraseña y gestiona el acceso de este dispositivo.</p>
+  </div>
+
+  <div class="action-row">
+    <div class="action-row__text">
+      <span class="action-row__title">Contraseña</span>
+      <span class="action-row__desc">Cámbiala periódicamente para proteger tu cuenta.</span>
+    </div>
+    <button type="button" class="btn btn--primary" (click)="cambiarContrasena()">
+      <mat-icon fontSet="material-symbols-outlined">vpn_key</mat-icon>
+      Cambiar contraseña
+    </button>
+  </div>
+
+  <div class="action-row">
+    <div class="action-row__text">
+      <span class="action-row__title">
+        Acceso rápido en este dispositivo
+        @if (accesoRapido) { <span class="qa-chip">Activo</span> }
+      </span>
+      <span class="action-row__desc">{{ descripcionAccesoRapido }}</span>
+      @if (accesoRapido) {
+        <span class="action-row__desc">{{ proteccionAccesoRapido }}</span>
+        <span class="action-row__desc">
+          Vence el {{ vigenciaAccesoRapido }} · se borra solo tras 5 intentos fallidos.
+        </span>
+      }
+    </div>
+
+    @if (accesoRapidoPosible) {
+      <div class="qa-acciones">
+        <button type="button" class="btn btn--primary" (click)="activarAccesoRapido()">
+          <mat-icon fontSet="material-symbols-outlined">
+            {{ accesoRapido ? 'sync_lock' : 'fingerprint' }}
+          </mat-icon>
+          {{ accesoRapido ? 'Cambiar método' : 'Activar' }}
+        </button>
+        @if (accesoRapido) {
+          <button type="button" class="btn btn--danger" (click)="quitarAccesoRapido()">
+            <mat-icon fontSet="material-symbols-outlined">lock_reset</mat-icon>
+            Desactivar
+          </button>
+        }
+      </div>
+    }
+  </div>
+</div>

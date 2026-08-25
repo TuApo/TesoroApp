@@ -1,0 +1,130 @@
+<div class="kb-page">
+
+  <!-- ── Encabezado ─────────────────────────────────────────────────────── -->
+  <div class="kb-header">
+    <div class="kb-header-info">
+      <mat-icon class="kb-header-ico">library_books</mat-icon>
+      <div>
+        <h2>Bases de Conocimiento</h2>
+        <p>Los documentos aquí cargados enriquecen al Asistente IA con información específica de tu empresa.</p>
+      </div>
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="kb-error">
+      <mat-icon>error_outline</mat-icon> {{ error() }}
+      <button mat-icon-button (click)="error.set(null)"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  <!-- ── Formulario de carga ─────────────────────────────────────────────── -->
+  <div class="kb-upload-card">
+    <h3><mat-icon>upload_file</mat-icon> Subir documento</h3>
+    <p class="upload-hint">
+      El texto del archivo se extrae automáticamente en el navegador y se fragmenta para búsqueda semántica (RAG).
+      Soporta <strong>txt, md, csv, json, log, xml, yaml</strong> — cualquier formato de texto.
+    </p>
+
+    <!-- Selector de archivo -->
+    <div class="file-picker">
+      <button mat-stroked-button (click)="abrirArchivos()">
+        <mat-icon>attach_file</mat-icon>
+        {{ formArchivoNombre() ?? 'Seleccionar archivo' }}
+      </button>
+      @if (formContenido()) {
+        <span class="file-ok">
+          <mat-icon>check_circle</mat-icon>
+          {{ formatBytes(formContenido()!.length) }} de texto extraído
+        </span>
+      }
+      <input #fileInput type="file" hidden (change)="onFile($event)">
+    </div>
+
+    <!-- Nombre -->
+    <mat-form-field appearance="outline" class="full-field">
+      <mat-label>Nombre del documento</mat-label>
+      <input matInput [ngModel]="formNombre()" (ngModelChange)="formNombre.set($event)"
+             placeholder="Ej: Reglamento Interno 2025">
+    </mat-form-field>
+
+    <!-- Módulos asociados -->
+    <div class="form-modulos">
+      <span class="form-modulos-label">Módulos que puede usar este documento:</span>
+      <div class="modulos-grid">
+        @for (m of modulosOpciones; track m.clave) {
+          <label class="modulo-check">
+            <input type="checkbox" [checked]="formModuloActivo(m.clave)" (change)="toggleFormModulo(m.clave)">
+            <mat-icon class="mod-ico">{{ m.icono }}</mat-icon>
+            <span>{{ m.nombre }}</span>
+          </label>
+        }
+      </div>
+    </div>
+
+    <button mat-flat-button color="primary" class="upload-btn"
+            [disabled]="!formContenido() || !formNombre().trim() || uploading()"
+            (click)="subirDocumento()">
+      @if (uploading()) {
+        <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner>
+        Subiendo…
+      } @else {
+        <mat-icon>cloud_upload</mat-icon> Subir documento
+      }
+    </button>
+  </div>
+
+  <!-- ── Lista de documentos ─────────────────────────────────────────────── -->
+  <div class="kb-list-section">
+    <h3>Documentos cargados <span class="doc-count">({{ documentos().length }})</span></h3>
+
+    @if (loading()) {
+      <div class="loading-center">
+        <mat-progress-spinner mode="indeterminate" diameter="36"></mat-progress-spinner>
+      </div>
+    } @else if (documentos().length === 0) {
+      <div class="empty-state">
+        <mat-icon>auto_stories</mat-icon>
+        <p>Aún no hay documentos. Sube el primero para comenzar.</p>
+      </div>
+    } @else {
+      <div class="doc-list">
+        @for (doc of documentos(); track doc.id) {
+          <div class="doc-card">
+            <div class="doc-card-head">
+              <mat-icon class="doc-ico">description</mat-icon>
+              <div class="doc-info">
+                <span class="doc-nombre">{{ doc.nombre }}</span>
+                <span class="doc-meta">
+                  {{ formatBytes(doc.longitud) }} · {{ doc.tipoMime }}
+                </span>
+              </div>
+              <button mat-icon-button color="warn" matTooltip="Eliminar documento"
+                      (click)="eliminarDocumento(doc)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </div>
+
+            @if (doc.preview) {
+              <p class="doc-preview">{{ doc.preview }}</p>
+            }
+
+            <!-- Módulos del documento (editables) -->
+            <div class="doc-modulos">
+              <span class="doc-modulos-label">Módulos:</span>
+              <div class="modulos-grid-sm">
+                @for (m of modulosOpciones; track m.clave) {
+                  <label class="modulo-check-sm">
+                    <input type="checkbox" [checked]="(doc.modulos ?? []).includes(m.clave)"
+                           (change)="toggleDocModulo(doc, m.clave)">
+                    <span>{{ m.nombre }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>

@@ -1,0 +1,25 @@
+<div class="ia-page">
+  <div class="page-head">
+    <div>
+      <h1 class="title"><mat-icon>auto_awesome</mat-icon> Analítica Nómina IA</h1>
+      <p class="subtitle">Informe inteligente de todas las nóminas: anomalías, comparativas y un asistente que conoce tus datos de nómina.</p>
+    </div>
+  </div>
+
+  <mat-tab-group class="ia-tabs" [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)"
+                 [mat-stretch-tabs]="false" animationDuration="180ms">
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">insights</mat-icon> Informe IA</ng-template>
+      <div class="tab-body">
+        <app-informe-tab (enviarAChat)="onEnviarAChat($event)"></app-informe-tab>
+      </div>
+    </mat-tab>
+
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">forum</mat-icon> Chat</ng-template>
+      <div class="tab-body chat-tab-body">
+        <app-chat-tab [seed]="chatSeed()"></app-chat-tab>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

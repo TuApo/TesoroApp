@@ -1,0 +1,425 @@
+/* Soportes de un formulario dinámico: tarjetas de archivos adjuntos con descarga
+   autenticada. Header "premium" = patrón estándar de la plataforma (copiado como en
+   el resto de páginas; el responsive lo aporta styles.css global). Colores desde los
+   tokens de marca: navy estructura, slate superficie, lima solo acción. */
+
+.soportes-page {
+  padding: 8px;
+}
+
+/* ── Header estándar ─────────────────────────────────────────────────── */
+
+.premium-card {
+  border-radius: 16px !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  border: 1px solid #f1f5f9;
+  background-color: #ffffff;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.card-header-premium {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px 20px 32px !important;
+  border-bottom: none;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+.card-header-premium::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.btn-volver {
+  color: #ffffff !important;
+  flex: 0 0 auto;
+}
+
+.btn-volver:hover { background-color: rgba(255, 255, 255, 0.12); }
+.btn-volver .material-symbols-outlined { font-size: 22px; vertical-align: middle; }
+
+.header-icon-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 48px;
+  width: 48px;
+  height: 48px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-radius: 12px;
+}
+
+.header-icon { font-size: 28px; }
+
+.header-text { display: flex; flex-direction: column; min-width: 0; }
+
+.titulo {
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 1.4rem !important;
+  font-weight: 700 !important;
+  color: #ffffff;
+  margin: 0 0 2px 0 !important;
+  letter-spacing: -0.01em;
+}
+
+.subtitulo {
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 0.85rem !important;
+  color: #cbd5e1 !important;
+  margin: 0 !important;
+}
+
+.grow { flex: 1 1 auto; }
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+  flex-wrap: wrap;
+}
+
+.btn-refresh { color: #ffffff !important; }
+.btn-refresh .material-symbols-outlined { font-size: 22px; }
+
+/* ── Filtros ─────────────────────────────────────────────────────────── */
+
+.contenido { padding: 0 24px 20px 24px; }
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.filtro { width: 260px; max-width: 100%; }
+.filtro--buscar { width: 320px; }
+.filtro--agrupar { width: 210px; }
+.filtro--buscar .material-symbols-outlined { font-size: 20px; margin-right: 6px; color: var(--muted, #64748b); }
+
+.opt-conteo { color: var(--muted, #64748b); font-size: 0.8em; }
+
+.btn-limpiar {
+  border-radius: 8px !important;
+  align-self: flex-start;
+  margin-top: 6px;
+}
+.btn-limpiar .material-symbols-outlined { font-size: 18px; margin-right: 4px; }
+
+/* ── Barra de descarga masiva ────────────────────────────────────────── */
+
+.barra-descarga {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin: 4px 0 8px 0;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 12px;
+  background: var(--slate-50, #f8fafc);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* Con algo marcado la barra se "enciende": es el único momento en que
+   «Descargar selección» hace algo, y tiene que notarse sin leer el botón. */
+.barra-descarga--activa {
+  border-color: var(--navy, #21263c);
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+}
+
+.conteo-seleccion {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--slate-700, #334155);
+}
+
+.btn-limpiar-sel {
+  min-width: 0 !important;
+  padding: 0 6px !important;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.barra-descarga .filtro--agrupar { margin-bottom: -1.25em; }
+
+.btn-zip {
+  background-color: var(--navy, #21263c) !important;
+  color: var(--lime, #8cd50a) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
+.btn-zip:disabled { opacity: 0.5; }
+.btn-zip .material-symbols-outlined,
+.btn-zip-todo .material-symbols-outlined { font-size: 18px; margin-right: 6px; }
+
+.btn-zip-todo { border-radius: 8px !important; font-weight: 600 !important; }
+
+.aviso-parcial {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.82rem;
+}
+.aviso-parcial .material-symbols-outlined { font-size: 18px; }
+
+/* ── Estados vacío / error ───────────────────────────────────────────── */
+
+.estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px 16px;
+  color: var(--muted, #64748b);
+  text-align: center;
+}
+
+.estado .material-symbols-outlined { font-size: 44px; opacity: 0.7; }
+.estado p { margin: 0; font-weight: 600; color: var(--slate-700, #334155); }
+.estado-sub { font-size: 0.85rem; }
+.estado--error p { color: var(--danger, #b42318); }
+
+/* ── Grilla de tarjetas ──────────────────────────────────────────────── */
+
+.grid-soportes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.soporte-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--slate-200, #e8edf3);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #ffffff;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.soporte-card:hover {
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+  border-color: var(--slate-300, #cbd5e1);
+  transform: translateY(-2px);
+}
+
+.soporte-card--marcada {
+  border-color: var(--navy, #21263c);
+  box-shadow: 0 0 0 2px rgba(33, 38, 60, 0.12);
+}
+
+/* La casilla vive sobre la vista previa: la tarjeta ya es densa y una fila
+   más solo para marcarla la haría más alta sin decir nada nuevo. */
+.soporte-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 8px;
+}
+
+/* Vista previa: miniatura o icono */
+.soporte-preview {
+  position: relative;
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--slate-50, #f8fafc);
+  border-bottom: 1px solid var(--slate-100, #f1f5f9);
+}
+
+.soporte-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.soporte-icono {
+  font-size: 56px;
+  color: var(--navy, #21263c);
+  opacity: 0.85;
+}
+
+.soporte-card[data-tipo='pdf'] .soporte-icono { color: #b42318; }
+.soporte-card[data-tipo='excel'] .soporte-icono { color: #0f766e; }
+.soporte-card[data-tipo='word'] .soporte-icono { color: #1d4ed8; }
+
+.soporte-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #ffffff;
+  background: rgba(15, 23, 42, 0.78);
+  border-radius: 999px;
+}
+
+/* Cuerpo */
+.soporte-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 6px 14px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.soporte-nombre {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--slate-800, #1e293b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Identificación: de quién es y de qué pregunta salió. */
+.soporte-etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.etq {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.etq .material-symbols-outlined { font-size: 14px; }
+
+.etq--llave {
+  background: rgba(140, 213, 10, 0.16);
+  color: #3f6212;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.etq--pregunta {
+  background: var(--slate-100, #f1f5f9);
+  color: var(--slate-700, #334155);
+  cursor: pointer;
+  font-family: inherit;
+}
+.etq--pregunta:hover {
+  background: var(--slate-200, #e2e8f0);
+  border-color: var(--slate-300, #cbd5e1);
+}
+
+.soporte-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.meta-fila {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.78rem;
+}
+
+.meta-fila dt { color: var(--muted, #64748b); }
+.meta-fila dd {
+  margin: 0;
+  color: var(--slate-700, #334155);
+  font-weight: 500;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60%;
+}
+
+.meta-campo { font-family: 'Roboto Mono', monospace; }
+
+.meta-link {
+  color: var(--navy, #21263c);
+  font-weight: 600;
+  text-decoration: none;
+}
+.meta-link:hover { text-decoration: underline; }
+
+/* Acciones */
+.soporte-acciones {
+  padding: 8px 14px 14px 14px;
+}
+
+.btn-descargar {
+  width: 100%;
+  background-color: var(--navy, #21263c) !important;
+  color: var(--lime, #8cd50a) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-descargar:disabled { opacity: 0.55; }
+.btn-descargar .material-symbols-outlined { font-size: 18px; }
+
+@media (max-width: 900px) {
+  .filtro, .filtro--buscar, .filtro--agrupar { width: 100%; }
+  .barra-descarga { gap: 8px; }
+  .btn-zip, .btn-zip-todo { flex: 1 1 100%; }
+}
+
+@media (max-width: 520px) {
+  .contenido { padding: 0 14px 16px 14px; }
+  .grid-soportes { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .soporte-etiquetas { flex-direction: column; align-items: flex-start; }
+}
