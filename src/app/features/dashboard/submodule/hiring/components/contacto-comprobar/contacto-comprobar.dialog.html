@@ -1,0 +1,119 @@
+<h2 mat-dialog-title class="cc-titulo">
+  <mat-icon>{{ data.modo === 'correo' ? 'mail' : 'chat' }}</mat-icon>
+  {{ data.modo === 'correo' ? 'Comprobar el correo' : 'Comprobar el WhatsApp' }}
+</h2>
+
+<mat-dialog-content class="cc-cuerpo">
+
+  <div class="cc-destino">
+    <span class="cc-destino-rot">Se va a escribir a</span>
+    <strong>{{ data.destino || 'Sin dato registrado' }}</strong>
+    @if (data.nombre) { <span class="cc-destino-quien">{{ data.nombre }}</span> }
+  </div>
+
+  @if (data.modo === 'correo') {
+
+    <!-- Envío REAL con una plantilla publicada: es lo único que demuestra que
+         el correo existe y no rebota. -->
+    <label class="cc-campo">
+      <span class="cc-campo-rot">Plantilla que se enviará</span>
+      @if (cargandoPlantillas()) {
+        <span class="cc-cargando"><mat-icon class="cc-spin">progress_activity</mat-icon> Cargando…</span>
+      } @else {
+        <select class="cc-select" [value]="plantillaId() ?? ''" (change)="elegirPlantilla($event)">
+          @for (p of disponibles(); track p.id) {
+            <option [value]="p.id">{{ p.nombre }}@if (p.asunto_actual) { — {{ p.asunto_actual }} }</option>
+          } @empty {
+            <option value="">No hay plantillas publicadas</option>
+          }
+        </select>
+      }
+      <small class="cc-ayuda">
+        El correo sale con los datos de esta persona. Si quieres que lleve el enlace de
+        ingreso, el usuario y la contraseña, usa una plantilla que los incluya.
+      </small>
+    </label>
+
+    <button type="button" class="cc-btn cc-btn-primario"
+            [disabled]="!plantillaId() || !data.destino || enviando()"
+            (click)="enviarCorreo()">
+      <mat-icon>{{ enviando() ? 'hourglass_empty' : 'send' }}</mat-icon>
+      {{ enviando() ? 'Enviando…' : 'Enviar y comprobar' }}
+    </button>
+
+    @if (resultado(); as r) {
+      @if (r.enviado) {
+        <div class="cc-ok">
+          <mat-icon>check_circle</mat-icon>
+          <div>
+            <strong>Salió sin rebotar.</strong>
+            Enviado desde {{ r.remitente }} a {{ r.destinatario }}.
+            @if (r.disponible_hoy !== null) {
+              <span class="cc-cuota">Quedan {{ r.disponible_hoy }} envíos hoy por esa cuenta.</span>
+            }
+          </div>
+        </div>
+      }
+    }
+
+    @if (error(); as e) {
+      <div class="cc-error">
+        <mat-icon>error_outline</mat-icon>
+        <div>
+          <strong>No se pudo comprobar.</strong> {{ e }}
+          <span class="cc-cuota">El contacto NO queda marcado como comprobado.</span>
+        </div>
+      </div>
+    }
+
+  } @else {
+
+    <label class="cc-campo">
+      <span class="cc-campo-rot">Contraseña de la persona (opcional)</span>
+      <input class="cc-input" type="text" [value]="password()" (input)="alEscribirPassword($event)"
+             placeholder="Déjalo vacío si aún no tiene" />
+      <small class="cc-ayuda">
+        Si lo dejas vacío, el mensaje le explica cómo crearla con su documento.
+        No se inventa una contraseña: mandar una que no funciona es peor que no mandar ninguna.
+      </small>
+    </label>
+
+    <label class="cc-campo">
+      <span class="cc-campo-rot">Mensaje</span>
+      <textarea class="cc-texto" rows="9" [value]="mensaje()"
+                (input)="alEscribirMensaje($event)"></textarea>
+    </label>
+
+    <button type="button" class="cc-btn cc-btn-wa"
+            [disabled]="!data.destino"
+            (click)="abrirWhatsapp()">
+      <mat-icon>open_in_new</mat-icon> Abrir WhatsApp con el mensaje
+    </button>
+
+    @if (abierto()) {
+      <div class="cc-ok">
+        <mat-icon>info</mat-icon>
+        <div>
+          Se abrió WhatsApp con el mensaje puesto. Cuando lo hayas enviado y sepas que
+          llegó, márcalo como comprobado.
+        </div>
+      </div>
+    }
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="cc-acciones">
+  <span class="cc-spacer"></span>
+  <button mat-button type="button" (click)="cerrar()">Cancelar</button>
+  @if (data.modo === 'correo') {
+    <button mat-flat-button color="primary" type="button"
+            [disabled]="!puedeConfirmarCorreo()" (click)="confirmar()">
+      <mat-icon>check</mat-icon> Marcar como comprobado
+    </button>
+  } @else {
+    <button mat-flat-button color="primary" type="button"
+            [disabled]="!abierto()" (click)="confirmar()">
+      <mat-icon>check</mat-icon> Marcar como comprobado
+    </button>
+  }
+</mat-dialog-actions>

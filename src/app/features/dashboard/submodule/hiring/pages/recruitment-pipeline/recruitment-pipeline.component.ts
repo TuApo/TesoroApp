@@ -49,6 +49,10 @@ import {
 } from './prueba-tecnica.rules';
 import { pedirResultadoEtapa, payloadResultadoEtapa } from '../../components/resultado-etapa/resultado-etapa.dialog';
 import { CarnetMasivoDialogComponent } from '../../components/carnet-masivo-dialog/carnet-masivo-dialog.component';
+import {
+  ContactoComprobarDialogComponent,
+  ContactoComprobarResultado,
+} from '../../components/contacto-comprobar/contacto-comprobar.dialog';
 import { esContratoRealMini, estadoContratoPill, procesoDelContrato, procesoVigente, tieneContratoActivoReal } from './contrato.rules';
 
 import { firstValueFrom, merge, startWith } from 'rxjs';
@@ -1878,98 +1882,100 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   }
 
   // ───────── CONFIRMACIÓN CONTACTO ─────────
+  /**
+   * Comprobar que el correo EXISTE.
+   *
+   * Antes esto abría un textarea, no enviaba nada y marcaba el contacto como
+   * comprobado igual: se comprobaba la intención del operador, no el correo de
+   * la persona. Ahora se manda de verdad con una plantilla publicada, y solo se
+   * marca si el proveedor confirma el envío.
+   */
   async confirmarCorreoBienvenida(): Promise<void> {
     const cand = this.candidatoSeleccionado();
     if (!cand?.id) return;
 
-    const emailStr = cand.contacto?.email || cand.correo_electronico || cand.correo || 'No registrado';
-    const msgTemplate = `Hola ${cand.primer_nombre || ''},\n\nTe damos la bienvenida al equipo.\n\nPor favor confirma la recepción de este correo.\n\nSaludos.`;
+    const destino = (cand.contacto?.email || cand.correo_electronico || cand.correo || '').trim() || null;
+    if (!destino) {
+      await Swal.fire('Sin correo', 'Esta persona no tiene correo registrado. Añádelo en la ficha.', 'info');
+      return;
+    }
 
-    const { value: textToSend, isConfirmed } = await Swal.fire({
-      title: 'Confirmar Correo de Bienvenida',
-      html: `<p>Se enviará el siguiente mensaje a: <b>${emailStr}</b></p>`,
-      input: 'textarea',
-      inputValue: msgTemplate,
-      inputAttributes: {
-        'aria-label': 'Mensaje de bienvenida'
+    const r = await firstValueFrom(this.dialog.open<
+      ContactoComprobarDialogComponent, unknown, ContactoComprobarResultado
+    >(ContactoComprobarDialogComponent, {
+      width: '640px', maxWidth: '95vw', autoFocus: false,
+      data: {
+        modo: 'correo',
+        nombre: this.nombreCandidato || null,
+        cedula: cand.numero_documento ? String(cand.numero_documento) : null,
+        destino,
+        password: null,
       },
-      showCancelButton: true,
-      confirmButtonText: 'Confirmar y Guardar',
-      cancelButtonText: 'Cancelar',
-      width: '600px'
-    });
+    }).afterClosed());
 
-    if (!isConfirmed) return;
+    if (!r?.confirmado) return;
+    await this.marcarContacto(cand, { correo_confirmado: true }, 'Correo comprobado');
+  }
 
+  /** Marca el contacto y refleja el cambio sin relanzar toda la cascada. */
+  private async marcarContacto(
+    cand: Record<string, any>,
+    campos: { correo_confirmado?: boolean; whatsapp_confirmado?: boolean },
+    aviso: string,
+  ): Promise<void> {
     try {
-      Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { correo_confirmado: true }));
-      // Referencia NUEVA: con la misma referencia la señal no notifica, el
-      // effect nunca consume `refrescoSilencioso` y la bandera queda pegada
-      // (la siguiente consulta real de esta persona se saltaría la cascada).
+      Swal.fire({ title: 'Guardando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      await firstValueFrom(this.registroProceso.confirmarContacto(cand['id'], campos));
+      // Referencia NUEVA: con la misma, la señal no notifica, el effect nunca
+      // consume `refrescoSilencioso` y la bandera queda pegada (la siguiente
+      // consulta real de esta persona se saltaría la cascada).
       this.refrescoSilencioso = true;
       this.candidatoSeleccionado.set({
         ...cand,
-        contacto: { ...(cand.contacto || {}), correo_confirmado: true },
+        contacto: { ...(cand['contacto'] || {}), ...campos },
       });
       Swal.close();
-      this.snack.open('Correo confirmado', 'OK', { duration: 3000 });
-
-      // Here you could also trigger an email sending service with `textToSend` and `emailStr`
-      // if there's a backend endpoint for it, but for now we just mark it as confirmed.
+      this.snack.open(aviso, 'OK', { duration: 3000 });
     } catch (err) {
       Swal.close();
-      console.error(err);
-      this.snack.open('Error al confirmar correo', 'Cerrar', { duration: 3000 });
+      Swal.fire('Error', mensajeDeErrorLog('confirmarContacto', err, 'No se pudo guardar.'), 'error');
     }
   }
 
+  /**
+   * Comprobar que el WhatsApp EXISTE.
+   *
+   * Mismo problema que el correo: no mandaba nada. Ahora arma el mensaje con el
+   * enlace de ingreso, el usuario y la contraseña, abre WhatsApp con el texto
+   * puesto, y marcar queda a un paso aparte —quien sabe si llegó es quien lo
+   * mandó—.
+   */
   async confirmarWhatsAppBienvenida(): Promise<void> {
     const cand = this.candidatoSeleccionado();
     if (!cand?.id) return;
 
-    const waStr = cand.contacto?.whatsapp || cand.numCelular || cand.telefono || cand.celular || 'No registrado';
-    const msgTemplate = `Hola ${cand.primer_nombre || ''}, te damos la bienvenida al equipo. Por favor confirma este mensaje.`;
-
-    const { value: textToSend, isConfirmed } = await Swal.fire({
-      title: 'Confirmar WhatsApp de Bienvenida',
-      html: `<p>Se enviará el siguiente mensaje a: <b>${waStr}</b></p>`,
-      input: 'textarea',
-      inputValue: msgTemplate,
-      inputAttributes: {
-        'aria-label': 'Mensaje de WhatsApp'
-      },
-      showCancelButton: true,
-      confirmButtonText: 'Confirmar y Guardar',
-      cancelButtonText: 'Cancelar',
-      width: '600px'
-    });
-
-    if (!isConfirmed) return;
-
-    try {
-      Swal.fire({ title: 'Guardando confirmación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      const resp = await firstValueFrom(this.registroProceso.confirmarContacto(cand.id, { whatsapp_confirmado: true }));
-      // Referencia NUEVA por la misma razón que en confirmarCorreoBienvenida.
-      this.refrescoSilencioso = true;
-      this.candidatoSeleccionado.set({
-        ...cand,
-        contacto: { ...(cand.contacto || {}), whatsapp_confirmado: true },
-      });
-      Swal.close();
-      this.snack.open('WhatsApp confirmado', 'OK', { duration: 3000 });
-
-      // Open WhatsApp web with the message
-      if (waStr !== 'No registrado') {
-        const waNumber = waStr.replace(/[^0-9]/g, '');
-        const waUrl = `https://wa.me/57${waNumber}?text=${encodeURIComponent(textToSend)}`;
-        window.open(waUrl, '_blank', 'noopener,noreferrer');
-      }
-    } catch (err) {
-      Swal.close();
-      console.error(err);
-      this.snack.open('Error al confirmar WhatsApp', 'Cerrar', { duration: 3000 });
+    const destino = (cand.contacto?.whatsapp || cand.contacto?.celular
+      || cand.numCelular || cand.telefono || cand.celular || '').toString().trim() || null;
+    if (!destino) {
+      await Swal.fire('Sin número', 'Esta persona no tiene WhatsApp registrado. Añádelo en la ficha.', 'info');
+      return;
     }
+
+    const r = await firstValueFrom(this.dialog.open<
+      ContactoComprobarDialogComponent, unknown, ContactoComprobarResultado
+    >(ContactoComprobarDialogComponent, {
+      width: '640px', maxWidth: '95vw', autoFocus: false,
+      data: {
+        modo: 'whatsapp',
+        nombre: this.nombreCandidato || null,
+        cedula: cand.numero_documento ? String(cand.numero_documento) : null,
+        destino,
+        password: cand.contacto?.password || cand.password || null,
+      },
+    }).afterClosed());
+
+    if (!r?.confirmado) return;
+    await this.marcarContacto(cand, { whatsapp_confirmado: true }, 'WhatsApp comprobado');
   }
 
   async darDeBajaManual() {
