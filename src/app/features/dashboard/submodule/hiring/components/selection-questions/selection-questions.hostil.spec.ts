@@ -54,6 +54,25 @@ describe('SelectionQuestions — uso torpe', () => {
     comp = fixture.componentInstance;
   });
 
+  /**
+   * Deja los 7 antecedentes obligatorios con una opcion valida.
+   *
+   * Sin esto `imprimirVerificacionesAplicacion()` sale por el camino de
+   * "Campos incompletos" y nunca llega al backend, que es justo lo que hacia
+   * fallar a estas pruebas cuando los antecedentes dejaron de ser opcionales.
+   */
+  function llenarObligatorios() {
+    comp.antecedentes.patchValue({
+      eps: 'SURA',
+      afp: 'PORVENIR',
+      sisben: 'A1',
+      policivos: 'CUMPLE',
+      procuraduria: 'CUMPLE',
+      contraloria: 'CUMPLE',
+      ofac: 'CUMPLE',
+    });
+  }
+
   function abrir(cand: any) {
     fixture.componentRef.setInput('candidatoSeleccionado', cand);
     fixture.detectChanges();
@@ -130,6 +149,7 @@ describe('SelectionQuestions — uso torpe', () => {
 
     it('darle a Cargar dos veces seguidas', fakeAsync(() => {
       abrir(cand());
+      llenarObligatorios();
       comp.imprimirVerificacionesAplicacion();
       comp.imprimirVerificacionesAplicacion();
       tick();
@@ -212,8 +232,22 @@ describe('SelectionQuestions — uso torpe', () => {
   // ───────────────────────────────────────────────────────────
   describe('guarda sin llenar nada', () => {
 
-    it('con todo vacío igual guarda: los antecedentes no son obligatorios', fakeAsync(() => {
+    // Antes los antecedentes eran opcionales y esto guardaba en blanco. Hoy hay
+    // 7 con Validators.required: guardar vacio dejaba fichas sin EPS ni AFP que
+    // luego habia que perseguir a mano.
+    it('con todo vacío NO guarda: los 7 antecedentes son obligatorios', fakeAsync(() => {
       abrir(cand());
+      comp.imprimirVerificacionesAplicacion();
+      tick();
+      expect(rpc.upsertSeleccionByDocumento)
+        .withContext('sale por "Campos incompletos" antes de llamar al backend')
+        .not.toHaveBeenCalled();
+      expect(comp.antecedentes.invalid).toBeTrue();
+    }));
+
+    it('con los obligatorios llenos sí guarda', fakeAsync(() => {
+      abrir(cand());
+      llenarObligatorios();
       comp.imprimirVerificacionesAplicacion();
       tick();
       expect(rpc.upsertSeleccionByDocumento).toHaveBeenCalled();

@@ -52,10 +52,27 @@ describe('BoardPreviewPageComponent', () => {
     expect(component.priorityLabel('UNKNOWN')).toBe('UNKNOWN');
   });
 
-  it('startAddCard() should set addingToListId', () => {
+  // startAddCard dejo de ser el "alta inline" que escribia addingToListId: hoy
+  // abre el modal completo sobre la lista destino. Y resuelve el id contra
+  // lists(), asi que sin listas cargadas sale sin hacer nada.
+  it('startAddCard() abre el modal sobre la lista destino', () => {
+    component.lists.set([
+      { id: 5, uuid: '', board: 1, name: 'Todo', list_type: 'TODO', position: 0, cards: [], created_at: '', updated_at: '' },
+    ]);
+
     component.startAddCard(5);
-    expect(component.addingToListId).toBe(5);
-    expect(component.newCardTitle).toBe('');
+
+    expect(component.showCardModal).toBeTrue();
+    expect(component.editingCardListId).toBe(5);
+    expect(component.editingCardListName).toBe('Todo');
+    expect(component.editingCardId).withContext('es alta, no edicion').toBeNull();
+    expect(component.cardFormTitle).toBe('');
+  });
+
+  it('startAddCard() con un id que no esta en lists() no abre nada', () => {
+    component.lists.set([]);
+    component.startAddCard(5);
+    expect(component.showCardModal).toBeFalse();
   });
 
   it('cancelAddCard() should reset addingToListId', () => {
