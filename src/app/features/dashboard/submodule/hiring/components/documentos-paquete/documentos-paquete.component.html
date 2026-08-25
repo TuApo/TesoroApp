@@ -4,7 +4,7 @@
     <div class="dp-head-icon"><mat-icon>folder_copy</mat-icon></div>
     <div class="dp-head-txt">
       <h3 class="dp-title">Paquete documental</h3>
-      <p class="dp-sub">Todo lo que tiene que estar para cerrar la contratación del día.</p>
+      <p class="dp-sub">Todo lo que tiene que estar para cerrar el día. Puedes subir aquí mismo.</p>
     </div>
     <span class="dp-spacer"></span>
     <button type="button" class="dp-btn dp-btn-ghost" (click)="recargar()" [disabled]="cargando()">
@@ -61,11 +61,34 @@
       </div>
       <ul class="dp-lista">
         @for (d of generables(); track d.titulo) {
-          <li class="dp-item" [class.dp-item-listo]="d.listo">
+          <li class="dp-item" [class.dp-item-listo]="d.listo" [class.dp-item-ocupado]="subiendo() === d.titulo">
             <mat-icon class="dp-item-icon">{{ d.listo ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
             <span class="dp-item-txt">{{ d.titulo }}</span>
+
             @if (!d.typeId) {
-              <span class="dp-item-nota" matTooltip="Todavía no tiene tipo en gestión documental">sin tipo</span>
+              <span class="dp-item-nota"
+                    matTooltip="Todavía no tiene tipo en gestión documental: no se puede subir desde aquí">
+                sin tipo
+              </span>
+            } @else if (subiendo() === d.titulo) {
+              <mat-icon class="dp-item-spin">progress_activity</mat-icon>
+            } @else {
+              @if (d.fileUrl) {
+                <button type="button" class="dp-accion" matTooltip="Abrir el documento"
+                        (click)="ver(d)">
+                  <mat-icon>visibility</mat-icon>
+                </button>
+              }
+              <!-- Subir sin salir del pipeline. Reemplaza si ya había uno: el
+                   backend deja vigente el último de cada tipo. -->
+              <input type="file" hidden accept="application/pdf,image/*"
+                     #f (change)="subir($event, d)" />
+              <button type="button" class="dp-accion"
+                      [matTooltip]="d.listo ? 'Reemplazar el documento' : 'Subir el documento'"
+                      [disabled]="!!subiendo()"
+                      (click)="f.click()">
+                <mat-icon>{{ d.listo ? 'swap_horiz' : 'upload_file' }}</mat-icon>
+              </button>
             }
           </li>
         } @empty {
@@ -84,11 +107,34 @@
       </div>
       <ul class="dp-lista">
         @for (d of porSubir(); track d.titulo) {
-          <li class="dp-item" [class.dp-item-listo]="d.listo">
+          <li class="dp-item" [class.dp-item-listo]="d.listo" [class.dp-item-ocupado]="subiendo() === d.titulo">
             <mat-icon class="dp-item-icon">{{ d.listo ? 'check_circle' : 'cloud_upload' }}</mat-icon>
             <span class="dp-item-txt">{{ d.titulo }}</span>
+
             @if (!d.typeId) {
-              <span class="dp-item-nota" matTooltip="Todavía no tiene tipo en gestión documental">sin tipo</span>
+              <span class="dp-item-nota"
+                    matTooltip="Todavía no tiene tipo en gestión documental: no se puede subir desde aquí">
+                sin tipo
+              </span>
+            } @else if (subiendo() === d.titulo) {
+              <mat-icon class="dp-item-spin">progress_activity</mat-icon>
+            } @else {
+              @if (d.fileUrl) {
+                <button type="button" class="dp-accion" matTooltip="Abrir el documento"
+                        (click)="ver(d)">
+                  <mat-icon>visibility</mat-icon>
+                </button>
+              }
+              <!-- Subir sin salir del pipeline. Reemplaza si ya había uno: el
+                   backend deja vigente el último de cada tipo. -->
+              <input type="file" hidden accept="application/pdf,image/*"
+                     #f (change)="subir($event, d)" />
+              <button type="button" class="dp-accion"
+                      [matTooltip]="d.listo ? 'Reemplazar el documento' : 'Subir el documento'"
+                      [disabled]="!!subiendo()"
+                      (click)="f.click()">
+                <mat-icon>{{ d.listo ? 'swap_horiz' : 'upload_file' }}</mat-icon>
+              </button>
             }
           </li>
         } @empty {

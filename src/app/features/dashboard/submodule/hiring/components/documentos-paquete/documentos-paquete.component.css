@@ -152,7 +152,7 @@
 
 .dp-lista {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
   gap: 4px 12px;
   margin: 0;
   padding: 0;
@@ -163,7 +163,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 5px 6px 5px 10px;
+  min-height: 40px;
   border: 1px solid var(--slate-200);
   border-radius: 9px;
   background: var(--surface);
@@ -204,6 +205,53 @@
   color: var(--warn-fg);
   font-size: .64rem;
   font-weight: 700;
+}
+
+/* Acciones de la fila: aparecen siempre, no solo al pasar por encima. Con la
+   persona esperando enfrente, un botón que hay que descubrir no existe. */
+.dp-accion {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--slate-500);
+  cursor: pointer;
+  transition: background .14s ease, color .14s ease;
+}
+
+.dp-accion:hover:not(:disabled) {
+  background: var(--slate-100);
+  color: var(--navy);
+}
+
+.dp-item-listo .dp-accion { color: var(--ok-fg); }
+.dp-item-listo .dp-accion:hover:not(:disabled) { background: rgba(22, 101, 52, .10); }
+
+.dp-accion:disabled { opacity: .4; cursor: not-allowed; }
+
+.dp-accion mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.dp-item-ocupado { opacity: .7; }
+
+.dp-item-spin {
+  flex: none;
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+  color: var(--slate-500);
+  animation: dp-giro 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-item-spin { animation: none; }
 }
 
 .dp-item-vacio {
