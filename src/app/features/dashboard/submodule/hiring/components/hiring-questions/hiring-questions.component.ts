@@ -34,6 +34,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { TarjetasService } from '../../service/tarjetas.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { DocumentosPaqueteComponent } from '../documentos-paquete/documentos-paquete.component';
 import { avanceDeBanderas, avanceDeForm } from '../../shared/progreso.util';
 
 type LocalFile = { file: File | string; fileName: string };
@@ -52,7 +53,7 @@ type ServerDocInfo = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-hiring-questions',
   standalone: true,
-  imports: [SharedModule, MatTabsModule],
+  imports: [SharedModule, MatTabsModule, DocumentosPaqueteComponent],
   templateUrl: './hiring-questions.component.html',
   styleUrls: ['./hiring-questions.component.css'],
 } )

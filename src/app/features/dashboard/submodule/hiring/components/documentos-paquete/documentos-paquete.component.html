@@ -1,0 +1,100 @@
+<div class="tab-content-scrollable dp">
+
+  <header class="dp-head">
+    <div class="dp-head-icon"><mat-icon>folder_copy</mat-icon></div>
+    <div class="dp-head-txt">
+      <h3 class="dp-title">Paquete documental</h3>
+      <p class="dp-sub">Todo lo que tiene que estar para cerrar la contratación del día.</p>
+    </div>
+    <span class="dp-spacer"></span>
+    <button type="button" class="dp-btn dp-btn-ghost" (click)="recargar()" [disabled]="cargando()">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+    <button type="button" class="dp-btn" (click)="irAGenerar()"
+            [disabled]="!candidatoSeleccionado()?.numero_documento">
+      <mat-icon>open_in_new</mat-icon> Generar y subir
+    </button>
+  </header>
+
+  @if (!candidatoSeleccionado()?.numero_documento) {
+    <p class="dp-vacio">Busca primero a la persona para ver su paquete.</p>
+  } @else if (cargando()) {
+    <div class="dp-cargando"><mat-icon class="dp-spin">progress_activity</mat-icon> Leyendo el expediente…</div>
+  } @else {
+
+    @if (error()) {
+      <div class="dp-error"><mat-icon>error_outline</mat-icon> {{ error() }}</div>
+    }
+
+    <!-- Resumen: cuántos van y cuántos faltan. Es lo que se mira antes de
+         cerrar el día, así que va arriba y grande. -->
+    <div class="dp-resumen">
+      <div class="dp-resumen-num">
+        <strong>{{ listos() }}</strong><span>de {{ total() }}</span>
+      </div>
+      <div class="dp-resumen-barra">
+        <span class="dp-resumen-fill" [style.width.%]="pct()"></span>
+      </div>
+      <div class="dp-resumen-pct" [class.dp-completo]="faltan() === 0">
+        @if (faltan() === 0) { Paquete completo } @else { Faltan {{ faltan() }} }
+      </div>
+    </div>
+
+    @if (sinVacante()) {
+      <div class="dp-aviso">
+        <mat-icon>info</mat-icon>
+        <span>
+          Esta persona no tiene vacante remitida, así que no se sabe a qué empresa va.
+          La lista está en el mínimo (cédula, contrato y hoja de vida); asigna la vacante
+          en <strong>Selección → Remisión</strong> para ver el paquete real.
+        </span>
+      </div>
+    }
+
+    <section class="dp-seccion">
+      <div class="dp-seccion-head">
+        <mat-icon>auto_fix_high</mat-icon>
+        <h4>Los genera la plataforma</h4>
+        <span class="dp-seccion-conteo">
+          {{ listosGenerables() }} / {{ generables().length }}
+        </span>
+      </div>
+      <ul class="dp-lista">
+        @for (d of generables(); track d.titulo) {
+          <li class="dp-item" [class.dp-item-listo]="d.listo">
+            <mat-icon class="dp-item-icon">{{ d.listo ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+            <span class="dp-item-txt">{{ d.titulo }}</span>
+            @if (!d.typeId) {
+              <span class="dp-item-nota" matTooltip="Todavía no tiene tipo en gestión documental">sin tipo</span>
+            }
+          </li>
+        } @empty {
+          <li class="dp-item dp-item-vacio">Ninguno para esta vacante.</li>
+        }
+      </ul>
+    </section>
+
+    <section class="dp-seccion">
+      <div class="dp-seccion-head">
+        <mat-icon>cloud_upload</mat-icon>
+        <h4>Hay que subirlos</h4>
+        <span class="dp-seccion-conteo">
+          {{ listosPorSubir() }} / {{ porSubir().length }}
+        </span>
+      </div>
+      <ul class="dp-lista">
+        @for (d of porSubir(); track d.titulo) {
+          <li class="dp-item" [class.dp-item-listo]="d.listo">
+            <mat-icon class="dp-item-icon">{{ d.listo ? 'check_circle' : 'cloud_upload' }}</mat-icon>
+            <span class="dp-item-txt">{{ d.titulo }}</span>
+            @if (!d.typeId) {
+              <span class="dp-item-nota" matTooltip="Todavía no tiene tipo en gestión documental">sin tipo</span>
+            }
+          </li>
+        } @empty {
+          <li class="dp-item dp-item-vacio">Ninguno para esta vacante.</li>
+        }
+      </ul>
+    </section>
+  }
+</div>

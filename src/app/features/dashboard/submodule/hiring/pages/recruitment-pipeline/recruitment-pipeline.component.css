@@ -1391,124 +1391,7 @@ mat-tab-group {
   border-radius: 999px;
 }
 
-/* ── Accesos rápidos: la mitad de abajo del rail ─────────────────────────── */
-.rail-accesos {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: 14px;
-}
-
-/* Una línea separa los pasos (dónde estoy) de las acciones (qué puedo hacer):
-   son dos cosas distintas y sin la línea se leían como una sola lista. */
-.rail-accesos::before {
-  content: '';
-  height: 1px;
-  margin-bottom: 8px;
-  background: rgba(255, 255, 255, .12);
-}
-
-.acceso {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 10px;
-  border: 1px solid rgba(255, 255, 255, .14);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, .05);
-  color: rgba(255, 255, 255, .84);
-  font: inherit;
-  font-size: .78rem;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-  transition: background .16s ease, border-color .16s ease;
-}
-
-.acceso:hover {
-  background: rgba(255, 255, 255, .12);
-  border-color: rgba(255, 255, 255, .26);
-  color: #fff;
-}
-
-.acceso mat-icon {
-  flex: none;
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-}
-
-.acceso-primario {
-  border-color: transparent;
-  background: var(--lime, #8CD50A);
-  color: var(--navy, #21263C);
-}
-
-.acceso-primario:hover {
-  background: #9ade1f;
-  border-color: transparent;
-  color: var(--navy, #21263C);
-}
-
-/* El resto son iconos: doce acciones con rótulo no caben en 218px sin volver
-   el rail una lista interminable. El tooltip dice qué es cada una. */
-.acceso-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.acceso-tt { display: block; }
-
-.acceso-mini {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 38px;
-  border: 0;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, .05);
-  color: rgba(255, 255, 255, .72);
-  cursor: pointer;
-  transition: background .16s ease, color .16s ease;
-}
-
-.acceso-mini:hover:not(:disabled) {
-  background: rgba(255, 255, 255, .14);
-  color: #fff;
-}
-
-.acceso-mini:disabled {
-  opacity: .34;
-  cursor: not-allowed;
-  /* Sin esto el hover no llega al <span> que lleva el tooltip y el motivo del
-     bloqueo —justo cuando hace falta— no se ve nunca. */
-  pointer-events: none;
-}
-
-.acceso-mini mat-icon {
-  font-size: 19px;
-  width: 19px;
-  height: 19px;
-}
-
-/* Punto de estado en vez de la equis roja de antes: cuatro aspas rojas en fila
-   gritaban "error" cuando lo único que dicen es "todavía no". */
-.acceso-punto {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, .28);
-}
-
-.acceso-punto.punto-ok { background: var(--lime, #8CD50A); }
-
+/* ── Capa 2 · los pasos del módulo abierto ──────────────────────────────── */
 .rail-capa2-titulo {
   padding: 2px 8px 8px;
   font-size: .64rem;
@@ -1572,9 +1455,9 @@ mat-tab-group {
   gap: 6px;
 }
 
-/* Los rótulos largos ("Exámenes de ingreso", "Inteligencia artificial") se
-   parten en dos líneas en vez de recortarse: un paso a medio nombre no se
-   reconoce de un vistazo, que es justo para lo que sirve el rail. */
+/* Los rótulos largos ("Exámenes de ingreso", "Cédula & Huella") se parten en
+   dos líneas en vez de recortarse: un paso a medio nombre no se reconoce de un
+   vistazo, que es justo para lo que sirve el rail. */
 .sub-txt {
   flex: 1;
   min-width: 0;
@@ -1610,6 +1493,101 @@ mat-tab-group {
   border-radius: 3px;
   background: var(--lime, #8CD50A);
   transition: width .35s ease;
+}
+
+/* ── Accesos rápidos: módulo propio de la capa 1 ─────────────────────────
+   Con la columna entera para él, cada acción lleva su rótulo: en rejilla de
+   iconos había que adivinar cuál era cuál. */
+.acceso,
+.acceso-tt > .acceso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(255, 255, 255, .70);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease;
+}
+
+.acceso:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .09);
+  color: #fff;
+}
+
+.acceso:disabled {
+  opacity: .36;
+  cursor: not-allowed;
+  /* Sin esto el hover no llega al <span> que lleva el tooltip y el motivo del
+     bloqueo —justo cuando hace falta— no se ve nunca. */
+  pointer-events: none;
+}
+
+.acceso mat-icon {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.acceso-txt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acceso-tt { display: block; }
+
+/* Punto de estado en vez de la equis roja de antes: cuatro aspas rojas en fila
+   gritaban "error" cuando lo único que dicen es "todavía no". */
+.acceso-punto {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .26);
+}
+
+.acceso-punto.punto-ok { background: var(--lime, #8CD50A); }
+
+/* ── Cerrar el día: anclado al pie de la capa 1 ──────────────────────────── */
+.rail-capa1-relleno { flex: 1; }
+
+.capa-cerrar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 11px 6px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--lime, #8CD50A);
+  color: var(--navy, #21263C);
+  font: inherit;
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  transition: background .16s ease;
+}
+
+.capa-cerrar:hover { background: #9ade1f; }
+
+.capa-cerrar mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
 }
 
 /* ── Responsivo ───────────────────────────────────────────────────────────
@@ -1654,6 +1632,15 @@ mat-tab-group {
   .capa-anillo-centro { width: 26px; height: 26px; }
   .capa-anillo mat-icon { font-size: 16px; width: 16px; height: 16px; }
 
+  .rail-capa1-relleno { display: none; }
+
+  .capa-cerrar {
+    flex: none;
+    flex-direction: row;
+    margin-top: 0;
+    padding: 8px 14px;
+  }
+
   .rail-capa2 {
     flex-direction: row;
     width: auto;
@@ -1661,6 +1648,8 @@ mat-tab-group {
     overflow-x: auto;
     overflow-y: hidden;
   }
+
+  .acceso { width: auto; flex: none; min-width: 168px; }
 
   .rail-capa2-titulo { display: none; }
 

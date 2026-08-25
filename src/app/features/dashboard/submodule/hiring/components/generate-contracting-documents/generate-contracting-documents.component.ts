@@ -41,6 +41,11 @@ import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators'
 import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
+import {
+  DOCUMENTOS_PAQUETE,
+  TYPE_ID_POR_TITULO,
+  esSoloSubir,
+} from '../../shared/paquete-documental.data';
 import { resolverEmpresaUsuaria } from './empresas-usuarias.data';
 import { instalarGuardiaTexto, textoUnaLinea } from './pdf-text-safe';
 import {
@@ -296,87 +301,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private permissions = inject(PermissionsService);
   private dialog = inject(MatDialog);
 
-  documentos = [
-    // Generales
-    { titulo: 'Autorización de Datos' },
-    { titulo: 'Manejo Imagen' },
-    { titulo: 'Ficha Social' },
-    { titulo: 'Entrevista de Ingreso' },
-    { titulo: 'Entrevista de Ingreso Tu Alianza' },
-    { titulo: 'Hoja de Vida Minerva' },
-    { titulo: 'Contratos Otrosí' },
-    { titulo: 'Auxilio Alimentación' },
-    { titulo: 'Autorización Daños Pérdidas' },
-    // Contrato y ficha
-    { titulo: 'Ficha Técnica' },
-    { titulo: 'Contrato' },
-    // Inducciones por empresa
-    { titulo: 'Inducción' },
-    { titulo: 'Inducción Agrícola' },
-    { titulo: 'Inducción Jardines de los Andes' },
-    { titulo: 'Inducción Sagaro' },
-    { titulo: 'Inducción Flores de los Andes' },
-    { titulo: 'Inducción Ipanema' },
-    { titulo: 'Inducción Ipanema Foráneos' },
-    { titulo: 'Inducción Rebaño' },
-    { titulo: 'Inducción Melody' },
-    { titulo: 'Inducción Tu Alianza sin Casino' },
-    { titulo: 'Inducción Administrativos' },
-    // Operativos por empresa
-    { titulo: 'Carta Descuento de Flor' },
-    { titulo: 'Formato Timbre Ingreso/Salida' },
-    { titulo: 'Carta Autorización Correo Electrónico' },
-    { titulo: 'Acta de Funciones' },
-    { titulo: 'Acta de Herramientas de Trabajo' },
-    { titulo: 'Acta de Dotaciones' },
-    { titulo: 'Acta de Funciones de SST' },
-    // Operativos Flores del Rio
-    { titulo: 'Entrega Carnets' },
-    { titulo: 'Inducción Capacitación' },
-    { titulo: 'Formato Solicitud' },
-    // Sagaro extras
-    { titulo: 'Sagaro Lockers' },
-    { titulo: 'Sagaro Imagen' },
-    { titulo: 'Sagaro Celular' },
-    { titulo: 'OTRO SI Sagaro Fumigador' },
-    { titulo: 'OTRO SI Jornada Laboral' },
-    { titulo: 'Carnet' },
-    // Subir manual: identidad / vinculación
-    { titulo: 'Cédula' },
-    { titulo: 'ARL' },
-    { titulo: 'EPS' },
-    { titulo: 'CCF' },
-    { titulo: 'Pago Seguridad Social' },
-    { titulo: 'Autorización Ingreso' },
-    // Subir manual: estudios y referencias
-    { titulo: 'Diplomas y Certificados de Estudios' },
-    { titulo: 'Referencias (1 personal, 1 familiar, 2 laborales)' },
-    { titulo: 'Referenciación' },
-    // Subir manual: pruebas
-    { titulo: 'Pruebas Psicológicas' },
-    { titulo: 'Prueba Psicotécnica' },
-    { titulo: 'Prueba Lectoescritura' },
-    { titulo: 'Figura Humana' },
-    { titulo: 'Test del Árbol' },
-    { titulo: 'Prueba de Conocimiento' },
-    { titulo: 'Prueba Técnica Formato Elite' },
-    { titulo: 'Otras Pruebas' },
-    // Subir manual: salud / SST
-    { titulo: 'Colinesterasa' },
-    { titulo: 'Curso Manipulación de Alimentos' },
-    { titulo: 'Historial Laboral (Semanas Cotizadas)' },
-    { titulo: 'Formato Resultado Prueba Valanti' },
-    { titulo: 'Prueba SST' },
-    { titulo: 'SST' },
-    { titulo: 'Planilla SST' },
-    { titulo: 'Evaluación SST' },
-    // Subir manual: visita / vehículo / bonificaciones
-    { titulo: 'Visita Domiciliaria' },
-    { titulo: 'Fotografías Visita Domiciliaria' },
-    { titulo: 'Tarjeta de Propiedad' },
-    { titulo: 'Licencia de Conducción' },
-    { titulo: 'Formato de Bonificación Ipanema' },
-  ];
+  // La lista del paquete vive en `shared/paquete-documental.data`; aquí solo se
+  // envuelve en la forma que espera la plantilla.
+  documentos = DOCUMENTOS_PAQUETE.map((titulo) => ({ titulo }));
 
   nombreCompleto = '';
 
@@ -409,82 +336,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   uploadedFiles: { [key: string]: UploadedInfo } = {};
 
-  // typeMap: documento → ID de tipo en backend.
-  // IDs ≥ 200 son PLACEHOLDERS para los docs nuevos. Hay que crearlos
-  // en gestion_documental y reemplazar acá con el ID real antes de habilitar la subida.
-  typeMap: { [key: string]: number } = {
-    // Existentes
-    'Contrato': 25,
-    'Autorización de Datos': 26,
-    'Inducción': 27,
-    'Inducción Agrícola': 27,
-    'Inducción Jardines de los Andes': 27,
-    'Inducción Sagaro': 27,
-    'Inducción Flores de los Andes': 27,
-    'Inducción Ipanema': 27,
-    'Inducción Ipanema Foráneos': 27,
-    'Inducción Administrativos': 27,
-    'Inducción Rebaño': 27,
-    'Inducción Melody': 27,
-    'Inducción Tu Alianza sin Casino': 27,
-    'Ficha Técnica': 34,
-    'Entrevista de Ingreso': 103,
-    'Contratos Otrosí': 104,
-    'Auxilio Alimentación': 105,
-    'Autorización Daños Pérdidas': 106,
-    'Cédula': 29,
-    'ARL': 30,
-    'Figura Humana': 31,
-    'EPS': 36,
-    'CCF': 37,                                 // antes 'Caja'
-    'Pago Seguridad Social': 38,
-    'Entrega Carnets': 95,
-    'Inducción Capacitación': 96,
-    'Formato Solicitud': 97,
-    'Pruebas Psicológicas': 19,
-    'Autorización Ingreso': 112,
-    'Formato de Bonificación Ipanema': 113,    // antes 'Bonificación Ipanema'
-    'Prueba Psicotécnica': 114,
-    'Diplomas y Certificados de Estudios': 101,// antes 'Certificados Estudios'
-    'SST': 91,
-    'Otras Pruebas': 115,
-    'Hoja de Vida Minerva': 28,
-    'Prueba Lectoescritura': 20,
-    'Visita Domiciliaria': 41,
-    'Prueba SST': 24,
-    'Manejo Imagen': 46,
-    'Ficha Social': 98,
-    'Sagaro Lockers': 108,
-    'Sagaro Imagen': 109,
-    'Sagaro Celular': 110,
-    'OTRO SI Sagaro Fumigador': 220, // OTROSI_SAGARO_FUMIGADOR (tipo real creado en BD prod)
-    // Mismo tipo documental que 'Contratos Otrosí' (104): son dos otrosí
-    // distintos en contenido pero se archivan bajo el mismo tipo.
-    'OTRO SI Jornada Laboral': 104,
-    'Referencias (1 personal, 1 familiar, 2 laborales)': 118, // antes 'Referenciación'
-    'Referenciación': 118,                     // alias temporal para backward compat
-    // Tipos reales creados en BD prod (ids 201-220). Entrevista y Colinesterasa reusan tipos preexistentes (103/107).
-    'Entrevista de Ingreso Tu Alianza': 103, // ENTREVISTA_INGRESO (tipo real ya existente en BD)
-    'Carta Descuento de Flor': 201,
-    'Formato Timbre Ingreso/Salida': 202,
-    'Carta Autorización Correo Electrónico': 203,
-    'Acta de Funciones': 204,
-    'Acta de Herramientas de Trabajo': 205,
-    'Acta de Dotaciones': 206,
-    'Acta de Funciones de SST': 207,
-    'Prueba Técnica Formato Elite': 208,
-    'Colinesterasa': 107, // COLINESTERASA (tipo real existente en BD)
-    'Curso Manipulación de Alimentos': 210,
-    'Historial Laboral (Semanas Cotizadas)': 211,
-    'Formato Resultado Prueba Valanti': 212,
-    'Tarjeta de Propiedad': 213,
-    'Licencia de Conducción': 214,
-    'Fotografías Visita Domiciliaria': 215,
-    'Prueba de Conocimiento': 216,
-    'Test del Árbol': 217,
-    'Planilla SST': 218,
-    'Evaluación SST': 219,
-  };
+  // typeMap: documento → ID de tipo en backend. Vive en
+  // `shared/paquete-documental.data` porque el módulo Documentos del pipeline
+  // necesita el mismo mapa para saber qué está subido y qué falta.
+  typeMap: { [key: string]: number } = { ...TYPE_ID_POR_TITULO };
 
   /**
    * Documentos que se administran en OTRAS pantallas.
@@ -733,27 +588,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
+  /**
+   * ¿Se sube a mano? La lista vive en `shared/paquete-documental.data`, para
+   * que el módulo Documentos del pipeline y esta pantalla no puedan discrepar.
+   */
   isSubirPDF(doc: any): boolean {
-    return [
-      // Existentes (con renames aplicados)
-      'Cédula', 'ARL', 'Figura Humana', 'EPS', 'CCF', 'Pago Seguridad Social',
-      'Pruebas Psicológicas', 'Prueba Lectoescritura', 'Visita Domiciliaria', 'Prueba SST',
-      'Autorización Ingreso', 'Formato de Bonificación Ipanema', 'Prueba Psicotécnica',
-      'Diplomas y Certificados de Estudios', 'SST', 'Otras Pruebas',
-      'Referencias (1 personal, 1 familiar, 2 laborales)', 'Referenciación',
-      // NUEVOS subir-only
-      'Prueba Técnica Formato Elite', 'Colinesterasa', 'Curso Manipulación de Alimentos',
-      'Historial Laboral (Semanas Cotizadas)', 'Formato Resultado Prueba Valanti',
-      'Tarjeta de Propiedad', 'Licencia de Conducción', 'Fotografías Visita Domiciliaria',
-      'Prueba de Conocimiento', 'Test del Árbol', 'Planilla SST', 'Evaluación SST',
-      // Los que pasaron de stub a subir-only (no se generan, solo se suben)
-      // (Carta Descuento de Flor / Formato Timbre / Carta Autorización Correo
-      //  ya se generan: ver `cartas-tu-alianza-fill.ts`)
-      'Acta de Funciones',
-      'Acta de Herramientas de Trabajo',
-      'Acta de Dotaciones',
-      'Acta de Funciones de SST',
-    ].includes(doc.titulo);
+    return esSoloSubir(doc?.titulo);
   }
 
   /** Documentos con 2 variantes (básica / TA Completa) — el botón Generar abre un mat-menu. */

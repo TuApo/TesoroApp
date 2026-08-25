@@ -114,7 +114,7 @@ type ExamenResultadoForm = { aptoStatus?: string };
 type BioKind = 'foto' | 'huella' | 'firma';
 
 /** Los dos momentos del proceso: capa 1 del rail. */
-type CapaId = 'seleccion' | 'contratacion' | 'ia';
+type CapaId = 'seleccion' | 'contratacion' | 'ia' | 'accesos';
 
 interface CapaPipeline {
   readonly id: CapaId;
@@ -962,7 +962,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     'entrevista', 'formacion', 'antecedentes', 'remision', 'examenes',
   ];
   private readonly AVANCES_CONTRATACION: readonly ClaveAvance[] = [
-    'pago', 'obra', 'referencias', 'traslados', 'huella',
+    'pago', 'obra', 'referencias', 'traslados', 'huella', 'documentos',
   ];
 
   readonly capas: readonly CapaPipeline[] = [
@@ -972,6 +972,10 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     // primera capa porque se consulta en cualquier momento del proceso, no
     // dentro de Selección, y por eso no lleva porcentaje.
     { id: 'ia',           label: 'Inteligencia artificial', icon: 'auto_awesome', claves: [] },
+    // No es un paso del proceso: es el cajón de herramientas. Vive en la misma
+    // capa porque se alcanza desde cualquier punto y porque colgado del rail de
+    // Contratación quedaba escondido justo cuando se trabaja en Selección.
+    { id: 'accesos',      label: 'Accesos rápidos',         icon: 'apps',         claves: [] },
   ];
 
   /**
@@ -997,6 +1001,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     { id: 'referencias', label: 'Referencias',       icon: 'groups',      idx: 2, clave: 'referencias' },
     { id: 'traslados',   label: 'Traslados',         icon: 'swap_horiz',  idx: 3, clave: 'traslados' },
     { id: 'huella',      label: 'Cédula & Huella',   icon: 'fingerprint', idx: 4, clave: 'huella' },
+    { id: 'documentos',  label: 'Documentos',        icon: 'folder_copy', idx: 5, clave: 'documentos' },
   ];
 
   /**
@@ -1004,7 +1009,17 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    * (es un panel del área de trabajo) pero se presenta como capa propia; el
    * resto —1, 2 y 3— son pasos de Selección.
    */
+  /**
+   * Capa 1 abierta.
+   *
+   * "Accesos rápidos" no tiene contenido propio —no cambia de pestaña, solo
+   * cambia lo que lista el rail de al lado—, así que su selección se guarda
+   * aparte; el resto se deduce de la pestaña visible.
+   */
+  private readonly accesosAbiertos = signal(false);
+
   readonly capaActiva = computed<CapaId>(() => {
+    if (this.accesosAbiertos()) return 'accesos';
     if (this.tabIndex() === 4) return 'contratacion';
     if (this.tabIndex() === 2 && this.nav.panelSeleccion() === 'ia') return 'ia';
     return 'seleccion';
@@ -1077,6 +1092,13 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   }
 
   abrirCapa(id: CapaId): void {
+    if (id === 'accesos') {
+      // Las herramientas se alcanzan siempre, también con contrato activo: dar
+      // de baja o cerrar el día se hace desde aquí.
+      this.accesosAbiertos.set(true);
+      return;
+    }
+    this.accesosAbiertos.set(false);
     if (this.bloqueoContratoTabs()) return;
     if (id === 'contratacion') {
       this.tabIndex.set(4);
@@ -1095,6 +1117,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
 
   abrirSubSeleccion(sub: SubPasoSeleccion): void {
     if (this.bloqueoContratoTabs()) return;
+    this.accesosAbiertos.set(false);
     this.ultimoSubSeleccion.set(sub.id);
     if (sub.panel) this.nav.panelSeleccion.set(sub.panel);
     this.tabIndex.set(sub.tab);
@@ -1114,6 +1137,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
 
   abrirSubContratacion(sub: SubPasoContratacion): void {
     if (this.bloqueoContratoTabs()) return;
+    this.accesosAbiertos.set(false);
     this.nav.subContratacion.set(sub.idx);
     this.tabIndex.set(4);
   }

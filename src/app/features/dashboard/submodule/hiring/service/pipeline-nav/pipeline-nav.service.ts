@@ -15,7 +15,8 @@ export type ClaveAvance =
   | 'obra'
   | 'referencias'
   | 'traslados'
-  | 'huella';
+  | 'huella'
+  | 'documentos';
 
 /**
  * Estado compartido de los dos railes del pipeline.

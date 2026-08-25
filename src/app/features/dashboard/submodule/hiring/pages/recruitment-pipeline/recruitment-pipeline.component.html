@@ -158,14 +158,14 @@
            ══════════════════════════════════════════════════════════════════ -->
       <div class="rails">
 
-        <nav class="rail rail-capa1" role="tablist" aria-label="Momentos del proceso">
+        <nav class="rail rail-capa1" role="tablist" aria-label="Módulos del proceso">
           @for (c of capas; track c.id) {
             @let pctC = pctCapa(c.id);
             <button type="button" class="capa" role="tab"
                     [class.capa-activa]="capaActiva() === c.id"
                     [attr.aria-selected]="capaActiva() === c.id"
-                    [disabled]="bloqueoContratoTabs()"
-                    [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleCapa(c.label, c.id)"
+                    [disabled]="c.id !== 'accesos' && bloqueoContratoTabs()"
+                    [matTooltip]="c.id !== 'accesos' && bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleCapa(c.label, c.id)"
                     matTooltipPosition="right"
                     (click)="abrirCapa(c.id)">
               <span class="capa-anillo"
@@ -176,9 +176,26 @@
                 </span>
               </span>
               <span class="capa-txt">{{ c.label }}</span>
-              <span class="capa-pct">{{ pctC === null ? '—' : pctC + '%' }}</span>
+              <!-- Los módulos que no se llenan (IA, Accesos) no muestran cifra:
+                   una raya donde los demás llevan un % se lee como un dato que
+                   falta, no como "esto no se mide". -->
+              @if (pctC !== null) {
+                <span class="capa-pct">{{ pctC }}%</span>
+              }
             </button>
           }
+
+          <!-- Cerrar el día. Va abajo del todo y separado de los módulos: no es
+               un sitio al que ir, es la acción con la que se termina. Siempre
+               habilitada, también con contrato activo. -->
+          <span class="rail-capa1-relleno"></span>
+          <button type="button" class="capa-cerrar"
+                  matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
+                  matTooltipPosition="right"
+                  (click)="irACerrarContratacion()">
+            <mat-icon>done_all</mat-icon>
+            <span>Cerrar contratación</span>
+          </button>
         </nav>
 
         <nav class="rail rail-capa2" role="tablist" aria-label="Pasos del proceso">
@@ -242,172 +259,163 @@
                 </span>
               </button>
             }
-          }
+          } @else if (capaActiva() === 'accesos') {
 
-          <!-- ══ ACCESOS RÁPIDOS ══
-               Todo lo que vivía en la barra de arriba. Baja aquí para que la
-               navegación y las acciones estén en el mismo sitio y el contenido
-               se quede con toda la pantalla. Las dos acciones que se usan a
-               diario van con su rótulo; el resto es una rejilla de iconos con
-               tooltip, y el punto de color dice si esa pieza ya está. -->
-          <div class="rail-accesos">
+            <!-- ══ ACCESOS RÁPIDOS ══
+                 Todo lo que vivía en la barra de arriba. Es su propio módulo y
+                 se queda con la columna entera, así que cada acción va con su
+                 rótulo en vez de ser un icono que hay que adivinar. El punto de
+                 color dice si esa pieza ya está. -->
             <span class="rail-capa2-titulo">Accesos rápidos</span>
-
-            <button type="button" class="acceso acceso-primario"
-                    matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
-                    matTooltipPosition="right"
-                    (click)="irACerrarContratacion()">
-              <mat-icon>done_all</mat-icon>
-              <span>Cerrar contratación</span>
-            </button>
 
             <button type="button" class="acceso"
                     matTooltip="Buscar a otra persona por documento"
                     matTooltipPosition="right"
                     (click)="abrirPromptDocumento()">
               <mat-icon>person_search</mat-icon>
-              <span>Otra persona</span>
+              <span class="acceso-txt">Otra persona</span>
             </button>
 
-            <div class="acceso-grid">
+            <button type="button" class="acceso"
+                    [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar correo de bienvenida' : 'Selecciona primero un candidato'"
+                    matTooltipPosition="right"
+                    [disabled]="!candidatoSeleccionado()?.numero_documento"
+                    (click)="confirmarCorreoBienvenida()">
+              <mat-icon>email</mat-icon>
+              <span class="acceso-txt">Correo de bienvenida</span>
+              <span class="acceso-punto"
+                    [class.punto-ok]="candidatoSeleccionado()?.contacto?.correo_confirmado"></span>
+            </button>
 
-              <!-- Correo de bienvenida -->
-              <button type="button" class="acceso-mini"
-                      [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar correo de bienvenida' : 'Selecciona primero un candidato'"
-                      matTooltipPosition="above"
-                      [disabled]="!candidatoSeleccionado()?.numero_documento"
-                      (click)="confirmarCorreoBienvenida()">
-                <mat-icon>email</mat-icon>
-                <span class="acceso-punto"
-                      [class.punto-ok]="candidatoSeleccionado()?.contacto?.correo_confirmado"></span>
+            <button type="button" class="acceso"
+                    [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar WhatsApp de bienvenida' : 'Selecciona primero un candidato'"
+                    matTooltipPosition="right"
+                    [disabled]="!candidatoSeleccionado()?.numero_documento"
+                    (click)="confirmarWhatsAppBienvenida()">
+              <mat-icon>chat</mat-icon>
+              <span class="acceso-txt">WhatsApp de bienvenida</span>
+              <span class="acceso-punto"
+                    [class.punto-ok]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado"></span>
+            </button>
+
+            <button type="button" class="acceso"
+                    [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Generar carnet (PDF)' : 'Selecciona primero un candidato'"
+                    matTooltipPosition="right"
+                    [disabled]="!candidatoSeleccionado()?.numero_documento"
+                    (click)="generarCarnetIndividual()">
+              <mat-icon>badge</mat-icon>
+              <span class="acceso-txt">Generar carnet</span>
+              <span class="acceso-punto" [class.punto-ok]="carnetGeneradoUI()"></span>
+            </button>
+
+            <!-- El tooltip va en el <span>: un botón apagado no emite eventos de
+                 puntero y el motivo del bloqueo —que es justo cuando hace
+                 falta— no se vería nunca. -->
+            <span class="acceso-tt" [matTooltip]="tooltipGenerarDocumentacion()"
+                  matTooltipClass="tooltip-faltantes" matTooltipPosition="right"
+                  [matTooltipShowDelay]="150">
+              <button type="button" class="acceso"
+                      [attr.aria-disabled]="!puedeGenerarDocumentacion()"
+                      [disabled]="!puedeGenerarDocumentacion()"
+                      [routerLink]="[
+                        '/dashboard/hiring/generate-contracting-documents',
+                        candidatoSeleccionado()?.numero_documento
+                      ]"
+                      [queryParams]="{ tipo_doc: candidatoSeleccionado()?.tipo_doc || 'CC' }">
+                <mat-icon>description</mat-icon>
+                <span class="acceso-txt">Generar documentación</span>
               </button>
+            </span>
 
-              <!-- WhatsApp de bienvenida -->
-              <button type="button" class="acceso-mini"
-                      [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar WhatsApp de bienvenida' : 'Selecciona primero un candidato'"
-                      matTooltipPosition="above"
-                      [disabled]="!candidatoSeleccionado()?.numero_documento"
-                      (click)="confirmarWhatsAppBienvenida()">
-                <mat-icon>chat</mat-icon>
-                <span class="acceso-punto"
-                      [class.punto-ok]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado"></span>
+            <input #arlFileInput type="file" hidden accept=".xls,.xlsx"
+                   (change)="onArlSeleccionadoYFinalizar($event)">
+            <span class="acceso-tt" [matTooltip]="tooltipFinalizarContratacion()"
+                  matTooltipClass="tooltip-faltantes" matTooltipPosition="right"
+                  [matTooltipShowDelay]="150">
+              <button type="button" class="acceso"
+                      [attr.aria-disabled]="!puedeFinalizarContratacion()"
+                      [disabled]="!puedeFinalizarContratacion()"
+                      (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()">
+                <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
+                <span class="acceso-txt">Finalizar contratación</span>
+                <span class="acceso-punto" [class.punto-ok]="contratacionFinalizada()"></span>
               </button>
+            </span>
 
-              <!-- Carnet individual -->
-              <button type="button" class="acceso-mini"
-                      [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Generar carnet (PDF)' : 'Selecciona primero un candidato'"
-                      matTooltipPosition="above"
-                      [disabled]="!candidatoSeleccionado()?.numero_documento"
-                      (click)="generarCarnetIndividual()">
-                <mat-icon>badge</mat-icon>
-                <span class="acceso-punto" [class.punto-ok]="carnetGeneradoUI()"></span>
+            @if (arlIndex(); as arl) {
+              <button type="button" class="acceso"
+                      [matTooltip]="'ARL cargado: ' + arl.nombreArchivo + ' (' + arl.totalFilas + ' filas). Click para descartarlo y subir otro.'"
+                      matTooltipPosition="right"
+                      (click)="limpiarArl()">
+                <mat-icon>backup_table</mat-icon>
+                <span class="acceso-txt">Descartar Excel de ARL</span>
               </button>
+            }
 
-              <!-- Documentación. El tooltip va en el <span>: un botón apagado no
-                   emite eventos de puntero y el motivo del bloqueo —que es justo
-                   cuando hace falta— no se veía nunca. -->
-              <span class="acceso-tt" [matTooltip]="tooltipGenerarDocumentacion()"
-                    matTooltipClass="tooltip-faltantes" matTooltipPosition="above"
-                    [matTooltipShowDelay]="150">
-                <button type="button" class="acceso-mini"
-                        [attr.aria-disabled]="!puedeGenerarDocumentacion()"
-                        [disabled]="!puedeGenerarDocumentacion()"
-                        [routerLink]="[
-                          '/dashboard/hiring/generate-contracting-documents',
-                          candidatoSeleccionado()?.numero_documento
-                        ]"
-                        [queryParams]="{ tipo_doc: candidatoSeleccionado()?.tipo_doc || 'CC' }">
-                  <mat-icon>description</mat-icon>
-                </button>
-              </span>
+            <button type="button" class="acceso"
+                    matTooltip="Re-abre las 8 fuentes del robot sin esperar a que la fila venza"
+                    matTooltipPosition="right"
+                    [disabled]="!candidatoSeleccionado()?.numero_documento"
+                    (click)="forzarConsultaAntecedentes()">
+              <mat-icon>fact_check</mat-icon>
+              <span class="acceso-txt">Forzar antecedentes</span>
+            </button>
 
-              <!-- Finalizar contratación -->
-              <input #arlFileInput type="file" hidden accept=".xls,.xlsx"
-                     (change)="onArlSeleccionadoYFinalizar($event)">
-              <span class="acceso-tt" [matTooltip]="tooltipFinalizarContratacion()"
-                    matTooltipClass="tooltip-faltantes" matTooltipPosition="above"
-                    [matTooltipShowDelay]="150">
-                <button type="button" class="acceso-mini"
-                        [attr.aria-disabled]="!puedeFinalizarContratacion()"
-                        [disabled]="!puedeFinalizarContratacion()"
-                        (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()">
-                  <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
-                  <span class="acceso-punto" [class.punto-ok]="contratacionFinalizada()"></span>
-                </button>
-              </span>
+            <button type="button" class="acceso"
+                    matTooltip="Ver tabla de registros" matTooltipPosition="right"
+                    [disabled]="!candidatoSeleccionado()?.numero_documento"
+                    (click)="mostrarTabla()">
+              <mat-icon>table_chart</mat-icon>
+              <span class="acceso-txt">Tabla de registros</span>
+            </button>
 
-              @if (arlIndex(); as arl) {
-                <button type="button" class="acceso-mini"
-                        [matTooltip]="'ARL cargado: ' + arl.nombreArchivo + ' (' + arl.totalFilas + ' filas). Click para descartarlo y subir otro.'"
-                        matTooltipPosition="above"
-                        (click)="limpiarArl()">
-                  <mat-icon>backup_table</mat-icon>
-                </button>
-              }
+            <button type="button" class="acceso" matTooltip="Ver huella"
+                    matTooltipPosition="right" (click)="ver('huella')">
+              <mat-icon>fingerprint</mat-icon>
+              <span class="acceso-txt">Ver huella</span>
+              <span class="acceso-punto" [class.punto-ok]="tiene('huella')"></span>
+            </button>
 
-              <!-- Forzar antecedentes: re-abre las 8 fuentes del robot sin
-                   esperar a que la fila venza. -->
-              <button type="button" class="acceso-mini"
-                      matTooltip="Forzar consulta de antecedentes (robots)"
-                      matTooltipPosition="above"
-                      [disabled]="!candidatoSeleccionado()?.numero_documento"
-                      (click)="forzarConsultaAntecedentes()">
-                <mat-icon>fact_check</mat-icon>
-              </button>
+            <button type="button" class="acceso" matTooltip="Ver firma"
+                    matTooltipPosition="right" (click)="ver('firma')">
+              <mat-icon>edit</mat-icon>
+              <span class="acceso-txt">Ver firma</span>
+              <span class="acceso-punto" [class.punto-ok]="tiene('firma')"></span>
+            </button>
 
-              <button type="button" class="acceso-mini"
-                      matTooltip="Ver tabla de registros" matTooltipPosition="above"
-                      [disabled]="!candidatoSeleccionado()?.numero_documento"
-                      (click)="mostrarTabla()">
-                <mat-icon>table_chart</mat-icon>
-              </button>
+            <button type="button" class="acceso" matTooltip="Ver examen médico"
+                    matTooltipPosition="right" (click)="verExamenMedico()">
+              <mat-icon>medical_services</mat-icon>
+              <span class="acceso-txt">Ver examen médico</span>
+              <span class="acceso-punto" [class.punto-ok]="tieneExamenMedicoUI()"></span>
+            </button>
 
-              <button type="button" class="acceso-mini" matTooltip="Ver huella"
-                      matTooltipPosition="above" (click)="ver('huella')">
-                <mat-icon>fingerprint</mat-icon>
-                <span class="acceso-punto" [class.punto-ok]="tiene('huella')"></span>
-              </button>
+            <button type="button" class="acceso" matTooltip="Ver ARL"
+                    matTooltipPosition="right" (click)="verArl()">
+              <mat-icon>health_and_safety</mat-icon>
+              <span class="acceso-txt">Ver ARL</span>
+              <span class="acceso-punto" [class.punto-ok]="tieneArlUI()"></span>
+            </button>
 
-              <button type="button" class="acceso-mini" matTooltip="Ver firma"
-                      matTooltipPosition="above" (click)="ver('firma')">
-                <mat-icon>edit</mat-icon>
-                <span class="acceso-punto" [class.punto-ok]="tiene('firma')"></span>
-              </button>
+            <!-- Lo que hacía la cola del día, que ya no tiene pantalla. -->
+            <button type="button" class="acceso" (click)="descargarExcel()"
+                    matTooltip="Descargar Excel por rango de fechas" matTooltipPosition="right">
+              <mat-icon>file_download</mat-icon>
+              <span class="acceso-txt">Excel por fechas</span>
+            </button>
 
-              <button type="button" class="acceso-mini" matTooltip="Ver examen médico"
-                      matTooltipPosition="above" (click)="verExamenMedico()">
-                <mat-icon>medical_services</mat-icon>
-                <span class="acceso-punto" [class.punto-ok]="tieneExamenMedicoUI()"></span>
-              </button>
+            <button type="button" class="acceso" (click)="generarCarnetsMasivos()"
+                    matTooltip="Generar carnés en masa (9 por hoja)" matTooltipPosition="right">
+              <mat-icon>badge</mat-icon>
+              <span class="acceso-txt">Carnés en masa</span>
+            </button>
 
-              <button type="button" class="acceso-mini" matTooltip="Ver ARL"
-                      matTooltipPosition="above" (click)="verArl()">
-                <mat-icon>health_and_safety</mat-icon>
-                <span class="acceso-punto" [class.punto-ok]="tieneArlUI()"></span>
-              </button>
-
-              <!-- Lo que hacía la cola del día, que ya no tiene pantalla. -->
-              <button type="button" class="acceso-mini" matTooltip="Más actividades"
-                      matTooltipPosition="above" [matMenuTriggerFor]="menuActividades">
-                <mat-icon>more_horiz</mat-icon>
-              </button>
-              <mat-menu #menuActividades="matMenu">
-                <button mat-menu-item type="button" (click)="descargarExcel()">
-                  <mat-icon>file_download</mat-icon>
-                  <span>Descargar Excel por rango de fechas</span>
-                </button>
-                <button mat-menu-item type="button" (click)="generarCarnetsMasivos()">
-                  <mat-icon>badge</mat-icon>
-                  <span>Generar carnés en masa (9 por hoja)</span>
-                </button>
-                <button mat-menu-item type="button" (click)="refrescarRecientes()">
-                  <mat-icon>refresh</mat-icon>
-                  <span>Refrescar la cola del día</span>
-                </button>
-              </mat-menu>
-
-            </div>
-          </div>
+            <button type="button" class="acceso" (click)="refrescarRecientes()"
+                    matTooltip="Refrescar la cola del día" matTooltipPosition="right">
+              <mat-icon>refresh</mat-icon>
+              <span class="acceso-txt">Refrescar la cola</span>
+            </button>
+          }
         </nav>
       </div>
 
