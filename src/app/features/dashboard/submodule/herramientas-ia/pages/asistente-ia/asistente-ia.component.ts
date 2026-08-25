@@ -141,7 +141,8 @@ export class AsistenteIaComponent implements OnInit {
     return nombres.length <= 2 ? nombres.join(', ') : `${nombres.length} módulos`;
   });
 
-  readonly preguntas: string[] = [
+  /** Arranques para el asistente general: preguntas sobre la plataforma. */
+  private readonly PREGUNTAS_PLATAFORMA: readonly string[] = [
     '¿Cuántos empleados activos hay actualmente?',
     'Resume el estado de las afiliaciones a EPS y pensión.',
     '¿Qué documentos están pendientes de carga?',
@@ -151,6 +152,44 @@ export class AsistenteIaComponent implements OnInit {
     '¿Cómo funciona el módulo de tesorería?',
     'Dame una visión general del estado de la plataforma.',
   ];
+
+  /**
+   * Arranques del chat embebido: preguntas sobre LA PERSONA que se tiene al
+   * frente. Preguntar "¿cuántos empleados activos hay?" con alguien esperando
+   * en el escritorio no le sirve a nadie; lo que se necesita saber ahí es qué
+   * le falta a ESA persona para poder contratarla.
+   */
+  private readonly PREGUNTAS_PERSONA: readonly string[] = [
+    '¿Qué le falta para poder contratarla?',
+    '¿Encaja en la vacante a la que la estoy remitiendo? ¿Por qué?',
+    'Resume su historial de contratos con nosotros.',
+    '¿Qué documentos del paquete tiene y cuáles faltan?',
+    '¿Tiene incapacidades registradas? Resúmelas sin entrar en el diagnóstico.',
+    '¿Cómo van sus afiliaciones a EPS y pensión?',
+    '¿Hay algo en sus antecedentes que deba revisar?',
+    '¿Qué le preguntarías en la entrevista?',
+  ];
+
+  get preguntas(): readonly string[] {
+    return this.embebido() ? this.PREGUNTAS_PERSONA : this.PREGUNTAS_PLATAFORMA;
+  }
+
+  /** Encabezado del panel vacío: cambia según de qué se va a hablar. */
+  get bienvenidaTitulo(): string {
+    return this.embebido()
+      ? (this.nombreContexto()?.trim() || 'Esta persona')
+      : 'Asistente IA';
+  }
+
+  get bienvenidaTexto(): string {
+    if (!this.embebido()) {
+      return 'Consulto información de toda la plataforma: nómina, contratación, documentos, '
+           + 'tesorería, afiliaciones y salud. Pregúntame lo que necesites:';
+    }
+    const ced = (this.cedulaContexto() ?? '').trim();
+    return `Pregúntame lo que quieras sobre ${ced ? `la persona ${ced}` : 'esta persona'}: `
+         + 'su expediente, sus contratos, sus documentos y cómo va su proceso.';
+  }
 
   constructor() {
     // Cambió la persona: se prepara su carpeta y se limpia lo que hubiera en

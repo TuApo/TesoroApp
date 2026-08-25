@@ -112,9 +112,14 @@
   max-height: min(56vh, 460px);
 }
 
+/* `flex: none` NO es adorno: `.va-lista` es una columna flex con tope de
+   alto, así que sus hijos se encogen por defecto. Con veinte vacantes cada
+   tarjeta quedaba más baja que su contenido y el cargo y la fecha se salían
+   por arriba y por abajo, pisando la tarjeta de al lado. */
 .va-item {
   display: flex;
-  align-items: center;
+  flex: none;
+  align-items: flex-start;
   gap: 12px;
   width: 100%;
   padding: 11px 13px;
@@ -161,14 +166,29 @@
   overflow-wrap: anywhere;
 }
 
-/* Oficinas, código y fecha: lo que desempata entre dos vacantes del mismo
-   cargo en la misma finca. */
+/* Todo lo que desempata entre dos vacantes del mismo cargo en la misma finca:
+   temporal, municipios, oficinas, tipo de contrato, salario, código y fecha. */
 .va-item-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  gap: 3px 12px;
   font-size: .7rem;
-  color: var(--slate-400);
+  color: var(--slate-500);
+}
+
+.va-item-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.va-item-meta mat-icon {
+  flex: none;
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+  color: var(--slate-300);
 }
 
 .va-tag-actual,
@@ -207,6 +227,27 @@
 
 .va-item-cupos strong { font-size: 1.05rem; font-weight: 800; }
 .va-item-cupos span { font-size: .62rem; }
+
+/* El nivel dice por qué esa vacante está donde está en la lista. */
+.va-item-nivel {
+  margin-top: 3px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, .65);
+}
+
+.va-item[data-nivel='alta'] .va-item-cupos {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.va-item[data-nivel='media'] .va-item-cupos {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
 
 .va-sin-cupos {
   background: var(--slate-100);

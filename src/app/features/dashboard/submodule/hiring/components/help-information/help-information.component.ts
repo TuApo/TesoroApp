@@ -327,6 +327,22 @@ export class HelpInformationComponent implements OnInit {
 
   private pedidoVacanteAtendido = 0;
 
+  /** Fecha de publicación en milis, o `null` si no viene o no parsea. */
+  private aMilis(d: unknown): number | null {
+    if (!d) return null;
+    const s = String(d);
+    // 'YYYY-MM-DD' sin hora se parsea como UTC y se corre un día hacia atrás.
+    const t = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00` : s).getTime();
+    return Number.isFinite(t) ? t : null;
+  }
+
+  /** Días que lleva abierta la publicación. Desempata el orden por urgencia. */
+  private diasDesde(d: unknown): number | null {
+    const t = this.aMilis(d);
+    if (t === null) return null;
+    return Math.max(0, Math.floor((Date.now() - t) / 86_400_000));
+  }
+
   /**
    * Selector de vacante con búsqueda por varias palabras.
    *
@@ -349,6 +365,11 @@ export class HelpInformationComponent implements OnInit {
       temporal: v.temporal || null,
       oficinas: this.oficinasResumen(v.oficinasQueContratan),
       publicada: this.formatShortDate(v.fechaPublicado),
+      publicadaEn: this.aMilis(v.fechaPublicado),
+      diasAbierta: this.diasDesde(v.fechaPublicado),
+      salario: v.salario && v.salario !== '0.00' ? v.salario : null,
+      municipios: Array.isArray(v.municipio) && v.municipio.length ? v.municipio.join(', ') : null,
+      tipoContratacion: v.tipoContratacion || v.pruebaOContratacion || null,
       requeridos: this.totalRequeridaOf(v),
       faltantes: this.falt(v),
       // Sin cupos o dada de baja: no se ofrece, salvo que sea la asignada.

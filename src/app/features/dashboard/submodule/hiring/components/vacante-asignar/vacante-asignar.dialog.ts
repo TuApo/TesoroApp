@@ -21,6 +21,13 @@ export interface VacanteOpcion {
   faltantes: number;
   /** Ya no admite gente, pero se muestra si es la que está asignada. */
   cerrada: boolean;
+  /** Para ordenar por antigüedad; `null` si la publicación no trae fecha. */
+  publicadaEn: number | null;
+  /** Días que lleva abierta. `null` cuando no hay fecha. */
+  diasAbierta: number | null;
+  salario: string | null;
+  municipios: string | null;
+  tipoContratacion: string | null;
 }
 
 export interface VacanteAsignarData {
@@ -86,8 +93,32 @@ export class VacanteAsignarDialogComponent {
       return coincidenTodas(idx.get(o.id) ?? '', tokens);
     };
 
-    return this.data.opciones.filter(pasa);
+    return this.data.opciones.filter(pasa).sort((a, b) => this.urgencia(b) - this.urgencia(a));
   });
+
+  /**
+   * Qué tan urgente es llenar una vacante.
+   *
+   * Manda cuánta gente falta —es lo que hay que colocar hoy—, y entre dos con
+   * los mismos faltantes va primero la que lleva más tiempo abierta: una
+   * publicación de hace un mes con cupos sin cubrir es peor noticia que la de
+   * ayer. La asignada se sube del todo para que no haya que buscarla.
+   *
+   * El peso de los días es pequeño a propósito: sirve de desempate, no para
+   * que una vacante vieja de un solo cupo le pase por encima a una de veinte.
+   */
+  private urgencia(o: VacanteOpcion): number {
+    if (o.id === this.data.actual) return Number.MAX_SAFE_INTEGER;
+    if (o.cerrada) return -1;
+    return o.faltantes * 1000 + Math.min(o.diasAbierta ?? 0, 999);
+  }
+
+  /** Etiqueta de urgencia, para que el orden se entienda y no se adivine. */
+  nivel(o: VacanteOpcion): 'alta' | 'media' | 'baja' {
+    if (o.faltantes >= 10) return 'alta';
+    if (o.faltantes >= 3) return 'media';
+    return 'baja';
+  }
 
   readonly visibles = computed(() => this.resultados().slice(0, this.TOPE));
   readonly ocultas = computed(() => Math.max(0, this.resultados().length - this.TOPE));

@@ -16,6 +16,8 @@ describe('VacanteAsignarDialogComponent', () => {
               extra: Partial<VacanteOpcion> = {}): VacanteOpcion => ({
     id, empresa, finca, cargo,
     codigo: null, temporal: null, oficinas: '', publicada: null,
+    publicadaEn: null, diasAbierta: null, salario: null,
+    municipios: null, tipoContratacion: null,
     requeridos: 5, faltantes: 3, cerrada: false, ...extra,
   });
 
@@ -46,7 +48,54 @@ describe('VacanteAsignarDialogComponent', () => {
 
   it('sin consulta muestra solo las que tienen cupos', () => {
     const f = crear();
-    expect(ids(f)).toEqual([1, 2, 3]);
+    expect(ids(f).sort()).toEqual([1, 2, 3]);
+  });
+
+  describe('orden por urgencia', () => {
+    const POR_URGENCIA: VacanteOpcion[] = [
+      V(10, 'A', 'A', 'POCO',    { faltantes: 1,  diasAbierta: 2 }),
+      V(11, 'B', 'B', 'MUCHO',   { faltantes: 20, diasAbierta: 1 }),
+      V(12, 'C', 'C', 'MEDIO',   { faltantes: 5,  diasAbierta: 90 }),
+      V(13, 'D', 'D', 'EMPATE',  { faltantes: 5,  diasAbierta: 3 }),
+    ];
+
+    function crearCon(ops: VacanteOpcion[], actual: number | null = null) {
+      const data: VacanteAsignarData = { opciones: ops, actual, candidato: null };
+      TestBed.configureTestingModule({
+        imports: [VacanteAsignarDialogComponent, NoopAnimationsModule],
+        providers: [
+          { provide: MAT_DIALOG_DATA, useValue: data },
+          { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
+        ],
+      });
+      const f = TestBed.createComponent(VacanteAsignarDialogComponent);
+      f.detectChanges();
+      return f;
+    }
+
+    it('primero la que más gente necesita', () => {
+      const f = crearCon(POR_URGENCIA);
+      expect(f.componentInstance.resultados().map((o) => o.cargo))
+        .toEqual(['MUCHO', 'MEDIO', 'EMPATE', 'POCO']);
+    });
+
+    it('a igualdad de faltantes, primero la que lleva más tiempo abierta', () => {
+      const f = crearCon([POR_URGENCIA[3], POR_URGENCIA[2]]);
+      expect(f.componentInstance.resultados().map((o) => o.cargo)).toEqual(['MEDIO', 'EMPATE']);
+    });
+
+    it('la asignada va siempre arriba, aunque necesite menos gente', () => {
+      const f = crearCon(POR_URGENCIA, 10);
+      expect(f.componentInstance.resultados()[0].cargo).toBe('POCO');
+    });
+
+    it('el nivel se deduce de cuánta gente falta', () => {
+      const f = crearCon(POR_URGENCIA);
+      const c = f.componentInstance;
+      expect(c.nivel(POR_URGENCIA[1])).toBe('alta');
+      expect(c.nivel(POR_URGENCIA[2])).toBe('media');
+      expect(c.nivel(POR_URGENCIA[0])).toBe('baja');
+    });
   });
 
   it('varias palabras se buscan TODAS, en cualquier campo y en cualquier orden', () => {

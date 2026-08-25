@@ -26,12 +26,15 @@
 <p class="va-pista">
   Escribe varias palabras separadas por espacio: se muestran las vacantes que las
   tengan <strong>todas</strong>, sin importar el orden ni en qué dato esté cada una.
+  La lista va de <strong>más urgente a menos</strong>: primero las que más gente
+  necesitan y, a igualdad, las que llevan más tiempo abiertas.
 </p>
 
 <mat-dialog-content class="va-lista">
   @for (o of visibles(); track o.id) {
     <button type="button" class="va-item"
             [class.va-item-actual]="o.id === data.actual"
+            [attr.data-nivel]="nivel(o)"
             (click)="elegir(o)">
       <span class="va-item-cuerpo">
         <span class="va-item-cargo">
@@ -42,15 +45,28 @@
         <span class="va-item-donde">
           {{ o.empresa || 'Sin empresa' }} · {{ o.finca || 'Sin finca' }}
         </span>
+
+        <!-- Todo lo que desempata entre dos vacantes del mismo cargo en la
+             misma finca. Lo que no viene no ocupa sitio. -->
         <span class="va-item-meta">
-          @if (o.oficinas) { <span>{{ o.oficinas }}</span> }
-          @if (o.codigo) { <span>Cód. {{ o.codigo }}</span> }
-          @if (o.publicada) { <span>{{ o.publicada }}</span> }
+          @if (o.temporal) { <span><mat-icon>apartment</mat-icon>{{ o.temporal }}</span> }
+          @if (o.municipios) { <span><mat-icon>place</mat-icon>{{ o.municipios }}</span> }
+          @if (o.oficinas && o.oficinas !== '—') { <span><mat-icon>store</mat-icon>{{ o.oficinas }}</span> }
+          @if (o.tipoContratacion) { <span><mat-icon>description</mat-icon>{{ o.tipoContratacion }}</span> }
+          @if (o.salario) { <span><mat-icon>payments</mat-icon>{{ o.salario }}</span> }
+          @if (o.codigo) { <span><mat-icon>tag</mat-icon>{{ o.codigo }}</span> }
+          @if (o.publicada) {
+            <span><mat-icon>event</mat-icon>{{ o.publicada }}@if (o.diasAbierta !== null) { · {{ o.diasAbierta }} días abierta }</span>
+          }
         </span>
       </span>
+
       <span class="va-item-cupos" [class.va-sin-cupos]="o.faltantes === 0">
         <strong>{{ o.faltantes }}</strong>
         <span>de {{ o.requeridos }}</span>
+        @if (!o.cerrada && o.faltantes > 0) {
+          <span class="va-item-nivel">{{ nivel(o) }}</span>
+        }
       </span>
     </button>
   } @empty {
