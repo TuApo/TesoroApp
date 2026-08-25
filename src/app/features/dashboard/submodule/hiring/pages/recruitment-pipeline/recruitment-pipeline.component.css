@@ -1377,9 +1377,9 @@ mat-tab-group {
 
 /* ── Capa 2 · los pasos del momento abierto ─────────────────────────────── */
 .rail-capa2 {
-  width: 218px;
-  padding: 12px 10px;
-  gap: 1px;
+  width: 104px;
+  padding: 12px 6px;
+  gap: 2px;
   background: #2A3050;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1393,21 +1393,26 @@ mat-tab-group {
 
 /* ── Capa 2 · los pasos del módulo abierto ──────────────────────────────── */
 .rail-capa2-titulo {
-  padding: 2px 8px 8px;
-  font-size: .64rem;
+  padding: 2px 4px 8px;
+  text-align: center;
+  font-size: .58rem;
   font-weight: 800;
   letter-spacing: .12em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, .40);
 }
 
+/* Mismo gesto que la capa 1: el icono manda y el rótulo va debajo, pequeño.
+   En fila, el rail se comía 218px de ancho que hacen mucha falta al formulario
+   de la derecha, que es donde de verdad se trabaja. */
 .sub {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 10px 4px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   color: rgba(255, 255, 255, .66);
   cursor: pointer;
@@ -1468,12 +1473,13 @@ mat-tab-group {
    dos líneas en vez de recortarse: un paso a medio nombre no se reconoce de un
    vistazo, que es justo para lo que sirve el rail. */
 .sub-txt {
-  flex: 1;
-  min-width: 0;
-  font-size: .78rem;
+  width: 100%;
+  font-size: .66rem;
   font-weight: 600;
-  line-height: 1.25;
+  line-height: 1.2;
+  text-align: center;
   overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 /* ── Accesos rápidos: módulo propio de la capa 1 ─────────────────────────
@@ -1481,19 +1487,22 @@ mat-tab-group {
    iconos había que adivinar cuál era cuál. */
 .acceso,
 .acceso-tt > .acceso {
+  position: relative;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 5px;
   width: 100%;
-  padding: 9px 10px;
+  padding: 9px 4px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: transparent;
   color: rgba(255, 255, 255, .70);
   font: inherit;
-  font-size: .78rem;
+  font-size: .66rem;
   font-weight: 600;
-  text-align: left;
+  line-height: 1.2;
+  text-align: center;
   cursor: pointer;
   transition: background .16s ease, color .16s ease;
 }
@@ -1519,11 +1528,8 @@ mat-tab-group {
 }
 
 .acceso-txt {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .acceso-tt { display: block; }
@@ -1531,7 +1537,9 @@ mat-tab-group {
 /* Punto de estado en vez de la equis roja de antes: cuatro aspas rojas en fila
    gritaban "error" cuando lo único que dicen es "todavía no". */
 .acceso-punto {
-  flex: none;
+  position: absolute;
+  top: 8px;
+  right: 12px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -1630,7 +1638,21 @@ mat-tab-group {
     overflow-y: hidden;
   }
 
-  .acceso { width: auto; flex: none; min-width: 168px; }
+  .sub,
+  .acceso,
+  .acceso-tt > .acceso {
+    flex: none;
+    flex-direction: row;
+    width: auto;
+    min-width: 150px;
+    gap: 8px;
+    text-align: left;
+  }
+
+  .sub-txt,
+  .acceso-txt { width: auto; text-align: left; }
+
+  .acceso-punto { position: static; }
 
   .rail-capa2-titulo { display: none; }
 
@@ -1732,8 +1754,8 @@ mat-tab-group {
     padding-right: 10px;
   }
 
-  .rail-capa1 { width: 92px; }
-  .rail-capa2 { width: 194px; }
+  .rail-capa1 { width: 88px; }
+  .rail-capa2 { width: 94px; }
 }
 
 @media (max-width: 1100px) {
