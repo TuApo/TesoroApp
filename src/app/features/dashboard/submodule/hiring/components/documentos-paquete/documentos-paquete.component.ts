@@ -41,6 +41,12 @@ export interface ItemPaquete {
   nombreArchivo: string | null;
   /** Rama del árbol documental a la que pertenece. */
   seccion: DocSeccion | null;
+  /**
+   * Aplica a ESTA persona según su empresa usuaria y su finca. Los que no
+   * aplican se siguen listando —el catálogo entero está a la vista— pero no
+   * cuentan para cerrar el día.
+   */
+  delPaquete: boolean;
 }
 
 /** Una rama del árbol documental, con lo que le toca a esta persona. */
@@ -72,8 +78,25 @@ export interface RamaPaquete {
 })
 export class DocumentosPaqueteComponent {
   candidatoSeleccionado = input<any | null>(null);
+  /**
+   * Cédula ya resuelta por el pipeline.
+   *
+   * Hay registros cargados a los que `numero_documento` les llega vacío —la
+   * ficha los pinta con "CC · —"— y este módulo se quedaba en "busca primero a
+   * la persona" con la persona delante. El pipeline sabe con qué documento se
+   * buscó; que lo diga.
+   */
+  cedula = input<string | null>(null);
   /** Sube con cada consulta nueva del buscador: obliga a releer el expediente. */
   consultaSeq = input<number>(0);
+
+  /** Con qué cédula se trabaja: la del registro o, si falta, la buscada. */
+  readonly cedulaEfectiva = computed<string>(() => {
+    const explicita = (this.cedula() ?? '').toString().trim();
+    if (explicita) return explicita;
+    const cand = this.candidatoSeleccionado();
+    return cand?.numero_documento ? String(cand.numero_documento).trim() : '';
+  });
 
   private readonly docsSrv = inject(GestionDocumentalService);
   private readonly vacantesSrv = inject(VacantesService);
@@ -106,7 +129,7 @@ export class DocumentosPaqueteComponent {
   constructor() {
     effect(() => {
       const cand = this.candidatoSeleccionado();
-      const ced = cand?.numero_documento ? String(cand.numero_documento) : null;
+      const ced = this.cedulaEfectiva() || null;
       const clave = ced ? `${ced}#${this.consultaSeq()}` : null;
       if (clave === this.leidoPara) return;
       this.leidoPara = clave;
@@ -115,9 +138,11 @@ export class DocumentosPaqueteComponent {
       if (ced) this.cargar(ced, cand);
     });
 
-    // El avance del paquete alimenta el rail, igual que los demás sub-pasos.
+    // El avance alimenta el rail, igual que los demás sub-pasos. Cuenta SOLO
+    // los que aplican a esta persona: el catálogo entero está a la vista, pero
+    // un documento de otra empresa no puede contar como pendiente suyo.
     effect(() => {
-      const items = this.items();
+      const items = this.itemsPaquete();
       this.nav.publicar('documentos', {
         hechos: items.filter((i) => i.listo).length,
         total: items.length,
@@ -169,7 +194,16 @@ export class DocumentosPaqueteComponent {
       });
   }
 
-  /** Los documentos que le tocan a esta persona, con su estado. */
+  /**
+   * EL CATÁLOGO ENTERO, con el estado de cada documento para esta persona.
+   *
+   * Antes esta lista venía ya filtrada por empresa usuaria y finca, así que un
+   * documento que hacía falta pero no estaba en el perfil —o, peor, toda la
+   * lista cuando aún no hay vacante remitida— simplemente no existía en
+   * pantalla. Ahora se listan TODOS: los que genera la plataforma y los que
+   * hay que subir, y cada uno dice si entra en el paquete de esta persona
+   * (`delPaquete`). Lo que se filtra es la VISTA, no los datos.
+   */
   readonly items = computed<ItemPaquete[]>(() => {
     const v = this.vacante();
     const ctx = {
@@ -179,27 +213,70 @@ export class DocumentosPaqueteComponent {
     };
     const presentes = this.docPorTipo();
 
-    return DOCUMENTOS_PAQUETE
-      .filter((t) => isDocumentoVisible(t, ctx))
-      .map((titulo) => {
-        const typeId = TYPE_ID_POR_TITULO[titulo] ?? null;
-        const doc = typeId !== null ? presentes.get(typeId) ?? null : null;
-        return {
-          titulo,
-          soloSubir: esSoloSubir(titulo),
-          listo: !!doc,
-          typeId,
-          fileUrl: doc?.url || null,
-          nombreArchivo: doc?.nombre || null,
-          seccion: getDocSeccion(titulo),
-        };
-      });
+    return DOCUMENTOS_PAQUETE.map((titulo) => {
+      const typeId = TYPE_ID_POR_TITULO[titulo] ?? null;
+      const doc = typeId !== null ? presentes.get(typeId) ?? null : null;
+      return {
+        titulo,
+        soloSubir: esSoloSubir(titulo),
+        listo: !!doc,
+        typeId,
+        fileUrl: doc?.url || null,
+        nombreArchivo: doc?.nombre || null,
+        seccion: getDocSeccion(titulo),
+        delPaquete: isDocumentoVisible(titulo, ctx),
+      };
+    });
   });
+
+  /** Los que le tocan a esta persona: son los que cierran el día. */
+  readonly itemsPaquete = computed(() => this.items().filter((i) => i.delPaquete));
 
   /** Los que genera la plataforma. */
   readonly generables = computed(() => this.items().filter((i) => !i.soloSubir));
   /** Los que hay que subir. */
   readonly porSubir = computed(() => this.items().filter((i) => i.soloSubir));
+
+  /**
+   * QUÉ SE ESTÁ MIRANDO.
+   *
+   * `todos` es el arranque a propósito: la pregunta que trae aquí suele ser
+   * "¿dónde subo esto?", y un documento que no está en el perfil de la empresa
+   * seguía habiendo que subirlo. Los demás filtros son las tres preguntas que
+   * se hacen de verdad: qué falta para cerrar, qué se genera y qué hay que
+   * subir a mano.
+   */
+  readonly filtro = signal<'todos' | 'paquete' | 'faltan' | 'generan' | 'subir'>('todos');
+
+  verFiltro(f: 'todos' | 'paquete' | 'faltan' | 'generan' | 'subir'): void {
+    this.filtro.set(f);
+  }
+
+  readonly filtros: ReadonlyArray<{ id: 'todos' | 'paquete' | 'faltan' | 'generan' | 'subir'; label: string; icon: string }> = [
+    { id: 'todos',   label: 'Todos',        icon: 'apps' },
+    { id: 'paquete', label: 'Del paquete',  icon: 'inventory_2' },
+    { id: 'faltan',  label: 'Faltan',       icon: 'error_outline' },
+    { id: 'generan', label: 'Se generan',   icon: 'auto_fix_high' },
+    { id: 'subir',   label: 'Por subir',    icon: 'cloud_upload' },
+  ];
+
+  /** Cuántos hay en cada filtro: el número es parte de la decisión. */
+  cuantos(id: 'todos' | 'paquete' | 'faltan' | 'generan' | 'subir'): number {
+    return this.aplicarFiltro(this.items(), id).length;
+  }
+
+  private aplicarFiltro(items: readonly ItemPaquete[], f: string): ItemPaquete[] {
+    switch (f) {
+      case 'paquete': return items.filter((i) => i.delPaquete);
+      case 'faltan':  return items.filter((i) => i.delPaquete && !i.listo);
+      case 'generan': return items.filter((i) => !i.soloSubir);
+      case 'subir':   return items.filter((i) => i.soloSubir);
+      default:        return [...items];
+    }
+  }
+
+  /** Lo que se pinta ahora mismo. */
+  readonly itemsVisibles = computed(() => this.aplicarFiltro(this.items(), this.filtro()));
 
   /**
    * El paquete repartido por las ramas del árbol documental.
@@ -211,7 +288,7 @@ export class DocumentosPaqueteComponent {
    */
   readonly ramas = computed<RamaPaquete[]>(() => {
     const porRama = new Map<string, ItemPaquete[]>();
-    for (const it of this.items()) {
+    for (const it of this.itemsVisibles()) {
       const k = it.seccion ?? 'otros';
       const arr = porRama.get(k);
       if (arr) arr.push(it); else porRama.set(k, [it]);
@@ -235,8 +312,17 @@ export class DocumentosPaqueteComponent {
   readonly listosGenerables = computed(() => this.generables().filter((i) => i.listo).length);
   readonly listosPorSubir = computed(() => this.porSubir().filter((i) => i.listo).length);
 
-  readonly total = computed(() => this.items().length);
-  readonly listos = computed(() => this.items().filter((i) => i.listo).length);
+  /** Los que genera la plataforma DENTRO del paquete de esta persona. */
+  readonly generablesPaquete = computed(() => this.itemsPaquete().filter((i) => !i.soloSubir));
+  /** Los que hay que subir DENTRO del paquete de esta persona. */
+  readonly porSubirPaquete = computed(() => this.itemsPaquete().filter((i) => i.soloSubir));
+  readonly listosGenerablesPaquete = computed(() => this.generablesPaquete().filter((i) => i.listo).length);
+  readonly listosPorSubirPaquete = computed(() => this.porSubirPaquete().filter((i) => i.listo).length);
+
+  // El resumen mide el PAQUETE de la persona, no el catálogo: es lo que hay
+  // que completar para cerrar el día.
+  readonly total = computed(() => this.itemsPaquete().length);
+  readonly listos = computed(() => this.itemsPaquete().filter((i) => i.listo).length);
   readonly faltan = computed(() => this.total() - this.listos());
   readonly pct = computed(() => {
     const t = this.total();
@@ -252,7 +338,7 @@ export class DocumentosPaqueteComponent {
 
   irAGenerar(): void {
     const cand = this.candidatoSeleccionado();
-    const ced = cand?.numero_documento;
+    const ced = this.cedulaEfectiva();
     if (!ced) return;
     this.router.navigate(['/dashboard/hiring/generate-contracting-documents', ced], {
       queryParams: { tipo_doc: cand?.tipo_doc || 'CC' },
@@ -312,7 +398,7 @@ export class DocumentosPaqueteComponent {
     if (!file || item.typeId === null) return;
 
     const cand = this.candidatoSeleccionado();
-    const cedula = cand?.numero_documento ? String(cand.numero_documento) : null;
+    const cedula = this.cedulaEfectiva() || null;
     if (!cedula) return;
 
     if (file.name.length > 100) {
@@ -379,7 +465,7 @@ export class DocumentosPaqueteComponent {
   recargar(): void {
     this.leidoPara = null;
     const cand = this.candidatoSeleccionado();
-    const ced = cand?.numero_documento ? String(cand.numero_documento) : null;
+    const ced = this.cedulaEfectiva();
     if (ced) this.cargar(ced, cand);
   }
 }

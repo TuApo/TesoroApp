@@ -721,20 +721,41 @@
                           </ng-template>
                           </mat-tab>
 
-                        <!-- ── Documentos ──
-                             Qué hay y qué falta del paquete del día. No genera
-                             ni sube: eso es la pantalla de generación, que ya
-                             lo hace. Aquí se ve el estado sin salir del
-                             pipeline y se salta allá. -->
+                        <!-- ── Documentos · todos los documentos ──
+                             El catálogo entero con su estado: lo que genera la
+                             plataforma y lo que hay que subir. Se sube desde
+                             aquí; generar sigue siendo la otra pantalla.
+                             Documentos ya no es un sub-paso de Contratación:
+                             es un módulo propio de la capa 1, y estas dos
+                             pestañas son sus dos sub-módulos. -->
                         <mat-tab>
                           <ng-template mat-tab-label>
-                            <div class="tab"><mat-icon>folder_copy</mat-icon> Documentos</div>
+                            <div class="tab"><mat-icon>folder_copy</mat-icon> Todos los documentos</div>
                           </ng-template>
                           <ng-template matTabContent>
                             <app-documentos-paquete
                               [candidatoSeleccionado]="candidatoSeleccionado()"
+                              [cedula]="cedulaDocs()"
                               [consultaSeq]="consultaSeq()">
                             </app-documentos-paquete>
+                          </ng-template>
+                        </mat-tab>
+
+                        <!-- ── Documentos · organización de empalme ──
+                             El expediente entero en un solo PDF, en el orden en
+                             que se revisa. Es el mismo empalme que se hace en
+                             lote desde "Buscar documentos", para la persona que
+                             se tiene delante. -->
+                        <mat-tab>
+                          <ng-template mat-tab-label>
+                            <div class="tab"><mat-icon>merge_type</mat-icon> Organización de empalme</div>
+                          </ng-template>
+                          <ng-template matTabContent>
+                            <app-empalme-documentos
+                              [candidatoSeleccionado]="candidatoSeleccionado()"
+                              [cedula]="cedulaDocs()"
+                              [consultaSeq]="consultaSeq()">
+                            </app-empalme-documentos>
                           </ng-template>
                         </mat-tab>
 

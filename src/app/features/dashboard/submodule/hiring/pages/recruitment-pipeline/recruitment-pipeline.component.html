@@ -210,6 +210,7 @@
               @switch (capaActiva()) {
                 @case ('seleccion') { Selección }
                 @case ('contratacion') { Contratación }
+                @case ('documentos') { Documentos }
                 @default { Inteligencia artificial }
               }
             </span>
@@ -252,6 +253,30 @@
                 <!-- El mismo anillo de los módulos principales, en pequeño: lleva
                      el avance sin gastar el renglón entero que gastaba la barra.
                      La cifra exacta la da el tooltip. -->
+                <span class="sub-anillo" [class.anillo-lleno]="pctS === 100"
+                      [style.background]="fondoAnillo(pctS)">
+                  <span class="sub-anillo-centro">
+                    <mat-icon>{{ pctS === 100 ? 'check' : s.icon }}</mat-icon>
+                  </span>
+                </span>
+                <span class="sub-txt">{{ s.label }}</span>
+              </button>
+            }
+          } @else if (capaActiva() === 'documentos') {
+            <!-- Los dos sub-módulos del expediente: el catálogo con su estado y
+                 el empalme en un solo PDF. Comparten las pestañas del grupo de
+                 Contratación, así que se abren con el mismo `abrirSubContratacion`. -->
+            @for (s of subDocumentos; track s.id) {
+              @let pctS = pctSub(s.clave);
+              <button type="button" class="sub" role="tab"
+                      [class.sub-plano]="!s.clave"
+                      [class.sub-activo]="subContratacionActivo() === s.idx"
+                      [class.sub-completo]="pctS === 100"
+                      [attr.aria-selected]="subContratacionActivo() === s.idx"
+                      [disabled]="bloqueoContratoTabs()"
+                      [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleAvance(s.label, s.clave)"
+                      matTooltipPosition="right"
+                      (click)="abrirSubContratacion(s)">
                 <span class="sub-anillo" [class.anillo-lleno]="pctS === 100"
                       [style.background]="fondoAnillo(pctS)">
                   <span class="sub-anillo-centro">
@@ -733,6 +758,7 @@
                 [modificacionForzada]="modificacionForzada()"
                 [modificadoPor]="usuarioActual()"
                 [consultaSeq]="consultaSeq()"
+                [documentoBuscado]="documentoBuscado()"
                 [procesoId]="procesoContratacion()?.id ?? null"
                 (guardado)="recargarCandidato()">
               </app-hiring-questions>

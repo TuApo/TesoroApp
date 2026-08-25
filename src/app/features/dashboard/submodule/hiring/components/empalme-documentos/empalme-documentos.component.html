@@ -1,0 +1,146 @@
+<div class="tab-content-scrollable em">
+
+  <header class="em-head">
+    <div class="em-head-icon"><mat-icon>merge_type</mat-icon></div>
+    <div class="em-head-txt">
+      <h3 class="em-title">Organización de empalme</h3>
+      <p class="em-sub">
+        Todo el expediente en un solo PDF. Arrastra para cambiar el orden y
+        desmarca lo que no vaya.
+      </p>
+    </div>
+    <span class="em-spacer"></span>
+    <button type="button" class="em-btn em-btn-ghost" (click)="recargar()"
+            [disabled]="cargando() || uniendo()">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+    <button type="button" class="em-btn em-btn-ghost" (click)="unirYVer()"
+            [disabled]="!seleccionados() || uniendo()">
+      <mat-icon>visibility</mat-icon> Previsualizar
+    </button>
+    <button type="button" class="em-btn" (click)="unirYDescargar()"
+            [disabled]="!seleccionados() || uniendo()">
+      <mat-icon>{{ uniendo() ? 'hourglass_top' : 'picture_as_pdf' }}</mat-icon>
+      Unir y descargar
+    </button>
+  </header>
+
+  @if (!cedulaEfectiva()) {
+    <p class="em-vacio">Busca primero a la persona para empalmar su expediente.</p>
+  } @else if (cargando()) {
+    <div class="em-cargando">
+      <mat-icon class="em-spin">progress_activity</mat-icon> Leyendo el expediente…
+    </div>
+  } @else {
+
+    @if (error()) {
+      <div class="em-error"><mat-icon>error_outline</mat-icon> {{ error() }}</div>
+    }
+
+    @if (!total()) {
+      <div class="em-aviso">
+        <mat-icon>info</mat-icon>
+        <span>
+          Esta persona todavía no tiene archivos en el expediente. Súbelos o
+          genéralos desde <strong>Documentos → Todos los documentos</strong> y
+          vuelve aquí.
+        </span>
+      </div>
+    } @else {
+
+      <!-- Cuántos entran y en qué orden: es lo que se decide en esta pantalla,
+           así que va arriba, con las herramientas de selección al lado. -->
+      <div class="em-barra">
+        <div class="em-conteo">
+          <strong>{{ seleccionados() }}</strong><span>de {{ total() }} entran al PDF</span>
+        </div>
+        <span class="em-spacer"></span>
+        <button type="button" class="em-chip" (click)="marcarTodos(true)">
+          <mat-icon>done_all</mat-icon> Todos
+        </button>
+        <button type="button" class="em-chip" (click)="marcarTodos(false)">
+          <mat-icon>remove_done</mat-icon> Ninguno
+        </button>
+        <button type="button" class="em-chip" (click)="paqueteCompleto()"
+                matTooltip="Orden y selección del paquete completo de contratación">
+          <mat-icon>inventory_2</mat-icon> Paquete completo
+        </button>
+        <button type="button" class="em-chip" (click)="paqueteFinca()"
+                matTooltip="Solo los documentos esenciales que pide la finca">
+          <mat-icon>agriculture</mat-icon> Paquete finca
+        </button>
+        <button type="button" class="em-chip" (click)="restablecer()"
+                matTooltip="Volver al orden con el que se abrió">
+          <mat-icon>history</mat-icon> Restablecer
+        </button>
+      </div>
+
+      <ul class="em-lista" cdkDropList (cdkDropListDropped)="soltar($event)">
+        @for (d of docs(); track d.id) {
+          <li class="em-item" cdkDrag [class.em-item-fuera]="!d.incluido">
+
+            <span class="em-asa" cdkDragHandle matTooltip="Arrastrar para reordenar">
+              <mat-icon>drag_indicator</mat-icon>
+            </span>
+
+            <button type="button" class="em-check"
+                    [class.em-check-on]="d.incluido"
+                    [attr.aria-pressed]="d.incluido"
+                    [matTooltip]="d.incluido ? 'Quitar del PDF' : 'Añadir al PDF'"
+                    (click)="alternar(d.id)">
+              <mat-icon>{{ d.incluido ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+            </button>
+
+            <span class="em-cuerpo">
+              <span class="em-txt">{{ d.titulo }}</span>
+              <span class="em-meta">
+                {{ d.archivo || 'Sin nombre' }}
+                @if (d.fecha) { · {{ d.fecha | date:'dd/MM/yyyy' }} }
+              </span>
+            </span>
+
+            @if (d.incluido) {
+              <span class="em-orden" matTooltip="Posición en el PDF">#{{ posicion(d.id) }}</span>
+            }
+
+            <button type="button" class="em-accion" matTooltip="Previsualizar"
+                    (click)="ver(d)">
+              <mat-icon>visibility</mat-icon>
+            </button>
+
+            <div class="em-arrastre" *cdkDragPreview>
+              <mat-icon>drag_indicator</mat-icon> {{ d.titulo }}
+            </div>
+            <div class="em-hueco" *cdkDragPlaceholder></div>
+          </li>
+        }
+      </ul>
+    }
+  }
+</div>
+
+<!-- Mismo visor que el paquete documental: revisar sin salir de la pantalla.
+     Sirve para un documento suelto y para el empalme ya armado. -->
+@if (visorSrc(); as src) {
+  <div class="em-visor" (click)="cerrarVisor()">
+    <div class="em-visor-caja" (click)="$event.stopPropagation()">
+      <header class="em-visor-head">
+        <mat-icon>description</mat-icon>
+        <span class="em-visor-titulo">{{ visorTitulo() }}</span>
+        <span class="em-spacer"></span>
+        <button type="button" class="em-accion" matTooltip="Descargar"
+                (click)="descargarDelVisor()">
+          <mat-icon>download</mat-icon>
+        </button>
+        <button type="button" class="em-accion" matTooltip="Abrir fuera de la app"
+                (click)="abrirFuera()">
+          <mat-icon>open_in_new</mat-icon>
+        </button>
+        <button type="button" class="em-accion" matTooltip="Cerrar" (click)="cerrarVisor()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+      <iframe [src]="src" class="em-visor-frame" title="Documento"></iframe>
+    </div>
+  </div>
+}

@@ -8,59 +8,20 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
+import {
+  ORDEN_PAQUETE_COMPLETO,
+  ORDEN_PAQUETE_FINCA,
+} from '../../shared/orden-empalme.data';
+
 type Item = { id: number; name: string };
 
-/** Orden por defecto para el paquete de documentos de contratación */
-const DEFAULT_ORDER: number[] = [
-  111,  // FICHA_COMPLETA (el usuario decide si la deja o usa la técnica)
-  34,   // FICHA_TECNICA
-  29,   // CEDULA
-  6,    // POLICIVOS
-  3,    // PROCURADURIA
-  4,    // CONTRALORIA
-  5,    // OFAC
-  103,  // ENTREVISTA_INGRESO
-  32,   // EXAMENES_MEDICOS
-  107,  // COLINESTERASA
-  112,  // AUTORIZACION_INGRESO
-  25,   // CONTRATO
-  104,  // CONTRATOS_OTROS_SI
-  30,   // ARL
-  27,   // ENTREGA_DE_DOCUMENTOS
-  113,  // BONIFICACION_IPANEMA
-  114,  // PRUEBA_PSICOTECNICA
-  7,    // ADRES
-  11,   // AFP
-  28,   // HOJA_DE_VIDA_M
-  16,   // REFERENCIA_PERSONAL
-  17,   // REFERENCIA_FAMILIAR
-  86,   // REFERENCIA_LABORAL
-  101,  // CERTIFICADOS_ESTUDIOS
-  20,   // PRUEBA_LECTRO_ESCRITURA
-  31,   // FIGURA_HUMANA
-  91,   // SST
-  115,  // OTRAS_PRUEBAS
-  36,   // EPS
-  37,   // CAJA
-  38,   // PAGO_SEGURIDAD_SOCIAL
-];
-
-/** Paquete por finca (solo documentos esenciales por finca) */
-const FINCA_ORDER: number[] = [
-  111,  // FICHA_COMPLETA (el usuario decide si la deja o usa la técnica)
-  34,   // FICHA_TECNICA
-  29,   // CEDULA
-  6,    // POLICIVOS
-  3,    // PROCURADURIA
-  4,    // CONTRALORIA
-  5,    // OFAC
-  103,  // ENTREVISTA_INGRESO
-  32,   // EXAMENES_MEDICOS
-  107,  // COLINESTERASA
-  25,   // CONTRATO
-  104,  // CONTRATOS_OTROS_SI
-  30,   // ARL
-];
+/*
+ * El orden vive en `shared/orden-empalme.data`: el empalme de UNA persona
+ * (módulo Documentos del pipeline) tiene que salir en el MISMO orden que el
+ * empalme en lote que se arma desde aquí.
+ */
+const DEFAULT_ORDER = ORDEN_PAQUETE_COMPLETO;
+const FINCA_ORDER = ORDEN_PAQUETE_FINCA;
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -146,7 +107,7 @@ export class OrdenUnionDialogComponent {
   }
 
   /** Aplica un paquete: reordena y selecciona solo los IDs del paquete */
-  private applyPackage(order: number[]) {
+  private applyPackage(order: readonly number[]) {
     const all = this.items();
     const orderIndex = new Map(order.map((id, idx) => [id, idx]));
     const inPackage = all.filter(a => orderIndex.has(a.id));

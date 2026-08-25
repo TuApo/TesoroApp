@@ -3,20 +3,23 @@
   <header class="dp-head">
     <div class="dp-head-icon"><mat-icon>folder_copy</mat-icon></div>
     <div class="dp-head-txt">
-      <h3 class="dp-title">Paquete documental</h3>
-      <p class="dp-sub">Todo lo que tiene que estar para cerrar el día. Puedes subir aquí mismo.</p>
+      <h3 class="dp-title">Todos los documentos</h3>
+      <p class="dp-sub">
+        El expediente completo: lo que genera la plataforma y lo que hay que
+        subir. Puedes subirlo aquí mismo.
+      </p>
     </div>
     <span class="dp-spacer"></span>
     <button type="button" class="dp-btn dp-btn-ghost" (click)="recargar()" [disabled]="cargando()">
       <mat-icon>refresh</mat-icon> Actualizar
     </button>
     <button type="button" class="dp-btn" (click)="irAGenerar()"
-            [disabled]="!candidatoSeleccionado()?.numero_documento">
+            [disabled]="!cedulaEfectiva()">
       <mat-icon>open_in_new</mat-icon> Generar y subir
     </button>
   </header>
 
-  @if (!candidatoSeleccionado()?.numero_documento) {
+  @if (!cedulaEfectiva()) {
     <p class="dp-vacio">Busca primero a la persona para ver su paquete.</p>
   } @else if (cargando()) {
     <div class="dp-cargando"><mat-icon class="dp-spin">progress_activity</mat-icon> Leyendo el expediente…</div>
@@ -40,6 +43,37 @@
       </div>
     </div>
 
+    <!-- Las dos mitades del paquete: quién tiene que actuar en cada una. Sin
+         esto había que contar a ojo cuáles salen del generador y cuáles se
+         están esperando en papel. -->
+    <div class="dp-mitades">
+      <span class="dp-mitad" matTooltip="Los produce la plataforma desde el generador">
+        <mat-icon>auto_fix_high</mat-icon>
+        Se generan
+        <strong>{{ listosGenerablesPaquete() }}/{{ generablesPaquete().length }}</strong>
+      </span>
+      <span class="dp-mitad" matTooltip="Llegan de fuera: hay que subirlos a mano">
+        <mat-icon>cloud_upload</mat-icon>
+        Hay que subirlos
+        <strong>{{ listosPorSubirPaquete() }}/{{ porSubirPaquete().length }}</strong>
+      </span>
+    </div>
+
+    <!-- Qué se lista abajo. Arranca en "Todos" porque el catálogo entero es lo
+         que se viene a buscar; los otros cuatro son las preguntas concretas. -->
+    <div class="dp-filtros" role="tablist" aria-label="Qué documentos se listan">
+      @for (f of filtros; track f.id) {
+        <button type="button" class="dp-filtro" role="tab"
+                [class.dp-filtro-activo]="filtro() === f.id"
+                [attr.aria-selected]="filtro() === f.id"
+                (click)="verFiltro(f.id)">
+          <mat-icon>{{ f.icon }}</mat-icon>
+          {{ f.label }}
+          <span class="dp-filtro-num">{{ cuantos(f.id) }}</span>
+        </button>
+      }
+    </div>
+
     @if (sinVacante()) {
       <div class="dp-aviso">
         <mat-icon>info</mat-icon>
@@ -56,6 +90,10 @@
          getDocSeccion), para que un documento caiga en la misma rama se mire
          por donde se mire. Dentro de cada rama se distingue lo que genera la
          plataforma de lo que hay que subir, que es lo que cambia quién actúa. -->
+    @if (!ramas().length) {
+      <p class="dp-vacio">No hay documentos con este filtro.</p>
+    }
+
     @for (r of ramas(); track r.key) {
       <section class="dp-seccion">
         <div class="dp-seccion-head">
@@ -67,6 +105,7 @@
         <ul class="dp-lista">
           @for (d of r.items; track d.titulo) {
             <li class="dp-item" [class.dp-item-listo]="d.listo"
+                [class.dp-item-extra]="!d.delPaquete"
                 [class.dp-item-ocupado]="subiendo() === d.titulo">
               <mat-icon class="dp-item-icon"
                         [matTooltip]="d.listo ? 'Ya está en el expediente'
@@ -84,6 +123,7 @@
                   } @else {
                     Se genera
                   }
+                  @if (!d.delPaquete) { · fuera del paquete }
                 </span>
               </span>
 

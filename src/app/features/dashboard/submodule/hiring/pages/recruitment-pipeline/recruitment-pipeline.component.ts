@@ -118,7 +118,7 @@ type ExamenResultadoForm = { aptoStatus?: string };
 type BioKind = 'foto' | 'huella' | 'firma';
 
 /** Los dos momentos del proceso: capa 1 del rail. */
-type CapaId = 'seleccion' | 'contratacion' | 'ia' | 'accesos';
+type CapaId = 'seleccion' | 'contratacion' | 'documentos' | 'ia' | 'accesos';
 
 interface CapaPipeline {
   readonly id: CapaId;
@@ -146,7 +146,8 @@ interface SubPasoContratacion {
   readonly icon: string;
   /** Índice del `mat-tab-group` de `app-hiring-questions`. */
   readonly idx: number;
-  readonly clave: ClaveAvance;
+  /** Bloque que reporta el avance; `null` si no se mide (el empalme). */
+  readonly clave: ClaveAvance | null;
 }
 
 @Component({
@@ -966,12 +967,23 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     'entrevista', 'formacion', 'antecedentes', 'remision', 'examenes',
   ];
   private readonly AVANCES_CONTRATACION: readonly ClaveAvance[] = [
-    'pago', 'obra', 'referencias', 'traslados', 'huella', 'documentos',
+    'pago', 'obra', 'referencias', 'traslados', 'huella',
   ];
+  /*
+   * Documentos salió de Contratación y es módulo propio: el expediente no se
+   * cierra con la contratación —siguen entrando soportes después— y mezclado
+   * dentro del porcentaje de Contratación hacía que ese paso nunca llegara al
+   * 100 % aunque los datos estuvieran completos.
+   */
+  private readonly AVANCES_DOCUMENTOS: readonly ClaveAvance[] = ['documentos'];
 
   readonly capas: readonly CapaPipeline[] = [
     { id: 'seleccion',    label: 'Selección',    icon: 'how_to_reg',           claves: this.AVANCES_SELECCION },
     { id: 'contratacion', label: 'Contratación', icon: 'assignment_turned_in', claves: this.AVANCES_CONTRATACION },
+    // El expediente es un módulo, no un paso: se trabaja durante toda la
+    // contratación y se sigue tocando después (soportes que llegan tarde,
+    // empalmes que pide la empresa usuaria).
+    { id: 'documentos',   label: 'Documentos',   icon: 'folder_copy',          claves: this.AVANCES_DOCUMENTOS },
     // La IA no es un paso que se llene: es una lectura del expediente. Va en la
     // primera capa porque se consulta en cualquier momento del proceso, no
     // dentro de Selección, y por eso no lleva porcentaje.
@@ -1015,8 +1027,24 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     { id: 'referencias', label: 'Referencias',       icon: 'groups',      idx: 2, clave: 'referencias' },
     { id: 'traslados',   label: 'Traslados',         icon: 'swap_horiz',  idx: 3, clave: 'traslados' },
     { id: 'huella',      label: 'Cédula & Huella',   icon: 'fingerprint', idx: 4, clave: 'huella' },
-    { id: 'documentos',  label: 'Documentos',        icon: 'folder_copy', idx: 5, clave: 'documentos' },
   ];
+
+  /**
+   * Los sub-módulos de Documentos.
+   *
+   * Comparten el `mat-tab-group` de `app-hiring-questions` —son sus pestañas 5
+   * y 6— porque ahí ya llegan el candidato y el número de consulta; lo que
+   * cambia es que el rail los presenta colgando de su propio módulo y no de
+   * Contratación. El empalme no lleva porcentaje: no es algo que se llene, es
+   * una salida que se arma cuando hace falta.
+   */
+  readonly subDocumentos: readonly SubPasoContratacion[] = [
+    { id: 'docsTodos',  label: 'Todos los documentos',   icon: 'folder_copy', idx: 5, clave: 'documentos' },
+    { id: 'docEmpalme', label: 'Organización de empalme', icon: 'merge_type', idx: 6, clave: null },
+  ];
+
+  /** Primera pestaña de Documentos dentro del grupo de Contratación. */
+  private readonly IDX_DOCUMENTOS = 5;
 
   /**
    * Capa 1 abierta. La pestaña 4 es Contratación; la IA vive dentro de la 2
@@ -1034,7 +1062,13 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
 
   readonly capaActiva = computed<CapaId>(() => {
     if (this.accesosAbiertos()) return 'accesos';
-    if (this.tabIndex() === 4) return 'contratacion';
+    if (this.tabIndex() === 4) {
+      // Contratación y Documentos comparten pestaña (las dos las pinta
+      // `app-hiring-questions`); las separa el sub-paso abierto.
+      return this.nav.subContratacion() >= this.IDX_DOCUMENTOS
+        ? 'documentos'
+        : 'contratacion';
+    }
     const panel = this.nav.panelSeleccion();
     if (this.tabIndex() === 2 && (panel === 'ia' || panel === 'iaChat')) return 'ia';
     return 'seleccion';
@@ -1118,6 +1152,19 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     this.accesosAbiertos.set(false);
     if (this.bloqueoContratoTabs()) return;
     if (id === 'contratacion') {
+      // Se comparte pestaña con Documentos: si se venía de allí hay que volver
+      // al primer sub-paso de Contratación, o el rail diría "Contratación" y
+      // en pantalla seguiría el expediente.
+      if (this.nav.subContratacion() >= this.IDX_DOCUMENTOS) {
+        this.nav.subContratacion.set(this.ultimoSubContratacion());
+      }
+      this.tabIndex.set(4);
+      return;
+    }
+    if (id === 'documentos') {
+      if (this.nav.subContratacion() < this.IDX_DOCUMENTOS) {
+        this.nav.subContratacion.set(this.ultimoSubDocumentos());
+      }
       this.tabIndex.set(4);
       return;
     }
@@ -1179,9 +1226,15 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     this.nav.pedirEdicion(bloque);
   }
 
+  /** Últimos sub-pasos visitados de cada módulo, para volver donde se dejó. */
+  private readonly ultimoSubContratacion = signal<number>(0);
+  private readonly ultimoSubDocumentos = signal<number>(this.IDX_DOCUMENTOS);
+
   abrirSubContratacion(sub: SubPasoContratacion): void {
     if (this.bloqueoContratoTabs()) return;
     this.accesosAbiertos.set(false);
+    if (sub.idx >= this.IDX_DOCUMENTOS) this.ultimoSubDocumentos.set(sub.idx);
+    else this.ultimoSubContratacion.set(sub.idx);
     this.nav.subContratacion.set(sub.idx);
     this.tabIndex.set(4);
   }

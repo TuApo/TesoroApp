@@ -1,4 +1,4 @@
-import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, signal } from '@angular/core';
+import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, computed, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, merge, Observable } from 'rxjs';
@@ -37,6 +37,7 @@ import { TarjetasService } from '../../service/tarjetas.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 import { DocumentosPaqueteComponent } from '../documentos-paquete/documentos-paquete.component';
+import { EmpalmeDocumentosComponent } from '../empalme-documentos/empalme-documentos.component';
 import { FirmaDialogComponent } from '../firma/firma.dialog';
 import { avanceDeBanderas, avanceDeForm } from '../../shared/progreso.util';
 
@@ -56,7 +57,7 @@ type ServerDocInfo = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-hiring-questions',
   standalone: true,
-  imports: [SharedModule, MatTabsModule, DocumentosPaqueteComponent],
+  imports: [SharedModule, MatTabsModule, DocumentosPaqueteComponent, EmpalmeDocumentosComponent],
   templateUrl: './hiring-questions.component.html',
   styleUrls: ['./hiring-questions.component.css'],
 } )
@@ -101,6 +102,21 @@ export class HiringQuestionsComponent implements OnInit {
   /** Nº de consulta del buscador: re-consultar a la misma persona re-parchea. */
   consultaSeq = input<number>(0);
   modificadoPor = input<string>('');
+  /**
+   * Documento tal como se tecleó en el buscador.
+   *
+   * Hay registros a los que `numero_documento` les llega vacío: el módulo
+   * Documentos se quedaba en "busca primero a la persona" con la persona
+   * delante. El pipeline sabe con qué documento se buscó y lo baja aquí.
+   */
+  documentoBuscado = input<string | null>(null);
+
+  /** La cédula con la que trabajan los dos sub-módulos de Documentos. */
+  readonly cedulaDocs = computed<string>(() => {
+    const cand = this.candidatoSeleccionado();
+    const suya = cand?.numero_documento ? String(cand.numero_documento).trim() : '';
+    return suya || (this.documentoBuscado() ?? '').toString().trim();
+  });
 
   /** Inyecta las banderas de override en cualquier payload de update-by-document. */
   /**
