@@ -1,7 +1,7 @@
 <div class="page-container">
   <div class="page-header">
     <div class="header-content">
-      <h1 class="page-title">Préstamo para Realizar</h1>
+      <h1 class="page-title">Préstamo para realizar</h1>
       <p class="page-subtitle">Genere un nuevo préstamo directamente para el empleado</p>
     </div>
     <div class="header-icon">
@@ -9,6 +9,7 @@
     </div>
   </div>
 
+  <div class="page-body">
   <!-- BUSCAR EMPLEADO -->
   @if (!datosOperario) {
     <mat-card class="premium-card">
@@ -16,32 +17,31 @@
         <div mat-card-avatar class="card-avatar">
           <mat-icon>badge</mat-icon>
         </div>
-        <mat-card-title>Búsqueda de Empleado</mat-card-title>
+        <mat-card-title>Búsqueda de empleado</mat-card-title>
         <mat-card-subtitle>Ingrese el documento de identidad del solicitante</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <form [formGroup]="searchForm" (ngSubmit)="buscarEmpleado()">
           <mat-form-field appearance="outline" class="full-width mt-3">
-            <mat-label>Número de Identificación</mat-label>
+            <mat-label>Número de identificación</mat-label>
             <mat-icon matPrefix>badge</mat-icon>
             <input matInput formControlName="numero_documento" placeholder="Ej: 1005851505" />
             <mat-hint>Ingrese cédula o documento sin puntos ni comas</mat-hint>
             @if (searchForm.get('numero_documento')?.hasError('required')) {
-              <mat-error>El documento es
-              obligatorio</mat-error>
+              <mat-error>El documento es obligatorio</mat-error>
             }
             @if (searchForm.get('numero_documento')?.hasError('pattern')) {
-              <mat-error>Formato inválido</mat-error>
+              <mat-error>Formato inválido: solo dígitos, opcionalmente con una letra delante</mat-error>
             }
           </mat-form-field>
+          <div class="card-actions-row">
+            <button mat-flat-button type="submit" class="btn-managerial"
+              [disabled]="!searchForm.get('numero_documento')?.valid">
+              <mat-icon>search</mat-icon> Buscar empleado
+            </button>
+          </div>
         </form>
       </mat-card-content>
-      <mat-card-actions align="end" style="padding: 0 16px 16px;">
-        <button mat-flat-button class="btn-large" (click)="buscarEmpleado()"
-          [disabled]="!searchForm.get('numero_documento')?.valid" style="background: #0369a1; color: white;">
-          <mat-icon>search</mat-icon> BUSCAR EMPLEADO
-        </button>
-      </mat-card-actions>
     </mat-card>
   }
 
@@ -60,84 +60,82 @@
         <mat-card-content>
           <div class="employee-info-list">
             <div class="info-row">
-              <div class="info-row-icon success">
+              <div class="info-row-icon">
                 <mat-icon>event_available</mat-icon>
               </div>
-              <div>
+              <div class="info-row-text">
                 <span class="info-row-label">Ingreso</span>
-                <span class="info-row-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split(' ')[0] : 'N/A'
-                }}</span>
+                <span class="info-row-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split(' ')[0] : 'N/A' }}</span>
               </div>
             </div>
             @if (limiteDisponible > 0) {
               <div class="info-row">
-                <div class="info-row-icon warning">
+                <div class="info-row-icon">
                   <mat-icon>credit_score</mat-icon>
                 </div>
-                <div>
-                  <span class="info-row-label">Cupo Disponible</span>
-                  <span class="info-row-value" style="color: #d97706; font-size: 18px;">$ {{
-                  formatCurrencyValue(limiteDisponible) }}</span>
+                <div class="info-row-text">
+                  <span class="info-row-label">Cupo disponible</span>
+                  <span class="info-row-value emphasis">$ {{ formatCurrencyValue(limiteDisponible) }}</span>
                 </div>
               </div>
             }
           </div>
         </mat-card-content>
-        <mat-card-actions style="padding: 8px 16px 16px; display: flex; gap: 8px; flex-wrap: wrap;">
-          <button mat-stroked-button color="primary" type="button" (click)="abrirHistorial()"
-            style="border-radius: 8px; flex: 1;">
+        <mat-card-actions class="employee-actions">
+          <button mat-stroked-button type="button" class="btn-neutral" (click)="abrirHistorial()">
             <mat-icon>history</mat-icon> Historial
           </button>
-          <button mat-button (click)="cancelar()" style="flex: 1;">
+          <button mat-button type="button" class="btn-neutral" (click)="cancelar()">
             <mat-icon>arrow_back</mat-icon> Cambiar
           </button>
         </mat-card-actions>
       </mat-card>
+
       <!-- FORMULARIO DEL PRÉSTAMO -->
       <mat-card class="premium-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar" style="background-color: #e0f2fe; color: #0369a1;">
+          <div mat-card-avatar class="card-avatar">
             <mat-icon>receipt_long</mat-icon>
           </div>
-          <mat-card-title>Datos del Préstamo</mat-card-title>
+          <mat-card-title>Datos del préstamo</mat-card-title>
           <mat-card-subtitle>Complete la información para generar el préstamo</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <form [formGroup]="loanForm">
-            <div class="form-grid" style="margin-top: 16px;">
+          <form [formGroup]="loanForm" (ngSubmit)="onSubmit()">
+            <div class="form-grid">
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Valor del Préstamo</mat-label>
+                <mat-label>Valor del préstamo</mat-label>
                 <span matTextPrefix>$&nbsp;</span>
-                <input matInput formControlName="valor" (input)="formatCurrencyInput($event)"
+                <input matInput formControlName="valor" inputmode="numeric" (input)="formatCurrencyInput($event)"
                   placeholder="Ej: 100.000" />
-                  @if (loanForm.get('valor')?.hasError('required')) {
-                    <mat-error>El valor es requerido</mat-error>
-                  }
-                </mat-form-field>
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Número de Cuotas</mat-label>
-                  <mat-icon matPrefix>calendar_month</mat-icon>
-                  <input matInput formControlName="cuotas" type="number" min="1" max="4" />
-                  @if (loanForm.get('cuotas')?.hasError('max')) {
-                    <mat-error>Máximo 4 cuotas</mat-error>
-                  }
-                  @if (loanForm.get('cuotas')?.hasError('min')) {
-                    <mat-error>Mínimo 1 cuota</mat-error>
-                  }
-                  @if (loanForm.get('cuotas')?.hasError('required')) {
-                    <mat-error>Requerido</mat-error>
-                  }
-                </mat-form-field>
-              </div>
-            </form>
-          </mat-card-content>
-          <mat-card-actions align="end" style="padding: 16px;">
-            <button mat-flat-button class="btn-large" (click)="onSubmit()" [disabled]="loanForm.invalid"
-              style="background: #0369a1; color: white;">
-              <mat-icon>check_circle</mat-icon> GENERAR PRÉSTAMO
-            </button>
-          </mat-card-actions>
-        </mat-card>
-      </div>
-    }
+                @if (loanForm.get('valor')?.hasError('required')) {
+                  <mat-error>El valor es obligatorio</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Número de cuotas</mat-label>
+                <mat-icon matPrefix>calendar_month</mat-icon>
+                <input matInput formControlName="cuotas" type="number" min="1" max="4" />
+                @if (loanForm.get('cuotas')?.hasError('required')) {
+                  <mat-error>Las cuotas son obligatorias</mat-error>
+                }
+                @if (loanForm.get('cuotas')?.hasError('max')) {
+                  <mat-error>Máximo 4 cuotas</mat-error>
+                }
+                @if (loanForm.get('cuotas')?.hasError('min')) {
+                  <mat-error>Mínimo 1 cuota</mat-error>
+                }
+              </mat-form-field>
+            </div>
+            <div class="card-actions-row">
+              <button mat-flat-button type="submit" class="btn-managerial" [disabled]="loanForm.invalid">
+                <mat-icon>check_circle</mat-icon> Generar préstamo
+              </button>
+            </div>
+          </form>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  }
   </div>
+</div>

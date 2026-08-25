@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, signal, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { WorkspaceService } from '../../services/workspace.service';
 import { MatderDashboardService } from '../../services/dashboard.service';
+import { MatderHistoryService } from '../../services/matder-history.service';
+import { MatderMobileNavComponent } from '../../components/matder-mobile-nav/matder-mobile-nav.component';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { WorkspaceResponse, WorkspaceMemberResponse } from '../../models/workspace.models';
 import Swal from 'sweetalert2';
@@ -24,7 +26,7 @@ import Swal from 'sweetalert2';
   imports: [
     DatePipe, FormsModule, MatCardModule, MatButtonModule, MatIconModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatChipsModule,
-    MatProgressSpinnerModule, MatTooltipModule, MatAutocompleteModule
+    MatProgressSpinnerModule, MatTooltipModule, MatAutocompleteModule, MatderMobileNavComponent
   ],
   templateUrl: './workspaces-page.component.html',
   styleUrls: ['./workspaces-page.component.css'],
@@ -55,9 +57,11 @@ export class WorkspacesPageComponent implements OnInit {
   constructor(
     private wsService: WorkspaceService,
     private dashboardService: MatderDashboardService,
+    private historyService: MatderHistoryService,
     private utilityService: UtilityServiceService,
     private router: Router,
     private route: ActivatedRoute,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -85,6 +89,7 @@ export class WorkspacesPageComponent implements OnInit {
         next: (users: any[]) => {
           this.companyUsers = users;
           this.filteredCompanyUsers = users;
+          this.cdr.markForCheck(); // refresca nombres de propietario (OnPush)
         }
       });
     } catch {
@@ -135,23 +140,61 @@ export class WorkspacesPageComponent implements OnInit {
     }
   }
 
+  // Campos reales del usuario de gestion_admin: id (UUID), numero_de_documento,
+  // correo_electronico y datos_basicos.{nombres,apellidos}. (Antes se leían
+  // u.nombres / u.identificacion, que NO existen → autocompletado vacío/roto.)
+  private uNombres(u: any): string { return (u?.datos_basicos?.nombres ?? u?.nombres ?? '').toString(); }
+  private uApellidos(u: any): string { return (u?.datos_basicos?.apellidos ?? u?.apellidos ?? '').toString(); }
+  private uDoc(u: any): string { return (u?.numero_de_documento ?? u?.identificacion ?? '').toString(); }
+  private uCorreo(u: any): string { return (u?.correo_electronico ?? u?.correo ?? '').toString(); }
+
+  /** displayWith del autocomplete: el modelo guarda el UUID, pero el input muestra el nombre. */
+  displayMember = (val: string): string => {
+    if (!val) return '';
+    const u = this.companyUsers.find(x => x.id === val);
+    return u ? this.getUserDisplayName(u) : val;
+  };
+
   filterUsers(): void {
     if (!this.newMemberUser) {
       this.filteredCompanyUsers = this.companyUsers;
       return;
     }
     const q = this.newMemberUser.toLowerCase();
-    this.filteredCompanyUsers = this.companyUsers.filter(u => 
-      (u.nombres || '').toLowerCase().includes(q) || 
-      (u.apellidos || '').toLowerCase().includes(q) || 
-      (u.correo_electronico || '').toLowerCase().includes(q) ||
-      (u.identificacion || '').toLowerCase().includes(q)
+    this.filteredCompanyUsers = this.companyUsers.filter(u =>
+      this.uNombres(u).toLowerCase().includes(q) ||
+      this.uApellidos(u).toLowerCase().includes(q) ||
+      this.uCorreo(u).toLowerCase().includes(q) ||
+      this.uDoc(u).toLowerCase().includes(q)
     );
   }
 
   getUserDisplayName(user: any): string {
     if (!user) return '';
-    return `${user.nombres ?? ''} ${user.apellidos ?? ''} - ${user.correo_electronico ?? ''}`.trim();
+    return `${this.uNombres(user)} ${this.uApellidos(user)} - ${this.uCorreo(user)}`.trim();
+  }
+
+  /** Nombre legible de un miembro: resuelve desde companyUsers por UUID; cae al doc/UUID. */
+  memberName(m: any): string {
+    const u = this.companyUsers.find(x => x.id === m?.user);
+    if (u) {
+      const full = `${this.uNombres(u)} ${this.uApellidos(u)}`.trim();
+      if (full) return full;
+      if (this.uCorreo(u)) return this.uCorreo(u);
+    }
+    return m?.full_name || m?.username || m?.user || 'Usuario';
+  }
+
+  /** Nombre legible del propietario del workspace; cae a '—' si no se puede resolver (evita mostrar el UUID). */
+  ownerName(ws: any): string {
+    if (ws?.owner_name) return ws.owner_name;
+    const u = this.companyUsers.find(x => x.id === ws?.owner);
+    if (u) {
+      const full = `${this.uNombres(u)} ${this.uApellidos(u)}`.trim();
+      if (full) return full;
+      if (this.uCorreo(u)) return this.uCorreo(u);
+    }
+    return '—';
   }
 
   async create(): Promise<void> {
@@ -191,6 +234,7 @@ export class WorkspacesPageComponent implements OnInit {
   }
 
   open(ws: WorkspaceResponse): void {
+    this.historyService.push({ type: 'workspace', id: ws.id, name: ws.name, subtitle: `${ws.member_count} miembros` });
     this.router.navigate([`/dashboard/matder/workspaces/${ws.id}`]);
     this.openDetail(ws);
   }
@@ -264,5 +308,27 @@ export class WorkspacesPageComponent implements OnInit {
     if (!r) return '';
     const m: Record<string, string> = { OWNER: 'Owner', MANAGER: 'Manager', MEMBER: 'Miembro', VIEWER: 'Viewer' };
     return m[r] ?? r.charAt(0) + r.slice(1).toLowerCase();
+  }
+
+  /** Descripción de qué puede hacer cada rol en el workspace. */
+  rolePerms(r: string | null): string {
+    switch ((r || '').toUpperCase()) {
+      case 'OWNER':   return 'Control total: gestiona miembros, crea y edita tableros y puede eliminar el workspace.';
+      case 'MANAGER': return 'Gestiona miembros y contenido (tableros y tareas). No puede eliminar el workspace.';
+      case 'MEMBER':  return 'Crea y edita tableros y tareas. No gestiona miembros.';
+      case 'VIEWER':  return 'Solo lectura: ve tableros y tareas, sin editar.';
+      default:        return '';
+    }
+  }
+
+  /** Ícono representativo del rol. */
+  roleIcon(r: string | null): string {
+    switch ((r || '').toUpperCase()) {
+      case 'OWNER':   return 'workspace_premium';
+      case 'MANAGER': return 'manage_accounts';
+      case 'MEMBER':  return 'edit';
+      case 'VIEWER':  return 'visibility';
+      default:        return 'person';
+    }
   }
 }

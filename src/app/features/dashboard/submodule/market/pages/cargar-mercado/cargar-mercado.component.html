@@ -9,6 +9,9 @@
     </div>
   </div>
 
+  <!-- El paso a paso scrollea aquí dentro; la página se queda quieta -->
+  <div class="page-body">
+
   <!-- BUSCAR EMPLEADO -->
   @if (!datosOperario) {
     <mat-card class="premium-card">
@@ -37,10 +40,10 @@
           </mat-form-field>
         </form>
       </mat-card-content>
-      <mat-card-actions align="end" style="padding: 0 16px 16px;">
-        <button mat-flat-button color="primary" class="btn-large" (click)="buscarEmpleado()"
-          [disabled]="!searchForm.get('numero_documento')?.valid" style="background: #0d9488; color: white;">
-          <mat-icon>search</mat-icon> BUSCAR EMPLEADO
+      <mat-card-actions align="end" class="card-actions">
+        <button mat-flat-button class="btn-managerial" (click)="buscarEmpleado()"
+          [disabled]="!searchForm.get('numero_documento')?.valid">
+          <mat-icon>search</mat-icon> Buscar empleado
         </button>
       </mat-card-actions>
     </mat-card>
@@ -61,7 +64,7 @@
         <mat-card-content>
           <div class="employee-info-list">
             <div class="info-row">
-              <div class="info-row-icon success">
+              <div class="info-row-icon">
                 <mat-icon>event_available</mat-icon>
               </div>
               <div>
@@ -71,7 +74,7 @@
               </div>
             </div>
             <div class="info-row">
-              <div class="info-row-icon info">
+              <div class="info-row-icon">
                 <mat-icon>location_on</mat-icon>
               </div>
               <div>
@@ -86,33 +89,31 @@
                 </div>
                 <div>
                   <span class="info-row-label">Cupo Disponible Mercado</span>
-                  <span class="info-row-value" style="color: #d97706; font-size: 18px;">$ {{
-                  formatCurrency(limiteDisponible) }}</span>
+                  <span class="info-row-value info-row-value--cupo">$ {{ formatCurrency(limiteDisponible) }}</span>
                 </div>
               </div>
             }
           </div>
         </mat-card-content>
-        <mat-card-actions style="padding: 8px 16px 16px; display: flex; gap: 8px; flex-wrap: wrap;">
-          <button mat-stroked-button color="primary" type="button" (click)="abrirHistorial()"
-            style="border-radius: 8px; flex: 1;">
+        <mat-card-actions class="employee-actions">
+          <button mat-stroked-button type="button" class="btn-secondary" (click)="abrirHistorial()">
             <mat-icon>history</mat-icon> Historial
           </button>
-          <button mat-button (click)="cancelar()" style="flex: 1;">
+          <button mat-button type="button" class="btn-secondary" (click)="cancelar()">
             <mat-icon>arrow_back</mat-icon> Cambiar
           </button>
         </mat-card-actions>
       </mat-card>
       <!-- COLUMNA DERECHA: SELECCIÓN DE CÓDIGO -->
-      <mat-card class="premium-card auth-card">
+      <mat-card class="premium-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar" style="background-color: #fef3c7; color: #d97706;">
+          <div mat-card-avatar class="card-avatar card-avatar--warn">
             <mat-icon>qr_code_2</mat-icon>
           </div>
           <mat-card-title>Autorizaciones Pendientes</mat-card-title>
           <mat-card-subtitle>Seleccione la autorización a ejecutar</mat-card-subtitle>
         </mat-card-header>
-        <mat-card-content style="max-height: 350px; overflow-y: auto;">
+        <mat-card-content class="auth-list">
           @if (transaccionesPendientes.length === 0 && !loadingTransacciones) {
             <div class="empty-state">
               <mat-icon>inbox</mat-icon>
@@ -120,9 +121,9 @@
             </div>
           }
           @if (loadingTransacciones) {
-            <div style="text-align: center; padding: 24px;">
-              <mat-spinner diameter="36" style="margin: 0 auto;"></mat-spinner>
-              <p style="margin-top: 8px; color: #64748b;">Cargando...</p>
+            <div class="loading-state">
+              <mat-spinner diameter="36"></mat-spinner>
+              <p>Cargando...</p>
             </div>
           }
           @if (transaccionesPendientes.length > 0) {
@@ -132,10 +133,10 @@
                 <div class="transaction-card"
                   [class.selected]="transaccionSeleccionada?.id === tx.id"
                   (click)="transaccionSeleccionada = tx; onCodigoSeleccionado()">
-                  <mat-radio-button [value]="tx" color="primary">
+                  <mat-radio-button [value]="tx">
                     <strong>{{ tx.codigo_autorizacion }}</strong>
                   </mat-radio-button>
-                  <div class="transaction-info" style="margin-top: 8px; padding-left: 32px;">
+                  <div class="transaction-info">
                     <div class="info-item">
                       <span class="info-label">Monto</span>
                       <span class="info-value highlight">$ {{ formatCurrency(tx.autorizacion_monto) }}</span>
@@ -164,7 +165,7 @@
     @if (transaccionSeleccionada) {
       <mat-card class="premium-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar" style="background-color: #dcfce7; color: #16a34a;">
+          <div mat-card-avatar class="card-avatar">
             <mat-icon>check_circle</mat-icon>
           </div>
           <mat-card-title>Confirmar Ejecución</mat-card-title>
@@ -186,16 +187,17 @@
             </div>
           </form>
         </mat-card-content>
-        <mat-card-actions align="end" style="padding: 16px;">
-          <button mat-button (click)="transaccionSeleccionada = null" style="margin-right: 8px;">
-            CANCELAR
+        <mat-card-actions align="end" class="card-actions">
+          <button mat-button type="button" class="btn-secondary" (click)="transaccionSeleccionada = null">
+            Cancelar
           </button>
-          <button mat-flat-button class="btn-large" (click)="ejecutarMercado()" [disabled]="executeForm.invalid"
-            style="background: #16a34a; color: white;">
-            <mat-icon>check_circle</mat-icon> EJECUTAR MERCADO
+          <button mat-flat-button class="btn-managerial" (click)="ejecutarMercado()" [disabled]="executeForm.invalid">
+            <mat-icon>check_circle</mat-icon> Ejecutar mercado
           </button>
         </mat-card-actions>
       </mat-card>
     }
   }
+
+  </div>
 </div>

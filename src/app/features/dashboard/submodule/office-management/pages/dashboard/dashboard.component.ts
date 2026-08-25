@@ -6,14 +6,18 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { OfficeFormsService } from '../../services/office-forms.service';
-import { DashboardData, FormSummary } from '../../models/office-forms.models';
+import { DashboardData, FormSummary, OfficeImportedForm } from '../../models/office-forms.models';
+import { OfficeExcelImportDialogComponent } from '../../components/excel-import-dialog/excel-import-dialog.component';
 
 /** Dashboard de Gestión de Oficina: KPIs + todos los formularios registrados. */
 @Component({
   selector: 'app-office-dashboard',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule],
+  imports: [
+    CommonModule, RouterLink, MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule,
+    OfficeExcelImportDialogComponent,
+  ],
   template: `
   <div class="dash">
     <header class="dash__head">
@@ -21,9 +25,15 @@ import { DashboardData, FormSummary } from '../../models/office-forms.models';
         <h1>Gestión de Oficina</h1>
         <p>Formularios dinámicos, respuestas y archivos de tus oficinas.</p>
       </div>
-      <button mat-flat-button color="primary" routerLink="builder">
-        <mat-icon>add</mat-icon> Nuevo formulario
-      </button>
+      <div class="dash__actions">
+        <button mat-stroked-button (click)="importarAbierto.set(true)"
+                matTooltip="Descargar la plantilla parametrizada o cargar formularios desde un Excel">
+          <mat-icon>table_view</mat-icon> Desde Excel
+        </button>
+        <button mat-flat-button color="primary" routerLink="builder">
+          <mat-icon>add</mat-icon> Nuevo formulario
+        </button>
+      </div>
     </header>
 
     @if (loading()) {
@@ -67,10 +77,20 @@ import { DashboardData, FormSummary } from '../../models/office-forms.models';
       <div class="dash__error">No se pudo cargar el dashboard. <button mat-button (click)="load()">Reintentar</button></div>
     }
   </div>
+
+  <!-- Carga por Excel: plantilla ya parametrizada + carga individual o masiva. -->
+  @if (importarAbierto()) {
+    <app-office-excel-import-dialog
+        (abrir)="abrirImportado($event)"
+        (creados)="trasCrearMasivo()"
+        (cerrar)="importarAbierto.set(false)">
+    </app-office-excel-import-dialog>
+  }
   `,
   styles: [`
     .dash { padding: 8px 4px 40px; }
     .dash__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .dash__actions { display: flex; gap: 10px; flex-wrap: wrap; }
     .dash__head h1 { font-size: 26px; font-weight: 800; margin: 0; color: #0f172a; }
     .dash__head p { color: #64748b; margin: 4px 0 0; }
     .dash__loading { display: flex; justify-content: center; padding: 60px 0; }
@@ -100,6 +120,8 @@ export class OfficeDashboardComponent implements OnInit {
 
   data = signal<DashboardData | null>(null);
   loading = signal(true);
+  /** Diálogo de carga por Excel (plantilla parametrizada + carga individual o masiva). */
+  importarAbierto = signal(false);
 
   ngOnInit(): void { this.load(); }
 
@@ -118,4 +140,21 @@ export class OfficeDashboardComponent implements OnInit {
   goResponses(f: FormSummary): void { this.router.navigate(['/dashboard/office-management/forms', f.id, 'responses']); }
   goFill(f: FormSummary): void { this.router.navigate(['/dashboard/office-management/forms', f.id, 'fill']); }
   goEdit(f: FormSummary): void { this.router.navigate(['/dashboard/office-management/builder', f.id]); }
+
+  /**
+   * Un formulario leído del Excel se abre en el CONSTRUCTOR con todo cargado: es ahí donde
+   * se revisa y se guarda. Como /builder no admite un objeto por parámetro de ruta, viaja
+   * por el buzón del servicio y el constructor lo recoge al montarse.
+   */
+  abrirImportado(f: OfficeImportedForm): void {
+    this.api.dejarPendiente(f);
+    this.importarAbierto.set(false);
+    this.router.navigate(['/dashboard/office-management/builder']);
+  }
+
+  /** La carga masiva ya creó formularios: el dashboard tiene que reflejarlos. */
+  trasCrearMasivo(): void {
+    this.importarAbierto.set(false);
+    this.load();
+  }
 }

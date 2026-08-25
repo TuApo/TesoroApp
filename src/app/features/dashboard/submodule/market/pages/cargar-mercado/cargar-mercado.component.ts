@@ -1,7 +1,6 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
@@ -39,8 +38,8 @@ export class CargarMercadoComponent implements OnInit {
     private autorizacionesService: AutorizacionesService,
     private historialService: HistorialService,
     private utilityService: UtilityServiceService,
-    private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
@@ -128,6 +127,9 @@ export class CargarMercadoComponent implements OnInit {
       // Calcular cupo disponible mercado (usa la misma lógica que verificarCondiciones)
       this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(data, 'mercado');
 
+      // App zoneless: sin markForCheck la vista no se repinta tras el await
+      this.cdr.markForCheck();
+
       // Cargar transacciones pendientes
       this.cargarTransaccionesPendientes(doc);
 
@@ -149,18 +151,24 @@ export class CargarMercadoComponent implements OnInit {
     this.historialService.getHistorialTransaccionesPorDocumento(doc).subscribe(
       (res: any) => {
         const rawList = Array.isArray(res) ? res : (res.results || res.data || []);
-        // Filtrar solo las pendientes de tipo mercado
+        // Filtrar solo las pendientes de tipo mercado.
+        // includes('mercado') y no === 'mercado': el concepto llega en variantes
+        // ("Mercado", "mercado autorizacion", "autorizacion de mercado autorizacion"...)
+        // segun sea creado por el sistema actual o heredado de la migracion legacy.
         this.transaccionesPendientes = rawList.filter(
-          (tx: any) => tx.estado === 'PENDIENTE' && (tx.autorizacion_concepto || '').toLowerCase() === 'mercado'
+          (tx: any) => tx.estado === 'PENDIENTE' && (tx.autorizacion_concepto || '').toLowerCase().includes('mercado')
         ).sort((a: any, b: any) => {
           const dateA = new Date(a.autorizado_en || 0).getTime();
           const dateB = new Date(b.autorizado_en || 0).getTime();
           return dateB - dateA;
         });
         this.loadingTransacciones = false;
+        this.cdr.markForCheck();
       },
       () => {
         this.loadingTransacciones = false;
+        // Sin esto la rama de error dejaba el spinner girando para siempre
+        this.cdr.markForCheck();
         Swal.fire('Error', 'No se pudieron cargar las transacciones pendientes.', 'error');
       }
     );
@@ -184,6 +192,8 @@ export class CargarMercadoComponent implements OnInit {
     this.limiteDisponible = 0;
     this.searchForm.reset();
     this.executeForm.reset();
+    // También se llama desde el .then() de Swal, fuera de todo evento de plantilla
+    this.cdr.markForCheck();
   }
 
   abrirHistorial() {
@@ -229,7 +239,7 @@ export class CargarMercadoComponent implements OnInit {
       showCancelButton: true,
       confirmButtonText: 'Sí, Ejecutar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#16a34a'
+      confirmButtonColor: '#21263C'
     });
 
     if (!confirmar.isConfirmed) return;
@@ -263,7 +273,7 @@ export class CargarMercadoComponent implements OnInit {
         title: '¡Éxito!',
         text: `Mercado ejecutado. Código de ejecución: ${response.codigo_ejecucion || 'N/A'}`,
         confirmButtonText: 'Aceptar',
-        confirmButtonColor: '#16a34a'
+        confirmButtonColor: '#21263C'
       }).then(() => {
         // Recargar
         this.cancelar();

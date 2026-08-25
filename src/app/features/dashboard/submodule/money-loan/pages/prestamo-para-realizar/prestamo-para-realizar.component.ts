@@ -1,14 +1,15 @@
-import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
-import { PrestamoService } from '../../service/prestamo/prestamo.service';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 import { HistorialService } from '../../../history/service/historial/historial.service';
+
+/** SweetAlert2 pinta sobre <body>, fuera del encapsulado del componente: no ve las CSS vars. */
+const NAVY = '#21263C';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -16,8 +17,8 @@ import { HistorialService } from '../../../history/service/historial/historial.s
   imports: [SharedModule],
   templateUrl: './prestamo-para-realizar.component.html',
   styleUrl: './prestamo-para-realizar.component.css',
-} )
-export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
+})
+export class PrestamoParaRealizarComponent implements OnInit {
   searchForm!: FormGroup;
   loanForm!: FormGroup;
 
@@ -27,23 +28,20 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
 
   user: any;
   rolUsuario: string = '';
-  correoUsuario: string = '';
 
   constructor(
     private fb: FormBuilder,
     private autorizacionesService: AutorizacionesService,
-    private prestamoService: PrestamoService,
     private utilityService: UtilityServiceService,
     private historialService: HistorialService,
-    private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
     this.user = this.utilityService.getUser();
     if (this.user) {
       this.rolUsuario = this.user.rol?.nombre ?? '';
-      this.correoUsuario = this.user.correo_electronico ?? '';
     }
 
     this.searchForm = this.fb.group({
@@ -56,8 +54,6 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnDestroy() { }
-
   formatCurrencyValue(value: any): string {
     if (value === null || value === undefined || value === '') return '0';
     return Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 });
@@ -65,9 +61,9 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
 
   formatCurrencyInput(event: any) {
     const input = event.target;
-    let value = input.value.replace(/\D/g, '');
-    value = Number(value).toLocaleString('es-CO');
-    input.value = value;
+    const digits = input.value.replace(/\D/g, '');
+    // Sin esta guarda, borrar el campo entero lo repuebla con "0" y hay que borrarlo dos veces.
+    input.value = digits ? Number(digits).toLocaleString('es-CO') : '';
   }
 
   async buscarEmpleado() {
@@ -99,7 +95,7 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
 
       if (statusData.activo === false) {
         Swal.fire({
-          icon: 'error', title: 'Empleado Inactivo',
+          icon: 'error', title: 'Empleado inactivo',
           text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
         });
         return;
@@ -114,7 +110,7 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
         const motivo = statusData.observacion_bloqueo ? statusData.observacion_bloqueo : 'Sin motivo especificado';
 
         Swal.fire({
-          icon: 'error', title: 'Empleado Bloqueado',
+          icon: 'error', title: 'Empleado bloqueado',
           text: `El empleado se encuentra bloqueado desde: ${fechaStr}.\n\nMotivo: ${motivo}`,
         });
         return;
@@ -136,6 +132,9 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
       } else {
         Swal.fire('Error', 'Hubo un problema al buscar el operario.', 'error');
       }
+    } finally {
+      // Zoneless + OnPush: sin esto la vista se queda en el buscador aunque ya haya datos.
+      this.cdr.markForCheck();
     }
   }
 
@@ -145,6 +144,7 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
     this.limiteDisponible = 0;
     this.searchForm.reset();
     this.loanForm.reset();
+    this.cdr.markForCheck();
   }
 
   abrirHistorial() {
@@ -162,11 +162,11 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const valorStr = this.loanForm.value.valor.replace(/\D/g, '');
+    const valorStr = String(this.loanForm.value.valor).replace(/\D/g, '');
     const valorNumerico = parseInt(valorStr, 10);
-    const cuotas = parseInt(this.loanForm.value.cuotas);
+    const cuotas = parseInt(this.loanForm.value.cuotas, 10);
 
-    if (valorNumerico <= 0) { Swal.fire('Error', 'El valor debe ser mayor a 0.', 'error'); return; }
+    if (!valorNumerico || valorNumerico <= 0) { Swal.fire('Error', 'El valor debe ser mayor a 0.', 'error'); return; }
 
     // Verificar condiciones
     const sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
@@ -181,8 +181,8 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
       html: `<p><strong>Empleado:</strong> ${this.nombreOperario}</p>
              <p><strong>Valor:</strong> $${this.formatCurrencyValue(valorNumerico)}</p>
              <p><strong>Cuotas:</strong> ${cuotas}</p>`,
-      showCancelButton: true, confirmButtonText: 'Sí, Generar', cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#0369a1'
+      showCancelButton: true, confirmButtonText: 'Sí, generar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: NAVY
     });
 
     if (!confirmar.isConfirmed) return;
@@ -226,9 +226,9 @@ export class PrestamoParaRealizarComponent implements OnInit, OnDestroy {
 
       Swal.close();
       Swal.fire({
-        icon: 'success', title: '¡Éxito!',
+        icon: 'success', title: '¡Listo!',
         text: `Préstamo generado y ejecutado. Código: ${execResponse.codigo_ejecucion || authResponse.codigo_autorizacion}`,
-        confirmButtonText: 'Aceptar', confirmButtonColor: '#0369a1'
+        confirmButtonText: 'Aceptar', confirmButtonColor: NAVY
       }).then(() => { this.cancelar(); });
 
     } catch (error: any) {

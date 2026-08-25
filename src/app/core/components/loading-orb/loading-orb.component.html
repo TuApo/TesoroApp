@@ -1,0 +1,69 @@
+@if (visible()) {
+  <button
+    type="button"
+    class="lo-orb"
+    [class.is-done]="completo()"
+    [class.is-open]="abierto()"
+    [attr.aria-expanded]="abierto()"
+    [attr.aria-label]="resumen()"
+    [title]="resumen() + ' · clic para ver el detalle'"
+    (click)="alternar()">
+    <svg class="lo-orb__svg" viewBox="0 0 32 32" aria-hidden="true">
+      <circle class="lo-orb__track" cx="16" cy="16" r="13" />
+      <!-- Núcleo: crece con el avance, la esfera se llena de dentro hacia afuera. -->
+      <circle class="lo-orb__core" cx="16" cy="16" [attr.r]="radioNucleo()" />
+      <!-- Arco: el porcentaje exacto, por si el llenado se lee "a ojo". -->
+      <circle
+        class="lo-orb__arc"
+        cx="16" cy="16" r="13"
+        [attr.stroke-dasharray]="dashArray"
+        [attr.stroke-dashoffset]="dashOffset()" />
+    </svg>
+  </button>
+
+  @if (abierto()) {
+    <div class="lo-pop" role="status" aria-live="polite">
+      <header class="lo-pop__head">
+        <div class="lo-pop__titles">
+          <p class="lo-pop__title">{{ completo() ? 'Listo' : 'Cargando plataforma' }}</p>
+          <p class="lo-pop__sub">
+            @if (completo()) {
+              {{ total() }} {{ total() === 1 ? 'consulta completada' : 'consultas completadas' }}
+            } @else {
+              {{ pasoActual() }}
+            }
+          </p>
+        </div>
+        <span class="lo-pop__pct">{{ porcentajeEntero() }}<i>%</i></span>
+      </header>
+
+      <p class="lo-pop__count">{{ listos() }} de {{ total() }}</p>
+
+      <ul class="lo-steps">
+        @for (paso of pasos(); track paso.clave) {
+          <li class="lo-step" [attr.data-estado]="paso.estado">
+            <span class="lo-step__icon" aria-hidden="true">
+              @if (paso.estado === 'activa') {
+                <span class="lo-step__spinner"></span>
+              } @else if (paso.estado === 'lista') {
+                <span class="material-symbols-outlined">check</span>
+              } @else {
+                <span class="material-symbols-outlined">priority_high</span>
+              }
+            </span>
+
+            <span class="lo-step__label">{{ paso.etiqueta }}</span>
+
+            <span class="lo-step__meta">
+              @if (paso.estado === 'fallo') {
+                sin datos
+              } @else {
+                {{ segundos(paso.inicio, paso.fin) }}
+              }
+            </span>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+}

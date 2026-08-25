@@ -26,12 +26,12 @@
 
     <mat-card-content class="premium-content">
       <section class="cards-grid">
-        @for (c of cards; track c) {
+        @for (c of cards; track c.id) {
           <div class="upload-action-card">
             <app-info-card [title]="c.title" [imageUrl]="c.imageUrl" (cardClicked)="onCardClick(c.id)">
             </app-info-card>
-            <button mat-flat-button class="btn-managerial download-template-btn" (click)="downloadTemplate(c.id)">
-              <mat-icon>download</mat-icon> Descargar Plantilla
+            <button mat-flat-button class="btn-managerial" (click)="downloadTemplate(c.id)">
+              <mat-icon>download</mat-icon> Descargar plantilla
             </button>
           </div>
         }

@@ -1,7 +1,7 @@
 <div class="page-container">
   <div class="page-header">
     <div class="header-content">
-      <h1 class="page-title">Ejecutar Préstamo Calamidad</h1>
+      <h1 class="page-title">Ejecutar préstamo calamidad</h1>
       <p class="page-subtitle">Seleccione una autorización de préstamo pendiente para ejecutar</p>
     </div>
     <div class="header-icon">
@@ -9,6 +9,7 @@
     </div>
   </div>
 
+  <div class="page-body">
   <!-- BUSCAR EMPLEADO -->
   @if (!datosOperario) {
     <mat-card class="premium-card">
@@ -16,32 +17,31 @@
         <div mat-card-avatar class="card-avatar">
           <mat-icon>badge</mat-icon>
         </div>
-        <mat-card-title>Búsqueda de Empleado</mat-card-title>
+        <mat-card-title>Búsqueda de empleado</mat-card-title>
         <mat-card-subtitle>Ingrese el documento de identidad del solicitante</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <form [formGroup]="searchForm" (ngSubmit)="buscarEmpleado()">
           <mat-form-field appearance="outline" class="full-width mt-3">
-            <mat-label>Número de Identificación</mat-label>
+            <mat-label>Número de identificación</mat-label>
             <mat-icon matPrefix>badge</mat-icon>
             <input matInput formControlName="numero_documento" placeholder="Ej: 1005851505" />
             <mat-hint>Ingrese cédula o documento sin puntos ni comas</mat-hint>
             @if (searchForm.get('numero_documento')?.hasError('required')) {
-              <mat-error>El documento es
-              obligatorio</mat-error>
+              <mat-error>El documento es obligatorio</mat-error>
             }
             @if (searchForm.get('numero_documento')?.hasError('pattern')) {
-              <mat-error>Formato inválido</mat-error>
+              <mat-error>Formato inválido: solo dígitos, opcionalmente con una letra delante</mat-error>
             }
           </mat-form-field>
+          <div class="card-actions-row">
+            <button mat-flat-button type="submit" class="btn-managerial"
+              [disabled]="!searchForm.get('numero_documento')?.valid">
+              <mat-icon>search</mat-icon> Buscar empleado
+            </button>
+          </div>
         </form>
       </mat-card-content>
-      <mat-card-actions align="end" style="padding: 0 16px 16px;">
-        <button mat-flat-button class="btn-large" (click)="buscarEmpleado()"
-          [disabled]="!searchForm.get('numero_documento')?.valid" style="background: #7c3aed; color: white;">
-          <mat-icon>search</mat-icon> BUSCAR EMPLEADO
-        </button>
-      </mat-card-actions>
     </mat-card>
   }
 
@@ -60,72 +60,66 @@
         <mat-card-content>
           <div class="employee-info-list">
             <div class="info-row">
-              <div class="info-row-icon success">
+              <div class="info-row-icon">
                 <mat-icon>event_available</mat-icon>
               </div>
-              <div>
+              <div class="info-row-text">
                 <span class="info-row-label">Ingreso</span>
-                <span class="info-row-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split(' ')[0] : 'N/A'
-                }}</span>
+                <span class="info-row-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split(' ')[0] : 'N/A' }}</span>
               </div>
             </div>
             @if (limiteDisponible > 0) {
               <div class="info-row">
-                <div class="info-row-icon warning">
+                <div class="info-row-icon">
                   <mat-icon>credit_score</mat-icon>
                 </div>
-                <div>
-                  <span class="info-row-label">Cupo Disponible Préstamo</span>
-                  <span class="info-row-value" style="color: #d97706; font-size: 18px;">$ {{
-                  formatCurrency(limiteDisponible) }}</span>
+                <div class="info-row-text">
+                  <span class="info-row-label">Cupo disponible préstamo</span>
+                  <span class="info-row-value emphasis">$ {{ formatCurrency(limiteDisponible) }}</span>
                 </div>
               </div>
             }
           </div>
         </mat-card-content>
-        <mat-card-actions style="padding: 8px 16px 16px; display: flex; gap: 8px; flex-wrap: wrap;">
-          <button mat-stroked-button color="primary" type="button" (click)="abrirHistorial()"
-            style="border-radius: 8px; flex: 1;">
+        <mat-card-actions class="employee-actions">
+          <button mat-stroked-button type="button" class="btn-neutral" (click)="abrirHistorial()">
             <mat-icon>history</mat-icon> Historial
           </button>
-          <button mat-button (click)="cancelar()" style="flex: 1;">
+          <button mat-button type="button" class="btn-neutral" (click)="cancelar()">
             <mat-icon>arrow_back</mat-icon> Cambiar
           </button>
         </mat-card-actions>
       </mat-card>
+
       <!-- COLUMNA DERECHA: AUTORIZACIONES PENDIENTES -->
-      <mat-card class="premium-card">
+      <mat-card class="premium-card pending-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar" style="background-color: #ede9fe; color: #7c3aed;">
+          <div mat-card-avatar class="card-avatar">
             <mat-icon>qr_code_2</mat-icon>
           </div>
-          <mat-card-title>Autorizaciones Pendientes</mat-card-title>
+          <mat-card-title>Autorizaciones pendientes</mat-card-title>
           <mat-card-subtitle>Seleccione la autorización a ejecutar</mat-card-subtitle>
         </mat-card-header>
-        <mat-card-content style="max-height: 350px; overflow-y: auto;">
-          @if (transaccionesPendientes.length === 0 && !loadingTransacciones) {
+        <mat-card-content class="pending-list">
+          @if (loadingTransacciones) {
+            <div class="loading-state">
+              <mat-spinner diameter="36"></mat-spinner>
+              <p>Cargando autorizaciones...</p>
+            </div>
+          } @else if (transaccionesPendientes.length === 0) {
             <div class="empty-state">
               <mat-icon>inbox</mat-icon>
               <p>Sin autorizaciones de préstamo pendientes.</p>
             </div>
-          }
-          @if (loadingTransacciones) {
-            <div style="text-align: center; padding: 24px;">
-              <mat-spinner diameter="36" style="margin: 0 auto;"></mat-spinner>
-              <p style="margin-top: 8px; color: #64748b;">Cargando...</p>
-            </div>
-          }
-          @if (transaccionesPendientes.length > 0) {
-            <mat-radio-group [(ngModel)]="transaccionSeleccionada"
-              (change)="onCodigoSeleccionado()">
-              @for (tx of transaccionesPendientes; track tx) {
-                <div class="transaction-card"
-                  [class.selected]="transaccionSeleccionada?.id === tx.id"
-                  (click)="transaccionSeleccionada = tx; onCodigoSeleccionado()">
-                  <mat-radio-button [value]="tx" color="primary">
+          } @else {
+            <mat-radio-group [value]="transaccionSeleccionada" (change)="seleccionarTransaccion($event.value)">
+              @for (tx of transaccionesPendientes; track tx.id) {
+                <div class="transaction-card" [class.selected]="transaccionSeleccionada?.id === tx.id"
+                  (click)="seleccionarTransaccion(tx)">
+                  <mat-radio-button [value]="tx">
                     <strong>{{ tx.codigo_autorizacion }}</strong> — {{ tx.autorizacion_concepto }}
                   </mat-radio-button>
-                  <div class="transaction-info" style="margin-top: 8px; padding-left: 32px;">
+                  <div class="transaction-info">
                     <div class="info-item">
                       <span class="info-label">Monto</span>
                       <span class="info-value highlight">$ {{ formatCurrency(tx.autorizacion_monto) }}</span>
@@ -135,7 +129,7 @@
                       <span class="info-value">{{ tx.autorizacion_cuotas }}</span>
                     </div>
                     <div class="info-item">
-                      <span class="info-label">Autorizado Por</span>
+                      <span class="info-label">Autorizado por</span>
                       <span class="info-value">{{ tx.autorizado_por || 'N/A' }}</span>
                     </div>
                     <div class="info-item">
@@ -150,32 +144,37 @@
         </mat-card-content>
       </mat-card>
     </div>
+
     <!-- CONFIRMAR EJECUCIÓN -->
     @if (transaccionSeleccionada) {
       <mat-card class="premium-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar" style="background-color: #dcfce7; color: #16a34a;">
+          <div mat-card-avatar class="card-avatar">
             <mat-icon>check_circle</mat-icon>
           </div>
-          <mat-card-title>Confirmar Ejecución</mat-card-title>
+          <mat-card-title>Confirmar ejecución</mat-card-title>
           <mat-card-subtitle>{{ transaccionSeleccionada.autorizacion_concepto }} — Monto autorizado: ${{
-          formatCurrency(transaccionSeleccionada.autorizacion_monto) }}</mat-card-subtitle>
+            formatCurrency(transaccionSeleccionada.autorizacion_monto) }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <form [formGroup]="executeForm">
             <div class="form-grid">
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Valor a Ejecutar</mat-label>
+                <mat-label>Valor a ejecutar</mat-label>
                 <span matTextPrefix>$&nbsp;</span>
-                <input matInput formControlName="valor" (input)="formatCurrencyInput($event)" placeholder="Ej: 50.000" />
+                <input matInput formControlName="valor" inputmode="numeric" (input)="formatCurrencyInput($event)"
+                  placeholder="Ej: 50.000" />
                 @if (executeForm.get('valor')?.hasError('required')) {
-                  <mat-error>El valor es requerido</mat-error>
+                  <mat-error>El valor es obligatorio</mat-error>
                 }
               </mat-form-field>
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Cuotas</mat-label>
                 <mat-icon matPrefix>calendar_month</mat-icon>
                 <input matInput formControlName="cuotas" type="number" min="1" max="4" />
+                @if (executeForm.get('cuotas')?.hasError('required')) {
+                  <mat-error>Las cuotas son obligatorias</mat-error>
+                }
                 @if (executeForm.get('cuotas')?.hasError('max')) {
                   <mat-error>Máximo 4 cuotas</mat-error>
                 }
@@ -186,14 +185,15 @@
             </div>
           </form>
         </mat-card-content>
-        <mat-card-actions align="end" style="padding: 16px;">
-          <button mat-button (click)="transaccionSeleccionada = null" style="margin-right: 8px;">CANCELAR</button>
-          <button mat-flat-button class="btn-large" (click)="ejecutarPrestamo()" [disabled]="executeForm.invalid"
-            style="background: #7c3aed; color: white;">
-            <mat-icon>check_circle</mat-icon> EJECUTAR PRÉSTAMO
+        <mat-card-actions class="card-actions-row">
+          <button mat-button type="button" class="btn-neutral" (click)="limpiarSeleccion()">Cancelar</button>
+          <button mat-flat-button type="button" class="btn-managerial" (click)="ejecutarPrestamo()"
+            [disabled]="executeForm.invalid">
+            <mat-icon>check_circle</mat-icon> Ejecutar préstamo
           </button>
         </mat-card-actions>
       </mat-card>
     }
   }
+  </div>
 </div>

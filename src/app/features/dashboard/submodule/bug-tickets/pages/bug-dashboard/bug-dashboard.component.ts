@@ -65,7 +65,11 @@ export class BugDashboardComponent implements OnInit {
   calcularMetricas(): void {
     if (!this.stats) return;
 
-    const { total, resueltos, cerrados, abiertos, en_progreso } = this.stats;
+    const total      = this.stats.total      || 0;
+    const resueltos  = this.stats.resueltos  || 0;
+    const cerrados   = this.stats.cerrados   || 0;
+    const abiertos   = this.stats.abiertos   || 0;
+    const en_progreso = this.stats.en_progreso || 0;
     this.tasaResolucion = total > 0 ? Math.round(((resueltos + cerrados) / total) * 100) : 0;
 
     // Segmentos para mini donut
@@ -77,10 +81,10 @@ export class BugDashboardComponent implements OnInit {
     ].filter(s => s.valor > 0);
 
     // Max para barras proporcionales
-    const catValues = Object.values(this.stats.por_categoria);
+    const catValues = this.stats.por_categoria ? Object.values(this.stats.por_categoria) : [];
     this.maxCategoria = catValues.length > 0 ? Math.max(...catValues) : 1;
 
-    const sedeValues = Object.values(this.stats.por_sede);
+    const sedeValues = this.stats.por_sede ? Object.values(this.stats.por_sede) : [];
     this.maxSede = sedeValues.length > 0 ? Math.max(...sedeValues) : 1;
   }
 
@@ -136,15 +140,15 @@ export class BugDashboardComponent implements OnInit {
   }
 
   getCategoriaKeys(): string[] {
-    return this.stats ? Object.keys(this.stats.por_categoria) : [];
+    return this.stats?.por_categoria ? Object.keys(this.stats.por_categoria) : [];
   }
 
   getPrioridadKeys(): string[] {
-    return this.stats ? Object.keys(this.stats.por_prioridad) : [];
+    return this.stats?.por_prioridad ? Object.keys(this.stats.por_prioridad) : [];
   }
 
   getSedeKeys(): string[] {
-    return this.stats ? Object.keys(this.stats.por_sede) : [];
+    return this.stats?.por_sede ? Object.keys(this.stats.por_sede) : [];
   }
 
   getConicGradient(): string {

@@ -57,6 +57,7 @@ export interface NotificationResponse {
   title: string;
   message: string;
   type: string;
+  link: string | null;
   read: boolean;
   created_at: string;
 }

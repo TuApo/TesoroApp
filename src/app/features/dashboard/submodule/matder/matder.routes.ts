@@ -43,8 +43,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/groups-page/groups-page.component').then(m => m.GroupsPageComponent),
   },
   {
+    // La bandeja dejó de ser de Matder: ahora es /dashboard/novedades y recibe
+    // avisos de cualquier módulo. Se conserva la ruta como redirección porque
+    // hay notificaciones ya enviadas y menús que apuntan aquí.
     path: 'notifications',
-    loadComponent: () => import('./pages/notifications-page/notifications-page.component').then(m => m.NotificationsPageComponent),
+    redirectTo: '/dashboard/novedades',
+    pathMatch: 'full',
   },
   {
     path: 'import',

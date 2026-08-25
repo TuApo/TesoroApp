@@ -3,21 +3,28 @@ import { SharedModule } from '../../../../shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import Swal from 'sweetalert2';
 import { UtilityServiceService } from '../../../../shared/services/utilityService/utility-service.service';
 import { ConsoleLoggerService } from '../../../../shared/services/console-logger/console-logger.service';
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
-import { firstValueFrom, Subscription } from 'rxjs';
-import { getLocalStorageItem, setLocalStorageItem } from '../../../../core/utils/safe-storage';
-
-const SEDES_CACHE_KEY = 'sidebar.sedes.cache.v1';
+import { AppInfoService, PlatformInfo } from '../../../../core/services/app-info.service';
+import { NotificationCenterService, NotificationItem } from '../../../../core/services/notification-center.service';
+import { NotificationTargetService } from '../../../../core/services/notification-target.service';
+import { Subscription, timer, of } from 'rxjs';
+import { switchMap, catchError } from 'rxjs/operators';
+import { BugReportService } from '../../../../shared/services/bug-report/bug-report.service';
+import { ProfilePhotoService } from '../../../../shared/services/profile-photo/profile-photo.service';
+import { getLocalStorageItem } from '../../../../core/utils/safe-storage';
+import { SmartMenuComponent } from '../smart-menu/smart-menu.component';
+import { LoadingOrbComponent } from '../../../../core/components/loading-orb/loading-orb.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-sidebar',
   imports: [
-    SharedModule
+    SharedModule,
+    SmartMenuComponent,
+    LoadingOrbComponent
   ],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.css'
@@ -28,15 +35,37 @@ export class SidebarComponent implements OnDestroy {
   documento: string = '';
   appVersion: string = '';
 
+  /** Plataforma de ejecución (Web / Android / Escritorio) para el chip de versión. */
+  platform: PlatformInfo = { key: 'web', label: 'Web', icon: 'public' };
+
   // Nombre visible de la sede actual del usuario
   sede: string = '';
-  // Listado de sedes para el selector
-  sedes: any[] = [];
+
+  /** Foto de perfil (data-URL) para el avatar del menú, o null si no hay. */
+  fotoPerfil: string | null = null;
+
+  /**
+   * Si se muestra el atajo "Identificar personal" en el menú de perfil.
+   *
+   * Manda el árbol de permisos (db_admin), que es el mecanismo con el que esta plataforma
+   * reparte accesos y el que permite dárselo a administrativos, portería o cualquier otra
+   * área sin tocar código. ADMIN/GERENCIA lo ven igual aunque el módulo aún no esté sembrado
+   * en la BD: si no, quien tiene que registrarlo no podría ni entrar a probarlo.
+   */
+  puedeIdentificar = false;
+
+  /** Roles que ven el panel de identificación sin depender del árbol. */
+  private readonly ROLES_IDENTIFICACION = new Set(['ADMIN', 'GERENCIA']);
 
   /** Estado de red + cola offline (movidos desde el navbar). */
   isOnline = true;
   pendingCount = 0;
   syncProgress: { current: number; total: number; phase: string } | null = null;
+
+  /** Centro de notificaciones (campana del top bar). */
+  notifications: NotificationItem[] = [];
+  unreadCount = 0;
+  loadingNotifs = false;
 
   private netSubs: Subscription[] = [];
 
@@ -48,15 +77,23 @@ export class SidebarComponent implements OnDestroy {
     private consoleLogger: ConsoleLoggerService,
     private networkStatus: NetworkStatusService,
     private offlineSync: OfflineSyncService,
+    private appInfo: AppInfoService,
+    private notifCenter: NotificationCenterService,
+    private notifTarget: NotificationTargetService,
     private cdr: ChangeDetectorRef,
+    private bugReportService: BugReportService,
+    private profilePhotos: ProfilePhotoService,
   ) {
     if (isPlatformBrowser(this.platformId)) {
       this.consoleLogger.init();
 
-      // La versión depende solo del IPC con Electron, no del usuario logueado.
-      // Se dispara aquí para que aparezca lo antes posible, sin esperar a
-      // ngOnInit / cargarSedes.
-      this.getAppVersion();
+      // Versión + plataforma. Antes la versión sólo resolvía en Electron y
+      // quedaba vacía en Web/Android; AppInfoService la resuelve en los tres.
+      this.platform = this.appInfo.getPlatform();
+      this.appInfo.getVersion().then(v => {
+        this.appVersion = v;
+        this.cdr.markForCheck();
+      });
 
       // Suscripciones al estado de red — alimentan el chip del header.
       this.netSubs.push(
@@ -72,8 +109,78 @@ export class SidebarComponent implements OnDestroy {
           this.syncProgress = progress;
           this.cdr.markForCheck();
         }),
+        // Campana: polling del contador de no-leídas cada 45s. Tolerante a fallos
+        // (un error de red conserva el último valor y no detiene el timer).
+        timer(0, 45000).pipe(
+          switchMap(() => this.notifCenter.unreadCount().pipe(
+            catchError(() => of({ count: this.unreadCount })))),
+        ).subscribe(r => { this.unreadCount = r?.count ?? 0; this.cdr.markForCheck(); }),
       );
     }
+  }
+
+  // ===== Notificaciones (campana) =====
+  /** Carga las notificaciones recientes al abrir el desplegable. */
+  loadNotifs(): void {
+    this.loadingNotifs = true;
+    this.cdr.markForCheck();
+    this.notifCenter.list().pipe(catchError(() => of([] as NotificationItem[]))).subscribe(list => {
+      this.notifications = (list || []).slice(0, 12);
+      this.loadingNotifs = false;
+      this.cdr.markForCheck();
+    });
+  }
+
+  /**
+   * Clic en una notificación: la marca leída y abre su destino.
+   *
+   * El destino ya no se construye aquí. Antes esto hacía
+   * `navigate('/dashboard/matder/' + n.link)`, que ataba la campana a Matder:
+   * una notificación de nómina o jurídico habría navegado a una ruta inexistente.
+   * Ahora el backend guarda un destino tipado y lo resuelve NotificationTargetService.
+   */
+  onNotifClick(n: NotificationItem): void {
+    if (!n.leida) {
+      this.notifCenter.markRead(n.id).subscribe({ next: () => {}, error: () => {} });
+      n.leida = true;
+      this.unreadCount = Math.max(0, this.unreadCount - 1);
+    }
+    this.notifTarget.abrir(n.destino_tipo, n.destino_valor);
+    this.cdr.markForCheck();
+  }
+
+  markAllNotifs(ev: Event): void {
+    ev.stopPropagation();
+    this.notifCenter.markAllRead().subscribe({ next: () => {}, error: () => {} });
+    this.notifications = this.notifications.map(n => ({ ...n, leida: true }));
+    this.unreadCount = 0;
+    this.cdr.markForCheck();
+  }
+
+  goToNotifications(): void { this.router.navigate(['/dashboard/novedades']); }
+
+  /**
+   * Icono y color ya NO se calculan aquí. Venían de dos mapas hardcodeados que
+   * duplicaban (mal) el catálogo del backend: agregar un tipo obligaba a tocar
+   * este archivo, la página de notificaciones y el Java del productor. Ahora
+   * cada mensaje trae los suyos desde `notif_tipo` y el fallback es del backend.
+   */
+
+  /** Realce de las urgentes: la campana debe distinguirlas de un vistazo. */
+  notifDestacada(n: NotificationItem): boolean {
+    return n.urgencia === 'URGENTE' || n.urgencia === 'CRITICA';
+  }
+
+  notifTimeAgo(iso: string): string {
+    if (!iso) return '';
+    const then = new Date(iso).getTime();
+    if (isNaN(then)) return '';
+    const s = Math.floor((Date.now() - then) / 1000);
+    if (s < 60) return 'hace un momento';
+    const m = Math.floor(s / 60); if (m < 60) return `hace ${m} min`;
+    const h = Math.floor(m / 60); if (h < 24) return `hace ${h} h`;
+    const d = Math.floor(h / 24); if (d < 7) return `hace ${d} d`;
+    return new Date(iso).toLocaleDateString();
   }
 
   ngOnDestroy(): void {
@@ -109,7 +216,13 @@ export class SidebarComponent implements OnDestroy {
     return this.isOnline ? 'cloud_done' : 'cloud_off';
   }
 
-  async ngOnInit(): Promise<void> {
+  /** Texto del chip de versión para tooltip / accesibilidad. */
+  get versionTitle(): string {
+    const v = this.appVersion ? `Versión ${this.appVersion}` : 'Versión no disponible';
+    return `${v} · ${this.platform.label}`;
+  }
+
+  ngOnInit(): void {
     const user: any = this.adminService.getUser?.();
     if (!user) return;
 
@@ -118,149 +231,110 @@ export class SidebarComponent implements OnDestroy {
     this.documento = user?.numero_de_documento ?? '';
     this.username = [user?.datos_basicos?.nombres, user?.datos_basicos?.apellidos].filter(Boolean).join(' ');
 
-    this.hidratarSedesDesdeCache();
-    await this.cargarSedes();
-  }
+    this.puedeIdentificar = this.resolverAccesoIdentificacion(user);
 
-  /**
-   * Carga inmediata desde localStorage para que el submenú "Cambiar Sede"
-   * tenga contenido aunque el backend esté caído o estemos offline.
-   */
-  private hidratarSedesDesdeCache(): void {
-    try {
-      const raw = getLocalStorageItem(SEDES_CACHE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length) {
-        this.sedes = parsed;
+    // Avatar del menú de perfil: re-lee para el usuario vigente y se mantiene
+    // sincronizado con la página de Cuenta.
+    this.profilePhotos.reload();
+    this.netSubs.push(
+      this.profilePhotos.photo$.subscribe(p => {
+        this.fotoPerfil = p;
         this.cdr.markForCheck();
-      }
-    } catch {
-      // cache corrupta: la ignoramos y dejamos que cargarSedes() la reescriba
-    }
+      }),
+    );
   }
 
-  getAppVersion(): void {
-    if (!isPlatformBrowser(this.platformId)) return;
-    const w = window as any;
-    const getVersion = w.electron?.version?.get;
-    if (typeof getVersion !== 'function') return;
-    // OnPush: la promesa resuelve fuera del ciclo de detección, así que
-    // hay que markForCheck explícitamente o la vista se queda con appVersion=''.
-    Promise.resolve(getVersion()).then((response: any) => {
-      this.appVersion = response ?? '';
-      this.cdr.markForCheck();
-    });
-  }
-
-  async cargarSedes(): Promise<void> {
-    // Sin red no tiene sentido pegar al backend: el chip ya comunica el estado
-    // y la cache local ya hidrató this.sedes en ngOnInit. Salir silenciosamente
-    // evita un Swal bloqueante cada vez que se entra al dashboard offline.
-    if (!this.isOnline) return;
-
-    try {
-      const data: any = await firstValueFrom(this.adminService.traerSucursales());
-      // Soporta distintos formatos de respuesta
-      const lista = Array.isArray(data?.results)
-        ? data.results
-        : Array.isArray(data)
-          ? data
-          : Array.isArray(data?.sucursal)
-            ? data.sucursal
-            : [];
-
-      this.sedes = [...lista].sort((a: any, b: any) => (a?.nombre ?? '').localeCompare(b?.nombre ?? ''));
-      this.cdr.markForCheck();
-
-      try {
-        setLocalStorageItem(SEDES_CACHE_KEY, JSON.stringify(this.sedes));
-      } catch {}
-    } catch {
-      // Si la cache ya nos dio una lista, no molestamos al usuario con un Swal.
-      // Solo avisamos si quedamos completamente sin datos.
-      if (!this.sedes.length) {
-        Swal.fire('Error', 'No fue posible cargar las sedes.', 'error');
-      }
-    }
+  /** Iniciales para el avatar cuando no hay foto. */
+  get iniciales(): string {
+    const parts = this.username.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '·';
+    const first = parts[0]?.[0] ?? '';
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return (first + last).toUpperCase();
   }
 
   /**
-   * Cambia la sede del usuario actual.
-   * Espera un UUID de sede (string). Si tu template envía el objeto, pasa su .id.
+   * ¿Este usuario puede identificar a otros? Se busca la ruta del panel en el árbol de
+   * permisos que el backend ya entrega en el login; si no está, sólo pasan ADMIN/GERENCIA.
    */
-  onSedeSeleccionada(sedeId: string): void {
-    // Cambiar de sede toca el backend (no se puede encolar offline porque la
-    // vista se recarga al confirmar). Bloqueamos de forma explícita en vez de
-    // dejar que el HTTP falle con un Swal genérico.
-    if (!this.isOnline) {
-      Swal.fire(
-        'Sin conexión',
-        'Necesitas estar en línea para cambiar de sede.',
-        'info',
-      );
-      return;
-    }
+  private resolverAccesoIdentificacion(user: any): boolean {
+    const rol = String(user?.rol?.nombre ?? '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
+    if (this.ROLES_IDENTIFICACION.has(rol)) return true;
 
-    const user: any = this.adminService.getUser?.();
-    if (!user?.id) {
-      Swal.fire('Error', 'No se pudo identificar el usuario.', 'error');
-      return;
-    }
-
-    // Llamamos el servicio que cambia la sede por cédula (envía UUID)
-    this.adminService.cambiarSedePorUsuarioId(user.id, sedeId).subscribe({
-      next: (res: any) => {
-        // Respuesta esperada: { ok: boolean, changed: boolean, sede_id, sede }
-        if (!res?.ok) {
-          Swal.fire('Error', 'Hubo un problema al asignar la sede.', 'error');
-          return;
-        }
-
-        // Buscar el nombre desde el catálogo local si viene solo el id
-        const sedeEncontrada = this.sedes.find(s => String(s.id) === String(res.sede_id || sedeId));
-        const nombreSede = res?.sede ?? sedeEncontrada?.nombre ?? this.sede;
-
-        // Actualizar user en memoria/localStorage
-        user.sede = {
-          id: res?.sede_id ?? sedeEncontrada?.id ?? sedeId,
-          nombre: nombreSede,
-          activa: sedeEncontrada?.activa ?? true
-        };
-        this.sede = nombreSede;
-
-        // Persistir
-        try {
-          setLocalStorageItem('user', JSON.stringify(user));
-        } catch {}
-
-        Swal.fire('Editado', 'La sede ha sido asignada.', 'success').then(() => {
-          const currentUrl = this.router.url;
-          this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-            this.router.navigateByUrl(currentUrl);
-          });
-        });
-      },
-      error: () => {
-        Swal.fire('Error', 'Hubo un problema al asignar la sede.', 'error');
+    try {
+      let arbol: unknown = user?.permisos_tree ?? null;
+      if (!Array.isArray(arbol)) {
+        const crudo = getLocalStorageItem('permisos_tree');
+        arbol = crudo ? JSON.parse(crudo) : null;
       }
+      return Array.isArray(arbol) && this.arbolTieneCarnet(arbol as any[]);
+    } catch {
+      return false;
+    }
+  }
+
+  /** Recorre el árbol buscando un nodo cuya ruta apunte al panel de identificación. */
+  private arbolTieneCarnet(nodos: any[]): boolean {
+    for (const n of nodos) {
+      const ruta = String(n?.ruta ?? '').toLowerCase();
+      if (ruta.includes('carnet/identificar') || ruta.includes('carnet/verificar')) return true;
+      if (Array.isArray(n?.hijos) && this.arbolTieneCarnet(n.hijos)) return true;
+    }
+    return false;
+  }
+
+  /** Acciones del menú de perfil. */
+  irAConfiguracion(): void {
+    this.router.navigate(['/dashboard/configuracion/cuenta']);
+  }
+
+  /** Abre el carné en un diálogo — dos toques desde cualquier pantalla. */
+  abrirCarnet(): void {
+    import('../../submodule/carnet/components/carnet-dialog/carnet-dialog.component').then(m => {
+      this.dialog.open(m.CarnetDialogComponent, {
+        width: '440px',
+        maxWidth: '95vw',
+        maxHeight: '95vh',
+        autoFocus: false,
+        panelClass: 'carnet-dialog-panel',
+      });
     });
   }
 
-  prueba(): void {
+  irAIdentificar(): void {
+    this.router.navigate(['/dashboard/carnet/identificar']);
+  }
+
+  irACambiarContrasena(): void {
     this.router.navigate(['/dashboard/users/change-password']);
   }
 
   abrirReporteBug(): void {
-    import('../../../../shared/components/bug-report-dialog/bug-report-dialog.component').then(
-      (m) => {
-        this.dialog.open(m.BugReportDialogComponent, {
-          width: '600px',
-          maxHeight: '90vh',
-          disableClose: true,
-        });
-      }
-    );
+    // Capturar pantalla ANTES de abrir el dialog para no capturar el overlay
+    this.bugReportService.captureScreenshot().then(screenshot => {
+      import('../../../../shared/components/bug-report-dialog/bug-report-dialog.component').then(
+        (m) => {
+          this.dialog.open(m.BugReportDialogComponent, {
+            width: '600px',
+            maxHeight: '90vh',
+            disableClose: true,
+            data: { screenshot },
+          });
+        }
+      );
+    }).catch(() => {
+      import('../../../../shared/components/bug-report-dialog/bug-report-dialog.component').then(
+        (m) => {
+          this.dialog.open(m.BugReportDialogComponent, {
+            width: '600px',
+            maxHeight: '90vh',
+            disableClose: true,
+            data: { screenshot: null },
+          });
+        }
+      );
+    });
   }
 
   /**

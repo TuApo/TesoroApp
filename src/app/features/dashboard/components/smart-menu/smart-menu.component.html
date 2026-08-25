@@ -1,0 +1,113 @@
+<!-- Menú inteligente: escribe el nombre de un módulo, de un formulario o el dato de un
+     registro (una cédula, un nombre) para entrar directo, o una pregunta para que la
+     responda el asistente de IA. -->
+<div class="smart-menu" [class.is-open]="abierto()" [class.is-compact]="compacto()">
+
+  <!-- En móvil el header no tiene sitio para la caja: solo la lupa, y al tocarla
+       la búsqueda se despliega sobre el header. -->
+  @if (compacto() && !abierto()) {
+    <button type="button" class="sm-trigger" (click)="abrir()"
+      matTooltip="Buscar módulo, formulario o registro" aria-label="Buscar módulo, formulario o registro">
+      <mat-icon>search</mat-icon>
+    </button>
+  } @else {
+    <div class="sm-field" role="combobox" [attr.aria-expanded]="abierto()"
+      aria-haspopup="listbox" aria-owns="smart-menu-lista">
+      <mat-icon class="sm-field__icon" [class.is-ia]="modoPregunta()">
+        {{ modoPregunta() ? 'auto_awesome' : 'search' }}
+      </mat-icon>
+
+      <input #campo type="text" class="sm-input" autocomplete="off" spellcheck="false"
+        [ngModel]="consulta()" (ngModelChange)="onConsulta($event)"
+        (focus)="abrir()" (keydown)="onTeclado($event)"
+        placeholder="Buscar módulo, formulario, registro o preguntar a la IA…"
+        aria-label="Buscar módulo, formulario, registro o preguntar a la IA"
+        [attr.aria-activedescendant]="abierto() ? 'smart-item-' + activo() : null" />
+
+      @if (consulta()) {
+        <button type="button" class="sm-chip-btn" (click)="limpiar()" aria-label="Limpiar búsqueda">
+          <mat-icon>close</mat-icon>
+        </button>
+      } @else if (!compacto()) {
+        <span class="sm-kbd" aria-hidden="true">{{ atajo() }}</span>
+      }
+
+      @if (compacto()) {
+        <button type="button" class="sm-chip-btn" (click)="cerrar()" aria-label="Cerrar búsqueda">
+          <mat-icon>close</mat-icon>
+        </button>
+      }
+    </div>
+  }
+
+  @if (abierto()) {
+    <div class="sm-panel" id="smart-menu-lista" role="listbox">
+      @for (item of items(); track $index) {
+        <!-- La cabecera la pinta la primera fila de cada bloque (módulos, formularios,
+             registros, asistente): así el orden del bloque manda sobre el maquetado. -->
+        @if (item.primeroDelGrupo) {
+          <div class="sm-group">{{ item.grupo }}</div>
+        }
+
+        <button type="button" class="sm-item"
+          [class.is-ia]="item.tipo === 'ia'"
+          [class.is-registro]="item.tipo === 'registro'"
+          [class.is-formulario]="item.tipo === 'formulario'"
+          [class.is-active]="esActivo($index)" [id]="'smart-item-' + $index"
+          role="option" [attr.aria-selected]="esActivo($index)"
+          (mouseenter)="marcarActivo($index)" (click)="ejecutar(item)">
+          <span class="sm-item__icon">
+            @if (item.simbolo) {
+              <mat-icon fontSet="material-symbols-outlined">{{ item.icono }}</mat-icon>
+            } @else {
+              <mat-icon>{{ item.icono }}</mat-icon>
+            }
+          </span>
+          <span class="sm-item__texts">
+            <span class="sm-item__head">
+              <span class="sm-item__title">{{ item.titulo }}</span>
+              @if (item.chip) {
+                <span class="sm-item__chip">{{ item.chip }}</span>
+              }
+            </span>
+            <span class="sm-item__detail">{{ item.detalle }}</span>
+
+            <!-- Información rápida del registro: lo que hay dentro, sin abrir la pantalla. -->
+            @if (item.datos?.length) {
+              <span class="sm-item__datos">
+                @for (dato of item.datos; track dato.label) {
+                  <span class="sm-dato" [class.is-match]="dato.matched">
+                    <span class="sm-dato__label">{{ dato.label }}</span>
+                    <span class="sm-dato__value">{{ dato.value }}</span>
+                  </span>
+                }
+              </span>
+            }
+          </span>
+          <mat-icon class="sm-item__go">
+            {{ item.tipo === 'ia' ? 'send' : 'arrow_forward' }}
+          </mat-icon>
+        </button>
+      }
+
+      @if (buscando()) {
+        <div class="sm-empty sm-empty--cargando" role="status" aria-live="polite">
+          <mat-icon>hourglass_top</mat-icon>
+          <span>Buscando formularios y registros…</span>
+        </div>
+      } @else if (sinResultados() && consulta().trim()) {
+        <div class="sm-empty">
+          <mat-icon>search_off</mat-icon>
+          <span>Nada coincide con “{{ consulta().trim() }}”: ni módulos, ni formularios, ni registros.</span>
+        </div>
+      }
+
+      @if (!consulta().trim()) {
+        <div class="sm-hint">
+          <mat-icon>auto_awesome</mat-icon>
+          <span>Escribe un módulo, el nombre de un formulario o el dato de un registro (una cédula, un nombre). ¿Es una duda? También te responde la IA.</span>
+        </div>
+      }
+    </div>
+  }
+</div>

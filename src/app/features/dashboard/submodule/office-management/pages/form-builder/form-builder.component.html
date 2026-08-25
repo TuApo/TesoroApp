@@ -7,6 +7,13 @@
       <span class="fb__count">Campos: <b>{{ fields().length }}</b></span>
     </div>
     <p class="fb__sub">Crea tu formulario en pasos: datos y visibilidad, campos y publicación.</p>
+    <div class="fb__heroacciones">
+      <button type="button" mat-stroked-button (click)="importarAbierto.set(true)"
+              matTooltip="Descargar la plantilla parametrizada o cargar las preguntas desde un Excel">
+        <mat-icon>table_view</mat-icon>
+        Desde Excel
+      </button>
+    </div>
   </header>
 
   <mat-stepper #stepper [linear]="false" labelPosition="bottom" class="fb__stepper">
@@ -203,3 +210,16 @@
     </mat-step>
   </mat-stepper>
 </div>
+
+<!-- Carga por Excel: baja la plantilla ya parametrizada y sube el archivo lleno; lo leído
+     se vuelca aquí mismo, sin guardar nada. -->
+@if (importarAbierto()) {
+  <app-office-excel-import-dialog
+      [tituloInicial]="meta.controls.title.value || ''"
+      [descripcionInicial]="meta.controls.description.value || ''"
+      [moduloInicial]="meta.controls.parent_module.value || ''"
+      (abrir)="aplicarImportado($event)"
+      (creados)="goToDashboard()"
+      (cerrar)="importarAbierto.set(false)">
+  </app-office-excel-import-dialog>
+}

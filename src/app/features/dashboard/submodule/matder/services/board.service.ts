@@ -138,4 +138,15 @@ export class BoardService {
     // así que debemos pasar el uuid del upload, no el id numérico.
     return firstValueFrom(this.http.delete<void>(`${this.base}/uploads/${uuid}/`).pipe(catchError(this.err)));
   }
+
+  /**
+   * Descarga el binario de un adjunto vía HttpClient (responseType blob) para que el
+   * AuthInterceptor agregue el header Authorization. Un <a href> directo no llevaría el
+   * token y el gateway lo rechazaría. El backend responde con Content-Disposition: attachment.
+   */
+  downloadUpload(uuid: string): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${this.base}/uploads/${uuid}/file/`, { responseType: 'blob' }).pipe(catchError(this.err))
+    );
+  }
 }

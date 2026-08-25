@@ -1,27 +1,71 @@
-<div class="tabla">
-  <div class="cards">
-    <app-info-card title="Cupo de traslados" imageUrl="icons/cards/comprobado.png"
-    [value]="numTraslados"></app-info-card>
-    <app-info-card title="Auto asignar traslados disponibles" imageUrl="icons/cards/delegar.png" style="cursor: pointer"
-    [value]="numTrasladosResponsableNull" (cardClicked)="autoAsignar()"></app-info-card>
-    <app-info-card title="Recargar traslados disponibles" imageUrl="icons/cards/loading-arrow.png"
-    style="cursor: pointer" (cardClicked)="cuantosTraslados()"></app-info-card>
-  </div>
+<section class="tr-page">
+  <mat-card class="premium-card">
+    <!-- ===================== HEADER ===================== -->
+    <mat-card-header class="card-header-premium">
+      <div class="header-content">
+        <div class="header-icon-container">
+          <mat-icon class="header-icon">swap_horiz</mat-icon>
+        </div>
+        <div class="header-text">
+          <mat-card-title class="titulo">Procesar traslados</mat-card-title>
+          <mat-card-subtitle class="subtitulo">
+            Gestiona los traslados asignados a tu usuario y solicita uno nuevo cuando tengas cupo.
+          </mat-card-subtitle>
+        </div>
+      </div>
 
+      <span class="grow"></span>
 
-  <mat-card>
-    <mat-card-content>
-      <div class="div">
-        <mat-form-field class="filtro">
-          <mat-label>Filter</mat-label>
-          <input matInput (keyup)="applyFilter($event)" placeholder="Filter" #input />
-        </mat-form-field>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="tr-refresh"
+          (click)="cuantosTraslados()"
+          matTooltip="Actualizar el número de traslados sin responsable"
+          matTooltipPosition="below">
+          <mat-icon>refresh</mat-icon>
+          <span class="tr-refresh-label">Actualizar disponibles</span>
+        </button>
 
-        <div class="filter-container">
-          <mat-form-field appearance="fill">
+        <button type="button" class="btn-managerial" (click)="autoAsignar()">
+          <mat-icon>assignment_ind</mat-icon>
+          <span>Autoasignar traslado</span>
+        </button>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content class="card-body">
+      <!-- ===================== MÉTRICAS ===================== -->
+      <div class="tr-cards">
+        <app-info-card
+          title="Cupo de traslados"
+          matIcon="inventory_2"
+          [value]="numTraslados"></app-info-card>
+        <app-info-card
+          title="Traslados sin responsable"
+          matIcon="how_to_reg"
+          [value]="numTrasladosResponsableNull"></app-info-card>
+      </div>
+
+      <!-- ===================== TABLA ===================== -->
+      <section class="tr-results-card">
+        <div class="tr-filters">
+          <mat-form-field appearance="outline" class="tr-filter-field">
+            <mat-label>Buscar</mat-label>
+            <mat-icon matPrefix class="tr-filter-prefix">search</mat-icon>
+            <input
+              matInput
+              [value]="textoBusqueda"
+              (keyup)="applyFilter($event)"
+              placeholder="Cédula, código, EPS…"
+              autocomplete="off" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="tr-filter-field">
             <mat-label>Filtrar por estado</mat-label>
-            <mat-select (selectionChange)="applyFilterByEstado($event.value)">
-              @for (estado of estadosCount | keyvalue; track estado) {
+            <mat-select [value]="estadoSeleccionado" (selectionChange)="applyFilterByEstado($event.value)">
+              <mat-option value="">Todos los estados</mat-option>
+              @for (estado of estadosCount | keyvalue: mantenerOrden; track estado.key) {
                 <mat-option [value]="estado.key">
                   {{ estado.key }} ({{ estado.value }})
                 </mat-option>
@@ -29,115 +73,174 @@
             </mat-select>
           </mat-form-field>
         </div>
-      </div>
-      <div class="table-container">
-        <table mat-table [dataSource]="dataSource" class="mat-elevation-z8" matSort>
-          <!-- codigo -->
-          <ng-container matColumnDef="codigo_traslado">
-            <th mat-header-cell *matHeaderCellDef>Código Traslado</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.codigo_traslado }}
-            </td>
-          </ng-container>
 
-          <ng-container matColumnDef="estado_del_traslado">
-            <th mat-header-cell *matHeaderCellDef>Estado del Traslado</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.estado_del_traslado }}
-            </td>
-          </ng-container>
+        <div class="tr-table-wrapper">
+          <table mat-table [dataSource]="dataSource" class="tr-table" matSort>
+            <!-- Código -->
+            <ng-container matColumnDef="codigo_traslado">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header class="tr-th">Código</th>
+              <td mat-cell *matCellDef="let element" class="tr-td">
+                <span class="tr-code">{{ element.codigo_traslado }}</span>
+              </td>
+            </ng-container>
 
-          <!-- observacion_estado -->
-          <ng-container matColumnDef="observacion_estado">
-            <th mat-header-cell *matHeaderCellDef>Observación</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.observacion_estado }}
-            </td>
-          </ng-container>
+            <!-- Estado -->
+            <ng-container matColumnDef="estado_del_traslado">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header class="tr-th">Estado</th>
+              <td mat-cell *matCellDef="let element" class="tr-td">
+                <span
+                  class="tr-badge"
+                  [class.tr-badge--ok]="estadoEsOk(element.estado_del_traslado)"
+                  [class.tr-badge--warn]="estadoEsPendiente(element.estado_del_traslado)"
+                  [class.tr-badge--err]="estadoEsRechazado(element.estado_del_traslado)">
+                  {{ element.estado_del_traslado || '—' }}
+                </span>
+              </td>
+            </ng-container>
 
-          <!-- cedula -->
-          <ng-container matColumnDef="numero_cedula">
-            <th mat-header-cell *matHeaderCellDef>Número de Cédula</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.numero_cedula }}
-            </td>
-          </ng-container>
+            <!-- Observación -->
+            <ng-container matColumnDef="observacion_estado">
+              <th mat-header-cell *matHeaderCellDef class="tr-th">Observación</th>
+              <td mat-cell *matCellDef="let element" class="tr-td tr-td--obs">
+                @if (element.observacion_estado) {
+                  <span [matTooltip]="element.observacion_estado" matTooltipPosition="above">
+                    {{ element.observacion_estado }}
+                  </span>
+                } @else {
+                  <span class="tr-muted">—</span>
+                }
+              </td>
+            </ng-container>
 
-          <!-- solicitud -->
-          <ng-container matColumnDef="solicitud_traslado">
-            <th mat-header-cell *matHeaderCellDef> Solicitud de Traslado </th>
-            <td mat-cell *matCellDef="let element">
-              @if (element.solicitud_disponible === 1) {
-                <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)"
-                  style="cursor: pointer; text-decoration: underline;">
-                  Ver Solicitud
-                </a>
-              } @else {
-                <span>No disponible</span>
-              }
-            </td>
-          </ng-container>
+            <!-- Cédula -->
+            <ng-container matColumnDef="numero_cedula">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header class="tr-th">Cédula</th>
+              <td mat-cell *matCellDef="let element" class="tr-td">
+                <span class="tr-cedula">
+                  <mat-icon class="tr-cedula-icon" aria-hidden="true">badge</mat-icon>
+                  {{ element.numero_cedula }}
+                </span>
+              </td>
+            </ng-container>
 
-          <!-- cedula scaneada -->
-          <ng-container matColumnDef="cedulas">
-            <th mat-header-cell *matHeaderCellDef> Cédulas </th>
-            <td mat-cell *matCellDef="let element">
-              @if (element.cedula_disponible === 1) {
-                <a (click)="imprimirCedula(element.numero_cedula)" style="cursor: pointer; text-decoration: underline;">
-                  Ver Cédula
-                </a>
-              } @else {
-                <span>No disponible</span>
-              }
-            </td>
-          </ng-container>
+            <!-- Solicitud -->
+            <ng-container matColumnDef="solicitud_traslado">
+              <th mat-header-cell *matHeaderCellDef class="tr-th tr-th--center">Solicitud</th>
+              <td mat-cell *matCellDef="let element" class="tr-td tr-td--center">
+                @if (element.solicitud_disponible === 1) {
+                  <button
+                    type="button"
+                    class="tr-doc-btn"
+                    (click)="imprimirSolicitudTraslado(element.codigo_traslado)"
+                    matTooltip="Abrir la solicitud de traslado"
+                    matTooltipPosition="above">
+                    <mat-icon>picture_as_pdf</mat-icon>
+                    <span>Ver</span>
+                  </button>
+                } @else {
+                  <span class="tr-doc-empty">
+                    <mat-icon class="tr-doc-empty-icon" aria-hidden="true">block</mat-icon>
+                    No disponible
+                  </span>
+                }
+              </td>
+            </ng-container>
 
-          <ng-container matColumnDef="eps_a_trasladar">
-            <th mat-header-cell *matHeaderCellDef>EPS a Trasladar</th>
-            <td mat-cell *matCellDef="let element">
-              {{ element.eps_a_trasladar }}
-            </td>
-          </ng-container>
+            <!-- Cédula escaneada -->
+            <ng-container matColumnDef="cedulas">
+              <th mat-header-cell *matHeaderCellDef class="tr-th tr-th--center">Cédula escaneada</th>
+              <td mat-cell *matCellDef="let element" class="tr-td tr-td--center">
+                @if (element.cedula_disponible === 1) {
+                  <button
+                    type="button"
+                    class="tr-doc-btn"
+                    (click)="imprimirCedula(element.numero_cedula)"
+                    matTooltip="Abrir la cédula escaneada"
+                    matTooltipPosition="above">
+                    <mat-icon>badge</mat-icon>
+                    <span>Ver</span>
+                  </button>
+                } @else {
+                  <span class="tr-doc-empty">
+                    <mat-icon class="tr-doc-empty-icon" aria-hidden="true">block</mat-icon>
+                    No disponible
+                  </span>
+                }
+              </td>
+            </ng-container>
 
-          <!-- Actions -->
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Acciones</th>
-            <td mat-cell *matCellDef="let element">
-              <!-- Botón de menú desplegable -->
-              <button mat-icon-button [matMenuTriggerFor]="menu">
-                <mat-icon>more_vert</mat-icon>
-                <!-- Icono de 3 puntos -->
-              </button>
+            <!-- EPS -->
+            <ng-container matColumnDef="eps_a_trasladar">
+              <th mat-header-cell *matHeaderCellDef mat-sort-header class="tr-th">EPS a trasladar</th>
+              <td mat-cell *matCellDef="let element" class="tr-td">
+                <span class="tr-eps">{{ element.eps_a_trasladar || '—' }}</span>
+              </td>
+            </ng-container>
 
-              <!-- Menú desplegable -->
-              <mat-menu #menu="matMenu" class="menu">
-                <button mat-menu-item (click)="cambiarEstado(element)" class="menu">
-                  <mat-icon>swap_horiz</mat-icon> Cambiar Estado
-                </button>
-                <button mat-menu-item (click)="verTrabajador(element)" class="menu">
-                  <mat-icon>person</mat-icon> Ver Trabajador
-                </button>
-                <button mat-menu-item (click)="verEstado(element)" class="menu">
-                  <mat-icon>visibility</mat-icon> Ver Estado
-                </button>
+            <!-- Acciones -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef class="tr-th tr-th--center">Acciones</th>
+              <td mat-cell *matCellDef="let element" class="tr-td tr-td--center">
+                <div class="tr-actions">
+                  <button
+                    type="button"
+                    class="tr-action-primary"
+                    (click)="cambiarEstado(element)"
+                    matTooltip="Cambiar el estado del traslado"
+                    matTooltipPosition="above">
+                    <mat-icon>swap_horiz</mat-icon>
+                    <span>Cambiar estado</span>
+                  </button>
 
-              </mat-menu>
-            </td>
-          </ng-container>
+                  <button
+                    type="button"
+                    mat-icon-button
+                    class="tr-action-more"
+                    [matMenuTriggerFor]="menu"
+                    matTooltip="Más acciones"
+                    aria-label="Más acciones">
+                    <mat-icon>more_vert</mat-icon>
+                  </button>
 
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="4">
-              No hay datos "{{ input.value }}"
-            </td>
-          </tr>
-        </table>
-      </div>
-      <mat-paginator [length]="dataSource.data.length || 0" [pageSize]="10" [pageSizeOptions]="[5, 10, 25, 50]"
-        showFirstLastButtons>
-      </mat-paginator>
+                  <mat-menu #menu="matMenu" xPosition="before">
+                    <button mat-menu-item (click)="verTrabajador(element)">
+                      <mat-icon>person</mat-icon>
+                      <span>Ver trabajador</span>
+                    </button>
+                    <button mat-menu-item (click)="verEstado(element)">
+                      <mat-icon>history</mat-icon>
+                      <span>Ver historial de estados</span>
+                    </button>
+                  </mat-menu>
+                </div>
+              </td>
+            </ng-container>
 
+            <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true" class="tr-header-row"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns" class="tr-row"></tr>
+
+            <tr class="mat-row" *matNoDataRow>
+              <td class="mat-cell tr-no-data" [attr.colspan]="displayedColumns.length">
+                <div class="tr-empty">
+                  <div class="tr-empty-icon-wrap">
+                    <mat-icon class="tr-empty-icon">inbox</mat-icon>
+                  </div>
+                  @if (dataSource.data.length > 0) {
+                    <p class="tr-empty-title">Sin coincidencias</p>
+                    <p class="tr-empty-text">Ningún traslado coincide con el filtro aplicado.</p>
+                  } @else {
+                    <p class="tr-empty-title">No tienes traslados asignados</p>
+                    <p class="tr-empty-text">Usa <strong>Autoasignar traslado</strong> para tomar uno de la cola.</p>
+                  }
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <mat-paginator [pageSize]="10" [pageSizeOptions]="[5, 10, 25, 50]" showFirstLastButtons>
+        </mat-paginator>
+      </section>
     </mat-card-content>
   </mat-card>
-</div>
+</section>

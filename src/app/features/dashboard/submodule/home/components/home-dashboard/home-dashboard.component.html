@@ -1,0 +1,147 @@
+<!-- ── Section header + sede filter ───────────────────────────────── -->
+<div class="dash-topbar">
+  <div class="dash-title-row">
+    <mat-icon class="dash-title-icon">insights</mat-icon>
+    <span class="dash-title">Panel de Control</span>
+  </div>
+
+  @if (isAdmin) {
+    <div class="sede-filter">
+      <mat-icon class="filter-icon">filter_list</mat-icon>
+      <mat-select
+        [(ngModel)]="selectedSede"
+        (ngModelChange)="onSedeChange()"
+        placeholder="Todas las sedes"
+        class="sede-select">
+        <mat-option value="">Todas las sedes</mat-option>
+        @for (s of sedes; track s.id) {
+          <mat-option [value]="s.nombre">{{ s.nombre }}</mat-option>
+        }
+      </mat-select>
+    </div>
+  } @else {
+    <div class="sede-badge">
+      <mat-icon>location_on</mat-icon>
+      <span>{{ userSede || 'Sin sede' }}</span>
+    </div>
+  }
+</div>
+
+<!-- ── Skeleton loader ────────────────────────────────────────────── -->
+@if (loading) {
+  <div class="skeleton-grid">
+    @for (i of [0,1,2,3,4,5]; track i) {
+      <div class="skeleton-kpi"></div>
+    }
+  </div>
+  <div class="skeleton-charts">
+    <div class="skeleton-chart"></div>
+    <div class="skeleton-chart"></div>
+  </div>
+} @else {
+
+  <!-- ── KPI Tiles ──────────────────────────────────────────────────── -->
+  <div class="kpi-grid">
+    @for (kpi of kpis; track kpi.label) {
+      <div class="kpi-tile" [style.--accent]="kpi.accent" [style.--color]="kpi.color">
+        <div class="kpi-icon-wrap">
+          <mat-icon>{{ kpi.icon }}</mat-icon>
+        </div>
+        <div class="kpi-body">
+          <span class="kpi-value">{{ kpi.value | number }}</span>
+          <span class="kpi-label">{{ kpi.label }}</span>
+          <span class="kpi-sub">{{ kpi.sublabel }}</span>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- ── Charts ────────────────────────────────────────────────────── -->
+  <div class="charts-grid">
+
+    <!-- Chart 1: Pipeline por etapa (horizontal bar) -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <mat-icon class="chart-icon" style="color:#3b82f6">stacked_bar_chart</mat-icon>
+        <div>
+          <div class="chart-title">Pipeline de Contratación</div>
+          <div class="chart-subtitle">Etapa actual de cada persona en proceso</div>
+        </div>
+      </div>
+      @if (pipelineOpt && $any(pipelineOpt)?.series?.length) {
+        <div echarts [options]="pipelineOpt" class="chart-canvas"></div>
+      } @else {
+        <div class="chart-empty"><mat-icon>info_outline</mat-icon><span>Sin datos</span></div>
+      }
+    </div>
+
+    <!-- Chart 2: Top oficinas (stacked bar) -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <mat-icon class="chart-icon" style="color:#8b5cf6">bar_chart</mat-icon>
+        <div>
+          <div class="chart-title">Top Oficinas en Proceso</div>
+          <div class="chart-subtitle">Candidatos por etapa y sede (top 8)</div>
+        </div>
+      </div>
+      @if (oficinasOpt && $any(oficinasOpt)?.series?.length) {
+        <div echarts [options]="oficinasOpt" class="chart-canvas"></div>
+      } @else {
+        <div class="chart-empty"><mat-icon>info_outline</mat-icon><span>Sin datos</span></div>
+      }
+    </div>
+
+    <!-- Chart 3: Afiliaciones timeline (line) -->
+    <div class="chart-card chart-wide">
+      <div class="chart-header">
+        <mat-icon class="chart-icon" style="color:#10b981">show_chart</mat-icon>
+        <div>
+          <div class="chart-title">Evolución de Afiliaciones</div>
+          <div class="chart-subtitle">Ingresos confirmados por mes (último año)</div>
+        </div>
+      </div>
+      @if (timelineOpt && $any(timelineOpt)?.series?.length) {
+        <div echarts [options]="timelineOpt" class="chart-canvas"></div>
+      } @else {
+        <div class="chart-empty"><mat-icon>info_outline</mat-icon><span>Sin datos de afiliaciones</span></div>
+      }
+    </div>
+
+    <!-- Chart 4: Afiliaciones por oficina (stacked bar) -->
+    <div class="chart-card">
+      <div class="chart-header">
+        <mat-icon class="chart-icon" style="color:#f59e0b">people_alt</mat-icon>
+        <div>
+          <div class="chart-title">Afiliaciones por Oficina</div>
+          <div class="chart-subtitle">Confirmados vs pendientes este mes</div>
+        </div>
+      </div>
+      @if (afiliOficinaOpt && $any(afiliOficinaOpt)?.series?.length) {
+        <div echarts [options]="afiliOficinaOpt" class="chart-canvas"></div>
+      } @else {
+        <div class="chart-empty"><mat-icon>info_outline</mat-icon><span>Sin datos de afiliaciones</span></div>
+      }
+    </div>
+
+  </div>
+
+  <!-- ── Quick Links ──────────────────────────────────────────────── -->
+  <div class="ql-section">
+    <div class="ql-title-row">
+      <mat-icon>bolt</mat-icon>
+      <span>Accesos Rápidos</span>
+    </div>
+    <div class="ql-grid">
+      @for (lnk of quickLinks; track lnk.route) {
+        <a [routerLink]="lnk.route" class="ql-card" [style.--lc]="lnk.color" [matTooltip]="lnk.desc">
+          <div class="ql-icon-wrap">
+            <mat-icon>{{ lnk.icon }}</mat-icon>
+          </div>
+          <div class="ql-label">{{ lnk.label }}</div>
+          <div class="ql-desc">{{ lnk.desc }}</div>
+        </a>
+      }
+    </div>
+  </div>
+
+}

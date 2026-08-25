@@ -1,5 +1,14 @@
 :host {
   display: block;
+
+  /* El submenú no tenía z-index (auto), y en CSS cualquier elemento con z-index
+     positivo se pinta POR ENCIMA de todo lo que tiene z-index auto, sin importar
+     el orden del DOM. Por eso las cabeceras `sticky` de las tablas (z-index: 3)
+     se montaban sobre el menú.
+     Escala de la app:  navbar 60  >  submenú 50  >  contenido de página. */
+  position: relative;
+  /* Escala: navbar-left 150 > header 110 > CDK-sticky 100 > contenido. */
+  z-index: 110;
 }
 
 /* === TOP HEADER CONTAINER === */
@@ -28,10 +37,19 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
 }
 
-/* === TÍTULO IZQUIERDO === */
+/* === MARCA / TÍTULO IZQUIERDO === */
 .cajontitulo {
   display: flex;
   align-items: center;
+}
+
+/* Logo de empresa: sólo se muestra en mobile (en desktop la marca ya vive en
+   el rail izquierdo del navbar). */
+.header-brand {
+  display: none;
+  height: 34px;
+  width: auto;
+  object-fit: contain;
 }
 
 .cajontitulo .titulo {
@@ -121,12 +139,59 @@
   color: #475569;
 }
 
-.version {
-  font-size: 0.70rem;
-  color: #94a3b8;
-  font-style: italic;
-  margin-top: 2px;
+/* === CHIP DE VERSIÓN + PLATAFORMA ===
+   Visible en Web, Android y Escritorio. El color indica la plataforma. */
+.version-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  user-select: none;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
 }
+
+.version-chip__icon {
+  font-size: 15px !important;
+  width: 15px !important;
+  height: 15px !important;
+  line-height: 15px !important;
+}
+
+.version-chip__text { font-weight: 800; }
+
+.version-chip__platform {
+  padding-left: 7px;
+  border-left: 1px solid rgba(29, 78, 216, 0.28);
+}
+
+.version-chip[data-key="android"] {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.version-chip[data-key="android"] .version-chip__platform { border-left-color: rgba(4, 120, 87, 0.28); }
+
+.version-chip[data-key="electron"] {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+.version-chip[data-key="electron"] .version-chip__platform { border-left-color: rgba(109, 40, 217, 0.28); }
+
+.version-chip[data-key="ios"] {
+  background: #f1f5f9;
+  color: #334155;
+  border-color: #cbd5e1;
+}
+.version-chip[data-key="ios"] .version-chip__platform { border-left-color: rgba(51, 65, 85, 0.28); }
 
 /* === CHIP ESTADO DE RED (online / offline / sync) === */
 .net-status-chip {
@@ -209,22 +274,51 @@
   to { transform: rotate(360deg); }
 }
 
-/* === BOTÓN DE CONFIGURACIÓN === */
-.botonConfig {
+/* === BOTÓN REPORTAR BUG === */
+.botonBug {
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
 }
 
-/* Separator */
-.botonConfig::before {
-  content: '';
+.botonBug button.mat-icon-button {
+  color: #ef4444;
+}
+
+.botonBug button.mat-icon-button:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* === CAMPANA DE NOTIFICACIONES === */
+.botonNotif {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.notif-bell {
+  position: relative;
+  overflow: visible;
+}
+/* Bolita roja con el contador (estilo Facebook). */
+.notif-badge {
   position: absolute;
-  left: -8px;
-  height: 32px;
-  width: 1px;
-  background-color: #e2e8f0;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+  pointer-events: none;
 }
 
 button.mat-icon-button {
@@ -241,6 +335,76 @@ button.mat-icon-button:hover {
   background: #e2e8f0;
   color: #0f172a;
   transform: translateY(-1px);
+}
+
+/* === MENÚ DE PERFIL (avatar del header) === */
+.botonPerfil { display: flex; align-items: center; }
+
+.perfil-avatar-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  transition: box-shadow .15s ease, transform .1s ease;
+}
+.perfil-avatar-btn:hover { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+.perfil-avatar-btn:active { transform: translateY(1px); }
+
+.perfil-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+.perfil-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: .02em;
+}
+
+/* Cabecera del desplegable de perfil */
+::ng-deep .perfil-menu-panel .mat-mdc-menu-content { padding-top: 0; }
+.perfil-menu-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #eef2f7;
+}
+/* La foto ya no se repite dentro del menú (el propio botón que lo abre es la foto),
+   así que la cabecera es sólo nombre + rol. */
+.perfil-menu-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.perfil-menu-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+.perfil-menu-role {
+  align-self: flex-start; font-size: 0.66rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; color: #3730a3; background: #e0e7ff; padding: 2px 8px; border-radius: 999px;
+}
+.perfil-menu-meta {
+  padding: 10px 16px; border-bottom: 1px solid #eef2f7; display: flex; flex-direction: column; gap: 6px;
+}
+/* El carné es la acción que más se usa de este menú: se destaca sin sacarla de la lista. */
+.perfil-menu-carnet { font-weight: 700; }
+.perfil-menu-carnet .mat-icon { color: #1d5aa8; }
+.perfil-menu-meta p {
+  margin: 0; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #475569;
+}
+.perfil-menu-meta .mat-icon {
+  font-size: 17px; width: 17px; height: 17px; color: #94a3b8;
 }
 
 /* === MENÚ === */
@@ -264,8 +428,11 @@ button.mat-icon-button:hover {
   color: #334155;
 }
 
-/* === RESPONSIVE === */
-@media (max-width: 768px) {
+/* === RESPONSIVE ===
+   900px, no 768: es el punto donde el shell quita el margin-left y el navbar
+   pasa a barra inferior. Con 768 quedaba una franja de 768-900 en la que el
+   submenú seguía en modo escritorio mientras el resto ya era móvil. */
+@media (max-width: 900px) {
   :host {
     margin-bottom: 16px;
   }
@@ -274,10 +441,37 @@ button.mat-icon-button:hover {
     flex-direction: row;
     padding: 12px 16px;
     border-radius: 12px;
+    gap: 8px;
+  }
+
+  /* Sin esto, ni el título ni el bloque de perfil encogen: empujan los iconos
+     fuera de la barra y el engranaje queda recortado contra el borde. */
+  .cajontitulo,
+  .perfil,
+  .perfil-container,
+  .perfil-info,
+  .auth-info,
+  .opciones {
+    min-width: 0;
+  }
+
+  .opciones {
+    gap: 8px;
   }
 
   .cajontitulo .titulo {
     font-size: 1.25rem;
+  }
+
+  /* Mobile: logo de empresa arriba a la izquierda, controles a la derecha
+     (el space-between del header ya los empuja al borde derecho). */
+  .cajontitulo {
+    flex: 0 0 auto;
+  }
+
+  .header-brand {
+    display: block;
+    height: 30px;
   }
 
   .system-info,
@@ -295,7 +489,15 @@ button.mat-icon-button:hover {
     font-size: 0.95rem;
   }
 
-  .botonConfig::before {
+  /* El chip de versión se compacta: se conserva icono + "vX.Y.Z", se oculta el
+     nombre largo de la plataforma (queda en el tooltip / aria-label). */
+  .version-chip {
+    padding: 4px 9px;
+    font-size: 0.68rem;
+    gap: 5px;
+  }
+
+  .version-chip__platform {
     display: none;
   }
 
@@ -321,5 +523,22 @@ button.mat-icon-button:hover {
     transform: translate(50%, -50%);
     top: 0;
     right: 0;
+  }
+}
+
+/* En pantallas muy angostas se compacta el logo y se cierran los gaps para que
+   la marca (izquierda) y todos los controles (derecha) quepan en una fila. */
+@media (max-width: 600px) {
+  .header-brand {
+    height: 26px;
+    max-width: 42vw;
+  }
+
+  .opciones {
+    gap: 4px;
+  }
+
+  button.mat-icon-button {
+    margin-left: 2px;
   }
 }

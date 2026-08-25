@@ -1,10 +1,11 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '@/environments/environment';
 import {
   DashboardData, FieldValue, FormDefinition, FormFieldDef, FormResponse,
-  FormSummary, PageResult, PublishResult, ResponseSummary, RoleAccess,
+  FormSummary, OfficeImportResult, OfficeImportedForm, OfficeTemplateConfig,
+  PageResult, PublishResult, ResponseSummary, RoleAccess,
 } from '../models/office-forms.models';
 
 /**
@@ -18,6 +19,24 @@ export class OfficeFormsService {
   private base = `${environment.apiUrl.replace(/\/$/, '')}/api/forms`;
   /** Catálogo de sedes (oficinas) — ya existente en ms-auth-admin. */
   private sedesUrl = `${environment.apiUrl.replace(/\/$/, '')}/gestion_admin/sedes/`;
+  /** Catálogo de roles — mismo endpoint que usa el resto de la plataforma. */
+  private rolesUrl = `${environment.apiUrl.replace(/\/$/, '')}/gestion_admin/roles/`;
+
+  /**
+   * Formulario leído de un Excel que espera a que el constructor lo recoja. Se consume
+   * UNA vez (`tomarPendiente`) para que un F5 en /builder no vuelva a cargarlo.
+   */
+  readonly pendienteImportado = signal<OfficeImportedForm | null>(null);
+
+  dejarPendiente(f: OfficeImportedForm): void {
+    this.pendienteImportado.set(f);
+  }
+
+  tomarPendiente(): OfficeImportedForm | null {
+    const f = this.pendienteImportado();
+    if (f) this.pendienteImportado.set(null);
+    return f;
+  }
 
   // ---------- Definición / constructor ----------
 
@@ -92,11 +111,40 @@ export class OfficeFormsService {
     return this.http.get(full, { responseType: 'blob' });
   }
 
+  // ---------- Carga por Excel ----------
+
+  /** Plantilla .xlsx (blob) parametrizada con el módulo, las oficinas y los roles elegidos. */
+  plantilla(config: OfficeTemplateConfig): Observable<Blob> {
+    return this.http.post(`${this.base}/import/template`, config, { responseType: 'blob' });
+  }
+
+  /** Lee el archivo lleno. No persiste nada: devuelve los formularios como quedarían. */
+  cargarExcel(archivo: File): Observable<OfficeImportResult> {
+    const fd = new FormData();
+    fd.append('file', archivo, archivo.name);
+    return this.http.post<OfficeImportResult>(`${this.base}/import/parse`, fd);
+  }
+
   // ---------- Catálogo ----------
 
   sedes(): Observable<any> {
     return this.http.get<any>(this.sedesUrl);
   }
+
+  /** Roles de la plataforma (para decidir quién ve y quién responde el formulario). */
+  roles(): Observable<Array<{ id: string; nombre: string }>> {
+    return this.http.get<Array<{ id: string; nombre: string }>>(this.rolesUrl);
+  }
+}
+
+/** Descarga un blob con el nombre dado (el navegador no lo hace solo desde XHR). */
+export function descargarBlob(blob: Blob, nombre: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombre;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 /** Construye el FormData de un envío: part "payload" (JSON) + parts file_<field_id>. */

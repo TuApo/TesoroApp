@@ -12,6 +12,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatderDashboardService } from '../../services/dashboard.service';
 import { UserGroupResponse } from '../../models/dashboard.models';
 import Swal from 'sweetalert2';
+import { MatderMobileNavComponent } from '../../components/matder-mobile-nav/matder-mobile-nav.component';
 
 @Component({
   selector: 'app-groups-page',
@@ -19,6 +20,9 @@ import Swal from 'sweetalert2';
   imports: [
     DatePipe, FormsModule, MatCardModule, MatButtonModule, MatIconModule,
     MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatTooltipModule,
+    MatderMobileNavComponent
+  
+  
   ],
   templateUrl: './groups-page.component.html',
   styleUrls: ['./groups-page.component.css'],

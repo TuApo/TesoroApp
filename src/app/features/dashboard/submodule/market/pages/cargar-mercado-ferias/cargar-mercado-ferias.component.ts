@@ -1,11 +1,9 @@
-import {  Component, OnInit, PLATFORM_ID, inject , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, PLATFORM_ID, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { FormBuilder, FormGroup, Validators, AbstractControl, FormArray } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { Router } from '@angular/router';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatTableDataSource } from '@angular/material/table';
 import { SharedModule } from '../../../../../../shared/shared.module';
-import { MercadoService } from '../../service/mercado/mercado.service';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
@@ -29,20 +27,10 @@ export class CargarMercadoFeriasComponent implements OnInit {
   datosOperario: any;
   nombreOperario: string = '';
   sumaPrestamos: number = 0;
-  showValor = false;
-  showCuotas = false;
-  celularLabel = 'Número';
   productos: any[] = [];
   selectedProducts: any[] = []; // Productos seleccionados con checkbox
   fechaIngreso: string = '';
   limiteDisponible: number = 0;
-
-  displayedColumnsInventario: string[] = [
-    'select', 'cantidadSeleccionada',
-    'concepto', 'cantidadEnvio',
-    'cantidadRecibida', 'valorUnidad',
-    'cantidadTotalVendida', 'PersonaEnvia',
-    'PersonaRecibe', 'fechaRecibida'];
 
   displayedColumnsInventarioSimple: string[] = [
     'select', 'cantidadSeleccionada',
@@ -51,12 +39,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
   dataSourceInventario = new MatTableDataSource<any>();
 
-  concepto: string = '';
-  comercio: string = '';
-
-  historial_id: number = 0;
   usuario: any;
-  conceptos: any
 
   datos2: string[] = [
     "Mercado",
@@ -77,11 +60,10 @@ export class CargarMercadoFeriasComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private autorizacionesService: AutorizacionesService,
-    private mercadoService: MercadoService,
     private comercializadoraService: ComercializadoraService,
     private utilityServiceService: UtilityServiceService,
-    private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) {
 
     this.myForm = this.fb.group({
@@ -113,19 +95,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
         this.correoUsuario = this.usuario.correo_electronico;
       }
 
-      // Suscribirse a los cambios de "formaPago"
-      this.myForm.get('formaPago')?.valueChanges.subscribe(value => {
-        const celularControl = this.myForm.get('celular');
-        if (value === 'Daviplata' || value === 'Master') {
-          celularControl?.setValidators([Validators.required, Validators.pattern(/^\d{10}$/)]);
-        } else {
-          celularControl?.clearValidators();
-        }
-        celularControl?.updateValueAndValidity();
-      });
-
-      // Llamar datos desde el nuevo sistema de Tesorería (global)
-      const sedeUsuario = this.utilityServiceService.getUser().sede.nombre;
+      // Inventario global: el backend ignora la sede en este listado
       const lotes: any = await this.comercializadoraService.listarInventarioLotes('');
 
       if (lotes && lotes.length > 0) {
@@ -135,7 +105,9 @@ export class CargarMercadoFeriasComponent implements OnInit {
           concepto: lote.producto_nombre,
           disponible: lote.disponible, // la tabla usa este si lo modificamos, pero vamos a mapear
           valorUnidad: lote.valor_unitario,
-          fechaRecibida: lote.fecha_recepcion,
+          // fecha_recepcion llega como epoch en SEGUNDOS; el pipe date lo lee
+          // como milisegundos y mostraba 1970. Convertimos segundos→ms.
+          fechaRecibida: typeof lote.fecha_recepcion === 'number' ? lote.fecha_recepcion * 1000 : lote.fecha_recepcion,
           PersonaEnvia: lote.realizado_por,
           // Guardamos el id del lote para consumir luego
           lote_id: lote.id,
@@ -146,7 +118,10 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
       // Cerrar swal de carga al finalizar exitosamente
       Swal.close();
+      // App zoneless: sin markForCheck la vista no se repinta tras el await
+      this.cdr.markForCheck();
     } catch (error) {
+      this.cdr.markForCheck();
       // Mostrar error con Swal
       Swal.fire({
         title: 'Error',
@@ -272,7 +247,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
         title: '¡Éxito!',
         text: `Mercado cargado exitosamente.`,
         confirmButtonText: 'Aceptar',
-        confirmButtonColor: '#ea580c'
+        confirmButtonColor: '#21263C'
       });
 
       this.cancelar();
@@ -310,6 +285,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
       if (!statusData || statusData.error) {
         this.datosOperario = null;
+        this.cdr.markForCheck();
         Swal.fire({
           icon: 'error', title: 'Empleado no encontrado',
           text: 'Este empleado no existe, no está registrado en esta quincena o no pertenece a la empresa.',
@@ -319,6 +295,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
       if (statusData.activo === false) {
         this.datosOperario = null;
+        this.cdr.markForCheck();
         Swal.fire({
           icon: 'error', title: 'Empleado Inactivo',
           text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
@@ -328,6 +305,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
       if (statusData.bloqueado === true) {
         this.datosOperario = null;
+        this.cdr.markForCheck();
         let fechaStr = 'fecha desconocida';
         if (statusData.fecha_bloqueo) {
           const d = new Date(statusData.fecha_bloqueo);
@@ -350,6 +328,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
       this.nombreOperario = data.nombre || '';
       this.fechaIngreso = data.ingreso || '';
       this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(data, 'mercado');
+      this.cdr.markForCheck();
 
     } catch (error: any) {
       Swal.close();
@@ -367,15 +346,9 @@ export class CargarMercadoFeriasComponent implements OnInit {
         text: msg,
       });
       this.datosOperario = null;
+      this.cdr.markForCheck();
     }
   }
-
-  private escapeHtml(value: string): string {
-    const div = document.createElement('div');
-    div.textContent = value ?? '';
-    return div.innerHTML;
-  }
-
 
   applyFilterInventario(event: Event) {
     const filterValue = (event.target as HTMLInputElement).value;
@@ -456,8 +429,16 @@ export class CargarMercadoFeriasComponent implements OnInit {
     this.nombreOperario = '';
     this.fechaIngreso = '';
     this.limiteDisponible = 0;
+    // Los checkbox leen `seleccionado` del propio producto: vaciar selectedProducts
+    // no basta, quedaban marcados y con cantidad tras cargar un mercado
+    this.productos.forEach(p => {
+      p.seleccionado = false;
+      p.cantidadSeleccionada = 0;
+    });
     this.selectedProducts = [];
     this.myForm.reset();
+    // También se llama tras el await de Swal, fuera de todo evento de plantilla
+    this.cdr.markForCheck();
   }
 
   abrirHistorial() {
@@ -524,7 +505,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
       showCancelButton: true,
       confirmButtonText: 'Sí, Cargar',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#ea580c',
+      confirmButtonColor: '#21263C',
       reverseButtons: true
     });
 

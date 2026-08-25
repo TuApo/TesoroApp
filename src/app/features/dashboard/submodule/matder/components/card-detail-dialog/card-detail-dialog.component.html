@@ -176,11 +176,11 @@
             <div class="comment-list">
               @for (comment of c.comments; track comment.id) {
                 <article class="comment-item">
-                  <div class="comment-avatar">{{ (comment.author_name ?? 'U').slice(0, 2).toUpperCase() }}</div>
+                  <div class="comment-avatar">{{ authorName(comment).slice(0, 2).toUpperCase() }}</div>
                   <div class="comment-bubble">
                     <div class="comment-topline">
                       <div class="comment-who">
-                        <strong>{{ comment.author_name ?? 'Usuario' }}</strong>
+                        <strong>{{ authorName(comment) }}</strong>
                         <span>{{ comment.created_at | date:'d MMM, y · h:mm a' }}</span>
                       </div>
                       <button mat-icon-button class="ghost-delete"
@@ -222,6 +222,15 @@
                     <span class="upload-name">{{ u.original_name }}</span>
                     <span class="upload-size">{{ formatBytes(u.size_bytes) }}</span>
                   </div>
+                  <button mat-icon-button class="ghost-download"
+                          [disabled]="downloadingUuid === u.uuid"
+                          (click)="downloadFile(u)" matTooltip="Descargar">
+                    @if (downloadingUuid === u.uuid) {
+                      <mat-spinner diameter="18"></mat-spinner>
+                    } @else {
+                      <mat-icon>download</mat-icon>
+                    }
+                  </button>
                   <button mat-icon-button class="ghost-delete"
                           (click)="deleteUpload(u.uuid)" matTooltip="Eliminar">
                     <mat-icon>delete_outline</mat-icon>
@@ -237,11 +246,17 @@
       <aside class="detail-aside">
         <section class="side-panel">
           <h5>Estado</h5>
-          <div class="status-banner" [attr.data-tone]="statusTone(c.status)">
-            <span class="status-dot" [attr.data-tone]="statusTone(c.status)"></span>
-            <span class="status-banner-label">{{ statusLabel(c.status) }}</span>
-          </div>
-          <p class="aside-hint">Se actualiza automáticamente al mover la tarjeta de columna.</p>
+          <mat-form-field appearance="outline" class="fw compact">
+            <mat-select [value]="c.status" (selectionChange)="changeStatus($event.value)">
+              @for (s of statuses; track s) {
+                <mat-option [value]="s">
+                  <span class="status-dot" [attr.data-tone]="statusTone(s)"></span>
+                  {{ statusLabel(s) }}
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <p class="aside-hint">Al cambiar el estado, la tarjeta se mueve a la columna correspondiente.</p>
         </section>
 
         <section class="side-panel">
@@ -286,11 +301,32 @@
 
         <section class="side-panel">
           <h5>Responsable</h5>
-          @if (c.assignee_name) {
+          <mat-form-field appearance="outline" class="fw compact">
+            <mat-select [value]="responsibleToken()" (selectionChange)="onResponsibleChange($event.value)"
+                        placeholder="Sin asignar">
+              <mat-option [value]="null">Sin asignar</mat-option>
+              @if (members().length > 0) {
+                <mat-optgroup label="Personas">
+                  @for (m of members(); track m.id) {
+                    <mat-option [value]="'u:' + m.user">{{ memberLabel(m) }}</mat-option>
+                  }
+                </mat-optgroup>
+              }
+              @if (groups().length > 0) {
+                <mat-optgroup label="Grupos">
+                  @for (g of groups(); track g.id) {
+                    <mat-option [value]="'g:' + g.id">{{ g.name }}</mat-option>
+                  }
+                </mat-optgroup>
+              }
+            </mat-select>
+          </mat-form-field>
+          <p class="aside-hint">Puedes asignar a una persona o a un grupo (todos sus miembros reciben la tarea).</p>
+          @if (assigneeName(); as an) {
             <div class="assignee-card">
-              <div class="assignee-avatar">{{ c.assignee_name.slice(0, 2).toUpperCase() }}</div>
+              <div class="assignee-avatar">{{ an.slice(0, 2).toUpperCase() }}</div>
               <div class="assignee-info">
-                <strong>{{ c.assignee_name }}</strong>
+                <strong>{{ an }}</strong>
                 <span>Asignado</span>
               </div>
             </div>
@@ -302,8 +338,6 @@
                 <span>Grupo asignado</span>
               </div>
             </div>
-          } @else {
-            <p class="aside-hint">Sin responsable asignado.</p>
           }
         </section>
 

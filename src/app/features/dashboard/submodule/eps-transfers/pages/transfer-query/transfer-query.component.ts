@@ -3,7 +3,7 @@ import { TrasladosService } from '../../service/traslados.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
@@ -11,6 +11,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { environment } from '@/environments/environment';
 
 /**
  * Los archivos fisicos de gestion_documental viven siempre en el server de
@@ -29,8 +30,7 @@ interface RangoFechas {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-transfer-query',
   imports: [
-    SharedModule,
-    MatTableModule
+    SharedModule
   ],
   templateUrl: './transfer-query.component.html',
   styleUrl: './transfer-query.component.css'
@@ -99,7 +99,7 @@ export class TransferQueryComponent implements OnInit {
       this.trasladosService.buscarAfiliacionPorId(this.myForm.value.cedula).subscribe(
         (data: any) => {
           Swal.close();
-          this.dataSource.data = data;
+          this.dataSource.data = Array.isArray(data) ? data : (data?.results || data?.data || []);
           this.cdr.markForCheck();
         },
         (_error: any) => {
@@ -155,13 +155,19 @@ export class TransferQueryComponent implements OnInit {
    * Fallback al campo legacy solicitud_traslado solo si todavia existe.
    *
    * El backend devuelve `solicitud_doc.file_url` como path Windows absoluto
-   * (`C:\\media\\...\\file.pdf`) en vez de URL HTTP. Los archivos fisicos
-   * viven SIEMPRE en el server de produccion (formulario.tsservicios.co)
-   * porque ahi se guardo el upload, sin importar si la app esta apuntando
-   * a dev o LAN; por eso se prefija con `environment.mediaUrl` (que es la
-   * URL fija de prod), no con `apiUrl`.
+   * (`C:\\media\\...\\file.pdf`) en vez de URL HTTP, asi que aqui se recorta
+   * desde `/media/` y se prefija con MEDIA_BASE_URL.
    */
   resolveSolicitudUrl(element: any): string | null {
+    // Prioridad #1: documento subido a ms-documents. El 83% de los traslados
+    // tienen document_id con file_url NULL (external_url ""), así que sin esto
+    // la columna decía "Sin documento" y el botón Ver nunca abría el PDF.
+    // El endpoint /api/v1/documents/{id}/download entrega el PDF (con JWT).
+    const docId = element?.solicitud_doc?.document_id;
+    if (docId) {
+      return `${environment.apiUrl}/api/v1/documents/${docId}/download`;
+    }
+
     const raw = (
       element?.solicitud_doc?.file_url ||
       element?.external_url ||
@@ -257,7 +263,9 @@ export class TransferQueryComponent implements OnInit {
    */
   private getFechaSubida(element: any): Date | null {
     if (element?._fecha_subida_iso) {
-      const d = new Date(element._fecha_subida_iso);
+      // "2026-07-21 17:49:48.394879+00:00": espacio en vez de T + microsegundos;
+      // sin normalizar, algunos navegadores lo parsean como Invalid Date.
+      const d = new Date(String(element._fecha_subida_iso).replace(' ', 'T'));
       if (!isNaN(d.getTime())) return d;
     }
     const ua = element?.ultimas_actualizaciones;
@@ -270,7 +278,10 @@ export class TransferQueryComponent implements OnInit {
       }
     }
     if (element?.marca_temporal_solicitud) {
-      const d = new Date(element.marca_temporal_solicitud);
+      // Instant serializado como epoch en SEGUNDOS; new Date() lo lee como ms
+      // (→ 1970). Convertimos segundos→ms si viene numérico.
+      const raw = element.marca_temporal_solicitud;
+      const d = new Date(typeof raw === 'number' ? raw * 1000 : raw);
       if (!isNaN(d.getTime())) return d;
     }
     return null;
@@ -447,7 +458,7 @@ export class TransferQueryComponent implements OnInit {
       const solicitudCell = row.getCell(COL_SOLICITUD);
       if (url) {
         solicitudCell.value = { text: 'Ver solicitud', hyperlink: url, tooltip: url };
-        solicitudCell.font = { name: 'Calibri', size: 11, color: { argb: 'FF1565C0' }, underline: true };
+        solicitudCell.font = { name: 'Calibri', size: 11, color: { argb: 'FF21263C' }, underline: true };
       } else {
         solicitudCell.value = 'Sin documento';
         solicitudCell.font = { name: 'Calibri', size: 11, color: { argb: 'FF94A3B8' }, italic: true };
@@ -556,7 +567,7 @@ export class TransferQueryComponent implements OnInit {
         showCancelButton: true,
         confirmButtonText: 'Si, desactivar',
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#d33',
+        confirmButtonColor: '#b42318',
       });
       if (!confirm.isConfirmed) return;
 
@@ -581,7 +592,7 @@ export class TransferQueryComponent implements OnInit {
         html: `
           <p><b>${resp?.desactivados ?? 0}</b> traslado(s) desactivado(s).</p>
           ${resp?.codigos_no_encontrados?.length
-            ? `<p style="color:#b45309">Codigos no encontrados: ${resp.codigos_no_encontrados.join(', ')}</p>`
+            ? `<p style="color:var(--warn-fg)">Codigos no encontrados: ${resp.codigos_no_encontrados.join(', ')}</p>`
             : ''}
         `,
       });

@@ -15,6 +15,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { BoardService } from '../../services/board.service';
 import { CardSummary } from '../../models/board.models';
 import { CardDetailDialogComponent } from '../../components/card-detail-dialog/card-detail-dialog.component';
+import { MatderMobileNavComponent } from '../../components/matder-mobile-nav/matder-mobile-nav.component';
 
 @Component({
   selector: 'app-calendar-page',
@@ -23,6 +24,9 @@ import { CardDetailDialogComponent } from '../../components/card-detail-dialog/c
     DatePipe, FormsModule, MatCardModule, MatIconModule, MatButtonModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatChipsModule,
     MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
+    MatderMobileNavComponent
+  
+  
   ],
   templateUrl: './calendar-page.component.html',
   styleUrls: ['./calendar-page.component.css'],

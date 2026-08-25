@@ -40,6 +40,17 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/admin-groups/admin-groups').then(m => m.AdminGroups)
   },
   {
+    // Tambien antes de ':enrollmentId', por lo mismo que 'catalogo'.
+    path: 'planes',
+    loadComponent: () =>
+      import('./pages/admin-assignment-plans/admin-assignment-plans').then(m => m.AdminAssignmentPlans)
+  },
+  {
+    path: 'cumplimiento',
+    loadComponent: () =>
+      import('./pages/admin-compliance/admin-compliance').then(m => m.AdminCompliance)
+  },
+  {
     path: 'catalogo/:courseId',
     loadComponent: () =>
       import('./pages/admin-course-detail/admin-course-detail').then(m => m.AdminCourseDetail)

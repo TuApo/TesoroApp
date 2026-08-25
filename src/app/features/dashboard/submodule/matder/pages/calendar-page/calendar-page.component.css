@@ -21,7 +21,7 @@
 .cal-day:hover { background: #f3f4f6; }
 .cal-day.other-month { opacity: .3; }
 .cal-day.today { background: #dbeafe; }
-.cal-day.selected { background: #1976d2; color: white; }
+.cal-day.selected { background: #3b82f6; color: white; }
 .cal-day.selected .day-num { color: white; }
 .cal-day.has-tasks { font-weight: 600; }
 .day-num { font-size: .85rem; display: block; }
@@ -37,7 +37,7 @@
 .empty-agenda mat-icon { font-size: 36px; width: 36px; height: 36px; display: block; margin: 0 auto 8px; }
 .agenda-list { display: flex; flex-direction: column; gap: 8px; }
 .agenda-card { display: flex; align-items: stretch; overflow: hidden; border-radius: 10px; border: 1px solid #e5e7eb; background: #fff; cursor: pointer; text-align: left; padding: 0; font-family: inherit; transition: border-color .15s, box-shadow .15s, transform .1s; }
-.agenda-card:hover { border-color: #1976d2; box-shadow: 0 4px 12px rgba(25, 118, 210, .12); }
+.agenda-card:hover { border-color: #3b82f6; box-shadow: 0 4px 12px rgba(25, 118, 210, .12); }
 .agenda-card:active { transform: translateY(1px); }
 .agenda-chevron { align-self: center; color: #94a3b8; margin: 0 8px; font-size: 20px; width: 20px; height: 20px; }
 .agenda-pri { width: 4px; flex-shrink: 0; }
@@ -54,3 +54,17 @@
 @media (max-width: 900px) {
   .calendar-layout { grid-template-columns: 1fr; }
 }
+/* ===== Marca: héroe corporativo (override para consistencia) ===== */
+.hero { position: relative; overflow: hidden; background: var(--mt-hero) !important; color: #fff !important; border: none !important; border-radius: var(--mt-r) !important; box-shadow: var(--mt-shadow-hover) !important; padding: 26px 28px !important; }
+.hero::before { content: ''; position: absolute; inset: 0; background: var(--mt-hero-ring); pointer-events: none; }
+.hero > * { position: relative; z-index: 1; }
+.hero .eyebrow { color: var(--mt-accent) !important; }
+.hero-copy h1 { color: #fff !important; font-weight: 700; letter-spacing: -.02em; }
+.hero-text { color: rgba(255,255,255,.78) !important; }
+.hero-actions { gap: 10px; flex-wrap: wrap; }
+.hero-actions button { border-radius: 12px !important; font-weight: 600; }
+.hero-actions .mat-mdc-outlined-button { color: #fff !important; border-color: rgba(255,255,255,.35) !important; background: rgba(255,255,255,.07); }
+.hero-actions .mat-mdc-outlined-button:hover { background: rgba(255,255,255,.14); }
+.hero-actions .mat-mdc-raised-button { background: var(--mt-accent) !important; color: #17300a !important; box-shadow: 0 10px 22px rgba(140,213,10,.34) !important; }
+
+@media (max-width: 768px) { :host { display: block; padding-bottom: 80px; } .hero { padding: 18px 14px; } .hero-copy h1 { font-size: 1.4rem; } .hero-actions { flex-wrap: wrap; gap: 8px; } }

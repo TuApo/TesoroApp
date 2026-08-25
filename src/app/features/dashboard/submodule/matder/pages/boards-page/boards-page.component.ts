@@ -14,6 +14,8 @@ import { MatChipsModule } from '@angular/material/chips';
 import { BoardService } from '../../services/board.service';
 import { WorkspaceService } from '../../services/workspace.service';
 import { MatderDashboardService } from '../../services/dashboard.service';
+import { MatderHistoryService } from '../../services/matder-history.service';
+import { MatderMobileNavComponent } from '../../components/matder-mobile-nav/matder-mobile-nav.component';
 import { BoardResponse } from '../../models/board.models';
 import { WorkspaceResponse } from '../../models/workspace.models';
 import Swal from 'sweetalert2';
@@ -27,7 +29,7 @@ const ACCENT_COLORS = [
   standalone: true,
   imports: [
     DatePipe, FormsModule, MatCardModule, MatButtonModule, MatIconModule,
-    MatFormFieldModule, MatInputModule, MatSelectModule, MatProgressSpinnerModule,
+    MatFormFieldModule, MatInputModule, MatSelectModule, MatProgressSpinnerModule, MatderMobileNavComponent,
     MatTooltipModule, MatChipsModule,
   ],
   templateUrl: './boards-page.component.html',
@@ -55,6 +57,7 @@ export class BoardsPageComponent implements OnInit {
     private boardService: BoardService,
     private wsService: WorkspaceService,
     private dashboardService: MatderDashboardService,
+    private historyService: MatderHistoryService,
     private router: Router,
     private route: ActivatedRoute,
   ) {}
@@ -117,6 +120,10 @@ export class BoardsPageComponent implements OnInit {
   }
 
   open(id: number): void {
+    const b = this.boards().find(x => x.id === id);
+    if (b) {
+      this.historyService.push({ type: 'board', id, name: b.name, subtitle: b.workspace_name, accent: b.accent });
+    }
     this.router.navigate([`/dashboard/matder/boards/${id}`]);
   }
 

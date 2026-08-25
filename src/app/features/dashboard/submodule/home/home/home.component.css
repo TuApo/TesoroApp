@@ -15,6 +15,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
     padding: 28px 32px;
     border-radius: 18px;
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
@@ -76,7 +78,12 @@
 /* ── Category Grid ── */
 .category-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    /* minmax(0, ...) en el tope: un track `1fr` tiene min-width:auto, o sea que
+       no encoge por debajo del contenido mínimo de la tarjeta. Con un nombre de
+       módulo largo, el track se estiraba y arrastraba la página entera a scroll
+       horizontal. El min() deja que la columna baje del ideal de 260px cuando
+       la pantalla no da para tanto, en vez de desbordar. */
+    grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
     gap: 14px;
     margin-bottom: 32px;
 }
@@ -85,6 +92,8 @@
     display: flex;
     align-items: center;
     gap: 14px;
+    /* Item de grid: min-width:auto por defecto -> no encogía y estiraba el track */
+    min-width: 0;
     padding: 18px 20px;
     border: 1px solid #e2e8f0;
     border-radius: 14px;
@@ -142,6 +151,15 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    /* Sin esto un flex item no baja de su contenido mínimo: un nombre de módulo
+       largo estiraba la tarjeta, la tarjeta estiraba el track del grid y la
+       página acababa con scroll horizontal. */
+    min-width: 0;
+}
+
+.cat-title,
+.cat-desc {
+    overflow-wrap: anywhere;
 }
 
 .cat-title {
@@ -268,6 +286,16 @@
 }
 
 /* ── Responsive ── */
+@media (max-width: 900px) {
+    :host {
+        padding: 16px 4px 32px;
+    }
+
+    .hero-text {
+        min-width: 0;
+    }
+}
+
 @media (max-width: 640px) {
     :host {
         padding: 16px 16px 32px;

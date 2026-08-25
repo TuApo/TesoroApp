@@ -71,6 +71,12 @@
 <!-- TPL: LIST -->
 <ng-template #tplList>
     <div class="dashboard-container fade-in">
+        @if (esCedula) {
+        <div class="scan-guia" role="status">
+            <mat-icon>badge</mat-icon>
+            <span>{{ guiaCedula }}</span>
+        </div>
+        }
         <div class="stats-overview">
             <div class="stat-card">
                 <div class="stat-icon-bg"><mat-icon>description</mat-icon></div>
@@ -103,10 +109,14 @@
         @if (scannedDocs.length === 0) {
         <div class="empty-state">
             <div class="empty-icon-circle"><mat-icon>document_scanner</mat-icon></div>
-            <h3 class="empty-title">Escáner profesional</h3>
+            <h3 class="empty-title">{{ esCedula ? 'Escanear cédula' : 'Escáner profesional' }}</h3>
             <p class="empty-subtitle">
+                @if (esCedula) {
+                Captura el frente y el reverso; ambas caras quedan en un mismo PDF.
+                } @else {
                 Detección automática de bordes, recorte perspectivo, filtros B/N y OCR.
                 Captura tus documentos como una app dedicada.
+                }
             </p>
             <button mat-flat-button color="primary" (click)="onCaptureClick()" class="btn-lg">
                 <mat-icon>document_scanner</mat-icon> Iniciar escaneo
@@ -342,12 +352,15 @@
 
 <ng-template #tplFooterList>
     <div class="footer-actions">
-        <button mat-flat-button color="primary" class="btn-lg" (click)="onCaptureClick()">
-            <mat-icon>document_scanner</mat-icon> CAPTURAR NUEVO
+        <button mat-flat-button color="primary" class="btn-lg" [disabled]="!puedeCapturar"
+            (click)="onCaptureClick()">
+            <mat-icon>document_scanner</mat-icon>
+            @if (esCedula) { CAPTURAR {{ siguienteCara || 'LISTO' }} } @else { CAPTURAR NUEVO }
         </button>
-        <button mat-stroked-button color="accent" class="btn-lg" [disabled]="scannedDocs.length === 0"
+        <button mat-stroked-button color="accent" class="btn-lg" [disabled]="!puedeFinalizar"
             (click)="exportAllAndClose()">
-            <mat-icon>check_circle</mat-icon> FINALIZAR ({{ scannedDocs.length }})
+            <mat-icon>check_circle</mat-icon>
+            @if (esCedula) { FINALIZAR ({{ carasCapturadas }}/2) } @else { FINALIZAR ({{ scannedDocs.length }}) }
         </button>
     </div>
 </ng-template>

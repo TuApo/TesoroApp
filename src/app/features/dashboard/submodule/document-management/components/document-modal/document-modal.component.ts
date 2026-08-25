@@ -21,6 +21,8 @@ export interface ModalData {
   expandable: boolean;
   estado: boolean;
   isEdit: boolean;
+  /** Nombre del padre bajo el que se creará (null = nivel raíz). Solo contexto visual. */
+  parentName?: string | null;
 }
 
 @Component({
@@ -69,6 +71,9 @@ export class DocumentModalComponent implements OnInit {
   // Create Mode: "Queue"
   nuevosDocumentos: FormArray<FormGroup>;
 
+  /** El backend tiene `name` UNIQUE: un duplicado revienta el POST entero. */
+  duplicateError = false;
+
   constructor(
     public dialogRef: MatDialogRef<DocumentModalComponent>,
     @Inject(MAT_DIALOG_DATA) public data: ModalData,
@@ -88,16 +93,17 @@ export class DocumentModalComponent implements OnInit {
 
     // 3. Input Form for Queue (Used if !data.isEdit)
     this.inputForm = this.fb.group({
-      name: ['', [Validators.required, Validators.minLength(3)]],
+      name: ['', [Validators.required, Validators.minLength(3), Validators.maxLength(50)]],
       estado: [true],
+    });
+
+    // El aviso de duplicado desaparece en cuanto el usuario corrige el nombre
+    this.inputForm.get('name')!.valueChanges.subscribe(() => {
+      if (this.duplicateError) this.duplicateError = false;
     });
   }
 
-  ngOnInit(): void {
-    this.consoleLog('Init Modal');
-  }
-
-  consoleLog(msg: string) { console.log(msg); } // Helper
+  ngOnInit(): void { }
 
   // --- ACTIONS: ADD TO QUEUE ---
 
@@ -107,15 +113,20 @@ export class DocumentModalComponent implements OnInit {
       return;
     }
 
-    const val = this.inputForm.value;
+    const name = (this.inputForm.value.name || '').trim();
 
-    // Create new Group for Array
-    const itemGroup = this.fb.group({
-      name: [val.name, [Validators.required]],
-      estado: [val.estado],
-    });
+    // Se compara sin distinguir mayúsculas: para MySQL "Actas" y "ACTAS" chocan igual.
+    const yaEnLista = this.nuevosDocumentos.controls
+      .some(c => (c.value.name || '').trim().toLowerCase() === name.toLowerCase());
+    if (yaEnLista) {
+      this.duplicateError = true;
+      return;
+    }
 
-    this.nuevosDocumentos.push(itemGroup);
+    this.nuevosDocumentos.push(this.fb.group({
+      name: [name, [Validators.required]],
+      estado: [this.inputForm.value.estado],
+    }));
 
     // Reset Input
     this.inputForm.reset({

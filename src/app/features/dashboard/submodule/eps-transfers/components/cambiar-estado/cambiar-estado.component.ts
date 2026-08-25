@@ -43,7 +43,9 @@ export class CambiarEstadoComponent {
     private datePipe: DatePipe
   ) {
     this.form = this.fb.group({
-      estado: [[''], Validators.required],
+      // '' (string vacío), NO ['']: un array de longitud 1 pasa Validators.required
+      // como válido → se podía guardar sin elegir estado y mandaba [""] al backend.
+      estado: ['', Validators.required],
       fechaConfirmacion: [''],
       numeroRadicado: [''],
       numeroBeneficiarios: [''],

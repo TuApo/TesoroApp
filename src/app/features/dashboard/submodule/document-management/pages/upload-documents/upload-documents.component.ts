@@ -42,7 +42,7 @@ import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { GestionDocumentalService } from '../../../hiring/service/gestion-documental/gestion-documental.service';
-import { DocumentacionService } from '../../service/documentacion/documentacion.service';
+import { DocumentacionService, agruparTiposPorPadre } from '../../service/documentacion/documentacion.service';
 import { DocumentScanDialogComponent } from '../../components/document-scan-dialog/document-scan-dialog.component';
 import { isOfflineQueued } from '@/app/core/utils/offline-response';
 
@@ -84,9 +84,12 @@ export interface FileQueueItem {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class UploadDocumentsComponent implements OnInit, OnDestroy {
-  // Data
+  // Data: opciones del selector agrupadas por su tipo padre
   gruposHojas: { padre: string; hijos: any[] }[] = [];
   hojasPorId: Record<number, any> = {};
+
+  /** Tipo elegido en la barra de acciones masivas ("aplicar a los seleccionados"). */
+  bulkTypeId: number | null = null;
 
   // Core State
   fileQueue: FileQueueItem[] = []; // Immutable list for rendering loop (status/file/progress)
@@ -137,11 +140,11 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   }
 
   private loadHierarchy() {
-    this.docSrv.mostrar_jerarquia_gestion_documental()
+    this.docSrv.mostrar_jerarquia_anidada()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (data) => {
-          this.gruposHojas = this.agruparHojas(data);
+        next: (arbol) => {
+          this.gruposHojas = agruparTiposPorPadre(arbol);
           this.gruposHojas.forEach((g) => g.hijos.forEach((h) => (this.hojasPorId[h.id] = h)));
           this.cdr.markForCheck();
         },
@@ -150,22 +153,6 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
           Swal.fire('Error', 'No se pudo cargar los tipos de documentos disponibles. Recargue la página o contacte a soporte.', 'error');
         }
       });
-  }
-
-  private agruparHojas(nodos: any[]): { padre: string; hijos: any[] }[] {
-    const res: { padre: string; hijos: any[] }[] = [];
-    const walk = (list: any[], padre: string) => {
-      list.forEach((n: any) => {
-        if (Array.isArray(n.subtypes) && n.subtypes.length) {
-          walk(n.subtypes, n.name);
-        } else {
-          const g = res.find((r) => r.padre === padre);
-          g ? g.hijos.push(n) : res.push({ padre, hijos: [n] });
-        }
-      });
-    };
-    walk(nodos, 'Raíz');
-    return res;
   }
 
   // --- Drag & Drop ---
@@ -282,11 +269,14 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
 
   private updateContractValidator(group: FormGroup, typeId: number | null) {
     const contractCtrl = group.get('contractCode')!;
-    const requires = this.requiresContract(typeId);
+    const aplica = this.requiresContract(typeId);
 
-    if (requires) {
+    if (aplica) {
       contractCtrl.enable({ emitEvent: false });
-      contractCtrl.setValidators([Validators.required]);
+      // Decisión de producto (2026-07-14): el campo se muestra pero NO bloquea.
+      // El bug de camelCase lo mantuvo oculto, así que nadie lo viene llenando;
+      // exigirlo de golpe trabaría la subida a quien no tenga el código a mano.
+      contractCtrl.clearValidators();
     } else {
       contractCtrl.disable({ emitEvent: false });
       contractCtrl.clearValidators();
@@ -299,7 +289,14 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   requiresContract(typeId: number | null): boolean {
     if (!typeId) return false;
     const hoja = this.hojasPorId[typeId];
-    return !!hoja?.codigo_contrato;
+    // El backend serializa camelCase (`codigoContrato`). Leerlo como snake_case
+    // devolvía siempre undefined, así que el contrato nunca se exigía.
+    return !!hoja?.codigoContrato;
+  }
+
+  /** Nombre del tipo, para pintarlo en la fila y en los avisos. */
+  nombreTipo(typeId: number | null): string {
+    return typeId ? (this.hojasPorId[typeId]?.name ?? '') : '';
   }
 
   generateId() {
@@ -341,6 +338,46 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
     if (this.isUploading) return;
     const newState = !this.allSelected;
     this.queueForm.controls.forEach(c => c.get('selected')?.setValue(newState));
+  }
+
+  get selectedCount(): number {
+    return this.queueForm.controls.filter(c => c.get('selected')?.value).length;
+  }
+
+  /**
+   * Patrón "definir una vez y aplicar a todos": al soltar 20 PDFs del mismo
+   * tipo, marcarlos y asignar el tipo de una sola vez en lugar de 20 veces.
+   */
+  aplicarTipoASeleccionados() {
+    if (this.isUploading || !this.bulkTypeId) return;
+
+    let aplicados = 0;
+    this.queueForm.controls.forEach(c => {
+      if (c.get('selected')?.value) {
+        c.get('typeId')?.setValue(this.bulkTypeId); // dispara updateContractValidator
+        aplicados++;
+      }
+    });
+
+    if (aplicados) {
+      Swal.fire({
+        toast: true, position: 'top-end', icon: 'success', showConfirmButton: false, timer: 1800,
+        title: `Tipo aplicado a ${aplicados} archivo${aplicados === 1 ? '' : 's'}`,
+      });
+    }
+    this.cdr.markForCheck();
+  }
+
+  quitarSeleccionados() {
+    if (this.isUploading) return;
+    // Se recorre al revés: borrar de adelante hacia atrás corre los índices.
+    for (let i = this.queueForm.length - 1; i >= 0; i--) {
+      if (this.queueForm.at(i).get('selected')?.value) {
+        this.fileQueue.splice(i, 1);
+        this.queueForm.removeAt(i);
+      }
+    }
+    this.cdr.markForCheck();
   }
 
   // --- Validation ---

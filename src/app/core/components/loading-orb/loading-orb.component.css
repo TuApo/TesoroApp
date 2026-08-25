@@ -1,0 +1,243 @@
+/* ─── Esfera de carga del top bar ─────────────────────────────────────────────
+   Sin `backdrop-filter` ni máscaras: en el APK (Capacitor/Android WebView) el
+   desenfoque detrás de capas superpuestas deja texto fantasma. Fondos opacos. */
+
+:host {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  font-family: 'Inter', 'Roboto', system-ui, sans-serif;
+}
+
+:host(.lo-oculta) {
+  display: none;
+}
+
+/* ─── La esfera ───────────────────────────────────────────────────────────── */
+
+.lo-orb {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  animation: lo-orb-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+.lo-orb:hover { transform: scale(1.12); }
+.lo-orb:active { transform: scale(0.96); }
+
+.lo-orb:focus-visible {
+  outline: 2px solid var(--navy, #21263c);
+  outline-offset: 2px;
+}
+
+.lo-orb.is-open { transform: scale(1.08); }
+
+@keyframes lo-orb-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to   { opacity: 1; transform: none; }
+}
+
+.lo-orb__svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg); /* el arco empieza arriba, no a las 3 en punto */
+  overflow: visible;
+}
+
+.lo-orb__track {
+  fill: none;
+  stroke: var(--slate-200, #e8edf3);
+  stroke-width: 3;
+}
+
+.lo-orb__arc {
+  fill: none;
+  stroke: var(--navy, #21263c);
+  stroke-width: 3;
+  stroke-linecap: round;
+  /* El avance ya viene suavizado por el rAF del servicio; esto sólo lima el
+     escalón entre frames, no inventa progreso. */
+  transition: stroke-dashoffset 140ms linear, stroke 260ms ease;
+}
+
+.lo-orb__core {
+  fill: var(--lime, #8cd50a);
+  opacity: 0.55;
+  transform-origin: 16px 16px;
+  transition: r 140ms linear, fill 260ms ease, opacity 260ms ease;
+  animation: lo-breathe 1.9s ease-in-out infinite;
+}
+
+/* Terminado: el círculo se cierra entero y se apaga. El desmontaje lo decide el
+   componente; esto sólo hace que el último instante se lea como "listo". */
+.lo-orb.is-done .lo-orb__arc { stroke: var(--lime, #8cd50a); }
+
+.lo-orb.is-done .lo-orb__core {
+  fill: var(--lime, #8cd50a);
+  opacity: 0.9;
+  animation: none;
+}
+
+@keyframes lo-breathe {
+  0%, 100% { opacity: 0.42; }
+  50%      { opacity: 0.72; }
+}
+
+/* ─── Desglose (sólo al pulsar) ───────────────────────────────────────────── */
+
+.lo-pop {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: -6px;
+  z-index: 40;
+  width: min(300px, calc(100vw - 28px));
+  padding: 12px 14px 6px;
+  text-align: left;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: var(--r-lg, 16px);
+  box-shadow: 0 16px 34px -14px rgba(15, 23, 42, 0.32);
+  animation: lo-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes lo-pop-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.lo-pop__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.lo-pop__titles { min-width: 0; flex: 1; }
+
+.lo-pop__title {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text, #111827);
+}
+
+.lo-pop__sub {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: var(--muted, rgba(17, 24, 39, 0.62));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lo-pop__pct {
+  flex: none;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--navy, #21263c);
+  font-variant-numeric: tabular-nums; /* que el número no baile al cambiar de dígito */
+}
+
+.lo-pop__pct i {
+  font-style: normal;
+  font-size: 0.62rem;
+  opacity: 0.6;
+}
+
+.lo-pop__count {
+  margin: 10px 0 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--slate-400, #94a3b8);
+}
+
+/* ─── Lista de pasos ──────────────────────────────────────────────────────── */
+
+.lo-steps {
+  margin: 0;
+  padding: 0 0 8px;
+  list-style: none;
+  max-height: 196px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.lo-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 2px;
+  font-size: 0.78rem;
+  color: var(--slate-500, #64748b);
+}
+
+.lo-step[data-estado='activa'] { color: var(--text, #111827); font-weight: 500; }
+.lo-step[data-estado='fallo']  { color: var(--danger, #b42318); }
+
+.lo-step__icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+}
+
+.lo-step__icon .material-symbols-outlined {
+  font-size: 15px;
+  font-variation-settings: 'wght' 600;
+}
+
+.lo-step[data-estado='lista'] .lo-step__icon { color: var(--ok-fg, #0f766e); }
+
+.lo-step__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--slate-200, #e8edf3);
+  border-top-color: var(--navy, #21263c);
+  border-radius: 50%;
+  animation: lo-spin 0.7s linear infinite;
+}
+
+@keyframes lo-spin { to { transform: rotate(360deg); } }
+
+.lo-step__label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lo-step__meta {
+  flex: none;
+  font-size: 0.7rem;
+  color: var(--slate-400, #94a3b8);
+  font-variant-numeric: tabular-nums;
+}
+
+.lo-step[data-estado='fallo'] .lo-step__meta { color: var(--danger, #b42318); }
+
+/* ─── Móvil ───────────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .lo-orb { width: 22px; height: 22px; }
+  .lo-pop { right: -10px; padding: 10px 12px 4px; }
+  .lo-steps { max-height: 152px; }
+}
+
+/* Respetar la preferencia del sistema: sin animaciones decorativas. El arco
+   sigue reflejando el avance real, sólo deja de latir. */
+@media (prefers-reduced-motion: reduce) {
+  .lo-orb,
+  .lo-pop { animation: none; }
+  .lo-orb__core { animation: none; opacity: 0.6; }
+  .lo-step__spinner { animation-duration: 2s; }
+}

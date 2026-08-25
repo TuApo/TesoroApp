@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, DestroyRef, inject } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import {
   FormBuilder,
   FormGroup,
@@ -9,10 +9,6 @@ import {
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
 import { MatTableDataSource } from '@angular/material/table';
-import {
-  takeUntil
-} from 'rxjs/operators';
-import { Subject } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
@@ -30,26 +26,21 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
   styleUrls: ['./mercado-comercializadora.component.css'],
   imports: [SharedModule, MatCheckboxModule] // si usas Standalone Components
 } )
-export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
+export class MercadoComercializadoraComponent implements OnInit {
   myForm: FormGroup;
   datosOperario: any;
   nombreOperario: string = '';
   sumaPrestamos: number = 0;
-  displayedColumns: string[] = ['seleccion', 'codigo', 'cuotas', 'monto'];
-  dataSource = new MatTableDataSource<any>();
   // Columnas para la tabla "Inventario"
   displayedColumnsInventario: string[] = [
     'seleccion', 'cantidadSeleccionada',
     'concepto', 'disponible', 'valorUnidad', 'fechaRecibida'
   ];
   dataSourceInventario = new MatTableDataSource<any>();
-  concepto: string = '';
-  historial_id: number = 0;
   rolUsuario: string = '';
   correoUsuario: string = '';
   fechaIngreso: string = '';
   limiteDisponible: number = 0;
-  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private fb: FormBuilder,
@@ -58,7 +49,8 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     private comercializadoraService: ComercializadoraService,
     private historialService: HistorialService,
     private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) {
     // Creamos el FormGroup principal con dos FormArray vacíos (codigos e inventario)
     this.myForm = this.fb.group({
@@ -66,10 +58,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       codigos: this.fb.array([]),
       inventario: this.fb.array([]),
     });
-
-    // Los dataSource se inicializan vacíos. Luego se llenan dinámicamente.
-    this.dataSource = new MatTableDataSource<any>([]);
-    this.dataSourceInventario = new MatTableDataSource<any>([]);
   }
 
   user: any;
@@ -109,7 +97,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
 
     // Limpiar la tabla de códigos
     this.codigosFormArray.clear();
-    this.dataSource.data = this.codigosFormArray.controls;
 
     Swal.fire({
       title: 'Buscando empleado...',
@@ -125,6 +112,8 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       const statusData: any = await this.historialService.getPersonaTesoreriaStatus(doc).toPromise();
 
       if (!statusData || statusData.error) {
+        this.datosOperario = null;
+        this.cdr.markForCheck();
         Swal.fire({
           icon: 'error', title: 'Aviso',
           text: 'Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).',
@@ -134,12 +123,14 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
 
       if (statusData.activo === false) {
         this.datosOperario = null;
+        this.cdr.markForCheck();
         this.mostrarError('El empleado se encuentra retirado y no puede solicitar autorizaciones.');
         return;
       }
 
       if (statusData.bloqueado === true) {
         this.datosOperario = null;
+        this.cdr.markForCheck();
         this.mostrarError('El empleado se encuentra bloqueado y no puede solicitar autorizaciones.');
         return;
       }
@@ -166,8 +157,11 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       const transaccionesRes: any = await this.historialService.getHistorialTransaccionesPorDocumento(doc).toPromise();
       const rawList = Array.isArray(transaccionesRes) ? transaccionesRes : (transaccionesRes.results || transaccionesRes.data || []);
 
+      // includes('mercado') y no === 'mercado': el concepto llega en variantes
+      // ("Mercado", "mercado autorizacion", "autorizacion de mercado autorizacion"...)
+      // segun sea creado por el sistema actual o heredado de la migracion legacy.
       const authsData = rawList.filter(
-        (tx: any) => tx.estado === 'PENDIENTE' && (tx.autorizacion_concepto || '').toLowerCase() === 'mercado'
+        (tx: any) => tx.estado === 'PENDIENTE' && (tx.autorizacion_concepto || '').toLowerCase().includes('mercado')
       ).sort((a: any, b: any) => {
         return new Date(b.autorizado_en || 0).getTime() - new Date(a.autorizado_en || 0).getTime();
       });
@@ -186,11 +180,14 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
           this.codigosFormArray.push(grupo);
         });
       }
-      this.dataSource.data = this.codigosFormArray.controls;
+
+      // App zoneless: sin markForCheck la vista no se repinta tras el await
+      this.cdr.markForCheck();
 
     } catch (error: any) {
       Swal.close();
       this.datosOperario = null;
+      this.cdr.markForCheck();
       if (error?.status === 404) {
         this.mostrarError('Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).');
       } else {
@@ -202,8 +199,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
 
   private async loadProductos() {
     try {
-      const sedeUsuario = this.utilityServiceService.getUser()?.sede?.nombre || '';
-      // Se ignora sedeUsuario para mostrar inventario global
+      // Inventario global: se listan los lotes de todas las sedes a propósito
       const lotes: any[] = await this.comercializadoraService.listarInventarioLotes('');
 
       // Limpiamos el FormArray "inventario"
@@ -221,7 +217,8 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
           cantidadTotalVendida: [lote.cantidad_vendida],
           PersonaEnvia: [''],
           PersonaRecibe: [lote.realizado_por],
-          fechaRecibida: [lote.fecha_recepcion],
+          // epoch en SEGUNDOS → ms (si no, el pipe date mostraba 1970)
+          fechaRecibida: [typeof lote.fecha_recepcion === 'number' ? lote.fecha_recepcion * 1000 : lote.fecha_recepcion],
           disponible: [lote.disponible],
           seleccionado: [false],
           cantidadSeleccionada: new FormControl({ value: 1, disabled: true })
@@ -230,7 +227,10 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       });
 
       this.dataSourceInventario.data = this.inventarioFormArray.controls;
+      // App zoneless: sin markForCheck la tabla no se repinta tras el await
+      this.cdr.markForCheck();
     } catch (error: any) {
+      this.cdr.markForCheck();
       Swal.fire({
         icon: 'error',
         title: 'Oops...',
@@ -354,7 +354,7 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
         cantidad: item.cantidadSeleccionada
       }));
 
-      // ✅ Ejecutar TODO atómicamente en un solo request
+      // Ejecutar TODO atómicamente en un solo request
       try {
         await this.autorizacionesService.ejecutarMercadoCompleto({
           codigos_autorizacion: codigosSeleccionados.map((c: any) => c.codigo),
@@ -394,8 +394,6 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
       });
     }
   }
-
-  ngOnDestroy() {  }
 
   toggleSeleccionAutorizacion(codigo: FormGroup) {
     const control = codigo.get('seleccionado');
@@ -470,10 +468,12 @@ export class MercadoComercializadoraComponent implements OnInit, OnDestroy {
     this.fechaIngreso = '';
     this.limiteDisponible = 0;
     this.codigosFormArray.clear();
-    this.dataSource.data = [];
     this.inventarioFormArray.clear();
     this.dataSourceInventario.data = [];
     this.myForm.reset();
+    this.cdr.markForCheck();
+    // El inventario vive fuera del empleado: se recarga para no dejar la tabla vacía
+    this.loadProductos();
   }
 
   abrirHistorial() {

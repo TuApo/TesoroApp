@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, OnDestroy, signal, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { CommonModule, DatePipe } from '@angular/common';
@@ -18,15 +18,36 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { BoardService } from '../../services/board.service';
 import { WorkspaceService } from '../../services/workspace.service';
 import { MatderDashboardService } from '../../services/dashboard.service';
+import { MatderHistoryService } from '../../services/matder-history.service';
+import { MatderMobileNavComponent } from '../../components/matder-mobile-nav/matder-mobile-nav.component';
 import { BoardResponse, BoardListResponse, CardSummary } from '../../models/board.models';
 import { WorkspaceMemberResponse } from '../../models/workspace.models';
 import { UserGroupResponse, GroupMemberResponse } from '../../models/dashboard.models';
 import { CardDetailDialogComponent } from '../../components/card-detail-dialog/card-detail-dialog.component';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import Swal from 'sweetalert2';
+
+interface CardDraft {
+  id: string;
+  savedAt: string;
+  listId: number;
+  listName: string;
+  listType: string | null;
+  title: string;
+  desc: string;
+  priority: string;
+  status: string;
+  dueDate: string | null;
+  assignee: string | null;
+  assigneeGroup: number | null;
+  checklists: { content: string; completed: boolean }[];
+  // files viven solo en memoria (no serializables a localStorage)
+  files?: File[];
+}
 
 @Component({
   selector: 'app-board-preview-page',
@@ -36,12 +57,13 @@ import Swal from 'sweetalert2';
     MatMenuModule, MatChipsModule, MatDialogModule, MatProgressSpinnerModule,
     MatTooltipModule, MatFormFieldModule, MatInputModule, MatSelectModule,
     MatCheckboxModule, MatDividerModule, MatDatepickerModule, MatNativeDateModule,
+    MatAutocompleteModule, MatderMobileNavComponent,
   ],
   templateUrl: './board-preview-page.component.html',
   styleUrls: ['./board-preview-page.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class BoardPreviewPageComponent implements OnInit {
+export class BoardPreviewPageComponent implements OnInit, OnDestroy {
   board = signal<BoardResponse | null>(null);
   lists = signal<BoardListResponse[]>([]);
   loading = signal(true);
@@ -92,6 +114,18 @@ export class BoardPreviewPageComponent implements OnInit {
   managingGroup: UserGroupResponse | null = null;
   groupMembers = signal<GroupMemberResponse[]>([]);
   addMemberToGroupId = '';
+  groupSearchQuery = '';
+  returnToCardForm = false;
+
+  // Panel lateral de grupos del workspace
+  groupMembersCache = signal<Record<number, GroupMemberResponse[]>>({});
+  expandedGroupIds = signal<Set<number>>(new Set());
+
+  // Borradores
+  drafts = signal<CardDraft[]>([]);
+  showDraftsPanel = false;
+  private draftFilesMap = new Map<string, File[]>();
+  private get draftKey(): string { return `matder-drafts-${this.board()?.id ?? 'global'}`; }
 
   constructor(
     private route: ActivatedRoute,
@@ -99,6 +133,7 @@ export class BoardPreviewPageComponent implements OnInit {
     private boardService: BoardService,
     private workspaceService: WorkspaceService,
     private dashboardService: MatderDashboardService,
+    private historyService: MatderHistoryService,
     private utilityService: UtilityServiceService,
     private dialog: MatDialog,
   ) {}
@@ -109,6 +144,10 @@ export class BoardPreviewPageComponent implements OnInit {
     else this.loading.set(false);
   }
 
+  ngOnDestroy(): void {
+    this.draftFilesMap.clear();
+  }
+
   async loadBoard(id: number): Promise<void> {
     this.loading.set(true);
     try {
@@ -117,12 +156,14 @@ export class BoardPreviewPageComponent implements OnInit {
         this.boardService.getBoardLists(id),
       ]);
       this.board.set(b);
+      this.historyService.push({ type: 'board', id: b.id, name: b.name, subtitle: b.workspace_name, accent: b.accent });
       // Asegurar que las cartas siempre sean un array para evitar problemas al hacer drag and drop (kanban)
       const sanitizedLists = ls.map(l => ({ ...l, cards: l.cards || [] })).sort((a, c) => a.position - c.position);
       this.lists.set(sanitizedLists);
 
       // Load workspace members and groups in parallel
       await this.loadWorkspaceData(b.workspace);
+      this.loadDraftsFromStorage();
     } catch {
       this.board.set(null);
     } finally {
@@ -327,15 +368,117 @@ export class BoardPreviewPageComponent implements OnInit {
   }
 
   closeCardModal(): void {
+    // Auto-guardar como borrador si es una nueva tarjeta con título
+    if (!this.editingCardId && this.cardFormTitle.trim()) {
+      this.persistDraft();
+    }
     this.showCardModal = false;
     this.editingCardId = null;
+  }
+
+  discardCardAndClose(): void {
+    this.showCardModal = false;
+    this.editingCardId = null;
+    this.cardFormTitle = '';
+    this.cardFormDesc = '';
+    this.cardFormPriority = 'MEDIUM';
+    this.cardFormStatus = 'TODO';
+    this.cardFormDueDate = null;
+    this.cardFormAssignee = null;
+    this.cardFormGroup = null;
+    this.cardFormChecklists = [];
+    this.cardFormFiles = [];
+  }
+
+  // ── Borradores ──
+
+  private loadDraftsFromStorage(): void {
+    try {
+      const raw = localStorage.getItem(this.draftKey);
+      this.drafts.set(raw ? JSON.parse(raw) : []);
+    } catch {
+      this.drafts.set([]);
+    }
+  }
+
+  private persistDraft(): void {
+    const draft: CardDraft = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      savedAt: new Date().toISOString(),
+      listId: this.editingCardListId!,
+      listName: this.editingCardListName,
+      listType: this.editingCardListType,
+      title: this.cardFormTitle.trim(),
+      desc: this.cardFormDesc.trim(),
+      priority: this.cardFormPriority,
+      status: this.cardFormStatus,
+      dueDate: this.cardFormDueDate ? this.cardFormDueDate.toISOString() : null,
+      assignee: this.cardFormAssignee,
+      assigneeGroup: this.cardFormGroup,
+      checklists: [...this.cardFormChecklists],
+    };
+    if (this.cardFormFiles.length) {
+      this.draftFilesMap.set(draft.id, [...this.cardFormFiles]);
+    }
+    const updated = [...this.drafts(), draft];
+    this.drafts.set(updated);
+    this.saveDraftsToStorage(updated);
+  }
+
+  private saveDraftsToStorage(list: CardDraft[]): void {
+    try { localStorage.setItem(this.draftKey, JSON.stringify(list)); } catch { /* cuota llena */ }
+  }
+
+  loadDraft(draft: CardDraft): void {
+    this.editingCardId = null;
+    this.editingCardListId = draft.listId;
+    this.editingCardListName = draft.listName;
+    this.editingCardListType = draft.listType;
+    this.cardFormTitle = draft.title;
+    this.cardFormDesc = draft.desc;
+    this.cardFormPriority = draft.priority;
+    this.cardFormStatus = draft.status;
+    this.cardFormDueDate = draft.dueDate ? new Date(draft.dueDate) : null;
+    this.cardFormAssignee = draft.assignee;
+    this.cardFormGroup = draft.assigneeGroup;
+    this.cardFormChecklists = draft.checklists.map(c => ({ ...c }));
+    this.cardFormFiles = this.draftFilesMap.get(draft.id) ?? [];
+    this.cardFormNewChecklist = '';
+    this.cardSaving = false;
+    // Quitar el borrador de la lista (se cargó al form)
+    this.deleteDraftById(draft.id);
+    this.showDraftsPanel = false;
+    this.showCardModal = true;
+  }
+
+  deleteDraftById(id: string): void {
+    this.draftFilesMap.delete(id);
+    const updated = this.drafts().filter(d => d.id !== id);
+    this.drafts.set(updated);
+    this.saveDraftsToStorage(updated);
+  }
+
+  draftPriorityLabel(p: string): string {
+    return ({ LOW: 'Baja', MEDIUM: 'Media', HIGH: 'Alta', URGENT: 'Urgente' } as Record<string, string>)[p] ?? p;
+  }
+
+  draftAge(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return 'Hace un momento';
+    if (m < 60) return `Hace ${m} min`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `Hace ${h} h`;
+    return `Hace ${Math.floor(h / 24)} día(s)`;
   }
 
   /** Convierte la fecha del datepicker a ISO (yyyy-mm-ddT00:00:00) o null. */
   private formatDueDate(d: Date | null): string | null {
     if (!d) return null;
     // Mantenemos hora local 23:59 para que el "vence hoy" no quede como vencido.
-    const local = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0);
+    // Mediodía local para que la fecha en UTC coincida con la local (evita el off-by-one
+    // del calendario: a las 23:59 en UTC-5 la fecha ISO caía al día siguiente).
+    const local = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
     return local.toISOString();
   }
 
@@ -350,6 +493,10 @@ export class BoardPreviewPageComponent implements OnInit {
         status: this.cardFormStatus,
         due_at: this.formatDueDate(this.cardFormDueDate),
         assignee: this.cardFormAssignee || null,
+        // Nombre ya resuelto del asignado: el backend lo usa SOLO para el texto de la
+        // notificación de confirmación al que asigna ("Asignaste una tarea a X"); no se
+        // persiste en la tarjeta. Si falta, el backend cae a un título sin nombre.
+        assignee_name: this.cardFormAssignee ? (this.selectedAssigneeLabel() || null) : null,
         assignee_group: this.cardFormGroup || null,
       };
 
@@ -397,31 +544,111 @@ export class BoardPreviewPageComponent implements OnInit {
 
   onAssigneeSelected(userId: string | null): void {
     this.cardFormAssignee = userId;
+    // Persona y grupo son excluyentes: elegir una persona limpia el grupo (y viceversa
+    // en onGroupSelected), para que la tarjeta tenga un único responsable coherente.
+    if (userId) {
+      this.cardFormGroup = null;
+    }
   }
 
   getMemberLabel(m: WorkspaceMemberResponse): string {
+    // Resolver el nombre real desde la lista de usuarios de la compañía; nunca el UUID crudo.
+    const name = this.getAssigneeName(m.user);
+    if (name) return name;
     if (m.full_name) return m.full_name;
     if (m.username) return m.username;
-    return m.user;
+    return 'Usuario';
   }
 
   getMemberInitials(m: WorkspaceMemberResponse): string {
-    const name = m.full_name || m.username || m.user;
-    return name.slice(0, 2).toUpperCase();
+    return this.getMemberLabel(m).slice(0, 2).toUpperCase();
+  }
+
+  /** Texto del select cerrado: SOLO el nombre del responsable elegido (no iniciales ni rol). */
+  selectedAssigneeLabel(): string {
+    if (!this.cardFormAssignee) return '';
+    const m = this.activeMembers.find(x => x.user === this.cardFormAssignee);
+    return m ? this.getMemberLabel(m) : (this.getAssigneeName(this.cardFormAssignee) || '');
+  }
+
+  /** Texto del select cerrado de grupo: SOLO el nombre del grupo. */
+  selectedGroupLabel(): string {
+    if (!this.cardFormGroup) return '';
+    const g = this.workspaceGroups().find(x => x.id === this.cardFormGroup);
+    return g ? g.name : '';
   }
 
   // ── Group management ──
-  openGroupModal(): void {
+  openGroupModal(fromCardForm = false): void {
+    this.returnToCardForm = fromCardForm;
+    if (fromCardForm) {
+      this.showCardModal = false;
+    }
     this.showGroupModal = true;
     this.managingGroup = null;
     this.newGroupName = '';
     this.newGroupDesc = '';
     this.groupMembers.set([]);
+    this.clearGroupSearch();
   }
 
   closeGroupModal(): void {
     this.showGroupModal = false;
     this.managingGroup = null;
+    if (this.returnToCardForm) {
+      this.returnToCardForm = false;
+      this.showCardModal = true;
+    }
+  }
+
+  // ── Panel lateral de grupos ──
+  async toggleGroupPanel(groupId: number): Promise<void> {
+    const current = new Set(this.expandedGroupIds());
+    if (current.has(groupId)) {
+      current.delete(groupId);
+      this.expandedGroupIds.set(new Set(current));
+      return;
+    }
+    current.add(groupId);
+    this.expandedGroupIds.set(new Set(current));
+    const cache = this.groupMembersCache();
+    if (!cache[groupId]) {
+      try {
+        const members = await this.dashboardService.getGroupMembers(groupId);
+        this.groupMembersCache.set({ ...this.groupMembersCache(), [groupId]: members });
+      } catch {
+        this.groupMembersCache.set({ ...this.groupMembersCache(), [groupId]: [] });
+      }
+    }
+  }
+
+  isGroupExpanded(groupId: number): boolean {
+    return this.expandedGroupIds().has(groupId);
+  }
+
+  getGroupMemberName(m: GroupMemberResponse): string {
+    if (m.full_name) return m.full_name;
+    const u: any = this.platformUsers().find((x: any) => x.id === m.user);
+    if (u) {
+      const full = `${u.datos_basicos?.nombres ?? ''} ${u.datos_basicos?.apellidos ?? ''}`.trim();
+      if (full) return full;
+      if (u.correo_electronico) return u.correo_electronico;
+    }
+    return m.username || 'Usuario';
+  }
+
+  getGroupMemberInitials(m: GroupMemberResponse): string {
+    return this.getGroupMemberName(m).slice(0, 2).toUpperCase();
+  }
+
+  /** Asigna el grupo a la tarea que se está creando/editando desde el panel lateral */
+  assignGroupFromPanel(groupId: number): void {
+    this.cardFormGroup = groupId;
+    this.cardFormAssignee = null;
+    if (!this.showCardModal) {
+      // Si no hay modal abierto, abre uno nuevo — el usuario tendrá que elegir la lista
+      Swal.fire('Grupo seleccionado', 'Abre una lista y crea una tarea; el grupo ya quedará preseleccionado.', 'info');
+    }
   }
 
   async createGroup(): Promise<void> {
@@ -465,11 +692,58 @@ export class BoardPreviewPageComponent implements OnInit {
     try {
       await this.dashboardService.addGroupMember(this.managingGroup.id, this.addMemberToGroupId.trim());
       this.addMemberToGroupId = '';
+      this.clearGroupSearch();
       await this.loadGroupMembers(this.managingGroup.id);
       await this.loadWorkspaceData(this.board()!.workspace);
     } catch {
       Swal.fire('Error', 'No se pudo agregar el miembro al grupo.', 'error');
     }
+  }
+
+  // ── Buscador inteligente de usuarios ──
+
+  get filteredPlatformUsers(): any[] {
+    const q = this.groupSearchQuery.trim().toLowerCase();
+    if (q.length < 2) return [];
+    return this.platformUsers().filter((u: any) => {
+      const nombres = (u.datos_basicos?.nombres ?? '').toLowerCase();
+      const apellidos = (u.datos_basicos?.apellidos ?? '').toLowerCase();
+      const fullName = `${nombres} ${apellidos}`;
+      const email = (u.correo_electronico ?? '').toLowerCase();
+      const doc = (u.numero_de_documento ?? '').toString().toLowerCase();
+      return fullName.includes(q) || email.includes(q) || doc.includes(q);
+    }).slice(0, 12);
+  }
+
+  displayGroupUser = (u: any): string => {
+    if (!u || typeof u !== 'object') return '';
+    return this.getUserFullName(u);
+  };
+
+  getUserFullName(u: any): string {
+    const name = `${u.datos_basicos?.nombres ?? ''} ${u.datos_basicos?.apellidos ?? ''}`.trim();
+    return name || u.correo_electronico || 'Usuario';
+  }
+
+  getUserInitials(u: any): string {
+    return this.getUserFullName(u).slice(0, 2).toUpperCase();
+  }
+
+  onGroupUserSelected(event: any): void {
+    const u = event.option.value;
+    this.addMemberToGroupId = u?.id ?? '';
+    this.groupSearchQuery = this.getUserFullName(u);
+  }
+
+  onGroupSearchChange(): void {
+    if (!this.groupSearchQuery.trim()) {
+      this.addMemberToGroupId = '';
+    }
+  }
+
+  clearGroupSearch(): void {
+    this.groupSearchQuery = '';
+    this.addMemberToGroupId = '';
   }
 
   async removeMemberFromGroup(memberId: number): Promise<void> {
@@ -569,9 +843,30 @@ export class BoardPreviewPageComponent implements OnInit {
     return this.workspaceGroups().find(g => g.id === groupId)?.name ?? '';
   }
 
-  getAssigneeName(userId: string | null): string {
+  getAssigneeName(userId: string | null | undefined): string {
     if (!userId) return '';
+    // Resolver desde la lista de usuarios de la compañía (tiene datos_basicos).
+    const u: any = this.platformUsers().find((x: any) => x.id === userId);
+    if (u) {
+      const full = `${u.datos_basicos?.nombres ?? ''} ${u.datos_basicos?.apellidos ?? ''}`.trim();
+      if (full) return full;
+      if (u.correo_electronico) return u.correo_electronico;
+    }
+    // Fallback: nombre guardado en la membresía (si el backend lo trae). Nunca el UUID crudo.
     const m = this.workspaceMembers().find(m => m.user === userId);
-    return m ? (m.full_name || m.username || m.user) : userId;
+    if (m && (m.full_name || m.username)) return (m.full_name || m.username) as string;
+    return '';
+  }
+
+  /**
+   * Correo (o cédula) del usuario, para distinguir cuentas homónimas/duplicadas en el
+   * selector de asignación. Sin esto, dos personas con el mismo nombre —o la misma
+   * persona con dos cuentas— son indistinguibles y se asigna (y notifica) a la equivocada.
+   */
+  getAssigneeEmail(userId: string | null | undefined): string {
+    if (!userId) return '';
+    const u: any = this.platformUsers().find((x: any) => x.id === userId);
+    if (!u) return '';
+    return u.correo_electronico || u.numero_de_documento || '';
   }
 }

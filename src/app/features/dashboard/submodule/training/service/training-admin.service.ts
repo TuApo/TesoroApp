@@ -266,6 +266,140 @@ export class TrainingAdminService {
     return firstValueFrom(this.http.post<Asistencia[]>(
       `${this.base}/groups/${groupId}/attendance`, { fecha, registros }));
   }
+
+  // ── Planes de asignación ──────────────────────────────────────────────────
+  // El motor decide QUIÉN recibe QUÉ curso y CUÁNDO. Todo lo de aquí exige rol de
+  // administración de formación; el backend responde 403 si no.
+
+  listarPlanes(): Promise<PlanAsignacion[]> {
+    return firstValueFrom(this.http.get<PlanAsignacion[]>(`${this.base}/assignment-plans`));
+  }
+
+  obtenerPlan(id: string): Promise<PlanAsignacion> {
+    return firstValueFrom(this.http.get<PlanAsignacion>(`${this.base}/assignment-plans/${id}`));
+  }
+
+  crearPlan(req: PlanRequest): Promise<PlanAsignacion> {
+    return firstValueFrom(this.http.post<PlanAsignacion>(`${this.base}/assignment-plans`, req));
+  }
+
+  actualizarPlan(id: string, req: PlanRequest): Promise<PlanAsignacion> {
+    return firstValueFrom(
+      this.http.put<PlanAsignacion>(`${this.base}/assignment-plans/${id}`, req));
+  }
+
+  /** El backend responde 409 si se intenta activar un plan que nunca se simuló. */
+  activarPlan(id: string, valor: boolean): Promise<PlanAsignacion> {
+    return firstValueFrom(this.http.put<PlanAsignacion>(
+      `${this.base}/assignment-plans/${id}/activo?valor=${valor}`, {}));
+  }
+
+  eliminarPlan(id: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/assignment-plans/${id}`).pipe(map(() => void 0)));
+  }
+
+  /** Catálogo de ejes y operadores: el constructor de audiencias no hardcodea ninguno. */
+  ejesAsignacion(): Promise<EjeAsignacion[]> {
+    return firstValueFrom(this.http.get<EjeAsignacion[]>(`${this.base}/assignment-axes`));
+  }
+
+  criteriosDePlan(planId: string): Promise<CriterioAudiencia[]> {
+    return firstValueFrom(
+      this.http.get<CriterioAudiencia[]>(`${this.base}/assignment-plans/${planId}/criteria`));
+  }
+
+  agregarCriterio(planId: string, req: CriterioRequest): Promise<CriterioAudiencia> {
+    return firstValueFrom(this.http.post<CriterioAudiencia>(
+      `${this.base}/assignment-plans/${planId}/criteria`, req));
+  }
+
+  quitarCriterio(criterioId: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/assignment-criteria/${criterioId}`).pipe(map(() => void 0)));
+  }
+
+  itemsDePlan(planId: string): Promise<ItemPlan[]> {
+    return firstValueFrom(
+      this.http.get<ItemPlan[]>(`${this.base}/assignment-plans/${planId}/items`));
+  }
+
+  agregarItemPlan(planId: string, req: ItemPlanRequest): Promise<ItemPlan> {
+    return firstValueFrom(
+      this.http.post<ItemPlan>(`${this.base}/assignment-plans/${planId}/items`, req));
+  }
+
+  quitarItemPlan(itemId: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/assignment-items/${itemId}`).pipe(map(() => void 0)));
+  }
+
+  disparadoresDePlan(planId: string): Promise<Disparador[]> {
+    return firstValueFrom(
+      this.http.get<Disparador[]>(`${this.base}/assignment-plans/${planId}/triggers`));
+  }
+
+  agregarDisparador(planId: string, req: DisparadorRequest): Promise<Disparador> {
+    return firstValueFrom(this.http.post<Disparador>(
+      `${this.base}/assignment-plans/${planId}/triggers`, req));
+  }
+
+  quitarDisparador(triggerId: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/assignment-triggers/${triggerId}`).pipe(map(() => void 0)));
+  }
+
+  /** Dry-run: evalúa y escribe la bitácora persona a persona, sin matricular a nadie. */
+  simularPlan(id: string): Promise<CorridaPlan> {
+    return firstValueFrom(
+      this.http.post<CorridaPlan>(`${this.base}/assignment-plans/${id}/simulate`, {}));
+  }
+
+  ejecutarPlan(id: string): Promise<CorridaPlan> {
+    return firstValueFrom(
+      this.http.post<CorridaPlan>(`${this.base}/assignment-plans/${id}/run`, {}));
+  }
+
+  corridasDePlan(id: string): Promise<CorridaPlan[]> {
+    return firstValueFrom(
+      this.http.get<CorridaPlan[]>(`${this.base}/assignment-plans/${id}/runs`));
+  }
+
+  /** `coincide=false` devuelve justamente a quien NO alcanzó el plan, y por qué. */
+  bitacoraDeCorrida(runId: string, coincide?: boolean): Promise<LineaBitacora[]> {
+    const q = coincide === undefined ? '' : `?coincide=${coincide}`;
+    return firstValueFrom(
+      this.http.get<LineaBitacora[]>(`${this.base}/assignment-runs/${runId}/log${q}`));
+  }
+
+  // ── Cumplimiento ──────────────────────────────────────────────────────────
+
+  resumenCumplimiento(courseId?: string): Promise<ResumenCumplimiento> {
+    const q = courseId ? `?course_id=${courseId}` : '';
+    return firstValueFrom(
+      this.http.get<ResumenCumplimiento>(`${this.base}/compliance/resumen${q}`));
+  }
+
+  matrizCumplimiento(courseId?: string): Promise<FilaMatriz[]> {
+    const q = courseId ? `?course_id=${courseId}` : '';
+    return firstValueFrom(this.http.get<FilaMatriz[]>(`${this.base}/compliance/matriz${q}`));
+  }
+
+  personasCumplimiento(estado?: string, courseId?: string, limite = 300)
+    : Promise<FilaPersonaCumplimiento[]> {
+    const p = new URLSearchParams();
+    if (estado) p.set('estado', estado);
+    if (courseId) p.set('course_id', courseId);
+    p.set('limite', String(limite));
+    return firstValueFrom(
+      this.http.get<FilaPersonaCumplimiento[]>(`${this.base}/compliance/personas?${p}`));
+  }
+
+  /** Cargos que nadie clasificó: a esa gente ningún plan la alcanza. */
+  cargosSinClasificar(): Promise<CargoSinFamilia[]> {
+    return firstValueFrom(
+      this.http.get<CargoSinFamilia[]>(`${this.base}/job-families/unmapped`));
+  }
 }
 
 export interface Banco {
@@ -521,4 +655,174 @@ export interface RecursoRequest {
   document_id?: string;
   url?: string;
   orden?: number;
+}
+// ── Planes de asignación ────────────────────────────────────────────────────
+
+export interface PlanAsignacion {
+  id: string;
+  codigo?: string | null;
+  nombre: string;
+  descripcion?: string | null;
+  activo: boolean;
+  vigente_desde?: string | null;
+  vigente_hasta?: string | null;
+  /** Conteos, no listas: el detalle se pide aparte. */
+  criterios: number;
+  items: number;
+  disparadores: string[];
+  ultima_corrida?: CorridaPlan | null;
+}
+
+export interface PlanRequest {
+  codigo?: string | null;
+  nombre: string;
+  descripcion?: string | null;
+  vigente_desde?: string | null;
+  vigente_hasta?: string | null;
+}
+
+export interface CriterioAudiencia {
+  id: string;
+  /** OR dentro del mismo grupo, AND entre grupos distintos. */
+  grupo_orden: number;
+  tipo: string;
+  operador: string;
+  valor: string;
+  negado: boolean;
+}
+
+export interface CriterioRequest {
+  grupo_orden?: number;
+  tipo: string;
+  operador?: string;
+  valor: string;
+  negado?: boolean;
+}
+
+export interface EjeAsignacion {
+  eje: string;
+  descripcion: string;
+  operadores: string[];
+  fuente: string;
+}
+
+export interface ItemPlan {
+  id: string;
+  course_id?: string | null;
+  curso_nombre?: string | null;
+  program_id?: string | null;
+  programa_nombre?: string | null;
+  group_id?: string | null;
+  plazo_dias?: number | null;
+  orden: number;
+}
+
+export interface ItemPlanRequest {
+  course_id?: string | null;
+  program_id?: string | null;
+  group_id?: string | null;
+  plazo_dias?: number | null;
+  orden?: number;
+}
+
+export interface Disparador {
+  id: string;
+  evento: string;
+  cron?: string | null;
+  event_code?: string | null;
+}
+
+export interface DisparadorRequest {
+  evento: string;
+  cron?: string | null;
+  event_code?: string | null;
+}
+
+export interface CorridaPlan {
+  id: string;
+  plan_id: string;
+  modo: 'SIMULACION' | 'EJECUCION' | string;
+  disparador?: string | null;
+  estado: 'EN_CURSO' | 'OK' | 'ERROR' | string;
+  evaluadas: number;
+  coincidencias: number;
+  matriculas: number;
+  error_mensaje?: string | null;
+  iniciado_at?: string | null;
+  terminado_at?: string | null;
+}
+
+export interface LineaBitacora {
+  id: string;
+  run_id: string;
+  person_id: string;
+  persona_nombre?: string | null;
+  cedula?: string | null;
+  coincide: boolean;
+  motivo?: string | null;
+  enrollment_id?: string | null;
+  created_at?: string | null;
+}
+
+// ── Cumplimiento ────────────────────────────────────────────────────────────
+
+export interface ResumenCumplimiento {
+  matriculas: number;
+  personas: number;
+  al_dia: number;
+  por_vencer: number;
+  vencidos: number;
+  en_curso: number;
+  pendientes: number;
+  reprobados: number;
+  porcentaje_cumplimiento: number;
+  personas_activas: number;
+  /** Gente activa sin una sola matrícula: no sale en ninguna fila de la matriz. */
+  personas_sin_matricula: number;
+  cargos_sin_clasificar: number;
+  cursos_obligatorios: number;
+}
+
+export interface FilaMatriz {
+  course_id: string;
+  curso: string;
+  codigo?: string | null;
+  obligatorio: boolean;
+  vigencia_meses?: number | null;
+  personas: number;
+  al_dia: number;
+  por_vencer: number;
+  vencidos: number;
+  en_curso: number;
+  pendientes: number;
+  reprobados: number;
+  porcentaje: number;
+}
+
+export interface FilaPersonaCumplimiento {
+  person_id: string;
+  cedula?: string | null;
+  nombre: string;
+  cargo?: string | null;
+  course_id: string;
+  curso: string;
+  estado_matricula: string;
+  /** Estado de CUMPLIMIENTO: AL_DIA, POR_VENCER, VENCIDO, EN_CURSO, PENDIENTE, REPROBADO. */
+  estado: string;
+  vence_at?: string | null;
+  porcentaje?: number | null;
+}
+
+export interface CargoSinFamilia {
+  id: string;
+  cargo_crudo: string;
+  cargo_norm?: string | null;
+  sufijo_sitio?: string | null;
+  job_family_id?: string | null;
+  job_family_nombre?: string | null;
+  excluido: boolean;
+  motivo_exclusion?: string | null;
+  origen?: string | null;
+  /** Ordenados por esto: primero el cargo que deja a más gente sin formación. */
+  contratos_activos: number;
 }

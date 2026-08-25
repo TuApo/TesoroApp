@@ -2,7 +2,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { shareReplay, tap } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
 export interface Cargo {
@@ -33,36 +32,8 @@ export class PositionsService {
   private readonly base = `${environment.apiUrl}/gestion_cargos/cargos/`;
 
   // ---------- LIST ----------
-  /**
-   * El listado COMPLETO (sin filtros) se cachea: es el catálogo que piden los
-   * autocompletes de cargo al abrir cada diálogo de vacante. Cualquier
-   * mutación de cargos lo invalida; las consultas con filtros van directo.
-   */
   list(params?: CargoListParams): Observable<Cargo[]> {
-    const sinFiltros = !params || Object.values(params).every(v => v === undefined || v === null || v === '');
-    if (!sinFiltros) {
-      return this.http.get<Cargo[]>(this.base, { params: this.buildParams(params) });
-    }
-
-    const ahora = Date.now();
-    if (!this.listaCache || ahora - this.listaCacheTs > PositionsService.LISTA_TTL_MS) {
-      this.listaCache = this.http.get<Cargo[]>(this.base).pipe(
-        shareReplay({ bufferSize: 1, refCount: false }),
-      );
-      this.listaCacheTs = ahora;
-      this.listaCache.subscribe({ error: () => { this.listaCache = null; } });
-    }
-    return this.listaCache;
-  }
-
-  private listaCache: Observable<Cargo[]> | null = null;
-  private listaCacheTs = 0;
-  private static readonly LISTA_TTL_MS = 5 * 60_000;
-
-  /** El catálogo cambió: la próxima lectura debe ir al servidor. */
-  private invalidarLista(): void {
-    this.listaCache = null;
-    this.listaCacheTs = 0;
+    return this.http.get<Cargo[]>(this.base, { params: this.buildParams(params) });
   }
 
   // ---------- RETRIEVE ----------
@@ -72,33 +43,29 @@ export class PositionsService {
 
   // ---------- CREATE ----------
   create(body: Cargo): Observable<Cargo> {
-    return this.http.post<Cargo>(this.base, body).pipe(tap(() => this.invalidarLista()));
+    return this.http.post<Cargo>(this.base, body);
   }
 
   // ---------- UPDATE (nota: no cambia el PK 'nombre') ----------
   update(nombre: string, body: Partial<Cargo>): Observable<Cargo> {
-    return this.http.put<Cargo>(this.base + encodeURIComponent(nombre) + '/', body)
-      .pipe(tap(() => this.invalidarLista()));
+    return this.http.put<Cargo>(this.base + encodeURIComponent(nombre) + '/', body);
   }
 
   // ---------- PATCH ----------
   patch(nombre: string, body: Partial<Cargo>): Observable<Cargo> {
-    return this.http.patch<Cargo>(this.base + encodeURIComponent(nombre) + '/', body)
-      .pipe(tap(() => this.invalidarLista()));
+    return this.http.patch<Cargo>(this.base + encodeURIComponent(nombre) + '/', body);
   }
 
   // ---------- DELETE ----------
   remove(nombre: string): Observable<void> {
-    return this.http.delete<void>(this.base + encodeURIComponent(nombre) + '/')
-      .pipe(tap(() => this.invalidarLista()));
+    return this.http.delete<void>(this.base + encodeURIComponent(nombre) + '/');
   }
 
   // ---------- IMPORTAR EXCEL ----------
   importExcel(file: File | Blob): Observable<CargoImportResult> {
     const form = new FormData();
     form.append('file', file, (file as any).name || 'cargos.xlsx');
-    return this.http.post<CargoImportResult>(this.base + 'importar-excel/', form)
-      .pipe(tap(() => this.invalidarLista()));
+    return this.http.post<CargoImportResult>(this.base + 'importar-excel/', form);
   }
 
   // ---------- EXPORTAR EXCEL (Blob) ----------

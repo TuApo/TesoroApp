@@ -1,23 +1,24 @@
-import {  Component, OnInit, OnDestroy , ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { HistorialService } from '../../../history/service/historial/historial.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
-import { FormsModule } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
+
+/** SweetAlert2 pinta sobre <body>, fuera del encapsulado del componente: no ve las CSS vars. */
+const NAVY = '#21263C';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-prestamo-calamidad',
-  imports: [SharedModule, FormsModule],
+  imports: [SharedModule],
   templateUrl: './prestamo-calamidad.component.html',
   styleUrl: './prestamo-calamidad.component.css'
-} )
-export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
+})
+export class PrestamoCalamidadComponent implements OnInit {
   searchForm!: FormGroup;
   executeForm!: FormGroup;
 
@@ -31,22 +32,20 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
 
   user: any;
   rolUsuario: string = '';
-  correoUsuario: string = '';
 
   constructor(
     private fb: FormBuilder,
     private autorizacionesService: AutorizacionesService,
     private historialService: HistorialService,
     private utilityService: UtilityServiceService,
-    private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
     this.user = this.utilityService.getUser();
     if (this.user) {
       this.rolUsuario = this.user.rol?.nombre ?? '';
-      this.correoUsuario = this.user.correo_electronico ?? '';
     }
 
     this.searchForm = this.fb.group({
@@ -59,8 +58,6 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnDestroy() { }
-
   formatCurrency(value: any): string {
     if (value === null || value === undefined || value === '') return '0';
     return Number(value).toLocaleString('es-CO', { maximumFractionDigits: 0 });
@@ -68,9 +65,9 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
 
   formatCurrencyInput(event: any) {
     const input = event.target;
-    let value = input.value.replace(/\D/g, '');
-    value = Number(value).toLocaleString('es-CO');
-    input.value = value;
+    const digits = input.value.replace(/\D/g, '');
+    // Sin esta guarda, borrar el campo entero lo repuebla con "0" y hay que borrarlo dos veces.
+    input.value = digits ? Number(digits).toLocaleString('es-CO') : '';
   }
 
   async buscarEmpleado() {
@@ -102,7 +99,7 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
 
       if (statusData.activo === false) {
         Swal.fire({
-          icon: 'error', title: 'Empleado Inactivo',
+          icon: 'error', title: 'Empleado inactivo',
           text: 'El empleado con el número de documento proporcionado se encuentra inactivo y no es válido para procesar autorizaciones.',
         });
         return;
@@ -117,7 +114,7 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
         const motivo = statusData.observacion_bloqueo ? statusData.observacion_bloqueo : 'Sin motivo especificado';
 
         Swal.fire({
-          icon: 'error', title: 'Empleado Bloqueado',
+          icon: 'error', title: 'Empleado bloqueado',
           text: `El empleado se encuentra bloqueado desde: ${fechaStr}.\n\nMotivo: ${motivo}`,
         });
         return;
@@ -140,6 +137,9 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
       } else {
         Swal.fire('Error', 'Hubo un problema al buscar el operario.', 'error');
       }
+    } finally {
+      // Zoneless + OnPush: sin esto la vista se queda en el buscador aunque ya haya datos.
+      this.cdr.markForCheck();
     }
   }
 
@@ -148,28 +148,40 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
     this.transaccionesPendientes = [];
     this.transaccionSeleccionada = null;
 
-    this.historialService.getHistorialTransaccionesPorDocumento(doc).subscribe(
-      (res: any) => {
+    this.historialService.getHistorialTransaccionesPorDocumento(doc).subscribe({
+      next: (res: any) => {
         const rawList = Array.isArray(res) ? res : (res.results || res.data || []);
-        // Filtrar pendientes de tipo préstamo (dinero, seguro funerario, otro)
+        // Filtrar pendientes de tipo préstamo (dinero, seguro funerario, otro): todo
+        // lo que NO sea mercado. !includes('mercado') y no !== 'mercado': el concepto
+        // mercado llega en variantes ("Mercado", "autorizacion de mercado autorizacion"...)
+        // y con la igualdad exacta se colaban como préstamo miles de autorizaciones de mercado.
         this.transaccionesPendientes = rawList.filter(
-          (tx: any) => tx.estado === 'PENDIENTE' && (tx.autorizacion_concepto || '').toLowerCase() !== 'mercado'
+          (tx: any) => tx.estado === 'PENDIENTE' && !(tx.autorizacion_concepto || '').toLowerCase().includes('mercado')
         ).sort((a: any, b: any) => {
           return new Date(b.autorizado_en || 0).getTime() - new Date(a.autorizado_en || 0).getTime();
         });
         this.loadingTransacciones = false;
+        this.cdr.markForCheck();
       },
-      () => { this.loadingTransacciones = false; }
-    );
+      error: () => {
+        this.loadingTransacciones = false;
+        // Sin markForCheck en la rama de error el spinner gira para siempre.
+        this.cdr.markForCheck();
+      }
+    });
   }
 
-  onCodigoSeleccionado() {
-    if (this.transaccionSeleccionada) {
-      this.executeForm.patchValue({
-        valor: Number(this.transaccionSeleccionada.autorizacion_monto).toLocaleString('es-CO', { maximumFractionDigits: 0 }),
-        cuotas: this.transaccionSeleccionada.autorizacion_cuotas || 1
-      });
-    }
+  seleccionarTransaccion(tx: any) {
+    this.transaccionSeleccionada = tx;
+    this.executeForm.patchValue({
+      valor: Number(tx.autorizacion_monto).toLocaleString('es-CO', { maximumFractionDigits: 0 }),
+      cuotas: tx.autorizacion_cuotas || 1
+    });
+  }
+
+  limpiarSeleccion() {
+    this.transaccionSeleccionada = null;
+    this.executeForm.reset();
   }
 
   cancelar() {
@@ -180,6 +192,7 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
     this.limiteDisponible = 0;
     this.searchForm.reset();
     this.executeForm.reset();
+    this.cdr.markForCheck();
   }
 
   abrirHistorial() {
@@ -192,13 +205,16 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
   }
 
   async ejecutarPrestamo() {
-    if (!this.transaccionSeleccionada || this.executeForm.invalid) return;
+    if (!this.transaccionSeleccionada || this.executeForm.invalid) {
+      this.executeForm.markAllAsTouched();
+      return;
+    }
 
-    const valorStr = this.executeForm.value.valor.replace(/\D/g, '');
+    const valorStr = String(this.executeForm.value.valor).replace(/\D/g, '');
     const valorNumerico = parseInt(valorStr, 10);
     const montoAutorizado = Number(this.transaccionSeleccionada.autorizacion_monto);
 
-    if (valorNumerico <= 0) { Swal.fire('Error', 'El valor debe ser mayor a 0.', 'error'); return; }
+    if (!valorNumerico || valorNumerico <= 0) { Swal.fire('Error', 'El valor debe ser mayor a 0.', 'error'); return; }
     const rolesLibres = ['TIENDA', 'ADMIN', 'GERENCIA'];
     if (!rolesLibres.includes(this.rolUsuario) && valorNumerico > montoAutorizado) {
       Swal.fire('Error', `El valor ($${this.formatCurrency(valorNumerico)}) excede el autorizado ($${this.formatCurrency(montoAutorizado)}).`, 'error');
@@ -211,8 +227,8 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
              <p><strong>Empleado:</strong> ${this.nombreOperario}</p>
              <p><strong>Valor:</strong> $${this.formatCurrency(valorNumerico)}</p>
              <p><strong>Cuotas:</strong> ${this.executeForm.value.cuotas}</p>`,
-      showCancelButton: true, confirmButtonText: 'Sí, Ejecutar', cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#7c3aed'
+      showCancelButton: true, confirmButtonText: 'Sí, ejecutar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: NAVY
     });
 
     if (!confirmar.isConfirmed) return;
@@ -236,9 +252,9 @@ export class PrestamoCalamidadComponent implements OnInit, OnDestroy {
 
       Swal.close();
       Swal.fire({
-        icon: 'success', title: '¡Éxito!',
+        icon: 'success', title: '¡Listo!',
         text: `Préstamo ejecutado. Código: ${response.codigo_ejecucion || 'N/A'}`,
-        confirmButtonText: 'Aceptar', confirmButtonColor: '#7c3aed'
+        confirmButtonText: 'Aceptar', confirmButtonColor: NAVY
       }).then(() => { this.cancelar(); });
     } catch (error: any) {
       Swal.close();

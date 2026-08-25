@@ -1,9 +1,8 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { PaymentsService } from '../../services/payments.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
-import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { FormsModule } from '@angular/forms';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
@@ -15,7 +14,6 @@ import { StandardFilterTable } from '@/app/shared/components/standard-filter-tab
   standalone: true,
   imports: [
     SharedModule,
-    InfoCardComponent,
     FormsModule,
     StandardFilterTable
   ],
@@ -45,9 +43,27 @@ export class PaymentMethodComponent implements OnInit {
   user: any;
   correo: any
 
+  /** Correos autorizados para gestionar (descargar/cargar) formas de pago. */
+  private readonly correosGestion = new Set<string>([
+    'contaduria.rtc@gmail.com',
+    'ghumana.rtc@gmail.com',
+    'programador.ts@gmail.com',
+    'antcontable5.ts@gmail.com',
+    'asistconta.rtc@gmail.com',
+    'nominacentral9@gmail.com',
+    'carteratuapo@gmail.com',
+    'antcontable3.ts@gmail.com',
+  ]);
+
+  /** true si el usuario puede ver el menú de acciones (plantilla / carga). */
+  get puedeGestionar(): boolean {
+    return this.correosGestion.has(this.correo);
+  }
+
   constructor(
     private paymentsService: PaymentsService,
     private utilityService: UtilityServiceService,
+    private cdr: ChangeDetectorRef,
   ) { }
 
   async ngOnInit(): Promise<void> {
@@ -69,6 +85,17 @@ export class PaymentMethodComponent implements OnInit {
       return;
     }
 
+    // Modal de carga mientras se consulta la información.
+    Swal.fire({
+      title: 'Buscando información...',
+      text: 'Por favor espera un momento.',
+      icon: 'info',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
     this.paymentsService.buscarFormasPago(cleanedCedula).subscribe(
       (response: any) => {
         // El backend puede responder con un array directo [...] o con un
@@ -84,6 +111,7 @@ export class PaymentMethodComponent implements OnInit {
         if (lista.length === 0) {
           this.dataList = [];
           this.originalData = [];
+          this.cdr.markForCheck();
           Swal.fire({
             icon: 'info',
             title: 'Información',
@@ -107,6 +135,10 @@ export class PaymentMethodComponent implements OnInit {
 
         this.originalData = JSON.parse(JSON.stringify(formasDePago));
         this.dataList = formasDePago;
+        // OnPush: la respuesta llega async; hay que marcar para que se
+        // renderice sin necesidad de un segundo click.
+        this.cdr.markForCheck();
+        Swal.close();
       },
       (error: any) => {
         // Algunas versiones del backend responden 404 cuando no hay registros;
@@ -114,6 +146,7 @@ export class PaymentMethodComponent implements OnInit {
         if (error?.status === 404) {
           this.dataList = [];
           this.originalData = [];
+          this.cdr.markForCheck();
           Swal.fire({
             icon: 'info',
             title: 'Información',
@@ -219,6 +252,7 @@ export class PaymentMethodComponent implements OnInit {
                 this.dataList.splice(index, 1);
                 // Trigger change detection in child list by reference change
                 this.dataList = [...this.dataList];
+                this.cdr.markForCheck();
               }
             } else {
               Swal.fire({

@@ -57,6 +57,11 @@ export class ManageWorkersComponent implements OnInit {
   showInactive = signal(false);
   totalActivos = signal<number>(0);
 
+  /** Estado de la paginación server-side. */
+  pageIndex = signal<number>(0);
+  pageSize = signal<number>(50);
+  totalRegistros = signal<number>(0);
+
   // Search State
   searchCedula = signal<string>('');
 
@@ -81,34 +86,49 @@ export class ManageWorkersComponent implements OnInit {
     { name: 'temporal', header: 'Temporal', type: 'text', width: '20ch' },
     { name: 'finca', header: 'Finca', type: 'text', width: '12ch' },
 
-    /** ======= Números ======= */
-    { name: 'salario', header: 'Salario', type: 'number', width: '12ch', filterable: false },
-    { name: 'saldo_pendiente', header: 'Saldo Pendiente', type: 'number', width: '14ch', filterable: false },
-    { name: 'saldos', header: 'Saldos', type: 'number', width: '12ch', filterable: false },
-    { name: 'fondos', header: 'Fondos', type: 'number', width: '12ch', filterable: false },
-    { name: 'mercados', header: 'Mercados', type: 'number', width: '12ch', filterable: false },
+    /** ======= Dinero (format currency) y conteos (cuotas, sin format) ======= */
+    { name: 'salario', header: 'Salario', type: 'number', format: 'currency', width: '12ch', filterable: false },
+    { name: 'saldo_pendiente', header: 'Saldo Pendiente', type: 'number', format: 'currency', width: '14ch', filterable: false },
+    { name: 'saldos', header: 'Saldos', type: 'number', format: 'currency', width: '12ch', filterable: false },
+    { name: 'fondos', header: 'Fondos', type: 'number', format: 'currency', width: '12ch', filterable: false },
+    { name: 'mercados', header: 'Mercados', type: 'number', format: 'currency', width: '12ch', filterable: false },
     { name: 'cuotas_mercados', header: 'Cuotas Mercados', type: 'number', width: '12ch', filterable: false },
 
-    { name: 'prestamo_para_descontar', header: 'Préstamo p/Descontar', type: 'number', width: '16ch', filterable: false },
+    { name: 'prestamo_para_descontar', header: 'Préstamo p/Descontar', type: 'number', format: 'currency', width: '16ch', filterable: false },
     { name: 'cuotas_prestamos_para_descontar', header: 'Cuotas Préstamo', type: 'number', width: '12ch', filterable: false },
 
-    { name: 'casino', header: 'Casino', type: 'number', width: '10ch', filterable: false },
-    { name: 'valor_anchetas', header: 'Valor Anchetas', type: 'number', width: '14ch', filterable: false },
+    { name: 'casino', header: 'Casino', type: 'number', format: 'currency', width: '10ch', filterable: false },
+    { name: 'valor_anchetas', header: 'Valor Anchetas', type: 'number', format: 'currency', width: '14ch', filterable: false },
     { name: 'cuotas_anchetas', header: 'Cuotas Anchetas', type: 'number', width: '12ch', filterable: false },
 
-    { name: 'fondo', header: 'Fondo', type: 'number', width: '10ch', filterable: false },
-    { name: 'carnet', header: 'Carnet', type: 'number', width: '10ch', filterable: false },
-    { name: 'seguro_funerario', header: 'Seguro Funerario', type: 'number', width: '14ch', filterable: false },
+    { name: 'fondo', header: 'Fondo', type: 'number', format: 'currency', width: '10ch', filterable: false },
+    { name: 'carnet', header: 'Carnet', type: 'number', format: 'currency', width: '10ch', filterable: false },
+    { name: 'seguro_funerario', header: 'Seguro Funerario', type: 'number', format: 'currency', width: '14ch', filterable: false },
 
-    { name: 'prestamo_para_hacer', header: 'Préstamo p/Hacer', type: 'number', width: '14ch', filterable: false },
+    { name: 'prestamo_para_hacer', header: 'Préstamo p/Hacer', type: 'number', format: 'currency', width: '14ch', filterable: false },
     { name: 'cuotas_prestamo_para_hacer', header: 'Cuotas p/Hacer', type: 'number', width: '12ch', filterable: false },
 
-    { name: 'anticipo_liquidacion', header: 'Anticipo Liquidación', type: 'number', width: '16ch', filterable: false },
-    { name: 'cuentas', header: 'Cuentas', type: 'number', width: '10ch', filterable: false },
+    { name: 'anticipo_liquidacion', header: 'Anticipo Liquidación', type: 'number', format: 'currency', width: '16ch', filterable: false },
+    { name: 'cuentas', header: 'Cuentas', type: 'number', format: 'currency', width: '10ch', filterable: false },
   ];
 
   ngOnInit(): void {
     this.getWorkers();
+    this.cargarResumen();
+  }
+
+  /**
+   * El contador de activos venía de contar el array completo en cliente, cosa
+   * que ya no existe: ahora solo llega una página. Lo resuelve el backend con
+   * un COUNT, que es lo que siempre debió hacer.
+   */
+  private async cargarResumen() {
+    try {
+      const r = await this.tesoreriaService.traerResumenPersonas();
+      this.totalActivos.set(r.activos);
+    } catch {
+      this.totalActivos.set(0);
+    }
   }
 
   /** =================== Carga de datos =================== */
@@ -116,22 +136,16 @@ export class ManageWorkersComponent implements OnInit {
     this.loading.set(true);
 
     try {
-      const response = await this.tesoreriaService.traerDatosbaseGeneral(1000, 0);
+      // Paginación REAL contra el servidor: antes se descargaban 50.190 filas
+      // (37,3 MB) —o 6.662 (4,9 MB) filtrando por activo— para pintar 10.
+      // Ahora viaja solo la página pedida: ~38 KB.
+      const soloActivos = !this.showInactive();
+      const response = await this.tesoreriaService.traerDatosbasePaginado(
+        this.pageIndex(), this.pageSize(), this.searchCedula().trim(), soloActivos
+      );
 
-      if (response && Array.isArray(response.results)) {
-        let info = response.results;
-
-        // Filter out inactive if toggle is off
-        if (!this.showInactive()) {
-          info = info.filter(w => w.activo);
-        }
-
-        this.rows.set(info);
-        this.totalActivos.set(response.results.filter(w => w.activo).length);
-      } else {
-        this.rows.set([]);
-        this.totalActivos.set(0);
-      }
+      this.rows.set(response.results ?? []);
+      this.totalRegistros.set(response.count ?? 0);
     } catch (error) {
       this.mostrarErrorCarga();
       this.rows.set([]);
@@ -273,9 +287,25 @@ export class ManageWorkersComponent implements OnInit {
   }
 
   toggleShowInactive(event: any) {
-    const isChecked = event.checked;
-    this.showInactive.set(isChecked);
-    this.getWorkers(); // Recargar aplicando el filtro
+    this.showInactive.set(event.checked);
+    // Ya no hace falta avisar de nada: incluir inactivos solo cambia el filtro
+    // de la consulta paginada, sigue viajando una página (~38 KB).
+    this.pageIndex.set(0);
+    this.getWorkers();
+  }
+
+  /** El paginador de la tabla pide otra página al servidor. */
+  onPageChange(e: { page: number; size: number }) {
+    this.pageIndex.set(e.page);
+    this.pageSize.set(e.size);
+    this.getWorkers();
+  }
+
+  /** La búsqueda la resuelve el backend sobre TODO el universo, no sobre la página. */
+  onServerSearch(term: string) {
+    this.searchCedula.set(term);
+    this.pageIndex.set(0);
+    this.getWorkers();
   }
 
   /** =================== Utilidades existentes =================== */

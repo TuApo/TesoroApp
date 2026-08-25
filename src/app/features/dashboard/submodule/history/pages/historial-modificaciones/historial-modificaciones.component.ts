@@ -1,4 +1,4 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 
 import { MatCardModule } from '@angular/material/card';
 import { HistorialService } from '../../service/historial/historial.service';
@@ -29,6 +29,7 @@ export class HistorialModificacionesComponent implements OnInit {
 
   constructor(
     private historialService: HistorialService,
+    private cdr: ChangeDetectorRef,
   ) { }
 
   ngOnInit(): void {
@@ -42,6 +43,7 @@ export class HistorialModificacionesComponent implements OnInit {
           usuario_responsable: item.usuario_responsable || 'SISTEMA',
           fecha_evento: new Date(item.fecha_evento).toLocaleString()
         }));
+        this.cdr.markForCheck();
       },
       (error: any) => {
           console.error(error);

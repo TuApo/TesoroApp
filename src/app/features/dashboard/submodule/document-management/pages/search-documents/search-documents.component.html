@@ -8,77 +8,78 @@
       </div>
       <div class="header-text">
         <mat-card-title class="titulo">Buscar Documentación</mat-card-title>
-        <mat-card-subtitle class="subtitulo">Filtra por cédula, contrato, tipo documental y texto. Selecciona un
-        resultado para previsualizar.</mat-card-subtitle>
+        <mat-card-subtitle class="subtitulo">
+          Filtra por cédula, contrato o tipo. Selecciona un resultado para previsualizarlo.
+        </mat-card-subtitle>
       </div>
     </div>
   </header>
 
-  <!-- Filters Section -->
+  <!-- Filtros -->
   <section class="filters-section" aria-label="Filtros de búsqueda">
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="filters-form">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="filters-grid">
 
-      <div class="filters-grid">
-        <!-- Cedula -->
-        <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Cédula</mat-label>
-          <input matInput formControlName="cedula" required autocomplete="off" placeholder="Ej. 12345678" />
-          <mat-icon matSuffix class="text-secondary">badge</mat-icon>
-          @if (form.controls['cedula'].hasError('required')) {
-            <mat-error>Requerido</mat-error>
+      <mat-form-field appearance="outline" class="filter-field" subscriptSizing="dynamic">
+        <mat-label>Cédula</mat-label>
+        <input matInput formControlName="cedula" required autocomplete="off" placeholder="Ej. 1032456789" />
+        <mat-icon matSuffix class="suffix-icon">badge</mat-icon>
+        @if (form.controls['cedula'].touched && form.controls['cedula'].hasError('required')) {
+          <mat-error>Requerido</mat-error>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-field" subscriptSizing="dynamic">
+        <mat-label>Código de contrato</mat-label>
+        <mat-select formControlName="codigoContrato" placeholder="Todos">
+          @for (codigo of codigosContrato; track codigo) {
+            <mat-option [value]="codigo">{{ codigo }}</mat-option>
           }
-        </mat-form-field>
+          @if (!codigosContrato.length && !cargandoContratos) {
+            <mat-option [value]="''" disabled>Escribe una cédula primero</mat-option>
+          }
+        </mat-select>
+        @if (cargandoContratos) {
+          <mat-icon matSuffix class="suffix-icon spin">autorenew</mat-icon>
+        }
+      </mat-form-field>
 
-        <!-- Contrato -->
-        <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Código de Contrato</mat-label>
-          <mat-select formControlName="codigoContrato" placeholder="Seleccionar...">
-            @for (codigo of codigosContrato; track codigo) {
-              <mat-option [value]="codigo">{{ codigo }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <!-- Tipo Documental -->
-        <mat-form-field appearance="outline" class="filter-field span-2-mobile">
-          <mat-label>Tipo Documental</mat-label>
-          <mat-select formControlName="tipoDocumental" placeholder="Todos">
-            @for (tipo of tiposDocumentales; track tipo) {
-              <mat-option [value]="tipo.id" class="level-1">📁 {{ tipo.name }}</mat-option>
-              @for (sub of tipo.subtypes; track sub) {
-                <mat-option [value]="sub.id" class="level-2">📄 {{ sub.name }}</mat-option>
-                @for (subsub of sub.subtypes; track subsub) {
-                  <mat-option [value]="subsub.id" class="level-3">🔖 {{ subsub.name }}</mat-option>
-                }
+      <!-- Tipo documental: agrupado por el tipo padre, sin emojis -->
+      <mat-form-field appearance="outline" class="filter-field" subscriptSizing="dynamic">
+        <mat-label>Tipo documental</mat-label>
+        <mat-select formControlName="tipoDocumental" placeholder="Todos">
+          <mat-option [value]="''">Todos</mat-option>
+          @for (grupo of gruposTipos; track grupo.padre) {
+            <mat-optgroup [label]="grupo.padre">
+              @for (tipo of grupo.hijos; track tipo.id) {
+                <mat-option [value]="tipo.id">
+                  {{ tipo.name }}
+                  @if (tipo.esCategoria) { <span class="opt-tag">categoría</span> }
+                </mat-option>
               }
-            }
-          </mat-select>
-        </mat-form-field>
+            </mat-optgroup>
+          }
+        </mat-select>
+      </mat-form-field>
 
-        <!-- Texto -->
-        <mat-form-field appearance="outline" class="filter-field span-2-mobile">
-          <mat-label>Texto / Palabras Clave</mat-label>
-          <input matInput formControlName="textoBuscar" placeholder="Ej. Certificado, Acta..." autocomplete="off">
-          <mat-icon matSuffix class="text-secondary">search</mat-icon>
-        </mat-form-field>
+      <mat-form-field appearance="outline" class="filter-field" subscriptSizing="dynamic">
+        <mat-label>Texto / palabras clave</mat-label>
+        <input matInput formControlName="textoBuscar" placeholder="Ej. Certificado, Acta…" autocomplete="off">
+        <mat-icon matSuffix class="suffix-icon">search</mat-icon>
+      </mat-form-field>
 
-        <!-- Search Button (Desktop: Inline, Mobile: Full) -->
-        <div class="filter-actions">
-          <button mat-flat-button type="submit" [disabled]="form.invalid" class="btn-managerial">
-            <mat-icon>search</mat-icon> BUSCAR
-          </button>
-        </div>
+      <button mat-flat-button type="submit" [disabled]="form.invalid || buscando" class="btn-managerial">
+        <mat-icon>search</mat-icon>
+        {{ buscando ? 'Buscando…' : 'Buscar' }}
+      </button>
 
-      </div>
     </form>
   </section>
 
-  <!-- Main Split Layout -->
+  <!-- Split -->
   <main class="results-split-layout">
 
-    <!-- LEFT: Results List -->
-    <section class="results-panel" aria-label="Resultados de búsqueda">
-
+    <!-- Resultados -->
+    <section class="panel results-panel" aria-label="Resultados de búsqueda">
       <div class="panel-header">
         <h3>Resultados</h3>
         <div class="panel-header-right">
@@ -119,7 +120,6 @@
         </div>
       }
 
-      <!-- Results Content -->
       <div class="results-list-container">
 
         @if (meta?.documents_truncated) {
@@ -134,7 +134,7 @@
           </div>
         }
 
-        @if (documentosPorCategoria && documentosPorCategoria.length > 0) {
+        @if (documentosPorCategoria.length) {
           @for (item of documentosPorCategoria; track trackByCategoria($index, item)) {
             <div class="category-block">
               <div class="category-header">
@@ -245,29 +245,38 @@
           }
         } @else {
           <div class="empty-state">
-            <mat-icon>search_off</mat-icon>
-            <h3>Sin Resultados</h3>
-            <p>Ajusta los filtros para encontrar documentos.</p>
+            <div class="empty-icon-wrapper">
+              <mat-icon>{{ yaBusco ? 'search_off' : 'manage_search' }}</mat-icon>
+            </div>
+            <h3>{{ yaBusco ? 'Sin resultados' : 'Aún no has buscado' }}</h3>
+            <p>
+              {{ yaBusco
+                ? 'Ningún documento coincide con esos filtros. Prueba quitando el tipo o el contrato.'
+                : 'Escribe una cédula arriba y pulsa Buscar.' }}
+            </p>
           </div>
         }
-
-        <!-- Empty State -->
-
       </div>
     </section>
 
-    <!-- RIGHT: Preview Panel -->
-    <section class="preview-panel">
+    <!-- Vista previa -->
+    <section class="panel preview-panel">
       <div class="panel-header">
-        <h3>Vista Previa</h3>
+        <h3>Vista previa</h3>
       </div>
       <div class="preview-container">
-        <!-- Overlay hint always behind the iframe -->
-        <div class="preview-placeholder">
-          <mat-icon>picture_as_pdf</mat-icon>
-          <p>Selecciona un documento para visualizarlo</p>
-        </div>
-        <iframe #pdfPreview class="pdf-frame" title="Vista previa del documento PDF"></iframe>
+        <!-- El iframe solo aparece cuando hay algo que mostrar; si no, tapaba el estado vacío -->
+        @if (!archivoSeleccionado) {
+          <div class="preview-placeholder">
+            <div class="empty-icon-wrapper">
+              <mat-icon>picture_as_pdf</mat-icon>
+            </div>
+            <h3>Nada seleccionado</h3>
+            <p>Elige un documento de la lista para verlo aquí.</p>
+          </div>
+        }
+        <iframe #pdfPreview class="pdf-frame" [class.visible]="!!archivoSeleccionado"
+          title="Vista previa del documento PDF"></iframe>
       </div>
     </section>
 

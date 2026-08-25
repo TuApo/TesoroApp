@@ -14,10 +14,10 @@
 .empty mat-icon { font-size: 48px; width: 48px; height: 48px; color: #9ca3af; display: block; margin: 0 auto 12px; }
 .empty h3 { margin: 0 0 8px; }
 
-.groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.groups-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 14px; }
 .group-card { padding: 20px; }
 .group-header { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
-.group-avatar { width: 40px; height: 40px; border-radius: 50%; background: #dbeafe; color: #1976d2; display: flex; align-items: center; justify-content: center; }
+.group-avatar { width: 40px; height: 40px; border-radius: 50%; background: #dbeafe; color: #3b82f6; display: flex; align-items: center; justify-content: center; }
 .group-avatar mat-icon { font-size: 20px; width: 20px; height: 20px; }
 .group-info { flex: 1; }
 .group-info strong { display: block; font-size: .95rem; }
@@ -26,3 +26,17 @@
 .group-meta span { display: flex; align-items: center; gap: 4px; }
 .group-meta mat-icon { font-size: 14px; width: 14px; height: 14px; }
 .group-actions { display: flex; gap: 4px; }
+/* ===== Marca: héroe corporativo (override para consistencia) ===== */
+.hero { position: relative; overflow: hidden; background: var(--mt-hero) !important; color: #fff !important; border: none !important; border-radius: var(--mt-r) !important; box-shadow: var(--mt-shadow-hover) !important; padding: 26px 28px !important; }
+.hero::before { content: ''; position: absolute; inset: 0; background: var(--mt-hero-ring); pointer-events: none; }
+.hero > * { position: relative; z-index: 1; }
+.hero .eyebrow { color: var(--mt-accent) !important; }
+.hero-copy h1 { color: #fff !important; font-weight: 700; letter-spacing: -.02em; }
+.hero-text { color: rgba(255,255,255,.78) !important; }
+.hero-actions { gap: 10px; flex-wrap: wrap; }
+.hero-actions button { border-radius: 12px !important; font-weight: 600; }
+.hero-actions .mat-mdc-outlined-button { color: #fff !important; border-color: rgba(255,255,255,.35) !important; background: rgba(255,255,255,.07); }
+.hero-actions .mat-mdc-outlined-button:hover { background: rgba(255,255,255,.14); }
+.hero-actions .mat-mdc-raised-button { background: var(--mt-accent) !important; color: #17300a !important; box-shadow: 0 10px 22px rgba(140,213,10,.34) !important; }
+
+@media (max-width: 768px) { :host { display: block; padding-bottom: 80px; } .hero { padding: 18px 14px; } .hero-copy h1 { font-size: 1.4rem; } .hero-actions { flex-wrap: wrap; gap: 8px; } }

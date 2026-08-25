@@ -1,0 +1,240 @@
+<section class="pantalla">
+  <header class="cabecera">
+    <div>
+      <h1>Cumplimiento</h1>
+      <p class="subtitulo">
+        Quién debe formación, quién la tiene al día y por dónde se está escapando. Una matrícula
+        aprobada cuyo certificado ya venció <b>no</b> cuenta como al día.
+      </p>
+    </div>
+    <label class="filtro">
+      <span>Curso</span>
+      <select [ngModel]="cursoFiltro()" (ngModelChange)="cambiarCurso($event)">
+        <option value="">Todos</option>
+        @for (c of cursos(); track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+      </select>
+    </label>
+  </header>
+
+  @if (cargando()) {
+    <p class="cargando">Cargando cumplimiento…</p>
+  } @else if (error()) {
+    <div class="aviso-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button type="button" class="btn-secundario pequeno" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else {
+
+    @if (resumen(); as r) {
+      <!-- ══ Cifras de cabecera ═════════════════════════════════════════════ -->
+      <div class="tarjetas">
+        <button type="button" class="tarjeta grande" (click)="abrirDetalle('AL_DIA')">
+          <span class="cifra">{{ r.porcentaje_cumplimiento }}%</span>
+          <span class="etiqueta">Al día</span>
+          <span class="pie">{{ r.al_dia }} de {{ r.matriculas }} matrículas</span>
+        </button>
+        <button type="button" class="tarjeta alerta" (click)="abrirDetalle('VENCIDO')">
+          <span class="cifra">{{ r.vencidos }}</span>
+          <span class="etiqueta">Vencidos</span>
+          <span class="pie">Certificación caducada</span>
+        </button>
+        <button type="button" class="tarjeta aviso" (click)="abrirDetalle('POR_VENCER')">
+          <span class="cifra">{{ r.por_vencer }}</span>
+          <span class="etiqueta">Por vencer</span>
+          <span class="pie">En los próximos 30 días</span>
+        </button>
+        <button type="button" class="tarjeta" (click)="abrirDetalle('EN_CURSO')">
+          <span class="cifra">{{ r.en_curso }}</span>
+          <span class="etiqueta">En curso</span>
+          <span class="pie">{{ r.pendientes }} sin empezar</span>
+        </button>
+      </div>
+
+      <!-- Los huecos que la matriz no puede mostrar -->
+      <div class="tarjetas huecos">
+        <div class="tarjeta plana" [class.alerta]="r.personas_sin_matricula > 0">
+          <span class="cifra">{{ r.personas_sin_matricula }}</span>
+          <span class="etiqueta">Personas sin ninguna matrícula</span>
+          <span class="pie">
+            De {{ r.personas_activas }} activas. No salen en la matriz: no pertenecen a ningún curso.
+          </span>
+        </div>
+        <div class="tarjeta plana" [class.aviso]="r.cargos_sin_clasificar > 0">
+          <span class="cifra">{{ r.cargos_sin_clasificar }}</span>
+          <span class="etiqueta">Cargos sin familia</span>
+          <span class="pie">Ningún plan de asignación los alcanza.</span>
+        </div>
+        <div class="tarjeta plana">
+          <span class="cifra">{{ cobertura() === null ? '—' : cobertura() + '%' }}</span>
+          <span class="etiqueta">Cobertura de la plantilla</span>
+          <span class="pie">{{ r.personas }} personas con al menos un curso.</span>
+        </div>
+        <div class="tarjeta plana">
+          <span class="cifra">{{ r.cursos_obligatorios }}</span>
+          <span class="etiqueta">Cursos obligatorios</span>
+          <span class="pie">Los que exige la norma o el cliente.</span>
+        </div>
+      </div>
+
+      @if (sinDatos()) {
+        <div class="aviso">
+          <mat-icon>info</mat-icon>
+          <span>
+            Todavía no hay matrículas registradas, así que el panel está en cero. Las cifras se
+            llenan solas cuando entren las personas y los planes de asignación empiecen a
+            matricular.
+          </span>
+        </div>
+      }
+    }
+
+    <!-- ══ Pestañas ═══════════════════════════════════════════════════════ -->
+    <div class="pestanas">
+      <button type="button" [class.activa]="pestana() === 'matriz'" (click)="pestana.set('matriz')">
+        Matriz por curso
+      </button>
+      <button type="button" [class.activa]="pestana() === 'excepciones'"
+              (click)="pestana.set('excepciones')">
+        Excepciones
+        @if (excepciones().length) { <span class="chip chip-aviso">{{ excepciones().length }}</span> }
+      </button>
+    </div>
+
+    @if (pestana() === 'matriz') {
+      @if (!matriz().length) {
+        <div class="vacio">
+          <mat-icon>fact_check</mat-icon>
+          <p>Ningún curso tiene gente matriculada todavía.</p>
+        </div>
+      } @else {
+        <table class="tabla">
+          <thead>
+            <tr>
+              <th>Curso</th>
+              <th>Personas</th>
+              <th>Al día</th>
+              <th>Por vencer</th>
+              <th>Vencidos</th>
+              <th>En curso</th>
+              <th>Pendientes</th>
+              <th>Cumplimiento</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (f of matriz(); track f.course_id) {
+              <tr>
+                <td>
+                  {{ f.curso }}
+                  @if (f.obligatorio) { <span class="chip chip-curso">Obligatorio</span> }
+                  @if (f.vigencia_meses) {
+                    <div class="mono">Vigencia {{ f.vigencia_meses }} meses</div>
+                  }
+                </td>
+                <td>{{ f.personas }}</td>
+                <td>
+                  <button type="button" class="celda" [disabled]="!f.al_dia"
+                          (click)="abrirDetalle('AL_DIA', f)">{{ f.al_dia }}</button>
+                </td>
+                <td>
+                  <button type="button" class="celda aviso" [disabled]="!f.por_vencer"
+                          (click)="abrirDetalle('POR_VENCER', f)">{{ f.por_vencer }}</button>
+                </td>
+                <td>
+                  <button type="button" class="celda alerta" [disabled]="!f.vencidos"
+                          (click)="abrirDetalle('VENCIDO', f)">{{ f.vencidos }}</button>
+                </td>
+                <td>
+                  <button type="button" class="celda" [disabled]="!f.en_curso"
+                          (click)="abrirDetalle('EN_CURSO', f)">{{ f.en_curso }}</button>
+                </td>
+                <td>
+                  <button type="button" class="celda" [disabled]="!f.pendientes"
+                          (click)="abrirDetalle('PENDIENTE', f)">{{ f.pendientes }}</button>
+                </td>
+                <td>
+                  <div class="barra" [title]="f.porcentaje + '%'">
+                    <div class="relleno" [style.width.%]="f.porcentaje"></div>
+                  </div>
+                  <span class="mono">{{ f.porcentaje }}%</span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    }
+
+    @if (pestana() === 'excepciones') {
+      <p class="ayuda">
+        Cargos que nadie ha clasificado en una familia. Los planes apuntan a la familia, nunca al
+        cargo crudo, así que a esta gente <b>ningún plan la alcanza</b> y no aparece error en
+        ningún sitio. Ordenados por cuánta gente afectan.
+      </p>
+      @if (!excepciones().length) {
+        <div class="vacio">
+          <mat-icon>check_circle</mat-icon>
+          <p>No hay cargos sin clasificar.</p>
+        </div>
+      } @else {
+        <table class="tabla">
+          <thead>
+            <tr><th>Cargo</th><th>Sufijo de sitio</th><th>Contratos activos</th><th>Origen</th></tr>
+          </thead>
+          <tbody>
+            @for (c of excepciones(); track c.id) {
+              <tr>
+                <td>{{ c.cargo_crudo }}</td>
+                <td class="mono">{{ c.sufijo_sitio || '—' }}</td>
+                <td>{{ c.contratos_activos }}</td>
+                <td class="mono">{{ c.origen || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    }
+
+    <!-- ══ Detalle ════════════════════════════════════════════════════════ -->
+    @if (detalle(); as d) {
+      <div class="panel detalle">
+        <div class="cabecera-detalle">
+          <h2>
+            {{ etiquetaEstado(d.estado) }}
+            @if (d.curso) { · {{ d.curso.curso }} }
+          </h2>
+          <button type="button" class="btn-icono" (click)="cerrarDetalle()" title="Cerrar">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        @if (ocupado()) {
+          <p class="cargando">Cargando…</p>
+        } @else if (!personas().length) {
+          <p class="apagado">Nadie en esta categoría.</p>
+        } @else {
+          <table class="tabla">
+            <thead>
+              <tr><th>Cédula</th><th>Persona</th><th>Cargo</th><th>Curso</th>
+                  <th>Vence</th><th>Avance</th><th>Estado</th></tr>
+            </thead>
+            <tbody>
+              @for (p of personas(); track p.person_id + p.course_id) {
+                <tr>
+                  <td class="mono">{{ p.cedula || '—' }}</td>
+                  <td>{{ p.nombre }}</td>
+                  <td>{{ p.cargo || '—' }}</td>
+                  <td>{{ p.curso }}</td>
+                  <td>{{ fecha(p.vence_at) }}</td>
+                  <td>{{ p.porcentaje ?? 0 }}%</td>
+                  <td><span class="chip" [class]="'chip ' + claseEstado(p.estado)">
+                    {{ etiquetaEstado(p.estado) }}</span></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </div>
+    }
+  }
+</section>

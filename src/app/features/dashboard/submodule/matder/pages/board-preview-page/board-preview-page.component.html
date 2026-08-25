@@ -1,3 +1,5 @@
+<app-matder-mobile-nav></app-matder-mobile-nav>
+
 @if (loading()) {
   <div class="loading-state">
     <div class="loading-card">
@@ -47,6 +49,59 @@
           <p>{{ activeMembers.length }} miembros · {{ workspaceGroups().length }} grupos</p>
           @if (b.workspace_role) { <p>Tu rol: {{ b.workspace_role }}</p> }
         </div>
+
+        <!-- Panel de grupos del workspace -->
+        @if (workspaceGroups().length > 0) {
+          <div class="ws-groups-panel">
+            <div class="ws-groups-title">
+              <mat-icon>groups</mat-icon>
+              <span>Grupos del workspace</span>
+            </div>
+            @for (g of workspaceGroups(); track g.id) {
+              <div class="ws-group-row">
+                <div class="ws-group-header" (click)="toggleGroupPanel(g.id)">
+                  <div class="ws-group-info">
+                    <span class="ws-group-avatar">{{ g.name.slice(0,2).toUpperCase() }}</span>
+                    <div class="ws-group-text">
+                      <strong>{{ g.name }}</strong>
+                      <span>{{ g.member_count }} miembro{{ g.member_count === 1 ? '' : 's' }}</span>
+                    </div>
+                  </div>
+                  <div class="ws-group-actions">
+                    <button mat-icon-button class="ws-assign-btn"
+                            (click)="assignGroupFromPanel(g.id); $event.stopPropagation()"
+                            matTooltip="Preseleccionar grupo en la próxima tarea">
+                      <mat-icon>assignment_ind</mat-icon>
+                    </button>
+                    <mat-icon class="ws-expand-icon">
+                      {{ isGroupExpanded(g.id) ? 'expand_less' : 'expand_more' }}
+                    </mat-icon>
+                  </div>
+                </div>
+
+                @if (isGroupExpanded(g.id)) {
+                  <div class="ws-group-members">
+                    @if (!groupMembersCache()[g.id]) {
+                      <div class="ws-group-loading">
+                        <mat-spinner diameter="18"></mat-spinner>
+                        <span>Cargando...</span>
+                      </div>
+                    } @else if (groupMembersCache()[g.id].length === 0) {
+                      <p class="ws-no-members">Sin miembros aún.</p>
+                    } @else {
+                      @for (m of groupMembersCache()[g.id]; track m.id) {
+                        <div class="ws-member-row">
+                          <span class="ws-member-avatar">{{ getGroupMemberInitials(m) }}</span>
+                          <span class="ws-member-name">{{ getGroupMemberName(m) }}</span>
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
       </div>
     </header>
 
@@ -88,10 +143,9 @@
       @if (lists().length > 0) {
         <div class="kanban-grid" cdkDropListGroup>
           @for (list of lists(); track list.id) {
-            <article class="column-card">
+            <article class="column-card" [attr.data-list-type]="list.list_type">
               <div class="column-topline">
                 <span class="column-badge">{{ list.name }}</span>
-                @if (list.list_type) { <span class="type-badge">{{ listTypeLabel(list.list_type) }}</span> }
                 <span class="count-badge">{{ list.cards.length }}</span>
                 @if (b.can_manage_content) {
                   <div class="column-actions">
@@ -119,7 +173,6 @@
                 <div class="column-header">
                   <span class="column-kind">Columna del tablero</span>
                   <h3>{{ list.name }}</h3>
-                  @if (list.list_type) { <span class="type-badge">{{ list.list_type }}</span> }
                   <p>{{ list.cards.length }} tareas en esta columna.</p>
                   @if (b.can_manage_content) {
                     <button mat-stroked-button class="add-card-inline" (click)="startAddCard(list.id)">
@@ -146,9 +199,9 @@
                             </span>
                           </div>
                           <div class="task-card-actions">
-                            @if (card.assignee_name) {
-                              <div class="task-card-assignee" [matTooltip]="'Asignado a: ' + card.assignee_name">
-                                {{ card.assignee_name.slice(0, 2).toUpperCase() }}
+                            @if (getAssigneeName(card.assignee); as an) {
+                              <div class="task-card-assignee" [matTooltip]="'Asignado a: ' + an">
+                                {{ an.slice(0, 2).toUpperCase() }}
                               </div>
                             }
                             @if (card.assignee_group) {
@@ -160,7 +213,7 @@
                               <mat-icon>visibility</mat-icon>
                             </button>
                             @if (b.can_manage_content) {
-                              <button mat-icon-button (click)="openEditCard(card)" matTooltip="Editar">
+                              <button mat-icon-button (click)="openCardDetail(card)" matTooltip="Editar (toda la información)">
                                 <mat-icon>edit</mat-icon>
                               </button>
                               <button mat-icon-button (click)="deleteCard(list, card)" matTooltip="Eliminar">
@@ -373,6 +426,7 @@
             <mat-form-field appearance="outline" class="fw">
               <mat-label>Asignar a una persona</mat-label>
               <mat-select [(ngModel)]="cardFormAssignee" (selectionChange)="onAssigneeSelected($event.value)">
+                <mat-select-trigger>{{ selectedAssigneeLabel() }}</mat-select-trigger>
                 <mat-option [value]="null">
                   <mat-icon>person_off</mat-icon> Sin asignar
                 </mat-option>
@@ -380,7 +434,12 @@
                   <mat-option [value]="m.user">
                     <div class="member-option">
                       <span class="member-avatar-sm">{{ getMemberInitials(m) }}</span>
-                      <span>{{ getMemberLabel(m) }}</span>
+                      <span class="member-option-text">
+                        <span class="member-option-name">{{ getMemberLabel(m) }}</span>
+                        @if (getAssigneeEmail(m.user)) {
+                          <span class="member-option-email">{{ getAssigneeEmail(m.user) }}</span>
+                        }
+                      </span>
                       <span class="member-role">{{ m.role }}</span>
                     </div>
                   </mat-option>
@@ -399,6 +458,7 @@
             <mat-form-field appearance="outline" class="fw">
               <mat-label>Asignar a un grupo</mat-label>
               <mat-select [(ngModel)]="cardFormGroup" (selectionChange)="onGroupSelected($event.value)">
+                <mat-select-trigger>{{ selectedGroupLabel() }}</mat-select-trigger>
                 <mat-option [value]="null">
                   <mat-icon>group_off</mat-icon> Sin grupo
                 </mat-option>
@@ -429,7 +489,7 @@
             @if (workspaceGroups().length === 0) {
               <div class="no-groups-hint">
                 <p>No hay grupos en este workspace.</p>
-                <button mat-stroked-button (click)="closeCardModal(); openGroupModal()">
+                <button mat-stroked-button (click)="openGroupModal(true)">
                   <mat-icon>group_add</mat-icon> Crear grupo
                 </button>
               </div>
@@ -487,7 +547,14 @@
         </div>
 
         <div class="modal-footer">
-          <button mat-stroked-button (click)="closeCardModal()">Cancelar</button>
+          @if (!editingCardId && cardFormTitle.trim()) {
+            <button mat-stroked-button (click)="closeCardModal()" matTooltip="Guardar como borrador y cerrar">
+              <mat-icon>bookmark_add</mat-icon> Guardar borrador
+            </button>
+            <button mat-button color="warn" (click)="discardCardAndClose()">Descartar</button>
+          } @else {
+            <button mat-stroked-button (click)="closeCardModal()">Cancelar</button>
+          }
           <button mat-raised-button color="primary" [disabled]="!cardFormTitle.trim() || cardSaving"
                   (click)="submitCardForm()">
             {{ cardSaving ? 'Guardando...' : (editingCardId ? 'Guardar cambios' : 'Crear tarea') }}
@@ -565,18 +632,52 @@
                       <div class="group-members-panel">
                         <h5>Miembros del grupo</h5>
 
-                        <!-- Agregar miembro -->
+                        <!-- Agregar miembro: buscador inteligente -->
                         <div class="add-member-row">
                           <mat-form-field appearance="outline" class="grow">
-                            <mat-label>Agregar usuario de la plataforma</mat-label>
-                            <mat-select [(ngModel)]="addMemberToGroupId">
-                              @for (u of platformUsers(); track u.id) {
-                                <mat-option [value]="u.id">
-                                  <span class="member-avatar-sm">{{ (u.datos_basicos?.nombres || u.correo_electronico || 'U').slice(0, 2).toUpperCase() }}</span>
-                                  {{ u.datos_basicos?.nombres ? (u.datos_basicos.nombres + ' ' + (u.datos_basicos?.apellidos || '')) : u.correo_electronico || 'Usuario' }}
+                            <mat-icon matPrefix class="search-prefix-icon">search</mat-icon>
+                            <mat-label>Buscar por nombre, correo o documento</mat-label>
+                            <input matInput
+                                   [(ngModel)]="groupSearchQuery"
+                                   [matAutocomplete]="memberAc"
+                                   (ngModelChange)="onGroupSearchChange()"
+                                   placeholder="Escribe al menos 2 caracteres...">
+                            @if (groupSearchQuery) {
+                              <button matSuffix mat-icon-button (click)="clearGroupSearch()">
+                                <mat-icon>clear</mat-icon>
+                              </button>
+                            }
+                            <mat-autocomplete #memberAc="matAutocomplete"
+                                              [displayWith]="displayGroupUser"
+                                              (optionSelected)="onGroupUserSelected($event)">
+                              @for (u of filteredPlatformUsers; track u.id) {
+                                <mat-option [value]="u" class="user-ac-option">
+                                  <div class="user-ac-row">
+                                    <span class="user-ac-avatar">{{ getUserInitials(u) }}</span>
+                                    <div class="user-ac-info">
+                                      <span class="user-ac-name">{{ getUserFullName(u) }}</span>
+                                      <span class="user-ac-sub">
+                                        @if (u.correo_electronico) { {{ u.correo_electronico }} }
+                                        @if (u.numero_de_documento) { · {{ u.numero_de_documento }} }
+                                      </span>
+                                    </div>
+                                  </div>
                                 </mat-option>
                               }
-                            </mat-select>
+                              @if (groupSearchQuery.trim().length >= 2 && filteredPlatformUsers.length === 0) {
+                                <mat-option disabled>
+                                  <span class="user-ac-no-results">
+                                    <mat-icon>search_off</mat-icon>
+                                    Sin resultados para "{{ groupSearchQuery }}"
+                                  </span>
+                                </mat-option>
+                              }
+                              @if (groupSearchQuery.trim().length < 2 && groupSearchQuery.trim().length > 0) {
+                                <mat-option disabled>
+                                  <span class="user-ac-no-results">Escribe al menos 2 caracteres</span>
+                                </mat-option>
+                              }
+                            </mat-autocomplete>
                           </mat-form-field>
                           <button mat-flat-button color="primary" [disabled]="!addMemberToGroupId"
                                   (click)="addMemberToGroup()">
@@ -614,10 +715,82 @@
         </div>
 
         <div class="modal-footer">
-          <button mat-raised-button color="primary" (click)="closeGroupModal()">Cerrar</button>
+          @if (returnToCardForm) {
+            <button mat-stroked-button (click)="closeGroupModal()">
+              <mat-icon>arrow_back</mat-icon> Volver al formulario
+            </button>
+          } @else {
+            <button mat-raised-button color="primary" (click)="closeGroupModal()">Cerrar</button>
+          }
         </div>
       </div>
     </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  <!-- BORRADORES: Burbuja flotante + panel                        -->
+  <!-- ═══════════════════════════════════════════════════════════ -->
+  @if (drafts().length > 0 && !showCardModal && !showGroupModal) {
+    <div class="drafts-bubble" (click)="showDraftsPanel = !showDraftsPanel"
+         [class.drafts-bubble--open]="showDraftsPanel"
+         matTooltip="{{ showDraftsPanel ? 'Cerrar borradores' : 'Ver borradores guardados' }}">
+      <mat-icon>bookmark</mat-icon>
+      <span>{{ drafts().length }}</span>
+    </div>
+
+    @if (showDraftsPanel) {
+      <div class="drafts-panel">
+        <div class="drafts-panel-header">
+          <mat-icon>bookmarks</mat-icon>
+          <h4>Borradores guardados</h4>
+          <button mat-icon-button (click)="showDraftsPanel = false">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="drafts-list">
+          @for (d of drafts(); track d.id) {
+            <div class="draft-item">
+              <div class="draft-item-body">
+                <div class="draft-item-title">{{ d.title }}</div>
+                <div class="draft-item-meta">
+                  <span class="draft-list-badge">
+                    <mat-icon>view_kanban</mat-icon>{{ d.listName }}
+                  </span>
+                  <span class="draft-prio-badge" [attr.data-prio]="d.priority.toLowerCase()">
+                    {{ draftPriorityLabel(d.priority) }}
+                  </span>
+                  @if (d.checklists.length) {
+                    <span class="draft-checks-badge">
+                      <mat-icon>checklist</mat-icon>{{ d.checklists.length }}
+                    </span>
+                  }
+                  <span class="draft-age">{{ draftAge(d.savedAt) }}</span>
+                </div>
+                @if (d.desc) {
+                  <p class="draft-item-desc">{{ d.desc | slice:0:80 }}{{ d.desc.length > 80 ? '…' : '' }}</p>
+                }
+              </div>
+              <div class="draft-item-actions">
+                <button mat-stroked-button color="primary" (click)="loadDraft(d)">
+                  <mat-icon>edit</mat-icon> Editar
+                </button>
+                <button mat-icon-button color="warn" (click)="deleteDraftById(d.id)"
+                        matTooltip="Eliminar borrador">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  <!-- Mobile FAB: Agregar tarea rapida -->
+  @if (board()?.can_manage_content && lists().length > 0 && !showCardModal && !showGroupModal) {
+    <button class="mobile-fab" (click)="startAddCard(lists()[0])" matTooltip="Nueva tarea">
+      <mat-icon>add</mat-icon>
+    </button>
   }
 
 } @else {

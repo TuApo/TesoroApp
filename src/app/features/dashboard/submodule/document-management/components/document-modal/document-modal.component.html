@@ -4,16 +4,19 @@
   <div class="modal-header-premium">
     <div class="header-content">
       <div class="header-icon-container">
-        <mat-icon class="header-icon">folder_special</mat-icon>
+        <mat-icon class="header-icon">{{ data.isEdit ? 'edit' : 'create_new_folder' }}</mat-icon>
       </div>
       <div class="header-text">
-        <h2 class="titulo" style="margin: 0 !important;">{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos
-        Documentales' }}</h2>
-        <p class="subtitulo" style="margin: 0 !important;">{{ data.isEdit ? 'Modifica los detalles del elemento
-        existente.' : 'Define y agrega múltiples tipos a la estructura.' }}</p>
+        <h2 class="titulo">{{ data.isEdit ? 'Editar Tipo Documental' : 'Nuevos Tipos Documentales' }}</h2>
+        <p class="subtitulo">
+          {{ data.isEdit
+            ? 'Modifica los detalles del elemento existente.'
+            : 'Define y agrega múltiples tipos a la estructura.' }}
+        </p>
       </div>
     </div>
-    <button mat-icon-button (click)="cancel()" class="close-btn btn-managerial-icon" tabindex="-1" style="z-index: 1;">
+    <button mat-icon-button (click)="cancel()" class="close-btn btn-managerial-icon" tabindex="-1"
+      matTooltip="Cerrar">
       <mat-icon>close</mat-icon>
     </button>
   </div>
@@ -23,57 +26,100 @@
     <!-- EDIT MODE: Single Form -->
     @if (data.isEdit) {
       <div [formGroup]="form" class="edit-single-panel">
-        <div class="form-row">
-          <mat-checkbox formControlName="expandable" color="primary">¿Puede tener hijos?</mat-checkbox>
-          <mat-checkbox formControlName="estado" color="primary">Activo</mat-checkbox>
-        </div>
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Nombre del Tipo</mat-label>
           <input matInput formControlName="name" placeholder="Ej. Contratos Laborales" autocomplete="off">
           @if (form.get('name')?.hasError('required')) {
             <mat-error>El nombre es obligatorio</mat-error>
           }
+          @if (form.get('name')?.hasError('minlength')) {
+            <mat-error>Debe tener al menos 3 caracteres</mat-error>
+          }
+          @if (form.get('name')?.hasError('maxlength')) {
+            <mat-error>Máximo 50 caracteres</mat-error>
+          }
         </mat-form-field>
+
+        <div class="state-field">
+          <mat-checkbox formControlName="estado" class="brand-check">Activo</mat-checkbox>
+          <p class="field-hint">
+            Los tipos inactivos se conservan y siguen visibles en la estructura, pero quedan marcados como fuera de uso.
+          </p>
+        </div>
       </div>
     }
-
 
     <!-- CREATE MODE: Split Layout -->
     @if (!data.isEdit) {
       <!-- LEFT: Input Panel -->
       <div class="panel-left" [formGroup]="inputForm">
         <div class="panel-header-small">
-          <h3>Definir Elemento</h3>
+          <h3>Definir elemento</h3>
+          <!-- Contexto: con 3 niveles hay que saber DÓNDE se está creando -->
+          @if (data.parentName) {
+            <p class="context-line">
+              Se agregarán dentro de <strong>{{ data.parentName }}</strong>
+            </p>
+          } @else {
+            <p class="context-line">Se agregarán como <strong>categorías raíz</strong></p>
+          }
         </div>
+
         <div class="input-area">
-          <mat-form-field appearance="outline" class="full-width density-compact">
+          <mat-form-field appearance="outline" class="full-width">
             <mat-label>Nombre</mat-label>
-            <input matInput formControlName="name" placeholder="Ej. Actas de Reunión">
+            <input matInput formControlName="name" placeholder="Ej. Actas de Reunión" autocomplete="off"
+              (keydown.enter)="addToQueue()">
+            @if (inputForm.get('name')?.touched && inputForm.get('name')?.hasError('required')) {
+              <mat-error>El nombre es obligatorio</mat-error>
+            }
+            @if (inputForm.get('name')?.hasError('minlength')) {
+              <mat-error>Debe tener al menos 3 caracteres</mat-error>
+            }
+            @if (inputForm.get('name')?.hasError('maxlength')) {
+              <mat-error>Máximo 50 caracteres</mat-error>
+            }
           </mat-form-field>
-          <div class="row-inputs">
-            <mat-checkbox formControlName="estado" color="primary" class="status-check">Activo</mat-checkbox>
-          </div>
-          <button mat-flat-button color="accent" class="btn-add-queue" (click)="addToQueue()"
-            [disabled]="inputForm.invalid">
-            <mat-icon>playlist_add</mat-icon> Agregar a la Lista
+
+          @if (duplicateError) {
+            <div class="inline-alert">
+              <mat-icon>error_outline</mat-icon>
+              <span>Ese nombre ya está en la lista. Los tipos documentales no se pueden repetir.</span>
+            </div>
+          }
+
+          <mat-checkbox formControlName="estado" class="brand-check">Activo</mat-checkbox>
+
+          <button mat-stroked-button class="btn-add-queue" (click)="addToQueue()" [disabled]="inputForm.invalid">
+            <mat-icon>playlist_add</mat-icon> Agregar a la lista
           </button>
+
+          <p class="field-hint enter-hint">Presiona <kbd>Enter</kbd> para agregar rápido.</p>
         </div>
       </div>
+
       <!-- RIGHT: Queue Panel -->
       <div class="panel-right">
-        <div class="panel-header-small">
-          <h3>Lista de Creación ({{ nuevosDocumentos.length }})</h3>
+        <div class="panel-header-small queue-head">
+          <h3>Lista de creación</h3>
+          @if (nuevosDocumentos.length) {
+            <span class="queue-count">{{ nuevosDocumentos.length }}</span>
+          }
         </div>
+
         <div class="queue-list" [@listAnimation]="nuevosDocumentos.length">
           @for (item of nuevosDocumentos.controls; track item; let i = $index) {
             <div class="queue-item">
+              <mat-icon class="q-icon">description</mat-icon>
               <div class="queue-info">
-                <span class="q-name">{{ item.value.name }}</span>
-                <div class="q-meta">
-                  <span class="status-dot" [class.active]="item.value.estado"></span>
-                </div>
+                <span class="q-name" [matTooltip]="item.value.name">{{ item.value.name }}</span>
+                <!-- Estado por excepción: solo se marca lo que se sale de lo normal -->
+                @if (!item.value.estado) {
+                  <span class="chip chip-inactive">Inactivo</span>
+                }
               </div>
-              <button mat-icon-button color="warn" class="btn-remove" (click)="removeFromQueue(i)">
+              <button mat-icon-button class="btn-remove" (click)="removeFromQueue(i)"
+                [matTooltip]="'Quitar ' + item.value.name">
                 <mat-icon>close</mat-icon>
               </button>
             </div>
@@ -81,8 +127,10 @@
           <!-- Empty State -->
           @if (nuevosDocumentos.length === 0) {
             <div class="empty-queue">
-              <mat-icon>layers</mat-icon>
-              <p>Define un tipo a la izquierda y agrégalo aquí.</p>
+              <div class="empty-icon-wrapper">
+                <mat-icon>layers</mat-icon>
+              </div>
+              <p>Aún no has agregado nada.<br>Define un tipo a la izquierda y aparecerá aquí.</p>
             </div>
           }
         </div>
@@ -93,10 +141,14 @@
 
   <!-- Footer Actions -->
   <mat-dialog-actions class="modal-footer">
-    <button mat-button (click)="cancel()">Cancelar</button>
-    <button mat-flat-button class="btn-managerial" style="height: 40px !important;" (click)="save()"
+    <button mat-button class="btn-cancel" (click)="cancel()">Cancelar</button>
+    <button mat-flat-button class="btn-managerial" (click)="save()"
       [disabled]="data.isEdit ? form.invalid : nuevosDocumentos.length === 0">
-      {{ data.isEdit ? 'Guardar Cambios' : 'Crear ' + nuevosDocumentos.length + ' Elementos' }}
+      @if (data.isEdit) {
+        Guardar Cambios
+      } @else {
+        Crear {{ nuevosDocumentos.length }} {{ nuevosDocumentos.length === 1 ? 'Elemento' : 'Elementos' }}
+      }
     </button>
   </mat-dialog-actions>
 

@@ -38,9 +38,18 @@
 
     <!-- BOTONES INFERIORES -->
     <div class="bottom-buttons">
+      <!-- Configuración: ahora es un sub-módulo aquí (antes vivía en el engranaje del header). -->
+      <button type="button" class="config-button" routerLink="/dashboard/configuracion"
+        routerLinkActive="active-module-button"
+        title="Configuración" aria-label="Configuración"
+        (click)="isMobile && closeAll('api')">
+        <mat-icon fontSet="material-symbols-outlined">settings</mat-icon>
+        <span class="m-btn-label">Config</span>
+      </button>
       <button type="button" class="logout-button" (click)="cerrarSesion()"
         title="Cerrar sesión" aria-label="Cerrar sesión">
         <mat-icon fontSet="material-symbols-outlined">logout</mat-icon>
+        <span class="m-btn-label">Salir</span>
       </button>
     </div>
   </div>
@@ -49,6 +58,7 @@
   @if (!!activeRoot && hasChildren(activeRoot)) {
     <div
       class="right"
+      [class.is-compact]="isMobile && isMobileCompact"
       id="right-panel-content"
       (mouseenter)="cancelClose()"
       (mouseleave)="scheduleClose($event)">
@@ -65,24 +75,27 @@
                 <h2 class="header-title">{{ activeRoot!.nombre }}</h2>
               </div>
             </div>
-            <button
-              class="header-pin-button"
-              [title]="pinOpen ? 'Colapsar' : 'Expandir'"
-              type="button"
-              (click)="togglePin()">
-              <mat-icon fontSet="material-symbols-outlined" class="header-icon">
-                {{ pinOpen ? 'expand_less' : 'expand_more' }}
-              </mat-icon>
-            </button>
+            <!-- En desktop: botón pin. En mobile: oculto (tira siempre compacta). -->
+            @if (!isMobile) {
+              <button
+                class="header-pin-button"
+                [title]="pinOpen ? 'Colapsar' : 'Expandir'"
+                type="button"
+                (click)="togglePin()">
+                <mat-icon fontSet="material-symbols-outlined" class="header-icon">
+                  {{ pinOpen ? 'expand_less' : 'expand_more' }}
+                </mat-icon>
+              </button>
+            }
           </div>
-          <!-- Árbol -->
+          <!-- Árbol de sub-módulos (scrollable) -->
           <nav [attr.aria-label]="'Submódulos de ' + activeRoot!.nombre">
             <ng-template #tree let-nodes="nodes" let-level="level">
               @for (node of nodes; track trackByNodeId($index, node)) {
                 <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
                   <button type="button" class="submodule-button" (click)="onNodeClick(node)"
                     [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
-                    [class.active-submodule]="!hasChildren(node) && isRouteActive(getNodeRoute(node))">
+                    [class.active-submodule]="(!hasChildren(node) || hasOwnScreen(node)) && isRouteActive(getNodeRoute(node))">
                     <mat-icon fontSet="material-symbols-outlined">
                       {{ hasChildren(node) ? 'folder' : getNodeIcon(node) }}
                     </mat-icon>

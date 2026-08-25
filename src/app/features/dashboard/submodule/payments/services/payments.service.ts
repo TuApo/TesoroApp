@@ -1,6 +1,6 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom, lastValueFrom, Observable } from 'rxjs';
+import { firstValueFrom, lastValueFrom, Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
@@ -107,6 +107,28 @@ export class PaymentsService {
       map((response: any) => response),
       catchError(this.handleError)
     );
+  }
+
+  /**
+   * Documentos INTERNOS de la persona, ya emparejados con cada quincena del
+   * modelo antiguo (ms-payroll los cruza contra gestión documental).
+   *
+   * Sirve para mostrar el archivo de la plataforma en lugar del enlace de
+   * Drive cuando esa quincena ya se migró con la carga por carpeta. Devuelve
+   * `{ content: [] }` si falla: la pantalla sigue funcionando con los enlaces
+   * legacy, que es exactamente el comportamiento anterior.
+   */
+  public historialPersonaConDocumentos(cedula: string): Observable<any> {
+    return this.http.get(`${this.apiUrl}/api/nomina/envio-correos/persona/${cedula}`).pipe(
+      map((r: any) => r),
+      catchError(() => of({ cedula, total: 0, con_documento_interno: 0, content: [] })),
+    );
+  }
+
+  /** Descarga el documento interno con JWT (el gateway lo exige). */
+  public descargarDocumento(documentId: number): Observable<Blob> {
+    return this.http.get(`${this.apiUrl}/api/v1/documents/${documentId}/download`,
+      { responseType: 'blob' });
   }
 
   // Subir archivo de desprendibles

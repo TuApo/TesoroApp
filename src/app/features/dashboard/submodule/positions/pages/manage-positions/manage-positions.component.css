@@ -1,4 +1,16 @@
-
+/* ===== SHELL DE PÁGINA =====
+   El alto lo manda .dashboard-page-wrapper (styles.css): aquí NO se inventan
+   vh. La página ocupa el 100% de ese hueco y ahoga su propio scroll, así el
+   que scrollea es el contenedor de la tabla, por dentro, y la cabecera y el
+   menú nunca se van de la pantalla. */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
 
 /* === MANAGERIAL PREMIUM THEME === */
 .premium-card {
@@ -7,7 +19,14 @@
   border: 1px solid #f1f5f9;
   background-color: #ffffff;
   overflow: hidden;
-  margin-bottom: 24px;
+  /* Eslabón 1 de la cadena flex: la tarjeta llena la página y puede encoger. */
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  /* Antes 24px: en una página de alto exacto ese margen solo le robaba filas
+     a la tabla y dejaba un hueco muerto abajo. */
+  margin-bottom: 0;
 }
 
 .card-header-premium {
@@ -17,9 +36,29 @@
   border-bottom: none;
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
   position: relative;
+  /* overflow:hidden recorta el círculo del ::before contra las esquinas */
   overflow: hidden;
   border-radius: 16px;
   margin-bottom: 20px;
+  /* La cabecera no se encoge: el espacio lo cede la tabla. */
+  flex-shrink: 0;
+}
+
+/* Eslabón 2: el cuerpo encoge (min-height:0) y no scrollea él, delega en la
+   tabla. Sin este min-height:0 el scroll se escaparía a la página. */
+.card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Eslabón 3: la tabla compartida ya scrollea por dentro (.sf-table-wrapper);
+   lo único que le faltaba era una caja con alto acotado. */
+app-standard-filter-table {
+  flex: 1;
+  min-height: 0;
 }
 
 .modal-header-premium {
@@ -98,8 +137,8 @@
 }
 
 .btn-managerial {
-  background-color: #192030 !important;
-  color: #8DD603 !important;
+  background-color: #21263C !important;
+  color: #8CD50A !important;
   border-radius: 8px !important;
   padding: 0 20px !important;
   height: 40px !important;
@@ -118,8 +157,8 @@
 .btn-managerial:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.25) !important;
-  background-color: #8DD603 !important;
-  color: #192030 !important;
+  background-color: #8CD50A !important;
+  color: #21263C !important;
 }
 
 .btn-managerial-icon {
@@ -128,4 +167,55 @@
 }
 .btn-managerial-icon:hover {
   background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ============================================================
+   Añadidos del rediseño (2026-07-14)
+   ============================================================ */
+
+/* Las acciones del header van juntas y respiran */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+}
+
+/* Destructivo en el menú: rojo de la paleta, no el de Material.
+   Se pinta solo al apuntar; en reposo se comporta como el resto. */
+.menu-item-danger mat-icon {
+  color: #94a3b8;
+}
+
+.menu-item-danger:hover {
+  background: #fef3f2;
+}
+
+.menu-item-danger:hover mat-icon,
+.menu-item-danger:hover span {
+  color: #b42318;
+}
+
+/* ============================================================
+   Responsive: por debajo de 900px se suelta el alto fijo.
+   Una tabla encajada en la rendija que queda bajo la cabecera
+   apilada no sirve; mejor que la página scrollee normal.
+   ============================================================ */
+@media (max-width: 900px) {
+  :host {
+    height: auto;
+    overflow: visible;
+  }
+
+  .premium-card {
+    flex: 0 0 auto;
+  }
+
+  .card-body {
+    overflow: visible;
+  }
+
+  app-standard-filter-table {
+    flex: 0 0 auto;
+  }
 }

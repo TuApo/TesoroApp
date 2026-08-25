@@ -10,9 +10,10 @@
     </div>
   </div>
 
+  <div class="page-body">
   <!-- BUSCAR EMPLEADO -->
   @if (!datosOperario) {
-    <mat-card class="premium-card search-card">
+    <mat-card class="premium-card">
       <mat-card-header>
         <div mat-card-avatar class="card-avatar">
           <mat-icon>badge</mat-icon>
@@ -28,8 +29,7 @@
             <input matInput formControlName="numero_documento" placeholder="Ej: 1005851505" />
             <mat-hint>Ingrese cédula o documento sin puntos ni comas</mat-hint>
             @if (myForm.get('numero_documento')?.hasError('required')) {
-              <mat-error>El documento es
-              obligatorio</mat-error>
+              <mat-error>El documento es obligatorio</mat-error>
             }
             @if (myForm.get('numero_documento')?.hasError('pattern')) {
               <mat-error>Formato inválido</mat-error>
@@ -37,10 +37,10 @@
           </mat-form-field>
         </form>
       </mat-card-content>
-      <mat-card-actions align="end" style="padding: 0 16px 16px;">
-        <button mat-flat-button color="primary" class="btn-large" (click)="buscarOperario()"
+      <mat-card-actions class="card-actions">
+        <button mat-flat-button class="btn-managerial" (click)="buscarOperario()"
           [disabled]="!myForm.get('numero_documento')?.valid">
-          <mat-icon>search</mat-icon> BUSCAR EMPLEADO
+          <mat-icon>search</mat-icon> Buscar empleado
         </button>
       </mat-card-actions>
     </mat-card>
@@ -51,7 +51,7 @@
     <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
       <mat-card class="premium-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar" style="background-color: #e0e7ff; color: #4338ca;">
+          <div mat-card-avatar class="card-avatar">
             <mat-icon>person</mat-icon>
           </div>
           <mat-card-title>Información del Empleado</mat-card-title>
@@ -69,42 +69,42 @@
               </div>
             </div>
             <div class="summary-item">
-              <div class="summary-icon success">
+              <div class="summary-icon">
                 <mat-icon>event_available</mat-icon>
               </div>
               <div class="summary-content">
                 <span class="summary-label">Ingreso</span>
-                <span class="summary-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split('
-                ')[0] : 'N/A' }}</span>
+                <span class="summary-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split(' ')[0] : 'N/A'
+                }}</span>
               </div>
             </div>
             <!-- Saldo disponible para AMBOS tipos -->
             @if (limiteDisponible > 0) {
-              <div class="summary-item">
+              <div class="summary-item summary-item--cupo">
                 <div class="summary-icon warning">
                   <mat-icon>credit_score</mat-icon>
                 </div>
                 <div class="summary-content">
-                  <span class="summary-label">{{ tipoAutorizacion === 'mercado' ? 'Cupo Disponible
-                  Mercado' : 'Cupo Disponible Préstamo' }}</span>
-                  <span class="summary-value" style="color: #d97706;">$ {{
-                  formatCurrencyPipe(limiteDisponible) }}</span>
+                  <span class="summary-label">{{ tipoAutorizacion === 'mercado' ? 'Cupo Disponible Mercado' : 'Cupo
+                  Disponible Préstamo' }}</span>
+                  <span class="summary-value summary-value--cupo">$ {{ formatCurrencyPipe(limiteDisponible) }}</span>
                 </div>
               </div>
             }
           </div>
-          <mat-divider style="margin: 24px 0;"></mat-divider>
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3
-              style="margin-top: 0; margin-bottom: 0; color: #334155; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-              <mat-icon color="primary">receipt_long</mat-icon> Detalles de Autorización
+
+          <mat-divider class="section-divider"></mat-divider>
+
+          <div class="section-heading">
+            <h3 class="section-title">
+              <mat-icon>receipt_long</mat-icon> Detalles de Autorización
             </h3>
-            <button mat-stroked-button color="primary" type="button" (click)="abrirHistorial()"
-              style="border-radius: 8px;">
-              <mat-icon>history</mat-icon> Ver Historial
+            <button mat-stroked-button type="button" class="btn-secondary" (click)="abrirHistorial()">
+              <mat-icon>history</mat-icon> Ver historial
             </button>
           </div>
-          <div class="form-grid" style="margin-top: 16px;">
+
+          <div class="form-grid">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Concepto</mat-label>
               <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event)">
@@ -118,86 +118,82 @@
                 }
               </mat-select>
               @if (myForm.get('tipo')?.hasError('required')) {
-                <mat-error>Seleccione un
-                concepto</mat-error>
+                <mat-error>Seleccione un concepto</mat-error>
               }
             </mat-form-field>
+
             @if (showValor) {
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Valor Solicitado</mat-label>
                 <span matTextPrefix>$&nbsp;</span>
-                <input matInput formControlName="valor" (input)="formatCurrency($event)"
+                <input matInput formControlName="valor" (input)="formatCurrency($event)" inputmode="numeric"
                   placeholder="Ej: 50.000" />
-                  @if (myForm.get('valor')?.hasError('required')) {
-                    <mat-error>El valor es
-                    requerido</mat-error>
-                  }
-                  @if (myForm.get('valor')?.hasError('maxLimite')) {
-                    <mat-error>
-                      Excede el límite. Máx: ${{ formatCurrencyPipe(limiteDisponible) }}
-                    </mat-error>
-                  }
-                </mat-form-field>
-              }
-              @if (showCuotas) {
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Semanas / Quincenas</mat-label>
-                  <mat-icon matPrefix>calendar_month</mat-icon>
-                  <input matInput formControlName="cuotas" type="number" min="1"
-                    [max]="tipoAutorizacion === 'mercado' ? 2 : 4" />
-                    @if (myForm.get('cuotas')?.hasError('max')) {
-                      <mat-error>Máximo {{ tipoAutorizacion ===
-                      'mercado' ? '2' : '4' }} cuotas</mat-error>
-                    }
-                    @if (myForm.get('cuotas')?.hasError('min')) {
-                      <mat-error>Mínimo 1 cuota</mat-error>
-                    }
-                  </mat-form-field>
+                @if (myForm.get('valor')?.hasError('required')) {
+                  <mat-error>El valor es requerido</mat-error>
                 }
-                <!-- Forma de Pago solo para prestamos -->
-                @if (tipoAutorizacion === 'prestamo') {
-                  <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Forma de Pago</mat-label>
-                    <mat-select formControlName="formaPago" (selectionChange)="onFormaPagoChange($event)">
-                      <mat-option value="Daviplata">Daviplata</mat-option>
-                      <mat-option value="Efectivo">Efectivo</mat-option>
-                      <mat-option value="Master">Mastercard</mat-option>
-                      <mat-option value="Otro">Otro</mat-option>
-                    </mat-select>
-                    @if (myForm.get('formaPago')?.hasError('required')) {
-                      <mat-error>Seleccione una forma de
-                      pago</mat-error>
-                    }
-                  </mat-form-field>
+                @if (myForm.get('valor')?.hasError('maxLimite')) {
+                  <mat-error>Excede el límite. Máx: ${{ formatCurrencyPipe(limiteDisponible) }}</mat-error>
                 }
-                @if (tipoAutorizacion === 'prestamo' && myForm.get('formaPago')?.value && myForm.get('formaPago')?.value !== 'Efectivo') {
-                  <mat-form-field appearance="outline" class="full-width"
-                    >
-                    <mat-label>{{ celularLabel }}</mat-label>
-                    <mat-icon matPrefix>dialpad</mat-icon>
-                    <input matInput formControlName="celular" maxlength="10" />
-                    <mat-hint align="end">Máx. 10 dígitos</mat-hint>
-                    @if (myForm.get('celular')?.hasError('required')) {
-                      <mat-error>Requerido</mat-error>
-                    }
-                    @if (myForm.get('celular')?.hasError('pattern')) {
-                      <mat-error>Debe tener exactamente 10
-                      dígitos</mat-error>
-                    }
-                  </mat-form-field>
+              </mat-form-field>
+            }
+
+            @if (showCuotas) {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Semanas / Quincenas</mat-label>
+                <mat-icon matPrefix>calendar_month</mat-icon>
+                <input matInput formControlName="cuotas" type="number" min="1"
+                  [max]="tipoAutorizacion === 'mercado' ? 2 : 4" />
+                @if (myForm.get('cuotas')?.hasError('max')) {
+                  <mat-error>Máximo {{ tipoAutorizacion === 'mercado' ? '2' : '4' }} cuotas</mat-error>
                 }
-              </div>
-            </mat-card-content>
-            <mat-card-actions align="end" style="padding: 16px;">
-              <button mat-button type="button" (click)="datosOperario = null; myForm.reset()"
-                style="margin-right: 8px;">
-                CANCELAR
-              </button>
-              <button mat-flat-button color="primary" type="submit" class="btn-large" [disabled]="myForm.invalid">
-                <mat-icon>check_circle</mat-icon> APROBAR Y GENERAR PDF
-              </button>
-            </mat-card-actions>
-          </mat-card>
-        </form>
-      }
-    </div>
+                @if (myForm.get('cuotas')?.hasError('min')) {
+                  <mat-error>Mínimo 1 cuota</mat-error>
+                }
+              </mat-form-field>
+            }
+
+            <!-- Forma de Pago solo para prestamos -->
+            @if (tipoAutorizacion === 'prestamo') {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Forma de Pago</mat-label>
+                <mat-select formControlName="formaPago" (selectionChange)="onFormaPagoChange($event)">
+                  <mat-option value="Daviplata">Daviplata</mat-option>
+                  <mat-option value="Efectivo">Efectivo</mat-option>
+                  <mat-option value="Master">Mastercard</mat-option>
+                  <mat-option value="Otro">Otro</mat-option>
+                </mat-select>
+                @if (myForm.get('formaPago')?.hasError('required')) {
+                  <mat-error>Seleccione una forma de pago</mat-error>
+                }
+              </mat-form-field>
+            }
+
+            @if (tipoAutorizacion === 'prestamo' && myForm.get('formaPago')?.value && myForm.get('formaPago')?.value !== 'Efectivo') {
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ celularLabel }}</mat-label>
+                <mat-icon matPrefix>dialpad</mat-icon>
+                <input matInput formControlName="celular" maxlength="10" inputmode="numeric" />
+                <mat-hint align="end">Máx. 10 dígitos</mat-hint>
+                @if (myForm.get('celular')?.hasError('required')) {
+                  <mat-error>Requerido</mat-error>
+                }
+                @if (myForm.get('celular')?.hasError('pattern')) {
+                  <mat-error>Debe tener exactamente 10 dígitos</mat-error>
+                }
+              </mat-form-field>
+            }
+          </div>
+        </mat-card-content>
+        <mat-card-actions class="card-actions">
+          <button mat-button type="button" class="btn-cancel" (click)="cancelar()">
+            Cancelar
+          </button>
+          <button mat-flat-button type="submit" class="btn-managerial" [disabled]="myForm.invalid">
+            <mat-icon>check_circle</mat-icon> Aprobar y generar PDF
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </form>
+  }
+  </div>
+</div>

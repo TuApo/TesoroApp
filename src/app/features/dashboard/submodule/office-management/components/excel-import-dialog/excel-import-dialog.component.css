@@ -1,0 +1,197 @@
+/* Carga por Excel. Mismo lenguaje visual que la portada del constructor
+   (form-start): hoja centrada sobre velo, pestañas con subrayado lima y
+   tipografía de la plataforma. Sin Material: son controles simples. */
+
+.xi-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.52);
+}
+
+.xi-hoja {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100%);
+  max-height: min(88vh, 860px);
+  background: var(--surface, #fff);
+  border-radius: var(--r-md, 16px);
+  box-shadow: var(--shadow-lg, 0 24px 70px rgba(15, 23, 42, 0.28));
+  overflow: hidden;
+}
+
+.xi-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 18px 12px; }
+.xi-head__texto { flex: 1; min-width: 0; }
+.xi-titulo { margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--navy, #21263c); }
+.xi-sub { margin: 3px 0 0; font-size: 0.82rem; color: var(--slate-500, #64748b); }
+.xi-cerrar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; flex: none; border: none; border-radius: 10px;
+  background: var(--slate-100, #f1f5f9); color: var(--slate-700, #334155); cursor: pointer;
+}
+.xi-cerrar:hover { background: var(--slate-200, #e8edf3); }
+
+.xi-tabs { display: flex; gap: 6px; padding: 0 18px; border-bottom: 1px solid var(--slate-200, #e8edf3); }
+.xi-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 10px 12px; border: none; background: none; cursor: pointer;
+  font-size: 0.86rem; font-weight: 600; color: var(--slate-500, #64748b);
+  border-bottom: 2px solid transparent;
+}
+.xi-tab:hover { color: var(--navy, #21263c); }
+.xi-tab--activa { color: var(--navy, #21263c); border-bottom-color: var(--lime, #8cd50a); }
+.xi-tab .material-symbols-outlined { font-size: 18px; }
+
+.xi-cuerpo { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 18px 8px; }
+
+.xi-seccion {
+  margin: 20px 0 6px; font-size: 0.92rem; font-weight: 700; color: var(--navy, #21263c);
+}
+.xi-ayuda { margin: 6px 0; font-size: 0.83rem; color: var(--slate-500, #64748b); line-height: 1.45; }
+.xi-ayuda--tenue { color: var(--slate-400, #94a3b8); }
+
+/* ── Modo individual / masivo ─────────────────────────────────────── */
+.xi-modo { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin: 10px 0 4px; }
+.xi-modo__op {
+  display: grid; gap: 2px; text-align: left; cursor: pointer;
+  padding: 12px 14px; border: 1px solid var(--slate-200, #e8edf3); border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.xi-modo__op:hover { border-color: var(--slate-300, #cbd5e1); }
+.xi-modo__op--sel { border-color: var(--lime, #8cd50a); box-shadow: 0 0 0 1px var(--lime, #8cd50a) inset; }
+.xi-modo__op .material-symbols-outlined { color: var(--navy, #21263c); }
+.xi-modo__t { font-weight: 700; font-size: 0.9rem; color: var(--navy, #21263c); }
+.xi-modo__d { font-size: 0.78rem; color: var(--slate-500, #64748b); }
+
+/* ── Campos ───────────────────────────────────────────────────────── */
+.xi-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 10px; }
+.xi-campo { display: flex; flex-direction: column; gap: 4px; }
+.xi-campo--ancho { grid-column: 1 / -1; }
+.xi-campo--corto { max-width: 280px; margin-top: 10px; }
+.xi-campo > span { font-size: 0.78rem; font-weight: 600; color: var(--slate-600, #475569); }
+.xi-campo > small { font-size: 0.72rem; color: var(--slate-400, #94a3b8); }
+.xi-campo input {
+  padding: 9px 11px; border: 1px solid var(--slate-200, #e8edf3); border-radius: 9px;
+  font-size: 0.88rem; color: var(--text, #0f172a); background: var(--surface, #fff);
+}
+.xi-campo input:focus { outline: none; border-color: var(--lime, #8cd50a); }
+
+.xi-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.85rem; color: var(--slate-700, #334155); cursor: pointer; }
+.xi-check input { accent-color: var(--navy, #21263c); }
+.xi-opciones { display: flex; flex-direction: column; }
+
+/* ── Roles ────────────────────────────────────────────────────────── */
+.xi-roles { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.xi-rol {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 6px 10px; border: 1px solid var(--slate-200, #e8edf3); border-radius: 999px;
+  font-size: 0.82rem; color: var(--slate-700, #334155); background: var(--surface, #fff);
+}
+.xi-rol--sel { border-color: var(--lime, #8cd50a); background: color-mix(in srgb, var(--lime, #8cd50a) 12%, transparent); }
+.xi-rol input { accent-color: var(--navy, #21263c); }
+
+/* ── Resumen de lo elegido ────────────────────────────────────────── */
+.xi-resumen {
+  margin: 16px 0 4px; padding: 12px 14px; border-radius: 12px;
+  background: var(--slate-50, #f8fafc); border: 1px solid var(--slate-200, #e8edf3);
+}
+.xi-resumen p { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.84rem; color: var(--slate-700, #334155); }
+.xi-resumen .material-symbols-outlined { font-size: 18px; color: var(--navy, #21263c); }
+
+/* ── Zona de carga ────────────────────────────────────────────────── */
+.xi-soltar {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 26px 16px; border: 2px dashed var(--slate-300, #cbd5e1); border-radius: 14px;
+  background: var(--slate-50, #f8fafc); text-align: center;
+}
+.xi-soltar p { margin: 0; font-size: 0.85rem; color: var(--slate-500, #64748b); }
+.xi-soltar__icono { font-size: 38px; color: var(--slate-400, #94a3b8); }
+.xi-soltar__nombre { font-weight: 600; color: var(--navy, #21263c) !important; }
+
+.xi-totales { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 6px; }
+.xi-kpi {
+  display: flex; flex-direction: column; align-items: center; min-width: 96px;
+  padding: 10px 14px; border-radius: 12px; background: var(--slate-50, #f8fafc);
+  border: 1px solid var(--slate-200, #e8edf3);
+}
+.xi-kpi b { font-size: 1.25rem; color: var(--navy, #21263c); }
+.xi-kpi span { font-size: 0.74rem; color: var(--slate-500, #64748b); }
+.xi-kpi--ok { background: color-mix(in srgb, var(--lime, #8cd50a) 14%, transparent); border-color: var(--lime, #8cd50a); }
+
+/* ── Un formulario leído ──────────────────────────────────────────── */
+.xi-form {
+  display: flex; flex-direction: column; margin-top: 10px;
+  border: 1px solid var(--slate-200, #e8edf3); border-radius: 14px;
+  background: var(--surface, #fff); overflow: hidden;
+}
+.xi-form--mal { border-color: #fca5a5; }
+.xi-form__head {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 12px 14px; border: none; background: none; cursor: pointer;
+}
+.xi-form__estado { color: #dc2626; }
+.xi-form__estado--ok { color: #15803d; }
+.xi-form__texto { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.xi-form__nombre { font-weight: 700; font-size: 0.92rem; color: var(--navy, #21263c); }
+.xi-form__meta { font-size: 0.76rem; color: var(--slate-500, #64748b); }
+.xi-form__detalle { padding: 0 14px 8px; }
+.xi-form__pie { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 14px 12px; }
+
+.xi-preguntas { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.xi-preguntas li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.83rem; color: var(--slate-700, #334155); }
+.xi-preguntas__sec { font-size: 0.72rem; color: var(--slate-400, #94a3b8); min-width: 120px; }
+.xi-preguntas__label { flex: 1; min-width: 140px; }
+
+.xi-chip {
+  font-size: 0.68rem; font-weight: 600; padding: 2px 7px; border-radius: 999px;
+  background: var(--slate-100, #f1f5f9); color: var(--slate-600, #475569);
+}
+.xi-chip--req { background: #fee2e2; color: #b91c1c; }
+
+.xi-masivo {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-top: 14px; padding: 12px 14px; border-radius: 12px;
+  background: var(--slate-50, #f8fafc); border: 1px solid var(--slate-200, #e8edf3);
+}
+
+.xi-resultados { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.xi-resultados li { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; color: #15803d; }
+.xi-resultados li .material-symbols-outlined { font-size: 18px; }
+.xi-resultados--mal { color: #b91c1c; }
+
+.xi-error, .xi-aviso {
+  display: flex; align-items: flex-start; gap: 8px; margin: 8px 0;
+  font-size: 0.83rem; line-height: 1.4;
+}
+.xi-error { color: #b91c1c; }
+.xi-aviso { color: #b45309; }
+.xi-error .material-symbols-outlined, .xi-aviso .material-symbols-outlined { font-size: 18px; }
+
+/* ── Pie ──────────────────────────────────────────────────────────── */
+.xi-pie {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 18px; border-top: 1px solid var(--slate-200, #e8edf3);
+  background: var(--surface, #fff);
+}
+
+.xi-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 9px 14px; border-radius: 10px; border: 1px solid transparent;
+  font-size: 0.85rem; font-weight: 600;
+}
+.xi-btn .material-symbols-outlined { font-size: 18px; }
+.xi-btn--primary { background: var(--navy, #21263c); color: #fff; }
+.xi-btn--primary:hover:not(:disabled) { background: #2c3350; }
+.xi-btn--claro { background: var(--slate-100, #f1f5f9); color: var(--slate-700, #334155); }
+.xi-btn--claro:hover { background: var(--slate-200, #e8edf3); }
+.xi-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .xi-fondo { padding: 0; }
+  .xi-hoja { width: 100%; max-height: 100vh; border-radius: 0; }
+  .xi-preguntas__sec { min-width: 0; }
+}

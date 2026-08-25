@@ -14,6 +14,7 @@ import { MatderDashboardService } from '../../services/dashboard.service';
 import { BoardResponse } from '../../models/board.models';
 import { WorkspaceResponse } from '../../models/workspace.models';
 import Swal from 'sweetalert2';
+import { MatderMobileNavComponent } from '../../components/matder-mobile-nav/matder-mobile-nav.component';
 
 /**
  * Página de favoritos de MatDer.
@@ -33,6 +34,9 @@ import Swal from 'sweetalert2';
     DatePipe, FormsModule, MatCardModule, MatIconModule, MatButtonModule,
     MatFormFieldModule, MatInputModule, MatProgressSpinnerModule,
     MatTooltipModule, MatChipsModule,
+    MatderMobileNavComponent
+  
+  
   ],
   templateUrl: './favorites-page.component.html',
   styleUrls: ['./favorites-page.component.css'],

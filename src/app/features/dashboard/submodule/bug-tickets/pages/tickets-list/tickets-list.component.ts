@@ -46,6 +46,10 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
   // Chat unificado (comentarios + eventos de historial)
   chatItems: any[] = [];
 
+  promptGenerado = false;
+  aiAnalisisExpandido = true;
+  aiSugerenciaExpandida = true;
+
   constructor(
     private ticketsService: TicketsService,
     private cdr: ChangeDetectorRef,
@@ -106,6 +110,8 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
     this.cargandoDetalle = true;
     this.ticketSeleccionado = null;
     this.nuevoComentario = '';
+    this.aiAnalisisExpandido = true;
+    this.aiSugerenciaExpandida = true;
     this.limpiarArchivo();
     this.cdr.markForCheck();
 
@@ -370,5 +376,105 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
 
   getConteoEstado(estado: string): number {
     return this.dataSource.data.filter((t: any) => t.estado === estado).length;
+  }
+
+  toggleAiAnalisis(): void {
+    this.aiAnalisisExpandido = !this.aiAnalisisExpandido;
+    this.cdr.markForCheck();
+  }
+
+  toggleAiSugerencia(): void {
+    this.aiSugerenciaExpandida = !this.aiSugerenciaExpandida;
+    this.cdr.markForCheck();
+  }
+
+  generarPrompt(): void {
+    if (!this.ticketSeleccionado) return;
+    const t = this.ticketSeleccionado;
+
+    const fechaFmt = t.fecha_reporte
+      ? new Date(t.fecha_reporte).toLocaleString('es-CO')
+      : '--';
+
+    const prompt = `# REPORTE DE BUG - TesoroApp
+
+## Informacion del Ticket
+- ID: ${t.id}
+- Titulo: ${t.titulo}
+- Categoria: ${t.categoria || 'Sin categoria'}
+- Prioridad: ${t.prioridad}
+- Estado: ${t.estado}
+- Fecha de reporte: ${fechaFmt}
+- Asignado a: ${t.asignado_a || 'Sin asignar'}
+
+## Descripcion del Error
+${t.descripcion}
+
+## Contexto del Usuario
+- Reportado por: ${t.usuario || '--'}
+- Documento: ${t.documento || '--'}
+- Rol: ${t.rol || '--'}
+- Sede: ${t.sede || '--'}
+
+## Contexto Tecnico
+- URL donde ocurrio el error: ${t.url_actual || '--'}
+- Navegador: ${t.navegador || '--'}
+- Resolucion de pantalla: ${t.resolucion || '--'}
+- Version de la aplicacion: ${t.version_app || '--'}
+
+## Logs de Consola
+\`\`\`
+${t.console_logs || 'No hay logs disponibles'}
+\`\`\`
+
+## Captura de Pantalla
+${t.screenshot_base64 ? '[Captura de pantalla disponible - ver ticket en el sistema para la imagen]' : 'No hay captura de pantalla disponible'}
+
+## Analisis previo de IA
+${t.ai_analisis || 'No disponible - el analisis automatico aun no se ha procesado o fallo'}
+
+## Sugerencia previa de IA
+${t.ai_sugerencia || 'No disponible'}
+
+---
+
+Por favor analiza este bug en detalle y proporciona:
+1. Explicacion de que pudo haber causado el error (componente, microservicio, flujo de datos)
+2. Descripcion del flujo de ejecucion que llevo al bug
+3. Pasos detallados para reproducir el error
+4. Solucion recomendada con cambios de codigo especificos si es posible
+5. Indicacion de si es un error de frontend (Angular) o backend (microservicio Spring Boot) y cual modulo
+6. Nivel de severidad y urgencia para resolverlo`;
+
+    const copiar = (text: string) => {
+      if (navigator.clipboard) {
+        return navigator.clipboard.writeText(text);
+      }
+      const el = document.createElement('textarea');
+      el.value = text;
+      el.style.position = 'fixed';
+      el.style.opacity = '0';
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+      return Promise.resolve();
+    };
+
+    copiar(prompt).then(() => {
+      this.promptGenerado = true;
+      this.cdr.markForCheck();
+      setTimeout(() => {
+        this.promptGenerado = false;
+        this.cdr.markForCheck();
+      }, 3000);
+    }).catch(() => {
+      this.promptGenerado = true;
+      this.cdr.markForCheck();
+      setTimeout(() => {
+        this.promptGenerado = false;
+        this.cdr.markForCheck();
+      }, 3000);
+    });
   }
 }

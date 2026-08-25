@@ -2,14 +2,30 @@
    Manage Workers – Premium Managerial UI
    ========================================================================== */
 
-/* ===== SHELL ===== */
+/* ===== SHELL =====
+   El alto lo manda .dashboard-page-wrapper (styles.css). La página lo llena
+   exacto y ahoga su scroll: el que scrollea es el contenedor de la tabla.
+   Crítico aquí, que es la pantalla con la tabla más grande de la app. */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
 .page-shell {
   display: flex;
   flex-direction: column;
   gap: 20px;
   padding: 20px;
   max-width: 100%;
-  min-height: calc(100vh - 64px);
+  /* Antes: min-height: calc(100vh - 64px). Ese 64 era un número inventado (la
+     navbar ya está descontada por el shell) y empujaba la página fuera de la
+     pantalla, mandando el scroll al wrapper y llevándose la cabecera. */
+  flex: 1;
+  min-height: 0;
 }
 
 /* ===== TOP BAR ===== */
@@ -19,12 +35,15 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-    position: relative;
-    overflow: hidden;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+  position: relative;
+  overflow: hidden;
   padding: 20px 24px;
-  border-radius: 14px;
+  /* 16px = radio de cabecera de página del resto de la app (antes 14px) */
+  border-radius: 16px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+  /* La cabecera no se encoge: el espacio lo cede la tabla. */
+  flex-shrink: 0;
 }
 
 .top-bar-left {
@@ -170,9 +189,14 @@
   background: rgba(255, 255, 255, 0.1) !important;
 }
 
-/* ===== CONTENT ===== */
+/* ===== CONTENT =====
+   Eslabón intermedio: sin min-height:0 no encoge, y el scroll de las 6.662
+   filas se escaparía a la página en vez de quedarse en la tabla. */
 .content {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== LOADING ===== */
@@ -189,15 +213,32 @@
   background: white;
   border-radius: 14px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  /* Ocupa el mismo hueco que la tabla: al terminar la carga no salta el layout */
+  flex: 1;
+  min-height: 0;
 }
 
 /* ===== TABLE CARD ===== */
 .table-card {
   background: white;
   border-radius: 14px;
+  /* overflow:hidden recorta la fila de cabecera oscura de la tabla contra las
+     esquinas redondeadas de la tarjeta */
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
   border: 1px solid #e2e8f0;
+  /* Último eslabón antes de la tabla: llena el hueco y puede encoger. */
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* La tabla compartida ya scrollea por dentro (.sf-table-wrapper): lo único que
+   le faltaba era recibir una caja con alto acotado. */
+app-standard-filter-table {
+  flex: 1;
+  min-height: 0;
 }
 
 /* ===== CELL STYLES ===== */
@@ -227,6 +268,21 @@
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 900px) {
+  /* Se suelta el alto fijo: con la cabecera apilada, a la tabla le quedaría una
+     rendija inservible. Aquí scrollea la página, como en cualquier móvil. */
+  :host {
+    height: auto;
+    overflow: visible;
+  }
+
+  .page-shell,
+  .content,
+  .table-card,
+  .loading-state,
+  app-standard-filter-table {
+    flex: 0 0 auto;
+  }
+
   .top-bar {
     flex-direction: column;
     align-items: stretch;

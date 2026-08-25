@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '@/environments/environment';
+import { getLocalStorageItem } from '@/app/core/utils/safe-storage';
 
 export interface BugTicket {
   id: string;
@@ -23,6 +24,8 @@ export interface BugTicket {
   fecha_reporte: string;
   fecha_actualizacion: string | null;
   asignado_a: string | null;
+  ai_analisis: string | null;
+  ai_sugerencia: string | null;
   comentarios: TicketComentario[];
   historial: TicketHistorial[];
 }
@@ -92,10 +95,22 @@ export class TicketsService {
   agregarComentario(ticketId: string, mensaje: string, archivo?: File): Observable<any> {
     const formData = new FormData();
     formData.append('mensaje', mensaje);
+    formData.append('autor', this.getNombreUsuario());
     if (archivo) {
       formData.append('archivo', archivo, archivo.name);
     }
     return this.http.post(`${this.apiUrl}/bug_tickets/tickets/${ticketId}/comentarios/`, formData);
+  }
+
+  private getNombreUsuario(): string {
+    try {
+      const user = JSON.parse(getLocalStorageItem('user') || '{}');
+      const nombre = [user?.datos_basicos?.nombres, user?.datos_basicos?.apellidos]
+        .filter(Boolean).join(' ');
+      return nombre || user?.numero_de_documento || 'Anónimo';
+    } catch {
+      return 'Anónimo';
+    }
   }
 
   obtenerEstadisticas(): Observable<TicketEstadisticas> {

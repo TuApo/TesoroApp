@@ -16,7 +16,13 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { BoardService } from '../../services/board.service';
-import { CardDetailResponse, CardStatus, CardPriority, LabelResponse } from '../../models/board.models';
+import { WorkspaceService } from '../../services/workspace.service';
+import { MatderDashboardService } from '../../services/dashboard.service';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { firstValueFrom } from 'rxjs';
+import { CardDetailResponse, CardStatus, CardPriority, LabelResponse, UploadResponse, BoardListResponse } from '../../models/board.models';
+import { WorkspaceMemberResponse } from '../../models/workspace.models';
+import { UserGroupResponse } from '../../models/dashboard.models';
 import Swal from 'sweetalert2';
 import { environment } from '@/environments/environment';
 
@@ -40,6 +46,12 @@ export class CardDetailDialogComponent implements OnInit {
   newComment = '';
   newChecklistItem = '';
   availableLabels = signal<LabelResponse[]>([]);
+  users = signal<any[]>([]);
+  // Listas del tablero y miembros del workspace: para editar Estado (mover de columna) y Responsable.
+  boardLists = signal<BoardListResponse[]>([]);
+  members = signal<WorkspaceMemberResponse[]>([]);
+  // Grupos disponibles: el responsable puede ser una persona O un grupo.
+  groups = signal<UserGroupResponse[]>([]);
 
   statuses: CardStatus[] = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'];
   priorities: CardPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
@@ -48,10 +60,39 @@ export class CardDetailDialogComponent implements OnInit {
     public dialogRef: MatDialogRef<CardDetailDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: { cardId: number },
     private boardService: BoardService,
+    private workspaceService: WorkspaceService,
+    private dashboardService: MatderDashboardService,
+    private utilityService: UtilityServiceService,
   ) {}
 
   async ngOnInit(): Promise<void> {
+    // Usuarios de la compañía para resolver el nombre del autor de los comentarios.
+    firstValueFrom(this.utilityService.getAllUsers()).then(u => this.users.set(u || [])).catch(() => {});
     await this.loadCard();
+  }
+
+  /** Nombre del responsable de la tarjeta resuelto desde la lista de usuarios (no el UUID). */
+  assigneeName(): string {
+    const c = this.card();
+    if (!c) return '';
+    const u: any = this.users().find((x: any) => x.id === c.assignee);
+    if (u) {
+      const full = `${u.datos_basicos?.nombres ?? ''} ${u.datos_basicos?.apellidos ?? ''}`.trim();
+      if (full) return full;
+      if (u.correo_electronico) return u.correo_electronico;
+    }
+    return c.assignee_name || '';
+  }
+
+  /** Nombre del autor de un comentario resuelto desde la lista de usuarios (no el UUID). */
+  authorName(comment: any): string {
+    const u: any = this.users().find((x: any) => x.id === comment?.author);
+    if (u) {
+      const full = `${u.datos_basicos?.nombres ?? ''} ${u.datos_basicos?.apellidos ?? ''}`.trim();
+      if (full) return full;
+      if (u.correo_electronico) return u.correo_electronico;
+    }
+    return comment?.author_name || 'Usuario';
   }
 
   /**
@@ -79,6 +120,9 @@ export class CardDetailDialogComponent implements OnInit {
           const assignedIds = new Set((detail.card_labels ?? []).map(cl => cl.label));
           this.availableLabels.set(labels.filter(l => !assignedIds.has(l.id)));
         } catch { /* ignore */ }
+        // Datos para editar Estado (listas del tablero) y Responsable (miembros del workspace).
+        // Solo la primera vez; los refrescos silenciosos tras editar no vuelven a pedirlos.
+        if (this.boardLists().length === 0) this.loadAux(detail.board_id);
       }
     } catch {
       if (!silent) Swal.fire('Error', 'No se pudo cargar el detalle.', 'error');
@@ -87,14 +131,98 @@ export class CardDetailDialogComponent implements OnInit {
     }
   }
 
-  async updateField(field: string, value: any): Promise<void> {
+  /** Carga listas del tablero, miembros activos del workspace y grupos (para los selectores). */
+  private async loadAux(boardId: number): Promise<void> {
     try {
-      await this.boardService.updateCard(this.data.cardId, { [field]: value });
+      const [board, lists] = await Promise.all([
+        this.boardService.getBoard(boardId),
+        this.boardService.getBoardLists(boardId),
+      ]);
+      this.boardLists.set(lists ?? []);
+      if (board?.workspace) {
+        const members = await this.workspaceService.listMembers(board.workspace);
+        this.members.set((members ?? []).filter(m => m.active));
+        // Grupos del workspace (con fallback a todos los grupos) para asignar por grupo.
+        const groups = await this.dashboardService.getGroupsByWorkspace(board.workspace)
+          .catch(() => this.dashboardService.getGroups().catch(() => [] as UserGroupResponse[]));
+        this.groups.set(groups ?? []);
+      }
+    } catch { /* selectores quedan vacíos, no bloquea el resto del diálogo */ }
+  }
+
+  /** PATCH parcial de la tarjeta + refresco silencioso. Base de todas las ediciones. */
+  private async patchCard(payload: Record<string, any>): Promise<void> {
+    try {
+      await this.boardService.updateCard(this.data.cardId, payload);
       this.changed = true;
       await this.loadCard(true);  // refresh silencioso: no parpadea el header
     } catch {
       Swal.fire('Error', 'No se pudo actualizar.', 'error');
     }
+  }
+
+  async updateField(field: string, value: any): Promise<void> {
+    await this.patchCard({ [field]: value });
+  }
+
+  /**
+   * Cambia el estado de la tarjeta. Para no desincronizar tablero y estado, mueve la tarjeta
+   * a una columna del mismo tipo si existe (Por hacer/En progreso/Bloqueadas/Completadas).
+   */
+  async changeStatus(status: CardStatus): Promise<void> {
+    const c = this.card();
+    if (!c || c.status === status) return;
+    const payload: Record<string, any> = { status };
+    const target = this.boardLists().find(l => l.list_type === status);
+    if (target && target.id !== c.board_list) payload['board_list'] = target.id;
+    await this.patchCard(payload);
+  }
+
+  /**
+   * Token que representa el responsable actual para el selector combinado:
+   * ``u:<uuid>`` una persona, ``g:<id>`` un grupo, o ``null`` sin asignar.
+   */
+  responsibleToken(): string | null {
+    const c = this.card();
+    if (!c) return null;
+    if (c.assignee) return 'u:' + c.assignee;
+    if (c.assignee_group) return 'g:' + c.assignee_group;
+    return null;
+  }
+
+  /**
+   * Asigna/reasigna el responsable a una PERSONA o a un GRUPO (excluyentes) según el token
+   * elegido en el selector. Al elegir uno se limpia el otro para que la tarjeta tenga un
+   * único responsable coherente con lo que se muestra.
+   */
+  async onResponsibleChange(token: string | null): Promise<void> {
+    if (!token) {
+      await this.patchCard({ assignee: null, assignee_name: null, assignee_group: null });
+      return;
+    }
+    if (token.startsWith('u:')) {
+      const uid = token.slice(2);
+      await this.patchCard({ assignee: uid, assignee_name: this.userDisplay(uid) || null, assignee_group: null });
+    } else if (token.startsWith('g:')) {
+      const gid = Number(token.slice(2));
+      await this.patchCard({ assignee: null, assignee_name: null, assignee_group: gid });
+    }
+  }
+
+  /** Etiqueta visible de un miembro para el selector. */
+  memberLabel(m: WorkspaceMemberResponse): string {
+    return this.userDisplay(m.user) || m.full_name || m.username || 'Usuario';
+  }
+
+  /** Resuelve el nombre de un usuario desde la lista de usuarios de la compañía (no el UUID). */
+  private userDisplay(userId: string | null): string {
+    const u: any = this.users().find((x: any) => x.id === userId);
+    if (u) {
+      const full = `${u.datos_basicos?.nombres ?? ''} ${u.datos_basicos?.apellidos ?? ''}`.trim();
+      if (full) return full;
+      if (u.correo_electronico) return u.correo_electronico;
+    }
+    return '';
   }
 
   // --- Comments ---
@@ -225,6 +353,32 @@ export class CardDetailDialogComponent implements OnInit {
     } catch { /* ignore */ }
   }
 
+  /**
+   * Descarga un adjunto. Baja el binario por HttpClient (el AuthInterceptor agrega el token)
+   * y dispara la descarga en el navegador con un object URL temporal, conservando el nombre
+   * original del archivo.
+   */
+  downloadingUuid: string | null = null;
+  async downloadFile(u: UploadResponse): Promise<void> {
+    if (this.downloadingUuid) return;
+    this.downloadingUuid = u.uuid;
+    try {
+      const blob = await this.boardService.downloadUpload(u.uuid);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = u.original_name || 'archivo';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      Swal.fire('Error', 'No se pudo descargar el archivo.', 'error');
+    } finally {
+      this.downloadingUuid = null;
+    }
+  }
+
   /** Build the full download URL for an upload file */
   downloadUrl(fileUrl: string): string {
     if (!fileUrl) return '';
@@ -296,7 +450,8 @@ export class CardDetailDialogComponent implements OnInit {
       await this.updateField('due_at', null);
       return;
     }
-    const local = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 0);
+    // Mediodía local → la fecha en UTC coincide con la local (evita el off-by-one del calendario).
+    const local = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
     await this.updateField('due_at', local.toISOString());
   }
 

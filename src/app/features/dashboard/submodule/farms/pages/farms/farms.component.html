@@ -9,28 +9,29 @@
         <mat-card-subtitle class="subtitulo">Gestión de sucursales, fincas y unidades de negocio.</mat-card-subtitle>
       </div>
     </div>
-    <span class="spacer grow" style="flex: 1 1 auto;"></span>
+    <span class="grow"></span>
 
-    <!-- Menú principal (3 puntos) -->
-    <button mat-icon-button class="btn-managerial-icon" style="z-index: 1;" [matMenuTriggerFor]="mainMenu" aria-label="Abrir acciones">
-      <mat-icon>more_vert</mat-icon>
-    </button>
-    <mat-menu #mainMenu="matMenu">
-      <button mat-menu-item (click)="nuevo()">
-        <mat-icon>add</mat-icon>
-        <span>Nuevo</span>
+    <div class="header-actions">
+      <!-- La acción primaria va visible, no escondida en el menú de 3 puntos -->
+      <button mat-flat-button class="btn-managerial" (click)="nuevo()">
+        <mat-icon>add</mat-icon> Nuevo centro
       </button>
 
-      <button mat-menu-item (click)="triggerImport()">
-        <mat-icon>file_upload</mat-icon>
-        <span>Importar Excel</span>
+      <button mat-icon-button class="btn-managerial-icon" [matMenuTriggerFor]="mainMenu"
+        matTooltip="Más acciones" aria-label="Más acciones">
+        <mat-icon>more_vert</mat-icon>
       </button>
-
-      <button mat-menu-item (click)="exportar()">
-        <mat-icon>file_download</mat-icon>
-        <span>Exportar Excel</span>
-      </button>
-    </mat-menu>
+      <mat-menu #mainMenu="matMenu">
+        <button mat-menu-item (click)="triggerImport()">
+          <mat-icon>file_upload</mat-icon>
+          <span>Importar desde Excel</span>
+        </button>
+        <button mat-menu-item (click)="exportar()">
+          <mat-icon>file_download</mat-icon>
+          <span>Exportar a Excel</span>
+        </button>
+      </mat-menu>
+    </div>
 
     <!-- Input para importar (oculto) -->
     <input #fileInp type="file" accept=".xlsx,.xls" (change)="onImportFile($event)" hidden>
@@ -54,8 +55,9 @@
             <mat-icon>edit</mat-icon>
             <span>Editar</span>
           </button>
-          <button mat-menu-item (click)="eliminar(row)">
-            <mat-icon color="warn">delete</mat-icon>
+          <!-- Destructivo: rojo de la paleta al apuntar, no el color="warn" de Material -->
+          <button mat-menu-item class="menu-item-danger" (click)="eliminar(row)">
+            <mat-icon>delete</mat-icon>
             <span>Eliminar</span>
           </button>
         </mat-menu>

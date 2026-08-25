@@ -1,59 +1,737 @@
-.title {
-    margin-top: 10px;
-    margin-bottom: 10px;
-    font-size: 14pt;
-    font-weight: bold;
-    width: 20%;
-    display: flex;
+/* =====================================================================
+   Procesar traslados — usa los tokens de marca de styles.css.
+   navy = estructura, lima = SOLO interacción, ámbar = excepción.
+   Misma estructura visual que el resto de la app: premium-card +
+   cabecera navy en gradiente. Hermana de transfer-query.
+===================================================================== */
+
+/* La página ocupa el alto exacto del .dashboard-page-wrapper y ahoga su
+   scroll: lo único que scrollea es .tr-table-wrapper. Sin `min-height: 0`
+   en cada eslabón de la cadena flex el hijo no encoge y el scroll se
+   escaparía a la página.
+   Cadena: :host > .tr-page > .premium-card > .card-body >
+           .tr-results-card > .tr-table-wrapper (el scroller). */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--slate-50);
+  color: var(--slate-900);
 }
 
-button {
-    margin-top: 5px;
-    margin-bottom: 5px;
-    z-index: 0;
-    width: 70%;
+.tr-page {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 24px 32px;
+  max-width: 1400px;
+  /* `width` es obligatorio: con :host en flex, el `margin: 0 auto` del eje
+     transversal anula el stretch y la página se encogería al contenido. */
+  width: 100%;
+  margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
-.link-style {
-    color: blue;          /* Cambia el color a azul */
-    text-decoration: underline; /* Añade subrayado */
-    cursor: pointer;      /* Cambia el cursor a mano al pasar por encima */
+/* =====================================================================
+   TARJETA ENVOLVENTE
+===================================================================== */
+.premium-card {
+  border-radius: 16px !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  border: 1px solid var(--slate-100);
+  background-color: #ffffff;
+  /* Recorta la cabecera navy contra las esquinas redondeadas. */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  padding: 0;
 }
 
-.menu {
-    width: 15vw;
+.card-header-premium {
+  display: flex;
+  align-items: center;
+  padding: 24px 32px 20px 32px !important;
+  border-bottom: none;
+  background: linear-gradient(135deg, var(--navy-deep) 0%, #1e293b 60%, var(--slate-700) 100%);
+  position: relative;
+  /* overflow:hidden recorta el círculo del ::before contra las esquinas */
+  overflow: hidden;
+  border-radius: 16px;
+  margin: 0 0 20px 0;
+  /* La cabecera no se encoge: el espacio lo cede la tabla. */
+  flex-shrink: 0;
 }
 
-.filtro {
-    width: 15vw;
+/* Círculo lima decorativo: el único sitio donde el lima aparece sin ser
+   interacción, porque es un velo al 8% sobre navy, no un elemento legible. */
+.card-header-premium::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
+  pointer-events: none;
 }
 
-.div{
-    display: flex;
-    gap: 10px;
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 1;
+  min-width: 0;
 }
 
-a {
-  color: #007bff;
-  text-decoration: none;
+.header-icon-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 48px;
+  width: 48px;
+  height: 48px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-radius: 12px;
 }
 
+.header-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
 
-@media (max-width: 933px) {
+.header-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 
-    .filtro, .filter-container {
-        width: 100%;
-    }
+.titulo {
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-size: 1.4rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  margin: 0 0 2px 0 !important;
+  letter-spacing: -0.01em;
+}
 
-    .filter-container{
-        margin-top: -25pt;
-    }
+.subtitulo {
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-size: 0.85rem !important;
+  color: var(--slate-300) !important;
+  margin: 0 !important;
+  font-weight: 400 !important;
+}
 
-    .div {
-        flex-direction: column;
-    }
+.grow {
+  flex: 1 1 auto;
+}
 
-    .menu {
-        width: 45vw;
-    }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+/* Eslabón elástico: el cuerpo encoge y delega el scroll en la tabla. */
+.card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  padding: 0 20px 20px !important;
+}
+
+/* =====================================================================
+   BOTONES DEL HEADER
+===================================================================== */
+/* Acción primaria de la página: navy con lima, el hover invierte. */
+.btn-managerial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border: 1px solid var(--navy);
+  border-radius: 8px;
+  background: var(--navy);
+  color: var(--lime);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.btn-managerial:hover {
+  background: var(--lime);
+  color: var(--navy);
+  border-color: var(--lime);
+}
+
+.btn-managerial:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(140, 213, 10, 0.6);
+}
+
+.btn-managerial .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* Secundario sobre navy: fantasma con borde blanco (el botón blanco de antes
+   vivía sobre fondo claro; sobre la cabecera oscura gritaba más que el
+   primario). Se enciende en lima solo al interactuar. */
+.tr-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.tr-refresh:hover {
+  border-color: var(--lime);
+  background: rgba(140, 213, 10, 0.12);
+  color: var(--lime);
+}
+
+.tr-refresh:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(140, 213, 10, 0.6);
+}
+
+.tr-refresh .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--slate-300);
+  transition: color 0.2s ease;
+}
+
+.tr-refresh:hover .mat-icon {
+  color: var(--lime);
+}
+
+/* =====================================================================
+   MÉTRICAS
+===================================================================== */
+.tr-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+/* app-info-card es compartida y viene pintada en azul Material; aquí solo
+   son cifras (no botones), así que se neutraliza el look interactivo sin
+   tocar el componente compartido. */
+:host ::ng-deep .tr-cards .info-card {
+  cursor: default;
+  border-color: var(--slate-200);
+}
+
+:host ::ng-deep .tr-cards .info-card:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  border-color: var(--slate-200);
+}
+
+:host ::ng-deep .tr-cards .info-card:focus-visible {
+  box-shadow: var(--ring);
+  border-color: var(--navy);
+}
+
+/* Icono tintado en navy: da peso a la cifra sin sacar un color nuevo. */
+:host ::ng-deep .tr-cards .info-card-icon-wrapper {
+  background: rgba(33, 38, 60, 0.08);
+  color: var(--navy);
+}
+
+:host ::ng-deep .tr-cards .info-card-title {
+  color: var(--slate-500);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+:host ::ng-deep .tr-cards .info-card-value {
+  color: var(--navy);
+}
+
+/* =====================================================================
+   TABLA
+===================================================================== */
+/* Único eslabón elástico del cuerpo: absorbe el alto sobrante y encierra el
+   scroll. `overflow: hidden` recorta la cabecera oscura de la tabla contra
+   las esquinas redondeadas. Sin sombra: ya vive dentro de .premium-card. */
+.tr-results-card {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.tr-filters {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid var(--slate-200);
+  background: var(--slate-50);
+  flex-shrink: 0;
+}
+
+.tr-filter-field {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.tr-filter-prefix {
+  color: var(--slate-400);
+  margin-right: 6px;
+}
+
+/* EL scroller de la página. El alto sale de la cadena flex, no de un
+   `calc(100vh - N)` inventado que no sabía nada del header ni del navbar. */
+.tr-table-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Fuera del scroller: el paginador queda siempre visible al pie de la tarjeta. */
+mat-paginator {
+  flex-shrink: 0;
+  border-top: 1px solid var(--slate-200);
+}
+
+.tr-table {
+  width: 100%;
+  min-width: 1080px;
+  background: transparent;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.tr-header-row {
+  background: var(--navy);
+}
+
+.tr-th {
+  background: var(--navy) !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 12px 16px !important;
+  border-bottom: 2px solid var(--lime) !important;
+  white-space: nowrap;
+
+  /* El StickyStyler del CDK escribe `z-index: 100` INLINE en las celdas
+     sticky. Sin `!important` no hay forma de bajarlo desde CSS, y a 100 la
+     cabecera se pintaría por encima del submenú (50) y del navbar (60)
+     allí donde se solapen. La escala de contenido de página no pasa de 10. */
+  z-index: 3 !important;
+
+  /* Sobre el navy, la flecha de orden gris de Material es invisible. La regla
+     global que la pone blanca solo cubre `.table-container`, que aquí no se usa. */
+  --mat-sort-header-arrow-color: #ffffff;
+  --mat-sort-header-label-text-color: #ffffff;
+}
+
+.tr-th:hover {
+  --mat-sort-header-arrow-color: var(--lime);
+}
+
+.tr-th--center {
+  text-align: center !important;
+}
+
+.tr-row {
+  transition: background 0.15s ease;
+}
+
+.tr-row:hover {
+  background: var(--slate-50);
+}
+
+.tr-td {
+  padding: 12px 16px !important;
+  font-size: 13.5px;
+  color: var(--slate-900);
+  border-bottom: 1px solid var(--slate-200);
+  vertical-align: middle;
+}
+
+.tr-td--center {
+  text-align: center !important;
+}
+
+.tr-td--obs {
+  max-width: 280px;
+}
+
+.tr-td--obs > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tr-code {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--slate-100);
+  color: var(--navy);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.tr-cedula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tr-cedula-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--slate-400);
+  flex-shrink: 0;
+}
+
+.tr-eps {
+  font-weight: 500;
+}
+
+.tr-muted {
+  color: var(--slate-400);
+  font-style: italic;
+  font-size: 12.5px;
+}
+
+/* =====================================================================
+   CHIPS DE ESTADO — mismos modificadores que transfer-query
+===================================================================== */
+/* Neutro por defecto: solo se tiñen los estados que piden acción o la
+   cierran, no todas las filas. */
+.tr-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
+  white-space: nowrap;
+}
+
+.tr-badge--ok {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  border-color: var(--ok-border);
+}
+
+.tr-badge--warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border-color: var(--warn-border);
+}
+
+.tr-badge--err {
+  background: #fef3f2;
+  color: var(--danger);
+  border-color: #fecdca;
+}
+
+/* =====================================================================
+   BOTONES DE FILA
+===================================================================== */
+/* Botones de documento y acción de fila: mismo patrón neutro→lima. */
+.tr-doc-btn,
+.tr-action-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--slate-700);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.tr-doc-btn:hover,
+.tr-action-primary:hover {
+  border-color: var(--lime);
+  background: var(--slate-50);
+  color: var(--navy);
+}
+
+.tr-doc-btn:focus-visible,
+.tr-action-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.tr-doc-btn .mat-icon,
+.tr-action-primary .mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--slate-500);
+}
+
+.tr-doc-btn:hover .mat-icon,
+.tr-action-primary:hover .mat-icon {
+  color: var(--navy);
+}
+
+/* Ausencia de documento: se dice con un icono apagado, no con un texto suelto. */
+.tr-doc-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--slate-400);
+  font-size: 12.5px;
+}
+
+.tr-doc-empty-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.tr-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tr-action-more {
+  color: var(--slate-500);
+}
+
+/* =====================================================================
+   ESTADO VACÍO
+===================================================================== */
+.tr-no-data {
+  border-bottom: none;
+}
+
+.tr-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.tr-empty-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(33, 38, 60, 0.06);
+  margin-bottom: 8px;
+}
+
+.tr-empty-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  color: var(--navy);
+  opacity: 0.55;
+}
+
+.tr-empty-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.tr-empty-text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--slate-500);
+}
+
+/* =====================================================================
+   RESPONSIVE — breakpoints del proyecto: 1100 / 900 / 600
+===================================================================== */
+@media (max-width: 1100px) {
+  .tr-page {
+    padding: 18px 16px 28px;
+  }
+
+  .card-header-premium {
+    padding: 20px 20px 18px 20px !important;
+  }
+}
+
+/* Bajo 900px se suelta el alto fijo: una tabla en una rendija no sirve.
+   La página vuelve a scrollear entera y el wrapper recupera su scroll. */
+@media (max-width: 900px) {
+  :host {
+    height: auto;
+    overflow: visible;
+  }
+
+  .tr-page,
+  .premium-card,
+  .tr-results-card {
+    flex: none;
+  }
+
+  .card-body {
+    overflow: visible;
+  }
+
+  /* Sin alto acotado solo queda el scroll horizontal de la tabla ancha. */
+  .tr-table-wrapper {
+    flex: none;
+  }
+
+  /* La cabecera se apila: el `.grow` sobra y las acciones ocupan el ancho. */
+  .card-header-premium {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .grow {
+    display: none;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions > * {
+    flex: 1 1 auto;
+  }
+
+  .titulo {
+    font-size: 1.2rem !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .tr-page {
+    padding: 14px 12px 24px;
+  }
+
+  .card-header-premium {
+    padding: 18px 16px 16px 16px !important;
+    margin-bottom: 16px;
+  }
+
+  .card-body {
+    padding: 0 14px 16px !important;
+    gap: 14px;
+  }
+
+  .header-icon-container {
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .header-icon {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .tr-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tr-filters {
+    padding: 14px 14px 0;
+  }
+
+  .tr-filter-field {
+    flex: 1 1 100%;
+  }
+
+  .tr-th,
+  .tr-td {
+    padding: 10px !important;
+    font-size: 12.5px !important;
+  }
+
+  .tr-refresh-label {
+    display: none;
+  }
+
+  .tr-refresh {
+    flex: 0 0 auto;
+    padding: 0 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-managerial,
+  .tr-refresh,
+  .tr-refresh .mat-icon,
+  .tr-row,
+  .tr-doc-btn,
+  .tr-action-primary {
+    transition: none;
+  }
 }

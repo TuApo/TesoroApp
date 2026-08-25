@@ -70,8 +70,13 @@
     </div>
     } @else {
     <div class="table-card">
-      <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [pageSizeOptions]="[10, 20, 50, 100]"
-        [defaultPageSize]="10" [tableTitle]="'Lista de Trabajadores'">
+      <!-- serverSide: `data` ya es la página que devolvió el backend; el paginador
+           y la búsqueda avisan aquí para pedir la siguiente, en vez de recortar
+           en cliente un universo de 50.190 filas que ya no se descarga. -->
+      <app-standard-filter-table [data]="rows()" [columnDefinitions]="columns" [pageSizeOptions]="[25, 50, 100]"
+        [defaultPageSize]="50" [tableTitle]="'Lista de Trabajadores'" [isLoading]="loading()"
+        [serverSide]="true" [totalCount]="totalRegistros()"
+        (pageChange)="onPageChange($event)" (searchChange)="onServerSearch($event)">
 
         <!-- Columna ACCIONES -->
         <ng-template appCellTemplate="acciones" let-row>

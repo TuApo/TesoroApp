@@ -27,6 +27,7 @@ import { UtilityServiceService } from '../../../../../shared/services/utilitySer
 import { MerchandisingMerchandiseComponent } from '../components/merchandising-merchandise/merchandising-merchandise.component';
 import { MigrationPanelComponent } from '../components/migration-panel/migration-panel.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
+import { HomeDashboardComponent } from '../components/home-dashboard/home-dashboard.component';
 import {
   HomeService,
   PdfKey,
@@ -71,7 +72,8 @@ type ProgresoTipoPrioridadRow = {
     MatSelectModule,
     MerchandisingMerchandiseComponent,
     MigrationPanelComponent,
-    InfoCardComponent
+    InfoCardComponent,
+    HomeDashboardComponent,
 ],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css'],

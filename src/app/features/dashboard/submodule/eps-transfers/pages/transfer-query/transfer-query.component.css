@@ -1,161 +1,294 @@
 /* =====================================================================
-   Transfer Query — UI/UX
-   Paleta corporativa: base #21263C, accent #8CD50A.
+   Consulta de traslados — usa los tokens de marca de styles.css.
+   navy = estructura, lima = SOLO interacción, ámbar = excepción.
 ===================================================================== */
 
+/* La página ocupa el alto exacto del .dashboard-page-wrapper y ahoga su
+   scroll: lo único que scrollea es .tq-table-wrapper. Sin `min-height: 0`
+   en cada eslabón de la cadena flex el hijo no encoge y el scroll se
+   escaparía a la página. Cadena completa:
+   :host > .tq-page > .premium-card > .card-body > .tq-results-card >
+   .tq-table-wrapper. */
 :host {
-  --tq-base: #21263c;
-  --tq-base-light: #2c3448;
-  --tq-accent: #8cd50a;
-  --tq-accent-dark: #7bba09;
-  --tq-bg: #f8fafc;
-  --tq-surface: #ffffff;
-  --tq-border: #e2e8f0;
-  --tq-text: #1e293b;
-  --tq-text-muted: #64748b;
-  --tq-text-soft: #94a3b8;
-
-  --tq-ok: #16a34a;
-  --tq-ok-bg: #dcfce7;
-  --tq-warn: #d97706;
-  --tq-warn-bg: #fef3c7;
-  --tq-err: #dc2626;
-  --tq-err-bg: #fee2e2;
-
-  display: block;
-  background: var(--tq-bg);
-  color: var(--tq-text);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--slate-50);
+  color: var(--slate-900);
 }
 
 .tq-page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 20px 24px 32px;
+  padding: 20px 24px 24px;
   max-width: 1400px;
+  /* `width` es obligatorio: con :host en flex, el `margin: 0 auto` del eje
+     transversal anula el stretch y la página se encogería al contenido. */
+  width: 100%;
   margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 /* =====================================================================
-   HEADER
+   MAT-CARD ENVOLVENTE — mismo patrón que el resto de la app
 ===================================================================== */
-.tq-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 4px 4px 0;
-}
-
-.tq-header-text {
+/* Eslabón 1 de la cadena: la tarjeta llena la página y puede encoger. */
+.premium-card {
+  border-radius: 16px !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+  border: 1px solid var(--slate-100);
+  background-color: #ffffff;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 0;
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
 }
 
-.tq-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-size: 24px;
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.4px;
-  color: var(--tq-base);
-}
-
-.tq-title-icon {
-  font-size: 28px;
-  width: 28px;
-  height: 28px;
-  color: var(--tq-accent);
-}
-
-.tq-subtitle {
-  margin: 0;
-  font-size: 13.5px;
-  color: var(--tq-text-muted);
-  line-height: 1.4;
-}
-
-.tq-header-actions {
+.card-header-premium {
   display: flex;
   align-items: center;
-  gap: 8px;
+  padding: 24px 32px 20px 32px !important;
+  border-bottom: none;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+  position: relative;
+  /* overflow:hidden recorta el círculo del ::before contra las esquinas */
+  overflow: hidden;
+  border-radius: 16px;
+  margin-bottom: 20px;
+  /* La cabecera no se encoge: el espacio lo cede la tabla. */
   flex-shrink: 0;
 }
 
-.tq-admin-trigger {
-  display: inline-flex !important;
+.card-header-premium::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -20%;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(140, 213, 10, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.header-content {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  border-color: var(--tq-border) !important;
+  gap: 16px;
+  z-index: 1;
+  min-width: 0;
 }
 
-.tq-admin-trigger-label {
-  font-size: 13px;
+.header-icon-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 48px;
+  width: 48px;
+  height: 48px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  border-radius: 12px;
 }
 
-@media (max-width: 600px) {
-  .tq-admin-trigger-label {
-    display: none;
-  }
+.header-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
 }
 
-/* Mat-menu items con dos lineas (titulo + hint) */
-::ng-deep .tq-admin-menu .mat-mdc-menu-content {
-  padding: 6px 0;
-}
-
-::ng-deep .tq-admin-menu .mat-mdc-menu-item {
-  height: auto;
-  min-height: 56px;
-  padding: 10px 16px;
-}
-
-.tq-menu-icon {
-  margin-right: 12px;
-}
-
-.tq-menu-icon--primary {
-  color: var(--tq-base);
-}
-
-.tq-menu-icon--warn {
-  color: var(--tq-err);
-}
-
-.tq-menu-text {
+.header-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  line-height: 1.25;
+  min-width: 0;
 }
 
-.tq-menu-title {
-  font-size: 14px;
+.titulo {
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-size: 1.4rem !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  margin: 0 0 2px 0 !important;
+  letter-spacing: -0.01em;
+}
+
+.subtitulo {
+  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-size: 0.85rem !important;
+  color: #cbd5e1 !important;
+  margin: 0 !important;
+  font-weight: 400 !important;
+}
+
+.grow {
+  flex: 1 1 auto;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+  flex-wrap: wrap;
+}
+
+/* Eslabón 2: el cuerpo encoge (min-height:0) y no scrollea él, delega en la
+   tabla. Sin este min-height:0 el scroll se escaparía a la página. */
+.card-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  /* Explícito: el default de Material (.mat-mdc-card-content) tiene la misma
+     especificidad que esta clase y ganaría según el orden de inyección. */
+  padding: 0 24px 24px !important;
+}
+
+/* =====================================================================
+   BOTONES
+===================================================================== */
+/* Acción primaria: navy con lima; el hover invierte. */
+.btn-managerial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  border: 1px solid var(--navy);
+  border-radius: 8px;
+  background: var(--navy);
+  color: var(--lime);
+  font-family: inherit;
+  font-size: 13.5px;
   font-weight: 600;
-  color: var(--tq-text);
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.tq-menu-hint {
-  font-size: 11.5px;
-  color: var(--tq-text-muted);
+.btn-managerial:hover:not(:disabled) {
+  background: var(--lime);
+  color: var(--navy);
+  border-color: var(--lime);
+}
+
+.btn-managerial:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.btn-managerial:disabled {
+  background: var(--slate-200);
+  border-color: var(--slate-200);
+  color: var(--slate-400);
+  cursor: not-allowed;
+}
+
+.btn-managerial .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* Los dos botones admin viven sobre el navy de la cabecera: en reposo son
+   translúcidos (mismo tratamiento que .header-icon-container) y el color
+   entra SOLO al interactuar, con relleno sólido para que el texto conserve
+   contraste. El lima nunca se usa como texto sobre oscuro. */
+.tq-btn-ghost,
+.tq-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.tq-btn-ghost .mat-icon,
+.tq-btn-danger .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: #cbd5e1;
+  transition: color 0.2s ease;
+}
+
+/* Secundaria: el lima como acento de interacción, con navy encima. */
+.tq-btn-ghost:hover:not(:disabled),
+.tq-btn-ghost:focus-visible:not(:disabled) {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: var(--navy);
+}
+
+.tq-btn-ghost:hover:not(:disabled) .mat-icon,
+.tq-btn-ghost:focus-visible:not(:disabled) .mat-icon {
+  color: var(--navy);
+}
+
+/* Destructiva: neutra en reposo, rojo SOLO al interactuar. */
+.tq-btn-danger:hover:not(:disabled),
+.tq-btn-danger:focus-visible:not(:disabled) {
+  background: #fef3f2;
+  border-color: #fecdca;
+  color: var(--danger);
+}
+
+.tq-btn-danger:hover:not(:disabled) .mat-icon,
+.tq-btn-danger:focus-visible:not(:disabled) .mat-icon {
+  color: var(--danger);
+}
+
+.tq-btn-ghost:focus-visible,
+.tq-btn-danger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.18);
+}
+
+.tq-btn-ghost:disabled,
+.tq-btn-danger:disabled {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.45);
+  cursor: not-allowed;
+}
+
+.tq-btn-ghost:disabled .mat-icon,
+.tq-btn-danger:disabled .mat-icon {
+  color: rgba(255, 255, 255, 0.45);
 }
 
 /* =====================================================================
    SEARCH CARD
 ===================================================================== */
+/* Panel tintado dentro de la tarjeta blanca: sin el tinte, blanco sobre
+   blanco lo dejaría flotando sin borde perceptible. */
 .tq-search-card {
-  background: var(--tq-surface);
-  border: 1px solid var(--tq-border);
-  border-radius: 16px;
-  padding: 18px 20px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  padding: 18px 20px 6px;
+  flex-shrink: 0;
 }
 
 .tq-search-form {
@@ -167,108 +300,139 @@
 
 .tq-search-field {
   flex: 1 1 320px;
-  min-width: 240px;
+  min-width: 0;
 }
 
 .tq-search-prefix {
-  color: var(--tq-text-muted);
+  color: var(--navy);
   margin-right: 6px;
 }
 
 .tq-search-clear {
-  color: var(--tq-text-soft);
+  color: var(--slate-400);
 }
 
 .tq-search-button {
   height: 56px;
-  padding: 0 24px !important;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  display: inline-flex !important;
-  align-items: center;
-  gap: 6px;
-}
-
-@media (max-width: 600px) {
-  .tq-search-button {
-    width: 100%;
-    height: 48px;
-  }
+  padding: 0 24px;
+  flex-shrink: 0;
 }
 
 /* =====================================================================
    RESULTS
 ===================================================================== */
+/* Único eslabón elástico: absorbe el alto sobrante y encierra el scroll.
+   `overflow: hidden` recorta la cabecera oscura de la tabla contra las
+   esquinas redondeadas. */
 .tq-results-card {
-  background: var(--tq-surface);
-  border: 1px solid var(--tq-border);
-  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .tq-results-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-  border-bottom: 1px solid var(--tq-border);
+  padding: 12px 16px;
+  background: var(--slate-50);
+  border-bottom: 1px solid var(--slate-200);
+  flex-shrink: 0;
 }
 
 .tq-results-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
 }
 
+.tq-results-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(33, 38, 60, 0.08);
+  flex-shrink: 0;
+}
+
+.tq-results-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--navy);
+}
+
+.tq-results-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+
+/* Contador: es un dato, no un éxito. Neutro para no competir con los badges. */
 .tq-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   padding: 4px 12px;
   border-radius: 999px;
-  background: var(--tq-ok-bg);
-  color: var(--tq-ok);
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.2px;
-}
-
-.tq-chip-icon {
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
+  white-space: nowrap;
 }
 
 /* =====================================================================
    TABLE
 ===================================================================== */
+/* EL scroller de la página. El alto sale de la cadena flex, no de un
+   `calc(100vh - N)` inventado que no sabía nada del header ni del navbar. */
 .tq-table-wrapper {
-  overflow-x: auto;
-  max-height: calc(100vh - 360px);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .tq-table {
   width: 100%;
+  min-width: 820px;
   background: transparent;
   border-collapse: separate;
   border-spacing: 0;
 }
 
 .tq-header-row {
-  background: var(--tq-base);
+  background: var(--navy);
 }
 
 .tq-th {
-  background: var(--tq-base) !important;
+  background: var(--navy) !important;
   color: #ffffff !important;
   font-size: 12px !important;
   font-weight: 700 !important;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   padding: 12px 16px !important;
-  border-bottom: 2px solid var(--tq-accent) !important;
+  border-bottom: 2px solid var(--lime) !important;
+  white-space: nowrap;
+
+  /* El StickyStyler del CDK escribe `z-index: 100` INLINE en las celdas
+     sticky. Sin `!important` no hay forma de bajarlo desde CSS, y a 100 la
+     cabecera se pintaría por encima del submenú (50) y del navbar (60)
+     allí donde se solapen. La escala de contenido de página no pasa de 10. */
+  z-index: 3 !important;
 }
 
 .tq-th--center {
@@ -280,22 +444,14 @@
 }
 
 .tq-row:hover {
-  background: rgba(140, 213, 10, 0.04);
-}
-
-.tq-row:nth-child(even) {
-  background: #fafbfc;
-}
-
-.tq-row:nth-child(even):hover {
-  background: rgba(140, 213, 10, 0.06);
+  background: var(--slate-50);
 }
 
 .tq-td {
   padding: 12px 16px !important;
   font-size: 13.5px;
-  color: var(--tq-text);
-  border-bottom: 1px solid var(--tq-border);
+  color: var(--slate-900);
+  border-bottom: 1px solid var(--slate-200);
 }
 
 .tq-td--center {
@@ -305,8 +461,8 @@
 .tq-code {
   display: inline-block;
   padding: 2px 8px;
-  background: #eef2ff;
-  color: #3730a3;
+  background: var(--slate-100);
+  color: var(--navy);
   border-radius: 6px;
   font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 12.5px;
@@ -321,41 +477,69 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .tq-responsable-icon {
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: var(--tq-text-muted);
+  color: var(--slate-400);
+  flex-shrink: 0;
 }
 
 .tq-muted {
-  color: var(--tq-text-soft);
+  color: var(--slate-400);
   font-style: italic;
   font-size: 12.5px;
 }
 
 .tq-doc-btn {
-  display: inline-flex !important;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 32px !important;
-  font-size: 12.5px !important;
-  padding: 0 12px !important;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--slate-700);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.tq-doc-btn:hover {
+  border-color: var(--lime);
+  background: var(--slate-50);
+  color: var(--navy);
+}
+
+.tq-doc-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
 }
 
 .tq-doc-btn .mat-icon {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--slate-500);
+}
+
+.tq-doc-btn:hover .mat-icon {
+  color: var(--navy);
 }
 
 .tq-doc-empty {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--tq-text-soft);
+  color: var(--slate-400);
   font-size: 12.5px;
   font-style: italic;
 }
@@ -366,7 +550,8 @@
   height: 16px;
 }
 
-/* Badges de estado */
+/* Badges de estado: el neutro es el caso normal; solo se pinta lo que
+   pide acción (ámbar), cerró bien (verde) o salió mal (rojo). */
 .tq-badge {
   display: inline-block;
   padding: 4px 12px;
@@ -375,71 +560,83 @@
   font-weight: 700;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  background: #f1f5f9;
-  color: var(--tq-text-muted);
+  background: var(--slate-100);
+  color: var(--slate-700);
+  border: 1px solid var(--slate-200);
   white-space: nowrap;
 }
 
 .tq-badge--ok {
-  background: var(--tq-ok-bg);
-  color: var(--tq-ok);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  border-color: var(--ok-border);
 }
 
 .tq-badge--warn {
-  background: var(--tq-warn-bg);
-  color: var(--tq-warn);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border-color: var(--warn-border);
 }
 
 .tq-badge--err {
-  background: var(--tq-err-bg);
-  color: var(--tq-err);
+  background: #fef3f2;
+  color: var(--danger);
+  border-color: #fecdca;
 }
 
 /* =====================================================================
    EMPTY STATE
 ===================================================================== */
+/* Hermano @else de .tq-results-card: ocupa el mismo hueco elástico y centra
+   el mensaje, en vez de dejar un vacío bajo una tarjeta suelta.
+   `overflow: auto` cubre las pantallas bajas, donde 56px de padding + el
+   texto no caben. */
 .tq-empty-card {
-  background: var(--tq-surface);
-  border: 1px dashed var(--tq-border);
-  border-radius: 16px;
+  background: var(--slate-50);
+  border: 1px dashed var(--slate-300);
+  border-radius: 12px;
   padding: 56px 24px;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .tq-empty-icon-wrap {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #eef2ff 0%, #f0fdf4 100%);
+  background: rgba(33, 38, 60, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
 .tq-empty-icon {
   font-size: 40px;
   width: 40px;
   height: 40px;
-  color: var(--tq-base);
-  opacity: 0.6;
+  color: var(--navy);
 }
 
 .tq-empty-title {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: var(--tq-base);
+  color: var(--navy);
 }
 
 .tq-empty-text {
   margin: 0;
   font-size: 14px;
-  color: var(--tq-text-muted);
+  color: var(--slate-500);
   max-width: 480px;
   line-height: 1.5;
 }
@@ -450,8 +647,9 @@
   gap: 6px;
   margin: 12px 0 0;
   padding: 8px 16px;
-  background: #eef2ff;
-  color: var(--tq-base);
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  color: var(--slate-700);
   border-radius: 8px;
   font-size: 12.5px;
   line-height: 1.4;
@@ -463,35 +661,120 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--tq-accent-dark);
+  color: var(--slate-500);
   flex-shrink: 0;
 }
 
 /* =====================================================================
-   RESPONSIVE
+   RESPONSIVE — breakpoints del proyecto: 1100 / 900 / 600
 ===================================================================== */
-@media (max-width: 768px) {
+@media (max-width: 1100px) {
   .tq-page {
-    padding: 16px 12px 24px;
-    gap: 14px;
+    padding: 18px 16px 20px;
   }
 
-  .tq-header {
+  .card-header-premium {
+    padding: 20px 20px 18px 20px !important;
+  }
+
+  .card-body {
+    padding: 0 16px 16px !important;
+  }
+}
+
+/* Bajo 900px se suelta el alto fijo: una tabla en una rendija no sirve.
+   La página vuelve a scrollear entera y el wrapper recupera su scroll. */
+@media (max-width: 900px) {
+  :host {
+    height: auto;
+    overflow: visible;
+  }
+
+  .tq-page,
+  .premium-card,
+  .tq-results-card {
+    flex: none;
+  }
+
+  .card-body {
+    overflow: visible;
+  }
+
+  /* Sin alto acotado solo queda el scroll horizontal de la tabla ancha. */
+  .tq-table-wrapper {
+    flex: none;
+  }
+
+  .tq-empty-card {
+    flex: none;
+    overflow: visible;
+  }
+
+  /* La cabecera apila: título arriba, acciones a lo ancho debajo. */
+  .card-header-premium {
     flex-direction: column;
     align-items: stretch;
+    gap: 16px;
   }
 
-  .tq-title {
-    font-size: 20px;
+  .grow {
+    display: none;
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+
+  .header-actions > button {
+    flex: 1 1 auto;
+  }
+
+  .titulo {
+    font-size: 1.2rem !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .tq-page {
+    padding: 12px 10px 16px;
+  }
+
+  .card-header-premium {
+    padding: 18px 16px 16px 16px !important;
+    margin-bottom: 16px;
+  }
+
+  .card-body {
+    padding: 0 12px 12px !important;
+    gap: 12px;
+  }
+
+  .tq-search-card {
+    padding: 14px 14px 4px;
+  }
+
+  .tq-search-field {
+    flex: 1 1 100%;
+  }
+
+  .tq-search-button {
+    width: 100%;
+    height: 48px;
+  }
+
+  /* En móvil los dos botones admin se apilan: en fila quedan a ~90px y el
+     texto ("Desactivar desde Excel") se corta. */
+  .header-actions > button {
+    flex: 1 1 100%;
   }
 
   .tq-results-header {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
 
   .tq-th,
   .tq-td {
-    padding: 10px 10px !important;
+    padding: 10px !important;
     font-size: 12.5px !important;
   }
 
@@ -502,5 +785,15 @@
   .tq-empty-icon-wrap {
     width: 64px;
     height: 64px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-managerial,
+  .tq-btn-ghost,
+  .tq-btn-danger,
+  .tq-doc-btn,
+  .tq-row {
+    transition: none;
   }
 }

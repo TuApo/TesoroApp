@@ -1,7 +1,6 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { HistorialService } from '../../service/historial/historial.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
@@ -38,10 +37,15 @@ export class HistorialAutorizacionesComponent implements OnInit {
 
   dataList: any[] = [];
 
+  // Token de consulta: descarta respuestas obsoletas cuando el usuario busca
+  // un documento y, antes de que responda, busca otro (evita pintar los datos
+  // del empleado equivocado por respuestas fuera de orden).
+  private queryToken = 0;
+
   constructor(
     private historialService: HistorialService,
-    private autorizacionesService: AutorizacionesService,
-    private fb: FormBuilder
+    private fb: FormBuilder,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit(): void {
@@ -70,6 +74,8 @@ export class HistorialAutorizacionesComponent implements OnInit {
   }
 
   buscarOperarioYTransacciones(numeroDocumento: string): void {
+    const token = ++this.queryToken;
+
     Swal.fire({
       title: 'Buscando información...',
       text: 'Por favor, espera mientras se procesa la consulta.',
@@ -82,9 +88,11 @@ export class HistorialAutorizacionesComponent implements OnInit {
     });
 
     // 1. Validar estado del operario utilizando el nuevo servicio de tesoreria
-    this.historialService.getPersonaTesoreriaStatus(numeroDocumento).subscribe(
-      (data: any) => {
+    this.historialService.getPersonaTesoreriaStatus(numeroDocumento).subscribe({
+      next: (data: any) => {
+        if (token !== this.queryToken) return; // respuesta obsoleta
         if (!data || data.error) {
+          this.finalizarSinResultados();
           Swal.fire({
             icon: 'error',
             title: 'Empleado no encontrado',
@@ -94,9 +102,12 @@ export class HistorialAutorizacionesComponent implements OnInit {
         }
 
         // 2. Si existe el operario, buscamos transacciones (sin importar su estado activo/inactivo/bloqueado)
-        this.cargarTransacciones(numeroDocumento);
+        this.cargarTransacciones(numeroDocumento, token);
       },
-      (error: any) => {
+      error: (error: any) => {
+        if (token !== this.queryToken) return;
+        this.finalizarSinResultados();
+
         let title = 'Error al buscar empleado';
         let msg = 'Hubo un problema al buscar el registro del empleado. Intente nuevamente.';
 
@@ -111,22 +122,23 @@ export class HistorialAutorizacionesComponent implements OnInit {
           text: msg,
         });
       }
-    );
+    });
   }
 
-  cargarTransacciones(numeroDocumento: string): void {
-    this.historialService.getHistorialTransaccionesPorDocumento(numeroDocumento).subscribe(
-      (data: any) => {
+  cargarTransacciones(numeroDocumento: string, token: number): void {
+    this.historialService.getHistorialTransaccionesPorDocumento(numeroDocumento).subscribe({
+      next: (data: any) => {
+        if (token !== this.queryToken) return; // respuesta obsoleta
         // En caso de que el API devuelva array o paginación { results: [] }
         const rawDataList = Array.isArray(data) ? data : (data.results || data.data || []);
 
         if (rawDataList.length === 0) {
+          this.finalizarSinResultados();
           Swal.fire({
             icon: 'warning',
             title: 'Sin transacciones',
             text: 'No se encontraron registros de transacciones para este empleado.',
           });
-          this.dataList = [];
           return;
         }
 
@@ -142,17 +154,29 @@ export class HistorialAutorizacionesComponent implements OnInit {
           autorizacion_monto: this.formatCurrency(item.autorizacion_monto),
           ejecucion_monto: this.formatCurrency(item.ejecucion_monto)
         }));
+        // App zoneless + OnPush: sin markForCheck la vista NO se repinta tras el
+        // subscribe y los resultados nunca aparecen aunque lleguen los datos.
+        this.cdr.markForCheck();
 
         Swal.close();
       },
-      (error: any) => {
+      error: (error: any) => {
+        if (token !== this.queryToken) return;
+        this.finalizarSinResultados();
         Swal.fire({
           icon: 'error',
           title: 'Error de conexión',
           text: 'Hubo un problema al traer las transacciones. Intente nuevamente.',
         });
       }
-    );
+    });
+  }
+
+  /** Limpia resultados previos y repinta (evita dejar en pantalla el historial
+   *  de una búsqueda anterior cuando la nueva falla o no arroja resultados). */
+  private finalizarSinResultados(): void {
+    this.dataList = [];
+    this.cdr.markForCheck();
   }
 
   formatCurrency(value: any): string {

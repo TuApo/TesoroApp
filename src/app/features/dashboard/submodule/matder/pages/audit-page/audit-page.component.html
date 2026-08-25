@@ -1,31 +1,57 @@
 <header class="hero">
   <div class="hero-copy">
-    <p class="eyebrow">Auditoria</p>
+    <p class="eyebrow">Auditoria · Matder</p>
     <h1>Registro de actividad</h1>
-    <p class="hero-text">Consulta el historial completo de acciones realizadas en la plataforma.</p>
+    <p class="hero-text">Quién hizo qué, cuándo y sobre qué dentro de Matder. Historial completo para auditoría.</p>
     <div class="hero-actions">
       <button mat-stroked-button (click)="nav('dashboard')"><mat-icon>arrow_back</mat-icon> Dashboard</button>
     </div>
   </div>
 </header>
 
-<!-- Filters -->
+<!-- Filtros -->
 <div class="filters">
   <mat-form-field appearance="outline" class="search-field">
-    <mat-label>Buscar</mat-label>
+    <mat-label>Buscar (persona, acción, entidad, detalle…)</mat-label>
     <input matInput [(ngModel)]="search">
     <mat-icon matSuffix>search</mat-icon>
   </mat-form-field>
   <mat-form-field appearance="outline" class="filter-field">
-    <mat-label>Tipo de entidad</mat-label>
-    <mat-select [(ngModel)]="entityFilter">
+    <mat-label>Usuario</mat-label>
+    <mat-select [(ngModel)]="userFilter">
       <mat-option value="">Todos</mat-option>
-      @for (e of entityTypes; track e) {
-        <mat-option [value]="e">{{ e }}</mat-option>
+      @for (a of actors; track a.id) {
+        <mat-option [value]="a.id">{{ a.label }}</mat-option>
       }
     </mat-select>
   </mat-form-field>
+  <mat-form-field appearance="outline" class="filter-field">
+    <mat-label>Tipo (submódulo)</mat-label>
+    <mat-select [(ngModel)]="entityFilter">
+      <mat-option value="">Todos</mat-option>
+      @for (e of entityTypes; track e) {
+        <mat-option [value]="e">{{ entityLabel(e) }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  <mat-form-field appearance="outline" class="date-field">
+    <mat-label>Desde</mat-label>
+    <input matInput type="date" [(ngModel)]="fromDate">
+  </mat-form-field>
+  <mat-form-field appearance="outline" class="date-field">
+    <mat-label>Hasta</mat-label>
+    <input matInput type="date" [(ngModel)]="toDate">
+  </mat-form-field>
 </div>
+
+@if (!loading()) {
+  <div class="result-bar">
+    <span>{{ filtered.length }} de {{ logs().length }} registros</span>
+    @if (hasFilters) {
+      <button mat-button (click)="clearFilters()"><mat-icon>filter_alt_off</mat-icon> Limpiar filtros</button>
+    }
+  </div>
+}
 
 @if (loading()) {
   <div class="center"><mat-spinner diameter="40"></mat-spinner></div>
@@ -33,32 +59,66 @@
   <div class="empty">
     <mat-icon>shield</mat-icon>
     <h3>Sin registros</h3>
-    <p>@if (search || entityFilter) { No se encontraron registros con los filtros actuales. } @else { No hay registros de auditoria aun. }</p>
-    @if (search || entityFilter) {
-      <button mat-stroked-button (click)="search = ''; entityFilter = ''">Limpiar filtros</button>
+    <p>@if (hasFilters) { No se encontraron registros con los filtros actuales. } @else { No hay registros de auditoria aun. }</p>
+    @if (hasFilters) {
+      <button mat-stroked-button (click)="clearFilters()">Limpiar filtros</button>
     }
   </div>
 } @else {
   <div class="log-list">
     @for (l of filtered; track l.id) {
       <div class="log-card">
-        <div class="log-icon" [style.color]="actionColor(l.action)">
+        <div class="log-icon" [style.color]="actionColor(l.action)" [style.background]="actionColor(l.action) + '1a'">
           <mat-icon>{{ actionIcon(l.action) }}</mat-icon>
         </div>
+
         <div class="log-body">
+          <!-- Línea 1: QUÉ ocurrió (acción + tipo + nombre) + CUÁNDO -->
           <div class="log-header">
-            <strong>{{ l.action }}</strong>
-            <span class="log-time">{{ l.created_at | date:'d MMM, y h:mm a' }}</span>
+            <span class="log-what">
+              <strong>{{ actionLabel(l.action) }}</strong>
+              @if (objectPhrase(l)) { <span class="log-obj">{{ objectPhrase(l) }}</span> }
+              @if (subjectName(l)) { <span class="log-subject">«{{ subjectName(l) }}»</span> }
+            </span>
+            <span class="log-time" [title]="l.created_at | date:'full'">
+              {{ l.created_at | date:'d MMM y, h:mm a' }} · <em>{{ timeAgo(l.created_at) }}</em>
+            </span>
           </div>
+
+          <!-- Línea 2: QUIÉN -->
+          <div class="log-who">
+            <span class="log-avatar">{{ actorInitials(l.user) }}</span>
+            <span class="log-who-text">
+              <span class="log-who-name">{{ actorName(l.user) }}</span>
+              @if (actorEmail(l.user)) { <span class="log-who-email">{{ actorEmail(l.user) }}</span> }
+            </span>
+          </div>
+
+          <!-- Línea 3: DÓNDE ocurrió (Espacio › Tablero › Lista) -->
+          @if (locationParts(l).length) {
+            <div class="log-location">
+              <mat-icon>place</mat-icon>
+              @for (p of locationParts(l); track p.label; let last = $last) {
+                <span class="loc-part"><span class="loc-label">{{ p.label }}</span> {{ p.value }}</span>
+                @if (!last) { <span class="loc-sep">›</span> }
+              }
+            </div>
+          }
+
+          <!-- Línea 4: DETALLES (estado, prioridad, responsable, movimiento, cambios…) -->
+          @if (extraParts(l).length) {
+            <div class="log-extras">
+              @for (e of extraParts(l); track e) { <span class="extra-chip">{{ e }}</span> }
+            </div>
+          }
+
+          <!-- Línea 5: módulo/submódulo + referencia técnica -->
           <div class="log-meta">
-            @if (l.user_name) {
-              <span class="log-user"><mat-icon>person</mat-icon> {{ l.user_name }}</span>
-            }
-            <mat-chip-set>
-              <mat-chip class="entity-chip">{{ l.entity_type }}</mat-chip>
-            </mat-chip-set>
+            <span class="mod-tag">Matder</span>
+            <span class="sep">›</span>
+            <mat-chip-set><mat-chip class="entity-chip">{{ entityLabel(l.entity_type) }}</mat-chip></mat-chip-set>
             @if (l.entity_id) {
-              <span class="log-entity-id">ID: {{ l.entity_id }}</span>
+              <span class="log-entity-id" [title]="l.entity_id">ref: {{ l.entity_id }}</span>
             }
           </div>
         </div>

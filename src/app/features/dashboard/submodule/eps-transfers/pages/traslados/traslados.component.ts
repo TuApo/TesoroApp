@@ -1,6 +1,8 @@
-import {  Component, OnInit, ViewChild , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, AfterViewInit, ViewChild, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
+import { MatPaginator } from '@angular/material/paginator';
+import { MatSort } from '@angular/material/sort';
 import { TrasladosService } from '../../service/traslados.service';
 import { catchError } from 'rxjs/operators';
 import { lastValueFrom, of } from 'rxjs';
@@ -8,14 +10,11 @@ import Swal from 'sweetalert2';
 import { EstadosDialogComponent } from '../../components/estados-dialog/estados-dialog.component';
 import { TrabajadorComponent } from '../../components/trabajador/trabajador.component';
 import { CambiarEstadoComponent } from '../../components/cambiar-estado/cambiar-estado.component';
-import { LeerAdresComponent } from '../../components/leer-adres/leer-adres.component';
 import { InfoCardComponent } from '../../../../../../shared/components/info-card/info-card.component';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { ElectronWindowService } from '../../../../../../core/services/electron-window.service';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatDatepickerModule } from '@angular/material/datepicker';
-import { MatNativeDateModule } from '@angular/material/core';
+import { environment } from '@/environments/environment';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -23,14 +22,11 @@ import { MatNativeDateModule } from '@angular/material/core';
   imports: [
     InfoCardComponent,
     SharedModule,
-    MatPaginatorModule,
-    MatDatepickerModule,
-    MatNativeDateModule
   ],
   templateUrl: './traslados.component.html',
   styleUrls: ['./traslados.component.css'],
-} )
-export class TrasladosComponent implements OnInit {
+})
+export class TrasladosComponent implements OnInit, AfterViewInit {
   displayedColumns: string[] = [
     'codigo_traslado',
     'estado_del_traslado',
@@ -41,17 +37,38 @@ export class TrasladosComponent implements OnInit {
     'eps_a_trasladar',
     'actions',
   ];
-  estadosCount: { [key: string]: number } = {}; // Asegúrate de que está inicializado como objeto vacío
+
+  estadosCount: { [key: string]: number } = {};
+
+  /**
+   * `keyvalue` reordena alfabéticamente por defecto, lo que anulaba el orden
+   * por frecuencia que ya calcula mostrarTraslados(). Con este comparador el
+   * select respeta el orden de inserción (estado más frecuente primero).
+   */
+  readonly mantenerOrden = (): number => 0;
 
   dataSource = new MatTableDataSource<any>();
+
+  /**
+   * Predicado por defecto de MatTableDataSource (busca en todos los campos).
+   * Se guarda porque `applyFilterByEstado` lo reemplaza por uno de match
+   * exacto: sin restaurarlo, el buscador de texto libre dejaría de funcionar
+   * después de usar el filtro por estado.
+   */
+  private readonly filtroPorTexto = this.dataSource.filterPredicate;
+
   numTraslados: number = 5;
   numTrasladosResponsableNull: number = 0;
   operario: any = {};
-  correos: any[] = [];
-  dataLoaded: boolean = false; // Bandera para indicar si los datos están cargados
-  istraslados18: boolean = false;
+  dataLoaded: boolean = false;
+  // Texto y estado son excluyentes (comparten dataSource.filter): se reflejan
+  // en la vista para que al aplicar uno se vea que el otro se soltó.
+  estadoSeleccionado = '';
+  textoBusqueda = '';
   user: any;
-  @ViewChild(MatPaginator) paginator!: MatPaginator; // Obtener el paginador
+
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
+  @ViewChild(MatSort) sort!: MatSort;
 
   constructor(
     private trasladosService: TrasladosService,
@@ -61,41 +78,37 @@ export class TrasladosComponent implements OnInit {
     private electronWindow: ElectronWindowService,
   ) { }
 
-  ngAfterViewInit() {
-    if (this.paginator) {
-      this.dataSource.paginator = this.paginator;
-    }
+  ngAfterViewInit(): void {
+    this.dataSource.paginator = this.paginator;
+    this.dataSource.sort = this.sort;
   }
 
-
   async ngOnInit(): Promise<void> {
-
     try {
       this.user = this.utilityService.getUser();
-      if (this.user && (this.user.correo_electronico == 'traslados18@gmail.com' || this.user.correo_electronico == 'programador.ts@gmail.com')) {
-        this.istraslados18 = true;
-      }
-      // Cargar los traslados y esperar a que se complete
       await this.mostrarTraslados();
     } catch (error) {
       Swal.fire('Error', 'Hubo un problema al cargar los datos.', 'error');
       return;
     } finally {
-      this.dataLoaded = true; // Indica que los datos están completamente cargados
-      Swal.close(); // Cerrar el modal después de cargar todos los datos
+      this.dataLoaded = true;
       this.cdr.markForCheck();
     }
   }
 
-  async cuantosTraslados() {
-    // Cargar otros datos después de que los traslados se hayan cargado
-    const cont = await this.trasladosService
-      .cuantosTrasladosDisponibles()
-      .toPromise();
-    this.numTrasladosResponsableNull = cont.count_null_responsables;
-    this.cdr.markForCheck();
+  /** Refresca solo el contador de traslados sin responsable. */
+  async cuantosTraslados(): Promise<void> {
+    try {
+      const cont = await lastValueFrom(this.trasladosService.cuantosTrasladosDisponibles());
+      this.numTrasladosResponsableNull = cont.count_null_responsables;
+    } catch (error) {
+      Swal.fire('Error', 'No se pudo actualizar el número de traslados disponibles.', 'error');
+    } finally {
+      this.cdr.markForCheck();
+    }
   }
-  async mostrarTraslados() {
+
+  async mostrarTraslados(): Promise<void> {
     Swal.fire({
       icon: 'info',
       title: 'Cargando...',
@@ -107,50 +120,43 @@ export class TrasladosComponent implements OnInit {
     });
 
     try {
-      // Obtener número de traslados disponibles
       const cont = await lastValueFrom(this.trasladosService.cuantosTrasladosDisponibles());
       this.numTrasladosResponsableNull = cont.count_null_responsables;
 
-      this.numTraslados = 5; // Reiniciar contador de traslados
+      this.numTraslados = 5;
 
-      // Obtener traslados por responsable
       const response: any = await lastValueFrom(
         this.trasladosService.getTrasladosPorResponsable(
           `${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`
         ).pipe(
-          catchError(() => of({ traslados: [], total_diferente_de: 0 })) // Evita errores
+          catchError(() => of({ traslados: [], total_diferente_de: 0 }))
         )
       );
 
-      // Cargar los datos en la tabla
-      this.dataSource.data = response.traslados;
+      this.dataSource.data = response.traslados ?? [];
 
-      // Reasignar paginador y ordenar después de actualizar los datos
-      setTimeout(() => {
-        this.dataSource.paginator = this.paginator;
-      });
+      // Al recargar, el filtro por estado anterior puede no existir en los datos nuevos.
+      this.limpiarFiltros();
 
-      // Actualizar conteo de estados
       this.updateEstadosCount();
 
-      // Ordenar estados por cantidad
       this.estadosCount = Object.fromEntries(
         Object.entries(this.estadosCount).sort(([, a], [, b]) => b - a)
       );
 
-      // Ajustar número de traslados
       this.numTraslados -= response.total_diferente_de;
-
+      Swal.close();
     } catch (error) {
+      // Cerrar el loader ANTES de mostrar el error: si el close vive en el
+      // finally se lleva por delante este mismo diálogo y el fallo pasa mudo.
+      Swal.close();
       Swal.fire('Error', 'No se pudieron cargar los datos.', 'error');
     } finally {
-      Swal.close(); // Cerrar modal de carga
       this.cdr.markForCheck();
     }
   }
 
   updateEstadosCount(): void {
-    // Reinicia el conteo
     this.estadosCount = this.dataSource.data.reduce((acc, element) => {
       const estado = element.estado_del_traslado;
       if (estado) {
@@ -160,30 +166,64 @@ export class TrasladosComponent implements OnInit {
     }, {} as { [key: string]: number });
   }
 
+  /* -------------------------------------------------------------------
+     Clasificación de estados para el chip de color.
+     Duplica a propósito la de transfer-query: son la misma nomenclatura y
+     el usuario usa ambas pantallas juntas, así que un estado tiene que
+     verse del mismo color en las dos. Si esta lista cambia, cambia allí.
+  ------------------------------------------------------------------- */
+  private normalizarEstado(raw: string | null | undefined): string {
+    return String(raw || '').trim().toLowerCase();
+  }
+
+  estadoEsOk(raw: string | null | undefined): boolean {
+    const e = this.normalizarEstado(raw);
+    return e === 'aceptado' || e === 'aprobado' || e === 'efectivo' || e === 'efectivos';
+  }
+
+  estadoEsPendiente(raw: string | null | undefined): boolean {
+    const e = this.normalizarEstado(raw);
+    return e === 'pendiente' || e === 'en proceso' || e === 'en curso' || e === 'asignado';
+  }
+
+  estadoEsRechazado(raw: string | null | undefined): boolean {
+    const e = this.normalizarEstado(raw);
+    return e === 'rechazado' || e === 'no efectivo' || e === 'devuelto' || e === 'cancelado';
+  }
+
+  private limpiarFiltros(): void {
+    this.estadoSeleccionado = '';
+    this.textoBusqueda = '';
+    this.dataSource.filterPredicate = this.filtroPorTexto;
+    this.dataSource.filter = '';
+  }
+
   applyFilterByEstado(estado: string): void {
-    this.dataSource.filterPredicate = (data: any, filter: string) => {
-      return data.estado_del_traslado.trim().toLowerCase() === filter;
-    };
-    this.dataSource.filter = estado.trim().toLowerCase(); // Aplica el filtro
-  }
-
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSource.filter = filterValue.trim().toLowerCase();
-  }
-
-  // Verifica si es una URL válida
-  isUrl(value: string | null | undefined): boolean {
-    if (typeof value !== 'string') {
-      return false;
+    if (!estado) {
+      this.limpiarFiltros();
+      this.cdr.markForCheck();
+      return;
     }
 
-    const trimmedValue = value.trim();
-    const urlRegex = /^(https?:\/\/[^\s$.?#].[^\s]*)/;
-    return urlRegex.test(trimmedValue);
+    this.estadoSeleccionado = estado;
+    this.textoBusqueda = '';
+    this.dataSource.filterPredicate = (data: any, filter: string) =>
+      String(data.estado_del_traslado ?? '').trim().toLowerCase() === filter;
+    this.dataSource.filter = estado.trim().toLowerCase();
+    this.cdr.markForCheck();
   }
 
-  // Verifica si es un PDF base64 válido (acepta data URL o base64 crudo con prefijo %PDF)
+  applyFilter(event: Event): void {
+    // El select de estado deja su propio predicado puesto; hay que devolver el
+    // de texto libre antes de buscar, y soltar el estado para no confundir.
+    this.textoBusqueda = (event.target as HTMLInputElement).value;
+    this.estadoSeleccionado = '';
+    this.dataSource.filterPredicate = this.filtroPorTexto;
+    this.dataSource.filter = this.textoBusqueda.trim().toLowerCase();
+    this.cdr.markForCheck();
+  }
+
+  // Acepta data URL o base64 crudo con prefijo %PDF
   isBase64PDF(value: string | null | undefined): boolean {
     return this.electronWindow.isPdfBase64(value);
   }
@@ -193,25 +233,15 @@ export class TrasladosComponent implements OnInit {
     this.electronWindow.openPdfFromBase64(base64, { title: 'Solicitud de traslado' });
   }
 
-  // Abre el enlace o PDF dependiendo del caso
   openDocument(value: string): void {
     this.electronWindow.openDocument(value, { title: 'Solicitud de traslado' });
   }
 
-  // Método para determinar el texto del botón
-  getButtonText(value: string): string {
-    if (this.isUrl(value) || this.isBase64PDF(value)) {
-      return 'Ver doc';
-    } else {
-      return 'No disponible';
-    }
-  }
-
-  cambiarEstado(element: any) {
+  cambiarEstado(element: any): void {
     this.dialog
       .open(CambiarEstadoComponent, {
         minWidth: '30vw',
-        height: '60vh',
+        maxWidth: '95vw',
         data: element,
       })
       .afterClosed()
@@ -227,13 +257,13 @@ export class TrasladosComponent implements OnInit {
               formData.observaciones,
               formData.epsTraslado
             )
-            .then((response: any) => {
+            .then(() => {
               this.mostrarTraslados();
             })
-            .catch((error) => {
+            .catch(() => {
               Swal.fire(
                 'Error',
-                'Error cambiando estado, intentelo nuevamente',
+                'Error cambiando estado, inténtelo nuevamente',
                 'error'
               );
             });
@@ -241,12 +271,10 @@ export class TrasladosComponent implements OnInit {
       });
   }
 
-  async verTrabajador(element: any) {
+  async verTrabajador(element: any): Promise<void> {
     try {
       this.operario = await lastValueFrom(
-        await this.utilityService.buscarOperarioPorCedula(
-          element.numero_cedula
-        )
+        await this.utilityService.buscarOperarioPorCedula(element.numero_cedula)
       );
     } catch (error) {
       Swal.fire(
@@ -254,43 +282,39 @@ export class TrasladosComponent implements OnInit {
         'Error buscando trabajador, inténtelo nuevamente',
         'error'
       );
+      return; // sin esto se abría el diálogo con data undefined
     }
 
     this.dialog.open(TrabajadorComponent, {
       minWidth: '80vw',
-      height: '200pt',
-      data: this.operario.data,
+      maxWidth: '95vw',
+      data: this.operario?.data,
     });
   }
 
-  verEstado(element: any) {
-    const estadosArray = Object.keys(element.ultimas_actualizaciones).map(
-      (key) => ({
-        fecha: key,
-        estado: element.ultimas_actualizaciones[key],
-      })
-    );
+  verEstado(element: any): void {
+    const actualizaciones = element?.ultimas_actualizaciones;
+    if (!actualizaciones || Object.keys(actualizaciones).length === 0) {
+      Swal.fire('Sin historial', 'Este traslado todavía no tiene cambios de estado registrados.', 'info');
+      return;
+    }
+
+    const estadosArray = Object.keys(actualizaciones).map((key) => ({
+      fecha: key,
+      estado: actualizaciones[key],
+    }));
 
     this.dialog.open(EstadosDialogComponent, {
       minWidth: '50vw',
-      height: '300pt',
+      maxWidth: '95vw',
       data: { estados: estadosArray },
     });
   }
 
-  cambiarCorreo(element: any) {
-    this.trasladosService
-      .cambiarCorreo(element.codigo_traslado, this.user.primer_nombre + ' ' + this.user.primer_apellido)
-      .then((response: any) => {
-        this.mostrarTraslados();
-      })
-      .catch((error) => { });
-  }
-
-  async autoAsignar() {
+  async autoAsignar(): Promise<void> {
     if (!this.dataLoaded) {
       Swal.fire(
-        'Error',
+        'Espera',
         'Por favor espera a que todos los datos estén cargados',
         'warning'
       );
@@ -298,70 +322,56 @@ export class TrasladosComponent implements OnInit {
     }
 
     if (this.numTraslados <= 0) {
-      Swal.fire('Error', 'Acaba primero con los traslados que tienes pendientes', 'warning');
+      Swal.fire('Sin cupo', 'Acaba primero con los traslados que tienes pendientes', 'warning');
       return;
     }
 
-    // Muestra el Swal de carga
-    const loadingSwal = Swal.fire({
+    Swal.fire({
       title: 'Cargando...',
       icon: 'info',
       text: 'Por favor espera, asignando traslado...',
       didOpen: () => {
-        Swal.showLoading(); // Muestra el icono de carga
+        Swal.showLoading();
       },
-      allowOutsideClick: false, // Evita que el usuario cierre el modal
-      showConfirmButton: false, // Oculta el botón de confirmación
+      allowOutsideClick: false,
+      showConfirmButton: false,
     });
 
     try {
-      const response: any = await this.trasladosService.autoasignarTraslado(this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos);
+      const response: any = await this.trasladosService.autoasignarTraslado(
+        this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos
+      );
+
       if (
         response.correo_status === 'Correo actualizado correctamente.' &&
         response.traslado_status === 'Traslado actualizado correctamente.'
       ) {
-        Swal.fire({
+        await Swal.fire({
           title: 'Correo y traslado asignados correctamente',
           icon: 'success',
-          confirmButtonText: 'Aceptar'
-        }).then(() => {
-          this.mostrarTraslados();
+          confirmButtonText: 'Aceptar',
         });
-
       } else {
-        Swal.fire(
-          'Error',
-          'Error autoasignando, intentelo nuevamente',
-          'error'
-        ).then(() => {
-          this.mostrarTraslados();
-        });
+        await Swal.fire('Error', 'Error autoasignando, inténtelo nuevamente', 'error');
       }
     } catch (error: any) {
-      // Cierra el Swal de carga
       Swal.close();
-
-      if (error.error.error === 'No hay traslados disponibles') {
-        Swal.fire('Error', 'No hay traslados disponibles', 'warning').then(
-          () => {
-            this.mostrarTraslados();
-          }
-        );
-        return;
-      } else if (error.error.error === 'No hay correos disponibles') {
-        Swal.fire('Error', 'No hay correos disponibles', 'warning').then(() => {
-          this.mostrarTraslados();
-        });
-        return;
+      // El backend manda el motivo en error.error.error; si no llega, no se
+      // puede dejar al usuario sin respuesta (antes se cerraba en silencio).
+      const motivo = error?.error?.error;
+      if (motivo === 'No hay traslados disponibles') {
+        await Swal.fire('Sin traslados', 'No hay traslados disponibles', 'warning');
+      } else if (motivo === 'No hay correos disponibles') {
+        await Swal.fire('Sin correos', 'No hay correos disponibles', 'warning');
+      } else {
+        await Swal.fire('Error', 'No se pudo autoasignar el traslado, inténtelo nuevamente', 'error');
       }
+    } finally {
+      await this.mostrarTraslados();
     }
   }
 
-
-
-
-  imprimirCedula(codigoTraslado: string): void {
-    // Mostrar Swal de carga
+  imprimirCedula(numeroCedula: string): void {
     Swal.fire({
       title: 'Cargando...',
       icon: 'info',
@@ -372,8 +382,8 @@ export class TrasladosComponent implements OnInit {
       }
     });
 
-    this.trasladosService.traerCedulaEscaneada(codigoTraslado).subscribe(
-      (data: any) => {
+    this.trasladosService.traerCedulaEscaneada(numeroCedula).subscribe({
+      next: (data: any) => {
         Swal.close();
         const dataUrl: string | undefined = data?.cedula_escaneada_delante;
         const fileUrl: string | undefined = data?.file_url;
@@ -388,11 +398,11 @@ export class TrasladosComponent implements OnInit {
         }
         Swal.fire('Error', 'No se encontró la cédula escaneada.', 'error');
       },
-      (error) => {
-        Swal.close(); // Cerrar Swal de carga
+      error: () => {
+        Swal.close();
         Swal.fire('Error', 'Hubo un problema obteniendo la cédula escaneada.', 'error');
       }
-    );
+    });
   }
 
   imprimirSolicitudTraslado(codigoTraslado: string): void {
@@ -406,8 +416,8 @@ export class TrasladosComponent implements OnInit {
       }
     });
 
-    this.trasladosService.traerSolicitudPorCodigo(codigoTraslado).subscribe(
-      (data: any) => {
+    this.trasladosService.traerSolicitudPorCodigo(codigoTraslado).subscribe({
+      next: (data: any) => {
         Swal.close();
 
         const row = Array.isArray(data) ? data[0] : data;
@@ -416,11 +426,14 @@ export class TrasladosComponent implements OnInit {
           return;
         }
 
-        // Nuevo contrato: el backend devuelve `solicitud_doc.file_url`
-        // (PDF en gestion_documental) o `external_url` (link Drive).
-        const fileUrl: string | undefined = row.solicitud_doc?.file_url;
-        const externalUrl: string | undefined = row.external_url;
-        const url = fileUrl || externalUrl;
+        // Prioridad: documento en ms-documents (document_id) → PDF por API con
+        // JWT. La mayoría de traslados traen document_id con file_url NULL y
+        // external_url "", así que sin esto siempre caía en "No se encontró la
+        // solicitud". Fallback a file_url / external_url (Drive) legacy.
+        const docId = row.solicitud_doc?.document_id;
+        const url: string | undefined = docId
+          ? `${environment.apiUrl}/api/v1/documents/${docId}/download`
+          : (row.solicitud_doc?.file_url || row.external_url);
 
         if (url) {
           this.openDocument(url);
@@ -428,11 +441,10 @@ export class TrasladosComponent implements OnInit {
           Swal.fire('Error', 'No se encontró la solicitud de traslado.', 'error');
         }
       },
-      (error) => {
+      error: () => {
         Swal.close();
         Swal.fire('Error', 'Hubo un problema obteniendo la solicitud de traslado.', 'error');
       }
-    );
+    });
   }
-
 }

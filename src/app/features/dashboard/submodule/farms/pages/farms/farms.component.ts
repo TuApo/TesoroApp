@@ -1,4 +1,4 @@
-import {  Component, OnInit, ViewChild, ElementRef, inject , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, ViewChild, ElementRef, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -46,6 +46,7 @@ interface CentroCostoView {
 export class FarmsComponent implements OnInit {
   private svc = inject(FarmsService);
   private dialog = inject(MatDialog);
+  private cdr = inject(ChangeDetectorRef);
 
   @ViewChild('fileInp', { static: false }) fileInp!: ElementRef<HTMLInputElement>;
 
@@ -60,10 +61,11 @@ export class FarmsComponent implements OnInit {
     { name: 'categoria', header: 'Categoría', type: 'text' },
     { name: 'operacion', header: 'Operación', type: 'text' },
     { name: 'sublabor', header: 'Sublabor', type: 'text' },
-    { name: 'salario', header: 'Salario', type: 'number', align: 'right' },
+    // format:'currency' -> antes salía "1300000" crudo; ahora "$1.300.000"
+    { name: 'salario', header: 'Salario', type: 'number', format: 'currency', align: 'right', width: '14ch' },
     { name: 'auxilio', header: 'Aux. Transp.', type: 'text' },
     { name: 'ruta', header: 'Ruta', type: 'text' },
-    { name: 'valor_transporte', header: 'Val. Transporte', type: 'number', align: 'right' },
+    { name: 'valor_transporte', header: 'Val. Transporte', type: 'number', format: 'currency', align: 'right', width: '14ch' },
     { name: 'empresa', header: 'Empresa', type: 'text' },
     { name: 'centro_de_costo', header: 'Centro de costo', type: 'text' },
     { name: 'ciudad', header: 'Ciudad', type: 'text' },
@@ -79,56 +81,68 @@ export class FarmsComponent implements OnInit {
   // ================== Cargar listado ==================
   cargar(search?: string): void {
     this.svc.list(search).subscribe({
-      next: rows => this.viewData = (rows ?? []).map((it: AnyObj) => this.toView(it)),
+      next: rows => { this.viewData = (rows ?? []).map((it: AnyObj) => this.toView(it)); this.cdr.markForCheck(); },
       error: () => Swal.fire('Error', 'Error cargando centros de costo', 'error')
     });
   }
 
 
   // Backend -> ViewModel
+  // El API (ms-auth-admin) devuelve camelCase: finca, ccostos, subcentro, categoria,
+  // operacion, sublabor, salario, auxilioTransporte (boolean), ruta (boolean),
+  // valorTransporte, empresa, centroDeCosto, ciudad, telefonoGestor, temporal.
+  // Leemos camelCase primero y caemos al viejo formato "tal cual Excel" como fallback,
+  // para tolerar API vieja o nueva.
   private toView(it: AnyObj): CentroCostoView {
     return {
       id: it['id'],
-      finca: it['FINCA'] ?? '',
-      ccostos: it['Ccostos'] ?? '',
-      subcentro: it['Subcentro'] ?? '',
-      categoria: it['Categoría'] ?? '',
-      operacion: it['Operación'] ?? '',
-      sublabor: it['Sublabor'] ?? '',
-      salario: Number(it['Salario'] ?? 0),
-      auxilio: (it['AUXILIO DE TRANSPORTE'] ?? 'NO') === 'SI' ? 'SI' : 'NO',
-      ruta: (it['RUTA'] ?? 'NO') === 'SI' ? 'SI' : 'NO',
-      valor_transporte: Number(it['Valor Transporte'] ?? 0),
-      empresa: it['Empresa '] ?? '',
-      centro_de_costo: it['Centro de costo'] ?? '',
-      ciudad: it['Ciudad'] ?? '',
-      telefono_gestor: it['Telefono de Contato Gestor'] ?? '',
-      temporal: it['Temporal'] ?? ''
+      finca: it['finca'] ?? it['FINCA'] ?? '',
+      ccostos: it['ccostos'] ?? it['Ccostos'] ?? '',
+      subcentro: it['subcentro'] ?? it['Subcentro'] ?? '',
+      categoria: it['categoria'] ?? it['Categoría'] ?? '',
+      operacion: it['operacion'] ?? it['Operación'] ?? '',
+      sublabor: it['sublabor'] ?? it['Sublabor'] ?? '',
+      salario: Number(it['salario'] ?? it['Salario'] ?? 0),
+      auxilio: this.siNo(it['auxilioTransporte'] ?? it['AUXILIO DE TRANSPORTE']),
+      ruta: this.siNo(it['ruta'] ?? it['RUTA']),
+      valor_transporte: Number(it['valorTransporte'] ?? it['Valor Transporte'] ?? 0),
+      empresa: it['empresa'] ?? it['Empresa '] ?? '',
+      centro_de_costo: it['centroDeCosto'] ?? it['Centro de costo'] ?? '',
+      ciudad: it['ciudad'] ?? it['Ciudad'] ?? '',
+      telefono_gestor: it['telefonoGestor'] ?? it['Telefono de Contato Gestor'] ?? '',
+      temporal: it['temporal'] ?? it['Temporal'] ?? ''
     };
   }
 
-  // ViewModel -> payload "tal cual Excel"
+  /** Normaliza a 'SI'/'NO': acepta boolean (API nuevo) o string 'SI'/'NO' (Excel legacy). */
+  private siNo(x: any): 'SI' | 'NO' {
+    if (typeof x === 'boolean') return x ? 'SI' : 'NO';
+    return String(x ?? '').trim().toUpperCase() === 'SI' ? 'SI' : 'NO';
+  }
+
+  // ViewModel -> payload camelCase (lo que bindea la entidad CentroCosto de ms-auth-admin).
+  // auxilio/ruta van como BOOLEAN; salario/valorTransporte como number.
   private toPayload(v: Partial<CentroCostoView>): AnyObj {
     return {
-      'FINCA': v.finca ?? '',
-      'Ccostos': v.ccostos ?? '',
-      'Subcentro': v.subcentro ?? '',
-      'Grupo': '', // opcional si no lo manejas en UI
-      'Categoría': v.categoria ?? '',
-      'Operación': v.operacion ?? '',
-      'Sublabor': v.sublabor ?? '',
-      'Salario': this.n(v.salario),
-      'AUXILIO DE TRANSPORTE': (v.auxilio ?? 'NO'),
-      'RUTA': (v.ruta ?? 'NO'),
-      'Valor Transporte': this.n(v.valor_transporte),
-      'Empresa ': v.empresa ?? '',
-      'Centro de costo': v.centro_de_costo ?? '',
-      'Dirección': '', // opcional
-      'LINEA CONTRATO': '', // opcional
-      'Indicaciones para Llegar': '', // opcional
-      'Ciudad': v.ciudad ?? '',
-      'Telefono de Contato Gestor': v.telefono_gestor ?? '',
-      'Temporal': v.temporal ?? ''
+      finca: v.finca ?? '',
+      ccostos: v.ccostos ?? '',
+      subcentro: v.subcentro ?? '',
+      grupo: '', // opcional si no lo manejas en UI
+      categoria: v.categoria ?? '',
+      operacion: v.operacion ?? '',
+      sublabor: v.sublabor ?? '',
+      salario: this.n(v.salario),
+      auxilioTransporte: (v.auxilio ?? 'NO') === 'SI',
+      ruta: (v.ruta ?? 'NO') === 'SI',
+      valorTransporte: this.n(v.valor_transporte),
+      empresa: v.empresa ?? '',
+      centroDeCosto: v.centro_de_costo ?? '',
+      direccion: '', // opcional
+      lineaContrato: '', // opcional
+      indicaciones: '', // opcional
+      ciudad: v.ciudad ?? '',
+      telefonoGestor: v.telefono_gestor ?? '',
+      temporal: v.temporal ?? ''
     };
   }
 
@@ -224,12 +238,13 @@ export class FarmsComponent implements OnInit {
     ref.afterClosed().subscribe(result => {
       if (!result) return;
 
-      // Solo mandamos los campos editados en formato "tal cual Excel" (PATCH)
+      // Solo mandamos los campos editados en camelCase (PATCH parcial en el back).
+      // auxilio/ruta como boolean.
       const patch: AnyObj = {
-        'Salario': this.n(result.salario),
-        'Valor Transporte': this.n(result.valor_transporte),
-        'AUXILIO DE TRANSPORTE': result.auxilio,
-        'RUTA': result.ruta
+        salario: this.n(result.salario),
+        valorTransporte: this.n(result.valor_transporte),
+        auxilioTransporte: result.auxilio === 'SI',
+        ruta: result.ruta === 'SI'
       };
 
       this.svc.updatePartial(row.id, patch).subscribe({

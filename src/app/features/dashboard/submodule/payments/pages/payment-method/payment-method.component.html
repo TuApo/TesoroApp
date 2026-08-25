@@ -11,33 +11,36 @@
         <mat-card-subtitle class="subtitulo">Gestione los métodos de dispersión bancaria.</mat-card-subtitle>
       </div>
     </div>
+
+    @if (puedeGestionar) {
+      <button mat-icon-button class="header-menu-btn" [matMenuTriggerFor]="accionesMenu"
+        matTooltip="Más acciones" aria-label="Más acciones">
+        <mat-icon>more_vert</mat-icon>
+      </button>
+      <mat-menu #accionesMenu="matMenu" xPosition="before">
+        <button mat-menu-item (click)="descargarPlantillaFormasPago()">
+          <mat-icon>download</mat-icon>
+          <span>Descargar plantilla formas de pago</span>
+        </button>
+        <button mat-menu-item (click)="triggerFileInput()">
+          <mat-icon>upload_file</mat-icon>
+          <span>Cargar formas de pago</span>
+        </button>
+      </mat-menu>
+    }
   </mat-card-header>
   <mat-card-content class="card-content">
     <div class="search-container">
       <div class="buscar">
         <mat-form-field appearance="fill" class="example-full-width">
           <mat-label>Ingrese la cédula</mat-label>
-          <input matInput [(ngModel)]="cedula">
+          <input matInput [(ngModel)]="cedula" (keyup.enter)="buscarFormasPago(cedula)">
         </mat-form-field>
-        <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton btn-managerial">Buscar</button>
+        <button mat-flat-button (click)="buscarFormasPago(cedula)" class="boton btn-managerial">
+          <mat-icon>search</mat-icon>
+          Buscar
+        </button>
       </div>
-      @if (
-        correo == 'contaduria.rtc@gmail.com' ||
-        correo == 'ghumana.rtc@gmail.com' ||
-        correo == 'programador.ts@gmail.com' ||
-        correo == 'antcontable5.ts@gmail.com' ||
-        correo == 'asistconta.rtc@gmail.com'||
-          correo == 'nominacentral9@gmail.com' ||
-          correo == 'carteratuapo@gmail.com' ||
-          correo =='antcontable3.ts@gmail.com'
-        ) {
-        <app-info-card title="Descargar plantilla formas de pago" imageUrl="icons/cards/excel.png"
-          (click)="descargarPlantillaFormasPago()" style="cursor: pointer;">
-        </app-info-card>
-
-        <app-info-card title="Cargar formas de pago" imageUrl="icons/cards/excel.png" (click)="triggerFileInput()" style="cursor: pointer;">
-        </app-info-card>
-      }
     </div>
 
     <div class="tabla">

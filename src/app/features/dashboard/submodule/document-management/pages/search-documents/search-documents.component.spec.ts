@@ -81,7 +81,7 @@ describe('SearchDocumentsComponent', () => {
         {
           provide: DocumentacionService,
           useValue: {
-            mostrar_jerarquia_gestion_documental: () => of([]),
+            mostrar_jerarquia_anidada: () => of([]),
             buscar_documentos: () => of(RESPUESTA),
             actualizarDocumento: () => of({}),
           },
@@ -473,22 +473,23 @@ describe('SearchDocumentsComponent', () => {
       expect(close).not.toHaveBeenCalled();
     });
 
-    it('no deja el modal de carga colgado al borrar la cédula', fakeAsync(() => {
-      // Escribir cédula abre el modal; borrarla cancelaba la petición en vuelo y
-      // el modal se quedaba abierto con allowOutsideClick:false = página muerta.
+    it('no deja colgado el indicador de carga de contratos al borrar la cédula', fakeAsync(() => {
+      // Prod usa un spinner en línea (`cargandoContratos`), no un modal de Swal,
+      // para no secuestrar la pantalla mientras trae los contratos de una cédula.
+      // El indicador debe quedar activo mientras la petición no responde y apagarse
+      // en cuanto la cédula se borra (switchMap cancela la petición en vuelo).
       TestBed.inject(UtilityServiceService).obtenerCodigosContrato = () => new Subject<any>() as any;
 
       component.ngOnInit();
 
       component.form.get('cedula')!.setValue('1053006132');
-      tick(3000);
-      expect(opciones(0).title).toBe('Cargando');
-      expect(close).not.toHaveBeenCalled();
+      tick(600);
+      expect(component.cargandoContratos).toBeTrue();
 
       component.form.get('cedula')!.setValue('');
-      tick(3000);
+      tick(600);
 
-      expect(close).toHaveBeenCalled();
+      expect(component.cargandoContratos).toBeFalse();
     }));
 
     it('el campo de cédula sobrevive a un error de red', fakeAsync(() => {
@@ -498,14 +499,15 @@ describe('SearchDocumentsComponent', () => {
       component.ngOnInit();
 
       component.form.get('cedula')!.setValue('111');
-      tick(3000);
-      expect(fire.calls.allArgs().some(([o]: any) => o?.icon === 'error')).toBeTrue();
+      tick(600);
+      // Prod avisa con un toast `warning` (no bloqueante), no con un modal `error`.
+      expect(fire.calls.allArgs().some(([o]: any) => o?.icon === 'warning')).toBeTrue();
 
       // Tras el error, el stream debe seguir vivo: antes el callback de error
       // terminaba la suscripción y el campo no volvía a consultar nunca.
       utility.obtenerCodigosContrato = () => of({ data: ['725520'] }) as any;
       component.form.get('cedula')!.setValue('222');
-      tick(3000);
+      tick(600);
 
       expect(component.codigosContrato).toEqual(['725520']);
     }));

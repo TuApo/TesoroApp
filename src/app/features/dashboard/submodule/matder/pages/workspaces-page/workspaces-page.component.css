@@ -2,74 +2,126 @@
 
 /* ── Botón estrella de favorito ── */
 .ws-top-right { display: flex; align-items: center; gap: 4px; }
-.fav-btn { color: #94a3b8; transition: color .15s, transform .15s; }
-.fav-btn:hover { color: #f59e0b; transform: scale(1.1); }
-.fav-btn.is-fav { color: #f59e0b; }
+.fav-btn { color: var(--mt-faint); transition: color .15s, transform .15s; }
+.fav-btn:hover { color: var(--warning); transform: scale(1.12); }
+.fav-btn.is-fav { color: var(--warning); }
 .fav-btn.is-fav mat-icon { filter: drop-shadow(0 1px 2px rgba(245, 158, 11, .35)); }
 
-/* Hero */
-.hero { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: start; padding: 24px; border-radius: 16px; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.06); margin-bottom: 20px; }
-.eyebrow { margin: 0 0 8px; color: #6b7280; letter-spacing: 0.16em; text-transform: uppercase; font-size: 11px; font-weight: 700; }
-.hero-copy h1 { margin: 0 0 8px; font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 600; }
-.hero-text { margin: 0 0 14px; color: #6b7280; line-height: 1.5; }
-.hero-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* ── Hero corporativo ── */
+.hero {
+  position: relative; overflow: hidden; display: grid; grid-template-columns: 1fr auto; gap: 24px;
+  align-items: center; padding: 28px; border-radius: var(--mt-r);
+  background: var(--mt-hero); color: #fff; box-shadow: var(--mt-shadow-hover); margin-bottom: 22px;
+}
+.hero::before { content: ''; position: absolute; inset: 0; background: var(--mt-hero-ring); pointer-events: none; }
+.hero > * { position: relative; z-index: 1; }
+.eyebrow { margin: 0 0 8px; color: var(--mt-accent); letter-spacing: .18em; text-transform: uppercase; font-size: 11px; font-weight: 800; }
+.hero-copy h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 700; letter-spacing: -.02em; }
+.hero-text { margin: 0 0 16px; color: rgba(255,255,255,.78); line-height: 1.55; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hero-actions button { border-radius: 12px !important; font-weight: 600; }
+.hero-actions .mat-mdc-outlined-button { color: #fff !important; border-color: rgba(255,255,255,.35) !important; background: rgba(255,255,255,.07); }
+.hero-actions .mat-mdc-outlined-button:hover { background: rgba(255,255,255,.14); }
+.hero-actions .mat-mdc-raised-button { background: var(--mt-accent) !important; color: #17300a !important; box-shadow: 0 10px 22px rgba(140,213,10,.34) !important; }
 
-/* Form */
-.form-card { padding: 20px; margin-bottom: 16px; }
-.form-card h3 { margin: 0 0 14px; }
+/* ── Form ── */
+.form-card { padding: 22px; margin-bottom: 16px; border-radius: var(--mt-r) !important; border: 1px solid var(--mt-border); box-shadow: var(--mt-shadow) !important; }
+.form-card h3 { margin: 0 0 14px; color: var(--mt-ink); }
 .fw { width: 100%; }
-.form-actions { display: flex; gap: 8px; }
+.form-actions { display: flex; gap: 10px; }
 .member-form { display: flex; gap: 12px; align-items: flex-start; }
 
-/* Filters */
-.filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+/* ── Filtros ── */
+.filters { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
 .search-field { flex: 1; min-width: 200px; }
 .filter-field { min-width: 160px; }
 
-/* Grid */
-.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-.ws-card { padding: 20px; cursor: pointer; position: relative; transition: box-shadow .15s; }
-.ws-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.12); }
+/* ── Grid ── */
+.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 16px; }
+.ws-card {
+  padding: 20px; cursor: pointer; position: relative; overflow: hidden;
+  border-radius: var(--mt-r) !important; border: 1px solid var(--mt-border);
+  box-shadow: var(--mt-shadow) !important;
+  transition: transform var(--mt-ease) .2s, box-shadow var(--mt-ease) .2s, border-color var(--mt-ease) .2s;
+}
+.ws-card::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--mt-blue), var(--mt-accent)); opacity: 0; transition: opacity var(--mt-ease) .2s; }
+.ws-card:hover { transform: translateY(-4px); box-shadow: var(--mt-shadow-hover) !important; border-color: #cdd6e6; }
+.ws-card:hover::before { opacity: 1; }
 .ws-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.ws-desc { color: #6b7280; font-size: .85rem; margin: 6px 0 10px; }
-.ws-meta { display: flex; gap: 14px; font-size: .8rem; color: #6b7280; flex-wrap: wrap; }
+.ws-top strong { color: var(--mt-ink); font-size: 1.02rem; }
+.ws-desc { color: var(--mt-muted); font-size: .85rem; margin: 6px 0 10px; line-height: 1.5; }
+.ws-meta { display: flex; gap: 14px; font-size: .8rem; color: var(--mt-muted); flex-wrap: wrap; }
 .ws-meta span { display: flex; align-items: center; gap: 4px; }
-.ws-meta mat-icon { font-size: 16px; width: 16px; height: 16px; }
-.ws-dates { display: flex; gap: 12px; font-size: .7rem; color: #9ca3af; margin: 8px 0; }
-.ws-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.ws-meta mat-icon { font-size: 16px; width: 16px; height: 16px; color: var(--mt-blue); }
+.ws-dates { display: flex; gap: 12px; font-size: .7rem; color: var(--mt-faint); margin: 8px 0; }
+.ws-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 
-/* Role chips */
+/* ── Chips de rol ── */
 .role-owner { background: #fef9c3 !important; color: #854d0e !important; }
-.role-manager { background: #dbeafe !important; color: #1e40af !important; }
-.role-member { background: #dcfce7 !important; color: #166534 !important; }
-.role-viewer { background: #f3f4f6 !important; color: #6b7280 !important; }
+.role-manager { background: var(--mt-prog-soft) !important; color: #1e40af !important; }
+.role-member { background: var(--mt-done-soft) !important; color: #166534 !important; }
+.role-viewer { background: #f1f5f9 !important; color: var(--mt-muted) !important; }
 
-/* Empty */
-.empty-state { text-align: center; padding: 48px; color: #6b7280; }
-.empty-state mat-icon { font-size: 48px; width: 48px; height: 48px; color: #9ca3af; display: block; margin: 0 auto 12px; }
-.muted { color: #9ca3af; font-size: .85rem; }
+/* ── Vacío ── */
+.empty-state { text-align: center; padding: 56px; color: var(--mt-muted); }
+.empty-state mat-icon { font-size: 52px; width: 52px; height: 52px; color: var(--mt-faint); display: block; margin: 0 auto 12px; }
+.muted { color: var(--mt-faint); font-size: .85rem; }
 
-/* Detail */
-.detail-info { display: grid; gap: 8px; padding: 16px; background: #f9fafb; border-radius: 14px; border: 1px solid #e5e7eb; }
-.detail-stat { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
-.detail-stat mat-icon { font-size: 18px; width: 18px; height: 18px; color: #6b7280; }
+/* ── Detalle ── */
+.detail-info { display: grid; gap: 8px; padding: 18px; background: var(--mt-surface-2); border-radius: var(--mt-r-sm); border: 1px solid var(--mt-border); }
+.detail-stat { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: #334155; }
+.detail-stat mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--mt-blue); }
 
-/* Members */
-.members-section { margin-top: 16px; }
-.members-section h3 { margin: 0 0 14px; font-weight: 500; }
+/* ── Miembros ── */
+.members-section { margin-top: 18px; }
+.members-section h3 { margin: 0 0 14px; font-weight: 700; color: var(--mt-ink); }
 .members-grid { display: grid; gap: 10px; }
-.member-card { display: flex; align-items: center; gap: 12px; padding: 14px; background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; }
-.member-card.inactive { opacity: .6; }
-.member-avatar { width: 36px; height: 36px; border-radius: 50%; background: #dbeafe; color: #1976d2; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.member-card { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--mt-surface); border-radius: var(--mt-r-sm); border: 1px solid var(--mt-border); transition: box-shadow var(--mt-ease) .2s; }
+.member-card:hover { box-shadow: var(--mt-shadow); }
+.member-card.inactive { opacity: .55; }
+.member-avatar { width: 38px; height: 38px; border-radius: 12px; background: linear-gradient(135deg, var(--mt-blue), var(--mt-blue-strong)); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; flex-shrink: 0; }
 .member-info { flex: 1; }
-.member-info strong { display: block; font-size: .9rem; }
-.member-username { font-size: .75rem; color: #6b7280; }
+.member-info strong { display: block; font-size: .9rem; color: var(--mt-ink); }
+.member-username { font-size: .75rem; color: var(--mt-muted); }
 .member-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.inactive-badge { font-size: .7rem; color: #ef4444; font-weight: 600; }
+.inactive-badge { font-size: .7rem; color: var(--danger); font-weight: 700; }
 .member-actions { display: flex; align-items: center; gap: 8px; }
-.role-select { width: 120px; }
+.role-select { width: 130px; }
+
+/* Descripción de permisos por miembro */
+.member-perms { margin: 6px 0 0; font-size: .78rem; color: var(--mt-muted); line-height: 1.4; }
+.role-chip-icon { font-size: 14px !important; width: 14px !important; height: 14px !important; vertical-align: middle; margin-right: 3px; }
+
+/* Badge de propietario (rol no editable) */
+.owner-lock { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 10px; background: #fef9c3; color: #854d0e; font-size: .82rem; font-weight: 700; white-space: nowrap; }
+.owner-lock mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+/* Leyenda de roles / permisos */
+.roles-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 18px; padding: 16px 18px; background: var(--mt-surface-2); border: 1px solid var(--mt-border); border-radius: var(--mt-r-sm); }
+.role-legend-item { display: flex; gap: 10px; align-items: flex-start; }
+.role-legend-item mat-icon { color: var(--mt-blue); flex-shrink: 0; }
+.role-legend-item strong { display: block; font-size: .85rem; color: var(--mt-ink); }
+.role-legend-item span { display: block; font-size: .74rem; color: var(--mt-muted); line-height: 1.35; margin-top: 2px; }
 
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; }
   .member-form { flex-direction: column; }
+}
+
+@media (max-width: 768px) {
+  :host { display: block; padding-bottom: 80px; }
+  .hero { padding: 18px 14px; }
+  .hero-copy h1 { font-size: 1.4rem; }
+  .hero-actions { flex-wrap: wrap; gap: 8px; }
+  .ws-grid { grid-template-columns: 1fr; gap: 12px; }
+  .ws-card { padding: 14px; }
+  .ws-dates { display: none; }
+  .filters { flex-direction: column; gap: 8px; }
+  .search-field { min-width: 100%; }
+  .filter-field { min-width: 100%; }
+  .roles-legend { grid-template-columns: 1fr 1fr; }
+  .members-grid { grid-template-columns: 1fr; }
+  .member-card { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .member-actions { width: 100%; justify-content: flex-start; }
+  .role-select { width: 100%; }
 }

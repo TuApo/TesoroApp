@@ -188,3 +188,57 @@ export function paletteLabel(type: FieldType): string {
 export function defaultFieldLabel(type: FieldType): string {
   return paletteLabel(type);
 }
+
+// ── Carga por Excel ──────────────────────────────────────────────────────────
+// La plantilla se baja YA parametrizada (módulo, oficinas, roles y visibilidad) y al
+// subirla llena el backend devuelve lo leído SIN guardar nada: lo que vuelve se vuelca
+// en el constructor para revisarlo antes de crear.
+
+/** Referencia a un catálogo externo (sede o rol): el id viaja para volver intacto. */
+export interface ImportRef {
+  id: string;
+  name: string;
+}
+
+/** Lo que se define ANTES de descargar la plantilla. */
+export interface OfficeTemplateConfig {
+  mode: 'individual' | 'masivo';
+  forms_count?: number;
+  title?: string;
+  description?: string;
+  parent_module?: string;
+  visibility?: Visibility;
+  offices?: ImportRef[];
+  view_roles?: ImportRef[];
+  respond_roles?: ImportRef[];
+  include_examples?: boolean;
+}
+
+/** Un formulario leído del archivo, listo para create + setFields + setOffices + setAccess. */
+export interface OfficeImportedForm {
+  /** Código de la columna «Formulario» del Excel (F1, F2...). */
+  row_code: string;
+  title: string;
+  description?: string | null;
+  parent_module?: string | null;
+  visibility: Visibility;
+  fields: FormFieldDef[];
+  office_ids: string[];
+  office_names: string[];
+  view_roles: ImportRef[];
+  respond_roles: ImportRef[];
+  /** Bloqueantes: mientras haya uno, este formulario no se puede crear. */
+  errors: string[];
+  warnings: string[];
+  fields_count: number;
+  valid: boolean;
+}
+
+export interface OfficeImportResult {
+  forms: OfficeImportedForm[];
+  errors: string[];
+  warnings: string[];
+  total_forms: number;
+  valid_forms: number;
+  total_fields: number;
+}

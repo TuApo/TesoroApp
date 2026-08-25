@@ -3,6 +3,7 @@ import {
     ElementRef,
     OnInit,
     OnDestroy,
+    Optional,
     ViewChild,
     Inject,
     PLATFORM_ID,
@@ -16,7 +17,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatDialogRef, MatDialogModule } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -52,6 +53,25 @@ export interface ScannedDoc {
     pages: ScannedPage[];
     thumb: string;
 }
+
+/**
+ * Ajustes opcionales del diálogo (MAT_DIALOG_DATA). Sin ellos se comporta como
+ * siempre: escaneo libre, documentos ilimitados de N páginas cada uno.
+ *
+ * `modo: 'cedula'` es el flujo guiado de documento de identidad: TODO lo capturado
+ * cae en UN solo documento de dos páginas (frente y reverso), que es lo que pide el
+ * campo de formulario "Escanear cédula" — dos PDFs sueltos no sirven ahí.
+ */
+export interface ScanDialogConfig {
+    modo?: 'libre' | 'cedula';
+    /** Tope de documentos (PDF) que puede devolver el diálogo. */
+    maxDocs?: number;
+    /** Nombre del documento en modo cédula (por defecto "Cédula"). */
+    docName?: string;
+}
+
+/** Páginas exactas del flujo de cédula, en orden. */
+const CARAS_CEDULA = ['Frente', 'Reverso'];
 
 interface CornerPx { x: number; y: number; }
 
@@ -143,8 +163,56 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
         private scanner: DocumentScannerService,
         private cvLoader: OpencvLoaderService,
         private ocr: OcrService,
-        @Inject(PLATFORM_ID) private platformId: Object
+        @Inject(PLATFORM_ID) private platformId: Object,
+        @Optional() @Inject(MAT_DIALOG_DATA) public config: ScanDialogConfig | null = null
     ) { }
+
+    /** Flujo guiado de cédula: un único documento con frente y reverso. */
+    get esCedula(): boolean {
+        return this.config?.modo === 'cedula';
+    }
+
+    /** Tope de documentos; en cédula siempre 1 (las dos caras van juntas). */
+    get maxDocs(): number {
+        if (this.esCedula) return 1;
+        const n = this.config?.maxDocs;
+        return n != null && n > 0 ? n : Number.POSITIVE_INFINITY;
+    }
+
+    /** Páginas ya capturadas del documento de cédula. */
+    get carasCapturadas(): number {
+        return this.esCedula ? (this.scannedDocs[0]?.pages.length ?? 0) : 0;
+    }
+
+    /** Cara que toca capturar ahora ('' cuando ya están las dos). */
+    get siguienteCara(): string {
+        return CARAS_CEDULA[this.carasCapturadas] ?? '';
+    }
+
+    /** ¿Queda cupo para capturar más? */
+    get puedeCapturar(): boolean {
+        return this.esCedula
+            ? this.carasCapturadas < CARAS_CEDULA.length
+            : this.scannedDocs.length < this.maxDocs;
+    }
+
+    /**
+     * La cédula solo se da por buena con las DOS caras: un documento con solo el
+     * frente es exactamente el error que este flujo existe para evitar.
+     */
+    get puedeFinalizar(): boolean {
+        if (this.scannedDocs.length === 0) return false;
+        return this.esCedula ? this.carasCapturadas === CARAS_CEDULA.length : true;
+    }
+
+    /** Mensaje guía del modo cédula (banner del listado). */
+    get guiaCedula(): string {
+        switch (this.carasCapturadas) {
+            case 0: return 'Captura primero el FRENTE de la cédula.';
+            case 1: return 'Ahora captura el REVERSO; ambas caras quedan en un solo PDF.';
+            default: return 'Frente y reverso listos en un solo documento.';
+        }
+    }
 
     get totalPages(): number {
         return this.scannedDocs.reduce((acc, doc) => acc + doc.pages.length, 0);
@@ -166,6 +234,12 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     }
 
     async onCaptureClick() {
+        if (!this.puedeCapturar) {
+            Swal.fire('Sin cupo', this.esCedula
+                ? 'La cédula ya tiene frente y reverso.'
+                : `Este campo admite máximo ${this.maxDocs} documento(s).`, 'info');
+            return;
+        }
         if (this.isNative) {
             await this.scanNative();
         } else {
@@ -202,7 +276,7 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
             const result = await DocumentScanner.scanDocument({
                 responseType: ResponseType.Base64,
                 letUserAdjustCrop: true,
-                maxNumDocuments: 24
+                maxNumDocuments: this.esCedula ? CARAS_CEDULA.length - this.carasCapturadas : 24
             }) as any;
 
             const images: string[] = result.scannedImages || result.scannedFilePaths || [];
@@ -761,6 +835,13 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
             return;
         }
 
+        // En modo cédula el nombre no se pregunta: es siempre el mismo documento.
+        if (this.esCedula) {
+            this.addScannedDoc(this.tempPages, this.config?.docName || 'Cédula');
+            this.mode = 'list';
+            return;
+        }
+
         const { value: name } = await Swal.fire({
             title: 'Nombre del documento',
             input: 'text',
@@ -784,6 +865,28 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     }
 
     private addScannedDoc(pages: ScannedPage[], nameOverride?: string) {
+        if (pages.length === 0) return;
+
+        // Cédula: las capturas se ACUMULAN en el único documento (frente + reverso),
+        // recortadas al número de caras; nunca se crea un segundo PDF.
+        if (this.esCedula) {
+            const doc = this.scannedDocs[0];
+            if (doc) {
+                doc.pages = [...doc.pages, ...pages].slice(0, CARAS_CEDULA.length);
+                doc.thumb = doc.pages[0].processed;
+            } else {
+                this.scannedDocs.push({
+                    id: Date.now().toString(36) + Math.random().toString(36).substring(2),
+                    name: nameOverride || this.config?.docName || 'Cédula',
+                    createdAt: new Date(),
+                    pages: pages.slice(0, CARAS_CEDULA.length),
+                    thumb: pages[0].processed
+                });
+            }
+            this.cdr.markForCheck();
+            return;
+        }
+
         const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
         const name = nameOverride || `Documento ${this.scannedDocs.length + 1}`;
         this.scannedDocs.push({

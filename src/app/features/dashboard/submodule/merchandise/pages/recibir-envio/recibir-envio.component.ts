@@ -1,4 +1,4 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormGroup, FormControl } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTableDataSource } from '@angular/material/table';
@@ -13,7 +13,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
   imports: [SharedModule, MatCheckboxModule],
   templateUrl: './recibir-envio.component.html',
   styleUrl: './recibir-envio.component.css'
-} )
+})
 export class RecibirEnvioComponent implements OnInit {
 
   displayedColumnsInventario: string[] = [
@@ -24,12 +24,14 @@ export class RecibirEnvioComponent implements OnInit {
     'cantidadRecibida',
     'valorUnidad',
     'PersonaEnvia',
-    'PersonaRecibe',
     'comentariosEnvio'
   ];
 
   dataSourceInventario = new MatTableDataSource<any>();
   productos: any[] = [];
+
+  cargando = true;
+  guardando = false;
 
   // Objeto para saber si un producto está seleccionado o no
   seleccionados: { [key: string]: boolean } = {};
@@ -39,35 +41,42 @@ export class RecibirEnvioComponent implements OnInit {
 
   constructor(
     private utilityService: UtilityServiceService,
-    private comercializadoraService: ComercializadoraService
+    private comercializadoraService: ComercializadoraService,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
     this.loadProductos();
   }
 
-  async loadProductos() {
-    try {
-      const user = await this.utilityService.getUser();
-      const sedeUsuario = user.sede.nombre;
-      const userEmail = user.correo_electronico;
+  get totalSeleccionados(): number {
+    return this.productos.filter(producto => this.seleccionados[producto.codigo]).length;
+  }
 
-      let sede_filtro = sedeUsuario;
-      if (userEmail === 'contaduria.rtc@gmail.com') {
-        // Si es admin, puede que queramos ver todos, dejamos vacío
-        sede_filtro = '';
+  async loadProductos() {
+    this.cargando = true;
+    this.cdr.markForCheck();
+
+    try {
+      const user = this.utilityService.getUser();
+      if (!user?.sede?.nombre) {
+        throw new Error('No se pudo determinar la sede del usuario');
       }
 
-      const response = await this.comercializadoraService.listarPendientesRecepcion(sede_filtro);
+      // Contaduría revisa los envíos de todas las sedes; el resto solo los dirigidos a la suya.
+      const sedeFiltro = user.correo_electronico === 'contaduria.rtc@gmail.com'
+        ? ''
+        : user.sede.nombre;
 
-      this.productos = response.map((item: any) => ({
+      const response = await this.comercializadoraService.listarPendientesRecepcion(sedeFiltro);
+
+      this.productos = (response ?? []).map((item: any) => ({
         codigo: item.id.toString(), // usamos id como el código único del envío (como string para FormControl)
-        concepto: item.producto_nombre,
+        concepto: item.producto_nombre ?? 'Sin concepto',
         cantidadEnvio: item.cantidad,
         valorUnidad: item.valor_unitario,
         PersonaEnvia: item.realizado_por,
         comentariosEnvio: item.comentario,
-        PersonaRecibe: '',
         fechaRecibida: item.realizado_en // usamos la fecha de salida como orden
       }));
 
@@ -76,23 +85,29 @@ export class RecibirEnvioComponent implements OnInit {
         (a: any, b: any) => new Date(b.fechaRecibida).getTime() - new Date(a.fechaRecibida).getTime()
       );
 
-      // Inicializamos selección y FormControl por cada producto
+      // El formulario se reconstruye entero en cada carga: addControl() ignora los nombres
+      // que ya existen, así que tras confirmar una recepción se arrastrarían cantidades viejas.
+      const form = new FormGroup({});
+      this.seleccionados = {};
       this.productos.forEach((producto: any) => {
         this.seleccionados[producto.codigo] = false;
-        this.cantidadForm.addControl(
-          producto.codigo.toString(),
-          new FormControl({
-            value: producto.cantidadEnvio,
-            disabled: true
-          })
+        form.addControl(
+          producto.codigo,
+          new FormControl({ value: producto.cantidadEnvio, disabled: true })
         );
       });
+      this.cantidadForm = form;
 
       this.dataSourceInventario.data = this.productos;
 
     } catch (error) {
       console.error('Error cargando productos pendientes:', error);
+      this.productos = [];
+      this.dataSourceInventario.data = [];
       this.showError('Hubo un error al obtener los envíos pendientes, por favor intente de nuevo');
+    } finally {
+      this.cargando = false;
+      this.cdr.markForCheck();
     }
   }
 
@@ -104,15 +119,19 @@ export class RecibirEnvioComponent implements OnInit {
     this.seleccionados[codigo] = isChecked;
 
     const control = this.cantidadForm.get(codigo);
-    if (control) {
-      if (isChecked) {
-        // Habilitamos y ponemos la cantidad por defecto (por ejemplo, la misma cantidad que se envió)
-        control.enable();
-      } else {
-        // Deshabilitamos y opcionalmente ponemos en 0
-        control.setValue(0);
-        control.disable();
-      }
+    if (!control) {
+      return;
+    }
+
+    if (isChecked) {
+      // Al desmarcar dejamos la cantidad en 0, así que al volver a marcar hay que
+      // restaurar la cantidad enviada; si no, el usuario tendría que subirla a mano.
+      const producto = this.productos.find(p => p.codigo === codigo);
+      control.setValue(producto ? producto.cantidadEnvio : control.value);
+      control.enable();
+    } else {
+      control.setValue(0);
+      control.disable();
     }
   }
 
@@ -121,9 +140,15 @@ export class RecibirEnvioComponent implements OnInit {
    */
   incrementarCantidad(codigo: string) {
     const control = this.cantidadForm.get(codigo);
-    if (control) {
-      const currentValue = control.value || 0;
-      control.setValue(parseInt(currentValue) + 1);
+    if (!control) {
+      return;
+    }
+    const producto = this.productos.find(p => p.codigo === codigo);
+    const maximo = Number(producto?.cantidadEnvio ?? 0);
+    const currentValue = Number(control.value) || 0;
+    // No se puede recibir más de lo que se envió: el backend no valida este tope.
+    if (currentValue < maximo) {
+      control.setValue(currentValue + 1);
     }
   }
 
@@ -132,11 +157,12 @@ export class RecibirEnvioComponent implements OnInit {
    */
   decrementarCantidad(codigo: string) {
     const control = this.cantidadForm.get(codigo);
-    if (control) {
-      const currentValue = control.value || 0;
-      if (currentValue > 0) {
-        control.setValue(parseInt(currentValue) - 1);
-      }
+    if (!control) {
+      return;
+    }
+    const currentValue = Number(control.value) || 0;
+    if (currentValue > 0) {
+      control.setValue(currentValue - 1);
     }
   }
 
@@ -154,16 +180,28 @@ export class RecibirEnvioComponent implements OnInit {
       return;
     }
 
-    const user = this.utilityService.getUser();
-    const personaRecibe = user ? `${user.datos_basicos.nombres} ${user.datos_basicos.apellidos}` : 'Usuario';
+    const sinCantidad = seleccionados.filter(
+      producto => (Number(this.cantidadForm.get(producto.codigo)?.value) || 0) <= 0
+    );
+    if (sinCantidad.length > 0) {
+      Swal.fire('Aviso', 'Los productos seleccionados deben tener una cantidad recibida mayor que cero.', 'warning');
+      return;
+    }
 
+    const user = this.utilityService.getUser();
+    const nombres = user?.datos_basicos?.nombres;
+    const apellidos = user?.datos_basicos?.apellidos;
+    const personaRecibe = nombres ? `${nombres} ${apellidos ?? ''}`.trim() : 'Usuario';
+
+    this.guardando = true;
+    this.cdr.markForCheck();
+
+    let successCount = 0;
     try {
-      let successCount = 0;
       for (const producto of seleccionados) {
-        const cantidad = this.cantidadForm.get(producto.codigo.toString())?.value;
         const payload = {
           envio_id: producto.codigo,
-          cantidad: cantidad,
+          cantidad: this.cantidadForm.get(producto.codigo)?.value,
           persona_recibe: personaRecibe,
           comentario: 'Recibido correctamente'
         };
@@ -172,10 +210,17 @@ export class RecibirEnvioComponent implements OnInit {
       }
 
       Swal.fire('¡Éxito!', `Se han recibido ${successCount} envíos correctamente.`, 'success');
-      this.loadProductos();
     } catch (error) {
       console.error('Error al recibir envíos:', error);
-      this.showError('Hubo un error al recibir la mercancía, por favor intente de nuevo');
+      // Cada envío se confirma por separado: si falla el tercero, los dos primeros ya se guardaron.
+      const detalle = successCount > 0
+        ? `Se recibieron ${successCount} de ${seleccionados.length} envíos. Revise la lista antes de reintentar.`
+        : 'Hubo un error al recibir la mercancía, por favor intente de nuevo';
+      this.showError(detalle);
+    } finally {
+      this.guardando = false;
+      // Recarga siempre: tras un fallo parcial la lista en pantalla ya no es fiable.
+      this.loadProductos();
     }
   }
 

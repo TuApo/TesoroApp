@@ -1,12 +1,13 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import {  ChangeDetectorRef, Component, DestroyRef, ElementRef, ViewChild , ChangeDetectionStrategy } from '@angular/core';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
+import {  Component, ElementRef, ViewChild , ChangeDetectionStrategy, ChangeDetectorRef, DestroyRef, inject, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl, Title, Meta } from '@angular/platform-browser';
-import { catchError, debounceTime, distinctUntilChanged, map, of, switchMap } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, of, catchError } from 'rxjs';
 import Swal from 'sweetalert2';
 import { MatDialog } from '@angular/material/dialog';
-import { DocumentacionService } from '../../service/documentacion/documentacion.service';
+import { DocumentacionService, TipoDocumentalNode, GrupoTipos, agruparTiposPorPadre } from '../../service/documentacion/documentacion.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { PdfEditorDialogComponent } from '../../components/pdf-editor-dialog/pdf-editor-dialog.component';
 
@@ -113,20 +114,28 @@ const EXTENSIONES_IMAGEN = ['png', 'jpg', 'jpeg'];
   templateUrl: './search-documents.component.html',
   styleUrl: './search-documents.component.css'
 } )
-export class SearchDocumentsComponent {
-  tiposDocumentales: any[] = [];
+export class SearchDocumentsComponent implements OnInit {
+  /** Árbol anidado: se usa para resolver el nombre de un tipo por su id. */
+  tiposDocumentales: TipoDocumentalNode[] = [];
+  /** Lo que pinta el selector: agrupado por el tipo padre. */
+  gruposTipos: GrupoTipos[] = [];
   codigosContrato: string[] = [];
-  pdfSeleccionado: SafeResourceUrl | null = null;
+  cargandoContratos = false;
   form: FormGroup;
   documentosPorCategoria: CategoriaVM[] = [];
-  archivoSeleccionado: string | null = null;
+  buscando = false;
+  yaBusco = false;
+  /** Recorte que aplicó el backend a la búsqueda completa (o null si no recortó). */
   meta: BusquedaMeta | null = null;
+  /** URL del archivo en la vista previa, para resaltar su fila. */
+  archivoSeleccionado: string | null = null;
   /** Modo unión: lo activa el check "Unir documentos" y habilita la selección. */
   modoUnion = false;
   /** Archivos marcados, EN EL ORDEN en que se marcaron: así se une. */
   seleccion: ArchivoVM[] = [];
   @ViewChild('pdfPreview') pdfPreview!: ElementRef<HTMLIFrameElement>;
 
+  private destroyRef = inject(DestroyRef);
 
   constructor(
     private fb: FormBuilder,
@@ -137,7 +146,7 @@ export class SearchDocumentsComponent {
     private metaService: Meta,
     private dialog: MatDialog,
     private cdr: ChangeDetectorRef,
-    private destroyRef: DestroyRef
+    private docViewer: DocViewerService
   ) {
     // SEO Init
     this.titleService.setTitle('Buscar Documentos | Gestión Documental');
@@ -153,71 +162,84 @@ export class SearchDocumentsComponent {
 
 
   ngOnInit(): void {
-    this.documentacionService.mostrar_jerarquia_gestion_documental().subscribe(
-      (data) => {
-        this.tiposDocumentales = data;
-      },
-      (error) => {
-        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo obtener la jerarquía de tipos documentales.' });
-      }
-    );
+    this.documentacionService.mostrar_jerarquia_anidada()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (arbol) => {
+          this.tiposDocumentales = arbol;
+          this.gruposTipos = agruparTiposPorPadre(arbol);
+          this.cdr.markForCheck(); // App zoneless: sin esto el selector queda vacío
+        },
+        error: () => Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo obtener la jerarquía de tipos documentales.' })
+      });
 
-    // Escuchar cambios en el campo de cédula
-    this.form.get('cedula')?.valueChanges
+    // Al escribir la cédula se traen sus códigos de contrato.
+    // 600 ms: lo justo para no disparar en cada tecla, sin que se sienta lento.
+    this.form.get('cedula')!.valueChanges
       .pipe(
-        debounceTime(3000), // Espera 3 segundos después del último cambio
-        distinctUntilChanged(), // Evita consultas repetidas con el mismo valor
+        debounceTime(600),
+        distinctUntilChanged(),
         switchMap((cedula) => {
+          this.codigosContrato = [];
+          this.form.get('codigoContrato')!.setValue('', { emitEvent: false });
           if (!cedula) {
-            // Sin cédula no hay contratos que pedir. Hay que cerrar a mano: si aquí
-            // se devolviera algo que completa sin emitir, el modal de carga de la
-            // cédula anterior se quedaría abierto y bloquearía la página.
-            this.cerrarCarga();
-            return of<string[]>([]);
+            this.cargandoContratos = false;
+            this.cdr.markForCheck();
+            return of(null);
           }
-
-          this.mostrarCarga('Obteniendo códigos de contrato…');
+          // Carga en línea, sin modal que bloquee: escribir una cédula no debería
+          // secuestrar la pantalla con un diálogo.
+          this.cargandoContratos = true;
+          this.cdr.markForCheck();
           return this.utilityService.obtenerCodigosContrato(cedula).pipe(
-            map((resp: any) => resp?.data ?? []),
-            // El catchError va DENTRO del switchMap: si el error sube al stream de
-            // valueChanges, lo termina y el campo deja de responder para siempre.
             catchError(() => {
-              this.mostrarError('No se pudieron obtener los códigos de contrato.');
-              return of<string[]>([]);
+              Swal.fire({ toast: true, position: 'top-end', icon: 'warning', showConfirmButton: false, timer: 3000,
+                title: 'No se pudieron traer los códigos de contrato' });
+              return of(null);
             })
           );
         }),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((codigos: string[]) => {
-        this.cerrarCarga();
-        this.codigosContrato = codigos;
+      .subscribe((codigos: any) => {
+        this.cargandoContratos = false;
+        this.codigosContrato = codigos?.data ?? [];
         this.cdr.markForCheck();
       });
   }
 
-
   onSubmit(): void {
-    if (!this.form.valid) {
-      this.mostrarError('Formulario inválido.');
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      this.cdr.markForCheck();
       return;
     }
 
+    this.buscando = true;
     this.mostrarCarga('Buscando documentos…');
+    this.cdr.markForCheck();
 
-    this.documentacionService.buscar_documentos(this.form.value).subscribe({
-      next: (data) => {
-        this.documentosPorCategoria = this.construirCategorias(data);
-        this.meta = data?.['_meta'] ?? null;
-        // Los resultados cambian: lo marcado antes ya no está en pantalla.
-        this.seleccion = [];
-        this.cerrarCarga();
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.mostrarError('No se pudieron obtener los documentos.');
-      },
-    });
+    this.documentacionService.buscar_documentos(this.form.value)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.documentosPorCategoria = this.construirCategorias(data);
+          this.meta = data?.['_meta'] ?? null;
+          // Los resultados cambian: lo marcado antes ya no está en pantalla.
+          this.seleccion = [];
+          this.buscando = false;
+          this.yaBusco = true;
+          this.limpiarPreview();
+          this.cerrarCarga();
+          this.cdr.markForCheck(); // App zoneless: sin esto los resultados no se pintan
+        },
+        error: () => {
+          this.buscando = false;
+          this.yaBusco = true;
+          this.cdr.markForCheck();
+          this.mostrarError('No se pudieron obtener los documentos.');
+        }
+      });
   }
 
   /**
@@ -522,24 +544,27 @@ export class SearchDocumentsComponent {
     return archivo.key;
   }
 
+  private limpiarPreview() {
+    this.archivoSeleccionado = null;
+    if (this.pdfPreview) this.pdfPreview.nativeElement.src = 'about:blank';
+  }
 
-  verPDF(docUrl: string | null): void {
-    // Ahora usas el ElementRef inyectado por Angular, no document.getElementById
+
+  async verPDF(docUrl: string | null): Promise<void> {
+    // El gateway exige JWT y la API manda X-Frame-Options: deny → se descarga con token
+    // (fetch) → blob y se enmarca el blob (los blob sí se pueden enmarcar y no requieren auth).
     if (docUrl && this.pdfPreview) {
-      this.pdfPreview.nativeElement.src = docUrl;
+      const blobUrl = await this.docViewer.toBlobUrl(docUrl);
+      if (!blobUrl) {
+        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo cargar el documento.' });
+        return;
+      }
+      this.pdfPreview.nativeElement.src = blobUrl;
       this.archivoSeleccionado = docUrl;
+      this.cdr.markForCheck();
     } else {
       Swal.fire({ icon: 'error', title: 'Error', text: 'No se encontró el iframe o la URL del documento.' });
     }
-  }
-
-  /**
-   * Devuelve el nombre del tipo documental, dada su ID.
-   * @param typeId ID del tipo documental.
-   */
-  public obtenerNombreDelTipo(typeId: number): string {
-    const tipo = this.buscarTipoPorId(this.tiposDocumentales, typeId);
-    return tipo ? tipo.name : 'Tipo documental desconocido';
   }
 
   /**
@@ -561,6 +586,15 @@ export class SearchDocumentsComponent {
       }
     }
     return undefined;
+  }
+
+  /**
+   * Devuelve el nombre del tipo documental, dada su ID.
+   * @param typeId ID del tipo documental.
+   */
+  public obtenerNombreDelTipo(typeId: number): string {
+    const tipo = this.buscarTipoPorId(this.tiposDocumentales, typeId);
+    return tipo ? tipo.name : 'Tipo documental desconocido';
   }
 
   editarPDF(doc: Documento): void {

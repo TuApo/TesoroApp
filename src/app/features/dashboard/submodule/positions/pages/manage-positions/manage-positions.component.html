@@ -9,28 +9,32 @@
         <mat-card-subtitle class="subtitulo">Administre el catálogo de puestos de trabajo corporativos.</mat-card-subtitle>
       </div>
     </div>
-    <span class="spacer grow" style="flex: 1 1 auto;"></span>
 
-    <!-- Menú principal (3 puntos) -->
-    <button mat-icon-button class="btn-managerial-icon" style="z-index: 1;" [matMenuTriggerFor]="mainMenu" aria-label="Abrir acciones">
-      <mat-icon>more_vert</mat-icon>
-    </button>
-    <mat-menu #mainMenu="matMenu">
-      <button mat-menu-item (click)="nuevo()">
-        <mat-icon>add</mat-icon>
-        <span>Nuevo</span>
+    <span class="grow"></span>
+
+    <div class="header-actions">
+      <!-- La acción primaria va visible. Antes vivía escondida dentro del menú
+           de 3 puntos, al mismo nivel que Importar y Exportar. -->
+      <button mat-flat-button class="btn-managerial" (click)="nuevo()">
+        <mat-icon>add</mat-icon> Nuevo cargo
       </button>
 
-      <button mat-menu-item (click)="triggerImport()">
-        <mat-icon>file_upload</mat-icon>
-        <span>Importar</span>
+      <!-- El menú queda solo para lo secundario -->
+      <button mat-icon-button class="btn-managerial-icon" [matMenuTriggerFor]="mainMenu"
+        matTooltip="Más acciones" aria-label="Más acciones">
+        <mat-icon>more_vert</mat-icon>
       </button>
-
-      <button mat-menu-item (click)="exportar()">
-        <mat-icon>file_download</mat-icon>
-        <span>Exportar</span>
-      </button>
-    </mat-menu>
+      <mat-menu #mainMenu="matMenu">
+        <button mat-menu-item (click)="triggerImport()">
+          <mat-icon>file_upload</mat-icon>
+          <span>Importar desde Excel</span>
+        </button>
+        <button mat-menu-item (click)="exportar()">
+          <mat-icon>file_download</mat-icon>
+          <span>Exportar a Excel</span>
+        </button>
+      </mat-menu>
+    </div>
 
     <!-- Input para importar (oculto) -->
     <input #fileInp type="file" accept=".xlsx,.xls" (change)="onImportFile($event)" hidden>
@@ -38,11 +42,11 @@
 
   <mat-card-content class="card-body">
     <app-standard-filter-table [data]="viewData" [columnDefinitions]="columns" [pageSizeOptions]="[10,20,50]"
-      [defaultPageSize]="10" [tableTitle]="'Cargos'">
+      [defaultPageSize]="10" [tableTitle]="'Cargos'" [isLoading]="loading">
 
-      <!-- Acciones por fila con menú (3 puntos) -->
+      <!-- Acciones por fila -->
       <ng-template #actionsTemplate let-row>
-        <button mat-icon-button [matMenuTriggerFor]="rowMenu" aria-label="Acciones de fila">
+        <button mat-icon-button [matMenuTriggerFor]="rowMenu" matTooltip="Acciones" aria-label="Acciones de fila">
           <mat-icon>more_vert</mat-icon>
         </button>
         <mat-menu #rowMenu="matMenu">
@@ -50,8 +54,10 @@
             <mat-icon>edit</mat-icon>
             <span>Editar</span>
           </button>
-          <button mat-menu-item (click)="eliminar(row)">
-            <mat-icon color="warn">delete</mat-icon>
+          <!-- Destructivo: se marca con clase propia, no con color="warn"
+               (que pinta el rojo de Material, ajeno a la paleta). -->
+          <button mat-menu-item class="menu-item-danger" (click)="eliminar(row)">
+            <mat-icon>delete</mat-icon>
             <span>Eliminar</span>
           </button>
         </mat-menu>

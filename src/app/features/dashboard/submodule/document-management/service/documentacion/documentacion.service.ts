@@ -4,6 +4,89 @@ import { Observable } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
+/** Tipo documental ya anidado (con `subtypes` resuelto). */
+export interface TipoDocumentalNode {
+  id: number;
+  name: string;
+  estado: boolean;
+  codigoContrato?: boolean;
+  parentId: number | null;
+  subtypes: TipoDocumentalNode[];
+  [key: string]: any;
+}
+
+/**
+ * El endpoint /document-types devuelve una lista PLANA donde cada tipo apunta
+ * hacia ARRIBA (`parent` anidado) y nunca trae `subtypes`. Esta función invierte
+ * esa relación y entrega las raíces del árbol.
+ *
+ * Vive en el servicio a propósito: varias vistas necesitan el mismo árbol y dos
+ * implementaciones paralelas de esto terminan divergiendo.
+ */
+export function construirArbolTiposDocumentales(flat: any[]): TipoDocumentalNode[] {
+  const byId = new Map<number, TipoDocumentalNode>();
+
+  for (const raw of flat || []) {
+    const { parent, ...rest } = raw;
+    byId.set(raw.id, { ...rest, parentId: parent?.id ?? null, subtypes: [] } as TipoDocumentalNode);
+  }
+
+  const desciendeDe = (candidato: TipoDocumentalNode, nodo: TipoDocumentalNode): boolean => {
+    let actual: TipoDocumentalNode | undefined = candidato;
+    const vistos = new Set<number>();
+    while (actual && !vistos.has(actual.id)) {
+      if (actual.id === nodo.id) return true;
+      vistos.add(actual.id);
+      actual = actual.parentId != null ? byId.get(actual.parentId) : undefined;
+    }
+    return false;
+  };
+
+  const roots: TipoDocumentalNode[] = [];
+  for (const node of byId.values()) {
+    const parent = node.parentId != null ? byId.get(node.parentId) : undefined;
+    // Padre ausente o referencia cíclica -> se degrada a raíz: así el nodo nunca
+    // desaparece de la vista ni provoca recursión infinita al recorrer el árbol.
+    if (parent && parent !== node && !desciendeDe(parent, node)) {
+      parent.subtypes.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
+}
+
+/** Un grupo del selector: la etiqueta es el nombre del tipo padre. */
+export interface GrupoTipos {
+  padre: string;
+  hijos: any[];
+}
+
+/**
+ * Agrupa CADA tipo bajo el nombre de su padre, para que los selectores reflejen
+ * la jerarquía real en vez de una lista plana.
+ *
+ * Se listan también los contenedores, no solo las hojas: hay documentos cargados
+ * directamente contra contenedores (p. ej. HOJA_DE_VIDA), así que ocultarlos
+ * rompería flujos en uso. Van marcados con `esCategoria`.
+ */
+export function agruparTiposPorPadre(raices: TipoDocumentalNode[]): GrupoTipos[] {
+  const grupos: GrupoTipos[] = [];
+
+  const walk = (nodos: TipoDocumentalNode[], etiquetaPadre: string) => {
+    if (!nodos.length) return;
+    grupos.push({
+      padre: etiquetaPadre,
+      hijos: nodos.map(n => ({ ...n, esCategoria: n.subtypes.length > 0 })),
+    });
+    // Recorrido en profundidad: cada categoría abre su propio grupo justo después.
+    for (const n of nodos) walk(n.subtypes, n.name);
+  };
+
+  walk(raices, 'Nivel raíz');
+  return grupos;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -54,6 +137,16 @@ export class DocumentacionService {
         map((response: any) => response),
         catchError(this.handleError)
       );
+  }
+
+  /**
+   * Misma fuente que `mostrar_jerarquia_gestion_documental`, pero ya anidada.
+   * Úsala cuando necesites la jerarquía real; el método plano se conserva
+   * porque otras vistas dependen de la forma cruda del backend.
+   */
+  public mostrar_jerarquia_anidada(): Observable<TipoDocumentalNode[]> {
+    return this.mostrar_jerarquia_gestion_documental()
+      .pipe(map((flat: any[]) => construirArbolTiposDocumentales(flat)));
   }
 
 

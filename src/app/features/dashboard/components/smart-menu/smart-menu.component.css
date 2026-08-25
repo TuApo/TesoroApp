@@ -1,0 +1,381 @@
+:host {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 520px;
+  margin: 0 24px;
+}
+
+.smart-menu {
+  position: relative;
+  width: 100%;
+}
+
+/* === CAJA DE BÚSQUEDA === */
+.sm-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px 0 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.smart-menu.is-open .sm-field,
+.sm-field:focus-within {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 0 0 4px rgba(33, 38, 60, 0.08);
+}
+
+.sm-field__icon {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 20px !important;
+  width: 20px !important;
+  height: 20px !important;
+  line-height: 20px !important;
+}
+
+/* Cuando lo escrito parece una pregunta, el icono anticipa que Enter va a la IA. */
+.sm-field__icon.is-ia {
+  color: #6d28d9;
+}
+
+.sm-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 0.9rem;
+  color: #0f172a;
+}
+
+.sm-input::placeholder {
+  color: #94a3b8;
+}
+
+.sm-kbd {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #94a3b8;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.sm-chip-btn,
+.sm-trigger {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sm-chip-btn:hover,
+.sm-trigger:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.sm-chip-btn mat-icon,
+.sm-trigger mat-icon {
+  font-size: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+}
+
+.sm-trigger {
+  width: 36px;
+  height: 36px;
+}
+
+.sm-trigger mat-icon {
+  font-size: 21px !important;
+  width: 21px !important;
+  height: 21px !important;
+  line-height: 21px !important;
+}
+
+/* === PANEL DE RESULTADOS === */
+.sm-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  padding: 6px;
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -12px rgba(15, 23, 42, 0.28);
+  animation: sm-drop 0.14s ease-out;
+}
+
+@keyframes sm-drop {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sm-group {
+  padding: 8px 12px 6px;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.sm-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.sm-item.is-active {
+  background: #f1f5f9;
+}
+
+.sm-item__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.sm-item__icon mat-icon {
+  font-size: 19px !important;
+  width: 19px !important;
+  height: 19px !important;
+  line-height: 19px !important;
+}
+
+.sm-item.is-ia .sm-item__icon {
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.sm-item__texts {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'Inter', 'Roboto', sans-serif;
+}
+
+.sm-item__title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sm-item.is-ia .sm-item__title {
+  color: #4c1d95;
+}
+
+/* Título + etiqueta corta en la misma línea (p. ej. "Solo llenar"). */
+.sm-item__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sm-item__head .sm-item__title {
+  flex: 0 1 auto;
+}
+
+.sm-item__chip {
+  flex: 0 0 auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.sm-item__detail {
+  font-size: 0.74rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Información rápida de un registro: los primeros campos con dato, en una sola
+   línea que se recorta. El campo por el que casó la búsqueda va resaltado. */
+.sm-item__datos {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sm-dato {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #eef2f7;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sm-dato.is-match {
+  background: #eff6ff;
+  border-color: #dbeafe;
+}
+
+.sm-dato__label {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.sm-dato.is-match .sm-dato__label {
+  color: #2563eb;
+}
+
+.sm-dato__value {
+  min-width: 0;
+  color: #334155;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Los dos bloques que trae ms-forms se distinguen del árbol de módulos por el icono. */
+.sm-item.is-formulario .sm-item__icon {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.sm-item.is-registro .sm-item__icon {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.sm-empty--cargando {
+  color: #94a3b8;
+}
+
+.sm-item__go {
+  flex: 0 0 auto;
+  color: #cbd5e1;
+  font-size: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+}
+
+.sm-item.is-active .sm-item__go {
+  color: #64748b;
+}
+
+.sm-item.is-ia.is-active .sm-item__go {
+  color: #6d28d9;
+}
+
+.sm-empty,
+.sm-hint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  font-family: 'Inter', 'Roboto', sans-serif;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.sm-hint {
+  margin-top: 4px;
+  border-top: 1px solid #f1f5f9;
+  color: #6d28d9;
+}
+
+.sm-empty mat-icon,
+.sm-hint mat-icon {
+  font-size: 18px !important;
+  width: 18px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+}
+
+/* === MÓVIL: la lupa abre la búsqueda sobre el header === */
+@media (max-width: 900px) {
+  :host {
+    flex: 0 0 auto;
+    margin: 0;
+    max-width: none;
+  }
+
+  .smart-menu.is-compact.is-open {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1200;
+    padding: 10px 12px;
+    background: #ffffff;
+    box-shadow: 0 10px 30px -12px rgba(15, 23, 42, 0.35);
+  }
+
+  .smart-menu.is-compact.is-open .sm-panel {
+    position: static;
+    margin-top: 8px;
+    box-shadow: none;
+    border-radius: 12px;
+    max-height: calc(100vh - 120px);
+  }
+}

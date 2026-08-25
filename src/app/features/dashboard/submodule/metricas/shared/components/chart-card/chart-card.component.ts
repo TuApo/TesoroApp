@@ -11,10 +11,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     <mat-card class="chart-card">
       @if (title) {
         <mat-card-header class="chart-header">
-          <mat-card-title class="card-title">{{ title }}</mat-card-title>
-          @if (subtitle) {
-            <mat-card-subtitle class="card-subtitle">{{ subtitle }}</mat-card-subtitle>
-          }
+          <div class="header-titles">
+            <mat-card-title class="card-title">{{ title }}</mat-card-title>
+            @if (subtitle) {
+              <mat-card-subtitle class="card-subtitle">{{ subtitle }}</mat-card-subtitle>
+            }
+          </div>
           <div class="header-actions">
             <ng-content select="[actions]"></ng-content>
           </div>
@@ -38,6 +40,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     :host {
       display: block;
       height: 100%;
+      min-width: 0;
     }
     .chart-card {
       height: 100%;
@@ -57,9 +60,18 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     ::ng-deep .chart-card > .mat-mdc-card-header {
       padding: 1.5rem 1.5rem 0.5rem 1.5rem;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
+      flex-wrap: wrap;
       align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem 1rem;
       position: relative;
+    }
+    .header-titles {
+      flex: 1 1 240px;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
     }
     .card-title {
       font-size: 1.125rem;
@@ -74,9 +86,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
       font-weight: 400;
     }
     .header-actions {
-      position: absolute;
-      top: 1.25rem;
-      right: 1.5rem;
+      flex: 0 0 auto;
+      max-width: 100%;
     }
     .chart-content {
       flex: 1;
@@ -84,6 +95,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
       padding: 1rem 1.5rem 1.5rem 1.5rem !important;
       display: flex;
       flex-direction: column;
+      min-width: 0;
       min-height: 280px;
     }
     .loading-overlay {

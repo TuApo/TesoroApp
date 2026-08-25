@@ -5,12 +5,12 @@
   --app-left-w: 84px;
   --app-right-w: 260px;
 
-  --app-sidebar-left-bg: #192030;
+  --app-sidebar-left-bg: #21263C;
   --app-sidebar-left-border: transparent;
   --app-sidebar-left-icon-color: rgba(255, 255, 255, 0.65);
   --app-sidebar-left-icon-hover-color: #ffffff;
 
-  --app-sidebar-right-bg: #192030;
+  --app-sidebar-right-bg: #21263C;
   --app-sidebar-right-border: rgba(255, 255, 255, 0.1);
   --app-sidebar-right-text: rgba(255, 255, 255, 0.75);
   --app-sidebar-right-title: #ffffff;
@@ -31,7 +31,7 @@
   --app-dur: 180ms;
 
   --mobile-bottombar-h: 60px;
-  --mobile-bottombar-bg: #192030;
+  --mobile-bottombar-bg: #21263C;
 
   display: block;
 }
@@ -43,7 +43,7 @@
   position: fixed;
   inset: 0;
   background-color: rgba(15, 23, 42, 0.45);
-  z-index: 59;
+  z-index: 149;
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--app-dur) var(--app-ease);
@@ -73,7 +73,9 @@
   box-sizing: border-box;
   background: transparent;
 
-  z-index: 60;
+  /* CDK StickyStyler escribe z-index: 100 inline en celdas sticky; el sidebar
+     debe estar por encima de eso pero por debajo de CDK overlays (z-index: 1000). */
+  z-index: 150;
 }
 
 /* =========================
@@ -297,6 +299,15 @@
 .logout-button:hover {
   color: #b91c1c !important;
   background-color: rgba(185, 28, 28, 0.08);
+}
+
+/* Config es un sub-módulo aquí abajo: comparte el lenguaje del logout pero con
+   estado activo cuando estás dentro de /dashboard/configuracion. */
+.bottom-buttons .config-button.active-module-button {
+  background-color: var(--app-active-bg) !important;
+  color: var(--app-active-text) !important;
+  box-shadow: var(--app-active-shadow);
+  transform: translateY(-1px);
 }
 
 /* =========================
@@ -564,13 +575,22 @@
 
     /* Paleta mobile */
     --mobile-bottombar-bg: linear-gradient(180deg, #1d2538 0%, #161e30 100%);
-    --m-accent: #8DD603;
+    --m-accent: #8CD50A;
     --m-accent-soft: rgba(141, 214, 3, 0.14);
     --m-accent-strong: #a4ec19;
     --m-text: rgba(255, 255, 255, 0.72);
     --m-text-strong: rgba(255, 255, 255, 0.96);
     --m-divider: rgba(255, 255, 255, 0.06);
     --m-sheet-bg: linear-gradient(180deg, #1d2538 0%, #1a2235 100%);
+
+    /* Chips de la tira de submódulos: colores OPACOS ya mezclados sobre el fondo
+       de la tira (#1c2234). Con fondos translúcidos, cualquier resto de pintura
+       del compositor (la tira es position:fixed y su nav scrollea en horizontal)
+       se transparenta a través del chip y se lee como texto duplicado/encimado. */
+    --m-chip-bg: #2c3242;
+    --m-chip-bg-hover: #373d4c;
+    --m-chip-bg-active: #2c3b2d;
+    --m-chip-border: #3a4152;
   }
 
   .sidebar-overlay {
@@ -594,8 +614,11 @@
     gap: 0;
 
     background: var(--mobile-bottombar-bg);
-    backdrop-filter: blur(12px) saturate(160%);
-    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    /* SIN backdrop-filter en mobile: creaba un containing-block para el strip
+       de submódulos (.right es position:fixed) y, en el WebView de Android,
+       dejaba que el contenido de la página se "colara" a través de la tira
+       opaca → los nombres de la página aparecían encimados sobre los chips.
+       La barra ya es opaca por --mobile-bottombar-bg, no se pierde nada visual. */
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.32);
     border-top: 1px solid var(--m-divider);
     border-radius: 0;
@@ -649,21 +672,9 @@
     scroll-snap-type: x proximity;
     touch-action: pan-x;
 
-    /* Fade lateral derecho — sugiere "hay más" sin necesidad de chevron */
-    -webkit-mask-image: linear-gradient(
-      to right,
-      transparent 0,
-      #000 12px,
-      #000 calc(100% - 24px),
-      transparent 100%
-    );
-            mask-image: linear-gradient(
-      to right,
-      transparent 0,
-      #000 12px,
-      #000 calc(100% - 24px),
-      transparent 100%
-    );
+    /* Sin mask-image: sobre un contenedor con scroll horizontal el WebView de
+       Android duplica/deja rastro del texto al desplazar. El clip al borde del
+       contenedor ya sugiere que hay más para deslizar. */
   }
 
   .module-buttons::-webkit-scrollbar {
@@ -708,16 +719,25 @@
     flex-shrink: 0;
   }
 
-  /* Etiqueta debajo del icono — visible solo en mobile */
+  /* Etiqueta debajo del icono — visible solo en mobile.
+     Los nombres de módulo son palabras sueltas y largas ("AFILIACIONES",
+     "COMERCIALIZADORA"): no parten en dos líneas de forma legible, así que se
+     mantienen en una sola con elipsis. Para que quepan más letras antes de
+     recortar, la etiqueta usa todo el ancho del botón (sin el padding lateral)
+     y una tipografía algo más compacta. */
   .module-buttons > button .m-btn-label,
   .sidebar-logo-btn .m-btn-label {
     display: block;
-    font-size: 10px;
+    font-size: 9.5px;
     font-weight: 600;
     line-height: 1.1;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     text-transform: uppercase;
-    max-width: 100%;
+    /* +10px: recupera el padding lateral del botón (6px por lado) como espacio
+       útil de texto. Con `align-items:center` el excedente se reparte simétrico. */
+    width: calc(100% + 10px);
+    max-width: calc(100% + 10px);
+    text-align: center;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -759,30 +779,57 @@
     font-weight: 700;
   }
 
-  /* === Botones inferiores (ahora solo logout) === */
+  /* === Botones inferiores (Config + Salir) === */
   .bottom-buttons {
     margin-top: 0;
     flex-direction: row;
     align-items: stretch;
-    gap: 0;
+    gap: var(--mobile-gap);
     flex: 0 0 auto;
-    padding-right: 4px;
+    padding: 0 2px 0 6px;
     border-left: 1px solid var(--m-divider);
     margin-left: 4px;
   }
 
+  /* Mismo formato icono+etiqueta apilados que los módulos, para que Config y
+     Salir se lean como parte de la misma barra. */
   .bottom-buttons button {
-    width: 56px;
+    width: 58px;
     height: var(--mobile-bottombar-h);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 4px 6px;
     background: transparent;
     border: none;
     border-radius: 12px;
     color: var(--m-text);
+    position: relative;
     transition: color 180ms ease, background-color 180ms ease;
   }
 
   .bottom-buttons button .mat-icon {
     font-size: 22px;
+    width: 22px;
+    height: 22px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .bottom-buttons button .m-btn-label {
+    display: block;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.92;
   }
 
   .bottom-buttons button:hover {
@@ -791,12 +838,38 @@
     transform: none;
   }
 
+  /* Config activo en móvil: mismo acento verde + indicador superior que los módulos. */
+  .bottom-buttons .config-button.active-module-button {
+    background: var(--m-accent-soft);
+    color: var(--m-accent-strong) !important;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .bottom-buttons .config-button.active-module-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 3px;
+    border-radius: 0 0 4px 4px;
+    background: var(--m-accent);
+    box-shadow: 0 0 12px rgba(141, 214, 3, 0.6);
+  }
+
+  .bottom-buttons .config-button.active-module-button .m-btn-label {
+    opacity: 1;
+    font-weight: 700;
+  }
+
   .logout-button:hover {
     color: #fca5a5 !important;
     background-color: rgba(239, 68, 68, 0.12) !important;
   }
 
-  /* === Sheet right (bottom-sheet) === */
+  /* === Tira horizontal de chips (sub-nav strip) === */
   .sidebar .right {
     position: fixed;
     left: 0;
@@ -809,38 +882,43 @@
     min-width: 0;
     max-width: none;
 
+    /* Alto automático según contenido — la tira es compacta */
     height: auto;
-    max-height: calc(100dvh - (var(--mobile-bottombar-h) + env(safe-area-inset-bottom)));
+    max-height: none;
 
-    border-radius: 18px 18px 0 0;
+    padding: 10px 0 8px;
+    border-radius: 14px 14px 0 0;
     border: none;
     border-top: 1px solid var(--m-divider);
+    /* Fondo opaco sólido de respaldo + capa propia (isolation) para garantizar
+       que la tira ocluya el contenido de la página detrás y no haya
+       "bleed-through" en el WebView. */
+    background-color: #1b2233;
     background: var(--m-sheet-bg);
-    padding: 22px 16px 16px;
-    box-shadow: 0 -16px 40px rgba(0, 0, 0, 0.42);
+    isolation: isolate;
+    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.30);
 
-    transform: translateY(12px);
+    transform: translateY(10px);
     opacity: 0;
     pointer-events: none;
-
     z-index: 61;
 
     transition:
-      opacity var(--app-dur) var(--app-ease),
-      transform var(--app-dur) var(--app-ease);
+      opacity 160ms var(--app-ease),
+      transform 160ms var(--app-ease);
   }
 
-  /* Drag handle (afecta solo visualmente) */
+  /* Pastilla decorativa arriba */
   .sidebar .right::before {
     content: '';
     position: absolute;
-    top: 8px;
+    top: 5px;
     left: 50%;
     transform: translateX(-50%);
-    width: 42px;
-    height: 4px;
+    width: 32px;
+    height: 3px;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.20);
+    background: rgba(255, 255, 255, 0.15);
   }
 
   .sidebar.show-detail .right {
@@ -856,44 +934,168 @@
     bottom: calc(var(--mobile-bottombar-h) + env(safe-area-inset-bottom));
   }
 
-  /* Header del sheet más legible */
-  .sidebar .right .header {
-    height: 52px;
-    padding: 0 4px;
+  /* right-inner: columna compacta */
+  .sidebar .right .right-inner {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    overflow: visible;
+    gap: 4px;
   }
 
-  .sidebar .right .header-title {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--m-text-strong);
+  /* Encabezado reducido — solo la etiqueta del módulo */
+  .sidebar .right .header {
+    height: 24px;
+    min-height: 24px;
+    padding: 0 16px;
+    border-bottom: none;
+    margin-bottom: 0;
+    align-items: center;
+  }
+
+  /* Ocultar logo e imagen en la tira */
+  .sidebar .right .header-logo {
+    display: none;
+  }
+
+  /* Ocultar botón de pin/minimizar */
+  .sidebar .right .header-pin-button {
+    display: none;
+  }
+
+  /* Nombre del módulo en fila */
+  .sidebar .right .header-texts {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
   }
 
   .sidebar .right .header-brand {
     font-size: 10px;
-    letter-spacing: 0.18em;
-    color: rgba(255, 255, 255, 0.5);
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    color: var(--m-text);
+    text-transform: uppercase;
   }
 
-  /* Submódulos: targets más grandes y barra de acento al activo */
-  .submodule-button {
-    padding: 12px 12px;
-    font-size: 14px;
-    min-height: 48px;
-    border-radius: 10px;
-    margin-bottom: 4px;
+  /* Ocultar el título (ya se muestra en header-brand) */
+  .sidebar .right .header-title {
+    display: none;
   }
 
-  .submodule-button .mat-icon {
-    font-size: 20px;
+  /* === NAV = fila horizontal de chips con scroll === */
+  .sidebar .right nav {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 6px;
+    padding: 0 12px;
+    min-height: 44px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+
+    /* Sin mask-image (misma razón que .module-buttons): enmascarar un contenedor
+       con scroll horizontal provoca texto fantasma/duplicado de los chips en el
+       WebView de Android. */
+
+    /* El scroller es su propia capa de pintura, opaca y recortada a su caja:
+       así el compositor no puede reutilizar tiles viejos del panel fijo que hay
+       detrás (era lo que dejaba dos etiquetas encimadas dentro de un mismo chip
+       al deslizar la tira). `contain: paint` además evita que un chip se dibuje
+       fuera del scroller. */
+    background-color: #1b2233;
+    contain: paint;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
-  .submodule-button.active-submodule {
-    background: var(--m-accent-soft) !important;
+  .sidebar .right nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Cada tree-wrap = contenedor inline de chips */
+  .sidebar .right .tree-wrap {
+    flex: 0 0 auto;
+    margin-bottom: 0;
+    padding-left: 0 !important;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Cada botón = pill chip */
+  .sidebar .right .submodule-button {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    padding: 0 14px 0 10px;
+    height: 36px;
+    min-height: 36px;
+    max-height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--m-chip-border);
+    background: var(--m-chip-bg);
+    white-space: nowrap;
+    margin-bottom: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--m-text);
+    transform: none !important;
+
+    /* El estilo de escritorio pone `width: 100%` (menú vertical). En la tira
+       horizontal ese 100% se resuelve contra un .tree-wrap de ancho automático
+       y estira el chip mucho más allá de su texto ("items muy alargados").
+       Aquí el chip debe medir exactamente lo que ocupa su contenido. */
+    width: auto !important;
+    /* Un nombre de submódulo muy largo no debe comerse la pantalla entera:
+       se recorta con elipsis y el resto se alcanza deslizando la tira. */
+    max-width: 60vw;
+    overflow: hidden;
+  }
+
+  .sidebar .right .submodule-button:hover {
+    background: var(--m-chip-bg-hover);
+    color: var(--m-text-strong);
+    transform: none !important;
+  }
+
+  /* El texto cede ancho (y se recorta) antes que el icono */
+  .sidebar .right .submodule-text {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar .right .submodule-button .mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  /* Ocultar el chevron expand dentro de la tira */
+  .sidebar .right .expand-icon {
+    display: none;
+  }
+
+  /* Chip activo */
+  .sidebar .right .submodule-button.active-submodule {
+    background: var(--m-chip-bg-active) !important;
     color: var(--m-accent-strong) !important;
-    box-shadow: inset 3px 0 0 var(--m-accent);
+    border-color: #3f5c2a !important;
+    box-shadow: none !important;
   }
 
-  .submodule-button.active-submodule .mat-icon {
+  .sidebar .right .submodule-button.active-submodule .mat-icon {
     color: var(--m-accent-strong) !important;
   }
 }

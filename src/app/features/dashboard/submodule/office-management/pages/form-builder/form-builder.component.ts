@@ -17,8 +17,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { OfficeFormsService } from '../../services/office-forms.service';
 import { PhonePreviewComponent } from '../../components/phone-preview/phone-preview.component';
 import {
-  FieldType, FormFieldDef, PALETTE, PaletteItem, PublishResult, Visibility, defaultFieldLabel,
+  FieldType, FormFieldDef, OfficeImportedForm, PALETTE, PaletteItem, PublishResult, RoleAccess,
+  Visibility, defaultFieldLabel,
 } from '../../models/office-forms.models';
+import { OfficeExcelImportDialogComponent } from '../../components/excel-import-dialog/excel-import-dialog.component';
 
 /**
  * Constructor de formularios: wizard de 3 pasos (Datos y visibilidad / Campos / Publicar)
@@ -31,7 +33,7 @@ import {
   imports: [
     CommonModule, ReactiveFormsModule, MatStepperModule, MatFormFieldModule, MatInputModule,
     MatButtonModule, MatIconModule, MatSelectModule, MatCheckboxModule, MatTooltipModule,
-    CdkDropListGroup, CdkDropList, CdkDrag, PhonePreviewComponent,
+    CdkDropListGroup, CdkDropList, CdkDrag, PhonePreviewComponent, OfficeExcelImportDialogComponent,
   ],
   templateUrl: './form-builder.component.html',
   styleUrl: './form-builder.component.css',
@@ -63,6 +65,15 @@ export class FormBuilderComponent implements OnInit {
   publishing = signal(false);
   publishResult = signal<PublishResult | null>(null);
 
+  /** Carga por Excel: plantilla ya parametrizada + archivo lleno. */
+  importarAbierto = signal(false);
+  /**
+   * Accesos por rol que venían en el Excel. El constructor no tiene pantalla de roles,
+   * así que se guardan aquí y se aplican junto con los campos y las oficinas — si no,
+   * el «a quién se le presta» que se definió al bajar la plantilla se perdería al crear.
+   */
+  private accesosImportados = signal<RoleAccess[]>([]);
+
   // Espejos reactivos para el preview en vivo.
   titlePreview = signal('');
   descPreview = signal('');
@@ -82,7 +93,37 @@ export class FormBuilderComponent implements OnInit {
     this.loadOffices();
 
     const idParam = this.route.snapshot.paramMap.get('id');
-    if (idParam) this.loadForm(Number(idParam));
+    if (idParam) {
+      this.loadForm(Number(idParam));
+      return;
+    }
+    // El dashboard pudo dejar un formulario leído de un Excel: se entra con todo cargado.
+    const importado = this.api.tomarPendiente();
+    if (importado) this.aplicarImportado(importado);
+  }
+
+  // ---------- Carga por Excel ----------
+
+  /**
+   * Vuelca en el constructor un formulario leído de un Excel: datos, visibilidad, campos,
+   * oficinas y accesos. Es exactamente lo que se habría armado a mano y NADA se ha
+   * guardado todavía: el alta ocurre al avanzar por los pasos, como siempre.
+   */
+  aplicarImportado(f: OfficeImportedForm): void {
+    this.meta.patchValue({
+      title: f.title ?? '',
+      description: f.description ?? '',
+      parent_module: f.parent_module ?? '',
+      visibility: (f.visibility ?? 'PRIVATE') as Visibility,
+    });
+    this.fields.set(this.reindex(f.fields ?? []));
+    this.selectedOffices.set(f.office_ids ?? []);
+    this.accesosImportados.set(accesosDe(f));
+    this.selectedIndex.set(null);
+    this.importarAbierto.set(false);
+    this.snack.open(
+      `Archivo cargado: ${f.fields_count} pregunta(s). Revísalas y continúa cuando estés listo.`,
+      'OK', { duration: 6000 });
   }
 
   // ---------- Carga ----------
@@ -267,11 +308,26 @@ export class FormBuilderComponent implements OnInit {
     this.api.setFields(id, this.fields()).subscribe({
       next: () => {
         this.api.setOffices(id, this.selectedOffices()).subscribe({
-          next: () => { this.saving.set(false); done(); },
-          error: () => { this.saving.set(false); done(); },
+          next: () => this.persistAccess(id, done),
+          // Que falle la asignación de oficinas no debe dejar los campos sin guardar.
+          error: () => this.persistAccess(id, done),
         });
       },
       error: () => { this.saving.set(false); this.snack.open('No se pudieron guardar los campos', 'OK', { duration: 3000 }); },
+    });
+  }
+
+  /** Accesos por rol que trajo el Excel (si los hubo). Se aplican una sola vez. */
+  private persistAccess(id: number, done: () => void): void {
+    const accesos = this.accesosImportados();
+    if (!accesos.length) { this.saving.set(false); done(); return; }
+    this.api.setAccess(id, accesos).subscribe({
+      next: () => { this.accesosImportados.set([]); this.saving.set(false); done(); },
+      error: () => {
+        this.saving.set(false);
+        this.snack.open('No se pudieron aplicar los permisos por rol del archivo.', 'OK', { duration: 5000 });
+        done();
+      },
     });
   }
 
@@ -309,4 +365,16 @@ export class FormBuilderComponent implements OnInit {
   iconFor(type: FieldType): string {
     return PALETTE.find(p => p.type === type)?.icon ?? 'help_outline';
   }
+}
+
+/** Accesos por rol a partir de las dos listas del archivo (ver / responder). */
+function accesosDe(f: OfficeImportedForm): RoleAccess[] {
+  const ven = new Set((f.view_roles ?? []).map(r => r.id));
+  const responden = new Set((f.respond_roles ?? []).map(r => r.id));
+  return [...new Set<string>([...ven, ...responden])].map(id => ({
+    role_id: id,
+    // Quien responde necesita ver el formulario para llenarlo.
+    can_view: ven.has(id) || responden.has(id),
+    can_respond: responden.has(id),
+  }));
 }

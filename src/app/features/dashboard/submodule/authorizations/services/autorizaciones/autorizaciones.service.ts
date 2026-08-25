@@ -38,6 +38,48 @@ export class AutorizacionesService {
     return doc ? doc.trim().toUpperCase() : '';
   }
 
+  /**
+   * El endpoint /gestion_tesoreria/personas/* de ms-payroll devuelve camelCase
+   * (numeroDocumento, saldoPendiente, valorAnchetas, prestamoParaDescontar…)
+   * porque el naming-strategy SNAKE_CASE del server no surte efecto. Todo el
+   * front lee snake_case, así que sin esto los campos multi-palabra quedan en
+   * undefined y se rompían cosas graves: cédula "undefined" en el PDF de
+   * libranza, saldo pendiente subestimado → cupo inflado / sobre-préstamo,
+   * documento vacío al autorizar, motivo de bloqueo perdido, etc.
+   *
+   * Agrega alias snake_case SIN borrar las claves camelCase originales (no
+   * destructivo: nada que lea camelCase se rompe). Se aplica en el único punto
+   * por donde todas las pantallas de ejecución obtienen la persona.
+   */
+  private normalizePersona(obj: any): any {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+    const out: any = { ...obj };
+    for (const k of Object.keys(obj)) {
+      const snake = k.replace(/([A-Z])/g, '_$1').toLowerCase();
+      if (snake !== k && !(snake in out)) out[snake] = obj[k];
+    }
+    return out;
+  }
+
+  // Cache del logo: antes se descargaba la imagen en CADA generación de PDF
+  // (new Image() + await), lo que hacía la generación lenta. Ahora se carga una
+  // sola vez y se reutiliza la promesa.
+  private logoCache = new Map<string, Promise<HTMLImageElement | null>>();
+  private loadLogoCached(url: string): Promise<HTMLImageElement | null> {
+    let p = this.logoCache.get(url);
+    if (!p) {
+      p = new Promise<HTMLImageElement | null>((resolve) => {
+        if (typeof Image === 'undefined') { resolve(null); return; }
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
+      });
+      this.logoCache.set(url, p);
+    }
+    return p;
+  }
+
   traerSaldoPendiente(operario: any): number {
     const campos = [
       'saldos',
@@ -361,7 +403,8 @@ export class AutorizacionesService {
 
   async traerPersonaTesoreria(numeroDocumento: string): Promise<any> {
     const docNorm = this.normalizeDoc(numeroDocumento);
-    return firstValueFrom(this.http.get(`${this.URL_PERSONAS}/${docNorm}/`).pipe(catchError(this.handleError)));
+    const persona = await firstValueFrom(this.http.get(`${this.URL_PERSONAS}/${docNorm}/`).pipe(catchError(this.handleError)));
+    return this.normalizePersona(persona);
   }
 
   async autorizarTransaccion(numeroDocumento: string, monto: number, cuotas: number, tipo: string, nombreAutorizador: string, sedeAutorizacion: string = ''): Promise<any> {
@@ -443,11 +486,10 @@ export class AutorizacionesService {
 
   public async generatePdf(datos: any, valor: number, nuevovalor: string, formaPago: any, celular: any, codigoOH: string, cuotas: string, concepto: string, nombre: string): Promise<void> {
     const docPdf = new jsPDF({ format: 'letter', compress: true });
-    const margin = 12;
+    // 16 mm: margen de documento formal (antes 12 mm quedaba pegado al borde).
+    const margin = 16;
     const pageWidth = docPdf.internal.pageSize.getWidth();
     const usableWidth = pageWidth - 2 * margin;
-    const lineHeight = 6;
-    let y = margin;
 
     const empresas = {
       APOYO: {
@@ -472,117 +514,157 @@ export class AutorizacionesService {
       }
     };
 
-    const docNumero = datos.numero_documento || datos.numero_de_documento;
+    const docNumero = datos.numero_documento || datos.numeroDocumento || datos.numero_de_documento;
 
     const temporalValue = datos.temporal ? datos.temporal.toUpperCase() : '';
     const key = (Object.keys(empresas) as Array<keyof typeof empresas>).find(key => temporalValue.startsWith(key)) || 'DEFAULT';
     const empresaInfo = empresas[key];
 
-    let imgElement: HTMLImageElement | null = null;
-    try {
-      const logoUrl = (key === 'APOYO') ? 'logos/Logo_AL.png' : 'logos/Logo_TA.png';
-      imgElement = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => reject();
-        img.src = logoUrl;
-      });
-    } catch (e) {
-      console.warn("No se pudo cargar el logo", e);
-    }
+    const logoUrl = (key === 'APOYO') ? 'logos/Logo_AL.png' : 'logos/Logo_TA.png';
+    const imgElement: HTMLImageElement | null = await this.loadLogoCached(logoUrl);
 
-    // Title and header
-    y += 2;
-    docPdf.setDrawColor(0);
-    docPdf.line(margin, y, pageWidth - margin, y);
-    y += lineHeight - 3;
-    y += lineHeight;
+    // ===================== DISEÑO EMPRESARIAL =====================
+    // Paleta de marca + helpers de color. Todo (bandas, filetes, cajas,
+    // tipografía Times/Helvetica) es nativo de jsPDF, así que sale idéntico.
+    const INK: [number, number, number] = [33, 38, 60];
+    const INK2: [number, number, number] = [44, 53, 80];
+    // Acento corporativo por empresa:
+    //   Apoyo Laboral TS  -> azul   |  Comercializadora TS -> azul
+    //   Tu Alianza (y DEFAULT, que es Tu Alianza) -> verde
+    const ACCENT_AZUL: [number, number, number] = [21, 110, 165];
+    const ACCENT_VERDE: [number, number, number] = [124, 179, 26];
+    const ACCENT: [number, number, number] =
+      (key === 'TU' || key === 'DEFAULT') ? ACCENT_VERDE : ACCENT_AZUL;
+    const BODYC: [number, number, number] = [49, 58, 77];
+    const MUTED: [number, number, number] = [107, 114, 128];
+    const HAIR: [number, number, number] = [210, 216, 226];
+    const HAIRS: [number, number, number] = [232, 236, 242];
+    const BOXBG: [number, number, number] = [246, 248, 251];
+    const setTxt = (c: [number, number, number]) => docPdf.setTextColor(c[0], c[1], c[2]);
+    const setDrw = (c: [number, number, number]) => docPdf.setDrawColor(c[0], c[1], c[2]);
+    const setFil = (c: [number, number, number]) => docPdf.setFillColor(c[0], c[1], c[2]);
+    const MR = pageWidth - margin;
 
+    const valFormaPago = (formaPago && formaPago !== 'N/A') ? String(formaPago) : '—';
+    const valCelular = (celular && celular !== 'N/A') ? String(celular) : '—';
+
+    // Monto en formato moneda + su equivalente EN LETRAS.
+    // OJO: antes las letras salían de `parseInt(nuevovalor)`, y `nuevovalor`
+    // viene formateado con separador de miles ("50.000"), así que parseInt daba
+    // 50 → la cifra decía "$50.000" pero las letras "CINCUENTA PESOS". En un
+    // documento legal la cifra y las letras DEBEN coincidir: derivamos ambas del
+    // mismo número (quitando cualquier separador), usando nuevovalor solo como
+    // respaldo si el monto numérico no viniera utilizable.
+    const soloDigitos = (v: any) => Number(String(v ?? '').replace(/[^\d]/g, ''));
+    const montoNum = typeof valor === 'number' && Number.isFinite(valor)
+      ? Math.round(valor)
+      : soloDigitos(valor);
+    const baseLetras = montoNum > 0 ? montoNum : soloDigitos(nuevovalor);
+    const montoFmt = Number.isFinite(montoNum) && montoNum > 0
+      ? `$${montoNum.toLocaleString('es-CO', { maximumFractionDigits: 0 })}`
+      : String(valor);
+    const letrasFmt = String(this.NumeroALetras(baseLetras) || '')
+      .replace(/\s+/g, ' ').trim().toUpperCase();
+
+    // Fecha con dos dígitos (dd/mm/aaaa)
+    const hoy = new Date();
+    const fechaFmt = `${String(hoy.getDate()).padStart(2, '0')}/${String(hoy.getMonth() + 1).padStart(2, '0')}/${hoy.getFullYear()}`;
+
+    // ---- Cabecera: logo + placa de título ----
     if (imgElement) {
-      docPdf.addImage(imgElement, 'PNG', margin, y - 8, 30, 12);
+      docPdf.addImage(imgElement, 'PNG', margin, 13, 38, 14);
     } else {
-      docPdf.setFont('Helvetica', 'bold');
-      docPdf.setFontSize(14);
-      docPdf.text(empresaInfo.nombre, margin, y);
+      setTxt(INK); docPdf.setFont('times', 'bold'); docPdf.setFontSize(15);
+      docPdf.text(empresaInfo.nombre, margin, 22);
     }
+    setTxt(MUTED); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(7);
+    docPdf.text('DOCUMENTO OFICIAL', MR, 15, { align: 'right', charSpace: 0.7 });
+    setTxt(INK); docPdf.setFont('times', 'bold'); docPdf.setFontSize(18);
+    docPdf.text('AUTORIZACIÓN DE LIBRANZA', MR, 22.5, { align: 'right' });
+    setTxt(INK2); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(8.5);
+    docPdf.text(`${empresaInfo.nombre}  ·  ${empresaInfo.nit}`, MR, 28, { align: 'right' });
+    setTxt(MUTED); docPdf.setFont('helvetica', 'normal'); docPdf.setFontSize(8);
+    docPdf.text(empresaInfo.direccion, MR, 32, { align: 'right' });
+    setDrw(INK); docPdf.setLineWidth(0.6); docPdf.line(margin, 35, MR, 35);
+    setDrw(ACCENT); docPdf.setLineWidth(0.8); docPdf.line(margin, 36.4, margin + 42, 36.4);
 
-    // Right-aligned header info
-    docPdf.setFontSize(8);
-    docPdf.setFont('Helvetica', 'normal');
-    docPdf.text('AUTORIZACION DE LIBRANZA', pageWidth / 2 + 10, y - 4);
-    docPdf.text(empresaInfo.nit, pageWidth / 2 + 10, y);
-    docPdf.text(empresaInfo.direccion, pageWidth / 2 + 10, y + 4);
+    // ---- Tira de metadatos ----
+    const mY = 40, mH = 10.5, cW = usableWidth / 3;
+    setFil(BOXBG); setDrw(HAIR); docPdf.setLineWidth(0.2);
+    docPdf.roundedRect(margin, mY, usableWidth, mH, 1.6, 1.6, 'FD');
+    setDrw(HAIRS);
+    docPdf.line(margin + cW, mY + 2, margin + cW, mY + mH - 2);
+    docPdf.line(margin + 2 * cW, mY + 2, margin + 2 * cW, mY + mH - 2);
+    const metaCell = (i: number, lbl: string, val: string) => {
+      const cx = margin + cW * i + 3.5;
+      setTxt(MUTED); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(6.3);
+      docPdf.text(lbl, cx, mY + 4, { charSpace: 0.35 });
+      setTxt(INK); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(9.5);
+      docPdf.text(val, cx, mY + 8.4);
+    };
+    metaCell(0, 'N.º DE AUTORIZACIÓN', codigoOH || '—');
+    metaCell(1, 'FECHA DE SOLICITUD', fechaFmt);
+    metaCell(2, 'ASUNTO', 'Crédito (préstamo)');
 
-    y += 8;
-    docPdf.line(margin, y, pageWidth - margin, y);
-    y += 1;
-    docPdf.line(margin, y, pageWidth - margin, y);
+    // ---- Cuerpo legal (justificado) ----
+    let by = mY + mH + 6.5;
+    const bodyText = `Yo, ${datos.nombre || ''}, mayor de edad, identificado con la cédula de ciudadanía No. ${docNumero}, autorizo expresa e irrevocablemente para que del sueldo, salario, prestaciones sociales o de cualquier suma de la que sea acreedor, me sean descontados la cantidad de ${montoFmt} (${letrasFmt}) por concepto de ${concepto}, en ${cuotas} cuota(s) quincenal del crédito del que soy deudor ante ${empresaInfo.nombre}, aún en el evento de encontrarme disfrutando de mis licencias o incapacidades.`;
+    setTxt(BODYC); docPdf.setFont('helvetica', 'normal'); docPdf.setFontSize(8.6);
+    docPdf.setLineHeightFactor(1.5);
+    docPdf.text(bodyText, margin, by, { maxWidth: usableWidth, align: 'justify' });
+    const bodyLines: string[] = docPdf.splitTextToSize(bodyText, usableWidth);
+    by += bodyLines.length * (8.6 * 1.5 * 0.352778);
+    docPdf.setLineHeightFactor(1.15);
 
-    y += lineHeight + 2;
+    // Cordialmente,
+    setTxt(BODYC); docPdf.setFont('helvetica', 'normal'); docPdf.setFontSize(8.6);
+    docPdf.text('Cordialmente,', margin, by + 2);
 
-    // Body
-    docPdf.setFontSize(8);
-    docPdf.text('Fecha de Solicitud: ' + new Date().toLocaleDateString(), margin, y);
-    y += lineHeight;
-    docPdf.setFont('Helvetica', 'bold');
-    docPdf.text('ASUNTO: CREDITO (PRESTAMO)', margin, y);
-    y += lineHeight - 2;
-    docPdf.setFont('Helvetica', 'normal');
+    // ---- Rejilla de datos ----
+    const gY = by + 6, gH = 11.5, gW = usableWidth / 4;
+    setDrw(HAIR); docPdf.setLineWidth(0.2);
+    docPdf.roundedRect(margin, gY, usableWidth, gH, 1.6, 1.6, 'S');
+    setDrw(HAIRS);
+    for (let i = 1; i < 4; i++) docPdf.line(margin + gW * i, gY + 2, margin + gW * i, gY + gH - 2);
+    const ingresoFmt = datos.ingreso ? String(datos.ingreso).split(' ')[0] : 'No registrado';
+    const gCell = (i: number, lbl: string, val: string) => {
+      const cx = margin + gW * i + 3;
+      setTxt(MUTED); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(6);
+      docPdf.text(lbl, cx, gY + 4.2, { charSpace: 0.3 });
+      setTxt(INK); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(9);
+      docPdf.text(val, cx, gY + 8.7);
+    };
+    gCell(0, 'FECHA DE INGRESO', ingresoFmt);
+    gCell(1, 'CENTRO DE COSTO', datos.finca || 'No registrado');
+    gCell(2, 'FORMA DE PAGO', valFormaPago);
+    gCell(3, 'TELÉFONO', valCelular);
 
-    const bodyText = `Yo, ${datos.nombre || ''}, mayor de edad, identificado con la cédula de ciudadanía No. ${docNumero}, autorizo expresa e irrevocablemente para que del sueldo, salario, prestaciones sociales o de cualquier suma de la que sea acreedor; me sean descontados la cantidad de ${valor} (${this.NumeroALetras(parseInt(nuevovalor))}) por concepto de ${concepto}, en ${cuotas} cuota(s) quincenal del crédito del que soy deudor ante ${empresaInfo.nombre}, aún en el evento de encontrarme disfrutando de mis licencias o incapacidades.`;
-    const lines = docPdf.splitTextToSize(bodyText, usableWidth);
-    lines.forEach((line: string | string[]) => {
-      docPdf.text(line, margin, y);
-      y += lineHeight * 0.75;
-    });
+    // ---- Firma + huella ----
+    const sY = gY + gH + 5;
+    const fpW = 21, fpH = 20, fpX = MR - fpW, fpY = sY + 1;
+    setTxt(INK); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(6.5);
+    docPdf.text('HUELLA ÍNDICE', fpX + fpW / 2, sY - 1, { align: 'center', charSpace: 0.3 });
+    setDrw(INK); docPdf.setLineWidth(0.5);
+    docPdf.roundedRect(fpX, fpY, fpW, fpH, 1.2, 1.2, 'S');
+    setTxt(MUTED); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(6.8);
+    docPdf.text('FIRMA DE AUTORIZACIÓN', margin, sY + 1, { charSpace: 0.5 });
+    const sigY = sY + 11;
+    setDrw(INK); docPdf.setLineWidth(0.4); docPdf.line(margin, sigY, margin + 72, sigY);
+    setTxt(INK); docPdf.setFont('helvetica', 'bold'); docPdf.setFontSize(9.5);
+    docPdf.text(datos.nombre || '', margin, sigY + 4.5);
+    setTxt(MUTED); docPdf.setFont('helvetica', 'normal'); docPdf.setFontSize(8);
+    docPdf.text(`C.C. ${docNumero}${valCelular !== '—' ? '   ·   Tel. ' + valCelular : ''}`, margin, sigY + 8.8);
+    const kv = (label: string, value: string, yy: number) => {
+      setTxt(MUTED); docPdf.setFont('helvetica', 'normal'); docPdf.setFontSize(7.5);
+      docPdf.text(label, margin, yy);
+      const lw = docPdf.getTextWidth(label);
+      setTxt(INK2); docPdf.setFont('helvetica', 'bold');
+      docPdf.text(value, margin + lw, yy);
+    };
+    kv('Código de autorización nómina: ', codigoOH || '—', sigY + 13.5);
+    kv('Responsable administrativo: ', nombre || '', sigY + 17.5);
 
-    y += 4;
-
-    const ingresoFmt = datos.ingreso ? datos.ingreso.split(' ')[0] : 'No registrado';
-    docPdf.text('Fecha de ingreso: ' + ingresoFmt, margin, y);
-    docPdf.text('Centro de Costo: ' + (datos.finca || 'No registrado'), pageWidth / 2 + margin, y);
-
-    const valFormaPago = (formaPago && formaPago !== 'N/A') ? formaPago : '';
-    const valCelular = (celular && celular !== 'N/A') ? celular : '';
-
-    y += lineHeight * 0.5;
-    docPdf.text('Forma de pago: ' + valFormaPago, margin, y);
-    docPdf.text('Teléfono: ' + valCelular, pageWidth / 2 + margin, y);
-
-    y += lineHeight;
-
-    docPdf.setFont('Helvetica', 'bold');
-    docPdf.text('Cordialmente,', margin, y);
-    y += lineHeight;
-    docPdf.setFont('Helvetica', 'normal');
-
-    // Almacenamos Y para que la firma y el cuadro se alineen bien
-    const startYFirma = y;
-
-    docPdf.text('Firma de Autorización', margin, y);
-    y += lineHeight * 0.5;
-    docPdf.text('C.C. ' + docNumero, margin, y);
-    y += lineHeight * 0.5;
-
-    docPdf.text('Código de autorización nómina: ' + codigoOH, margin, y);
-    y += lineHeight * 0.5;
-    docPdf.text('Responsable Administrativo: ' + nombre, margin, y);
-
-    // Caja Huella Dactilar
-    // la posicionamos a la derecha pero alineada con la coordenada Y de firma
-    docPdf.rect(pageWidth - margin - 25, startYFirma, 20, 25);
-    docPdf.setFont('Helvetica', 'bold');
-    docPdf.setFontSize(7);
-    docPdf.text('Huella Índice', pageWidth - margin - 25 + 2, startYFirma + 28);
-
-    y += lineHeight * 2.5;
-
-    // Línea de firma
-    docPdf.setDrawColor(0);
-    docPdf.line(margin, y - 4, margin + 60, y - 4);
-    docPdf.text(datos.nombre || '', margin, y);
-
-    docPdf.save(`PrestamoDescontar_${datos.nombre || 'Desconocido'}_${codigoOH}.pdf`);
+    docPdf.save(`Libranza_${(datos.nombre || 'Empleado').replace(/\s+/g, '_')}_${codigoOH}.pdf`);
   }
 
   Unidades(num: number): string {

@@ -1,6 +1,35 @@
+<!-- Mobile bottom nav -->
+<app-matder-mobile-nav></app-matder-mobile-nav>
+
 @if (loading()) {
   <div class="center"><mat-spinner diameter="48"></mat-spinner></div>
 } @else {
+
+  <!-- Accedido recientemente -->
+  @if (recentItems().length > 0) {
+    <section class="recientes-section">
+      <div class="recientes-header">
+        <mat-icon>history</mat-icon>
+        <span>Accedido recientemente</span>
+      </div>
+      <div class="recientes-track">
+        @for (item of recentItems(); track item.id + item.type) {
+          <button class="recent-chip" (click)="goRecent(item)"
+                  [style.border-left-color]="item.accent || '#1976d2'">
+            <mat-icon class="recent-chip-icon">{{ recentIcon(item) }}</mat-icon>
+            <div class="recent-chip-text">
+              <span class="recent-chip-name">{{ item.name }}</span>
+              @if (item.subtitle) {
+                <span class="recent-chip-sub">{{ item.subtitle }}</span>
+              }
+            </div>
+            <span class="recent-chip-age">{{ timeAgo(item.visitedAt) }}</span>
+          </button>
+        }
+      </div>
+    </section>
+  }
+
   <!-- Hero -->
   <header class="hero">
     <div class="hero-copy">

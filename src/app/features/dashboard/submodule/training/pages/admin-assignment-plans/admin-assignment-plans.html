@@ -1,0 +1,424 @@
+<section class="pantalla">
+
+  <!-- ══ Listado ══════════════════════════════════════════════════════════ -->
+  @if (!planActivo()) {
+    <header class="cabecera">
+      <div>
+        <h1>Planes de asignación</h1>
+        <p class="subtitulo">
+          Quién recibe qué curso y cuándo. Se define aquí, no en el código: un plan describe una
+          audiencia (por cargo, sede, antigüedad…), el contenido que le toca y el momento en que
+          se evalúa.
+        </p>
+      </div>
+      <button type="button" class="btn-primario" (click)="abrirNuevo()">
+        <mat-icon>add</mat-icon> Nuevo plan
+      </button>
+    </header>
+
+    @if (formPlan(); as f) {
+      <div class="panel">
+        <h2>{{ f.id ? 'Editar plan' : 'Nuevo plan' }}</h2>
+        <div class="campos">
+          <label>
+            <span>Nombre *</span>
+            <input type="text" [(ngModel)]="f.nombre" placeholder="Ej: Inducción SG-SST · operarios" />
+          </label>
+          <label>
+            <span>Código</span>
+            <input type="text" [(ngModel)]="f.codigo" placeholder="Opcional, para referirse a él" />
+          </label>
+          <label>
+            <span>Descripción</span>
+            <input type="text" [(ngModel)]="f.descripcion" placeholder="Qué resuelve este plan" />
+          </label>
+          <label>
+            <span>Vigente desde</span>
+            <input type="date" [(ngModel)]="f.vigente_desde" />
+          </label>
+          <label>
+            <span>Vigente hasta</span>
+            <input type="date" [(ngModel)]="f.vigente_hasta" />
+            <small>Vacío = sin fecha de fin.</small>
+          </label>
+        </div>
+        <div class="acciones-panel">
+          <button type="button" class="btn-secundario" (click)="cerrarForm()">Cancelar</button>
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarPlan()">
+            Guardar
+          </button>
+        </div>
+      </div>
+    }
+
+    @if (cargando()) {
+      <p class="cargando">Cargando planes…</p>
+    } @else if (error()) {
+      <div class="aviso-error">
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ error() }}</span>
+        <button type="button" class="btn-secundario pequeno" (click)="cargar()">Reintentar</button>
+      </div>
+    } @else if (!planes().length) {
+      <div class="vacio">
+        <mat-icon>rule</mat-icon>
+        <p>Todavía no hay ningún plan. El primero que crees decidirá a quién le llega formación sola.</p>
+      </div>
+    } @else {
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Plan</th>
+            <th>Audiencia</th>
+            <th>Contenido</th>
+            <th>Cuándo</th>
+            <th>Última corrida</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of planes(); track p.id) {
+            <tr>
+              <td>
+                <button type="button" class="enlace" (click)="abrirPlan(p)">{{ p.nombre }}</button>
+                @if (p.codigo) { <div class="mono">{{ p.codigo }}</div> }
+              </td>
+              <td>{{ p.criterios }} {{ p.criterios === 1 ? 'criterio' : 'criterios' }}</td>
+              <td>{{ p.items }} {{ p.items === 1 ? 'curso' : 'cursos' }}</td>
+              <td>
+                @if (p.disparadores?.length) {
+                  @for (d of p.disparadores; track d) { <span class="chip chip-curso">{{ d }}</span> }
+                } @else { <span class="apagado">Solo manual</span> }
+              </td>
+              <td>
+                @if (p.ultima_corrida; as c) {
+                  {{ c.modo === 'SIMULACION' ? 'Simulación' : 'Ejecución' }} ·
+                  {{ c.coincidencias }}/{{ c.evaluadas }}
+                  <div class="mono">{{ fecha(c.terminado_at || c.iniciado_at) }}</div>
+                } @else { <span class="apagado">Nunca se ha corrido</span> }
+              </td>
+              <td>
+                <span class="chip" [class.chip-abierto]="p.activo" [class.chip-cerrado]="!p.activo">
+                  {{ p.activo ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="acciones-fila">
+                <button type="button" class="btn-icono" title="Editar" (click)="editar(p)">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button type="button" class="btn-icono peligro" title="Borrar" (click)="eliminar(p)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  }
+
+  <!-- ══ Detalle del plan ═════════════════════════════════════════════════ -->
+  @if (planActivo(); as p) {
+    <header class="cabecera">
+      <div class="titulo-con-volver">
+        <button type="button" class="btn-icono" (click)="volver()" title="Volver">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <div>
+          <h1>{{ p.nombre }}</h1>
+          <p class="subtitulo">{{ p.descripcion || 'Sin descripción.' }}</p>
+        </div>
+      </div>
+      <div class="acciones-estado">
+        <span class="chip" [class.chip-abierto]="p.activo" [class.chip-cerrado]="!p.activo">
+          {{ p.activo ? 'Activo' : 'Inactivo' }}
+        </span>
+        <button type="button" class="btn-secundario pequeno" [disabled]="ocupado()"
+                (click)="simular()">
+          <mat-icon>science</mat-icon> Simular
+        </button>
+        <button type="button" class="btn-secundario pequeno" [disabled]="ocupado() || !p.activo"
+                (click)="ejecutar()">
+          <mat-icon>play_arrow</mat-icon> Ejecutar
+        </button>
+        <button type="button" class="btn-primario pequeno" [disabled]="ocupado()"
+                (click)="cambiarActivo(p)">
+          {{ p.activo ? 'Desactivar' : 'Activar' }}
+        </button>
+      </div>
+    </header>
+
+    @if (sinAudiencia() || sinContenido()) {
+      <div class="aviso">
+        <mat-icon>info</mat-icon>
+        <span>
+          @if (sinContenido()) { Este plan no asigna ningún curso todavía. }
+          @if (sinAudiencia()) { Sin criterios de audiencia, el plan alcanza a <b>toda la plantilla</b>. }
+        </span>
+      </div>
+    }
+
+    <!-- Audiencia -->
+    <div class="panel">
+      <h2>Audiencia — a quién alcanza</h2>
+      <p class="ayuda">
+        Dentro de un mismo grupo los criterios se suman con <b>O</b>: basta con cumplir uno.
+        Entre grupos distintos se exigen con <b>Y</b>: hay que cumplir todos. Así se escribe
+        "operarios <b>O</b> auxiliares, <b>Y</b> de la sede El Rosal".
+      </p>
+
+      @if (!criterios().length) {
+        <p class="apagado">Sin criterios: alcanza a todo el mundo.</p>
+      } @else {
+        @for (g of gruposDeAudiencia(); track g.orden; let primero = $first) {
+          @if (!primero) { <div class="conector">Y</div> }
+          <div class="grupo-criterios">
+            <span class="grupo-etiqueta">Grupo {{ g.orden }}</span>
+            @for (c of g.criterios; track c.id; let ultimo = $last) {
+              <div class="criterio">
+                <span class="mono">
+                  {{ c.tipo }} {{ c.negado ? 'NO ' : '' }}{{ c.operador }} <b>{{ c.valor }}</b>
+                </span>
+                <button type="button" class="btn-icono peligro" title="Quitar"
+                        (click)="quitarCriterio(c)">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              @if (!ultimo) { <span class="o">o</span> }
+            }
+          </div>
+        }
+      }
+
+      @if (nuevoCriterio(); as nc) {
+        <div class="campos alta">
+          <label>
+            <span>Eje</span>
+            <select [ngModel]="nc.tipo" (ngModelChange)="elegirEje($event)">
+              <option value="">Elige el eje</option>
+              @for (e of ejes(); track e.eje) { <option [value]="e.eje">{{ e.eje }}</option> }
+            </select>
+            @if (ejeElegido(); as e) { <small>{{ e.descripcion }} · fuente: {{ e.fuente }}</small> }
+          </label>
+          <label>
+            <span>Operador</span>
+            <select [(ngModel)]="nc.operador">
+              @for (op of operadoresDelEje(); track op) { <option [value]="op">{{ op }}</option> }
+            </select>
+          </label>
+          <label>
+            <span>Valor</span>
+            <input type="text" [(ngModel)]="nc.valor"
+                   placeholder="Ej: AGRICULTOR Y/U OFICIOS VARIOS" />
+          </label>
+          <label>
+            <span>Grupo</span>
+            <input type="number" min="0" [(ngModel)]="nc.grupo_orden" />
+            <small>Mismo número = se suman con O.</small>
+          </label>
+          <label class="check">
+            <input type="checkbox" [(ngModel)]="nc.negado" />
+            <span>Negado (excluye a quien cumpla)</span>
+          </label>
+        </div>
+      }
+      <div class="acciones-panel">
+        <button type="button" class="btn-secundario" [disabled]="ocupado()" (click)="agregarCriterio()">
+          <mat-icon>add</mat-icon> Agregar criterio
+        </button>
+      </div>
+    </div>
+
+    <!-- Contenido -->
+    <div class="panel">
+      <h2>Contenido — qué se le asigna</h2>
+      <p class="ayuda">El plazo son los días que tiene la persona desde que se le matricula.</p>
+
+      @if (!items().length) {
+        <p class="apagado">Todavía no asigna ningún curso.</p>
+      } @else {
+        <table class="tabla">
+          <thead>
+            <tr><th>Orden</th><th>Curso</th><th>Plazo</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (i of items(); track i.id) {
+              <tr>
+                <td>{{ i.orden }}</td>
+                <td>{{ i.curso_nombre || i.programa_nombre || nombreCurso(i.course_id) }}</td>
+                <td>{{ i.plazo_dias ? i.plazo_dias + ' días' : 'Sin plazo' }}</td>
+                <td>
+                  <button type="button" class="btn-icono peligro" title="Quitar"
+                          (click)="quitarItem(i)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      @if (nuevoItem(); as ni) {
+        <div class="campos alta">
+          <label>
+            <span>Curso</span>
+            <select [(ngModel)]="ni.course_id">
+              <option value="">Elige el curso</option>
+              @for (c of cursos(); track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+            </select>
+          </label>
+          <label>
+            <span>Plazo (días)</span>
+            <input type="number" min="1" [(ngModel)]="ni.plazo_dias" />
+          </label>
+          <label>
+            <span>Orden</span>
+            <input type="number" min="0" [(ngModel)]="ni.orden" />
+          </label>
+        </div>
+      }
+      <div class="acciones-panel">
+        <button type="button" class="btn-secundario" [disabled]="ocupado()" (click)="agregarItem()">
+          <mat-icon>add</mat-icon> Agregar curso
+        </button>
+      </div>
+    </div>
+
+    <!-- Disparadores -->
+    <div class="panel">
+      <h2>Disparadores — cuándo se evalúa</h2>
+      <p class="ayuda">
+        Sin disparadores el plan solo corre cuando alguien pulsa Ejecutar. Con
+        <b>AL_INGRESO</b> lo evalúa el reconciliador cada vez que entra gente nueva.
+      </p>
+
+      @if (!disparadores().length) {
+        <p class="apagado">Solo manual.</p>
+      } @else {
+        <table class="tabla">
+          <thead><tr><th>Evento</th><th>Cron</th><th>Código</th><th></th></tr></thead>
+          <tbody>
+            @for (d of disparadores(); track d.id) {
+              <tr>
+                <td>{{ d.evento }}</td>
+                <td class="mono">{{ d.cron || '—' }}</td>
+                <td class="mono">{{ d.event_code || '—' }}</td>
+                <td>
+                  <button type="button" class="btn-icono peligro" title="Quitar"
+                          (click)="quitarDisparador(d)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      @if (nuevoDisparador(); as nd) {
+        <div class="campos alta">
+          <label>
+            <span>Evento</span>
+            <select [ngModel]="nd.evento" (ngModelChange)="elegirEvento($event)">
+              @for (e of eventos; track e) { <option [value]="e">{{ e }}</option> }
+            </select>
+          </label>
+          @if (nd.evento === 'PROGRAMADO') {
+            <label>
+              <span>Cron *</span>
+              <input type="text" [(ngModel)]="nd.cron" placeholder="0 0 6 * * *" />
+              <small>Segundo minuto hora día mes díaSemana.</small>
+            </label>
+          }
+        </div>
+      }
+      <div class="acciones-panel">
+        <button type="button" class="btn-secundario" [disabled]="ocupado()" (click)="agregarDisparador()">
+          <mat-icon>add</mat-icon> Agregar disparador
+        </button>
+      </div>
+    </div>
+
+    <!-- Corridas -->
+    <div class="panel">
+      <h2>Corridas</h2>
+      <p class="ayuda">
+        Simular no matricula a nadie: evalúa y escribe la bitácora. Es lo que hay que revisar
+        antes de activar — sobre todo <b>a quién NO alcanzó</b>.
+      </p>
+
+      @if (!corridas().length) {
+        <p class="apagado">Nunca se ha corrido.</p>
+      } @else {
+        <table class="tabla">
+          <thead>
+            <tr><th>Cuándo</th><th>Modo</th><th>Estado</th><th>Evaluadas</th>
+                <th>Coinciden</th><th>Matrículas</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (c of corridas(); track c.id) {
+              <tr>
+                <td>{{ fecha(c.terminado_at || c.iniciado_at) }}</td>
+                <td>{{ c.modo === 'SIMULACION' ? 'Simulación' : 'Ejecución' }}</td>
+                <td>
+                  <span class="chip" [class.chip-ok]="c.estado === 'OK'"
+                        [class.chip-mal]="c.estado === 'ERROR'">{{ c.estado }}</span>
+                  @if (c.error_mensaje) { <div class="mono">{{ c.error_mensaje }}</div> }
+                </td>
+                <td>{{ c.evaluadas }}</td>
+                <td>{{ c.coincidencias }}</td>
+                <td>{{ c.matriculas }}</td>
+                <td>
+                  <button type="button" class="enlace" (click)="verBitacora(c)">Ver bitácora</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      @if (corridaVista(); as c) {
+        <div class="bitacora">
+          <div class="pestanas">
+            <button type="button" [class.activa]="filtroBitacora() === 'no'"
+                    (click)="cambiarFiltroBitacora('no')">A quién NO alcanzó</button>
+            <button type="button" [class.activa]="filtroBitacora() === 'si'"
+                    (click)="cambiarFiltroBitacora('si')">A quién sí</button>
+            <button type="button" [class.activa]="filtroBitacora() === 'todos'"
+                    (click)="cambiarFiltroBitacora('todos')">Todos</button>
+          </div>
+
+          @if (!bitacora().length) {
+            <p class="apagado">
+              @if (c.evaluadas === 0) {
+                Esta corrida no evaluó a nadie: el módulo aún no tiene personas sincronizadas.
+              } @else {
+                Nadie en esta categoría.
+              }
+            </p>
+          } @else {
+            <table class="tabla">
+              <thead><tr><th>Cédula</th><th>Persona</th><th>¿Coincide?</th><th>Motivo</th></tr></thead>
+              <tbody>
+                @for (l of bitacora(); track l.id) {
+                  <tr>
+                    <td class="mono">{{ l.cedula || '—' }}</td>
+                    <td>{{ l.persona_nombre || '—' }}</td>
+                    <td>
+                      <span class="chip" [class.chip-ok]="l.coincide" [class.chip-mal]="!l.coincide">
+                        {{ l.coincide ? 'Sí' : 'No' }}
+                      </span>
+                    </td>
+                    <td>{{ l.motivo || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      }
+    </div>
+  }
+</section>

@@ -220,6 +220,20 @@
                     </button>
                   }
                 </mat-menu>
+
+                <!-- Generar Prompt para IA -->
+                <button mat-flat-button (click)="generarPrompt()" class="da-btn btn-prompt"
+                  matTooltip="Copia un prompt detallado de este bug para usar con cualquier IA">
+                  <mat-icon>{{ promptGenerado ? 'check_circle' : 'psychology' }}</mat-icon>
+                  {{ promptGenerado ? '¡Copiado!' : 'Generar Prompt' }}
+                </button>
+
+                <!-- Boton placeholder para chat con IA -->
+                <button mat-stroked-button class="da-btn btn-ia"
+                  matTooltip="Proximamente: continuar el analisis en el chat de IA" disabled>
+                  <mat-icon>smart_toy</mat-icon>
+                  Continuar con IA
+                </button>
               </div>
 
               <!-- Descripcion -->
@@ -252,6 +266,44 @@
                     Logs de Consola
                   </h3>
                   <pre class="console-logs">{{ ticketSeleccionado.console_logs }}</pre>
+                </div>
+              }
+
+              <!-- Analisis de IA -->
+              @if (ticketSeleccionado.ai_analisis || ticketSeleccionado.ai_sugerencia) {
+                <div class="detail-section ai-section">
+                  <h3 class="ai-header">
+                    <mat-icon>psychology</mat-icon>
+                    Analisis de IA
+                  </h3>
+                  @if (ticketSeleccionado.ai_analisis) {
+                    <div class="ai-block">
+                      <button class="ai-toggle" (click)="toggleAiAnalisis()" type="button">
+                        <div class="ai-toggle-left">
+                          <mat-icon>analytics</mat-icon>
+                          <span>¿Que ocurrio?</span>
+                        </div>
+                        <mat-icon class="ai-chevron" [class.ai-chevron-open]="aiAnalisisExpandido">expand_more</mat-icon>
+                      </button>
+                      @if (aiAnalisisExpandido) {
+                        <p class="ai-text">{{ ticketSeleccionado.ai_analisis }}</p>
+                      }
+                    </div>
+                  }
+                  @if (ticketSeleccionado.ai_sugerencia) {
+                    <div class="ai-block ai-block-suggestion">
+                      <button class="ai-toggle" (click)="toggleAiSugerencia()" type="button">
+                        <div class="ai-toggle-left">
+                          <mat-icon>lightbulb</mat-icon>
+                          <span>Sugerencia de solucion</span>
+                        </div>
+                        <mat-icon class="ai-chevron" [class.ai-chevron-open]="aiSugerenciaExpandida">expand_more</mat-icon>
+                      </button>
+                      @if (aiSugerenciaExpandida) {
+                        <p class="ai-text">{{ ticketSeleccionado.ai_sugerencia }}</p>
+                      }
+                    </div>
+                  }
                 </div>
               }
             </div>

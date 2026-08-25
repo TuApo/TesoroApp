@@ -1,22 +1,27 @@
 <div class="cajaHeader">
   <div class="cajontitulo">
-    <h1 class="titulo">Bienvenido</h1>
+    <img class="header-brand" src="logos/logo_alianza.svg" alt="Tu Apo" />
   </div>
+  <!-- Menú inteligente: entra a cualquier módulo escribiendo su nombre, o manda
+       la pregunta al asistente de IA. -->
+  <app-smart-menu />
+
   <div class="perfil">
     <div class="opciones">
 
-      <div class="perfil-container">
-        <div class="perfil-info columns">
-          <div class="columna-info auth-info">
-            <h1 class="titulo">Hola, <span class="username">{{ username }}</span></h1>
-            <p class="detalle">Doc: <span>{{ documento }}</span></p>
-          </div>
-          <div class="separador-vertical"></div>
-          <div class="columna-info system-info">
-            <p class="detalle role-sede">{{ role }} / {{ sede }}</p>
-            <p class="detalle version">Versión: {{ appVersion }}</p>
-          </div>
-        </div>
+      <!-- ESFERA DE CARGA
+           Indicador discreto del avance real de las consultas. Aparece sólo mientras
+           algo carga y se va sola al terminar; al pulsarla despliega qué falta. -->
+      <app-loading-orb />
+
+      <!-- CHIP VERSIÓN + PLATAFORMA
+           Visible en TODOS los dispositivos (Web, Android, Escritorio): muestra
+           la versión y en cuál se está ejecutando. -->
+      <div class="version-chip" [attr.data-key]="platform.key"
+        [title]="versionTitle" [attr.aria-label]="versionTitle">
+        <mat-icon class="version-chip__icon">{{ platform.icon }}</mat-icon>
+        <span class="version-chip__text">v{{ appVersion || '—' }}</span>
+        <span class="version-chip__platform">{{ platform.label }}</span>
       </div>
 
       <!-- Indicador de conectividad: online / offline / sincronizando + pendientes.
@@ -39,40 +44,125 @@
         }
       </div>
 
-      <div class="botonConfig">
-        <button mat-icon-button [matMenuTriggerFor]="menu" aria-label="Configuración" class="icono"
-          (menuOpened)="cargarSedes()">
-          <mat-icon>settings</mat-icon>
+      <!-- BOTÓN REPORTAR BUG -->
+      <div class="botonBug">
+        <button mat-icon-button class="icono icon-bug" aria-label="Reportar Bug"
+          matTooltip="Reportar un bug" (click)="abrirReporteBug()">
+          <mat-icon>bug_report</mat-icon>
+        </button>
+      </div>
+
+      <!-- CAMPANA DE NOTIFICACIONES (desplegable estilo Facebook) -->
+      <div class="botonNotif">
+        <button mat-icon-button class="icono notif-bell" aria-label="Notificaciones"
+          [matMenuTriggerFor]="notifMenu" (menuOpened)="loadNotifs()"
+          [matTooltip]="unreadCount > 0 ? unreadCount + ' sin leer' : 'Notificaciones'">
+          <mat-icon>notifications</mat-icon>
+          @if (unreadCount > 0) {
+            <span class="notif-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+          }
         </button>
 
-        <mat-menu #menu="matMenu">
-          <button mat-menu-item (click)="prueba()">
-            <mat-icon>vpn_key</mat-icon>
-            <span class="spanAux">Cambiar Contraseña</span>
-          </button>
-          <button mat-menu-item [matMenuTriggerFor]="sedeMenu">
-            <mat-icon>location_city</mat-icon>
-            <span class="spanAux">Cambiar Sede</span>
-          </button>
-          <button mat-menu-item (click)="abrirReporteBug()">
-            <mat-icon class="icon-bug">bug_report</mat-icon>
-            <span class="spanAux">Reportar Bug</span>
-          </button>
-          <!-- Mostrar la versión de la aplicación -->
-          <button mat-menu-item disabled>
-            <mat-icon>info</mat-icon>
-            <span class="spanAux">Versión: {{appVersion}}</span>
-          </button>
-        </mat-menu>
+        <mat-menu #notifMenu="matMenu" class="notif-menu-panel" xPosition="before">
+          <div class="notif-head" (click)="$event.stopPropagation()">
+            <div class="notif-head-left">
+              <span class="notif-head-title">Notificaciones</span>
+              @if (unreadCount > 0) {
+                <span class="notif-head-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+              }
+            </div>
+            @if (unreadCount > 0) {
+              <button type="button" class="notif-head-action" (click)="markAllNotifs($event)">
+                <mat-icon>done_all</mat-icon> Marcar leídas
+              </button>
+            }
+          </div>
 
-        <mat-menu #sedeMenu="matMenu">
-          @for (sede of sedes; track sede.id) {
-            <button mat-menu-item (click)="onSedeSeleccionada(sede.id)">
-              {{ sede.nombre }}
+          @if (loadingNotifs) {
+            <div class="notif-empty">
+              <mat-icon class="spin">autorenew</mat-icon>
+              <span>Cargando…</span>
+            </div>
+          } @else if (notifications.length === 0) {
+            <div class="notif-empty">
+              <mat-icon>notifications_none</mat-icon>
+              <span>Estás al día</span>
+              <small>No tienes notificaciones nuevas</small>
+            </div>
+          } @else {
+            <div class="notif-list">
+              @for (n of notifications; track n.id) {
+                <button mat-menu-item class="notif-item"
+                  [class.is-unread]="!n.leida" [class.is-urgent]="notifDestacada(n)"
+                  (click)="onNotifClick(n)">
+                  <span class="notif-avatar" [style.background]="n.color">
+                    <mat-icon>{{ n.icono }}</mat-icon>
+                  </span>
+                  <span class="notif-body">
+                    <span class="notif-title">{{ n.titulo }}</span>
+                    @if (n.mensaje) { <span class="notif-msg">{{ n.mensaje }}</span> }
+                    <span class="notif-time">{{ notifTimeAgo(n.creada_en) }}</span>
+                  </span>
+                  @if (!n.leida) { <span class="notif-unread-dot"></span> }
+                </button>
+              }
+            </div>
+            <button mat-menu-item class="notif-seeall" (click)="goToNotifications()">
+              <mat-icon>open_in_new</mat-icon> Ver todas
             </button>
           }
         </mat-menu>
       </div>
+
+      <!-- MENÚ DE PERFIL (avatar arriba a la derecha) -->
+      <div class="botonPerfil">
+        <button mat-icon-button class="perfil-avatar-btn" aria-label="Perfil"
+          [matMenuTriggerFor]="perfilMenu" matTooltip="Mi perfil">
+          @if (fotoPerfil) {
+            <img class="perfil-avatar-img" [src]="fotoPerfil" alt="Foto de perfil" />
+          } @else {
+            <span class="perfil-avatar-fallback">{{ iniciales }}</span>
+          }
+        </button>
+
+        <mat-menu #perfilMenu="matMenu" class="perfil-menu-panel" xPosition="before">
+          <!-- Sin avatar aquí a propósito: el botón que abre este menú YA es la foto, y
+               repetirla justo debajo sólo robaba sitio a las acciones. -->
+          <div class="perfil-menu-head" (click)="$event.stopPropagation()">
+            <div class="perfil-menu-id">
+              <span class="perfil-menu-name">{{ username || 'Usuario' }}</span>
+              @if (role) { <span class="perfil-menu-role">{{ role }}</span> }
+            </div>
+          </div>
+
+          <div class="perfil-menu-meta" (click)="$event.stopPropagation()">
+            @if (documento) {
+              <p><mat-icon>badge</mat-icon> <span>{{ documento }}</span></p>
+            }
+            @if (sede) {
+              <p><mat-icon>location_city</mat-icon> <span>{{ sede }}</span></p>
+            }
+          </div>
+
+          <!-- Acceso rápido al carné: es lo que más se abre desde aquí, va primero. -->
+          <button mat-menu-item class="perfil-menu-carnet" (click)="abrirCarnet()">
+            <mat-icon>badge</mat-icon> Mi carné digital
+          </button>
+          @if (puedeIdentificar) {
+            <button mat-menu-item (click)="irAIdentificar()">
+              <mat-icon>qr_code_scanner</mat-icon> Identificar personal
+            </button>
+          }
+
+          <button mat-menu-item (click)="irAConfiguracion()">
+            <mat-icon>settings</mat-icon> Configuración
+          </button>
+          <button mat-menu-item (click)="irACambiarContrasena()">
+            <mat-icon>vpn_key</mat-icon> Cambiar contraseña
+          </button>
+        </mat-menu>
+      </div>
+
     </div>
   </div>
 </div>

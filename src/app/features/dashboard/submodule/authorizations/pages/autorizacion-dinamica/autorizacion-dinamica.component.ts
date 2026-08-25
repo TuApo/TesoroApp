@@ -1,4 +1,4 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  ChangeDetectorRef, Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import { AutorizacionesService } from '../../services/autorizaciones/autorizaciones.service';
 import Swal from 'sweetalert2';
@@ -38,7 +38,8 @@ export class AutorizacionDinamicaComponent implements OnInit {
     private utilityService: UtilityServiceService,
     private router: Router,
     private route: ActivatedRoute,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
@@ -129,6 +130,7 @@ export class AutorizacionDinamicaComponent implements OnInit {
 
     Swal.fire({
       title: 'Buscando trabajador...',
+      icon: 'info',
       text: 'Por favor, espera mientras se procesa la información.',
       allowOutsideClick: false,
       allowEscapeKey: false,
@@ -178,17 +180,14 @@ export class AutorizacionDinamicaComponent implements OnInit {
           return;
         }
 
-        // Calcular límite disponible para ambos tipos
-        if (this.tipoAutorizacion === 'mercado') {
-          let limiteBase = 350000;
-          const rol = this.user?.rol?.nombre ?? '';
-          if (rol === 'TIENDA' || rol === 'ESPECIAL') limiteBase += 50000;
-          this.limiteDisponible = Math.max(0, limiteBase - this.sumaPrestamos);
-        } else if (this.tipoAutorizacion === 'prestamo') {
-          const saldoActual = Number(this.datosOperario.saldos || 0);
-          const salario = Number(this.datosOperario.salario || 0);
-          this.limiteDisponible = Math.max(0, salario - saldoActual);
-        }
+        // Cupo disponible: usamos el MISMO helper que el enforcement de
+        // verificarCondiciones (mercado por tramos de días + bonos de rol;
+        // préstamo tope 250k − saldo pendiente). Antes el display usaba una
+        // fórmula ad-hoc (mercado base plana 350k; préstamo salario−saldos, con
+        // salario casi siempre en 0) que no coincidía con lo que se valida al
+        // enviar: un empleado nuevo veía "cupo 350.000" y el submit lo rechazaba.
+        this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(
+          this.datosOperario, this.tipoAutorizacion);
       }
 
     } catch (error: any) {
@@ -199,6 +198,13 @@ export class AutorizacionDinamicaComponent implements OnInit {
         Swal.fire('Error de conexión', 'Hubo un problema al buscar el operario.', 'error');
       }
       this.datosOperario = null;
+    } finally {
+      // La app es zoneless y este componente es OnPush: todo lo que hay tras el
+      // `await` corre fuera del listener de plantilla que originó la búsqueda,
+      // así que sin marcar la vista aquí el formulario del empleado no aparece
+      // nunca. Va en el `finally` para cubrir también los `return` tempranos
+      // (inactivo, bloqueado, sin fondos) y la rama de error.
+      this.cdr.markForCheck();
     }
   }
 
@@ -234,9 +240,11 @@ export class AutorizacionDinamicaComponent implements OnInit {
     if (!this.datosOperario) return;
     const doc = this.datosOperario.numero_documento || this.myForm.value.numero_documento;
     this.dialog.open(HistorialDialogComponent, {
-      width: '80vw',
-      maxWidth: '90vw',
-      height: '80vh',
+      // min() en vez de 80vw/80vh fijos: en móvil el diálogo aprovecha la
+      // pantalla y en escritorio no se estira más allá de lo legible.
+      width: 'min(1100px, 96vw)',
+      maxWidth: '96vw',
+      height: 'min(720px, 88vh)',
       panelClass: 'historial-dialog-panel',
       data: { numeroDocumento: doc }
     });
@@ -326,9 +334,25 @@ export class AutorizacionDinamicaComponent implements OnInit {
     }
   }
 
-  private escapeHtml(value: string): string {
-    const div = document.createElement('div');
-    div.textContent = value ?? '';
-    return div.innerHTML;
+  /**
+   * Vuelve al paso de búsqueda. No basta con `myForm.reset()`: en mercado el
+   * concepto se pre-selecciona en ngOnInit y un reset lo dejaría vacío y en
+   * estado inválido, con el select mostrando la única opción posible sin elegir.
+   */
+  cancelar() {
+    this.datosOperario = null;
+    this.myForm.reset({
+      numero_documento: '',
+      tipo: this.tipoAutorizacion === 'mercado' ? 'Mercado' : '',
+      valor: '',
+      cuotas: '',
+      formaPago: '',
+      celular: ''
+    });
+    this.nombreOperario = '';
+    this.sumaPrestamos = 0;
+    this.limiteDisponible = 0;
+    this.showValor = this.tipoAutorizacion === 'mercado';
+    this.showCuotas = this.tipoAutorizacion === 'mercado';
   }
 }

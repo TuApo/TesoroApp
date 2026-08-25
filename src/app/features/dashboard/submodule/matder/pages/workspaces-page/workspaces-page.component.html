@@ -1,3 +1,4 @@
+<app-matder-mobile-nav></app-matder-mobile-nav>
 <!-- Workspaces list mode -->
 @if (!detailMode) {
   <header class="hero">
@@ -64,16 +65,18 @@
                       [matTooltip]="ws.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'">
                 <mat-icon>{{ ws.is_favorite ? 'star' : 'star_border' }}</mat-icon>
               </button>
-              <mat-chip-set>
-                <mat-chip [class]="'role-' + (ws.current_user_role ?? 'VIEWER').toLowerCase()">{{ roleLabel(ws.current_user_role) }}</mat-chip>
-              </mat-chip-set>
+              @if (ws.current_user_role) {
+                <mat-chip-set>
+                  <mat-chip [class]="'role-' + ws.current_user_role.toLowerCase()">{{ roleLabel(ws.current_user_role) }}</mat-chip>
+                </mat-chip-set>
+              }
             </div>
           </div>
           <p class="ws-desc">{{ ws.description || 'Sin descripcion' }}</p>
           <div class="ws-meta">
-            <span><mat-icon>person</mat-icon> {{ ws.owner_name || ws.owner }}</span>
-            <span><mat-icon>people</mat-icon> {{ ws.member_count }}</span>
-            <span><mat-icon>dashboard_customize</mat-icon> {{ ws.board_count }}</span>
+            <span [matTooltip]="'Propietario'"><mat-icon>person</mat-icon> {{ ownerName(ws) }}</span>
+            <span [matTooltip]="ws.member_count + ' miembro(s)'"><mat-icon>people</mat-icon> {{ ws.member_count }}</span>
+            <span [matTooltip]="ws.board_count + ' tablero(s)'"><mat-icon>dashboard_customize</mat-icon> {{ ws.board_count }}</span>
           </div>
           <div class="ws-dates">
             <span>Creado: {{ ws.created_at | date:'d MMM, y' }}</span>
@@ -110,10 +113,12 @@
       </div>
     </div>
     <div class="detail-info">
-      <div class="detail-stat"><mat-icon>person</mat-icon><span>Owner: {{ selectedWs.owner_name || selectedWs.owner }}</span></div>
+      <div class="detail-stat"><mat-icon>person</mat-icon><span>Propietario: {{ ownerName(selectedWs) }}</span></div>
       <div class="detail-stat"><mat-icon>people</mat-icon><span>{{ selectedWs.member_count }} miembros</span></div>
       <div class="detail-stat"><mat-icon>dashboard_customize</mat-icon><span>{{ selectedWs.board_count }} tableros</span></div>
-      <div class="detail-stat"><mat-icon>badge</mat-icon><span>Tu rol: {{ roleLabel(selectedWs.current_user_role) }}</span></div>
+      @if (selectedWs.current_user_role) {
+        <div class="detail-stat"><mat-icon>badge</mat-icon><span>Tu rol: {{ roleLabel(selectedWs.current_user_role) }}</span></div>
+      }
     </div>
   </header>
 
@@ -125,12 +130,12 @@
         <mat-form-field appearance="outline" class="fw">
           <mat-label>Buscar miembro en la compañia (Nombre, Doc o Correo)</mat-label>
           <input matInput [(ngModel)]="newMemberUser" [matAutocomplete]="auto" (input)="filterUsers()" (focus)="filterUsers()">
-          <mat-autocomplete #auto="matAutocomplete">
+          <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayMember">
             @for (u of filteredCompanyUsers; track u.id) {
-              <mat-option [value]="u.identificacion || u.correo_electronico">
+              <mat-option [value]="u.id">
                 <div style="display: flex; flex-direction: column; line-height: 1.3; padding: 4px 0;">
-                  <span style="font-weight: 500;">{{ u.nombres }} {{ u.apellidos }}</span>
-                  <span style="font-size: 0.8rem; color: gray;">{{ u.correo_electronico }} | Doc: {{ u.identificacion }}</span>
+                  <span style="font-weight: 500;">{{ u.datos_basicos?.nombres }} {{ u.datos_basicos?.apellidos }}</span>
+                  <span style="font-size: 0.8rem; color: gray;">{{ u.correo_electronico }} | Doc: {{ u.numero_de_documento }}</span>
                 </div>
               </mat-option>
             }
@@ -155,6 +160,15 @@
   <!-- Members table -->
   <section class="members-section">
     <h3>Miembros del workspace</h3>
+
+    <!-- Leyenda de roles / permisos -->
+    <div class="roles-legend">
+      <div class="role-legend-item"><mat-icon>workspace_premium</mat-icon><div><strong>Owner</strong><span>{{ rolePerms('OWNER') }}</span></div></div>
+      <div class="role-legend-item"><mat-icon>manage_accounts</mat-icon><div><strong>Manager</strong><span>{{ rolePerms('MANAGER') }}</span></div></div>
+      <div class="role-legend-item"><mat-icon>edit</mat-icon><div><strong>Miembro</strong><span>{{ rolePerms('MEMBER') }}</span></div></div>
+      <div class="role-legend-item"><mat-icon>visibility</mat-icon><div><strong>Viewer</strong><span>{{ rolePerms('VIEWER') }}</span></div></div>
+    </div>
+
     @if (membersLoading()) {
       <div class="center"><mat-spinner diameter="36"></mat-spinner></div>
     } @else if (members().length === 0) {
@@ -163,30 +177,40 @@
       <div class="members-grid">
         @for (m of members(); track m.id) {
           <div class="member-card" [class.inactive]="!m.active">
-            <div class="member-avatar">{{ (m.full_name || m.username || 'U').slice(0, 2).toUpperCase() }}</div>
+            <div class="member-avatar">{{ memberName(m).slice(0, 2).toUpperCase() }}</div>
             <div class="member-info">
-              <strong>{{ m.full_name || m.username || 'Usuario' }}</strong>
+              <strong>{{ memberName(m) }}</strong>
               @if (m.username) { <span class="member-username">{{ m.username }}</span> }
               <div class="member-meta">
                 <mat-chip-set>
-                  <mat-chip [class]="'role-' + m.role.toLowerCase()">{{ roleLabel(m.role) }}</mat-chip>
+                  <mat-chip [class]="'role-' + m.role.toLowerCase()">
+                    <mat-icon class="role-chip-icon">{{ roleIcon(m.role) }}</mat-icon> {{ roleLabel(m.role) }}
+                  </mat-chip>
                 </mat-chip-set>
                 @if (!m.active) { <span class="inactive-badge">Inactivo</span> }
               </div>
+              <p class="member-perms">{{ rolePerms(m.role) }}</p>
             </div>
             @if (selectedWs.can_manage_members) {
               <div class="member-actions">
-                <mat-form-field appearance="outline" class="role-select">
-                  <mat-select [value]="m.role" (selectionChange)="updateMemberRole(m, $event.value)">
-                    <mat-option value="MEMBER">Miembro</mat-option>
-                    <mat-option value="MANAGER">Manager</mat-option>
-                    <mat-option value="VIEWER">Viewer</mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <button mat-icon-button [color]="m.active ? 'warn' : 'primary'"
-                        (click)="toggleMemberActive(m)" [matTooltip]="m.active ? 'Desactivar' : 'Activar'">
-                  <mat-icon>{{ m.active ? 'person_off' : 'person' }}</mat-icon>
-                </button>
+                @if (m.role === 'OWNER') {
+                  <span class="owner-lock" matTooltip="El propietario del workspace no se puede cambiar ni desactivar">
+                    <mat-icon>lock</mat-icon> Propietario
+                  </span>
+                } @else {
+                  <mat-form-field appearance="outline" class="role-select">
+                    <mat-label>Rol</mat-label>
+                    <mat-select [value]="m.role" (selectionChange)="updateMemberRole(m, $event.value)">
+                      <mat-option value="MANAGER">Manager</mat-option>
+                      <mat-option value="MEMBER">Miembro</mat-option>
+                      <mat-option value="VIEWER">Viewer</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                  <button mat-icon-button [color]="m.active ? 'warn' : 'primary'"
+                          (click)="toggleMemberActive(m)" [matTooltip]="m.active ? 'Desactivar miembro' : 'Activar miembro'">
+                    <mat-icon>{{ m.active ? 'person_off' : 'person' }}</mat-icon>
+                  </button>
+                }
               </div>
             }
           </div>

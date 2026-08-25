@@ -26,9 +26,9 @@ export class UploadTreasuryComponent {
   busy = false;
 
   cards = [
-    { id: 'insert' as const, title: 'Insertar empleados (masivo)', imageUrl: 'icons/cards/excel.png', value: 0 },
-    { id: 'saldos' as const, title: 'Actualizar saldos (masivo)', imageUrl: 'icons/cards/excel.png', value: 0 },
-    { id: 'eliminar' as const, title: 'Actualizar Estados (masivo)', imageUrl: 'icons/cards/excel.png', value: 0 }
+    { id: 'insert' as const, title: 'Insertar empleados (masivo)', imageUrl: 'icons/cards/excel.png' },
+    { id: 'saldos' as const, title: 'Actualizar saldos (masivo)', imageUrl: 'icons/cards/excel.png' },
+    { id: 'eliminar' as const, title: 'Actualizar estados (masivo)', imageUrl: 'icons/cards/excel.png' }
   ];
 
   /**
@@ -263,45 +263,32 @@ export class UploadTreasuryComponent {
     Swal.fire({ icon: 'info', title: 'Validando formato...', html: 'Revisando reglas de Excel (Cédula e Ingreso)...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const valRes = await this.validateInsertExcel(file);
     if (valRes.errors.length > 0) {
-      this.busy = false;
-
-      let blockUpload = false;
       if (valRes.totalValidRows === 0) {
-        blockUpload = true;
-      } else {
-        const res = await Swal.fire({
-          icon: 'warning',
-          title: 'Se encontraron errores',
-          html: `<p>Hay <b>${valRes.errors.length} filas</b> con errores previstos (ej. Ingreso vacío).</p>
-                 <p>Las filas inválidas se descartarán y se importarán las otras. ¿Deseas descargar un Excel con los motivos y continuar subiendo las <b>${valRes.totalValidRows} correctas</b>?</p>`,
-          showCancelButton: true,
-          showDenyButton: true,
-          confirmButtonText: 'Descargar y continuar',
-          denyButtonText: 'Continuar sin descargar',
-          cancelButtonText: 'Cancelar',
-          width: '600px'
-        });
-
-        if (res.isDismissed || res.isDenied === undefined) {
-          blockUpload = true;
-        }
-        if (res.isConfirmed) {
-          const errorSheetData = [valRes.headersRow, ...valRes.errorRows];
-          const ws = XLSX.utils.aoa_to_sheet(errorSheetData);
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'Errores_Importacion');
-          XLSX.writeFile(wb, 'empleados_errores.xlsx');
-        }
-        if (res.isDenied || res.isConfirmed) {
-          blockUpload = false;
-        }
+        Swal.fire('Error', 'El archivo no contiene filas válidas.', 'error');
+        return;
       }
 
-      if (blockUpload) {
-        if (valRes.totalValidRows === 0) {
-          Swal.fire('Error', 'El archivo no contiene filas válidas.', 'error');
-        }
-        return;
+      const decision = await Swal.fire({
+        icon: 'warning',
+        title: 'Se encontraron errores',
+        html: `<p>Hay <b>${valRes.errors.length} filas</b> con errores previstos (ej. Ingreso vacío).</p>
+               <p>Las filas inválidas se descartarán y se importarán las otras. ¿Deseas descargar un Excel con los motivos y continuar subiendo las <b>${valRes.totalValidRows} correctas</b>?</p>`,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: 'Descargar y continuar',
+        denyButtonText: 'Continuar sin descargar',
+        cancelButtonText: 'Cancelar',
+        width: '600px'
+      });
+
+      if (decision.isDismissed) return;
+
+      if (decision.isConfirmed) {
+        const errorSheetData = [valRes.headersRow, ...valRes.errorRows];
+        const ws = XLSX.utils.aoa_to_sheet(errorSheetData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Errores_Importacion');
+        XLSX.writeFile(wb, 'empleados_errores.xlsx');
       }
     }
 
@@ -369,7 +356,6 @@ export class UploadTreasuryComponent {
       }
     }
 
-    this.bumpCard('saldos');
     this.mostrarResultadoBatch('Saldos actualizados', dataRows.length, updated, errors);
   }
 
@@ -425,7 +411,6 @@ export class UploadTreasuryComponent {
       }
     }
 
-    this.bumpCard('eliminar');
     this.mostrarResultadoBatch('Estados actualizados', cedulas.length, updated, errors);
   }
 
@@ -464,8 +449,6 @@ export class UploadTreasuryComponent {
   }
 
   private showImportResult(res: ExcelImportResponse, kind: 'insert' | 'saldos' | 'eliminar') {
-    this.bumpCard(kind);
-
     const hasErrors = (res.errors_count ?? 0) > 0;
 
     const deactivatedHtml = kind === 'insert'
@@ -510,11 +493,6 @@ export class UploadTreasuryComponent {
       html,
       width: '600px'
     });
-  }
-
-  private bumpCard(id: 'insert' | 'saldos' | 'eliminar') {
-    const card = this.cards.find(c => c.id === id);
-    if (card) card.value = (card.value ?? 0) + 1;
   }
 
 }

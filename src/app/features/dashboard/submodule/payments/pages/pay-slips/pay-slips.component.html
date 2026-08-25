@@ -13,6 +13,32 @@
           <mat-card-subtitle class="subtitulo">Consulte y administre los comprobantes de nómina.</mat-card-subtitle>
         </div>
       </div>
+
+      <button mat-icon-button class="header-menu-btn" [matMenuTriggerFor]="accionesMenu"
+        matTooltip="Más acciones" aria-label="Más acciones">
+        <mat-icon>more_vert</mat-icon>
+      </button>
+      <mat-menu #accionesMenu="matMenu" xPosition="before">
+        @if (puedeGestionarDesprendibles) {
+          <button mat-menu-item (click)="descargarPlantillaDesprendibles()">
+            <mat-icon>download</mat-icon>
+            <span>Descargar plantilla desprendibles</span>
+          </button>
+          <button mat-menu-item (click)="triggerFileInput('desprendibles')">
+            <mat-icon>upload_file</mat-icon>
+            <span>Cargar desprendibles de pago</span>
+          </button>
+          <mat-divider></mat-divider>
+        }
+        <button mat-menu-item (click)="descargarPlantillaCorreos()">
+          <mat-icon>download</mat-icon>
+          <span>Descargar plantilla correos</span>
+        </button>
+        <button mat-menu-item (click)="triggerFileInput('correos')">
+          <mat-icon>mark_email_read</mat-icon>
+          <span>Cambiar masivamente los correos</span>
+        </button>
+      </mat-menu>
     </mat-card-header>
     <mat-card-content class="card-content">
 
@@ -20,38 +46,13 @@
         <div class="buscar">
           <mat-form-field appearance="fill" class="example-full-width">
             <mat-label>Ingrese la cédula</mat-label>
-            <input matInput [(ngModel)]="cedula">
+            <input matInput [(ngModel)]="cedula" (keyup.enter)="buscarDesprendibles(cedula)">
           </mat-form-field>
-          <button mat-flat-button (click)="buscarDesprendibles(cedula)" class="boton btn-managerial">Buscar</button>
+          <button mat-flat-button (click)="buscarDesprendibles(cedula)" class="boton btn-managerial">
+            <mat-icon>search</mat-icon>
+            Buscar
+          </button>
         </div>
-
-        @if (correo == 'nominacentral4@gmail.com' ||
-          correo == 'nomina.rtc@gmail.com' ||
-          correo == 'programador.ts@gmail.com' ||
-          correo == 'nomina.gandes@gmail.com' ||
-          correo == 'nominacentral7@gmail.com' ||
-          correo == 'antcontable4.ts@gmail.com' ||
-          correo == 'nominacentral4@gmail.com' ||
-          correo == 'nominacentral6@gmail.com' ||
-          correo == 'nomina.gandes@gmail.com' ||
-          correo == 'nominacentral9@gmail.com') {
-          <app-info-card title="Descargar plantilla desprendibles" imageUrl="icons/cards/excel.png"
-            (click)="descargarPlantillaDesprendibles()" style="cursor: pointer;">
-          </app-info-card>
-
-          <app-info-card title="Cargar desprendibles de pago" imageUrl="icons/cards/excel.png"
-            (click)="triggerFileInput('desprendibles')" style="cursor: pointer;">
-          </app-info-card>
-        }
-
-
-        <app-info-card title="Descargar plantilla correos" imageUrl="icons/cards/excel.png"
-          (click)="descargarPlantillaCorreos()" style="cursor: pointer;">
-        </app-info-card>
-
-        <app-info-card title="Cambiar masivamente los correos" imageUrl="icons/cards/excel.png"
-          (click)="triggerFileInput('correos')" style="cursor: pointer;">
-        </app-info-card>
       </div>
 
       <div class="tabla">
@@ -59,12 +60,23 @@
           [enableRowClick]="false">
 
           <ng-template #estadoTemplate let-row let-col="col">
-            @if (isValidLink(row[col.name])) {
-              <a [href]="row[col.name]" target="_blank" class="link-style">
+            <!-- Si la quincena ya se migró con la carga por carpeta, manda el
+                 documento interno: está en la plataforma, no depende de que
+                 alguien conserve permisos en Drive. -->
+            @if (documentoInterno(row, col.name); as doc) {
+              <button type="button" class="btn-doc-interno"
+                      (click)="abrirDocumentoInterno(doc)"
+                      [title]="doc.nombre_archivo || 'Documento interno'">
+                Ver documento
+              </button>
+            } @else if (isValidLink(row[col.name])) {
+              <!-- Respaldo del histórico: ~997k filas antiguas solo tienen el
+                   enlace de Drive y no se van a migrar. -->
+              <a [href]="row[col.name]" target="_blank" rel="noopener" class="link-style"
+                 title="Enlace antiguo de Drive (no está en la plataforma)">
                 Ver link
               </a>
-            }
-            @if (!isValidLink(row[col.name])) {
+            } @else {
               <span>
                 {{ row[col.name] || '-' }}
               </span>

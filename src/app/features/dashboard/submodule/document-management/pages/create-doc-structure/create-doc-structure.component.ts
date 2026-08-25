@@ -1,5 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
@@ -23,6 +23,7 @@ export interface DocumentType {
   id: number;
   name: string;
   estado: boolean;
+  parentId?: number | null;
   subtypes?: DocumentType[];
 }
 
@@ -81,6 +82,12 @@ export class CreateDocStructureComponent implements OnInit {
   // Tree View State
   isTreeView: boolean = true;
 
+  // Filtro de la vista de árbol (independiente del explorador)
+  treeSearchQuery: string = '';
+
+  /** Resumen ejecutivo: se calcula una vez por carga, no en cada ciclo de detección. */
+  stats = { total: 0, raices: 0, niveles: 0, inactivos: 0 };
+
   private _transformer = (node: DocumentType, level: number) => {
     return {
       expandable: !!node.subtypes && node.subtypes.length > 0,
@@ -106,7 +113,8 @@ export class CreateDocStructureComponent implements OnInit {
 
   constructor(
     private documentacionService: DocumentacionService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit() {
@@ -116,16 +124,69 @@ export class CreateDocStructureComponent implements OnInit {
   hasChild = (_: number, node: FlatNode) => node.expandable;
 
   loadData() {
-    this.documentacionService.mostrar_jerarquia_gestion_documental().subscribe({
+    // El árbol se construye en el servicio (ver construirArbolTiposDocumentales):
+    // el backend entrega la lista plana con `parent` hacia arriba, sin `subtypes`.
+    this.documentacionService.mostrar_jerarquia_anidada().subscribe({
       next: (data) => {
-        this.allDocuments = data;
-        this.dataSource.data = this.allDocuments; // Update Tree Data
+        this.allDocuments = (data || []) as unknown as DocumentType[];
+        this.computeStats(this.allDocuments);
+        this.applyTreeFilter(); // Alimenta el árbol respetando el filtro activo
         // If we are deep in stack, we need to refresh the current stack node reference to get updated children
         this.refreshStackReferences();
+        // OnPush: la respuesta llega fuera de un evento de plantilla, hay que marcar.
+        this.cdr.markForCheck();
       },
       error: () => Swal.fire('Error', 'No se pudo cargar la estructura.', 'error')
     });
   }
+
+  private computeStats(roots: DocumentType[]) {
+    let total = 0, inactivos = 0, maxLevel = 0;
+    const walk = (nodes: DocumentType[], level: number) => {
+      for (const n of nodes) {
+        total++;
+        if (!n.estado) inactivos++;
+        if (level > maxLevel) maxLevel = level;
+        walk(n.subtypes || [], level + 1);
+      }
+    };
+    walk(roots, 0);
+    this.stats = { total, raices: roots.length, niveles: total ? maxLevel + 1 : 0, inactivos };
+  }
+
+  // --- VISTA DE ÁRBOL: filtro y expansión ---
+
+  /** Filtra el árbol conservando los ancestros de cada coincidencia y expande el resultado. */
+  applyTreeFilter() {
+    const q = this.treeSearchQuery.trim().toLowerCase();
+    if (!q) {
+      this.dataSource.data = this.allDocuments;
+      return;
+    }
+    this.dataSource.data = this.filterTree(this.allDocuments, q);
+    this.treeControl.expandAll(); // Sin esto las coincidencias quedan escondidas bajo padres colapsados
+  }
+
+  private filterTree(nodes: DocumentType[], q: string): DocumentType[] {
+    const result: DocumentType[] = [];
+    for (const node of nodes) {
+      const selfMatches = node.name.toLowerCase().includes(q);
+      const matchingKids = this.filterTree(node.subtypes || [], q);
+      // Si el padre coincide mostramos su contenido completo; si no, solo la rama que lleva al match.
+      if (selfMatches || matchingKids.length) {
+        result.push({ ...node, subtypes: selfMatches ? (node.subtypes || []) : matchingKids });
+      }
+    }
+    return result;
+  }
+
+  clearTreeSearch() {
+    this.treeSearchQuery = '';
+    this.applyTreeFilter();
+  }
+
+  expandAll() { this.treeControl.expandAll(); }
+  collapseAll() { this.treeControl.collapseAll(); }
 
   /** Refreshes objects in stack with fresh data from API to update children lists */
   private refreshStackReferences() {
@@ -217,17 +278,17 @@ export class CreateDocStructureComponent implements OnInit {
 
     // Determines 'parent' id for the NEW node
     let currentParentId: number | null = null;
+    let currentParentName: string | null = null;
 
     if (!isEdit) {
       // We are adding.
       // If parentForNew is passed (e.g. from context menu of a folder to add child without entering), use it.
-      if (parentForNew) {
-        currentParentId = parentForNew.id;
-      } else {
-        // Default to current View context
-        if (this.viewStack.length > 0) {
-          currentParentId = this.viewStack[this.viewStack.length - 1].id;
-        }
+      // Si no, se hereda el contexto del explorador (viewStack).
+      const parentNode = parentForNew
+        ?? (this.viewStack.length > 0 ? this.viewStack[this.viewStack.length - 1] : null);
+      if (parentNode) {
+        currentParentId = parentNode.id;
+        currentParentName = parentNode.name;
       }
     }
 
@@ -241,6 +302,7 @@ export class CreateDocStructureComponent implements OnInit {
       }
       : {
         id: currentParentId,
+        parentName: currentParentName,
         name: '',
         expandable: false,
         estado: true,
@@ -265,14 +327,17 @@ export class CreateDocStructureComponent implements OnInit {
           error: () => Swal.fire('Error', 'No se pudo editar.', 'error')
         });
       } else {
-        // Create
-        // Previous logic: `if(data.id !== null){ result.parent = data.id; }`
-        // So we just need to ensure `data.id` was the parent ID.
-        if (data.id) {
-          result.parent = data.id;
-        }
+        // El modal cierra con { type: 'create', data: [{ name, estado }, ...] }, mientras que
+        // el backend espera una LISTA de tipos con `parent` como objeto ({ id }), no un número.
+        const parentId = data.id;
+        const payload = (result.data ?? []).map((nuevo: any) => ({
+          ...nuevo,
+          parent: parentId ? { id: parentId } : null,
+        }));
 
-        this.documentacionService.crear_tipo_documento(result).subscribe({
+        if (!payload.length) return;
+
+        this.documentacionService.crear_tipo_documento(payload).subscribe({
           next: () => {
             this.loadData();
             Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Creado', showConfirmButton: false, timer: 1500 });

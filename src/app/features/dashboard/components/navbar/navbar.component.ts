@@ -24,6 +24,7 @@ import { SharedModule } from '../../../../shared/shared.module';
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 import { getLocalStorageItem, setLocalStorageItem, clearLocalStorage } from '../../../../core/utils/safe-storage';
+import { QuickAccessService } from '../../../../core/security/quick-access.service';
 
 export interface PermNode {
   id: string;
@@ -56,6 +57,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isSidebarHidden = false;
   public isMobile = false;
   public pinOpen = false;
+  public isMobileCompact = false;
   public currentRoute?: string;
   public isOnline = true;
   public pendingCount = 0;
@@ -105,6 +107,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private networkStatus: NetworkStatusService,
     private offlineSync: OfflineSyncService,
     private cdr: ChangeDetectorRef,
+    private quickAccess: QuickAccessService,
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
 
@@ -390,11 +393,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
    */
   private decorate(n: PermNode): PermNode {
     const hijos = (n.hijos ?? []).map(h => this.decorate(h));
+    // Los hijos sin permiso de lectura se podan aquí: el template recorre
+    // node.hijos sin re-evaluar permisos, así que dejar un hijo no legible
+    // en la lista lo pintaría (p. ej. todo el subárbol de Tesorería para un
+    // rol que solo puede leer una de sus hojas).
     return {
       ...n,
       acciones: n.acciones ?? [],
       permiso_ids: n.permiso_ids ?? {},
-      hijos,
+      hijos: hijos.filter(h => h.__canRead),
       __route: this.computeRoute(n),
       __icon: this.computeIcon(n),
       __canRead: this.computeCanRead(n, hijos),
@@ -404,12 +411,39 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private computeRoute(node: PermNode): string {
     const base = '/dashboard';
     if (!node.ruta) return base;
+    // Módulo que vive en OTRA aplicación. Se devuelve tal cual: concatenarla a /dashboard
+    // producía '/dashboard/https://…' y el nodo no llevaba a ningún lado.
+    //
+    // Hoy NINGÚN nodo del menú es externo: Capacitaciones lo era hasta la V55 de
+    // ms-auth-admin y sus pantallas ya viven aquí (submodule/training). El caso se conserva
+    // porque la ruta la decide la base de datos, no este código.
+    if (NavbarComponent.esExterna(node.ruta)) return node.ruta;
     if (node.ruta.startsWith('/')) return node.ruta;
     return `${base}/${node.ruta}`;
   }
 
+  /** Una ruta con esquema http(s) apunta fuera de esta aplicación. */
+  public static esExterna(ruta: string | undefined): boolean {
+    return !!ruta && /^https?:\/\//i.test(ruta);
+  }
+
+  /**
+   * Fallback de icono por ruta (espejo de la migración V20 de ms-auth-admin).
+   * Solo se aplica cuando la BD trae el placeholder 'widgets' o viene vacío, así
+   * un icono real editado desde Gestión de Módulos siempre gana. Cubre las
+   * variantes de ruta que aliasa nomina.routes.ts (typo 'emepresa' incluido).
+   */
+  private readonly ICON_BY_RUTA: Record<string, string> = {
+    '/dashboard/nomina/emepresa-usuaria': 'business',
+    '/dashboard/nomina/empresas-usuarias': 'business',
+    '/dashboard/nomina/entidades-externas': 'business',
+    '/dashboard/nomina/centros-costo': 'account_balance_wallet',
+  };
+
   private computeIcon(node: PermNode): string {
-    return node?.icono || '';
+    const icono = (node?.icono ?? '').trim();
+    if (icono && icono !== 'widgets') return icono;
+    return this.ICON_BY_RUTA[this.computeRoute(node)] || icono;
   }
 
   private computeCanRead(node: PermNode, decoratedChildren: PermNode[]): boolean {
@@ -462,19 +496,58 @@ export class NavbarComponent implements OnInit, OnDestroy {
       return;
     }
     this.cancelClose();
+
+    // Mobile: tocar el módulo activo de nuevo oculta la tira (toggle)
+    if (this.isMobile && this.activeRoot?.id === root.id) {
+      this.activeRoot = null;
+      this.cdr.markForCheck();
+      this.saveUIState();
+      return;
+    }
+
+    const isNewRoot = this.activeRoot?.id !== root.id;
     this.activeRoot = root;
     (root.hijos ?? []).forEach(h => (this.expanded[h.id] = true));
-    if (this.isMobile) this.isSidebarHidden = false;
+    if (this.isMobile) {
+      this.isSidebarHidden = false;
+      if (isNewRoot) this.isMobileCompact = false;
+    }
     this.saveUIState();
   }
 
+  public toggleMobileCompact(): void {
+    this.isMobileCompact = !this.isMobileCompact;
+    this.cdr.markForCheck();
+  }
+
   public onNodeClick(node: PermNode): void {
+    // Un módulo de otra aplicación no se navega con el router: se abre. En pestaña nueva
+    // para no sacar a la persona de lo que estuviera haciendo aquí.
+    const destino = this.getNodeRoute(node);
+    if (NavbarComponent.esExterna(destino)) {
+      window.open(destino, '_blank', 'noopener');
+      this.onLeafClick();
+      return;
+    }
     if (this.hasChildren(node)) {
       this.toggleNode(node.id);
+      // Un nodo CON hijos que además tiene pantalla propia (p. ej. "Novedades" con un
+      // formulario dinámico colgado debajo) debe SEGUIR navegando a su pantalla, no solo
+      // expandir. Los contenedores puros (sin ruta propia) solo expanden.
+      if (this.hasOwnScreen(node)) {
+        this.router.navigateByUrl(this.getNodeRoute(node));
+        this.onLeafClick();
+      }
       return;
     }
     this.router.navigateByUrl(this.getNodeRoute(node));
     this.onLeafClick();
+  }
+
+  /** ¿El nodo tiene pantalla propia navegable (no es un contenedor puro sin ruta)? */
+  public hasOwnScreen(node: PermNode): boolean {
+    const route = this.getNodeRoute(node);
+    return !!node.ruta && route !== '/dashboard' && route !== '/dashboard/';
   }
 
   // ===== expand/collapse =====
@@ -603,6 +676,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
       if (result.isDenied) {
         this.lsClear();
+        // "Borrar y salir" significa dejar el equipo limpio: eso incluye el
+        // acceso rápido guardado. El logout normal NO lo toca, porque su razón
+        // de ser es sobrevivir al cierre de sesión.
+        await this.quickAccess.olvidar().catch(() => null);
         const wipePromise: Promise<any> = electronApi?.db?.clearUserData
           ? electronApi.db.clearUserData().catch(() => null)
           : Promise.resolve();

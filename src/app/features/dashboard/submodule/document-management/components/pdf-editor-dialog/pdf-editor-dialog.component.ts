@@ -15,6 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { NgxExtendedPdfViewerModule, NgxExtendedPdfViewerComponent } from 'ngx-extended-pdf-viewer';
 import Swal from 'sweetalert2';
 import { DocumentacionService } from '../../service/documentacion/documentacion.service';
+import { DocViewerService } from '@/app/shared/services/doc-viewer/doc-viewer.service';
 
 export interface PdfEditorDialogData {
   fileUrl: string;
@@ -55,6 +56,7 @@ export class PdfEditorDialogComponent implements OnInit {
     @Inject(PLATFORM_ID) private platformId: Object,
     private http: HttpClient,
     private docService: DocumentacionService,
+    private docViewer: DocViewerService,
     private cdr: ChangeDetectorRef
   ) {
     this.isBrowser = isPlatformBrowser(this.platformId);
@@ -71,32 +73,23 @@ export class PdfEditorDialogComponent implements OnInit {
     this.isLoading = true;
     this.loadError = false;
 
-    try {
-      const response = await fetch(this.data.fileUrl);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const arrayBuffer = await response.arrayBuffer();
-      this.pdfBytes = new Uint8Array(arrayBuffer);
-      this.isLoading = false;
-      this.cdr.detectChanges();
-    } catch (err) {
-      console.error('Error loading PDF:', err);
-
-      // Fallback: try with HttpClient (may handle auth headers)
-      this.http.get(this.data.fileUrl, { responseType: 'arraybuffer' }).subscribe({
-        next: (buffer) => {
-          this.pdfBytes = new Uint8Array(buffer);
-          this.isLoading = false;
-          this.cdr.detectChanges();
-        },
-        error: (httpErr) => {
-          console.error('HttpClient fallback failed:', httpErr);
-          this.isLoading = false;
-          this.loadError = true;
-          this.cdr.detectChanges();
-        }
-      });
-    }
+    // HttpClient pasa por el auth.interceptor (añade JWT para la API). Se resuelve la URL a
+    // absoluta para que el interceptor reconozca el host de la API y no se resuelva contra el
+    // host del front (el fetch nativo previo daba 401 y no manejaba URLs relativas).
+    const url = this.docViewer.absolute(this.data.fileUrl);
+    this.http.get(url, { responseType: 'arraybuffer' }).subscribe({
+      next: (buffer) => {
+        this.pdfBytes = new Uint8Array(buffer);
+        this.isLoading = false;
+        this.cdr.detectChanges();
+      },
+      error: (httpErr) => {
+        console.error('Error loading PDF:', httpErr);
+        this.isLoading = false;
+        this.loadError = true;
+        this.cdr.detectChanges();
+      }
+    });
   }
 
   // ─── Save: export annotated PDF and upload ──────────────
