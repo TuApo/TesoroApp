@@ -23,7 +23,19 @@ const PUBLIC_PATHS = ['/gestion_admin/auth/login/'];
 const AUTH_SCHEME = 'Bearer';
 
 function normalizeUrl(url: string): URL | null {
-  try { return new URL(url, API_BASE); } catch { return null; }
+  try {
+    // Resolvemos las URLs relativas contra el ORIGEN DEL DOCUMENTO (donde el
+    // navegador realmente las envía), NO contra API_BASE. Con API_BASE, una
+    // ruta relativa a un estático propio (p.ej. './util/colombia.json') se
+    // resolvía a api.tuapo.co → se clasificaba como petición de API → se le
+    // adjuntaba el header Authorization (JWT > 8 KB) y el nginx del frontend
+    // respondía 400 (large_client_header_buffers). Las URLs absolutas de la
+    // API no se ven afectadas: una URL absoluta ignora la base.
+    const base = (typeof window !== 'undefined' && window.location)
+      ? window.location.origin
+      : API_BASE;
+    return new URL(url, base);
+  } catch { return null; }
 }
 
 function isPublicPath(pathname: string): boolean {
