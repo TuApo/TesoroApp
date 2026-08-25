@@ -35,6 +35,11 @@ export class FichaCandidatoComponent {
   documentoBuscado = input<string | null>(null);
 
   fotoSolicitada = output<void>();
+  /**
+   * La foto no cargó. El pipeline descarta esa URL para caer en las iniciales;
+   * si no, se queda la imagen rota, que es peor que no tener foto.
+   */
+  fotoFallida = output<Event>();
   /** Pide abrir el diálogo de edición en un bloque concreto. */
   editar = output<string>();
   /** El usuario quiere corregir el documento (búsqueda inteligente). */

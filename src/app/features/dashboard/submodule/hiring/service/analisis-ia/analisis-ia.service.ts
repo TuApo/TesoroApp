@@ -9,9 +9,17 @@ export interface PuntoAnalisis {
   evidencia?: string;
 }
 
+/** Cargo que la IA propone para la persona, con el porque. */
+export interface CargoSugerido {
+  cargo?: string;
+  porque?: string;
+}
+
 export interface AnalisisCandidato {
   cedula?: string;
   resumen?: string;
+  /** Sugerencia de cargo a partir de experiencia, formacion y entrevista. */
+  cargoSugerido?: CargoSugerido;
   aFavor?: PuntoAnalisis[];
   enContra?: PuntoAnalisis[];
   riesgos?: PuntoAnalisis[];

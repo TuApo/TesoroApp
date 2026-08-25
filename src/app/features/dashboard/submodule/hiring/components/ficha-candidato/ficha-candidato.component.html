@@ -21,7 +21,8 @@
               matTooltip="Tomar o actualizar la foto" matTooltipPosition="right"
               (click)="fotoSolicitada.emit()">
         @if (fotoUrl()) {
-          <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato" referrerpolicy="no-referrer" />
+          <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato"
+               referrerpolicy="no-referrer" (error)="fotoFallida.emit($event)" />
         } @else {
           <span class="ficha-foto-iniciales">{{ iniciales() }}</span>
         }
@@ -60,6 +61,11 @@
           <strong>{{ documento() }}</strong>.
         </div>
       }
+
+      <!-- Estado de la persona (prueba, examen, contrato, formulario). Lo pinta
+           el pipeline, que es quien tiene las acciones; aquí solo se le da
+           sitio, pegado a su cara y no en una barra aparte. -->
+      <ng-content select="[fichaEstado]"></ng-content>
     </div>
   </div>
 

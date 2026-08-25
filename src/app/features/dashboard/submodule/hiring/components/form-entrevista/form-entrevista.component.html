@@ -30,7 +30,7 @@
 
           <!-- ── Panel · Entrevista ─────────────────────────────────────── -->
           @if (panel() === 'entrevista') {
-            <section class="section outline-section" id="sec-entrevista">
+            <section class="section outline-section modulo-entra" id="sec-entrevista">
               <div class="section-head">
                 <span class="section-icon-wrap section-icon-pink">
                   <mat-icon inline="true" aria-hidden="true">rate_review</mat-icon>
@@ -204,12 +204,99 @@
                   </mat-form-field>
                 </div>
               </div>
+
+              <!-- ═══ Sugerencia de la IA para el cargo ═══
+                   Va aquí, al pie de la entrevista, porque se lee CON lo que
+                   se acaba de responder: el análisis se pide mandando las
+                   respuestas de esta pantalla junto con el expediente, no solo
+                   la vacante. Cinco puntos por lado: es lo que se alcanza a
+                   mirar con la persona esperando enfrente. -->
+              <div class="sug-card">
+                <div class="sug-head">
+                  <span class="section-icon-wrap section-icon-indigo">
+                    <mat-icon inline="true" aria-hidden="true">auto_awesome</mat-icon>
+                  </span>
+                  <div class="sug-head-txt">
+                    <h4 class="sug-title">Cargo sugerido por la IA</h4>
+                    <p class="sug-sub">A partir del registro y de lo que acaba de responder.</p>
+                  </div>
+                  <span class="sug-spacer"></span>
+                  <button type="button" class="ia-btn ia-btn-ghost"
+                          [disabled]="analizando()"
+                          (click)="pedirAnalisis(true)">
+                    <mat-icon>{{ analisis() ? 'refresh' : 'auto_awesome' }}</mat-icon>
+                    {{ analisis() ? 'Rehacer' : 'Sugerir cargo' }}
+                  </button>
+                </div>
+
+                @if (analizando()) {
+                  <div class="ia-cargando">
+                    <mat-icon class="ia-spin">progress_activity</mat-icon>
+                    Leyendo el registro y la entrevista…
+                  </div>
+                } @else if (errorAnalisis()) {
+                  <div class="ia-error">
+                    <mat-icon>error_outline</mat-icon> {{ errorAnalisis() }}
+                  </div>
+                } @else if (analisis(); as a) {
+
+                  @if (a.cargoSugerido?.cargo) {
+                    <div class="sug-cargo">
+                      <mat-icon>work</mat-icon>
+                      <div>
+                        <strong class="sug-cargo-nombre">{{ a.cargoSugerido?.cargo }}</strong>
+                        @if (a.cargoSugerido?.porque) {
+                          <span class="sug-cargo-porque">{{ a.cargoSugerido?.porque }}</span>
+                        }
+                      </div>
+                    </div>
+                  } @else if (a.cargoSugerido?.porque) {
+                    <div class="sug-cargo sug-cargo-sin">
+                      <mat-icon>help_outline</mat-icon>
+                      <span class="sug-cargo-porque">{{ a.cargoSugerido?.porque }}</span>
+                    </div>
+                  }
+
+                  <div class="sug-cols">
+                    <div class="sug-col sug-col-ok">
+                      <h5><mat-icon>thumb_up</mat-icon> A favor</h5>
+                      @for (x of aFavorTop; track x.punto) {
+                        <div class="sug-item">
+                          <span class="sug-punto">{{ x.punto }}</span>
+                          @if (x.evidencia) { <span class="sug-evi">{{ x.evidencia }}</span> }
+                        </div>
+                      } @empty { <p class="ia-vacio">El registro no da puntos a favor.</p> }
+                    </div>
+
+                    <div class="sug-col sug-col-no">
+                      <h5><mat-icon>thumb_down</mat-icon> En contra</h5>
+                      @for (x of enContraTop; track x.punto) {
+                        <div class="sug-item">
+                          <span class="sug-punto">{{ x.punto }}</span>
+                          @if (x.evidencia) { <span class="sug-evi">{{ x.evidencia }}</span> }
+                        </div>
+                      } @empty { <p class="ia-vacio">El registro no da puntos en contra.</p> }
+                    </div>
+                  </div>
+
+                  <p class="ia-nota">
+                    <mat-icon>info</mat-icon>
+                    Es una sugerencia leída del registro, no una decisión. Verifica cada punto
+                    antes de usarlo.
+                  </p>
+                } @else {
+                  <p class="sug-vacia">
+                    Pulsa <strong>Sugerir cargo</strong> para que la IA lea el registro y proponga
+                    un cargo con cinco puntos a favor y cinco en contra.
+                  </p>
+                }
+              </div>
             </section>
           }
 
           <!-- ── Panel · Formación y laboral ────────────────────────────── -->
           @if (panel() === 'formacion') {
-            <section class="section" id="sec-formacion">
+            <section class="section modulo-entra" id="sec-formacion">
               <div class="section-head">
                 <span class="section-icon-wrap section-icon-cyan">
                   <mat-icon inline="true" aria-hidden="true">school</mat-icon>
@@ -360,7 +447,7 @@
 
           <!-- ── Panel · Inteligencia artificial ────────────────────────── -->
           @if (panel() === 'ia') {
-            <section class="section ia-panel">
+            <section class="section ia-panel modulo-entra">
               <div class="ia-head">
                 <span class="section-icon-wrap section-icon-indigo">
                   <mat-icon inline="true" aria-hidden="true">auto_awesome</mat-icon>
@@ -462,7 +549,9 @@
                destruyera, el formulario de la vacante perdería lo escrito cada
                vez que se cambia de pestaña. Solo se oculta.
                ─────────────────────────────────────────────────────────────── -->
-          <div class="taller-remision" [class.taller-oculto]="panel() !== 'remision'">
+          <div class="taller-remision"
+               [class.taller-oculto]="panel() !== 'remision'"
+               [class.modulo-entra]="panel() === 'remision'">
             <ng-content></ng-content>
           </div>
 

@@ -3,334 +3,6 @@
   <mat-card-content
     style="display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px; box-sizing: border-box;">
 
-    <div class="header premium-pipeline-header">
-      <div class="info-candidato-titulo candidate-info-badge">
-        <button type="button" class="avatar-placeholder"
-          [class.avatar-empty]="!candidatoSeleccionado()?.numero_documento"
-          [class.avatar-clickable]="!!candidatoSeleccionado()?.numero_documento"
-          [class.avatar-with-photo]="!!avatarPhotoUrl()"
-          [disabled]="!candidatoSeleccionado()?.numero_documento"
-          [matTooltip]="!candidatoSeleccionado()?.numero_documento ? null : (avatarPhotoUrl() ? 'Ver / actualizar foto' : 'Tomar foto')"
-          matTooltipPosition="below"
-          (click)="openCamera()">
-          <!-- Foto: SIEMPRE renderizada cuando hay URL. Si falla, queda el gradient azul detrás. -->
-          @if (avatarPhotoUrl()) {
-            <img class="avatar-photo-img"
-              [src]="avatarPhotoUrl()"
-              alt="Foto del candidato"
-              referrerpolicy="no-referrer"
-              (load)="onAvatarPhotoLoad($event)"
-              (error)="onAvatarPhotoError($event)" />
-          } @else {
-            <mat-icon>{{ candidatoSeleccionado()?.numero_documento ? 'person' : 'person_search' }}</mat-icon>
-          }
-          @if (candidatoSeleccionado()?.numero_documento) {
-            <span class="avatar-camera-badge" aria-hidden="true">
-              <mat-icon>photo_camera</mat-icon>
-            </span>
-          }
-        </button>
-
-        <div class="candidate-details">
-          @if (candidatoSeleccionado()?.numero_documento) {
-            <h2 class="candidate-name">{{ nombreCandidato || '—' }}</h2>
-
-            <div class="candidate-meta-row">
-              <span class="meta-chip" matTooltip="Documento de identidad">
-                <mat-icon>badge</mat-icon>
-                <span class="meta-chip-label">{{ candidatoSeleccionado()?.tipo_doc || 'CC' }}</span>
-                <span class="meta-chip-value">{{ numeroDocumento }}</span>
-              </span>
-
-              <span class="meta-divider" aria-hidden="true"></span>
-
-              <!-- Prueba técnica: solo si la vacante remitida es de ese tipo.
-                   Es un marcador de resultado; no bloquea Contratación. -->
-              @if (esPruebaTecnica()) {
-                <span class="pill pill-action"
-                  [class.pill-danger]="noPasoPrueba()"
-                  [class.pill-success]="pasoPrueba()"
-                  [class.pill-warning]="noSePresentoPrueba()"
-                  [class.pill-info]="resultadoPrueba() === 'sin_resultado'"
-                  role="button"
-                  tabindex="0"
-                  [matTooltip]="tooltipPrueba()"
-                  (click)="registrarResultadoPrueba()"
-                  (keydown.enter)="registrarResultadoPrueba()"
-                  (keydown.space)="$event.preventDefault(); registrarResultadoPrueba()">
-                  <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : (pasoPrueba() ? 'thumb_up' : (noSePresentoPrueba() ? 'person_off' : 'assignment_ind')) }}</mat-icon>
-                  {{ etiquetaPrueba() }}
-                </span>
-
-                <span class="meta-divider" aria-hidden="true"></span>
-              }
-
-              <!-- Examen médico: resultado (pasó / no pasó / no se presentó).
-                   Marcador independiente de la carga de exámenes; no bloquea. -->
-              <span class="pill pill-action"
-                [class.pill-danger]="resultadoExamen() === 'no_paso'"
-                [class.pill-success]="resultadoExamen() === 'paso'"
-                [class.pill-warning]="resultadoExamen() === 'no_se_presento'"
-                [class.pill-info]="resultadoExamen() === 'sin_resultado'"
-                role="button"
-                tabindex="0"
-                [matTooltip]="tooltipExamen()"
-                (click)="registrarResultadoExamen()"
-                (keydown.enter)="registrarResultadoExamen()"
-                (keydown.space)="$event.preventDefault(); registrarResultadoExamen()">
-                <mat-icon>{{ resultadoExamen() === 'no_paso' ? 'thumb_down' : (resultadoExamen() === 'paso' ? 'thumb_up' : (resultadoExamen() === 'no_se_presento' ? 'person_off' : 'medical_information')) }}</mat-icon>
-                {{ etiquetaExamen() }}
-              </span>
-
-              <span class="meta-divider" aria-hidden="true"></span>
-
-              <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
-                   Una fila con solo el código reservado (generar_codigo) NO es un
-                   contrato activo: se muestra "En trámite" y no bloquea nada. -->
-              @if (contratoHeader(); as contrato) {
-                @switch (contratoPill()) {
-                  @case ('activo') {
-                    <span class="pill pill-success pill-action"
-                      role="button"
-                      tabindex="0"
-                      matTooltip="Click para dar de baja el contrato"
-                      (click)="darDeBajaManual()"
-                      (keydown.enter)="darDeBajaManual()"
-                      (keydown.space)="$event.preventDefault(); darDeBajaManual()">
-                      <mat-icon>verified</mat-icon> Contrato activo
-                    </span>
-                  }
-                  @case ('retirado') {
-                    <span class="pill pill-danger"
-                          [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
-                      <mat-icon>cancel</mat-icon>
-                      Sin contrato
-                      @if (contrato.fecha_retiro) {
-                        <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
-                      }
-                    </span>
-                  }
-                  @case ('en_tramite') {
-                    <span class="pill pill-neutral"
-                          [matTooltip]="'Código ' + (contrato.codigo_contrato || 'de contrato') + ' reservado · aún no contratado'">
-                      <mat-icon>pending</mat-icon> Contrato en trámite
-                    </span>
-                  }
-                }
-              }
-
-              <!-- Estado del formulario web -->
-              @if (candidatoSeleccionado()?.formulario_completo) {
-                <span class="pill pill-success" matTooltip="Formulario web enviado completo">
-                  <mat-icon>check_circle</mat-icon> Formulario completo
-                </span>
-              } @else if ((candidatoSeleccionado()?.formulario_paso || 0) >= 1) {
-                <span class="pill pill-warning" matTooltip="Sólo guardó datos básicos (paso 1)">
-                  <mat-icon>edit_note</mat-icon> Formulario · Paso 1
-                </span>
-              } @else {
-                <span class="pill pill-neutral" matTooltip="No ha iniciado el formulario web">
-                  <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
-                </span>
-              }
-            </div>
-          } @else {
-            <h2 class="candidate-name candidate-name-empty">Seleccione un candidato</h2>
-            <div class="candidate-empty-hint">
-              <mat-icon>arrow_downward</mat-icon>
-              Use la pestaña <strong>Turnos</strong> o busque por cédula para empezar.
-            </div>
-          }
-        </div>
-      </div>
-
-      <div class="botones premium-toolbar">
-        <!-- Cerrar contratación del día: SIEMPRE visible y habilitado (no
-             depende del candidato seleccionado). Lleva al Reporte de
-             Contratación, donde se cierra el día con TODAS las personas
-             contratadas hoy (cruce, cédulas, ARL, traslados...). -->
-        <!-- Actividades que antes vivían dentro de Turnos. Turnos ya no es una
-             pestaña, así que su caja de herramientas sube aquí. -->
-        <button mat-icon-button type="button" class="btn-actividades"
-          matTooltip="Actividades" aria-label="Actividades"
-          [matMenuTriggerFor]="menuActividades">
-          <mat-icon>apps</mat-icon>
-        </button>
-        <mat-menu #menuActividades="matMenu">
-          <button mat-menu-item type="button" (click)="abrirPromptDocumento()">
-            <mat-icon>person_search</mat-icon>
-            <span>Buscar otra persona</span>
-          </button>
-          <button mat-menu-item type="button" (click)="descargarExcel()">
-            <mat-icon>file_download</mat-icon>
-            <span>Descargar Excel por rango de fechas</span>
-          </button>
-          <button mat-menu-item type="button" (click)="generarCarnetsMasivos()">
-            <mat-icon>badge</mat-icon>
-            <span>Generar carnés en masa (9 por hoja)</span>
-          </button>
-          <button mat-menu-item type="button" (click)="refrescarRecientes()">
-            <mat-icon>refresh</mat-icon>
-            <span>Refrescar la cola del día</span>
-          </button>
-        </mat-menu>
-
-        <button mat-stroked-button type="button" class="btn-otra-persona"
-          matTooltip="Buscar a otra persona por documento"
-          (click)="abrirPromptDocumento()">
-          <mat-icon>person_search</mat-icon> Otra persona
-        </button>
-
-        <button mat-flat-button color="primary" class="btn-cerrar-contratacion"
-          matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
-          (click)="irACerrarContratacion()">
-          <mat-icon>done_all</mat-icon>
-          Cerrar contratación
-        </button>
-
-        <!-- Estos tres solo dependen de que haya candidato. Van igual envueltos en
-             .tt-wrap: deshabilitados no mostraban ningún tooltip y quedaban grises
-             sin explicar por qué. -->
-
-        <!-- Botón enviar correo bienvenida -->
-        <span class="tt-wrap"
-          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar Correo de Bienvenida' : 'Selecciona primero un candidato'">
-          <button mat-icon-button aria-label="Confirmar Correo de Bienvenida"
-            (click)="confirmarCorreoBienvenida()" [disabled]="!candidatoSeleccionado()?.numero_documento"
-            [matBadge]="candidatoSeleccionado()?.contacto?.correo_confirmado ? '✓' : ''"
-            [matBadgeColor]="candidatoSeleccionado()?.contacto?.correo_confirmado ? 'primary' : 'warn'"
-            matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.correo_confirmado">
-            <mat-icon>email</mat-icon>
-          </button>
-        </span>
-
-        <!-- Botón enviar whatsapp bienvenida -->
-        <span class="tt-wrap"
-          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar WhatsApp de Bienvenida' : 'Selecciona primero un candidato'">
-          <button mat-icon-button
-            aria-label="Confirmar WhatsApp de Bienvenida" (click)="confirmarWhatsAppBienvenida()"
-            [disabled]="!candidatoSeleccionado()?.numero_documento"
-            [matBadge]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? '✓' : ''"
-            [matBadgeColor]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado ? 'primary' : 'warn'"
-            matBadgeOverlap="true" [matBadgeHidden]="!candidatoSeleccionado()?.contacto?.whatsapp_confirmado">
-            <mat-icon>chat</mat-icon>
-          </button>
-        </span>
-
-        <!-- Botón generar carnet individual -->
-        <span class="tt-wrap"
-          [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Generar Carnet (PDF)' : 'Selecciona primero un candidato'">
-          <button mat-icon-button aria-label="Generar Carnet (PDF)"
-            (click)="generarCarnetIndividual()" [disabled]="!candidatoSeleccionado()?.numero_documento"
-            [matBadge]="carnetGeneradoUI() ? '✓' : ''"
-            [matBadgeColor]="carnetGeneradoUI() ? 'primary' : 'warn'"
-            matBadgeOverlap="true"
-            [matBadgeHidden]="!carnetGeneradoUI()">
-            <mat-icon>badge</mat-icon>
-          </button>
-        </span>
-
-        <!-- Botón de documentos. Se bloquea hasta que "Pago y Transporte" esté
-             guardado: los documentos se arman con esos datos leídos del backend.
-
-             El tooltip va en el <span>, NO en el <button>: un botón deshabilitado
-             no emite eventos de puntero, así que el motivo del bloqueo —que es
-             justo cuando hace falta— no se veía nunca. El CSS le quita
-             pointer-events al botón apagado para que el hover llegue al span. -->
-        <span class="tt-wrap" [matTooltip]="tooltipGenerarDocumentacion()"
-          matTooltipClass="tooltip-faltantes" [matTooltipShowDelay]="150">
-          <button mat-icon-button
-            aria-label="Generar o subir documentación"
-            [attr.aria-disabled]="!puedeGenerarDocumentacion()"
-            [routerLink]="[
-      '/dashboard/hiring/generate-contracting-documents',
-      candidatoSeleccionado()?.numero_documento
-    ]"
-            [queryParams]="{ tipo_doc: candidatoSeleccionado()?.tipo_doc || 'CC' }"
-            [disabled]="!puedeGenerarDocumentacion()">
-            <mat-icon>description</mat-icon>
-          </button>
-        </span>
-
-        <!-- Finalizar contratación: manda al candidato al reporte del día de su
-             oficina (view-reports) reutilizando los documentos ya subidos. Pide
-             el Excel del ARL la primera vez y lo cachea para toda la jornada. -->
-        <input #arlFileInput type="file" hidden accept=".xls,.xlsx"
-          (change)="onArlSeleccionadoYFinalizar($event)">
-
-        <!-- Mismo motivo que el botón de documentación: el tooltip vive en el span
-             para que se vea con el botón deshabilitado. -->
-        <span class="tt-wrap" [matTooltip]="tooltipFinalizarContratacion()"
-          matTooltipClass="tooltip-faltantes" [matTooltipShowDelay]="150">
-          <button mat-icon-button
-            aria-label="Finalizar contratación"
-            [attr.aria-disabled]="!puedeFinalizarContratacion()"
-            [disabled]="!puedeFinalizarContratacion()"
-            (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()"
-            [matBadge]="contratacionFinalizada() ? '✓' : ''"
-            [matBadgeColor]="'primary'"
-            matBadgeOverlap="true"
-            [matBadgeHidden]="!contratacionFinalizada()">
-            <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
-          </button>
-        </span>
-
-        @if (arlIndex(); as arl) {
-          <button mat-icon-button
-            [matTooltip]="'ARL cargado: ' + arl.nombreArchivo + ' (' + arl.totalFilas + ' filas). Click para descartarlo y subir otro.'"
-            aria-label="Descartar Excel de ARL"
-            (click)="limpiarArl()">
-            <mat-icon>backup_table</mat-icon>
-          </button>
-        }
-
-        <!-- Dar de baja: ahora se hace haciendo click sobre el pill "Contrato activo" del header. -->
-
-        <!-- Forzar consulta de antecedentes: re-abre las 8 fuentes del robot
-             (SIN_CONSULTAR) sin esperar a que la fila venza. Pide confirmación
-             porque dispara una pasada completa de la flota. -->
-        <button mat-icon-button matTooltip="Forzar consulta de antecedentes (robots)"
-          aria-label="Forzar consulta de antecedentes"
-          (click)="forzarConsultaAntecedentes()" [disabled]="!candidatoSeleccionado()?.numero_documento">
-          <mat-icon>fact_check</mat-icon>
-        </button>
-
-        <!-- Botón de tabla -->
-        <button mat-icon-button matTooltip="Ver tabla de registros" aria-label="Ver tabla de registros"
-          (click)="mostrarTabla()" [disabled]="!candidatoSeleccionado()?.numero_documento">
-          <mat-icon>table_chart</mat-icon>
-        </button>
-        <!-- FOTO: ahora se muestra en el avatar del header (click sobre el avatar). -->
-
-        <!-- HUELLA (id 88) -->
-        <button mat-icon-button matTooltip="Ver huella" aria-label="Ver huella" (click)="ver('huella')"
-          [matBadge]="badge('huella')" [matBadgeColor]="badgeColor('huella')" matBadgeOverlap="true">
-          <mat-icon>fingerprint</mat-icon>
-        </button>
-
-
-        <!-- FIRMA (id 87) -->
-        <button mat-icon-button matTooltip="Ver firma" aria-label="Ver firma" (click)="ver('firma')"
-          [matBadge]="badge('firma')" [matBadgeColor]="badgeColor('firma')" matBadgeOverlap="true">
-          <mat-icon>edit</mat-icon>
-        </button>
-
-        <!-- EXAMEN MÉDICO (id 32) -->
-        <button mat-icon-button matTooltip="Ver examen médico" aria-label="Ver examen médico"
-          (click)="verExamenMedico()" [matBadge]="tieneExamenMedicoUI() ? '✓' : '✗'"
-          [matBadgeColor]="tieneExamenMedicoUI() ? 'primary' : 'warn'" matBadgeOverlap="true">
-          <mat-icon>medical_services</mat-icon>
-        </button>
-
-        <!-- ARL (id 30) -->
-        <button mat-icon-button matTooltip="Ver ARL" aria-label="Ver ARL" (click)="verArl()"
-          [matBadge]="tieneArlUI() ? '✓' : '✗'" [matBadgeColor]="tieneArlUI() ? 'primary' : 'warn'"
-          matBadgeOverlap="true">
-          <mat-icon>health_and_safety</mat-icon>
-        </button>
-
-      </div>
-    </div>
 
     <!-- Bloqueo: el candidato consultado tiene un CONTRATO ACTIVO. No puede
          avanzar al resto del pipeline hasta dar de baja ese contrato. -->
@@ -377,8 +49,103 @@
         [fotoUrl]="avatarPhotoUrl()"
         [documentoBuscado]="documentoBuscado()"
         (fotoSolicitada)="openCamera()"
+        (fotoFallida)="onAvatarPhotoError($event)"
         (corregirDocumento)="abrirPromptDocumento()"
         (editar)="abrirPromptDocumento()">
+
+        <!-- Estado de la persona. Vivía en la barra de arriba; ahora vive en la
+             ficha, que es su sitio: son datos de ELLA, no del menú. Los que se
+             pueden accionar (prueba, examen, contrato) siguen siendo clicables. -->
+        <div fichaEstado class="ficha-estado">
+
+          <!-- Prueba técnica: solo si la vacante remitida es de ese tipo.
+               Es un marcador de resultado; no bloquea Contratación. -->
+          @if (esPruebaTecnica()) {
+            <span class="pill pill-action"
+              [class.pill-danger]="noPasoPrueba()"
+              [class.pill-success]="pasoPrueba()"
+              [class.pill-warning]="noSePresentoPrueba()"
+              [class.pill-info]="resultadoPrueba() === 'sin_resultado'"
+              role="button"
+              tabindex="0"
+              [matTooltip]="tooltipPrueba()"
+              (click)="registrarResultadoPrueba()"
+              (keydown.enter)="registrarResultadoPrueba()"
+              (keydown.space)="$event.preventDefault(); registrarResultadoPrueba()">
+              <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : (pasoPrueba() ? 'thumb_up' : (noSePresentoPrueba() ? 'person_off' : 'assignment_ind')) }}</mat-icon>
+              {{ etiquetaPrueba() }}
+            </span>
+
+          }
+
+          <!-- Examen médico: resultado (pasó / no pasó / no se presentó).
+               Marcador independiente de la carga de exámenes; no bloquea. -->
+          <span class="pill pill-action"
+            [class.pill-danger]="resultadoExamen() === 'no_paso'"
+            [class.pill-success]="resultadoExamen() === 'paso'"
+            [class.pill-warning]="resultadoExamen() === 'no_se_presento'"
+            [class.pill-info]="resultadoExamen() === 'sin_resultado'"
+            role="button"
+            tabindex="0"
+            [matTooltip]="tooltipExamen()"
+            (click)="registrarResultadoExamen()"
+            (keydown.enter)="registrarResultadoExamen()"
+            (keydown.space)="$event.preventDefault(); registrarResultadoExamen()">
+            <mat-icon>{{ resultadoExamen() === 'no_paso' ? 'thumb_down' : (resultadoExamen() === 'paso' ? 'thumb_up' : (resultadoExamen() === 'no_se_presento' ? 'person_off' : 'medical_information')) }}</mat-icon>
+            {{ etiquetaExamen() }}
+          </span>
+
+
+          <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
+               Una fila con solo el código reservado (generar_codigo) NO es un
+               contrato activo: se muestra "En trámite" y no bloquea nada. -->
+          @if (contratoHeader(); as contrato) {
+            @switch (contratoPill()) {
+              @case ('activo') {
+                <span class="pill pill-success pill-action"
+                  role="button"
+                  tabindex="0"
+                  matTooltip="Click para dar de baja el contrato"
+                  (click)="darDeBajaManual()"
+                  (keydown.enter)="darDeBajaManual()"
+                  (keydown.space)="$event.preventDefault(); darDeBajaManual()">
+                  <mat-icon>verified</mat-icon> Contrato activo
+                </span>
+              }
+              @case ('retirado') {
+                <span class="pill pill-danger"
+                      [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
+                  <mat-icon>cancel</mat-icon>
+                  Sin contrato
+                  @if (contrato.fecha_retiro) {
+                    <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
+                  }
+                </span>
+              }
+              @case ('en_tramite') {
+                <span class="pill pill-neutral"
+                      [matTooltip]="'Código ' + (contrato.codigo_contrato || 'de contrato') + ' reservado · aún no contratado'">
+                  <mat-icon>pending</mat-icon> Contrato en trámite
+                </span>
+              }
+            }
+          }
+
+          <!-- Estado del formulario web -->
+          @if (candidatoSeleccionado()?.formulario_completo) {
+            <span class="pill pill-success" matTooltip="Formulario web enviado completo">
+              <mat-icon>check_circle</mat-icon> Formulario completo
+            </span>
+          } @else if ((candidatoSeleccionado()?.formulario_paso || 0) >= 1) {
+            <span class="pill pill-warning" matTooltip="Sólo guardó datos básicos (paso 1)">
+              <mat-icon>edit_note</mat-icon> Formulario · Paso 1
+            </span>
+          } @else {
+            <span class="pill pill-neutral" matTooltip="No ha iniciado el formulario web">
+              <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
+            </span>
+          }
+        </div>
       </app-ficha-candidato>
 
       <!-- ══════════════════════════════════════════════════════════════════
@@ -414,12 +181,16 @@
           }
         </nav>
 
-        <nav class="rail rail-capa2" role="tablist"
-             [attr.aria-label]="capaActiva() === 'seleccion' ? 'Pasos de Selección' : 'Pasos de Contratación'">
+        <nav class="rail rail-capa2" role="tablist" aria-label="Pasos del proceso">
 
-          <span class="rail-capa2-titulo">
-            {{ capaActiva() === 'seleccion' ? 'Selección' : 'Contratación' }}
-          </span>
+          <!-- La IA no tiene sub-pasos: es una lectura, no un formulario que se
+               llene por partes. Con ella abierta la lista de arriba se calla y
+               quedan solo los accesos rápidos. -->
+          @if (capaActiva() !== 'ia') {
+            <span class="rail-capa2-titulo">
+              {{ capaActiva() === 'seleccion' ? 'Selección' : 'Contratación' }}
+            </span>
+          }
 
           @if (capaActiva() === 'seleccion') {
             @for (s of subSeleccion; track s.id) {
@@ -446,7 +217,7 @@
                 </span>
               </button>
             }
-          } @else {
+          } @else if (capaActiva() === 'contratacion') {
             @for (s of subContratacion; track s.id) {
               @let pctS = pctSub(s.clave);
               <button type="button" class="sub" role="tab"
@@ -472,6 +243,171 @@
               </button>
             }
           }
+
+          <!-- ══ ACCESOS RÁPIDOS ══
+               Todo lo que vivía en la barra de arriba. Baja aquí para que la
+               navegación y las acciones estén en el mismo sitio y el contenido
+               se quede con toda la pantalla. Las dos acciones que se usan a
+               diario van con su rótulo; el resto es una rejilla de iconos con
+               tooltip, y el punto de color dice si esa pieza ya está. -->
+          <div class="rail-accesos">
+            <span class="rail-capa2-titulo">Accesos rápidos</span>
+
+            <button type="button" class="acceso acceso-primario"
+                    matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
+                    matTooltipPosition="right"
+                    (click)="irACerrarContratacion()">
+              <mat-icon>done_all</mat-icon>
+              <span>Cerrar contratación</span>
+            </button>
+
+            <button type="button" class="acceso"
+                    matTooltip="Buscar a otra persona por documento"
+                    matTooltipPosition="right"
+                    (click)="abrirPromptDocumento()">
+              <mat-icon>person_search</mat-icon>
+              <span>Otra persona</span>
+            </button>
+
+            <div class="acceso-grid">
+
+              <!-- Correo de bienvenida -->
+              <button type="button" class="acceso-mini"
+                      [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar correo de bienvenida' : 'Selecciona primero un candidato'"
+                      matTooltipPosition="above"
+                      [disabled]="!candidatoSeleccionado()?.numero_documento"
+                      (click)="confirmarCorreoBienvenida()">
+                <mat-icon>email</mat-icon>
+                <span class="acceso-punto"
+                      [class.punto-ok]="candidatoSeleccionado()?.contacto?.correo_confirmado"></span>
+              </button>
+
+              <!-- WhatsApp de bienvenida -->
+              <button type="button" class="acceso-mini"
+                      [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Confirmar WhatsApp de bienvenida' : 'Selecciona primero un candidato'"
+                      matTooltipPosition="above"
+                      [disabled]="!candidatoSeleccionado()?.numero_documento"
+                      (click)="confirmarWhatsAppBienvenida()">
+                <mat-icon>chat</mat-icon>
+                <span class="acceso-punto"
+                      [class.punto-ok]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado"></span>
+              </button>
+
+              <!-- Carnet individual -->
+              <button type="button" class="acceso-mini"
+                      [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Generar carnet (PDF)' : 'Selecciona primero un candidato'"
+                      matTooltipPosition="above"
+                      [disabled]="!candidatoSeleccionado()?.numero_documento"
+                      (click)="generarCarnetIndividual()">
+                <mat-icon>badge</mat-icon>
+                <span class="acceso-punto" [class.punto-ok]="carnetGeneradoUI()"></span>
+              </button>
+
+              <!-- Documentación. El tooltip va en el <span>: un botón apagado no
+                   emite eventos de puntero y el motivo del bloqueo —que es justo
+                   cuando hace falta— no se veía nunca. -->
+              <span class="acceso-tt" [matTooltip]="tooltipGenerarDocumentacion()"
+                    matTooltipClass="tooltip-faltantes" matTooltipPosition="above"
+                    [matTooltipShowDelay]="150">
+                <button type="button" class="acceso-mini"
+                        [attr.aria-disabled]="!puedeGenerarDocumentacion()"
+                        [disabled]="!puedeGenerarDocumentacion()"
+                        [routerLink]="[
+                          '/dashboard/hiring/generate-contracting-documents',
+                          candidatoSeleccionado()?.numero_documento
+                        ]"
+                        [queryParams]="{ tipo_doc: candidatoSeleccionado()?.tipo_doc || 'CC' }">
+                  <mat-icon>description</mat-icon>
+                </button>
+              </span>
+
+              <!-- Finalizar contratación -->
+              <input #arlFileInput type="file" hidden accept=".xls,.xlsx"
+                     (change)="onArlSeleccionadoYFinalizar($event)">
+              <span class="acceso-tt" [matTooltip]="tooltipFinalizarContratacion()"
+                    matTooltipClass="tooltip-faltantes" matTooltipPosition="above"
+                    [matTooltipShowDelay]="150">
+                <button type="button" class="acceso-mini"
+                        [attr.aria-disabled]="!puedeFinalizarContratacion()"
+                        [disabled]="!puedeFinalizarContratacion()"
+                        (click)="arlIndex() ? finalizarContratacion() : arlFileInput.click()">
+                  <mat-icon>{{ finalizando() ? 'hourglass_empty' : 'task_alt' }}</mat-icon>
+                  <span class="acceso-punto" [class.punto-ok]="contratacionFinalizada()"></span>
+                </button>
+              </span>
+
+              @if (arlIndex(); as arl) {
+                <button type="button" class="acceso-mini"
+                        [matTooltip]="'ARL cargado: ' + arl.nombreArchivo + ' (' + arl.totalFilas + ' filas). Click para descartarlo y subir otro.'"
+                        matTooltipPosition="above"
+                        (click)="limpiarArl()">
+                  <mat-icon>backup_table</mat-icon>
+                </button>
+              }
+
+              <!-- Forzar antecedentes: re-abre las 8 fuentes del robot sin
+                   esperar a que la fila venza. -->
+              <button type="button" class="acceso-mini"
+                      matTooltip="Forzar consulta de antecedentes (robots)"
+                      matTooltipPosition="above"
+                      [disabled]="!candidatoSeleccionado()?.numero_documento"
+                      (click)="forzarConsultaAntecedentes()">
+                <mat-icon>fact_check</mat-icon>
+              </button>
+
+              <button type="button" class="acceso-mini"
+                      matTooltip="Ver tabla de registros" matTooltipPosition="above"
+                      [disabled]="!candidatoSeleccionado()?.numero_documento"
+                      (click)="mostrarTabla()">
+                <mat-icon>table_chart</mat-icon>
+              </button>
+
+              <button type="button" class="acceso-mini" matTooltip="Ver huella"
+                      matTooltipPosition="above" (click)="ver('huella')">
+                <mat-icon>fingerprint</mat-icon>
+                <span class="acceso-punto" [class.punto-ok]="tiene('huella')"></span>
+              </button>
+
+              <button type="button" class="acceso-mini" matTooltip="Ver firma"
+                      matTooltipPosition="above" (click)="ver('firma')">
+                <mat-icon>edit</mat-icon>
+                <span class="acceso-punto" [class.punto-ok]="tiene('firma')"></span>
+              </button>
+
+              <button type="button" class="acceso-mini" matTooltip="Ver examen médico"
+                      matTooltipPosition="above" (click)="verExamenMedico()">
+                <mat-icon>medical_services</mat-icon>
+                <span class="acceso-punto" [class.punto-ok]="tieneExamenMedicoUI()"></span>
+              </button>
+
+              <button type="button" class="acceso-mini" matTooltip="Ver ARL"
+                      matTooltipPosition="above" (click)="verArl()">
+                <mat-icon>health_and_safety</mat-icon>
+                <span class="acceso-punto" [class.punto-ok]="tieneArlUI()"></span>
+              </button>
+
+              <!-- Lo que hacía la cola del día, que ya no tiene pantalla. -->
+              <button type="button" class="acceso-mini" matTooltip="Más actividades"
+                      matTooltipPosition="above" [matMenuTriggerFor]="menuActividades">
+                <mat-icon>more_horiz</mat-icon>
+              </button>
+              <mat-menu #menuActividades="matMenu">
+                <button mat-menu-item type="button" (click)="descargarExcel()">
+                  <mat-icon>file_download</mat-icon>
+                  <span>Descargar Excel por rango de fechas</span>
+                </button>
+                <button mat-menu-item type="button" (click)="generarCarnetsMasivos()">
+                  <mat-icon>badge</mat-icon>
+                  <span>Generar carnés en masa (9 por hoja)</span>
+                </button>
+                <button mat-menu-item type="button" (click)="refrescarRecientes()">
+                  <mat-icon>refresh</mat-icon>
+                  <span>Refrescar la cola del día</span>
+                </button>
+              </mat-menu>
+
+            </div>
+          </div>
         </nav>
       </div>
 
@@ -492,7 +428,11 @@
       </div>
     }
 
+    <!-- `animationDuration` en 0: el deslizamiento propio del grupo se apaga
+         para que el cambio de módulo tenga UNA sola animación, la de
+         `modulo-entra`, y no dos movimientos encimados. -->
     <mat-tab-group class="tab-group"
+      animationDuration="0ms"
       [class.tab-group-oculto]="bloqueoContratoTabs()"
       [selectedIndex]="tabIndex()"
       (selectedIndexChange)="tabIndex.set($event)">

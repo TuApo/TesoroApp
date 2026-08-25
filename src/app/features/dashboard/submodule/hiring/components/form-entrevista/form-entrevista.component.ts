@@ -35,7 +35,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { docParaEnviar } from '@/app/shared/utils/tipo-doc.util';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
-import { AnalisisIaService, AnalisisCandidato } from '../../service/analisis-ia/analisis-ia.service';
+import { AnalisisIaService, AnalisisCandidato, PuntoAnalisis } from '../../service/analisis-ia/analisis-ia.service';
 import { Router } from '@angular/router';
 import {
   GestionParametrizacionService,
@@ -316,8 +316,10 @@ export class FormEntrevistaComponent implements OnInit {
     this.analizando.set(true);
     this.errorAnalisis.set(null);
 
-    const vacante = this.obraConDatos.length ? this.obraConDatos : null;
-    this.analisisIa.analizar(cedula, vacante).subscribe({
+    // Se manda la obra Y las respuestas de la entrevista. Sin las respuestas el
+    // análisis solo veía lo guardado en base, así que la sugerencia ignoraba
+    // justo lo que se acababa de preguntar.
+    this.analisisIa.analizar(cedula, this.contextoParaIa()).subscribe({
       next: (r) => {
         this.analisis.set(r);
         this.analisisDe = cedula;
@@ -333,6 +335,39 @@ export class FormEntrevistaComponent implements OnInit {
       },
     });
   }
+
+  /**
+   * Lo que la IA necesita saber ADEMÁS del expediente: a qué obra va y qué
+   * acaba de responder. Los campos vacíos no se mandan para no llenar el
+   * prompt de nulos, que el modelo termina leyendo como si fueran datos.
+   */
+  private contextoParaIa(): Record<string, unknown> | null {
+    const entrevista: Record<string, unknown> = {};
+    for (const c of [
+      ...FormEntrevistaComponent.CAMPOS_ENTREVISTA,
+      ...FormEntrevistaComponent.CAMPOS_FORMACION,
+    ]) {
+      const v = this.formVacante?.get(c)?.value;
+      if (v !== null && v !== undefined && String(v).trim() !== '') entrevista[c] = v;
+    }
+
+    const obra = this.obraConDatos;
+    if (!obra.length && !Object.keys(entrevista).length) return null;
+    return {
+      obra: obra.length ? obra : null,
+      entrevista: Object.keys(entrevista).length ? entrevista : null,
+    };
+  }
+
+  /**
+   * Los cinco puntos de más peso por lado.
+   *
+   * El modelo ya viene instruido para no pasar de cinco, pero el recorte se
+   * hace también aquí: si algún día devuelve doce, la tarjeta de la entrevista
+   * no se convierte en un muro que nadie lee con la persona esperando.
+   */
+  get aFavorTop(): PuntoAnalisis[] { return (this.analisis()?.aFavor ?? []).slice(0, 5); }
+  get enContraTop(): PuntoAnalisis[] { return (this.analisis()?.enContra ?? []).slice(0, 5); }
 
   /**
    * Abre el Asistente IA llevándose la cédula.

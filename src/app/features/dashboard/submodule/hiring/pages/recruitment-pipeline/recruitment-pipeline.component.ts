@@ -114,7 +114,7 @@ type ExamenResultadoForm = { aptoStatus?: string };
 type BioKind = 'foto' | 'huella' | 'firma';
 
 /** Los dos momentos del proceso: capa 1 del rail. */
-type CapaId = 'seleccion' | 'contratacion';
+type CapaId = 'seleccion' | 'contratacion' | 'ia';
 
 interface CapaPipeline {
   readonly id: CapaId;
@@ -966,8 +966,12 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   ];
 
   readonly capas: readonly CapaPipeline[] = [
-    { id: 'seleccion',    label: 'Selección',    icon: 'how_to_reg',        claves: this.AVANCES_SELECCION },
+    { id: 'seleccion',    label: 'Selección',    icon: 'how_to_reg',           claves: this.AVANCES_SELECCION },
     { id: 'contratacion', label: 'Contratación', icon: 'assignment_turned_in', claves: this.AVANCES_CONTRATACION },
+    // La IA no es un paso que se llene: es una lectura del expediente. Va en la
+    // primera capa porque se consulta en cualquier momento del proceso, no
+    // dentro de Selección, y por eso no lleva porcentaje.
+    { id: 'ia',           label: 'Inteligencia artificial', icon: 'auto_awesome', claves: [] },
   ];
 
   /**
@@ -984,7 +988,6 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     { id: 'antecedentes', label: 'Antecedentes',           icon: 'gavel',               tab: 1, panel: null,         clave: 'antecedentes' },
     { id: 'remision',     label: 'Remisión',               icon: 'work',                tab: 2, panel: 'remision',   clave: 'remision' },
     { id: 'examenes',     label: 'Exámenes de ingreso',    icon: 'medical_information', tab: 3, panel: null,         clave: 'examenes' },
-    { id: 'ia',           label: 'Inteligencia artificial', icon: 'auto_awesome',       tab: 2, panel: 'ia',         clave: null },
   ];
 
   /** Los pasos de Contratación. El contenido lo pinta `app-hiring-questions`. */
@@ -996,9 +999,16 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     { id: 'huella',      label: 'Cédula & Huella',   icon: 'fingerprint', idx: 4, clave: 'huella' },
   ];
 
-  /** Capa 1 abierta. La 4 es Contratación; 1, 2 y 3 son pasos de Selección. */
-  readonly capaActiva = computed<CapaId>(() =>
-    this.tabIndex() === 4 ? 'contratacion' : 'seleccion');
+  /**
+   * Capa 1 abierta. La pestaña 4 es Contratación; la IA vive dentro de la 2
+   * (es un panel del área de trabajo) pero se presenta como capa propia; el
+   * resto —1, 2 y 3— son pasos de Selección.
+   */
+  readonly capaActiva = computed<CapaId>(() => {
+    if (this.tabIndex() === 4) return 'contratacion';
+    if (this.tabIndex() === 2 && this.nav.panelSeleccion() === 'ia') return 'ia';
+    return 'seleccion';
+  });
 
   /** Paso de Selección abierto: la pestaña manda, salvo dentro de la 2. */
   readonly subSeleccionActivo = computed<string>(() => {
@@ -1017,9 +1027,14 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   readonly avanceSeleccion = computed<Avance>(() => this.nav.agregado(this.AVANCES_SELECCION));
   readonly avanceContratacion = computed<Avance>(() => this.nav.agregado(this.AVANCES_CONTRATACION));
 
-  /** % de una capa. `null` = todavía no hay nada medible que mostrar. */
+  private avanceCapa(id: CapaId): Avance {
+    const capa = this.capas.find((c) => c.id === id);
+    return this.nav.agregado(capa?.claves ?? []);
+  }
+
+  /** % de una capa. `null` = no se mide (la IA) o aún no hay nada que medir. */
   pctCapa(id: CapaId): number | null {
-    const a = id === 'seleccion' ? this.avanceSeleccion() : this.avanceContratacion();
+    const a = this.avanceCapa(id);
     return a.total > 0 ? pctDe(a) : null;
   }
 
@@ -1053,7 +1068,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   }
 
   detalleCapa(label: string, id: CapaId): string {
-    const a = id === 'seleccion' ? this.avanceSeleccion() : this.avanceContratacion();
+    const a = this.avanceCapa(id);
     if (a.total <= 0) return label;
     const faltan = Math.max(0, a.total - a.hechos);
     return faltan === 0
@@ -1065,6 +1080,13 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     if (this.bloqueoContratoTabs()) return;
     if (id === 'contratacion') {
       this.tabIndex.set(4);
+      return;
+    }
+    if (id === 'ia') {
+      // La IA es un panel del área de trabajo: se abre su pestaña y se pide el
+      // análisis (lo dispara `form-entrevista` al ver el panel en 'ia').
+      this.nav.panelSeleccion.set('ia');
+      this.tabIndex.set(2);
       return;
     }
     const sub = this.subSeleccion.find((s) => s.id === this.ultimoSubSeleccion());

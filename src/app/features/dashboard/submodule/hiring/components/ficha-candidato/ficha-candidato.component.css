@@ -552,3 +552,73 @@
 
 /* La ficha ya no es sticky por su cuenta: la altura la gobierna el pipeline. */
 .ficha { position: static; max-height: none; overflow: visible; }
+
+
+/* ==========================================================================
+   ESTADO DE LA PERSONA (proyectado por el pipeline)
+   Bajó de la barra superior. Aquí las pastillas van en columna y a lo ancho:
+   en fila, dentro de 300px, se partían en cuatro renglones desordenados.
+   ========================================================================== */
+:host ::ng-deep .ficha-estado {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+:host ::ng-deep .ficha-estado .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--slate-200);
+  border-radius: 8px;
+  background: var(--slate-50);
+  font-size: .74rem;
+  font-weight: 600;
+  color: var(--slate-700);
+  text-align: left;
+}
+
+:host ::ng-deep .ficha-estado .pill mat-icon {
+  flex: none;
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+/* Las accionables (prueba, examen, contrato) se sienten pulsables. */
+:host ::ng-deep .ficha-estado .pill-action { cursor: pointer; }
+:host ::ng-deep .ficha-estado .pill-action:hover { filter: brightness(.97); }
+
+:host ::ng-deep .ficha-estado .pill-success {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+:host ::ng-deep .ficha-estado .pill-warning {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+:host ::ng-deep .ficha-estado .pill-danger {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+:host ::ng-deep .ficha-estado .pill-info {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+:host ::ng-deep .ficha-estado .pill-meta {
+  margin-left: auto;
+  font-weight: 500;
+  opacity: .8;
+}

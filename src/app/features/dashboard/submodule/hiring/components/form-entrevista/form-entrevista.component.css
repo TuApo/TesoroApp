@@ -1136,6 +1136,22 @@ mat-icon,
   padding: 18px;
 }
 
+/* La ÚNICA transición: el módulo elegido entra sobreponiéndose de izquierda a
+   derecha. Es la misma que usan los pasos del rail, para que todo el pipeline
+   cambie de la misma forma. */
+.modulo-entra {
+  animation: modulo-entra .24s cubic-bezier(.22, .8, .3, 1) both;
+}
+
+@keyframes modulo-entra {
+  from { opacity: 0; transform: translateX(-26px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modulo-entra { animation: none; }
+}
+
 /* La remisión no se destruye al cambiar de pestaña: perdería lo escrito. */
 .taller-oculto { display: none !important; }
 
@@ -1408,4 +1424,148 @@ mat-icon,
 @media (max-width: 600px) {
   .ia-head { gap: 8px; }
   .ia-btn { flex: 1 1 auto; justify-content: center; }
+}
+
+
+/* ==========================================================================
+   SUGERENCIA DE CARGO (pie de la Entrevista)
+   Misma lectura que el panel de IA, pero recortada a lo que sirve mientras se
+   entrevista: el cargo propuesto y cinco puntos por lado.
+   ========================================================================== */
+.sug-card {
+  margin-top: 22px;
+  padding: 16px;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, rgba(99, 102, 241, .05), transparent 120px);
+}
+
+.sug-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sug-head-txt { min-width: 0; }
+.sug-spacer { flex: 1; }
+
+.sug-title {
+  margin: 0;
+  font-size: .92rem;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+.sug-sub {
+  margin: 2px 0 0;
+  font-size: .76rem;
+  color: var(--slate-500);
+}
+
+/* El cargo propuesto es la conclusión: se lee primero y en una sola línea. */
+.sug-cargo {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid #c7d2fe;
+  border-radius: 10px;
+  background: #eef2ff;
+}
+
+.sug-cargo mat-icon {
+  flex: none;
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+  color: #4f46e5;
+}
+
+.sug-cargo-sin {
+  border-color: var(--slate-200);
+  background: var(--slate-50);
+}
+
+.sug-cargo-sin mat-icon { color: var(--slate-400); }
+
+.sug-cargo-nombre {
+  display: block;
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+.sug-cargo-porque {
+  display: block;
+  margin-top: 2px;
+  font-size: .8rem;
+  line-height: 1.45;
+  color: var(--slate-700);
+}
+
+.sug-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sug-col {
+  padding: 12px;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.sug-col h5 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--slate-500);
+}
+
+.sug-col h5 mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.sug-col-ok  { border-left: 3px solid var(--ok-fg); }
+.sug-col-ok h5 mat-icon { color: var(--ok-fg); }
+.sug-col-no  { border-left: 3px solid #b91c1c; }
+.sug-col-no h5 mat-icon { color: #b91c1c; }
+
+.sug-item { padding: 6px 0; }
+.sug-item + .sug-item { border-top: 1px solid var(--slate-100); }
+
+.sug-punto {
+  display: block;
+  font-size: .81rem;
+  line-height: 1.4;
+  color: var(--navy-deep);
+}
+
+/* De qué campo del expediente sale el punto: sin eso no se puede verificar. */
+.sug-evi {
+  display: block;
+  margin-top: 2px;
+  font-size: .7rem;
+  color: var(--slate-400);
+}
+
+.sug-vacia {
+  margin: 0;
+  font-size: .82rem;
+  line-height: 1.5;
+  color: var(--slate-500);
+}
+
+@media (max-width: 900px) {
+  .sug-cols { grid-template-columns: minmax(0, 1fr); }
 }
