@@ -1137,6 +1137,22 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     this.tabIndex.set(sub.tab);
   }
 
+  /** Vacante remitida, tal como la publica `help-information`. */
+  readonly vacanteAsignada = this.nav.vacanteAsignada;
+
+  /**
+   * Cambiar la vacante. Igual que el lápiz: aquí solo se pide; quien tiene la
+   * lista y sabe guardarla es `help-information`.
+   */
+  pedirVacante(): void {
+    if (!this.candidatoSeleccionado()?.numero_documento) {
+      this.abrirPromptDocumento();
+      return;
+    }
+    if (this.bloqueoContratoTabs()) return;
+    this.nav.pedirAsignarVacante();
+  }
+
   /**
    * El lápiz de la ficha. No edita aquí: publica QUÉ se quiere editar y lo
    * recoge `form-entrevista`, que es el dueño del formulario con esos campos.

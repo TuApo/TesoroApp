@@ -73,6 +73,31 @@
     <p class="ficha-sin">Busca una persona por documento para ver su información.</p>
   } @else {
 
+    <!-- ── Vacante a la que se remite ──
+         Es lo que decide todo lo demás —qué documentos le tocan, qué empresa
+         firma, qué salario— y estaba enterrada dentro de Selección → Remisión.
+         Aquí se ve siempre, con la persona al frente, y se cambia de un click. -->
+    <section class="fblock fvacante">
+      <button type="button" class="fvacante-btn" (click)="asignarVacante.emit()"
+              [matTooltip]="vacante() ? 'Cambiar la vacante' : 'Elegir la vacante'">
+        <span class="fvacante-icono">
+          <mat-icon>{{ vacante() ? 'work' : 'work_outline' }}</mat-icon>
+        </span>
+        <span class="fvacante-cuerpo">
+          <span class="fvacante-rotulo">Vacante</span>
+          @if (vacante(); as v) {
+            <span class="fvacante-cargo">{{ v.cargo || 'Sin cargo' }}</span>
+            <span class="fvacante-donde">{{ v.empresa }} · {{ v.finca }}</span>
+            @if (v.codigo) { <span class="fvacante-cod">Cód. {{ v.codigo }}</span> }
+          } @else {
+            <span class="fvacante-vacia">Sin asignar · toca para elegir</span>
+          }
+        </span>
+        <mat-icon class="fvacante-chevron">chevron_right</mat-icon>
+      </button>
+    </section>
+
+
     <!-- Bloques -->
     @for (b of [
       { id: 'identificacion', titulo: 'Identificación y documento', dot: 'blue',   filas: identificacion() },

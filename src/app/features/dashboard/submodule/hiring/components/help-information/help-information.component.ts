@@ -26,6 +26,11 @@ import { RemisionDialogComponent, RemisionDialogData } from './remision-dialog.c
 import { TemporalRemision } from './remision-fill';
 import { procesoDelContrato } from '../../pages/recruitment-pipeline/contrato.rules';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import {
+  VacanteAsignarDialogComponent,
+  VacanteAsignarResultado,
+  VacanteOpcion,
+} from '../vacante-asignar/vacante-asignar.dialog';
 import { Avance, tieneValor } from '../../shared/progreso.util';
 
 // ================== Constantes ==================
@@ -313,6 +318,59 @@ export class HelpInformationComponent implements OnInit {
     return { finalizado: false, faltan: faltanMaxima, enProgreso: hayEnProgreso };
   });
 
+  private pedidoVacanteAtendido = 0;
+
+  /**
+   * Selector de vacante con búsqueda por varias palabras.
+   *
+   * El `mat-select` de esta misma pantalla sigue estando —quien ya trabaja ahí
+   * no tiene que cambiar de hábito—, pero su filtro exige que lo tecleado
+   * aparezca SEGUIDO en un mismo campo. Con cientos de publicaciones abiertas
+   * eso no alcanza, así que desde la ficha se abre este otro, que parte la
+   * consulta en palabras y las busca en todos los datos de la vacante.
+   *
+   * Guarda por el mismo camino de siempre (`onVacanteIdChange` +
+   * `guardarVacantes`): no hay una segunda ruta de persistencia.
+   */
+  private abrirSelectorVacante(): void {
+    const opciones: VacanteOpcion[] = this.vacantes().map((v) => ({
+      id: Number(v.id),
+      empresa: v.empresaUsuariaSolicita || '',
+      finca: v.finca || '',
+      cargo: v.cargo || '',
+      codigo: v.codigoElite || null,
+      temporal: v.temporal || null,
+      oficinas: this.oficinasResumen(v.oficinasQueContratan),
+      publicada: this.formatShortDate(v.fechaPublicado),
+      requeridos: this.totalRequeridaOf(v),
+      faltantes: this.falt(v),
+      // Sin cupos o dada de baja: no se ofrece, salvo que sea la asignada.
+      cerrada: v.activo === false || this.falt(v) === 0,
+    }));
+
+    const cand = this.candidatoSeleccionado();
+    const nombre = [cand?.primer_nombre, cand?.primer_apellido]
+      .map((x: unknown) => String(x ?? '').trim()).filter(Boolean).join(' ');
+
+    this.dialog
+      .open(VacanteAsignarDialogComponent, {
+        width: '760px',
+        maxWidth: '96vw',
+        autoFocus: false,
+        data: {
+          opciones,
+          actual: this.selectedVacanteId(),
+          candidato: nombre || (cand?.numero_documento ? `CC ${cand.numero_documento}` : null),
+        },
+      })
+      .afterClosed()
+      .subscribe((r: VacanteAsignarResultado | undefined) => {
+        if (!r) return;
+        this.onVacanteIdChange('quitar' in r ? this.SIN_VACANTE : r.id);
+        this.guardarVacantes();
+      });
+  }
+
   /**
    * Cuánto lleva llenada la Remisión.
    *
@@ -371,6 +429,26 @@ export class HelpInformationComponent implements OnInit {
     // --- Effect: reaccionar a inputs (candidato)
     effect(() => {
       this.onInputsChanged(this.candidatoSeleccionado());
+    });
+
+    // La ficha del pipeline muestra la vacante; aquí es donde se sabe cuál es.
+    effect(() => {
+      const v = this.vacanteSeleccionada();
+      this.nav.vacanteAsignada.set(v ? {
+        id: Number(v.id),
+        cargo: v.cargo || '',
+        empresa: v.empresaUsuariaSolicita || 'Sin empresa',
+        finca: v.finca || 'Sin finca',
+        codigo: v.codigoElite || null,
+      } : null);
+    });
+
+    // Pidieron cambiarla desde la ficha.
+    effect(() => {
+      const n = this.nav.pedidoVacante();
+      if (n === this.pedidoVacanteAtendido) return;
+      this.pedidoVacanteAtendido = n;
+      if (n > 0) this.abrirSelectorVacante();
     });
 
     // --- Avance de la Remisión para el rail del pipeline.

@@ -1,0 +1,82 @@
+<div class="va-cab">
+  <div class="va-cab-txt">
+    <h2 class="va-titulo">Vacante a la que se remite</h2>
+    <p class="va-sub">
+      @if (data.candidato) { {{ data.candidato }} } @else { Elige la vacante para esta persona }
+    </p>
+  </div>
+  <button type="button" class="va-cerrar" matTooltip="Cerrar" (click)="cerrar()">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<div class="va-buscador">
+  <mat-icon>search</mat-icon>
+  <input type="text" [value]="consulta()" (input)="alEscribir($event)"
+         placeholder="Empresa, finca, cargo, código…" autocomplete="off" autofocus />
+  @if (consulta()) {
+    <button type="button" class="va-limpiar" matTooltip="Limpiar" (click)="limpiar()">
+      <mat-icon>close</mat-icon>
+    </button>
+  }
+</div>
+
+<!-- Se explica porque no es como funcionan los buscadores de la plataforma:
+     aquí las palabras se buscan por separado y da igual el orden. -->
+<p class="va-pista">
+  Escribe varias palabras separadas por espacio: se muestran las vacantes que las
+  tengan <strong>todas</strong>, sin importar el orden ni en qué dato esté cada una.
+</p>
+
+<mat-dialog-content class="va-lista">
+  @for (o of visibles(); track o.id) {
+    <button type="button" class="va-item"
+            [class.va-item-actual]="o.id === data.actual"
+            (click)="elegir(o)">
+      <span class="va-item-cuerpo">
+        <span class="va-item-cargo">
+          {{ o.cargo || 'Sin cargo' }}
+          @if (o.id === data.actual) { <span class="va-tag-actual">Asignada</span> }
+          @if (o.cerrada) { <span class="va-tag-cerrada">Sin cupos</span> }
+        </span>
+        <span class="va-item-donde">
+          {{ o.empresa || 'Sin empresa' }} · {{ o.finca || 'Sin finca' }}
+        </span>
+        <span class="va-item-meta">
+          @if (o.oficinas) { <span>{{ o.oficinas }}</span> }
+          @if (o.codigo) { <span>Cód. {{ o.codigo }}</span> }
+          @if (o.publicada) { <span>{{ o.publicada }}</span> }
+        </span>
+      </span>
+      <span class="va-item-cupos" [class.va-sin-cupos]="o.faltantes === 0">
+        <strong>{{ o.faltantes }}</strong>
+        <span>de {{ o.requeridos }}</span>
+      </span>
+    </button>
+  } @empty {
+    <div class="va-vacio">
+      <mat-icon>search_off</mat-icon>
+      @if (consulta()) {
+        <p>Ninguna vacante tiene todas esas palabras. Prueba con menos.</p>
+      } @else {
+        <p>No hay vacantes abiertas con cupos.</p>
+      }
+    </div>
+  }
+
+  @if (ocultas() > 0) {
+    <p class="va-mas">
+      Hay {{ ocultas() }} más que también coinciden. Añade otra palabra para acotar.
+    </p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="va-acciones">
+  @if (data.actual != null) {
+    <button type="button" class="va-quitar" (click)="quitar()">
+      <mat-icon>block</mat-icon> Quitar la vacante
+    </button>
+  }
+  <span class="va-spacer"></span>
+  <button mat-button type="button" (click)="cerrar()">Cancelar</button>
+</mat-dialog-actions>

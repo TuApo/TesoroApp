@@ -1,0 +1,285 @@
+@import "../../shared/tokens.css";
+
+:host {
+  display: block;
+  /* En móvil el diálogo ocupa la pantalla; en escritorio, una caja cómoda. */
+  max-height: 88vh;
+}
+
+.va-cab {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 20px 12px;
+}
+
+.va-cab-txt { flex: 1; min-width: 0; }
+
+.va-titulo {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+.va-sub {
+  margin: 2px 0 0;
+  font-size: .78rem;
+  color: var(--slate-500);
+  overflow-wrap: anywhere;
+}
+
+.va-cerrar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--slate-500);
+  cursor: pointer;
+}
+
+.va-cerrar:hover { background: var(--slate-100); }
+
+/* ── Buscador ────────────────────────────────────────────────────────────── */
+.va-buscador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 20px;
+  padding: 0 12px;
+  border: 1px solid var(--slate-300);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.va-buscador:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(33, 38, 60, .08);
+}
+
+.va-buscador > mat-icon {
+  flex: none;
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+  color: var(--slate-400);
+}
+
+.va-buscador input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: .88rem;
+  color: var(--navy-deep);
+}
+
+.va-limpiar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--slate-100);
+  color: var(--slate-500);
+  cursor: pointer;
+}
+
+.va-limpiar mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+.va-pista {
+  margin: 8px 20px 4px;
+  font-size: .72rem;
+  line-height: 1.45;
+  color: var(--slate-500);
+}
+
+/* ── Lista ───────────────────────────────────────────────────────────────── */
+.va-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 20px 16px !important;
+  max-height: min(56vh, 460px);
+}
+
+.va-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--slate-200);
+  border-radius: 11px;
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .14s ease, background .14s ease;
+}
+
+.va-item:hover {
+  border-color: var(--navy);
+  background: var(--slate-50);
+}
+
+.va-item-actual {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.va-item-cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.va-item-cargo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--navy-deep);
+}
+
+.va-item-donde {
+  font-size: .78rem;
+  color: var(--slate-700);
+  overflow-wrap: anywhere;
+}
+
+/* Oficinas, código y fecha: lo que desempata entre dos vacantes del mismo
+   cargo en la misma finca. */
+.va-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: .7rem;
+  color: var(--slate-400);
+}
+
+.va-tag-actual,
+.va-tag-cerrada {
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: .62rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.va-tag-actual {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.va-tag-cerrada {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+/* Los cupos que faltan son el dato con el que se decide a quién mandar. */
+.va-item-cupos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  min-width: 54px;
+  padding: 5px 8px;
+  border-radius: 9px;
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  line-height: 1.1;
+}
+
+.va-item-cupos strong { font-size: 1.05rem; font-weight: 800; }
+.va-item-cupos span { font-size: .62rem; }
+
+.va-sin-cupos {
+  background: var(--slate-100);
+  color: var(--slate-500);
+}
+
+.va-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 12px;
+  color: var(--slate-400);
+  text-align: center;
+}
+
+.va-vacio mat-icon { font-size: 32px; width: 32px; height: 32px; }
+.va-vacio p { margin: 0; font-size: .84rem; }
+
+.va-mas {
+  margin: 6px 0 0;
+  font-size: .74rem;
+  color: var(--slate-500);
+  text-align: center;
+}
+
+/* ── Acciones ────────────────────────────────────────────────────────────── */
+.va-acciones {
+  gap: 8px;
+  padding: 10px 20px 16px !important;
+}
+
+.va-spacer { flex: 1; }
+
+.va-quitar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.va-quitar:hover { background: #fee2e2; }
+.va-quitar mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+/* ── Responsivo ──────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .va-cab,
+  .va-buscador,
+  .va-pista,
+  .va-lista,
+  .va-acciones { padding-left: 14px !important; padding-right: 14px !important; }
+
+  .va-buscador { margin: 0 14px; }
+  .va-pista { margin: 8px 14px 4px; }
+
+  /* En móvil los cupos pasan debajo: en fila dejaban el cargo en dos palabras
+     por renglón. */
+  .va-item { align-items: flex-start; flex-direction: column; gap: 8px; }
+
+  .va-item-cupos {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  .va-lista { max-height: none; }
+}

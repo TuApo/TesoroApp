@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
+import { VacanteAsignadaResumen } from '../../service/pipeline-nav/pipeline-nav.service';
 
 /** Una fila de la ficha: etiqueta, valor y a qué bloque pertenece para editar. */
 interface Fila {
@@ -31,6 +32,8 @@ interface Fila {
 export class FichaCandidatoComponent {
   candidato = input<any | null>(null);
   fotoUrl = input<string | null>(null);
+  /** Vacante a la que se remite. `null` = todavía sin asignar. */
+  vacante = input<VacanteAsignadaResumen | null>(null);
   /** Documento tal como se tecleó en el diálogo de búsqueda. */
   documentoBuscado = input<string | null>(null);
 
@@ -44,6 +47,8 @@ export class FichaCandidatoComponent {
   editar = output<string>();
   /** El usuario quiere corregir el documento (búsqueda inteligente). */
   corregirDocumento = output<void>();
+  /** Pide elegir (o cambiar) la vacante a la que se remite. */
+  asignarVacante = output<void>();
 
   private readonly plegados = signal<ReadonlySet<string>>(new Set<string>());
 

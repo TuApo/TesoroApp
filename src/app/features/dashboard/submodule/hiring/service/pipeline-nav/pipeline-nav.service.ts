@@ -1,6 +1,15 @@
 import { Injectable, signal } from '@angular/core';
 import { Avance, pctDe, sumarAvances } from '../../shared/progreso.util';
 
+/** Lo que la ficha muestra de la vacante remitida. */
+export interface VacanteAsignadaResumen {
+  id: number;
+  cargo: string;
+  empresa: string;
+  finca: string;
+  codigo: string | null;
+}
+
 /** Sub-pestañas que viven dentro del área de trabajo de Selección. */
 export type PanelSeleccion =
   | 'entrevista'
@@ -61,6 +70,25 @@ export class PipelineNavService {
     this.edicionFicha.set(bloque);
   }
 
+  /**
+   * La vacante a la que se remite, resumida para la ficha.
+   *
+   * La publica `help-information`, que es quien la tiene; la ficha del pipeline
+   * solo la pinta. Sin este canal habría que subir toda la lista de vacantes al
+   * pipeline para mostrar dos líneas.
+   */
+  readonly vacanteAsignada = signal<VacanteAsignadaResumen | null>(null);
+
+  /**
+   * Contador de "quiero cambiar la vacante". Es un número y no un booleano
+   * porque pedirlo dos veces seguidas tiene que abrir el diálogo dos veces.
+   */
+  readonly pedidoVacante = signal<number>(0);
+
+  pedirAsignarVacante(): void {
+    this.pedidoVacante.update((n) => n + 1);
+  }
+
   private readonly _avances = signal<Readonly<Partial<Record<ClaveAvance, Avance>>>>({});
   readonly avances = this._avances.asReadonly();
 
@@ -97,5 +125,6 @@ export class PipelineNavService {
     this.panelSeleccion.set('entrevista');
     this.subContratacion.set(0);
     this.edicionFicha.set(null);
+    this.vacanteAsignada.set(null);
   }
 }
