@@ -1,32 +1,41 @@
-<div class="ast-shell" [class.sidebar-open]="sidebarOpen()">
+<div class="ast-shell" [class.sidebar-open]="sidebarOpen()" [class.ast-embebido]="embebido()">
 
   <!-- ── Historial lateral ────────────────────────────────────────────────── -->
   <aside class="ast-side">
     <div class="side-head">
-      <span class="side-title">Historial</span>
+      <span class="side-title">
+        {{ embebido() ? 'Chats de esta persona' : 'Historial' }}
+      </span>
       <div class="side-actions">
-        <button mat-icon-button matTooltip="Nueva carpeta" (click)="crearCarpeta()">
-          <mat-icon>create_new_folder</mat-icon>
-        </button>
-        <button mat-icon-button color="primary" matTooltip="Nueva conversación" (click)="nuevaConversacion()">
+        @if (!embebido()) {
+          <button mat-icon-button matTooltip="Nueva carpeta" (click)="crearCarpeta()">
+            <mat-icon>create_new_folder</mat-icon>
+          </button>
+        }
+        <button mat-icon-button color="primary"
+                [matTooltip]="embebido() ? 'Otro chat sobre esta persona' : 'Nueva conversación'"
+                (click)="nuevaConversacion()">
           <mat-icon>add_comment</mat-icon>
         </button>
       </div>
     </div>
 
-    <!-- Filtro de carpetas -->
-    <div class="folder-chips">
-      <button class="folder-chip" [class.active]="selectedFolder() === null" (click)="seleccionarFolder(null)">
-        <mat-icon>inbox</mat-icon> Todas
-      </button>
-      @for (f of folders(); track f.id) {
-        <button class="folder-chip" [class.active]="selectedFolder() === f.id" (click)="seleccionarFolder(f.id)">
-          <mat-icon>folder</mat-icon> {{ f.nombre }}
-          <span class="fc-count">{{ f.conversaciones }}</span>
-          <mat-icon class="fc-del" (click)="eliminarCarpeta(f, $event)">close</mat-icon>
+    <!-- Filtro de carpetas. Embebido no se ofrece: la carpeta ya está fijada a
+         la persona que se tiene al frente y cambiarla sacaría del contexto. -->
+    @if (!embebido()) {
+      <div class="folder-chips">
+        <button class="folder-chip" [class.active]="selectedFolder() === null" (click)="seleccionarFolder(null)">
+          <mat-icon>inbox</mat-icon> Todas
         </button>
-      }
-    </div>
+        @for (f of folders(); track f.id) {
+          <button class="folder-chip" [class.active]="selectedFolder() === f.id" (click)="seleccionarFolder(f.id)">
+            <mat-icon>folder</mat-icon> {{ f.nombre }}
+            <span class="fc-count">{{ f.conversaciones }}</span>
+            <mat-icon class="fc-del" (click)="eliminarCarpeta(f, $event)">close</mat-icon>
+          </button>
+        }
+      </div>
+    }
 
     <!-- Lista de conversaciones -->
     <div class="conv-list">

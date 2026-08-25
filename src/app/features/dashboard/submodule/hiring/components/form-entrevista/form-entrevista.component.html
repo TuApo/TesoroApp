@@ -544,6 +544,22 @@
             </section>
           }
 
+          <!-- ── Panel · Chat de la IA ──────────────────────────────────────
+               El MISMO asistente de Herramientas IA, embebido y apuntando a la
+               persona que se tiene al frente. Sus conversaciones van a una
+               carpeta propia, así que se pueden tener varias abiertas de ella
+               sin mezclarlas entre sí ni con el resto del historial. -->
+          @if (panel() === 'iaChat') {
+            <section class="section ia-chat-panel modulo-entra">
+              <app-asistente-ia
+                [embebido]="true"
+                [cedulaContexto]="texto('numero_documento')"
+                [nombreContexto]="nombrePersona"
+                [preguntaInicial]="preguntaChat()">
+              </app-asistente-ia>
+            </section>
+          }
+
           <!-- ── Panel · Remisión ───────────────────────────────────────────
                Proyectado desde help-information. Nunca se saca del DOM: si se
                destruyera, el formulario de la vacante perdería lo escrito cada

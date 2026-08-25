@@ -200,12 +200,13 @@
 
         <nav class="rail rail-capa2" role="tablist" aria-label="Pasos del proceso">
 
-          <!-- La IA no tiene sub-pasos: es una lectura, no un formulario que se
-               llene por partes. Con ella abierta la lista de arriba se calla y
-               quedan solo los accesos rápidos. -->
-          @if (capaActiva() !== 'ia') {
+          @if (capaActiva() !== 'accesos') {
             <span class="rail-capa2-titulo">
-              {{ capaActiva() === 'seleccion' ? 'Selección' : 'Contratación' }}
+              @switch (capaActiva()) {
+                @case ('seleccion') { Selección }
+                @case ('contratacion') { Contratación }
+                @default { Inteligencia artificial }
+              }
             </span>
           }
 
@@ -220,18 +221,16 @@
                       [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleAvance(s.label, s.clave)"
                       matTooltipPosition="right"
                       (click)="abrirSubSeleccion(s)">
-                <mat-icon class="sub-icon">{{ pctS === 100 ? 'check_circle' : s.icon }}</mat-icon>
-                <span class="sub-cuerpo">
-                  <span class="sub-fila">
-                    <span class="sub-txt">{{ s.label }}</span>
-                    <span class="sub-pct">{{ pctS === null ? '' : pctS + '%' }}</span>
+                <!-- El mismo anillo de los módulos principales, en pequeño: lleva
+                     el avance sin gastar el renglón entero que gastaba la barra.
+                     La cifra exacta la da el tooltip. -->
+                <span class="sub-anillo" [class.anillo-lleno]="pctS === 100"
+                      [style.background]="fondoAnillo(pctS)">
+                  <span class="sub-anillo-centro">
+                    <mat-icon>{{ pctS === 100 ? 'check' : s.icon }}</mat-icon>
                   </span>
-                  @if (pctS !== null) {
-                    <span class="sub-barra">
-                      <span class="sub-barra-fill" [style.width.%]="pctS"></span>
-                    </span>
-                  }
                 </span>
+                <span class="sub-txt">{{ s.label }}</span>
               </button>
             }
           } @else if (capaActiva() === 'contratacion') {
@@ -245,20 +244,37 @@
                       [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleAvance(s.label, s.clave)"
                       matTooltipPosition="right"
                       (click)="abrirSubContratacion(s)">
-                <mat-icon class="sub-icon">{{ pctS === 100 ? 'check_circle' : s.icon }}</mat-icon>
-                <span class="sub-cuerpo">
-                  <span class="sub-fila">
-                    <span class="sub-txt">{{ s.label }}</span>
-                    <span class="sub-pct">{{ pctS === null ? '' : pctS + '%' }}</span>
+                <!-- El mismo anillo de los módulos principales, en pequeño: lleva
+                     el avance sin gastar el renglón entero que gastaba la barra.
+                     La cifra exacta la da el tooltip. -->
+                <span class="sub-anillo" [class.anillo-lleno]="pctS === 100"
+                      [style.background]="fondoAnillo(pctS)">
+                  <span class="sub-anillo-centro">
+                    <mat-icon>{{ pctS === 100 ? 'check' : s.icon }}</mat-icon>
                   </span>
-                  @if (pctS !== null) {
-                    <span class="sub-barra">
-                      <span class="sub-barra-fill" [style.width.%]="pctS"></span>
-                    </span>
-                  }
                 </span>
+                <span class="sub-txt">{{ s.label }}</span>
               </button>
             }
+          } @else if (capaActiva() === 'ia') {
+            <!-- Dos maneras de mirar a la misma persona: lo que la plataforma ya
+                 sabe de ella, y preguntarle a la IA lo que sea sobre su proceso.
+                 Ninguna se "llena", así que van sin anillo de avance. -->
+            @for (s of subIa; track s.id) {
+              <button type="button" class="sub sub-plano" role="tab"
+                      [class.sub-activo]="subSeleccionActivo() === s.id"
+                      [attr.aria-selected]="subSeleccionActivo() === s.id"
+                      [disabled]="bloqueoContratoTabs()"
+                      [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : s.label"
+                      matTooltipPosition="right"
+                      (click)="abrirSubSeleccion(s)">
+                <span class="sub-anillo" [style.background]="fondoAnillo(null)">
+                  <span class="sub-anillo-centro"><mat-icon>{{ s.icon }}</mat-icon></span>
+                </span>
+                <span class="sub-txt">{{ s.label }}</span>
+              </button>
+            }
+
           } @else if (capaActiva() === 'accesos') {
 
             <!-- ══ ACCESOS RÁPIDOS ══

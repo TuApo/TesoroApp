@@ -1569,3 +1569,26 @@ mat-icon,
 @media (max-width: 900px) {
   .sug-cols { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* ==========================================================================
+   PANEL DE CHAT DE LA IA
+   El asistente trae su propio alto de pantalla completa; aquí vive dentro de
+   un panel, así que se le da el alto disponible y se deja que él scrollee.
+   ========================================================================== */
+.ia-chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+}
+
+.ia-chat-panel app-asistente-ia {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  /* Sin un alto concreto el chat se estira con los mensajes y el panel entero
+     crece en vez de scrollear por dentro. */
+  min-height: 520px;
+}

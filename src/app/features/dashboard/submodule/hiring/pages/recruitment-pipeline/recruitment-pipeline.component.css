@@ -1379,7 +1379,7 @@ mat-tab-group {
 .rail-capa2 {
   width: 218px;
   padding: 12px 10px;
-  gap: 3px;
+  gap: 1px;
   background: #2A3050;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1403,9 +1403,9 @@ mat-tab-group {
 
 .sub {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  padding: 9px 10px;
+  padding: 6px 10px;
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -1431,29 +1431,38 @@ mat-tab-group {
   cursor: not-allowed;
 }
 
-.sub-icon {
+/* El mismo anillo de los módulos principales, a escala. El avance se lee en el
+   arco; el renglón entero que ocupaba la barra lineal se recupera, que era el
+   motivo de que la lista se viera tan alta. El número exacto va en el tooltip. */
+.sub-anillo {
   flex: none;
-  margin-top: 1px;
-  font-size: 19px;
-  width: 19px;
-  height: 19px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  transition: background .35s ease;
 }
 
-.sub-completo .sub-icon { color: var(--lime, #8CD50A); }
-
-.sub-cuerpo {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
+.sub-anillo-centro {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2A3050;
 }
 
-.sub-fila {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
+.sub-activo .sub-anillo-centro { background: #333a5e; }
+
+.sub-anillo mat-icon {
+  font-size: 13px;
+  width: 13px;
+  height: 13px;
+  color: inherit;
 }
+
+.sub-anillo.anillo-lleno mat-icon { color: var(--lime, #8CD50A); }
 
 /* Los rótulos largos ("Exámenes de ingreso", "Cédula & Huella") se parten en
    dos líneas en vez de recortarse: un paso a medio nombre no se reconoce de un
@@ -1463,36 +1472,8 @@ mat-tab-group {
   min-width: 0;
   font-size: .78rem;
   font-weight: 600;
-  line-height: 1.28;
+  line-height: 1.25;
   overflow-wrap: anywhere;
-}
-
-.sub-pct {
-  flex: none;
-  padding-top: 1px;
-  font-size: .66rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, .48);
-}
-
-.sub-activo .sub-pct,
-.sub-completo .sub-pct { color: var(--lime, #8CD50A); }
-
-.sub-barra {
-  display: block;
-  height: 3px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, .14);
-  overflow: hidden;
-}
-
-.sub-barra-fill {
-  display: block;
-  height: 100%;
-  border-radius: 3px;
-  background: var(--lime, #8CD50A);
-  transition: width .35s ease;
 }
 
 /* ── Accesos rápidos: módulo propio de la capa 1 ─────────────────────────

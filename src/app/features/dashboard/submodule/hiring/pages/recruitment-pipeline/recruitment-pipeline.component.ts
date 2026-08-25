@@ -994,6 +994,16 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     { id: 'examenes',     label: 'Exámenes de ingreso',    icon: 'medical_information', tab: 3, panel: null,         clave: 'examenes' },
   ];
 
+  /**
+   * Los pasos de la IA. No llevan porcentaje: no son formularios que se llenen,
+   * son dos formas de mirar a la misma persona —lo que la plataforma ya sabe de
+   * ella, y preguntarle a la IA lo que sea sobre su proceso—.
+   */
+  readonly subIa: readonly SubPasoSeleccion[] = [
+    { id: 'ia',     label: 'Resumen del perfil', icon: 'insights', tab: 2, panel: 'ia',     clave: null },
+    { id: 'iaChat', label: 'Chat',               icon: 'forum',    tab: 2, panel: 'iaChat', clave: null },
+  ];
+
   /** Los pasos de Contratación. El contenido lo pinta `app-hiring-questions`. */
   readonly subContratacion: readonly SubPasoContratacion[] = [
     { id: 'pago',        label: 'Pago y Transporte', icon: 'payments',    idx: 0, clave: 'pago' },
@@ -1021,7 +1031,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   readonly capaActiva = computed<CapaId>(() => {
     if (this.accesosAbiertos()) return 'accesos';
     if (this.tabIndex() === 4) return 'contratacion';
-    if (this.tabIndex() === 2 && this.nav.panelSeleccion() === 'ia') return 'ia';
+    const panel = this.nav.panelSeleccion();
+    if (this.tabIndex() === 2 && (panel === 'ia' || panel === 'iaChat')) return 'ia';
     return 'seleccion';
   });
 
@@ -1030,6 +1041,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     const t = this.tabIndex();
     if (t === 1) return 'antecedentes';
     if (t === 3) return 'examenes';
+    // Sirve igual para los pasos de Selección y para los dos de la IA: el id de
+    // cada uno es su panel.
     return this.nav.panelSeleccion();
   });
 
@@ -1105,9 +1118,10 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       return;
     }
     if (id === 'ia') {
-      // La IA es un panel del área de trabajo: se abre su pestaña y se pide el
-      // análisis (lo dispara `form-entrevista` al ver el panel en 'ia').
-      this.nav.panelSeleccion.set('ia');
+      // La IA son dos paneles del área de trabajo. Se entra por el resumen, que
+      // es lo que se mira primero; el análisis lo dispara `form-entrevista` al
+      // ver el panel en 'ia'.
+      if (this.nav.panelSeleccion() !== 'iaChat') this.nav.panelSeleccion.set('ia');
       this.tabIndex.set(2);
       return;
     }

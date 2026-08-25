@@ -1,5 +1,5 @@
 import {
-  Component, ChangeDetectionStrategy, OnInit, signal, computed, inject,
+  Component, ChangeDetectionStrategy, OnInit, signal, computed, inject, effect, input,
   ViewChild, ElementRef, DestroyRef, PLATFORM_ID,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -48,6 +48,36 @@ export class AsistenteIaComponent implements OnInit {
 
   @ViewChild('scrollBox') scrollBox?: ElementRef<HTMLElement>;
   @ViewChild('fileInput') fileInput?: ElementRef<HTMLInputElement>;
+
+  // ── Modo embebido ────────────────────────────────────────────────────────────
+  /*
+   * El mismo asistente, metido dentro del pipeline de contratación para hablar
+   * de la persona que se tiene al frente. No es un chat aparte: es ESTE, con
+   * dos diferencias.
+   *
+   *   1. Las conversaciones se guardan en una carpeta por persona, así que se
+   *      pueden tener varias abiertas de la misma sin mezclarlas con el resto
+   *      del historial ni entre ellas.
+   *   2. No escucha `?q=` de la URL: dentro del pipeline esos parámetros son
+   *      de otra pantalla y arrancarían una conversación que nadie pidió.
+   */
+  /** `true` cuando vive dentro de otra pantalla y no como página propia. */
+  embebido = input<boolean>(false);
+  /** Persona de la que se habla. Da nombre a su carpeta de conversaciones. */
+  cedulaContexto = input<string | null>(null);
+  /** Rótulo de la carpeta (nombre de la persona), solo para leerla mejor. */
+  nombreContexto = input<string | null>(null);
+  /**
+   * Pregunta con la que arrancar. Sube cada vez que se pide un chat nuevo
+   * desde el resumen; el número es lo que distingue una petición de la
+   * siguiente cuando el texto es el mismo.
+   */
+  preguntaInicial = input<{ texto: string; seq: number } | null>(null);
+
+  /** Carpeta de la persona; hasta que exista, las conversaciones no se filtran. */
+  private readonly folderPersona = signal<number | null>(null);
+  private cedulaPreparada: string | null = null;
+  private seqAtendida = -1;
 
   // ── Estado historial ─────────────────────────────────────────────────────────
   folders = signal<FolderAst[]>([]);
@@ -112,12 +142,73 @@ export class AsistenteIaComponent implements OnInit {
     'Dame una visión general del estado de la plataforma.',
   ];
 
+  constructor() {
+    // Cambió la persona: se prepara su carpeta y se limpia lo que hubiera en
+    // pantalla, que era de otra.
+    effect(() => {
+      if (!this.embebido()) return;
+      const ced = (this.cedulaContexto() ?? '').trim();
+      if (!ced || ced === this.cedulaPreparada) return;
+      this.cedulaPreparada = ced;
+      this.activeConvId.set(null);
+      this.mensajes.set([]);
+      this.prepararCarpetaPersona(ced);
+    });
+
+    // Petición de chat nuevo desde el resumen del perfil.
+    effect(() => {
+      if (!this.embebido()) return;
+      const p = this.preguntaInicial();
+      if (!p || p.seq === this.seqAtendida) return;
+      this.seqAtendida = p.seq;
+      this.nuevaConversacion();
+      this.draft.set(p.texto);
+      this.enviar();
+    });
+  }
+
   ngOnInit(): void {
     this.svc.capacidades().subscribe({ next: (c) => this.capacidades.set(c), error: () => {} });
     this.svc.modulosDisponibles().subscribe({ next: (m) => this.modulosDisponibles.set(m ?? []), error: () => {} });
     this.cargarFolders();
     this.cargarConversaciones();
-    this.escucharPreguntaDeLaUrl();
+    if (!this.embebido()) this.escucharPreguntaDeLaUrl();
+  }
+
+  /** Nombre de la carpeta de una persona. Estable: se busca por él. */
+  private nombreCarpeta(cedula: string): string {
+    const n = (this.nombreContexto() ?? '').trim();
+    return n ? `${n} · ${cedula}` : `Candidato ${cedula}`;
+  }
+
+  /**
+   * Busca la carpeta de la persona y, si no está, la crea.
+   *
+   * Es lo que permite tener varias conversaciones a la vez sobre la misma
+   * persona sin que se pierdan entre las del resto del historial: el listado
+   * lateral ya filtra por carpeta.
+   */
+  private prepararCarpetaPersona(cedula: string): void {
+    const nombre = this.nombreCarpeta(cedula);
+    const usar = (id: number) => {
+      this.folderPersona.set(id);
+      this.selectedFolder.set(id);
+      this.cargarConversaciones();
+    };
+
+    this.svc.listarFolders().subscribe({
+      next: (fs) => {
+        this.folders.set(fs ?? []);
+        const ya = (fs ?? []).find((f) => f.nombre === nombre);
+        if (ya) { usar(ya.id); return; }
+        this.svc.crearFolder(nombre).subscribe({
+          next: (f) => { this.cargarFolders(); usar(f.id); },
+          // Sin carpeta el chat sigue sirviendo; solo se mezcla con el resto.
+          error: () => {},
+        });
+      },
+      error: () => {},
+    });
   }
 
   /**
@@ -182,6 +273,10 @@ export class AsistenteIaComponent implements OnInit {
     this.adjuntos.set([]);
     this.modulosActivos.set([...TODOS_MODULOS]);
     this.sidebarOpen.set(false);
+    // Embebido, "nueva" es otra conversación DE ESTA PERSONA: el filtro de su
+    // carpeta se queda puesto para que la recién creada aparezca en la lista.
+    const folder = this.folderPersona();
+    if (this.embebido() && folder != null) this.selectedFolder.set(folder);
   }
 
   seleccionarFolder(id: number | null): void { this.selectedFolder.set(id); }
@@ -289,10 +384,23 @@ export class AsistenteIaComponent implements OnInit {
 
     req$.subscribe({
       next: (r) => {
+        const esNueva = convId == null;
         this.activeConvId.set(r.conversacionId);
         this.mensajes.update((m) => [...m, r.mensaje]);
         this.sending.set(false);
         this.scrollAlFinal();
+
+        // `enviarMensajeNuevo` crea la conversación sin carpeta. Estando
+        // embebido hay que meterla en la de la persona o se pierde entre el
+        // historial general y el listado lateral no la ve.
+        const folder = this.folderPersona();
+        if (esNueva && this.embebido() && folder != null) {
+          this.svc.moverConversacion(r.conversacionId, folder).subscribe({
+            next: () => this.cargarConversaciones(),
+            error: () => this.cargarConversaciones(),
+          });
+          return;
+        }
         this.cargarConversaciones();
       },
       error: () => {

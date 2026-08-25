@@ -48,11 +48,12 @@ import {
   BloqueFicha,
   FichaEditarDialogComponent,
 } from '../ficha-editar/ficha-editar.dialog';
+import { AsistenteIaComponent } from '../../../herramientas-ia/pages/asistente-ia/asistente-ia.component';
 
 @Component({
   selector: 'app-form-entrevista',
   standalone: true,
-  imports: [MatIconModule, SharedModule],
+  imports: [MatIconModule, SharedModule, AsistenteIaComponent],
   templateUrl: './form-entrevista.component.html',
   styleUrls: ['./form-entrevista.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -309,6 +310,22 @@ export class FormEntrevistaComponent implements OnInit {
   /** Cédula ya analizada, para no repetir la llamada al volver a la pestaña. */
   private analisisDe: string | null = null;
 
+  /**
+   * Pregunta con la que arranca el chat cuando se entra desde el resumen.
+   *
+   * Lleva un contador porque el texto puede repetirse: pulsar "Seguir en el
+   * chat" dos veces tiene que abrir DOS conversaciones, no reusar la misma.
+   */
+  readonly preguntaChat = signal<{ texto: string; seq: number } | null>(null);
+  private seqChat = 0;
+
+  /** Nombre de la persona, para rotular su carpeta de conversaciones. */
+  get nombrePersona(): string | null {
+    const p = [this.texto('primer_nombre'), this.texto('primer_apellido')]
+      .filter(Boolean).join(' ').trim();
+    return p || null;
+  }
+
   /** Se dispara al abrir la pestaña; el usuario puede forzar con "Rehacer". */
   pedirAnalisis(forzar = false): void {
     const cedula = this.texto('numero_documento');
@@ -376,21 +393,45 @@ export class FormEntrevistaComponent implements OnInit {
   get enContraTop(): PuntoAnalisis[] { return (this.analisis()?.enContra ?? []).slice(0, 5); }
 
   /**
-   * Abre el Asistente IA llevándose la cédula.
+   * Pasa del resumen al chat, llevándose lo que ya se leyó del expediente.
    *
-   * El chat usa la MISMA fuente que este análisis (la tool
-   * `expedienteCompletoPorCedula` de ms-ai), así que la conversación arranca
-   * sabiendo de quién se habla y no hay que repetirle los datos.
+   * Antes esto sacaba de la pantalla: navegaba a Herramientas IA y había que
+   * volver al pipeline para seguir con la persona. Ahora el chat es el otro
+   * panel de este mismo módulo, así que se cambia de panel y se le siembra el
+   * contexto: el resumen, el ajuste a la vacante y el cargo propuesto. Sin eso
+   * la conversación arrancaba en blanco y había que pedirle a la IA que
+   * volviera a leer lo que acababa de decir.
    */
   continuarEnChat(): void {
     const cedula = this.texto('numero_documento');
     if (!cedula) return;
-    this.router.navigate(['/dashboard/herramientas-ia/asistente'], {
-      queryParams: {
-        cedula,
-        q: `Analiza a la persona con cédula ${cedula} usando su expediente completo.`,
-      },
-    });
+
+    this.preguntaChat.set({ texto: this.contextoParaChat(cedula), seq: ++this.seqChat });
+    this.panel.set('iaChat');
+  }
+
+  private contextoParaChat(cedula: string): string {
+    const a = this.analisis();
+    const quien = this.nombrePersona ? `${this.nombrePersona} (CC ${cedula})` : `la persona con cédula ${cedula}`;
+
+    if (!a) {
+      return `Estoy atendiendo a ${quien} en el proceso de contratación. `
+           + 'Léete su expediente completo y dime qué debería tener en cuenta.';
+    }
+
+    const partes = [`Estoy atendiendo a ${quien} en el proceso de contratación.`];
+    if (a.resumen) partes.push(`Esto es lo que ya leíste de su expediente:\n${a.resumen}`);
+    if (a.ajusteVacante?.nivel) {
+      partes.push(`Ajuste a la vacante: ${a.ajusteVacante.nivel}`
+        + (a.ajusteVacante.porque ? ` — ${a.ajusteVacante.porque}` : ''));
+    }
+    if (a.cargoSugerido?.cargo) {
+      partes.push(`Cargo que propusiste: ${a.cargoSugerido.cargo}`
+        + (a.cargoSugerido.porque ? ` — ${a.cargoSugerido.porque}` : ''));
+    }
+    partes.push('Tenlo presente para lo que te pregunte a partir de ahora. '
+      + 'Empieza diciéndome en dos líneas qué es lo primero que debería confirmar con ella.');
+    return partes.join('\n\n');
   }
 
   // ── Edición en línea dentro de la ficha ──────────────────────────────────

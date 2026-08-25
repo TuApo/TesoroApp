@@ -2,7 +2,14 @@ import { Injectable, signal } from '@angular/core';
 import { Avance, pctDe, sumarAvances } from '../../shared/progreso.util';
 
 /** Sub-pestañas que viven dentro del área de trabajo de Selección. */
-export type PanelSeleccion = 'entrevista' | 'formacion' | 'remision' | 'ia';
+export type PanelSeleccion =
+  | 'entrevista'
+  | 'formacion'
+  | 'remision'
+  /** IA · resumen del perfil. */
+  | 'ia'
+  /** IA · chat sobre esta persona. */
+  | 'iaChat';
 
 /** Cada bloque que reporta cuánto lleva llenado. */
 export type ClaveAvance =
