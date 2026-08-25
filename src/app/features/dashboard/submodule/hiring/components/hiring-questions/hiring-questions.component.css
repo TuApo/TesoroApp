@@ -797,3 +797,123 @@ button {
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* ==========================================================================
+   SEGUNDO RAIL — sub-pasos de Contratación
+   Mismo patrón que el rail del pipeline: la cabecera del mat-tab-group se
+   oculta y este rail la sustituye. Queda pegado al primero, formando dos
+   columnas de pasos.
+   ========================================================================== */
+
+.hq-shell {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+:host ::ng-deep .hq-shell > .tab-group > .mat-mdc-tab-header {
+  display: none !important;
+}
+
+.hq-shell > .tab-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.rail-sub {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 54px;
+  padding: 6px 0;
+  /* Un punto más claro que el rail de pasos: se lee como el segundo nivel
+     y no como otra barra del mismo rango. */
+  background: #2b3149;
+}
+
+.rail-sub .rail-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-height: 92px;
+  padding: 12px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, .60);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.rail-sub .rail-item:hover {
+  background: rgba(255, 255, 255, .06);
+  color: #fff;
+}
+
+.rail-sub .rail-activa {
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+}
+
+.rail-sub .rail-activa::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--lime, #8CD50A);
+}
+
+.rail-sub .rail-item mat-icon {
+  flex: none;
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+}
+
+.rail-sub .rail-txt {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: .72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 120px;
+}
+
+@media (max-width: 900px), (max-height: 640px) {
+  .hq-shell { flex-direction: column; }
+
+  .rail-sub {
+    flex-direction: row;
+    width: auto;
+    overflow-x: auto;
+  }
+
+  .rail-sub .rail-item {
+    min-height: 0;
+    flex: none;
+    flex-direction: row;
+    gap: 6px;
+    padding: 9px 12px;
+  }
+
+  .rail-sub .rail-activa::before {
+    left: 8px; right: 8px; top: auto; bottom: 0;
+    width: auto; height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .rail-sub .rail-txt {
+    writing-mode: horizontal-tb;
+    transform: none;
+    max-height: none;
+  }
+}

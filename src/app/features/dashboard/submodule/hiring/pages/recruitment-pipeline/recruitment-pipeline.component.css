@@ -1224,3 +1224,145 @@ mat-tab-group {
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   color: #fff;
 }
+
+/* ==========================================================================
+   RAIL VERTICAL DE PASOS
+   La cabecera horizontal del mat-tab-group se oculta y este rail la sustituye.
+   El grupo sigue mandando sobre el contenido: esto es solo presentación.
+   ========================================================================== */
+
+.pipeline-shell {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* La cabecera original desaparece; sin esto quedarían las dos. */
+:host ::ng-deep .tab-group > .mat-mdc-tab-header {
+  display: none !important;
+}
+
+.pipeline-shell .tab-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 58px;
+  padding: 6px 0;
+  background: var(--navy, #21263C);
+  border-radius: 14px 0 0 14px;
+}
+
+.rail-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-height: 96px;
+  padding: 14px 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, .62);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.rail-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .06);
+  color: #fff;
+}
+
+/* Activo: filo lima a la izquierda. El lima solo como relleno, nunca como
+   texto sobre blanco (aquí va sobre navy, que sí da contraste). */
+.rail-activa {
+  background: rgba(255, 255, 255, .10);
+  color: #fff;
+}
+
+.rail-activa::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--lime, #8CD50A);
+}
+
+.rail-item:disabled {
+  opacity: .38;
+  cursor: not-allowed;
+}
+
+.rail-item mat-icon {
+  flex: none;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.rail-hecha mat-icon { color: var(--lime, #8CD50A); }
+
+/* El texto gira para que quepan cinco pasos en 58px de ancho. */
+.rail-txt {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 130px;
+}
+
+/* ── Responsivo: en pantallas cortas el rail se acuesta arriba ─────────────
+   Con menos de 640px de alto los cinco pasos no caben en vertical sin que el
+   texto se corte, así que vuelve a ser una barra horizontal. */
+@media (max-width: 900px), (max-height: 640px) {
+  .pipeline-shell {
+    flex-direction: column;
+  }
+
+  .rail {
+    flex-direction: row;
+    width: auto;
+    padding: 0 4px;
+    border-radius: 14px 14px 0 0;
+    overflow-x: auto;
+  }
+
+  .rail-item {
+    min-height: 0;
+    flex: none;
+    flex-direction: row;
+    gap: 6px;
+    padding: 10px 14px;
+  }
+
+  .rail-activa::before {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 0;
+    width: auto;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .rail-txt {
+    writing-mode: horizontal-tb;
+    transform: none;
+    max-height: none;
+  }
+}

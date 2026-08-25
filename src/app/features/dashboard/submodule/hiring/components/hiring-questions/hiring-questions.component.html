@@ -10,7 +10,24 @@
   </div>
 }
 
-<mat-tab-group class="tab-group" [class.bloqueado-espera]="bloqueado()">
+<!-- Segundo rail: los sub-pasos de Contratación. La cabecera del grupo se
+     oculta por CSS y este rail la sustituye, igual que en el pipeline. -->
+<div class="hq-shell">
+  <nav class="rail rail-sub" role="tablist" aria-label="Pasos de contratación">
+    @for (sp of subPasos; track sp.idx) {
+      <button type="button" class="rail-item" role="tab"
+              [class.rail-activa]="subIdx() === sp.idx"
+              [attr.aria-selected]="subIdx() === sp.idx"
+              [matTooltip]="sp.label" matTooltipPosition="right"
+              (click)="subIdx.set(sp.idx)">
+        <mat-icon>{{ sp.icon }}</mat-icon>
+        <span class="rail-txt">{{ sp.label }}</span>
+      </button>
+    }
+  </nav>
+
+<mat-tab-group class="tab-group" [class.bloqueado-espera]="bloqueado()"
+  [selectedIndex]="subIdx()" (selectedIndexChange)="subIdx.set($event)">
 
   <!-- TAB 1 ▸ Pago y Transporte -->
   <mat-tab>
@@ -610,6 +627,7 @@
                           </mat-tab>
 
                       </mat-tab-group>
+</div>
 
                       <!-- ═══ DOCUMENTS DIALOG / OVERLAY ═══ -->
                       @if (showDocumentsDialog) {

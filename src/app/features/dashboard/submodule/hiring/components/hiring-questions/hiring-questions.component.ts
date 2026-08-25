@@ -1,4 +1,4 @@
-import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, signal } from '@angular/core';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, Observable } from 'rxjs';
@@ -55,6 +55,25 @@ type ServerDocInfo = {
   styleUrls: ['./hiring-questions.component.css'],
 } )
 export class HiringQuestionsComponent implements OnInit {
+
+  // ==========================================================================
+  // RAIL VERTICAL DE SUB-PASOS
+  // ==========================================================================
+  /*
+   * Contratación tiene cinco sub-pestañas y vive dentro del paso 5, que a su
+   * vez cuelga del rail de la izquierda. Con la cabecera horizontal quedaban
+   * dos filas de pestañas apiladas sobre el contenido y ya no se sabía cuál
+   * mandaba. Ahora es un segundo rail, pegado al primero.
+   */
+  readonly subPasos = [
+    { idx: 0, label: 'Pago y Transporte', icon: 'payments' },
+    { idx: 1, label: 'Datos de obra',     icon: 'engineering' },
+    { idx: 2, label: 'Referencias',       icon: 'groups' },
+    { idx: 3, label: 'Traslados',         icon: 'swap_horiz' },
+    { idx: 4, label: 'Cédula & Huella',   icon: 'fingerprint' },
+  ] as const;
+
+  readonly subIdx = signal(0);
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
   /**

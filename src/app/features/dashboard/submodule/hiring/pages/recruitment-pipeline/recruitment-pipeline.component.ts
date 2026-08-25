@@ -1,7 +1,17 @@
-import { 
-  Component, LOCALE_ID, inject, effect, signal, computed, DestroyRef, PLATFORM_ID,
-  afterNextRender
-, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  LOCALE_ID,
+  inject,
+  effect,
+  signal,
+  computed,
+  DestroyRef,
+  PLATFORM_ID,
+  afterNextRender,
+  ChangeDetectionStrategy,
+  AfterViewInit,
+  ViewChild,
+} from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 
@@ -13,6 +23,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -21,6 +32,7 @@ import { FormsModule, FormArray, FormBuilder, FormGroup, Validators, ReactiveFor
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { SearchForCandidateComponent } from '../../components/search-for-candidate/search-for-candidate.component';
+import { DocumentoPromptDialogComponent, DocumentoPrompt } from './documento-prompt.dialog';
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
 import { HiringQuestionsComponent } from '../../components/hiring-questions/hiring-questions.component';
 import { HelpInformationComponent } from '../../components/help-information/help-information.component';
@@ -103,6 +115,7 @@ type BioKind = 'foto' | 'huella' | 'firma';
     MatTooltipModule, MatDialogModule, MatBadgeModule, MatSnackBarModule,
     MatButtonToggleModule,
     SharedModule,
+    MatMenuModule,
     SearchForCandidateComponent, SelectionQuestionsComponent, HiringQuestionsComponent, HelpInformationComponent,
     RouterLink
   ],
@@ -115,7 +128,7 @@ type BioKind = 'foto' | 'huella' | 'firma';
     { provide: MAT_DATE_FORMATS, useValue: MY_DATE_FORMATS },
   ],
 })
-export class RecruitmentPipelineComponent {
+export class RecruitmentPipelineComponent implements AfterViewInit {
   // ───────── Signals de estado ─────────
   candidatoSeleccionado = signal<any | null>(null);
   nombreCandidato: string = '';
@@ -873,7 +886,105 @@ export class RecruitmentPipelineComponent {
    * Índice del tab activo. Controlado para poder forzar el regreso a "Turnos"
    * cuando hay un contrato activo (los demás tabs quedan deshabilitados).
    */
-  readonly tabIndex = signal(0);
+  /**
+   * Paso visible. Arranca en Selección (2), no en Turnos.
+   *
+   * Turnos dejó de ser la puerta de entrada: la búsqueda por documento ahora
+   * es un diálogo que se abre solo al entrar, así que la pantalla útil desde
+   * el primer segundo es la ficha del candidato.
+   */
+  readonly tabIndex = signal(2);
+
+  /**
+   * Los pasos, para el rail vertical de la izquierda.
+   *
+   * El `mat-tab-group` sigue siendo el que manda —conserva el contenido y el
+   * estado de cada pestaña—, pero su cabecera horizontal se oculta por CSS y
+   * quien la gobierna es este rail. Así el cambio es de presentación y no toca
+   * ni una línea de la lógica de los pasos.
+   */
+  readonly pasos = [
+    { idx: 0, label: 'Turnos',              icon: 'search' },
+    { idx: 1, label: 'Antecedentes',        icon: 'thumb_up' },
+    { idx: 2, label: 'Selección',           icon: 'rate_review' },
+    { idx: 3, label: 'Exámenes de ingreso', icon: 'medical_information' },
+    { idx: 4, label: 'Contratación',        icon: 'how_to_reg' },
+  ] as const;
+
+  /** Turnos (0) siempre entra; el resto respeta el bloqueo por contrato activo. */
+  pasoBloqueado(idx: number): boolean {
+    return idx > 0 && this.bloqueoContratoTabs();
+  }
+
+  seleccionarPaso(idx: number): void {
+    if (this.pasoBloqueado(idx)) return;
+    this.tabIndex.set(idx);
+  }
+
+  // ==========================================================================
+  // PROMPT DE DOCUMENTO AL ENTRAR
+  // ==========================================================================
+  /** El buscador real. El prompt le pasa el documento y dispara SU búsqueda. */
+  @ViewChild(SearchForCandidateComponent) private buscador?: SearchForCandidateComponent;
+
+  /** Solo se pregunta una vez por visita; reabrir es manual desde la barra. */
+  private promptMostrado = false;
+
+  ngAfterViewInit(): void {
+    // Sin candidato no hay nada que hacer en Selección, así que se pregunta de
+    // una. Con candidato ya cargado (se volvió de otra pantalla) no se molesta.
+    if (this.candidatoSeleccionado()?.numero_documento) return;
+    if (this.promptMostrado) return;
+    this.promptMostrado = true;
+    // Fuera del ciclo de render actual: abrir un diálogo dentro de
+    // ngAfterViewInit dispara ExpressionChangedAfterItHasBeenChecked.
+    setTimeout(() => this.abrirPromptDocumento());
+  }
+
+  /**
+   * Pide el documento y delega la búsqueda en `SearchForCandidateComponent`.
+   *
+   * Se le escriben los campos y se llama a su `buscarCandidato()` en vez de
+   * repetir la consulta aquí: ese método también consulta vetados, asegura el
+   * estado del robot y encola en la tabla del día. Reimplementarlo habría
+   * dejado dos caminos de búsqueda divergiendo.
+   */
+  // ── Acciones que vivían dentro de Turnos ────────────────────────────────
+  /*
+   * Descargar Excel, carnés en masa y refrescar estaban enterrados en la
+   * pestaña Turnos. Al convertirse Turnos en un diálogo dejaban de estar a
+   * mano, así que suben a la barra. Siguen ejecutándose en el buscador, que es
+   * su dueño: aquí solo se delega.
+   */
+  get accionesListas(): boolean {
+    return !!this.buscador;
+  }
+
+  descargarExcel(): void {
+    this.buscador?.abrirDialogExcel();
+  }
+
+  generarCarnetsMasivos(): void {
+    this.buscador?.pedirCarnetMasivo();
+  }
+
+  refrescarRecientes(): void {
+    this.buscador?.refrescarRecientes();
+  }
+
+  abrirPromptDocumento(): void {
+    this.dialog
+      .open(DocumentoPromptDialogComponent, { width: '540px', maxWidth: '94vw', autoFocus: false })
+      .afterClosed()
+      .subscribe((r: DocumentoPrompt | undefined) => {
+        if (!r) return;
+        const b = this.buscador;
+        if (!b) return;
+        b.tipoDocSeleccionado = r.tipoDoc;
+        b.cedula = r.numero;
+        b.buscarCandidato();
+      });
+  }
 
   /**
    * Salto desde la ficha de Selección a los pasos 4 (exámenes) y 5

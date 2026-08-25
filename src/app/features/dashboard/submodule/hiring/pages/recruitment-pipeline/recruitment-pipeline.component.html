@@ -149,6 +149,38 @@
              depende del candidato seleccionado). Lleva al Reporte de
              Contratación, donde se cierra el día con TODAS las personas
              contratadas hoy (cruce, cédulas, ARL, traslados...). -->
+        <!-- Actividades que antes vivían dentro de Turnos. Turnos ya no es una
+             pestaña, así que su caja de herramientas sube aquí. -->
+        <button mat-icon-button type="button" class="btn-actividades"
+          matTooltip="Actividades" aria-label="Actividades"
+          [matMenuTriggerFor]="menuActividades">
+          <mat-icon>apps</mat-icon>
+        </button>
+        <mat-menu #menuActividades="matMenu">
+          <button mat-menu-item type="button" (click)="abrirPromptDocumento()">
+            <mat-icon>person_search</mat-icon>
+            <span>Buscar otra persona</span>
+          </button>
+          <button mat-menu-item type="button" (click)="descargarExcel()">
+            <mat-icon>file_download</mat-icon>
+            <span>Descargar Excel por rango de fechas</span>
+          </button>
+          <button mat-menu-item type="button" (click)="generarCarnetsMasivos()">
+            <mat-icon>badge</mat-icon>
+            <span>Generar carnés en masa (9 por hoja)</span>
+          </button>
+          <button mat-menu-item type="button" (click)="refrescarRecientes()">
+            <mat-icon>refresh</mat-icon>
+            <span>Refrescar la cola del día</span>
+          </button>
+        </mat-menu>
+
+        <button mat-stroked-button type="button" class="btn-otra-persona"
+          matTooltip="Buscar a otra persona por documento"
+          (click)="abrirPromptDocumento()">
+          <mat-icon>person_search</mat-icon> Otra persona
+        </button>
+
         <button mat-flat-button color="primary" class="btn-cerrar-contratacion"
           matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
           (click)="irACerrarContratacion()">
@@ -332,6 +364,28 @@
         }
       </div>
     }
+
+    <!-- Rail vertical de pasos. La cabecera del mat-tab-group se oculta por CSS
+         (.tab-group .mat-mdc-tab-header) y este rail es quien la gobierna: el
+         grupo conserva el contenido y el estado de cada pestaña. -->
+    <div class="pipeline-shell">
+      <nav class="rail" role="tablist" aria-label="Pasos del proceso">
+        @for (p of pasos; track p.idx) {
+          <button type="button"
+                  class="rail-item"
+                  role="tab"
+                  [class.rail-activa]="tabIndex() === p.idx"
+                  [class.rail-hecha]="p.idx === 3 && examenesYaCargados()"
+                  [attr.aria-selected]="tabIndex() === p.idx"
+                  [disabled]="pasoBloqueado(p.idx)"
+                  [matTooltip]="pasoBloqueado(p.idx) ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : p.label"
+                  matTooltipPosition="right"
+                  (click)="seleccionarPaso(p.idx)">
+            <mat-icon>{{ p.idx === 3 && examenesYaCargados() ? 'check_circle' : p.icon }}</mat-icon>
+            <span class="rail-txt">{{ p.label }}</span>
+          </button>
+        }
+      </nav>
 
     <mat-tab-group class="tab-group"
       [selectedIndex]="tabIndex()"
@@ -617,6 +671,7 @@
           </mat-tab>
 
         </mat-tab-group>
+    </div>
       </mat-card-content>
     </mat-card>
     <div #toastHost style="position:fixed;top:8px;right:8px;z-index:2147483647"></div>
