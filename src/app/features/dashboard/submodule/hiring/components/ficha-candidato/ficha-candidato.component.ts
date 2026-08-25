@@ -56,6 +56,9 @@ export class FichaCandidatoComponent {
   corregirDocumento = output<void>();
   /** Pide elegir (o cambiar) la vacante a la que se remite. */
   asignarVacante = output<void>();
+  /** Comprobar que el correo / el WhatsApp existen. */
+  comprobarCorreo = output<void>();
+  comprobarWhatsapp = output<void>();
 
   private readonly plegados = signal<ReadonlySet<string>>(new Set<string>());
 

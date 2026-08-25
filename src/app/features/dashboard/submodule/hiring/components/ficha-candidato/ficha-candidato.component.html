@@ -157,15 +157,28 @@
             <!-- Comprobación de contacto: se hace donde está el dato, no en otra
                  pantalla, porque es lo que se verifica con la persona delante. -->
             @if (b.id === 'contacto') {
+              <!-- Botones, no etiquetas: decían "sin comprobar" y no había forma
+                   de comprobarlo desde ahí, había que irse a los accesos
+                   rápidos. Se comprueba donde está el dato. -->
               <div class="fverif">
-                <span class="fverif-item" [class.fverif-ok]="correoConfirmado()">
+                <button type="button" class="fverif-item"
+                        [class.fverif-ok]="correoConfirmado()"
+                        [matTooltip]="correoConfirmado()
+                          ? 'Ya se comprobó. Toca para volver a enviarlo.'
+                          : 'Enviar el correo de bienvenida y marcarlo como comprobado'"
+                        (click)="comprobarCorreo.emit()">
                   <mat-icon>{{ correoConfirmado() ? 'mark_email_read' : 'mail' }}</mat-icon>
-                  {{ correoConfirmado() ? 'Correo comprobado' : 'Correo sin comprobar' }}
-                </span>
-                <span class="fverif-item" [class.fverif-ok]="whatsappConfirmado()">
+                  {{ correoConfirmado() ? 'Correo comprobado' : 'Comprobar correo' }}
+                </button>
+                <button type="button" class="fverif-item"
+                        [class.fverif-ok]="whatsappConfirmado()"
+                        [matTooltip]="whatsappConfirmado()
+                          ? 'Ya se comprobó. Toca para volver a enviarlo.'
+                          : 'Enviar el WhatsApp de bienvenida y marcarlo como comprobado'"
+                        (click)="comprobarWhatsapp.emit()">
                   <mat-icon>{{ whatsappConfirmado() ? 'verified' : 'chat' }}</mat-icon>
-                  {{ whatsappConfirmado() ? 'WhatsApp comprobado' : 'WhatsApp sin comprobar' }}
-                </span>
+                  {{ whatsappConfirmado() ? 'WhatsApp comprobado' : 'Comprobar WhatsApp' }}
+                </button>
               </div>
             }
           </div>

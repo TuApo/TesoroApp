@@ -620,6 +620,50 @@
                                   {{ cedulaSubida() ? 'Reemplazar' : 'Subir cédula' }}
                                 </button>
                               </div>
+
+                              <!-- Comprobar que el correo y el WhatsApp EXISTEN:
+                                   se manda el mensaje de bienvenida y, si llega,
+                                   el contacto queda comprobado. Cuenta para el
+                                   avance del paso: un contrato con un correo que
+                                   no existe es un contrato sin forma de avisarle
+                                   nada a la persona. -->
+                              <div class="bio-card" [class.bio-lista]="correoConfirmado()">
+                                <span class="bio-icono">
+                                  <mat-icon>{{ correoConfirmado() ? 'mark_email_read' : 'mail' }}</mat-icon>
+                                </span>
+                                <span class="bio-txt">
+                                  <strong>Correo</strong>
+                                  <small>{{ correoDe() || 'Sin correo registrado' }}</small>
+                                  <small class="bio-estado">
+                                    {{ correoConfirmado() ? 'Comprobado' : 'Sin comprobar' }}
+                                  </small>
+                                </span>
+                                <button type="button" class="bio-btn"
+                                        [disabled]="!correoDe()"
+                                        (click)="nav.pedirComprobarCorreo()">
+                                  <mat-icon>send</mat-icon>
+                                  {{ correoConfirmado() ? 'Volver a enviar' : 'Comprobar correo' }}
+                                </button>
+                              </div>
+
+                              <div class="bio-card" [class.bio-lista]="whatsappConfirmado()">
+                                <span class="bio-icono">
+                                  <mat-icon>{{ whatsappConfirmado() ? 'verified' : 'chat' }}</mat-icon>
+                                </span>
+                                <span class="bio-txt">
+                                  <strong>WhatsApp</strong>
+                                  <small>{{ whatsappDe() || 'Sin número registrado' }}</small>
+                                  <small class="bio-estado">
+                                    {{ whatsappConfirmado() ? 'Comprobado' : 'Sin comprobar' }}
+                                  </small>
+                                </span>
+                                <button type="button" class="bio-btn"
+                                        [disabled]="!whatsappDe()"
+                                        (click)="nav.pedirComprobarWhatsapp()">
+                                  <mat-icon>send</mat-icon>
+                                  {{ whatsappConfirmado() ? 'Volver a enviar' : 'Comprobar WhatsApp' }}
+                                </button>
+                              </div>
                             </div>
 
                             <!-- APOYO LABORAL T.S. S.A.S. -->

@@ -126,6 +126,24 @@ export class PipelineNavService {
     this.pedidoFoto.update((n) => n + 1);
   }
 
+  /**
+   * Comprobar que el correo y el WhatsApp existen de verdad.
+   *
+   * Los dos flujos —mandar el mensaje de bienvenida y marcar el contacto como
+   * comprobado— viven en el pipeline. La ficha y el paso Cédula & Huella solo
+   * los piden desde donde el dato está a la vista.
+   */
+  readonly pedidoCorreo = signal<number>(0);
+  readonly pedidoWhatsapp = signal<number>(0);
+
+  pedirComprobarCorreo(): void {
+    this.pedidoCorreo.update((n) => n + 1);
+  }
+
+  pedirComprobarWhatsapp(): void {
+    this.pedidoWhatsapp.update((n) => n + 1);
+  }
+
   private readonly _avances = signal<Readonly<Partial<Record<ClaveAvance, Avance>>>>({});
   readonly avances = this._avances.asReadonly();
 

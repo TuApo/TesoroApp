@@ -223,6 +223,9 @@ export class HiringQuestionsComponent implements OnInit {
         this.loadData().catch(console.error);
       }
     });
+
+    // Va aquí y no en `ngOnInit`: `effect()` exige contexto de inyección.
+    this.vigilarIdentidad();
   }
 
   // ───────── Ciclo de vida ─────────
@@ -261,6 +264,41 @@ export class HiringQuestionsComponent implements OnInit {
 
   /** Tipo con el que gestión documental guarda la cédula escaneada. */
   private static readonly TIPO_CEDULA = 29;
+
+  /** Última cédula para la que se miró el expediente, para no repetir. */
+  private cedulaRevisada: string | null = null;
+
+  /**
+   * Republica el avance del paso cuando cambia algo que NO pasa por un
+   * formulario: la persona, su biometría o si ya se comprobó el contacto.
+   *
+   * `publicarAvances` cuelga de los `valueChanges` de los formularios, así que
+   * sin esto el paso se quedaba con el porcentaje de la persona anterior.
+   */
+  private vigilarIdentidad(): void {
+    effect(() => {
+      const cand = this.candidatoSeleccionado();
+      this.nav.biometria();
+      this.cedulaSubida();
+      this.publicarAvances();
+
+      // ¿La cédula ya está en el expediente? Sin preguntarlo, la tarjeta decía
+      // "Sin subir" aunque llevara meses cargada.
+      const ced = cand?.numero_documento ? String(cand.numero_documento) : null;
+      if (!ced || ced === this.cedulaRevisada) return;
+      this.cedulaRevisada = ced;
+      this.cedulaSubida.set(false);
+      this.docSvc.getDocuments(ced, HiringQuestionsComponent.TIPO_CEDULA)
+        .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (r: any) => {
+            const lista = Array.isArray(r) ? r : (r?.results ?? []);
+            this.cedulaSubida.set(lista.length > 0);
+          },
+          error: () => { /* si falla, se queda en "sin subir": no se inventa */ },
+        });
+    });
+  }
 
   /**
    * Firma manuscrita.
@@ -327,6 +365,25 @@ export class HiringQuestionsComponent implements OnInit {
       });
   }
 
+  /** Contacto de la persona, para decir a qué correo / número se está enviando. */
+  correoDe(): string | null {
+    const c = this.candidatoSeleccionado()?.contacto ?? {};
+    return (c.email ?? c.correo_electronico ?? '').toString().trim() || null;
+  }
+
+  whatsappDe(): string | null {
+    const c = this.candidatoSeleccionado()?.contacto ?? {};
+    return (c.whatsapp ?? c.celular ?? '').toString().trim() || null;
+  }
+
+  correoConfirmado(): boolean {
+    return !!this.candidatoSeleccionado()?.contacto?.correo_confirmado;
+  }
+
+  whatsappConfirmado(): boolean {
+    return !!this.candidatoSeleccionado()?.contacto?.whatsapp_confirmado;
+  }
+
   private cedulaDe(): string | null {
     const c = this.candidatoSeleccionado();
     return c?.numero_documento ? String(c.numero_documento) : null;
@@ -341,6 +398,9 @@ export class HiringQuestionsComponent implements OnInit {
    * del lector.
    */
   private publicarAvances(): void {
+    // `vigilarIdentidad` puede dispararlo antes de `initForms()` si algún día
+    // se adelanta el ciclo: sin formularios no hay nada que medir.
+    if (!this.pagoTransporteForm) return;
     this.nav.publicar('pago', avanceDeForm(this.pagoTransporteForm));
     this.nav.publicar('obra', avanceDeForm(this.datosObraForm));
     this.nav.publicar('referencias', avanceDeForm(this.referenciasForm));
@@ -353,13 +413,18 @@ export class HiringQuestionsComponent implements OnInit {
     }
     this.nav.publicar('traslados', avanceDeBanderas(traslados));
 
-    // El paso se llama Cédula & Huella: cuenta las cuatro piezas de identidad.
+    // Todo lo que identifica a la persona y permite avisarle: las dos huellas,
+    // la foto, la firma, la cédula y que el correo y el WhatsApp EXISTAN. Un
+    // contrato con un correo que no existe es un contrato sin forma de avisarle
+    // nada a la persona, así que cuenta como pendiente igual que una huella.
     this.nav.publicar('huella', avanceDeBanderas([
       !!this.fingerprintImageApoyo,
       !!this.fingerprintImageTuAlianza,
       !!this.nav.biometria().foto,
       !!this.nav.biometria().firma,
       this.cedulaSubida(),
+      this.correoConfirmado(),
+      this.whatsappConfirmado(),
     ]));
   }
 

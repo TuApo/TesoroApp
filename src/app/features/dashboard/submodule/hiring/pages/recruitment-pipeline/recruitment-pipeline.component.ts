@@ -1622,6 +1622,22 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       if (n > 0) this.openCamera();
     });
 
+    // 5.96) Comprobar correo y WhatsApp desde donde el dato está a la vista:
+    //       la ficha y el paso Cédula & Huella.
+    effect(() => {
+      const n = this.nav.pedidoCorreo();
+      if (n === this.pedidoCorreoAtendido) return;
+      this.pedidoCorreoAtendido = n;
+      if (n > 0) this.confirmarCorreoBienvenida();
+    });
+
+    effect(() => {
+      const n = this.nav.pedidoWhatsapp();
+      if (n === this.pedidoWhatsappAtendido) return;
+      this.pedidoWhatsappAtendido = n;
+      if (n > 0) this.confirmarWhatsAppBienvenida();
+    });
+
     // 6) Contrato ACTIVO ⇒ el rail y las pestañas quedan deshabilitados hasta
     //    dar de baja (o usar "Modificar de todas formas"); el banner rojo de
     //    arriba explica por qué y ofrece las dos salidas.
@@ -3003,6 +3019,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   }
 
   private pedidoFotoAtendido = 0;
+  private pedidoCorreoAtendido = 0;
+  private pedidoWhatsappAtendido = 0;
 
   /** Envoltorios públicos: los originales son privados y el effect los usa. */
   private bioLocalPub(kind: BioKind): string | null { return this.bioLocal(kind); }
