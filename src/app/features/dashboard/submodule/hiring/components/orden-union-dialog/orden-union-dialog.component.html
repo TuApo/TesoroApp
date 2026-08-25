@@ -25,16 +25,24 @@
     </div>
 
     <div class="group-right">
-      <button mat-stroked-button class="action-btn pkg-btn" (click)="applyDefaultPackage()" matTooltip="Paquete completo de contratación (30 docs)">
-        <mat-icon>inventory_2</mat-icon> Paquete completo
-      </button>
-      <button mat-stroked-button class="action-btn pkg-btn" (click)="applyFincaPackage()" matTooltip="Paquete por finca (12 docs esenciales)">
-        <mat-icon>agriculture</mat-icon> Paquete finca
-      </button>
       <button mat-button class="action-btn" (click)="resetOrder()" matTooltip="Volver al orden en que llegaron del servidor">
         <mat-icon>history</mat-icon> Restablecer
       </button>
     </div>
+  </div>
+
+  <!-- Paquetes predefinidos: una copia por destinatario del empalme -->
+  <div class="pkg-toolbar" role="group" aria-label="Paquetes predefinidos">
+    <span class="pkg-toolbar-label">Paquete para</span>
+    @for (p of paquetes; track p.key) {
+      <button mat-stroked-button class="action-btn pkg-btn"
+        [class.is-active]="activePackage() === p.key"
+        [attr.aria-pressed]="activePackage() === p.key"
+        (click)="applyPaquete(p)"
+        [matTooltip]="p.hint + ' · disponibles: ' + disponibles(p)">
+        <mat-icon>{{ p.icon }}</mat-icon> {{ p.label }}
+      </button>
+    }
   </div>
 
   <!-- Lista Ordenable -->
