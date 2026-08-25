@@ -40,6 +40,23 @@
               <span class="dp-tag">Contratado</span>
             }
           </div>
+          <!-- Datos para confirmar que ES esa persona, no solo para ubicarla:
+               nacimiento, cédula expedida y residencia son lo que se contrasta
+               contra el documento que tiene en la mano. -->
+          <div class="dp-item-ident">
+            @if (p.fecha_nacimiento) {
+              <span><mat-icon>cake</mat-icon>{{ p.fecha_nacimiento | date:'dd/MM/yyyy' }}@if (p.edad) { · {{ p.edad }} años}</span>
+            }
+            @if (p.sexo) { <span><mat-icon>wc</mat-icon>{{ p.sexo === 'F' ? 'Femenino' : 'Masculino' }}</span> }
+            @if (p.mpio_nacimiento) { <span><mat-icon>public</mat-icon>Nació en {{ p.mpio_nacimiento }}</span> }
+            @if (p.mpio_expedicion) {
+              <span><mat-icon>how_to_reg</mat-icon>Expedida en {{ p.mpio_expedicion }}@if (p.fecha_expedicion) { · {{ p.fecha_expedicion | date:'dd/MM/yyyy' }}}</span>
+            }
+            @if (p.residencia_direccion) {
+              <span class="dp-break"><mat-icon>home</mat-icon>{{ p.residencia_direccion }}@if (p.residencia_barrio) { · {{ p.residencia_barrio }}}</span>
+            }
+          </div>
+
           <div class="dp-item-sub">
             @if (p.oficina)        { <span><mat-icon>store</mat-icon>{{ p.oficina }}</span> }
             @if (p.celular)        { <span><mat-icon>call</mat-icon>{{ p.celular }}</span> }

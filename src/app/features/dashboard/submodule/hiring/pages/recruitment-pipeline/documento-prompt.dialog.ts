@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -33,7 +34,7 @@ export interface DocumentoPrompt {
   selector: 'app-documento-prompt-dialog',
   standalone: true,
   imports: [
-    FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule,
+    DatePipe, FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatButtonModule, MatIconModule, MatTooltipModule,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
