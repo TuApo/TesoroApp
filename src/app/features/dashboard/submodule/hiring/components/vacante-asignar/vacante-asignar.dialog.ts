@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '@/app/shared/shared.module';
+import {
+  coincidenTodas, textoBuscableVacante, tokensDeConsulta,
+} from '../../shared/busqueda-vacantes.util';
 
 /** Lo que la lista necesita saber de cada vacante. */
 export interface VacanteOpcion {
@@ -29,14 +32,6 @@ export interface VacanteAsignarData {
 
 /** Lo que devuelve el diálogo: una vacante, o quitar la que tenga. */
 export type VacanteAsignarResultado = { id: number } | { quitar: true };
-
-/** Sin tildes y en minúscula: se busca como se teclea, no como se escribe. */
-function normalizar(v: unknown): string {
-  return String(v ?? '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
-}
 
 /**
  * A qué vacante se remite a la persona.
@@ -73,25 +68,22 @@ export class VacanteAsignarDialogComponent {
   private readonly indice = computed(() => {
     const m = new Map<number, string>();
     for (const o of this.data.opciones) {
-      m.set(o.id, normalizar([
+      m.set(o.id, textoBuscableVacante([
         o.empresa, o.finca, o.cargo, o.codigo, o.temporal, o.oficinas,
-      ].filter(Boolean).join(' ')));
+      ]));
     }
     return m;
   });
 
   readonly resultados = computed<VacanteOpcion[]>(() => {
-    const tokens = normalizar(this.consulta()).split(/\s+/).filter(Boolean);
+    const tokens = tokensDeConsulta(this.consulta());
     const idx = this.indice();
 
     const pasa = (o: VacanteOpcion) => {
       // La asignada siempre se ve: si no, quitarla obligaría a buscarla.
       if (o.id === this.data.actual) return true;
       if (o.cerrada) return false;
-      if (!tokens.length) return true;
-      const texto = idx.get(o.id) ?? '';
-      // TODAS las palabras, en cualquier campo y en cualquier orden.
-      return tokens.every((t) => texto.includes(t));
+      return coincidenTodas(idx.get(o.id) ?? '', tokens);
     };
 
     return this.data.opciones.filter(pasa);

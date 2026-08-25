@@ -31,6 +31,9 @@ import {
   VacanteAsignarResultado,
   VacanteOpcion,
 } from '../vacante-asignar/vacante-asignar.dialog';
+import {
+  coincidenTodas, textoBuscableVacante, tokensDeConsulta,
+} from '../../shared/busqueda-vacantes.util';
 import { Avance, tieneValor } from '../../shared/progreso.util';
 
 // ================== Constantes ==================
@@ -222,7 +225,11 @@ export class HelpInformationComponent implements OnInit {
     const map = new Map<string, Map<string, PublicacionDTO[]>>();
 
     const currentSelectedId = this.selectedVacanteId();
-    const searchVal = this.utilService.normalizeText(this.searchVacanteSig() || '').toLowerCase();
+    // Mismo criterio que el selector de la ficha: cada palabra por separado y
+    // tienen que estar TODAS. Antes esto exigía que lo tecleado apareciera
+    // seguido dentro de UN campo, así que "jardines rosa cosecha" no encontraba
+    // nada aunque las tres palabras estuvieran en la vacante.
+    const tokens = tokensDeConsulta(this.searchVacanteSig());
 
     for (const v of list) {
       // 1) Filtrar inactivos EXCEPTUANDO si ya es la vacante seleccionada
@@ -236,14 +243,14 @@ export class HelpInformationComponent implements OnInit {
       const finca = v.finca || 'Sin Finca';
       const cargo = v.cargo || 'Sin Cargo';
 
-      // 3) Filtro de búsqueda textual (Empresa, Finca, Cargo)
-      if (searchVal && !isSelected) {
-        const strEmp = this.utilService.normalizeText(emp).toLowerCase();
-        const strFinca = this.utilService.normalizeText(finca).toLowerCase();
-        const strCargo = this.utilService.normalizeText(cargo).toLowerCase();
-        if (!strEmp.includes(searchVal) && !strFinca.includes(searchVal) && !strCargo.includes(searchVal)) {
-          continue;
-        }
+      // 3) Búsqueda por varias palabras sobre TODOS los datos de la vacante:
+      //    empresa, finca, cargo, código, temporal y las oficinas que contratan.
+      if (tokens.length && !isSelected) {
+        const texto = textoBuscableVacante([
+          emp, finca, cargo, v.codigoElite, v.temporal,
+          this.oficinasResumen(v.oficinasQueContratan),
+        ]);
+        if (!coincidenTodas(texto, tokens)) continue;
       }
 
       if (!map.has(emp)) {

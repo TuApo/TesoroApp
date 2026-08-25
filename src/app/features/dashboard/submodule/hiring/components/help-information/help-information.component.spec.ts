@@ -218,4 +218,69 @@ describe('HelpInformationComponent', () => {
       expect(data.gestionHumana).toBe('');
     });
   });
+
+  /**
+   * El desplegable de la vacante: mismo criterio que el selector de la ficha.
+   * Antes exigía que lo tecleado apareciera SEGUIDO dentro de un mismo campo,
+   * así que tres palabras repartidas entre empresa, finca y cargo no
+   * encontraban nada.
+   */
+  describe('búsqueda de vacantes en el desplegable', () => {
+    const V = (id: number, empresa: string, finca: string, cargo: string, codigo: string | null = null) => ({
+      id,
+      empresaUsuariaSolicita: empresa,
+      finca,
+      cargo,
+      codigoElite: codigo,
+      temporal: 'APOYO LABORAL SAS',
+      oficinasQueContratan: [{ nombre: 'SOACHA', numeroDeGenteRequerida: 5, ruta: false }],
+      // Los cupos salen de `personasSolicitadas`, NO de las oficinas: sin esto
+      // `falt()` da 0 y el desplegable esconde la vacante por estar llena.
+      personasSolicitadas: 5,
+      conteo_estados: { contratado: 1 },
+      activo: true,
+    }) as any;
+
+    beforeEach(() => {
+      comp.vacantes.set([
+        V(1, 'JARDINES DE LOS ANDES', 'LA ROSA', 'COSECHA', 'JA-11'),
+        V(2, 'JARDINES DE LOS ANDES', 'EL CLAVEL', 'POSCOSECHA', 'JA-12'),
+        V(3, 'FLORES DE LOS ANDES', 'LA ROSA', 'SUPERVISOR', 'FA-01'),
+      ]);
+    });
+
+    /** Los cargos que quedan visibles, aplanando el árbol empresa → finca. */
+    function cargos(): string[] {
+      return comp.vacantesAgrupadas()
+        .flatMap((e: any) => e.fincas)
+        .flatMap((f: any) => f.vacantes)
+        .map((v: any) => v.cargo);
+    }
+
+    it('sin consulta salen todas', () => {
+      comp.searchVacanteCtrl.setValue('');
+      expect(cargos().sort()).toEqual(['COSECHA', 'POSCOSECHA', 'SUPERVISOR']);
+    });
+
+    it('varias palabras en campos distintos encuentran la vacante', () => {
+      comp.searchVacanteCtrl.setValue('jardines rosa cosecha');
+      expect(cargos()).toEqual(['COSECHA']);
+    });
+
+    it('el orden de las palabras da igual', () => {
+      comp.searchVacanteCtrl.setValue('cosecha rosa jardines');
+      expect(cargos()).toEqual(['COSECHA']);
+    });
+
+    it('si falta una palabra no sale', () => {
+      comp.searchVacanteCtrl.setValue('jardines rosa supervisor');
+      expect(cargos()).toEqual([]);
+    });
+
+    it('busca sin tildes y por código', () => {
+      comp.searchVacanteCtrl.setValue('FA-01');
+      expect(cargos()).toEqual(['SUPERVISOR']);
+    });
+  });
+
 });
