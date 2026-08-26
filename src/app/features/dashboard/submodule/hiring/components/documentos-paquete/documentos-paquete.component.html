@@ -126,9 +126,16 @@
 
         <ul class="dp-lista">
           @for (d of r.items; track d.titulo) {
+            <!-- Se puede soltar un archivo encima de cada documento: es el gesto
+                 natural cuando se tienen los PDF en una carpeta al lado. El
+                 botón sigue ahí para quien prefiera el diálogo. -->
             <li class="dp-item" [class.dp-item-listo]="d.listo"
                 [class.dp-item-extra]="!d.delPaquete"
-                [class.dp-item-ocupado]="subiendo() === d.titulo">
+                [class.dp-item-ocupado]="subiendo() === d.titulo"
+                [class.dp-item-soltar]="arrastrando() === d.titulo"
+                (dragover)="alArrastrar($event, d)"
+                (dragleave)="alSalirArrastre(d)"
+                (drop)="alSoltar($event, d)">
               <mat-icon class="dp-item-icon"
                         [matTooltip]="d.listo ? 'Ya está en el expediente'
                                     : (d.soloSubir ? 'Hay que subirlo' : 'Lo genera la plataforma')">
@@ -137,7 +144,10 @@
 
               <span class="dp-item-cuerpo">
                 <span class="dp-item-txt">{{ d.titulo }}</span>
-                <span class="dp-item-estado">
+                @if (arrastrando() === d.titulo) {
+                  <span class="dp-item-estado dp-item-soltar-txt">Suelta el archivo aquí</span>
+                }
+                <span class="dp-item-estado" [hidden]="arrastrando() === d.titulo">
                   @if (d.listo) {
                     {{ d.nombreArchivo || 'Subido' }}
                   } @else if (d.soloSubir) {

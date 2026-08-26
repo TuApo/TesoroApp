@@ -445,6 +445,36 @@ export class DocumentosPaqueteComponent {
   }
 
   /**
+   * Documento sobre el que se está arrastrando un archivo ahora mismo.
+   *
+   * Se guarda el título y no un booleano por fila: así solo se ilumina la
+   * casilla de destino, que es lo que dice dónde va a caer.
+   */
+  readonly arrastrando = signal<string | null>(null);
+
+  alArrastrar(ev: DragEvent, item: ItemPaquete): void {
+    // Sin `preventDefault` el navegador ABRE el archivo y se lleva la pantalla
+    // por delante: es el comportamiento por defecto de soltar algo en una web.
+    ev.preventDefault();
+    if (item.typeId === null || this.subiendo()) return;
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+    this.arrastrando.set(item.titulo);
+  }
+
+  alSalirArrastre(item: ItemPaquete): void {
+    if (this.arrastrando() === item.titulo) this.arrastrando.set(null);
+  }
+
+  /** Soltar un archivo encima ES subirlo a ese documento. */
+  alSoltar(ev: DragEvent, item: ItemPaquete): void {
+    ev.preventDefault();
+    this.arrastrando.set(null);
+    const file = ev.dataTransfer?.files?.[0];
+    if (!file || item.typeId === null) return;
+    void this.subirArchivo(file, item);
+  }
+
+  /**
    * Sube un PDF sin salir del pipeline.
    *
    * Mismas guardas que la pantalla de generación —nombre de archivo y PDF que
@@ -458,6 +488,12 @@ export class DocumentosPaqueteComponent {
     const file = input.files?.[0];
     input.value = '';
     if (!file || item.typeId === null) return;
+    await this.subirArchivo(file, item);
+  }
+
+  /** El camino común del botón y del archivo soltado encima. */
+  private async subirArchivo(file: File, item: ItemPaquete): Promise<void> {
+    if (item.typeId === null) return;
 
     const cand = this.candidatoSeleccionado();
     const cedula = this.cedulaEfectiva() || null;

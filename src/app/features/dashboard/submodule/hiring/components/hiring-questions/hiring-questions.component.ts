@@ -890,14 +890,75 @@ export class HiringQuestionsComponent implements OnInit {
     this.uploadedFiles[campo] = { file, fileName: file.name };
     (this.referenciasForm.get(campo) || this.trasladosForm.get(campo))?.setValue(file.name);
     input.value = '';
+    void this.guardarArchivo(campo);
+  }
+
+  /** Archivos subiéndose ahora mismo, para bloquear su casilla. */
+  readonly subiendoArchivo = signal<ReadonlySet<string>>(new Set<string>());
+
+  estaSubiendo(campo: string): boolean {
+    return this.subiendoArchivo().has(campo);
+  }
+
+  /**
+   * Guarda el archivo EN CUANTO se elige.
+   *
+   * Antes se quedaba en pantalla hasta que alguien se acordara de pulsar
+   * "Cargar": cambiar de persona, recargar o simplemente irse a otra pestaña
+   * lo perdía sin decir nada, y el expediente quedaba a medias sin que nadie
+   * lo notara. Ahora el botón sobra: elegir el PDF ES guardarlo.
+   */
+  private async guardarArchivo(campo: string): Promise<void> {
+    const ced = this.cedulaDe();
+    if (!ced) {
+      this.alert('info', 'Sin persona', 'Busca primero a la persona para guardar el documento.');
+      return;
+    }
+    this.subiendoArchivo.update((s) => new Set(s).add(campo));
+    try {
+      const { uploaded, failed } = await this.uploadChanged([campo], false);
+      if (failed.length) {
+        this.alert('error', 'No se pudo guardar', failed[0].error);
+        return;
+      }
+      if (uploaded.length) {
+        this.toast(`${this.uploadedFiles[campo]?.fileName ?? 'Documento'} guardado`);
+        // El expediente cambió: el módulo Documentos y el resto del pipeline
+        // tienen que releerlo.
+        this.docSvc.invalidarDocumentos(ced);
+        this.guardado.emit();
+      }
+    } catch (err: any) {
+      this.alert('error', 'No se pudo guardar',
+        mensajeDeErrorLog('hiring/subir-archivo', err, 'Inténtalo de nuevo.'));
+    } finally {
+      this.subiendoArchivo.update((s) => {
+        const n = new Set(s);
+        n.delete(campo);
+        return n;
+      });
+    }
+  }
+
+  /** Aviso corto que no tapa la pantalla: son varios documentos seguidos. */
+  private toast(titulo: string): void {
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: titulo,
+      showConfirmButton: false,
+      timer: 2200,
+      timerProgressBar: true,
+    });
   }
 
   /**
    * Genera el formato de verificación de referencias para un slot
    * ('familiar1' | 'familiar2' | 'personal1' | 'personal2').
    *
-   * Queda en `uploadedFiles`, así que se ve con "Ver" y sube con "Cargar",
-   * igual que un PDF adjuntado a mano. Solo aplica a referencias personales y
+   * Queda en `uploadedFiles` y se guarda sola, igual que un PDF adjuntado a
+   * mano. Solo aplica a referencias personales y
    * familiares; las laborales llevan otro formato.
    */
   async generarReferencia(campo: string): Promise<void> {
@@ -951,8 +1012,9 @@ export class HiringQuestionsComponent implements OnInit {
     const file = new File([blob], fileName, { type: 'application/pdf' });
     this.uploadedFiles[campo] = { file, fileName };
     this.referenciasForm.get(campo)?.setValue(fileName);
-    // No se abre solo: queda listo y se ve desde el menú de los 3 puntos.
-    this.alert('success', 'Generado', `${fileName} quedó listo. Ábrelo con "Ver" cuando quieras.`);
+    // Se guarda solo, igual que un PDF adjuntado a mano: generar y que quede
+    // esperando un botón era la forma de perderlo.
+    await this.guardarArchivo(campo);
   }
 
   /**

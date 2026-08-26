@@ -34,7 +34,17 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   loadingCamera = false;
   cameraError = '';
   facingMode: 'user' | 'environment' = 'user'; // Default 'user' para selfies
-  isMirror = true; // Espejo activado por defecto
+  /**
+   * Espejo de la VISTA PREVIA. Apagado a propósito.
+   *
+   * El archivo se guarda siempre sin voltear —es una foto de identificación:
+   * volteada, la cara sale al revés respecto a la cédula y el texto del fondo
+   * se lee espejado—. Con la previa en espejo, la foto "cambiaba de lado" al
+   * confirmarla y no se parecía a lo que la persona acababa de ver. Ahora lo
+   * que se ve ES lo que se guarda; el espejo sigue disponible a mano
+   * (`toggleMirror`) para quien lo prefiera para encuadrarse.
+   */
+  isMirror = false;
   isUploadMode = false; // Modo "Adjuntar" recuperado como estado
 
   previewUrl: string | null = null; // Para mostrar antes de confirmar
@@ -161,7 +171,9 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
 
   async toggleFacing(): Promise<void> {
     this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
-    this.isMirror = this.facingMode === 'user'; // Espejo solo en modo selfie
+    // Ni siquiera en selfie: la previa tiene que enseñar la foto que se va a
+    // guardar (ver `isMirror`).
+    this.isMirror = false;
     await this.startCamera();
   }
 
