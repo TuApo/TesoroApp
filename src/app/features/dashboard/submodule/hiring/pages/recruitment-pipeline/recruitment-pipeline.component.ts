@@ -2191,15 +2191,64 @@ export class RecruitmentPipelineComponent {
 
   // ───────── Tabla ─────────
   /**
-   * Cerrar contratación del día: el cierre cubre a TODAS las personas
-   * contratadas HOY. Navega al Reporte de Contratación con `auto=hoy`, que
-   * descarga del sistema la base de contratados del día, la adjunta como
-   * Cruce Diario y dispara la validación automáticamente — el usuario solo
+   * Cerrar contratación de un día: primero se pregunta QUÉ día se cierra
+   * (por defecto hoy; sirve para cerrar días atrasados), y luego se navega al
+   * Reporte de Contratación con `auto=dia&fecha=YYYY-MM-DD`. Allá se descarga
+   * del sistema la base de contratados de ESE día, se adjunta como Cruce
+   * Diario y se dispara la validación automáticamente — el usuario solo
    * agrega ARL/traslados si aplica, elige sede y envía. No depende del
    * candidato seleccionado en el pipeline.
    */
-  irACerrarContratacion(): void {
-    this.router.navigate(['/dashboard/hiring/hiring-report'], { queryParams: { auto: 'hoy' } });
+  async irACerrarContratacion(): Promise<void> {
+    // Fecha local, NO toISOString(): en Colombia (UTC-5) el ISO devuelve el
+    // día anterior toda la mañana.
+    const h = new Date();
+    const hoy = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
+
+    const { value: fecha } = await Swal.fire<string>({
+      title: 'Cerrar contratación',
+      width: 460,
+      iconHtml: '<span style="font-size:36px;">📅</span>',
+      html: `
+        <style>
+          .cierre-form { text-align:left; display:flex; flex-direction:column; gap:12px; margin-top:8px; }
+          .cierre-form .sub { font-size:13px; color:#64748b; margin:-4px 0 4px; text-align:center; }
+          .cierre-form label { display:block; font-size:13px; font-weight:600; color:#334155; margin-bottom:6px; letter-spacing:.2px; }
+          .cierre-form input {
+            width:100%; box-sizing:border-box; padding:10px 12px; border:1px solid #cbd5e1; border-radius:8px;
+            font-size:14px; color:#0f172a; background:#f8fafc; font-family: inherit;
+            transition:border-color .15s, box-shadow .15s, background .15s;
+          }
+          .cierre-form input:focus {
+            outline:none; border-color:#2563eb; background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.12);
+          }
+          .cierre-form .hint { font-size:11px; color:#94a3b8; margin-top:4px; }
+        </style>
+        <div class="cierre-form">
+          <div class="sub">Se traerán todas las personas con contrato de ese día.</div>
+          <div class="campo">
+            <label for="swal-fecha-cierre">Día a cerrar</label>
+            <input type="date" id="swal-fecha-cierre" value="${hoy}" max="${hoy}">
+            <div class="hint">Por defecto hoy. Cámbialo para cerrar un día atrasado.</div>
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Continuar',
+      cancelButtonText: 'Cancelar',
+      cancelButtonColor: '#64748b',
+      reverseButtons: true,
+      preConfirm: () => {
+        const v = (document.getElementById('swal-fecha-cierre') as HTMLInputElement | null)?.value || '';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) { Swal.showValidationMessage('Selecciona una fecha válida'); return false; }
+        if (v > hoy) { Swal.showValidationMessage('No puedes cerrar un día futuro'); return false; }
+        return v;
+      }
+    });
+
+    if (!fecha) return;
+    this.router.navigate(['/dashboard/hiring/hiring-report'], { queryParams: { auto: 'dia', fecha } });
   }
 
   mostrarTabla(): void {

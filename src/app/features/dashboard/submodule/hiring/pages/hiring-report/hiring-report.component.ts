@@ -150,22 +150,27 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     this.sedesReady = this.loadSedes();
 
     // Llegada desde el botón "Cerrar contratación" del pipeline: se precarga
-    // el cierre del día automáticamente (base de contratados de HOY).
-    if (this.route.snapshot.queryParamMap.get('auto') === 'hoy') {
-      void this.precargarCierreDeHoy();
+    // el cierre del día automáticamente. `auto=hoy` es la forma histórica (sin
+    // fecha = hoy); `auto=dia&fecha=YYYY-MM-DD` cierra un día puntual.
+    const qp = this.route.snapshot.queryParamMap;
+    const auto = qp.get('auto');
+    if (auto === 'hoy' || auto === 'dia') {
+      void this.precargarCierreDelDia(qp.get('fecha'));
     }
   }
 
   /**
-   * Carga automática del cierre del día (botón "Cerrar contratación" del
-   * pipeline). Deja el reporte listo salvo ARL y SST, que siguen manuales:
+   * Carga automática del cierre de un día (botón "Cerrar contratación" del
+   * pipeline, que ahora pregunta QUÉ día se cierra). Deja el reporte listo
+   * salvo ARL y SST, que siguen manuales:
    *
    *  1. Autoselecciona la SEDE del usuario logueado.
-   *  2. Pide a gestion_contratacion las cédulas con contrato generado HOY en
-   *     ESA oficina (`reporte/contratados-del-dia/`) y arma la base del cruce
-   *     con `reporte/candidatos-excel/` (misma lógica de "sacar la base por
-   *     cédula"); la adjunta como Cruce Diario.
-   *  3. Marca "sí hubo contratación" y "es de hoy".
+   *  2. Pide a gestion_contratacion las cédulas con contrato de ESE día en
+   *     ESA oficina (`reporte/contratados-del-dia/?fecha=`) y arma la base del
+   *     cruce con `reporte/candidatos-excel/` (misma lógica de "sacar la base
+   *     por cédula"); la adjunta como Cruce Diario.
+   *  3. Marca "sí hubo contratación" y la fecha del cierre ("es de hoy" solo
+   *     cuando el día elegido es efectivamente hoy).
    *  4. Trae del sistema la CÉDULA escaneada (gestion_documental, tipo 29) y
    *     el TRASLADO EPS (traslados.TrasladoDocumento) de cada persona, y los
    *     adjunta con el nombre que exige la validación (CEDULA-Nombre.pdf /
@@ -173,8 +178,16 @@ export class HiringReportComponent implements OnInit, OnDestroy {
    *  5. Dispara la MISMA validación del flujo manual (frontend + backend +
    *     diálogos de corrección).
    */
-  private async precargarCierreDeHoy(): Promise<void> {
-    this.showLoading('Preparando cierre...', 'Descargando la contratación de HOY desde el sistema...');
+  private async precargarCierreDelDia(fechaParam?: string | null): Promise<void> {
+    // `fecha` viene del diálogo del pipeline como YYYY-MM-DD. Si no llega (o
+    // llega basura) el cierre es el de hoy, como siempre.
+    const hoy = new Date();
+    const hoyStr = this.toYmd(hoy);
+    const fecha = /^\d{4}-\d{2}-\d{2}$/.test(String(fechaParam ?? '')) ? String(fechaParam) : hoyStr;
+    const esHoy = fecha === hoyStr;
+    const etiquetaDia = esHoy ? 'HOY' : this.ymdALegible(fecha);
+
+    this.showLoading('Preparando cierre...', `Descargando la contratación del ${etiquetaDia} desde el sistema...`);
     try {
       await this.sedesReady;
 
@@ -184,11 +197,9 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       const sedeObj = this.sedes.find(s => String(s?.nombre ?? '').trim() === sedeNombre) || null;
       if (sedeObj) this.reporteForm.patchValue({ sede: sedeObj });
 
-      // 2) Cédulas contratadas HOY según gestion_contratacion (la fuente viva
-      //    del pipeline). procesoContratacion se llena DESPUÉS, con este mismo
-      //    cierre, así que NO sirve como origen.
-      const hoy = new Date();
-      const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+      // 2) Cédulas contratadas ese día según gestion_contratacion (la fuente
+      //    viva del pipeline). procesoContratacion se llena DESPUÉS, con este
+      //    mismo cierre, así que NO sirve como origen.
       const respDia: any = await firstValueFrom(
         this.registroProcesoService.contratadosDelDia(fecha, sedeNombre || undefined)
       );
@@ -200,11 +211,11 @@ export class HiringReportComponent implements OnInit, OnDestroy {
         this.closeSwal();
         Swal.fire({
           icon: 'info',
-          title: 'Sin contratados hoy',
+          title: `Sin contratados el ${etiquetaDia}`,
           html:
-            (sedeNombre ? `La oficina <b>${sedeNombre}</b> no tiene` : 'El sistema aún no tiene') +
-            ' contratos generados <b>HOY</b>.<br>' +
-            'Puedes adjuntar el Cruce Diario manualmente, o volver cuando haya contratación.',
+            (sedeNombre ? `La oficina <b>${sedeNombre}</b> no tiene` : 'El sistema no tiene') +
+            ` contratos del <b>${etiquetaDia}</b>.<br>` +
+            'Puedes adjuntar el Cruce Diario manualmente, o elegir otro día desde el pipeline.',
         });
         return;
       }
@@ -222,7 +233,13 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       // 3) Adjuntar el cruce como si el usuario lo hubiera seleccionado a mano.
       this.files.cruceDiario = [file];
       this.fileNames.cruceDiario = `${file.name} (autocargado: ${personas.length} persona(s))`;
-      this.reporteForm.patchValue({ contratosHoy: 'si', esDeHoy: 'true', cruceDiario: true });
+      // Si el cierre NO es de hoy, el formulario exige la fecha explícita: se
+      // deja marcada la del día elegido (mediodía local, para que el
+      // toISOString() del payload no se corra al día anterior).
+      this.reporteForm.patchValue({ contratosHoy: 'si', cruceDiario: true });
+      this.reporteForm.patchValue(
+        esHoy ? { esDeHoy: 'true', fecha: null } : { esDeHoy: 'false', fecha: this.ymdADate(fecha) }
+      );
 
       // 4) Cédulas escaneadas y traslados EPS desde el sistema, por persona.
       const cedulaFiles: File[] = [];
@@ -305,13 +322,30 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       await this.validarTodo();
     } catch (e) {
       this.closeSwal();
-      console.error('[precargarCierreDeHoy] no se pudo precargar:', e);
+      console.error('[precargarCierreDelDia] no se pudo precargar:', e);
       Swal.fire({
         icon: 'error',
         title: 'No se pudo precargar el cierre',
-        text: 'No fue posible descargar la contratación de hoy desde el sistema. Adjunta los archivos manualmente.',
+        text: `No fue posible descargar la contratación del ${etiquetaDia} desde el sistema. Adjunta los archivos manualmente.`,
       });
     }
+  }
+
+  /** Date -> 'YYYY-MM-DD' en hora LOCAL (toISOString se corre de día). */
+  private toYmd(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  /** 'YYYY-MM-DD' -> Date local al mediodía (inmune a saltos de zona). */
+  private ymdADate(ymd: string): Date {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0);
+  }
+
+  /** 'YYYY-MM-DD' -> 'DD/MM/YYYY' para mostrarle al usuario. */
+  private ymdALegible(ymd: string): string {
+    const [y, m, d] = ymd.split('-');
+    return `${d}/${m}/${y}`;
   }
 
   /**
@@ -339,7 +373,8 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {    this.terminateWorker();
+  ngOnDestroy(): void {
+    this.terminateWorker();
   }
 
   // ---------------------------------------------------------------------------
@@ -1129,14 +1164,38 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     if (safe[1]) safe[1] = this.normalizeIdentity(safe[1]);
     if (safe[11]) safe[11] = this.normalizeIdentity(safe[11]);
 
-    // Normalize Dates (Col 8, 16, 24, 44 [AnioFin can be date])
-    [8, 16, 24, 44].forEach(idx => {
+    // Normalize Dates (Col 8, 16, 24)
+    [8, 16, 24].forEach(idx => {
       if (safe[idx] && safe[idx] !== '-' && safe[idx].length >= 4) {
         safe[idx] = this.tryNormalizeDate(safe[idx]);
       }
     });
 
+    // Col 44 = ANIO de finalizacion, no una fecha. El legacy lo guarda como
+    // texto libre y hay filas con ISO completo ("2021-12-10T05:00:00.000Z");
+    // cleanWorkbookLikeHome le borra los ":" y tryNormalizeDate lo devolvia
+    // crudo por tener letras, asi que la validacion trababa el cierre fila
+    // por fila. Se reduce al anio antes de validar y de exportar.
+    if (safe[44] && safe[44] !== '-') safe[44] = this.normalizeAnioFin(safe[44]);
+
     return safe;
+  }
+
+  /** Deja Col 44 (anio de finalizacion) como YYYY; si no hay anio, crudo. */
+  private normalizeAnioFin(val: string): string {
+    const v = val.trim();
+    if (/^\d{4}$/.test(v)) return v;
+
+    // ISO / "YYYY-MM-DD...", con o sin hora, con o sin los ":".
+    const iso = /^(\d{4})[-/]\d{1,2}[-/]\d{1,2}/.exec(v);
+    if (iso) return iso[1];
+
+    // Serial de Excel o DD/MM/YYYY: reutiliza la normalizacion de fechas.
+    const dmy = /^\d{1,2}\/\d{1,2}\/(\d{4})$/.exec(this.tryNormalizeDate(v));
+    if (dmy) return dmy[1];
+
+    const suelto = /(19\d{2}|20\d{2})/.exec(v);
+    return suelto ? suelto[1] : val;
   }
 
   /* sanitizeIdentity - removed, use normalizeIdentity */
