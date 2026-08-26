@@ -1,4 +1,5 @@
 import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, computed, signal } from '@angular/core';
+import { centroDeCostosDe } from '../../shared/contrato-campos';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, merge, Observable } from 'rxjs';
@@ -510,7 +511,7 @@ export class HiringQuestionsComponent implements OnInit {
         // cae al Ccostos.
         carnetCentroCosto: [null],
         salario: [{ value: null, disabled: true }, Validators.required],
-        auxilioTransporte: [{ value: null, disabled: true }, Validators.required],
+        auxilio_transporte: [{ value: null, disabled: true }, Validators.required],
         // Editable: se autocompleta desde el cargo de la vacante como sugerencia,
         // pero el usuario puede modificarlo manualmente si necesita.
         porcentajeARL: [null, Validators.required],
@@ -745,7 +746,7 @@ export class HiringQuestionsComponent implements OnInit {
     const codigoContrato: string | null =
       (proc?.contrato_codigo as string) || (contr?.codigo_contrato as string) || null;
 
-    const v = this.pagoTransporteForm.getRawValue(); // getRawValue incluye disabled fields (salario, auxilioTransporte)
+    const v = this.pagoTransporteForm.getRawValue(); // getRawValue incluye disabled fields (salario, auxilio_transporte)
     // Acepta coma decimal ("0,522"): con Number() a secas daba NaN, que el
     // serializador de HTTP convertía en null y el %ARL se perdía con Swal de
     // éxito incluido.
@@ -1253,7 +1254,7 @@ export class HiringQuestionsComponent implements OnInit {
    */
   private async prellenarDesdeVacante(vac: any): Promise<void> {
     const finca = String(vac?.finca ?? '').trim();
-    const empresa = String(vac?.empresaUsuariaSolicita ?? '').trim();
+    const empresa = String(vac?.empresa_usuaria_solicita ?? '').trim();
     if (!finca && !empresa) return;
 
     const ctx = this._loadCtx;
@@ -1922,7 +1923,9 @@ export class HiringQuestionsComponent implements OnInit {
       contraseniaAsignada: contr?.contrasenia_asignada ?? null,
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
-      Ccostos: contr?.Ccentro_de_costos ?? '',
+      // Se lee con minúscula aunque se guarde con mayúscula: si no, al reabrir
+      // la pestaña la casilla salía vacía y se volvía a teclear lo mismo.
+      Ccostos: centroDeCostosDe(contr),
       carnetCentroCosto: (contr as any)?.carnet_centro_costo ?? null,
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,
       cesantias: contr?.cesantias ?? null,
@@ -1940,7 +1943,7 @@ export class HiringQuestionsComponent implements OnInit {
       // Vacío, NO 'No': el auxilio lo dice la vacante y se parchea abajo. Con
       // 'No' fijo, un proceso sin publicación —o una vacante que no se pudo
       // traer— mostraba "sin auxilio" como si fuera un dato del contrato.
-      auxilioTransporte: null,
+      auxilio_transporte: null,
       fechaIngreso: contr?.fecha_ingreso ?? null,
       fechaContrato: contr?.fecha_contrato ?? null,
     });
@@ -1953,7 +1956,7 @@ export class HiringQuestionsComponent implements OnInit {
       descripcionObra: (contr as any)?.descripcion_de_obra ?? '',
     });
 
-    // 2) Traer SIEMPRE la vacante (si hay publicacion) para setear auxilioTransporte
+    // 2) Traer SIEMPRE la vacante (si hay publicacion) para setear auxilio_transporte
     //    y autollenar porcentajeARL desde el cargo asociado al cargo de la vacante.
     if (proc?.publicacion) {
       try {
@@ -1971,11 +1974,11 @@ export class HiringQuestionsComponent implements OnInit {
         const salarioFromProc = proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null;
         const salarioFromVac = vac?.salario != null ? toNum(vac.salario) : null;
 
-        const auxFromVac = this.toSiNo(vac?.auxilioTransporte);
+        const auxFromVac = this.toSiNo(vac?.auxilio_transporte);
 
         this.pagoTransporteForm.patchValue({
           salario: salarioFromProc ?? salarioFromVac,
-          auxilioTransporte: auxFromVac,
+          auxilio_transporte: auxFromVac,
         });
 
         // Datos de obra/empresa: manda SIEMPRE la vacante (los campos son de
@@ -1984,7 +1987,7 @@ export class HiringQuestionsComponent implements OnInit {
         const obraActual = this.datosObraForm.value;
         const orStr = (x: any) => (x == null ? '' : String(x));
         this.datosObraForm.patchValue({
-          empresaUsuaria: orStr(vac?.empresaUsuariaSolicita) || obraActual.empresaUsuaria,
+          empresaUsuaria: orStr(vac?.empresa_usuaria_solicita) || obraActual.empresaUsuaria,
           centroCosto: orStr(vac?.finca) || obraActual.centroCosto,
           direccion: orStr(vac?.direccion) || obraActual.direccion,
           descripcionObra: orStr(vac?.descripcion) || obraActual.descripcionObra,
@@ -1992,7 +1995,7 @@ export class HiringQuestionsComponent implements OnInit {
 
         this.cargoVacante = String(vac?.cargo ?? '').trim();
         this.temporalVacante = String(vac?.temporal ?? '').trim();
-        this.empresaVacante = String(vac?.empresaUsuariaSolicita ?? '').trim();
+        this.empresaVacante = String(vac?.empresa_usuaria_solicita ?? '').trim();
 
         // Datos de nómina desde el maestro de centros de costo. Va antes de
         // sugerir la descripción porque puede llenar el centro de costo.
@@ -2007,9 +2010,9 @@ export class HiringQuestionsComponent implements OnInit {
         // Autocompletar Porcentaje ARL desde el cargo de la vacante.
         // Si el contrato YA tenía un porcentaje_arl explícito, lo respetamos
         // y no lo pisamos (hay casos donde nómina ajustó manualmente).
-        const cargoNombre = (vac?.cargo ?? '').toString().trim();
-        if (cargoNombre) {
-          await this.autollenarPorcentajeArlDesdeCargo(cargoNombre, contr?.porcentaje_arl);
+        const cargo_nombre = (vac?.cargo ?? '').toString().trim();
+        if (cargo_nombre) {
+          await this.autollenarPorcentajeArlDesdeCargo(cargo_nombre, contr?.porcentaje_arl);
         }
 
         if (contratoVacio) {
@@ -2042,7 +2045,7 @@ export class HiringQuestionsComponent implements OnInit {
    * endpoint detail `/cargos/{nombre}/` se rompe con slashes en la URL.
    */
   private async autollenarPorcentajeArlDesdeCargo(
-    cargoNombre: string,
+    cargo_nombre: string,
     porcentajeYaGuardado?: number | string | null,
   ): Promise<void> {
     const ctrl = this.pagoTransporteForm.get('porcentajeARL');
@@ -2063,23 +2066,23 @@ export class HiringQuestionsComponent implements OnInit {
       // y matcheamos exacto en cliente. Igual que la vacante, el porcentaje de
       // un cargo no cambia entre guardados: se consulta una vez por nombre.
       const ctx = this._loadCtx;
-      let lista = this.cargosPorNombre.get(cargoNombre);
+      let lista = this.cargosPorNombre.get(cargo_nombre);
       if (lista === undefined) {
-        lista = await firstValueFrom(this.positionsService.list({ q: cargoNombre }));
-        this.cargosPorNombre.set(cargoNombre, lista ?? []);
+        lista = await firstValueFrom(this.positionsService.list({ q: cargo_nombre }));
+        this.cargosPorNombre.set(cargo_nombre, lista ?? []);
       }
       if (ctx !== this._loadCtx) return; // llegó tarde: es el %ARL de otro candidato
       const norm = (s: string) => (s || '').trim().toUpperCase();
-      const target = norm(cargoNombre);
+      const target = norm(cargo_nombre);
       const cargo = (lista || []).find(c => norm(c.nombre) === target);
 
       if (cargo?.porcentaje_arl != null) {
         ctrl.setValue(Number(cargo.porcentaje_arl), { emitEvent: false });
       } else {
-        console.warn(`[hiring-questions] Cargo "${cargoNombre}" no encontrado en gestion_cargos.`);
+        console.warn(`[hiring-questions] Cargo "${cargo_nombre}" no encontrado en gestion_cargos.`);
       }
     } catch (e) {
-      console.warn(`[hiring-questions] Error consultando cargo "${cargoNombre}":`, e);
+      console.warn(`[hiring-questions] Error consultando cargo "${cargo_nombre}":`, e);
     }
   }
 

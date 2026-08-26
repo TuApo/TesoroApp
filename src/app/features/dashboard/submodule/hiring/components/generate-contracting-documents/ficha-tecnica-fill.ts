@@ -14,6 +14,7 @@
  */
 
 import type { PDFForm, PDFFont } from 'pdf-lib';
+import { centroDeCostosDe } from '../../shared/contrato-campos';
 import { esReferenciaFamiliar, separarReferencias } from './referencias.util';
 import { sanitizedString } from './winansi.util';
 import { tituloOUltimoGrado } from './escolaridad.util';
@@ -55,7 +56,7 @@ export interface FichaTecnicaContext {
   codigoContrato: string;
   /** Nombre de la sede del usuario logueado. */
   sedeNombre: string;
-  /** Empresa usuaria (cliente) — `vacante.empresaUsuariaSolicita`. */
+  /** Empresa usuaria (cliente) — `vacante.empresa_usuaria_solicita`. */
   empUsuaria: string;
   /**
    * Temporal empleadora — `vacante.temporal` (Apoyo Laboral / Tu Alianza).
@@ -68,7 +69,7 @@ export interface FichaTecnicaContext {
   /** Resultado de getRutaInfo del componente: `usaRuta` (texto) y demás. */
   usaRuta: string;
   /** Auxilio de transporte de la vacante (texto crudo). */
-  auxilioTransporte: string;
+  auxilio_transporte: string;
   /**
    * Centro de costos TAL COMO SALE EN EL CONTRATO (`centroCostoDoc`:
    * `contrato.centro_costo_obra` → `vacante.finca`). La ficha debe imprimir el
@@ -228,7 +229,7 @@ export function fillFichaTecnicaPdf(
   setText('Sueldo Básico', formatMoneyCOP(vac.salario || proceso.vacante_salario || ''));
 
   setText('Nombre de la RutaUsa Ruta', s(ctx.usaRuta));
-  setText('Nombre de la RutaAuxilio Trasporte', s(ctx.auxilioTransporte));
+  setText('Nombre de la RutaAuxilio Trasporte', s(ctx.auxilio_transporte));
 
   // Horas extras
   const hext = contrato.horas_extras;
@@ -240,7 +241,7 @@ export function fillFichaTecnicaPdf(
 
   // Centro de costo / sede — mismo valor que el contrato (ctx.centroCosto);
   // solo si el contrato no trae nada se cae a la pestaña de nómina.
-  setText('Centro de Costo', s(ctx.centroCosto) || s(contrato.Ccentro_de_costos));
+  setText('Centro de Costo', s(ctx.centroCosto) || centroDeCostosDe(contrato));
   setText('SubCentro de Costo', s(contrato.subcentro_de_costos));
   setText('Sucursal', s(entrevista.oficina));
 
@@ -461,7 +462,7 @@ export function fillFichaTecnicaPdf(
   setText('Sucursal', upper(contratoNom.sucursal), 6);
   // Centro de costo: mismo valor que el CONTRATO (obra/finca), no el de nómina,
   // para que las dos hojas nunca salgan con centros distintos.
-  setText('Centro de Costo', upper(ctx.centroCosto) || upper(contratoNom.Ccentro_de_costos), 6);
+  setText('Centro de Costo', upper(ctx.centroCosto) || upper(centroDeCostosDe(contratoNom)), 6);
   setText('SubCentro de Costo', upper(contratoNom.subcentro_de_costos), 6);
   setText('CÓDIGOCiudad de Labor', upper(contratoNom.ciudad_labor), 6);
   setText('CÓDIGOClasificador 2Categoría', upper(contratoNom.categoria), 6);

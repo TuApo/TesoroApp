@@ -68,6 +68,7 @@ import {
 } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 import { AccesoCandidatoService } from '../../service/acceso-candidato/acceso-candidato.service';
 import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
+import { centroDeCostosImpreso } from '../../shared/contrato-campos';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
@@ -2944,7 +2945,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
               'EN PROGRESO':      { color: '#fff', background: '#00897B' },
             }
           },
-          { name: 'empresaUsuariaSolicita', header: 'Empresa', type: 'text', width: '130px' },
+          { name: 'empresa_usuaria_solicita', header: 'Empresa', type: 'text', width: '130px' },
           { name: 'finca', header: 'Finca', type: 'text', width: '110px' },
           {
             name: '_fecha_prueba_publicacion', header: 'Fecha prueba',
@@ -3432,7 +3433,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     let codigo = String(
       contratoBE?.codigo_contrato || proc0?.contrato_codigo || contratoBE?.carnet_codigo || ''
     ).trim();
-    let centroCosto = String(contratoBE?.carnet_centro_costo || contratoBE?.Ccentro_de_costos || '').trim();
+    let centroCosto = centroDeCostosImpreso(contratoBE);
     // Solo `fecha_ingreso`: es un DateField, así que llega en ISO y el
     // <input type="date"> de abajo lo precarga bien. `carnet_fecha_ingreso` es
     // texto libre; si venía en DD/MM/YYYY el input salía VACÍO, y encima hacía

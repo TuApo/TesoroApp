@@ -1,4 +1,5 @@
 import { SharedModule } from '@/app/shared/shared.module';
+import { centroDeCostosDe, centroDeCostosImpreso } from '../../shared/contrato-campos';
 import { isPlatformBrowser } from '@angular/common';
 import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, signal } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -159,7 +160,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return this._entrevistaSel?.proceso?.contrato || {};
   }
   get empresaUsuariaDoc(): string {
-    return this._contratoObra?.empresa_usuaria || this.vacante?.empresaUsuariaSolicita || '';
+    return this._contratoObra?.empresa_usuaria || this.vacante?.empresa_usuaria_solicita || '';
   }
   get centroCostoDoc(): string {
     return this._contratoObra?.centro_costo_obra || this.vacante?.finca || '';
@@ -1176,7 +1177,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         ? buildCarnetApoyoPdf({
           nombreCompleto,
           cedula,
-          centroCostos: this.limpio(contrato.carnet_centro_costo) || this.limpio(contrato.Ccentro_de_costos),
+          centroCostos: this.limpio(centroDeCostosImpreso(contrato)),
           cargo: this.limpio(this.vacante?.cargo),
           consecutivo: codigo,
           fechaIngreso,
@@ -1198,7 +1199,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           NOMBRES: [cand.primer_nombre, cand.segundo_nombre]
             .map((v: any) => this.limpio(v)).filter(Boolean).join(' '),
           FECHA_INGRESO: fechaIngreso,
-          CENTRO_COSTO: this.limpio(contrato.carnet_centro_costo) || this.limpio(contrato.Ccentro_de_costos),
+          CENTRO_COSTO: this.limpio(centroDeCostosImpreso(contrato)),
           FAMILIAR_EMERGENCIA_NOMBRE: this.limpio(emerg.nombre),
           FAMILIAR_EMERGENCIA_TELEFONO: this.limpio(emerg.telefono),
           fotoDataUrl,
@@ -1251,7 +1252,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    */
   get documentosVisibles(): { titulo: string }[] {
     const tmp = this.vacante?.temporal ?? null;
-    const emp = this.vacante?.empresaUsuariaSolicita ?? null;
+    const emp = this.vacante?.empresa_usuaria_solicita ?? null;
     const fin = this.vacante?.finca ?? null;
     const sinFiltro = this.esSuperAdmin;
     const key = `${sinFiltro}|${tmp}|${emp}|${fin}`;
@@ -9564,7 +9565,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       + (descripcionExtraLineas * descripcionExtraLineH); // Posición vertical después de los datos
     // Texto adicional
     let texto = 'Entre el EMPLEADOR y el TRABAJADOR arriba indicados, se ha celebrado el contrato regulado por las cláusulas que adelante se indican, aparte de la ley, siendo ellas las siguientes: PRIMERA. El Trabajador, a partir de la fecha de iniciación, se obliga para con el EMPLEADOR a ejecutar la obra arriba indicada, sometiéndose durante su realización en todo a las órdenes de éste. Declara por consiguiente el TRABAJADOR completa y total disponibilidad para con el EMPLEADOR para ejecutar las obras indicadas en el encabezamiento, siempre que así le sean exigidas por sus clientes al EMPLEADOR. Teniendo en cuenta que, la EMPRESA USUARIA, desarrolla su actividad productiva y comercial a nivel nacional, las partes convienen en que la EMPRESA USUARIA podrá trasladar la base de operaciones de EL TRABAJADOR, en cualquier tiempo, a cualquier otro lugar donde desarrolle tales actividades sin que por ello se opere desmejora o modificación sustancial de las condiciones de trabajo ni de la categoría del TRABAJADOR, consideradas en el momento de la suscripción de este contrato. SEGUNDA. DURACIÓN DEL CONTRATO: La necesaria para la realización de la obra o labor contratada y conforme a las necesidades del patrono o establecimiento que requiera la ejecución de la obra, todo conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta la fecha de iniciación de la obra; y la índole de la misma, circunstancias una y otra ya anotadas. PARÁGRAFO PRIMERO: Las partes acuerdan que por ser el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una empresa de servicios temporales, y por tanto tendrá vigencia hasta la realización de la obra o labor contratada que sea indicada por las Empresas Usuarias del EMPLEADOR en este contrato, acordando las partes que para todos los efectos legales, la obra o labor contratada termina en la fecha en que la EMPRESA USUARIA, a la que será enviado el TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se realizará de manera personal en las instalaciones de la EMPRESA ';
-    // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
+    // this.vacante.empresa_usuaria_solicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
     doc.setFont('helvetica', 'normal');
     // Construir texto dinámico sin null ni undefined
     const partes = [
@@ -10341,7 +10342,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     let y = columnStartY + rowsPerColumn * rowSpacing + 2 + maxYOffset;
     // Texto adicional
     let texto = 'Entre  el  EMPLEADOR  y  el   TRABAJADOR  arriba indicados,  se  ha celebrado el contrato  regulado  por  las cláusulas  que  adelante  se  indican,  aparte  de  la  ley,  siendo  ellas las  siguientes:  PRIMERA.  El Trabajador,  a  partir  de  la  fecha  de  iniciación,  se  obliga  para  con  e l  EMPLEADOR   a ejecutar  la  obra arriba  indicada  sometiéndose  durante  su realización  en  todo  a  las  órdenes  de  éste. Declara  por  consiguiente e l TRABAJADOR completa y total  disponibilidad para con  el  EMPLEADOR   para  ejecutar  las  obras  indicadas  en  el  encabezamiento,  siempre  que así  le  sean  exigidas  por  sus clientes  al   EMPLEADOR,   sin  que  por  ello  se  opere  desmejora  o  modificación  sustancial  de las  condiciones de trabajo tenidas  en  cuenta en  el  momento  de  la  suscripción  de  este  contrato.   SEGUNDA.   DURACIÓN DEL CONTRATO:   La necesaria  para  la  realización de la obra o labor contratada  y  conforme  a  las  necesidades  del  patrono  o  establecimiento  que  requiera  la  ejecución  de  la  obra,  todo  conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta  la  fecha  de  iniciación  de  la  obra;  y  la  índole  de  la  misma,  circunstancias  una  y  otra  ya  anotadas.  PARÁGRAFO PRIMERO:  Las  partes  acuerdan  que  por  ser  el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una  empresa  de  servicios temporales,  y  por  tanto tendrá  vigencia  hasta la realización  de  la  obra o  labor  contratada  que  sea  indicada  por  las  Empresas  Usuarias  del  EMPLEADOR  en  este  contrato, acordando  las  partes  que  para  todos  los  efectos  legales,  la  obra  o  labor  contratada  termina  en  la  fecha  en  que  la  EMPRESA  USUARIA, a la que será  enviado el  TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se  realizará  en  las  instalaciones de la EMPRESA ';
-    // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
+    // this.vacante.empresa_usuaria_solicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
     doc.setFont('helvetica', 'normal');
     let x = 7;
     const lineHeight = 3.4;
@@ -10852,7 +10853,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     let y = columnStartY + rowsPerColumn * rowSpacing + 2 + maxYOffset;
     // Texto adicional
     let texto = 'Entre  el  EMPLEADOR  y  el   TRABAJADOR  arriba indicados,  se  ha celebrado el contrato  regulado  por  las cláusulas  que  adelante  se  indican,  aparte  de  la  ley,  siendo  ellas las  siguientes:  PRIMERA.  El Trabajador,  a  partir  de  la  fecha  de  iniciación,  se  obliga  para  con  e l  EMPLEADOR   a ejecutar  la  obra arriba  indicada  sometiéndose  durante  su realización  en  todo  a  las  órdenes  de  éste. Declara  por  consiguiente e l TRABAJADOR completa y total  disponibilidad para con  el  EMPLEADOR   para  ejecutar  las  obras  indicadas  en  el  encabezamiento,  siempre  que así  le  sean  exigidas  por  sus clientes  al   EMPLEADOR,   sin  que  por  ello  se  opere  desmejora  o  modificación  sustancial  de las  condiciones de trabajo tenidas  en  cuenta en  el  momento  de  la  suscripción  de  este  contrato.   SEGUNDA.   DURACIÓN DEL CONTRATO:   La necesaria  para  la  realización de la obra o labor contratada  y  conforme  a  las  necesidades  del  patrono  o  establecimiento  que  requiera  la  ejecución  de  la  obra,  todo  conforme a lo previsto en el Art. 45 del CST y teniendo en cuenta  la  fecha  de  iniciación  de  la  obra;  y  la  índole  de  la  misma,  circunstancias  una  y  otra  ya  anotadas.  PARÁGRAFO PRIMERO:  Las  partes  acuerdan  que  por  ser  el TRABAJADOR contratado como trabajador en misión para ser enviado a la empresa la duración de la obra o labor no podrá superar el tiempo establecido en el Art. 77 de la Ley 50 de 1990 en su numeral 3°. PARÁGRAFO SEGUNDO: El término de duración del presente contrato es de carácter temporal por ser el EMPLEADOR una  empresa  de  servicios temporales,  y  por  tanto tendrá  vigencia  hasta la realización  de  la  obra o  labor  contratada  que  sea  indicada  por  las  Empresas  Usuarias  del  EMPLEADOR  en  este  contrato, acordando  las  partes  que  para  todos  los  efectos  legales,  la  obra  o  labor  contratada  termina  en  la  fecha  en  que  la  EMPRESA  USUARIA, a la que será  enviado el  TRABAJADOR, comunique la terminación de la misma. PARÁGRAFO TERCERO: La labor se  realizará  en  las  instalaciones de la EMPRESA ';
-    // this.vacante.empresaUsuariaSolicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
+    // this.vacante.empresa_usuaria_solicita + CENTRO DE COSTOS + this.vacante.finca + DIR. + this.vacante.direccion
     doc.setFont('helvetica', 'normal');
     let x = 7;
     const lineHeight = 3.4;
@@ -11307,7 +11308,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         afp,
         cargo: vac?.cargo ?? '',
         centro_costo_entrevista: entrevista?.oficina ?? '',
-        empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+        empresa_usuario: vac?.empresa_usuaria_solicita ?? '',
       };
 
       // datoInfoContratacion
@@ -11317,7 +11318,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         numero_pagos: contrato?.numero_para_pagos ?? '',
         porcentaje_arl: contrato?.porcentaje_arl ?? '',
         cesantias: contrato?.cesantias ?? '',
-        centro_de_costos: contrato?.Ccentro_de_costos ?? contrato?.centro_de_costos ?? '',
+        centro_de_costos: centroDeCostosDe(contrato),
         subCentroCostos: contrato?.subcentro_de_costos ?? '',
         categoria: contrato?.categoria ?? '',
         operacion: contrato?.operacion ?? '',
@@ -11364,7 +11365,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       // Llenado completo del formulario (mapping en ficha-tecnica-fill.ts).
       // ctx contiene los datos derivados que el helper necesita y que dependen de
       // servicios del componente (`this.user`, `this.getRutaInfo`, etc.)
-      const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
+      const rutaInfo = this.getRutaInfo(vac.oficinas_que_contratan, ds.centro_costo_entrevista || '');
       const ctx = {
         codigoContrato: this.safe(codigoContrato),
         sedeNombre: this.safe(this.oficinaUsuarioImpresa),
@@ -11372,7 +11373,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         temporal: this.safe(vac?.temporal ?? this.empresa),
         personaQueFirma: this.safe(`${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()),
         usaRuta: this.safe(rutaInfo.usaRuta),
-        auxilioTransporte: this.safe(vac.auxilioTransporte),
+        auxilio_transporte: this.safe(vac.auxilio_transporte),
         // Centro de costo y cargo: MISMOS valores que imprime el contrato, para
         // que ficha y contrato nunca salgan con datos distintos.
         centroCosto: this.safe(this.centroCostoDoc),
@@ -11798,7 +11799,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         cesantias: entrevista?.proceso?.contrato?.cesantias ?? '',
         cargo: vac?.cargo ?? '',
         centro_costo_entrevista: entrevista?.oficina ?? '',
-        empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+        empresa_usuario: vac?.empresa_usuaria_solicita ?? '',
       };
 
       // =========================================================
@@ -12350,7 +12351,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         cesantias: entrevista.proceso?.contrato?.cesantias ?? '',
         cargo: vac?.cargo ?? '',
         centro_costo_entrevista: entrevista?.oficina ?? '',
-        empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+        empresa_usuario: vac?.empresa_usuaria_solicita ?? '',
       };
 
       // =========================================================

@@ -17,6 +17,7 @@
  *    `carnet_generado`, además de descargar el lote para imprimir.
  */
 import { CommonModule } from '@angular/common';
+import { centroDeCostosImpreso } from '../../shared/contrato-campos';
 import { ChangeDetectionStrategy, Component, Inject, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -307,7 +308,7 @@ export class CarnetMasivoDialogComponent {
       contrato.codigo_contrato || proc?.contrato_codigo || contrato.carnet_codigo || '',
     ).trim();
 
-    const centroCostos = String(contrato.carnet_centro_costo || contrato.Ccentro_de_costos || '').trim();
+    const centroCostos = centroDeCostosImpreso(contrato);
     // Solo `fecha_ingreso` (el DateField real). `carnet_fecha_ingreso` es texto
     // libre y hacía que el carnet saliera con distinta fecha según desde dónde
     // se generara; ver la misma decisión en generate-contracting-documents.

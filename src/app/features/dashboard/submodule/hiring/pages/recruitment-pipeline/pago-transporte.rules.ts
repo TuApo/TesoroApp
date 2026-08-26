@@ -1,3 +1,5 @@
+import { centroDeCostosDe } from '../../shared/contrato-campos';
+
 /**
  * Regla: qué falta de "Pago y Transporte" para poder generar la documentación.
  *
@@ -23,6 +25,9 @@
 export const CAMPOS_PAGO_TRANSPORTE: ReadonlyArray<{ campo: string; etiqueta: string }> = [
   { campo: 'forma_de_pago', etiqueta: 'Forma de pago' },
   { campo: 'numero_para_pagos', etiqueta: 'Número para pagos' },
+  // OJO: la API responde `ccentro_de_costos` (minúscula) y el guardado acepta
+  // `Ccentro_de_costos`. Se comprueba con `centroDeCostosDe`, más abajo; aquí
+  // queda la etiqueta para el mensaje.
   { campo: 'Ccentro_de_costos', etiqueta: 'Centro de costos' },
   { campo: 'subcentro_de_costos', etiqueta: 'Subcentro de costos' },
   { campo: 'porcentaje_arl', etiqueta: 'Porcentaje ARL' },
@@ -46,7 +51,12 @@ export function faltantesDePagoTransporte(contrato: any): string[] {
   if (!contrato) return [FALTA_GUARDAR];
 
   const faltan = CAMPOS_PAGO_TRANSPORTE
-    .filter(({ campo }) => vacio(contrato[campo]))
+    .filter(({ campo }) => campo === 'Ccentro_de_costos'
+      // Se guarda con C mayúscula y se lee con minúscula: sin esto, el centro
+      // de costos salía como "falta" con el dato ya guardado, y la generación
+      // quedaba bloqueada para siempre. Ver `shared/contrato-campos`.
+      ? !centroDeCostosDe(contrato)
+      : vacio(contrato[campo]))
     .map(({ etiqueta }) => etiqueta);
 
   // Daviplata no pide tarjeta (misma regla que setupFormaPagoValidation en
