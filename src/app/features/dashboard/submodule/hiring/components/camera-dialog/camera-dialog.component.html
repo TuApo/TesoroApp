@@ -49,6 +49,29 @@
             <button mat-stroked-button (click)="toggleUploadMode()">Usar adjunto</button>
           </div>
         }
+        <!-- ══ GUÍA DE PERSONA PRESENTE ══
+             El óvalo dice dónde ponerse y el rótulo dice qué hacer AHORA
+             (acércate → parpadea → listo). Sin la guía, un obturador apagado
+             se lee como una aplicación rota. -->
+        @if (!previewUrl && !cameraError && pasoRostro !== 'sin-validador') {
+          <div class="rostro-guia" [class.rostro-ok]="pasoRostro === 'listo'">
+            <div class="rostro-ovalo"></div>
+            <div class="rostro-msg">
+              @if (pasoRostro === 'cargando') {
+                <mat-spinner diameter="16" mode="indeterminate"></mat-spinner>
+              } @else if (pasoRostro === 'listo') {
+                <mat-icon>check_circle</mat-icon>
+              } @else {
+                <mat-icon>face_retouching_natural</mat-icon>
+              }
+              <span>{{ mensajeRostro }}</span>
+            </div>
+            @if (pasoRostro === 'acercate' || pasoRostro === 'buscando') {
+              <div class="rostro-barra"><span [style.width.%]="cercania * 100"></span></div>
+            }
+          </div>
+        }
+
         <canvas #canvasEl class="hidden-canvas"></canvas>
       </div>
     }
@@ -84,7 +107,13 @@
             <mat-icon>perm_media</mat-icon>
           </button>
           <!-- Center: Shutter -->
-          <button class="shutter-btn" (click)="capture()" [disabled]="loadingCamera || !!cameraError"></button>
+          <!-- Apagado hasta que haya una persona de verdad delante: cara en
+               cuadro, cerca y con un parpadeo. Con el detector no disponible
+               queda habilitado, para no dejar a nadie sin foto. -->
+          <button class="shutter-btn" (click)="capture()"
+                  [class.shutter-espera]="!puedeCapturar"
+                  [matTooltip]="puedeCapturar ? 'Tomar la foto' : mensajeRostro"
+                  [disabled]="loadingCamera || !!cameraError || !puedeCapturar"></button>
           <!-- Right: Facing/Mirror -->
           <button mat-icon-button class="secondary-btn" (click)="toggleFacing()" matTooltip="Cambiar cámara">
             <mat-icon>cameraswitch</mat-icon>

@@ -5,8 +5,22 @@ import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/materia
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
+
+import { DeteccionRostroService } from '../../service/rostro/deteccion-rostro.service';
 
 export type CameraDialogResult = { file: File; previewUrl: string };
+
+/** Pasos de la comprobación de que hay una persona delante. */
+export type PasoRostro =
+  /** Cargando el detector. */
+  | 'cargando'
+  /** El detector no está disponible: se deja tomar la foto sin validar. */
+  | 'sin-validador'
+  | 'buscando'
+  | 'acercate'
+  | 'parpadea'
+  | 'listo';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -16,7 +30,10 @@ export type CameraDialogResult = { file: File; previewUrl: string };
     MatDialogModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatButtonModule
+    MatButtonModule,
+    // El `matTooltip` del obturador dice POR QUÉ está esperando; sin el módulo
+    // el binding ni siquiera compila.
+    MatTooltipModule
 ],
   templateUrl: './camera-dialog.component.html',
   styleUrl: './camera-dialog.component.css'
@@ -25,6 +42,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   private dialogRef = inject(MatDialogRef<CameraDialogComponent>);
   private dialogData = inject(MAT_DIALOG_DATA, { optional: true }) as { initialPreviewUrl?: string | null } | null;
   private cdr = inject(ChangeDetectorRef);
+  private rostro = inject(DeteccionRostroService);
 
   @ViewChild('videoEl', { static: false }) videoEl?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl', { static: false }) canvasEl?: ElementRef<HTMLCanvasElement>;
@@ -50,6 +68,128 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   previewUrl: string | null = null; // Para mostrar antes de confirmar
   capturedFile: File | null = null;
 
+  // ══════════════════════════════════════════════════════════════════════
+  // ¿HAY UNA PERSONA DELANTE?
+  //
+  // Antes se podía fotografiar una cédula, una pantalla o una silla vacía y
+  // quedaba como foto de perfil. Se piden dos cosas que una foto impresa no
+  // puede hacer: acercarse y parpadear. Todo ocurre en el equipo (MediaPipe
+  // sobre wasm); la cara no viaja a ningún lado.
+  //
+  // Si el detector no carga, el paso queda en 'sin-validador' y el obturador
+  // sigue habilitado: esto no puede dejar a nadie sin poder tomar la foto.
+  // ══════════════════════════════════════════════════════════════════════
+
+  /** La cara tiene que ocupar esta fracción del alto del cuadro. */
+  private static readonly CERCA = 0.42;
+  /** Ojo cerrado / ojo abierto: dos umbrales para no contar medio parpadeo. */
+  private static readonly OJO_CERRADO = 0.5;
+  private static readonly OJO_ABIERTO = 0.2;
+
+  pasoRostro: PasoRostro = 'cargando';
+  /** Qué tan cerca está, 0..1, para la barra de la guía. */
+  cercania = 0;
+
+  private rafId = 0;
+  private ojosCerrados = false;
+  private parpadeoHecho = false;
+
+  /** ¿Se puede disparar la foto? */
+  get puedeCapturar(): boolean {
+    return this.pasoRostro === 'listo' || this.pasoRostro === 'sin-validador';
+  }
+
+  /** El texto de la guía. Dice SIEMPRE qué hacer ahora, no qué falló. */
+  get mensajeRostro(): string {
+    switch (this.pasoRostro) {
+      case 'cargando': return 'Preparando la cámara…';
+      case 'buscando': return 'Ubica la cara dentro del óvalo';
+      case 'acercate': return 'Acércate un poco más';
+      case 'parpadea': return 'Ahora parpadea';
+      case 'listo': return '¡Listo! Toma la foto';
+      default: return '';
+    }
+  }
+
+  /** Arranca el detector y el bucle de lectura. */
+  private async iniciarValidacion(): Promise<void> {
+    this.pasoRostro = 'cargando';
+    this.cdr.markForCheck();
+
+    const ok = await this.rostro.iniciar();
+    if (!ok) {
+      this.pasoRostro = 'sin-validador';
+      this.cdr.markForCheck();
+      return;
+    }
+    this.reiniciarValidacion();
+    this.bucle();
+  }
+
+  /** Vuelve a pedir cara + parpadeo (cambio de cámara, repetir foto). */
+  private reiniciarValidacion(): void {
+    if (this.pasoRostro === 'sin-validador') return;
+    this.pasoRostro = 'buscando';
+    this.cercania = 0;
+    this.ojosCerrados = false;
+    this.parpadeoHecho = false;
+  }
+
+  private detenerValidacion(): void {
+    if (this.rafId) cancelAnimationFrame(this.rafId);
+    this.rafId = 0;
+  }
+
+  private bucle = (): void => {
+    this.rafId = requestAnimationFrame(this.bucle);
+
+    const video = this.videoEl?.nativeElement;
+    // Con la previa en pantalla el vídeo está oculto: no hay nada que leer.
+    if (!video || this.previewUrl || this.isUploadMode || !this.stream) return;
+
+    const lectura = this.rostro.leer(video, performance.now());
+    if (!lectura) return;
+
+    const antes = this.pasoRostro;
+    const cercaAntes = this.cercania;
+
+    if (!lectura.hayCara) {
+      this.cercania = 0;
+      this.ojosCerrados = false;
+      // Se pierde el avance a propósito: si la cara se fue, lo que venga
+      // después puede ser otra persona.
+      this.parpadeoHecho = false;
+      this.pasoRostro = 'buscando';
+    } else {
+      this.cercania = Math.min(1, lectura.ocupacion / CameraDialogComponent.CERCA);
+      const cerca = lectura.ocupacion >= CameraDialogComponent.CERCA;
+
+      if (!cerca) {
+        this.pasoRostro = 'acercate';
+      } else {
+        // Parpadeo = los dos ojos se cierran y se vuelven a abrir. Exigir los
+        // dos evita contar un guiño o una sombra sobre un ojo.
+        const cerrados = lectura.ojoIzq > CameraDialogComponent.OJO_CERRADO
+                      && lectura.ojoDer > CameraDialogComponent.OJO_CERRADO;
+        const abiertos = lectura.ojoIzq < CameraDialogComponent.OJO_ABIERTO
+                      && lectura.ojoDer < CameraDialogComponent.OJO_ABIERTO;
+
+        if (cerrados) this.ojosCerrados = true;
+        else if (abiertos && this.ojosCerrados) {
+          this.ojosCerrados = false;
+          this.parpadeoHecho = true;
+        }
+
+        // 'listo' solo con los ojos ABIERTOS: si no, la foto sale pestañeando.
+        this.pasoRostro = this.parpadeoHecho && abiertos ? 'listo' : 'parpadea';
+      }
+    }
+
+    if (antes !== this.pasoRostro || Math.abs(cercaAntes - this.cercania) > 0.02) {
+      this.cdr.markForCheck();
+    }
+  };
+
   async ngOnInit(): Promise<void> {
     // Precargar foto existente si llega (dataURL o http(s))
     await this.loadInitialPreview(this.dialogData?.initialPreviewUrl || null);
@@ -64,6 +204,9 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       if (!this.previewUrl) {
         try {
           await this.startCamera();
+          // El detector se carga en paralelo: pesa, y la cámara no debe
+          // esperarlo para encenderse.
+          void this.iniciarValidacion();
         } catch {
           this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
         }
@@ -74,6 +217,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.detenerValidacion();
     this.stopCamera();
     this.revokePreview();
   }
@@ -175,6 +319,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     // guardar (ver `isMirror`).
     this.isMirror = false;
     await this.startCamera();
+    this.reiniciarValidacion();
   }
 
   toggleMirror(): void {
@@ -208,6 +353,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   }
 
   capture(): void {
+    if (!this.puedeCapturar) return;
     if (!this.videoEl?.nativeElement || !this.canvasEl?.nativeElement) return;
     const video = this.videoEl.nativeElement;
     const canvas = this.canvasEl.nativeElement;
@@ -257,6 +403,9 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     // Si no es modo subida, reactivar cámara
     if (!this.isUploadMode) {
       this.startCamera();
+      // Repetir la foto vuelve a exigir cara y parpadeo: si no, la segunda
+      // toma se colaría con la validación de la primera.
+      this.reiniciarValidacion();
     }
     this.cdr.markForCheck();
   }

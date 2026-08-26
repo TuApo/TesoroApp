@@ -209,3 +209,80 @@ video.mirror {
   width: 48px;
   height: 48px;
 }
+/* ══════════════════════════════════════════════════════════════════════════
+   GUÍA DE PERSONA PRESENTE
+   El óvalo dice DÓNDE ponerse y el rótulo QUÉ hacer ahora. Va encima del
+   vídeo y no debe robar clics: todo el bloque es `pointer-events: none`.
+   ══════════════════════════════════════════════════════════════════════════ */
+.rostro-guia {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.rostro-ovalo {
+  width: min(52%, 260px);
+  aspect-ratio: 3 / 4;
+  border: 3px dashed rgba(255, 255, 255, .75);
+  border-radius: 50%;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .18);
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.rostro-ok .rostro-ovalo {
+  border-style: solid;
+  border-color: #8CD50A;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .10), 0 0 22px rgba(140, 213, 10, .55);
+}
+
+.rostro-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .72);
+  color: #fff;
+  font-size: .88rem;
+  font-weight: 600;
+  backdrop-filter: blur(2px);
+}
+
+.rostro-ok .rostro-msg {
+  background: rgba(52, 105, 10, .82);
+}
+
+.rostro-msg mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+/* Qué tan cerca está: el óvalo solo dice dónde, no cuánto falta. */
+.rostro-barra {
+  width: min(52%, 260px);
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .28);
+  overflow: hidden;
+}
+
+.rostro-barra span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #8CD50A;
+  transition: width .12s linear;
+}
+
+/* Obturador a la espera: apagado pero visible, con el motivo en el tooltip. */
+.shutter-btn.shutter-espera {
+  opacity: .45;
+  cursor: not-allowed;
+}
