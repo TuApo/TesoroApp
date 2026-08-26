@@ -1,0 +1,104 @@
+<mat-card class="pd-cabecera">
+  <div class="pd-cab-texto">
+    <h2>Documentos parametrizables</h2>
+    <span class="pd-sub">Aquí se define cómo se ve cada documento y con qué datos se rellena.</span>
+  </div>
+  <div class="pd-cab-acciones">
+    <button mat-stroked-button (click)="sembrar()" matTooltip="Sube los PDF que la empresa ya usa y deja un borrador por documento">
+      <mat-icon>cloud_upload</mat-icon> Cargar formatos actuales
+    </button>
+    <button mat-flat-button color="primary" (click)="nueva()">
+      <mat-icon>add</mat-icon> Nuevo documento
+    </button>
+  </div>
+</mat-card>
+
+<!-- El avance de la migración, en una frase. Sin esto nadie sabe si esto ya
+     está haciendo algo o sigue siendo solo preparación. -->
+<div class="pd-avance" [class.pd-avance-inicio]="cortados() === 0">
+  <mat-icon>{{ cortados() === 0 ? 'info' : 'trending_up' }}</mat-icon>
+  <span>
+    @if (cortados() === 0) {
+      Ningún documento se genera todavía con estas plantillas: todo sigue saliendo por el sistema anterior.
+    } @else {
+      {{ cortados() }} de {{ plantillas().length }} documentos ya se generan con estas plantillas.
+    }
+  </span>
+</div>
+
+<mat-card class="pd-tabla-card">
+  @if (cargando()) {
+    <div class="pd-centro"><mat-spinner diameter="40"></mat-spinner></div>
+  } @else {
+    <app-standard-filter-table
+      [data]="plantillas()"
+      [columnDefinitions]="columnasTabla"
+      [defaultPageSize]="25"
+      [pageSizeOptions]="[10, 25, 50, 100]">
+
+      <ng-template appCellTemplate="nombre" let-p>
+        <strong>{{ p.nombre }}</strong>
+        <div class="pd-clave">{{ p.clave }}</div>
+      </ng-template>
+
+      <ng-template appCellTemplate="modo" let-p>
+        <span [matTooltip]="ayudaModo(p.modo)">{{ etiquetaModo(p.modo) }}</span>
+      </ng-template>
+
+      <ng-template appCellTemplate="motor" let-p>
+        @if (p.motor === 'LEGACY') {
+          <mat-chip class="pd-chip-legacy" matTooltip="Este documento se sigue generando como siempre">
+            Sistema anterior
+          </mat-chip>
+        } @else {
+          <mat-chip class="pd-chip-nuevo" matTooltip="Ya se genera con esta plantilla">
+            Esta plantilla
+          </mat-chip>
+        }
+      </ng-template>
+
+      <ng-template appCellTemplate="acciones" let-p>
+        <button mat-icon-button (click)="verDocumento(p)"
+                [disabled]="cargandoVisor() === p.id"
+                matTooltip="Ver el documento con datos de ejemplo">
+          @if (cargandoVisor() === p.id) {
+            <mat-spinner diameter="20"></mat-spinner>
+          } @else {
+            <mat-icon>visibility</mat-icon>
+          }
+        </button>
+        <button mat-icon-button color="primary" (click)="abrir(p)" matTooltip="Abrir y configurar">
+          <mat-icon>edit_document</mat-icon>
+        </button>
+        <button mat-icon-button (click)="cambiarMotor(p)"
+                [matTooltip]="p.motor === 'LEGACY' ? 'Pasar al motor nuevo' : 'Volver al sistema anterior'">
+          <mat-icon>{{ p.motor === 'LEGACY' ? 'toggle_off' : 'toggle_on' }}</mat-icon>
+        </button>
+      </ng-template>
+    </app-standard-filter-table>
+  }
+</mat-card>
+
+<!-- ══ Visor: el documento con datos de ejemplo, sea del tipo que sea ══ -->
+@if (visor(); as v) {
+  <div class="pd-visor-fondo" (click)="cerrarVisor()"></div>
+  <section class="pd-visor" role="dialog" aria-label="Previsualización del documento">
+    <header class="pd-visor-cab">
+      <div>
+        <span class="pd-visor-tit">{{ v.plantilla.nombre }}</span>
+        <span class="pd-visor-sub">
+          {{ etiquetaModo(v.plantilla.modo) }} · datos de ejemplo, no son los de ninguna persona
+        </span>
+      </div>
+      <div class="pd-visor-acc">
+        <button mat-stroked-button (click)="descargarVisto()">
+          <mat-icon>download</mat-icon> Descargar
+        </button>
+        <button mat-icon-button (click)="cerrarVisor()" matTooltip="Cerrar">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </header>
+    <iframe class="pd-visor-hoja" [src]="v.segura" title="Documento"></iframe>
+  </section>
+}

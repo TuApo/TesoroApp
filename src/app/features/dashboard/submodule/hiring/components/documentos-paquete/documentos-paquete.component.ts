@@ -211,7 +211,7 @@ export class DocumentosPaqueteComponent {
     const v = this.vacante();
     const ctx = {
       temporal: (v?.['temporal'] as string) ?? null,
-      empresaUsuaria: (v?.['empresaUsuariaSolicita'] as string) ?? null,
+      empresaUsuaria: (v?.['empresa_usuaria_solicita'] as string) ?? null,
       finca: (v?.['finca'] as string) ?? null,
     };
     const presentes = this.docPorTipo();

@@ -90,7 +90,7 @@ describe('HelpInformationComponent', () => {
     });
 
     it('si la vacante no trae temporal, mira la empresa usuaria', () => {
-      expect(temporalDe({ temporal: null, empresaUsuariaSolicita: 'TU ALIANZA' })).toBe('alianza');
+      expect(temporalDe({ temporal: null, empresa_usuaria_solicita: 'TU ALIANZA' })).toBe('alianza');
     });
 
     it('sin nada de información cae en Apoyo, marcado como "por descarte"', () => {
@@ -109,8 +109,8 @@ describe('HelpInformationComponent', () => {
 
     it('deducir de la temporal o de la empresa usuaria NO es "por descarte"', () => {
       expect(temporalRaw({ temporal: 'APOYO LABORAL SAS' }).porDefecto).toBeFalse();
-      expect(temporalRaw({ empresaUsuariaSolicita: 'APOYO LABORAL TS' }).porDefecto).toBeFalse();
-      expect(temporalRaw({ empresaUsuariaSolicita: 'TU ALIANZA' }).porDefecto).toBeFalse();
+      expect(temporalRaw({ empresa_usuaria_solicita: 'APOYO LABORAL TS' }).porDefecto).toBeFalse();
+      expect(temporalRaw({ empresa_usuaria_solicita: 'TU ALIANZA' }).porDefecto).toBeFalse();
     });
   });
 
@@ -228,15 +228,15 @@ describe('HelpInformationComponent', () => {
   describe('búsqueda de vacantes en el desplegable', () => {
     const V = (id: number, empresa: string, finca: string, cargo: string, codigo: string | null = null) => ({
       id,
-      empresaUsuariaSolicita: empresa,
+      empresa_usuaria_solicita: empresa,
       finca,
       cargo,
-      codigoElite: codigo,
+      codigo_elite: codigo,
       temporal: 'APOYO LABORAL SAS',
-      oficinasQueContratan: [{ nombre: 'SOACHA', numeroDeGenteRequerida: 5, ruta: false }],
-      // Los cupos salen de `personasSolicitadas`, NO de las oficinas: sin esto
+      oficinas_que_contratan: [{ nombre: 'SOACHA', numeroDeGenteRequerida: 5, ruta: false }],
+      // Los cupos salen de `personas_solicitadas`, NO de las oficinas: sin esto
       // `falt()` da 0 y el desplegable esconde la vacante por estar llena.
-      personasSolicitadas: 5,
+      personas_solicitadas: 5,
       conteo_estados: { contratado: 1 },
       activo: true,
     }) as any;

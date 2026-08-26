@@ -123,9 +123,9 @@ export class BandejaComponent implements OnInit {
       next: page => {
         let filas = page.content || [];
         const semaforo = this.filtroSemaforo.value;
-        if (semaforo) filas = filas.filter(p => p.colorSemaforo === semaforo);
+        if (semaforo) filas = filas.filter(p => p.color_semaforo === semaforo);
         this.procesos = filas;
-        this.totalElements = page.totalElements || filas.length;
+        this.totalElements = page.total_elements || filas.length;
         this.cargando = false;
         this.cdr.markForCheck();
       },
@@ -174,7 +174,7 @@ export class BandejaComponent implements OnInit {
 
   abrirCambiarEstado(proceso: ProcesoLegal, event: MouseEvent): void {
     event.stopPropagation();
-    this.svc.getEstados(proceso.tipoId).subscribe({
+    this.svc.getEstados(proceso.tipo_id).subscribe({
       next: estados => {
         const ref = this.dialog.open(CambiarEstadoDialogComponent, {
           width: '560px',

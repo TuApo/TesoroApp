@@ -15,11 +15,31 @@ export interface CargoSugerido {
   porque?: string;
 }
 
+/** Lectura de la trayectoria: cuánto dura en los trabajos y con qué cifras se dice. */
+export interface EstabilidadLaboral {
+  nivel?: 'alto' | 'medio' | 'bajo' | 'sin datos';
+  porque?: string;
+}
+
+/**
+ * Con quién vive, quién responde por los hijos y si sostiene sola/o el hogar.
+ *
+ * Es informacion de DISPONIBILIDAD —turnos, rutas, madrugadas—, no un juicio
+ * sobre la persona: el prompt del analisis lo deja escrito y aqui se rotula
+ * igual para que nadie lo lea como un criterio de descarte.
+ */
+export interface RedDeApoyo {
+  resumen?: string;
+  evidencia?: string;
+}
+
 export interface AnalisisCandidato {
   cedula?: string;
   resumen?: string;
   /** Sugerencia de cargo a partir de experiencia, formacion y entrevista. */
   cargoSugerido?: CargoSugerido;
+  estabilidadLaboral?: EstabilidadLaboral;
+  redDeApoyo?: RedDeApoyo;
   aFavor?: PuntoAnalisis[];
   enContra?: PuntoAnalisis[];
   riesgos?: PuntoAnalisis[];

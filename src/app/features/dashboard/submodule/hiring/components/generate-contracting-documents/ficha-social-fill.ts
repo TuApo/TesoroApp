@@ -385,7 +385,7 @@ export function fillFichaSocialPdf(
   // El rect de `nombre_empresa_usuaria` es ~75pt de ancho × 11pt de alto, y va
   // inline con el texto del párrafo. Forzamos 4pt para que empate visualmente
   // con el texto que lo rodea (que es muy pequeño).
-  setTextSized('nombre_empresa_usuaria', upper(vacante?.empresaUsuariaSolicita || empresaFallback || 'LA EMPRESA'), 4);
+  setTextSized('nombre_empresa_usuaria', upper(vacante?.empresa_usuaria_solicita || empresaFallback || 'LA EMPRESA'), 4);
 
   const now = new Date();
   const txtFecha = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()}`;

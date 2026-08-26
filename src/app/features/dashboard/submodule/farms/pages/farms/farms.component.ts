@@ -89,7 +89,7 @@ export class FarmsComponent implements OnInit {
 
   // Backend -> ViewModel
   // El API (ms-auth-admin) devuelve camelCase: finca, ccostos, subcentro, categoria,
-  // operacion, sublabor, salario, auxilioTransporte (boolean), ruta (boolean),
+  // operacion, sublabor, salario, auxilio_transporte (boolean), ruta (boolean),
   // valorTransporte, empresa, centroDeCosto, ciudad, telefonoGestor, temporal.
   // Leemos camelCase primero y caemos al viejo formato "tal cual Excel" como fallback,
   // para tolerar API vieja o nueva.
@@ -103,7 +103,7 @@ export class FarmsComponent implements OnInit {
       operacion: it['operacion'] ?? it['Operación'] ?? '',
       sublabor: it['sublabor'] ?? it['Sublabor'] ?? '',
       salario: Number(it['salario'] ?? it['Salario'] ?? 0),
-      auxilio: this.siNo(it['auxilioTransporte'] ?? it['AUXILIO DE TRANSPORTE']),
+      auxilio: this.siNo(it['auxilio_transporte'] ?? it['AUXILIO DE TRANSPORTE']),
       ruta: this.siNo(it['ruta'] ?? it['RUTA']),
       valor_transporte: Number(it['valorTransporte'] ?? it['Valor Transporte'] ?? 0),
       empresa: it['empresa'] ?? it['Empresa '] ?? '',
@@ -132,16 +132,18 @@ export class FarmsComponent implements OnInit {
       operacion: v.operacion ?? '',
       sublabor: v.sublabor ?? '',
       salario: this.n(v.salario),
-      auxilioTransporte: (v.auxilio ?? 'NO') === 'SI',
+      auxilio_transporte: (v.auxilio ?? 'NO') === 'SI',
       ruta: (v.ruta ?? 'NO') === 'SI',
-      valorTransporte: this.n(v.valor_transporte),
+      // ms-auth-admin serializa en snake_case desde el 26-ago. Antes este payload
+      // mezclaba las dos grafias y `auxilio_transporte` se perdia al guardar.
+      valor_transporte: this.n(v.valor_transporte),
       empresa: v.empresa ?? '',
-      centroDeCosto: v.centro_de_costo ?? '',
+      centro_de_costo: v.centro_de_costo ?? '',
       direccion: '', // opcional
-      lineaContrato: '', // opcional
+      linea_contrato: '', // opcional
       indicaciones: '', // opcional
       ciudad: v.ciudad ?? '',
-      telefonoGestor: v.telefono_gestor ?? '',
+      telefono_gestor: v.telefono_gestor ?? '',
       temporal: v.temporal ?? ''
     };
   }
@@ -238,12 +240,12 @@ export class FarmsComponent implements OnInit {
     ref.afterClosed().subscribe(result => {
       if (!result) return;
 
-      // Solo mandamos los campos editados en camelCase (PATCH parcial en el back).
+      // Solo mandamos los campos editados (PATCH parcial en el back), en snake_case.
       // auxilio/ruta como boolean.
       const patch: AnyObj = {
         salario: this.n(result.salario),
-        valorTransporte: this.n(result.valor_transporte),
-        auxilioTransporte: result.auxilio === 'SI',
+        valor_transporte: this.n(result.valor_transporte),
+        auxilio_transporte: result.auxilio === 'SI',
         ruta: result.ruta === 'SI'
       };
 

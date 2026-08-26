@@ -80,14 +80,14 @@
         </div>
 
         <div class="vac-grid">
-          <mat-form-field [class.vac-ajustado]="fueAjustado('empresaUsuariaSolicita')"
-                          [ngClass]="{'input-obligatorio': isRequired('empresaUsuariaSolicita')}">
+          <mat-form-field [class.vac-ajustado]="fueAjustado('empresa_usuaria_solicita')"
+                          [ngClass]="{'input-obligatorio': isRequired('empresa_usuaria_solicita')}">
             <mat-label>Empresa</mat-label>
-            <input matInput formControlName="empresaUsuariaSolicita">
-            @if (fueAjustado('empresaUsuariaSolicita')) {
+            <input matInput formControlName="empresa_usuaria_solicita">
+            @if (fueAjustado('empresa_usuaria_solicita')) {
               <mat-hint class="vac-hint-ajustado">Ajustado a mano</mat-hint>
             }
-            @if (vacanteForm.get('empresaUsuariaSolicita')?.hasError('required')) {
+            @if (vacanteForm.get('empresa_usuaria_solicita')?.hasError('required')) {
               <mat-error>
                 La empresa usuaria es obligatoria.
               </mat-error>
@@ -145,17 +145,17 @@
             }
           </mat-form-field>
 
-          <mat-form-field [class.vac-ajustado]="fueAjustado('auxilioTransporte')"
-                          [ngClass]="{'input-obligatorio': isRequired('auxilioTransporte')}">
+          <mat-form-field [class.vac-ajustado]="fueAjustado('auxilio_transporte')"
+                          [ngClass]="{'input-obligatorio': isRequired('auxilio_transporte')}">
             <mat-label>Auxilio Transporte</mat-label>
-            <mat-select formControlName="auxilioTransporte">
+            <mat-select formControlName="auxilio_transporte">
               <mat-option value="Si">Sí</mat-option>
               <mat-option value="No">No</mat-option>
             </mat-select>
-            @if (fueAjustado('auxilioTransporte')) {
+            @if (fueAjustado('auxilio_transporte')) {
               <mat-hint class="vac-hint-ajustado">Ajustado a mano</mat-hint>
             }
-            @if (vacanteForm.get('auxilioTransporte')?.hasError('required')) {
+            @if (vacanteForm.get('auxilio_transporte')?.hasError('required')) {
               <mat-error>
                 Indique si incluye auxilio de transporte.
               </mat-error>
@@ -205,15 +205,15 @@
           }
         </mat-form-field>
 
-        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('personasSolicitadas')}">
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('personas_solicitadas')}">
           <mat-label>Personas solicitadas (total)</mat-label>
-          <input matInput type="number" formControlName="personasSolicitadas" min="1" step="1">
-          @if (vacanteForm.get('personasSolicitadas')?.hasError('required')) {
+          <input matInput type="number" formControlName="personas_solicitadas" min="1" step="1">
+          @if (vacanteForm.get('personas_solicitadas')?.hasError('required')) {
             <mat-error>
               Indique el número total de personas solicitadas.
             </mat-error>
           }
-          @if (vacanteForm.get('personasSolicitadas')?.hasError('min')) {
+          @if (vacanteForm.get('personas_solicitadas')?.hasError('min')) {
             <mat-error>
               Debe ser un valor mayor o igual a 1.
             </mat-error>
@@ -222,15 +222,15 @@
 
 
 
-        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tipoContratacion')}">
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('tipo_contratacion')}">
           <mat-label>Tipo de Contratación</mat-label>
-          <mat-select formControlName="tipoContratacion">
+          <mat-select formControlName="tipo_contratacion">
             <mat-option value="Obra Labor">Obra Labor</mat-option>
             <mat-option value="Fijo Inferior a un año">Fijo Inferior a un año</mat-option>
             <mat-option value="Fijo a un año">Fijo a un año</mat-option>
             <mat-option value="Indefinido">Indefinido</mat-option>
           </mat-select>
-          @if (vacanteForm.get('tipoContratacion')?.hasError('required')) {
+          @if (vacanteForm.get('tipo_contratacion')?.hasError('required')) {
             <mat-error>
               Seleccione el tipo de contratación.
             </mat-error>
@@ -253,7 +253,7 @@
 
         <mat-form-field>
           <mat-label>Código Bot</mat-label>
-          <input matInput formControlName="codigoElite">
+          <input matInput formControlName="codigo_elite">
         </mat-form-field>
 
         <mat-form-field class="vac-col-full" [ngClass]="{'input-obligatorio': isRequired('descripcion')}">
@@ -282,13 +282,13 @@
       </header>
 
       <div class="vac-grid">
-        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('pruebaOContratacion')}">
+        <mat-form-field [ngClass]="{'input-obligatorio': isRequired('prueba_ocontratacion')}">
           <mat-label>Prueba o Contratación</mat-label>
-          <mat-select formControlName="pruebaOContratacion">
+          <mat-select formControlName="prueba_ocontratacion">
             <mat-option value="Prueba">Prueba técnica</mat-option>
             <mat-option value="Contratación">Contratación inmediata</mat-option>
           </mat-select>
-          @if (vacanteForm.get('pruebaOContratacion')?.hasError('required')) {
+          @if (vacanteForm.get('prueba_ocontratacion')?.hasError('required')) {
             <mat-error>
               Seleccione el tipo de vinculación.
             </mat-error>
@@ -298,7 +298,7 @@
         <!-- Fecha de ingreso: solo en Contratación inmediata. El toggle "Tiene
              Fecha de Ingreso" se maneja solo y no se muestra; al cambiar de
              opción el dato se borra. -->
-        @if (vacanteForm.get('pruebaOContratacion')?.value === 'Contratación') {
+        @if (vacanteForm.get('prueba_ocontratacion')?.value === 'Contratación') {
           <mat-form-field [ngClass]="{'input-obligatorio': isRequired('fechadeIngreso')}">
             <mat-label>Fecha de Ingreso</mat-label>
             <input matInput [matDatepicker]="picker2" formControlName="fechadeIngreso">
@@ -312,7 +312,7 @@
           </mat-form-field>
         }
 
-        @if (vacanteForm.get('pruebaOContratacion')?.value === 'Prueba') {
+        @if (vacanteForm.get('prueba_ocontratacion')?.value === 'Prueba') {
           <mat-form-field [ngClass]="{'input-obligatorio': isRequired('fechadePruebatecnica')}">
             <mat-label>Fecha de Prueba Técnica</mat-label>
             <input matInput [matDatepicker]="picker1" formControlName="fechadePruebatecnica">
@@ -325,10 +325,10 @@
             }
           </mat-form-field>
 
-          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('horadePruebatecnica')}">
+          <mat-form-field [ngClass]="{'input-obligatorio': isRequired('horade_pruebatecnica')}">
             <mat-label>Hora de Prueba Técnica</mat-label>
-            <input matInput type="time" formControlName="horadePruebatecnica">
-            @if (vacanteForm.get('horadePruebatecnica')?.hasError('required')) {
+            <input matInput type="time" formControlName="horade_pruebatecnica">
+            @if (vacanteForm.get('horade_pruebatecnica')?.hasError('required')) {
               <mat-error>
                 La hora de la prueba es obligatoria.
               </mat-error>
@@ -436,9 +436,9 @@
       @if (vacanteForm.hasError('excesoMunicipios') || vacanteForm.hasError('sumaNoIgualTotal')) {
         <div class="error-dist">
           @if (vacanteForm.hasError('excesoMunicipios')) {
-            La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+            La suma por municipio ({{ totalAsignado }}) no puede superar el total ({{ vacanteForm.get('personas_solicitadas')?.value || 0 }}).
           } @else {
-            La suma por municipio ({{ totalAsignado }}) debe ser igual al total solicitado ({{ vacanteForm.get('personasSolicitadas')?.value || 0 }}).
+            La suma por municipio ({{ totalAsignado }}) debe ser igual al total solicitado ({{ vacanteForm.get('personas_solicitadas')?.value || 0 }}).
           }
         </div>
       }
@@ -468,8 +468,8 @@
         </mat-form-field>
       </div>
 
-      <div formArrayName="oficinasQueContratan">
-        @for (oficinaCtrl of oficinasQueContratan.controls; track oficinaCtrl; let i = $index) {
+      <div formArrayName="oficinas_que_contratan">
+        @for (oficinaCtrl of oficinas_que_contratan.controls; track oficinaCtrl; let i = $index) {
           <div [formGroupName]="i">
             <mat-form-field [ngClass]="{'input-obligatorio': isRequired(oficinaCtrl.get('nombre'))}">
               <mat-label>Nombre de Oficina</mat-label>
@@ -494,7 +494,7 @@
         }
       </div>
 
-      @if (!oficinasQueContratan.controls.length) {
+      @if (!oficinas_que_contratan.controls.length) {
         <p class="vac-vacio">Aún no hay oficinas seleccionadas.</p>
       }
     </section>

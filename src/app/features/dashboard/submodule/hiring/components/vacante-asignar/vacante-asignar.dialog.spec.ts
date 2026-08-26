@@ -17,7 +17,7 @@ describe('VacanteAsignarDialogComponent', () => {
     id, empresa, finca, cargo,
     codigo: null, temporal: null, oficinas: '', publicada: null,
     publicadaEn: null, diasAbierta: null, salario: null,
-    municipios: null, tipoContratacion: null,
+    municipios: null, tipo_contratacion: null,
     requeridos: 5, faltantes: 3, cerrada: false, ...extra,
   });
 

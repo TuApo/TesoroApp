@@ -9,7 +9,8 @@ export interface TipoDocumentalNode {
   id: number;
   name: string;
   estado: boolean;
-  codigoContrato?: boolean;
+  /** ms-documents serializa en snake_case desde el 26-ago. */
+  codigo_contrato?: boolean;
   parentId: number | null;
   subtypes: TipoDocumentalNode[];
   [key: string]: any;

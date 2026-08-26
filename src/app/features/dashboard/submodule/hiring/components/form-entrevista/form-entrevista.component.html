@@ -498,6 +498,28 @@
                   </div>
                 }
 
+                <!-- Cuánto dura en los trabajos, con cifras: contratos con nosotros,
+                     reingresos y lo que dice de sus empleos anteriores. -->
+                @if (a.estabilidadLaboral?.nivel || a.estabilidadLaboral?.porque) {
+                  <div class="ia-ajuste" [attr.data-nivel]="a.estabilidadLaboral?.nivel">
+                    <strong>Estabilidad laboral: {{ a.estabilidadLaboral?.nivel || 'sin datos' }}</strong>
+                    @if (a.estabilidadLaboral?.porque) { <span>· {{ a.estabilidadLaboral?.porque }}</span> }
+                  </div>
+                }
+
+                <!-- Disponibilidad: con quién vive y quién responde por los hijos
+                     mientras trabaja. Se rotula como logística a propósito: no es
+                     un criterio para descartar a nadie. -->
+                @if (a.redDeApoyo?.resumen) {
+                  <div class="ia-ajuste ia-apoyo">
+                    <strong>Red de apoyo y disponibilidad</strong>
+                    <span>· {{ a.redDeApoyo?.resumen }}</span>
+                    @if (a.redDeApoyo?.evidencia) {
+                      <span class="ia-evi">{{ a.redDeApoyo?.evidencia }}</span>
+                    }
+                  </div>
+                }
+
                 <div class="ia-cols">
                   <div class="ia-col ia-col-ok">
                     <h4><mat-icon>thumb_up</mat-icon> A favor</h4>
@@ -564,7 +586,7 @@
             <section class="section ia-chat-panel modulo-entra">
               <app-asistente-ia
                 [embebido]="true"
-                [cedulaContexto]="texto('numero_documento')"
+                [cedulaContexto]="cedulaPersona"
                 [nombreContexto]="nombrePersona"
                 [preguntaInicial]="preguntaChat()">
               </app-asistente-ia>
@@ -591,7 +613,7 @@
          En el chat no aparece: ahí no hay formulario que enviar —enviar es el
          botón del propio chat— y tener dos "Enviar" en pantalla, uno de los
          cuales manda la entrevista entera, es una trampa. -->
-    <div class="sticky-actions-bar" [class.oculta]="panel() === 'iaChat'">
+    <div class="sticky-actions-bar" [class.oculta]="panel() === 'iaChat' || panel() === 'ia'">
       <span class="sticky-actions-hint">
         <mat-icon>info</mat-icon>
         Revisa la información antes de enviar

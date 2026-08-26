@@ -1,0 +1,61 @@
+<div class="rq-barra">
+  @if (!modoFuente()) {
+    <button mat-icon-button (click)="formato('bold')" matTooltip="Negrita" [disabled]="!editable"><mat-icon>format_bold</mat-icon></button>
+    <button mat-icon-button (click)="formato('italic')" matTooltip="Cursiva" [disabled]="!editable"><mat-icon>format_italic</mat-icon></button>
+    <button mat-icon-button (click)="formato('underline')" matTooltip="Subrayado" [disabled]="!editable"><mat-icon>format_underlined</mat-icon></button>
+    <span class="rq-sep"></span>
+    <button mat-icon-button (click)="formato('justifyLeft')" matTooltip="Alinear a la izquierda" [disabled]="!editable"><mat-icon>format_align_left</mat-icon></button>
+    <button mat-icon-button (click)="formato('justifyCenter')" matTooltip="Centrar" [disabled]="!editable"><mat-icon>format_align_center</mat-icon></button>
+    <button mat-icon-button (click)="formato('justifyFull')" matTooltip="Justificar" [disabled]="!editable"><mat-icon>format_align_justify</mat-icon></button>
+    <span class="rq-sep"></span>
+    <button mat-icon-button (click)="formato('insertUnorderedList')" matTooltip="Lista" [disabled]="!editable"><mat-icon>format_list_bulleted</mat-icon></button>
+    <button mat-icon-button (click)="formato('insertOrderedList')" matTooltip="Lista numerada" [disabled]="!editable"><mat-icon>format_list_numbered</mat-icon></button>
+    <span class="rq-sep"></span>
+
+    <mat-form-field appearance="outline" class="rq-var">
+      <mat-label>Insertar dato</mat-label>
+      <mat-select [ngModel]="variable()" (ngModelChange)="variable.set($event)" [disabled]="!editable">
+        @for (c of diccionario; track c.clave) {
+          <mat-option [value]="c.clave" [matTooltip]="c.ejemplo || ''">{{ c.etiqueta }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <button mat-stroked-button (click)="insertarVariable()" [disabled]="!variable() || !editable">
+      <mat-icon>add</mat-icon> Insertar
+    </button>
+  }
+
+  <span class="rq-espacio"></span>
+
+  <button mat-stroked-button (click)="alternarFuente()"
+          [matTooltip]="modoFuente() ? 'Volver al editor' : 'Editar el HTML a mano'">
+    <mat-icon>code</mat-icon> {{ modoFuente() ? 'Editor' : 'HTML' }}
+  </button>
+  <button mat-stroked-button (click)="previsualizar()" matTooltip="PDF de muestra con datos de ejemplo">
+    <mat-icon>visibility</mat-icon> Vista previa
+  </button>
+  <button mat-flat-button color="primary" (click)="guardar()" [disabled]="guardando() || !editable">
+    <mat-icon>save</mat-icon> Guardar
+  </button>
+</div>
+
+@if (!editable) {
+  <div class="rq-bloqueo"><mat-icon>lock</mat-icon> Versión publicada: se puede mirar, no modificar.</div>
+}
+
+@if (modoFuente()) {
+  <textarea class="rq-fuente" [ngModel]="fuente()" (ngModelChange)="fuente.set($event)"
+            [readonly]="!editable" spellcheck="false"
+            placeholder="HTML del documento. Use {{ '{{' }}variable{{ '}}' }} para los datos."></textarea>
+} @else {
+  <!-- Hoja tamaño carta para que se vea cómo va a quedar impreso. -->
+  <div class="rq-hoja">
+    <div #lienzo class="rq-lienzo" [attr.contenteditable]="editable"></div>
+  </div>
+}
+
+<p class="rq-ayuda">
+  <mat-icon>info</mat-icon>
+  Los datos se escriben como <code>{{ '{{' }}variable{{ '}}' }}</code>. Solo valen los de la lista:
+  cualquier otra etiqueta saldría vacía en el documento, y se avisa al guardar.
+</p>

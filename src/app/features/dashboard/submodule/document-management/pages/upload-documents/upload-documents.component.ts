@@ -289,9 +289,10 @@ export class UploadDocumentsComponent implements OnInit, OnDestroy {
   requiresContract(typeId: number | null): boolean {
     if (!typeId) return false;
     const hoja = this.hojasPorId[typeId];
-    // El backend serializa camelCase (`codigoContrato`). Leerlo como snake_case
-    // devolvía siempre undefined, así que el contrato nunca se exigía.
-    return !!hoja?.codigoContrato;
+    // ms-documents pasó a snake_case el 26-ago: la clave es `codigo_contrato`.
+    // Antes servía `codigoContrato` y este código ya lo leía asi, con un
+    // comentario avisando de la incoherencia. Ahora backend y front coinciden.
+    return !!hoja?.codigo_contrato;
   }
 
   /** Nombre del tipo, para pintarlo en la fila y en los avisos. */

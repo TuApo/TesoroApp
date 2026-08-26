@@ -1,0 +1,81 @@
+:host { display: block; }
+
+.bandeja { padding: 20px 22px 40px; max-width: 1100px; }
+.cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cab h1 { margin: 0; font-size: 22px; font-weight: 800; }
+.sub { margin: 4px 0 0; font-size: 13px; color: #5C6B63; max-width: 60ch; }
+
+/* El contador es el dato que se mira primero al entrar: cuánta gente está esperando. */
+.conteo {
+  flex: 0 0 auto; min-width: 44px; text-align: center;
+  background: #FDECEA; color: #B3261E; border-radius: 999px;
+  padding: 6px 12px; font-weight: 800; font-size: 16px;
+}
+.conteo-cero { background: #F1F9E2; color: #0f5e15; }
+
+.filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0 12px; }
+.pestanas { display: flex; gap: 6px; flex-wrap: wrap; }
+.pest {
+  border: 1px solid #DCE3DD; background: #fff; border-radius: 999px;
+  padding: 7px 14px; font: inherit; font-size: 13px; color: #5C6B63; cursor: pointer;
+}
+.pest.activa { border-color: #0f5e15; color: #14251A; font-weight: 700; background: #F1F9E2; }
+.buscar {
+  flex: 1 1 200px; max-width: 260px; font: inherit; font-size: 14px;
+  border: 1px solid #DCE3DD; border-radius: 10px; padding: 8px 12px;
+}
+
+.vacio { color: #5C6B63; font-size: 14px; padding: 24px 2px; }
+
+/* La tabla scrollea dentro de su marco: en un portátil de oficina la ventana es estrecha
+   y sin esto la página entera se desplazaba de lado. */
+.tabla-marco { overflow-x: auto; border: 1px solid #DCE3DD; border-radius: 12px; }
+.tabla { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 620px; }
+.tabla th, .tabla td { padding: 11px 14px; text-align: left; border-bottom: 1px solid #EEF2EE; }
+.tabla th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #5C6B63; }
+.tabla tr:last-child td { border-bottom: none; }
+.der { text-align: right; }
+.btn-ver {
+  border: 1px solid #DCE3DD; background: #fff; border-radius: 999px;
+  padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600;
+  color: #0f5e15; cursor: pointer;
+}
+.btn-ver:hover { background: #F1F9E2; }
+
+/* ── Panel lateral ─────────────────────────────────────────────── */
+.velo { position: fixed; inset: 0; background: rgba(20,37,26,.35); z-index: 50; }
+.panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%);
+  background: #fff; z-index: 51; padding: 22px; overflow-y: auto;
+  box-shadow: -8px 0 32px rgba(20,37,26,.14);
+}
+.panel-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.panel-cab h2 { margin: 0; font-size: 19px; font-weight: 800; }
+.cerrar {
+  border: none; background: none; font-size: 26px; line-height: 1;
+  color: #5C6B63; cursor: pointer; padding: 0 4px;
+}
+
+.difs { width: 100%; border-collapse: collapse; font-size: 14px; margin: 18px 0 0; }
+.difs th, .difs td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #EEF2EE; vertical-align: top; }
+.difs th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #5C6B63; }
+/* Tachado en lo viejo y verde en lo nuevo: se ve de un vistazo qué se reemplaza. */
+.viejo { color: #5C6B63; text-decoration: line-through; }
+.nuevo { color: #0f5e15; font-weight: 700; }
+
+.extra { font-size: 13px; color: #5C6B63; margin: 16px 0 0; }
+.resuelto { font-size: 13px; color: #5C6B63; margin: 20px 0 0; }
+
+.acciones { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0 0; }
+.btn {
+  flex: 1 1 160px; border: none; border-radius: 999px; padding: 12px 18px;
+  font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-ok { background: #8dd603; color: #14251A; }
+.btn-no { background: #fff; color: #B3261E; border: 1px solid #F3C6C2; }
+
+@media (max-width: 700px) {
+  .bandeja { padding: 16px 14px 32px; }
+  .panel { width: 100%; padding: 16px; }
+}

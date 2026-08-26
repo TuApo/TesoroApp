@@ -27,7 +27,7 @@ export interface VacanteOpcion {
   diasAbierta: number | null;
   salario: string | null;
   municipios: string | null;
-  tipoContratacion: string | null;
+  tipo_contratacion: string | null;
 }
 
 export interface VacanteAsignarData {

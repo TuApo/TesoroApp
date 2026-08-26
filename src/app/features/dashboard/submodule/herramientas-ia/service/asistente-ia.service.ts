@@ -16,6 +16,8 @@ export interface FolderAst {
 export interface ConvAst {
   id: number; folderId: number | null; titulo: string; modelo: string | null;
   modulos: string[]; archivada: boolean; createdAt: number | string; updatedAt: number | string;
+  /** Persona de la que trata la conversación, si se abrió desde el pipeline. */
+  cedulaContexto?: string | null;
 }
 
 export interface MensajeAst {
@@ -36,6 +38,15 @@ export interface EnviarMensajeAstReq {
   modulos?: string[];
   adjuntos?: AdjuntoAst[];
   webSearch?: boolean;
+  /**
+   * Persona que el usuario tiene en pantalla. Viaja en CADA turno del chat
+   * embebido: con ella ms-ai le siembra al modelo el expediente completo, así
+   * que "¿qué le falta para contratarla?" se responde sin volver a pedir una
+   * cédula que el usuario está viendo.
+   */
+  cedulaContexto?: string;
+  /** Solo el rótulo con el que llamarla en la respuesta. */
+  nombreContexto?: string;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -39,10 +39,10 @@ export class VacantesService {
 
 
   // VacantesService
-  cambiarEstadoActivo(id: number | string, activo: boolean, motivoInactivacion?: string) {
+  cambiarEstadoActivo(id: number | string, activo: boolean, motivo_inactivacion?: string) {
     const url = this.base(`/publicacion/publicaciones/${id}/`);
     const body: any = { activo };
-    if (motivoInactivacion !== undefined) body.motivoInactivacion = motivoInactivacion;
+    if (motivo_inactivacion !== undefined) body.motivo_inactivacion = motivo_inactivacion;
     return this.http.patch(url, body).pipe(
       catchError(this.handleError)
     );

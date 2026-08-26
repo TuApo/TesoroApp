@@ -17,22 +17,22 @@
           <div class="radicado-row">
             <span class="radicado-badge">{{ proceso.radicado }}</span>
             <span class="tipo-badge" [style.background]="'#e3f2fd'" [style.color]="'#1565c0'">
-              {{ proceso.tipoNombre }}
+              {{ proceso.tipo_nombre }}
             </span>
-            <span class="estado-chip" [ngClass]="colorSemaforoClass(proceso.colorSemaforo)">
-              {{ proceso.estadoNombre }}
+            <span class="estado-chip" [ngClass]="colorSemaforoClass(proceso.color_semaforo)">
+              {{ proceso.estado_nombre }}
             </span>
           </div>
           <div class="trabajador-row">
             <mat-icon class="worker-icon">person</mat-icon>
-            <strong>{{ proceso.trabajadorNombre }}</strong>
-            <span class="cedula-text">— CC {{ proceso.trabajadorCedula }}</span>
-            <span *ngIf="proceso.empresaNombre" class="empresa-text">| {{ proceso.empresaNombre }}</span>
+            <strong>{{ proceso.trabajador_nombre }}</strong>
+            <span class="cedula-text">— CC {{ proceso.trabajador_cedula }}</span>
+            <span *ngIf="proceso.empresa_nombre" class="empresa-text">| {{ proceso.empresa_nombre }}</span>
           </div>
           <div class="meta-row">
-            <span><mat-icon class="meta-icon">calendar_today</mat-icon> Inicio: {{ proceso.fechaInicio | date:'dd/MM/yyyy' }}</span>
-            <span *ngIf="proceso.responsableId"><mat-icon class="meta-icon">person_outline</mat-icon> Responsable: {{ proceso.responsableId }}</span>
-            <span><mat-icon class="meta-icon">description</mat-icon> {{ proceso.actuacionesCount }} actuaciones · {{ proceso.documentosCount }} docs</span>
+            <span><mat-icon class="meta-icon">calendar_today</mat-icon> Inicio: {{ proceso.fecha_inicio | date:'dd/MM/yyyy' }}</span>
+            <span *ngIf="proceso.responsable_id"><mat-icon class="meta-icon">person_outline</mat-icon> Responsable: {{ proceso.responsable_id }}</span>
+            <span><mat-icon class="meta-icon">description</mat-icon> {{ proceso.actuaciones_count }} actuaciones · {{ proceso.documentos_count }} docs</span>
           </div>
         </div>
       </div>
@@ -85,15 +85,15 @@
                 <div class="timeline-header">
                   <strong class="actuacion-titulo">{{ a.titulo }}</strong>
                   <span class="actuacion-tipo-chip">{{ a.tipo }}</span>
-                  <span class="actuacion-fecha">{{ a.fechaActuacion | date:'dd/MM/yyyy' }}</span>
+                  <span class="actuacion-fecha">{{ a.fecha_actuacion | date:'dd/MM/yyyy' }}</span>
                 </div>
                 <p class="actuacion-desc" *ngIf="a.descripcion">{{ a.descripcion }}</p>
-                <div class="actuacion-estado-change" *ngIf="a.estadoAnteriorNombre || a.estadoNuevoNombre">
-                  <span class="estado-ant">{{ a.estadoAnteriorNombre }}</span>
+                <div class="actuacion-estado-change" *ngIf="a.estado_anterior_nombre || a.estado_nuevo_nombre">
+                  <span class="estado-ant">{{ a.estado_anterior_nombre }}</span>
                   <mat-icon class="arrow-icon">arrow_forward</mat-icon>
-                  <span class="estado-nuevo">{{ a.estadoNuevoNombre }}</span>
+                  <span class="estado-nuevo">{{ a.estado_nuevo_nombre }}</span>
                 </div>
-                <span class="actuacion-por">Por: {{ a.realizadoPor }}</span>
+                <span class="actuacion-por">Por: {{ a.realizado_por }}</span>
               </div>
             </div>
           </div>
@@ -132,18 +132,18 @@
                   <mat-icon class="doc-icon">description</mat-icon>
                   <div class="doc-info">
                     <span class="doc-nombre">{{ d.nombre }}</span>
-                    <span class="doc-tipo">{{ d.docTipoNombre }}</span>
-                    <span *ngIf="d.actuacionId" class="doc-actuacion-badge">
+                    <span class="doc-tipo">{{ d.doc_tipo_nombre }}</span>
+                    <span *ngIf="d.actuacion_id" class="doc-actuacion-badge">
                       <mat-icon class="badge-icon">link</mat-icon>
-                      {{ actuacionLabel(d.actuacionId) }}
+                      {{ actuacionLabel(d.actuacion_id) }}
                     </span>
                   </div>
                 </div>
                 <div class="doc-meta">
-                  <span>{{ formatBytes(d.tamanoByte) }}</span>
-                  <span>{{ d.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
-                  <span>{{ d.subidoPor }}</span>
-                  <span *ngIf="!d.esVersionActual" class="version-badge">v{{ d.version }}</span>
+                  <span>{{ formatBytes(d.tamano_byte) }}</span>
+                  <span>{{ d.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+                  <span>{{ d.subido_por }}</span>
+                  <span *ngIf="!d.es_version_actual" class="version-badge">v{{ d.version }}</span>
                 </div>
               </mat-card-content>
               <mat-card-actions>
@@ -188,12 +188,12 @@
 
                 <ng-container matColumnDef="fechaInicio">
                   <th mat-header-cell *matHeaderCellDef>Fecha inicio</th>
-                  <td mat-cell *matCellDef="let t">{{ t.fechaInicio | date:'dd/MM/yyyy' }}</td>
+                  <td mat-cell *matCellDef="let t">{{ t.fecha_inicio | date:'dd/MM/yyyy' }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="fechaVencimiento">
                   <th mat-header-cell *matHeaderCellDef>Vencimiento</th>
-                  <td mat-cell *matCellDef="let t">{{ t.fechaVencimiento | date:'dd/MM/yyyy' }}</td>
+                  <td mat-cell *matCellDef="let t">{{ t.fecha_vencimiento | date:'dd/MM/yyyy' }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="estado">
@@ -202,7 +202,7 @@
                     <span class="termino-estado-chip" [ngClass]="terminoEstadoClass(t)">
                       {{ terminoEstadoLabel(t) }}
                     </span>
-                    <span class="dias-habiles">{{ t.diasHabiles }}d hábiles</span>
+                    <span class="dias-habiles">{{ t.dias_habiles }}d hábiles</span>
                   </td>
                 </ng-container>
 

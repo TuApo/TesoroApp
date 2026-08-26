@@ -93,7 +93,7 @@
             <th mat-header-cell *matHeaderCellDef>Tipo</th>
             <td mat-cell *matCellDef="let p">
               <span class="tipo-chip" [style.background]="p.tipoColorHex + '22'" [style.color]="p.tipoColorHex">
-                {{ p.tipoNombre }}
+                {{ p.tipo_nombre }}
               </span>
             </td>
           </ng-container>
@@ -103,8 +103,8 @@
             <th mat-header-cell *matHeaderCellDef>Trabajador / Cédula</th>
             <td mat-cell *matCellDef="let p">
               <div class="trabajador-cell">
-                <span class="trabajador-nombre">{{ p.trabajadorNombre }}</span>
-                <span class="trabajador-cedula">{{ p.trabajadorCedula }}</span>
+                <span class="trabajador-nombre">{{ p.trabajador_nombre }}</span>
+                <span class="trabajador-cedula">{{ p.trabajador_cedula }}</span>
               </div>
             </td>
           </ng-container>
@@ -113,9 +113,9 @@
           <ng-container matColumnDef="estado">
             <th mat-header-cell *matHeaderCellDef>Estado</th>
             <td mat-cell *matCellDef="let p">
-              <span class="estado-chip" [ngClass]="colorSemaforoClass(p.colorSemaforo)"
-                [matTooltip]="colorSemaforoLabel(p.colorSemaforo)">
-                {{ p.estadoNombre }}
+              <span class="estado-chip" [ngClass]="colorSemaforoClass(p.color_semaforo)"
+                [matTooltip]="colorSemaforoLabel(p.color_semaforo)">
+                {{ p.estado_nombre }}
               </span>
             </td>
           </ng-container>
@@ -124,7 +124,7 @@
           <ng-container matColumnDef="fechaInicio">
             <th mat-header-cell *matHeaderCellDef>Fecha inicio</th>
             <td mat-cell *matCellDef="let p">
-              {{ p.fechaInicio | date:'dd/MM/yyyy' }}
+              {{ p.fecha_inicio | date:'dd/MM/yyyy' }}
             </td>
           </ng-container>
 
@@ -132,7 +132,7 @@
           <ng-container matColumnDef="responsable">
             <th mat-header-cell *matHeaderCellDef>Responsable</th>
             <td mat-cell *matCellDef="let p">
-              <span class="responsable-text">{{ p.responsableId || '—' }}</span>
+              <span class="responsable-text">{{ p.responsable_id || '—' }}</span>
             </td>
           </ng-container>
 
@@ -178,24 +178,24 @@
             <!-- Encabezado: radicado + semáforo -->
             <div class="card-top">
               <span class="radicado-badge">{{ p.radicado }}</span>
-              <span class="estado-chip" [ngClass]="colorSemaforoClass(p.colorSemaforo)"
-                [matTooltip]="colorSemaforoLabel(p.colorSemaforo)">
-                {{ p.estadoNombre }}
+              <span class="estado-chip" [ngClass]="colorSemaforoClass(p.color_semaforo)"
+                [matTooltip]="colorSemaforoLabel(p.color_semaforo)">
+                {{ p.estado_nombre }}
               </span>
             </div>
 
             <!-- Tipo -->
             <div class="card-row">
               <span class="card-label">Tipo</span>
-              <span class="tipo-chip card-tipo-chip">{{ p.tipoNombre }}</span>
+              <span class="tipo-chip card-tipo-chip">{{ p.tipo_nombre }}</span>
             </div>
 
             <!-- Trabajador -->
             <div class="card-row">
               <span class="card-label">Trabajador</span>
               <div class="trabajador-cell">
-                <span class="trabajador-nombre">{{ p.trabajadorNombre }}</span>
-                <span class="trabajador-cedula">{{ p.trabajadorCedula }}</span>
+                <span class="trabajador-nombre">{{ p.trabajador_nombre }}</span>
+                <span class="trabajador-cedula">{{ p.trabajador_cedula }}</span>
               </div>
             </div>
 
@@ -203,12 +203,12 @@
             <div class="card-meta">
               <div class="card-meta-item">
                 <mat-icon class="card-meta-icon">calendar_today</mat-icon>
-                <span>{{ p.fechaInicio | date:'dd/MM/yyyy' }}</span>
+                <span>{{ p.fecha_inicio | date:'dd/MM/yyyy' }}</span>
               </div>
-              @if (p.responsableId) {
+              @if (p.responsable_id) {
                 <div class="card-meta-item">
                   <mat-icon class="card-meta-icon">person</mat-icon>
-                  <span>{{ p.responsableId }}</span>
+                  <span>{{ p.responsable_id }}</span>
                 </div>
               }
             </div>

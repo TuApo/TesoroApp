@@ -1,0 +1,116 @@
+<section class="bandeja">
+  <header class="cab">
+    <div>
+      <h1>Cambios por aprobar</h1>
+      <p class="sub">
+        Cuando alguien que <b>ya pasó por contratación</b> vuelve a llenar el formulario
+        público, sus datos no se escriben solos: esperan aquí.
+      </p>
+    </div>
+    <span class="conteo" [class.conteo-cero]="!total()">{{ total() }}</span>
+  </header>
+
+  <div class="filtros">
+    <div class="pestanas">
+      @for (e of ['PENDIENTE','APROBADO','RECHAZADO']; track e) {
+        <button type="button" class="pest" [class.activa]="estado() === e"
+                (click)="cambiarEstado($any(e))">
+          {{ e === 'PENDIENTE' ? 'Por revisar' : e === 'APROBADO' ? 'Aplicados' : 'Descartados' }}
+        </button>
+      }
+    </div>
+    <input class="buscar" placeholder="Filtrar por oficina" [ngModel]="oficina()"
+           (ngModelChange)="oficina.set($event)" (keyup.enter)="cargar()" />
+  </div>
+
+  @if (cargando()) {
+    <p class="vacio">Cargando…</p>
+  } @else if (!filas().length) {
+    <p class="vacio">
+      {{ estado() === 'PENDIENTE' ? 'No hay nada esperando. Todo al día.' : 'Nada por aquí.' }}
+    </p>
+  } @else {
+    <div class="tabla-marco">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Persona</th><th>Documento</th><th>Oficina</th><th>Recibido</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of filas(); track f.id) {
+            <tr>
+              <td>{{ f.nombre || '—' }}</td>
+              <td>{{ f.numero_documento || '—' }}</td>
+              <td>{{ f.oficina || '—' }}</td>
+              <td>{{ f.creado_en | date:'dd/MM/yy HH:mm' }}</td>
+              <td class="der">
+                <button type="button" class="btn-ver" (click)="abrir(f)">
+                  {{ f.estado === 'PENDIENTE' ? 'Revisar' : 'Ver' }}
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>
+
+@if (abierto(); as d) {
+  <div class="velo" (click)="cerrar()"></div>
+  <aside class="panel" role="dialog" aria-label="Detalle del cambio">
+    <header class="panel-cab">
+      <div>
+        <h2>{{ d.nombre || d.numero_documento }}</h2>
+        <p class="sub">{{ d.numero_documento }} · {{ d.oficina || 'sin oficina' }}</p>
+      </div>
+      <button type="button" class="cerrar" (click)="cerrar()" aria-label="Cerrar">×</button>
+    </header>
+
+    @if (!diferencias().length) {
+      <p class="vacio">
+        No cambia ningún dato de identidad. Puede que solo traiga secciones nuevas
+        (contacto, residencia, experiencia…).
+      </p>
+    } @else {
+      <table class="difs">
+        <thead><tr><th>Dato</th><th>Hoy</th><th>Propuesto</th></tr></thead>
+        <tbody>
+          @for (x of diferencias(); track x.campo) {
+            <tr>
+              <td>{{ x.campo }}</td>
+              <td class="viejo">{{ x.actual }}</td>
+              <td class="nuevo">{{ x.propuesto }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+    @if (seccionesExtra().length) {
+      <p class="extra">
+        Además trae: {{ seccionesExtra().join(', ') }}.
+        Al aplicar entran completas.
+      </p>
+    }
+
+    @if (d.estado === 'PENDIENTE') {
+      <div class="acciones">
+        <button type="button" class="btn btn-ok" [disabled]="trabajando()" (click)="aprobar()">
+          Aplicar a la ficha
+        </button>
+        <button type="button" class="btn btn-no" [disabled]="trabajando()" (click)="rechazar()">
+          Descartar
+        </button>
+      </div>
+    } @else {
+      <p class="resuelto">
+        {{ d.estado === 'APROBADO' ? 'Aplicado' : 'Descartado' }}
+        @if (d.revisado_por) { por {{ d.revisado_por }} }
+        @if (d.revisado_en) { el {{ d.revisado_en | date:'dd/MM/yy HH:mm' }} }
+        @if (d.nota) { · {{ d.nota }} }
+      </p>
+    }
+  </aside>
+}

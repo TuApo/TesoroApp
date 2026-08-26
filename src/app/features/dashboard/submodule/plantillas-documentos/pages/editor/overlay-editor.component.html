@@ -1,0 +1,93 @@
+<div class="ov-barra">
+  <mat-form-field appearance="outline" class="ov-sel-var">
+    <mat-label>Dato a colocar</mat-label>
+    <mat-select [ngModel]="variableAAgregar()" (ngModelChange)="variableAAgregar.set($event)" [disabled]="!editable">
+      @for (c of diccionario; track c.clave) {
+        <mat-option [value]="c.clave" [matTooltip]="c.ejemplo || ''">{{ c.etiqueta }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  <button mat-flat-button color="primary" (click)="agregar()" [disabled]="!variableAAgregar() || !editable">
+    <mat-icon>add</mat-icon> Colocar
+  </button>
+
+  <span class="ov-espacio"></span>
+
+  @if (paginas() > 1) {
+    <div class="ov-paginas">
+      <button mat-icon-button (click)="irAPagina(paginaActual() - 1)" [disabled]="paginaActual() === 1">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <span>Página {{ paginaActual() }} de {{ paginas() }}</span>
+      <button mat-icon-button (click)="irAPagina(paginaActual() + 1)" [disabled]="paginaActual() === paginas()">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    </div>
+  }
+
+  <button mat-stroked-button (click)="previsualizar()" matTooltip="Genera un PDF de muestra con datos de ejemplo">
+    <mat-icon>visibility</mat-icon> Vista previa
+  </button>
+  <button mat-flat-button color="primary" (click)="guardar()" [disabled]="!editable">
+    <mat-icon>save</mat-icon> Guardar
+  </button>
+</div>
+
+@if (!editable) {
+  <div class="ov-bloqueo">
+    <mat-icon>lock</mat-icon> Esta versión está publicada: se puede mirar, no modificar.
+  </div>
+}
+
+<div class="ov-lienzo-marco">
+  <div class="ov-lienzo">
+    <!-- El fondo es la página real del formato, rasterizada en el servidor. -->
+    @if (urlFondo(); as u) {
+      <img #fondo [src]="u" class="ov-fondo" alt="Página {{ paginaActual() }} del formato">
+    } @else {
+      <div class="ov-fondo-cargando">Cargando la página…</div>
+    }
+
+    @for (c of deEstaPagina(); track c) {
+      <div class="ov-campo"
+           [class.ov-campo-sel]="seleccionado() === c"
+           [class.ov-campo-img]="c.esImagen"
+           cdkDrag
+           [cdkDragDisabled]="!editable"
+           (cdkDragEnded)="alSoltar($event, c)"
+           (click)="seleccionado.set(c)"
+           [style.left.px]="aPantalla(c.xPt)"
+           [style.top.px]="aPantalla(c.yPt)"
+           [style.font-size.px]="aPantalla(c.fontSize)"
+           [matTooltip]="c.campoClave">
+        <mat-icon class="ov-mover">drag_indicator</mat-icon>
+        <span class="ov-etiqueta">{{ c.etiqueta }}</span>
+        @if (editable) {
+          <button mat-icon-button class="ov-quitar" (click)="quitar(c); $event.stopPropagation()">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+@if (seleccionado(); as sel) {
+  <div class="ov-propiedades">
+    <strong>{{ sel.etiqueta }}</strong>
+    <span class="ov-clave">{{ sel.campoClave }}</span>
+    <mat-form-field appearance="outline" class="ov-num">
+      <mat-label>Tamaño de letra</mat-label>
+      <input matInput type="number" min="5" max="40"
+             [ngModel]="sel.fontSize" (ngModelChange)="cambiarTamano(sel, $event)" [disabled]="!editable">
+    </mat-form-field>
+    <span class="ov-coords">x: {{ sel.xPt | number:'1.0-0' }} pt · y: {{ sel.yPt | number:'1.0-0' }} pt</span>
+  </div>
+}
+
+@if (!deEstaPagina().length) {
+  <p class="ov-vacio">
+    Todavía no hay datos colocados en esta página. Elija uno arriba y pulse «Colocar»;
+    después arrástrelo a su sitio.
+  </p>
+}

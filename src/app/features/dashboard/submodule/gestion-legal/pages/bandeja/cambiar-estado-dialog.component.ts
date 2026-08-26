@@ -26,7 +26,9 @@ export interface CambiarEstadoDialogData {
 }
 
 export interface CambiarEstadoResult {
-  estadoId: number;
+  // Este objeto se manda TAL CUAL como cuerpo, asi que sus claves son las del
+  // JSON: snake_case, igual que el resto de ms-legal.
+  estado_id: number;
   motivo: string;
   archivos: Array<{ file: File; docTipoId: number }>;
 }
@@ -47,12 +49,12 @@ export interface CambiarEstadoResult {
     <mat-dialog-content>
       <p class="proceso-info">
         <strong>{{ data.proceso.radicado }}</strong> —
-        {{ data.proceso.trabajadorNombre }} ({{ data.proceso.trabajadorCedula }})
+        {{ data.proceso.trabajador_nombre }} ({{ data.proceso.trabajador_cedula }})
       </p>
       <p class="estado-actual">
         Estado actual:
-        <span class="chip" [ngClass]="'semaforo-' + data.proceso.colorSemaforo">
-          {{ data.proceso.estadoNombre }}
+        <span class="chip" [ngClass]="'semaforo-' + data.proceso.color_semaforo">
+          {{ data.proceso.estado_nombre }}
         </span>
       </p>
 
@@ -229,7 +231,7 @@ export class CambiarEstadoDialogComponent implements OnInit {
   confirmar(): void {
     if (this.form.invalid || !this.archivosValidos()) return;
     const result: CambiarEstadoResult = {
-      estadoId: this.form.value.estadoId!,
+      estado_id: this.form.value.estadoId!,
       motivo:   this.form.value.motivo!,
       archivos: this.archivos
         .filter(a => a.file && a.docTipoId)

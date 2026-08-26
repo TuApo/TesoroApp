@@ -548,7 +548,7 @@ function renderDatosBasicos(
   // inferior a un año). Si no hay fecha de iniciación, se deja en blanco.
   const fechaFin = fechaCOSumandoAnios(fechaIngresoISO, 1);
 
-  const empresaUsuaria = s(o.vacante?.empresaUsuariaSolicita);
+  const empresaUsuaria = s(o.vacante?.empresa_usuaria_solicita);
   const finca = s(o.vacante?.finca);
   const lugarLabores = [empresaUsuaria, finca].filter(Boolean).join(' - ') || s(cfg.razonSocial);
 

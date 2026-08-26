@@ -76,6 +76,16 @@ export class FormEntrevistaComponent implements OnInit {
   /** Nº de consulta del buscador: re-consultar a la misma persona re-rellena. */
   consultaSeq = input<number>(0);
   modificadoPor = input<string>('');
+  /**
+   * Documento tal como se tecleó en el buscador.
+   *
+   * Hay registros a los que `numero_documento` les llega vacío. La ficha se
+   * pinta igual, pero la IA se quedaba sin cédula —y sin cédula no hay
+   * expediente ni chat que hable de la persona que está en pantalla—. El
+   * pipeline sabe con qué documento se buscó y lo baja hasta aquí, igual que
+   * ya lo hace con los módulos de Documentos.
+   */
+  documentoBuscado = input<string | null>(null);
   /** Se emite tras guardar la entrevista con éxito, para que el padre recargue
    *  el candidato (y aparezca el proceso nuevo sin re-buscar). */
   guardado = output<void>();
@@ -319,6 +329,15 @@ export class FormEntrevistaComponent implements OnInit {
   readonly preguntaChat = signal<{ texto: string; seq: number } | null>(null);
   private seqChat = 0;
 
+  /**
+   * La cédula con la que trabaja la IA de este paso: la del registro y, si
+   * llegó vacía, la que se tecleó en el buscador. Misma resolución que
+   * `cedulaDocs()` en Contratación.
+   */
+  get cedulaPersona(): string | null {
+    return this.texto('numero_documento') || (this.documentoBuscado() ?? '').trim() || null;
+  }
+
   /** Nombre de la persona, para rotular su carpeta de conversaciones. */
   get nombrePersona(): string | null {
     const p = [this.texto('primer_nombre'), this.texto('primer_apellido')]
@@ -328,7 +347,7 @@ export class FormEntrevistaComponent implements OnInit {
 
   /** Se dispara al abrir la pestaña; el usuario puede forzar con "Rehacer". */
   pedirAnalisis(forzar = false): void {
-    const cedula = this.texto('numero_documento');
+    const cedula = this.cedulaPersona;
     if (!cedula) {
       this.errorAnalisis.set('Busca primero a la persona: sin documento no hay expediente que analizar.');
       return;
@@ -403,7 +422,7 @@ export class FormEntrevistaComponent implements OnInit {
    * volviera a leer lo que acababa de decir.
    */
   continuarEnChat(): void {
-    const cedula = this.texto('numero_documento');
+    const cedula = this.cedulaPersona;
     if (!cedula) return;
 
     this.preguntaChat.set({ texto: this.contextoParaChat(cedula), seq: ++this.seqChat });

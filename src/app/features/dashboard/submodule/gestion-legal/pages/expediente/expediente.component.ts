@@ -91,7 +91,7 @@ export class ExpedienteComponent implements OnInit {
     this.svc.getActuaciones(this.procesoId).subscribe({
       next: a => {
         this.actuaciones = a.slice().sort((x, y) =>
-          new Date(y.fechaActuacion).getTime() - new Date(x.fechaActuacion).getTime()
+          new Date(y.fecha_actuacion).getTime() - new Date(x.fecha_actuacion).getTime()
         );
         this.cargandoActuaciones = false;
         this.cdr.markForCheck();
@@ -185,7 +185,7 @@ export class ExpedienteComponent implements OnInit {
 
   abrirCambiarEstado(): void {
     if (!this.proceso) return;
-    this.svc.getEstados(this.proceso.tipoId).subscribe({
+    this.svc.getEstados(this.proceso.tipo_id).subscribe({
       next: estados => {
         const ref = this.dialog.open(CambiarEstadoDialogComponent, {
           width: '560px',
@@ -287,9 +287,9 @@ export class ExpedienteComponent implements OnInit {
 
   analizarConIA(): void {
     if (!this.proceso) return;
-    const titulo = `Proceso legal ${this.proceso.radicado} — ${this.proceso.tipoNombre}`;
+    const titulo = `Proceso legal ${this.proceso.radicado} — ${this.proceso.tipo_nombre}`;
     this.router.navigate(['/dashboard/herramientas-ia/asistente'], {
-      queryParams: { contexto: `Proceso legal: ${titulo}. Trabajador: ${this.proceso.trabajadorNombre} (${this.proceso.trabajadorCedula}). Estado: ${this.proceso.estadoNombre}.` }
+      queryParams: { contexto: `Proceso legal: ${titulo}. Trabajador: ${this.proceso.trabajador_nombre} (${this.proceso.trabajador_cedula}). Estado: ${this.proceso.estado_nombre}.` }
     });
   }
 

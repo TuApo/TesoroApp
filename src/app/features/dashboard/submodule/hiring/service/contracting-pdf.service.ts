@@ -677,7 +677,7 @@ export class ContractingPdfService {
         const salario = this.formatMoneyCOP(vacante.salario || '0');
         const fechaIniciacion = this.formatLongDateES(vacante.fechadeIngreso);
         const ciudadContratacion = entrevista.oficina || 'Cajicá';
-        const obraLabor = vacante.empresaUsuariaSolicita || '';
+        const obraLabor = vacante.empresa_usuaria_solicita || '';
 
         const dataRows = [
             ['NOMBRE DEL TRABAJADOR', nombreTrabajador, 'DOMICILIO EMPRESA', domicilio],
@@ -862,7 +862,7 @@ export class ContractingPdfService {
                 afp,
                 cargo: vac?.cargo ?? '',
                 centro_costo_entrevista: entrevista?.oficina ?? '',
-                empresa_usuario: vac?.empresaUsuariaSolicita ?? '',
+                empresa_usuario: vac?.empresa_usuaria_solicita ?? '',
             };
 
             const datoInfoContratacion: any = {
@@ -936,8 +936,8 @@ export class ContractingPdfService {
             this.setXIf(form, 'Diestro', mano.includes('DIESTRO'));
             this.setXIf(form, 'PesoZurdo', !mano.includes('DIESTRO'));
 
-            this.setText(form, 'Empresa Grupo Elite', this.safe(vac.empresaUsuariaSolicita), customFont);
-            this.setText(form, 'Código Compañía', this.safe(vac.codigoElite ?? vac.empresaUsuariaSolicita), customFont);
+            this.setText(form, 'Empresa Grupo Elite', this.safe(vac.empresa_usuaria_solicita), customFont);
+            this.setText(form, 'Código Compañía', this.safe(vac.codigo_elite ?? vac.empresa_usuaria_solicita), customFont);
             this.setText(form, 'Sucursal', this.safe(ds.centro_costo_entrevista), customFont);
             this.setText(form, 'Centro de Costo', this.safe(datoInfoContratacion.centro_de_costos), customFont);
             this.setText(form, 'SubCentro de Costo', this.safe(datoInfoContratacion.subCentroCostos), customFont);
@@ -956,8 +956,8 @@ export class ContractingPdfService {
             this.setText(form, 'AFP PensiónRow1', this.safe(ds.afp), customFont);
             this.setText(form, 'AFC CesantiasRow1', this.safe(datoInfoContratacion.cesantias), customFont);
 
-            this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilioTransporte), customFont);
-            const rutaInfo = this.getRutaInfo(vac.oficinasQueContratan, ds.centro_costo_entrevista || '');
+            this.setText(form, 'Nombre de la RutaAuxilio Trasporte', this.safe(vac.auxilio_transporte), customFont);
+            const rutaInfo = this.getRutaInfo(vac.oficinas_que_contratan, ds.centro_costo_entrevista || '');
             this.setText(form, 'Nombre de la RutaUsa Ruta', rutaInfo.usaRuta, customFont);
 
             this.setText(form, 'Horas extras', this.safe(datoInfoContratacion.horas_extras), customFont);

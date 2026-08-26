@@ -36,7 +36,7 @@ export interface CumplimientoDialogData {
   /** Área de la vacante (Publicacion.area). */
   area?: string | null;
   /** Auxilio de transporte de la vacante ('Si' | 'No'). */
-  auxilioTransporte?: string | null;
+  auxilio_transporte?: string | null;
   /** ¿La vacante tiene ruta? ('Si' | 'No'), derivado de las oficinas que contratan. */
   ruta?: string | null;
   req?: number;
@@ -606,7 +606,7 @@ export class CumplimientoDialogComponent implements OnInit {
     ];
     const filas = objetivo.map((c) => [
       'TU ALIANZA', '', '', this.data.area ?? '', String(c.numero_documento ?? ''),
-      c.lugar_expedicion ?? '', this.nombreCompleto(c), this.data.auxilioTransporte ?? '', this.data.ruta ?? '',
+      c.lugar_expedicion ?? '', this.nombreCompleto(c), this.data.auxilio_transporte ?? '', this.data.ruta ?? '',
       c.municipio ?? '', c.sexo ?? '', this.data.cargo ?? '', '', '', this.data.finca ?? '',
       this.fmtFecha(c.fecha_ingreso), this.antiguedadDias(c.fecha_ingreso), c.afp ?? '', c.eps ?? '',
       this.fmtFecha(c.fecha_nacimiento), this.edad(c.fecha_nacimiento), c.lugar_nacimiento ?? '',
@@ -848,7 +848,7 @@ export class CumplimientoDialogComponent implements OnInit {
 
   /** Marca 'X' en la columna SI/NO del subsidio según el auxilio de la vacante. */
   private subsidio(cual: 'Si' | 'No'): string {
-    const aux = String(this.data.auxilioTransporte ?? '').trim().toLowerCase();
+    const aux = String(this.data.auxilio_transporte ?? '').trim().toLowerCase();
     if (!aux) return '';
     return (cual === 'Si') === (aux === 'si') ? 'X' : '';
   }

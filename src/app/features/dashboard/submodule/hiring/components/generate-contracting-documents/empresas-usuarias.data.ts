@@ -5,7 +5,7 @@
  *
  * ── Por qué vive acá y no en la BD ─────────────────────────────────────────
  * El backend NO tiene esta información: `CentroCosto` guarda empresa,
- * dirección y ciudad, y `Publicacion` guarda `empresaUsuariaSolicita`,
+ * dirección y ciudad, y `Publicacion` guarda `empresa_usuaria_solicita`,
  * `finca` y `direccion`. Ninguno tiene NIT ni representante legal. Sin este
  * archivo los documentos salen con "___________" en esos campos.
  *
@@ -20,7 +20,7 @@
  *
  * ── Cómo agregar una empresa ───────────────────────────────────────────────
  * Una entrada nueva en EMPRESAS_USUARIAS. `match` debe tolerar las variantes
- * de escritura que existen en `Publicacion.empresaUsuariaSolicita`, que es
+ * de escritura que existen en `Publicacion.empresa_usuaria_solicita`, que es
  * texto libre: hay 49 grafías distintas en producción para ~15 empresas
  * ("THE ELITE FLOWER S.A.S. C.I.", "THE ELITE FLOWERS", "THE ELITE FLOWER SAS"…).
  * El orden importa: gana la primera que coincida.
@@ -29,7 +29,7 @@
 export interface EmpresaUsuariaLegal {
   /** Nombre canónico, para trazabilidad. */
   nombre: string;
-  /** Variantes que aparecen en `empresaUsuariaSolicita` (texto libre). */
+  /** Variantes que aparecen en `empresa_usuaria_solicita` (texto libre). */
   match: RegExp;
   nit: string;
   /**

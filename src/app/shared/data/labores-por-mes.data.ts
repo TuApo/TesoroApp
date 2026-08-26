@@ -864,9 +864,9 @@ export function mesDe(fecha: Date | string | null | undefined): number | null {
 export function fechaParaDescripcionVacante(
   fechaIngreso: Date | string | null | undefined,
   fechaPruebaTecnica: Date | string | null | undefined,
-  fechaPublicado: Date | string | null | undefined,
+  fecha_publicado: Date | string | null | undefined,
 ): Date | string | null {
-  return fechaIngreso || fechaPruebaTecnica || fechaPublicado || null;
+  return fechaIngreso || fechaPruebaTecnica || fecha_publicado || null;
 }
 
 /**

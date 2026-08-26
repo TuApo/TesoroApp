@@ -19,6 +19,8 @@ export const routes: Routes = [
       { path: 'treasury', loadChildren: () => import('./submodule/treasury/treasury.routes').then(m => m.routes) },
       { path: 'payments', loadChildren: () => import('./submodule/payments/payments.routes').then(m => m.routes) },
       { path: 'vacancies', loadChildren: () => import('./submodule/vacancies/vacancies.routes').then(m => m.routes) },
+      { path: 'plantillas-documentos', loadChildren: () => import('./submodule/plantillas-documentos/plantillas-documentos.routes').then(m => m.routes) },
+      { path: 'cambios-pendientes', loadChildren: () => import('./submodule/cambios-pendientes/cambios-pendientes.routes').then(m => m.routes) },
       { path: 'positions', loadChildren: () => import('./submodule/positions/positions.routes').then(m => m.routes) },
       { path: 'farms', loadChildren: () => import('./submodule/farms/farms.routes').then(m => m.routes) },
       { path: 'robots', loadChildren: () => import('./submodule/robots/robots.routes').then(m => m.routes) },

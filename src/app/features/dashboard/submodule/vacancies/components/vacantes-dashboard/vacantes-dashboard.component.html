@@ -1,0 +1,182 @@
+<section class="vd-panel">
+
+  <!-- Encabezado del panel -->
+  <div class="vd-head">
+    <mat-icon class="vd-head-icon">insights</mat-icon>
+    <div class="vd-head-text">
+      <div class="vd-title">Indicadores de vacantes</div>
+      <div class="vd-subtitle">
+        Calculados sobre las {{ vacantes.length }} vacante(s) que estás viendo
+        @if (oficina) { · oficina <b>{{ oficina }}</b> } @else { · todas las oficinas }
+      </div>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="vd-skeleton-kpis">
+      @for (i of [0,1,2,3,4,5,6,7,8,9]; track i) { <div class="vd-skeleton-kpi"></div> }
+    </div>
+    <div class="vd-skeleton-charts">
+      <div class="vd-skeleton-chart"></div>
+      <div class="vd-skeleton-chart"></div>
+    </div>
+  } @else if (!hayDatos) {
+    <div class="vd-vacio">
+      <mat-icon>filter_alt_off</mat-icon>
+      <span>No hay vacantes que cumplan los filtros seleccionados.</span>
+    </div>
+  } @else {
+
+    <!-- KPIs -->
+    <div class="vd-kpis">
+      @for (kpi of kpis; track kpi.label) {
+        <div class="vd-kpi" [class.vd-kpi-alerta]="kpi.alerta"
+             [style.--vd-color]="kpi.color" [style.--vd-accent]="kpi.accent"
+             [matTooltip]="kpi.tooltip || ''" matTooltipPosition="above">
+          <div class="vd-kpi-icon"><mat-icon>{{ kpi.icon }}</mat-icon></div>
+          <div class="vd-kpi-body">
+            <span class="vd-kpi-value">{{ kpi.value }}</span>
+            <span class="vd-kpi-label">{{ kpi.label }}</span>
+            <span class="vd-kpi-sub">{{ kpi.sub }}</span>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Ranking de demoras -->
+    <div class="vd-card vd-card-ranking">
+      <div class="vd-card-head">
+        <mat-icon class="vd-card-icon" style="color:#ef4444">hourglass_top</mat-icon>
+        <div>
+          <div class="vd-card-title">Vacantes con más demora</div>
+          <div class="vd-card-sub">Días desde que se publicó la solicitud y aún tiene faltantes</div>
+        </div>
+      </div>
+
+      @if (demoras.length) {
+        <div class="vd-tabla-wrap">
+          <table class="vd-tabla">
+            <thead>
+              <tr>
+                <th class="vd-col-dias">Días</th>
+                <th>Cargo</th>
+                <th>Centro de costo</th>
+                <th>Oficina</th>
+                <th class="vd-num">Solic.</th>
+                <th class="vd-num">Falt.</th>
+                <th class="vd-num">Cand.</th>
+                <th class="vd-num">Cumpl.</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (fila of demoras; track fila.raw.id) {
+                <tr>
+                  <td><span [ngClass]="clasePorDias(fila.dias)">{{ fila.dias === null ? '—' : fila.dias }}</span></td>
+                  <td class="vd-elipsis" [matTooltip]="fila.cargo">{{ fila.cargo }}</td>
+                  <td class="vd-elipsis" [matTooltip]="fila.finca">{{ fila.finca }}</td>
+                  <td class="vd-elipsis" [matTooltip]="fila.oficina">{{ fila.oficina }}</td>
+                  <td class="vd-num">{{ fila.req }}</td>
+                  <td class="vd-num vd-falt">{{ fila.falt }}</td>
+                  <td class="vd-num">{{ fila.candidatos }}</td>
+                  <td class="vd-num"><span [ngClass]="claseCumpl(fila.cumpl)">{{ fila.cumpl }}%</span></td>
+                  <td class="vd-num">
+                    @if (fila.ingresoVencido) {
+                      <mat-icon class="vd-alerta-icon" matTooltip="La fecha de ingreso ya pasó">event_busy</mat-icon>
+                    }
+                    <button mat-icon-button class="vd-ver" (click)="abrir(fila)"
+                            matTooltip="Ver candidatos asignados">
+                      <mat-icon>open_in_new</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="vd-chart-vacio"><mat-icon>check_circle</mat-icon><span>No hay vacantes pendientes.</span></div>
+      }
+    </div>
+
+    <!-- Gráficas -->
+    <div class="vd-charts">
+
+      <div class="vd-card">
+        <div class="vd-card-head">
+          <mat-icon class="vd-card-icon" style="color:#f59e0b">schedule</mat-icon>
+          <div>
+            <div class="vd-card-title">Antigüedad de las vacantes sin cubrir</div>
+            <div class="vd-card-sub">Cuántas llevan abiertas cada rango de días</div>
+          </div>
+        </div>
+        @if (tieneOpciones(antiguedadOpt)) {
+          <div echarts [options]="antiguedadOpt" class="vd-canvas"></div>
+        } @else {
+          <div class="vd-chart-vacio"><mat-icon>check_circle</mat-icon><span>Sin vacantes pendientes</span></div>
+        }
+      </div>
+
+      <div class="vd-card">
+        <div class="vd-card-head">
+          <mat-icon class="vd-card-icon" style="color:#3b82f6">filter_alt</mat-icon>
+          <div>
+            <div class="vd-card-title">Embudo del proceso</div>
+            <div class="vd-card-sub">Personas acumuladas en cada etapa</div>
+          </div>
+        </div>
+        @if (tieneOpciones(embudoOpt)) {
+          <div echarts [options]="embudoOpt" class="vd-canvas"></div>
+        } @else {
+          <div class="vd-chart-vacio"><mat-icon>info_outline</mat-icon><span>Sin datos</span></div>
+        }
+      </div>
+
+      <div class="vd-card">
+        <div class="vd-card-head">
+          <mat-icon class="vd-card-icon" style="color:#10b981">agriculture</mat-icon>
+          <div>
+            <div class="vd-card-title">Cobertura por centro de costo</div>
+            <div class="vd-card-sub">Top 10 por personas solicitadas</div>
+          </div>
+        </div>
+        @if (tieneOpciones(centroCostoOpt)) {
+          <div echarts [options]="centroCostoOpt" class="vd-canvas"></div>
+        } @else {
+          <div class="vd-chart-vacio"><mat-icon>info_outline</mat-icon><span>Sin datos</span></div>
+        }
+      </div>
+
+      <div class="vd-card">
+        <div class="vd-card-head">
+          <mat-icon class="vd-card-icon" style="color:#8b5cf6">store</mat-icon>
+          <div>
+            <div class="vd-card-title">Cobertura por oficina</div>
+            <div class="vd-card-sub">Una vacante puede contratarse desde varias oficinas</div>
+          </div>
+        </div>
+        @if (tieneOpciones(oficinaOpt)) {
+          <div echarts [options]="oficinaOpt" class="vd-canvas"></div>
+        } @else {
+          <div class="vd-chart-vacio"><mat-icon>info_outline</mat-icon><span>Sin datos</span></div>
+        }
+      </div>
+
+      <div class="vd-card vd-card-ancha">
+        <div class="vd-card-head">
+          <mat-icon class="vd-card-icon" style="color:#0ea5e9">calendar_month</mat-icon>
+          <div>
+            <div class="vd-card-title">Publicación de vacantes por mes</div>
+            <div class="vd-card-sub">Últimos 12 meses con actividad</div>
+          </div>
+        </div>
+        @if (tieneOpciones(mensualOpt)) {
+          <div echarts [options]="mensualOpt" class="vd-canvas"></div>
+        } @else {
+          <div class="vd-chart-vacio"><mat-icon>info_outline</mat-icon><span>Sin datos</span></div>
+        }
+      </div>
+
+    </div>
+  }
+</section>

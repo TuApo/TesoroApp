@@ -55,7 +55,7 @@ export interface SubirDocumentoResult {
         <mat-select [(ngModel)]="actuacionId">
           <mat-option [value]="null">— Sin vincular —</mat-option>
           <mat-option *ngFor="let a of data.actuaciones" [value]="a.id">
-            {{ a.titulo }} ({{ a.fechaActuacion | date:'dd/MM/yyyy' }})
+            {{ a.titulo }} ({{ a.fecha_actuacion | date:'dd/MM/yyyy' }})
           </mat-option>
         </mat-select>
       </mat-form-field>

@@ -1,0 +1,571 @@
+@if (cargando()) {
+  <div class="pd-centro"><mat-spinner diameter="44"></mat-spinner></div>
+} @else if (!plantilla()) {
+  <mat-card class="pd-centro"><p>Ese documento no existe.</p>
+    <button mat-stroked-button (click)="volver()">Volver al catálogo</button></mat-card>
+} @else {
+
+<mat-card class="pd-cabecera">
+  <button mat-icon-button (click)="volver()" matTooltip="Volver al catálogo"><mat-icon>arrow_back</mat-icon></button>
+  <div class="pd-cab-texto">
+    <h2>{{ plantilla()!.nombre }}</h2>
+    <span class="pd-sub">{{ plantilla()!.clave }}</span>
+  </div>
+  <div class="pd-cab-estado">
+    @if (plantilla()!.motor === 'LEGACY') {
+      <mat-chip class="pd-chip-legacy" matTooltip="Los cambios de aquí no afectan a nadie todavía">
+        Se genera con el sistema anterior
+      </mat-chip>
+    } @else {
+      <mat-chip class="pd-chip-nuevo">En producción con esta plantilla</mat-chip>
+    }
+  </div>
+</mat-card>
+
+<mat-tab-group class="pd-tabs">
+
+  <!-- ══ Campos y mapeo ══ -->
+  <mat-tab label="Campos del documento">
+    <div class="pd-tab-cuerpo">
+
+      <!-- Cada modo tiene su editor. El de PDF con formulario es una tabla de
+           mapeo; OVERLAY es visual; HTML/RICH es un editor de texto. -->
+      @if (esOverlay() && versionActiva()) {
+        <app-overlay-editor
+          [versionId]="versionActiva()!.id"
+          [diccionario]="diccionario()"
+          [editable]="versionEditable()" />
+      } @else if (esTexto() && versionActiva()) {
+        <app-rich-editor
+          [versionId]="versionActiva()!.id"
+          [diccionario]="diccionario()"
+          [htmlInicial]="versionActiva()!.html_contenido"
+          [editable]="versionEditable()" />
+      } @else if (esTexto()) {
+        <!-- Documento que se redacta y aun no tiene ninguna version. Pedirle un
+             PDF aqui no tendria sentido: no hay formato de origen que subir. -->
+        <mat-card class="pd-vacio-card">
+          <mat-icon class="pd-icono-grande">edit_note</mat-icon>
+          <h3>Este documento se redacta aquí</h3>
+          <p>No parte de un PDF: se escribe su contenido y se insertan los datos
+             donde corresponda. Empiece abriendo una versión de trabajo.</p>
+          <button mat-flat-button color="primary" (click)="nuevoBorrador()">
+            <mat-icon>edit</mat-icon> Empezar a redactar
+          </button>
+        </mat-card>
+      } @else if (esOverlay()) {
+        <mat-card class="pd-vacio-card">
+          <mat-icon class="pd-icono-grande">image</mat-icon>
+          <h3>Falta el formato de fondo</h3>
+          <p>Suba el PDF sobre el que se van a colocar los datos.</p>
+          <input type="file" accept="application/pdf" (change)="subirPdf($event)" hidden #fileInputOv>
+          <button mat-flat-button color="primary" (click)="fileInputOv.click()" [disabled]="guardando()">
+            <mat-icon>upload</mat-icon> Subir PDF de fondo
+          </button>
+        </mat-card>
+      } @else if (!camposPdf().length) {
+        <mat-card class="pd-vacio-card">
+          <mat-icon class="pd-icono-grande">upload_file</mat-icon>
+          <h3>Todavía no hay un PDF cargado</h3>
+          <p>Suba el formato que la empresa ya usa. Si trae campos rellenables, aparecerán aquí
+             para decir qué dato va en cada uno.</p>
+          <input type="file" accept="application/pdf" (change)="subirPdf($event)" hidden #fileInput>
+          <button mat-flat-button color="primary" (click)="fileInput.click()" [disabled]="guardando()">
+            <mat-icon>upload</mat-icon> Subir PDF
+          </button>
+        </mat-card>
+      } @else {
+
+        <div class="pd-resumen">
+          <div class="pd-metrica">
+            <strong>{{ mapeados() }} / {{ totalCampos() }}</strong>
+            <span>campos con dato asignado</span>
+          </div>
+          @if (porRevisar() > 0) {
+            <div class="pd-aviso-revisar">
+              <mat-icon>rate_review</mat-icon>
+              {{ porRevisar() }} propuestas automáticas sin revisar. Nada se ha guardado todavía.
+            </div>
+          }
+          <div class="pd-resumen-acciones">
+            <button mat-stroked-button (click)="proponer()" [disabled]="guardando()"
+                    matTooltip="Propone una variable para cada campo según su nombre. No guarda nada.">
+              <mat-icon>auto_fix_high</mat-icon> Proponer automáticamente
+            </button>
+            <input type="file" accept="application/pdf" (change)="subirPdf($event)" hidden #fileInput2>
+            <button mat-stroked-button (click)="fileInput2.click()" [disabled]="guardando()">
+              <mat-icon>swap_horiz</mat-icon> Reemplazar PDF
+            </button>
+            <button mat-flat-button color="primary" (click)="guardar()" [disabled]="guardando() || !borrador()">
+              <mat-icon>save</mat-icon> Guardar mapeo
+            </button>
+          </div>
+        </div>
+
+        @if (!borrador()) {
+          <div class="pd-nota-bloqueo">
+            <mat-icon>lock</mat-icon>
+            Esta versión está publicada y no se modifica.
+            <button mat-button color="primary" (click)="nuevoBorrador()">Abrir una versión nueva</button>
+          </div>
+        }
+
+        <div class="pd-filtros">
+          <mat-form-field appearance="outline" class="pd-buscar">
+            <mat-label>Buscar campo</mat-label>
+            <input matInput [ngModel]="filtroCampos()" (ngModelChange)="filtroCampos.set($event)">
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+          <mat-checkbox [ngModel]="soloSinMapear()" (ngModelChange)="soloSinMapear.set($event)">
+            Solo los que faltan
+          </mat-checkbox>
+        </div>
+
+        <app-standard-filter-table
+          [data]="filasVisibles()"
+          [columnDefinitions]="columnasTabla"
+          [defaultPageSize]="25"
+          [pageSizeOptions]="[10, 25, 50, 100]">
+
+          <!-- Campo del PDF: nombre técnico + dónde cae, para ubicarlo en la hoja -->
+          <ng-template appCellTemplate="campoPdf" let-f>
+            <span class="pd-campo-nombre">{{ f.campoPdf }}</span>
+            <div class="pd-campo-meta">
+              pág. {{ f.pagina || '?' }} · {{ f.tipoPdf }}
+              @if (f.esperaImagen) { <span class="pd-tag-img">imagen</span> }
+            </div>
+          </ng-template>
+
+          <!-- Dato: desplegable CON BUSCADOR y ficha del dato debajo -->
+          <ng-template appCellTemplate="variable" let-f>
+            <!-- Autocompletado, no un desplegable con buscador dentro: en un
+                 mat-select el input va dentro de una opcion deshabilitada y no
+                 recibe el foco de forma fiable (ya paso en el form de vacantes). -->
+            <mat-form-field appearance="outline" class="pd-sel" [class.pd-sugerido]="f.sugerido">
+              <input matInput #inp
+                     [matAutocomplete]="auto"
+                     [value]="textoBuscador(f)"
+                     [disabled]="!borrador()"
+                     [placeholder]="definicion(f.campoClave)?.etiqueta || 'Buscar dato…'"
+                     (focus)="abrirBuscador(f)"
+                     (input)="filtroVariable.set($any($event.target).value)"
+                     (blur)="cerrarBuscador()">
+              @if (f.campoClave && borrador()) {
+                <button mat-icon-button matSuffix type="button" matTooltip="Quitar el dato"
+                        (mousedown)="$event.preventDefault()" (click)="elegirDelBuscador(f, null)">
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+              <!-- Soltamos el foco al elegir: si no, el autocompletado se lo devuelve
+                   al input, este vuelve a modo busqueda y tapa la etiqueta recien
+                   elegida con el placeholder. -->
+              <mat-autocomplete #auto="matAutocomplete" [displayWith]="mostrarEtiqueta"
+                                (optionSelected)="elegirDelBuscador(f, $event.option.value); inp.blur()">
+                @for (c of variablesFiltradas(); track c.clave) {
+                  <mat-option [value]="c.clave">
+                    <span class="pd-op-etq">{{ c.etiqueta }}</span>
+                    <span class="pd-op-meta">
+                      {{ c.origen }}@if (c.es_lista) { · lista }@if (c.sensible) { · sensible }
+                      @if (c.ejemplo) { · p. ej. {{ c.ejemplo }} }
+                    </span>
+                  </mat-option>
+                }
+                @if (!variablesFiltradas().length) {
+                  <mat-option disabled>Ningún dato coincide con «{{ filtroVariable() }}»</mat-option>
+                }
+              </mat-autocomplete>
+            </mat-form-field>
+
+            <!-- Ficha del dato elegido: de dónde sale y qué aspecto tiene -->
+            @if (definicion(f.campoClave); as d) {
+              <div class="pd-ficha-dato">
+                <span class="pd-chip-origen">{{ d.origen }}</span>
+                <span class="pd-chip-tipo">{{ d.tipo }}</span>
+                @if (d.es_lista) { <span class="pd-chip-lista">lista · {{ d.max_elementos }} filas</span> }
+                @if (d.sensible) { <span class="pd-chip-sensible">dato sensible</span> }
+                <span class="pd-ejemplo">p. ej. {{ d.ejemplo }}</span>
+                <span class="pd-clave-dato">{{ d.clave }}</span>
+              </div>
+            }
+            @if (f.sugerido) {
+              <span class="pd-confianza">propuesta automática {{ (f.confianza * 100) | number:'1.0-0' }}% — revísela</span>
+            }
+          </ng-template>
+
+          <ng-template appCellTemplate="indice" let-f>
+            @if (esLista(f.campoClave)) {
+              <mat-form-field appearance="outline" class="pd-indice">
+                <mat-select [ngModel]="f.indice" (ngModelChange)="cambiarIndice(f, $event)" [disabled]="!borrador()">
+                  @for (n of [].constructor(maxElementos(f.campoClave)); track $index) {
+                    <mat-option [value]="$index">{{ $index + 1 }}ª</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            } @else {
+              <span class="pd-guion">—</span>
+            }
+          </ng-template>
+
+          <ng-template appCellTemplate="obligatorio" let-f>
+            <mat-checkbox [ngModel]="f.obligatorio" (ngModelChange)="alternarObligatorio(f, $event)"
+                          [disabled]="!borrador() || !f.campoClave"></mat-checkbox>
+          </ng-template>
+        </app-standard-filter-table>
+      }
+    </div>
+  </mat-tab>
+
+  <!-- ══ Vista del formato: donde cae cada dato, y donde se coloca lo que falta ══ -->
+  <mat-tab label="Vista del formato">
+    <div class="pd-tab-cuerpo">
+      @if (!paginasFormato()) {
+        <p class="pd-vacio">Este documento no tiene un PDF cargado, así que no hay formato que mostrar.</p>
+      } @else {
+        <div class="pd-vista-barra">
+          <div class="pd-nota">
+            <mat-icon>visibility</mat-icon>
+            Así queda el formato con <b>datos de ejemplo</b>. No es el documento real: sirve para ver
+            dónde cae cada dato antes de generarlo con nadie.
+          </div>
+          @if (paginasFormato() > 1) {
+            <div class="pd-paginas">
+              <button mat-icon-button (click)="irAPaginaVista(paginaVista() - 1)" [disabled]="paginaVista() === 1">
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span>Página {{ paginaVista() }} de {{ paginasFormato() }}</span>
+              <button mat-icon-button (click)="irAPaginaVista(paginaVista() + 1)" [disabled]="paginaVista() === paginasFormato()">
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          }
+          <span class="pd-cuenta-vista">
+            {{ enVista().length }} casillas
+            @if (sinAsignarEnVista()) { · <b>{{ sinAsignarEnVista() }} sin dato</b> }
+          </span>
+        </div>
+
+        <!-- Modos de trabajo sobre la hoja -->
+        @if (borrador()) {
+          <div class="pd-modos">
+            <button mat-stroked-button [class.pd-modo-on]="modoVista() === 'ver'"
+                    (click)="cambiarModoVista('ver')">
+              <mat-icon>visibility</mat-icon> Solo mirar
+            </button>
+            <button mat-stroked-button [class.pd-modo-on]="modoVista() === 'mover'"
+                    (click)="cambiarModoVista('mover')">
+              <mat-icon>open_with</mat-icon> Colocar y asignar
+            </button>
+            <button mat-stroked-button [class.pd-modo-on]="modoVista() === 'dibujar'"
+                    (click)="cambiarModoVista('dibujar')">
+              <mat-icon>highlight_alt</mat-icon> Dibujar casilla
+            </button>
+            <span class="pd-modo-ayuda">
+              @switch (modoVista()) {
+                @case ('ver')     { Pulse «Colocar y asignar» para mover casillas o darles un dato. }
+                @case ('mover')   { Pulse una casilla para asignarle el dato; arrástrela para moverla y tire de la esquina para agrandarla. }
+                @case ('dibujar') { Arrastre sobre la hoja para crear una casilla donde el formato no trae ninguna. }
+              }
+            </span>
+            <!-- Guardar desde aquí: quien coloca casillas trabaja en esta
+                 pestaña y el botón de la otra le obligaba a cambiar de sitio
+                 para no perder lo hecho. -->
+            <button mat-flat-button color="primary" class="pd-modo-guardar"
+                    [disabled]="guardando()" (click)="guardar()">
+              <mat-icon>save</mat-icon> Guardar
+            </button>
+          </div>
+        } @else {
+          <div class="pd-nota pd-nota-lock">
+            <mat-icon>lock</mat-icon>
+            Esta versión está publicada. Para mover casillas o asignar datos, abra una versión nueva.
+          </div>
+        }
+
+        <div class="pd-vista-cuerpo">
+          <div class="pd-lienzo-marco">
+            <div class="pd-lienzo" [class.pd-lienzo-dibujo]="modoVista() === 'dibujar'">
+              @if (urlVista(); as u) {
+                <img #hoja [src]="u" class="pd-hoja" alt="Página {{ paginaVista() }} del formato"
+                     (pointerdown)="empezarDibujo($event, hoja)" draggable="false">
+
+                <!-- Cada casilla, dibujada donde cae con su valor de ejemplo.
+                     Las coordenadas van en puntos PDF y la hoja se muestra
+                     escalada, así que se convierte con el ancho real frente al
+                     mostrado EN CADA pintada: si no, al cambiar el tamaño de la
+                     ventana las casillas se van de sitio. -->
+                @for (f of enVista(); track f.id) {
+                  <div class="pd-marca"
+                       [class.pd-marca-sel]="resaltado() === f.id || seleccion()?.id === f.id"
+                       [class.pd-marca-sug]="f.sugerido"
+                       [class.pd-marca-vacia]="!f.campoClave"
+                       [class.pd-marca-libre]="f.libre"
+                       [class.pd-marca-movible]="modoVista() === 'mover'"
+                       [style.left.px]="ptsAPx(f.x, hoja)"
+                       [style.top.px]="ptsAPx(f.y, hoja)"
+                       [style.width.px]="ptsAPx(f.ancho, hoja)"
+                       [style.height.px]="ptsAPx(f.alto, hoja)"
+                       (mouseenter)="resaltado.set(f.id)" (mouseleave)="resaltado.set(null)"
+                       (pointerdown)="empezarArrastre($event, f, 'mover', hoja)"
+                       [matTooltip]="(f.libre ? f.placeholder : f.campoPdf) + '  →  ' + (definicion(f.campoClave)?.etiqueta || 'sin dato asignado')">
+                    <span class="pd-marca-txt">{{ ejemploDe(f) }}</span>
+                    @if (modoVista() === 'mover') {
+                      <i class="pd-tirador" (pointerdown)="empezarArrastre($event, f, 'redimensionar', hoja)"></i>
+                    }
+                  </div>
+                }
+
+                <!-- El rectángulo mientras se arrastra para crear una casilla -->
+                @if (dibujando(); as d) {
+                  <div class="pd-dibujando"
+                       [style.left.px]="d.x" [style.top.px]="d.y"
+                       [style.width.px]="d.ancho" [style.height.px]="d.alto"></div>
+                }
+              } @else {
+                <div class="pd-hoja-cargando">Cargando la página…</div>
+              }
+            </div>
+          </div>
+
+          <!-- ── Panel de la casilla elegida ─────────────────────────────── -->
+          @if (seleccion(); as sel) {
+            <aside class="pd-panel">
+              <header class="pd-panel-cab">
+                <div>
+                  <span class="pd-panel-tit">{{ sel.libre ? sel.placeholder : sel.campoPdf }}</span>
+                  <span class="pd-panel-sub">
+                    pág. {{ sel.pagina }}
+                    @if (sel.libre) { · casilla dibujada } @else { · {{ sel.tipoPdf }} }
+                    @if (sel.movido && !sel.libre) { · movida }
+                  </span>
+                </div>
+                <button mat-icon-button (click)="seleccion.set(null)" matTooltip="Cerrar">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </header>
+
+              <!-- Qué dato se escribe aquí -->
+              <label class="pd-panel-etq">Dato que se escribe aquí</label>
+              <mat-form-field appearance="outline" class="pd-panel-campo">
+                <input matInput #buscadorPanel
+                       [matAutocomplete]="autoPanel"
+                       [value]="textoBuscador(sel)"
+                       [placeholder]="definicion(sel.campoClave)?.etiqueta || 'Buscar dato…'"
+                       (focus)="abrirBuscador(sel)"
+                       (input)="filtroVariable.set($any($event.target).value)"
+                       (blur)="cerrarBuscador()">
+                <mat-autocomplete #autoPanel="matAutocomplete" [displayWith]="mostrarEtiqueta"
+                                  (optionSelected)="elegirDelBuscador(sel, $event.option.value); buscadorPanel.blur()">
+                  @for (c of variablesFiltradas(); track c.clave) {
+                    <mat-option [value]="c.clave">
+                      <span class="pd-op-etq">{{ c.etiqueta }}</span>
+                      <span class="pd-op-meta">
+                        {{ c.origen }}@if (c.es_lista) { · lista }@if (c.sensible) { · sensible }
+                        @if (c.ejemplo) { · p. ej. {{ c.ejemplo }} }
+                      </span>
+                    </mat-option>
+                  }
+                  @if (!variablesFiltradas().length) {
+                    <mat-option disabled>Ningún dato coincide con «{{ filtroVariable() }}»</mat-option>
+                  }
+                </mat-autocomplete>
+              </mat-form-field>
+
+              @if (definicion(sel.campoClave); as d) {
+                <div class="pd-ficha-dato">
+                  <span class="pd-chip-origen">{{ d.origen }}</span>
+                  <span class="pd-chip-tipo">{{ d.tipo }}</span>
+                  @if (d.sensible) { <span class="pd-chip-sensible">dato sensible</span> }
+                  <span class="pd-ejemplo">p. ej. {{ d.ejemplo }}</span>
+                  <code class="pd-clave">{{ d.clave }}</code>
+                </div>
+              } @else {
+                <p class="pd-panel-aviso">
+                  Esta casilla saldrá en blanco hasta que se le diga qué dato lleva.
+                </p>
+              }
+
+              @if (esLista(sel.campoClave)) {
+                <label class="pd-panel-etq">Fila de la lista</label>
+                <mat-form-field appearance="outline" class="pd-panel-campo">
+                  <mat-select [value]="sel.indice ?? 0" (selectionChange)="cambiarIndice(sel, $event.value)">
+                    @for (i of [].constructor(maxElementos(sel.campoClave)); track $index) {
+                      <mat-option [value]="$index">Fila {{ $index + 1 }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
+
+              <button mat-stroked-button class="pd-panel-accion" (click)="abrirNuevoConcepto()">
+                <mat-icon>add_circle_outline</mat-icon> El dato que necesito no está
+              </button>
+
+              <!-- Alta de un concepto nuevo, eligiendo de dónde sale -->
+              @if (creandoConcepto()) {
+                <section class="pd-concepto">
+                  <h4>Crear un dato nuevo</h4>
+                  <p class="pd-concepto-ayuda">
+                    Elija de dónde sale la información. Solo se puede escoger de lo que la persona
+                    tiene de verdad: una ruta inventada no daría error, dejaría el hueco en blanco.
+                  </p>
+
+                  <mat-form-field appearance="outline" class="pd-panel-campo">
+                    <input matInput placeholder="Buscar de dónde sale…"
+                           [value]="filtroOrigen()"
+                           (input)="filtroOrigen.set($any($event.target).value)">
+                    <mat-icon matSuffix>search</mat-icon>
+                  </mat-form-field>
+
+                  <div class="pd-origenes">
+                    @for (g of origenesFiltrados(); track g.bloque) {
+                      <div class="pd-origen-bloque">{{ g.bloque }}</div>
+                      @for (o of g.datos; track o.ruta) {
+                        <button type="button" class="pd-origen"
+                                [class.pd-origen-on]="origenElegido()?.ruta === o.ruta"
+                                (click)="elegirOrigen(o)">
+                          <span class="pd-origen-etq">{{ o.etiqueta }}</span>
+                          <span class="pd-origen-meta">
+                            {{ o.tabla_origen }}.{{ o.columna }}@if (o.es_lista) { · lista }
+                            @if (o.ya_tiene_variable) { · ya existe }
+                          </span>
+                        </button>
+                      }
+                    }
+                    @if (!origenesFiltrados().length) {
+                      <p class="pd-vacio">Nada coincide con «{{ filtroOrigen() }}».</p>
+                    }
+                  </div>
+
+                  @if (origenElegido()) {
+                    <label class="pd-panel-etq">Cómo se va a llamar</label>
+                    <mat-form-field appearance="outline" class="pd-panel-campo">
+                      <input matInput [value]="nuevoNombre()"
+                             (input)="nuevoNombre.set($any($event.target).value)">
+                    </mat-form-field>
+                    <label class="pd-panel-etq">Clave técnica</label>
+                    <mat-form-field appearance="outline" class="pd-panel-campo">
+                      <input matInput [value]="nuevaClave()"
+                             (input)="nuevaClave.set($any($event.target).value)">
+                    </mat-form-field>
+                  }
+
+                  <div class="pd-concepto-pie">
+                    <button mat-button (click)="cerrarNuevoConcepto()">Cancelar</button>
+                    <button mat-flat-button color="primary"
+                            [disabled]="!origenElegido() || guardando()"
+                            (click)="crearConcepto()">Crear y asignar</button>
+                  </div>
+                </section>
+              }
+
+              <!-- Posición y tamaño -->
+              <label class="pd-panel-etq">Dónde queda (en puntos)</label>
+              <div class="pd-caja">
+                <mat-form-field appearance="outline"><mat-label>Izq.</mat-label>
+                  <input matInput type="number" [value]="red(sel.x)"
+                         (change)="cambiarCaja(sel, 'x', +$any($event.target).value)"></mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Arriba</mat-label>
+                  <input matInput type="number" [value]="red(sel.y)"
+                         (change)="cambiarCaja(sel, 'y', +$any($event.target).value)"></mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Ancho</mat-label>
+                  <input matInput type="number" [value]="red(sel.ancho)"
+                         (change)="cambiarCaja(sel, 'ancho', +$any($event.target).value)"></mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Alto</mat-label>
+                  <input matInput type="number" [value]="red(sel.alto)"
+                         (change)="cambiarCaja(sel, 'alto', +$any($event.target).value)"></mat-form-field>
+              </div>
+
+              @if (sel.libre) {
+                <label class="pd-panel-etq">Tamaño de la letra</label>
+                <mat-form-field appearance="outline" class="pd-panel-campo">
+                  <input matInput type="number" [value]="sel.fontSize ?? 9"
+                         (change)="cambiarFontSize(sel, +$any($event.target).value)">
+                </mat-form-field>
+              }
+
+              <div class="pd-panel-pie">
+                @if (sel.campoClave) {
+                  <button mat-button (click)="cambiarVariable(sel, null)">Quitar el dato</button>
+                }
+                @if (sel.movido && !sel.libre) {
+                  <button mat-button (click)="devolverASuSitio(sel)">Devolver a su sitio</button>
+                }
+                @if (sel.libre) {
+                  <button mat-button color="warn" (click)="borrarCasilla(sel)">Quitar la casilla</button>
+                }
+              </div>
+            </aside>
+          }
+        </div>
+
+        <div class="pd-leyenda">
+          <span><i class="pd-mx pd-mx-ok"></i> asignado y revisado</span>
+          <span><i class="pd-mx pd-mx-sug"></i> propuesta automática sin revisar</span>
+          <span><i class="pd-mx pd-mx-vacia"></i> sin dato</span>
+          <span><i class="pd-mx pd-mx-libre"></i> casilla dibujada a mano</span>
+          <span class="pd-leyenda-nota">Los valores son inventados: sirven para ver dónde cae cada dato, no son los de ninguna persona.</span>
+        </div>
+      }
+    </div>
+  </mat-tab>
+
+  <!-- ══ Versiones ══ -->
+  <mat-tab label="Versiones">
+    <div class="pd-tab-cuerpo">
+      <div class="pd-nota">
+        Una versión publicada no se modifica nunca: así un documento generado hace meses
+        se puede volver a producir exactamente igual.
+      </div>
+      <div class="pd-acciones-version">
+        @if (borrador()) {
+          <button mat-flat-button color="primary" (click)="publicar()">
+            <mat-icon>publish</mat-icon> Publicar el borrador
+          </button>
+        } @else {
+          <button mat-stroked-button (click)="nuevoBorrador()">
+            <mat-icon>edit</mat-icon> Abrir versión nueva
+          </button>
+        }
+      </div>
+
+      @for (v of versiones(); track v.id) {
+        <mat-card class="pd-version" [class.pd-version-viva]="v.estado === 'PUBLICADA'">
+          <div class="pd-version-cab">
+            <strong>Versión {{ v.numero }}</strong>
+            <mat-chip [class]="v.estado === 'PUBLICADA' ? 'pd-chip-nuevo' : (v.estado === 'BORRADOR' ? 'pd-chip-borrador' : 'pd-chip-legacy')">
+              {{ v.estado === 'PUBLICADA' ? 'En uso' : (v.estado === 'BORRADOR' ? 'Borrador' : 'Archivada') }}
+            </mat-chip>
+          </div>
+          <div class="pd-version-meta">
+            Creada por {{ v.creado_por || '—' }} el {{ v.creado_at | date:'dd/MM/yyyy HH:mm' }}
+            @if (v.publicada_at) {
+              · publicada por {{ v.publicada_por }} el {{ v.publicada_at | date:'dd/MM/yyyy HH:mm' }}
+            }
+          </div>
+          @if (v.notas_cambio) { <div class="pd-version-notas">{{ v.notas_cambio }}</div> }
+        </mat-card>
+      }
+    </div>
+  </mat-tab>
+
+  <!-- ══ Auditoría ══ -->
+  <mat-tab label="Quién cambió qué">
+    <div class="pd-tab-cuerpo">
+      @if (!auditoria().length) {
+        <p class="pd-vacio">Todavía no hay cambios registrados.</p>
+      } @else {
+        @for (a of auditoria(); track a.id) {
+          <div class="pd-audit">
+            <mat-icon class="pd-audit-icono">history</mat-icon>
+            <div>
+              <div><strong>{{ a.usuario || 'sistema' }}</strong> — {{ a.accion }} ({{ a.entidad }})</div>
+              <div class="pd-audit-meta">{{ a.ocurrido_at | date:'dd/MM/yyyy HH:mm' }}</div>
+              @if (describirDiff(a)) { <div class="pd-audit-diff">{{ describirDiff(a) }}</div> }
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </mat-tab>
+
+</mat-tab-group>
+}

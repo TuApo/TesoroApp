@@ -415,11 +415,18 @@ export class AsistenteIaComponent implements OnInit {
     const userMsg: MensajeAst = { id: -Date.now(), rol: 'user', contenido: texto, adjuntosJson: null, createdAt: nowIso };
     this.mensajes.update((m) => [...m, userMsg]);
 
+    // La persona va en cada turno, no solo en el primero: el backend la guarda
+    // en la conversación, y mandarla siempre es lo que hace que también las
+    // conversaciones viejas —abiertas antes de que esto existiera— queden
+    // apuntando a quien se tiene delante.
+    const ced = (this.cedulaContexto() ?? '').trim();
     const body = {
       contenido: texto || '(archivo adjunto)',
       modulos: this.modulosActivos(),
       adjuntos: this.adjuntos().length ? this.adjuntos() : undefined,
       webSearch: this.webSearchOn(),
+      cedulaContexto: this.embebido() && ced ? ced : undefined,
+      nombreContexto: this.embebido() ? (this.nombreContexto()?.trim() || undefined) : undefined,
     };
     this.draft.set('');
     this.adjuntos.set([]);

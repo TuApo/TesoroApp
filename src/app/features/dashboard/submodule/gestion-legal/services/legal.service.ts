@@ -54,7 +54,10 @@ export class LegalService {
     return this.http.get<ProcesoLegal>(`${this.base}/procesos/${id}`);
   }
 
-  cambiarEstado(id: number, body: { estadoId: number; motivo: string }): Observable<ProcesoLegal> {
+  // `estado_id`, no `estadoId`: el cuerpo lo deserializa Jackson y ms-legal
+  // serializa en snake_case. Los campos MULTIPART (docTipoId, actuacionId) son
+  // otra cosa: los lee @RequestParam y ahi el nombre no se transforma.
+  cambiarEstado(id: number, body: { estado_id: number; motivo: string }): Observable<ProcesoLegal> {
     return this.http.patch<ProcesoLegal>(`${this.base}/procesos/${id}/estado`, body);
   }
 

@@ -16,7 +16,7 @@ export interface PerfilEmpresa {
   prioridad: number;
   /** Si está, la temporal de la vacante DEBE coincidir. */
   matchTemporal?: Temporal;
-  /** Si está, alguna regex DEBE matchear `empresaUsuariaSolicita` (normalizada). */
+  /** Si está, alguna regex DEBE matchear `empresa_usuaria_solicita` (normalizada). */
   matchEmpresa?: RegExp[];
   /** Si está, alguna regex DEBE matchear `finca` (normalizada). */
   matchFinca?: RegExp[];

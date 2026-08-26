@@ -159,11 +159,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   /** Orden en que la ficha pinta los campos heredados. */
   readonly CAMPOS_HEREDADOS = [
-    { control: 'empresaUsuariaSolicita', label: 'Empresa' },
+    { control: 'empresa_usuaria_solicita', label: 'Empresa' },
     { control: 'direccion', label: 'Dirección' },
     { control: 'temporal', label: 'Temporal' },
     { control: 'salario', label: 'Salario' },
-    { control: 'auxilioTransporte', label: 'Auxilio Transporte' },
+    { control: 'auxilio_transporte', label: 'Auxilio Transporte' },
   ] as const;
 
   private norm(v: unknown): string {
@@ -221,49 +221,49 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       {
         cargo: ['', Validators.required],
         finca: ['', Validators.required],
-        empresaUsuariaSolicita: ['', Validators.required],
+        empresa_usuaria_solicita: ['', Validators.required],
         temporal: ['', Validators.required],
         direccion: ['', Validators.required],
 
         experiencia: ['', Validators.required],
         observacionVacante: [''],
         descripcion: ['', Validators.required],
-        fechaPublicado: [new Date()],
+        fecha_publicado: [new Date()],
         quienpublicolavacante: [
           `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim(),
         ],
         estadovacante: ['Activa'],
         salario: [1750905, [Validators.required, Validators.min(0)]],
-        codigoElite: [''],
+        codigo_elite: [''],
 
         // Condicional 1: Fecha de ingreso
         tieneFechaIngreso: ['No', Validators.required],
         fechadeIngreso: [{ value: null, disabled: true }],
 
         // Condicional 2: Prueba o Contratación
-        pruebaOContratacion: ['', Validators.required],
+        prueba_ocontratacion: ['', Validators.required],
         fechadePruebatecnica: [{ value: null, disabled: true }],
-        horadePruebatecnica: [{ value: '', disabled: true }],
+        horade_pruebatecnica: [{ value: '', disabled: true }],
         ubicacionPruebaTecnica: [{ value: '', disabled: true }],
 
-        tipoContratacion: ['', Validators.required],
+        tipo_contratacion: ['', Validators.required],
 
         municipio: [[], Validators.required],
         barrio: [''],
 
-        personasSolicitadas: [null, [Validators.required, Validators.min(1)]],
+        personas_solicitadas: [null, [Validators.required, Validators.min(1)]],
         municipiosDistribucion: this.fb.array<DistMunGroup>([]),
 
         // Arranca VACIO y no en 0: con 0 `Validators.required` pasaba (0 no es
         // "vacío" para Angular), el select se veía en blanco sin marca de error
         // y el faltante solo salía al guardar, en el Swal de "faltan campos".
         // Se llena solo desde el maestro al elegir la finca.
-        auxilioTransporte: ['', [Validators.required]],
+        auxilio_transporte: ['', [Validators.required]],
         area: ['', Validators.required],
 
         // Oficinas
         oficinasSeleccionadas: [[], Validators.required],
-        oficinasQueContratan: this.fb.array([]),
+        oficinas_que_contratan: this.fb.array([]),
       },
       {
         validators: [
@@ -370,7 +370,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
     // ✅ Revalida si cambia el total
     this.vacanteForm
-      .get('personasSolicitadas')!
+      .get('personas_solicitadas')!
       .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
 
@@ -383,19 +383,19 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     // La fecha de ingreso la maneja applyPruebaContratacion -> syncFechaIngreso
     // (solo aplica en "Contratación inmediata"). El toggle "Tiene Fecha de
     // Ingreso" ya no se muestra ni se edita a mano.
-    this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
+    this.applyPruebaContratacion(String(this.vacanteForm.get('prueba_ocontratacion')!.value ?? ''));
     this.vacanteForm
-      .get('pruebaOContratacion')!
+      .get('prueba_ocontratacion')!
       .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((v: unknown) => this.applyPruebaContratacion(String(v ?? '')));
 
     // ====== DESCRIPCIÓN AUTOMÁTICA ======
     // La labor cambia con el cargo (de ahí sale el área), con el mes de la
     // fecha, y con la temporal (cada una tiene su hoja de labores).
-    // `pruebaOContratacion` entra porque al cambiarlo se limpia la fecha que se
+    // `prueba_ocontratacion` entra porque al cambiarlo se limpia la fecha que se
     // estaba usando, y `fechadePruebatecnica` porque es la que se conoce al
     // publicar: ponerla tiene que corregir la descripción en el momento.
-    // `finca` y `empresaUsuariaSolicita` entran porque también mandan: la
+    // `finca` y `empresa_usuaria_solicita` entran porque también mandan: la
     // finca por las áreas fijas (LAS DELICIAS) y la empresa porque Elite Blu
     // tiene su propia hoja de labores aunque sea de Apoyo. Las dos se pueden
     // editar a mano después de que el maestro las llenó.
@@ -403,11 +403,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       'cargo',
       'fechadeIngreso',
       'fechadePruebatecnica',
-      'fechaPublicado',
+      'fecha_publicado',
       'temporal',
-      'pruebaOContratacion',
+      'prueba_ocontratacion',
       'finca',
-      'empresaUsuariaSolicita',
+      'empresa_usuaria_solicita',
     ];
     for (const campo of disparan) {
       this.vacanteForm
@@ -432,7 +432,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
    */
   private syncFechaIngreso(): void {
     const esContratacion =
-      String(this.vacanteForm.get('pruebaOContratacion')?.value ?? '') === this.CONTRATACION;
+      String(this.vacanteForm.get('prueba_ocontratacion')?.value ?? '') === this.CONTRATACION;
 
     // Toggle oculto, coherente con el payload (Si/No).
     this.vacanteForm.get('tieneFechaIngreso')!
@@ -452,7 +452,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   private applyPruebaContratacion(valor: string): void {
     const fPrueba = this.vacanteForm.get('fechadePruebatecnica')!;
-    const hPrueba = this.vacanteForm.get('horadePruebatecnica')!;
+    const hPrueba = this.vacanteForm.get('horade_pruebatecnica')!;
     const uPrueba = this.vacanteForm.get('ubicacionPruebaTecnica')!;
 
     if (valor === this.PRUEBA) {
@@ -542,14 +542,14 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   get restante(): number {
-    const total = Number(this.vacanteForm.get('personasSolicitadas')!.value) || 0;
+    const total = Number(this.vacanteForm.get('personas_solicitadas')!.value) || 0;
     return Math.max(0, total - this.totalAsignado);
   }
 
   // ✅ Error 1: no exceder el total
   private sumNoExcedeTotalValidator(): ValidatorFn {
     return (group: AbstractControl) => {
-      const total = Number(group.get('personasSolicitadas')?.value) || 0;
+      const total = Number(group.get('personas_solicitadas')?.value) || 0;
       const arr = group.get('municipiosDistribucion') as FormArray | null;
       if (!arr) return null;
 
@@ -564,7 +564,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   // ✅ Error 2: la suma debe ser IGUAL al total (para el mensaje visible bajo el resumen)
   private sumIgualTotalValidator(): ValidatorFn {
     return (group: AbstractControl) => {
-      const total = Number(group.get('personasSolicitadas')?.value) || 0;
+      const total = Number(group.get('personas_solicitadas')?.value) || 0;
       const arr = group.get('municipiosDistribucion') as FormArray | null;
       if (!arr) return null;
 
@@ -651,7 +651,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       cargo: v?.cargo ?? '',
       area: v?.area ?? '',
       finca: v?.finca ?? '',
-      empresaUsuariaSolicita: v?.empresaUsuariaSolicita ?? '',
+      empresa_usuaria_solicita: v?.empresa_usuaria_solicita ?? '',
       direccion: v?.direccion ?? '',
       temporal: v?.temporal ?? '',
       experiencia: v?.experiencia ?? '',
@@ -661,32 +661,32 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       fechadeIngreso: this.parseApiDate(v?.fechadeIngreso),
 
       descripcion: v?.descripcion ?? '',
-      fechaPublicado: this.parseApiDate(v?.fechaPublicado) ?? new Date(),
+      fecha_publicado: this.parseApiDate(v?.fecha_publicado) ?? new Date(),
 
       quienpublicolavacante: v?.quienpublicolavacante ?? '',
       estadovacante: v?.estadovacante ?? 'Activa',
       salario: v?.salario ?? 1750905,
-      codigoElite: v?.codigoElite ?? '',
+      codigo_elite: v?.codigo_elite ?? '',
 
-      oficinasSeleccionadas: Array.isArray(v?.oficinasQueContratan)
-        ? v.oficinasQueContratan.map((o: any) => o?.nombre)
+      oficinasSeleccionadas: Array.isArray(v?.oficinas_que_contratan)
+        ? v.oficinas_que_contratan.map((o: any) => o?.nombre)
         : [],
 
-      pruebaOContratacion: v?.pruebaOContratacion ?? '',
+      prueba_ocontratacion: v?.prueba_ocontratacion ?? '',
       fechadePruebatecnica: this.parseApiDate(v?.fechadePruebatecnica),
 
-      horadePruebatecnica: v?.horadePruebatecnica ?? '',
+      horade_pruebatecnica: v?.horade_pruebatecnica ?? '',
       ubicacionPruebaTecnica: v?.ubicacionPruebaTecnica ?? '',
-      tipoContratacion: v?.tipoContratacion ?? '',
+      tipo_contratacion: v?.tipo_contratacion ?? '',
       municipio: Array.isArray(v?.municipio) ? v.municipio : [],
-      auxilioTransporte: v?.auxilioTransporte ?? '',
-      personasSolicitadas: v?.personasSolicitadas ?? null,
+      auxilio_transporte: v?.auxilio_transporte ?? '',
+      personas_solicitadas: v?.personas_solicitadas ?? null,
     });
 
     // Oficinas
-    const fa = this.oficinasQueContratan;
+    const fa = this.oficinas_que_contratan;
     fa.clear();
-    (Array.isArray(v?.oficinasQueContratan) ? v.oficinasQueContratan : []).forEach((o: any) =>
+    (Array.isArray(v?.oficinas_que_contratan) ? v.oficinas_que_contratan : []).forEach((o: any) =>
       fa.push(this.fb.group({ nombre: [o?.nombre ?? '', Validators.required], ruta: [!!o?.ruta] }))
     );
 
@@ -720,7 +720,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     this.fincaAplicada = String(v?.finca ?? '').trim().toUpperCase();
 
     this.syncFechaIngreso();
-    this.applyPruebaContratacion(String(this.vacanteForm.get('pruebaOContratacion')!.value ?? ''));
+    this.applyPruebaContratacion(String(this.vacanteForm.get('prueba_ocontratacion')!.value ?? ''));
 
     this.vacanteForm.updateValueAndValidity({ emitEvent: false });
   }
@@ -732,8 +732,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     return (list || []).filter((item) => item.toLowerCase().includes(filterValue));
   }
 
-  get oficinasQueContratan(): FormArray {
-    return this.vacanteForm.get('oficinasQueContratan') as FormArray;
+  get oficinas_que_contratan(): FormArray {
+    return this.vacanteForm.get('oficinas_que_contratan') as FormArray;
   }
 
   private canonicalTemporal(raw: string | null | undefined): 'APOYO LABORAL SAS' | 'TU ALIANZA SAS' | null {
@@ -794,7 +794,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
         const patch: Record<string, unknown> = {
           finca: limpio || q,
-          empresaUsuariaSolicita: finca.empresa ?? null,
+          empresa_usuaria_solicita: finca.empresa ?? null,
           direccion: finca.direccion ?? null,
           temporal: this.canonicalTemporal(finca.temporal),
         };
@@ -808,7 +808,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           patch['salario'] = Number(finca.salario);
         }
         if (finca.auxilio_transporte != null) {
-          patch['auxilioTransporte'] = finca.auxilio_transporte ? 'Si' : 'No';
+          patch['auxilio_transporte'] = finca.auxilio_transporte ? 'Si' : 'No';
         }
 
         this.vacanteForm.patchValue(patch);
@@ -818,7 +818,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         // entran a veces: si no llegaron, no son heredados.
         this.heredadoDe = limpio || q;
         this.heredado = {};
-        for (const c of ['empresaUsuariaSolicita', 'direccion', 'temporal', 'salario', 'auxilioTransporte']) {
+        for (const c of ['empresa_usuaria_solicita', 'direccion', 'temporal', 'salario', 'auxilio_transporte']) {
           if (c in patch) this.heredado[c] = (patch[c] ?? '').toString();
         }
 
@@ -854,7 +854,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
     if (coincidencias.length === 1) return aceptar(coincidencias[0]);
 
-    const empresa = this.normalizarNombre(this.vacanteForm.get('empresaUsuariaSolicita')?.value);
+    const empresa = this.normalizarNombre(this.vacanteForm.get('empresa_usuaria_solicita')?.value);
     const porEmpresa = empresa
       ? coincidencias.filter((i) => this.normalizarNombre(i.empresa) === empresa)
       : [];
@@ -920,16 +920,16 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     const fecha = fechaParaDescripcionVacante(
       v.fechadeIngreso,
       v.fechadePruebatecnica,
-      v.fechaPublicado,
+      v.fecha_publicado,
     );
     if (!fecha) return;
 
     const sugerida = resolverDescripcionObra(
       v.cargo,
       fecha,
-      `${v.empresaUsuariaSolicita ?? ''} ${v.finca ?? ''}`,
+      `${v.empresa_usuaria_solicita ?? ''} ${v.finca ?? ''}`,
       v.temporal,
-      v.empresaUsuariaSolicita,
+      v.empresa_usuaria_solicita,
     );
 
     // Si no hay labor para esa combinación se deja lo que haya: el campo es
@@ -941,7 +941,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   actualizarOficinasQueContratan(seleccionadas: any[]): void {
-    const formArray = this.oficinasQueContratan;
+    const formArray = this.oficinas_que_contratan;
     formArray.clear();
 
     (seleccionadas || []).forEach((sede: any) => {
@@ -973,7 +973,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   eliminarOficina(index: number): void {
-    this.oficinasQueContratan.removeAt(index);
+    this.oficinas_que_contratan.removeAt(index);
     this.vacanteForm.updateValueAndValidity({ emitEvent: false });
   }
 

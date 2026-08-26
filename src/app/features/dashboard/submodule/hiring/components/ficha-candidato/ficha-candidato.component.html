@@ -25,6 +25,14 @@
       </span>
     }
     <button type="button" class="ficha-head-editar"
+            [disabled]="!candidato() || !tieneCorreo()"
+            [matTooltip]="tieneCorreo()
+              ? 'Enviarle un código a su correo para que entre a actualizar sus datos'
+              : 'Sin correo registrado no hay a dónde enviar el código'"
+            (click)="reenviarAcceso.emit()">
+      <mat-icon>key</mat-icon>
+    </button>
+    <button type="button" class="ficha-head-editar"
             [disabled]="!candidato()"
             matTooltip="Editar todos los datos" (click)="editar.emit('todos')">
       <mat-icon>edit</mat-icon>

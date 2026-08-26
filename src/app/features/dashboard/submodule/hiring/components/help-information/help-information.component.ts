@@ -51,27 +51,27 @@ interface OficinaDTO { nombre: string; numeroDeGenteRequerida: number; ruta: boo
 interface PublicacionDTO {
   id: number;
   cargo: string;
-  oficinasQueContratan: OficinaDTO[];
-  empresaUsuariaSolicita: string;
+  oficinas_que_contratan: OficinaDTO[];
+  empresa_usuaria_solicita: string;
   finca: string | null;
   ubicacionPruebaTecnica: string | null;
   experiencia: string | null;
   fechadePruebatecnica: string | null;
-  horadePruebatecnica: string | null;
+  horade_pruebatecnica: string | null;
   observacionVacante: string | null;
   fechadeIngreso: string | null;
   temporal: string | null;
   descripcion: string | null;
-  fechaPublicado: string;
+  fecha_publicado: string;
   quienpublicolavacante: string | null;
   estadovacante: string | null;
   salario: string | null;
-  codigoElite: string | null;
+  codigo_elite: string | null;
   area: string | null;
-  pruebaOContratacion: string | null;
-  tipoContratacion: string | null;
+  prueba_ocontratacion: string | null;
+  tipo_contratacion: string | null;
   municipio: string[] | null;
-  auxilioTransporte: string | null;
+  auxilio_transporte: string | null;
   conteo_estados?: any;
   activo?: boolean;
 }
@@ -102,6 +102,12 @@ export class HelpInformationComponent implements OnInit {
   /** Nº de consulta del buscador: re-consultar re-hidrata la pestaña. */
   consultaSeq = input<number>(0);
   modificadoPor = input<string>('');
+  /**
+   * Documento tal como se tecleó en el buscador. Hay registros a los que
+   * `numero_documento` les llega vacío; sin esto la IA de Selección se queda
+   * sin cédula —y por tanto sin expediente— con la persona en pantalla.
+   */
+  documentoBuscado = input<string | null>(null);
   /** Reenvía el "guardado" de la entrevista (y de la remisión) al padre para que
    *  recargue el candidato. */
   guardado = output<void>();
@@ -124,7 +130,7 @@ export class HelpInformationComponent implements OnInit {
     const v = this.vacanteSeleccionada();
     if (!v) return [];
     return [
-      { label: 'Empresa usuaria', value: v.empresaUsuariaSolicita ?? null },
+      { label: 'Empresa usuaria', value: v.empresa_usuaria_solicita ?? null },
       { label: 'Centro de costo', value: v.finca ?? null },
       { label: 'Cargo', value: v.cargo ?? null },
       { label: 'Dirección', value: v.ubicacionPruebaTecnica ?? null },
@@ -215,7 +221,7 @@ export class HelpInformationComponent implements OnInit {
 
   totalRequerida = computed(() => {
     const v = this.vacanteSeleccionada();
-    const ofs = Array.isArray(v?.oficinasQueContratan) ? v!.oficinasQueContratan : [];
+    const ofs = Array.isArray(v?.oficinas_que_contratan) ? v!.oficinas_que_contratan : [];
     return ofs.reduce((acc, o) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
   });
 
@@ -239,7 +245,7 @@ export class HelpInformationComponent implements OnInit {
       // 2) Filtrar las que tienen 0 faltantes, EXCEPTO la ya seleccionada
       if (this.falt(v) === 0 && !isSelected) continue;
 
-      const emp = v.empresaUsuariaSolicita || 'Sin Empresa';
+      const emp = v.empresa_usuaria_solicita || 'Sin Empresa';
       const finca = v.finca || 'Sin Finca';
       const cargo = v.cargo || 'Sin Cargo';
 
@@ -247,8 +253,8 @@ export class HelpInformationComponent implements OnInit {
       //    empresa, finca, cargo, código, temporal y las oficinas que contratan.
       if (tokens.length && !isSelected) {
         const texto = textoBuscableVacante([
-          emp, finca, cargo, v.codigoElite, v.temporal,
-          this.oficinasResumen(v.oficinasQueContratan),
+          emp, finca, cargo, v.codigo_elite, v.temporal,
+          this.oficinasResumen(v.oficinas_que_contratan),
         ]);
         if (!coincidenTodas(texto, tokens)) continue;
       }
@@ -358,18 +364,18 @@ export class HelpInformationComponent implements OnInit {
   private abrirSelectorVacante(): void {
     const opciones: VacanteOpcion[] = this.vacantes().map((v) => ({
       id: Number(v.id),
-      empresa: v.empresaUsuariaSolicita || '',
+      empresa: v.empresa_usuaria_solicita || '',
       finca: v.finca || '',
       cargo: v.cargo || '',
-      codigo: v.codigoElite || null,
+      codigo: v.codigo_elite || null,
       temporal: v.temporal || null,
-      oficinas: this.oficinasResumen(v.oficinasQueContratan),
-      publicada: this.formatShortDate(v.fechaPublicado),
-      publicadaEn: this.aMilis(v.fechaPublicado),
-      diasAbierta: this.diasDesde(v.fechaPublicado),
+      oficinas: this.oficinasResumen(v.oficinas_que_contratan),
+      publicada: this.formatShortDate(v.fecha_publicado),
+      publicadaEn: this.aMilis(v.fecha_publicado),
+      diasAbierta: this.diasDesde(v.fecha_publicado),
       salario: v.salario && v.salario !== '0.00' ? v.salario : null,
       municipios: Array.isArray(v.municipio) && v.municipio.length ? v.municipio.join(', ') : null,
-      tipoContratacion: v.tipoContratacion || v.pruebaOContratacion || null,
+      tipo_contratacion: v.tipo_contratacion || v.prueba_ocontratacion || null,
       requeridos: this.totalRequeridaOf(v),
       faltantes: this.falt(v),
       // Sin cupos o dada de baja: no se ofrece, salvo que sea la asignada.
@@ -465,9 +471,9 @@ export class HelpInformationComponent implements OnInit {
       this.nav.vacanteAsignada.set(v ? {
         id: Number(v.id),
         cargo: v.cargo || '',
-        empresa: v.empresaUsuariaSolicita || 'Sin empresa',
+        empresa: v.empresa_usuaria_solicita || 'Sin empresa',
         finca: v.finca || 'Sin finca',
-        codigo: v.codigoElite || null,
+        codigo: v.codigo_elite || null,
       } : null);
     });
 
@@ -513,14 +519,14 @@ export class HelpInformationComponent implements OnInit {
         const salarioNum = v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
 
         this.vacantesForm.patchValue({
-          tipo: currentVals.tipo || this.mapApiTipoToForm(v.pruebaOContratacion),
-          empresaUsuaria: currentVals.empresaUsuaria || (v.empresaUsuariaSolicita ?? ''),
+          tipo: currentVals.tipo || this.mapApiTipoToForm(v.prueba_ocontratacion),
+          empresaUsuaria: currentVals.empresaUsuaria || (v.empresa_usuaria_solicita ?? ''),
           cargo: currentVals.cargo || (v.cargo ?? ''),
           fechaIngreso: currentVals.fechaIngreso || toDate(v.fechadeIngreso),
           salario: currentVals.salario || salarioNum,
           area: currentVals.area || (v.area ?? ''),
           fechaPruebaEntrevista: currentVals.fechaPruebaEntrevista || toDate(v.fechadePruebatecnica),
-          horaPruebaEntrevista: currentVals.horaPruebaEntrevista || toTime(v.horadePruebatecnica),
+          horaPruebaEntrevista: currentVals.horaPruebaEntrevista || toTime(v.horade_pruebatecnica),
           direccionEmpresa: currentVals.direccionEmpresa || (v.ubicacionPruebaTecnica ?? '')
         }, { emitEvent: true }); // emitEvent true para que los signals de visibilidad (como isAutorizacion) reaccionen
       }
@@ -677,14 +683,14 @@ export class HelpInformationComponent implements OnInit {
     const salarioNum = v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
 
     this.vacantesForm.patchValue({
-      tipo: this.mapApiTipoToForm(v.pruebaOContratacion),
-      empresaUsuaria: v.empresaUsuariaSolicita ?? '',
+      tipo: this.mapApiTipoToForm(v.prueba_ocontratacion),
+      empresaUsuaria: v.empresa_usuaria_solicita ?? '',
       cargo: v.cargo ?? '',
       fechaIngreso: toDate(v.fechadeIngreso),
       salario: salarioNum,
       area: v.area ?? '',
       fechaPruebaEntrevista: toDate(v.fechadePruebatecnica),
-      horaPruebaEntrevista: toTime(v.horadePruebatecnica),
+      horaPruebaEntrevista: toTime(v.horade_pruebatecnica),
       direccionEmpresa: v.ubicacionPruebaTecnica ?? ''
     }, { emitEvent: true });
   }
@@ -1120,7 +1126,7 @@ export class HelpInformationComponent implements OnInit {
 
   // ── Wrapper para usar en el template con argumento ──
   totalRequeridaOf(v: any): number {
-    return Number(v?.personasSolicitadas) || 0;
+    return Number(v?.personas_solicitadas) || 0;
   }
 
   // ── KPIs granulares ──
@@ -1196,7 +1202,7 @@ export class HelpInformationComponent implements OnInit {
     const data: RemisionDialogData = {
       temporal: t.temporal,
       fecha: this.hoyDDMMAAAA(),
-      empresaUsuaria: f.empresaUsuaria || v.empresaUsuariaSolicita || '',
+      empresaUsuaria: f.empresaUsuaria || v.empresa_usuaria_solicita || '',
       cargo: f.cargo || v.cargo || '',
       experienciaSector: exp?.tiene_experiencia === true ? 'SI'
         : exp?.tiene_experiencia === false ? 'NO' : '',
@@ -1208,7 +1214,7 @@ export class HelpInformationComponent implements OnInit {
       // mano sobre el formato impreso.
       area: '',
       dia: this.aDDMMAAAA(f.fechaPruebaEntrevista) || this.aDDMMAAAA(v.fechadePruebatecnica),
-      hora: f.horaPruebaEntrevista || v.horadePruebatecnica || '',
+      hora: f.horaPruebaEntrevista || v.horade_pruebatecnica || '',
       preguntarPor: '',
       direccionEmpresa: f.direccionEmpresa || v.direccion || '',
       gestionHumana: '',
@@ -1251,7 +1257,7 @@ export class HelpInformationComponent implements OnInit {
     const temporal = String(v?.temporal ?? '').toUpperCase();
     if (temporal.includes('ALIANZA')) return { temporal: 'alianza', porDefecto: false };
     if (temporal.includes('APOYO')) return { temporal: 'apoyo', porDefecto: false };
-    const empresa = String(v?.empresaUsuariaSolicita ?? '').toUpperCase();
+    const empresa = String(v?.empresa_usuaria_solicita ?? '').toUpperCase();
     if (empresa.includes('ALIANZA')) return { temporal: 'alianza', porDefecto: false };
     return { temporal: 'apoyo', porDefecto: !empresa.includes('APOYO') };
   }
