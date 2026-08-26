@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 import { getLocalStorageItem, clearLocalStorage } from '../../../core/utils/safe-storage';
+import { AlcanceSedes } from '../../models/sede-alcance.model';
 
 @Injectable({
   providedIn: 'root',
@@ -82,10 +83,39 @@ export class UtilityServiceService {
     usuarioId: string,
     sedeId: string | null
   ): Observable<{ ok: boolean; changed: boolean; sede_id: string | null; sede: string | null; }> {
-    const body = sedeId ? { sede: sedeId } : { sede: null };
+    // La clave va DUPLICADA a propósito: `sede` es la que entiende el backend nuevo y
+    // `sede_id`/`sedeId` las que leían las versiones anteriores del controlador. Mandar
+    // solo una hacía que la otra punta recibiera null y BORRARA las sedes del usuario.
+    const body = sedeId
+      ? { sede: sedeId, sede_id: sedeId, sedeId }
+      : { sede: null, sede_id: null, sedeId: null };
     return this.http.post<{
       ok: boolean; changed: boolean; sede_id: string | null; sede: string | null;
     }>(`${this.apiUrl}/gestion_admin/usuarios/${usuarioId}/cambiar_sede/`, body);
+  }
+
+  /**
+   * Alcance de sedes del usuario (V62): sobre cuáles puede operar, cuál tiene activa y
+   * cuáles caducan. Para un ADMIN devuelve TODAS las sedes activas con `todas: true`.
+   */
+  traerAlcanceSedes(usuarioId: string): Observable<AlcanceSedes> {
+    return this.http.get<AlcanceSedes>(`${this.apiUrl}/gestion_admin/usuarios/${usuarioId}/sedes/`);
+  }
+
+  /**
+   * Guarda la selección acumulativa del buscador de sedes. Lo que añade quien NO es
+   * administrador caduca a las 24 h; un administrador consolida de forma permanente.
+   */
+  guardarSedesOperativas(
+    usuarioId: string,
+    sedes: string[],
+    principal: string | null,
+    motivo?: string,
+  ): Observable<AlcanceSedes> {
+    return this.http.post<AlcanceSedes>(
+      `${this.apiUrl}/gestion_admin/usuarios/${usuarioId}/sedes/operativas/`,
+      { sedes, principal, motivo: motivo ?? null },
+    );
   }
 
   traerUsuarios(): Observable<any> {

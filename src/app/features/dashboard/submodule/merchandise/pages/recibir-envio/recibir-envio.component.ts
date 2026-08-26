@@ -3,6 +3,7 @@ import { FormGroup, FormControl } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { MatTableDataSource } from '@angular/material/table';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { ComercializadoraService } from '../../service/comercializadora/comercializadora.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -16,7 +17,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 })
 export class RecibirEnvioComponent implements OnInit {
 
-  displayedColumnsInventario: string[] = [
+  private static readonly COLUMNAS_BASE: string[] = [
     'select',
     'codigo',
     'concepto',
@@ -26,6 +27,8 @@ export class RecibirEnvioComponent implements OnInit {
     'PersonaEnvia',
     'comentariosEnvio'
   ];
+
+  displayedColumnsInventario: string[] = [...RecibirEnvioComponent.COLUMNAS_BASE];
 
   dataSourceInventario = new MatTableDataSource<any>();
   productos: any[] = [];
@@ -41,6 +44,7 @@ export class RecibirEnvioComponent implements OnInit {
 
   constructor(
     private utilityService: UtilityServiceService,
+    private sedeScope: SedeScopeService,
     private comercializadoraService: ComercializadoraService,
     private cdr: ChangeDetectorRef
   ) { }
@@ -59,14 +63,16 @@ export class RecibirEnvioComponent implements OnInit {
 
     try {
       const user = this.utilityService.getUser();
-      if (!user?.sede?.nombre) {
+      const misSedes = this.sedeScope.nombres();
+      if (!misSedes.length) {
         throw new Error('No se pudo determinar la sede del usuario');
       }
 
-      // Contaduría revisa los envíos de todas las sedes; el resto solo los dirigidos a la suya.
-      const sedeFiltro = user.correo_electronico === 'contaduria.rtc@gmail.com'
+      // Contaduría revisa los envíos de todas las sedes; el resto, los dirigidos a
+      // CUALQUIERA de las suyas (multi-sede V62), no solo a la que tenga activa.
+      const sedeFiltro = user?.correo_electronico === 'contaduria.rtc@gmail.com'
         ? ''
-        : user.sede.nombre;
+        : misSedes;
 
       const response = await this.comercializadoraService.listarPendientesRecepcion(sedeFiltro);
 
@@ -76,6 +82,7 @@ export class RecibirEnvioComponent implements OnInit {
         cantidadEnvio: item.cantidad,
         valorUnidad: item.valor_unitario,
         PersonaEnvia: item.realizado_por,
+        destino: item.numero_documento_destino ?? '',
         comentariosEnvio: item.comentario,
         fechaRecibida: item.realizado_en // usamos la fecha de salida como orden
       }));
@@ -97,6 +104,16 @@ export class RecibirEnvioComponent implements OnInit {
         );
       });
       this.cantidadForm = form;
+
+      // Con varias oficinas la tabla mezcla envíos de todas: sin la columna Destino
+      // no habría forma de saber a cuál va cada uno.
+      const variasOficinas = new Set(
+        this.productos.map((p: any) => String(p.destino ?? '').toUpperCase()).filter(Boolean),
+      ).size > 1;
+      this.displayedColumnsInventario = variasOficinas
+        ? [...RecibirEnvioComponent.COLUMNAS_BASE.slice(0, 3), 'destino',
+           ...RecibirEnvioComponent.COLUMNAS_BASE.slice(3)]
+        : [...RecibirEnvioComponent.COLUMNAS_BASE];
 
       this.dataSourceInventario.data = this.productos;
 

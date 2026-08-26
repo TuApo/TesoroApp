@@ -13,6 +13,7 @@ import { InfoVacantesService } from '../../service/info-vacantes/info-vacantes.s
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
 
 type FlatRow = Record<string, any>;
@@ -36,6 +37,10 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   columns: ColumnDefinition[] = [];
 
   oficina = '';
+  /** Oficinas sobre las que el usuario puede operar (multi-sede V62). */
+  oficinasDisponibles: string[] = [];
+  /** true si hay más de una: entonces se muestra el selector de oficina. */
+  puedeElegirOficina = false;
 
   private readonly EXPORT_COLS: ExportCol[] = [
     { header: 'Entrevista - Fecha/Hora (última)', key: 'entrevista_fecha_ultima', width: 26 },
@@ -101,6 +106,7 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   constructor(
     private readonly infoVacantesService: InfoVacantesService,
     private readonly utilityService: UtilityServiceService,
+    private readonly sedeScope: SedeScopeService,
     private readonly dialog: MatDialog,
     private readonly destroyRef: DestroyRef,
     @Inject(PLATFORM_ID) platformId: Object,
@@ -130,9 +136,20 @@ export class ViewReceptionInterviewsComponent implements OnInit {
 
   ngOnInit(): void {
     if (this.isBrowser) {
-      const sedeNombre = this.utilityService.getUser?.()?.sede?.nombre;
-      this.oficina = String(sedeNombre ?? '').trim();
+      // Multi-sede (V62): arranca en la sede ACTIVA, pero quien tenga varias puede
+      // moverse entre ellas. El endpoint agrupa por UNA oficina, así que el selector
+      // cambia de oficina en vez de sumarlas.
+      this.oficinasDisponibles = this.sedeScope.nombres();
+      this.puedeElegirOficina = this.oficinasDisponibles.length > 1;
+      const activa = this.sedeScope.activa()
+        || String(this.utilityService.getUser?.()?.sede?.nombre ?? '');
+      this.oficina = String(activa).trim();
     }
+    this.loadInterviewsToday();
+  }
+
+  /** Cambio de oficina desde el selector: recarga la tabla del día. */
+  onOficinaChange(): void {
     this.loadInterviewsToday();
   }
 

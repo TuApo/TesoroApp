@@ -11,6 +11,17 @@
     </div>
     <span class="grow"></span>
     <div class="right" style="z-index: 1;">
+        <!-- Multi-sede (V62): con varias oficinas asignadas se puede cambiar de una a otra. -->
+        @if (puedeElegirOficina) {
+          <mat-form-field appearance="outline" class="oficina-select" subscriptSizing="dynamic">
+            <mat-label>Oficina</mat-label>
+            <mat-select [(ngModel)]="oficina" (ngModelChange)="onOficinaChange()">
+              @for (o of oficinasDisponibles; track o) {
+                <mat-option [value]="o">{{ o }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        }
         <button mat-flat-button class="btn-managerial"
             (click)="openRangeDialogAndExport()">
             <mat-icon>download</mat-icon>

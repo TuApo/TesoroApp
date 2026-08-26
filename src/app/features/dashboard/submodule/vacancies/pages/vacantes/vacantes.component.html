@@ -68,6 +68,133 @@
   </mat-card-header>
   <mat-card-content class="card-content">
 
+    <!-- ====== FILTROS (afectan a la tabla Y al panel de indicadores) ====== -->
+    <section class="filtros-vacantes" aria-label="Filtros de vacantes">
+      <div class="filtros-head">
+        <mat-icon class="filtros-icon">tune</mat-icon>
+        <span class="filtros-titulo">Filtros</span>
+        @if (filtrosActivos > 0) {
+          <span class="filtros-badge">{{ filtrosActivos }}</span>
+        }
+        <span class="filtros-resultado">{{ visibleRows.length }} vacante(s)</span>
+        <span class="filtros-spacer"></span>
+        @if (filtrosActivos > 0) {
+          <button mat-button color="primary" (click)="limpiarFiltros()">
+            <mat-icon>filter_alt_off</mat-icon>
+            <span>Limpiar</span>
+          </button>
+        }
+        <button mat-icon-button (click)="toggleFiltros()"
+                [matTooltip]="filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'">
+          <mat-icon>{{ filtrosAbiertos ? 'expand_less' : 'expand_more' }}</mat-icon>
+        </button>
+      </div>
+
+      @if (filtrosAbiertos) {
+        <div class="filtros-grid">
+
+          <!-- Oficina: eligen gerencia y quien tenga varias sedes; el resto la ve anclada -->
+          @if (puedeElegirOficina) {
+            <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+              <mat-label>Oficina</mat-label>
+              <mat-select [(ngModel)]="filtros.oficina" (ngModelChange)="onOficinaChange()">
+                <mat-option [value]="''">{{ sinLimiteSede ? 'Todas las oficinas' : 'Todas mis oficinas' }}</mat-option>
+                @for (o of oficinas; track o) {
+                  <mat-option [value]="o">{{ o }}</mat-option>
+                }
+              </mat-select>
+              <mat-icon matSuffix class="filtro-suffix">store</mat-icon>
+            </mat-form-field>
+          } @else {
+            <div class="filtro-oficina-fija" matTooltip="Ves las vacantes de tu oficina">
+              <mat-icon>location_on</mat-icon>
+              <div class="ofi-texto">
+                <span class="ofi-label">Oficina</span>
+                <span class="ofi-valor">{{ sede || 'Todas' }}</span>
+              </div>
+            </div>
+          }
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Publicada desde</mat-label>
+            <input matInput [matDatepicker]="pickDesde" [(ngModel)]="filtros.desde"
+                   (ngModelChange)="onFiltroChange()" />
+            <mat-datepicker-toggle matIconSuffix [for]="pickDesde"></mat-datepicker-toggle>
+            <mat-datepicker #pickDesde></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Publicada hasta</mat-label>
+            <input matInput [matDatepicker]="pickHasta" [(ngModel)]="filtros.hasta"
+                   (ngModelChange)="onFiltroChange()" />
+            <mat-datepicker-toggle matIconSuffix [for]="pickHasta"></mat-datepicker-toggle>
+            <mat-datepicker #pickHasta></mat-datepicker>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Demora</mat-label>
+            <mat-select [(ngModel)]="filtros.antiguedad" (ngModelChange)="onFiltroChange()">
+              @for (a of opcAntiguedad; track a.valor) {
+                <mat-option [value]="a.valor">{{ a.label }}</mat-option>
+              }
+            </mat-select>
+            <mat-icon matSuffix class="filtro-suffix">hourglass_bottom</mat-icon>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Centro de costo</mat-label>
+            <mat-select [(ngModel)]="filtros.finca" (ngModelChange)="onFiltroChange()">
+              <mat-option [value]="''">Todos</mat-option>
+              @for (f of opcFincas; track f) {
+                <mat-option [value]="f">{{ f }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Empresa usuaria</mat-label>
+            <mat-select [(ngModel)]="filtros.empresa" (ngModelChange)="onFiltroChange()">
+              <mat-option [value]="''">Todas</mat-option>
+              @for (e of opcEmpresas; track e) {
+                <mat-option [value]="e">{{ e }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Cargo</mat-label>
+            <mat-select [(ngModel)]="filtros.cargo" (ngModelChange)="onFiltroChange()">
+              <mat-option [value]="''">Todos</mat-option>
+              @for (c of opcCargos; track c) {
+                <mat-option [value]="c">{{ c }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Municipio</mat-label>
+            <mat-select [(ngModel)]="filtros.municipio" (ngModelChange)="onFiltroChange()">
+              <mat-option [value]="''">Todos</mat-option>
+              @for (m of opcMunicipios; track m) {
+                <mat-option [value]="m">{{ m }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+            <mat-label>Tipo de contrato</mat-label>
+            <mat-select [(ngModel)]="filtros.tipo" (ngModelChange)="onFiltroChange()">
+              <mat-option [value]="''">Todos</mat-option>
+              @for (t of opcTipos; track t) {
+                <mat-option [value]="t">{{ t }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+        </div>
+      }
+    </section>
+
     <!-- MENU POR FILA (1 SOLO) -->
     <mat-menu #rowMenu="matMenu">
       <ng-template matMenuContent let-row="row">
@@ -192,5 +319,13 @@
       </ng-template>
 
     </app-standard-filter-table>
+
+    <!-- ====== PANEL DE INDICADORES (debajo de la tabla) ====== -->
+    <app-vacantes-dashboard
+      [vacantes]="visibleRows"
+      [oficina]="filtros.oficina"
+      [loading]="loading"
+      (verVacante)="abrirCumplimiento($event)">
+    </app-vacantes-dashboard>
   </mat-card-content>
 </mat-card>

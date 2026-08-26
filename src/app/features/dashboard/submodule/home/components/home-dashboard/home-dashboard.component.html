@@ -5,15 +5,17 @@
     <span class="dash-title">Panel de Control</span>
   </div>
 
-  @if (isAdmin) {
+  @if (puedeElegirSede) {
     <div class="sede-filter">
       <mat-icon class="filter-icon">filter_list</mat-icon>
       <mat-select
         [(ngModel)]="selectedSede"
         (ngModelChange)="onSedeChange()"
-        placeholder="Todas las sedes"
+        [placeholder]="sinLimiteSede ? 'Todas las sedes' : 'Tus sedes'"
         class="sede-select">
-        <mat-option value="">Todas las sedes</mat-option>
+        @if (sinLimiteSede) {
+          <mat-option value="">Todas las sedes</mat-option>
+        }
         @for (s of sedes; track s.id) {
           <mat-option [value]="s.nombre">{{ s.nombre }}</mat-option>
         }

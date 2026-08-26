@@ -225,11 +225,19 @@ export class ComercializadoraService {
     }
   }
 
-  async listarPendientesRecepcion(sede: string = ''): Promise<any> {
+  /**
+   * Envíos pendientes de recibir. `sede` admite una oficina o VARIAS (multi-sede): el
+   * backend acepta el parámetro repetido, así que quien recibe en dos oficinas los ve
+   * todos en una sola llamada. Sin sede devuelve los de todas (contaduría).
+   */
+  async listarPendientesRecepcion(sede: string | string[] = ''): Promise<any> {
     try {
       let params = new HttpParams();
-      if (sede) {
-        params = params.set('sede', sede);
+      const destinos = (Array.isArray(sede) ? sede : [sede])
+        .map((s) => String(s ?? '').trim())
+        .filter((s) => !!s);
+      for (const destino of destinos) {
+        params = params.append('sede', destino);
       }
       const response = await firstValueFrom(
         this.http.get(`${this.apiUrl}/gestion_tesoreria/movimientos/pendientes-recepcion/`, { params })

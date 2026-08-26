@@ -51,16 +51,20 @@
   background: var(--cfg-accent-soft, #eff6ff);
 }
 
-.sede-item__radio {
-  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%;
-  border: 2px solid #cbd5e1; background: #fff; position: relative;
-  transition: border-color .18s ease;
+.sede-item__check {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 6px;
+  border: 2px solid #cbd5e1; background: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: border-color .18s ease, background-color .18s ease;
 }
-.sede-item.is-selected .sede-item__radio { border-color: var(--cfg-accent, #2563eb); }
-.sede-item.is-selected .sede-item__radio::after {
-  content: ''; position: absolute; inset: 3px; border-radius: 50%;
+.sede-item__check .mat-icon { font-size: 14px; width: 14px; height: 14px; color: #fff; }
+.sede-item.is-selected .sede-item__check {
+  border-color: var(--cfg-accent, #2563eb);
   background: var(--cfg-accent, #2563eb);
 }
+/* Permanente: se ve marcada pero no invita a pulsarla, porque no se puede quitar. */
+.sede-item.is-locked { cursor: default; opacity: .85; }
+.sede-item.is-locked:hover { border-color: var(--cfg-border, #e2e8f0); }
 
 .sede-item__name { flex: 1 1 auto; font-weight: 600; color: var(--cfg-ink, #0f172a); font-size: 0.92rem; }
 
@@ -94,3 +98,75 @@
 .sede-group__label--otras { color: #94a3b8; }
 
 .sede-item__badge--asignada { color: #1e40af; background: #dbeafe; }
+
+
+/* ── Buscador acumulativo de sedes (V62) ── */
+.buscador {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; margin-bottom: 12px;
+  background: var(--cfg-surface-2, #f8fafc);
+  border: 1px solid var(--cfg-border, #e2e8f0);
+  border-radius: 12px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.buscador:focus-within {
+  border-color: var(--cfg-accent, #2563eb);
+  box-shadow: 0 0 0 3px var(--cfg-accent-soft, #eff6ff);
+}
+.buscador__icon { flex: 0 0 auto; font-size: 20px; width: 20px; height: 20px; color: #94a3b8; }
+.buscador__input {
+  flex: 1 1 auto; min-width: 0;
+  border: 0; outline: none; background: transparent;
+  font-family: inherit; font-size: 0.92rem; color: var(--cfg-ink, #0f172a);
+  padding: 12px 0;
+}
+.buscador__limpiar {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; cursor: pointer; color: #94a3b8; padding: 4px;
+  border-radius: 50%;
+}
+.buscador__limpiar:hover { color: #475569; background: #e2e8f0; }
+.buscador__limpiar .mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+/* Fichas del acumulado */
+.chips { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+
+.chip {
+  display: inline-flex; align-items: stretch;
+  border: 1px solid var(--cfg-border, #e2e8f0);
+  border-radius: 999px;
+  background: var(--cfg-surface-2, #f8fafc);
+  overflow: hidden;
+  max-width: 100%;
+}
+.chip.is-active { border-color: var(--cfg-accent, #2563eb); background: var(--cfg-accent-soft, #eff6ff); }
+.chip.is-temporal { border-style: dashed; }
+
+.chip__main {
+  display: inline-flex; align-items: center; gap: 7px; min-width: 0;
+  border: 0; background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 0.86rem; font-weight: 600;
+  color: var(--cfg-ink, #0f172a); padding: 8px 12px;
+}
+.chip__icon { flex: 0 0 auto; font-size: 17px; width: 17px; height: 17px; color: #94a3b8; }
+.chip.is-active .chip__icon { color: var(--cfg-accent, #2563eb); }
+.chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.chip__tag {
+  flex: 0 0 auto; font-size: 0.64rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; padding: 2px 7px; border-radius: 999px;
+}
+.chip__tag--activa { color: #1e40af; background: #dbeafe; }
+.chip__tag--nueva { color: #92400e; background: #fef3c7; }
+.chip__tag--temporal { color: #9a3412; background: #ffedd5; text-transform: none; letter-spacing: 0; }
+.chip__tag--fija { color: #166534; background: #dcfce7; }
+
+.chip__quitar {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-left: 1px solid var(--cfg-border, #e2e8f0);
+  background: transparent; cursor: pointer; color: #94a3b8; padding: 0 8px;
+}
+.chip__quitar:hover { color: #b91c1c; background: #fee2e2; }
+.chip__quitar .mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.sede-item__badge--temporal { color: #9a3412; background: #ffedd5; text-transform: none; letter-spacing: 0; }

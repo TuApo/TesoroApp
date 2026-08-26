@@ -24,6 +24,7 @@ import {
 } from 'src/app/shared/model/validation-preview';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 import { isOfflineQueued } from '@/app/core/utils/offline-response';
 import { environment } from '@/environments/environment';
 import { HiringService } from '../../service/hiring.service';
@@ -126,6 +127,7 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   constructor(
     private readonly fb: FormBuilder,
     private readonly utilityService: UtilityServiceService,
+    private readonly sedeScope: SedeScopeService,
     private readonly hiringService: HiringService,
     private readonly registroProcesoService: RegistroProcesoContratacion,
     private readonly gestionDocumentalService: GestionDocumentalService,
@@ -180,7 +182,9 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
       // 1) Sede del logueado (mismo catálogo gestion_admin.Sede en user.sede y
       //    en traerSucursales(), así que el nombre empata literal).
-      const sedeNombre = String(this.utilityService.getUser()?.sede?.nombre ?? '').trim();
+      const sedeNombre = String(
+        this.sedeScope.activa() || this.utilityService.getUser()?.sede?.nombre || '',
+      ).trim();
       const sedeObj = this.sedes.find(s => String(s?.nombre ?? '').trim() === sedeNombre) || null;
       if (sedeObj) this.reporteForm.patchValue({ sede: sedeObj });
 
@@ -339,7 +343,8 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     }
   }
 
-  ngOnDestroy(): void {    this.terminateWorker();
+  ngOnDestroy(): void {
+    this.terminateWorker();
   }
 
   // ---------------------------------------------------------------------------
@@ -414,9 +419,13 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     try {
       const data: any = await firstValueFrom(this.utilityService.traerSucursales());
       if (Array.isArray(data)) {
-        this.sedes = data
+        const activas = data
           .filter(s => s.activa)
           .sort((a, b) => a.nombre.localeCompare(b.nombre));
+        // Multi-sede (V62): el reporte solo puede cerrarse sobre una oficina del
+        // alcance del usuario. ADMIN/GERENCIA no se recortan; el resto ve las suyas.
+        this.sedes = activas.filter(s => this.sedeScope.alcanza(s?.nombre));
+        if (!this.sedes.length) this.sedes = activas;
         this.cdr.markForCheck();
       }
     } catch (e) {

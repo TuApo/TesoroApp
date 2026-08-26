@@ -14,6 +14,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 import { HomeDashboardService } from '../../service/home-dashboard.service';
 
 interface KpiTile {
@@ -52,11 +53,16 @@ interface QuickLink {
 })
 export class HomeDashboardComponent implements OnInit {
   private utilityService = inject(UtilityServiceService);
+  private sedeScope = inject(SedeScopeService);
   private dashService = inject(HomeDashboardService);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
 
   isAdmin = false;
+  /** true si el rol no se recorta por sede (ADMIN/GERENCIA): puede ver "todas". */
+  sinLimiteSede = false;
+  /** true si hay algo que elegir: no se recorta, o tiene varias sedes (V62). */
+  puedeElegirSede = false;
   userSede = '';
   selectedSede = '';
   sedes: any[] = [];
@@ -93,12 +99,21 @@ export class HomeDashboardComponent implements OnInit {
     const user = this.utilityService.getUser();
     const rol = user?.rol?.nombre ?? '';
     this.isAdmin = rol === 'ADMIN' || rol === 'GERENCIA';
-    this.userSede = user?.sede?.nombre ?? '';
+    this.sinLimiteSede = this.sedeScope.sinLimite() || this.isAdmin;
+    this.userSede = this.sedeScope.activa() || user?.sede?.nombre || '';
 
-    if (this.isAdmin) {
+    // Multi-sede (V62): quien tiene varias también elige, pero solo entre las SUYAS y
+    // sin la opción "todas": los resúmenes de afiliaciones se agregan en el servidor
+    // por una sola sede, y pedirlos sin sede devolvería datos de oficinas ajenas.
+    this.puedeElegirSede = this.sinLimiteSede || this.sedeScope.tieneVarias();
+    this.selectedSede = this.sinLimiteSede ? '' : this.userSede;
+
+    if (this.sinLimiteSede) {
       this.dashService.loadSedes()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(sedes => { this.sedes = sedes; this.cdr.markForCheck(); });
+    } else {
+      this.sedes = this.sedeScope.sedes().map(s => ({ id: s.id, nombre: s.nombre }));
     }
 
     this.loadAll();
@@ -111,7 +126,7 @@ export class HomeDashboardComponent implements OnInit {
   private loadAll(): void {
     this.loading = true;
     this.cdr.markForCheck();
-    const sede = this.isAdmin ? this.selectedSede : this.userSede;
+    const sede = this.puedeElegirSede ? this.selectedSede : this.userSede;
 
     forkJoin({
       procesos:   this.dashService.loadProcesos().pipe(catchError(() => of([]))),
@@ -123,11 +138,12 @@ export class HomeDashboardComponent implements OnInit {
     .subscribe(({ procesos, vacantes, resumen, timeline }) => {
       const filtered = sede
         ? procesos.filter((p: any) => (p.oficina_creacion || '').toUpperCase() === sede.toUpperCase())
-        : procesos;
+        : procesos.filter((p: any) => this.sedeScope.alcanza(p?.oficina_creacion));
 
       this.buildKpis(filtered, vacantes, resumen);
       this.buildPipelineChart(filtered);
-      this.buildOficinasChart(procesos);
+      // La gráfica por oficina se dibuja con lo que el usuario alcanza, no con todo.
+      this.buildOficinasChart(procesos.filter((p: any) => this.sedeScope.alcanza(p?.oficina_creacion)));
       this.buildTimelineChart(timeline);
       this.buildAfiliOficinaChart(resumen);
 

@@ -19,10 +19,12 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { SharedModule } from '@/app/shared/shared.module';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { CumplimientoDialogComponent } from '../../components/cumplimiento-dialog/cumplimiento-dialog.component';
+import { VacantesDashboardComponent } from '../../components/vacantes-dashboard/vacantes-dashboard.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
 import { getLocalStorageItem, setLocalStorageItem } from '../../../../../../core/utils/safe-storage';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 
 interface ConteoEstados {
   pre_registro: number;
@@ -61,7 +63,8 @@ interface DistPayload {
     MatButtonModule,
     MatDividerModule,
     MatTooltipModule,
-    ColumnCellTemplateDirective
+    ColumnCellTemplateDirective,
+    VacantesDashboardComponent
 ],
   templateUrl: './vacantes.component.html',
   styleUrl: './vacantes.component.css',
@@ -86,7 +89,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     { name: 'actions', header: 'Acciones', type: 'custom', filterable: false, sortable: false, width: '72px', stickyStart: true },
 
     { name: 'cumpl', header: 'Cumpl.', type: 'custom', filterable: false, sortable: true, width: '90px' },
-    { name: 'fechaPublicado', header: 'Publicado', type: 'date', filterable: true, sortable: true, width: '120px' },
+    { name: 'fecha_publicado', header: 'Publicado', type: 'date', filterable: true, sortable: true, width: '120px' },
 
     // Embudo del proceso: las 8 etapas (Req, Falt, Entrev, Pru, Auto, Exm,
     // Firm, Ing) colapsadas en UNA sola columna compacta de chips para ganar
@@ -95,7 +98,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
     { name: 'finca', header: 'Centro de costo', type: 'text', filterable: true, sortable: true, width: '170px' },
     { name: 'cargo', header: 'Cargo', type: 'text', filterable: true, sortable: true, width: '170px' },
-    { name: 'empresaUsuariaSolicita', header: 'Empresa usuaria', type: 'text', filterable: true, sortable: true, width: '170px' },
+    { name: 'empresa_usuaria_solicita', header: 'Empresa usuaria', type: 'text', filterable: true, sortable: true, width: '170px' },
 
     // Municipio: si son más de 2 se colapsa en un chip (el detalle sale en el
     // tooltip), igual que "Obs. / Descripción"; con 2 o menos se muestran los
@@ -108,8 +111,8 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     { name: 'perfil', header: 'Obs. / Descripción', type: 'custom', filterable: false, sortable: false, width: '110px' },
 
     { name: 'salario', header: 'Salario', type: 'custom', filterable: false, sortable: true, width: '140px' },
-    { name: 'auxilioTransporte', header: 'Auxilio', type: 'text', filterable: true, sortable: true, width: '120px' },
-    { name: 'tipoContratacion', header: 'Tipo de Contrato', type: 'text', filterable: true, sortable: true, width: '160px' },
+    { name: 'auxilio_transporte', header: 'Auxilio', type: 'text', filterable: true, sortable: true, width: '120px' },
+    { name: 'tipo_contratacion', header: 'Tipo de Contrato', type: 'text', filterable: true, sortable: true, width: '160px' },
   ];
 
   displayedColumns: string[] = this.columnDefinitions.map(c => c.name);
@@ -121,12 +124,61 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
   permitido = false;
   sede = '';
+  /** Oficinas sobre las que el usuario puede operar (multi-sede V62). */
+  sedesAlcance: string[] = [];
+  /** true si su rol no se recorta por sede (ADMIN/GERENCIA): ve todas las oficinas. */
+  sinLimiteSede = false;
   busyActivoIds = new Set<number | string>();
+
+  // ================== Filtros de la cabecera ==================
+  /** ADMIN/GERENCIA ven todas las oficinas y pueden elegir cuál mirar. */
+  puedeElegirOficina = false;
+  /** Catálogo de oficinas (sedes) para el selector de gerencia. */
+  oficinas: string[] = [];
+  filtrosAbiertos = true;
+
+  filtros: {
+    oficina: string;
+    finca: string;
+    empresa: string;
+    cargo: string;
+    municipio: string;
+    tipo: string;
+    antiguedad: number;
+    desde: Date | null;
+    hasta: Date | null;
+  } = {
+    oficina: '',
+    finca: '',
+    empresa: '',
+    cargo: '',
+    municipio: '',
+    tipo: '',
+    antiguedad: 0,
+    desde: null,
+    hasta: null,
+  };
+
+  /** Opciones de los desplegables, derivadas de lo que hay cargado. */
+  opcFincas: string[] = [];
+  opcEmpresas: string[] = [];
+  opcCargos: string[] = [];
+  opcMunicipios: string[] = [];
+  opcTipos: string[] = [];
+
+  readonly opcAntiguedad = [
+    { valor: 0, label: 'Cualquier antigüedad' },
+    { valor: 8, label: 'Más de 7 días' },
+    { valor: 16, label: 'Más de 15 días' },
+    { valor: 31, label: 'Más de 30 días' },
+    { valor: 61, label: 'Más de 60 días' },
+  ];
 
   constructor(
     private dialog: MatDialog,
     private vacantesService: VacantesService,
     private utilityService: UtilityServiceService,
+    private sedeScope: SedeScopeService,
     private cdr: ChangeDetectorRef,
   ) { }
 
@@ -138,10 +190,51 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     if (saved) this.viewMode = saved;
 
     const user = this.utilityService.getUser();
-    this.sede = user?.sede?.nombre || '';
+    this.sede = this.sedeScope.activa() || user?.sede?.nombre || '';
     this.permitido = this.isManager(user);
+    this.sinLimiteSede = this.sedeScope.sinLimite();
+    this.sedesAlcance = this.sedeScope.nombres();
+    // Multi-sede (V62): el selector de oficina se abre para quien no se recorta por
+    // sede (Gerencia/Admin) Y para quien tiene varias asignadas; con una sola el
+    // filtro queda anclado, igual que antes de existir el multi-sede.
+    this.puedeElegirOficina = this.sedeScope.puedeElegirOficina();
+
+    if (this.puedeElegirOficina) {
+      // "" = todas las oficinas de su alcance (todo el catálogo si no se recorta).
+      const guardada = typeof window !== 'undefined' ? getLocalStorageItem('vacantes:oficina') : null;
+      this.filtros.oficina = guardada && this.sedeScope.alcanza(guardada) ? guardada : '';
+      this.cargarOficinas();
+    } else {
+      this.filtros.oficina = this.sede;
+    }
 
     this.loadData();
+  }
+
+  /** Catálogo de sedes para el selector (cacheado en el utility service). */
+  private cargarOficinas(): void {
+    this.utilityService.traerSucursales().subscribe({
+      next: (data: any) => {
+        const arr = Array.isArray(data) ? data : (data?.results ?? []);
+        const catalogo = arr
+          .filter((s: any) => s?.activa !== false)
+          .map((s: any) => String(s?.nombre ?? '').trim())
+          .filter((n: string) => !!n)
+          .sort((a: string, b: string) => a.localeCompare(b));
+        // Quien se recorta por sede solo puede elegir entre las suyas.
+        this.oficinas = this.sedeScope.opciones(catalogo);
+
+        // La oficina recordada puede haberse borrado del catálogo: si ya no
+        // existe, el selector saldría en blanco filtrando por un nombre muerto.
+        if (this.filtros.oficina && !this.oficinas.includes(this.filtros.oficina)) {
+          this.filtros.oficina = '';
+          try { setLocalStorageItem('vacantes:oficina', ''); } catch { }
+          this.applyViewMode();
+        }
+        this.cdr.markForCheck();
+      },
+      error: () => { },
+    });
   }
 
   onToggleView(mode: 'table' | 'faltantes' | 'completados' | 'inactivas'): void {
@@ -158,27 +251,181 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Recalcula lo que se ve: primero la pestaña (Todos / Faltantes /
+   * Completados / Inactivas) y encima los filtros de la cabecera. El
+   * resultado alimenta a la vez la tabla y el panel de indicadores, así los
+   * dos cuentan siempre lo mismo.
+   */
   private applyViewMode(): void {
     const rows = this.allRows ?? [];
 
+    let base: any[];
     if (this.viewMode === 'inactivas') {
-      this.visibleRows = rows.filter(r => r.activo === false);
-      return;
+      base = rows.filter(r => r.activo === false);
+    } else {
+      const activas = rows.filter(r => r.activo !== false);
+      if (this.viewMode === 'faltantes') {
+        base = activas.filter(r => (Number(r?.falt) || 0) > 0);
+      } else if (this.viewMode === 'completados') {
+        base = activas.filter(r => (Number(r?.req) || 0) > 0 && (Number(r?.falt) || 0) === 0);
+      } else {
+        base = activas;
+      }
     }
 
-    const activas = rows.filter(r => r.activo !== false);
+    this.visibleRows = this.aplicarFiltros(base);
+    this.recalcularOpciones();
+    this.cdr.markForCheck();
+  }
 
-    if (this.viewMode === 'faltantes') {
-      this.visibleRows = activas.filter(r => (Number(r?.falt) || 0) > 0);
-      return;
+  /** Aplica los filtros de la cabecera sobre un conjunto ya acotado por vista. */
+  private aplicarFiltros(rows: any[]): any[] {
+    const f = this.filtros;
+    const desde = this.soloFecha(f.desde);
+    const hasta = this.soloFecha(f.hasta);
+
+    return rows.filter(r => {
+      // "Todas las oficinas" significa todas las SUYAS: sin este recorte, alguien
+      // con varias sedes vería también las vacantes de las oficinas ajenas.
+      if (!this.dentroDelAlcance(r)) return false;
+      if (f.oficina && !this.matchesSede(r, f.oficina)) return false;
+      if (f.finca && this.norm(r?.finca) !== this.norm(f.finca)) return false;
+      if (f.empresa && this.norm(r?.empresa_usuaria_solicita) !== this.norm(f.empresa)) return false;
+      if (f.cargo && this.norm(r?.cargo) !== this.norm(f.cargo)) return false;
+      if (f.tipo && this.norm(r?.tipo_contratacion) !== this.norm(f.tipo)) return false;
+
+      if (f.municipio) {
+        const arr = Array.isArray(r?.municipio) ? r.municipio : [];
+        if (!arr.some((m: any) => this.norm(m) === this.norm(f.municipio))) return false;
+      }
+
+      if (desde || hasta) {
+        const pub = this.aFecha(r?.fecha_publicado);
+        if (!pub) return false;
+        if (desde && pub.getTime() < desde.getTime()) return false;
+        if (hasta && pub.getTime() > hasta.getTime()) return false;
+      }
+
+      if (f.antiguedad > 0) {
+        const dias = this.diasPublicada(r);
+        if (dias === null || dias < f.antiguedad) return false;
+      }
+
+      return true;
+    });
+  }
+
+  /** Los desplegables listan sólo lo que existe dentro de la oficina elegida. */
+  private recalcularOpciones(): void {
+    const base = (this.allRows ?? []).filter(
+      r => this.dentroDelAlcance(r)
+        && (!this.filtros.oficina || this.matchesSede(r, this.filtros.oficina))
+    );
+
+    this.opcFincas = this.valoresUnicos(base, r => r?.finca);
+    this.opcEmpresas = this.valoresUnicos(base, r => r?.empresa_usuaria_solicita);
+    this.opcCargos = this.valoresUnicos(base, r => r?.cargo);
+    this.opcTipos = this.valoresUnicos(base, r => r?.tipo_contratacion);
+
+    const municipios = new Set<string>();
+    for (const r of base) {
+      const arr = Array.isArray(r?.municipio) ? r.municipio : [];
+      for (const m of arr) {
+        const t = String(m ?? '').trim();
+        if (t) municipios.add(t);
+      }
     }
+    this.opcMunicipios = [...municipios].sort((a, b) => a.localeCompare(b));
+  }
 
-    if (this.viewMode === 'completados') {
-      this.visibleRows = activas.filter(r => (Number(r?.req) || 0) > 0 && (Number(r?.falt) || 0) === 0);
-      return;
+  private valoresUnicos(rows: any[], get: (r: any) => any): string[] {
+    const set = new Set<string>();
+    for (const r of rows) {
+      const t = String(get(r) ?? '').trim();
+      if (t) set.add(t);
     }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }
 
-    this.visibleRows = activas;
+  /** Cualquier cambio en la cabecera repinta tabla + indicadores. */
+  onFiltroChange(): void {
+    this.applyViewMode();
+  }
+
+  onOficinaChange(): void {
+    // Al cambiar de oficina los desplegables cambian de universo: lo que ya no
+    // exista se queda "colgado" filtrando de más, así que se limpian.
+    this.filtros.finca = '';
+    this.filtros.empresa = '';
+    this.filtros.cargo = '';
+    this.filtros.municipio = '';
+    this.filtros.tipo = '';
+    try { setLocalStorageItem('vacantes:oficina', this.filtros.oficina); } catch { }
+    this.applyViewMode();
+  }
+
+  limpiarFiltros(): void {
+    this.filtros = {
+      oficina: this.puedeElegirOficina ? '' : this.sede,
+      finca: '',
+      empresa: '',
+      cargo: '',
+      municipio: '',
+      tipo: '',
+      antiguedad: 0,
+      desde: null,
+      hasta: null,
+    };
+    if (this.puedeElegirOficina) {
+      try { setLocalStorageItem('vacantes:oficina', ''); } catch { }
+    }
+    this.applyViewMode();
+  }
+
+  get filtrosActivos(): number {
+    const f = this.filtros;
+    let n = 0;
+    if (this.puedeElegirOficina && f.oficina) n++;
+    if (f.finca) n++;
+    if (f.empresa) n++;
+    if (f.cargo) n++;
+    if (f.municipio) n++;
+    if (f.tipo) n++;
+    if (f.antiguedad > 0) n++;
+    if (f.desde) n++;
+    if (f.hasta) n++;
+    return n;
+  }
+
+  toggleFiltros(): void {
+    this.filtrosAbiertos = !this.filtrosAbiertos;
+  }
+
+  /** Días desde que se publicó (pidió) la vacante. */
+  private diasPublicada(row: any): number | null {
+    const f = this.aFecha(row?.fecha_publicado);
+    if (!f) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    return Math.max(0, Math.round((hoy.getTime() - f.getTime()) / 86_400_000));
+  }
+
+  /** 'YYYY-MM-DD' se arma en local para que no se corra un día por UTC. */
+  private aFecha(v: any): Date | null {
+    if (!v) return null;
+    if (v instanceof Date) return isNaN(v.getTime()) ? null : this.soloFecha(v);
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    const d = new Date(String(v));
+    return isNaN(d.getTime()) ? null : this.soloFecha(d);
+  }
+
+  private soloFecha(d: Date | null): Date | null {
+    if (!d) return null;
+    const x = new Date(d.getTime());
+    x.setHours(0, 0, 0, 0);
+    return x;
   }
 
   loadData(): void {
@@ -190,14 +437,13 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.vacantesService.listarVacantes(soloInactivas ? false : true).subscribe({
       next: (response: any[]) => {
-        const rows = (response ?? []).map(r => this.enrichComputed(this.mapRow(r)));
-        const filtered = this.sede ? rows.filter(r => this.matchesSede(r, this.sede)) : rows;
-
-        this.allRows = filtered;
+        // Ya NO se recorta aquí por sede: el recorte lo hace `aplicarFiltros`
+        // con `filtros.oficina`, que para gerencia puede ser "todas".
+        this.allRows = (response ?? []).map(r => this.enrichComputed(this.mapRow(r)));
         this.applyViewMode();
       },
       error: () => { },
-      complete: () => (this.loading = false),
+      complete: () => { this.loading = false; this.cdr.markForCheck(); },
     });
   }
 
@@ -315,7 +561,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   private enrichComputed(row: any): any {
-    const req = Number(row?.personasSolicitadas) || 0;
+    const req = Number(row?.personas_solicitadas) || 0;
 
     const entrev = this.entrev(row);
     const prueba = this.prue(row);
@@ -342,11 +588,23 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     };
   }
 
+  /**
+   * true si la vacante toca alguna de las oficinas del usuario. Quien no se recorta
+   * por sede pasa siempre; una vacante sin oficina declarada tampoco se esconde,
+   * porque no hay dato por el que excluirla.
+   */
+  private dentroDelAlcance(vac: any): boolean {
+    if (this.sinLimiteSede) return true;
+    const arr = Array.isArray(vac?.oficinas_que_contratan) ? vac.oficinas_que_contratan : [];
+    if (!arr.length) return true;
+    return arr.some((o: any) => this.sedeScope.alcanza(typeof o === 'string' ? o : o?.nombre));
+  }
+
   private matchesSede(vac: any, sede: string): boolean {
     const wanted = this.norm(sede);
     if (!wanted) return true;
 
-    const arr = Array.isArray(vac?.oficinasQueContratan) ? vac.oficinasQueContratan : [];
+    const arr = Array.isArray(vac?.oficinas_que_contratan) ? vac.oficinas_que_contratan : [];
     return arr.some((o: any) => {
       const name = typeof o === 'string' ? o : o?.nombre;
       return this.norm(name) === wanted;
@@ -372,22 +630,22 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
     return {
       ...r,
       activo: typeof r?.activo === 'boolean' ? r.activo : true,
-      motivoInactivacion: r?.motivoInactivacion ?? '',
+      motivo_inactivacion: r?.motivo_inactivacion ?? '',
 
       salario: this.parseCurrency(r?.salario),
       municipio: municipioArr,
       observacionVacante: r?.observacion ?? '',
       preseleccionados: Array.isArray(r?.preseleccionados) ? r.preseleccionados : [],
       contratados: Array.isArray(r?.contratados) ? r.contratados : [],
-      personasSolicitadas: Number(r?.personasSolicitadas) || 0,
+      personas_solicitadas: Number(r?.personas_solicitadas) || 0,
       municipiosDistribucion: Array.isArray(r?.municipiosDistribucion) ? r.municipiosDistribucion : [],
-      fechaPublicado: r?.fechaPublicado ?? null,
+      fecha_publicado: r?.fecha_publicado ?? null,
       fechadeIngreso: r?.fechadeIngreso ?? null,
       cargo: r?.cargo ?? null,
       finca: r?.finca ?? '',
       experiencia: r?.experiencia ?? '',
-      auxilioTransporte: r?.auxilioTransporte ?? 'No',
-      tipoContratacion: r?.tipoContratacion ?? '',
+      auxilio_transporte: r?.auxilio_transporte ?? 'No',
+      tipo_contratacion: r?.tipo_contratacion ?? '',
       conteo_estados: (r?.conteo_estados as ConteoEstados) || defaultConteo,
     };
   }
@@ -418,18 +676,18 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!t(result.cargo)) missing.push('Cargo');
       if (!t(result.finca)) missing.push('Centro de costo');
       if (!t(result.direccion)) missing.push('Dirección');
-      if (!t(result.empresaUsuariaSolicita)) missing.push('Empresa usuaria');
+      if (!t(result.empresa_usuaria_solicita)) missing.push('Empresa usuaria');
       if (!t(result.temporal)) missing.push('Temporal');
       if (!t(result.area)) missing.push('Área');
       if (!t(result.experiencia)) missing.push('Experiencia');
       if (!t(result.descripcion)) missing.push('Descripción');
-      if (!t(result.tipoContratacion)) missing.push('Tipo de contratación');
-      if (!t(result.pruebaOContratacion)) missing.push('Prueba o Contratación');
+      if (!t(result.tipo_contratacion)) missing.push('Tipo de contratación');
+      if (!t(result.prueba_ocontratacion)) missing.push('Prueba o Contratación');
 
-      const total: number = Math.trunc(n(result.personasSolicitadas));
+      const total: number = Math.trunc(n(result.personas_solicitadas));
       if (!(total >= 1)) missing.push('Personas solicitadas (mínimo 1)');
 
-      const aux: AuxilioTransporte | '' = (t(result.auxilioTransporte) as AuxilioTransporte | '');
+      const aux: AuxilioTransporte | '' = (t(result.auxilio_transporte) as AuxilioTransporte | '');
       if (!(aux === 'Si' || aux === 'No')) missing.push('Auxilio Transporte (Si/No)');
 
       const municipios: string[] = Array.isArray(result.municipio)
@@ -438,10 +696,10 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!municipios.length) missing.push('Municipio(s)');
 
       // Condicionales
-      const isPrueba: boolean = t(result.pruebaOContratacion) === 'Prueba';
+      const isPrueba: boolean = t(result.prueba_ocontratacion) === 'Prueba';
       if (isPrueba) {
         if (!result.fechadePruebatecnica) missing.push('Fecha de Prueba Técnica');
-        if (!t(result.horadePruebatecnica)) missing.push('Hora de Prueba Técnica');
+        if (!t(result.horade_pruebatecnica)) missing.push('Hora de Prueba Técnica');
       }
 
       const tieneIngreso: string = t(result.tieneFechaIngreso);
@@ -450,7 +708,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       // Oficinas
-      const oficinasRaw: unknown[] = Array.isArray(result.oficinasQueContratan) ? (result.oficinasQueContratan as unknown[]) : [];
+      const oficinasRaw: unknown[] = Array.isArray(result.oficinas_que_contratan) ? (result.oficinas_que_contratan as unknown[]) : [];
       if (!oficinasRaw.length) missing.push('Oficinas que contratan');
 
       const oficinasLimpias: OficinaPayload[] = oficinasRaw
@@ -495,33 +753,33 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         cargo: t(result.cargo) || null,
         temporal: t(result.temporal) || null,
         area: t(result.area) || null,
-        empresaUsuariaSolicita: t(result.empresaUsuariaSolicita) || null,
+        empresa_usuaria_solicita: t(result.empresa_usuaria_solicita) || null,
         finca: t(result.finca) || null,
         direccion: t(result.direccion) || null,
 
         experiencia: t(result.experiencia) || null,
         descripcion: t(result.descripcion) || null,
         salario: this.parseCurrency(result.salario),
-        codigoElite: t(result.codigoElite) || null,
+        codigo_elite: t(result.codigo_elite) || null,
         observacion: t(result.observacionVacante) || null,
 
-        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+        prueba_ocontratacion: isPrueba ? 'Prueba' : 'Contratación',
         fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
-        horadePruebatecnica: isPrueba ? (t(result.horadePruebatecnica) || null) : null,
+        horade_pruebatecnica: isPrueba ? (t(result.horade_pruebatecnica) || null) : null,
         fechadeIngreso: tieneIngreso === 'Si' ? (this.formatDate(result.fechadeIngreso) || null) : null,
 
-        fechaPublicado: result.fechaPublicado || new Date().toISOString(),
+        fecha_publicado: result.fecha_publicado || new Date().toISOString(),
         quienpublicolavacante: t(result.quienpublicolavacante) || 'Sistema',
         estadovacante: t(result.estadovacante) || 'Activa',
 
-        personasSolicitadas: total,
+        personas_solicitadas: total,
         municipiosDistribucion: distClean,
 
-        oficinasQueContratan: oficinasLimpias,
+        oficinas_que_contratan: oficinasLimpias,
 
-        tipoContratacion: t(result.tipoContratacion) || null,
+        tipo_contratacion: t(result.tipo_contratacion) || null,
         municipio: municipios,
-        auxilioTransporte: aux,
+        auxilio_transporte: aux,
       };
 
       this.vacantesService.actualizarVacante(id, payload).subscribe({
@@ -583,18 +841,18 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!t(result.cargo)) missing.push('Cargo');
       if (!t(result.finca)) missing.push('Centro de costo');
       if (!t(result.direccion)) missing.push('Dirección');
-      if (!t(result.empresaUsuariaSolicita)) missing.push('Empresa usuaria');
+      if (!t(result.empresa_usuaria_solicita)) missing.push('Empresa usuaria');
       if (!t(result.temporal)) missing.push('Temporal');
       if (!t(result.area)) missing.push('Área');
       if (!t(result.experiencia)) missing.push('Experiencia');
       if (!t(result.descripcion)) missing.push('Descripción');
-      if (!t(result.tipoContratacion)) missing.push('Tipo de contratación');
-      if (!t(result.pruebaOContratacion)) missing.push('Prueba o Contratación');
+      if (!t(result.tipo_contratacion)) missing.push('Tipo de contratación');
+      if (!t(result.prueba_ocontratacion)) missing.push('Prueba o Contratación');
 
-      const total: number = Math.trunc(n(result.personasSolicitadas));
+      const total: number = Math.trunc(n(result.personas_solicitadas));
       if (!(total >= 1)) missing.push('Personas solicitadas (mínimo 1)');
 
-      const aux: AuxilioTransporte | '' = (t(result.auxilioTransporte) as AuxilioTransporte | '');
+      const aux: AuxilioTransporte | '' = (t(result.auxilio_transporte) as AuxilioTransporte | '');
       if (!(aux === 'Si' || aux === 'No')) missing.push('Auxilio Transporte (Si/No)');
 
       const municipios: string[] = Array.isArray(result.municipio)
@@ -603,10 +861,10 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!municipios.length) missing.push('Municipio(s)');
 
       // Condicionales
-      const isPrueba: boolean = t(result.pruebaOContratacion) === 'Prueba';
+      const isPrueba: boolean = t(result.prueba_ocontratacion) === 'Prueba';
       if (isPrueba) {
         if (!result.fechadePruebatecnica) missing.push('Fecha de Prueba Técnica');
-        if (!t(result.horadePruebatecnica)) missing.push('Hora de Prueba Técnica');
+        if (!t(result.horade_pruebatecnica)) missing.push('Hora de Prueba Técnica');
       }
 
       const tieneIngreso: string = t(result.tieneFechaIngreso);
@@ -615,7 +873,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       }
 
       // Oficinas
-      const oficinasRaw: unknown[] = Array.isArray(result.oficinasQueContratan) ? (result.oficinasQueContratan as unknown[]) : [];
+      const oficinasRaw: unknown[] = Array.isArray(result.oficinas_que_contratan) ? (result.oficinas_que_contratan as unknown[]) : [];
       if (!oficinasRaw.length) missing.push('Oficinas que contratan');
 
       const oficinasLimpias: OficinaPayload[] = oficinasRaw
@@ -659,34 +917,34 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       const payload = {
         cargo: t(result.cargo) || null,
         area: t(result.area) || null,
-        empresaUsuariaSolicita: t(result.empresaUsuariaSolicita) || null,
+        empresa_usuaria_solicita: t(result.empresa_usuaria_solicita) || null,
         finca: t(result.finca) || null,
         ubicacionPruebaTecnica: isPrueba ? (t(result.ubicacionPruebaTecnica) || null) : null,
         experiencia: t(result.experiencia) || null,
         direccion: t(result.direccion) || null,
 
         fechadePruebatecnica: isPrueba ? this.formatDate(result.fechadePruebatecnica) : null,
-        horadePruebatecnica: isPrueba ? (t(result.horadePruebatecnica) || null) : null,
+        horade_pruebatecnica: isPrueba ? (t(result.horade_pruebatecnica) || null) : null,
         fechadeIngreso: tieneIngreso === 'Si' ? (this.formatDate(result.fechadeIngreso) || null) : null,
-        pruebaOContratacion: isPrueba ? 'Prueba' : 'Contratación',
+        prueba_ocontratacion: isPrueba ? 'Prueba' : 'Contratación',
 
         observacion: t(result.observacionVacante) || null,
         temporal: t(result.temporal) || null,
         descripcion: t(result.descripcion) || null,
-        fechaPublicado: this.formatDate(new Date()),
+        fecha_publicado: this.formatDate(new Date()),
         quienpublicolavacante: t(result.quienpublicolavacante) || 'Usuario Logueado',
         estadovacante: t(result.estadovacante) || 'Activa',
         salario: this.parseCurrency(result.salario),
-        codigoElite: t(result.codigoElite) || null,
+        codigo_elite: t(result.codigo_elite) || null,
 
-        personasSolicitadas: total,
+        personas_solicitadas: total,
         municipiosDistribucion: distClean,
 
-        oficinasQueContratan: oficinasLimpias,
+        oficinas_que_contratan: oficinasLimpias,
 
-        tipoContratacion: t(result.tipoContratacion) || null,
+        tipo_contratacion: t(result.tipo_contratacion) || null,
         municipio: municipios,
-        auxilioTransporte: aux,
+        auxilio_transporte: aux,
       };
 
       this.vacantesService.enviarVacante(payload).subscribe({
@@ -856,7 +1114,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
   entrev(v: any): number { return this.ce(v).entrevistado; }
 
   cumplimientoPct(v: any): number {
-    const req = Number(v?.req ?? v?.personasSolicitadas) || 0;
+    const req = Number(v?.req ?? v?.personas_solicitadas) || 0;
     if (!req) return 0;
     const firmados = Number(v?.firm ?? this.firm(v)) || 0;
     return Math.max(0, Math.min(100, Math.round((firmados / req) * 100)));
@@ -885,11 +1143,11 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
         publicacionId: row.id,
         cargo: row?.cargo,
         finca: row?.finca,
-        empresa: row?.empresaUsuariaSolicita,
+        empresa: row?.empresa_usuaria_solicita,
         area: row?.area,
-        auxilioTransporte: row?.auxilioTransporte,
+        auxilio_transporte: row?.auxilio_transporte,
         // La ruta es un booleano por oficina; se resume a Si/No para el formato.
-        ruta: (Array.isArray(row?.oficinasQueContratan) && row.oficinasQueContratan.some((o: any) => o?.ruta)) ? 'Si' : 'No',
+        ruta: (Array.isArray(row?.oficinas_que_contratan) && row.oficinas_que_contratan.some((o: any) => o?.ruta)) ? 'Si' : 'No',
         req: row?.req,
         firm: row?.firm,
         cumpl: this.cumplimientoPct(row),
@@ -955,7 +1213,7 @@ export class VacantesComponent implements OnInit, AfterViewInit, OnDestroy {
       if (!result) return;
       const { start, end } = result;
 
-      this.vacantesService.getVacantesExcel(start, end, this.sede).subscribe(blob => {
+      this.vacantesService.getVacantesExcel(start, end, this.filtros.oficina || undefined).subscribe(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

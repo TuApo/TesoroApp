@@ -1,8 +1,11 @@
 <div class="cfg-card">
   <div class="cfg-card__head cfg-card__head--row">
     <div>
-      <h2 class="cfg-card__title">Sede de trabajo</h2>
-      <p class="cfg-card__hint">Selecciona la sede desde la que estás operando.</p>
+      <h2 class="cfg-card__title">Sedes de trabajo</h2>
+      <p class="cfg-card__hint">
+        Busca y añade las sedes sobre las que necesitas operar. La que marques como
+        <b>activa</b> es la que usan el encabezado y los filtros de los tableros.
+      </p>
     </div>
     @if (cargando) {
       <mat-spinner diameter="22"></mat-spinner>
@@ -12,82 +15,137 @@
   @if (!isOnline) {
     <div class="notice notice--warn">
       <mat-icon fontSet="material-symbols-outlined">cloud_off</mat-icon>
-      <span>Sin conexión. Puedes ver las sedes en caché, pero necesitas red para cambiarla.</span>
+      <span>Sin conexión. Puedes ver las sedes en caché, pero necesitas red para cambiarlas.</span>
     </div>
   }
 
-  @if (sedes.length === 0 && !cargando) {
+  @if (alcanceEsTodas) {
+    <div class="notice notice--info">
+      <mat-icon fontSet="material-symbols-outlined">shield_person</mat-icon>
+      <span>
+        Por tu rol operas sobre <b>todas las sedes</b>, incluidas las que se creen más
+        adelante. Aquí solo eliges cuál tienes activa.
+      </span>
+    </div>
+  } @else {
+    <div class="notice notice--info">
+      <mat-icon fontSet="material-symbols-outlined">schedule</mat-icon>
+      <span>
+        Las sedes que añadas aquí se retiran solas <b>a las 24 horas</b>. Las permanentes
+        las asigna un administrador y no se pueden quitar desde esta página.
+      </span>
+    </div>
+  }
+
+  <!-- ===== Acumulado: lo que ya está marcado ===== -->
+  <p class="sede-group__label">
+    <mat-icon fontSet="material-symbols-outlined">apartment</mat-icon>
+    Tus sedes ({{ elegidas.length }})
+  </p>
+
+  @if (!elegidas.length) {
+    <div class="notice">
+      <mat-icon fontSet="material-symbols-outlined">info</mat-icon>
+      <span>Todavía no tienes ninguna sede. Búscala abajo y añádela.</span>
+    </div>
+  } @else {
+    <ul class="chips" aria-label="Sedes seleccionadas">
+      @for (s of elegidas; track trackById($index, s)) {
+        <li class="chip"
+            [class.is-active]="s.id === principalId"
+            [class.is-temporal]="s.temporal || esNueva(s.id)">
+          <button
+            type="button"
+            class="chip__main"
+            [attr.aria-pressed]="s.id === principalId"
+            [title]="s.id === principalId ? 'Sede activa' : 'Usar como sede activa'"
+            (click)="activar(s.id)">
+            <mat-icon fontSet="material-symbols-outlined" class="chip__icon">
+              {{ s.id === principalId ? 'radio_button_checked' : 'radio_button_unchecked' }}
+            </mat-icon>
+            <span class="chip__name">{{ s.nombre }}</span>
+            @if (s.id === principalId) {
+              <span class="chip__tag chip__tag--activa">Activa</span>
+            }
+            @if (esNueva(s.id)) {
+              <span class="chip__tag chip__tag--nueva">{{ alcanceEsTodas ? 'Nueva' : 'Nueva · 24 h' }}</span>
+            } @else if (s.temporal) {
+              <span class="chip__tag chip__tag--temporal">Temporal · {{ restante(s) }}</span>
+            } @else if (!alcanceEsTodas) {
+              <span class="chip__tag chip__tag--fija">Permanente</span>
+            }
+          </button>
+
+          @if (!esFija(s.id) && elegidas.length > 1) {
+            <button
+              type="button"
+              class="chip__quitar"
+              [attr.aria-label]="'Quitar ' + s.nombre"
+              title="Quitar esta sede"
+              (click)="alternar(s)">
+              <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  }
+
+  <!-- ===== Buscador ===== -->
+  <p class="sede-group__label sede-group__label--otras">Añadir otra sede</p>
+
+  <div class="buscador">
+    <mat-icon fontSet="material-symbols-outlined" class="buscador__icon">search</mat-icon>
+    <input
+      type="text"
+      class="buscador__input"
+      name="filtroSede"
+      autocomplete="off"
+      placeholder="Escribe el nombre de la sede…"
+      aria-label="Buscar sede"
+      [(ngModel)]="filtro" />
+    @if (filtro) {
+      <button type="button" class="buscador__limpiar" aria-label="Limpiar búsqueda" (click)="filtro = ''">
+        <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+      </button>
+    }
+  </div>
+
+  @if (!sedes.length && !cargando) {
     <div class="notice">
       <mat-icon fontSet="material-symbols-outlined">info</mat-icon>
       <span>No hay sedes disponibles.</span>
     </div>
-  } @else if (tieneVarias) {
-    <!-- Multi-sede (V40): el usuario ve primero SUS sedes asignadas. -->
-    <div class="notice notice--info">
-      <mat-icon fontSet="material-symbols-outlined">apartment</mat-icon>
-      <span>Tienes {{ sedesAsignadasIds.size }} sedes asignadas. La que elijas pasa a ser tu sede principal.</span>
+  } @else if (!opciones.length) {
+    <div class="notice">
+      <mat-icon fontSet="material-symbols-outlined">search_off</mat-icon>
+      <span>Ninguna sede coincide con «{{ filtro }}».</span>
     </div>
-
-    <p class="sede-group__label">
-      <mat-icon fontSet="material-symbols-outlined">star</mat-icon>
-      Tus sedes asignadas
-    </p>
-    <ul class="sede-list" role="radiogroup" aria-label="Tus sedes asignadas">
-      @for (s of sedesPropias; track trackById($index, s)) {
-        <li>
-          <button
-            type="button"
-            class="sede-item"
-            role="radio"
-            [attr.aria-checked]="seleccionId === s.id"
-            [class.is-selected]="seleccionId === s.id"
-            (click)="seleccionar(s.id)">
-            <span class="sede-item__radio" aria-hidden="true"></span>
-            <span class="sede-item__name">{{ s.nombre }}</span>
-            @if (s.id === sedeActualId) {
-              <span class="sede-item__badge">Actual · Principal</span>
-            } @else {
-              <span class="sede-item__badge sede-item__badge--asignada">Asignada</span>
-            }
-          </button>
-        </li>
-      }
-    </ul>
-
-    @if (sedesOtras.length) {
-      <p class="sede-group__label sede-group__label--otras">Otras sedes</p>
-      <ul class="sede-list" role="radiogroup" aria-label="Otras sedes">
-        @for (s of sedesOtras; track trackById($index, s)) {
-          <li>
-            <button
-              type="button"
-              class="sede-item"
-              role="radio"
-              [attr.aria-checked]="seleccionId === s.id"
-              [class.is-selected]="seleccionId === s.id"
-              (click)="seleccionar(s.id)">
-              <span class="sede-item__radio" aria-hidden="true"></span>
-              <span class="sede-item__name">{{ s.nombre }}</span>
-            </button>
-          </li>
-        }
-      </ul>
-    }
   } @else {
-    <ul class="sede-list" role="radiogroup" aria-label="Sedes disponibles">
-      @for (s of sedes; track trackById($index, s)) {
+    <ul class="sede-list" aria-label="Sedes disponibles">
+      @for (s of opciones; track trackById($index, s)) {
         <li>
           <button
             type="button"
             class="sede-item"
-            role="radio"
-            [attr.aria-checked]="seleccionId === s.id"
-            [class.is-selected]="seleccionId === s.id"
-            (click)="seleccionar(s.id)">
-            <span class="sede-item__radio" aria-hidden="true"></span>
+            [class.is-selected]="s.elegida"
+            [class.is-locked]="s.elegida && esFija(s.id)"
+            [attr.aria-pressed]="s.elegida"
+            (click)="alternar(s)">
+            <span class="sede-item__check" aria-hidden="true">
+              @if (s.elegida) {
+                <mat-icon fontSet="material-symbols-outlined">check</mat-icon>
+              }
+            </span>
             <span class="sede-item__name">{{ s.nombre }}</span>
-            @if (s.id === sedeActualId) {
-              <span class="sede-item__badge">Actual</span>
+            @if (s.id === principalId) {
+              <span class="sede-item__badge">Activa</span>
+            } @else if (s.elegida && esFija(s.id)) {
+              <span class="sede-item__badge sede-item__badge--asignada">Permanente</span>
+            } @else if (s.elegida && s.temporal && !esNueva(s.id)) {
+              <span class="sede-item__badge sede-item__badge--temporal">{{ restante(s) }}</span>
+            } @else if (s.elegida) {
+              <span class="sede-item__badge sede-item__badge--asignada">Añadida</span>
             }
           </button>
         </li>
@@ -106,7 +164,7 @@
         Guardando…
       } @else {
         <mat-icon fontSet="material-symbols-outlined">check</mat-icon>
-        Guardar sede
+        Guardar sedes
       }
     </button>
   </div>
