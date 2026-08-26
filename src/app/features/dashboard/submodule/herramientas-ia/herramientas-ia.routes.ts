@@ -14,6 +14,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'desarrollo',
+    loadComponent: () =>
+      import('./pages/agentes-desarrollo/agentes-desarrollo.component').then(
+        (m) => m.AgentesDesarrolloComponent,
+      ),
+  },
+  {
     path: 'conocimiento',
     loadComponent: () =>
       import('./pages/conocimiento/conocimiento.component').then(
