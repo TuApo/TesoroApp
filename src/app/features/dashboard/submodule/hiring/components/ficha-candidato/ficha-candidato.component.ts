@@ -59,6 +59,11 @@ export class FichaCandidatoComponent {
   /** Comprobar que el correo / el WhatsApp existen. */
   comprobarCorreo = output<void>();
   comprobarWhatsapp = output<void>();
+  /**
+   * Reenviar al candidato el código con el que entra a revisar y actualizar sus datos.
+   * El candidato no tiene contraseña: el acceso es un código de un solo uso al correo.
+   */
+  reenviarAcceso = output<void>();
 
   private readonly plegados = signal<ReadonlySet<string>>(new Set<string>());
 
@@ -160,15 +165,57 @@ export class FichaCandidatoComponent {
     ];
   });
 
+  /**
+   * Los años que tiene, calculados si el registro no los trae.
+   *
+   * `edad` es una columna que casi siempre llega en null —nadie la escribe— y
+   * la fecha de nacimiento sí está: dejar el dato en blanco teniendo con qué
+   * calcularlo es esconder información que ya está en la ficha.
+   */
+  private edadDe(c: any): number | null {
+    const guardada = Number(c?.edad);
+    if (Number.isFinite(guardada) && guardada > 0) return guardada;
+    const n = c?.fecha_nacimiento ? new Date(c.fecha_nacimiento) : null;
+    if (!n || isNaN(n.getTime())) return null;
+    const hoy = new Date();
+    let años = hoy.getUTCFullYear() - n.getUTCFullYear();
+    const mes = hoy.getUTCMonth() - n.getUTCMonth();
+    if (mes < 0 || (mes === 0 && hoy.getUTCDate() < n.getUTCDate())) años--;
+    return años > 0 && años < 120 ? años : null;
+  }
+
+  /**
+   * El estado civil, con nombre.
+   *
+   * En base se guarda el código con el que lo manda el formulario (SO, CA, UL,
+   * SE, VI) y la ficha lo estaba pintando crudo: "SO" no es un dato legible
+   * para quien está atendiendo a la persona. Los registros viejos traen la
+   * palabra completa y esos se muestran tal cual.
+   */
+  private readonly ESTADO_CIVIL: Readonly<Record<string, string>> = {
+    SO: 'Soltero(a)',
+    CA: 'Casado(a)',
+    UL: 'Unión libre',
+    SE: 'Separado(a)',
+    VI: 'Viudo(a)',
+  };
+
+  private estadoCivilDe(v: unknown): string | null {
+    const s = this.txt(v);
+    if (!s) return null;
+    return this.ESTADO_CIVIL[s.toUpperCase()] ?? s;
+  }
+
   readonly personales = computed<Fila[]>(() => {
     const c = this.candidato();
     const cc = c?.info_cc ?? {};
+    const edad = this.edadDe(c);
     return [
       { label: 'Nombre completo', value: this.nombre(), break: true },
-      { label: 'Nacimiento', value: this.unir(this.fecha(c?.fecha_nacimiento), c?.edad ? `${c.edad} años` : null) },
+      { label: 'Nacimiento', value: this.unir(this.fecha(c?.fecha_nacimiento), edad ? `${edad} años` : null) },
       { label: 'Lugar de nacimiento', value: this.txt(cc.mpio_nacimiento) },
       { label: 'Sexo', value: c?.sexo === 'F' ? 'Femenino' : c?.sexo === 'M' ? 'Masculino' : null },
-      { label: 'Estado civil', value: this.txt(c?.estado_civil) },
+      { label: 'Estado civil', value: this.estadoCivilDe(c?.estado_civil) },
     ];
   });
 
@@ -196,6 +243,12 @@ export class FichaCandidatoComponent {
         value: fam.length ? fam.map((r: any) => this.txt(r.nombre)).filter(Boolean).join(' · ') : null,
         break: true },
     ];
+  });
+
+  /** Hay correo al que mandar el código. Sin esto el botón de acceso no tiene destino. */
+  readonly tieneCorreo = computed<boolean>(() => {
+    const ct = this.candidato()?.contacto ?? {};
+    return !!(ct.email ?? ct.correo_electronico ?? '').toString().trim();
   });
 
   /** ¿El correo/WhatsApp ya se comprobaron? Lo marca el backend. */
