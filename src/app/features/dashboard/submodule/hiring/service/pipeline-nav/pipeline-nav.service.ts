@@ -119,6 +119,18 @@ export class PipelineNavService {
    */
   readonly biometria = signal<BiometriaResumen>({ foto: null, firma: null, huella: null });
 
+  /**
+   * ¿Se puede generar la documentación, y si no, por qué?
+   *
+   * La puerta de la generación es la MISMA de siempre —hay candidato y "Pago y
+   * Transporte" está guardado y completo (`faltantesDePagoTransporte`)— y quien
+   * la evalúa es el pipeline, que tiene el proceso y el contrato. El módulo
+   * Documentos solo la pinta: sin este canal, su botón "Generar y subir"
+   * llevaba a una pantalla que iba a rechazar el trabajo, y el motivo estaba a
+   * dos módulos de distancia.
+   */
+  readonly generacion = signal<{ puede: boolean; motivo: string }>({ puede: false, motivo: '' });
+
   /** "Ábreme la cámara": la cámara y la subida viven en el pipeline. */
   readonly pedidoFoto = signal<number>(0);
 
@@ -183,5 +195,6 @@ export class PipelineNavService {
     this.vacanteAsignada.set(null);
     this.biometria.set({ foto: null, firma: null, huella: null });
     this.avanceFicha.set({});
+    this.generacion.set({ puede: false, motivo: '' });
   }
 }

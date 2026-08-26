@@ -14,7 +14,9 @@
       <mat-icon>refresh</mat-icon> Actualizar
     </button>
     <button type="button" class="dp-btn" (click)="irAGenerar()"
-            [disabled]="!cedulaEfectiva()">
+            [disabled]="!cedulaEfectiva() || !generacion().puede"
+            [matTooltip]="generacion().motivo"
+            matTooltipClass="tooltip-faltantes">
       <mat-icon>open_in_new</mat-icon> Generar y subir
     </button>
   </header>
@@ -80,8 +82,28 @@
         <span>
           Esta persona no tiene vacante remitida, así que no se sabe a qué empresa va.
           La lista está en el mínimo (cédula, contrato y hoja de vida); asigna la vacante
-          en <strong>Selección → Remisión</strong> para ver el paquete real.
+          para ver el paquete real.
         </span>
+        <button type="button" class="dp-btn dp-btn-ghost dp-aviso-btn" (click)="asignarVacante()">
+          <mat-icon>work</mat-icon> Asignar vacante
+        </button>
+      </div>
+    }
+
+    <!-- ══ LA PUERTA DE LA GENERACIÓN ══
+         Generar los documentos del contrato no depende de este módulo: depende
+         de que "Pago y Transporte" esté GUARDADO y completo, porque el
+         generador arma cada PDF con esos datos (forma de pago, centro de
+         costos, fechas…). Antes el botón llevaba igual y la otra pantalla
+         rechazaba el trabajo sin decir por qué; ahora el motivo y el camino
+         están aquí. -->
+    @if (!generacion().puede && cedulaEfectiva()) {
+      <div class="dp-puerta">
+        <mat-icon>lock</mat-icon>
+        <span class="dp-puerta-txt">{{ generacion().motivo }}</span>
+        <button type="button" class="dp-btn dp-btn-ghost dp-aviso-btn" (click)="irAPagoTransporte()">
+          <mat-icon>payments</mat-icon> Ir a Pago y Transporte
+        </button>
       </div>
     }
 

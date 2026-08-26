@@ -63,24 +63,31 @@ export function tieneValor(v: unknown): boolean {
 /**
  * Avance de un formulario.
  *
- * Cuenta los OBLIGATORIOS habilitados: son los que impiden guardar y los que
- * el usuario necesita ver como pendientes. Si el bloque no tiene ninguno
- * (Referencias, Datos de obra…) mide sobre todos los campos habilitados, para
- * que la barra siga diciendo algo útil en vez de quedarse en 0 o en 100.
+ * Por defecto cuenta los OBLIGATORIOS habilitados: son los que impiden guardar
+ * y los que el usuario necesita ver como pendientes. Si el bloque no tiene
+ * ninguno (Referencias, Datos de obra…) mide sobre todos los campos
+ * habilitados, para que la barra siga diciendo algo útil en vez de quedarse en
+ * 0 o en 100.
  *
- * Los deshabilitados quedan fuera a propósito: no se pueden llenar, así que
- * contarlos como pendientes sería mentirle a quien está capturando.
+ * Con `soloObligatorios: false` mide TODOS los campos habilitados del bloque.
+ * Es lo que pide la ficha del candidato: ahí cada campo del bloque está a la
+ * vista, así que un 100 % con un "—" en pantalla se lee como un error del
+ * contador. Contando todos, el número dice exactamente lo que se ve.
+ *
+ * Los deshabilitados quedan fuera en los dos modos a propósito: no se pueden
+ * llenar, así que contarlos como pendientes sería mentirle a quien captura.
  */
 export function avanceDeForm(
   form: FormGroup | null | undefined,
   campos?: readonly string[],
+  opciones?: { soloObligatorios?: boolean },
 ): Avance {
   if (!form) return AVANCE_VACIO;
   const nombres = campos?.length ? campos : Object.keys(form.controls);
   const vivos = nombres
     .map((n) => form.get(n))
     .filter((c): c is AbstractControl => !!c && c.enabled);
-  const obligatorios = vivos.filter(esObligatorio);
+  const obligatorios = opciones?.soloObligatorios === false ? [] : vivos.filter(esObligatorio);
   const base = obligatorios.length ? obligatorios : vivos;
   const hechos = base.filter((c) => tieneValor(c.value) && c.valid).length;
   return { hechos, total: base.length };

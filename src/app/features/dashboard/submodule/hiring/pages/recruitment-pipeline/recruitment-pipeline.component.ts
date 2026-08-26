@@ -66,6 +66,7 @@ import {
   AvisoDialogComponent,
   AvisoDialogData,
 } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
+import { AccesoCandidatoService } from '../../service/acceso-candidato/acceso-candidato.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
@@ -392,6 +393,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   private pdfSvc = inject(PdfService);
   private registroProceso = inject(RegistroProcesoContratacion);
   private homeService = inject(HomeService);
+  private readonly accesoCandidato = inject(AccesoCandidatoService);
   private electronWindow = inject(ElectronWindowService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
@@ -1659,6 +1661,18 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       }
     });
 
+    // 5.85) La puerta de la generación, al canal compartido: el módulo
+    //       Documentos ofrece "Generar y subir" y hasta ahora llevaba allá
+    //       aunque faltara "Pago y Transporte", que es lo que de verdad
+    //       decide. Con esto el botón se apaga con su motivo, en vez de
+    //       mandar a una pantalla que va a rechazar el trabajo.
+    effect(() => {
+      this.nav.generacion.set({
+        puede: this.puedeGenerarDocumentacion(),
+        motivo: this.tooltipGenerarDocumentacion(),
+      });
+    });
+
     // 5.9) Biometría al servicio compartido: el paso Cédula & Huella la pinta y
     //      la captura, pero quien sabe resolver sus URLs es este componente.
     effect(() => {
@@ -1943,6 +1957,38 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    * la persona. Ahora se manda de verdad con una plantilla publicada, y solo se
    * marca si el proveedor confirma el envío.
    */
+  /**
+   * Le reenvía al candidato el código con el que entra a revisar y actualizar sus datos.
+   *
+   * Confirma antes de disparar: manda un correo de verdad y el backend solo admite tres por
+   * destinatario cada quince minutos, así que un clic accidental gasta uno de los tres.
+   */
+  async reenviarAccesoCandidato(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    const documento = (cand?.numero_documento ?? '').toString().trim();
+    if (!documento) return;
+
+    const confirma = await Swal.fire({
+      title: 'Enviar código de acceso',
+      text: 'Le llegará un código a su correo para que entre a revisar y actualizar sus datos. Vence en 10 minutos.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Enviar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirma.isConfirmed) return;
+
+    try {
+      const r = await this.accesoCandidato.reenviar(documento);
+      await Swal.fire('Código enviado', r.mensaje, 'success');
+    } catch (e: any) {
+      // 422 = el backend sabe por qué no pudo y lo explica; cualquier otro error es de red.
+      const mensaje = e?.error?.mensaje
+        ?? 'No se pudo enviar el código. Intente de nuevo en unos minutos.';
+      await Swal.fire('No se envió', mensaje, 'error');
+    }
+  }
+
   async confirmarCorreoBienvenida(): Promise<void> {
     const cand = this.candidatoSeleccionado();
     if (!cand?.id) return;

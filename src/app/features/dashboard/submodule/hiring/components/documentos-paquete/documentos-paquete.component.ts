@@ -336,6 +336,32 @@ export class DocumentosPaqueteComponent {
    */
   readonly sinVacante = computed(() => !this.vacante());
 
+  /**
+   * ¿Se puede generar la documentación? Lo decide el pipeline (necesita el
+   * proceso y el contrato) y lo publica por `PipelineNavService`.
+   *
+   * Aquí importa porque este módulo es de donde se sale hacia el generador:
+   * ofrecer el botón cuando la pantalla de destino va a rechazar el trabajo es
+   * mandar a alguien a un viaje en balde.
+   */
+  readonly generacion = this.nav.generacion;
+
+  /**
+   * Ir a llenar lo que falta.
+   *
+   * Contratación y Documentos son pestañas del MISMO grupo (`hiring-questions`),
+   * así que basta con mover el sub-paso: el rail se recalcula solo y la pantalla
+   * cambia sin pasar por el pipeline.
+   */
+  irAPagoTransporte(): void {
+    this.nav.subContratacion.set(0);
+  }
+
+  /** Pedir la vacante: el diálogo y la lista viven en `help-information`. */
+  asignarVacante(): void {
+    this.nav.pedirAsignarVacante();
+  }
+
   irAGenerar(): void {
     const cand = this.candidatoSeleccionado();
     const ced = this.cedulaEfectiva();

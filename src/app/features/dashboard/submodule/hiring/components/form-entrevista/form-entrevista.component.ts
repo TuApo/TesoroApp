@@ -1045,10 +1045,17 @@ export class FormEntrevistaComponent implements OnInit {
   }
 
   /**
-   * Avance de cada bloque de la ficha, con LAS MISMAS reglas del formulario de
-   * la vacante: cuentan los obligatorios habilitados, que son justo los que
-   * impiden guardar. Así el 100% de la ficha significa lo mismo que el 100%
-   * del rail, y no dos cosas parecidas.
+   * Avance de cada bloque de la ficha.
+   *
+   * Cuenta TODOS los campos habilitados del bloque, no solo los obligatorios:
+   * la ficha enseña cada uno de ellos, así que un bloque en 100 % con un "—"
+   * en pantalla —el caso del documento, que no es obligatorio en el
+   * formulario— se lee como un contador roto. Aquí el porcentaje responde a
+   * "cuánto de lo que se ve está lleno".
+   *
+   * Ojo: esto NO mueve los railes. El avance de la ficha viaja por
+   * `avanceFicha`, que son los datos de la PERSONA; los pasos del proceso
+   * siguen midiéndose por obligatorios en `publicarAvances`.
    *
    * Los campos de cada bloque salen de `UBICACION`, que ya dice dónde vive
    * cada control —lo usa el aviso de "revise los campos en rojo"—. Escribir
@@ -1062,7 +1069,7 @@ export class FormEntrevistaComponent implements OnInit {
       (campos[bloque] ??= []).push(campo);
     }
     for (const [bloque, lista] of Object.entries(campos)) {
-      porBloque[bloque] = avanceDeForm(this.formVacante, lista);
+      porBloque[bloque] = avanceDeForm(this.formVacante, lista, { soloObligatorios: false });
     }
     this.nav.avanceFicha.set(porBloque);
   }
