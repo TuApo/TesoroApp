@@ -1,7 +1,7 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, computed, effect, inject, input, signal,
 } from '@angular/core';
-import { take } from 'rxjs';
+import { firstValueFrom, take } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -12,6 +12,7 @@ import { PDFDocument } from 'pdf-lib';
 import Swal from 'sweetalert2';
 
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
+import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import {
   ORDEN_PAQUETE_COMPLETO, ORDEN_PAQUETE_FINCA, indiceEnOrden, tituloDeTipo,
@@ -64,6 +65,8 @@ export class EmpalmeDocumentosComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly ventanas = inject(ElectronWindowService);
+  /** `file_url` es una ruta protegida: hay que pedirla con el token. */
+  private readonly archivos = inject(ArchivosBackendService);
 
   readonly cargando = signal(false);
   readonly error = signal<string | null>(null);
@@ -224,7 +227,14 @@ export class EmpalmeDocumentosComponent {
   private blobUrl: string | null = null;
 
   ver(d: DocEmpalme): void {
-    this.abrirVisor(d.url, d.archivo || d.titulo);
+    this.archivos.blob(d.url).pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (b) => {
+        if (this.blobUrl) URL.revokeObjectURL(this.blobUrl);
+        this.blobUrl = URL.createObjectURL(b);
+        this.abrirVisor(this.blobUrl, d.archivo || d.titulo);
+      },
+      error: () => Swal.fire('No se pudo abrir', 'El archivo no está disponible ahora mismo.', 'error'),
+    });
   }
 
   private abrirVisor(url: string, titulo: string): void {
@@ -316,13 +326,12 @@ export class EmpalmeDocumentosComponent {
         });
 
         const bajados = await Promise.allSettled(bloque.map(async (d) => {
-          const res = await fetch(d.url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return {
-            doc: d,
-            tipo: res.headers.get('content-type') || '',
-            buffer: await res.arrayBuffer(),
-          };
+          // `fetch` a pelo no sirve: `file_url` es una ruta protegida
+          // (`/api/v1/documents/…`) y el gateway responde 401 sin token; contra
+          // el origen del front devolvía el index.html, que "unía" HTML.
+          const b = await firstValueFrom(this.archivos.blob(d.url));
+          if (!b || b.size === 0) throw new Error('vacío');
+          return { doc: d, tipo: b.type || '', buffer: await b.arrayBuffer() };
         }));
 
         // Secuencial y en el orden del bloque: `allSettled` conserva el orden

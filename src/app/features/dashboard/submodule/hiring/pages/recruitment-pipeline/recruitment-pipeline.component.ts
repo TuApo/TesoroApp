@@ -67,6 +67,7 @@ import {
   AvisoDialogData,
 } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 import { AccesoCandidatoService } from '../../service/acceso-candidato/acceso-candidato.service';
+import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import jsPDF from 'jspdf';
 import JSZip from 'jszip';
@@ -261,7 +262,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     const doc = this.fotoDoc() as any;
     if (doc) {
       const fromDoc = doc.file_url || doc.file || doc.url || doc.urlfoto || doc.foto;
-      if (fromDoc) return fromDoc;
+      // Misma historia que la biometría: es una ruta protegida, no una imagen.
+      if (fromDoc) return this.archivos.visible(fromDoc);
     }
 
     const fromBio = this.getBioUrl('foto');
@@ -277,7 +279,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       cand?.biometria?.foto?.file_url ||
       cand?.biometria?.foto?.file ||
       null;
-    return fromCand || null;
+    return fromCand ? this.archivos.visible(fromCand) : null;
   });
 
   /**
@@ -394,6 +396,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   private registroProceso = inject(RegistroProcesoContratacion);
   private homeService = inject(HomeService);
   private readonly accesoCandidato = inject(AccesoCandidatoService);
+  /** Las rutas de archivos del backend no se pueden pintar tal cual: ver el servicio. */
+  private readonly archivos = inject(ArchivosBackendService);
   private electronWindow = inject(ElectronWindowService);
   private platformId = inject(PLATFORM_ID);
   private isBrowser = signal(false);
@@ -1683,6 +1687,17 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
         firma: this.bioLocalPub('firma') ?? this.getBioUrlPub('firma'),
         huella: this.bioLocalPub('huella') ?? this.getBioUrlPub('huella'),
       });
+    });
+
+    // 5.94) "Guardé biometría": releerla y soltar la copia local.
+    //       La ruta del archivo no cambia al volver a firmar
+    //       (`…/biometria/file/{cedula}/firma`), así que sin invalidar el blob
+    //       descargado se seguiría pintando la firma anterior.
+    effect(() => {
+      const n = this.nav.pedidoBiometria();
+      if (n === this.pedidoBiometriaAtendido) return;
+      this.pedidoBiometriaAtendido = n;
+      if (n > 0) this.recargarBiometria();
     });
 
     // 5.95) "Ábreme la cámara" desde Cédula & Huella.
@@ -3124,6 +3139,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   }
 
   private pedidoFotoAtendido = 0;
+  private pedidoBiometriaAtendido = 0;
   private pedidoCorreoAtendido = 0;
   private pedidoWhatsappAtendido = 0;
 
@@ -3204,6 +3220,19 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   private recalcHayNoApto(): void {
     const arr = (this.selectedExamsArray.value ?? []) as ExamenResultadoForm[];
     this.hayNoApto.set(Array.isArray(arr) && arr.some(x => this.isNoApto(x?.aptoStatus)));
+  }
+
+  /**
+   * Vuelve a leer la biometría de quien está en pantalla, soltando lo ya
+   * descargado. Lo usan el guardado de firma/huella y el de la foto.
+   */
+  private recargarBiometria(): void {
+    const ced = this.cedulaAtendida;
+    if (!ced) return;
+    for (const tipo of ['firma', 'huella', 'foto']) {
+      this.archivos.invalidar(`/gestion_contratacion/biometria/file/${ced}/${tipo}`);
+    }
+    this.refreshBiometriaForCandidate(ced).catch(() => this.biometria.set(null));
   }
 
   private async refreshBiometriaForCandidate(cedula: string): Promise<void> {
@@ -3318,10 +3347,19 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     return Array.isArray(raw) ? (raw[0] ?? null) : raw;
   }
 
+  /**
+   * URL PINTABLE de una pieza de biometría.
+   *
+   * El backend devuelve una ruta protegida (`/gestion_contratacion/biometria/
+   * file/{cedula}/{tipo}`): puesta cruda en un `<img>` el navegador la pide a
+   * `tesoro.tuapo.co` —que responde el index.html de la app— y con el dominio
+   * de la API delante responde 401, porque un `<img>` no manda el token. Se
+   * descarga con `HttpClient` y se sirve como `blob:`.
+   */
   private getBioUrl(kind: BioKind): string | null {
     const doc = this.getBioDoc(kind);
     if (!doc) return null;
-    return doc.file_url || doc.file || null;
+    return this.archivos.visible(doc.file_url || doc.file || null);
   }
 
   // =========================================================

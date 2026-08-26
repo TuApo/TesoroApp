@@ -139,6 +139,21 @@ export class PipelineNavService {
   }
 
   /**
+   * "Acabo de guardar biometría, vuelve a leerla".
+   *
+   * La firma y la huella se capturan en Cédula & Huella, pero quien lee la
+   * biometría del servidor es el pipeline. Al guardar, el pipeline solo hacía
+   * un refresco silencioso del candidato —que a propósito NO relee la
+   * biometría— así que la tarjeta seguía diciendo "Sin registrar" con la firma
+   * ya guardada, hasta volver a buscar a la persona.
+   */
+  readonly pedidoBiometria = signal<number>(0);
+
+  pedirRefrescoBiometria(): void {
+    this.pedidoBiometria.update((n) => n + 1);
+  }
+
+  /**
    * Comprobar que el correo y el WhatsApp existen de verdad.
    *
    * Los dos flujos —mandar el mensaje de bienvenida y marcar el contacto como

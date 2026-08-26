@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
 
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 
+import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
@@ -104,6 +105,8 @@ export class DocumentosPaqueteComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ventanas = inject(ElectronWindowService);
+  /** `file_url` es una ruta protegida, no una URL pintable. Ver el servicio. */
+  private readonly archivos = inject(ArchivosBackendService);
 
   readonly cargando = signal(false);
   readonly error = signal<string | null>(null);
@@ -379,33 +382,66 @@ export class DocumentosPaqueteComponent {
    */
   ver(item: ItemPaquete): void {
     if (!item.fileUrl) return;
-    this.visorUrl.set(item.fileUrl);
     this.visorTitulo.set(item.nombreArchivo || item.titulo);
-    this.visorSrc.set(this.sanitizer.bypassSecurityTrustResourceUrl(encodeURI(item.fileUrl)));
+    this.visorUrl.set(item.fileUrl);
+    // `file_url` llega como ruta protegida (`/api/v1/documents/…`): en el
+    // iframe hay que meter el archivo ya descargado con el token, o el
+    // navegador pide esa ruta al front y le devuelven el index.html.
+    this.visorSrc.set(null);
+    this.archivos.blob(item.fileUrl).pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (b) => {
+        this.liberarVisor();
+        this.visorBlob = URL.createObjectURL(b);
+        this.visorSrc.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.visorBlob));
+      },
+      error: () => {
+        this.visorTitulo.set('');
+        this.visorUrl.set(null);
+        Swal.fire('No se pudo abrir', 'El archivo no está disponible ahora mismo.', 'error');
+      },
+    });
+  }
+
+  /** URL en memoria del documento que se está viendo. */
+  private visorBlob: string | null = null;
+
+  private liberarVisor(): void {
+    if (this.visorBlob) {
+      URL.revokeObjectURL(this.visorBlob);
+      this.visorBlob = null;
+    }
   }
 
   cerrarVisor(): void {
+    this.liberarVisor();
     this.visorSrc.set(null);
     this.visorUrl.set(null);
     this.visorTitulo.set('');
   }
 
-  /** Descarga el que se está viendo, o uno concreto de la lista. */
+  /**
+   * Descarga el que se está viendo, o uno concreto de la lista.
+   *
+   * Un `<a href>` a la ruta del backend no sirve: sin token baja un 401 y
+   * contra el origen del front baja el index.html de la aplicación. Se pide
+   * con el token y se guarda el archivo de verdad.
+   */
   descargar(item?: ItemPaquete): void {
     const url = item ? item.fileUrl : this.visorUrl();
     if (!url) return;
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = (item?.nombreArchivo || item?.titulo || this.visorTitulo() || 'documento') + '';
-    a.target = '_blank';
-    a.rel = 'noopener';
-    a.click();
+    const nombre = (item?.nombreArchivo || item?.titulo || this.visorTitulo() || 'documento') + '';
+    this.archivos.descargarComo(url, nombre);
   }
 
   /** Abre el documento fuera de la app, para imprimirlo o guardarlo aparte. */
   abrirFuera(item?: ItemPaquete): void {
-    const url = item ? item.fileUrl : this.visorUrl();
-    if (url) this.ventanas.openExternal(url);
+    // Fuera de la app no hay token que valga: se abre la copia local ya
+    // descargada para el visor y, si aún no está, se descarga.
+    if (this.visorBlob && !item) {
+      this.ventanas.openExternal(this.visorBlob);
+      return;
+    }
+    this.descargar(item);
   }
 
   /**

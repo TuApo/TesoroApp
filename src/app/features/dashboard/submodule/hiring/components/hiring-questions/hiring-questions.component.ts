@@ -339,6 +339,9 @@ export class HiringQuestionsComponent implements OnInit {
         this.procesosService.uploadFirma(cedula, file).pipe(take(1)).subscribe({
           next: () => {
             this.alert('success', 'Firma registrada', 'Quedó guardada en el expediente.');
+            // El pipeline es quien lee la biometría: sin este aviso la tarjeta
+            // seguía diciendo "Sin registrar" con la firma ya guardada.
+            this.nav.pedirRefrescoBiometria();
             this.guardado.emit();
           },
           error: (e: any) => this.alert(
@@ -1650,6 +1653,9 @@ export class HiringQuestionsComponent implements OnInit {
           );
           Swal.close();
           setMsg('Huella capturada y guardada.');
+          // Igual que la firma: quien lee la biometría del servidor es el
+          // pipeline, y hay que decirle que cambió.
+          this.nav.pedirRefrescoBiometria();
           this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
         } catch (e) {
           Swal.close();
