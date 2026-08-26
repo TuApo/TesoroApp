@@ -48,6 +48,18 @@ interface PluginNativo {
 }
 
 /**
+ * Especificador del plugin nativo en una constante, no literal en el
+ * `import()`. El paquete es un plugin de Capacitor que SOLO existe dentro del
+ * APK: este repo no tiene proyecto Android (`android/`, `capacitor.config.*`)
+ * y nunca lo declaró en package.json, así que con el literal el bundler y
+ * TypeScript intentaban resolverlo y rompían el build de Electron/web
+ * (TS2307 + "Module not found"). Con la constante + `webpackIgnore` nadie lo
+ * resuelve en build: en Electron/web el `import()` falla en caliente y lo
+ * atrapa el `catch` de abajo — que es justo el caso que ya estaba previsto.
+ */
+const PLUGIN_BIOMETRICO_NATIVO = '@aparajita/capacitor-biometric-auth';
+
+/**
  * Carga el plugin nativo solo en Android/iOS y solo la primera vez. El
  * `import()` dinámico deja el plugin en su propio chunk: la web no lo descarga.
  */
@@ -56,7 +68,7 @@ async function detectarPluginNativo(): Promise<PluginNativo | null> {
   if (plataforma !== 'android' && plataforma !== 'ios') return null;
 
   try {
-    const mod = await import('@aparajita/capacitor-biometric-auth');
+    const mod: any = await import(/* webpackIgnore: true */ PLUGIN_BIOMETRICO_NATIVO);
     const info = await mod.BiometricAuth.checkBiometry();
     if (!info?.isAvailable) return null;
 
@@ -74,7 +86,7 @@ async function detectarPluginNativo(): Promise<PluginNativo | null> {
       }),
     };
   } catch {
-    // Plugin ausente en el APK (build antiguo) o biometría no disponible.
+    // Plugin ausente (Electron/web, o APK antiguo) o biometría no disponible.
     return null;
   }
 }
