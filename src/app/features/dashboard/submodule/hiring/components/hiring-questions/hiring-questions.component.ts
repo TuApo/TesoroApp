@@ -400,9 +400,16 @@ export class HiringQuestionsComponent implements OnInit {
     return !!this.candidatoSeleccionado()?.contacto?.whatsapp_confirmado;
   }
 
+  /**
+   * La cédula con la que actúa este paso.
+   *
+   * Misma resolución que `cedulaDocs()` —el registro primero, el documento con
+   * el que se buscó después—: si el registro trae `numero_documento` vacío,
+   * firmar o subir la cédula respondía "busca primero a la persona" con la
+   * persona en pantalla.
+   */
   private cedulaDe(): string | null {
-    const c = this.candidatoSeleccionado();
-    return c?.numero_documento ? String(c.numero_documento) : null;
+    return this.cedulaDocs() || null;
   }
 
   /**

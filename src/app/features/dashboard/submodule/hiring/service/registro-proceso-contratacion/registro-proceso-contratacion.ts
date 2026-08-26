@@ -804,6 +804,38 @@ export class RegistroProcesoContratacion {
       );
   }
 
+  /**
+   * EL SOBRE DE `?full=1`, ABIERTO.
+   *
+   * `candidatos/by-document/{doc}?full=1` no devuelve al candidato: devuelve un
+   * sobre con él dentro —`{candidato:{…}, contacto:{…}, residencia:{…},
+   * entrevistas:[…]}`— mientras que TODA la aplicación lee los datos de la
+   * persona en la raíz: `numero_documento`, `tipo_doc`, `primer_nombre`… (438
+   * usos solo del primero). El resultado era una persona a medias: la ficha
+   * decía "Sin nombre registrado" y "CC · —", y cada acción con guarda por
+   * cédula —firmar, subir la cédula, la foto, los documentos— respondía "busca
+   * primero a la persona" con la persona en pantalla.
+   *
+   * Se abre aquí, en el único sitio por el que pasan todos: los campos del
+   * candidato suben a la raíz y las relaciones se quedan donde estaban. La
+   * clave `candidato` se conserva por si alguien ya la leía anidada.
+   *
+   * Sin `?full=1` el backend devuelve el candidato plano y esto no toca nada.
+   */
+  private abrirSobreCandidato<T>() {
+    return (source: Observable<T>) =>
+      source.pipe(
+        map((resp: any) => {
+          const dentro = resp?.candidato;
+          // Solo un sobre de verdad: un objeto con los datos de la persona.
+          if (!dentro || typeof dentro !== 'object' || Array.isArray(dentro)) return resp;
+          // La raíz manda sobre el interior: `contacto`, `entrevistas` y demás
+          // relaciones no pueden quedar pisadas por lo que traiga el candidato.
+          return { ...dentro, ...resp } as T;
+        }),
+      );
+  }
+
   // =========================================================
   // CANDIDATOS (incluye tu mapeo/upper original)
   // =========================================================
@@ -872,7 +904,7 @@ export class RegistroProcesoContratacion {
     }
     return this.http
       .get<any>(this.url(`candidatos/${id}`), { params })
-      .pipe(this.handle$());
+      .pipe(this.handle$(), this.abrirSobreCandidato());
   }
 
   //
@@ -893,7 +925,7 @@ export class RegistroProcesoContratacion {
 
     return this.http
       .get<any>(this.url(`candidatos/by-document/${safe}`), { params })
-      .pipe(this.handle$());
+      .pipe(this.handle$(), this.abrirSobreCandidato());
   }
 
   //
@@ -909,7 +941,7 @@ export class RegistroProcesoContratacion {
 
     return this.http
       .get<any>(this.url('candidatos/by-document'), { params })
-      .pipe(this.handle$());
+      .pipe(this.handle$(), this.abrirSobreCandidato());
   }
 
   // Crear (payload ya preparado)
