@@ -38,6 +38,10 @@
       <mat-icon>groups</mat-icon> Agentes
       @if (catalogo()) { <span class="pill">{{ catalogo()!.agentes.length }}</span> }
     </button>
+    <button [class.on]="pestana() === 'misiones'" (click)="pestana.set('misiones')">
+      <mat-icon>event_repeat</mat-icon> Misiones
+      @if (misiones().length) { <span class="pill">{{ misionesActivas() }}</span> }
+    </button>
     <button [class.on]="pestana() === 'historial'" (click)="pestana.set('historial')">
       <mat-icon>history</mat-icon> Historial
     </button>
@@ -405,12 +409,26 @@
         <button class="chip-cat" [class.on]="categoriaFiltro() === ''" (click)="categoriaFiltro.set('')">
           Todas
         </button>
+        <!-- Acción / evento es la distinción que decide para qué sirve cada agente:
+             uno se le encarga algo, el otro cuelga de un disparador. -->
+        <button class="chip-cat" [class.on]="categoriaFiltro() === '@propios'" (click)="categoriaFiltro.set('@propios')">
+          Míos <span>{{ totalPropios() }}</span>
+        </button>
+        <button class="chip-cat" [class.on]="categoriaFiltro() === '@accion'" (click)="categoriaFiltro.set('@accion')">
+          De acción
+        </button>
+        <button class="chip-cat" [class.on]="categoriaFiltro() === '@evento'" (click)="categoriaFiltro.set('@evento')">
+          De evento
+        </button>
         @for (c of catalogo()?.categorias || []; track c.clave) {
           <button class="chip-cat" [class.on]="categoriaFiltro() === c.clave" (click)="categoriaFiltro.set(c.clave)">
             {{ c.nombre }} <span>{{ c.total }}</span>
           </button>
         }
       </div>
+      <button mat-flat-button color="primary" class="cat-nuevo" (click)="nuevoAgente()">
+        <mat-icon>add</mat-icon> Nuevo agente
+      </button>
     </div>
 
     <div class="cat-grid">
@@ -419,7 +437,11 @@
           <div class="ta-cab">
             <mat-icon>smart_toy</mat-icon>
             <div>
-              <h3>{{ a.nombre }}</h3>
+              <h3>
+                {{ a.nombre }}
+                @if (a.propio) { <span class="ta-marca propio">mío</span> }
+                @if (a.modo === 'evento') { <span class="ta-marca evento">evento</span> }
+              </h3>
               <span class="ta-cat">{{ a.categoriaNombre }} · {{ a.tipo }}</span>
             </div>
           </div>
@@ -431,9 +453,14 @@
           }
           <div class="ta-pie">
             <span class="ta-lineas">{{ a.personaLineas }} líneas de instrucciones</span>
-            <button mat-stroked-button color="primary" (click)="encargarleA(a)">
-              <mat-icon>play_arrow</mat-icon> Encargarle algo
-            </button>
+            <span class="ta-acciones">
+              <button mat-icon-button matTooltip="Ver de qué está hecho" (click)="verFicha(a)">
+                <mat-icon>visibility</mat-icon>
+              </button>
+              <button mat-stroked-button color="primary" (click)="encargarleA(a)">
+                <mat-icon>play_arrow</mat-icon> Encargarle algo
+              </button>
+            </span>
           </div>
         </mat-card>
       }
@@ -441,6 +468,60 @@
         <p class="vacio">Ningún agente coincide con la búsqueda.</p>
       }
     </div>
+  }
+
+  <!-- ── MISIONES ──────────────────────────────────────────────────────────── -->
+  @if (pestana() === 'misiones') {
+    <mat-card class="bloque">
+      <div class="bloque-cab">
+        <h2><mat-icon>event_repeat</mat-icon> Misiones programadas</h2>
+        <span class="fc-espaciador"></span>
+        <button mat-flat-button color="primary" (click)="nuevaMision()">
+          <mat-icon>add</mat-icon> Nueva misión
+        </button>
+      </div>
+      <p class="pie-nota" style="margin-top:0">
+        Encargos que se lanzan solos: cada cierto tiempo, a una hora fija, por expresión
+        cron o una sola vez. Si la anterior sigue trabajando, la misión se salta el turno
+        en vez de apilar.
+      </p>
+
+      @if (!misiones().length) {
+        <p class="vacio">Todavía no hay ninguna misión.</p>
+      }
+
+      @for (m of misiones(); track m.id) {
+        <div class="fila-mision" [class.apagada]="!m.activo">
+          <div class="fm-izq">
+            <span class="fm-nom">{{ m.nombre }}</span>
+            <span class="fm-obj">{{ m.objetivo }}</span>
+            <span class="fm-meta">
+              {{ describirDisparo(m.disparo) }}
+              · {{ m.agentes.join(', ') || 'sin agente' }}
+              · {{ m.repo }}
+              @if (m.metas.length) { · {{ m.metas.length }} meta(s) }
+            </span>
+          </div>
+          <div class="fm-der">
+            @if (m.activo && m.proxima) {
+              <span class="fm-prox">{{ m.proxima | date:'dd/MM HH:mm' }}</span>
+            }
+            <button mat-icon-button [matTooltip]="m.activo ? 'Pausar' : 'Activar'" (click)="alternarMision(m)">
+              <mat-icon>{{ m.activo ? 'pause' : 'play_arrow' }}</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Lanzarla ahora" (click)="lanzarMisionYa(m)">
+              <mat-icon>bolt</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Editar" (click)="editarMision(m)">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button mat-icon-button matTooltip="Borrar" (click)="borrarMision(m)">
+              <mat-icon>delete_outline</mat-icon>
+            </button>
+          </div>
+        </div>
+      }
+    </mat-card>
   }
 
   <!-- ── HISTORIAL ─────────────────────────────────────────────────────────── -->

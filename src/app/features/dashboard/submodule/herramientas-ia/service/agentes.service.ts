@@ -25,6 +25,11 @@ export interface AgenteCatalogo {
   personaResumen: string;
   personaLineas: number;
   fichero: string;
+  /** acción = se le encarga algo puntual · evento = cuelga de un disparador. */
+  modo?: 'accion' | 'evento';
+  /** true si lo creó alguien desde el panel: solo esos se pueden editar y borrar. */
+  propio?: boolean;
+  autor?: string | null;
 }
 
 export interface CategoriaCatalogo { clave: string; nombre: string; total: number; }
@@ -118,6 +123,56 @@ export interface EventoBitacora {
   herramientas?: number;
 }
 
+/** Un fichero que acompaña a un agente o a un encargo. */
+export interface Adjunto {
+  nombre: string;
+  bytes: number;
+  subido?: number;
+}
+
+/** Ficha completa: el agente con su persona, su `.md` crudo y sus ficheros. */
+export interface AgenteFicha extends AgenteCatalogo {
+  persona: string;
+  crudo: string | null;
+  editable: boolean;
+  adjuntos: Adjunto[];
+}
+
+/**
+ * Cómo se dispara una misión.
+ *  - recurrente: cada N minutos
+ *  - diario:     a una hora, opcionalmente solo ciertos días (0=domingo)
+ *  - cron:       expresión de 5 campos
+ *  - unaVez:     una fecha y hora concretas
+ */
+export interface DisparoMision {
+  tipo: 'recurrente' | 'diario' | 'cron' | 'unaVez';
+  cadaMinutos?: number;
+  hora?: string;
+  dias?: number[];
+  cron?: string;
+  cuando?: number;
+}
+
+export interface Mision {
+  id: string;
+  nombre: string;
+  objetivo: string;
+  metas: string[];
+  agentes: string[];
+  repo: string;
+  modo: 'paralelo' | 'secuencial';
+  disparo: DisparoMision;
+  prioridad: number;
+  permiso: string;
+  minutos: number;
+  activo: boolean;
+  ultimaEjecucion: number;
+  ultimaTareaId: string | null;
+  proxima: number | null;
+  faltanMs: number | null;
+}
+
 export interface Vigilante {
   id: string;
   nombre: string;
@@ -178,6 +233,46 @@ export class AgentesService {
 
   estado(): Observable<EstadoAgentes> {
     return this.http.get<EstadoAgentes>(`${this.base}/estado`);
+  }
+
+  // ── Creador de agentes ────────────────────────────────────────────────────
+  fichaAgente(clave: string): Observable<AgenteFicha> {
+    return this.http.get<AgenteFicha>(`${this.base}/catalogo/${clave}`);
+  }
+  crearAgente(datos: Partial<AgenteFicha> & { clave: string; persona: string }): Observable<AgenteFicha> {
+    return this.http.post<AgenteFicha>(`${this.base}/catalogo`, datos);
+  }
+  editarAgente(clave: string, cambios: Partial<AgenteFicha>): Observable<AgenteFicha> {
+    return this.http.put<AgenteFicha>(`${this.base}/catalogo/${clave}`, cambios);
+  }
+  borrarAgente(clave: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/catalogo/${clave}`);
+  }
+  duplicarAgente(clave: string, datos: { clave?: string; nombre?: string }): Observable<AgenteFicha> {
+    return this.http.post<AgenteFicha>(`${this.base}/catalogo/${clave}/duplicar`, datos);
+  }
+  subirAdjuntoAgente(clave: string, nombre: string, contenidoBase64: string): Observable<Adjunto> {
+    return this.http.post<Adjunto>(`${this.base}/catalogo/${clave}/adjuntos`, { nombre, contenidoBase64 });
+  }
+  borrarAdjuntoAgente(clave: string, nombre: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/catalogo/${clave}/adjuntos/${encodeURIComponent(nombre)}`);
+  }
+
+  // ── Misiones ──────────────────────────────────────────────────────────────
+  misiones(): Observable<Mision[]> {
+    return this.http.get<Mision[]>(`${this.base}/misiones`);
+  }
+  crearMision(m: Partial<Mision>): Observable<Mision> {
+    return this.http.post<Mision>(`${this.base}/misiones`, m);
+  }
+  editarMision(id: string, cambios: Partial<Mision>): Observable<Mision> {
+    return this.http.put<Mision>(`${this.base}/misiones/${id}`, cambios);
+  }
+  borrarMision(id: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/misiones/${id}`);
+  }
+  lanzarMision(id: string): Observable<Tarea> {
+    return this.http.post<Tarea>(`${this.base}/misiones/${id}/lanzar`, {});
   }
 
   catalogo(): Observable<Catalogo> {
