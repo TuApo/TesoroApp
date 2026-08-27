@@ -31,6 +31,20 @@ type Pestana = 'panel' | 'nuevo' | 'agentes' | 'misiones' | 'historial';
 const MS_REFRESCO_PANEL = 3000;
 const MS_REFRESCO_CONSOLA = 2000;
 
+/**
+ * Los diálogos de SweetAlert se arman con HTML en crudo, fuera de la sanitización de
+ * Angular. Todo lo que venga de fuera (una URL de OAuth con sus parámetros, un correo
+ * tecleado a mano) pasa por aquí antes de entrar en la cadena.
+ */
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 @Component({
   selector: 'app-agentes-desarrollo',
   standalone: true,
@@ -930,14 +944,26 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const seguro = url.replace(/"/g, '&quot;');
+    // El enlace se da para COPIAR, no solo para abrir: cada cuenta del pool suele
+    // vivir en otro navegador o en otro perfil de Chrome, y "Abrir" lo lanzaría en
+    // esta misma ventana, que es justo la sesión equivocada.
+    const seguro = escaparHtml(url);
     const datos = await Swal.fire<string>({
       title: `Iniciar sesión en «${c.nombre}»`,
       html:
-        '<p style="text-align:left;margin:0 0 10px">Abre este enlace, entra con la cuenta de <b>' +
-        `${c.titular || 'su titular'}</b> y copia el código que te dé:</p>` +
-        `<a href="${seguro}" target="_blank" rel="noopener" class="swal2-confirm swal2-styled" ` +
-        'style="display:block;margin:0 0 12px;text-decoration:none">Abrir la página de Claude</a>' +
+        '<p style="text-align:left;margin:0 0 10px">Copia este enlace y ábrelo donde tengas la sesión de <b>' +
+        `${escaparHtml(c.titular || 'su titular')}</b> —otro navegador, otro perfil o el móvil—. Autoriza allí y ` +
+        'trae de vuelta el código:</p>' +
+        '<div style="display:flex;gap:6px;align-items:stretch;margin:0 0 8px">' +
+        `<input id="ag-url" readonly value="${seguro}" ` +
+        'style="flex:1;min-width:0;font-size:.78rem;padding:9px 10px;border:1px solid #d9dde3;' +
+        'border-radius:8px;background:#f8fafc;color:#334155;font-family:ui-monospace,monospace">' +
+        '<button type="button" id="ag-copiar" class="swal2-styled" ' +
+        'style="margin:0;background:#6d28d9;font-size:.85rem;padding:9px 16px;white-space:nowrap">Copiar</button>' +
+        '</div>' +
+        `<a href="${seguro}" target="_blank" rel="noopener" ` +
+        'style="display:inline-block;margin:0 0 14px;font-size:.82rem;color:#6d28d9">' +
+        'Abrirlo aquí mismo (solo si esta ventana ya es la de esa cuenta)</a>' +
         '<input id="ag-codigo" class="swal2-input" style="margin:0" autocomplete="off" ' +
         'placeholder="Pega aquí el código">' +
         '<p style="text-align:left;margin:10px 0 0;font-size:.82rem;color:#64748b">El enlace caduca en 10 minutos. ' +
@@ -948,6 +974,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       cancelButtonText: 'Cancelar',
       focusConfirm: false,
       allowOutsideClick: false,
+      didOpen: () => this.cablearCopiaDeEnlace(url),
       preConfirm: () => {
         const v = (document.getElementById('ag-codigo') as HTMLInputElement)?.value?.trim() ?? '';
         if (!v) { Swal.showValidationMessage('Falta el código.'); return undefined; }
@@ -968,6 +995,41 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
         Swal.fire('Sesión iniciada', `«${c.nombre}» ya puede coger trabajo.`, 'success');
       },
       error: (e) => this.avisarError(e),
+    });
+  }
+
+  /**
+   * Botón «Copiar» del enlace de autorización. Va aquí y no en la plantilla porque el
+   * diálogo lo pinta SweetAlert como HTML suelto, fuera del alcance de Angular.
+   *
+   * Tres intentos, de mejor a peor: la API del portapapeles (necesita contexto seguro),
+   * el execCommand de toda la vida, y dejar el texto seleccionado para que la persona
+   * haga Ctrl+C. En los tres casos el botón dice qué pasó.
+   */
+  private cablearCopiaDeEnlace(url: string): void {
+    const boton = document.getElementById('ag-copiar') as HTMLButtonElement | null;
+    const campo = document.getElementById('ag-url') as HTMLInputElement | null;
+    if (!boton || !campo) return;
+
+    campo.addEventListener('focus', () => campo.select());
+
+    boton.addEventListener('click', async () => {
+      let copiado = false;
+      try {
+        await navigator.clipboard.writeText(url);
+        copiado = true;
+      } catch {
+        campo.focus();
+        campo.select();
+        try { copiado = document.execCommand('copy'); } catch { copiado = false; }
+      }
+      if (!copiado) { campo.focus(); campo.select(); }
+      boton.textContent = copiado ? '¡Copiado!' : 'Pulsa Ctrl+C';
+      boton.style.background = copiado ? '#059669' : '#d97706';
+      setTimeout(() => {
+        boton.textContent = 'Copiar';
+        boton.style.background = '#6d28d9';
+      }, 2500);
     });
   }
 
