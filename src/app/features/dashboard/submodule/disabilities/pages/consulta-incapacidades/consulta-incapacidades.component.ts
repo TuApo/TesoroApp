@@ -51,6 +51,7 @@ import {
   OrdenListado,
 } from '../../services/incapacidad-v2/incapacidad-v2.service';
 import { aIsoCorto, parsearFechaFlexible } from '../../utils/fechas';
+import { codigoSinGuion } from '../../utils/codigos';
 import {
   OpcionSelect,
   SelectBuscadorComponent,
@@ -1223,7 +1224,8 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
       id: r.id,
       // V47: el codigo visible de cartera ({AP|TA}{SEDE}{n}, ej. TASB018) manda; las
       // historicas sin codigo caen al codigoUnico tecnico (cedula_fecha).
-      consecutivoSistema: textoOVacio(r.codigoConsecutivo ?? r.consecutivoSistema ?? r.codigoUnico),
+      // Reunion 2026-08-26: el codigo tecnico se muestra SIN guion bajo.
+      consecutivoSistema: textoOVacio(codigoSinGuion(r.codigoConsecutivo ?? r.consecutivoSistema ?? r.codigoUnico)),
       cedula: textoOVacio(r.cedula),
       nombreCompleto: textoOVacio(r.nombreCompleto),
       empresa: textoOVacio(r.empresa),

@@ -107,6 +107,7 @@ import {
   diasCalendarioInclusive,
   parsearFechaFlexible,
 } from '../../utils/fechas';
+import { codigoSinGuion } from '../../utils/codigos';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Constantes de presentacion (solo UI: nada de reglas de negocio)
@@ -254,6 +255,17 @@ function normalizar(texto: string): string {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
+    .trim();
+}
+
+/**
+ * El nombre de la EPS sin sufijos juridicos (EPS, ESS, SAS, LTDA): "salud total eps" y
+ * "salud total" comparten nucleo. Espejo del `nucleo()` de RadicacionNombresService (ms-hr).
+ */
+function nucleoEps(nombre: string): string {
+  return normalizar(nombre)
+    .replace(/\b(eps[- ]?s|eps|ess|s\.?a\.?s?|ltda)\b/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -1030,12 +1042,25 @@ export class RegistroIncapacidadComponent implements OnDestroy {
    * de la lista (ignorando tildes y mayusculas); si no, el valor tal cual.
    * Sin esto, un "Nueva Eps" de contratacion no casaria con la opcion
    * "NUEVA EPS" del `mat-select` y el campo se veria vacio.
+   *
+   * Reunion 2026-08-26: ademas casa por NUCLEO sin sufijos juridicos (espejo
+   * de `RadicacionNombresService.matrizDe` en ms-hr), solo si es inequivoco.
+   * Sin esto, el "SALUD TOTAL" que trae contratacion no casaba con la opcion
+   * "SALUD TOTAL EPS" de la matriz, se guardaba tal cual y el ZIP de cartera
+   * terminaba con DOS carpetas de la misma EPS.
    */
+  /** Para el banner de exito: el codigo tecnico se muestra sin guion bajo (2026-08-26). */
+  protected readonly sinGuion = codigoSinGuion;
+
   private canonizarEps(valor: string | null | undefined): string {
     const limpio = (valor ?? '').trim();
     if (!limpio) return '';
     const hallada = this.listaEps().find((e) => normalizar(e) === normalizar(limpio));
-    return hallada ?? limpio;
+    if (hallada) return hallada;
+    const objetivo = nucleoEps(limpio);
+    if (!objetivo) return limpio;
+    const candidatas = this.listaEps().filter((e) => nucleoEps(e) === objetivo);
+    return candidatas.length === 1 ? candidatas[0] : limpio;
   }
 
   /** Al elegir la EPS de afiliacion, siembra la EPS de la incapacidad si esta vacia. */

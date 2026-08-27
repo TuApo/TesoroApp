@@ -16,6 +16,7 @@
 
 import { EstadoDocumento, EstadoIncapacidad, ResponsablePago, TipoIncapacidad } from '../../models/incapacidad-v2.model';
 import { parsearFechaFlexible } from '../../utils/fechas';
+import { codigoSinGuion } from '../../utils/codigos';
 import { IncapacidadResumenExtendido, humanizarCodigo } from './consulta-incapacidades.model';
 
 /** Resolutores de etiqueta (vienen del catalogo del backend). */
@@ -143,8 +144,10 @@ export const COLUMNAS_EXPORTABLES: readonly ColumnaExportable[] = [
     etiqueta: 'Codigo unico',
     enTabla: true,
     enConsolidado: true,
-    // V47: manda el codigo visible de cartera (TASB018); historicas caen al tecnico.
-    obtener: (f) => texto(f.codigoConsecutivo ?? f.consecutivoSistema ?? f.codigoUnico),
+    // V47: manda el codigo visible de cartera (TASB018); historicas caen al tecnico,
+    // que desde la reunion 2026-08-26 sale SIN guion bajo (igual que el consolidado
+    // del servidor: ExportJobService.sinGuionBajo).
+    obtener: (f) => texto(codigoSinGuion(f.codigoConsecutivo ?? f.consecutivoSistema ?? f.codigoUnico)),
   },
   {
     clave: 'codigoSede',
