@@ -157,6 +157,10 @@
           <div class="bloque-cab">
             <h2><mat-icon>badge</mat-icon> Pool de cuentas</h2>
             <span class="cuenta-pill">{{ cuentas().length }}</span>
+            <span class="fc-espaciador"></span>
+            <button mat-stroked-button color="primary" (click)="nuevaCuenta()">
+              <mat-icon>add</mat-icon> Nueva ranura
+            </button>
           </div>
 
           @for (c of cuentas(); track c.id) {
@@ -191,7 +195,15 @@
                           (click)="alternarPausaCuenta(c)">
                     <mat-icon>{{ c.pausada ? 'play_arrow' : 'pause' }}</mat-icon>
                   </button>
+                  <button mat-icon-button matTooltip="Cerrar la sesión de esta ranura"
+                          (click)="cerrarSesionCuenta(c)">
+                    <mat-icon>logout</mat-icon>
+                  </button>
                 }
+                <button mat-icon-button matTooltip="Quitar esta ranura del pool"
+                        [disabled]="c.enCurso > 0" (click)="borrarCuenta(c)">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
               </div>
             </div>
           }

@@ -195,6 +195,25 @@ export class AgentesService {
   despertarCuenta(id: string): Observable<unknown> {
     return this.http.post(`${this.base}/cuentas/${id}/despertar`, {});
   }
+  crearCuenta(datos: { id: string; nombre: string; titular: string }): Observable<Cuenta> {
+    return this.http.post<Cuenta>(`${this.base}/cuentas`, datos);
+  }
+  borrarCuenta(id: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/cuentas/${id}`);
+  }
+  /**
+   * Deja la ranura autenticada con una credencial YA emitida (API key de Anthropic o
+   * el token largo de `claude setup-token`). El OAuth de `claude auth login` abre una
+   * página en un navegador y no tiene modo headless: eso sigue siendo del servidor.
+   *
+   * El valor no vuelve nunca: la respuesta solo dice de qué tipo es.
+   */
+  guardarCredencial(id: string, tipo: 'apikey' | 'token', valor: string): Observable<unknown> {
+    return this.http.post(`${this.base}/cuentas/${id}/credencial`, { tipo, valor });
+  }
+  olvidarCredencial(id: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/cuentas/${id}/credencial`);
+  }
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   tareas(opts: { estado?: string; origen?: string; limite?: number } = {}): Observable<Tarea[]> {

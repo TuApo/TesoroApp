@@ -332,16 +332,146 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     });
   }
 
-  comoIniciarSesion(c: Cuenta): void {
-    Swal.fire({
-      title: `Iniciar sesión en «${c.nombre}»`,
+  /**
+   * Dos caminos para dejar una ranura autenticada, porque solo uno cabe en una web:
+   *
+   *  - Pegar una credencial YA emitida (API key de Anthropic o el token largo de
+   *    `claude setup-token`). Funciona desde aquí.
+   *  - El OAuth de `claude auth login`, que abre una página en un navegador y no tiene
+   *    modo headless: eso hay que hacerlo desde el servidor.
+   */
+  async comoIniciarSesion(c: Cuenta): Promise<void> {
+    const elegir = await Swal.fire({
+      title: `Dar acceso a «${c.nombre}»`,
       html:
-        '<p style="text-align:left;margin:0 0 8px">Es un flujo OAuth interactivo: hay que hacerlo desde el servidor, ' +
-        'con la cuenta de su titular.</p>' +
-        `<pre style="text-align:left;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;overflow:auto"># en el host\nagentes-cuenta login ${c.id}\nsudo systemctl restart tuapo-agentes</pre>` +
-        '<p style="text-align:left;margin:8px 0 0;font-size:.85rem;color:#64748b">Una ranura = el asiento de una persona real que autoriza su uso desatendido.</p>',
-      icon: 'info',
+        '<p style="text-align:left;margin:0 0 10px">Puedes pegar una clave ya emitida —una API key de Anthropic ' +
+        'o el token de <code>claude setup-token</code>— y queda lista al momento.</p>' +
+        '<p style="text-align:left;margin:0;font-size:.85rem;color:#64748b">Iniciar sesión con la cuenta de Claude ' +
+        'es un OAuth que abre el navegador: eso solo se puede hacer desde el servidor.</p>',
+      icon: 'question',
       width: 620,
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: 'Pegar una clave',
+      denyButtonText: 'Ver el comando del servidor',
+      cancelButtonText: 'Cancelar',
+    });
+
+    if (elegir.isDenied) {
+      Swal.fire({
+        title: `Iniciar sesión en «${c.nombre}»`,
+        html:
+          '<p style="text-align:left;margin:0 0 8px">Desde el host, con la cuenta de su titular:</p>' +
+          `<pre style="text-align:left;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;overflow:auto"># en el host\nagentes-cuenta login ${c.id}\nsudo systemctl restart tuapo-agentes</pre>` +
+          '<p style="text-align:left;margin:8px 0 0;font-size:.85rem;color:#64748b">Una ranura = el asiento de una persona real que autoriza su uso desatendido.</p>',
+        icon: 'info',
+        width: 620,
+      });
+      return;
+    }
+    if (!elegir.isConfirmed) return;
+
+    const datos = await Swal.fire<{ tipo: 'apikey' | 'token'; valor: string }>({
+      title: `Clave de «${c.nombre}»`,
+      html:
+        '<select id="ag-tipo" class="swal2-select" style="display:block;width:100%;margin:0 0 10px">' +
+        '<option value="apikey">API key de Anthropic (sk-ant-…)</option>' +
+        '<option value="token">Token largo de claude setup-token</option>' +
+        '</select>' +
+        '<input id="ag-valor" type="password" autocomplete="off" class="swal2-input" ' +
+        'style="margin:0" placeholder="Pega aquí la clave">' +
+        '<p style="text-align:left;margin:10px 0 0;font-size:.82rem;color:#64748b">Se guarda en el servidor con ' +
+        'permisos 0600 y no vuelve a mostrarse en ningún sitio.</p>',
+      width: 620,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const tipo = (document.getElementById('ag-tipo') as HTMLSelectElement)?.value as 'apikey' | 'token';
+        const valor = (document.getElementById('ag-valor') as HTMLInputElement)?.value?.trim() ?? '';
+        if (valor.length < 20) {
+          Swal.showValidationMessage('La clave parece incompleta.');
+          return undefined;
+        }
+        return { tipo, valor };
+      },
+    });
+
+    if (!datos.isConfirmed || !datos.value) return;
+    this.svc.guardarCredencial(c.id, datos.value.tipo, datos.value.valor).subscribe({
+      next: () => {
+        this.refrescar();
+        Swal.fire('Listo', `«${c.nombre}» ya puede coger trabajo.`, 'success');
+      },
+      error: (e) => this.avisarError(e),
+    });
+  }
+
+  /** Alta de una ranura nueva. El titular es obligatorio: la ranura es el asiento de alguien. */
+  async nuevaCuenta(): Promise<void> {
+    const datos = await Swal.fire<{ id: string; nombre: string; titular: string }>({
+      title: 'Nueva ranura del pool',
+      html:
+        '<input id="ag-id" class="swal2-input" style="margin:0 0 8px" placeholder="Identificador (p. ej. cuenta-4)">' +
+        '<input id="ag-nombre" class="swal2-input" style="margin:0 0 8px" placeholder="Nombre visible">' +
+        '<input id="ag-titular" class="swal2-input" style="margin:0" placeholder="Titular (correo de la persona)">' +
+        '<p style="text-align:left;margin:10px 0 0;font-size:.82rem;color:#64748b">Cada ranura es el asiento de una ' +
+        'persona real que autoriza su uso desatendido.</p>',
+      width: 620,
+      showCancelButton: true,
+      confirmButtonText: 'Crear',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      preConfirm: () => {
+        const id = (document.getElementById('ag-id') as HTMLInputElement)?.value?.trim() ?? '';
+        const nombre = (document.getElementById('ag-nombre') as HTMLInputElement)?.value?.trim() ?? '';
+        const titular = (document.getElementById('ag-titular') as HTMLInputElement)?.value?.trim() ?? '';
+        if (!id) { Swal.showValidationMessage('Falta el identificador.'); return undefined; }
+        if (!titular) { Swal.showValidationMessage('Falta el titular: sin dueño la ranura no debe existir.'); return undefined; }
+        return { id, nombre: nombre || id, titular };
+      },
+    });
+
+    if (!datos.isConfirmed || !datos.value) return;
+    this.svc.crearCuenta(datos.value).subscribe({
+      next: () => this.refrescar(),
+      error: (e) => this.avisarError(e),
+    });
+  }
+
+  async borrarCuenta(c: Cuenta): Promise<void> {
+    const ok = await Swal.fire({
+      title: `¿Quitar «${c.nombre}» del pool?`,
+      html:
+        '<p style="text-align:left;margin:0">Deja de repartírsele trabajo. El perfil en el servidor ' +
+        '<b>no</b> se borra, así que su titular no pierde la sesión.</p>',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!ok.isConfirmed) return;
+    this.svc.borrarCuenta(c.id).subscribe({
+      next: () => this.refrescar(),
+      error: (e) => this.avisarError(e),
+    });
+  }
+
+  async cerrarSesionCuenta(c: Cuenta): Promise<void> {
+    const ok = await Swal.fire({
+      title: `¿Cerrar la sesión de «${c.nombre}»?`,
+      text: 'La ranura seguirá en el pool, pero dejará de coger trabajo hasta que vuelvas a darle acceso.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Cerrar sesión',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!ok.isConfirmed) return;
+    this.svc.olvidarCredencial(c.id).subscribe({
+      next: () => this.refrescar(),
+      error: (e) => this.avisarError(e),
     });
   }
 
