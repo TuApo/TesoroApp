@@ -166,8 +166,17 @@
           @for (c of cuentas(); track c.id) {
             <div class="fila-cuenta" [attr.data-e]="c.estado">
               <div class="fc-izq">
-                <span class="fc-nom">{{ c.nombre }}</span>
-                <span class="fc-tit">{{ c.titular || 'sin titular asignado' }}</span>
+                <span class="fc-nom">
+                  {{ c.nombre }}
+                  @if (c.suscripcion) {
+                    <span class="fc-plan">{{ c.suscripcion }}</span>
+                  }
+                </span>
+                <!-- Con sesión iniciada se muestra la cuenta REAL que devuelve el CLI;
+                     mientras no la haya, lo que se anotó a mano como titular. -->
+                <span class="fc-tit" [matTooltip]="c.organizacion || ''">
+                  {{ c.cuenta || c.titular || 'sin titular asignado' }}
+                </span>
               </div>
               <div class="fc-med">
                 <span class="badge-cuenta" [attr.data-e]="c.estado">{{ etiquetaCuenta(c.estado) }}</span>

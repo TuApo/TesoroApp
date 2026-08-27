@@ -36,6 +36,9 @@ export interface Cuenta {
   id: string;
   nombre: string;
   titular: string | null;
+  /** Cuenta realmente autenticada, según el propio CLI. El titular se teclea; esto no. */
+  cuenta?: string | null;
+  organizacion?: string | null;
   notas: string | null;
   tipo: 'sesion' | 'apikey';
   suscripcion: string | null;
