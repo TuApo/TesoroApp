@@ -35,6 +35,7 @@ import {
 } from '../../../../models/incapacidad-v2.model';
 import { IncapacidadV2Service } from '../../../../services/incapacidad-v2/incapacidad-v2.service';
 import { calcularEdad, parsearFechaFlexible } from '../../../../utils/fechas';
+import { codigoSinGuion } from '../../../../utils/codigos';
 import {
   CATALOGOS_RESPALDO,
   COLOR_ESTADO,
@@ -160,13 +161,16 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
   readonly consecutivo = computed(() => {
     const d = this.detalle();
     // V47: manda el codigo visible de cartera (TASB018); lo demas es respaldo.
+    // El codigo tecnico se muestra SIN guion bajo (reunion 2026-08-26).
     return (
-      d?.codigoConsecutivo ||
-      this.datos.resumen?.codigoConsecutivo ||
-      d?.codigoUnico ||
-      this.datos.resumen?.codigoUnico ||
-      this.datos.resumen?.consecutivoSistema ||
-      `#${this.datos.id}`
+      codigoSinGuion(
+        d?.codigoConsecutivo ||
+          this.datos.resumen?.codigoConsecutivo ||
+          d?.codigoUnico ||
+          this.datos.resumen?.codigoUnico ||
+          this.datos.resumen?.consecutivoSistema ||
+          '',
+      ) || `#${this.datos.id}`
     );
   });
 
