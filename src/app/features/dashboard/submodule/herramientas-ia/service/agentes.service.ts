@@ -214,6 +214,17 @@ export class AgentesService {
   olvidarCredencial(id: string): Observable<unknown> {
     return this.http.delete(`${this.base}/cuentas/${id}/credencial`);
   }
+  /** Paso 1: devuelve la URL de autorización para abrirla en el navegador. */
+  iniciarLogin(id: string): Observable<{ url: string; caducaEn: number }> {
+    return this.http.post<{ url: string; caducaEn: number }>(`${this.base}/cuentas/${id}/login`, {});
+  }
+  /** Paso 2: el código que devuelve esa página. De un solo uso. */
+  completarLogin(id: string, codigo: string): Observable<unknown> {
+    return this.http.post(`${this.base}/cuentas/${id}/login/codigo`, { codigo });
+  }
+  cancelarLogin(id: string): Observable<unknown> {
+    return this.http.delete(`${this.base}/cuentas/${id}/login`);
+  }
 
   // ── Tareas ────────────────────────────────────────────────────────────────
   tareas(opts: { estado?: string; origen?: string; limite?: number } = {}): Observable<Tarea[]> {

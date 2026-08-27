@@ -2,6 +2,7 @@ import {
   Component, ChangeDetectionStrategy, OnInit, OnDestroy, signal, computed, inject, PLATFORM_ID,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 import { MatCardModule } from '@angular/material/card';
@@ -344,32 +345,21 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     const elegir = await Swal.fire({
       title: `Dar acceso a «${c.nombre}»`,
       html:
-        '<p style="text-align:left;margin:0 0 10px">Puedes pegar una clave ya emitida —una API key de Anthropic ' +
-        'o el token de <code>claude setup-token</code>— y queda lista al momento.</p>' +
-        '<p style="text-align:left;margin:0;font-size:.85rem;color:#64748b">Iniciar sesión con la cuenta de Claude ' +
-        'es un OAuth que abre el navegador: eso solo se puede hacer desde el servidor.</p>',
+        '<p style="text-align:left;margin:0 0 10px">Lo normal es <b>iniciar sesión con Claude</b>: te damos el enlace, ' +
+        'autorizas en tu navegador y pegas aquí el código. La sesión queda en el servidor, a nombre de su titular.</p>' +
+        '<p style="text-align:left;margin:0;font-size:.85rem;color:#64748b">La otra vía es pegar una clave ya emitida ' +
+        '—una API key de Anthropic o el token de <code>claude setup-token</code>—.</p>',
       icon: 'question',
       width: 620,
       showCancelButton: true,
       showDenyButton: true,
-      confirmButtonText: 'Pegar una clave',
-      denyButtonText: 'Ver el comando del servidor',
+      confirmButtonText: 'Iniciar sesión con Claude',
+      denyButtonText: 'Pegar una clave',
       cancelButtonText: 'Cancelar',
     });
 
-    if (elegir.isDenied) {
-      Swal.fire({
-        title: `Iniciar sesión en «${c.nombre}»`,
-        html:
-          '<p style="text-align:left;margin:0 0 8px">Desde el host, con la cuenta de su titular:</p>' +
-          `<pre style="text-align:left;background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;overflow:auto"># en el host\nagentes-cuenta login ${c.id}\nsudo systemctl restart tuapo-agentes</pre>` +
-          '<p style="text-align:left;margin:8px 0 0;font-size:.85rem;color:#64748b">Una ranura = el asiento de una persona real que autoriza su uso desatendido.</p>',
-        icon: 'info',
-        width: 620,
-      });
-      return;
-    }
-    if (!elegir.isConfirmed) return;
+    if (elegir.isConfirmed) { await this.loginConEnlace(c); return; }
+    if (!elegir.isDenied) return;
 
     const datos = await Swal.fire<{ tipo: 'apikey' | 'token'; valor: string }>({
       title: `Clave de «${c.nombre}»`,
@@ -403,6 +393,64 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       next: () => {
         this.refrescar();
         Swal.fire('Listo', `«${c.nombre}» ya puede coger trabajo.`, 'success');
+      },
+      error: (e) => this.avisarError(e),
+    });
+  }
+
+  /**
+   * Inicio de sesión en dos pasos, sin entrar al servidor: se pide el enlace, la
+   * persona autoriza en su navegador y trae el código. El CLI queda esperando en el
+   * host entre ambos pasos, así que si se cancela hay que avisarle.
+   */
+  private async loginConEnlace(c: Cuenta): Promise<void> {
+    Swal.fire({ title: 'Pidiendo el enlace…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    let url: string;
+    try {
+      const r = await firstValueFrom(this.svc.iniciarLogin(c.id));
+      url = r.url;
+    } catch (e) {
+      this.avisarError(e);
+      return;
+    }
+
+    const seguro = url.replace(/"/g, '&quot;');
+    const datos = await Swal.fire<string>({
+      title: `Iniciar sesión en «${c.nombre}»`,
+      html:
+        '<p style="text-align:left;margin:0 0 10px">Abre este enlace, entra con la cuenta de <b>' +
+        `${c.titular || 'su titular'}</b> y copia el código que te dé:</p>` +
+        `<a href="${seguro}" target="_blank" rel="noopener" class="swal2-confirm swal2-styled" ` +
+        'style="display:block;margin:0 0 12px;text-decoration:none">Abrir la página de Claude</a>' +
+        '<input id="ag-codigo" class="swal2-input" style="margin:0" autocomplete="off" ' +
+        'placeholder="Pega aquí el código">' +
+        '<p style="text-align:left;margin:10px 0 0;font-size:.82rem;color:#64748b">El enlace caduca en 10 minutos. ' +
+        'El código es de un solo uso y no se guarda en ningún sitio.</p>',
+      width: 640,
+      showCancelButton: true,
+      confirmButtonText: 'Validar',
+      cancelButtonText: 'Cancelar',
+      focusConfirm: false,
+      allowOutsideClick: false,
+      preConfirm: () => {
+        const v = (document.getElementById('ag-codigo') as HTMLInputElement)?.value?.trim() ?? '';
+        if (!v) { Swal.showValidationMessage('Falta el código.'); return undefined; }
+        return v;
+      },
+    });
+
+    if (!datos.isConfirmed || !datos.value) {
+      // Hay un `claude` esperando en el host: sin esto se quedaría colgado 10 minutos.
+      this.svc.cancelarLogin(c.id).subscribe({ next: () => this.refrescar(), error: () => this.refrescar() });
+      return;
+    }
+
+    Swal.fire({ title: 'Validando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    this.svc.completarLogin(c.id, datos.value).subscribe({
+      next: () => {
+        this.refrescar();
+        Swal.fire('Sesión iniciada', `«${c.nombre}» ya puede coger trabajo.`, 'success');
       },
       error: (e) => this.avisarError(e),
     });
