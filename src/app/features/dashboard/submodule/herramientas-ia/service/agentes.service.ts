@@ -123,6 +123,25 @@ export interface EventoBitacora {
   herramientas?: number;
 }
 
+/**
+ * La petición en bruto, ya ordenada por la IA.
+ * `preguntas` es lo que NO pudo deducir y hay que decidir a mano: si viene con algo,
+ * conviene contestarlo antes de encargar, porque el agente lo va a tener que adivinar.
+ */
+export interface EncargoOrdenado {
+  titulo: string;
+  objetivo: string;
+  contexto: string;
+  metas: string[];
+  preguntas: string[];
+}
+
+export interface SugerenciaAgentes {
+  agentes: { clave: string; porque: string }[];
+  enjambre: boolean;
+  modo: 'paralelo' | 'secuencial';
+}
+
 /** Un fichero que acompaña a un agente o a un encargo. */
 export interface Adjunto {
   nombre: string;
@@ -219,6 +238,10 @@ export interface NuevaTarea {
   minutos?: number;
   prioridad?: number;
   titulo?: string | null;
+  /** Cuándo está bien hecho. Van en su propio bloque del prompt, no dentro del objetivo. */
+  metas?: string[];
+  /** Documentos que acompañan al encargo. Viajan con él para que estén antes de arrancar. */
+  adjuntos?: { nombre: string; contenidoBase64: string }[];
 }
 
 export interface NuevoEnjambre extends NuevaTarea {
@@ -256,6 +279,24 @@ export class AgentesService {
   }
   borrarAdjuntoAgente(clave: string, nombre: string): Observable<unknown> {
     return this.http.delete(`${this.base}/catalogo/${clave}/adjuntos/${encodeURIComponent(nombre)}`);
+  }
+
+  // ── Encargo guiado ────────────────────────────────────────────────────────
+  capacidadesEncargo(): Observable<{ asistente: boolean; transcripcion: boolean }> {
+    return this.http.get<{ asistente: boolean; transcripcion: boolean }>(`${this.base}/encargo/capacidades`);
+  }
+  /** Reordena lo tecleado y/o lo dictado en un encargo ejecutable. */
+  mejorarEncargo(datos: { objetivo: string; contexto?: string; transcripcion?: string }): Observable<EncargoOrdenado> {
+    return this.http.post<EncargoOrdenado>(`${this.base}/encargo/mejorar`, datos);
+  }
+  /** Propone qué agentes del catálogo encajan con el encargo. */
+  sugerirAgentes(objetivo: string): Observable<SugerenciaAgentes> {
+    return this.http.post<SugerenciaAgentes>(`${this.base}/encargo/sugerir`, { objetivo });
+  }
+  transcribir(audio: Blob, nombre: string): Observable<{ texto: string }> {
+    const fd = new FormData();
+    fd.append('file', audio, nombre);
+    return this.http.post<{ texto: string }>(`${this.base}/encargo/transcribir`, fd);
   }
 
   // ── Misiones ──────────────────────────────────────────────────────────────

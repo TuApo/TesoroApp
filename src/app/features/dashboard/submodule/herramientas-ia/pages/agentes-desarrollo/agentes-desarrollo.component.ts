@@ -78,6 +78,17 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   fModoEnjambre = signal<'paralelo' | 'secuencial'>('paralelo');
   enviando = signal(false);
 
+  // ── Encargo guiado ────────────────────────────────────────────────────────
+  fMetas = signal('');
+  fAdjuntos = signal<{ nombre: string; contenidoBase64: string }[]>([]);
+  capEncargo = signal<{ asistente: boolean; transcripcion: boolean } | null>(null);
+  ocupadoIa = signal(false);
+  grabando = signal(false);
+  /** Lo que la IA no pudo deducir: se enseña para que se decida antes de encargar. */
+  preguntasIa = signal<string[]>([]);
+  private grabadora: MediaRecorder | null = null;
+  private trozosAudio: Blob[] = [];
+
   // ── Catálogo ──────────────────────────────────────────────────────────────
   busquedaAgente = signal('');
   categoriaFiltro = signal<string>('');
@@ -160,6 +171,20 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       error: () => this.repos.set([]),
     });
     this.cargarMisiones();
+    this.svc.capacidadesEncargo().subscribe({
+      next: (c) => this.capEncargo.set(c),
+      // Sin respuesta se esconden las ayudas: mejor un formulario simple que botones
+      // que fallan al pulsarlos.
+      error: () => this.capEncargo.set({ asistente: false, transcripcion: false }),
+    });
+  }
+
+  private limpiarEncargo(): void {
+    this.fObjetivo.set('');
+    this.fContexto.set('');
+    this.fMetas.set('');
+    this.fAdjuntos.set([]);
+    this.preguntasIa.set([]);
   }
 
   private cargarMisiones(): void {
@@ -265,6 +290,10 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       permiso: this.fPermiso(),
       minutos: this.fMinutos(),
       modelo: this.fModelo() || null,
+      metas: this.fMetas().split('\n').map((m) => m.trim()).filter(Boolean),
+      // Los documentos viajan CON el encargo: subirlos aparte dejaria una ventana en la
+      // que el planificador podria arrancar la tarea sin ellos.
+      adjuntos: this.fAdjuntos(),
     };
     this.enviando.set(true);
 
@@ -278,7 +307,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       this.svc.crearEnjambre({ ...comun, agentes, modo: this.fModoEnjambre() }).subscribe({
         next: (r) => {
           this.enviando.set(false);
-          this.fObjetivo.set('');
+          this.limpiarEncargo();
           this.pestana.set('panel');
           this.refrescar();
           Swal.fire('Enjambre lanzado', `${r.tareas.length} agentes se pusieron en marcha.`, 'success');
@@ -291,7 +320,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     this.svc.crearTarea({ ...comun, agente: this.fAgente() || null }).subscribe({
       next: (t) => {
         this.enviando.set(false);
-        this.fObjetivo.set('');
+        this.limpiarEncargo();
         this.pestana.set('panel');
         this.refrescar();
         this.abrirConsola(t);
@@ -314,6 +343,141 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       next: () => this.refrescar(),
       error: (e) => this.avisarError(e),
     });
+  }
+
+  // ── Encargo guiado ────────────────────────────────────────────────────────
+
+  /** Convierte un fichero a base64 pelado (readAsDataURL trae un prefijo delante). */
+  private async aBase64(f: File | Blob): Promise<string> {
+    return new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(String(fr.result).split(',')[1] ?? '');
+      fr.onerror = () => rej(new Error('no se pudo leer el fichero'));
+      fr.readAsDataURL(f);
+    });
+  }
+
+  /**
+   * Dictado. Se graba en el navegador y se manda a transcribir; lo que vuelve se AÑADE
+   * a lo que ya hubiera escrito, no lo sustituye: mucha gente teclea cuatro palabras y
+   * luego dicta el detalle.
+   */
+  async alternarDictado(): Promise<void> {
+    if (this.grabando()) {
+      this.grabadora?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.trozosAudio = [];
+      const rec = new MediaRecorder(stream);
+      this.grabadora = rec;
+      rec.ondataavailable = (e) => { if (e.data.size) this.trozosAudio.push(e.data); };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        this.grabando.set(false);
+        const blob = new Blob(this.trozosAudio, { type: rec.mimeType || 'audio/webm' });
+        if (blob.size > 0) await this.transcribirYVolcar(blob, 'dictado.webm');
+      };
+      rec.start();
+      this.grabando.set(true);
+    } catch {
+      Swal.fire('Sin micrófono', 'El navegador no dio acceso al micrófono. Puedes subir un audio en su lugar.', 'info');
+    }
+  }
+
+  async audioElegido(ev: Event): Promise<void> {
+    const f = (ev.target as HTMLInputElement).files?.[0];
+    (ev.target as HTMLInputElement).value = '';
+    if (f) await this.transcribirYVolcar(f, f.name);
+  }
+
+  private async transcribirYVolcar(audio: Blob, nombre: string): Promise<void> {
+    this.ocupadoIa.set(true);
+    try {
+      const r = await firstValueFrom(this.svc.transcribir(audio, nombre));
+      const texto = (r?.texto || '').trim();
+      if (!texto) { Swal.fire('Sin texto', 'No se entendió nada en el audio.', 'info'); return; }
+      const previo = this.fObjetivo().trim();
+      this.fObjetivo.set(previo ? `${previo}\n${texto}` : texto);
+    } catch (e) {
+      this.avisarError(e);
+    } finally {
+      this.ocupadoIa.set(false);
+    }
+  }
+
+  /** Pide a la IA que ordene la petición y vuelca el resultado en el formulario. */
+  async ordenarPeticion(): Promise<void> {
+    this.ocupadoIa.set(true);
+    try {
+      const r = await firstValueFrom(this.svc.mejorarEncargo({
+        objetivo: this.fObjetivo(),
+        contexto: this.fContexto(),
+      }));
+      if (r.objetivo) this.fObjetivo.set(r.objetivo);
+      if (r.contexto) this.fContexto.set(r.contexto);
+      if (r.metas?.length) this.fMetas.set(r.metas.join('\n'));
+      this.preguntasIa.set(r.preguntas ?? []);
+    } catch (e) {
+      this.avisarError(e);
+    } finally {
+      this.ocupadoIa.set(false);
+    }
+  }
+
+  /** Propone agentes y, si hacen falta varios, deja el encargo montado como enjambre. */
+  async proponerAgentes(): Promise<void> {
+    this.ocupadoIa.set(true);
+    try {
+      const r = await firstValueFrom(this.svc.sugerirAgentes(this.fObjetivo()));
+      if (!r.agentes?.length) { Swal.fire('Sin propuesta', 'La IA no supo elegir. Escoge tú el agente.', 'info'); return; }
+
+      const nombres = (c: string) => this.catalogo()?.agentes.find((a) => a.clave === c)?.nombre ?? c;
+      const lista = r.agentes
+        .map((a) => `<li><b>${nombres(a.clave)}</b><br><span style="color:#64748b">${a.porque}</span></li>`)
+        .join('');
+      const ok = await Swal.fire({
+        title: 'Propuesta',
+        html: `<ul style="text-align:left;margin:0;padding-left:18px">${lista}</ul>`
+          + (r.enjambre ? `<p style="text-align:left;margin:10px 0 0;font-size:.85rem;color:#64748b">Se montaría como enjambre ${r.modo}: una cuenta del pool por agente.</p>` : ''),
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Usar esta propuesta',
+        cancelButtonText: 'Elijo yo',
+      });
+      if (!ok.isConfirmed) return;
+
+      if (r.enjambre && r.agentes.length > 1) {
+        this.fEnjambre.set(true);
+        this.fModoEnjambre.set(r.modo);
+        this.fAgentesEnjambre.set(r.agentes.map((a) => a.clave));
+      } else {
+        this.fEnjambre.set(false);
+        this.fAgente.set(r.agentes[0].clave);
+      }
+    } catch (e) {
+      this.avisarError(e);
+    } finally {
+      this.ocupadoIa.set(false);
+    }
+  }
+
+  async documentoElegido(ev: Event): Promise<void> {
+    const f = (ev.target as HTMLInputElement).files?.[0];
+    (ev.target as HTMLInputElement).value = '';
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { Swal.fire('Demasiado grande', 'El fichero pasa de 25 MB.', 'info'); return; }
+    try {
+      const contenidoBase64 = await this.aBase64(f);
+      this.fAdjuntos.update((xs) => [...xs.filter((x) => x.nombre !== f.name), { nombre: f.name, contenidoBase64 }]);
+    } catch (e) {
+      this.avisarError(e);
+    }
+  }
+
+  quitarAdjunto(nombre: string): void {
+    this.fAdjuntos.update((xs) => xs.filter((x) => x.nombre !== nombre));
   }
 
   // ── Creador de agentes ────────────────────────────────────────────────────

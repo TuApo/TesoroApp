@@ -289,6 +289,67 @@
                   placeholder="Ej: revisa el cálculo de horas extra en ms-payroll y propón una corrección con pruebas"></textarea>
       </mat-form-field>
 
+      <!-- Ayudas: dictar, ordenar la petición y proponer quién la hace. Cuestan una
+           llamada corta al LLM y ahorran media hora de agente trabajando sobre algo mal
+           planteado. Se esconden si el proveedor no está configurado. -->
+      <div class="enc-ayudas">
+        @if (capEncargo()?.transcripcion) {
+          <button type="button" mat-stroked-button [class.grabando]="grabando()"
+                  [disabled]="ocupadoIa()" (click)="alternarDictado()">
+            <mat-icon>{{ grabando() ? 'stop_circle' : 'mic' }}</mat-icon>
+            {{ grabando() ? 'Parar y transcribir' : 'Dictar' }}
+          </button>
+          <button type="button" mat-stroked-button [disabled]="ocupadoIa()" (click)="subirAudio.click()">
+            <mat-icon>upload_file</mat-icon> Subir audio
+          </button>
+          <input #subirAudio type="file" accept="audio/*" hidden (change)="audioElegido($event)">
+        }
+        @if (capEncargo()?.asistente) {
+          <button type="button" mat-stroked-button color="primary"
+                  [disabled]="ocupadoIa() || !fObjetivo().trim()" (click)="ordenarPeticion()">
+            <mat-icon>auto_fix_high</mat-icon> Ordenar la petición
+          </button>
+          <button type="button" mat-stroked-button color="primary"
+                  [disabled]="ocupadoIa() || !fObjetivo().trim()" (click)="proponerAgentes()">
+            <mat-icon>groups</mat-icon> ¿Quién debería hacerlo?
+          </button>
+        }
+        <button type="button" mat-stroked-button [disabled]="enviando()" (click)="subirDoc.click()">
+          <mat-icon>attach_file</mat-icon> Adjuntar documento
+        </button>
+        <input #subirDoc type="file" hidden (change)="documentoElegido($event)">
+        @if (ocupadoIa()) { <mat-spinner diameter="20"></mat-spinner> }
+      </div>
+
+      @if (fAdjuntos().length) {
+        <div class="enc-adjuntos">
+          @for (a of fAdjuntos(); track a.nombre) {
+            <span class="enc-chip">
+              <mat-icon>description</mat-icon> {{ a.nombre }}
+              <button type="button" (click)="quitarAdjunto(a.nombre)"><mat-icon>close</mat-icon></button>
+            </span>
+          }
+        </div>
+      }
+
+      @if (preguntasIa().length) {
+        <div class="ag-aviso ojo">
+          <mat-icon>help</mat-icon>
+          <span>
+            Esto no se pudo deducir de tu petición y el agente lo tendría que adivinar:
+            <ul style="margin:4px 0 0;padding-left:18px">
+              @for (p of preguntasIa(); track p) { <li>{{ p }}</li> }
+            </ul>
+          </span>
+        </div>
+      }
+
+      <mat-form-field appearance="outline" class="campo-ancho">
+        <mat-label>Metas — cuándo está bien hecho (una por línea)</mat-label>
+        <textarea matInput rows="2" [ngModel]="fMetas()" (ngModelChange)="fMetas.set($event)"
+                  placeholder="Ej: que compile&#10;que la prueba nueva pase"></textarea>
+      </mat-form-field>
+
       <mat-form-field appearance="outline" class="ancho">
         <mat-label>Contexto o pistas (opcional)</mat-label>
         <textarea matInput rows="2" [ngModel]="fContexto()" (ngModelChange)="fContexto.set($event)"
