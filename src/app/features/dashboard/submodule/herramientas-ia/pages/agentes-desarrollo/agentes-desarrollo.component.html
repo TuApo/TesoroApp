@@ -1,0 +1,548 @@
+<div class="ag-shell">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────────────── -->
+  <header class="ag-top">
+    <div class="ag-title">
+      <mat-icon class="ag-title-icon">precision_manufacturing</mat-icon>
+      <div>
+        <h1>Modo Agente&nbsp;Desarrollo</h1>
+        <p>
+          Agentes de <strong>ruflo</strong> trabajando sobre una copia aislada del código,
+          con un pool de cuentas de Claude.
+        </p>
+      </div>
+    </div>
+
+    <div class="ag-top-right">
+      @if (estado(); as e) {
+        <span class="ag-vivo" [class.caido]="servicioCaido()">
+          <span class="punto"></span>
+          {{ servicioCaido() ? 'Servicio caído' : 'En marcha' }}
+        </span>
+        <span class="ag-sub">{{ e.catalogo.total }} agentes · máx. {{ e.servicio.maxSimultaneas }} a la vez</span>
+      }
+      <button mat-icon-button matTooltip="Refrescar ahora" (click)="refrescar()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </header>
+
+  <nav class="ag-tabs">
+    <button [class.on]="pestana() === 'panel'" (click)="pestana.set('panel')">
+      <mat-icon>dashboard</mat-icon> Panel
+    </button>
+    <button [class.on]="pestana() === 'nuevo'" (click)="pestana.set('nuevo')">
+      <mat-icon>add_task</mat-icon> Nuevo encargo
+    </button>
+    <button [class.on]="pestana() === 'agentes'" (click)="pestana.set('agentes')">
+      <mat-icon>groups</mat-icon> Agentes
+      @if (catalogo()) { <span class="pill">{{ catalogo()!.agentes.length }}</span> }
+    </button>
+    <button [class.on]="pestana() === 'historial'" (click)="pestana.set('historial')">
+      <mat-icon>history</mat-icon> Historial
+    </button>
+  </nav>
+
+  @if (error()) {
+    <div class="ag-aviso malo">
+      <mat-icon>report</mat-icon>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  @if (poolSinSesion()) {
+    <div class="ag-aviso ojo">
+      <mat-icon>key_off</mat-icon>
+      <span>
+        Ninguna cuenta del pool tiene sesión iniciada. Los encargos se encolan pero nadie los coge.
+        Inicia sesión desde el servidor con <code>agentes-cuenta login &lt;ranura&gt;</code>.
+      </span>
+    </div>
+  }
+
+  @if (cargando()) {
+    <div class="ag-cargando"><mat-spinner diameter="34"></mat-spinner><span>Consultando al pool…</span></div>
+  }
+
+  <!-- ── PANEL ─────────────────────────────────────────────────────────────── -->
+  @if (pestana() === 'panel' && estado(); as _) {
+    @if (estado(); as e) {
+      <section class="kpis">
+        <div class="kpi">
+          <span class="k-num">{{ e.trabajo.enCurso }}</span>
+          <span class="k-lbl">Trabajando ahora</span>
+        </div>
+        <div class="kpi">
+          <span class="k-num">{{ e.trabajo.enCola }}</span>
+          <span class="k-lbl">En cola</span>
+        </div>
+        <div class="kpi">
+          <span class="k-num verde">{{ e.pool.listas }}</span>
+          <span class="k-lbl">Cuentas libres</span>
+        </div>
+        <div class="kpi">
+          <span class="k-num" [class.ambar]="e.pool.enfriando > 0">{{ e.pool.enfriando }}</span>
+          <span class="k-lbl">Enfriando</span>
+        </div>
+        <div class="kpi">
+          <span class="k-num">{{ e.trabajo.hoyOk }}<span class="k-de">/{{ e.trabajo.hoyTotal }}</span></span>
+          <span class="k-lbl">Hechas hoy</span>
+        </div>
+        <div class="kpi">
+          <span class="k-num">{{ e.trabajo.agentesDistintosHoy }}</span>
+          <span class="k-lbl">Agentes distintos hoy</span>
+        </div>
+      </section>
+
+      <div class="ag-grid">
+
+        <!-- Trabajando ahora -->
+        <mat-card class="bloque">
+          <div class="bloque-cab">
+            <h2><mat-icon>bolt</mat-icon> Trabajando ahora</h2>
+            <span class="cuenta-pill">{{ agentesTrabajando().length }}</span>
+          </div>
+
+          @if (!agentesTrabajando().length) {
+            <p class="vacio">Nadie está trabajando. El pool está de guardia, esperando encargos.</p>
+          }
+
+          @for (x of agentesTrabajando(); track x.tarea.id) {
+            <div class="tarjeta-trabajo" (click)="abrirConsola(x.tarea)">
+              <div class="tt-cab">
+                <span class="tt-agente">
+                  <mat-icon>smart_toy</mat-icon>
+                  {{ x.tarea.agenteNombre || x.tarea.agente || 'General' }}
+                </span>
+                <span class="tt-estado" [attr.data-e]="x.tarea.estado">
+                  {{ etiquetaEstado(x.tarea.estado) }}
+                </span>
+              </div>
+              <p class="tt-obj">{{ x.tarea.titulo || x.tarea.objetivo }}</p>
+              <mat-progress-bar mode="indeterminate" class="tt-barra"></mat-progress-bar>
+              <div class="tt-pie">
+                <span><mat-icon>account_circle</mat-icon>{{ x.tarea.cuentaNombre || x.tarea.cuentaId }}</span>
+                <span><mat-icon>timer</mat-icon>{{ duracion(x.tarea.duracionMs) }}</span>
+                @if (x.tarea.ultimaHerramienta) {
+                  <span><mat-icon>build</mat-icon>{{ x.tarea.ultimaHerramienta }}</span>
+                }
+                <span><mat-icon>folder</mat-icon>{{ x.tarea.repo }}</span>
+                <button mat-icon-button class="tt-parar" matTooltip="Parar este agente"
+                        (click)="$event.stopPropagation(); cancelarTarea(x.tarea)">
+                  <mat-icon>stop_circle</mat-icon>
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (cola().length) {
+            <h3 class="sub">En cola</h3>
+            @for (t of cola(); track t.id) {
+              <div class="fila-cola" (click)="abrirConsola(t)">
+                <mat-icon class="ic">schedule</mat-icon>
+                <span class="fc-agente">{{ t.agenteNombre || t.agente || 'General' }}</span>
+                <span class="fc-obj">{{ t.titulo || t.objetivo }}</span>
+                <span class="fc-pri">P{{ t.prioridad }}</span>
+                <button mat-icon-button matTooltip="Quitar de la cola"
+                        (click)="$event.stopPropagation(); cancelarTarea(t)">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+            }
+          }
+        </mat-card>
+
+        <!-- Pool de cuentas -->
+        <mat-card class="bloque">
+          <div class="bloque-cab">
+            <h2><mat-icon>badge</mat-icon> Pool de cuentas</h2>
+            <span class="cuenta-pill">{{ cuentas().length }}</span>
+          </div>
+
+          @for (c of cuentas(); track c.id) {
+            <div class="fila-cuenta" [attr.data-e]="c.estado">
+              <div class="fc-izq">
+                <span class="fc-nom">{{ c.nombre }}</span>
+                <span class="fc-tit">{{ c.titular || 'sin titular asignado' }}</span>
+              </div>
+              <div class="fc-med">
+                <span class="badge-cuenta" [attr.data-e]="c.estado">{{ etiquetaCuenta(c.estado) }}</span>
+                @if (c.estado === 'enfriando' && c.enfriamientoHasta) {
+                  <span class="fc-nota" [matTooltip]="c.motivoEnfriamiento || ''">
+                    hasta {{ c.enfriamientoHasta | date:'HH:mm' }}
+                  </span>
+                }
+                @if (c.autenticada) {
+                  <span class="fc-nota">{{ c.totalOk }} ok · {{ c.totalError }} fallos · {{ c.totalLimites }} topes</span>
+                }
+              </div>
+              <div class="fc-der">
+                @if (!c.autenticada) {
+                  <button mat-stroked-button color="primary" (click)="comoIniciarSesion(c)">
+                    <mat-icon>login</mat-icon> Iniciar sesión
+                  </button>
+                } @else {
+                  @if (c.estado === 'enfriando') {
+                    <button mat-icon-button matTooltip="Volver a intentar ya" (click)="despertarCuenta(c)">
+                      <mat-icon>alarm_on</mat-icon>
+                    </button>
+                  }
+                  <button mat-icon-button [matTooltip]="c.pausada ? 'Reanudar' : 'Pausar'"
+                          (click)="alternarPausaCuenta(c)">
+                    <mat-icon>{{ c.pausada ? 'play_arrow' : 'pause' }}</mat-icon>
+                  </button>
+                }
+              </div>
+            </div>
+          }
+
+          <p class="pie-nota">
+            Cada ranura es el asiento de una persona real que autoriza su uso desatendido.
+            Si una cuenta llega a su tope, el trabajo <em>espera</em> a que vuelva a haber cupo.
+          </p>
+        </mat-card>
+
+        <!-- Vigilantes -->
+        <mat-card class="bloque">
+          <div class="bloque-cab">
+            <h2><mat-icon>visibility</mat-icon> Agentes de guardia</h2>
+          </div>
+          <p class="vacio sin-margen">
+            Se despiertan solos cada cierto tiempo y revisan el código sin que nadie se lo pida.
+          </p>
+
+          @for (v of vigilantes(); track v.id) {
+            <div class="fila-vig">
+              <div class="fv-izq">
+                <span class="fv-nom">{{ v.nombre }}</span>
+                <span class="fv-det">
+                  {{ v.agente }} · cada {{ v.cadaMinutos >= 60 ? (v.cadaMinutos / 60) + ' h' : v.cadaMinutos + ' min' }}
+                  @if (v.activo) { · próxima {{ faltan(v.faltanMs) }} }
+                </span>
+              </div>
+              <div class="fv-der">
+                <button mat-icon-button matTooltip="Lanzarlo ahora" (click)="dispararVigilante(v)">
+                  <mat-icon>play_circle</mat-icon>
+                </button>
+                <mat-slide-toggle [checked]="v.activo" (change)="alternarVigilante(v)"></mat-slide-toggle>
+              </div>
+            </div>
+          }
+        </mat-card>
+
+        <!-- Últimas -->
+        <mat-card class="bloque">
+          <div class="bloque-cab">
+            <h2><mat-icon>done_all</mat-icon> Últimas tareas</h2>
+          </div>
+          @if (!ultimas().length) {
+            <p class="vacio">Todavía no hay historial.</p>
+          }
+          @for (t of ultimas().slice(0, 12); track t.id) {
+            <div class="fila-hist" (click)="abrirConsola(t)">
+              <mat-icon class="ic" [attr.data-e]="t.estado">{{ iconoEstado(t.estado) }}</mat-icon>
+              <span class="fh-agente">{{ t.agenteNombre || t.agente || 'General' }}</span>
+              <span class="fh-obj">{{ t.titulo || t.objetivo }}</span>
+              <span class="fh-meta">{{ duracion(t.duracionMs) }}</span>
+              <span class="fh-fecha">{{ t.creada | date:'dd/MM HH:mm' }}</span>
+            </div>
+          }
+        </mat-card>
+
+      </div>
+    }
+  }
+
+  <!-- ── NUEVO ENCARGO ─────────────────────────────────────────────────────── -->
+  @if (pestana() === 'nuevo') {
+    <mat-card class="bloque form-encargo">
+      <h2 class="form-h"><mat-icon>add_task</mat-icon> Nuevo encargo</h2>
+
+      <mat-form-field appearance="outline" class="ancho">
+        <mat-label>¿Qué tienen que hacer?</mat-label>
+        <textarea matInput rows="4" [ngModel]="fObjetivo()" (ngModelChange)="fObjetivo.set($event)"
+                  placeholder="Ej: revisa el cálculo de horas extra en ms-payroll y propón una corrección con pruebas"></textarea>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="ancho">
+        <mat-label>Contexto o pistas (opcional)</mat-label>
+        <textarea matInput rows="2" [ngModel]="fContexto()" (ngModelChange)="fContexto.set($event)"
+                  placeholder="Ej: el fallo lo reportó nómina el lunes; mirar MotorRecargos"></textarea>
+      </mat-form-field>
+
+      <div class="form-fila">
+        <mat-slide-toggle [checked]="fEnjambre()" (change)="fEnjambre.set($event.checked)">
+          Enjambre (varios agentes sobre el mismo encargo)
+        </mat-slide-toggle>
+      </div>
+
+      @if (!fEnjambre()) {
+        <mat-form-field appearance="outline" class="ancho">
+          <mat-label>Agente</mat-label>
+          <mat-select [value]="fAgente()" (valueChange)="fAgente.set($event)">
+            @for (a of agentesOrdenados(); track a.clave) {
+              <mat-option [value]="a.clave">{{ a.nombre }} — {{ a.categoriaNombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      } @else {
+        <div class="enjambre-picker">
+          <div class="ep-cab">
+            <span>Elige los agentes del enjambre</span>
+            <mat-form-field appearance="outline" class="ep-modo">
+              <mat-label>Modo</mat-label>
+              <mat-select [value]="fModoEnjambre()" (valueChange)="fModoEnjambre.set($event)">
+                <mat-option value="paralelo">En paralelo</mat-option>
+                <mat-option value="secuencial">Uno tras otro</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="ep-chips">
+            @for (a of agentesOrdenados(); track a.clave) {
+              <button type="button" class="chip-agente" [class.on]="estaEnEnjambre(a.clave)"
+                      (click)="alternarEnEnjambre(a.clave)" [matTooltip]="a.descripcion">
+                {{ a.nombre }}
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="form-fila">
+        <mat-form-field appearance="outline">
+          <mat-label>Sobre qué código</mat-label>
+          <mat-select [value]="fRepo()" (valueChange)="fRepo.set($event)">
+            <mat-option value="todos">Todo el proyecto</mat-option>
+            @for (r of repos(); track r.clave) {
+              <mat-option [value]="r.clave">{{ r.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Prioridad</mat-label>
+          <mat-select [value]="fPrioridad()" (valueChange)="fPrioridad.set($event)">
+            <mat-option [value]="1">Urgente</mat-option>
+            <mat-option [value]="3">Normal</mat-option>
+            <mat-option [value]="5">Cuando haya hueco</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Permisos</mat-label>
+          <mat-select [value]="fPermiso()" (valueChange)="fPermiso.set($event)">
+            <mat-option value="plan">Solo mirar y proponer</mat-option>
+            <mat-option value="acceptEdits">Puede editar ficheros</mat-option>
+            <mat-option value="bypassPermissions">Autónomo (sin preguntar)</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Corte (min)</mat-label>
+          <input matInput type="number" min="5" max="180" [ngModel]="fMinutos()"
+                 (ngModelChange)="fMinutos.set($event)">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Modelo</mat-label>
+          <mat-select [value]="fModelo()" (valueChange)="fModelo.set($event)">
+            <mat-option value="">El de la cuenta</mat-option>
+            <mat-option value="opus">Opus</mat-option>
+            <mat-option value="sonnet">Sonnet</mat-option>
+            <mat-option value="haiku">Haiku</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <p class="nota-seguridad">
+        <mat-icon>shield</mat-icon>
+        Trabajan en <code>/var/www/agentes/workspace</code>, una copia aislada en la rama
+        <code>agentes/trabajo</code>. No pueden escribir en el árbol vivo de producción,
+        ni desplegar, ni tocar la base de datos.
+      </p>
+
+      <div class="form-acciones">
+        <button mat-flat-button color="primary" [disabled]="enviando()" (click)="encargar()">
+          @if (enviando()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>send</mat-icon> }
+          {{ fEnjambre() ? 'Lanzar enjambre' : 'Poner a trabajar' }}
+        </button>
+        <button mat-button (click)="pestana.set('panel')">Cancelar</button>
+      </div>
+    </mat-card>
+  }
+
+  <!-- ── CATÁLOGO DE AGENTES ───────────────────────────────────────────────── -->
+  @if (pestana() === 'agentes') {
+    <div class="cat-filtros">
+      <mat-form-field appearance="outline" class="cat-busca">
+        <mat-label>Buscar agente</mat-label>
+        <input matInput [ngModel]="busquedaAgente()" (ngModelChange)="busquedaAgente.set($event)"
+               placeholder="nombre, capacidad, para qué sirve…">
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+      <div class="cat-chips">
+        <button class="chip-cat" [class.on]="categoriaFiltro() === ''" (click)="categoriaFiltro.set('')">
+          Todas
+        </button>
+        @for (c of catalogo()?.categorias || []; track c.clave) {
+          <button class="chip-cat" [class.on]="categoriaFiltro() === c.clave" (click)="categoriaFiltro.set(c.clave)">
+            {{ c.nombre }} <span>{{ c.total }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <div class="cat-grid">
+      @for (a of agentesFiltrados(); track a.clave) {
+        <mat-card class="tarjeta-agente">
+          <div class="ta-cab">
+            <mat-icon>smart_toy</mat-icon>
+            <div>
+              <h3>{{ a.nombre }}</h3>
+              <span class="ta-cat">{{ a.categoriaNombre }} · {{ a.tipo }}</span>
+            </div>
+          </div>
+          <p class="ta-desc">{{ a.descripcion || a.personaResumen }}</p>
+          @if (a.capacidades.length) {
+            <div class="ta-caps">
+              @for (c of a.capacidades.slice(0, 5); track c) { <span class="cap">{{ c }}</span> }
+            </div>
+          }
+          <div class="ta-pie">
+            <span class="ta-lineas">{{ a.personaLineas }} líneas de instrucciones</span>
+            <button mat-stroked-button color="primary" (click)="encargarleA(a)">
+              <mat-icon>play_arrow</mat-icon> Encargarle algo
+            </button>
+          </div>
+        </mat-card>
+      }
+      @if (!agentesFiltrados().length) {
+        <p class="vacio">Ningún agente coincide con la búsqueda.</p>
+      }
+    </div>
+  }
+
+  <!-- ── HISTORIAL ─────────────────────────────────────────────────────────── -->
+  @if (pestana() === 'historial' && estado(); as e) {
+    <mat-card class="bloque">
+      <div class="bloque-cab"><h2><mat-icon>history</mat-icon> Historial de trabajo</h2></div>
+      <table class="tabla-hist">
+        <thead>
+          <tr>
+            <th></th><th>Agente</th><th>Encargo</th><th>Cuenta</th>
+            <th>Duración</th><th>Turnos</th><th>Ficheros</th><th>Cuándo</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (t of e.ultimas; track t.id) {
+            <tr (click)="abrirConsola(t)">
+              <td><mat-icon class="ic" [attr.data-e]="t.estado">{{ iconoEstado(t.estado) }}</mat-icon></td>
+              <td>{{ t.agenteNombre || t.agente || 'General' }}</td>
+              <td class="td-obj">{{ t.titulo || t.objetivo }}</td>
+              <td>{{ t.cuentaNombre || '—' }}</td>
+              <td>{{ duracion(t.duracionMs) }}</td>
+              <td>{{ t.turnos || '—' }}</td>
+              <td>{{ t.archivosTocados.length || '—' }}</td>
+              <td>{{ t.creada | date:'dd/MM HH:mm' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </mat-card>
+  }
+
+  <!-- ── CONSOLA ───────────────────────────────────────────────────────────── -->
+  @if (tareaAbierta(); as t) {
+    <div class="consola-fondo" (click)="cerrarConsola()"></div>
+    <aside class="consola">
+      <header class="co-cab">
+        <div>
+          <span class="co-estado" [attr.data-e]="t.estado">
+            <mat-icon>{{ iconoEstado(t.estado) }}</mat-icon> {{ etiquetaEstado(t.estado) }}
+          </span>
+          <h2>{{ t.agenteNombre || t.agente || 'Agente general' }}</h2>
+          <p class="co-obj">{{ t.objetivo }}</p>
+        </div>
+        <button mat-icon-button (click)="cerrarConsola()"><mat-icon>close</mat-icon></button>
+      </header>
+
+      <div class="co-meta">
+        <span><mat-icon>account_circle</mat-icon>{{ t.cuentaNombre || t.cuentaId || 'sin asignar' }}</span>
+        <span><mat-icon>timer</mat-icon>{{ duracion(t.duracionMs) }}</span>
+        <span><mat-icon>forum</mat-icon>{{ t.turnos }} turnos</span>
+        <span><mat-icon>folder</mat-icon>{{ t.repo }}</span>
+        @if (t.modeloReal) { <span><mat-icon>memory</mat-icon>{{ t.modeloReal }}</span> }
+      </div>
+
+      @if (estaViva(t)) {
+        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+      }
+
+      @if (t.archivosTocados.length) {
+        <div class="co-ficheros">
+          <h3>Ficheros tocados</h3>
+          @for (f of t.archivosTocados; track f) {
+            <span class="fichero" [matTooltip]="f">{{ nombreCorto(f) }}</span>
+          }
+        </div>
+      }
+
+      <div class="co-log">
+        @for (ev of bitacora(); track $index) {
+          @switch (ev.tipo) {
+            @case ('arranque') {
+              <div class="ev sistema"><mat-icon>rocket_launch</mat-icon>
+                Arranca con la cuenta <strong>{{ ev.cuenta }}</strong> en modo {{ ev.permiso }}
+              </div>
+            }
+            @case ('sesion') {
+              <div class="ev sistema"><mat-icon>memory</mat-icon>
+                Sesión abierta · modelo {{ ev.modelo }} · {{ ev.herramientas }} herramientas
+              </div>
+            }
+            @case ('texto') { <div class="ev texto">{{ ev.texto }}</div> }
+            @case ('herramienta') {
+              <div class="ev herramienta">
+                <mat-icon>build</mat-icon>
+                <strong>{{ ev.nombre }}</strong>
+                <code>{{ ev.detalle }}</code>
+              </div>
+            }
+            @case ('resultado') {
+              <div class="ev resultado" [class.malo]="ev.error">{{ ev.texto }}</div>
+            }
+            @case ('fin') {
+              <div class="ev fin" [attr.data-e]="ev.desenlace">
+                <mat-icon>flag</mat-icon> Termina: {{ ev.desenlace }}
+                @if (ev.motivo) { — {{ ev.motivo }} }
+              </div>
+            }
+            @case ('fallo') { <div class="ev resultado malo">{{ ev.texto }}</div> }
+          }
+        }
+        @if (!bitacora().length) {
+          <p class="vacio">Sin actividad registrada todavía.</p>
+        }
+      </div>
+
+      @if (t.resumen) {
+        <div class="co-resumen">
+          <h3>Resumen del agente</h3>
+          <p>{{ t.resumen }}</p>
+        </div>
+      }
+      @if (t.error) {
+        <div class="co-error"><mat-icon>error</mat-icon><span>{{ t.error }}</span></div>
+      }
+
+      @if (estaViva(t)) {
+        <div class="co-acciones">
+          <button mat-stroked-button color="warn" (click)="cancelarTarea(t)">
+            <mat-icon>stop_circle</mat-icon> Parar al agente
+          </button>
+        </div>
+      }
+    </aside>
+  }
+
+</div>
