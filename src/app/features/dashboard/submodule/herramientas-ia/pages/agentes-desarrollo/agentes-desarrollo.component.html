@@ -286,7 +286,8 @@
       <mat-form-field appearance="outline" class="ancho">
         <mat-label>¿Qué tienen que hacer?</mat-label>
         <textarea matInput rows="4" [ngModel]="fObjetivo()" (ngModelChange)="fObjetivo.set($event)"
-                  placeholder="Ej: revisa el cálculo de horas extra en ms-payroll y propón una corrección con pruebas"></textarea>
+                  (paste)="pegarEnEncargo($event)"
+                  placeholder="Ej: revisa el cálculo de horas extra en ms-payroll y propón una corrección con pruebas. Puedes pegar una captura con Ctrl+V."></textarea>
       </mat-form-field>
 
       <!-- Ayudas: dictar, ordenar la petición y proponer quién la hace. Cuestan una
@@ -329,8 +330,13 @@
       @if (fAdjuntos().length) {
         <div class="enc-adjuntos">
           @for (a of fAdjuntos(); track a.nombre) {
-            <span class="enc-chip">
-              <mat-icon>description</mat-icon> {{ a.nombre }}
+            <span class="enc-chip" [class.con-foto]="esImagen(a.nombre)">
+              @if (esImagen(a.nombre)) {
+                <img class="chip-mini" [src]="miniatura(a)" [alt]="a.nombre">
+              } @else {
+                <mat-icon>description</mat-icon>
+              }
+              {{ a.nombre }}
               <button type="button" (click)="quitarAdjunto(a.nombre)"><mat-icon>close</mat-icon></button>
             </span>
           }
@@ -904,8 +910,13 @@
           @if (seguirAdjuntos().length) {
             <div class="enc-adjuntos">
               @for (a of seguirAdjuntos(); track a.nombre) {
-                <span class="enc-chip">
-                  <mat-icon>description</mat-icon> {{ a.nombre }}
+                <span class="enc-chip" [class.con-foto]="esImagen(a.nombre)">
+                  @if (esImagen(a.nombre)) {
+                    <img class="chip-mini" [src]="miniatura(a)" [alt]="a.nombre">
+                  } @else {
+                    <mat-icon>description</mat-icon>
+                  }
+                  {{ a.nombre }}
                   <button type="button" (click)="quitarAdjuntoSeguir(a.nombre)"><mat-icon>close</mat-icon></button>
                 </span>
               }
@@ -919,8 +930,9 @@
             <input #docSeguir type="file" hidden (change)="documentoSeguir($event)">
             <textarea rows="1" [ngModel]="seguirTexto()" (ngModelChange)="seguirTexto.set($event)"
                       [disabled]="siguiendo()"
+                      (paste)="pegarEnSeguir($event)"
                       (keydown.enter)="$event.preventDefault(); continuarHilo()"
-                      placeholder="Pídele un ajuste y sigue con el mismo contexto…"></textarea>
+                      placeholder="Pídele un ajuste, o pega una captura con Ctrl+V…"></textarea>
             <button mat-flat-button color="primary" [disabled]="siguiendo() || !seguirTexto().trim()"
                     (click)="continuarHilo()">
               @if (siguiendo()) { <mat-spinner diameter="18"></mat-spinner> }

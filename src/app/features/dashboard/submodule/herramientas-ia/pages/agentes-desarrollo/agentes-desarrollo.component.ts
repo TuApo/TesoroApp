@@ -390,6 +390,25 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
 
   // ── Encargo guiado ────────────────────────────────────────────────────────
 
+  /**
+   * Formatos que la herramienta Read del agente abre y MIRA de verdad. Los demas
+   * (bmp, tiff, heic) se adjuntan igual pero el agente no puede verlos, y conviene
+   * decirlo antes de que se invente lo que hay dentro.
+   */
+  private static readonly IMAGENES = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+
+  esImagen(nombre: string): boolean {
+    const n = (nombre || '').toLowerCase();
+    return AgentesDesarrolloComponent.IMAGENES.some((e) => n.endsWith(e));
+  }
+
+  /** Miniatura para ver lo que se adjunto. Se arma del propio base64: no hay que subirlo. */
+  miniatura(a: { nombre: string; contenidoBase64: string }): string {
+    const ext = a.nombre.toLowerCase().split('.').pop();
+    const tipo = ext === 'png' ? 'png' : ext === 'gif' ? 'gif' : ext === 'webp' ? 'webp' : 'jpeg';
+    return `data:image/${tipo};base64,${a.contenidoBase64}`;
+  }
+
   /** Convierte un fichero a base64 pelado (readAsDataURL trae un prefijo delante). */
   private async aBase64(f: File | Blob): Promise<string> {
     return new Promise((res, rej) => {
@@ -588,6 +607,24 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     try {
       const contenidoBase64 = await this.aBase64(f);
       this.fAdjuntos.update((xs) => [...xs.filter((x) => x.nombre !== f.name), { nombre: f.name, contenidoBase64 }]);
+    } catch (e) {
+      this.avisarError(e);
+    }
+  }
+
+  /** Lo mismo en el encargo nuevo: pegar la captura del fallo que se quiere arreglar. */
+  async pegarEnEncargo(ev: ClipboardEvent): Promise<void> {
+    const img = Array.from(ev.clipboardData?.items ?? [])
+      .find((i) => i.type.startsWith('image/'));
+    if (!img) return;
+    ev.preventDefault();
+    const f = img.getAsFile();
+    if (!f) return;
+    const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const nombre = `captura-${this.fAdjuntos().length + 1}.${ext}`;
+    try {
+      const contenidoBase64 = await this.aBase64(f);
+      this.fAdjuntos.update((xs) => [...xs, { nombre, contenidoBase64 }]);
     } catch (e) {
       this.avisarError(e);
     }
@@ -799,6 +836,28 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     try {
       const contenidoBase64 = await this.aBase64(f);
       this.seguirAdjuntos.update((xs) => [...xs.filter((x) => x.nombre !== f.name), { nombre: f.name, contenidoBase64 }]);
+    } catch (e) {
+      this.avisarError(e);
+    }
+  }
+
+  /**
+   * Pegar una captura con Ctrl+V. Es el gesto natural cuando lo que quieres enseñarle
+   * al agente es un error en pantalla, y obliga a nombrar el fichero porque el
+   * portapapeles no trae nombre.
+   */
+  async pegarEnSeguir(ev: ClipboardEvent): Promise<void> {
+    const img = Array.from(ev.clipboardData?.items ?? [])
+      .find((i) => i.type.startsWith('image/'));
+    if (!img) return;                 // texto pegado: que siga su curso normal
+    ev.preventDefault();
+    const f = img.getAsFile();
+    if (!f) return;
+    const ext = (f.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    const nombre = `captura-${this.seguirAdjuntos().length + 1}.${ext}`;
+    try {
+      const contenidoBase64 = await this.aBase64(f);
+      this.seguirAdjuntos.update((xs) => [...xs, { nombre, contenidoBase64 }]);
     } catch (e) {
       this.avisarError(e);
     }
