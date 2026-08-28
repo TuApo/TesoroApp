@@ -130,3 +130,122 @@
   .cabecera h1 { font-size: 1.7rem; }
   .boton-grande { width: auto; min-width: 200px; }
 }
+
+/* Cabecera de un bloque del recorrido: el título y la línea que dice qué hay que hacer con él. */
+.bloque-cab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.4rem;
+}
+
+.bloque-cab h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.bloque-desc {
+  margin: 0;
+  font-size: 0.87rem;
+  line-height: 1.4;
+  color: var(--color-texto-secundario, #6b7280);
+  white-space: pre-wrap;
+}
+
+/* ── Quiz de a una pregunta y corrección ──────────────────────────────────── */
+
+.quiz-avance {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.pregunta-confirmada { opacity: 0.98; }
+
+/* La correcta en verde y la fallada en rojo. El color NO va solo: cada una lleva su icono,
+   porque con daltonismo el color por sí mismo no dice nada. */
+.opcion-correcta {
+  border-color: #2e7d32 !important;
+  background: rgba(46, 125, 50, 0.08);
+}
+
+.opcion-fallada {
+  border-color: var(--color-peligro, #c62828) !important;
+  background: rgba(198, 40, 40, 0.08);
+}
+
+.opcion:disabled { cursor: default; }
+
+.correccion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  background: rgba(46, 125, 50, 0.1);
+  font-size: 0.87rem;
+}
+
+.correccion-mal { background: rgba(198, 40, 40, 0.08); }
+
+.correccion p {
+  margin: 0.2rem 0 0;
+  line-height: 1.4;
+}
+
+.enlace-repaso {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--color-primario, #1976d2);
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--color-primario, #1976d2);
+  font: inherit;
+  font-size: 0.83rem;
+  cursor: pointer;
+}
+
+.enlace-repaso mat-icon {
+  font-size: 1.05rem;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.quiz-navegacion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+/* En un teléfono los botones ocupan la línea entera: son el objetivo del pulgar. */
+@media (max-width: 600px) {
+  .quiz-navegacion { flex-direction: column-reverse; align-items: stretch; }
+}
+
+/* Material sobre el que pregunta una pregunta. */
+.pregunta-cuerpo {
+  margin: 0.3rem 0 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.pregunta-media {
+  margin: 0.3rem 0 0.6rem;
+}
+
+/* La imagen se acota: una foto de 4000 px no puede empujar la pregunta fuera de la pantalla. */
+.pregunta-media img,
+.pregunta-media video {
+  display: block;
+  width: 100%;
+  max-width: 34rem;
+  max-height: 22rem;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  background: #000;
+}

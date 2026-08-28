@@ -61,100 +61,72 @@
           <p class="duracion"><mat-icon>schedule</mat-icon> {{ l.duracion_min }} min</p>
         }
 
-        <!-- Visor por tipo de lección -->
-        @switch (l.tipo) {
-          @case ('TEXTO') {
-            <div class="contenido-texto" [innerHTML]="l.contenido"></div>
-          }
-          @case ('ENLACE') {
-            <a class="boton-principal boton-grande" [href]="l.contenido" target="_blank" rel="noopener">
-              Abrir el material
-            </a>
-          }
-          @default {
-            @if (l.recursos.length === 0) {
-              <p class="sin-material">Esta lección no tiene material adjunto.</p>
+        <!-- ── El recorrido de la lección ────────────────────────────────────
+             Los bloques se pintan EN EL ORDEN en que los armó formación: "lee esto,
+             mira el video, responde, ahora descarga el formato". Antes eran tres
+             listas fijas —archivos, tareas y el quiz al final— y daba igual cómo se
+             hubiera pensado la clase. -->
+        @for (b of bloquesDe(l); track b.id) {
+          <section class="bloque" [attr.data-bloque]="b.id">
+            <!-- Título y descripción del bloque. No se pintan para TEXTO: ahí el
+                 contenido ya es el texto, y encabezarlo lo repetiría. -->
+            @if (b.tipo !== 'TEXTO' && (b.titulo || b.descripcion)) {
+              <header class="bloque-cab">
+                @if (b.titulo) { <h3>{{ b.titulo }}</h3> }
+                @if (b.descripcion) { <p class="bloque-desc">{{ b.descripcion }}</p> }
+              </header>
             }
-          }
-        }
+            @switch (b.tipo) {
 
-        @if (l.recursos.length > 0) {
-          <ul class="recursos">
-            @for (r of l.recursos; track r.id) {
-              <li>
-                @if (r.url) {
-                  <a class="recurso" [href]="r.url" target="_blank" rel="noopener">
-                    <mat-icon>{{ r.tipo === 'VIDEO' ? 'play_circle' : 'description' }}</mat-icon>
-                    <span>{{ r.nombre || 'Material de la lección' }}</span>
-                  </a>
-                } @else {
-                  <!-- Archivo en ms-documents, servido por learning-ms con el JWT de la sesión -->
+              @case ('TEXTO') {
+                <div class="contenido-texto" [innerHTML]="b.contenido"></div>
+              }
+
+              @case ('ENLACE') {
+                <a class="recurso" [href]="b.recurso?.url" target="_blank" rel="noopener">
+                  <mat-icon>link</mat-icon>
+                  <span>{{ b.titulo || b.recurso?.nombre || 'Abrir el material' }}</span>
+                </a>
+              }
+
+              @case ('ACTIVIDAD') {
+                @if (b.actividad; as a) {
+                  <div class="actividad">
+                    <h3><mat-icon>assignment_turned_in</mat-icon> {{ a.titulo }}</h3>
+                    @if (a.instrucciones) { <p>{{ a.instrucciones }}</p> }
+                  </div>
+                }
+              }
+
+              @case ('QUIZ') {
+                <ng-container [ngTemplateOutlet]="bloqueQuiz"></ng-container>
+              }
+
+              <!-- VIDEO, DOCUMENTO, PRESENTACION e IMAGEN: todos son un archivo servido
+                   por learning-ms con el JWT de la sesión. El vídeo se ve aquí; el resto
+                   se abre aparte, que es lo que la gente espera de un PDF. -->
+              @default {
+                @if (b.recurso; as r) {
                   <button type="button" class="recurso recurso-boton"
                           [disabled]="descargandoMaterial() === r.id"
                           (click)="abrirMaterial(r)">
-                    <mat-icon>{{ r.tipo === 'VIDEO' ? 'play_circle' : 'description' }}</mat-icon>
+                    <mat-icon>{{ iconoBloque(b.tipo) }}</mat-icon>
                     <span>
-                      {{ r.nombre || 'Material de la lección' }}
+                      {{ b.titulo || r.nombre || 'Material de la lección' }}
                       @if (descargandoMaterial() === r.id) { — abriendo… }
                     </span>
                   </button>
 
-                  @if (r.tipo === 'VIDEO' && urlMaterial(r.id); as fuente) {
-                    <video class="video" controls preload="none" [src]="fuente"></video>
+                  @if (b.tipo === 'VIDEO' && urlMaterial(r.id); as fuente) {
+                    <video class="video" controls [attr.preload]="precargaDe(r.id)"
+                           [attr.data-recurso]="r.id" [src]="fuente"></video>
                   }
                 }
-              </li>
-            }
-          </ul>
-        }
-
-        @if (l.actividades.length > 0) {
-          <div class="actividades">
-            <h3>Para entregar</h3>
-            @for (a of l.actividades; track a.id) {
-              <div class="actividad">
-                <strong>{{ a.titulo }}</strong>
-                @if (a.instrucciones) { <p>{{ a.instrucciones }}</p> }
-              </div>
-            }
-          </div>
-        }
-
-        <!-- ── Quiz de comprobación ── -->
-        @if (l.quiz; as quiz) {
-          <div class="quiz">
-            <h3>Comprueba lo que entendiste</h3>
-
-            @if (resultadoQuiz(); as res) {
-              <div class="quiz-resultado">
-                <mat-icon>{{ res.correctas === res.total ? 'celebration' : 'menu_book' }}</mat-icon>
-                <p>Acertaste {{ res.correctas }} de {{ res.total }} ({{ res.nota }}%).</p>
-              </div>
-            } @else {
-              @for (p of quiz.preguntas; track p.id) {
-                <fieldset class="pregunta">
-                  <legend>{{ p.enunciado }}</legend>
-                  @if (p.tipo === 'OPCION_MULTIPLE') {
-                    <p class="ayuda">Puedes marcar más de una.</p>
-                  }
-                  @for (o of p.opciones; track o.id) {
-                    <button type="button" class="opcion"
-                            [class.marcada]="elegida(p.id, o.id)"
-                            (click)="elegir(p, o.id)">
-                      <mat-icon>{{ elegida(p.id, o.id) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
-                      <span>{{ o.texto }}</span>
-                    </button>
-                  }
-                </fieldset>
               }
-
-              <button type="button" class="boton-principal boton-grande"
-                      [disabled]="!quizCompleto || guardando()"
-                      (click)="enviarQuiz()">
-                Enviar respuestas
-              </button>
             }
-          </div>
+          </section>
+        } @empty {
+          <p class="sin-material">Esta lección no tiene material adjunto.</p>
         }
 
         <div class="acciones">
@@ -178,3 +150,138 @@
     }
   }
 </section>
+
+<!-- ── Quiz de comprobación ───────────────────────────────────────────────────
+     Va en una plantilla con nombre y no suelto al final porque ahora su sitio lo
+     decide el bloque QUIZ: puede ir después del vídeo y antes del formato. Es UNO
+     por lección, así que una sola plantilla basta. -->
+<ng-template #bloqueQuiz>
+        <!-- `leccion()` y no `l`: la plantilla vive fuera del @if que declaraba `l`. -->
+        @if (leccion()?.quiz; as quiz) {
+          <div class="quiz">
+            <h3>Comprueba lo que entendiste</h3>
+
+            @if (resultadoQuiz(); as res) {
+              <div class="quiz-resultado">
+                <mat-icon>{{ res.correctas === res.total ? 'celebration' : 'menu_book' }}</mat-icon>
+                <p>Acertaste {{ res.correctas }} de {{ res.total }} ({{ res.nota }}%).</p>
+              </div>
+            } @else {
+              @if (unaPorUna) {
+                <p class="quiz-avance">
+                  Pregunta {{ indicePregunta() + 1 }} de {{ quiz.preguntas.length }}
+                </p>
+              }
+
+              @for (p of preguntasVisibles; track p.id) {
+                <fieldset class="pregunta" [class.pregunta-confirmada]="confirmada(p)">
+                  <legend>{{ p.enunciado }}</legend>
+
+                  <!-- Material sobre el que se pregunta. Sin él, "¿qué EPP falta en esta
+                       foto?" no se puede responder, así que se baja al mostrar la pregunta
+                       y no bajo demanda. -->
+                  @if (p.cuerpo_html) {
+                    <div class="pregunta-cuerpo" [innerHTML]="p.cuerpo_html"></div>
+                  }
+                  @if (p.media_tipo) {
+                    <div class="pregunta-media">
+                      @if (p.media_url) {
+                        <!-- Enlace externo: se ABRE, no se incrusta. La política de seguridad
+                             de la página solo deja incrustar medios de esta plataforma, así
+                             que un <video> a otro host se vería en blanco. -->
+                        <a class="recurso" [href]="p.media_url" target="_blank" rel="noopener">
+                          <mat-icon>{{ p.media_tipo === 'VIDEO' ? 'play_circle' : 'image' }}</mat-icon>
+                          <span>Abrir el {{ p.media_tipo === 'VIDEO' ? 'vídeo' : 'material' }} de la pregunta</span>
+                        </a>
+                      } @else if (mediaDe(p); as fuente) {
+                        @if (p.media_tipo === 'VIDEO') {
+                          <video class="video" controls preload="metadata" [src]="fuente"></video>
+                        } @else {
+                          <img [src]="fuente" alt="Material de la pregunta" loading="lazy" />
+                        }
+                      } @else {
+                        <button type="button" class="boton-secundario" (click)="cargarMediaDe(p)">
+                          <mat-icon>{{ p.media_tipo === 'VIDEO' ? 'play_circle' : 'image' }}</mat-icon>
+                          Ver el {{ p.media_tipo === 'VIDEO' ? 'vídeo' : 'material' }} de la pregunta
+                        </button>
+                      }
+                    </div>
+                  }
+                  @if (p.tipo === 'OPCION_MULTIPLE' && !confirmada(p)) {
+                    <p class="ayuda">Puedes marcar más de una.</p>
+                  }
+                  @for (o of p.opciones; track o.id) {
+                    <button type="button" class="opcion"
+                            [class.marcada]="elegida(p.id, o.id)"
+                            [class.opcion-correcta]="confirmada(p) && esCorrecta(p, o.id)"
+                            [class.opcion-fallada]="confirmada(p) && elegida(p.id, o.id) && !esCorrecta(p, o.id)"
+                            [disabled]="confirmada(p)"
+                            (click)="elegir(p, o.id)">
+                      <mat-icon>
+                        @if (confirmada(p) && esCorrecta(p, o.id)) { check_circle }
+                        @else if (confirmada(p) && elegida(p.id, o.id)) { cancel }
+                        @else { {{ elegida(p.id, o.id) ? 'check_box' : 'check_box_outline_blank' }} }
+                      </mat-icon>
+                      <span>{{ o.texto }}</span>
+                    </button>
+                  }
+
+                  <!-- La corrección. Sale del propio paquete, sin red: así funciona en finca. -->
+                  @if (confirmada(p) && acerto(p) !== null) {
+                    <div class="correccion" [class.correccion-mal]="!acerto(p)">
+                      <mat-icon>{{ acerto(p) ? 'check_circle' : 'error_outline' }}</mat-icon>
+                      <div>
+                        <strong>{{ acerto(p) ? '¡Correcto!' : 'La respuesta correcta es la marcada en verde.' }}</strong>
+                        @if (p.explicacion) { <p>{{ p.explicacion }}</p> }
+                        @if (!acerto(p) && p.bloque_id) {
+                          <button type="button" class="enlace-repaso"
+                                  (click)="verDondeSeExplica(p)">
+                            <mat-icon>replay</mat-icon>
+                            Ver dónde se explica
+                            @if (p.segundo) { (minuto {{ minuto(p.segundo) }}) }
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  }
+                </fieldset>
+              }
+
+              @if (unaPorUna) {
+                <div class="quiz-navegacion">
+                  @if (quiz.permite_volver) {
+                    <button type="button" class="boton-secundario"
+                            [disabled]="!puedeVolver" (click)="preguntaAnterior()">
+                      <mat-icon>arrow_back</mat-icon> Anterior
+                    </button>
+                  }
+                  @for (p of preguntasVisibles; track p.id) {
+                    @if (!confirmada(p)) {
+                      <button type="button" class="boton-principal"
+                              [disabled]="(respuestas()[p.id] ?? []).length === 0"
+                              (click)="confirmar(p)">
+                        Confirmar
+                      </button>
+                    } @else if (!esUltimaPregunta) {
+                      <button type="button" class="boton-principal" (click)="siguientePregunta(p)">
+                        Siguiente <mat-icon>arrow_forward</mat-icon>
+                      </button>
+                    } @else {
+                      <button type="button" class="boton-principal"
+                              [disabled]="!quizCompleto || guardando()" (click)="enviarQuiz()">
+                        Enviar respuestas
+                      </button>
+                    }
+                  }
+                </div>
+              } @else {
+                <button type="button" class="boton-principal boton-grande"
+                        [disabled]="!quizCompleto || guardando()"
+                        (click)="enviarQuiz()">
+                  Enviar respuestas
+                </button>
+              }
+            }
+          </div>
+        }
+</ng-template>

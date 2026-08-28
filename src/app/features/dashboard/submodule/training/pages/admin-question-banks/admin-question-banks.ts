@@ -11,6 +11,13 @@ import {
 interface FormPregunta {
   id?: string;
   enunciado: string;
+  /** Texto enriquecido de apoyo. Va aparte del enunciado, que se muestra en listas e informes. */
+  cuerpo_html: string;
+  /** El material sobre el que se pregunta: la foto del EPP mal puesto, el vídeo de la maniobra. */
+  media_tipo: 'IMAGEN' | 'VIDEO' | null;
+  media_document_id: string | null;
+  media_url: string | null;
+  media_mime: string | null;
   tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR';
   explicacion: string;
   opciones: Opcion[];
@@ -124,7 +131,8 @@ export class AdminQuestionBanks implements OnInit {
 
   nuevaPregunta(): void {
     this.form.set({
-      enunciado: '', tipo: 'OPCION_MULTIPLE', explicacion: '', versionar: false,
+      enunciado: '', cuerpo_html: '', tipo: 'OPCION_MULTIPLE', explicacion: '', versionar: false,
+      media_tipo: null, media_document_id: null, media_url: null, media_mime: null,
       opciones: [
         { texto: '', correcta: true }, { texto: '', correcta: false },
       ],
@@ -135,6 +143,11 @@ export class AdminQuestionBanks implements OnInit {
     this.form.set({
       id: p.id,
       enunciado: p.enunciado,
+      cuerpo_html: p.cuerpo_html ?? '',
+      media_tipo: p.media_tipo ?? null,
+      media_document_id: p.media_document_id ?? null,
+      media_url: p.media_url ?? null,
+      media_mime: p.media_mime ?? null,
       tipo: p.tipo,
       explicacion: p.explicacion ?? '',
       // Una pregunta ya respondida NO se edita: se versiona. La interfaz lo dice antes de
@@ -198,6 +211,63 @@ export class AdminQuestionBanks implements OnInit {
     });
   }
 
+  // ── Material de apoyo de la pregunta ──────────────────────────────────────
+
+  readonly subiendoMedia = signal(false);
+
+  editarForm(parche: Partial<FormPregunta>): void {
+    this.form.update(f => f ? { ...f, ...parche } : f);
+  }
+
+  /**
+   * Sube la foto o el vídeo sobre el que se pregunta.
+   *
+   * Va a gestión documental, no a learning-ms: acabaría allí de todos modos y mandarlo dos
+   * veces solo duplica el tráfico. Al responder, el archivo se sirve por un proxy que
+   * comprueba que quien lo pide alcance esa pregunta.
+   */
+  async subirMedia(tipo: 'IMAGEN' | 'VIDEO', evento: Event): Promise<void> {
+    const input = evento.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    const b = this.bancoActivo();
+    if (!archivo || !b) return;
+    input.value = '';
+
+    const limiteMb = tipo === 'VIDEO' ? 200 : 15;
+    if (archivo.size > limiteMb * 1024 * 1024) {
+      Swal.fire('Archivo demasiado grande',
+        `El material de una pregunta no puede pasar de ${limiteMb} MB.`, 'info');
+      return;
+    }
+
+    this.subiendoMedia.set(true);
+    try {
+      const documentId = await this.api.subirMediaDePregunta(archivo, b.id);
+      this.editarForm({
+        media_tipo: tipo, media_document_id: documentId,
+        media_url: null, media_mime: archivo.type || null,
+      });
+    } catch (e: any) {
+      Swal.fire('No se pudo subir', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    } finally {
+      this.subiendoMedia.set(false);
+    }
+  }
+
+  async ponerEnlaceMedia(tipo: 'IMAGEN' | 'VIDEO'): Promise<void> {
+    const { value: url } = await Swal.fire({
+      title: tipo === 'VIDEO' ? 'Enlace del vídeo' : 'Enlace de la imagen',
+      input: 'url', inputPlaceholder: 'https://…',
+      showCancelButton: true, confirmButtonText: 'Usar', cancelButtonText: 'Cancelar',
+    });
+    if (!url) return;
+    this.editarForm({ media_tipo: tipo, media_url: url, media_document_id: null, media_mime: null });
+  }
+
+  quitarMedia(): void {
+    this.editarForm({ media_tipo: null, media_document_id: null, media_url: null, media_mime: null });
+  }
+
   async guardarPregunta(): Promise<void> {
     const f = this.form();
     const b = this.bancoActivo();
@@ -209,6 +279,11 @@ export class AdminQuestionBanks implements OnInit {
 
     const req: PreguntaRequest = {
       enunciado: f.enunciado.trim(),
+      cuerpo_html: f.cuerpo_html?.trim() || undefined,
+      media_tipo: f.media_tipo,
+      media_document_id: f.media_document_id,
+      media_url: f.media_url,
+      media_mime: f.media_mime,
       tipo: f.tipo,
       explicacion: f.explicacion || undefined,
       activa: true,

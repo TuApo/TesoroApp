@@ -1,0 +1,399 @@
+/* Tarjeta de un bloque del armador de lecciones.
+   Cerrada resume; abierta edita. Se parece a propósito a la tarjeta de campo del constructor
+   de formularios: quien arma un taller ya sabe cómo se maneja aquella. */
+
+.bc {
+  border: 1px solid var(--color-borde, #e0e0e0);
+  border-radius: 0.6rem;
+  background: var(--color-fondo, #fff);
+  overflow: hidden;
+}
+
+.bc-abierto {
+  border-color: var(--color-primario, #1976d2);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+
+/* El quiz se distingue del material: es lo único que la persona tiene que responder. */
+.bc-quiz { border-left: 3px solid var(--color-primario, #1976d2); }
+
+.bc-cab {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.bc-num {
+  flex: none;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--color-fondo-suave, #eef2f7);
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.bc-icono { flex: none; color: var(--color-texto-secundario, #6b7280); }
+
+/* El título es un botón: hacer clic en el nombre abre la tarjeta, que es lo que se intenta. */
+.bc-titulo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1.25;
+}
+
+.bc-titulo strong {
+  font-size: 0.87rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-titulo em {
+  font-size: 0.75rem;
+  font-style: normal;
+  color: var(--color-texto-secundario, #6b7280);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-acciones {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.bc-cuerpo {
+  border-top: 1px solid var(--color-borde, #e0e0e0);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  background: var(--color-fondo-suave, #f7f9fc);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.campo > span { font-weight: 600; }
+
+.campo small {
+  font-size: 0.72rem;
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.campo input,
+.campo select,
+.campo textarea {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  border-radius: 0.4rem;
+  background: var(--color-fondo, #fff);
+  color: inherit;
+  width: 100%;
+}
+
+.campo textarea { resize: vertical; }
+.campo-corto { max-width: 11rem; }
+
+.campos-fila {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.campo-check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  padding-top: 1.1rem;
+}
+
+.campo-check input { margin: 0; }
+
+.bc-sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+}
+
+.bc-nota {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.bc-archivo {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  border-radius: 0.45rem;
+  background: var(--color-fondo, #fff);
+}
+
+.bc-archivo div { display: flex; flex-direction: column; min-width: 0; }
+.bc-archivo strong { font-size: 0.83rem; }
+
+.bc-archivo em {
+  font-size: 0.73rem;
+  font-style: normal;
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.bc-preguntas,
+.bc-banco {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  counter-reset: preg;
+}
+
+.bc-preguntas li,
+.bc-banco li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  border-radius: 0.4rem;
+  background: var(--color-fondo, #fff);
+  font-size: 0.82rem;
+}
+
+.bc-preg-texto,
+.bc-banco li > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-preg-tipo {
+  flex: none;
+  font-size: 0.7rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--color-fondo-suave, #eef2f7);
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.bc-vacio {
+  border-style: dashed !important;
+  color: var(--color-texto-secundario, #6b7280);
+  font-size: 0.78rem;
+}
+
+.bc-agregar-preg {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px dashed var(--color-borde, #e0e0e0);
+}
+
+/* El banco puede tener decenas de preguntas: se acota y se desplaza en vez de empujar
+   la página entera hacia abajo. */
+.bc-banco {
+  max-height: 13rem;
+  overflow-y: auto;
+}
+
+.bc-pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--color-borde, #e0e0e0);
+}
+
+.bc-sucio {
+  margin-right: auto;
+  font-size: 0.75rem;
+  color: var(--color-peligro, #c62828);
+}
+
+@media (max-width: 600px) {
+  .campos-fila { flex-direction: column; }
+  .campo-corto { max-width: 100%; }
+  .campo-check { padding-top: 0; }
+
+  /* En un teléfono las cuatro acciones no caben junto al título: bajan a su propia línea. */
+  .bc-cab { flex-wrap: wrap; }
+  .bc-titulo { flex-basis: 100%; order: 3; }
+  .bc-acciones { margin-left: auto; }
+}
+
+.campo-medio { max-width: 16rem; }
+
+/* Aviso de que las correctas viajan en el paquete. Es una decisión con coste: se dice donde
+   se toma, no en la documentación. */
+.bc-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.45rem;
+  background: var(--color-fondo-suave, #eef2f7);
+  font-size: 0.75rem;
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.bc-aviso mat-icon {
+  flex: none;
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Selector de "dónde se explica" y el segundo. Acotados para que no empujen al enunciado. */
+.bc-ref {
+  flex: none;
+  max-width: 9rem;
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 0.15rem 0.25rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  border-radius: 0.35rem;
+  background: var(--color-fondo, #fff);
+  color: inherit;
+}
+
+.bc-seg {
+  flex: none;
+  width: 4rem;
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 0.15rem 0.25rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  border-radius: 0.35rem;
+  background: var(--color-fondo, #fff);
+  color: inherit;
+}
+
+@media (max-width: 600px) {
+  .campo-medio { max-width: 100%; }
+  .bc-preguntas li { flex-wrap: wrap; }
+  .bc-preg-texto { flex-basis: 100%; }
+  .bc-ref { max-width: 100%; flex: 1; }
+}
+
+/* Formulario para escribir una pregunta sin salir del bloque. */
+.bc-nueva {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  border: 1px solid var(--color-primario, #1976d2);
+  border-radius: 0.5rem;
+  background: var(--color-fondo, #fff);
+}
+
+.bc-opciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.bc-opciones-tit {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.bc-opcion {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.bc-opcion input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.83rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  border-radius: 0.35rem;
+  background: var(--color-fondo, #fff);
+  color: inherit;
+}
+
+/* Verdadero/Falso no se edita: el texto es el que es. Se ve, pero apagado. */
+.bc-opcion input[type="text"][readonly] {
+  background: var(--color-fondo-suave, #eef2f7);
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.btn-texto {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--color-primario, #1976d2);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-texto mat-icon {
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+}
+
+.media-pregunta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.media-pregunta .bc-opciones-tit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.media-pregunta mat-icon {
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+}

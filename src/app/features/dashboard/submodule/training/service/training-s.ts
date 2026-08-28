@@ -64,6 +64,17 @@ export class TrainingS {
     );
   }
 
+  /**
+   * La foto o el vídeo sobre el que pregunta una pregunta.
+   *
+   * Va por learning-ms y no directo a gestión documental porque ese exige JWT y una etiqueta
+   * `<img>` no manda cabeceras. Además comprueba que esta persona alcance esa pregunta.
+   */
+  descargarMediaDePregunta(questionId: string): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${this.base}/me/questions/${questionId}/media`, { responseType: 'blob' }));
+  }
+
   misCertificados(): Promise<Certificado[]> {
     return firstValueFrom(
       this.http.get<Certificado[]>(`${this.base}/me/certificates`)
@@ -170,9 +181,32 @@ export interface LeccionOffline {
   orden: number;
   estado: string;
   porcentaje: number;
+  /** Listas planas, agrupadas por tipo y sin el orden de autor. Usa `bloques`. */
   recursos: RecursoOffline[];
   actividades: Actividad[];
   quiz?: QuizPresentacion;
+  /** El recorrido en orden, con cada bloque ya resuelto. Es lo que pinta el reproductor. */
+  bloques?: BloqueOffline[];
+}
+
+/**
+ * Un bloque con su contenido resuelto.
+ *
+ * Aquí viaja TODO —el archivo, la tarea, el quiz barajado— porque este payload se cachea en el
+ * teléfono y se estudia sin conexión: lo que no venga ahora no se puede pedir después.
+ */
+export interface BloqueOffline {
+  id: string;
+  tipo: 'TEXTO' | 'VIDEO' | 'DOCUMENTO' | 'PRESENTACION' | 'IMAGEN' | 'ENLACE'
+      | 'ACTIVIDAD' | 'QUIZ';
+  titulo?: string | null;
+  /** Qué tiene que hacer la persona con este bloque. Va bajo el título. */
+  descripcion?: string | null;
+  orden: number;
+  contenido?: string | null;
+  recurso?: RecursoOffline | null;
+  actividad?: Actividad | null;
+  quiz?: QuizPresentacion | null;
 }
 
 export interface RecursoOffline {
@@ -198,17 +232,38 @@ export interface QuizPresentacion {
   lesson_id: string;
   intentos_max: number;
   feedback_inmediato: boolean;
+  /** TODAS = una página con todo. UNA_POR_UNA = de a una, en ventana. */
+  modo_presentacion: 'TODAS' | 'UNA_POR_UNA';
+  /** Solo aplica en UNA_POR_UNA. */
+  permite_volver: boolean;
+  mostrar_respuesta_correcta: boolean;
   preguntas: PreguntaPresentacion[];
 }
 
 export interface PreguntaPresentacion {
   id: string;
   enunciado: string;
+  /** Texto enriquecido de apoyo, y la foto o el vídeo sobre el que se pregunta. */
+  cuerpo_html?: string | null;
+  media_tipo?: 'IMAGEN' | 'VIDEO' | null;
+  /** El archivo NO se pide por su document_id: va por /me/questions/{id}/media, que comprueba acceso. */
+  tiene_archivo?: boolean;
+  media_url?: string | null;
   tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR';
   opciones: OpcionPresentacion[];
+  /** Bloque de la lección donde esto se explica, y el segundo del vídeo. */
+  bloque_id?: string | null;
+  segundo?: number | null;
+  /**
+   * Las correctas y el porqué. SOLO vienen si el quiz tiene `mostrar_respuesta_correcta`:
+   * viajan en el paquete porque este quiz se contesta sin conexión y no hay a quién
+   * preguntarle al fallar. Es la razón de que esa bandera se pueda apagar.
+   */
+  opciones_correctas?: string[] | null;
+  explicacion?: string | null;
 }
 
-/** Nunca trae la respuesta correcta: el backend usa un DTO distinto para eso. */
+/** Trae la correcta solo cuando el quiz lo permite; la evaluación formal nunca. */
 export interface OpcionPresentacion {
   id: string;
   texto: string;

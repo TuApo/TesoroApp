@@ -33,8 +33,21 @@
       </div>
 
       <div class="acciones-version">
-        @if (editable()) {
+        <!-- El curso sin ninguna versión es un estado real: se llega descartando el único
+             borrador. Sin esta rama se mostraba "Publicada · contenido congelado" sobre un
+             curso vacío, que no es cierto ni ayuda. -->
+        @if (versiones().length === 0) {
+          <span class="chip">Sin versiones</span>
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="nuevaVersion()">
+            <mat-icon>add</mat-icon> Crear la primera versión
+          </button>
+        } @else if (editable()) {
           <span class="chip chip-borrador">Borrador · se puede editar</span>
+          <button type="button" class="btn-secundario peligro" [disabled]="ocupado()"
+                  title="Elimina el borrador y todo su contenido"
+                  (click)="descartarBorrador()">
+            <mat-icon>delete_forever</mat-icon> Descartar borrador
+          </button>
           <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="publicar()">
             <mat-icon>publish</mat-icon> Publicar versión
           </button>
@@ -47,7 +60,7 @@
       </div>
     </div>
 
-    @if (!editable()) {
+    @if (!editable() && versiones().length > 0) {
       <p class="nota-inmutable">
         <mat-icon>lock</mat-icon>
         Esta versión ya está publicada, así que su contenido no se toca: hay gente que la cursó
@@ -138,16 +151,9 @@
 
             @if (editable()) {
               <div class="leccion-acciones">
-                <label class="btn-secundario pequeno subir">
-                  <mat-icon>upload</mat-icon>
-                  {{ subiendo() === l.id ? 'Subiendo…' : 'Subir archivo' }}
-                  <input type="file" hidden [disabled]="subiendo() === l.id"
-                         (change)="subirMaterial(l, $event)" />
-                </label>
-                <button type="button" class="btn-icono" title="Agregar enlace"
-                        (click)="agregarEnlace(l)">
-                  <mat-icon>link</mat-icon>
-                </button>
+                <!-- Ya no hay "Subir archivo" suelto aquí: todo el contenido entra como
+                     bloque. Con las dos vías conviviendo, un archivo subido por la de arriba
+                     no aparecía en el recorrido y quedaba invisible en el editor. -->
                 <button type="button" class="btn-icono peligro" title="Eliminar lección"
                         (click)="eliminarLeccion(l)">
                   <mat-icon>delete</mat-icon>
@@ -156,21 +162,117 @@
             }
           </div>
 
-          @if ((l.recursos ?? []).length > 0) {
-            <ul class="recursos">
-              @for (r of l.recursos ?? []; track r.id) {
-                <li>
-                  <mat-icon>attach_file</mat-icon>
-                  <span>{{ r.titulo || 'Material' }}</span>
-                  @if (editable()) {
-                    <button type="button" class="btn-icono peligro pequeno"
-                            title="Quitar material" (click)="quitarRecurso(r.id)">
-                      <mat-icon>close</mat-icon>
+          <!-- ── Recorrido de la lección ─────────────────────────────────
+               El orden es el que eligió quien armó la clase: "lee esto, mira el
+               video, responde, ahora descarga el formato". Antes esto eran tres
+               listas separadas que el reproductor pintaba siempre igual. -->
+          <!-- ── Recorrido de la lección ─────────────────────────────────
+               Cada bloque es una tarjeta que se edita en sitio, como los campos
+               del constructor de formularios. Cerrada resume; abierta trae su
+               título, su descripción y lo suyo — y en el quiz, sus preguntas. -->
+          <div class="bloques">
+            @for (b of bloquesDe(l); track b.id; let i = $index) {
+              <app-block-card
+                [bloque]="b"
+                [lessonId]="l.id"
+                [indice]="i"
+                [total]="bloquesDe(l).length"
+                [editable]="editable()"
+                [bancos]="bancos()"
+                [bloquesDeLaLeccion]="bloquesDe(l)"
+                (mover)="moverBloque(l, b, $event)"
+                (eliminar)="eliminarBloque(b)"
+                (cambiado)="refrescarContenido()" />
+            } @empty {
+              <p class="bloque-vacio">
+                Esta lección todavía no tiene contenido. Agrégale bloques: un texto, el video,
+                el formato para descargar y la comprobación al final.
+              </p>
+            }
+          </div>
+
+          @if (editable()) {
+            <div class="agregar-bloque">
+              <button type="button" class="btn-secundario pequeno"
+                      [disabled]="guardandoBloque() === l.id"
+                      (click)="abrirMenuBloques(l)">
+                <mat-icon>{{ menuBloques() === l.id ? 'expand_less' : 'add' }}</mat-icon>
+                {{ guardandoBloque() === l.id ? 'Guardando…' : 'Agregar bloque' }}
+              </button>
+
+              @if (menuBloques() === l.id) {
+                <div class="menu-bloques">
+                  @for (t of tiposDeBloque; track t.tipo) {
+                    <button type="button" class="tipo-bloque"
+                            [disabled]="t.tipo === 'QUIZ' && yaTieneQuiz(l)"
+                            [title]="t.tipo === 'QUIZ' && yaTieneQuiz(l)
+                                     ? 'Esta lección ya tiene su quiz'
+                                     : t.ayuda"
+                            (click)="agregarBloque(l, t.tipo)">
+                      <mat-icon>{{ t.icono }}</mat-icon>
+                      <span>
+                        <strong>{{ t.nombre }}</strong>
+                        <em>{{ t.ayuda }}</em>
+                      </span>
                     </button>
                   }
-                </li>
+                </div>
               }
-            </ul>
+            </div>
+          }
+
+          <!-- ── Etiquetado automático ──────────────────────────────────────
+               Se pinta solo si hay algo que mostrar: una fila vacía de "IA" en
+               cada lección de texto sería ruido en la pantalla de todos. -->
+          @if (materialesDe(l.id).length > 0 || etiquetasDe(l.id).length > 0) {
+            <div class="ia">
+              @for (m of materialesDe(l.id); track m.id) {
+                <div class="ia-estado" [class.ia-fallo]="m.estado === 'FALLIDO'">
+                  <mat-icon [class.girando]="m.estado === 'PROCESANDO'">{{ iconoEstado(m) }}</mat-icon>
+                  <span>{{ estadoTexto(m) }}</span>
+                  @if (m.estado === 'FALLIDO') {
+                    <span class="ia-motivo" [title]="m.ultimo_error">{{ m.ultimo_error }}</span>
+                    <button type="button" class="btn-icono pequeno" title="Volver a intentar"
+                            (click)="reintentarEtiquetado(m)">
+                      <mat-icon>refresh</mat-icon>
+                    </button>
+                  }
+                </div>
+                @if (m.resumen) {
+                  <p class="ia-resumen">{{ m.resumen }}</p>
+                }
+              }
+
+              @if (etiquetasDe(l.id).length > 0) {
+                <ul class="etiquetas">
+                  @for (t of etiquetasDe(l.id); track t.id) {
+                    <li class="etiqueta"
+                        [class.sugerida]="t.estado === 'SUGERIDA'"
+                        [class.modulo]="t.tipo === 'MODULO_SUGERIDO'">
+                      @if (t.tipo === 'MODULO_SUGERIDO') { <mat-icon>folder</mat-icon> }
+                      <span>{{ t.etiqueta }}</span>
+                      @if (t.confianza != null && t.estado === 'SUGERIDA') {
+                        <em class="confianza">{{ (t.confianza * 100) | number:'1.0-0' }}%</em>
+                      }
+                      @if (t.estado === 'SUGERIDA') {
+                        <button type="button" class="btn-chip" title="Confirmar etiqueta"
+                                [disabled]="revisando() === t.id" (click)="confirmarEtiqueta(t)">
+                          <mat-icon>check</mat-icon>
+                        </button>
+                      }
+                      <button type="button" class="btn-chip peligro" title="Descartar etiqueta"
+                              [disabled]="revisando() === t.id" (click)="descartarEtiqueta(t)">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+
+              <button type="button" class="btn-texto" (click)="agregarEtiqueta(l)">
+                <mat-icon>add</mat-icon> Agregar etiqueta
+              </button>
+            </div>
           }
         }
       </div>

@@ -1,0 +1,79 @@
+@if (disponible()) {
+  <!-- role="complementary" y no un dialog: el panel no bloquea la pantalla, se puede
+       seguir trabajando con él abierto, que es justo para lo que sirve. -->
+  <div class="tutor" [class.tutor-abierto]="abierto()">
+    @if (abierto()) {
+      <section class="panel" role="complementary" aria-label="Tutor de capacitaciones">
+        <header class="panel-cabecera">
+          <mat-icon>school</mat-icon>
+          <div class="titulo">
+            <strong>Tutor de capacitaciones</strong>
+            <span>Responde solo con el material de tus cursos</span>
+          </div>
+          @if (turnos().length > 0) {
+            <button type="button" class="icono" title="Empezar de nuevo" (click)="limpiar()">
+              <mat-icon>restart_alt</mat-icon>
+            </button>
+          }
+          <button type="button" class="icono" title="Cerrar" (click)="alternar()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </header>
+
+        <div class="conversacion">
+          @if (turnos().length === 0) {
+            <p class="vacio">
+              Pregúntame sobre lo que viste en tus cursos. Te llevo al minuto exacto del video
+              donde se explica.
+            </p>
+          }
+
+          @for (t of turnos(); track $index) {
+            <div class="turno" [class.mio]="t.rol === 'yo'">
+              <p class="texto">{{ t.texto }}</p>
+
+              @if (t.referencias?.length) {
+                <ul class="referencias">
+                  @for (r of t.referencias ?? []; track r.lesson_id + '-' + r.segundos) {
+                    <li>
+                      <button type="button" class="referencia" (click)="ir(r)">
+                        <mat-icon>play_circle</mat-icon>
+                        <span class="ref-texto">
+                          <strong>{{ r.lesson_nombre }}</strong>
+                          <em>{{ r.course_nombre }} · minuto {{ minuto(r.segundos) }}</em>
+                        </span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+
+          @if (pensando()) {
+            <div class="turno">
+              <p class="texto pensando">Buscando en tus cursos…</p>
+            </div>
+          }
+        </div>
+
+        <footer class="panel-pie">
+          <textarea rows="2" [ngModel]="pregunta()" (ngModelChange)="pregunta.set($event)"
+                    (keydown)="alTeclear($event)"
+                    placeholder="¿Cómo se ajusta el arnés?"
+                    aria-label="Tu pregunta"></textarea>
+          <button type="button" class="enviar" [disabled]="!puedeEnviar()"
+                  title="Preguntar" (click)="enviar()">
+            <mat-icon>send</mat-icon>
+          </button>
+        </footer>
+      </section>
+    }
+
+    <button type="button" class="burbuja" (click)="alternar()"
+            [attr.aria-expanded]="abierto()"
+            [title]="abierto() ? 'Cerrar el tutor' : 'Preguntar al tutor de capacitaciones'">
+      <mat-icon>{{ abierto() ? 'close' : 'school' }}</mat-icon>
+    </button>
+  </div>
+}

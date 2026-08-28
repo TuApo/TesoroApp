@@ -1,0 +1,207 @@
+/* Botón flotante del tutor de capacitaciones.
+
+   Abajo a la derecha y por encima de todo, pero NO tapando la barra inferior del móvil:
+   en un teléfono de 5,5" el pulgar cae justo ahí y el botón quedaría sobre el menú. */
+
+.tutor {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
+  pointer-events: none;
+}
+
+.tutor > * { pointer-events: auto; }
+
+.burbuja {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  background: var(--color-primario, #1976d2);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+}
+
+.burbuja:hover { filter: brightness(1.08); }
+.burbuja:focus-visible { outline: 3px solid var(--color-primario, #1976d2); outline-offset: 3px; }
+
+.panel {
+  width: min(24rem, calc(100vw - 2rem));
+  /* Alto acotado al viewport: con el teclado abierto en un móvil, un panel de alto fijo
+     empuja el campo de texto fuera de la pantalla. */
+  max-height: min(32rem, calc(100vh - 7rem));
+  display: flex;
+  flex-direction: column;
+  background: var(--color-fondo, #fff);
+  color: var(--color-texto, #1f2937);
+  border-radius: 0.9rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--color-primario, #1976d2);
+  color: #fff;
+}
+
+.panel-cabecera .titulo {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-cabecera .titulo span {
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.icono {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  padding: 0.15rem;
+}
+
+.conversacion {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.vacio {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.turno { display: flex; flex-direction: column; gap: 0.4rem; }
+.turno.mio { align-items: flex-end; }
+
+.texto {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  font-size: 0.87rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  background: var(--color-fondo-suave, #eef2f7);
+  max-width: 92%;
+}
+
+.turno.mio .texto {
+  background: var(--color-primario, #1976d2);
+  color: #fff;
+}
+
+.texto.pensando { opacity: 0.7; font-style: italic; }
+
+.referencias {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.referencia {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  text-align: left;
+  padding: 0.4rem 0.55rem;
+  border-radius: 0.55rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.referencia:hover { background: var(--color-fondo-suave, #eef2f7); }
+
+.ref-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ref-texto strong {
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref-texto em {
+  font-size: 0.72rem;
+  font-style: normal;
+  color: var(--color-texto-secundario, #6b7280);
+}
+
+.panel-pie {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border-top: 1px solid var(--color-borde, #e0e0e0);
+}
+
+.panel-pie textarea {
+  flex: 1;
+  resize: none;
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-borde, #e0e0e0);
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  font-size: 0.87rem;
+  background: transparent;
+  color: inherit;
+}
+
+.enviar {
+  border: none;
+  border-radius: 50%;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primario, #1976d2);
+  color: #fff;
+  cursor: pointer;
+}
+
+.enviar:disabled { opacity: 0.45; cursor: default; }
+
+@media (max-width: 600px) {
+  .tutor {
+    right: 0.6rem;
+    /* Sube por encima de la barra inferior del móvil. */
+    bottom: 4.5rem;
+  }
+
+  .panel { max-height: calc(100vh - 10rem); }
+}

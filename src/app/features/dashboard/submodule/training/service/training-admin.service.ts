@@ -113,7 +113,11 @@ export class TrainingAdminService {
    */
   async subirArchivo(file: File, lessonId: string): Promise<string> {
     const fd = new FormData();
-    fd.append('ownerId', `leccion:${lessonId}`);
+    // El ownerId es el UUID PELADO, sin prefijo: `owner_id` en gestión documental es
+    // varchar(40) y "leccion:" + un UUID son 44 caracteres, así que la subida moría con
+    // "Data too long" que llegaba al usuario como un 409 "Conflicto de datos". Lo que
+    // distingue de qué es dueño el documento es `ownerType`, que para eso existe.
+    fd.append('ownerId', lessonId);
     fd.append('typeCode', 'CAPACITACION_MATERIAL');
     fd.append('ownerType', 'LEARNING_LESSON');
     fd.append('sourceService', 'tesoro-capacitaciones');
@@ -124,6 +128,131 @@ export class TrainingAdminService {
     );
     if (!r?.document_id) throw new Error('ms-documents no confirmó la subida');
     return String(r.document_id);
+  }
+
+  /**
+   * Descarta un borrador con todo su contenido.
+   *
+   * Solo BORRADOR: el backend rechaza una versión publicada, porque hay gente que la cursó con
+   * ese contenido exacto y su certificado lo respalda.
+   */
+  descartarBorrador(courseId: string, versionId: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/courses/${courseId}/versions/${versionId}`));
+  }
+
+  /**
+   * Apunta una pregunta al sitio de la lección donde se explica.
+   *
+   * Es lo que convierte un fallo en algo útil: en vez de "incorrecta", la persona recibe el
+   * atajo al bloque —y al segundo del vídeo— donde está la respuesta. `blockId` nulo la quita.
+   */
+  referenciaDePregunta(quizId: string, questionId: string,
+                       blockId: string | null, segundo: number | null): Promise<Quiz> {
+    return firstValueFrom(
+      this.http.put<Quiz>(`${this.base}/quizzes/${quizId}/questions/${questionId}/referencia`,
+        { block_id: blockId, segundo }));
+  }
+
+  /**
+   * Sube el material de apoyo de una pregunta a gestión documental y devuelve su document_id.
+   *
+   * No pasa por learning-ms: acabaría en gestión documental de todos modos, y mandarlo dos
+   * veces solo duplica el tráfico. Igual que el material de las lecciones.
+   */
+  async subirMediaDePregunta(file: File, bankId: string): Promise<string> {
+    const fd = new FormData();
+    // UUID pelado: ver la nota de subirArchivo sobre el ancho de `owner_id`.
+    fd.append('ownerId', bankId);
+    fd.append('typeCode', 'CAPACITACION_MATERIAL');
+    fd.append('ownerType', 'LEARNING_QUESTION');
+    fd.append('sourceService', 'tesoro-capacitaciones');
+    fd.append('file', file, file.name);
+    const r = await firstValueFrom(
+      this.http.post<{ document_id: number }>(`${this.documentos}/upload-by-owner`, fd));
+    if (!r?.document_id) throw new Error('ms-documents no confirmó la subida');
+    return String(r.document_id);
+  }
+
+  /** Reordena las preguntas del quiz. El backend exige la lista completa, no el movimiento. */
+  reordenarPreguntasDelQuiz(quizId: string, questionIds: string[]): Promise<Quiz> {
+    return firstValueFrom(
+      this.http.put<Quiz>(`${this.base}/quizzes/${quizId}/questions/order`,
+        { question_ids: questionIds }));
+  }
+
+  /**
+   * Las tareas de una lección.
+   *
+   * La tarjeta del bloque la usa para rellenar el formulario de una ACTIVIDAD: el árbol de
+   * contenido trae solo el `activity_id`, porque cargar cada tarea entera engordaría el
+   * payload que la app en campo se baja completo para una pantalla que solo ve administración.
+   */
+  actividadesDeLeccion(lessonId: string): Promise<Actividad[]> {
+    return firstValueFrom(
+      this.http.get<Actividad[]>(`${this.base}/lessons/${lessonId}/activities`));
+  }
+
+  // ── Bloques de lección ────────────────────────────────────────────────────
+
+  /**
+   * Agrega un bloque al final de la lección.
+   *
+   * Una sola llamada crea el bloque Y su contenido. Pedirle al frontend que cree primero el
+   * recurso y luego el bloque dejaría bloques huérfanos cada vez que la segunda petición se
+   * pierda — y en campo se pierde.
+   */
+  crearBloque(lessonId: string, req: BloqueRequest): Promise<Bloque> {
+    return firstValueFrom(
+      this.http.post<Bloque>(`${this.base}/lessons/${lessonId}/blocks`, req));
+  }
+
+  actualizarBloque(blockId: string, req: BloqueRequest): Promise<Bloque> {
+    return firstValueFrom(this.http.put<Bloque>(`${this.base}/blocks/${blockId}`, req));
+  }
+
+  /** Se manda el orden COMPLETO, no "sube este uno": dos pestañas abiertas se pisarían. */
+  reordenarBloques(lessonId: string, bloques: string[]): Promise<Bloque[]> {
+    return firstValueFrom(
+      this.http.put<Bloque[]>(`${this.base}/lessons/${lessonId}/blocks/order`, { bloques }));
+  }
+
+  eliminarBloque(blockId: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`${this.base}/blocks/${blockId}`));
+  }
+
+  // ── Etiquetado por IA ─────────────────────────────────────────────────────
+
+  /**
+   * Estado IA de la versión: cómo va la transcripción de cada material y qué etiquetas hay
+   * por revisar.
+   *
+   * Va en una petición aparte de `contenido()` a propósito: el árbol de contenido es el
+   * mismo payload que la app en campo se baja entero, y colgarle las transcripciones lo
+   * engordaría para todo el mundo por una pantalla que solo ve administración.
+   */
+  estadoIa(versionId: string): Promise<VersionIa> {
+    return firstValueFrom(this.http.get<VersionIa>(`${this.base}/ia/versions/${versionId}`));
+  }
+
+  confirmarEtiqueta(tagId: string): Promise<EtiquetaIa> {
+    return firstValueFrom(
+      this.http.post<EtiquetaIa>(`${this.base}/ia/tags/${tagId}/confirmar`, {}));
+  }
+
+  descartarEtiqueta(tagId: string): Promise<EtiquetaIa> {
+    return firstValueFrom(
+      this.http.post<EtiquetaIa>(`${this.base}/ia/tags/${tagId}/descartar`, {}));
+  }
+
+  agregarEtiqueta(lessonId: string, etiqueta: string, tipo = 'TEMA'): Promise<EtiquetaIa> {
+    return firstValueFrom(
+      this.http.post<EtiquetaIa>(`${this.base}/ia/lessons/${lessonId}/tags`, { etiqueta, tipo }));
+  }
+
+  reprocesarMaterial(resourceId: string): Promise<MaterialIa> {
+    return firstValueFrom(
+      this.http.post<MaterialIa>(`${this.base}/ia/resources/${resourceId}/reprocesar`, {}));
   }
 
   // ── Banco de preguntas ────────────────────────────────────────────────────
@@ -416,6 +545,13 @@ export interface Pregunta {
   id: string;
   bank_id: string;
   enunciado: string;
+  /** Texto enriquecido de apoyo. El enunciado va en texto plano. */
+  cuerpo_html?: string | null;
+  /** IMAGEN | VIDEO, o null si la pregunta no lleva material. */
+  media_tipo?: 'IMAGEN' | 'VIDEO' | null;
+  media_document_id?: string | null;
+  media_url?: string | null;
+  media_mime?: string | null;
   tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR';
   dificultad?: string;
   explicacion?: string;
@@ -437,6 +573,11 @@ export interface Opcion {
 
 export interface PreguntaRequest {
   enunciado: string;
+  cuerpo_html?: string;
+  media_tipo?: string | null;
+  media_document_id?: string | null;
+  media_url?: string | null;
+  media_mime?: string | null;
   tipo: string;
   dificultad?: string;
   explicacion?: string;
@@ -451,14 +592,28 @@ export interface Quiz {
   feedback_inmediato: boolean;
   barajar_preguntas: boolean;
   barajar_opciones: boolean;
+  modo_presentacion: 'TODAS' | 'UNA_POR_UNA';
+  permite_volver: boolean;
+  mostrar_respuesta_correcta: boolean;
   total_preguntas: number;
   editable: boolean;
   preguntas: Pregunta[];
+  /** A dónde manda cada pregunta al fallar. Solo trae las que tienen referencia puesta. */
+  referencias: ReferenciaPregunta[];
+}
+
+export interface ReferenciaPregunta {
+  question_id: string;
+  block_id: string;
+  segundo?: number | null;
 }
 
 export interface QuizRequest {
   intentos_max?: number;
   feedback_inmediato?: boolean;
+  modo_presentacion?: string;
+  permite_volver?: boolean;
+  mostrar_respuesta_correcta?: boolean;
   barajar_preguntas?: boolean;
   barajar_opciones?: boolean;
 }
@@ -628,7 +783,10 @@ export interface Leccion {
   duracion_min?: number;
   obligatoria: boolean;
   orden: number;
+  /** Lista plana, sin orden de autor. Se conserva por compatibilidad: usa `bloques`. */
   recursos?: Recurso[];
+  /** El recorrido de la lección, en el orden en que se armó. */
+  bloques?: Bloque[];
 }
 
 export interface LeccionRequest {
@@ -646,6 +804,9 @@ export interface Recurso {
   tipo: string;
   document_id?: string;
   url?: string;
+  /** Los manda el backend desde siempre; la tarjeta del bloque los muestra. */
+  mime?: string | null;
+  bytes?: number | null;
   orden: number;
 }
 
@@ -656,6 +817,111 @@ export interface RecursoRequest {
   url?: string;
   orden?: number;
 }
+/** Tarea entregable de una lección. */
+export interface Actividad {
+  id: string;
+  lesson_id: string;
+  tipo: 'EVIDENCIA_FOTO' | 'FORMULARIO' | 'TEXTO';
+  titulo: string;
+  instrucciones?: string | null;
+  revision: 'MANUAL' | 'AUTOMATICA';
+  puntaje_max?: number | null;
+  obligatoria: boolean;
+  orden: number;
+}
+
+// ── Bloques de lección ──────────────────────────────────────────────────────
+
+/**
+ * Qué es un bloque. El tipo decide dónde vive su contenido: TEXTO lo lleva encima;
+ * VIDEO/DOCUMENTO/PRESENTACION/IMAGEN/ENLACE lo llevan en `recurso`; ACTIVIDAD y QUIZ traen
+ * solo el id, porque se editan en su propia pantalla.
+ */
+export type TipoBloque =
+  | 'TEXTO' | 'VIDEO' | 'DOCUMENTO' | 'PRESENTACION' | 'IMAGEN' | 'ENLACE'
+  | 'ACTIVIDAD' | 'QUIZ';
+
+export interface Bloque {
+  id: string;
+  tipo: TipoBloque;
+  titulo?: string | null;
+  /** Línea de ayuda bajo el título: qué hay que hacer con este bloque. */
+  descripcion?: string | null;
+  orden: number;
+  contenido?: string | null;
+  recurso?: Recurso | null;
+  activity_id?: string | null;
+  quiz_id?: string | null;
+}
+
+export interface BloqueActividadRequest {
+  tipo?: string;
+  titulo?: string;
+  instrucciones?: string;
+  revision?: string;
+  puntaje_max?: number;
+  obligatoria?: boolean;
+}
+
+export interface BloqueRequest {
+  tipo: string;
+  titulo?: string;
+  descripcion?: string;
+  contenido?: string;
+  document_id?: string;
+  url?: string;
+  mime?: string;
+  bytes?: number;
+  actividad?: BloqueActividadRequest;
+}
+
+// ── Etiquetado por IA ───────────────────────────────────────────────────────
+
+/**
+ * Estado del procesamiento de un material audiovisual.
+ *
+ * `estado` recorre PENDIENTE → PROCESANDO → LISTO, y puede acabar en FALLIDO (agotó los
+ * reintentos, con `ultimo_error` explicando por qué) u OMITIDO (no era audiovisual, o no
+ * había pista de audio). La transcripción NO viaja: solo `tiene_transcripcion`.
+ */
+export interface MaterialIa {
+  id: string;
+  resource_id: string;
+  lesson_id: string;
+  estado: 'PENDIENTE' | 'PROCESANDO' | 'LISTO' | 'FALLIDO' | 'OMITIDO';
+  idioma?: string | null;
+  duracion_seg?: number | null;
+  resumen?: string | null;
+  intentos: number;
+  ultimo_error?: string | null;
+  procesado_at?: string | null;
+  tiene_transcripcion: boolean;
+}
+
+export interface EtiquetaIa {
+  id: string;
+  lesson_id: string;
+  resource_id?: string | null;
+  etiqueta: string;
+  tipo: 'TEMA' | 'COMPETENCIA' | 'PALABRA_CLAVE' | 'MODULO_SUGERIDO';
+  origen: 'IA' | 'MANUAL';
+  confianza?: number | null;
+  estado: 'SUGERIDA' | 'CONFIRMADA' | 'DESCARTADA';
+  revisado_at?: string | null;
+}
+
+export interface LeccionIa {
+  lesson_id: string;
+  materiales: MaterialIa[];
+  etiquetas: EtiquetaIa[];
+}
+
+export interface VersionIa {
+  course_version_id: string;
+  etiquetado_habilitado: boolean;
+  lecciones: LeccionIa[];
+}
+
 // ── Planes de asignación ────────────────────────────────────────────────────
 
 export interface PlanAsignacion {

@@ -1,0 +1,405 @@
+<div class="bc" [class.bc-abierto]="abierto()" [class.bc-quiz]="bloque.tipo === 'QUIZ'">
+
+  <!-- ── Cabecera: siempre visible, resume el bloque sin abrirlo ── -->
+  <div class="bc-cab">
+    <span class="bc-num">{{ indice + 1 }}</span>
+    <mat-icon class="bc-icono" [title]="meta.nombre">{{ meta.icono }}</mat-icon>
+
+    <button type="button" class="bc-titulo" (click)="alternar()"
+            [attr.aria-expanded]="abierto()">
+      <strong>{{ bloque.titulo || meta.nombre }}</strong>
+      @if (!abierto() && resumen) { <em>{{ resumen }}</em> }
+    </button>
+
+    @if (editable) {
+      <div class="bc-acciones">
+        <button type="button" class="btn-icono pequeno" title="Subir"
+                [disabled]="indice === 0" (click)="mover.emit(-1)">
+          <mat-icon>arrow_upward</mat-icon>
+        </button>
+        <button type="button" class="btn-icono pequeno" title="Bajar"
+                [disabled]="indice === total - 1" (click)="mover.emit(1)">
+          <mat-icon>arrow_downward</mat-icon>
+        </button>
+        <button type="button" class="btn-icono pequeno"
+                [title]="abierto() ? 'Cerrar' : 'Editar'" (click)="alternar()">
+          <mat-icon>{{ abierto() ? 'expand_less' : 'edit' }}</mat-icon>
+        </button>
+        <button type="button" class="btn-icono peligro pequeno" title="Quitar bloque"
+                (click)="eliminar.emit()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
+  </div>
+
+  <!-- ── Cuerpo desplegado ── -->
+  @if (abierto() && borrador(); as b) {
+    <div class="bc-cuerpo">
+
+      <label class="campo">
+        <span>Título</span>
+        <input type="text" maxlength="200" [ngModel]="b.titulo"
+               (ngModelChange)="editar({ titulo: $event })"
+               [placeholder]="meta.nombre" [disabled]="!editable" />
+      </label>
+
+      <label class="campo">
+        <span>Descripción</span>
+        <textarea rows="2" [ngModel]="b.descripcion"
+                  (ngModelChange)="editar({ descripcion: $event })"
+                  placeholder="Qué tiene que hacer la persona con este bloque"
+                  [disabled]="!editable"></textarea>
+        <small>Se muestra bajo el título, en el curso.</small>
+      </label>
+
+      @switch (bloque.tipo) {
+
+        @case ('TEXTO') {
+          <label class="campo">
+            <span>Contenido *</span>
+            <textarea rows="8" [ngModel]="b.contenido"
+                      (ngModelChange)="editar({ contenido: $event })"
+                      placeholder="Escribe la explicación…" [disabled]="!editable"></textarea>
+            <small>Admite HTML sencillo. Un bloque en blanco no deja publicar la versión.</small>
+          </label>
+        }
+
+        @case ('ENLACE') {
+          <label class="campo">
+            <span>Dirección *</span>
+            <input type="url" [ngModel]="b.url" (ngModelChange)="editar({ url: $event })"
+                   placeholder="https://…" [disabled]="!editable" />
+          </label>
+        }
+
+        @case ('ACTIVIDAD') {
+          <div class="campos-fila">
+            <label class="campo">
+              <span>Qué entrega</span>
+              <select [ngModel]="b.actividad.tipo"
+                      (ngModelChange)="editarActividad({ tipo: $event })" [disabled]="!editable">
+                <option value="EVIDENCIA_FOTO">Una foto</option>
+                <option value="TEXTO">Una respuesta escrita</option>
+                <option value="FORMULARIO">Un formato lleno</option>
+              </select>
+            </label>
+            <label class="campo">
+              <span>Quién la aprueba</span>
+              <select [ngModel]="b.actividad.revision"
+                      (ngModelChange)="editarActividad({ revision: $event })" [disabled]="!editable">
+                <option value="MANUAL">La revisa un instructor</option>
+                <option value="AUTOMATICA">Se aprueba al entregar</option>
+              </select>
+            </label>
+            <label class="campo campo-corto">
+              <span>Puntaje máximo</span>
+              <input type="number" min="0" step="0.5" [ngModel]="b.actividad.puntaje_max"
+                     (ngModelChange)="editarActividad({ puntaje_max: $event })"
+                     placeholder="sin puntaje" [disabled]="!editable" />
+            </label>
+          </div>
+          <label class="campo">
+            <span>Instrucciones</span>
+            <textarea rows="3" [ngModel]="b.actividad.instrucciones"
+                      (ngModelChange)="editarActividad({ instrucciones: $event })"
+                      placeholder="Ej: foto de cuerpo entero, con el arnés puesto y luz de día"
+                      [disabled]="!editable"></textarea>
+          </label>
+          <label class="campo-check">
+            <input type="checkbox" [ngModel]="b.actividad.obligatoria"
+                   (ngModelChange)="editarActividad({ obligatoria: $event })" [disabled]="!editable" />
+            <span>Obligatoria para terminar la lección</span>
+          </label>
+        }
+
+        @case ('QUIZ') {
+          @if (cargandoQuiz()) {
+            <p class="bc-nota">Abriendo el quiz…</p>
+          } @else if (quiz(); as q) {
+            <div class="campos-fila">
+              <label class="campo campo-corto">
+                <span>Intentos</span>
+                <input type="number" min="0" [ngModel]="b.quiz.intentos_max"
+                       (ngModelChange)="editarQuiz({ intentos_max: $event })" [disabled]="!editable" />
+                <small>0 = sin límite</small>
+              </label>
+
+              <label class="campo campo-medio">
+                <span>Orden de las preguntas</span>
+                <select [ngModel]="b.quiz.barajar_preguntas ? 'AZAR' : 'FIJO'"
+                        (ngModelChange)="editarQuiz({ barajar_preguntas: $event === 'AZAR' })"
+                        [disabled]="!editable">
+                  <option value="FIJO">El que armaste, siempre igual</option>
+                  <option value="AZAR">Aleatorio en cada intento</option>
+                </select>
+              </label>
+
+              <label class="campo campo-medio">
+                <span>Cómo se responde</span>
+                <select [ngModel]="b.quiz.modo_presentacion"
+                        (ngModelChange)="editarQuiz({ modo_presentacion: $event })"
+                        [disabled]="!editable">
+                  <option value="TODAS">Todas en una página</option>
+                  <option value="UNA_POR_UNA">Una pregunta a la vez</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="campos-fila">
+              @if (b.quiz.modo_presentacion === 'UNA_POR_UNA') {
+                <label class="campo-check">
+                  <input type="checkbox" [ngModel]="b.quiz.permite_volver"
+                         (ngModelChange)="editarQuiz({ permite_volver: $event })" [disabled]="!editable" />
+                  <span>Puede devolverse a la anterior</span>
+                </label>
+              }
+              <label class="campo-check">
+                <input type="checkbox" [ngModel]="b.quiz.feedback_inmediato"
+                       (ngModelChange)="editarQuiz({ feedback_inmediato: $event })" [disabled]="!editable" />
+                <span>Decir al instante si acertó</span>
+              </label>
+              <label class="campo-check">
+                <input type="checkbox" [ngModel]="b.quiz.mostrar_respuesta_correcta"
+                       (ngModelChange)="editarQuiz({ mostrar_respuesta_correcta: $event })"
+                       [disabled]="!editable" />
+                <span>Al fallar, mostrar cuál era la correcta</span>
+              </label>
+              <label class="campo-check">
+                <input type="checkbox" [ngModel]="b.quiz.barajar_opciones"
+                       (ngModelChange)="editarQuiz({ barajar_opciones: $event })" [disabled]="!editable" />
+                <span>Barajar opciones</span>
+              </label>
+            </div>
+
+            @if (b.quiz.mostrar_respuesta_correcta) {
+              <p class="bc-aviso">
+                <mat-icon>info</mat-icon>
+                Para poder decirlo sin conexión, las respuestas correctas viajan en el paquete
+                que se descarga al teléfono. Está bien para una comprobación de práctica; la
+                evaluación final nunca las manda.
+              </p>
+            }
+
+            <h4 class="bc-sub">Preguntas del quiz</h4>
+            <ol class="bc-preguntas">
+              @for (p of q.preguntas; track p.id; let i = $index, ultima = $last) {
+                <li>
+                  <span class="bc-preg-texto">{{ p.enunciado }}</span>
+                  <span class="bc-preg-tipo">{{ p.tipo === 'VERDADERO_FALSO' ? 'V/F' : 'opción' }}</span>
+                  @if (editable) {
+                    <!-- A dónde llevar a quien la falle: el bloque donde se explica, y el
+                         segundo si es un vídeo. Se guarda al momento, sin pasar por Guardar:
+                         es una acción suelta, no parte del formulario del bloque. -->
+                    <select class="bc-ref" title="¿Dónde se explica?"
+                            [ngModel]="referenciaDe(p)?.block_id ?? ''"
+                            (ngModelChange)="fijarReferencia(p, $event, referenciaDe(p)?.segundo)"
+                            [disabled]="guardando()">
+                      <option value="">Sin atajo</option>
+                      @for (bl of bloquesReferenciables; track bl.id) {
+                        <option [value]="bl.id">{{ bl.titulo || bl.tipo }}</option>
+                      }
+                    </select>
+                    @if (esVideo(referenciaDe(p)?.block_id)) {
+                      <input class="bc-seg" type="number" min="0" title="Segundo del vídeo"
+                             placeholder="seg"
+                             [ngModel]="referenciaDe(p)?.segundo"
+                             (ngModelChange)="fijarReferencia(p, referenciaDe(p)!.block_id, $event)"
+                             [disabled]="guardando()" />
+                    }
+                  }
+                  @if (editable) {
+                    <button type="button" class="btn-icono pequeno" title="Subir"
+                            [disabled]="i === 0 || guardando()" (click)="moverPregunta(p, -1)">
+                      <mat-icon>arrow_upward</mat-icon>
+                    </button>
+                    <button type="button" class="btn-icono pequeno" title="Bajar"
+                            [disabled]="ultima || guardando()" (click)="moverPregunta(p, 1)">
+                      <mat-icon>arrow_downward</mat-icon>
+                    </button>
+                    <button type="button" class="btn-icono peligro pequeno" title="Quitar del quiz"
+                            [disabled]="guardando()" (click)="quitarPregunta(p)">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  }
+                </li>
+              } @empty {
+                <li class="bc-vacio">
+                  Sin preguntas todavía. Un quiz vacío no deja publicar la versión.
+                </li>
+              }
+            </ol>
+
+            @if (editable) {
+              <div class="bc-agregar-preg">
+                <label class="campo">
+                  <span>Agregar del banco</span>
+                  <select [ngModel]="bancoElegido()" (ngModelChange)="elegirBanco($event)">
+                    <option [ngValue]="null">Elige un banco…</option>
+                    @for (banco of bancos; track banco.id) {
+                      <option [value]="banco.id">{{ banco.nombre }}</option>
+                    }
+                  </select>
+                </label>
+
+                @if (bancoElegido()) {
+                  <ul class="bc-banco">
+                    @for (p of disponibles(); track p.id) {
+                      <li>
+                        <span>{{ p.enunciado }}</span>
+                        <button type="button" class="btn-secundario pequeno"
+                                [disabled]="guardando()" (click)="agregarPregunta(p)">
+                          <mat-icon>add</mat-icon> Agregar
+                        </button>
+                      </li>
+                    } @empty {
+                      <li class="bc-vacio">
+                        Ese banco no tiene más preguntas activas para agregar. Escribe una aquí
+                        abajo, o adminístralas en Capacitaciones › Evaluaciones.
+                      </li>
+                    }
+                  </ul>
+
+                  <!-- ── Escribir una pregunta sin salir de aquí ──────────────
+                       Va al banco elegido, no a un rincón del quiz: las preguntas
+                       se siguen corrigiendo en un solo sitio. -->
+                  @if (nuevaPregunta(); as np) {
+                    <div class="bc-nueva">
+                      <label class="campo">
+                        <span>Enunciado *</span>
+                        <input type="text" [ngModel]="np.enunciado"
+                               (ngModelChange)="editarNueva({ enunciado: $event })"
+                               placeholder="¿A qué altura hay que anclarse?" />
+                      </label>
+
+                      <label class="campo campo-medio">
+                        <span>Tipo</span>
+                        <select [ngModel]="np.tipo" (ngModelChange)="cambiarTipoNueva($event)">
+                          <option value="VERDADERO_FALSO">Verdadero / Falso</option>
+                          <option value="OPCION_MULTIPLE">Opción múltiple</option>
+                        </select>
+                      </label>
+
+                      <div class="bc-opciones">
+                        <span class="bc-opciones-tit">Opciones · marca la correcta</span>
+                        @for (o of np.opciones; track $index) {
+                          <div class="bc-opcion">
+                            <input type="checkbox" [ngModel]="o.correcta"
+                                   (ngModelChange)="marcarCorrecta($index, $event)"
+                                   [attr.aria-label]="'Marcar como correcta'" />
+                            <input type="text" [ngModel]="o.texto"
+                                   (ngModelChange)="editarOpcion($index, { texto: $event })"
+                                   [readonly]="np.tipo === 'VERDADERO_FALSO'"
+                                   placeholder="Texto de la opción" />
+                            @if (np.tipo === 'OPCION_MULTIPLE' && np.opciones.length > 2) {
+                              <button type="button" class="btn-icono peligro pequeno"
+                                      title="Quitar opción" (click)="quitarOpcion($index)">
+                                <mat-icon>close</mat-icon>
+                              </button>
+                            }
+                          </div>
+                        }
+                        @if (np.tipo === 'OPCION_MULTIPLE') {
+                          <button type="button" class="btn-texto" (click)="agregarOpcion()">
+                            <mat-icon>add</mat-icon> Otra opción
+                          </button>
+                        }
+                      </div>
+
+                      <label class="campo">
+                        <span>Texto de apoyo (admite HTML)</span>
+                        <textarea rows="2" [ngModel]="np.cuerpo_html"
+                                  (ngModelChange)="editarNueva({ cuerpo_html: $event })"
+                                  placeholder="Contexto, una tabla, una lista de pasos…"></textarea>
+                      </label>
+
+                      <!-- La foto o el vídeo sobre el que se pregunta. -->
+                      <div class="media-pregunta">
+                        @if (np.media_tipo) {
+                          <span class="bc-opciones-tit">
+                            <mat-icon>{{ np.media_tipo === 'VIDEO' ? 'play_circle' : 'image' }}</mat-icon>
+                            {{ np.media_tipo === 'VIDEO' ? 'Vídeo' : 'Imagen' }} subida
+                          </span>
+                          <button type="button" class="btn-icono peligro pequeno" title="Quitar"
+                                  (click)="quitarMediaDeNueva()">
+                            <mat-icon>close</mat-icon>
+                          </button>
+                        } @else {
+                          <span class="bc-opciones-tit">Material de apoyo</span>
+                          <label class="btn-secundario pequeno">
+                            <mat-icon>image</mat-icon> Imagen
+                            <input type="file" hidden accept="image/*" [disabled]="guardando()"
+                                   (change)="subirMediaDeNueva('IMAGEN', $event)" />
+                          </label>
+                          <label class="btn-secundario pequeno">
+                            <mat-icon>movie</mat-icon> Vídeo
+                            <input type="file" hidden accept="video/*" [disabled]="guardando()"
+                                   (change)="subirMediaDeNueva('VIDEO', $event)" />
+                          </label>
+                        }
+                      </div>
+
+                      <label class="campo">
+                        <span>Explicación</span>
+                        <textarea rows="2" [ngModel]="np.explicacion"
+                                  (ngModelChange)="editarNueva({ explicacion: $event })"
+                                  placeholder="Por qué es esa. Se le muestra a quien falle."></textarea>
+                      </label>
+
+                      <div class="bc-pie">
+                        <button type="button" class="btn-secundario pequeno"
+                                (click)="nuevaPregunta.set(null)">Cancelar</button>
+                        <button type="button" class="btn-primario pequeno"
+                                [disabled]="!nuevaValida() || guardando()"
+                                (click)="guardarNuevaPregunta()">
+                          {{ guardando() ? 'Guardando…' : 'Crear y agregar' }}
+                        </button>
+                      </div>
+                    </div>
+                  } @else {
+                    <button type="button" class="btn-texto" (click)="abrirNuevaPregunta()">
+                      <mat-icon>add</mat-icon> Escribir una pregunta nueva
+                    </button>
+                  }
+                }
+              </div>
+            }
+          } @else {
+            <p class="bc-nota">No se pudo abrir el quiz de esta lección.</p>
+          }
+        }
+
+        <!-- Archivos: VIDEO, DOCUMENTO, PRESENTACION, IMAGEN -->
+        @default {
+          @if (bloque.recurso; as r) {
+            <div class="bc-archivo">
+              <mat-icon>attach_file</mat-icon>
+              <div>
+                <strong>{{ r.titulo || 'Archivo' }}</strong>
+                <em>
+                  {{ r.mime || 'archivo' }}
+                  @if (tamano(r.bytes); as t) { · {{ t }} }
+                </em>
+              </div>
+            </div>
+            <p class="bc-nota">
+              El archivo no se cambia aquí: otro archivo es otra transcripción y otras etiquetas
+              de IA. Quita el bloque y sube el nuevo.
+            </p>
+          }
+        }
+      }
+
+      @if (editable) {
+        <div class="bc-pie">
+          @if (sucio()) { <span class="bc-sucio">Sin guardar</span> }
+          <button type="button" class="btn-secundario pequeno" (click)="alternar()">Cerrar</button>
+          <button type="button" class="btn-primario pequeno"
+                  [disabled]="!sucio() || guardando()" (click)="guardar()">
+            {{ guardando() ? 'Guardando…' : 'Guardar' }}
+          </button>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -122,6 +122,52 @@
           </label>
         </div>
 
+        <!-- ── Material sobre el que se pregunta ─────────────────────────────
+             "¿Qué EPP falta en esta foto?" no se puede escribir sin la foto. El
+             archivo va a gestión documental; al responder lo sirve learning-ms
+             comprobando que quien lo pide alcance la pregunta. -->
+        <label class="ancho-completo">
+          <span>Texto de apoyo (admite HTML)</span>
+          <textarea rows="3" [ngModel]="f.cuerpo_html"
+                    (ngModelChange)="editarForm({ cuerpo_html: $event })"
+                    placeholder="Contexto, una tabla, una lista de pasos…"></textarea>
+        </label>
+
+        <div class="media-pregunta">
+          @if (f.media_tipo) {
+            <div class="media-puesta">
+              <mat-icon>{{ f.media_tipo === 'VIDEO' ? 'play_circle' : 'image' }}</mat-icon>
+              <span>
+                {{ f.media_tipo === 'VIDEO' ? 'Vídeo' : 'Imagen' }}
+                @if (f.media_url) { · enlace externo, se abre aparte } @else { · archivo subido, se ve dentro }
+              </span>
+              <button type="button" class="btn-icono peligro pequeno" title="Quitar material"
+                      (click)="quitarMedia()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          } @else {
+            <span class="media-tit">Material de apoyo</span>
+            <label class="btn-secundario pequeno">
+              <mat-icon>image</mat-icon> Subir imagen
+              <input type="file" hidden accept="image/*" [disabled]="subiendoMedia()"
+                     (change)="subirMedia('IMAGEN', $event)" />
+            </label>
+            <label class="btn-secundario pequeno">
+              <mat-icon>movie</mat-icon> Subir vídeo
+              <input type="file" hidden accept="video/*" [disabled]="subiendoMedia()"
+                     (change)="subirMedia('VIDEO', $event)" />
+            </label>
+            <!-- El enlace externo se ABRE en otra pestaña al responder, no se incrusta: la
+                 política de seguridad de la página solo deja incrustar medios de esta
+                 plataforma. Para que se vea dentro de la pregunta, súbelo. -->
+            <button type="button" class="btn-secundario pequeno" (click)="ponerEnlaceMedia('VIDEO')">
+              <mat-icon>link</mat-icon> Enlace externo
+            </button>
+            @if (subiendoMedia()) { <span class="media-tit">Subiendo…</span> }
+          }
+        </div>
+
         <h3 class="titulo-opciones">
           {{ f.tipo === 'EMPAREJAR' ? 'Parejas' : 'Opciones de respuesta' }}
         </h3>
