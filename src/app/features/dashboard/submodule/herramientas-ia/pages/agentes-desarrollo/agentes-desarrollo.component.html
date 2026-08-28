@@ -557,34 +557,104 @@
       }
 
       @for (m of misiones(); track m.id) {
-        <div class="fila-mision" [class.apagada]="!m.activo">
-          <div class="fm-izq">
-            <span class="fm-nom">{{ m.nombre }}</span>
-            <span class="fm-obj">{{ m.objetivo }}</span>
-            <span class="fm-meta">
-              {{ describirDisparo(m.disparo) }}
-              · {{ m.agentes.join(', ') || 'sin agente' }}
-              · {{ m.repo }}
-              @if (m.metas.length) { · {{ m.metas.length }} meta(s) }
-            </span>
+        <div class="tarjeta-mision" [class.apagada]="!m.activo" [class.viva]="!!m.enCurso">
+          <div class="tm-cab">
+            <div class="tm-titulo">
+              <span class="fm-nom">{{ m.nombre }}</span>
+              @if (m.enCurso) { <span class="tm-pulso">trabajando</span> }
+              @else if (!m.activo) { <span class="tm-pausada">en pausa</span> }
+            </div>
+            <div class="fm-der">
+              @if (m.activo && !m.enCurso && m.proxima) {
+                <span class="fm-prox" matTooltip="Próxima ejecución">{{ m.proxima | date:'dd/MM HH:mm' }}</span>
+              }
+              <button mat-icon-button [matTooltip]="m.activo ? 'Pausar' : 'Activar'" (click)="alternarMision(m)">
+                <mat-icon>{{ m.activo ? 'pause' : 'play_arrow' }}</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Lanzarla ahora" (click)="lanzarMisionYa(m)">
+                <mat-icon>bolt</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Editar" (click)="editarMision(m)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Borrar" (click)="borrarMision(m)">
+                <mat-icon>delete_outline</mat-icon>
+              </button>
+            </div>
           </div>
-          <div class="fm-der">
-            @if (m.activo && m.proxima) {
-              <span class="fm-prox">{{ m.proxima | date:'dd/MM HH:mm' }}</span>
+
+          <p class="fm-obj">{{ m.objetivo }}</p>
+
+          <div class="tm-datos">
+            <span><mat-icon>schedule</mat-icon> {{ describirDisparo(m.disparo) }}</span>
+            <span><mat-icon>smart_toy</mat-icon> {{ m.agentes.join(', ') || 'sin agente' }}</span>
+            <span><mat-icon>folder</mat-icon> {{ m.repo }}</span>
+            @if (m.metas.length) { <span><mat-icon>flag</mat-icon> {{ m.metas.length }} meta(s)</span> }
+            @if (m.duracionMediaMs) {
+              <span matTooltip="Media de las que acabaron bien">
+                <mat-icon>timelapse</mat-icon> suele tardar {{ duracion(m.duracionMediaMs) }}
+              </span>
             }
-            <button mat-icon-button [matTooltip]="m.activo ? 'Pausar' : 'Activar'" (click)="alternarMision(m)">
-              <mat-icon>{{ m.activo ? 'pause' : 'play_arrow' }}</mat-icon>
-            </button>
-            <button mat-icon-button matTooltip="Lanzarla ahora" (click)="lanzarMisionYa(m)">
-              <mat-icon>bolt</mat-icon>
-            </button>
-            <button mat-icon-button matTooltip="Editar" (click)="editarMision(m)">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button matTooltip="Borrar" (click)="borrarMision(m)">
-              <mat-icon>delete_outline</mat-icon>
-            </button>
+            @if (m.totalEjecuciones) {
+              <span><mat-icon>history</mat-icon> {{ m.okEjecuciones }}/{{ m.totalEjecuciones }} bien</span>
+            }
           </div>
+
+          <!-- Qué está haciendo AHORA. La barra se pone roja al acercarse al corte:
+               pasado ese punto la tarea muere y se pierde lo que llevara. -->
+          @if (m.enCurso; as t) {
+            <div class="tm-vivo" [class.al-limite]="cercaDelCorte(t)">
+              <div class="tmv-cab">
+                <mat-icon>bolt</mat-icon>
+                <b>{{ t.agenteNombre || t.agente }}</b>
+                <span class="tmv-tiempo">{{ transcurrido(t) }} de {{ t.minutos }} min</span>
+                @if (cercaDelCorte(t)) { <span class="tmv-aviso">se acerca al corte</span> }
+                <span class="fc-espaciador"></span>
+                <button mat-stroked-button (click)="abrirConsola(t)">
+                  <mat-icon>terminal</mat-icon> Ver en vivo
+                </button>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="avanceCorte(t)"></mat-progress-bar>
+              <span class="tmv-que">
+                {{ t.ultimaHerramienta ? 'Ahora: ' + t.ultimaHerramienta : 'Arrancando…' }}
+                · {{ t.turnos }} turnos · {{ t.cuentaNombre || 'sin cuenta' }}
+              </span>
+            </div>
+          }
+
+          <!-- Lo que ya hizo. El resumen es markdown: se pinta como tal. -->
+          @if (m.historial?.length) {
+            <details class="tm-hist">
+              <summary>Lo que ya hizo ({{ m.totalEjecuciones }})</summary>
+              @for (h of m.historial; track h.id) {
+                <div class="tmh-fila">
+                  <div class="tmh-cab" (click)="alternarResumen(h.id)">
+                    <mat-icon class="ic" [attr.data-e]="h.estado">{{ iconoEstado(h.estado) }}</mat-icon>
+                    <span class="tmh-cuando">{{ h.fin || h.creada | date:'dd/MM HH:mm' }}</span>
+                    <span class="tmh-dur">{{ duracion(h.duracionMs) }}</span>
+                    <span class="tmh-turnos">{{ h.turnos }} turnos</span>
+                    @if (h.costeUsd) { <span class="tmh-coste">{{ h.costeUsd | number:'1.2-2' }} USD</span> }
+                    <span class="fc-espaciador"></span>
+                    <mat-icon class="tmh-abrir">{{ resumenAbierto() === h.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </div>
+                  @if (resumenAbierto() === h.id) {
+                    <div class="tmh-cuerpo">
+                      @if (h.resumen) {
+                        <div class="md" [innerHTML]="comoMarkdown(h.resumen)"></div>
+                      } @else if (h.error) {
+                        <p class="tmh-error">{{ h.error }}</p>
+                      } @else {
+                        <p class="tmh-error">No dejó resumen.</p>
+                      }
+                      <button mat-stroked-button (click)="abrirConsola(h)">
+                        <mat-icon>terminal</mat-icon> Ver la bitácora completa
+                      </button>
+                    </div>
+                  }
+                </div>
+              }
+            </details>
+          }
         </div>
       }
     </mat-card>

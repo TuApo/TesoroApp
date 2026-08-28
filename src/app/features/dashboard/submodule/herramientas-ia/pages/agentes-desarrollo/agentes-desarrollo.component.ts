@@ -2,6 +2,8 @@ import {
   Component, ChangeDetectionStrategy, OnInit, OnDestroy, signal, computed, inject, PLATFORM_ID,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { markdownToHtml } from '@/app/features/dashboard/submodule/nomina/pages/analitica-nomina-ia/markdown-lite';
 import { firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
@@ -62,6 +64,7 @@ function escaparHtml(texto: string): string {
 export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   private svc = inject(AgentesService);
   private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+  private sanitizer = inject(DomSanitizer);
 
   // ── Estado general ────────────────────────────────────────────────────────
   pestana = signal<Pestana>('panel');
@@ -755,6 +758,41 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
 
   // ── Misiones ──────────────────────────────────────────────────────────────
 
+  /** Cuál de los resúmenes del historial está desplegado. */
+  resumenAbierto = signal<string | null>(null);
+
+  alternarResumen(id: string): void {
+    this.resumenAbierto.update((x) => (x === id ? null : id));
+  }
+
+  /** El resumen que deja el agente viene en markdown; se pinta como tal. */
+  comoMarkdown(texto: string): SafeHtml {
+    // markdownToHtml escapa el texto y solo reintroduce etiquetas de una lista blanca;
+    // aun asi se pasa por el sanitizador de Angular como segunda barrera.
+    return this.sanitizer.bypassSecurityTrustHtml(markdownToHtml(texto || ''));
+  }
+
+  /** Lo que lleva corriendo una tarea viva, contado desde que arrancó. */
+  transcurrido(t: Tarea): string {
+    const desde = t.inicio || t.creada;
+    return this.duracion(Date.now() - desde);
+  }
+
+  /** Cuánto de su tiempo permitido lleva gastado, en porcentaje. */
+  avanceCorte(t: Tarea): number {
+    const tope = (t.minutos || 30) * 60_000;
+    const desde = t.inicio || t.creada;
+    return Math.min(100, Math.round(((Date.now() - desde) / tope) * 100));
+  }
+
+  /**
+   * true a partir del 80% del tiempo permitido. Pasado el corte la tarea muere y se
+   * pierde lo que llevara sin resumir, así que conviene verlo venir.
+   */
+  cercaDelCorte(t: Tarea): boolean {
+    return this.avanceCorte(t) >= 80;
+  }
+
   describirDisparo(d: DisparoMision): string {
     const dias = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
     switch (d?.tipo) {
@@ -944,6 +982,26 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
               </li>`;
     }).join('');
 
+    // Cuanto suele tardar esto, segun lo que esos agentes ya hicieron. Si no hay
+    // historial no se inventa un numero: se dice que no se sabe.
+    let estimacion = '';
+    try {
+      const e = await firstValueFrom(this.svc.estimar(claves, secuencial ? 'secuencial' : 'paralelo'));
+      if (e.totalMs) {
+        const pasaDelCorte = e.totalMs > comun.minutos * 60_000;
+        estimacion = `<p style="margin:8px 0 0;font-size:.86rem;${pasaDelCorte ? 'color:#b91c1c' : 'color:#334155'}">
+            Suele tardar <b>${esc(this.duracion(e.totalMs))}</b>
+            ${e.completa ? '' : ' (al menos: alguno no tiene historial todavia)'}
+            ${e.costeTotalUsd ? ` · ronda los ${e.costeTotalUsd.toFixed(2)} USD` : ''}
+            ${pasaDelCorte ? `<br><b>Ojo:</b> eso pasa del corte de ${comun.minutos} min y moriria a medias. Sube el corte antes de lanzar.` : ''}
+          </p>`;
+      } else {
+        estimacion = '<p style="margin:8px 0 0;font-size:.86rem;color:#94a3b8">Sin historial de estos agentes todavia: no se sabe cuanto tardara.</p>';
+      }
+    } catch {
+      // Que no se pueda estimar no puede impedir lanzar.
+    }
+
     const libres = this.estado()?.pool.listas ?? 0;
     const avisoCuentas = claves.length > libres && !secuencial
       ? `<p style="margin:8px 0 0;color:#9a3412">Hay ${libres} cuenta(s) libre(s) y el enjambre pide ${claves.length}:
@@ -975,6 +1033,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
           Sobre <b>${esc(repoNombre)}</b> · ${esc(this.textoPermiso(comun.permiso))} ·
           se corta a los ${comun.minutos} min · ocupa ${claves.length} cuenta(s) del pool.
         </p>
+        ${estimacion}
         <p style="margin:6px 0 0;color:#64748b;font-size:.86rem">
           Trabajan sobre la copia aislada, nunca sobre producción.</p>
         ${avisoCuentas}
@@ -1334,7 +1393,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     }
   }
 
-  duracion(ms: number): string {
+  duracion(ms: number | null | undefined): string {
     if (!ms || ms < 0) return '—';
     const s = Math.floor(ms / 1000);
     if (s < 60) return `${s} s`;

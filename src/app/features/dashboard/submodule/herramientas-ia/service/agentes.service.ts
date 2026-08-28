@@ -209,6 +209,25 @@ export interface Mision {
   ultimaTareaId: string | null;
   proxima: number | null;
   faltanMs: number | null;
+  /** La ejecución viva de esta misión, si la hay. */
+  enCurso?: Tarea | null;
+  /** Las últimas que terminaron, de la más reciente a la más vieja. */
+  historial?: Tarea[];
+  totalEjecuciones?: number;
+  okEjecuciones?: number;
+  /** Media SOLO de las que acabaron bien: las cortadas falsean el promedio. */
+  duracionMediaMs?: number | null;
+  costeMedioUsd?: number | null;
+}
+
+/** Cuánto suele tardar un reparto, según lo que esos agentes ya hicieron. */
+export interface Estimacion {
+  porAgente: { clave: string; mediaMs: number | null; muestras: number; costeMedioUsd: number | null }[];
+  totalMs: number | null;
+  modo: 'paralelo' | 'secuencial';
+  /** false si algún agente no tiene historial: el total es una cota inferior. */
+  completa: boolean;
+  costeTotalUsd: number | null;
 }
 
 export interface Vigilante {
@@ -316,6 +335,10 @@ export class AgentesService {
     const fd = new FormData();
     fd.append('file', audio, nombre);
     return this.http.post<{ texto: string }>(`${this.base}/encargo/transcribir`, fd);
+  }
+
+  estimar(agentes: string[], modo: 'paralelo' | 'secuencial'): Observable<Estimacion> {
+    return this.http.post<Estimacion>(`${this.base}/estimacion`, { agentes, modo });
   }
 
   plantillas(): Observable<PlantillaEnjambre[]> {
