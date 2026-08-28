@@ -258,6 +258,10 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     this.tareaAbierta.set(t);
     this.bitacora.set([]);
     this.leidosBitacora = 0;
+    this.hilo.set([t]);          // algo que pintar mientras llega el hilo completo
+    this.seguirTexto.set('');
+    this.seguirAdjuntos.set([]);
+    this.cargarHilo(t);
     this.tirarBitacora();
     if (this.tempConsola) clearInterval(this.tempConsola);
     if (this.isBrowser) {
@@ -267,6 +271,8 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
         if (document.visibilityState !== 'visible') return;
         this.tirarBitacora();
         if (!this.estaViva(a)) {
+          // Al acabar se relee el hilo: es cuando aparece su informe final.
+          this.cargarHilo(a);
           clearInterval(this.tempConsola);
           this.tempConsola = undefined;
         }
@@ -768,6 +774,62 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
 
   /** Cuál de los resúmenes del historial está desplegado. */
   resumenAbierto = signal<string | null>(null);
+
+  // ── Conversación con el agente ────────────────────────────────────────────
+  /** Todas las tareas del hilo: cada una es un turno de la conversación. */
+  hilo = signal<Tarea[]>([]);
+  seguirTexto = signal('');
+  seguirAdjuntos = signal<{ nombre: string; contenidoBase64: string }[]>([]);
+  siguiendo = signal(false);
+
+  private cargarHilo(t: Tarea): void {
+    this.svc.hiloDeTarea(t.id).subscribe({
+      // Si el hilo no se puede leer, al menos se ve la tarea abierta: peor es un panel
+      // en blanco cuando lo que se quiere es mirar lo que hizo el agente.
+      next: (h) => this.hilo.set(h?.length ? h : [t]),
+      error: () => this.hilo.set([t]),
+    });
+  }
+
+  async documentoSeguir(ev: Event): Promise<void> {
+    const f = (ev.target as HTMLInputElement).files?.[0];
+    (ev.target as HTMLInputElement).value = '';
+    if (!f) return;
+    if (f.size > 25 * 1024 * 1024) { Swal.fire('Demasiado grande', 'El fichero pasa de 25 MB.', 'info'); return; }
+    try {
+      const contenidoBase64 = await this.aBase64(f);
+      this.seguirAdjuntos.update((xs) => [...xs.filter((x) => x.nombre !== f.name), { nombre: f.name, contenidoBase64 }]);
+    } catch (e) {
+      this.avisarError(e);
+    }
+  }
+
+  quitarAdjuntoSeguir(nombre: string): void {
+    this.seguirAdjuntos.update((xs) => xs.filter((x) => x.nombre !== nombre));
+  }
+
+  /**
+   * Manda el turno siguiente. El puente reusa la sesión del agente, así que conserva
+   * todo el contexto: no hay que repetirle el encargo ni volverá a leer lo mismo.
+   */
+  continuarHilo(): void {
+    const t = this.tareaAbierta();
+    const texto = this.seguirTexto().trim();
+    if (!t || !texto || this.siguiendo()) return;
+
+    this.siguiendo.set(true);
+    this.svc.continuarTarea(t.id, { objetivo: texto, adjuntos: this.seguirAdjuntos() }).subscribe({
+      next: (nueva) => {
+        this.siguiendo.set(false);
+        this.seguirTexto.set('');
+        this.seguirAdjuntos.set([]);
+        // La consola pasa a seguir la tarea NUEVA: es la que está viva ahora.
+        this.abrirConsola(nueva);
+        this.refrescar();
+      },
+      error: (e) => { this.siguiendo.set(false); this.avisarError(e); },
+    });
+  }
 
   // ── Reportes de una misión ────────────────────────────────────────────────
   reportes = signal<ReportesMision | null>(null);

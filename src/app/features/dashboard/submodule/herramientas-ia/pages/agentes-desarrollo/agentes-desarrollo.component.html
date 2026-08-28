@@ -774,96 +774,162 @@
   }
 
   <!-- ── CONSOLA ───────────────────────────────────────────────────────────── -->
+  <!-- ── CONVERSACIÓN CON EL AGENTE ─────────────────────────────────────────
+       Un hilo, no un volcado de log: cada encargo es un mensaje tuyo y cada
+       informe uno suyo, renderizado como markdown. Al terminar se le puede
+       seguir hablando reusando su sesión, así que conserva el contexto. -->
   @if (tareaAbierta(); as t) {
     <div class="consola-fondo" (click)="cerrarConsola()"></div>
-    <aside class="consola">
-      <header class="co-cab">
-        <div>
-          <span class="co-estado" [attr.data-e]="t.estado">
-            <mat-icon>{{ iconoEstado(t.estado) }}</mat-icon> {{ etiquetaEstado(t.estado) }}
-          </span>
-          <h2>{{ t.agenteNombre || t.agente || 'Agente general' }}</h2>
-          <p class="co-obj">{{ t.objetivo }}</p>
+    <aside class="chat">
+      <header class="ch-cab">
+        <div class="ch-quien">
+          <mat-icon class="ch-avatar">smart_toy</mat-icon>
+          <div>
+            <h2>{{ t.agenteNombre || t.agente || 'Agente general' }}</h2>
+            <span class="ch-sub">
+              <span class="co-estado" [attr.data-e]="t.estado">
+                <mat-icon>{{ iconoEstado(t.estado) }}</mat-icon> {{ etiquetaEstado(t.estado) }}
+              </span>
+              · {{ t.repo }}
+              @if (t.modeloReal) { · {{ t.modeloReal }} }
+              @if (hilo().length > 1) { · {{ hilo().length }} turnos }
+            </span>
+          </div>
         </div>
         <button mat-icon-button (click)="cerrarConsola()"><mat-icon>close</mat-icon></button>
       </header>
 
-      <div class="co-meta">
-        <span><mat-icon>account_circle</mat-icon>{{ t.cuentaNombre || t.cuentaId || 'sin asignar' }}</span>
-        <span><mat-icon>timer</mat-icon>{{ duracion(t.duracionMs) }}</span>
-        <span><mat-icon>forum</mat-icon>{{ t.turnos }} turnos</span>
-        <span><mat-icon>folder</mat-icon>{{ t.repo }}</span>
-        @if (t.modeloReal) { <span><mat-icon>memory</mat-icon>{{ t.modeloReal }}</span> }
+      <div class="ch-cuerpo" #cuerpoChat>
+        @for (m of hilo(); track m.id) {
+          <!-- Lo que se le pidió -->
+          <div class="msg mio">
+            <div class="msg-burbuja">{{ m.objetivo }}</div>
+            <span class="msg-pie">{{ m.creada | date:'dd/MM HH:mm' }}</span>
+          </div>
+
+          <!-- Lo que hizo -->
+          <div class="msg suyo">
+            <mat-icon class="msg-avatar">smart_toy</mat-icon>
+            <div class="msg-cont">
+              @if (m.id === t.id && estaViva(t)) {
+                <div class="msg-vivo">
+                  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                  <span class="msg-hace">
+                    {{ t.ultimaHerramienta ? 'Usando ' + t.ultimaHerramienta + '…' : 'Pensando…' }}
+                    · {{ transcurrido(t) }} de {{ t.minutos }} min · {{ t.turnos }} turnos
+                  </span>
+                  @if (cercaDelCorte(t)) {
+                    <span class="msg-aviso">Se acerca al corte: al pasarlo se le para y se pierde lo que no haya resumido.</span>
+                  }
+                </div>
+              }
+
+              @if (m.resumen) {
+                <div class="msg-burbuja md" [innerHTML]="comoMarkdown(m.resumen)"></div>
+              } @else if (m.error) {
+                <div class="msg-burbuja malo">{{ m.error }}</div>
+              } @else if (!estaViva(m)) {
+                <div class="msg-burbuja vacia">Terminó sin dejar informe.</div>
+              }
+
+              @if (m.archivosTocados.length) {
+                <div class="msg-ficheros">
+                  <mat-icon>edit_document</mat-icon>
+                  @for (f of m.archivosTocados; track f) {
+                    <span class="fichero" [matTooltip]="f">{{ nombreCorto(f) }}</span>
+                  }
+                </div>
+              }
+
+              <!-- El detalle de lo que fue haciendo, plegado: interesa cuando algo
+                   sale raro, no en cada lectura. -->
+              @if (m.id === t.id && bitacora().length) {
+                <details class="msg-pasos" [open]="estaViva(t)">
+                  <summary>{{ bitacora().length }} pasos · ver lo que fue haciendo</summary>
+                  @for (ev of bitacora(); track $index) {
+                    @switch (ev.tipo) {
+                      @case ('arranque') {
+                        <div class="paso sistema"><mat-icon>rocket_launch</mat-icon>
+                          Arranca con {{ ev.cuenta }} en modo {{ ev.permiso }}</div>
+                      }
+                      @case ('sesion') {
+                        <div class="paso sistema"><mat-icon>memory</mat-icon>
+                          Sesión abierta · {{ ev.modelo }}</div>
+                      }
+                      @case ('texto') { <div class="paso texto">{{ ev.texto }}</div> }
+                      @case ('herramienta') {
+                        <div class="paso herramienta">
+                          <mat-icon>build</mat-icon><strong>{{ ev.nombre }}</strong>
+                          <code>{{ ev.detalle }}</code>
+                        </div>
+                      }
+                      @case ('resultado') { <div class="paso resultado" [class.malo]="ev.error">{{ ev.texto }}</div> }
+                      @case ('fin') {
+                        <div class="paso fin" [attr.data-e]="ev.desenlace">
+                          <mat-icon>flag</mat-icon> Termina: {{ ev.desenlace }}
+                          @if (ev.motivo) { — {{ ev.motivo }} }
+                        </div>
+                      }
+                      @case ('fallo') { <div class="paso resultado malo">{{ ev.texto }}</div> }
+                    }
+                  }
+                </details>
+              }
+
+              <span class="msg-pie">
+                {{ duracion(m.duracionMs) }} · {{ m.turnos }} turnos
+                @if (m.costeUsd) { · {{ m.costeUsd | number:'1.2-2' }} USD }
+                @if (m.cuentaNombre) { · {{ m.cuentaNombre }} }
+              </span>
+            </div>
+          </div>
+        }
       </div>
 
-      @if (estaViva(t)) {
-        <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-      }
-
-      @if (t.archivosTocados.length) {
-        <div class="co-ficheros">
-          <h3>Ficheros tocados</h3>
-          @for (f of t.archivosTocados; track f) {
-            <span class="fichero" [matTooltip]="f">{{ nombreCorto(f) }}</span>
+      <!-- Seguir la conversación. Solo cuando ha terminado: mientras trabaja, lo que
+           toca es esperarle o pararle. -->
+      <footer class="ch-pie">
+        @if (estaViva(t)) {
+          <div class="ch-trabajando">
+            <mat-spinner diameter="18"></mat-spinner>
+            <span>Está trabajando…</span>
+            <span class="fc-espaciador"></span>
+            <button mat-stroked-button color="warn" (click)="cancelarTarea(t)">
+              <mat-icon>stop_circle</mat-icon> Parar
+            </button>
+          </div>
+        } @else if (!t.sesionId) {
+          <p class="ch-nota">Esta tarea no dejó sesión abierta, así que no se puede seguir desde aquí.</p>
+        } @else {
+          @if (seguirAdjuntos().length) {
+            <div class="enc-adjuntos">
+              @for (a of seguirAdjuntos(); track a.nombre) {
+                <span class="enc-chip">
+                  <mat-icon>description</mat-icon> {{ a.nombre }}
+                  <button type="button" (click)="quitarAdjuntoSeguir(a.nombre)"><mat-icon>close</mat-icon></button>
+                </span>
+              }
+            </div>
           }
-        </div>
-      }
-
-      <div class="co-log">
-        @for (ev of bitacora(); track $index) {
-          @switch (ev.tipo) {
-            @case ('arranque') {
-              <div class="ev sistema"><mat-icon>rocket_launch</mat-icon>
-                Arranca con la cuenta <strong>{{ ev.cuenta }}</strong> en modo {{ ev.permiso }}
-              </div>
-            }
-            @case ('sesion') {
-              <div class="ev sistema"><mat-icon>memory</mat-icon>
-                Sesión abierta · modelo {{ ev.modelo }} · {{ ev.herramientas }} herramientas
-              </div>
-            }
-            @case ('texto') { <div class="ev texto">{{ ev.texto }}</div> }
-            @case ('herramienta') {
-              <div class="ev herramienta">
-                <mat-icon>build</mat-icon>
-                <strong>{{ ev.nombre }}</strong>
-                <code>{{ ev.detalle }}</code>
-              </div>
-            }
-            @case ('resultado') {
-              <div class="ev resultado" [class.malo]="ev.error">{{ ev.texto }}</div>
-            }
-            @case ('fin') {
-              <div class="ev fin" [attr.data-e]="ev.desenlace">
-                <mat-icon>flag</mat-icon> Termina: {{ ev.desenlace }}
-                @if (ev.motivo) { — {{ ev.motivo }} }
-              </div>
-            }
-            @case ('fallo') { <div class="ev resultado malo">{{ ev.texto }}</div> }
-          }
+          <div class="ch-escribir">
+            <button mat-icon-button matTooltip="Adjuntar un fichero" [disabled]="siguiendo()"
+                    (click)="docSeguir.click()">
+              <mat-icon>attach_file</mat-icon>
+            </button>
+            <input #docSeguir type="file" hidden (change)="documentoSeguir($event)">
+            <textarea rows="1" [ngModel]="seguirTexto()" (ngModelChange)="seguirTexto.set($event)"
+                      [disabled]="siguiendo()"
+                      (keydown.enter)="$event.preventDefault(); continuarHilo()"
+                      placeholder="Pídele un ajuste y sigue con el mismo contexto…"></textarea>
+            <button mat-flat-button color="primary" [disabled]="siguiendo() || !seguirTexto().trim()"
+                    (click)="continuarHilo()">
+              @if (siguiendo()) { <mat-spinner diameter="18"></mat-spinner> }
+              @else { <mat-icon>send</mat-icon> }
+            </button>
+          </div>
+          <span class="ch-nota">Conserva todo el contexto: no hace falta repetirle el encargo.</span>
         }
-        @if (!bitacora().length) {
-          <p class="vacio">Sin actividad registrada todavía.</p>
-        }
-      </div>
-
-      @if (t.resumen) {
-        <div class="co-resumen">
-          <h3>Resumen del agente</h3>
-          <p>{{ t.resumen }}</p>
-        </div>
-      }
-      @if (t.error) {
-        <div class="co-error"><mat-icon>error</mat-icon><span>{{ t.error }}</span></div>
-      }
-
-      @if (estaViva(t)) {
-        <div class="co-acciones">
-          <button mat-stroked-button color="warn" (click)="cancelarTarea(t)">
-            <mat-icon>stop_circle</mat-icon> Parar al agente
-          </button>
-        </div>
-      }
+      </footer>
     </aside>
   }
 

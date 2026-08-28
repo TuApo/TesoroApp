@@ -85,7 +85,9 @@ export interface Tarea {
   permiso: string;
   minutos: number;
   prioridad: number;
-  origen: 'panel' | 'vigilante' | 'enjambre';
+  origen: 'panel' | 'vigilante' | 'enjambre' | 'mision' | 'seguimiento';
+  /** Apunta a la tarea raíz del hilo: los seguimientos cuelgan de ella. */
+  hiloDe?: string | null;
   enjambreId: string | null;
   vigilanteId?: string;
   esperaA?: string | null;
@@ -460,6 +462,15 @@ export class AgentesService {
     if (opts.limite) params['limite'] = String(opts.limite);
     return this.http.get<Tarea[]>(`${this.base}/tareas`, { params });
   }
+  /** Sigue hablando con un agente que ya trabajó: reusa su sesión, conserva el contexto. */
+  continuarTarea(id: string, body: { objetivo: string; adjuntos?: { nombre: string; contenidoBase64: string }[] }): Observable<Tarea> {
+    return this.http.post<Tarea>(`${this.base}/tareas/${id}/continuar`, body);
+  }
+  /** La conversación completa con ese agente, de la primera tarea a la última. */
+  hiloDeTarea(id: string): Observable<Tarea[]> {
+    return this.http.get<Tarea[]>(`${this.base}/tareas/${id}/hilo`);
+  }
+
   crearTarea(body: NuevaTarea): Observable<Tarea> {
     return this.http.post<Tarea>(`${this.base}/tareas`, body);
   }

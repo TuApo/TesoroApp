@@ -434,3 +434,93 @@
 .rep-graf h3 { margin: 0 0 8px; font-size: .84rem; font-weight: 700; color: #475569; }
 .rep-echart { height: 200px; width: 100%; }
 .rep-h { margin: 18px 0 4px; font-size: .95rem; color: #0f172a; }
+
+/* ── Conversación con el agente ────────────────────────────────────────────── */
+.chat {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(720px, 100vw);
+  background: #fff; box-shadow: -8px 0 32px rgba(15,23,42,.16);
+  display: flex; flex-direction: column; z-index: 60;
+}
+.ch-cab {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid #e2e8f0; flex: 0 0 auto;
+}
+.ch-quien { display: flex; align-items: center; gap: 12px; flex: 1 1 auto; min-width: 0; }
+.ch-avatar {
+  flex: 0 0 auto; width: 38px; height: 38px; font-size: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 10px; background: #eef2ff; color: #4338ca;
+}
+.ch-cab h2 { margin: 0; font-size: 1rem; color: #0f172a; }
+.ch-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: .76rem; color: #64748b; }
+
+.ch-cuerpo {
+  flex: 1 1 auto; overflow-y: auto; padding: 18px 16px;
+  display: flex; flex-direction: column; gap: 18px; background: #f8fafc;
+}
+
+.msg { display: flex; flex-direction: column; gap: 4px; }
+.msg.mio { align-items: flex-end; }
+.msg.suyo { flex-direction: row; align-items: flex-start; gap: 10px; }
+.msg-avatar {
+  flex: 0 0 auto; width: 28px; height: 28px; font-size: 17px; margin-top: 2px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; background: #eef2ff; color: #4338ca;
+}
+.msg-cont { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.msg-burbuja {
+  padding: 10px 14px; border-radius: 14px; font-size: .88rem; line-height: 1.5;
+  max-width: 100%; overflow-wrap: anywhere;
+}
+.msg.mio .msg-burbuja {
+  background: #2563eb; color: #fff; border-bottom-right-radius: 4px; max-width: 82%;
+}
+.msg.suyo .msg-burbuja {
+  background: #fff; color: #0f172a; border: 1px solid #e2e8f0; border-bottom-left-radius: 4px;
+}
+.msg-burbuja.malo { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.msg-burbuja.vacia { color: #94a3b8; font-style: italic; }
+.msg-pie { font-size: .7rem; color: #94a3b8; }
+.msg.mio .msg-pie { padding-right: 4px; }
+
+.msg-vivo {
+  background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.msg-hace { font-size: .8rem; color: #0369a1; }
+.msg-aviso { font-size: .78rem; color: #b91c1c; font-weight: 600; }
+
+.msg-ficheros { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.msg-ficheros > .mat-icon { font-size: 15px; width: 15px; height: 15px; color: #94a3b8; }
+
+/* El detalle plegado: interesa cuando algo sale raro, no en cada lectura. */
+.msg-pasos > summary {
+  cursor: pointer; font-size: .78rem; color: #64748b; padding: 4px 0; user-select: none;
+}
+.msg-pasos .paso {
+  display: flex; align-items: flex-start; gap: 6px;
+  font-size: .76rem; color: #475569; padding: 3px 0 3px 8px;
+  border-left: 2px solid #e2e8f0; overflow-wrap: anywhere;
+}
+.msg-pasos .paso .mat-icon { font-size: 14px; width: 14px; height: 14px; flex: 0 0 auto; }
+.msg-pasos .paso code { background: #f1f5f9; padding: 0 4px; border-radius: 4px; font-size: .72rem; }
+.msg-pasos .paso.sistema { color: #94a3b8; }
+.msg-pasos .paso.resultado.malo { color: #b91c1c; }
+.msg-pasos .paso.fin { color: #0f172a; font-weight: 600; }
+
+.ch-pie { flex: 0 0 auto; border-top: 1px solid #e2e8f0; padding: 10px 12px; background: #fff; }
+.ch-trabajando { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: #0369a1; }
+.ch-escribir { display: flex; align-items: flex-end; gap: 6px; }
+.ch-escribir textarea {
+  flex: 1 1 auto; resize: none; min-height: 40px; max-height: 140px;
+  border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px;
+  font-family: inherit; font-size: .88rem; color: #0f172a; outline: none;
+}
+.ch-escribir textarea:focus { border-color: #2563eb; box-shadow: 0 0 0 3px #eff6ff; }
+.ch-nota { margin: 6px 0 0; font-size: .74rem; color: #94a3b8; }
+
+@media (max-width: 760px) {
+  .chat { width: 100vw; }
+  .msg.mio .msg-burbuja { max-width: 92%; }
+}
