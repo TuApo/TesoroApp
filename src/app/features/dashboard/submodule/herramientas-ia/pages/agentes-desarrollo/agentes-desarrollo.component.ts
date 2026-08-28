@@ -3,6 +3,9 @@ import {
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { Router } from '@angular/router';
+import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import type { EChartsOption } from 'echarts';
 import { markdownToHtml } from '@/app/features/dashboard/submodule/nomina/pages/analitica-nomina-ia/markdown-lite';
 import { firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
@@ -25,7 +28,7 @@ import Swal from 'sweetalert2';
 import {
   AgentesService, AgenteCatalogo, Catalogo, Cuenta, EstadoAgentes, EventoBitacora,
   Repo, Tarea, Vigilante, Mision, DisparoMision, AgenteFicha,
-  SugerenciaAgentes, PlantillaEnjambre,
+  SugerenciaAgentes, PlantillaEnjambre, ReportesMision, ReporteMision,
 } from '../../service/agentes.service';
 
 type Pestana = 'panel' | 'nuevo' | 'agentes' | 'misiones' | 'historial';
@@ -56,7 +59,11 @@ function escaparHtml(texto: string): string {
     MatCardModule, MatButtonModule, MatIconModule, MatTooltipModule,
     MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule,
     MatProgressSpinnerModule, MatProgressBarModule, MatChipsModule, MatMenuModule,
+    NgxEchartsDirective,
   ],
+  // Echarts se carga perezoso: son ~1 MB y el panel se abre muchas veces sin mirar
+  // una sola grafica.
+  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './agentes-desarrollo.component.html',
   styleUrls: ['./agentes-desarrollo.component.css'],
@@ -65,6 +72,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   private svc = inject(AgentesService);
   private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private sanitizer = inject(DomSanitizer);
+  private router = inject(Router);
 
   // ── Estado general ────────────────────────────────────────────────────────
   pestana = signal<Pestana>('panel');
@@ -760,6 +768,110 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
 
   /** Cuál de los resúmenes del historial está desplegado. */
   resumenAbierto = signal<string | null>(null);
+
+  // ── Reportes de una misión ────────────────────────────────────────────────
+  reportes = signal<ReportesMision | null>(null);
+
+  verReportes(m: Mision): void {
+    this.svc.reportesDeMision(m.id).subscribe({
+      next: (r) => { this.reportes.set(r); this.resumenAbierto.set(null); },
+      error: (e) => this.avisarError(e),
+    });
+  }
+
+  cerrarReportes(): void {
+    this.reportes.set(null);
+  }
+
+  /** Duración de cada ejecución en el tiempo, con el color de cómo acabó. */
+  grafDuracion(): EChartsOption {
+    const s = this.reportes()?.serie ?? [];
+    const color = (e: string) => (e === 'ok' ? '#10b981' : e === 'cancelada' ? '#94a3b8' : '#ef4444');
+    return {
+      grid: { left: 44, right: 12, top: 16, bottom: 28 },
+      tooltip: { trigger: 'axis', valueFormatter: (v) => `${Math.round(Number(v))} s` },
+      xAxis: {
+        type: 'category',
+        data: s.map((x) => new Date(x.cuando).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' })),
+        axisLabel: { fontSize: 10 },
+      },
+      yAxis: { type: 'value', name: 'seg', nameTextStyle: { fontSize: 10 }, axisLabel: { fontSize: 10 } },
+      series: [{
+        type: 'bar',
+        data: s.map((x) => ({ value: Math.round(x.duracionMs / 1000), itemStyle: { color: color(x.estado) } })),
+      }],
+    };
+  }
+
+  grafEstados(): EChartsOption {
+    const p = this.reportes()?.porEstado ?? {};
+    const color: Record<string, string> = {
+      ok: '#10b981', error: '#ef4444', limite: '#f59e0b',
+      cancelada: '#94a3b8', interrumpida: '#a78bfa',
+    };
+    return {
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0, textStyle: { fontSize: 10 } },
+      series: [{
+        type: 'pie',
+        radius: ['45%', '70%'],
+        label: { show: false },
+        data: Object.entries(p).map(([k, v]) => ({
+          name: this.etiquetaEstado(k), value: v, itemStyle: { color: color[k] || '#cbd5e1' },
+        })),
+      }],
+    };
+  }
+
+  grafHerramientas(): EChartsOption {
+    const h = (this.reportes()?.herramientas ?? []).slice(0, 6).reverse();
+    return {
+      grid: { left: 96, right: 16, top: 10, bottom: 24 },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      xAxis: { type: 'value', axisLabel: { fontSize: 10 } },
+      yAxis: { type: 'category', data: h.map((x) => x.nombre), axisLabel: { fontSize: 10 } },
+      series: [{ type: 'bar', data: h.map((x) => x.veces), itemStyle: { color: '#6366f1' } }],
+    };
+  }
+
+  /**
+   * Lleva el informe al asistente de la plataforma como pregunta.
+   *
+   * El asistente ya sabe arrancar con `?q=`: se le pasa el informe convertido en
+   * prompt en vez de montar otro chat aparte. Se recorta a 6000 caracteres porque
+   * viaja en la URL —tras el `#`, asi que no llega al servidor— y un informe largo
+   * la haria inmanejable.
+   */
+  seguirEnLaIa(uno?: ReporteMision): void {
+    const r = this.reportes();
+    if (!r) return;
+    const x = uno ?? r.reportes.find((p) => p.resumen) ?? r.reportes[0];
+
+    const partes = [
+      `Actúa como analista técnico de la plataforma TuApo.`,
+      ``,
+      `Te paso el informe de un agente de guardia para que lo revisemos juntos.`,
+      ``,
+      `## Guardia`,
+      `${r.mision.nombre} — ${r.mision.objetivo}`,
+      `Agentes: ${r.mision.agentes.join(', ') || '—'} · sobre: ${r.mision.repo}`,
+      ``,
+      `## Cómo le ha ido`,
+      `${r.resumen.total} ejecuciones, ${r.resumen.ok} terminaron bien y ${r.resumen.fallidas} fallaron.`,
+      r.resumen.duracionMediaMs ? `Suele tardar ${this.duracion(r.resumen.duracionMediaMs)}.` : '',
+      ``,
+      x ? `## Informe del ${new Date(x.cuando).toLocaleString('es-CO')}` : '',
+      x?.resumen || x?.error || 'Sin informe.',
+      ``,
+      `## Lo que necesito`,
+      `Dime qué es lo importante de aquí, qué haría falta arreglar primero y por qué.`,
+      `Si algo del informe no se sostiene con lo que sabes de la plataforma, dilo.`,
+    ].filter((l) => l !== '');
+
+    const prompt = partes.join('\n').slice(0, 6000);
+    this.router.navigate(['/dashboard/herramientas-ia/asistente'], { queryParams: { q: prompt } });
+  }
+
 
   alternarResumen(id: string): void {
     this.resumenAbierto.update((x) => (x === id ? null : id));

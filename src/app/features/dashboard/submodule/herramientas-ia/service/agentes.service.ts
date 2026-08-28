@@ -220,6 +220,35 @@ export interface Mision {
   costeMedioUsd?: number | null;
 }
 
+/** Un informe concreto: lo que el agente escribió una vez que corrió. */
+export interface ReporteMision {
+  id: string;
+  cuando: number;
+  estado: EstadoTarea;
+  duracionMs: number;
+  costeUsd: number;
+  turnos: number;
+  agente: string;
+  archivosTocados: string[];
+  resumen: string | null;
+  error: string | null;
+}
+
+/** Todo lo que una misión ha hecho, con lo agregado ya calculado en el puente. */
+export interface ReportesMision {
+  mision: { id: string; nombre: string; objetivo: string; agentes: string[]; repo: string; activo: boolean };
+  resumen: {
+    total: number; ok: number; fallidas: number; canceladas: number;
+    duracionMediaMs: number | null; duracionMaxMs: number | null;
+    costeTotalUsd: number; turnosMedios: number | null;
+    ficherosTocados: number; primera: number | null; ultima: number | null;
+  };
+  porEstado: Record<string, number>;
+  herramientas: { nombre: string; veces: number }[];
+  serie: { id: string; cuando: number; estado: EstadoTarea; duracionMs: number; costeUsd: number; turnos: number; ficheros: number }[];
+  reportes: ReporteMision[];
+}
+
 /** Cuánto suele tardar un reparto, según lo que esos agentes ya hicieron. */
 export interface Estimacion {
   porAgente: { clave: string; mediaMs: number | null; muestras: number; costeMedioUsd: number | null }[];
@@ -335,6 +364,10 @@ export class AgentesService {
     const fd = new FormData();
     fd.append('file', audio, nombre);
     return this.http.post<{ texto: string }>(`${this.base}/encargo/transcribir`, fd);
+  }
+
+  reportesDeMision(id: string, limite = 50): Observable<ReportesMision> {
+    return this.http.get<ReportesMision>(`${this.base}/misiones/${id}/reportes`, { params: { limite } });
   }
 
   estimar(agentes: string[], modo: 'paralelo' | 'secuencial'): Observable<Estimacion> {

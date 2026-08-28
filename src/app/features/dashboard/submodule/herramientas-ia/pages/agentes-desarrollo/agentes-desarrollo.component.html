@@ -536,8 +536,81 @@
     </div>
   }
 
+  <!-- ── REPORTES DE UNA MISIÓN ────────────────────────────────────────────── -->
+  @if (pestana() === 'misiones' && reportes(); as r) {
+    <mat-card class="bloque">
+      <div class="bloque-cab">
+        <button mat-icon-button matTooltip="Volver a las misiones" (click)="cerrarReportes()">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <h2><mat-icon>monitoring</mat-icon> {{ r.mision.nombre }}</h2>
+        <span class="fc-espaciador"></span>
+        <button mat-flat-button color="primary" (click)="seguirEnLaIa()">
+          <mat-icon>forum</mat-icon> Seguirlo en la IA
+        </button>
+      </div>
+      <p class="pie-nota" style="margin-top:0">{{ r.mision.objetivo }}</p>
+
+      @if (!r.resumen.total) {
+        <p class="vacio">Esta misión todavía no ha corrido ninguna vez.</p>
+      } @else {
+        <section class="kpis">
+          <div class="kpi"><span class="k-num">{{ r.resumen.total }}</span><span class="k-lbl">Ejecuciones</span></div>
+          <div class="kpi"><span class="k-num">{{ r.resumen.ok }}</span><span class="k-lbl">Terminaron bien</span></div>
+          <div class="kpi"><span class="k-num">{{ r.resumen.fallidas }}</span><span class="k-lbl">Fallaron</span></div>
+          <div class="kpi"><span class="k-num">{{ duracion(r.resumen.duracionMediaMs) }}</span><span class="k-lbl">Duración media</span></div>
+          <div class="kpi"><span class="k-num">{{ r.resumen.costeTotalUsd | number:'1.2-2' }}</span><span class="k-lbl">USD gastados</span></div>
+          <div class="kpi"><span class="k-num">{{ r.resumen.ficherosTocados }}</span><span class="k-lbl">Ficheros tocados</span></div>
+        </section>
+
+        <div class="rep-graficas">
+          <div class="rep-graf">
+            <h3>Cuánto tardó cada vez</h3>
+            <div echarts [options]="grafDuracion()" class="rep-echart"></div>
+          </div>
+          <div class="rep-graf">
+            <h3>Cómo acabaron</h3>
+            <div echarts [options]="grafEstados()" class="rep-echart"></div>
+          </div>
+          <div class="rep-graf">
+            <h3>En qué gasta el tiempo</h3>
+            <div echarts [options]="grafHerramientas()" class="rep-echart"></div>
+          </div>
+        </div>
+
+        <h3 class="rep-h">Histórico de informes</h3>
+        @for (x of r.reportes; track x.id) {
+          <div class="tmh-fila">
+            <div class="tmh-cab" (click)="alternarResumen(x.id)">
+              <mat-icon class="ic" [attr.data-e]="x.estado">{{ iconoEstado(x.estado) }}</mat-icon>
+              <span class="tmh-cuando">{{ x.cuando | date:'dd/MM/yyyy HH:mm' }}</span>
+              <span class="tmh-dur">{{ duracion(x.duracionMs) }}</span>
+              <span class="tmh-turnos">{{ x.turnos }} turnos</span>
+              @if (x.costeUsd) { <span class="tmh-coste">{{ x.costeUsd | number:'1.2-2' }} USD</span> }
+              @if (x.archivosTocados.length) { <span class="tmh-turnos">{{ x.archivosTocados.length }} ficheros</span> }
+              <span class="fc-espaciador"></span>
+              <mat-icon class="tmh-abrir">{{ resumenAbierto() === x.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </div>
+            @if (resumenAbierto() === x.id) {
+              <div class="tmh-cuerpo">
+                @if (x.resumen) {
+                  <div class="md" [innerHTML]="comoMarkdown(x.resumen)"></div>
+                } @else {
+                  <p class="tmh-error">{{ x.error || 'No dejó informe.' }}</p>
+                }
+                <button mat-stroked-button (click)="seguirEnLaIa(x)">
+                  <mat-icon>forum</mat-icon> Seguir este informe en la IA
+                </button>
+              </div>
+            }
+          </div>
+        }
+      }
+    </mat-card>
+  }
+
   <!-- ── MISIONES ──────────────────────────────────────────────────────────── -->
-  @if (pestana() === 'misiones') {
+  @if (pestana() === 'misiones' && !reportes()) {
     <mat-card class="bloque">
       <div class="bloque-cab">
         <h2><mat-icon>event_repeat</mat-icon> Misiones programadas</h2>
@@ -570,6 +643,9 @@
               }
               <button mat-icon-button [matTooltip]="m.activo ? 'Pausar' : 'Activar'" (click)="alternarMision(m)">
                 <mat-icon>{{ m.activo ? 'pause' : 'play_arrow' }}</mat-icon>
+              </button>
+              <button mat-icon-button matTooltip="Reportes y gráficas" (click)="verReportes(m)">
+                <mat-icon>monitoring</mat-icon>
               </button>
               <button mat-icon-button matTooltip="Lanzarla ahora" (click)="lanzarMisionYa(m)">
                 <mat-icon>bolt</mat-icon>
