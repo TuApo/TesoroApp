@@ -107,6 +107,13 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   // ── Encargo guiado ────────────────────────────────────────────────────────
   fMetas = signal('');
   fAdjuntos = signal<{ nombre: string; contenidoBase64: string }[]>([]);
+  /**
+   * Enlaces del encargo. Van aparte del objetivo a proposito: pegados dentro del texto
+   * el agente los lee como palabras y sigue adelante; en su propio bloque se le puede
+   * decir que los ABRA, y de paso se validan aqui en vez de descubrirlo a mitad del
+   * trabajo. La unica salida a la red que tiene es WebFetch, asi que solo http(s).
+   */
+  fEnlaces = signal<string[]>([]);
   capEncargo = signal<{ asistente: boolean; transcripcion: boolean } | null>(null);
   ocupadoIa = signal(false);
   grabando = signal(false);
@@ -215,6 +222,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     this.fContexto.set('');
     this.fMetas.set('');
     this.fAdjuntos.set([]);
+    this.fEnlaces.set([]);
     this.preguntasIa.set([]);
   }
 
@@ -261,6 +269,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     this.hilo.set([t]);          // algo que pintar mientras llega el hilo completo
     this.seguirTexto.set('');
     this.seguirAdjuntos.set([]);
+    this.seguirEnlaces.set([]);
     this.cargarHilo(t);
     this.tirarBitacora();
     if (this.tempConsola) clearInterval(this.tempConsola);
@@ -331,6 +340,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       // Los documentos viajan CON el encargo: subirlos aparte dejaria una ventana en la
       // que el planificador podria arrancar la tarea sin ellos.
       adjuntos: this.fAdjuntos(),
+      enlaces: this.fEnlaces(),
     };
 
     // El plan se enseña ANTES de lanzar. Un enjambre ocupa una cuenta del pool por
@@ -634,6 +644,87 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     this.fAdjuntos.update((xs) => xs.filter((x) => x.nombre !== nombre));
   }
 
+  // ── Enlaces ───────────────────────────────────────────────────────────────
+  // El puente se queda con 10 como mucho; se corta aqui tambien para poder decir por
+  // que, en vez de que los ultimos desaparezcan sin explicacion al llegar al servidor.
+
+  private static readonly MAX_ENLACES = 10;
+
+  /**
+   * Deja el enlace en forma canonica o devuelve null si no vale.
+   *
+   * Se admite pegarlo sin esquema ("tesoro.tuapo.co/x") porque es como lo copia la
+   * gente de la barra del navegador. Lo que NO se admite es otro protocolo: el agente
+   * solo sabe abrir http(s), y un `file://` o un `javascript:` ahi no es un despiste
+   * inocente.
+   */
+  private normalizarEnlace(v: string): string | null {
+    const bruto = String(v || '').trim().replace(/^[<("']+/, '').replace(/[>)"'.,;]+$/, '');
+    if (!bruto) return null;
+    const con = /^[a-z][a-z0-9+.-]*:/i.test(bruto) ? bruto : `https://${bruto}`;
+    try {
+      const u = new URL(con);
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+      if (!u.hostname.includes('.')) return null;   // "localhost/x" no lleva a ninguna parte desde el host
+      return u.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  /** Solo el dominio, para que el chip quepa. La URL entera se ve al pasar el ratón. */
+  dominio(u: string): string {
+    try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return u; }
+  }
+
+  async anadirEnlace(donde: 'encargo' | 'seguir' = 'encargo'): Promise<void> {
+    const senal = donde === 'seguir' ? this.seguirEnlaces : this.fEnlaces;
+    const r = await Swal.fire({
+      title: 'Pasarle un enlace',
+      input: 'textarea',
+      inputLabel: 'El agente lo abrirá y lo leerá antes de responder. Puedes pegar varios, uno por línea.',
+      inputPlaceholder: 'https://…',
+      inputAttributes: { style: 'height:110px' },
+      showCancelButton: true,
+      confirmButtonText: 'Añadir',
+      cancelButtonText: 'Cancelar',
+      width: 620,
+    });
+    if (!r.isConfirmed) return;
+
+    const buenos: string[] = [];
+    const malos: string[] = [];
+    for (const trozo of String(r.value || '').split(/[\s,]+/).filter(Boolean)) {
+      const u = this.normalizarEnlace(trozo);
+      if (u) buenos.push(u); else malos.push(trozo);
+    }
+    if (!buenos.length) {
+      Swal.fire('Eso no es un enlace', malos.length ? `No se pudo leer: ${malos.join(', ')}` : 'No escribiste nada.', 'info');
+      return;
+    }
+
+    const juntos = [...senal()];
+    let repetidos = 0;
+    for (const u of buenos) {
+      if (juntos.includes(u)) { repetidos++; continue; }
+      juntos.push(u);
+    }
+    const sobran = juntos.length - AgentesDesarrolloComponent.MAX_ENLACES;
+    senal.set(juntos.slice(0, AgentesDesarrolloComponent.MAX_ENLACES));
+
+    const pegas = [
+      malos.length ? `no se pudieron leer: ${malos.join(', ')}` : '',
+      repetidos ? `${repetidos} ya estaba(n)` : '',
+      sobran > 0 ? `se quedaron fuera ${sobran} por pasar de ${AgentesDesarrolloComponent.MAX_ENLACES}` : '',
+    ].filter(Boolean);
+    if (pegas.length) Swal.fire('Añadidos, con matices', pegas.join('; '), 'info');
+  }
+
+  quitarEnlace(u: string, donde: 'encargo' | 'seguir' = 'encargo'): void {
+    const senal = donde === 'seguir' ? this.seguirEnlaces : this.fEnlaces;
+    senal.update((xs) => xs.filter((x) => x !== u));
+  }
+
   // ── Creador de agentes ────────────────────────────────────────────────────
 
   misionesActivas = computed(() => this.misiones().filter((m) => m.activo).length);
@@ -817,6 +908,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   hilo = signal<Tarea[]>([]);
   seguirTexto = signal('');
   seguirAdjuntos = signal<{ nombre: string; contenidoBase64: string }[]>([]);
+  seguirEnlaces = signal<string[]>([]);
   siguiendo = signal(false);
 
   private cargarHilo(t: Tarea): void {
@@ -877,11 +969,12 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     if (!t || !texto || this.siguiendo()) return;
 
     this.siguiendo.set(true);
-    this.svc.continuarTarea(t.id, { objetivo: texto, adjuntos: this.seguirAdjuntos() }).subscribe({
+    this.svc.continuarTarea(t.id, { objetivo: texto, adjuntos: this.seguirAdjuntos(), enlaces: this.seguirEnlaces() }).subscribe({
       next: (nueva) => {
         this.siguiendo.set(false);
         this.seguirTexto.set('');
         this.seguirAdjuntos.set([]);
+        this.seguirEnlaces.set([]);
         // La consola pasa a seguir la tarea NUEVA: es la que está viva ahora.
         this.abrirConsola(nueva);
         this.refrescar();
@@ -1220,7 +1313,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   private async confirmarPlan(comun: {
     objetivo: string; contexto: string | null; repo: string; prioridad: number;
     permiso: string; minutos: number; metas: string[];
-    adjuntos: { nombre: string }[];
+    adjuntos: { nombre: string }[]; enlaces: string[];
   }): Promise<boolean> {
     const esc = (v: string) => String(v ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
     const claves = this.fEnjambre() ? this.fAgentesEnjambre() : [this.fAgente()].filter(Boolean);
@@ -1286,6 +1379,10 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
 
         ${comun.adjuntos.length ? `<p style="margin:0 0 4px"><b>Con estos documentos</b></p>
           <p style="margin:0 0 12px;color:#334155">${comun.adjuntos.map((a) => esc(a.nombre)).join(', ')}</p>` : ''}
+
+        ${comun.enlaces.length ? `<p style="margin:0 0 4px"><b>Va a abrir estas páginas</b></p>
+          <ul style="margin:0 0 12px;padding-left:18px;color:#334155">
+            ${comun.enlaces.map((u) => `<li style="word-break:break-all">${esc(u)}</li>`).join('')}</ul>` : ''}
 
         <p style="margin:0;color:#64748b;font-size:.86rem">
           Sobre <b>${esc(repoNombre)}</b> · ${esc(this.textoPermiso(comun.permiso))} ·

@@ -105,6 +105,8 @@ export interface Tarea {
   error?: string | null;
   avisoUltimoIntento?: string;
   solicitante?: string | null;
+  /** Los enlaces que se le pasaron en ese turno, para poder verlos en la conversación. */
+  enlaces?: string[];
 }
 
 export interface EventoBitacora {
@@ -311,6 +313,8 @@ export interface NuevaTarea {
   metas?: string[];
   /** Documentos que acompañan al encargo. Viajan con él para que estén antes de arrancar. */
   adjuntos?: { nombre: string; contenidoBase64: string }[];
+  /** Páginas que el agente debe abrir y leer. Aparte del objetivo: dentro serían texto. */
+  enlaces?: string[];
 }
 
 export interface NuevoEnjambre extends NuevaTarea {
@@ -463,7 +467,7 @@ export class AgentesService {
     return this.http.get<Tarea[]>(`${this.base}/tareas`, { params });
   }
   /** Sigue hablando con un agente que ya trabajó: reusa su sesión, conserva el contexto. */
-  continuarTarea(id: string, body: { objetivo: string; adjuntos?: { nombre: string; contenidoBase64: string }[] }): Observable<Tarea> {
+  continuarTarea(id: string, body: { objetivo: string; adjuntos?: { nombre: string; contenidoBase64: string }[]; enlaces?: string[] }): Observable<Tarea> {
     return this.http.post<Tarea>(`${this.base}/tareas/${id}/continuar`, body);
   }
   /** La conversación completa con ese agente, de la primera tarea a la última. */

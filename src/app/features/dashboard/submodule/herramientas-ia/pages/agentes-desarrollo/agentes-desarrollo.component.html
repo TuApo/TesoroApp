@@ -319,6 +319,10 @@
           <mat-icon>attach_file</mat-icon> Adjuntar documento
         </button>
         <input #subirDoc type="file" hidden (change)="documentoElegido($event)">
+        <!-- Aparte del objetivo: dentro del texto el agente los lee como palabras. -->
+        <button type="button" mat-stroked-button [disabled]="enviando()" (click)="anadirEnlace('encargo')">
+          <mat-icon>link</mat-icon> Pasar un enlace
+        </button>
         <!-- Elegir bien entre 81 agentes exige conocerlos: las plantillas son esa
              decisión ya tomada, con su esqueleto de objetivo y sus metas. -->
         <button type="button" mat-stroked-button [disabled]="enviando()" (click)="abrirPlantillas()">
@@ -338,6 +342,18 @@
               }
               {{ a.nombre }}
               <button type="button" (click)="quitarAdjunto(a.nombre)"><mat-icon>close</mat-icon></button>
+            </span>
+          }
+        </div>
+      }
+
+      @if (fEnlaces().length) {
+        <div class="enc-adjuntos">
+          @for (u of fEnlaces(); track u) {
+            <span class="enc-chip es-enlace" [matTooltip]="u">
+              <mat-icon>link</mat-icon>
+              {{ dominio(u) }}
+              <button type="button" (click)="quitarEnlace(u, 'encargo')"><mat-icon>close</mat-icon></button>
             </span>
           }
         </div>
@@ -810,6 +826,17 @@
           <!-- Lo que se le pidió -->
           <div class="msg mio">
             <div class="msg-burbuja">{{ m.objetivo }}</div>
+            <!-- Lo que se le mando a leer en ese turno: sin esto, al releer la
+                 conversacion no se sabe de donde salio lo que contesto. -->
+            @if (m.enlaces?.length) {
+              <div class="msg-enlaces">
+                @for (u of m.enlaces; track u) {
+                  <a [href]="u" target="_blank" rel="noopener noreferrer" [matTooltip]="u">
+                    <mat-icon>link</mat-icon> {{ dominio(u) }}
+                  </a>
+                }
+              </div>
+            }
             <span class="msg-pie">{{ m.creada | date:'dd/MM HH:mm' }}</span>
           </div>
 
@@ -922,12 +949,27 @@
               }
             </div>
           }
+          @if (seguirEnlaces().length) {
+            <div class="enc-adjuntos">
+              @for (u of seguirEnlaces(); track u) {
+                <span class="enc-chip es-enlace" [matTooltip]="u">
+                  <mat-icon>link</mat-icon>
+                  {{ dominio(u) }}
+                  <button type="button" (click)="quitarEnlace(u, 'seguir')"><mat-icon>close</mat-icon></button>
+                </span>
+              }
+            </div>
+          }
           <div class="ch-escribir">
             <button mat-icon-button matTooltip="Adjuntar un fichero" [disabled]="siguiendo()"
                     (click)="docSeguir.click()">
               <mat-icon>attach_file</mat-icon>
             </button>
             <input #docSeguir type="file" hidden (change)="documentoSeguir($event)">
+            <button mat-icon-button matTooltip="Pasarle un enlace para que lo lea" [disabled]="siguiendo()"
+                    (click)="anadirEnlace('seguir')">
+              <mat-icon>link</mat-icon>
+            </button>
             <textarea rows="1" [ngModel]="seguirTexto()" (ngModelChange)="seguirTexto.set($event)"
                       [disabled]="siguiendo()"
                       (paste)="pegarEnSeguir($event)"
