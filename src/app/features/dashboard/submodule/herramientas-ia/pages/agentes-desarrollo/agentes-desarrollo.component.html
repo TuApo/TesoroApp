@@ -545,10 +545,18 @@
         </button>
         <h2><mat-icon>monitoring</mat-icon> {{ r.mision.nombre }}</h2>
         <span class="fc-espaciador"></span>
+        <button mat-stroked-button [disabled]="publicando()" (click)="publicarEnConocimiento()">
+          <mat-icon>library_books</mat-icon> Publicar en la base de conocimiento
+        </button>
         <button mat-flat-button color="primary" (click)="seguirEnLaIa()">
           <mat-icon>forum</mat-icon> Seguirlo en la IA
         </button>
       </div>
+      <p class="pie-nota" style="margin:0">
+        Los informes se publican solos en la base de conocimiento cada media hora, así que
+        el asistente los encuentra sin que nadie tenga que traérselos. El botón es para no
+        esperar.
+      </p>
       <p class="pie-nota" style="margin-top:0">{{ r.mision.objetivo }}</p>
 
       @if (!r.resumen.total) {

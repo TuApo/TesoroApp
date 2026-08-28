@@ -23,7 +23,7 @@ import {
   AsistenteIaService, FolderAst, ConvAst, MensajeAst, ModuloDisponible, AdjuntoAst, Capacidades,
 } from '../../service/asistente-ia.service';
 
-const TODOS_MODULOS = ['nomina', 'contratacion', 'documentos', 'tesoreria', 'afiliaciones', 'salud'];
+const TODOS_MODULOS = ['nomina', 'contratacion', 'documentos', 'tesoreria', 'afiliaciones', 'salud', 'agentes'];
 
 @Component({
   selector: 'app-asistente-ia',

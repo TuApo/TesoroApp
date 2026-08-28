@@ -24,6 +24,8 @@ const MODULOS: ModuloOpcion[] = [
   { clave: 'tesoreria',     nombre: 'Tesorería',             icono: 'account_balance' },
   { clave: 'afiliaciones',  nombre: 'Afiliaciones',          icono: 'badge' },
   { clave: 'salud',         nombre: 'Salud',                 icono: 'health_and_safety' },
+  // Los informes de los agentes de guardia se publican solos con este módulo.
+  { clave: 'agentes',       nombre: 'Agentes de guardia',    icono: 'smart_toy' },
 ];
 
 @Component({

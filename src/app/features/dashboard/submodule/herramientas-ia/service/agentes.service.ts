@@ -366,6 +366,14 @@ export class AgentesService {
     return this.http.post<{ texto: string }>(`${this.base}/encargo/transcribir`, fd);
   }
 
+  /** Empuja a la base de conocimiento los informes de esta guardia que falten. */
+  publicarEnConocimiento(id: string): Observable<{ publicados: number }> {
+    return this.http.post<{ publicados: number }>(`${this.base}/misiones/${id}/publicar`, {});
+  }
+  estadoConocimiento(): Observable<{ publicados: number; modulos: string[] }> {
+    return this.http.get<{ publicados: number; modulos: string[] }>(`${this.base}/conocimiento/estado`);
+  }
+
   reportesDeMision(id: string, limite = 50): Observable<ReportesMision> {
     return this.http.get<ReportesMision>(`${this.base}/misiones/${id}/reportes`, { params: { limite } });
   }

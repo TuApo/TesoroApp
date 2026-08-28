@@ -783,6 +783,31 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     this.reportes.set(null);
   }
 
+  publicando = signal(false);
+
+  /**
+   * Empuja ya lo que falte a la base de conocimiento. El publicador automatico corre
+   * cada media hora; esto es para no esperar despues de lanzar una guardia a mano.
+   */
+  publicarEnConocimiento(): void {
+    const r = this.reportes();
+    if (!r) return;
+    this.publicando.set(true);
+    this.svc.publicarEnConocimiento(r.mision.id).subscribe({
+      next: (x) => {
+        this.publicando.set(false);
+        Swal.fire(
+          x.publicados ? 'Publicado' : 'Ya estaban',
+          x.publicados
+            ? `${x.publicados} informe(s) entraron en la base de conocimiento. El asistente ya los puede usar en cualquier conversación.`
+            : 'Todos los informes de esta guardia ya estaban en la base de conocimiento.',
+          'success',
+        );
+      },
+      error: (e) => { this.publicando.set(false); this.avisarError(e); },
+    });
+  }
+
   /** Duración de cada ejecución en el tiempo, con el color de cómo acabó. */
   grafDuracion(): EChartsOption {
     const s = this.reportes()?.serie ?? [];
