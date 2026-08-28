@@ -134,6 +134,25 @@ export interface EncargoOrdenado {
   contexto: string;
   metas: string[];
   preguntas: string[];
+  /** El reparto viaja siempre con la petición ordenada, no en una llamada aparte. */
+  enjambre: SugerenciaAgentes;
+}
+
+/** Una combinación de agentes que ya sabemos que funciona, con su esqueleto de encargo. */
+export interface PlantillaEnjambre {
+  id: string;
+  nombre: string;
+  para: string;
+  agentes: string[];
+  agentesDetalle: { clave: string; nombre: string; descripcion: string; existe: boolean }[];
+  modo: 'paralelo' | 'secuencial';
+  objetivo: string;
+  metas: string[];
+  permiso: string;
+  minutos: number;
+  propia: boolean;
+  /** false si alguno de sus agentes ya no existe: se puede ver, no conviene lanzarla. */
+  completa: boolean;
 }
 
 export interface SugerenciaAgentes {
@@ -297,6 +316,10 @@ export class AgentesService {
     const fd = new FormData();
     fd.append('file', audio, nombre);
     return this.http.post<{ texto: string }>(`${this.base}/encargo/transcribir`, fd);
+  }
+
+  plantillas(): Observable<PlantillaEnjambre[]> {
+    return this.http.get<PlantillaEnjambre[]>(`${this.base}/plantillas`);
   }
 
   // ── Misiones ──────────────────────────────────────────────────────────────

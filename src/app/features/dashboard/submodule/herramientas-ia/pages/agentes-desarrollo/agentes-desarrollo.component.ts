@@ -23,6 +23,7 @@ import Swal from 'sweetalert2';
 import {
   AgentesService, AgenteCatalogo, Catalogo, Cuenta, EstadoAgentes, EventoBitacora,
   Repo, Tarea, Vigilante, Mision, DisparoMision, AgenteFicha,
+  SugerenciaAgentes, PlantillaEnjambre,
 } from '../../service/agentes.service';
 
 type Pestana = 'panel' | 'nuevo' | 'agentes' | 'misiones' | 'historial';
@@ -102,6 +103,11 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   preguntasIa = signal<string[]>([]);
   private grabadora: MediaRecorder | null = null;
   private trozosAudio: Blob[] = [];
+  /**
+   * Por qué se eligió cada agente (lo dice la IA o la plantilla). Se guarda para poder
+   * explicarlo en el plan: un reparto sin motivo no se puede revisar.
+   */
+  porqueAgente = signal<Map<string, string>>(new Map());
 
   // ── Catálogo ──────────────────────────────────────────────────────────────
   busquedaAgente = signal('');
@@ -282,7 +288,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
 
   // ── Acciones ──────────────────────────────────────────────────────────────
 
-  encargar(): void {
+  async encargar(): Promise<void> {
     const objetivo = this.fObjetivo().trim();
     if (!objetivo) {
       Swal.fire('Falta el encargo', 'Escribe qué quieres que hagan los agentes.', 'info');
@@ -309,6 +315,12 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       // que el planificador podria arrancar la tarea sin ellos.
       adjuntos: this.fAdjuntos(),
     };
+
+    // El plan se enseña ANTES de lanzar. Un enjambre ocupa una cuenta del pool por
+    // cabeza y puede estar media hora trabajando: media pantalla de lectura sale mucho
+    // mas barata que descubrir a mitad de camino que el reparto no era el que se queria.
+    if (!(await this.confirmarPlan(comun))) return;
+
     this.enviando.set(true);
 
     if (this.fEnjambre()) {
@@ -421,7 +433,11 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Pide a la IA que ordene la petición y vuelca el resultado en el formulario. */
+  /**
+   * Ordena la petición y, con el objetivo ya limpio, deja montado el enjambre que la
+   * IA propone. El reparto viene siempre: quien pide "ordena esto" quiere salir de ahí
+   * con el encargo listo para lanzar, no con la mitad del trabajo hecho.
+   */
   async ordenarPeticion(): Promise<void> {
     this.ocupadoIa.set(true);
     try {
@@ -433,10 +449,80 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       if (r.contexto) this.fContexto.set(r.contexto);
       if (r.metas?.length) this.fMetas.set(r.metas.join('\n'));
       this.preguntasIa.set(r.preguntas ?? []);
+      this.aplicarReparto(r.enjambre);
     } catch (e) {
       this.avisarError(e);
     } finally {
       this.ocupadoIa.set(false);
+    }
+  }
+
+  /** Deja el formulario montado como enjambre (o con un solo agente si basta uno). */
+  private aplicarReparto(s: SugerenciaAgentes | undefined): void {
+    const agentes = s?.agentes ?? [];
+    if (!agentes.length) return;
+    this.porqueAgente.set(new Map(agentes.map((a) => [a.clave, a.porque])));
+    if (agentes.length > 1) {
+      this.fEnjambre.set(true);
+      this.fModoEnjambre.set(s?.modo ?? 'paralelo');
+      this.fAgentesEnjambre.set(agentes.map((a) => a.clave));
+    } else {
+      this.fEnjambre.set(false);
+      this.fAgente.set(agentes[0].clave);
+    }
+  }
+
+  /** Plantillas: combinaciones ya decididas, con su esqueleto de objetivo y sus metas. */
+  async abrirPlantillas(): Promise<void> {
+    let lista: PlantillaEnjambre[];
+    try {
+      lista = await firstValueFrom(this.svc.plantillas());
+    } catch (e) { this.avisarError(e); return; }
+    if (!lista.length) { Swal.fire('Sin plantillas', 'Todavía no hay ninguna.', 'info'); return; }
+
+    const esc = (v: string) => String(v ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    const tarjetas = lista.map((p) => `
+      <button type="button" data-id="${esc(p.id)}" class="tpl-op"
+              style="display:block;width:100%;text-align:left;margin:0 0 8px;padding:10px 12px;
+                     border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;cursor:pointer">
+        <b>${esc(p.nombre)}</b>${p.completa ? '' : ' <span style="color:#b91c1c">· le falta un agente</span>'}
+        <br><span style="color:#64748b;font-size:.85rem">${esc(p.para)}</span>
+        <br><span style="color:#94a3b8;font-size:.78rem">
+          ${p.agentesDetalle.map((a) => esc(a.nombre)).join(' → ')} · ${p.modo}
+        </span>
+      </button>`).join('');
+
+    const r = await Swal.fire<string>({
+      title: 'Plantillas',
+      html: `<div style="text-align:left">${tarjetas}</div>`,
+      width: 720,
+      showConfirmButton: false,
+      showCancelButton: true,
+      cancelButtonText: 'Cerrar',
+      didOpen: () => {
+        document.querySelectorAll('.tpl-op').forEach((el) => {
+          el.addEventListener('click', () => Swal.close({ isConfirmed: true, isDenied: false, isDismissed: false, value: (el as HTMLElement).dataset['id'] } as never));
+        });
+      },
+    });
+    if (!r.isConfirmed || !r.value) return;
+
+    const p = lista.find((x) => x.id === r.value);
+    if (!p) return;
+    // El objetivo de la plantilla es un esqueleto con huecos [ASI]: se pone SOLO si no
+    // habia nada escrito, para no pisar lo que la persona ya redactó.
+    if (!this.fObjetivo().trim()) this.fObjetivo.set(p.objetivo);
+    if (p.metas.length && !this.fMetas().trim()) this.fMetas.set(p.metas.join('\n'));
+    this.fPermiso.set(p.permiso);
+    this.fMinutos.set(p.minutos);
+    this.porqueAgente.set(new Map(p.agentesDetalle.map((a) => [a.clave, a.descripcion])));
+    if (p.agentes.length > 1) {
+      this.fEnjambre.set(true);
+      this.fModoEnjambre.set(p.modo);
+      this.fAgentesEnjambre.set(p.agentes);
+    } else {
+      this.fEnjambre.set(false);
+      this.fAgente.set(p.agentes[0]);
     }
   }
 
@@ -829,6 +915,85 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       next: () => this.cargarMisiones(),
       error: (e) => this.avisarError(e),
     });
+  }
+
+  /**
+   * Explica lo que va a pasar y pide el visto bueno: quien trabaja, en que orden, sobre
+   * que codigo, con que permisos y cuanto puede durar. Devuelve false si se cancela.
+   */
+  private async confirmarPlan(comun: {
+    objetivo: string; contexto: string | null; repo: string; prioridad: number;
+    permiso: string; minutos: number; metas: string[];
+    adjuntos: { nombre: string }[];
+  }): Promise<boolean> {
+    const esc = (v: string) => String(v ?? '').replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string));
+    const claves = this.fEnjambre() ? this.fAgentesEnjambre() : [this.fAgente()].filter(Boolean);
+    if (!claves.length) {
+      Swal.fire('Elige agentes', 'Un encargo necesita al menos un agente.', 'info');
+      return false;
+    }
+
+    const porque = this.porqueAgente();
+    const secuencial = this.fEnjambre() && this.fModoEnjambre() === 'secuencial';
+    const pasos = claves.map((c, i) => {
+      const a = this.catalogo()?.agentes.find((x) => x.clave === c);
+      const razon = porque.get(c) || a?.descripcion || '';
+      return `<li style="margin:0 0 6px">
+                ${secuencial ? `<b>${i + 1}.</b> ` : ''}<b>${esc(a?.nombre || c)}</b>
+                ${razon ? `<br><span style="color:#64748b;font-size:.86rem">${esc(razon)}</span>` : ''}
+              </li>`;
+    }).join('');
+
+    const libres = this.estado()?.pool.listas ?? 0;
+    const avisoCuentas = claves.length > libres && !secuencial
+      ? `<p style="margin:8px 0 0;color:#9a3412">Hay ${libres} cuenta(s) libre(s) y el enjambre pide ${claves.length}:
+         los que no quepan esperan turno en la cola.</p>`
+      : '';
+
+    const repoNombre = this.repos().find((r) => r.clave === comun.repo)?.nombre
+      || (comun.repo === 'todos' ? 'todo el proyecto' : comun.repo);
+
+    const r = await Swal.fire({
+      title: this.fEnjambre() ? 'Plan del enjambre' : 'Plan del encargo',
+      html: `<div style="text-align:left">
+        <p style="margin:0 0 4px"><b>Qué se pide</b></p>
+        <p style="margin:0 0 12px;color:#334155">${esc(comun.objetivo)}</p>
+
+        <p style="margin:0 0 4px"><b>Quién trabaja</b>
+          <span style="color:#64748b;font-weight:400">
+            · ${secuencial ? 'uno detrás de otro' : 'todos a la vez'}</span></p>
+        <ul style="margin:0 0 12px;padding-left:18px">${pasos}</ul>
+
+        ${comun.metas.length ? `<p style="margin:0 0 4px"><b>No termina hasta</b></p>
+          <ul style="margin:0 0 12px;padding-left:18px;color:#334155">
+            ${comun.metas.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+
+        ${comun.adjuntos.length ? `<p style="margin:0 0 4px"><b>Con estos documentos</b></p>
+          <p style="margin:0 0 12px;color:#334155">${comun.adjuntos.map((a) => esc(a.nombre)).join(', ')}</p>` : ''}
+
+        <p style="margin:0;color:#64748b;font-size:.86rem">
+          Sobre <b>${esc(repoNombre)}</b> · ${esc(this.textoPermiso(comun.permiso))} ·
+          se corta a los ${comun.minutos} min · ocupa ${claves.length} cuenta(s) del pool.
+        </p>
+        <p style="margin:6px 0 0;color:#64748b;font-size:.86rem">
+          Trabajan sobre la copia aislada, nunca sobre producción.</p>
+        ${avisoCuentas}
+      </div>`,
+      width: 720,
+      showCancelButton: true,
+      confirmButtonText: this.fEnjambre() ? 'Lanzar el enjambre' : 'Lanzar',
+      cancelButtonText: 'Ajustar antes',
+    });
+    return r.isConfirmed;
+  }
+
+  private textoPermiso(p: string): string {
+    switch (p) {
+      case 'plan': return 'solo planifica, no toca ficheros';
+      case 'acceptEdits': return 'puede editar ficheros';
+      case 'bypassPermissions': return 'sin pedir permiso para nada';
+      default: return p;
+    }
   }
 
   encargarleA(a: AgenteCatalogo): void {

@@ -318,6 +318,11 @@
           <mat-icon>attach_file</mat-icon> Adjuntar documento
         </button>
         <input #subirDoc type="file" hidden (change)="documentoElegido($event)">
+        <!-- Elegir bien entre 81 agentes exige conocerlos: las plantillas son esa
+             decisión ya tomada, con su esqueleto de objetivo y sus metas. -->
+        <button type="button" mat-stroked-button [disabled]="enviando()" (click)="abrirPlantillas()">
+          <mat-icon>dashboard_customize</mat-icon> Plantillas
+        </button>
         @if (ocupadoIa()) { <mat-spinner diameter="20"></mat-spinner> }
       </div>
 
