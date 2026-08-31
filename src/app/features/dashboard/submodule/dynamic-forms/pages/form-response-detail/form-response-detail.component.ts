@@ -9,6 +9,7 @@ import Swal from 'sweetalert2';
 import type { RowInput } from 'jspdf-autotable';
 
 import { FieldRendererComponent } from '@/app/shared/components/forms/field-renderer/field-renderer.component';
+import { GradePanelComponent } from '../../components/grade-panel/grade-panel.component';
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import { SubmissionService } from '../../services/submission.service';
 import { MediaOffloadService } from '../../services/media-offload.service';
@@ -46,7 +47,7 @@ interface SeccionVista {
   selector: 'app-form-response-detail',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CommonModule, RouterLink, MatSnackBarModule, FieldRendererComponent],
+  imports: [CommonModule, RouterLink, MatSnackBarModule, FieldRendererComponent, GradePanelComponent],
   templateUrl: './form-response-detail.component.html',
   styleUrl: './form-response-detail.component.css',
 })

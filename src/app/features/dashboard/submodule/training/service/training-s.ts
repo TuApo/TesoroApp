@@ -30,6 +30,28 @@ export class TrainingS {
   }
 
   /**
+   * Dónde se explica una pregunta, según el material que ya vio.
+   *
+   * Complementa al atajo que el autor pone a mano: cuando la pregunta no lo trae —que es lo
+   * normal— el servidor lo busca en las transcripciones, y solo hacia atrás.
+   */
+  dondeSeExplica(questionId: string, quizId: string): Promise<CitaMaterial[]> {
+    return firstValueFrom(this.http.get<CitaMaterial[]>(
+      `${this.base}/me/questions/${questionId}/donde-se-explica?quiz_id=${quizId}`));
+  }
+
+  /**
+   * Cursos que aprobé y que después se actualizaron.
+   *
+   * Es otra cosa que el vencimiento por tiempo: aquí el contenido cambió. Va aparte de
+   * `misCursos` porque cuesta más de resolver y esta pantalla se abre muchas veces al día.
+   */
+  cursosActualizados(): Promise<CursoDesactualizado[]> {
+    return firstValueFrom(
+      this.http.get<CursoDesactualizado[]>(`${this.base}/me/course-updates`));
+  }
+
+  /**
    * El curso ENTERO en una sola respuesta. Es la petición que hay que hacer mientras haya
    * señal: después el interceptor la sirve desde IndexedDB.
    */
@@ -73,6 +95,12 @@ export class TrainingS {
   descargarMediaDePregunta(questionId: string): Promise<Blob> {
     return firstValueFrom(
       this.http.get(`${this.base}/me/questions/${questionId}/media`, { responseType: 'blob' }));
+  }
+
+  /** La imagen de una opción de respuesta. Mismo proxy con control de acceso. */
+  descargarMediaDeOpcion(optionId: string): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${this.base}/me/options/${optionId}/media`, { responseType: 'blob' }));
   }
 
   misCertificados(): Promise<Certificado[]> {
@@ -249,7 +277,7 @@ export interface PreguntaPresentacion {
   /** El archivo NO se pide por su document_id: va por /me/questions/{id}/media, que comprueba acceso. */
   tiene_archivo?: boolean;
   media_url?: string | null;
-  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR';
+  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO';
   opciones: OpcionPresentacion[];
   /** Bloque de la lección donde esto se explica, y el segundo del vídeo. */
   bloque_id?: string | null;
@@ -265,6 +293,10 @@ export interface PreguntaPresentacion {
 
 /** Trae la correcta solo cuando el quiz lo permite; la evaluación formal nunca. */
 export interface OpcionPresentacion {
+  /** true si la opción lleva imagen; se pide a /me/options/{id}/media. */
+  tiene_archivo?: boolean;
+  /** Por qué esta opción está bien o mal. Sólo viaja si el quiz revela las correctas. */
+  feedback?: string | null;
   id: string;
   texto: string;
   columna?: 'A' | 'B';
@@ -313,6 +345,8 @@ export interface RespuestaEnviada {
   question_id: string;
   option_ids?: string[];
   parejas?: { opcion_a: string; opcion_b: string }[];
+  /** Lo escrito, en TEXTO_ABIERTO y NUMERO. Lo corrige el servidor. */
+  texto?: string | null;
 }
 
 export interface ResultadoIntento {
@@ -325,4 +359,30 @@ export interface ResultadoIntento {
   preguntas_correctas: number;
   preguntas_totales: number;
   intentos_restantes?: number;
+}
+
+/** Un curso que hice y que después cambió. */
+export interface CursoDesactualizado {
+  enrollment_id: string;
+  course_id: string;
+  codigo: string;
+  nombre: string;
+  mi_version: number;
+  version_vigente: number;
+  completado_at: string | null;
+  publicada_at: string | null;
+  notas_de_la_version: string | null;
+}
+
+/** Un trozo del material propio, con el minuto exacto para volver ahí. */
+export interface CitaMaterial {
+  course_id: string;
+  course_version_id: string;
+  course_nombre: string;
+  enrollment_id: string;
+  lesson_id: string;
+  lesson_nombre: string;
+  resource_id: string;
+  segundos: number;
+  extracto: string;
 }

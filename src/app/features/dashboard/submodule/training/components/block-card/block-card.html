@@ -125,6 +125,14 @@
                 <small>0 = sin límite</small>
               </label>
 
+              <label class="campo campo-corto">
+                <span>Cuántas salen</span>
+                <input type="number" min="1" [ngModel]="b.quiz.preguntas_por_intento"
+                       (ngModelChange)="editarQuiz({ preguntas_por_intento: $event })"
+                       [disabled]="!editable" placeholder="todas" />
+                <small>Vacío = todas</small>
+              </label>
+
               <label class="campo campo-medio">
                 <span>Orden de las preguntas</span>
                 <select [ngModel]="b.quiz.barajar_preguntas ? 'AZAR' : 'FIJO'"
@@ -182,6 +190,13 @@
             }
 
             <h4 class="bc-sub">Preguntas del quiz</h4>
+            @if (b.quiz.preguntas_por_intento) {
+              <p class="bc-nota">
+                De las {{ q.preguntas.length }} salen {{ b.quiz.preguntas_por_intento }} en cada
+                intento. Las marcadas con <mat-icon class="bc-nota-icono">push_pin</mat-icon>
+                entran siempre; el resto se sortea.
+              </p>
+            }
             <ol class="bc-preguntas">
               @for (p of q.preguntas; track p.id; let i = $index, ultima = $last) {
                 <li>
@@ -207,8 +222,26 @@
                              (ngModelChange)="fijarReferencia(p, referenciaDe(p)!.block_id, $event)"
                              [disabled]="guardando()" />
                     }
+                    <!-- Buscarlo en las transcripciones en vez de a ojo. El atajo que queda
+                         guardado viaja al teléfono y funciona sin señal. -->
+                    <button type="button" class="btn-icono pequeno"
+                            title="Buscar en el material dónde se explica"
+                            [disabled]="buscandoRef() === p.id || guardando()"
+                            (click)="buscarReferencia(p)">
+                      <mat-icon>{{ buscandoRef() === p.id ? 'hourglass_top' : 'travel_explore' }}</mat-icon>
+                    </button>
                   }
                   @if (editable) {
+                    <!-- Entra siempre, aunque el resto se sortee. Solo tiene sentido cuando
+                         hay cupo: sin cupo salen todas de todas formas. -->
+                    <button type="button" class="btn-icono pequeno"
+                            [class.bc-obligatoria]="esObligatoria(p)"
+                            [title]="esObligatoria(p)
+                               ? 'Entra siempre. Toca para que pueda quedar fuera del sorteo'
+                               : 'Marcar para que entre siempre, aunque el resto se sortee'"
+                            [disabled]="guardando()" (click)="alternarObligatoria(p)">
+                      <mat-icon>{{ esObligatoria(p) ? 'push_pin' : 'push_pin' }}</mat-icon>
+                    </button>
                     <button type="button" class="btn-icono pequeno" title="Subir"
                             [disabled]="i === 0 || guardando()" (click)="moverPregunta(p, -1)">
                       <mat-icon>arrow_upward</mat-icon>
@@ -222,6 +255,26 @@
                       <mat-icon>close</mat-icon>
                     </button>
                   }
+                  @if (sugerenciasDe(p.id).length) {
+                    <ul class="bc-sugerencias">
+                      @for (s of sugerenciasDe(p.id); track s.block_id + '-' + s.segundo) {
+                        <li>
+                          <button type="button" class="bc-sugerencia"
+                                  [disabled]="guardando()" (click)="aceptarSugerencia(p, s)">
+                            <mat-icon>my_location</mat-icon>
+                            <span>
+                              <strong>
+                                {{ s.bloque_titulo || s.lesson_nombre }}
+                                @if (s.segundo != null) { · minuto {{ minuto(s.segundo) }} }
+                              </strong>
+                              <em>«{{ s.extracto }}»</em>
+                            </span>
+                            <span class="bc-usar">Usar</span>
+                          </button>
+                        </li>
+                      }
+                    </ul>
+                  }
                 </li>
               } @empty {
                 <li class="bc-vacio">
@@ -232,39 +285,131 @@
 
             @if (editable) {
               <div class="bc-agregar-preg">
-                <label class="campo">
-                  <span>Agregar del banco</span>
-                  <select [ngModel]="bancoElegido()" (ngModelChange)="elegirBanco($event)">
-                    <option [ngValue]="null">Elige un banco…</option>
+                <!-- ── Pedir una que ya existe ──────────────────────────────
+                     Se busca en TODOS los bancos: quien arma el quiz no tiene por qué
+                     acordarse de dónde quedó guardada. El banco es un filtro, no un
+                     requisito. -->
+                <!-- ── Proponerlas desde lo que dice la clase ──────────────
+                     Sólo mira las lecciones hasta ésta: preguntar por algo que a quien
+                     responde todavía nadie le enseñó es reprobarlo por adelantado. -->
+                <h4 class="bc-sub">Proponer preguntas de esta clase</h4>
+                <p class="bc-nota">
+                  Salen de lo que se dice en los vídeos de esta lección y de las anteriores, con
+                  el atajo al minuto ya puesto. Son borradores: revísalos antes de agregarlos.
+                </p>
+                <button type="button" class="bc-ia"
+                        [disabled]="proponiendo() || guardando()" (click)="proponerPreguntas()">
+                  <mat-icon>auto_awesome</mat-icon>
+                  {{ proponiendo() ? 'Leyendo el material…' : 'Proponer preguntas' }}
+                </button>
+
+                @if (propuestas().length) {
+                  <ul class="bc-propuestas">
+                    @for (pr of propuestas(); track $index) {
+                      <li [class.marcada]="aceptadas().has($index)">
+                        <label>
+                          <input type="checkbox" [checked]="aceptadas().has($index)"
+                                 (change)="alternarPropuesta($index)" />
+                          <div>
+                            <strong>{{ pr.enunciado }}</strong>
+                            <ul class="bc-propuesta-opciones">
+                              @for (o of pr.opciones; track $index) {
+                                <li [class.correcta]="o.correcta">
+                                  <mat-icon>{{ o.correcta ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                                  {{ o.texto }}
+                                </li>
+                              }
+                            </ul>
+                            @if (pr.explicacion) { <p class="bc-propuesta-exp">{{ pr.explicacion }}</p> }
+                            <p class="bc-propuesta-fuente">
+                              <mat-icon>play_circle</mat-icon>
+                              {{ pr.lesson_nombre }}
+                              @if (pr.segundo != null) { · minuto {{ minuto(pr.segundo) }} }
+                              — «{{ pr.extracto }}»
+                            </p>
+                          </div>
+                        </label>
+                      </li>
+                    }
+                  </ul>
+                  <div class="bc-pie">
+                    <button type="button" class="btn-secundario pequeno"
+                            (click)="propuestas.set([])">Descartar</button>
+                    <button type="button" class="btn-primario pequeno"
+                            [disabled]="!aceptadas().size || guardando()"
+                            (click)="aceptarPropuestas()">
+                      Agregar {{ aceptadas().size }} al quiz
+                    </button>
+                  </div>
+                }
+
+                <h4 class="bc-sub">Pedir una pregunta que ya existe</h4>
+                <div class="bc-buscador">
+                  <div class="bc-buscador__campo">
+                    <mat-icon>search</mat-icon>
+                    <input type="text" [ngModel]="busqueda()"
+                           (ngModelChange)="buscarConRetraso($event)"
+                           placeholder="Busca por el enunciado: arnés, altura, barbuquejo…" />
+                    @if (buscando()) { <span class="bc-buscando">Buscando…</span> }
+                  </div>
+                  <select class="bc-buscador__banco" [ngModel]="bancoElegido() ?? ''"
+                          (ngModelChange)="elegirBanco($event)">
+                    <option value="">Todos los bancos</option>
                     @for (banco of bancos; track banco.id) {
                       <option [value]="banco.id">{{ banco.nombre }}</option>
                     }
                   </select>
-                </label>
+                </div>
 
-                @if (bancoElegido()) {
-                  <ul class="bc-banco">
-                    @for (p of disponibles(); track p.id) {
-                      <li>
-                        <span>{{ p.enunciado }}</span>
-                        <button type="button" class="btn-secundario pequeno"
-                                [disabled]="guardando()" (click)="agregarPregunta(p)">
-                          <mat-icon>add</mat-icon> Agregar
-                        </button>
-                      </li>
-                    } @empty {
-                      <li class="bc-vacio">
-                        Ese banco no tiene más preguntas activas para agregar. Escribe una aquí
-                        abajo, o adminístralas en Capacitaciones › Evaluaciones.
-                      </li>
-                    }
-                  </ul>
+                <ul class="bc-banco">
+                  @for (r of resultados(); track r.pregunta.id) {
+                    <li>
+                      <div class="bc-banco__texto">
+                        <span>{{ r.pregunta.enunciado }}</span>
+                        <small>
+                          <mat-icon>inventory_2</mat-icon>{{ r.bank_nombre }}
+                          · {{ r.pregunta.tipo === 'VERDADERO_FALSO' ? 'V/F' : 'opción' }}
+                          @if (r.pregunta.media_tipo) {
+                            · {{ r.pregunta.media_tipo === 'VIDEO' ? 'con vídeo' : 'con imagen' }}
+                          }
+                        </small>
+                      </div>
+                      <button type="button" class="btn-secundario pequeno"
+                              [disabled]="guardando()" (click)="agregarPregunta(r.pregunta)">
+                        <mat-icon>add</mat-icon> Agregar
+                      </button>
+                    </li>
+                  } @empty {
+                    <li class="bc-vacio">
+                      @if (busqueda()) {
+                        Ninguna pregunta activa coincide con «{{ busqueda() }}».
+                        Escríbela aquí abajo y queda guardada en el banco para la próxima.
+                      } @else {
+                        Todavía no hay preguntas disponibles para agregar. Escribe la primera
+                        aquí abajo.
+                      }
+                    </li>
+                  }
+                </ul>
 
-                  <!-- ── Escribir una pregunta sin salir de aquí ──────────────
-                       Va al banco elegido, no a un rincón del quiz: las preguntas
-                       se siguen corrigiendo en un solo sitio. -->
-                  @if (nuevaPregunta(); as np) {
+                <!-- ── Escribir una pregunta sin salir de aquí ────────────────
+                     Va a un BANCO, no a un rincón del quiz: así se sigue corrigiendo
+                     en un solo sitio y sirve para los demás cursos. -->
+                @if (nuevaPregunta(); as np) {
                     <div class="bc-nueva">
+                      <h4 class="bc-nueva__tit">Escribir una pregunta nueva</h4>
+
+                      <label class="campo campo-medio">
+                        <span>Guardarla en el banco *</span>
+                        <select [ngModel]="bancoDestino() ?? bancoElegido() ?? bancos[0]?.id ?? ''"
+                                (ngModelChange)="bancoDestino.set($event)">
+                          @for (banco of bancos; track banco.id) {
+                            <option [value]="banco.id">{{ banco.nombre }}</option>
+                          }
+                        </select>
+                        <small>Queda disponible para los demás quices, no solo para este.</small>
+                      </label>
+
                       <label class="campo">
                         <span>Enunciado *</span>
                         <input type="text" [ngModel]="np.enunciado"
@@ -277,9 +422,128 @@
                         <select [ngModel]="np.tipo" (ngModelChange)="cambiarTipoNueva($event)">
                           <option value="VERDADERO_FALSO">Verdadero / Falso</option>
                           <option value="OPCION_MULTIPLE">Opción múltiple</option>
+                          <option value="EMPAREJAR">Emparejar conceptos</option>
+                          <option value="TEXTO_ABIERTO">Respuesta escrita</option>
+                          <option value="NUMERO">Un número</option>
                         </select>
                       </label>
 
+                      <!-- ── Las que se responden escribiendo ────────────────
+                           Las corrige el MISMO analizador que califica los exámenes de
+                           Formularios Dinámicos. Sin criterio no se guardan: una pregunta
+                           abierta sin criterio es una que nadie puede aprobar. -->
+                      @if (nuevaEsAbierta() && np.criterio; as c) {
+                        <div class="bc-criterio">
+                          <label class="campo campo-medio">
+                            <span>Cómo se corrige</span>
+                            <select [ngModel]="c.modo"
+                                    (ngModelChange)="editarCriterio({ modo: $event })">
+                              @if (np.tipo === 'NUMERO') {
+                                <option value="NUMERO_RANGO">Dentro de un rango</option>
+                              } @else {
+                                <option value="TEXTO_CONTIENE">Debe mencionar ciertos términos</option>
+                                <option value="TEXTO_SIMILITUD">Se parece a una respuesta modelo</option>
+                              }
+                              <option value="PRESENCIA">Basta con responder algo</option>
+                            </select>
+                          </label>
+
+                          @switch (c.modo) {
+                            @case ('TEXTO_CONTIENE') {
+                              <label class="campo">
+                                <span>Términos que debe mencionar <em>(uno por línea)</em></span>
+                                <textarea rows="3" [ngModel]="terminosTexto()"
+                                          (ngModelChange)="cambiarTerminos($event)"
+                                          placeholder="cadera&#10;pecho&#10;barbuquejo"></textarea>
+                                <small>Se buscan como palabra completa y sin importar tildes.</small>
+                              </label>
+                              <label class="campo campo-corto">
+                                <span>Con cuántos basta</span>
+                                <input type="number" min="1" [ngModel]="c.minimo_aciertos"
+                                       (ngModelChange)="editarCriterio({ minimo_aciertos: $event })" />
+                                <small>Vacío = todos</small>
+                              </label>
+                            }
+                            @case ('TEXTO_SIMILITUD') {
+                              <label class="campo">
+                                <span>Respuesta modelo</span>
+                                <textarea rows="3" [ngModel]="c.respuesta_modelo"
+                                          (ngModelChange)="editarCriterio({ respuesta_modelo: $event })"
+                                          placeholder="El arnés se ajusta a la cadera y al pecho, sin holgura."></textarea>
+                                <small>Compara cómo se escribe, no lo que significa. Para respuestas de forma acotada.</small>
+                              </label>
+                              <label class="campo campo-corto">
+                                <span>Parecido mínimo</span>
+                                <input type="number" min="0" max="1" step="0.05"
+                                       [ngModel]="c.umbral_similitud"
+                                       (ngModelChange)="editarCriterio({ umbral_similitud: $event })" />
+                                <small>0 a 1 · vacío = 0,6</small>
+                              </label>
+                            }
+                            @case ('NUMERO_RANGO') {
+                              <div class="campos-fila">
+                                <label class="campo campo-corto">
+                                  <span>Mínimo</span>
+                                  <input type="number" [ngModel]="c.min"
+                                         (ngModelChange)="editarCriterio({ min: $event })" />
+                                </label>
+                                <label class="campo campo-corto">
+                                  <span>Máximo</span>
+                                  <input type="number" [ngModel]="c.max"
+                                         (ngModelChange)="editarCriterio({ max: $event })" />
+                                </label>
+                              </div>
+                            }
+                          }
+                        </div>
+                      }
+
+                      <!-- ── Emparejar ──────────────────────────────────────
+                           Cada pareja son dos filas: el concepto y su contraparte. Al
+                           alumno se le muestran en dos columnas revueltas. -->
+                      @if (nuevaEsEmparejar()) {
+                        <div class="bc-opciones">
+                          <span class="bc-opciones-tit">Parejas · une el concepto con lo que le corresponde</span>
+                          @for (par of parejasNuevas(); track par.clave) {
+                            <div class="bc-pareja">
+                              <span class="bc-pareja-letra">{{ par.clave.toUpperCase() }}</span>
+                              <div class="bc-pareja-lados">
+                                @for (i of par.indices; track i) {
+                                  <div class="bc-pareja-lado">
+                                    <input type="text" [ngModel]="np.opciones[i].texto"
+                                           (ngModelChange)="editarOpcion(i, { texto: $event })"
+                                           [placeholder]="$index === 0 ? 'Concepto' : 'Lo que le corresponde'" />
+                                    @if (np.opciones[i].media_document_id) {
+                                      <button type="button" class="btn-icono peligro pequeno"
+                                              title="Quitar la imagen" (click)="quitarImagenDeOpcion(i)">
+                                        <mat-icon>hide_image</mat-icon>
+                                      </button>
+                                    } @else {
+                                      <label class="btn-icono pequeno" title="Poner una imagen">
+                                        <mat-icon>add_photo_alternate</mat-icon>
+                                        <input type="file" hidden accept="image/*"
+                                               [disabled]="guardando()"
+                                               (change)="subirImagenDeOpcion(i, $event)" />
+                                      </label>
+                                    }
+                                  </div>
+                                }
+                              </div>
+                              @if (parejasNuevas().length > 2) {
+                                <button type="button" class="btn-icono peligro pequeno"
+                                        title="Quitar la pareja" (click)="quitarPareja(par.clave)">
+                                  <mat-icon>close</mat-icon>
+                                </button>
+                              }
+                            </div>
+                          }
+                          <button type="button" class="btn-texto" (click)="agregarPareja()">
+                            <mat-icon>add</mat-icon> Otra pareja
+                          </button>
+                        </div>
+                      }
+
+                      @if (!nuevaEsAbierta() && !nuevaEsEmparejar()) {
                       <div class="bc-opciones">
                         <span class="bc-opciones-tit">Opciones · marca la correcta</span>
                         @for (o of np.opciones; track $index) {
@@ -287,16 +551,41 @@
                             <input type="checkbox" [ngModel]="o.correcta"
                                    (ngModelChange)="marcarCorrecta($index, $event)"
                                    [attr.aria-label]="'Marcar como correcta'" />
-                            <input type="text" [ngModel]="o.texto"
-                                   (ngModelChange)="editarOpcion($index, { texto: $event })"
-                                   [readonly]="np.tipo === 'VERDADERO_FALSO'"
-                                   placeholder="Texto de la opción" />
-                            @if (np.tipo === 'OPCION_MULTIPLE' && np.opciones.length > 2) {
-                              <button type="button" class="btn-icono peligro pequeno"
-                                      title="Quitar opción" (click)="quitarOpcion($index)">
-                                <mat-icon>close</mat-icon>
-                              </button>
-                            }
+                            <div class="bc-opcion-campos">
+                              <div class="bc-opcion-fila">
+                                <input type="text" [ngModel]="o.texto"
+                                       (ngModelChange)="editarOpcion($index, { texto: $event })"
+                                       [readonly]="np.tipo === 'VERDADERO_FALSO'"
+                                       placeholder="Texto de la opción" />
+                                @if (o.media_document_id) {
+                                  <button type="button" class="btn-icono peligro pequeno"
+                                          title="Quitar la imagen" (click)="quitarImagenDeOpcion($index)">
+                                    <mat-icon>hide_image</mat-icon>
+                                  </button>
+                                } @else {
+                                  <label class="btn-icono pequeno" title="Poner una imagen">
+                                    <mat-icon>add_photo_alternate</mat-icon>
+                                    <input type="file" hidden accept="image/*" [disabled]="guardando()"
+                                           (change)="subirImagenDeOpcion($index, $event)" />
+                                  </label>
+                                }
+                                @if (np.tipo === 'OPCION_MULTIPLE' && np.opciones.length > 2) {
+                                  <button type="button" class="btn-icono peligro pequeno"
+                                          title="Quitar opción" (click)="quitarOpcion($index)">
+                                    <mat-icon>close</mat-icon>
+                                  </button>
+                                }
+                              </div>
+                              <!-- Por qué esta opción está bien o mal. Vale la pena también en
+                                   las incorrectas: es la única explicación que recibe quien se
+                                   equivocó justo en ésa. -->
+                              <input type="text" class="bc-opcion-feedback"
+                                     [ngModel]="o.feedback"
+                                     (ngModelChange)="editarOpcion($index, { feedback: $event })"
+                                     [placeholder]="o.correcta
+                                        ? 'Por qué es la correcta (opcional)'
+                                        : 'Por qué está mal (opcional) — se le muestra a quien la elija'" />
+                            </div>
                           </div>
                         }
                         @if (np.tipo === 'OPCION_MULTIPLE') {
@@ -305,6 +594,7 @@
                           </button>
                         }
                       </div>
+                      }
 
                       <label class="campo">
                         <span>Texto de apoyo (admite HTML)</span>
@@ -357,10 +647,9 @@
                       </div>
                     </div>
                   } @else {
-                    <button type="button" class="btn-texto" (click)="abrirNuevaPregunta()">
-                      <mat-icon>add</mat-icon> Escribir una pregunta nueva
-                    </button>
-                  }
+                  <button type="button" class="btn-texto" (click)="abrirNuevaPregunta()">
+                    <mat-icon>add</mat-icon> Escribir una pregunta nueva
+                  </button>
                 }
               </div>
             }

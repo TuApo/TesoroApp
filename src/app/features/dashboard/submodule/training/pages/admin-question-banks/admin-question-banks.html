@@ -114,6 +114,8 @@
               <option value="OPCION_MULTIPLE">Opción múltiple</option>
               <option value="VERDADERO_FALSO">Verdadero / Falso</option>
               <option value="EMPAREJAR">Emparejar</option>
+              <option value="TEXTO_ABIERTO">Respuesta escrita</option>
+              <option value="NUMERO">Un número</option>
             </select>
           </label>
           <label>
@@ -168,6 +170,81 @@
           }
         </div>
 
+        <!-- ── Se responde escribiendo ──────────────────────────────────────
+             La corrige el analizador compartido con Formularios Dinámicos: la misma regla
+             juzga esta respuesta esté en un examen de selección o en la evaluación de un
+             curso. Sin criterio no se guarda: nadie podría aprobarla. -->
+        @if (esAbierta() && f.criterio; as c) {
+          <h3 class="titulo-opciones">Cómo se corrige</h3>
+
+          <div class="campos">
+            <label>
+              <span>Criterio</span>
+              <select [ngModel]="c.modo" (ngModelChange)="editarCriterio({ modo: $event })">
+                @if (f.tipo === 'NUMERO') {
+                  <option value="NUMERO_RANGO">Dentro de un rango</option>
+                } @else {
+                  <option value="TEXTO_CONTIENE">Debe mencionar ciertos términos</option>
+                  <option value="TEXTO_SIMILITUD">Se parece a una respuesta modelo</option>
+                }
+                <option value="PRESENCIA">Basta con responder algo</option>
+              </select>
+            </label>
+          </div>
+
+          @switch (c.modo) {
+            @case ('TEXTO_CONTIENE') {
+              <label class="campo-ancho">
+                <span>Términos que debe mencionar (uno por línea)</span>
+                <textarea rows="4" [ngModel]="terminosTexto()"
+                          (ngModelChange)="cambiarTerminos($event)"
+                          placeholder="cadera&#10;pecho&#10;barbuquejo"></textarea>
+              </label>
+              <p class="ayuda">
+                Se buscan como palabra completa y sin importar tildes: «arnes» encuentra «arnés»,
+                y «no» no acierta dentro de «nosotros».
+              </p>
+              <label class="campo-ancho">
+                <span>Con cuántos basta (vacío = todos)</span>
+                <input type="number" min="1" [ngModel]="c.minimo_aciertos"
+                       (ngModelChange)="editarCriterio({ minimo_aciertos: $event })" />
+              </label>
+            }
+            @case ('TEXTO_SIMILITUD') {
+              <label class="campo-ancho">
+                <span>Respuesta modelo</span>
+                <textarea rows="4" [ngModel]="c.respuesta_modelo"
+                          (ngModelChange)="editarCriterio({ respuesta_modelo: $event })"
+                          placeholder="El arnés se ajusta a la cadera y al pecho, sin holgura."></textarea>
+              </label>
+              <p class="ayuda">
+                Compara cómo se escribe, no lo que significa. Sirve para respuestas de forma
+                acotada —una definición, un procedimiento, una cifra con su unidad—; para juzgar
+                el sentido hace falta una persona.
+              </p>
+              <label class="campo-ancho">
+                <span>Parecido mínimo, de 0 a 1 (vacío = 0,6)</span>
+                <input type="number" min="0" max="1" step="0.05" [ngModel]="c.umbral_similitud"
+                       (ngModelChange)="editarCriterio({ umbral_similitud: $event })" />
+              </label>
+            }
+            @case ('NUMERO_RANGO') {
+              <div class="campos">
+                <label>
+                  <span>Mínimo</span>
+                  <input type="number" [ngModel]="c.min"
+                         (ngModelChange)="editarCriterio({ min: $event })" />
+                </label>
+                <label>
+                  <span>Máximo</span>
+                  <input type="number" [ngModel]="c.max"
+                         (ngModelChange)="editarCriterio({ max: $event })" />
+                </label>
+              </div>
+            }
+          }
+        } @else {
+
         <h3 class="titulo-opciones">
           {{ f.tipo === 'EMPAREJAR' ? 'Parejas' : 'Opciones de respuesta' }}
         </h3>
@@ -208,6 +285,7 @@
           <button type="button" class="btn-secundario pequeno" (click)="agregarOpcion()">
             <mat-icon>add</mat-icon> Agregar opción
           </button>
+        }
         }
 
         <div class="acciones-panel">

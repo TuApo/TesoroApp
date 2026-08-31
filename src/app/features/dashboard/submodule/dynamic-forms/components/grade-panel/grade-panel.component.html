@@ -1,0 +1,169 @@
+@if (visible()) {
+<section class="gp">
+
+  @if (cargando()) {
+    <div class="gp-vacio">Cargando la calificación…</div>
+  } @else if (!resultado()) {
+    <div class="gp-vacio gp-vacio--accion">
+      <p>Esta respuesta todavía no se ha calificado.</p>
+      <button type="button" class="gp-btn gp-btn--primario" (click)="calificar()" [disabled]="calificando()">
+        <span class="material-symbols-outlined" aria-hidden="true">grading</span>
+        {{ calificando() ? 'Calificando…' : 'Calificar ahora' }}
+      </button>
+    </div>
+  } @else {
+
+    <!-- ── Resumen ──────────────────────────────────────────────────────── -->
+    <header class="gp-resumen" [class.gp-resumen--firmado]="firmado()">
+      <div class="gp-nota">
+        <strong>{{ resultado()!.nota ?? '—' }}</strong>
+        <small>de 100 · mínimo {{ resultado()!.nota_minima }}</small>
+      </div>
+      <div class="gp-resumen__datos">
+        <span class="gp-chip" [ngClass]="claseEstado(resultado()!.estado)">
+          {{ etiquetaEstado(resultado()!.estado) }}
+        </span>
+        @if (firmado()) {
+          <span class="gp-chip" [ngClass]="resultado()!.aprobado ? 'gp-chip--ok' : 'gp-chip--mal'">
+            {{ resultado()!.aprobado ? 'Aprobado' : 'No aprobado' }}
+          </span>
+        } @else if (resultado()!.parcial) {
+          <span class="gp-aviso">
+            Resultado provisional: faltan {{ pendientes().length }} pregunta(s) por resolver.
+          </span>
+        }
+        <span class="gp-puntos">{{ resultado()!.puntaje }} / {{ resultado()!.puntaje_max }} puntos</span>
+      </div>
+      <span class="gp-grow"></span>
+      <div class="gp-resumen__acciones">
+        <button type="button" class="gp-btn" (click)="calificar()" [disabled]="calificando() || firmado()"
+                title="Vuelve a correr el análisis automático sobre esta respuesta">
+          <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+          {{ calificando() ? 'Recalificando…' : 'Recalificar' }}
+        </button>
+        <button type="button" class="gp-btn gp-btn--primario" (click)="firmar()"
+                [disabled]="!puedeFirmar() || firmando()"
+                [title]="puedeFirmar() ? 'Dejarlo como resultado definitivo'
+                                       : 'Primero hay que resolver lo que está pendiente'">
+          <span class="material-symbols-outlined" aria-hidden="true">draw</span>
+          {{ firmado() ? 'Firmado' : (firmando() ? 'Firmando…' : 'Firmar resultado') }}
+        </button>
+      </div>
+    </header>
+
+    <!-- ── Campo por campo ──────────────────────────────────────────────── -->
+    @for (c of resultado()!.detalle; track c.campo) {
+      <article class="gp-campo">
+        <header class="gp-campo__head">
+          <div>
+            <strong>{{ c.etiqueta }}</strong>
+            <small>{{ c.puntos }} / {{ c.puntos_max }} puntos</small>
+          </div>
+          <span class="gp-chip" [ngClass]="claseEstado(c.estado)">{{ etiquetaEstado(c.estado) }}</span>
+        </header>
+
+        @if (c.motivo) { <p class="gp-motivo">{{ c.motivo }}</p> }
+
+        @if (c.referencia?.texto || c.referencia?.url) {
+          <p class="gp-ref">
+            <span class="material-symbols-outlined" aria-hidden="true">play_circle</span>
+            Se explica en: {{ c.referencia?.texto || c.referencia?.url }}
+          </p>
+        }
+
+        <!-- Lo que el modelo aporta. Siempre marcado como borrador, nunca como resultado. -->
+        @if (tieneBorrador(c)) {
+          <div class="gp-borrador">
+            <header>
+              <span class="material-symbols-outlined" aria-hidden="true">neurology</span>
+              Borrador del modelo — no es un resultado
+            </header>
+            @if (c.descripcion_ia) { <p class="gp-borrador__texto">{{ c.descripcion_ia }}</p> }
+            @if (c.interpretacion_apoyo) { <p class="gp-borrador__texto">{{ c.interpretacion_apoyo }}</p> }
+          </div>
+        }
+
+        <!-- Lo que escribe quien firma. Esta es la versión buena. -->
+        <div class="gp-revision" [class.gp-revision--sucia]="borrador(c.campo).sucio">
+          <label class="gp-campo-form">
+            <span>Tu interpretación</span>
+            <textarea rows="5" [ngModel]="borrador(c.campo).interpretacion"
+                      [disabled]="firmado()"
+                      placeholder="Lo que lees en este dibujo. Es lo que queda como concepto."
+                      (ngModelChange)="cambiar(c.campo, { interpretacion: $event })"></textarea>
+          </label>
+
+          <div class="gp-fila">
+            <label class="gp-campo-form">
+              <span>Observaciones</span>
+              <textarea rows="2" [ngModel]="borrador(c.campo).observaciones" [disabled]="firmado()"
+                        (ngModelChange)="cambiar(c.campo, { observaciones: $event })"></textarea>
+            </label>
+            <label class="gp-campo-form gp-campo-form--corta">
+              <span>Concepto</span>
+              <select [ngModel]="borrador(c.campo).veredicto" [disabled]="firmado()"
+                      (ngModelChange)="cambiar(c.campo, { veredicto: $event })">
+                <option value="">Sin concepto</option>
+                <option value="APTO">Apto</option>
+                <option value="APTO_CON_RESERVAS">Apto con reservas</option>
+                <option value="REQUIERE_ENTREVISTA">Requiere entrevista</option>
+                <option value="NO_APTO">No apto</option>
+              </select>
+            </label>
+            <label class="gp-campo-form gp-campo-form--corta">
+              <span>Puntos</span>
+              <input type="number" min="0" [max]="c.puntos_max" [disabled]="firmado()"
+                     [ngModel]="borrador(c.campo).puntos"
+                     (ngModelChange)="cambiar(c.campo, { puntos: $event })" />
+            </label>
+          </div>
+
+          @if (tieneBorrador(c)) {
+            <div class="gp-fila gp-fila--entrenamiento">
+              <label class="gp-campo-form gp-campo-form--corta">
+                <span>¿Sirvió el borrador?</span>
+                <select [ngModel]="borrador(c.campo).utilidad_ia" [disabled]="firmado()"
+                        (ngModelChange)="cambiar(c.campo, { utilidad_ia: $event })">
+                  <option value="">Sin calificar</option>
+                  <option value="UTIL">Sí, lo usé casi tal cual</option>
+                  <option value="CORREGIDA">A medias, lo corregí</option>
+                  <option value="ERRADA">No, estaba equivocado</option>
+                </select>
+              </label>
+              <label class="gp-check">
+                <input type="checkbox" [ngModel]="borrador(c.campo).usar_para_entrenar"
+                       [disabled]="firmado()"
+                       (ngModelChange)="cambiar(c.campo, { usar_para_entrenar: $event })" />
+                <span>
+                  <strong>Usar mi lectura como ejemplo</strong>
+                  <small>Se le pasa a las interpretaciones siguientes de esta misma pregunta. Es
+                         voluntario y podés dejarlo apagado sin que cambie nada más.</small>
+                </span>
+              </label>
+            </div>
+          }
+
+          @if (!firmado()) {
+            <div class="gp-acciones-campo">
+              <button type="button" class="gp-btn gp-btn--primario"
+                      (click)="guardarCampo(c)"
+                      [disabled]="guardandoCampo() === c.campo">
+                <span class="material-symbols-outlined" aria-hidden="true">check</span>
+                {{ guardandoCampo() === c.campo ? 'Guardando…' : 'Guardar y cerrar esta pregunta' }}
+              </button>
+              @if (borrador(c.campo).sucio) { <span class="gp-sucio">Sin guardar</span> }
+            </div>
+          }
+
+          @if (nota(c.campo)?.profesional_id) {
+            <p class="gp-firma">
+              Revisado por {{ nota(c.campo)!.profesional_id }}
+              @if (nota(c.campo)!.actualizado_at) { · {{ nota(c.campo)!.actualizado_at | date:'short' }} }
+            </p>
+          }
+        </div>
+      </article>
+    }
+  }
+</section>
+}

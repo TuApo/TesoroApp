@@ -1444,6 +1444,12 @@ export class FormBuilderComponent {
     void this.router.navigateByUrl(FormBuilderComponent.RUTA_LISTADO);
   }
 
+  /** A la hoja de respuestas de este formulario. Hermana de /editar, no una pestaña de aquí. */
+  irAlExamen(): void {
+    const id = this.formId();
+    if (id != null) void this.router.navigateByUrl(`${FormBuilderComponent.RUTA_LISTADO}/${id}/examen`);
+  }
+
   /** Copia superficial de secciones + arrays de campos (los campos se reemplazan, no se mutan). */
   private clonarSecciones(): FormSection[] {
     return this.sections().map(s => ({ ...s, fields: [...s.fields] }));

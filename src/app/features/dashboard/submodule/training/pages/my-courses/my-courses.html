@@ -21,6 +21,20 @@
     </p>
   }
 
+  <!-- Se actualizó algo que ya hice. No es lo mismo que "se venció": aquí cambió el
+       contenido, y por eso el aviso dice QUÉ cambió cuando la versión trae notas. -->
+  @for (c of actualizados(); track c.enrollment_id) {
+    <button type="button" class="aviso aviso-actualizado" (click)="abrirActualizado(c)">
+      <mat-icon>update</mat-icon>
+      <span>
+        <strong>{{ c.nombre }} se actualizó.</strong>
+        Hiciste la versión {{ c.mi_version }} y ya va la {{ c.version_vigente }}.
+        @if (c.notas_de_la_version) { <em>{{ c.notas_de_la_version }}</em> }
+      </span>
+      <mat-icon class="aviso-flecha">chevron_right</mat-icon>
+    </button>
+  }
+
   @if (cargando()) {
     <p class="cargando">Cargando tus cursos…</p>
   } @else if (error()) {

@@ -113,11 +113,17 @@ export class TrainingAdminService {
    */
   async subirArchivo(file: File, lessonId: string): Promise<string> {
     const fd = new FormData();
-    // El ownerId es el UUID PELADO, sin prefijo: `owner_id` en gestión documental es
-    // varchar(40) y "leccion:" + un UUID son 44 caracteres, así que la subida moría con
-    // "Data too long" que llegaba al usuario como un 409 "Conflicto de datos". Lo que
-    // distingue de qué es dueño el documento es `ownerType`, que para eso existe.
-    fd.append('ownerId', lessonId);
+    // OJO con el ownerId. `upload-by-owner` agrupa por (owner, tipo): si ya hay un documento
+    // de ese dueño y ese tipo, el archivo entra como una VERSIÓN NUEVA que deja la anterior
+    // en is_current=false. Con el id de la lección como dueño, subir un segundo vídeo a la
+    // misma lección convertía al primero en una versión vieja del mismo documento, y los dos
+    // bloques acababan mostrando el mismo vídeo.
+    //
+    // Por eso el dueño es un id propio de ESTA subida. No se pierde la relación: quien sabe a
+    // qué lección pertenece el archivo es learning-ms, que guarda el document_id en su recurso.
+    // (Además `owner_id` es varchar(40): un UUID pelado cabe, "leccion:"+UUID son 44 y la
+    // subida moría con "Data too long", que al usuario le llegaba como 409 "Conflicto de datos".)
+    fd.append('ownerId', crypto.randomUUID());
     fd.append('typeCode', 'CAPACITACION_MATERIAL');
     fd.append('ownerType', 'LEARNING_LESSON');
     fd.append('sourceService', 'tesoro-capacitaciones');
@@ -162,8 +168,11 @@ export class TrainingAdminService {
    */
   async subirMediaDePregunta(file: File, bankId: string): Promise<string> {
     const fd = new FormData();
-    // UUID pelado: ver la nota de subirArchivo sobre el ancho de `owner_id`.
-    fd.append('ownerId', bankId);
+    // Un dueño por archivo, no por banco: ver la nota de subirArchivo. Con el banco como
+    // dueño, la imagen de la opción B se guardaba como versión 2 de la imagen de la opción A
+    // y las dos se veían iguales — que en «une cada señal con lo que significa» deja el
+    // ejercicio sin resolver.
+    fd.append('ownerId', crypto.randomUUID());
     fd.append('typeCode', 'CAPACITACION_MATERIAL');
     fd.append('ownerType', 'LEARNING_QUESTION');
     fd.append('sourceService', 'tesoro-capacitaciones');
@@ -172,6 +181,39 @@ export class TrainingAdminService {
       this.http.post<{ document_id: number }>(`${this.documentos}/upload-by-owner`, fd));
     if (!r?.document_id) throw new Error('ms-documents no confirmó la subida');
     return String(r.document_id);
+  }
+
+  /**
+   * Dónde parece que se explica una pregunta, según las transcripciones del curso.
+   *
+   * Lo que se guarda es lo que elija la persona: una sugerencia equivocada mandaría a repasar
+   * al minuto que no es, y quien falla la pregunta no tiene cómo saber que el atajo estaba mal.
+   */
+  sugerenciasDeReferencia(quizId: string, questionId: string): Promise<SugerenciaReferencia[]> {
+    return firstValueFrom(this.http.get<SugerenciaReferencia[]>(
+      `${this.base}/quizzes/${quizId}/questions/${questionId}/sugerencias-referencia`));
+  }
+
+  /**
+   * Propone preguntas a partir de lo que se dijo en el material de la clase.
+   *
+   * Sólo mira las lecciones hasta ésta: no puede preguntar por algo que a quien lo responda
+   * todavía nadie le enseñó. Devuelve borradores; guardarlos es otro paso.
+   */
+  sugerirPreguntas(quizId: string, cantidad = 5): Promise<PreguntaSugerida[]> {
+    return firstValueFrom(this.http.post<PreguntaSugerida[]>(
+      `${this.base}/quizzes/${quizId}/sugerir-preguntas?cantidad=${cantidad}`, {}));
+  }
+
+  /**
+   * Marca (o desmarca) una pregunta como obligatoria dentro de este quiz.
+   *
+   * Va en la relación y no en la pregunta: la misma pregunta del banco puede ser
+   * imprescindible en la evaluación de alturas y opcional en la de inducción.
+   */
+  obligatoriaDePregunta(quizId: string, questionId: string, valor: boolean): Promise<Quiz> {
+    return firstValueFrom(this.http.put<Quiz>(
+      `${this.base}/quizzes/${quizId}/questions/${questionId}/obligatoria?valor=${valor}`, {}));
   }
 
   /** Reordena las preguntas del quiz. El backend exige la lista completa, no el movimiento. */
@@ -272,6 +314,27 @@ export class TrainingAdminService {
 
   eliminarBanco(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`${this.base}/question-banks/${id}`));
+  }
+
+  /**
+   * Busca preguntas ya parametrizadas en TODOS los bancos.
+   *
+   * Es lo que convierte "agregar del banco" en "pedir la que ya existe": quien arma un quiz no
+   * tiene por qué acordarse de en qué banco quedó guardada. Con `quiz_id` el servidor deja
+   * fuera las que ese quiz ya tiene, para no ofrecer algo que al agregarse daría error.
+   */
+  buscarPreguntas(opts: {
+    q?: string; bank_id?: string | null; tipo?: string | null;
+    quiz_id?: string | null; limite?: number;
+  }): Promise<PreguntaEncontrada[]> {
+    const params = new URLSearchParams();
+    if (opts.q?.trim()) params.set('q', opts.q.trim());
+    if (opts.bank_id) params.set('bank_id', opts.bank_id);
+    if (opts.tipo) params.set('tipo', opts.tipo);
+    if (opts.quiz_id) params.set('quiz_id', opts.quiz_id);
+    params.set('limite', String(opts.limite ?? 25));
+    return firstValueFrom(
+      this.http.get<PreguntaEncontrada[]>(`${this.base}/questions/search?${params.toString()}`));
   }
 
   preguntas(bankId: string, soloActivas?: boolean): Promise<Pregunta[]> {
@@ -552,8 +615,10 @@ export interface Pregunta {
   media_document_id?: string | null;
   media_url?: string | null;
   media_mime?: string | null;
-  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR';
+  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO';
   dificultad?: string;
+  /** Sólo en las que se responden escribiendo. */
+  criterio?: CriterioPregunta | null;
   explicacion?: string;
   activa: boolean;
   /** true = ya la respondio alguien, asi que solo admite versionado, no edicion. */
@@ -563,12 +628,39 @@ export interface Pregunta {
 }
 
 export interface Opcion {
+  /** Imagen de la opción. Se sirve por proxy; el document_id nunca llega al alumno. */
+  media_document_id?: string | null;
+  media_mime?: string | null;
   id?: string;
   texto: string;
   correcta: boolean;
   pareja_clave?: string;
   feedback?: string;
   orden?: number;
+}
+
+/** Una pregunta encontrada por la búsqueda, con el banco del que sale. */
+export interface PreguntaEncontrada {
+  bank_id: string;
+  bank_nombre: string;
+  pregunta: Pregunta;
+}
+
+/**
+ * Con qué se corrige una pregunta que se responde escribiendo.
+ *
+ * Es el mismo criterio que usa el examen de Formularios Dinámicos: el analizador vive en
+ * `commons.calificacion` y lo comparten los dos módulos. Lo que cambia es sólo el envoltorio.
+ */
+export interface CriterioPregunta {
+  modo: 'TEXTO_CONTIENE' | 'TEXTO_SIMILITUD' | 'NUMERO_RANGO' | 'PRESENCIA' | 'MANUAL';
+  contiene?: string[] | null;
+  no_contiene?: string[] | null;
+  minimo_aciertos?: number | null;
+  respuesta_modelo?: string | null;
+  umbral_similitud?: number | null;
+  min?: number | null;
+  max?: number | null;
 }
 
 export interface PreguntaRequest {
@@ -582,6 +674,8 @@ export interface PreguntaRequest {
   dificultad?: string;
   explicacion?: string;
   activa?: boolean;
+  /** Sólo en las que se responden escribiendo (TEXTO_ABIERTO, NUMERO). */
+  criterio?: CriterioPregunta | null;
   opciones: Opcion[];
 }
 
@@ -592,6 +686,8 @@ export interface Quiz {
   feedback_inmediato: boolean;
   barajar_preguntas: boolean;
   barajar_opciones: boolean;
+  /** Cuántas preguntas salen de las que tiene el quiz. null = todas. */
+  preguntas_por_intento?: number | null;
   modo_presentacion: 'TODAS' | 'UNA_POR_UNA';
   permite_volver: boolean;
   mostrar_respuesta_correcta: boolean;
@@ -600,6 +696,8 @@ export interface Quiz {
   preguntas: Pregunta[];
   /** A dónde manda cada pregunta al fallar. Solo trae las que tienen referencia puesta. */
   referencias: ReferenciaPregunta[];
+  /** Las que entran siempre, aunque el resto del cuestionario se sortee. */
+  obligatorias: string[];
 }
 
 export interface ReferenciaPregunta {
@@ -1091,4 +1189,26 @@ export interface CargoSinFamilia {
   origen?: string | null;
   /** Ordenados por esto: primero el cargo que deja a más gente sin formación. */
   contratos_activos: number;
+}
+
+/** Dónde parece que se explica una pregunta. Se propone; la elige una persona. */
+export interface SugerenciaReferencia {
+  block_id: string;
+  segundo: number | null;
+  lesson_id: string;
+  lesson_nombre: string;
+  bloque_titulo: string | null;
+  extracto: string;
+}
+
+/** Una pregunta propuesta desde el material, con su atajo al minuto ya resuelto. */
+export interface PreguntaSugerida {
+  enunciado: string;
+  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO';
+  opciones: { texto: string; correcta: boolean }[];
+  explicacion: string | null;
+  block_id: string | null;
+  segundo: number | null;
+  lesson_nombre: string;
+  extracto: string;
 }

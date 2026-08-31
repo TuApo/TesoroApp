@@ -210,6 +210,86 @@
                   @if (p.tipo === 'OPCION_MULTIPLE' && !confirmada(p)) {
                     <p class="ayuda">Puedes marcar más de una.</p>
                   }
+
+                  <!-- Las que se responden escribiendo. La corrección la hace el servidor, así
+                       que aquí no se muestra si acertó: decirlo sin haber corregido sería
+                       adivinar. -->
+                  @if (esAbierta(p)) {
+                    @if (p.tipo === 'NUMERO') {
+                      <input class="respuesta-abierta" type="number" inputmode="decimal"
+                             [value]="escrito(p.id)" [disabled]="confirmada(p)"
+                             placeholder="Escribe el número"
+                             (input)="escribir(p, $any($event.target).value)" />
+                    } @else {
+                      <textarea class="respuesta-abierta" rows="4"
+                                [value]="escrito(p.id)" [disabled]="confirmada(p)"
+                                placeholder="Escribe tu respuesta"
+                                (input)="escribir(p, $any($event.target).value)"></textarea>
+                    }
+                    @if (!confirmada(p)) {
+                      <p class="ayuda">Se revisa al enviar el quiz.</p>
+                    }
+                  }
+
+                  <!-- ── Emparejar ──────────────────────────────────────────
+                       Se resuelve tocando: primero a la izquierda, luego su pareja a la
+                       derecha. Nada de arrastrar: esto se contesta en un celular, muchas
+                       veces con guantes y de pie. -->
+                  @if (esEmparejar(p)) {
+                    @if (!confirmada(p)) {
+                      <p class="ayuda">
+                        @if (esperando(p)) {
+                          Ahora toca su pareja en la columna de la derecha.
+                        } @else {
+                          Toca un elemento de la izquierda y después el que le corresponde.
+                          {{ parejasDe(p).length }} de {{ columna(p, 'A').length }} unidas.
+                        }
+                      </p>
+                    }
+                    <div class="emparejar">
+                      <div class="emparejar-col">
+                        @for (o of columna(p, 'A'); track o.id) {
+                          <button type="button" class="opcion opcion-par"
+                                  [class.esperando]="esperando(p) === o.id"
+                                  [class.unida]="numeroDePareja(p, o.id) !== null"
+                                  [disabled]="confirmada(p)"
+                                  (click)="tocarOpcion(p, o)">
+                            @if (numeroDePareja(p, o.id); as n) {
+                              <span class="par-num">{{ n }}</span>
+                            } @else {
+                              <mat-icon>radio_button_unchecked</mat-icon>
+                            }
+                            <span class="opcion-cuerpo">
+                              @if (mediaDeOpcion(o); as url) {
+                                <img [src]="url" [alt]="o.texto" loading="lazy" />
+                              }
+                              <span>{{ o.texto }}</span>
+                            </span>
+                          </button>
+                        }
+                      </div>
+                      <div class="emparejar-col">
+                        @for (o of columna(p, 'B'); track o.id) {
+                          <button type="button" class="opcion opcion-par"
+                                  [class.unida]="numeroDePareja(p, o.id) !== null"
+                                  [disabled]="confirmada(p)"
+                                  (click)="tocarOpcion(p, o)">
+                            @if (numeroDePareja(p, o.id); as n) {
+                              <span class="par-num">{{ n }}</span>
+                            } @else {
+                              <mat-icon>radio_button_unchecked</mat-icon>
+                            }
+                            <span class="opcion-cuerpo">
+                              @if (mediaDeOpcion(o); as url) {
+                                <img [src]="url" [alt]="o.texto" loading="lazy" />
+                              }
+                              <span>{{ o.texto }}</span>
+                            </span>
+                          </button>
+                        }
+                      </div>
+                    </div>
+                  } @else {
                   @for (o of p.opciones; track o.id) {
                     <button type="button" class="opcion"
                             [class.marcada]="elegida(p.id, o.id)"
@@ -222,8 +302,23 @@
                         @else if (confirmada(p) && elegida(p.id, o.id)) { cancel }
                         @else { {{ elegida(p.id, o.id) ? 'check_box' : 'check_box_outline_blank' }} }
                       </mat-icon>
-                      <span>{{ o.texto }}</span>
+                      <span class="opcion-cuerpo">
+                        @if (mediaDeOpcion(o); as url) {
+                          <img [src]="url" [alt]="o.texto" loading="lazy" />
+                        }
+                        <span>{{ o.texto }}</span>
+                      </span>
                     </button>
+                    <!-- Por qué esta opción está bien o mal. Sale después de confirmar y sólo
+                         en la que eligió: es la explicación que le toca a quien se equivocó
+                         justo en ésa. -->
+                    @if (confirmada(p) && o.feedback && elegida(p.id, o.id)) {
+                      <p class="opcion-feedback" [class.mal]="!esCorrecta(p, o.id)">
+                        <mat-icon>{{ esCorrecta(p, o.id) ? 'lightbulb' : 'info' }}</mat-icon>
+                        {{ o.feedback }}
+                      </p>
+                    }
+                  }
                   }
 
                   <!-- La corrección. Sale del propio paquete, sin red: así funciona en finca. -->
@@ -240,6 +335,42 @@
                             Ver dónde se explica
                             @if (p.segundo) { (minuto {{ minuto(p.segundo) }}) }
                           </button>
+                        }
+
+                        <!-- Buscarlo en el material ya visto. Es lo que sirve cuando la
+                             pregunta no trae atajo puesto a mano, que es lo normal. -->
+                        @if (!acerto(p)) {
+                          @if (citasDe(p.id); as citas) {
+                            @if (citas.length) {
+                              <ul class="citas">
+                                @for (c of citas; track c.lesson_id + '-' + c.segundos) {
+                                  <li>
+                                    <button type="button" class="cita" (click)="irALaCita(c)">
+                                      <mat-icon>play_circle</mat-icon>
+                                      <span>
+                                        <strong>{{ c.lesson_nombre }} · minuto {{ minuto(c.segundos) }}</strong>
+                                        <em>«{{ c.extracto }}»</em>
+                                      </span>
+                                    </button>
+                                  </li>
+                                }
+                              </ul>
+                            } @else {
+                              <p class="ayuda">
+                                No encontramos dónde se explica esto en lo que ya viste.
+                                Pregúntale al tutor o revísalo con quien te capacita.
+                              </p>
+                            }
+                          } @else {
+                            <button type="button" class="enlace-repaso"
+                                    [disabled]="buscandoCitas() === p.id"
+                                    (click)="buscarDondeSeExplica(p)">
+                              <mat-icon>search</mat-icon>
+                              {{ buscandoCitas() === p.id
+                                  ? 'Buscando en el material…'
+                                  : 'Buscar dónde se explica en lo que ya vi' }}
+                            </button>
+                          }
                         }
                       </div>
                     </div>
@@ -258,7 +389,7 @@
                   @for (p of preguntasVisibles; track p.id) {
                     @if (!confirmada(p)) {
                       <button type="button" class="boton-principal"
-                              [disabled]="(respuestas()[p.id] ?? []).length === 0"
+                              [disabled]="!respondida(p)"
                               (click)="confirmar(p)">
                         Confirmar
                       </button>

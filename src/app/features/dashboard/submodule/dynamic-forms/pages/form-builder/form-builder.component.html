@@ -41,6 +41,16 @@
           <span class="material-symbols-outlined" aria-hidden="true">table_view</span>
           Desde Excel
         </button>
+        @if (esEdicion()) {
+          <!-- La hoja de respuestas se configura sobre las preguntas que YA existen, por eso
+               solo aparece en edición: en un formulario sin publicar no hay nada que calificar. -->
+          <button type="button" class="fb-btn fb-btn--ghost" (click)="irAlExamen()"
+                  [disabled]="cargando()"
+                  title="Definir qué se considera responder bien cada pregunta">
+            <span class="material-symbols-outlined" aria-hidden="true">grading</span>
+            Calificación
+          </button>
+        }
         <button type="button" class="fb-btn fb-btn--primary"
                 (click)="guardar()"
                 [disabled]="guardando() || cargando()">

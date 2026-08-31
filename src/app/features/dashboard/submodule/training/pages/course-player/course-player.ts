@@ -9,7 +9,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Swal from 'sweetalert2';
 import {
   TrainingS, PaqueteCurso, LeccionOffline, PreguntaPresentacion, RecursoOffline,
-  RespuestaEnviada, BloqueOffline
+  RespuestaEnviada, BloqueOffline, CitaMaterial, OpcionPresentacion
 } from '../../service/training-s';
 import { TrainingOffline } from '../../service/training-offline';
 import { TutorIaService } from '../../service/tutor-ia.service';
@@ -246,7 +246,7 @@ export class CoursePlayer implements OnInit, OnDestroy {
   // ── Saltos del tutor ──────────────────────────────────────────────────────
 
   /** Abre la lección, baja su vídeo si hace falta y lo deja sonando en el segundo pedido. */
-  private async saltarA(leccionId: string, segundos: number): Promise<void> {
+  async saltarA(leccionId: string, segundos: number): Promise<void> {
     const leccion = this.lecciones().find(l => l.id === leccionId);
     if (!leccion) return;
     if (this.leccionActivaId() !== leccionId) this.seleccionar(leccion);
@@ -375,6 +375,26 @@ export class CoursePlayer implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Las que se responden escribiendo.
+   *
+   * <p>Se guardan en el MISMO mapa que las marcadas, como un arreglo de un elemento. Así
+   * "¿está respondida?" sigue siendo una sola pregunta —¿hay algo en el arreglo?— y no dos.
+   */
+  esAbierta(p: PreguntaPresentacion): boolean {
+    return p.tipo === 'TEXTO_ABIERTO' || p.tipo === 'NUMERO';
+  }
+
+  escribir(pregunta: PreguntaPresentacion, texto: string): void {
+    if (this.confirmada(pregunta)) return;
+    const limpio = (texto ?? '').trim();
+    this.respuestas.update(actual => ({ ...actual, [pregunta.id]: limpio ? [limpio] : [] }));
+  }
+
+  escrito(preguntaId: string): string {
+    return (this.respuestas()[preguntaId] ?? [])[0] ?? '';
+  }
+
   elegida(preguntaId: string, opcionId: string): boolean {
     return (this.respuestas()[preguntaId] ?? []).includes(opcionId);
   }
@@ -426,6 +446,95 @@ export class CoursePlayer implements OnInit, OnDestroy {
     return p.media_url ?? this.mediaPreguntas()[p.id] ?? null;
   }
 
+  // ── Imágenes de las opciones ──────────────────────────────────────────────
+
+  readonly mediaOpciones = signal<Record<string, string>>({});
+
+  /**
+   * Baja la imagen de una opción. Se pide una vez y se guarda la url del blob.
+   *
+   * Se dispara al pintar la opción, no con un botón: en «une cada señal con lo que significa»
+   * la imagen ES la opción, y una opción que hay que destapar no se puede elegir.
+   */
+  async cargarMediaDeOpcion(o: OpcionPresentacion): Promise<void> {
+    if (!o.tiene_archivo || this.mediaOpciones()[o.id]) return;
+    try {
+      const blob = await this.api.descargarMediaDeOpcion(o.id);
+      this.mediaOpciones.update(m => ({ ...m, [o.id]: URL.createObjectURL(blob) }));
+    } catch { /* sin señal se queda el texto, que siempre está */ }
+  }
+
+  mediaDeOpcion(o: OpcionPresentacion): string | null {
+    if (o.tiene_archivo && !this.mediaOpciones()[o.id]) void this.cargarMediaDeOpcion(o);
+    return this.mediaOpciones()[o.id] ?? null;
+  }
+
+  // ── Emparejar ─────────────────────────────────────────────────────────────
+
+  /**
+   * Las parejas que ha armado, por pregunta.
+   *
+   * Se resuelve TOCANDO: primero un elemento de la izquierda, después su pareja de la derecha.
+   * Nada de arrastrar — esto se contesta en un celular, muchas veces con guantes y de pie, y
+   * arrastrar ahí falla más de lo que acierta.
+   */
+  readonly parejas = signal<Record<string, { a: string; b: string }[]>>({});
+  /** El elemento de la izquierda que está esperando pareja. */
+  readonly esperandoPareja = signal<Record<string, string | null>>({});
+
+  esEmparejar(p: PreguntaPresentacion): boolean {
+    return p.tipo === 'EMPAREJAR';
+  }
+
+  columna(p: PreguntaPresentacion, cual: 'A' | 'B'): OpcionPresentacion[] {
+    return (p.opciones ?? []).filter(o => o.columna === cual);
+  }
+
+  parejasDe(p: PreguntaPresentacion): { a: string; b: string }[] {
+    return this.parejas()[p.id] ?? [];
+  }
+
+  /** El número de pareja de una opción (1, 2, 3…), o null si todavía no tiene. */
+  numeroDePareja(p: PreguntaPresentacion, opcionId: string): number | null {
+    const i = this.parejasDe(p).findIndex(x => x.a === opcionId || x.b === opcionId);
+    return i < 0 ? null : i + 1;
+  }
+
+  esperando(p: PreguntaPresentacion): string | null {
+    return this.esperandoPareja()[p.id] ?? null;
+  }
+
+  /** Toca un elemento: arma pareja, la deshace, o queda esperando la contraparte. */
+  tocarOpcion(p: PreguntaPresentacion, o: OpcionPresentacion): void {
+    if (this.confirmada(p)) return;
+
+    // Tocar algo ya emparejado lo desarma: es la única forma de corregirse sin borrar todo.
+    const ya = this.numeroDePareja(p, o.id);
+    if (ya != null) {
+      this.parejas.update(m => ({
+        ...m,
+        [p.id]: this.parejasDe(p).filter(x => x.a !== o.id && x.b !== o.id),
+      }));
+      return;
+    }
+
+    if (o.columna === 'A') {
+      this.esperandoPareja.update(m => ({ ...m, [p.id]: this.esperando(p) === o.id ? null : o.id }));
+      return;
+    }
+
+    const a = this.esperando(p);
+    if (!a) return;   // tocar la derecha sin haber elegido la izquierda no hace nada
+    this.parejas.update(m => ({ ...m, [p.id]: [...this.parejasDe(p), { a, b: o.id }] }));
+    this.esperandoPareja.update(m => ({ ...m, [p.id]: null }));
+  }
+
+  /** true cuando ya no queda nada por emparejar. */
+  emparejarCompleto(p: PreguntaPresentacion): boolean {
+    return this.parejasDe(p).length >= this.columna(p, 'A').length
+        && this.columna(p, 'A').length > 0;
+  }
+
   confirmada(p: PreguntaPresentacion): boolean {
     return this.confirmadas().has(p.id);
   }
@@ -449,6 +558,42 @@ export class CoursePlayer implements OnInit, OnDestroy {
 
   preguntaAnterior(): void {
     if (this.puedeVolver) this.indicePregunta.update(i => i - 1);
+  }
+
+  // ── Dónde se explica lo que fallé ─────────────────────────────────────────
+
+  /** Citas encontradas por pregunta. Vacío hasta que se piden: cuestan una consulta. */
+  readonly citas = signal<Record<string, CitaMaterial[]>>({});
+  readonly buscandoCitas = signal<string | null>(null);
+
+  /**
+   * Busca en el material ya visto dónde se explica lo que se falló.
+   *
+   * Necesita conexión: las transcripciones no viajan en el paquete offline —son grandes y solo
+   * hacen falta cuando alguien falla—. Sin señal se dice, en vez de dejar un botón que no hace
+   * nada.
+   */
+  async buscarDondeSeExplica(p: PreguntaPresentacion): Promise<void> {
+    const quiz = this.quiz;
+    if (!quiz || this.buscandoCitas()) return;
+    this.buscandoCitas.set(p.id);
+    try {
+      const encontradas = await this.api.dondeSeExplica(p.id, quiz.quiz_id);
+      this.citas.update(c => ({ ...c, [p.id]: encontradas }));
+    } catch {
+      this.citas.update(c => ({ ...c, [p.id]: [] }));
+    } finally {
+      this.buscandoCitas.set(null);
+    }
+  }
+
+  citasDe(preguntaId: string): CitaMaterial[] | null {
+    return this.citas()[preguntaId] ?? null;
+  }
+
+  /** Del texto citado al minuto del vídeo, aunque sea de otra lección del curso. */
+  async irALaCita(c: CitaMaterial): Promise<void> {
+    await this.saltarA(c.lesson_id, c.segundos);
   }
 
   /** null = el quiz no revela nada; true/false = acertó o no. */
@@ -489,10 +634,16 @@ export class CoursePlayer implements OnInit, OnDestroy {
     }, 60);
   }
 
+  /** Una pregunta está respondida cuando tiene con qué calificarse, sea del tipo que sea. */
+  respondida(p: PreguntaPresentacion): boolean {
+    if (this.esEmparejar(p)) return this.emparejarCompleto(p);
+    return (this.respuestas()[p.id] ?? []).length > 0;
+  }
+
   get quizCompleto(): boolean {
     const quiz = this.quiz;
     if (!quiz) return false;
-    return quiz.preguntas.every(p => (this.respuestas()[p.id] ?? []).length > 0);
+    return quiz.preguntas.every(p => this.respondida(p));
   }
 
   async enviarQuiz(): Promise<void> {
@@ -502,10 +653,19 @@ export class CoursePlayer implements OnInit, OnDestroy {
 
     this.guardando.set(true);
     const idEvento = this.offline.idDeEvento('quiz', quiz.quiz_id);
-    const respuestas: RespuestaEnviada[] = quiz.preguntas.map(p => ({
-      question_id: p.id,
-      option_ids: this.respuestas()[p.id] ?? []
-    }));
+    // Las abiertas van como texto: la corrección la hace el analizador en el servidor, que es
+    // el mismo que califica los exámenes de Formularios Dinámicos. Aquí no viaja su criterio,
+    // y por eso tampoco se puede corregir sin conexión.
+    const respuestas: RespuestaEnviada[] = quiz.preguntas.map(p => {
+      if (this.esAbierta(p)) return { question_id: p.id, texto: this.escrito(p.id) || null };
+      if (this.esEmparejar(p)) {
+        return {
+          question_id: p.id,
+          parejas: this.parejasDe(p).map(x => ({ opcion_a: x.a, opcion_b: x.b })),
+        };
+      }
+      return { question_id: p.id, option_ids: this.respuestas()[p.id] ?? [] };
+    });
 
     try {
       const resultado = await this.api.responderQuiz(quiz.quiz_id, idEvento, respuestas);

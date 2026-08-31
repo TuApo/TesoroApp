@@ -6,7 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 import {
-  TrainingAdminService, Bloque, BloqueRequest, TipoBloque, Quiz, Pregunta, Banco, Actividad, Opcion
+  TrainingAdminService, Bloque, BloqueRequest, TipoBloque, Quiz, Pregunta, PreguntaEncontrada,
+  Banco, Actividad, Opcion, CriterioPregunta, SugerenciaReferencia, PreguntaSugerida
 } from '../../service/training-admin.service';
 
 /** Lo que la consola necesita saber de un tipo de bloque para pintarlo y explicarlo. */
@@ -92,6 +93,12 @@ export class BlockCard {
   readonly quiz = signal<Quiz | null>(null);
   readonly cargandoQuiz = signal(false);
   readonly bancoElegido = signal<string | null>(null);
+  /**
+   * Dónde se guarda una pregunta NUEVA. Es distinto del filtro de búsqueda a propósito: se
+   * puede estar mirando "todos los bancos" y aun así hacer falta decidir en cuál queda la que
+   * se escribe. Antes iban pegados y por eso no se podía crear sin elegir banco primero.
+   */
+  readonly bancoDestino = signal<string | null>(null);
   readonly preguntasDelBanco = signal<Pregunta[]>([]);
 
   /**
@@ -146,7 +153,7 @@ export class BlockCard {
       },
       actividadSucia: false,
       quiz: {
-        intentos_max: 3, feedback_inmediato: true,
+        intentos_max: 3, feedback_inmediato: true, preguntas_por_intento: null,
         barajar_preguntas: true, barajar_opciones: true,
         modo_presentacion: 'TODAS', permite_volver: true, mostrar_respuesta_correcta: true,
       },
@@ -247,6 +254,7 @@ export class BlockCard {
         quiz: {
           intentos_max: q.intentos_max,
           feedback_inmediato: q.feedback_inmediato,
+          preguntas_por_intento: q.preguntas_por_intento ?? null,
           barajar_preguntas: q.barajar_preguntas,
           barajar_opciones: q.barajar_opciones,
           modo_presentacion: q.modo_presentacion,
@@ -255,6 +263,9 @@ export class BlockCard {
         },
         quizSucio: false,
       } : b);
+      // Con el quiz abierto ya se puede ofrecer algo: las últimas creadas, sin que haya
+      // que escribir nada ni elegir banco.
+      void this.buscar();
     } catch {
       this.quiz.set(null);
     } finally {
@@ -262,21 +273,178 @@ export class BlockCard {
     }
   }
 
+  // ── Pedir una pregunta que ya existe ──────────────────────────────────────
+
+  /** Texto que se está buscando. Vacío = las últimas creadas, que es un buen punto de partida. */
+  readonly busqueda = signal('');
+  readonly buscando = signal(false);
+  readonly resultados = signal<PreguntaEncontrada[]>([]);
+  private temporizadorBusqueda: ReturnType<typeof setTimeout> | null = null;
+
+  /** El banco es un FILTRO, no un requisito: por defecto se busca en todos. */
   async elegirBanco(bankId: string): Promise<void> {
     this.bancoElegido.set(bankId || null);
-    if (!bankId) { this.preguntasDelBanco.set([]); return; }
+    if (bankId && !this.bancoDestino()) this.bancoDestino.set(bankId);
+    await this.buscar();
+  }
+
+  /**
+   * Teclear no dispara una consulta por letra.
+   *
+   * 300 ms es el punto donde la lista ya se siente viva y el servidor recibe una consulta por
+   * palabra escrita en vez de una por tecla. Sin esto, buscar "arnés" son cinco búsquedas.
+   */
+  buscarConRetraso(texto: string): void {
+    this.busqueda.set(texto);
+    if (this.temporizadorBusqueda) clearTimeout(this.temporizadorBusqueda);
+    this.temporizadorBusqueda = setTimeout(() => { void this.buscar(); }, 300);
+  }
+
+  async buscar(): Promise<void> {
+    const q = this.quiz();
+    this.buscando.set(true);
     try {
-      this.preguntasDelBanco.set(await this.api.preguntas(bankId, true));
+      this.resultados.set(await this.api.buscarPreguntas({
+        q: this.busqueda(),
+        bank_id: this.bancoElegido(),
+        quiz_id: q?.id ?? null,
+        limite: 25,
+      }));
     } catch {
-      this.preguntasDelBanco.set([]);
+      this.resultados.set([]);
+    } finally {
+      this.buscando.set(false);
     }
   }
 
-  /** Las del banco que todavía no están en el quiz: agregar dos veces la misma no aporta. */
-  readonly disponibles = computed(() => {
-    const puestas = new Set((this.quiz()?.preguntas ?? []).map(p => p.id));
-    return this.preguntasDelBanco().filter(p => !puestas.has(p.id));
-  });
+  // ── El material como fuente: atajos y preguntas ───────────────────────────
+
+  /** Sugerencias de atajo por pregunta. Vacío hasta que se piden. */
+  readonly sugerenciasRef = signal<Record<string, SugerenciaReferencia[]>>({});
+  readonly buscandoRef = signal<string | null>(null);
+
+  /**
+   * Busca en las transcripciones dónde se explica una pregunta.
+   *
+   * Es la versión que de verdad hace falta: el atajo que queda guardado viaja en el paquete que
+   * se descarga al teléfono, así que el repaso funciona SIN SEÑAL. La búsqueda que hace el
+   * alumno al fallar necesita conexión, y en finca es lo que no hay.
+   */
+  async buscarReferencia(p: Pregunta): Promise<void> {
+    const q = this.quiz();
+    if (!q || this.buscandoRef()) return;
+    this.buscandoRef.set(p.id);
+    try {
+      const s = await this.api.sugerenciasDeReferencia(q.id, p.id);
+      this.sugerenciasRef.update(m => ({ ...m, [p.id]: s }));
+      if (!s.length) {
+        Swal.fire('Sin resultados',
+          'No encontramos dónde se explica esto en el material transcrito de esta lección ni de '
+          + 'las anteriores. Si el vídeo es nuevo, espera a que termine el etiquetado.', 'info');
+      }
+    } catch (e: any) {
+      Swal.fire('No se pudo buscar', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    } finally {
+      this.buscandoRef.set(null);
+    }
+  }
+
+  /** Acepta una sugerencia: la guarda como atajo de la pregunta. */
+  async aceptarSugerencia(p: Pregunta, s: SugerenciaReferencia): Promise<void> {
+    await this.fijarReferencia(p, s.block_id, s.segundo);
+    this.sugerenciasRef.update(m => ({ ...m, [p.id]: [] }));
+  }
+
+  sugerenciasDe(preguntaId: string): SugerenciaReferencia[] {
+    return this.sugerenciasRef()[preguntaId] ?? [];
+  }
+
+  // ── Preguntas propuestas desde la clase ───────────────────────────────────
+
+  readonly propuestas = signal<PreguntaSugerida[]>([]);
+  readonly proponiendo = signal(false);
+  readonly aceptadas = signal<ReadonlySet<number>>(new Set());
+
+  /** Le pide al modelo preguntas sobre lo que se dijo en el material hasta esta lección. */
+  async proponerPreguntas(): Promise<void> {
+    const q = this.quiz();
+    if (!q || this.proponiendo()) return;
+    this.proponiendo.set(true);
+    try {
+      const p = await this.api.sugerirPreguntas(q.id, 5);
+      this.propuestas.set(p);
+      this.aceptadas.set(new Set());
+      if (!p.length) {
+        Swal.fire('Sin propuestas',
+          'El modelo no sacó preguntas que se sostengan con lo que dice el material. '
+          + 'Prueba otra vez o escríbelas a mano.', 'info');
+      }
+    } catch (e: any) {
+      Swal.fire('No se pudo proponer',
+        e?.error?.message ?? 'Revisa que el material esté transcrito.', 'info');
+    } finally {
+      this.proponiendo.set(false);
+    }
+  }
+
+  alternarPropuesta(i: number): void {
+    this.aceptadas.update(s => {
+      const n = new Set(s);
+      if (n.has(i)) n.delete(i); else n.add(i);
+      return n;
+    });
+  }
+
+  /**
+   * Guarda las propuestas marcadas: al banco, al quiz y con su atajo.
+   *
+   * Las tres cosas en ese orden, y una pregunta a la vez. Si algo falla a medias, lo ya creado
+   * queda bien puesto en vez de dejar preguntas sueltas en el banco sin quiz.
+   */
+  async aceptarPropuestas(): Promise<void> {
+    const q = this.quiz();
+    const bankId = this.bancoDestino() ?? this.bancoElegido() ?? this.bancos[0]?.id ?? null;
+    const marcadas = [...this.aceptadas()].sort((a, b) => a - b);
+    if (!q || !bankId || !marcadas.length) return;
+
+    this.guardando.set(true);
+    let creadas = 0;
+    try {
+      for (const i of marcadas) {
+        const p = this.propuestas()[i];
+        if (!p) continue;
+        const nueva = await this.api.crearPregunta(bankId, {
+          enunciado: p.enunciado,
+          tipo: p.tipo,
+          explicacion: p.explicacion ?? undefined,
+          activa: true,
+          opciones: p.opciones.map((o, j) => ({ ...o, orden: j })),
+        });
+        this.quiz.set(await this.api.agregarPreguntasAlQuiz(q.id, [nueva.id]));
+        if (p.block_id) {
+          this.quiz.set(await this.api.referenciaDePregunta(
+            q.id, nueva.id, p.block_id, p.segundo));
+        }
+        creadas++;
+      }
+      this.propuestas.set([]);
+      this.aceptadas.set(new Set());
+      await this.buscar();
+      this.cambiado.emit();
+      Swal.fire('Listo', `Se agregaron ${creadas} pregunta(s) al quiz y al banco.`, 'success');
+    } catch (e: any) {
+      Swal.fire('Se guardaron a medias',
+        `Alcanzaron a crearse ${creadas}. ${e?.error?.message ?? ''}`.trim(), 'warning');
+    } finally {
+      this.guardando.set(false);
+    }
+  }
+
+  /** "3:20" a partir de los segundos, como lo muestra el reproductor. */
+  minuto(segundos: number | null | undefined): string {
+    if (segundos == null) return '';
+    return Math.floor(segundos / 60) + ':' + String(segundos % 60).padStart(2, '0');
+  }
 
   // ── Crear una pregunta sin salir de aquí ──────────────────────────────────
 
@@ -287,6 +455,7 @@ export class BlockCard {
       media_tipo: null, media_document_id: null, media_mime: null,
       tipo: 'VERDADERO_FALSO',
       explicacion: '',
+      criterio: null,
       opciones: [
         { texto: 'Verdadero', correcta: true, orden: 0 },
         { texto: 'Falso', correcta: false, orden: 1 },
@@ -299,15 +468,123 @@ export class BlockCard {
   }
 
   /** Cambiar de tipo rehace las opciones: un V/F con cinco opciones no significa nada. */
-  cambiarTipoNueva(tipo: 'VERDADERO_FALSO' | 'OPCION_MULTIPLE'): void {
+  cambiarTipoNueva(tipo: TipoPreguntaForm): void {
     this.nuevaPregunta.update(f => {
       if (!f) return f;
+      // Las abiertas no llevan opciones y sí criterio; las de marcar, al revés. Cambiar de
+      // tipo cambia la pregunta entera, no sólo su etiqueta.
+      if (tipo === 'TEXTO_ABIERTO') {
+        return { ...f, tipo, opciones: [],
+                 criterio: { modo: 'TEXTO_CONTIENE', contiene: [] } };
+      }
+      if (tipo === 'NUMERO') {
+        return { ...f, tipo, opciones: [],
+                 criterio: { modo: 'NUMERO_RANGO', min: null, max: null } };
+      }
+      if (tipo === 'EMPAREJAR') {
+        // Dos parejas para empezar: con una sola no hay nada que emparejar —la respuesta es
+        // la única posible— y el ejercicio no mide nada.
+        return { ...f, tipo, criterio: null, opciones: [
+          { texto: '', correcta: false, pareja_clave: 'a', orden: 0 },
+          { texto: '', correcta: false, pareja_clave: 'a', orden: 1 },
+          { texto: '', correcta: false, pareja_clave: 'b', orden: 2 },
+          { texto: '', correcta: false, pareja_clave: 'b', orden: 3 },
+        ] };
+      }
       const opciones: Opcion[] = tipo === 'VERDADERO_FALSO'
         ? [{ texto: 'Verdadero', correcta: true, orden: 0 },
            { texto: 'Falso', correcta: false, orden: 1 }]
         : [{ texto: '', correcta: true, orden: 0 }, { texto: '', correcta: false, orden: 1 }];
-      return { ...f, tipo, opciones };
+      return { ...f, tipo, opciones, criterio: null };
     });
+  }
+
+  /** true si la pregunta que se está escribiendo es de emparejar. */
+  readonly nuevaEsEmparejar = computed(() => this.nuevaPregunta()?.tipo === 'EMPAREJAR');
+
+  /** Las parejas de la pregunta nueva, agrupadas por su letra. */
+  readonly parejasNuevas = computed(() => {
+    const ops = this.nuevaPregunta()?.opciones ?? [];
+    const claves: string[] = [];
+    for (const o of ops) {
+      const c = o.pareja_clave ?? '';
+      if (c && !claves.includes(c)) claves.push(c);
+    }
+    return claves.map(c => ({
+      clave: c,
+      indices: ops.map((o, i) => o.pareja_clave === c ? i : -1).filter(i => i >= 0),
+    }));
+  });
+
+  /** Añade una pareja: dos filas con la misma letra, que es lo que las une. */
+  agregarPareja(): void {
+    this.nuevaPregunta.update(f => {
+      if (!f) return f;
+      const clave = String.fromCharCode(97 + this.parejasNuevas().length);
+      const n = f.opciones.length;
+      return { ...f, opciones: [
+        ...f.opciones,
+        { texto: '', correcta: false, pareja_clave: clave, orden: n },
+        { texto: '', correcta: false, pareja_clave: clave, orden: n + 1 },
+      ] };
+    });
+  }
+
+  quitarPareja(clave: string): void {
+    this.nuevaPregunta.update(f => f
+      ? { ...f, opciones: f.opciones.filter(o => o.pareja_clave !== clave)
+                                    .map((o, i) => ({ ...o, orden: i })) }
+      : f);
+  }
+
+  /** Sube la imagen de UNA opción. Va al mismo sitio que el material de la pregunta. */
+  async subirImagenDeOpcion(i: number, evento: Event): Promise<void> {
+    const input = evento.target as HTMLInputElement;
+    const archivo = input.files?.[0];
+    const bankId = this.bancoDestino() ?? this.bancoElegido() ?? this.bancos[0]?.id ?? null;
+    if (!archivo || !bankId) return;
+    input.value = '';
+
+    if (archivo.size > 5 * 1024 * 1024) {
+      Swal.fire('Imagen muy grande',
+        'La imagen de una opción no puede pasar de 5 MB. Se ven varias a la vez y el quiz se '
+        + 'contesta en el celular.', 'info');
+      return;
+    }
+    this.guardando.set(true);
+    try {
+      const documentId = await this.api.subirMediaDePregunta(archivo, bankId);
+      this.editarOpcion(i, { media_document_id: documentId, media_mime: archivo.type || null });
+    } catch (e: any) {
+      Swal.fire('No se pudo subir', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    } finally {
+      this.guardando.set(false);
+    }
+  }
+
+  quitarImagenDeOpcion(i: number): void {
+    this.editarOpcion(i, { media_document_id: null, media_mime: null });
+  }
+
+  /** true si la pregunta que se está escribiendo se responde escribiendo. */
+  readonly nuevaEsAbierta = computed(() => {
+    const t = this.nuevaPregunta()?.tipo;
+    return t === 'TEXTO_ABIERTO' || t === 'NUMERO';
+  });
+
+  editarCriterio(parche: Partial<CriterioPregunta>): void {
+    this.nuevaPregunta.update(f => f
+      ? { ...f, criterio: { ...(f.criterio ?? { modo: 'TEXTO_CONTIENE' }), ...parche } as CriterioPregunta }
+      : f);
+  }
+
+  /** Los términos se escriben uno por línea, como en el constructor de exámenes. */
+  terminosTexto(): string {
+    return (this.nuevaPregunta()?.criterio?.contiene ?? []).join('\n');
+  }
+
+  cambiarTerminos(texto: string): void {
+    this.editarCriterio({ contiene: texto.split('\n').map(t => t.trim()).filter(Boolean) });
   }
 
   editarOpcion(i: number, parche: Partial<Opcion>): void {
@@ -348,15 +625,36 @@ export class BlockCard {
   readonly nuevaValida = computed(() => {
     const f = this.nuevaPregunta();
     if (!f) return false;
-    return f.enunciado.trim().length > 3
-        && f.opciones.every(o => o.texto.trim().length > 0)
+    if (f.enunciado.trim().length <= 3) return false;
+
+    if (f.tipo === 'EMPAREJAR') {
+      // Cada pareja tiene que estar completa: una fila suelta no empareja con nada, y el
+      // servidor la rechaza. Mejor apagar el botón que enseñar el error después.
+      const parejas = this.parejasNuevas();
+      return parejas.length >= 2
+          && parejas.every(par => par.indices.length === 2
+                && par.indices.every(i => (f.opciones[i]?.texto ?? '').trim().length > 0
+                                       || !!f.opciones[i]?.media_document_id));
+    }
+
+    if (this.nuevaEsAbierta()) {
+      const c = f.criterio;
+      if (!c) return false;
+      // Las mismas reglas que enforza el servidor, dichas antes de intentar guardar: una
+      // pregunta abierta sin criterio es una pregunta que nadie puede aprobar.
+      if (c.modo === 'TEXTO_CONTIENE') return (c.contiene ?? []).length > 0;
+      if (c.modo === 'TEXTO_SIMILITUD') return !!c.respuesta_modelo?.trim();
+      if (c.modo === 'NUMERO_RANGO') return c.min != null || c.max != null;
+      return true;   // PRESENCIA y MANUAL no piden nada más
+    }
+    return f.opciones.every(o => o.texto.trim().length > 0)
         && f.opciones.some(o => o.correcta);
   });
 
   /** Crea la pregunta en el banco elegido y la engancha al quiz en un solo paso. */
   async guardarNuevaPregunta(): Promise<void> {
     const f = this.nuevaPregunta();
-    const bankId = this.bancoElegido();
+    const bankId = this.bancoDestino() ?? this.bancoElegido() ?? this.bancos[0]?.id ?? null;
     const q = this.quiz();
     if (!f || !bankId || !q || !this.nuevaValida()) return;
 
@@ -371,11 +669,14 @@ export class BlockCard {
         tipo: f.tipo,
         explicacion: f.explicacion?.trim() || undefined,
         activa: true,
-        opciones: f.opciones.map((o, i) => ({ ...o, texto: o.texto.trim(), orden: i })),
+        criterio: this.nuevaEsAbierta() ? f.criterio : null,
+        opciones: this.nuevaEsAbierta()
+          ? []
+          : f.opciones.map((o, i) => ({ ...o, texto: o.texto.trim(), orden: i })),
       });
       this.quiz.set(await this.api.agregarPreguntasAlQuiz(q.id, [creada.id]));
-      // La lista del banco se recarga para que la nueva no reaparezca como "disponible".
-      await this.elegirBanco(bankId);
+      // Se rebusca para que la recién creada no reaparezca como disponible: ya está en el quiz.
+      await this.buscar();
       this.nuevaPregunta.set(null);
       this.cambiado.emit();
     } catch (e: any) {
@@ -395,7 +696,7 @@ export class BlockCard {
   async subirMediaDeNueva(tipo: 'IMAGEN' | 'VIDEO', evento: Event): Promise<void> {
     const input = evento.target as HTMLInputElement;
     const archivo = input.files?.[0];
-    const bankId = this.bancoElegido();
+    const bankId = this.bancoDestino() ?? this.bancoElegido() ?? this.bancos[0]?.id ?? null;
     if (!archivo || !bankId) return;
     input.value = '';
 
@@ -428,9 +729,28 @@ export class BlockCard {
     this.guardando.set(true);
     try {
       this.quiz.set(await this.api.agregarPreguntasAlQuiz(q.id, [p.id]));
+      await this.buscar();
       this.cambiado.emit();
     } catch (e: any) {
       Swal.fire('No se pudo agregar', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    } finally {
+      this.guardando.set(false);
+    }
+  }
+
+  /** ¿Esta pregunta entra siempre, aunque el resto se sortee? */
+  esObligatoria(p: Pregunta): boolean {
+    return (this.quiz()?.obligatorias ?? []).includes(p.id);
+  }
+
+  async alternarObligatoria(p: Pregunta): Promise<void> {
+    const q = this.quiz();
+    if (!q) return;
+    this.guardando.set(true);
+    try {
+      this.quiz.set(await this.api.obligatoriaDePregunta(q.id, p.id, !this.esObligatoria(p)));
+    } catch (e: any) {
+      Swal.fire('No se pudo marcar', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
     } finally {
       this.guardando.set(false);
     }
@@ -518,10 +838,14 @@ interface FormPregunta {
   media_tipo: 'IMAGEN' | 'VIDEO' | null;
   media_document_id: string | null;
   media_mime: string | null;
-  tipo: 'VERDADERO_FALSO' | 'OPCION_MULTIPLE';
+  tipo: TipoPreguntaForm;
   explicacion: string;
+  criterio: CriterioPregunta | null;
   opciones: Opcion[];
 }
+
+type TipoPreguntaForm = 'VERDADERO_FALSO' | 'OPCION_MULTIPLE' | 'EMPAREJAR'
+  | 'TEXTO_ABIERTO' | 'NUMERO';
 
 interface BorradorActividad {
   tipo: string;
@@ -534,6 +858,8 @@ interface BorradorActividad {
 interface BorradorQuiz {
   intentos_max: number;
   feedback_inmediato: boolean;
+  /** Cuántas preguntas salen de las que tiene. null = todas. */
+  preguntas_por_intento: number | null;
   barajar_preguntas: boolean;
   barajar_opciones: boolean;
   modo_presentacion: 'TODAS' | 'UNA_POR_UNA';

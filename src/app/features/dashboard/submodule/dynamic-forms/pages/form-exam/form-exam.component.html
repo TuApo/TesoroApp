@@ -1,0 +1,299 @@
+<div class="fe-page">
+
+  <header class="card-header-premium" role="banner">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <span class="material-symbols-outlined header-icon" aria-hidden="true">grading</span>
+      </div>
+      <div class="header-text">
+        <h1 class="titulo">Calificación del formulario</h1>
+        <p class="subtitulo">
+          Versión v{{ version() }} ·
+          {{ calificables().length }} de {{ campos().length }} preguntas califican ·
+          {{ totalPuntos() }} puntos en total
+        </p>
+      </div>
+      <span class="grow"></span>
+      <div class="header-actions">
+        <button type="button" class="fb-btn fb-btn--ghost" (click)="volver()">
+          <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+          Volver
+        </button>
+        <button type="button" class="fb-btn fb-btn--primary" (click)="guardar()"
+                [disabled]="guardando() || cargando()">
+          <span class="material-symbols-outlined" aria-hidden="true">save</span>
+          {{ guardando() ? 'Guardando…' : 'Guardar hoja de respuestas' }}
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (cargando()) {
+    <div class="fe-vacio"><span class="material-symbols-outlined fe-girando">progress_activity</span> Cargando…</div>
+  } @else if (error()) {
+    <div class="fe-error">{{ error() }}</div>
+  } @else {
+
+    <!-- ── Configuración general ────────────────────────────────────────── -->
+    <section class="fe-panel">
+      <label class="fe-switch">
+        <input type="checkbox" [ngModel]="examen().es_examen"
+               (ngModelChange)="cambiarExamen('es_examen', $event)" />
+        <span>
+          <strong>Este formulario es un examen</strong>
+          <small>Sin esto se guarda la configuración pero no se califica nada.</small>
+        </span>
+      </label>
+
+      @if (examen().es_examen) {
+        <div class="fe-tipos">
+          @for (t of tiposExamen; track t.tipo) {
+            <button type="button" class="fe-tipo" [class.fe-tipo--activo]="examen().tipo === t.tipo"
+                    (click)="elegirTipo(t.tipo)">
+              <span class="material-symbols-outlined" aria-hidden="true">{{ t.icono }}</span>
+              <strong>{{ t.nombre }}</strong>
+              <small>{{ t.ayuda }}</small>
+            </button>
+          }
+        </div>
+
+        @if (examen().tipo === 'PROYECTIVO') {
+          <p class="fe-nota">
+            <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+            En este tipo la IA describe el dibujo y puede preparar un borrador de lectura con la
+            pauta del equipo, pero <strong>no pone nota</strong>: el concepto lo escribe y lo firma
+            la profesional. Lo que ella escriba después vuelve como ejemplo para las lecturas
+            siguientes, si marca esa casilla.
+          </p>
+        }
+
+        <div class="fe-grid">
+          <label class="fe-campo">
+            <span>Nota mínima para aprobar</span>
+            <input type="number" min="0" max="100" [ngModel]="examen().nota_minima"
+                   (ngModelChange)="cambiarExamen('nota_minima', $event)" />
+          </label>
+          <label class="fe-campo">
+            <span>Cuándo se muestra el resultado</span>
+            <select [ngModel]="examen().mostrar_resultado"
+                    (ngModelChange)="cambiarExamen('mostrar_resultado', $event)">
+              <option value="AL_TERMINAR">Al terminar</option>
+              <option value="TRAS_REVISION">Cuando esté revisado y firmado</option>
+              <option value="NUNCA">Nunca (solo lo ve quien revisa)</option>
+            </select>
+          </label>
+          <label class="fe-campo fe-campo--check">
+            <input type="checkbox" [ngModel]="examen().mostrar_correctas"
+                   (ngModelChange)="cambiarExamen('mostrar_correctas', $event)" />
+            <span>Mostrarle cuál era la respuesta correcta al fallar</span>
+          </label>
+        </div>
+      }
+    </section>
+
+    @if (problemas().length) {
+      <section class="fe-problemas">
+        <strong><span class="material-symbols-outlined" aria-hidden="true">error</span> Falta por definir</strong>
+        <ul>@for (p of problemas(); track p) { <li>{{ p }}</li> }</ul>
+      </section>
+    }
+
+    <!-- ── Preguntas ────────────────────────────────────────────────────── -->
+    <section class="fe-lista">
+      @for (c of campos(); track c.clave) {
+        <article class="fe-card" [class.fe-card--activa]="!!cfg(c).modo">
+          <header class="fe-card__head">
+            <button type="button" class="fe-card__toggle" (click)="alternar(c.clave)"
+                    [attr.aria-expanded]="abierto(c.clave)">
+              <span class="material-symbols-outlined" aria-hidden="true">
+                {{ abierto(c.clave) ? 'expand_less' : 'expand_more' }}
+              </span>
+            </button>
+            <div class="fe-card__titulo">
+              <strong>{{ c.etiqueta }}</strong>
+              <small>{{ c.tipo }} · {{ c.clave }}</small>
+            </div>
+            <div class="fe-card__controles">
+              <label class="fe-mini">
+                <span>Puntos</span>
+                <input type="number" min="0" step="1" [ngModel]="cfg(c).puntos"
+                       (ngModelChange)="actualizar(c.clave, { puntos: $event })" />
+              </label>
+              <label class="fe-mini fe-mini--ancha">
+                <span>Cómo se corrige</span>
+                <select [ngModel]="cfg(c).modo" (ngModelChange)="cambiarModo(c, $event)">
+                  <option [ngValue]="null">No califica</option>
+                  @for (m of modosPara(c); track m.modo) {
+                    <option [ngValue]="m.modo">{{ m.nombre }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </header>
+
+          @if (cfg(c).modo && abierto(c.clave)) {
+            <div class="fe-card__cuerpo">
+              <p class="fe-ayuda">{{ ayudaDe(cfg(c).modo) }}</p>
+
+              @switch (cfg(c).modo) {
+                @case ('OPCION') {
+                  <label class="fe-campo">
+                    <span>Opciones correctas <em>(una por línea, tal como aparecen en la pregunta)</em></span>
+                    <textarea rows="3" [ngModel]="aTexto(cfg(c).opciones_correctas)"
+                              (ngModelChange)="actualizar(c.clave, { opciones_correctas: aLista($event) })"></textarea>
+                  </label>
+                  <label class="fe-campo fe-campo--check">
+                    <input type="checkbox" [ngModel]="cfg(c).parcial"
+                           (ngModelChange)="actualizar(c.clave, { parcial: $event })" />
+                    <span>Puntuar parcial: suma por aciertos y descuenta los de más</span>
+                  </label>
+                }
+                @case ('TEXTO_CONTIENE') {
+                  <div class="fe-grid">
+                    <label class="fe-campo">
+                      <span>Debe mencionar <em>(uno por línea)</em></span>
+                      <textarea rows="3" [ngModel]="aTexto(cfg(c).contiene)"
+                                (ngModelChange)="actualizar(c.clave, { contiene: aLista($event) })"></textarea>
+                    </label>
+                    <label class="fe-campo">
+                      <span>No debe mencionar <em>(opcional)</em></span>
+                      <textarea rows="3" [ngModel]="aTexto(cfg(c).no_contiene)"
+                                (ngModelChange)="actualizar(c.clave, { no_contiene: aLista($event) })"></textarea>
+                    </label>
+                    <label class="fe-campo">
+                      <span>Con cuántos basta <em>(vacío = todos)</em></span>
+                      <input type="number" min="1" [ngModel]="cfg(c).minimo_aciertos"
+                             (ngModelChange)="actualizar(c.clave, { minimo_aciertos: $event })" />
+                    </label>
+                  </div>
+                }
+                @case ('TEXTO_SIMILITUD') {
+                  <label class="fe-campo">
+                    <span>Respuesta modelo</span>
+                    <textarea rows="3" [ngModel]="cfg(c).respuesta_modelo"
+                              (ngModelChange)="actualizar(c.clave, { respuesta_modelo: $event })"></textarea>
+                  </label>
+                  <label class="fe-campo">
+                    <span>Parecido mínimo <em>(0 a 1; 0,6 es exigente pero razonable)</em></span>
+                    <input type="number" min="0" max="1" step="0.05" [ngModel]="cfg(c).umbral_similitud"
+                           (ngModelChange)="actualizar(c.clave, { umbral_similitud: $event })" />
+                  </label>
+                }
+                @case ('NUMERO_RANGO') {
+                  <div class="fe-grid">
+                    <label class="fe-campo">
+                      <span>Mínimo</span>
+                      <input type="number" [ngModel]="cfg(c).min"
+                             (ngModelChange)="actualizar(c.clave, { min: $event })" />
+                    </label>
+                    <label class="fe-campo">
+                      <span>Máximo</span>
+                      <input type="number" [ngModel]="cfg(c).max"
+                             (ngModelChange)="actualizar(c.clave, { max: $event })" />
+                    </label>
+                  </div>
+                }
+                @case ('IA_RUBRICA') {
+                  <label class="fe-campo">
+                    <span>Rúbrica <em>(cuanto más concreta, menos se inventa el modelo)</em></span>
+                    <textarea rows="4" [ngModel]="cfg(c).rubrica" placeholder="Da los 10 puntos si nombra los tres puntos de anclaje y explica por qué. Quita 3 si omite uno…"
+                              (ngModelChange)="actualizar(c.clave, { rubrica: $event })"></textarea>
+                  </label>
+                }
+                @case ('IA_VISION') {
+                  <label class="fe-campo">
+                    <span>Qué debe verse en la imagen</span>
+                    <textarea rows="4" [ngModel]="cfg(c).rubrica" placeholder="Casco con barbuquejo abrochado, gafas puestas y arnés con los dos mosquetones anclados…"
+                              (ngModelChange)="actualizar(c.clave, { rubrica: $event })"></textarea>
+                  </label>
+                }
+                @case ('IA_DESCRIPCION') {
+                  <label class="fe-campo">
+                    <span>En qué fijarse <em>(opcional)</em></span>
+                    <textarea rows="3" [ngModel]="cfg(c).rubrica"
+                              placeholder="Tamaño y ubicación en la hoja, presión del trazo, elementos presentes y ausentes…"
+                              (ngModelChange)="actualizar(c.clave, { rubrica: $event })"></textarea>
+                  </label>
+                  <p class="fe-ayuda fe-ayuda--sobria">Enumera lo observable y queda pendiente de revisión. No interpreta ni puntúa.</p>
+                }
+                @case ('IA_INTERPRETACION') {
+                  <label class="fe-campo">
+                    <span>Pauta del equipo <em>(el criterio con el que ustedes leen este dibujo)</em></span>
+                    <textarea rows="6" [ngModel]="cfg(c).pauta"
+                              placeholder="Qué mirar y qué significa para el equipo: encuadre en la hoja, presencia de protección, tratamiento de la figura, elementos del entorno…"
+                              (ngModelChange)="actualizar(c.clave, { pauta: $event })"></textarea>
+                  </label>
+                  <p class="fe-ayuda fe-ayuda--sobria">
+                    El borrador se apoya en esta pauta y en las lecturas que el equipo ya firmó.
+                    El manual se guarda como material de consulta de la profesional, pero no se le
+                    manda al modelo: así el borrador habla de este dibujo y no recita un libro.
+                  </p>
+                  <p class="fe-entrenamiento">
+                    <span class="material-symbols-outlined" aria-hidden="true">school</span>
+                    @if (ejemplos()[c.clave]) {
+                      <strong>{{ ejemplos()[c.clave] }}</strong> lectura(s) firmadas por el equipo
+                      alimentan ya esta pregunta.
+                    } @else {
+                      Todavía no hay lecturas firmadas para esta pregunta. Cada vez que una
+                      profesional marque la suya como reutilizable, las siguientes salen mejor.
+                    }
+                  </p>
+                }
+              }
+
+              <!-- Común a todos los modos: por qué, y a dónde mandar a repasar. -->
+              <label class="fe-campo">
+                <span>Por qué la respuesta es la que es <em>(se muestra después de responder)</em></span>
+                <textarea rows="2" [ngModel]="cfg(c).explicacion"
+                          (ngModelChange)="actualizar(c.clave, { explicacion: $event })"></textarea>
+              </label>
+
+              <fieldset class="fe-ref">
+                <legend>Dónde se explica esto</legend>
+                <p class="fe-ayuda fe-ayuda--sobria">
+                  Convierte un «incorrecta» en algo que se puede corregir: quien falle salta al
+                  minuto exacto del material.
+                </p>
+                <div class="fe-grid">
+                  <label class="fe-campo">
+                    <span>Lección (id de capacitaciones)</span>
+                    <input type="text" [ngModel]="referencia(c).leccion_id"
+                           (ngModelChange)="cambiarReferencia(c, { leccion_id: $event })" />
+                  </label>
+                  <label class="fe-campo">
+                    <span>Bloque</span>
+                    <input type="text" [ngModel]="referencia(c).bloque_id"
+                           (ngModelChange)="cambiarReferencia(c, { bloque_id: $event })" />
+                  </label>
+                  <label class="fe-campo">
+                    <span>Minuto <em>(3:20)</em></span>
+                    <input type="text" [ngModel]="segundosATexto(referencia(c).segundo)"
+                           (ngModelChange)="cambiarReferencia(c, { segundo: textoASegundos($event) })" />
+                  </label>
+                  <label class="fe-campo">
+                    <span>O un enlace</span>
+                    <input type="url" [ngModel]="referencia(c).url"
+                           (ngModelChange)="cambiarReferencia(c, { url: $event })" />
+                  </label>
+                  <label class="fe-campo">
+                    <span>Cómo llamarlo en pantalla</span>
+                    <input type="text" placeholder="Video de arnés, minuto 3:20"
+                           [ngModel]="referencia(c).texto"
+                           (ngModelChange)="cambiarReferencia(c, { texto: $event })" />
+                  </label>
+                </div>
+              </fieldset>
+
+              <button type="button" class="fe-quitar" (click)="quitar(c)">
+                <span class="material-symbols-outlined" aria-hidden="true">backspace</span>
+                Que esta pregunta no califique
+              </button>
+            </div>
+          }
+        </article>
+      } @empty {
+        <div class="fe-vacio">Este formulario todavía no tiene preguntas.</div>
+      }
+    </section>
+  }
+</div>

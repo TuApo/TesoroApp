@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { TrainingS, ResumenCurso } from '../../service/training-s';
+import { TrainingS, ResumenCurso, CursoDesactualizado } from '../../service/training-s';
 import { TrainingOffline } from '../../service/training-offline';
 
 /**
@@ -27,6 +27,8 @@ export class MyCourses implements OnInit {
 
   readonly cursos = signal<ResumenCurso[]>([]);
   readonly cargando = signal(true);
+  /** Cursos que ya aprobé pero que cambiaron después. Vacío casi siempre, y así debe verse. */
+  readonly actualizados = signal<CursoDesactualizado[]>([]);
   readonly error = signal<string | null>(null);
 
   /** Lo pendiente primero: es lo que la persona vino a hacer. */
@@ -49,6 +51,10 @@ export class MyCourses implements OnInit {
     this.error.set(null);
     try {
       this.cursos.set(await this.api.misCursos());
+      // Que falle esto no puede dejar sin cursos a nadie: es un aviso, no la pantalla.
+      this.api.cursosActualizados()
+        .then(a => this.actualizados.set(a))
+        .catch(() => this.actualizados.set([]));
     } catch {
       // El interceptor ya sirve la última versión cacheada si la hay; si llegamos aquí es que
       // no hay ni caché, y decirlo claro vale más que una pantalla vacía.
@@ -60,6 +66,11 @@ export class MyCourses implements OnInit {
 
   abrir(curso: ResumenCurso): void {
     this.router.navigate(['/dashboard/capacitaciones', curso.enrollment_id]);
+  }
+
+  /** Del aviso al curso: se abre la matrícula que ya tiene, con el contenido nuevo. */
+  abrirActualizado(c: CursoDesactualizado): void {
+    this.router.navigate(['/dashboard/capacitaciones', c.enrollment_id]);
   }
 
   verCertificados(): void {

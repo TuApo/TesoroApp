@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 import {
-  TrainingAdminService, Banco, Pregunta, PreguntaRequest, Opcion, Curso
+  TrainingAdminService, Banco, Pregunta, PreguntaRequest, Opcion, Curso, CriterioPregunta
 } from '../../service/training-admin.service';
 
 /** Borrador de pregunta que se está escribiendo. */
@@ -18,7 +18,9 @@ interface FormPregunta {
   media_document_id: string | null;
   media_url: string | null;
   media_mime: string | null;
-  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR';
+  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO';
+  /** Sólo en las que se responden escribiendo. */
+  criterio: CriterioPregunta | null;
   explicacion: string;
   opciones: Opcion[];
   /** true = la pregunta ya fue respondida, así que guardar creará una versión nueva. */
@@ -132,6 +134,7 @@ export class AdminQuestionBanks implements OnInit {
   nuevaPregunta(): void {
     this.form.set({
       enunciado: '', cuerpo_html: '', tipo: 'OPCION_MULTIPLE', explicacion: '', versionar: false,
+      criterio: null,
       media_tipo: null, media_document_id: null, media_url: null, media_mime: null,
       opciones: [
         { texto: '', correcta: true }, { texto: '', correcta: false },
@@ -153,13 +156,42 @@ export class AdminQuestionBanks implements OnInit {
       // Una pregunta ya respondida NO se edita: se versiona. La interfaz lo dice antes de
       // que la persona escriba, no después de que el guardado falle con un 409.
       versionar: p.ya_respondida,
+      criterio: p.criterio ?? null,
       opciones: p.opciones.map(o => ({ ...o })),
     });
+  }
+
+  /** true si la pregunta abierta del formulario se responde escribiendo. */
+  readonly esAbierta = computed(() => {
+    const t = this.form()?.tipo;
+    return t === 'TEXTO_ABIERTO' || t === 'NUMERO';
+  });
+
+  editarCriterio(parche: Partial<CriterioPregunta>): void {
+    this.form.update(f => f
+      ? { ...f, criterio: { ...(f.criterio ?? { modo: 'TEXTO_CONTIENE' }), ...parche } as CriterioPregunta }
+      : f);
+  }
+
+  terminosTexto(): string {
+    return (this.form()?.criterio?.contiene ?? []).join('\n');
+  }
+
+  cambiarTerminos(texto: string): void {
+    this.editarCriterio({ contiene: texto.split('\n').map(t => t.trim()).filter(Boolean) });
   }
 
   cambiarTipo(tipo: FormPregunta['tipo']): void {
     this.form.update(f => {
       if (!f) return f;
+      // Cambiar a una abierta vacía las opciones y estrena criterio; al revés, al revés.
+      if (tipo === 'TEXTO_ABIERTO') {
+        return { ...f, tipo, opciones: [], criterio: { modo: 'TEXTO_CONTIENE', contiene: [] } };
+      }
+      if (tipo === 'NUMERO') {
+        return { ...f, tipo, opciones: [], criterio: { modo: 'NUMERO_RANGO', min: null, max: null } };
+      }
+      f = { ...f, criterio: null };
       if (tipo === 'VERDADERO_FALSO') {
         return { ...f, tipo, opciones: [
           { texto: 'Verdadero', correcta: true }, { texto: 'Falso', correcta: false },
@@ -287,7 +319,10 @@ export class AdminQuestionBanks implements OnInit {
       tipo: f.tipo,
       explicacion: f.explicacion || undefined,
       activa: true,
-      opciones: f.opciones.map((o, i) => ({ ...o, texto: o.texto.trim(), orden: i })),
+      criterio: this.esAbierta() ? f.criterio : null,
+      opciones: this.esAbierta()
+        ? []
+        : f.opciones.map((o, i) => ({ ...o, texto: o.texto.trim(), orden: i })),
     };
 
     this.ocupado.set(true);
@@ -342,6 +377,8 @@ export class AdminQuestionBanks implements OnInit {
       case 'OPCION_MULTIPLE': return 'Opción múltiple';
       case 'VERDADERO_FALSO': return 'Verdadero / Falso';
       case 'EMPAREJAR': return 'Emparejar';
+      case 'TEXTO_ABIERTO': return 'Respuesta escrita';
+      case 'NUMERO': return 'Un número';
       default: return tipo;
     }
   }

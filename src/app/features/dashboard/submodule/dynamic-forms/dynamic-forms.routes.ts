@@ -60,6 +60,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/form-builder/form-builder.component').then(m => m.FormBuilderComponent),
   },
   {
+    // La hoja de respuestas: qué se considera responder bien cada pregunta. Pantalla aparte
+    // del constructor a propósito — ver el javadoc de FormExamComponent.
+    path: ':formId/examen',
+    loadComponent: () => import('./pages/form-exam/form-exam.component').then(m => m.FormExamComponent),
+  },
+  {
     // Detalle de UNA respuesta: pantalla propia, no una pestaña (tiene su propia navegación).
     path: ':formId/respuestas/:submissionId',
     loadComponent: () => import('./pages/form-response-detail/form-response-detail.component').then(m => m.FormResponseDetailComponent),

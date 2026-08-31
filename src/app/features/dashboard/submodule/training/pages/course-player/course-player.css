@@ -249,3 +249,124 @@
   border-radius: 0.5rem;
   background: #000;
 }
+
+/* Respuesta escrita. Grande y con letra de tamaño normal: se contesta en un celular, muchas
+   veces de pie y con guantes, y un campo pequeño ahí no se puede usar. */
+.respuesta-abierta {
+  width: 100%;
+  padding: 14px 16px;
+  font: inherit;
+  font-size: 16px;            /* menos de 16px hace que iOS haga zoom al enfocar */
+  line-height: 1.55;
+  color: #101828;
+  background: #fff;
+  border: 2px solid #d0d5dd;
+  border-radius: 12px;
+  resize: vertical;
+}
+.respuesta-abierta:focus {
+  outline: none;
+  border-color: #2f6fed;
+  box-shadow: 0 0 0 4px rgba(47, 111, 237, .14);
+}
+.respuesta-abierta:disabled { background: #f4f5f7; color: #667085; }
+
+/* Citas del material propio: el trozo de clase donde se explica lo que se falló. Cada una es
+   un botón porque lleva al minuto exacto, y en un celular lo tocable tiene que verse tocable. */
+.citas { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.cita {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%;
+  padding: 12px 14px; text-align: left; cursor: pointer; font: inherit;
+  border: 1px solid #d4e2f7; border-radius: 12px; background: #f6faff; color: #1f3d6b;
+}
+.cita:hover { background: #eef5ff; }
+.cita mat-icon { flex: 0 0 auto; color: #2f6fed; }
+.cita span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cita strong { font-size: 14px; }
+.cita em { font-style: normal; font-size: 13px; color: #47607f; line-height: 1.5; }
+
+
+/* ── Emparejar ──────────────────────────────────────────────────────────────
+   Dos columnas en pantalla ancha, una sola apilada en el celular: en 360 px dos columnas
+   dejan cada elemento en tres palabras por linea y el ejercicio se vuelve ilegible. */
+.emparejar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.emparejar-col { display: flex; flex-direction: column; gap: 8px; }
+
+.opcion-par { position: relative; }
+
+/* El elemento que espera pareja: se ve que esta a medias, no que este mal. */
+.opcion-par.esperando {
+  border-color: #2f6fed;
+  background: #eef5ff;
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, .16);
+}
+
+.opcion-par.unida { border-color: #b7e0c4; background: #f6fbf7; }
+
+/* El numero es lo que dice QUE va con QUE. Sin el, dos elementos unidos se ven igual que
+   dos elementos sueltos y no hay forma de revisar lo contestado. */
+.par-num {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #276b3c;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ── Cuerpo de una opcion: imagen y texto ───────────────────────────────── */
+.opcion-cuerpo {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.opcion-cuerpo img {
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #f4f5f7;
+}
+
+/* ── Por que esta bien o mal esta opcion ────────────────────────────────── */
+.opcion-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -2px 0 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f4f8f4;
+  border: 1px solid #cfe3d4;
+  color: #2f4b36;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.opcion-feedback.mal { background: #fdf5f3; border-color: #f3c9c0; color: #7a4038; }
+.opcion-feedback mat-icon { flex: 0 0 auto; font-size: 19px; width: 19px; height: 19px; }
+
+@media (max-width: 720px) {
+  .emparejar { grid-template-columns: 1fr; }
+  /* Apiladas, hay que saber donde acaba una columna y empieza la otra. */
+  .emparejar-col + .emparejar-col {
+    padding-top: 12px;
+    border-top: 1px dashed #d7dbe4;
+  }
+  .opcion-cuerpo img { max-height: 130px; }
+}
