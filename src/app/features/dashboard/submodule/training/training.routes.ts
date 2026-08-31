@@ -25,6 +25,12 @@ export const routes: Routes = [
   },
   { path: 'certificados', redirectTo: 'mis-certificados', pathMatch: 'full' },
   {
+    // Tablero de quien administra la formacion. Antes de ':enrollmentId', por lo mismo que
+    // 'catalogo': si no, la ruta parametrica se lo traga.
+    path: 'tablero',
+    loadComponent: () => import('./pages/admin-home/admin-home').then(m => m.AdminHome)
+  },
+  {
     // Consola de administracion. Va ANTES de ':enrollmentId' o la ruta parametrica se la
     // tragaria y 'catalogo' se interpretaria como el id de una matricula.
     path: 'catalogo',

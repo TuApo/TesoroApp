@@ -1,0 +1,192 @@
+<section class="ah">
+
+  <header class="ah-cab">
+    <div>
+      <h1>Capacitaciones</h1>
+      <p>Cursos, talleres y cumplimiento de toda la operación.</p>
+    </div>
+    <button type="button" class="ah-btn" (click)="cargar()" [disabled]="cargando()">
+      <mat-icon>refresh</mat-icon>
+      {{ cargando() ? 'Actualizando…' : 'Actualizar' }}
+    </button>
+  </header>
+
+  @if (cargando() && !datos()) {
+    <p class="ah-cargando">Cargando el tablero…</p>
+  } @else if (error()) {
+    <div class="ah-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ error() }}</span>
+      <button type="button" class="ah-btn" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (datos(); as d) {
+
+    <!-- ── Lo que hay que hacer ─────────────────────────────────────────────
+         Va primero, y no las cifras: un tablero que solo informa se mira una vez
+         y no se vuelve a abrir. -->
+    @if (urgentes().length) {
+      <div class="ah-pendientes">
+        @for (p of urgentes(); track p.clave) {
+          <button type="button" class="ah-pend" [ngClass]="claseSeveridad(p)" (click)="ir(p.ruta)">
+            <span class="ah-pend__icono"><mat-icon>{{ iconoPendiente(p) }}</mat-icon></span>
+            <span class="ah-pend__texto">
+              <strong>{{ p.cantidad }} · {{ p.titulo }}</strong>
+              <em>{{ p.detalle }}</em>
+            </span>
+            <mat-icon class="ah-pend__ir">chevron_right</mat-icon>
+          </button>
+        }
+      </div>
+    }
+
+    <!-- ── Cómo va la cosa ──────────────────────────────────────────────── -->
+    <div class="ah-kpis">
+      <article class="ah-kpi ah-kpi--ok">
+        <strong>{{ d.resumen.al_dia }}</strong>
+        <span>Al día</span>
+        <em>de {{ d.resumen.matriculas }} asignaciones</em>
+      </article>
+      <article class="ah-kpi ah-kpi--aviso">
+        <strong>{{ d.resumen.por_vencer }}</strong>
+        <span>Por vencer</span>
+        <em>todavía valen</em>
+      </article>
+      <article class="ah-kpi ah-kpi--mal">
+        <strong>{{ d.resumen.vencidos }}</strong>
+        <span>Vencidos</span>
+        <em>trabajando sin el curso al día</em>
+      </article>
+      <article class="ah-kpi">
+        <strong>{{ d.resumen.en_curso + d.resumen.pendientes }}</strong>
+        <span>Sin terminar</span>
+        <em>{{ d.resumen.en_curso }} empezados · {{ d.resumen.pendientes }} sin abrir</em>
+      </article>
+      <article class="ah-kpi ah-kpi--ancha">
+        <strong>{{ d.resumen.porcentaje_cumplimiento }}%</strong>
+        <span>Cumplimiento</span>
+        <em>
+          {{ d.resumen.personas }} personas con curso asignado
+          @if (d.resumen.personas_sin_matricula > 0) {
+            · {{ d.resumen.personas_sin_matricula }} sin nada asignado
+          }
+        </em>
+        <div class="ah-barra">
+          <span class="ah-barra__valor" [style.width.%]="d.resumen.porcentaje_cumplimiento"></span>
+        </div>
+      </article>
+    </div>
+
+    <!-- ── Accesos rápidos ──────────────────────────────────────────────── -->
+    <h2 class="ah-titulo">Accesos rápidos</h2>
+    <div class="ah-atajos">
+      @for (a of atajos; track a.ruta) {
+        <button type="button" class="ah-atajo" (click)="irAAtajo(a)">
+          <mat-icon>{{ a.icono }}</mat-icon>
+          <strong>{{ a.titulo }}</strong>
+          <em>{{ a.ayuda }}</em>
+        </button>
+      }
+    </div>
+
+    <div class="ah-dos">
+      <!-- ── Curso por curso ────────────────────────────────────────────── -->
+      <section class="ah-panel">
+        <h2 class="ah-titulo">Cursos</h2>
+        <p class="ah-ayuda">
+          Ordenados por lo que peor va: primero los que tienen gente vencida.
+        </p>
+        <ul class="ah-cursos">
+          @for (c of cursosPorAtender(); track c.course_id) {
+            <li>
+              <div class="ah-curso__cab">
+                <div>
+                  <strong>{{ c.curso }}</strong>
+                  <small>
+                    {{ c.codigo }}
+                    @if (c.obligatorio) { · <span class="ah-chip">obligatorio</span> }
+                    @if (c.vigencia_meses) { · vence cada {{ c.vigencia_meses }} meses }
+                  </small>
+                </div>
+                <span class="ah-curso__pct" [class.mal]="c.porcentaje < 60">{{ c.porcentaje }}%</span>
+              </div>
+              <!-- La barra dice de un vistazo dónde está la gente. Los números van debajo
+                   porque el color solo no informa: a mediodía en un invernadero no se
+                   distingue un verde de un amarillo. -->
+              <div class="ah-barra ah-barra--tramos">
+                <span class="t-ok"     [style.width]="tramo(c, c.al_dia)"></span>
+                <span class="t-aviso"  [style.width]="tramo(c, c.por_vencer)"></span>
+                <span class="t-mal"    [style.width]="tramo(c, c.vencidos)"></span>
+                <span class="t-curso"  [style.width]="tramo(c, c.en_curso)"></span>
+              </div>
+              <small class="ah-curso__pie">
+                {{ c.personas }} personas · {{ c.al_dia }} al día · {{ c.por_vencer }} por vencer ·
+                {{ c.vencidos }} vencidos · {{ c.en_curso }} en curso · {{ c.pendientes }} sin abrir
+              </small>
+            </li>
+          } @empty {
+            <li class="ah-vacio">Todavía no hay cursos con gente asignada.</li>
+          }
+        </ul>
+      </section>
+
+      <!-- ── Quién está estudiando ──────────────────────────────────────── -->
+      <section class="ah-panel">
+        <h2 class="ah-titulo">Quién estudia más</h2>
+        <p class="ah-ayuda">
+          Por lecciones terminadas, no por minutos: dejar un vídeo abierto acumula minutos
+          sin aprender nada.
+        </p>
+        <ol class="ah-ranking">
+          @for (p of d.mas_activos; track p.person_id; let i = $index) {
+            <li>
+              <span class="ah-puesto" [class.podio]="i < 3">{{ i + 1 }}</span>
+              <div>
+                <strong>{{ p.nombre }}</strong>
+                <small>{{ p.cargo || 'Sin cargo registrado' }} · {{ p.cedula }}</small>
+              </div>
+              <span class="ah-ranking__cifras">
+                <strong>{{ p.lecciones_completadas }}</strong> lecciones
+                @if (p.cursos_aprobados) { · {{ p.cursos_aprobados }} aprobados }
+                @if (p.minutos_vistos) { · {{ duracion(p.minutos_vistos) }} }
+              </span>
+            </li>
+          } @empty {
+            <li class="ah-vacio">Nadie ha terminado una lección todavía.</li>
+          }
+        </ol>
+      </section>
+    </div>
+
+    <!-- ── El resto de pendientes ───────────────────────────────────────── -->
+    @if (demasPendientes().length) {
+      <h2 class="ah-titulo">También conviene revisar</h2>
+      <div class="ah-pendientes">
+        @for (p of demasPendientes(); track p.clave) {
+          <button type="button" class="ah-pend" [ngClass]="claseSeveridad(p)" (click)="ir(p.ruta)">
+            <span class="ah-pend__icono"><mat-icon>{{ iconoPendiente(p) }}</mat-icon></span>
+            <span class="ah-pend__texto">
+              <strong>{{ p.cantidad }} · {{ p.titulo }}</strong>
+              <em>{{ p.detalle }}</em>
+            </span>
+            <mat-icon class="ah-pend__ir">chevron_right</mat-icon>
+          </button>
+        }
+      </div>
+    }
+
+    <!-- ── El catálogo, en cifras ───────────────────────────────────────── -->
+    <h2 class="ah-titulo">El catálogo</h2>
+    <div class="ah-cifras">
+      <span><strong>{{ d.catalogo.cursos_activos }}</strong> cursos activos</span>
+      <span><strong>{{ d.catalogo.cursos_obligatorios }}</strong> obligatorios</span>
+      <span><strong>{{ d.catalogo.versiones_publicadas }}</strong> versiones publicadas</span>
+      <span><strong>{{ d.catalogo.versiones_borrador }}</strong> en borrador</span>
+      <span><strong>{{ d.catalogo.lecciones }}</strong> lecciones</span>
+      <span><strong>{{ d.catalogo.preguntas }}</strong> preguntas en {{ d.catalogo.bancos }} banco(s)</span>
+      <span>
+        <strong>{{ d.catalogo.material_listo }}/{{ d.catalogo.material }}</strong>
+        material transcrito
+      </span>
+    </div>
+  }
+</section>

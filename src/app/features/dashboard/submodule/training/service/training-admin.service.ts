@@ -216,6 +216,17 @@ export class TrainingAdminService {
       `${this.base}/quizzes/${quizId}/questions/${questionId}/obligatoria?valor=${valor}`, {}));
   }
 
+  /**
+   * El tablero de administración, entero, en una sola petición.
+   *
+   * Va junto y no en seis llamadas porque las cifras tienen que cuadrar entre sí: pedidas por
+   * separado, dos de ellas pueden venir de instantes distintos y no sumar.
+   */
+  tableroAdmin(orgUnitId?: string): Promise<TableroAdmin> {
+    const q = orgUnitId ? `?org_unit_id=${orgUnitId}` : '';
+    return firstValueFrom(this.http.get<TableroAdmin>(`${this.base}/admin/home${q}`));
+  }
+
   /** Reordena las preguntas del quiz. El backend exige la lista completa, no el movimiento. */
   reordenarPreguntasDelQuiz(quizId: string, questionIds: string[]): Promise<Quiz> {
     return firstValueFrom(
@@ -1211,4 +1222,80 @@ export interface PreguntaSugerida {
   segundo: number | null;
   lesson_nombre: string;
   extracto: string;
+}
+
+// ── Tablero de administración ───────────────────────────────────────────────
+
+export interface ResumenCumplimiento {
+  matriculas: number;
+  personas: number;
+  al_dia: number;
+  por_vencer: number;
+  vencidos: number;
+  en_curso: number;
+  pendientes: number;
+  reprobados: number;
+  porcentaje_cumplimiento: number;
+  personas_activas: number;
+  personas_sin_matricula: number;
+  cargos_sin_clasificar: number;
+  cursos_obligatorios: number;
+}
+
+/** Un curso con su gente repartida por estado. */
+export interface FilaCurso {
+  course_id: string;
+  curso: string;
+  codigo: string;
+  obligatorio: boolean;
+  vigencia_meses: number | null;
+  personas: number;
+  al_dia: number;
+  por_vencer: number;
+  vencidos: number;
+  en_curso: number;
+  pendientes: number;
+  reprobados: number;
+  porcentaje: number;
+}
+
+export interface PersonaActiva {
+  person_id: string;
+  cedula: string;
+  nombre: string;
+  cargo: string | null;
+  lecciones_completadas: number;
+  cursos_aprobados: number;
+  minutos_vistos: number;
+}
+
+/** Algo que le falta por hacer a quien administra, con a dónde ir a resolverlo. */
+export interface PendienteAdmin {
+  clave: string;
+  titulo: string;
+  detalle: string;
+  cantidad: number;
+  severidad: 'ALTA' | 'MEDIA' | 'BAJA';
+  ruta: string;
+}
+
+export interface CatalogoCifras {
+  cursos: number;
+  cursos_activos: number;
+  cursos_obligatorios: number;
+  versiones_publicadas: number;
+  versiones_borrador: number;
+  lecciones: number;
+  preguntas: number;
+  bancos: number;
+  material: number;
+  material_listo: number;
+}
+
+export interface TableroAdmin {
+  resumen: ResumenCumplimiento;
+  cursos: FilaCurso[];
+  mas_activos: PersonaActiva[];
+  pendientes: PendienteAdmin[];
+  catalogo: CatalogoCifras;
 }
