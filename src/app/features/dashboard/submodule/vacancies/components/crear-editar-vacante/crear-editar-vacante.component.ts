@@ -1,4 +1,3 @@
-import { FincaItem, etiquetaFinca } from './../../service/fincas/fincas.service';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
@@ -20,11 +19,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
+import { SmartSelectComponent } from '../smart-select/smart-select.component';
 import { MatIconModule } from '@angular/material/icon';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule, MAT_DATE_FORMATS, DateAdapter, MAT_DATE_LOCALE } from '@angular/material/core';
-import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MomentDateAdapter } from '@angular/material-moment-adapter';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -41,7 +40,69 @@ import {
 } from '@/app/shared/data/labores-por-mes.data';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
-import { FincasService } from '../../service/fincas/fincas.service';
+import {
+  OpcionCentro,
+  OpcionEmpresa,
+  OpcionTemporal,
+  VacancyCascadeService,
+  canonicalTemporal,
+  ResultadoLabor,
+} from '../../service/vacancy-cascade/vacancy-cascade.service';
+import {
+  CargoAutorizado,
+  ParametrizacionVacantesService,
+} from '../../../users/services/parametrizacion-vacantes/parametrizacion-vacantes.service';
+
+/**
+ * Los once perfiles de vacante que vivían cableados aquí. Se conservan como respaldo del
+ * catálogo, no como fuente: la fuente es «Perfil vacante» del parametrizador, y la
+ * migración V90 de ms-auth-admin los sembró con estos mismos valores y en este orden.
+ */
+const AREAS_DE_RESPALDO: string[] = [
+  'Rosa',
+  'Clavel',
+  'Astromelia',
+  'Pompon',
+  'Miniclavel',
+  'Diversificados',
+  'Lirios',
+  'Fumigación',
+  'Corte de Rosa',
+  'Oficios Varios',
+  'Otros',
+];
+
+const TIPOS_CONTRATACION = [
+  'Obra Labor',
+  'Fijo Inferior a un año',
+  'Fijo a un año',
+  'Indefinido',
+];
+
+/** Lo único que puede fijar el rol restringido. */
+const TIPO_UNICO_CONTRATACION = 'Obra Labor';
+const ROL_RESTRINGIDO = 'CONTRATACION';
+/** Roles que levantan la limitación. Espejo de `PublicacionController`. */
+const ROLES_SIN_LIMITE = ['ADMIN', 'GERENCIA', 'JEFE-DE-AREA'];
+
+/**
+ * "Rosa, Clavel" → ['Rosa', 'Clavel'].
+ *
+ * La vacante guarda el texto, así que al reabrirla hay que partirlo. Se parte por coma
+ * porque es como se une al guardar; ningún perfil del catálogo lleva coma en el nombre.
+ */
+function partirPerfiles(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map((x) => String(x ?? '').trim()).filter(Boolean);
+  return String(v ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+}
+
+/** Nombre visible de cada control, para los avisos de la cabecera de sección. */
+const ETIQUETAS_CAMPO: Record<string, string> = {
+  codigo_elite: 'Código Bot',
+  area_operativa_codigo: 'Área operativa',
+  ubicacionPruebaTecnica: 'Ubicación de la prueba',
+  empresa_ref: 'Empresa usuaria',
+};
 
 export const MY_DATE_FORMATS = {
   parse: { dateInput: 'D/M/YYYY' },
@@ -73,13 +134,13 @@ type DepCiudades = { ciudades: string[] };
     MatButtonModule,
     MatSelectModule,
     MatIconModule,
-    MatCheckboxModule,
     MatDatepickerModule,
     MatNativeDateModule,
     MatAutocompleteModule,
     FormsModule,
     MatChipsModule,
     MatTooltipModule,
+    SmartSelectComponent,
   ],
   templateUrl: './crear-editar-vacante.component.html',
   styleUrls: ['./crear-editar-vacante.component.css'],
@@ -103,98 +164,445 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   cargos: string[] = [];
   filteredCargos: Observable<string[]> = of([]);
 
-  centrosCostos: string[] = [];
-  filteredCentrosCostos: Observable<string[]> = of([]);
+  // ── Cascada: Temporal → Empresa → Centro de costo → (Area) → Cargo ────────
+  temporales: OpcionTemporal[] = [];
+  empresas: OpcionEmpresa[] = [];
+  centros: OpcionCentro[] = [];
+  areasOperativas: Array<{ id: number; codigo: string; nombre: string | null }> = [];
+  cargosAutorizados: CargoAutorizado[] = [];
+
+  /** Temporal elegida. Decide de donde salen empresas y centros. */
+  temporalSel: OpcionTemporal | null = null;
+  /** Centro elegido, con sus datos ya resueltos. */
+  centroSel: OpcionCentro | null = null;
+
+  /**
+   * Codigo funcional cuando el backend NO puede resolver la labor de un centro
+   * parametrizado (CONFIGURACION_NO_ENCONTRADA / REGLA_LABOR_NO_ENCONTRADA / ...).
+   * Se pinta junto al campo de descripcion. `null` = no hay nada que advertir.
+   */
+  errorLabor: string | null = null;
+  /** El centro encadena por area antes del cargo. Lo dicen los datos del centro. */
+  modoPorArea = false;
+  /** Hay peticiones de la cascada en vuelo. */
+  cargandoCascada = false;
+
+  /** true si la temporal elegida tiene alcance en el parametrizador. */
+  get parametrizada(): boolean {
+    return !!this.temporalSel?.parametrizada;
+  }
+
+  /**
+   * Si el cargo se elige de la lista de AUTORIZADOS o del autocompletado libre.
+   *
+   * Manda la lista autorizada siempre que el centro esté parametrizado. La
+   * excepción son los centros habilitados a los que todavía nadie les cargó
+   * configuraciones —hoy 4 de los 45—: ahí la lista sale vacía y quedarse en
+   * ella dejaría el centro inservible, así que se cae al autocompletado de
+   * siempre. Es una válvula de escape, no el camino normal: en cuanto se
+   * parametricen, esos centros pasan solos a la lista.
+   */
+  get usarCargoAutorizado(): boolean {
+    if (!this.centroSel?.id) return false;
+    if (this.cargandoCascada) return true;
+    // Falta elegir área: los cargos aún no se pueden pedir, pero el desplegable
+    // correcto ya es el de autorizados.
+    if (this.modoPorArea && !this.vacanteForm?.get('area_operativa_codigo')?.value) return true;
+    return this.cargosAutorizados.length > 0;
+  }
 
   municipiosColombia: string[] = [];
-  municipiosFiltrados: string[] = [];
-  municipioFiltro = '';
-  municipioCtrl = new FormControl<string>('', { nonNullable: true });
 
-  separatorKeysCodes: number[] = [ENTER, COMMA];
-  @ViewChild('municipioInput', { static: false }) municipioInput!: ElementRef<HTMLInputElement>;
-
-  areas: string[] = [
-    'Rosa',
-    'Clavel',
-    'Astromelia',
-    'Pompon',
-    'Miniclavel',
-    'Diversificados',
-    'Lirios',
-    'Fumigación',
-    'Corte de Rosa',
-    'Oficios Varios',
-    'Otros',
-  ];
+  /**
+   * Línea de flor del desplegable «Área».
+   *
+   * Sale del catálogo «Perfil vacante» del parametrizador. Esta lista de aquí es solo el
+   * PLAN B: son los mismos once valores que estaban cableados antes, y se usan si la
+   * petición falla. Sin ese plan B, un parametrizador caído dejaría el campo vacío y,
+   * como es obligatorio, no se podría publicar ninguna vacante.
+   */
+  areas: string[] = AREAS_DE_RESPALDO;
 
   today: Date = new Date();
 
   private prevMunicipios: string[] = [];
 
-  /** Finca cuyos datos ya se trajeron del maestro; evita recargas repetidas. */
-  private fincaAplicada = '';
 
   // ==========================================================================
   // PROCEDENCIA DE LOS DATOS QUE TRAE EL CENTRO DE COSTO
   // ==========================================================================
   /*
-   * `aplicarFinca` rellena empresa, direccion, temporal y —cuando el maestro
-   * los da sin ambiguedad— salario y auxilio de transporte. En la pantalla
-   * vieja eso era invisible: campos identicos al resto que "se llenaban solos",
-   * sin decir de donde ni si podian tocarse. Ahora el formulario los agrupa,
-   * dice de que centro vienen y marca el que se haya ajustado a mano, para que
-   * la diferencia con la ficha del maestro se vea ANTES de guardar.
+   * `aplicarCentro` rellena empresa, direccion y —cuando la fuente los da sin
+   * ambiguedad— salario y auxilio de transporte. En la pantalla vieja eso era
+   * invisible: campos identicos al resto que "se llenaban solos", sin decir de
+   * donde ni si podian tocarse. El formulario los agrupa, dice de que centro
+   * vienen y marca el que se haya ajustado a mano, para que la diferencia con
+   * su ficha se vea ANTES de guardar.
+   *
+   * La temporal ya NO se hereda del centro: es el PRIMER campo del formulario y
+   * lo que decide que centros hay para elegir.
    */
 
   /** Centro de costo que rellenó los campos. `null` = todavía ninguno. */
   heredadoDe: string | null = null;
 
   /**
-   * Lo que trajo ese centro, por nombre de control. Solo lleva los campos que
-   * de verdad llegaron: si el maestro no dio salario, ese campo no es heredado
-   * y no debe marcarse como "ajustado" al digitarlo.
+   * Campos que trae la ficha del centro de costo.
+   *
+   * Los que la ficha SÍ trae se bloquean: la vacante no es el sitio para
+   * cambiar la dirección o el salario de un centro. Antes se podían editar y
+   * solo se marcaban como "ajustado a mano", que es como decir que el dato de
+   * la vacante y el de la ficha podían discrepar sin que nadie lo revisara.
+   *
+   * Los que la ficha deja en blanco quedan ABIERTOS: el maestro no siempre da
+   * salario ni auxilio —cuando sus subcentros no coinciden llegan en null— y
+   * alguien tiene que poder completarlos.
+   *
+   * Bloquear no es esconder: `getRawValue()` incluye los deshabilitados, así
+   * que el valor viaja igual en el payload.
    */
-  private heredado: Record<string, string> = {};
+  readonly CAMPOS_HEREDADOS = ['empresa_usuaria_solicita', 'direccion', 'salario', 'auxilio_transporte'] as const;
 
-  /** Orden en que la ficha pinta los campos heredados. */
-  readonly CAMPOS_HEREDADOS = [
-    { control: 'empresa_usuaria_solicita', label: 'Empresa' },
-    { control: 'direccion', label: 'Dirección' },
-    { control: 'temporal', label: 'Temporal' },
-    { control: 'salario', label: 'Salario' },
-    { control: 'auxilio_transporte', label: 'Auxilio Transporte' },
-  ] as const;
+  /** Campos heredados que quedaron abiertos porque la ficha no los trae. */
+  private abiertos = new Set<string>();
 
-  private norm(v: unknown): string {
-    return (v ?? '').toString().trim().toUpperCase();
+  /** true si alguno quedó abierto; lo dice el rótulo del bloque. */
+  get hayHeredadosAbiertos(): boolean {
+    return this.abiertos.size > 0;
   }
 
-  /** Ese control lo trajo el centro de costo (aunque luego se haya tocado). */
-  esHeredado(control: string): boolean {
-    return Object.prototype.hasOwnProperty.call(this.heredado, control);
+  /** Texto bajo un campo heredado. */
+  ayudaHeredado(control: string): string | undefined {
+    if (!this.heredadoDe) return undefined;
+    return this.abiertos.has(control) ? 'Su ficha no lo trae: complétalo aquí' : undefined;
   }
 
-  /** El valor actual ya no coincide con el que trajo el centro de costo. */
-  fueAjustado(control: string): boolean {
-    if (!this.esHeredado(control)) return false;
-    return this.norm(this.vacanteForm?.get(control)?.value) !== this.norm(this.heredado[control]);
-  }
+  /**
+   * Bloquea lo que la ficha del centro trae y abre lo que deja en blanco.
+   *
+   * `emitEvent: false` en las dos direcciones: habilitar o deshabilitar emite
+   * `valueChanges`, y eso volvería a disparar la sugerencia de descripción en
+   * cadena por cada campo.
+   */
+  private aplicarBloqueoHeredados(centro: OpcionCentro | null): void {
+    this.abiertos.clear();
 
-  get hayAjustes(): boolean {
-    return Object.keys(this.heredado).some((c) => this.fueAjustado(c));
-  }
+    const trae: Record<string, boolean> = {
+      empresa_usuaria_solicita: !!(centro?.empresa ?? '').toString().trim(),
+      direccion: !!(centro?.direccion ?? '').toString().trim(),
+      salario: centro?.salario != null && Number(centro.salario) > 0,
+      auxilio_transporte: centro?.auxilio_transporte != null,
+    };
 
-  /** Vuelve a poner los campos como los dejó el centro de costo. */
-  restaurarHeredados(): void {
-    if (!Object.keys(this.heredado).length) return;
-    const patch: Record<string, unknown> = {};
-    for (const [c, v] of Object.entries(this.heredado)) {
-      patch[c] = c === 'salario' ? Number(v) : (v || null);
+    for (const nombre of this.CAMPOS_HEREDADOS) {
+      const ctrl = this.vacanteForm.get(nombre);
+      if (!ctrl) continue;
+      if (centro && trae[nombre]) {
+        ctrl.disable({ emitEvent: false });
+      } else {
+        ctrl.enable({ emitEvent: false });
+        if (centro) this.abiertos.add(nombre);
+      }
     }
-    // Sin markForCheck: este componente no es OnPush y el botón que llama aquí
-    // es un listener de plantilla, que en zoneless ya agenda la detección.
-    this.vacanteForm.patchValue(patch);
+  }
+
+  /** Sin centro elegido, todo vuelve a estar abierto. */
+  private liberarHeredados(): void {
+    this.aplicarBloqueoHeredados(null);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // ACCESORES PARA `app-smart-select`
+  // ──────────────────────────────────────────────────────────────────────────
+  // Son campos de clase con función flecha, no métodos: el selector los recibe
+  // como @Input y los invoca por su cuenta, así que necesitan el `this` atado.
+  // Se declaran aquí, juntos, para poder leer de un vistazo qué se guarda, qué
+  // se muestra y por qué se distingue cada opción.
+
+  /** Opciones simples {valor,label} de los desplegables cerrados. */
+  readonly OPC_SI_NO = [
+    { valor: 'Si', label: 'Sí' },
+    { valor: 'No', label: 'No' },
+  ];
+  readonly OPC_EXPERIENCIA = [
+    { valor: 'SI', label: 'Sí' },
+    { valor: 'NO', label: 'No' },
+    { valor: 'AMBAS', label: 'Ambas' },
+  ];
+  /**
+   * Tipos de contratación que este usuario puede fijar.
+   *
+   * CONTRATACION es el rol más bajo del proceso: publica, pero solo por Obra Labor.
+   * Los demás tipos comprometen a la empresa más allá de lo que ese rol decide.
+   *
+   * Ocultar las opciones es la mitad del trabajo; la otra la hace ms-automation, que
+   * rechaza el guardado con un 400 aunque alguien mande el POST a mano. Si se cambia
+   * esta lista hay que cambiar también la del `PublicacionController`.
+   */
+  OPC_TIPO_CONTRATACION: string[] = TIPOS_CONTRATACION;
+
+  /** true si al usuario solo le corresponde Obra Labor; lo dice la nota del campo. */
+  rolSoloObraLabor = false;
+
+  /**
+   * Recorta los tipos de contratación al alcance del rol.
+   *
+   * El valor YA guardado se conserva en la lista aunque el rol no pudiera elegirlo: si
+   * alguien de CONTRATACION abre una vacante antigua marcada "Indefinido", quitarle la
+   * opción dejaría el campo en blanco y el guardado bloqueado por obligatorio. El
+   * backend tampoco se queja mientras el valor no cambie.
+   */
+  private aplicarAlcanceDeTipos(guardado?: string | null): void {
+    this.rolSoloObraLabor = this.soloObraLabor();
+    if (!this.rolSoloObraLabor) {
+      this.OPC_TIPO_CONTRATACION = TIPOS_CONTRATACION;
+      return;
+    }
+    const permitidos = [TIPO_UNICO_CONTRATACION];
+    const actual = String(guardado ?? '').trim();
+    if (actual && !permitidos.includes(actual)) permitidos.push(actual);
+    this.OPC_TIPO_CONTRATACION = permitidos;
+  }
+
+  /** Roles del usuario, normalizados. Tolera `rol` suelto o la lista `roles`. */
+  private soloObraLabor(): boolean {
+    const crudo = this.user?.rol ?? this.user?.roles ?? [];
+    const lista: any[] = Array.isArray(crudo) ? crudo : [crudo];
+    const roles = lista
+      .map((r) => (typeof r === 'string' ? r : r?.nombre))
+      .filter(Boolean)
+      .map((r: string) => r.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim());
+
+    if (!roles.length) return false;
+    if (roles.some((r) => ROLES_SIN_LIMITE.includes(r))) return false;
+    return roles.includes(ROL_RESTRINGIDO);
+  }
+  readonly OPC_VINCULACION = [
+    { valor: 'Prueba', label: 'Prueba técnica' },
+    { valor: 'Contratación', label: 'Contratación inmediata' },
+  ];
+
+  valorOpcion = (o: { valor: string; label: string }) => o.valor;
+  etiquetaOpcion = (o: { valor: string; label: string }) => o.label;
+
+  valorTemporal = (t: OpcionTemporal) => t.valor;
+  etiquetaTemporal = (t: OpcionTemporal) => t.label;
+  /** Se avisa aquí de que la temporal aún no tiene parametrización propia. */
+  detalleTemporal = (t: OpcionTemporal) =>
+    t.parametrizada ? null : 'Sin parametrizar · los centros salen del maestro';
+
+  valorEmpresa = (e: OpcionEmpresa) => e.ref;
+  etiquetaEmpresa = (e: OpcionEmpresa) => e.nombre;
+
+  valorCentro = (c: OpcionCentro) => c.clave;
+  etiquetaCentro = (c: OpcionCentro) => c.label;
+  /** La empresa es lo que distingue dos fincas homónimas. */
+  detalleCentro = (c: OpcionCentro) => c.empresa;
+
+  valorArea = (a: { id: number; codigo: string; nombre: string | null }) => a.codigo;
+  etiquetaArea = (a: { id: number; codigo: string; nombre: string | null }) => a.nombre || a.codigo;
+  detalleArea = (a: { id: number; codigo: string; nombre: string | null }) => a.codigo;
+
+  valorCargo = (c: CargoAutorizado) => c.cargo_nombre;
+  etiquetaCargo = (c: CargoAutorizado) => c.cargo_nombre;
+  /** Qué esquema de labor le aplica; es lo que decide la descripción. */
+  detalleCargo = (c: CargoAutorizado) =>
+    c.esquema_codigo ? `Esquema ${c.esquema_codigo}` : 'Sin esquema de labor';
+
+  valorSede = (s: { nombre: string }) => s.nombre;
+  etiquetaSede = (s: { nombre: string }) => s.nombre;
+
+  /** Texto de apoyo del selector de empresa. */
+  get ayudaEmpresa(): string | undefined {
+    if (!this.temporalSel) return 'Elige primero la temporal.';
+    return undefined;
+  }
+
+  /** Texto de apoyo del selector de centro de costo. */
+  get ayudaCentro(): string | undefined {
+    if (!this.temporalSel) return 'Elige primero la temporal.';
+    if (this.parametrizada && !this.vacanteForm?.get('empresa_ref')?.value) {
+      return 'Elige primero la empresa.';
+    }
+    return undefined;
+  }
+
+  /** Texto de apoyo del selector de cargo. */
+  get ayudaCargo(): string | undefined {
+    if (this.modoPorArea && !this.vacanteForm?.get('area_operativa_codigo')?.value) {
+      return 'Elige primero el área operativa.';
+    }
+    if (this.centroSel?.id && !this.usarCargoAutorizado) {
+      return 'Este centro aún no tiene cargos parametrizados: se usa el maestro de cargos.';
+    }
+    return undefined;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SECCIONES: AVANCE Y COLAPSO
+  // ──────────────────────────────────────────────────────────────────────────
+  // El formulario tiene 18 campos repartidos en cinco secciones y no cabe en una
+  // pantalla. Cada cabecera dice CUANTO le falta y se puede plegar, para poder
+  // cerrar lo que ya está resuelto y seguir trabajando en lo que no.
+  //
+  // El avance se calcula sobre los controles REALES, no sobre una lista de
+  // porcentajes escrita a mano: un campo que se deshabilita —la fecha de prueba
+  // cuando se elige contratación inmediata, o el salario que trae bloqueado la
+  // ficha del centro— cambia solo lo que la barra cuenta, sin tocar esto.
+
+  /** Qué controles mira cada sección. `extra` son reglas que no son un control. */
+  private readonly SECCIONES: ReadonlyArray<{ id: number; controles: string[] }> = [
+    { id: 1, controles: ['temporal', 'centro_clave', 'empresa_usuaria_solicita', 'direccion', 'salario', 'auxilio_transporte'] },
+    { id: 2, controles: ['cargo', 'area_operativa_codigo', 'area', 'personas_solicitadas', 'tipo_contratacion', 'experiencia', 'codigo_elite', 'descripcion'] },
+    { id: 3, controles: ['prueba_ocontratacion', 'fechadeIngreso', 'fechadePruebatecnica', 'horade_pruebatecnica', 'ubicacionPruebaTecnica'] },
+    { id: 4, controles: ['municipio'] },
+    { id: 5, controles: ['oficinasSeleccionadas'] },
+  ];
+
+  /** Secciones plegadas. Todas empiezan abiertas. */
+  private plegadas = new Set<number>();
+
+  estaPlegada(id: number): boolean {
+    return this.plegadas.has(id);
+  }
+
+  alternarSeccion(id: number): void {
+    if (this.plegadas.has(id)) this.plegadas.delete(id);
+    else this.plegadas.add(id);
+  }
+
+  /**
+   * Avance de una sección: obligatorios resueltos sobre obligatorios que aplican.
+   *
+   * Un control DESHABILITADO con valor cuenta como resuelto —es el caso de lo que
+   * trae bloqueado la ficha del centro—, y uno deshabilitado y vacío no cuenta
+   * para nada: no aplica en este momento del formulario.
+   *
+   * Sin obligatorios que aplicar la sección va al 100%: no hay nada que exigir.
+   */
+  avanceSeccion(id: number): number {
+    const { hechos, total } = this.cuentaObligatorios(id);
+    if (!total) return 100;
+    return Math.round((hechos / total) * 100);
+  }
+
+  private cuentaObligatorios(id: number): { hechos: number; total: number } {
+    let hechos = 0;
+    let total = 0;
+    for (const nombre of this.controlesDe(id)) {
+      const ctrl = this.vacanteForm.get(nombre);
+      if (!ctrl) continue;
+      const bloqueadoConValor = ctrl.disabled && this.tieneValor(ctrl);
+      if (ctrl.disabled && !bloqueadoConValor) continue;
+      if (!bloqueadoConValor && !this.esObligatorio(ctrl)) continue;
+      total++;
+      if (this.tieneValor(ctrl)) hechos++;
+    }
+    // La sección 4 no se resuelve con que haya municipios: el reparto tiene que
+    // sumar exactamente el total pedido, que es lo que valida el formulario.
+    if (id === 4) {
+      total++;
+      if (this.municipiosDistribucion.length && this.restante === 0 && this.totalAsignado > 0) hechos++;
+    }
+    return { hechos, total };
+  }
+
+  /**
+   * Campos OPCIONALES de la sección que se dejaron vacíos.
+   *
+   * Es el aviso en ámbar: la sección está completa —no impide guardar— pero se
+   * publica sin un dato que sí se podía dar.
+   */
+  opcionalesVacios(id: number): string[] {
+    const out: string[] = [];
+    for (const nombre of this.controlesDe(id)) {
+      const ctrl = this.vacanteForm.get(nombre);
+      if (!ctrl || ctrl.disabled) continue;
+      if (this.esObligatorio(ctrl)) continue;
+      if (!this.tieneValor(ctrl)) out.push(ETIQUETAS_CAMPO[nombre] ?? nombre);
+    }
+    return out;
+  }
+
+  /** Estado de la barra: en curso, completa, o completa con huecos opcionales. */
+  estadoSeccion(id: number): 'curso' | 'aviso' | 'lista' {
+    if (this.avanceSeccion(id) < 100) return 'curso';
+    return this.opcionalesVacios(id).length ? 'aviso' : 'lista';
+  }
+
+  /** Texto del tooltip de la cabecera. */
+  detalleSeccion(id: number): string {
+    const { hechos, total } = this.cuentaObligatorios(id);
+    const faltan = this.opcionalesVacios(id);
+    const partes = [total ? `Obligatorios: ${hechos} de ${total}` : 'Sin campos obligatorios'];
+    if (faltan.length) partes.push(`Sin llenar (opcional): ${faltan.join(', ')}`);
+    return partes.join('\n');
+  }
+
+  // ── Avance GLOBAL, el de la cabecera del diálogo ─────────────────────────
+  //
+  // Se suman los obligatorios de TODAS las secciones, no se promedian sus
+  // porcentajes: una sección con un solo campo pesaría lo mismo que otra con
+  // siete, y el número diría cualquier cosa menos cuánto falta de verdad.
+
+  avanceGlobal(): number {
+    const { hechos, total } = this.totalObligatorios();
+    if (!total) return 100;
+    return Math.round((hechos / total) * 100);
+  }
+
+  estadoGlobal(): 'curso' | 'aviso' | 'lista' {
+    if (this.avanceGlobal() < 100) return 'curso';
+    return this.opcionalesVaciosTodos().length ? 'aviso' : 'lista';
+  }
+
+  /** Rótulo corto junto al porcentaje. */
+  rotuloGlobal(): string {
+    switch (this.estadoGlobal()) {
+      case 'lista': return 'Listo para guardar';
+      case 'aviso': return 'Listo · con campos vacíos';
+      default: return 'En progreso';
+    }
+  }
+
+  detalleGlobal(): string {
+    const { hechos, total } = this.totalObligatorios();
+    const faltan = this.opcionalesVaciosTodos();
+    const partes = [`Obligatorios: ${hechos} de ${total}`];
+    if (faltan.length) partes.push(`Sin llenar (opcional): ${faltan.join(', ')}`);
+    return partes.join('\n');
+  }
+
+  private totalObligatorios(): { hechos: number; total: number } {
+    let hechos = 0;
+    let total = 0;
+    for (const s of this.SECCIONES) {
+      const c = this.cuentaObligatorios(s.id);
+      hechos += c.hechos;
+      total += c.total;
+    }
+    return { hechos, total };
+  }
+
+  private opcionalesVaciosTodos(): string[] {
+    return this.SECCIONES.flatMap((s) => this.opcionalesVacios(s.id));
+  }
+
+  private controlesDe(id: number): string[] {
+    return this.SECCIONES.find((s) => s.id === id)?.controles ?? [];
+  }
+
+  private esObligatorio(ctrl: AbstractControl): boolean {
+    const c = ctrl as any;
+    return typeof c.hasValidator === 'function' && c.hasValidator(Validators.required);
+  }
+
+  private tieneValor(ctrl: AbstractControl): boolean {
+    const v = ctrl.value;
+    if (v === null || v === undefined) return false;
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'number') return true;
+    return String(v).trim() !== '';
   }
 
   constructor(
@@ -205,7 +613,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     private adminService: UtilityServiceService,
     private vacantesService: VacantesService, // (queda por si lo usas luego)
     private positionsService: PositionsService,
-    private fincasService: FincasService,
+    private cascada: VacancyCascadeService,
+    private param: ParametrizacionVacantesService,
     private utilityService: UtilityServiceService
   ) {
     this.today.setHours(0, 0, 0, 0);
@@ -219,14 +628,28 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     // - sumaNoIgualTotal: suma !== total (solo cuando ya hay distribución)
     this.vacanteForm = this.fb.group(
       {
+        // La TEMPORAL es el primer eslabon: decide que empresas y que centros
+        // de costo se ofrecen. Va antes que nada en la plantilla.
+        temporal: ['', Validators.required],
+        // Referencia de la empresa dentro del alcance de vacantes. Solo se usa
+        // para encadenar; lo que se guarda en la vacante es el NOMBRE, que
+        // sigue viviendo en `empresa_usuaria_solicita`.
+        empresa_ref: [null as number | null],
+        // id del centro en el parametrizador. `null` cuando el centro viene del
+        // maestro (temporal sin alcance) o cuando se edita una vacante vieja.
+        centro_costo_id: [null as number | null],
+        // Lo que selecciona el desplegable de centro. NO es el nombre: dentro de
+        // una misma temporal hay fincas homonimas de empresas distintas
+        // (ADMINISTRACION CENTRAL esta en tres de Apoyo) y elegir por nombre
+        // llenaba la vacante con los datos de la empresa equivocada.
+        centro_clave: ['', Validators.required],
+
         cargo: ['', Validators.required],
         finca: ['', Validators.required],
         empresa_usuaria_solicita: ['', Validators.required],
-        temporal: ['', Validators.required],
         direccion: ['', Validators.required],
 
         experiencia: ['', Validators.required],
-        observacionVacante: [''],
         descripcion: ['', Validators.required],
         fecha_publicado: [new Date()],
         quienpublicolavacante: [
@@ -259,7 +682,28 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         // y el faltante solo salía al guardar, en el Swal de "faltan campos".
         // Se llena solo desde el maestro al elegir la finca.
         auxilio_transporte: ['', [Validators.required]],
-        area: ['', Validators.required],
+        // Linea de flor ('Rosa', 'Clavel'...). NO confundir con el area
+        // OPERATIVA de abajo: la entidad Publicacion las guarda por separado y
+        // su propio comentario avisa de que no deben mezclarse.
+        // "Perfil vacante": ahora admite VARIAS. Se guarda como texto separado por
+        // coma en la misma columna `area`, que es como ya lo leen todos sus
+        // consumidores (el cruce de ms-hr, los formatos Excel y la Remisión).
+        area: [[] as string[], Validators.required],
+        // Area OPERATIVA del parametrizador ('CU', 'PO', 'AD'...), el
+        // vocabulario con el que se resuelve la labor. Solo aplica a los centros
+        // que trabajan por area; en el resto queda en null.
+        area_operativa_codigo: [null as string | null],
+        area_operativa_id: [null as number | null],
+
+        // Trazabilidad de la labor resuelta (columnas V13 de db_automation). Las
+        // llena `resolverLabor`; si no hay parametrizacion se quedan en null y la
+        // descripcion la propone la hoja de labores de siempre.
+        configuracion_centro_cargo_id: [null as number | null],
+        regla_labor_id: [null as number | null],
+        labor_codigo_snapshot: [null as string | null],
+        labor_descripcion_snapshot: [null as string | null],
+        esquema_labor_codigo: [null as string | null],
+        labor_origen_resolucion: [null as string | null],
 
         // Oficinas
         oficinasSeleccionadas: [[], Validators.required],
@@ -272,6 +716,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         ],
       }
     );
+
+    this.aplicarAlcanceDeTipos(this.data?.tipo_contratacion);
 
     // Si viene data, cargar primero para no pelear con subscribes
     if (this.data) this.cargarParaEdicion(this.data);
@@ -298,17 +744,28 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         );
       });
 
-    // --------- AUTOCOMPLETE FINCAS ----------
-    this.fincasService
-      .listNombreFincas()
-      .pipe(catchError(() => of([] as string[])), takeUntilDestroyed(this.destroyRef))
-      .subscribe((nombres: string[]) => {
-        this.centrosCostos = nombres ?? [];
-        const fincaCtrl = this.vacanteForm.get('finca') as FormControl<string>;
-        this.filteredCentrosCostos = fincaCtrl.valueChanges.pipe(
-          startWith(fincaCtrl.value ?? ''),
-          map((value: string) => this._filter(value || '', this.centrosCostos))
-        );
+    // --------- PERFILES DE FLOR: catálogo del desplegable «Área» ----------
+    this.param
+      .listarPerfilesVacante(true)
+      .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
+      .subscribe((lista) => {
+        const nombres = (lista ?? []).map((p) => String(p?.nombre ?? '').trim()).filter(Boolean);
+        // Un catálogo vacío también cae al respaldo: dejar el desplegable sin
+        // opciones bloquearía la publicación, porque el campo es obligatorio.
+        if (nombres.length) this.areas = nombres;
+      });
+
+    // --------- TEMPORALES: primer eslabon de la cascada ----------
+    this.cascada
+      .listarTemporales()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((lista: OpcionTemporal[]) => {
+        this.temporales = lista ?? [];
+        // Al editar, la vacante ya trae su temporal: se reengancha la opcion del
+        // catalogo para saber si esa temporal esta parametrizada y poder bajar
+        // por la cascada sin obligar a volver a elegirla.
+        const actual = String(this.vacanteForm.get('temporal')?.value ?? '');
+        if (actual) this.engancharTemporal(actual, { conservarSeleccion: true });
       });
 
     // --------- SEDES ----------
@@ -356,11 +813,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           .filter(Boolean)
           .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
 
-        this.municipiosFiltrados = [...this.municipiosColombia];
-        this.resetFiltroMunicipio();
       });
-
-    this.municipioCtrl.valueChanges.pipe(startWith(''), takeUntilDestroyed(this.destroyRef)).subscribe(() => this.filtrarMunicipios());
 
     // --------- SYNC: municipio[] => municipiosDistribucion[] ----------
     this.vacanteForm
@@ -399,6 +852,17 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     // finca por las áreas fijas (LAS DELICIAS) y la empresa porque Elite Blu
     // tiene su propia hoja de labores aunque sea de Apoyo. Las dos se pueden
     // editar a mano después de que el maestro las llenó.
+    this.vacanteForm
+      .get('fechadeIngreso')!
+      .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        // El validador vive en el control de la prueba y Angular no lo vuelve a
+        // correr porque cambie su hermana: hay que pedírselo.
+        this.vacanteForm.get('fechadePruebatecnica')!.updateValueAndValidity({ emitEvent: false });
+        this.vacanteForm.get('tieneFechaIngreso')!
+          .setValue(this.vacanteForm.get('fechadeIngreso')!.value ? this.SI : 'No', { emitEvent: false });
+      });
+
     const disparan = [
       'cargo',
       'fechadeIngreso',
@@ -431,23 +895,31 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
    * dejar un dato viejo colgado, y se oculta.
    */
   private syncFechaIngreso(): void {
-    const esContratacion =
-      String(this.vacanteForm.get('prueba_ocontratacion')?.value ?? '') === this.CONTRATACION;
-
-    // Toggle oculto, coherente con el payload (Si/No).
-    this.vacanteForm.get('tieneFechaIngreso')!
-      .setValue(esContratacion ? this.SI : 'No', { emitEvent: false });
+    const opcion = String(this.vacanteForm.get('prueba_ocontratacion')?.value ?? '');
+    const esContratacion = opcion === this.CONTRATACION;
+    const esPrueba = opcion === this.PRUEBA;
 
     const ctrl = this.vacanteForm.get('fechadeIngreso')!;
-    if (esContratacion) {
+
+    // La fecha de ingreso aparece en LAS DOS opciones, pero no manda lo mismo:
+    //   · Contratación inmediata → OBLIGATORIA, la persona entra de una vez.
+    //   · Prueba técnica         → OPCIONAL. Muchas veces la fecha de ingreso ya
+    //     se conoce al programar la prueba; poder anotarla aquí es lo que permite
+    //     comprobar que la prueba no cae después del ingreso.
+    if (esContratacion || esPrueba) {
       ctrl.enable({ emitEvent: false });
-      ctrl.setValidators([Validators.required]);
+      ctrl.setValidators(esContratacion ? [Validators.required] : []);
     } else {
       ctrl.reset(null, { emitEvent: false });   // borra el dato al cambiar de opción
       ctrl.clearValidators();
       ctrl.disable({ emitEvent: false });
     }
     ctrl.updateValueAndValidity({ emitEvent: false });
+
+    // Toggle oculto, coherente con el payload (Si/No). Ya no depende de la opción
+    // sino de si hay fecha: en Prueba puede haberla o no.
+    this.vacanteForm.get('tieneFechaIngreso')!
+      .setValue(ctrl.value ? this.SI : 'No', { emitEvent: false });
   }
 
   private applyPruebaContratacion(valor: string): void {
@@ -457,7 +929,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
     if (valor === this.PRUEBA) {
       fPrueba.enable({ emitEvent: false });
-      fPrueba.setValidators([Validators.required]);
+      fPrueba.setValidators([Validators.required, this.pruebaNoPosteriorAIngreso()]);
 
       hPrueba.enable({ emitEvent: false });
       hPrueba.setValidators([Validators.required]);
@@ -478,6 +950,71 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
     // La fecha de ingreso depende de esta opción (Contratación inmediata).
     this.syncFechaIngreso();
+  }
+
+  /**
+   * La prueba técnica no puede ser POSTERIOR a la fecha de ingreso.
+   *
+   * Va como validador del propio control de la prueba —y no del formulario— para
+   * que el mensaje salga debajo de ese campo, que es donde el usuario tiene que
+   * corregir. Un error a nivel de grupo no lo pinta `mat-error`.
+   *
+   * Sin una de las dos fechas no hay nada que comparar: en Prueba técnica la de
+   * ingreso es opcional y lo normal es que falte.
+   */
+  private pruebaNoPosteriorAIngreso(): ValidatorFn {
+    return (ctrl: AbstractControl) => {
+      const grupo = ctrl.parent;
+      if (!grupo) return null;
+
+      const ingreso = this.soloDia(grupo.get('fechadeIngreso')?.value);
+      const prueba = this.soloDia(ctrl.value);
+      if (!ingreso || !prueba) return null;
+
+      return prueba.getTime() > ingreso.getTime() ? { pruebaDespuesDeIngreso: true } : null;
+    };
+  }
+
+  /**
+   * Fecha sin hora, para comparar días completos.
+   *
+   * El primer caso es el importante: este diálogo usa `MomentDateAdapter`, así que
+   * lo que devuelve el calendario NO es un `Date` sino un Moment. Sin este `toDate`
+   * la comparación caía en el parseo por texto, que funciona de milagro y no hay
+   * por qué dejarlo así.
+   */
+  private soloDia(v: unknown): Date | null {
+    if (v && typeof (v as any).toDate === 'function') {
+      return this.stripTime((v as any).toDate());
+    }
+    const d = this.parseApiDate(v);
+    return d ? this.stripTime(d) : null;
+  }
+
+  /**
+   * Tope del calendario de la prueba: la fecha de ingreso, si ya se eligió.
+   *
+   * El validador es la red de seguridad; esto evita llegar a él, porque los días
+   * posteriores al ingreso ni siquiera se pueden pulsar.
+   */
+  get topeFechaPrueba(): Date | null {
+    return this.soloDia(this.vacanteForm?.get('fechadeIngreso')?.value);
+  }
+
+  /**
+   * ¿La fecha de ingreso es obligatoria? Solo en contratación inmediata.
+   *
+   * Se ata al `[required]` del campo en vez de dejar que `mat-form-field` lo
+   * deduzca de los validadores: así el asterisco dice exactamente lo mismo que
+   * la regla, sin depender de cuándo se recalculan los validadores.
+   */
+  get ingresoObligatorio(): boolean {
+    return String(this.vacanteForm?.get('prueba_ocontratacion')?.value ?? '') === this.CONTRATACION;
+  }
+
+  /** Suelo del calendario de ingreso: la fecha de la prueba, si ya se eligió. */
+  get sueloFechaIngreso(): Date | null {
+    return this.soloDia(this.vacanteForm?.get('fechadePruebatecnica')?.value);
   }
 
   // ---------- Distribución por municipio ----------
@@ -586,28 +1123,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   // ---------- Filtro de municipios ----------
-  filtrarMunicipios(): void {
-    const f = (this.municipioFiltro || '').toLowerCase();
-    const seleccionados: string[] = Array.isArray(this.vacanteForm.get('municipio')?.value)
-      ? (this.vacanteForm.get('municipio')!.value as string[])
-      : [];
 
-    const noSeleccionados = this.municipiosColombia.filter(
-      (m) => !seleccionados.includes(m) && m.toLowerCase().includes(f)
-    );
-
-    this.municipiosFiltrados = [...seleccionados, ...noSeleccionados];
-  }
-
-  resetFiltroMunicipio(): void {
-    const seleccionados: string[] = Array.isArray(this.vacanteForm.get('municipio')?.value)
-      ? (this.vacanteForm.get('municipio')!.value as string[])
-      : [];
-
-    const noSeleccionados = this.municipiosColombia.filter((m) => !seleccionados.includes(m));
-    this.municipiosFiltrados = [...seleccionados, ...noSeleccionados];
-    this.municipioFiltro = '';
-  }
 
   private stripTime(d: Date): Date {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate()); // local, sin hora
@@ -636,6 +1152,12 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     return this.stripTime(dt); // ✅ te quedas con la fecha local
   }
 
+  /** YYYY-MM-DD para el backend, venga como Date o como texto ya formateado. */
+  private aYmd(fecha: Date | string): string {
+    if (fecha instanceof Date) return this.toYmdLocal(fecha) ?? '';
+    return this.toYmdLocal(this.parseApiDate(fecha)) ?? '';
+  }
+
   private toYmdLocal(d: Date | null | undefined): string | null {
     if (!d) return null;
     const y = d.getFullYear();
@@ -649,13 +1171,13 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private cargarParaEdicion(v: any): void {
     this.vacanteForm.patchValue({
       cargo: v?.cargo ?? '',
-      area: v?.area ?? '',
+      // Viene como texto separado por coma; se parte para el selector múltiple.
+      area: partirPerfiles(v?.area),
       finca: v?.finca ?? '',
       empresa_usuaria_solicita: v?.empresa_usuaria_solicita ?? '',
       direccion: v?.direccion ?? '',
       temporal: v?.temporal ?? '',
       experiencia: v?.experiencia ?? '',
-      observacionVacante: v?.observacion ?? '',
 
       tieneFechaIngreso: v?.fechadeIngreso ? this.SI : 'No',
       fechadeIngreso: this.parseApiDate(v?.fechadeIngreso),
@@ -681,13 +1203,27 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       municipio: Array.isArray(v?.municipio) ? v.municipio : [],
       auxilio_transporte: v?.auxilio_transporte ?? '',
       personas_solicitadas: v?.personas_solicitadas ?? null,
+
+      // Cascada + traza de la labor. Se reponen tal cual estaban: editar una
+      // vacante sin volver a tocar el cargo NO debe reescribir su snapshot, que
+      // es lo que explica de dónde salió la descripción que ya se publicó.
+      // La Publicacion no guarda el id del centro: se reengancha por NOMBRE
+      // contra la lista que trae la cascada (ver `conCentroGuardado`).
+      centro_costo_id: null,
+      area_operativa_codigo: v?.area_operativa_codigo ?? null,
+      configuracion_centro_cargo_id: v?.configuracion_centro_cargo_id ?? null,
+      regla_labor_id: v?.regla_labor_id ?? null,
+      labor_codigo_snapshot: v?.labor_codigo_snapshot ?? null,
+      labor_descripcion_snapshot: v?.labor_descripcion_snapshot ?? null,
+      esquema_labor_codigo: v?.esquema_labor_codigo ?? null,
+      labor_origen_resolucion: v?.labor_origen_resolucion ?? null,
     });
 
     // Oficinas
     const fa = this.oficinas_que_contratan;
     fa.clear();
     (Array.isArray(v?.oficinas_que_contratan) ? v.oficinas_que_contratan : []).forEach((o: any) =>
-      fa.push(this.fb.group({ nombre: [o?.nombre ?? '', Validators.required], ruta: [!!o?.ruta] }))
+      fa.push(this.fb.group({ nombre: [o?.nombre ?? '', Validators.required] }))
     );
 
     // Distribución
@@ -715,9 +1251,10 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .map((x: any) => String(x ?? '').trim())
       .filter(Boolean);
 
-    // La vacante ya trae empresa y dirección guardadas: no hay que volver a
-    // pedirlas al abrir para editar, solo si se cambia la finca.
-    this.fincaAplicada = String(v?.finca ?? '').trim().toUpperCase();
+    // La vacante ya trae empresa, dirección y centro guardados: no se vuelven a
+    // pedir al abrir. Los desplegables de la cascada se rellenan igualmente —lo
+    // hace `engancharTemporal` cuando llega el catálogo de temporales— para que
+    // se puedan cambiar, pero sin pisar lo guardado.
 
     this.syncFechaIngreso();
     this.applyPruebaContratacion(String(this.vacanteForm.get('prueba_ocontratacion')!.value ?? ''));
@@ -736,133 +1273,355 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     return this.vacanteForm.get('oficinas_que_contratan') as FormArray;
   }
 
-  private canonicalTemporal(raw: string | null | undefined): 'APOYO LABORAL SAS' | 'TU ALIANZA SAS' | null {
-    if (!raw) return null;
+  // ══════════════════════════════════════════════════════════════════════════
+  // CASCADA: Temporal → Empresa → Centro de costo → (Área operativa) → Cargo
+  // ══════════════════════════════════════════════════════════════════════════
+  //
+  // El orden no es cosmético: la temporal decide qué empresas existen, la
+  // empresa qué centros, y el centro qué áreas y qué cargos están AUTORIZADOS.
+  // Antes se empezaba por el centro de costo escrito a mano sobre el maestro
+  // completo, y de ahí se deducía la temporal; eso permitía combinaciones que
+  // la parametrización no reconoce y dejaba la labor sin resolver.
+  //
+  // Dos fuentes, elegidas por los datos (ver `VacancyCascadeService`): la
+  // temporal con alcance en el parametrizador encadena por él; la que no lo
+  // tiene cae al maestro de centros de costo, filtrado por esa temporal.
 
-    const norm = String(raw)
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (/(^|[^a-z])apoyo([^a-z]|$)/.test(norm)) return 'APOYO LABORAL SAS';
-    if (/(^|[^a-z])alianza([^a-z]|$)/.test(norm)) return 'TU ALIANZA SAS';
-
-    return null;
-  }
-
-  onCentroCostoSelected(event: MatAutocompleteSelectedEvent): void {
-    this.aplicarFinca((event.option.value || '').toString());
+  /** Cambió la temporal: se rehace todo lo que cuelga de ella. */
+  onTemporalChange(valor: string): void {
+    this.engancharTemporal(valor, { conservarSeleccion: false });
   }
 
   /**
-   * Nombres entre los que hay que escoger cuando la finca escrita es ambigua.
-   * Vacío = no hay ambigüedad pendiente. Lo lee la plantilla para decir cuáles
-   * son las opciones sin que el usuario tenga que adivinar.
-   */
-  fincaAmbiguaOpciones: string[] = [];
-
-  /**
-   * Trae del maestro empresa, dirección, temporal, salario y auxilio de
-   * transporte de la finca dada.
+   * Ata el valor del control `temporal` a su opción del catálogo y recarga lo
+   * que dependa de ella.
    *
-   * Se llama tanto al elegir del desplegable como al salir del campo escrito a
-   * mano: el input es un autocomplete libre, así que se puede teclear el nombre
-   * completo sin llegar a seleccionar la opción, y antes en ese caso la vacante
-   * quedaba sin empresa ni dirección.
+   * @param conservarSeleccion true al ABRIR una vacante para editar: la empresa
+   *   y el centro ya guardados no se borran, solo se rellenan los desplegables
+   *   para poder cambiarlos.
    */
-  private aplicarFinca(nombre: string): void {
-    const q = (nombre || '').trim();
-    if (!q || q.toUpperCase() === this.fincaAplicada) return;
+  private engancharTemporal(valor: string, opts: { conservarSeleccion: boolean }): void {
+    const canonica = canonicalTemporal(valor) ?? valor;
+    this.temporalSel =
+      this.temporales.find((t) => t.valor === canonica)
+      ?? this.temporales.find((t) => canonicalTemporal(t.label) === canonica)
+      ?? null;
 
-    this.fincasService
-      .buscarFincasPorNombre(q)
-      .pipe(catchError(() => of([] as FincaItem[])))
-      .subscribe((coincidencias: FincaItem[]) => {
-        if (!coincidencias.length) return;
+    if (!opts.conservarSeleccion) {
+      // Cambiar de temporal invalida empresa, centro, área y cargo: son de la
+      // otra. Dejarlos puestos era la forma silenciosa de guardar una vacante
+      // con la finca de una temporal y la razón social de la otra.
+      this.vacanteForm.patchValue({
+        empresa_ref: null,
+        centro_costo_id: null,
+        centro_clave: '',
+        finca: '',
+        empresa_usuaria_solicita: '',
+        direccion: '',
+        cargo: '',
+        area_operativa_codigo: null,
+        area_operativa_id: null,
+      }, { emitEvent: false });
+      this.limpiarTrazaLabor();
+      this.centroSel = null;
+      this.heredadoDe = null;
+      this.liberarHeredados();
+      this.centros = [];
+      this.areasOperativas = [];
+      this.cargosAutorizados = [];
+      this.modoPorArea = false;
+    }
 
-        const finca = this.escogerFinca(coincidencias);
-        if (!finca) return; // ambigua: `escogerFinca` ya dejó el aviso puesto
+    this.empresas = [];
 
-        // El autocomplete muestra el nombre desambiguado ("SAN CARLOS (FLORES
-        // IPANEMA S.A.S)") pero en la vacante se guarda el nombre limpio: es la
-        // clave con la que la contratación vuelve a cruzar el maestro, y la
-        // empresa usuaria —que queda al lado— ya dice de cuál de las dos es.
-        const limpio = (finca.finca ?? '').trim();
-        this.fincaAplicada = (limpio || q).toUpperCase();
+    if (!this.temporalSel) return;
 
-        const patch: Record<string, unknown> = {
-          finca: limpio || q,
-          empresa_usuaria_solicita: finca.empresa ?? null,
-          direccion: finca.direccion ?? null,
-          temporal: this.canonicalTemporal(finca.temporal),
-        };
+    if (this.temporalSel.parametrizada) {
+      this.cargandoCascada = true;
+      this.cascada
+        .empresasDe(this.temporalSel.configRef)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((lista) => {
+          this.empresas = lista;
+          this.cargandoCascada = false;
+          if (opts.conservarSeleccion) this.reengancharEmpresaGuardada();
+        });
+    } else {
+      // Temporal sin alcance parametrizado: los centros salen del maestro y no
+      // hay paso de empresa (la trae el propio centro, como hasta ahora).
+      this.cargandoCascada = true;
+      this.cascada
+        .centrosDelMaestro(this.temporalSel.valor)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((lista) => {
+          this.centros = this.conCentroGuardado(lista);
+          this.cargandoCascada = false;
+          this.reengancharCentroGuardado();
+        });
+    }
+  }
 
-        // Pago y transporte son datos DE LA FINCA, no algo que quien publica
-        // tenga que recordar: el maestro ya los tiene y son distintos entre la
-        // finca de Apoyo y la homónima de Tu Alianza. Solo entran cuando el
-        // maestro los da sin ambigüedad (mismo valor en todos los subcentros);
-        // si difieren llega `null` y se deja lo que haya para digitarlo.
-        if (finca.salario != null && Number(finca.salario) > 0) {
-          patch['salario'] = Number(finca.salario);
+  /** Cambió la empresa: se recargan sus centros. */
+  onEmpresaChange(ref: number | null): void {
+    const empresa = this.empresas.find((e) => e.ref === ref) ?? null;
+    this.vacanteForm.patchValue({
+      empresa_usuaria_solicita: empresa?.nombre ?? '',
+      centro_costo_id: null,
+      centro_clave: '',
+      finca: '',
+      direccion: '',
+      cargo: '',
+      area_operativa_codigo: null,
+      area_operativa_id: null,
+    }, { emitEvent: false });
+    this.limpiarTrazaLabor();
+    this.centroSel = null;
+    this.centros = [];
+    this.areasOperativas = [];
+    this.cargosAutorizados = [];
+    this.modoPorArea = false;
+
+    if (ref == null) return;
+    this.cargandoCascada = true;
+    this.cascada
+      .centrosDe(ref)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((lista) => {
+        this.centros = this.conCentroGuardado(lista);
+        this.cargandoCascada = false;
+      });
+  }
+
+  /**
+   * Al abrir para editar: ata el centro ya guardado a su opción de la lista.
+   *
+   * Sin esto el desplegable salía en blanco sobre una vacante que sí tenía
+   * centro, y `centro_clave` vacío bloqueaba el guardado por obligatorio.
+   */
+  private reengancharCentroGuardado(): void {
+    if (this.vacanteForm.get('centro_clave')?.value) return;
+    const guardado = this.centroGuardadoEnLista();
+    if (guardado) this.aplicarCentro(guardado, { pisarAjustes: false });
+  }
+
+  /** Al abrir para editar: engancha la empresa ya guardada por su NOMBRE. */
+  private reengancharEmpresaGuardada(): void {
+    const nombre = this.normalizarNombre(this.vacanteForm.get('empresa_usuaria_solicita')?.value);
+    if (!nombre) return;
+    const empresa = this.empresas.find((e) => this.normalizarNombre(e.nombre) === nombre);
+    if (!empresa) {
+      // La empresa guardada ya no está en el alcance. La vacante sigue siendo
+      // editable: se ofrece su propio centro como única opción para no dejarla
+      // bloqueada por un cambio de parametrización posterior.
+      this.centros = this.conCentroGuardado([]);
+      this.reengancharCentroGuardado();
+      return;
+    }
+    this.vacanteForm.get('empresa_ref')!.setValue(empresa.ref, { emitEvent: false });
+    this.cascada
+      .centrosDe(empresa.ref)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((lista) => {
+        this.centros = this.conCentroGuardado(lista);
+        this.reengancharCentroGuardado();
+      });
+  }
+
+  /**
+   * Añade a la lista el centro que la vacante ya tiene guardado si no viene en
+   * ella.
+   *
+   * Pasa con las vacantes viejas y con las de una temporal cuyo alcance cambió:
+   * sin esto el desplegable saldría en blanco y el guardado siguiente borraría
+   * el centro de costo de una vacante que sí lo tenía.
+   */
+  private conCentroGuardado(lista: OpcionCentro[]): OpcionCentro[] {
+    const finca = String(this.vacanteForm.get('finca')?.value ?? '').trim();
+    if (!finca) return lista;
+    const ya = lista.some((c) => this.normalizarNombre(c.finca) === this.normalizarNombre(finca));
+    if (ya) return lista;
+    return [
+      {
+        clave: `g:${finca}`,
+        id: this.vacanteForm.get('centro_costo_id')?.value ?? null,
+        finca,
+        label: `${finca} (guardado en la vacante)`,
+        empresa: String(this.vacanteForm.get('empresa_usuaria_solicita')?.value ?? '') || null,
+        direccion: String(this.vacanteForm.get('direccion')?.value ?? '') || null,
+        temporal: String(this.vacanteForm.get('temporal')?.value ?? '') || null,
+        salario: null,
+        auxilio_transporte: null,
+      },
+      ...lista,
+    ];
+  }
+
+  private centroGuardadoEnLista(): OpcionCentro | null {
+    const finca = this.normalizarNombre(this.vacanteForm.get('finca')?.value);
+    if (!finca) return null;
+    return this.centros.find((c) => this.normalizarNombre(c.finca) === finca) ?? null;
+  }
+
+  /** Cambió el centro de costo. Llega la CLAVE de la opción, no el nombre. */
+  onCentroChange(clave: string): void {
+    const centro = this.centros.find((c) => c.clave === clave) ?? null;
+    if (!centro) return;
+    this.aplicarCentro(centro, { pisarAjustes: true });
+  }
+
+  /**
+   * Vuelca en el formulario lo que trae el centro y encadena área/cargo.
+   *
+   * @param pisarAjustes false al reabrir una vacante: lo guardado manda sobre la
+   *   ficha del centro, que puede haber cambiado desde que se publicó.
+   */
+  private aplicarCentro(centro: OpcionCentro, opts: { pisarAjustes: boolean }): void {
+    this.centroSel = centro;
+
+    const patch: Record<string, unknown> = {
+      finca: centro.finca,
+      centro_costo_id: centro.id,
+      centro_clave: centro.clave,
+    };
+    if (centro.empresa) patch['empresa_usuaria_solicita'] = centro.empresa;
+    if (centro.direccion) patch['direccion'] = centro.direccion;
+
+    // Pago y transporte son datos DEL CENTRO, no algo que quien publica tenga
+    // que recordar. Solo entran cuando la fuente los da sin ambigüedad (mismo
+    // valor en todos los subcentros); si difieren llega null y se deja lo que
+    // haya para digitarlo.
+    if (opts.pisarAjustes && centro.salario != null && Number(centro.salario) > 0) {
+      patch['salario'] = Number(centro.salario);
+    }
+    if (opts.pisarAjustes && centro.auxilio_transporte != null) {
+      patch['auxilio_transporte'] = centro.auxilio_transporte ? 'Si' : 'No';
+    }
+
+    this.vacanteForm.patchValue(patch, { emitEvent: false });
+
+    // Lo que trae la ficha se bloquea; lo que no trae queda abierto.
+    this.heredadoDe = centro.label || centro.finca;
+    this.aplicarBloqueoHeredados(centro);
+
+    this.areasOperativas = [];
+    this.cargosAutorizados = [];
+    this.modoPorArea = false;
+
+    if (opts.pisarAjustes) {
+      this.vacanteForm.patchValue(
+        { cargo: '', area_operativa_codigo: null, area_operativa_id: null },
+        { emitEvent: false },
+      );
+      this.limpiarTrazaLabor();
+    }
+
+    // Un centro del maestro no tiene parametrización que consultar: el cargo
+    // sigue siendo el autocompletado del maestro de cargos.
+    if (centro.id == null) {
+      this.sugerirDescripcion();
+      return;
+    }
+
+    this.cargandoCascada = true;
+    this.cascada
+      .modoDe(centro.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((modo) => {
+        this.modoPorArea = !!modo?.trabaja_por_area;
+        if (this.modoPorArea) {
+          this.cascada
+            .areasDe(centro.id!)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((areas) => {
+              this.areasOperativas = areas;
+              this.cargandoCascada = false;
+              // Al reabrir, el área guardada reengancha sola y trae sus cargos.
+              const cod = this.vacanteForm.get('area_operativa_codigo')?.value;
+              if (cod) this.onAreaOperativaChange(String(cod), { pisarCargo: false });
+            });
+        } else {
+          this.cargarCargosAutorizados(centro.id!, undefined);
         }
-        if (finca.auxilio_transporte != null) {
-          patch['auxilio_transporte'] = finca.auxilio_transporte ? 'Si' : 'No';
-        }
+      });
+  }
 
-        this.vacanteForm.patchValue(patch);
+  /** Cambió el área operativa: se recargan los cargos autorizados en ella. */
+  onAreaOperativaChange(codigo: string | null, opts = { pisarCargo: true }): void {
+    const area = this.areasOperativas.find((a) => a.codigo === codigo) ?? null;
+    this.vacanteForm.get('area_operativa_id')!.setValue(area?.id ?? null, { emitEvent: false });
+    if (opts.pisarCargo) {
+      this.vacanteForm.get('cargo')!.setValue('', { emitEvent: false });
+      this.limpiarTrazaLabor();
+    }
+    this.cargosAutorizados = [];
+    const centroId = this.centroSel?.id;
+    if (centroId == null || !area) return;
+    this.cargarCargosAutorizados(centroId, area.id);
+  }
 
-        // Deja constancia de QUÉ trajo el maestro y con qué valores. Se guarda
-        // desde `patch` y no de una lista fija porque salario y auxilio solo
-        // entran a veces: si no llegaron, no son heredados.
-        this.heredadoDe = limpio || q;
-        this.heredado = {};
-        for (const c of ['empresa_usuaria_solicita', 'direccion', 'temporal', 'salario', 'auxilio_transporte']) {
-          if (c in patch) this.heredado[c] = (patch[c] ?? '').toString();
-        }
-
-        // La temporal del maestro es la que decide de qué hoja sale la labor,
-        // así que la descripción se recalcula después de tenerla.
+  private cargarCargosAutorizados(centroId: number, areaId?: number): void {
+    this.cargandoCascada = true;
+    this.cascada
+      .cargosDe(centroId, areaId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((lista) => {
+        this.cargosAutorizados = this.conCargoGuardado(lista);
+        this.cargandoCascada = false;
         this.sugerirDescripcion();
       });
   }
 
   /**
-   * Decide cuál de las fincas homónimas aplicar, o ninguna.
+   * Añade a la lista el cargo que la vacante ya tiene guardado si no está entre
+   * los autorizados.
    *
-   * Con un solo resultado no hay nada que decidir. Cuando el nombre existe en
-   * varias razones sociales —SAN CARLOS está en Apoyo (The Elite Flower) y en
-   * Tu Alianza (Flores Ipanema), y son sitios distintos— primero se intenta con
-   * la empresa que ya tenga la vacante; si eso no la deja en una sola, NO se
-   * escoge: entre las dos cambia la dirección, la temporal (y con ella la hoja
-   * de labores de la que sale la descripción) y el pago, así que tomar la
-   * primera llenaba la vacante con los datos del sitio equivocado sin avisar.
-   *
-   * El error `fincaAmbigua` deja el formulario inválido a propósito: es lo que
-   * evita guardar una vacante con la temporal de la otra finca. Se limpia solo,
-   * porque al escribir en el campo Angular vuelve a correr los validadores.
+   * Pasa al reabrir vacantes publicadas antes de que existiera la
+   * parametrización, o si al centro le retiraron ese cargo. Sin esto el
+   * desplegable saldría vacío y guardar habría fallado con "El cargo es
+   * obligatorio" sobre una vacante que sí tenía cargo.
    */
-  private escogerFinca(coincidencias: FincaItem[]): FincaItem | null {
-    const fincaCtrl = this.vacanteForm.get('finca')!;
+  private conCargoGuardado(lista: CargoAutorizado[]): CargoAutorizado[] {
+    const cargo = String(this.vacanteForm.get('cargo')?.value ?? '').trim();
+    if (!cargo) return lista;
+    if (lista.some((c) => this.normalizarNombre(c.cargo_nombre) === this.normalizarNombre(cargo))) {
+      return lista;
+    }
+    return [
+      {
+        configuracion_id: -1,
+        cargo_id: null,
+        cargo_nombre: cargo,
+        area_id: null,
+        area_codigo: null,
+        esquema_id: null,
+        esquema_codigo: null,
+        completa: false,
+        activo: null,
+      },
+      ...lista,
+    ];
+  }
 
-    const aceptar = (f: FincaItem): FincaItem => {
-      this.fincaAmbiguaOpciones = [];
-      this.limpiarError(fincaCtrl, 'fincaAmbigua');
-      return f;
-    };
+  /** Cambió el cargo dentro de la lista de autorizados. */
+  onCargoAutorizadoChange(nombre: string): void {
+    const cargo = this.cargosAutorizados.find((c) => c.cargo_nombre === nombre) ?? null;
+    this.vacanteForm.get('configuracion_centro_cargo_id')!
+      .setValue(cargo?.configuracion_id ?? null, { emitEvent: false });
+    this.vacanteForm.get('esquema_labor_codigo')!
+      .setValue(cargo?.esquema_codigo ?? null, { emitEvent: false });
+    this.sugerirDescripcion();
+  }
 
-    if (coincidencias.length === 1) return aceptar(coincidencias[0]);
-
-    const empresa = this.normalizarNombre(this.vacanteForm.get('empresa_usuaria_solicita')?.value);
-    const porEmpresa = empresa
-      ? coincidencias.filter((i) => this.normalizarNombre(i.empresa) === empresa)
-      : [];
-    if (porEmpresa.length === 1) return aceptar(porEmpresa[0]);
-
-    this.fincaAmbiguaOpciones = coincidencias.map(etiquetaFinca).filter(Boolean);
-    this.ponerError(fincaCtrl, 'fincaAmbigua');
-    return null;
+  /** Borra la traza de la labor resuelta; se rehace al volver a resolver. */
+  private limpiarTrazaLabor(): void {
+    this.vacanteForm.patchValue({
+      configuracion_centro_cargo_id: null,
+      regla_labor_id: null,
+      labor_codigo_snapshot: null,
+      labor_descripcion_snapshot: null,
+      esquema_labor_codigo: null,
+      labor_origen_resolucion: null,
+    }, { emitEvent: false });
   }
 
   /** Mayúsculas sin acentos ni espacios de sobra, para comparar nombres. */
@@ -873,23 +1632,6 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .toUpperCase()
       .replace(/\s+/g, ' ')
       .trim();
-  }
-
-  /** Agrega un error propio sin borrar los nativos (`required`). */
-  private ponerError(ctrl: AbstractControl, clave: string): void {
-    ctrl.setErrors({ ...(ctrl.errors || {}), [clave]: true });
-  }
-
-  /** Quita un error propio dejando los nativos como estén. */
-  private limpiarError(ctrl: AbstractControl, clave: string): void {
-    if (!ctrl.errors || !ctrl.errors[clave]) return;
-    const { [clave]: _, ...resto } = ctrl.errors;
-    ctrl.setErrors(Object.keys(resto).length ? resto : null);
-  }
-
-  /** Al salir del campo de finca escrito a mano. */
-  onFincaBlur(): void {
-    this.aplicarFinca(String(this.vacanteForm.get('finca')?.value ?? ''));
   }
 
   /**
@@ -924,6 +1666,63 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     );
     if (!fecha) return;
 
+    // Con centro parametrizado manda el BACKEND: `resolver-labor` sabe de reglas,
+    // esquemas y overrides que la hoja de labores cableada no conoce, y devuelve
+    // además la traza (configuración, regla, código) que se guarda con la vacante
+    // para que dentro de un año se pueda explicar de dónde salió este texto.
+    // Ante cualquier fallo se cae a la hoja de siempre: quedarse sin descripción
+    // bloquearía el guardado, porque el campo es obligatorio.
+    const centroId = this.centroSel?.id ?? null;
+    const cargo = String(v.cargo ?? '').trim();
+    if (centroId != null && cargo) {
+      const cargoSel = this.cargosAutorizados.find((c) => c.cargo_nombre === cargo) ?? null;
+      this.cascada
+        .resolverLabor({
+          centroId,
+          cargoId: cargoSel?.cargo_id ?? undefined,
+          cargoNombre: cargo,
+          fechaIngreso: this.aYmd(fecha),
+        })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((res) => {
+          if (res.ok && res.resolucion?.labor) {
+            const r = res.resolucion;
+            this.errorLabor = null;
+            this.vacanteForm.patchValue({
+              configuracion_centro_cargo_id: r.configuracion_id ?? null,
+              regla_labor_id: r.regla_labor_id ?? null,
+              labor_codigo_snapshot: r.codigo_labor ?? null,
+              labor_descripcion_snapshot: r.labor,
+              esquema_labor_codigo: r.esquema?.codigo ?? null,
+              labor_origen_resolucion: r.origen_resolucion ?? null,
+            }, { emitEvent: false });
+            if (r.labor !== actual) ctrl.setValue(r.labor);
+            return;
+          }
+
+          // CENTRO PARAMETRIZADO Y EL BACKEND NO RESUELVE: se dice, no se tapa.
+          //
+          // Aqui estaba la caida silenciosa al TypeScript cableado. Con ella, una vacante
+          // sobre un centro SIN configuracion salia con una labor plausible y nadie se
+          // enteraba de que faltaba parametrizacion. El flujo nuevo (ALIANZA, APOYO, BLU,
+          // HMVE, JARDINES) resuelve contra la BD o no resuelve: la descripcion se deja
+          // como este y la persona ve el motivo.
+          //
+          // `labores-por-mes.data.ts` NO se borra ni se deja de usar en el camino de abajo:
+          // un centro sin `centroSel` (el flujo viejo) lo sigue teniendo.
+          this.limpiarTrazaLabor();
+          this.errorLabor = res.ok ? 'RESOLUCION_VACIA' : res.codigo;
+        });
+      return;
+    }
+
+    // Sin centro parametrizado no hay a quien preguntar: queda el camino legacy.
+    this.errorLabor = null;
+    this.sugerirDesdeHojaDeLabores(ctrl, actual, v, fecha);
+  }
+
+  /** La regla cableada de siempre (`labores-por-mes.data.ts`). */
+  private sugerirDesdeHojaDeLabores(ctrl: AbstractControl, actual: string, v: any, fecha: Date | string): void {
     const sugerida = resolverDescripcionObra(
       v.cargo,
       fecha,
@@ -947,7 +1746,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     (seleccionadas || []).forEach((sede: any) => {
       const nombre = typeof sede === 'string' ? sede : String(sede?.nombre ?? sede ?? '').trim();
       if (!nombre) return;
-      formArray.push(this.fb.group({ nombre: [nombre, Validators.required], ruta: [false] }));
+      formArray.push(this.fb.group({ nombre: [nombre, Validators.required] }));
     });
   }
 
@@ -972,30 +1771,32 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     return new Intl.NumberFormat('es-CO').format(Number(value || 0));
   }
 
-  eliminarOficina(index: number): void {
-    this.oficinas_que_contratan.removeAt(index);
-    this.vacanteForm.updateValueAndValidity({ emitEvent: false });
-  }
 
   guardar(): void {
     this.vacanteForm.markAllAsTouched();
     this.vacanteForm.updateValueAndValidity({ emitEvent: false });
 
     // ✅ Si la suma no cuadra o excede, el form queda INVALID y NO guarda
-    if (this.vacanteForm.invalid) return;
+    if (this.vacanteForm.invalid) {
+      // Y se ABREN las secciones a las que les falta algo. Plegar ahorra espacio,
+      // pero un campo obligatorio vacío escondido dentro de una sección cerrada
+      // deja el botón sin responder y sin decir por qué.
+      this.abrirSeccionesIncompletas();
+      return;
+    }
 
     this.dialogRef.close(this.vacanteForm.getRawValue());
+  }
+
+  /** Despliega toda sección con obligatorios sin resolver. */
+  private abrirSeccionesIncompletas(): void {
+    for (const s of this.SECCIONES) {
+      if (this.avanceSeccion(s.id) < 100) this.plegadas.delete(s.id);
+    }
   }
 
   cancelar(): void {
     this.dialogRef.close();
   }
 
-  isRequired(ctrlOrName: string | AbstractControl | null): boolean {
-    const ctrl = typeof ctrlOrName === 'string' ? this.vacanteForm.get(ctrlOrName) : ctrlOrName;
-    if (!ctrl || !ctrl.enabled) return false;
-
-    const anyCtrl = ctrl as any;
-    return typeof anyCtrl.hasValidator === 'function' ? anyCtrl.hasValidator(Validators.required) : false;
-  }
 }

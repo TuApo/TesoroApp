@@ -178,22 +178,11 @@ mat-form-field,
 }
 
 
-.input-obligatorio {
-  position: relative;
-}
-
-.input-obligatorio::before {
-  content: '';
-  position: absolute;
-  top: 0pt;
-  left: 0;
-  width: 2pt;
-  height: calc(100% - 15pt);
-  background: red;
-  z-index: 2;
-  border-radius: 2px;
-  pointer-events: none;
-}
+/* La barra roja que marcaba "obligatorio" en el canto izquierdo se retiró.
+   Eran DOS marcas para lo mismo —esta y el asterisco de la etiqueta— y, al
+   pintarse en rojo desde el primer momento, el formulario se abría con seis
+   avisos de error sobre campos que nadie había tocado todavía. El rojo queda
+   reservado para lo que de verdad está mal: campo tocado y sin llenar. */
 
 
 /* === MANAGERIAL PREMIUM THEME === */
@@ -412,40 +401,12 @@ mat-form-field,
 
 .vac-heredado-txt strong { color: #21263C; }
 
-.vac-restaurar {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: auto;
-  padding: 4px 10px;
-  border: 1px solid #f2dcac;
-  border-radius: 999px;
-  background: #fdf4e3;
-  color: #925a06;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-}
 
-.vac-restaurar:hover { filter: brightness(.97); }
 
-.vac-restaurar mat-icon {
-  font-size: 14px !important;
-  width: 14px !important;
-  height: 14px !important;
-  color: #925a06 !important;
-}
 
 /* Campo heredado que se tocó a mano: ya no coincide con la ficha del centro
    de costo, y eso conviene verlo ANTES de guardar. */
-.vac-ajustado .mat-mdc-text-field-wrapper {
-  background: #fdf4e3 !important;
-}
 
-.vac-hint-ajustado {
-  color: #925a06 !important;
-  font-weight: 600;
-}
 
 /* ── Resumen del reparto por municipio ── */
 .resumen-muni {
@@ -489,5 +450,389 @@ mat-form-field,
 
 @media (max-width: 600px) {
   .vac-heredado { padding: 10px; }
-  .vac-restaurar { margin-left: 0; }
+  }
+
+/* Aviso de que la cascada (temporal → empresa → centro → área → cargo) está
+   pidiendo datos. Va en la cabecera de la sección, no sobre cada campo: los
+   selectores se encadenan y parpadear en cada uno era peor que un solo aviso. */
+.vac-sec-cargando {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-size: .74rem;
+  color: #64748b;
+}
+.vac-sec-cargando mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SUPERFICIE DE LOS CAMPOS
+   OJO: `:host ::ng-deep` es obligatorio. Sin él estas reglas no alcanzan al
+   interior de MatFormField —que es otro componente, con otro atributo de
+   encapsulación— y los campos de texto se quedan con el gris de Material
+   mientras los selectores sí cambian. Justo el desajuste que se veía.
+   ───────────────────────────────────────────────────────────────────────────
+   Los desplegables pasaron a `app-smart-select`, que trae su propia superficie
+   blanda. Si los campos de texto se quedaban con el `fill` de Material —línea
+   inferior, esquinas rectas— el formulario mezclaba dos estilos y se veía a
+   medio terminar. Esto los iguala: misma tarjeta, mismo radio, mismo aro de
+   foco. Va dentro de `.vac-form`, así que no toca ningún otro formulario.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:host ::ng-deep .vac-form .mat-mdc-form-field .mat-mdc-text-field-wrapper {
+  border-radius: 10px;
+  /* Campo BLANCO sobre tarjeta blanca, con borde que se ve. Antes el relleno
+     gris claro y el borde casi invisible hacían que los campos se leyeran como
+     manchas y no como cosas donde se escribe. */
+  background: #ffffff;
+  border: 1px solid #c9d4e2;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+:host ::ng-deep .vac-form .mat-mdc-form-field:hover .mat-mdc-text-field-wrapper {
+  border-color: #93a3b8;
+}
+:host ::ng-deep .vac-form .mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper {
+  border-color: #21263C;
+  box-shadow: 0 0 0 3px rgba(33, 38, 60, .12);
+}
+/* Solo aquí hay rojo, y solo cuando el campo se tocó y quedó vacío. */
+:host ::ng-deep .vac-form .mat-mdc-form-field.mat-form-field-invalid .mat-mdc-text-field-wrapper {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, .10);
+}
+
+/* Todos los campos con la misma altura: es lo que alinea las filas de la
+   rejilla. Sin esto, un centro de costo de dos renglones levantaba su fila y la
+   parrilla se veía desencajada. */
+:host ::ng-deep .vac-form .mat-mdc-form-field .mat-mdc-form-field-infix {
+  min-height: 48px;
+}
+/* Fuera la línea inferior: es la que hacía de reja. */
+:host ::ng-deep .vac-form .mat-mdc-form-field .mdc-line-ripple {
+  display: none;
+}
+
+/* La cabecera de sección deja de llevar una línea de lado a lado —que era la
+   que dibujaba la cuadrícula— y pasa a un guion corto bajo el número. */
+.vac-sec-head {
+  border-bottom: 0;
+  padding-bottom: 4px;
+}
+.vac-sec {
+  gap: 14px;
+  padding-bottom: 2px;
+}
+.vac-sec-num {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(140deg, #21263C 0%, #39405e 100%);
+  box-shadow: 0 2px 6px -1px rgba(33, 38, 60, .35);
+}
+.vac-sec-title::after {
+  content: '';
+  display: block;
+  width: 26px;
+  height: 3px;
+  margin-top: 5px;
+  border-radius: 2px;
+  background: #8DD603;
+}
+
+/* El bloque de datos heredados deja el borde discontinuo (muy "formulario de
+   los noventa") por una tarjeta con un canto de color que dice de dónde vienen. */
+.vac-heredado {
+  border: 1px solid #e8edf3;
+  border-left: 3px solid #cfd9e6;
+  border-radius: 14px;
+  background: #fbfcfe;
+}
+.vac-heredado.vac-heredado-activo {
+  border-left-color: #8DD603;
+  background: #fafcf6;
+}
+
+/* Icono de los campos de texto. Mismo tamaño, color y separación que el de los
+   selectores: es lo que hace que TODAS las etiquetas del formulario arranquen
+   a la misma sangría en vez de alternar con y sin margen. */
+:host ::ng-deep .vac-form .vac-icono {
+  color: #8b98ab;
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+  margin-right: 10px;
+  margin-left: 2px;
+}
+:host ::ng-deep .vac-form .mat-focused .vac-icono {
+  color: #21263C;
+}
+
+/* ── Campos que trae la ficha del centro ─────────────────────────────────────
+   Bloqueados, pero NO apagados: el dato tiene que seguir leyéndose igual de
+   bien que el resto. El gris de Material para deshabilitado los dejaba casi
+   ilegibles, que es lo contrario de lo que hace falta aquí — son justamente
+   los datos que hay que revisar antes de publicar. */
+:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-text-field-wrapper {
+  background: #f4f7f0;
+  border-color: #d4e2be;
+  border-style: dashed;
+  box-shadow: none;
+}
+:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-input-element,
+:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-select-value-text,
+:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mdc-floating-label {
+  color: #33403a;
+  -webkit-text-fill-color: #33403a;
+}
+:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .vac-icono,
+:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .ss-icono {
+  color: #7f9c4e;
+}
+/* Sin flecha en un desplegable que no se puede abrir. */
+:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-select-arrow-wrapper {
+  opacity: .35;
+}
+
+/* El que la ficha NO trae sí se edita: se distingue del bloqueado por el borde
+   sólido de siempre y por su propia nota. */
+:host ::ng-deep .vac-heredado .mat-mdc-form-field:not(.mat-form-field-disabled) .mat-mdc-text-field-wrapper {
+  background: #ffffff;
+}
+
+.vac-heredado-abierto {
+  color: #7a8a99;
+}
+
+/* La descripción es ahora un textarea: es donde se redacta la labor y en una sola
+   línea no se veía lo que se estaba escribiendo. Se deja crecer a lo alto pero no a
+   lo ancho, para que no rompa la rejilla. */
+:host ::ng-deep .vac-form textarea.mat-mdc-input-element {
+  resize: vertical;
+  min-height: 62px;
+  max-height: 220px;
+  line-height: 1.45;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CABECERA DE SECCIÓN: PLEGADO Y AVANCE
+   ───────────────────────────────────────────────────────────────────────────
+   Toda la cabecera es el botón de plegar —no un icono diminuto a la derecha—
+   porque es lo que más se va a pulsar en un formulario de cinco bloques.
+
+   La barra codifica el estado con UN color, no con tres adornos:
+     navy  = faltan obligatorios
+     lima  = completa
+     ámbar = completa, pero se deja vacío algo opcional
+   El ámbar es el aviso que se pidió: no impide guardar, avisa de que la vacante
+   sale sin un dato que sí se podía dar. Cuál falta lo dice el tooltip.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.vac-sec-head {
+  cursor: pointer;
+  border-radius: 10px;
+  padding: 6px 8px 8px;
+  margin: 0 -8px;
+  transition: background-color .12s ease;
+  user-select: none;
+}
+.vac-sec-head:hover {
+  background: #f4f7fb;
+}
+.vac-sec-head:focus-visible {
+  outline: 2px solid #21263C;
+  outline-offset: 2px;
+}
+
+.vac-sec-spacer {
+  flex: 1 1 auto;
+}
+
+.vac-sec-chevron {
+  flex: none;
+  color: #94a3b8;
+  transition: color .12s ease;
+}
+.vac-sec-head:hover .vac-sec-chevron {
+  color: #21263C;
+}
+
+/* Plegada: la cabecera se compacta y el guion lima de debajo del título sobra. */
+.vac-sec-head.esta-plegada .vac-sec-title::after {
+  display: none;
+}
+.vac-sec-head.esta-plegada {
+  padding-bottom: 6px;
+}
+
+.vac-avance {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vac-avance-barra {
+  display: block;
+  width: 92px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e6ebf2;
+  overflow: hidden;
+}
+
+.vac-avance-relleno {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #21263C;
+  transition: width .25s ease, background-color .2s ease;
+}
+
+.vac-avance-pct {
+  font-size: .72rem;
+  font-weight: 700;
+  color: #64748b;
+  min-width: 32px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.vac-avance[data-estado="lista"] .vac-avance-relleno { background: #8DD603; }
+.vac-avance[data-estado="lista"] .vac-avance-pct     { color: #4d7a06; }
+.vac-avance[data-estado="aviso"] .vac-avance-relleno { background: #e0a106; }
+.vac-avance[data-estado="aviso"] .vac-avance-pct     { color: #925a06; }
+
+.vac-avance-ok {
+  color: #6aa603;
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+.vac-avance-aviso {
+  color: #e0a106;
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+/* En móvil la pista y el porcentaje compiten por el mismo renglón; manda la barra. */
+@media (max-width: 720px) {
+  .vac-sec-hint { display: none; }
+  .vac-avance-barra { width: 64px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vac-avance-relleno { transition: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AVANCE GLOBAL — en la cabecera del diálogo
+   ───────────────────────────────────────────────────────────────────────────
+   La cabecera queda FUERA de `mat-dialog-content`, así que no se desplaza: es
+   el único sitio desde el que se ve cuánto falta estando en la quinta sección.
+
+   La barra va AL RAS del borde inferior de la cabecera y de lado a lado. En un
+   recuadro propio a la derecha se leía como una tarjeta pegada al título y
+   quedaba apretada contra el filo; ocupando todo el ancho se lee como lo que
+   es —el avance del diálogo entero— y no compite con nada. La cifra se queda
+   en línea con el título, que es donde la vista ya está.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.modal-header-premium {
+  align-items: center;
+  gap: 20px;
+  /* Sitio para la barra pegada abajo, que si no se come el subtítulo. */
+  padding-bottom: 26px !important;
+
+  /* La cabecera llevaba `margin: -24px -24px 24px -24px` en un estilo en línea
+     para salirse del acolchado del diálogo y llegar a los bordes. Se sacaba
+     tanto que se desbordaba de la superficie: por eso se veía cortada por la
+     derecha y la barra de avance llegaba al filo. Ahora se queda DENTRO, con
+     su separación por debajo. */
+  margin: 0 0 24px;
+
+  /* Al no tocar ya los bordes del diálogo, las esquinas de abajo también van
+     redondeadas: con las de arriba redondas y las de abajo en pico se veía
+     como una pieza mal recortada. */
+  border-radius: 16px;
+}
+/* `header-content` se queda con el espacio sobrante para empujar la cifra a la
+   derecha, pero sin dejar que la aplaste. */
+.modal-header-premium .header-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.vac-global {
+  z-index: 1;
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.vac-global-pct {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.vac-global-rotulo {
+  font-size: .72rem;
+  font-weight: 600;
+  color: #b9c6d6;
+  white-space: nowrap;
+}
+
+/* La barra: al ras del borde inferior, de lado a lado. La cabecera ya es
+   `position: relative` y recorta con `overflow: hidden`, así que las esquinas
+   redondeadas de arriba no se ven afectadas. */
+.vac-global-barra {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  background: rgba(0, 0, 0, .38);
+  z-index: 1;
+}
+
+.vac-global-relleno {
+  height: 100%;
+  background: #ffffff;
+  /* Un avance del 2% tiene que verse; sin esto quedaba en nada. */
+  min-width: 8px;
+  border-radius: 0 999px 999px 0;
+  transition: width .3s ease, background-color .25s ease;
+}
+/* Con 0% no se pinta nada: un trocito de barra mintiendo sobre el avance es
+   peor que una barra vacía. */
+.vac-global-relleno[style*="width: 0%"] {
+  min-width: 0;
+}
+
+.vac-global-barra[data-estado="lista"] .vac-global-relleno { background: #8DD603; }
+.vac-global-barra[data-estado="aviso"] .vac-global-relleno { background: #f5b942; }
+.vac-global[data-estado="lista"] .vac-global-rotulo { color: #b6ef4f; }
+.vac-global[data-estado="aviso"] .vac-global-rotulo { color: #f8cd7a; }
+
+/* En pantallas estrechas cede el rótulo y queda el número, que es lo que informa. */
+@media (max-width: 860px) {
+  .vac-global-rotulo { display: none; }
+  .vac-global-pct { font-size: 1.2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vac-global-relleno { transition: none; }
+}
+
+/* Aviso de labor no resuelta: el centro esta parametrizado pero el backend no pudo
+   dar una labor. Es informativo, no un error de validacion del campo. */
+.vac-labor-error {
+  color: #b3261e;
+  white-space: normal;
+  line-height: 1.35;
 }
