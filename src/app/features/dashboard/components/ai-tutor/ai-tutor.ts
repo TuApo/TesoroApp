@@ -1,7 +1,9 @@
 import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import {
   TutorIaService, ReferenciaTutor
@@ -10,14 +12,15 @@ import {
 /**
  * Botón flotante del tutor de capacitaciones.
  *
- * **Por qué es global y no vive dentro del reproductor.** La pregunta llega cuando llega: en
- * medio de una tarea, revisando un pago, antes de entrar a una finca. Encerrarlo en el
- * reproductor obligaría a acordarse de abrir el curso para poder preguntar por el curso.
+ * **Cuelga del shell pero solo se pinta en Capacitaciones.** Vive en el shell porque el panel
+ * tiene que sobrevivir a moverse entre el catálogo, una lección y los certificados sin perder
+ * la conversación; se acota a ese módulo porque un botón flotante encima de la nómina o de la
+ * lista de trabajadores no es una ayuda, es algo que tapa una fila.
  *
- * **Por qué se pregunta antes por la disponibilidad.** Un botón de tutor que solo sabe
- * responder "no encontré nada" es peor que no tenerlo: enseña a la gente a ignorarlo. Si la
- * persona no tiene cursos con material transcrito —o la IA no está configurada en este
- * entorno— este componente no pinta absolutamente nada.
+ * **Dos condiciones, y las dos hacen falta.** `disponible` dice si el tutor SABE responder
+ * —hay material transcrito y la IA está configurada—; `enCapacitaciones` dice si TOCA
+ * ofrecerlo. Un botón que solo sabe responder "no encontré nada" enseña a la gente a
+ * ignorarlo, y uno que aparece donde no viene a cuento, también.
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -30,7 +33,10 @@ export class AiTutor implements OnInit {
   private api = inject(TutorIaService);
   private router = inject(Router);
 
+  /** El tutor sabe responder: hay material transcrito y la IA está configurada. */
   readonly disponible = signal(false);
+  /** Estamos dentro de Capacitaciones, que es donde toca ofrecerlo. */
+  readonly enCapacitaciones = signal(false);
   readonly abierto = signal(false);
   readonly pensando = signal(false);
   readonly pregunta = signal('');
@@ -39,8 +45,27 @@ export class AiTutor implements OnInit {
   /** Qué está viendo la persona, si es que está viendo algo. Lo publica el reproductor. */
   readonly contexto = this.api.contexto;
 
+  /** Lo único que decide si esto se pinta. Las dos condiciones, no una. */
+  readonly visible = computed(() => this.disponible() && this.enCapacitaciones());
+
   readonly puedeEnviar = computed(() =>
     this.pregunta().trim().length > 2 && !this.pensando());
+
+  constructor() {
+    this.enCapacitaciones.set(esDeCapacitaciones(this.router.url));
+    // El componente vive lo que vive el shell, así que hay que seguir la navegación: sin
+    // esto se quedaría con el módulo en el que se cargó la aplicación.
+    this.router.events.pipe(
+      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+      takeUntilDestroyed(),
+    ).subscribe(e => {
+      const dentro = esDeCapacitaciones(e.urlAfterRedirects);
+      this.enCapacitaciones.set(dentro);
+      // Al salir del módulo se cierra el panel. Si no, al volver aparecería abierto sobre
+      // una conversación de hace media hora, que ya no viene a cuento.
+      if (!dentro) this.abierto.set(false);
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     try {
@@ -118,4 +143,19 @@ interface Turno {
   rol: 'yo' | 'tutor';
   texto: string;
   referencias?: ReferenciaTutor[];
+}
+
+/** La raíz del módulo de capacitaciones. Todo lo que cuelga de aquí es submódulo suyo. */
+const RAIZ = '/dashboard/capacitaciones';
+
+/**
+ * ¿Esta url es de Capacitaciones o de uno de sus submódulos?
+ *
+ * Se compara contra la ruta sola —sin query ni fragmento— y se exige que lo siguiente sea el
+ * final o una barra: un `startsWith` pelado daría por bueno `/dashboard/capacitaciones-algo`,
+ * que sería otro módulo.
+ */
+function esDeCapacitaciones(url: string): boolean {
+  const ruta = (url ?? '').split('?')[0].split('#')[0];
+  return ruta === RAIZ || ruta.startsWith(RAIZ + '/');
 }
