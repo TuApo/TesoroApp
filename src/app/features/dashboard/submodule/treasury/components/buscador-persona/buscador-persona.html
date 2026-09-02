@@ -1,0 +1,70 @@
+<div class="buscador" (keydown)="alPulsarTecla($event)">
+  <div class="caja">
+    <mat-icon class="lupa">search</mat-icon>
+    <input
+      #entrada
+      type="text"
+      class="entrada"
+      placeholder="Cédula, nombre o código de contrato"
+      autocomplete="off"
+      spellcheck="false"
+      [value]="termino()"
+      (input)="alTeclear($any($event.target).value)"
+      (focus)="resultados().length && abierto.set(true)"
+      (blur)="alPerderFoco()"
+      aria-label="Buscar persona en tesorería" />
+
+    @if (buscando()) {
+      <span class="estado-busqueda">Buscando…</span>
+    } @else if (termino()) {
+      <button type="button" class="limpiar" (click)="limpiar()" aria-label="Limpiar búsqueda">
+        <mat-icon>close</mat-icon>
+      </button>
+    }
+  </div>
+
+  @if (error()) {
+    <p class="error-busqueda">{{ error() }}</p>
+  }
+
+  @if (abierto() && resultados().length > 0) {
+    <ul class="resultados" role="listbox">
+      @for (p of resultados(); track p.numero_documento; let i = $index) {
+        <li
+          role="option"
+          [attr.aria-selected]="resaltado() === i"
+          [class.resaltado]="resaltado() === i"
+          (mousedown)="elegir(p)"
+          (mouseenter)="resaltado.set(i)">
+
+          <div class="principal">
+            <span class="nombre">{{ p.nombre || 'Sin nombre' }}</span>
+            <span class="tsr-chip" [class]="'tsr-chip ' + claseDeEstado(p.estado)">
+              {{ textoDeEstado(p.estado) }}
+            </span>
+          </div>
+
+          <div class="secundario">
+            <span class="doc">{{ p.numero_documento }}</span>
+            @if (p.codigo) { <span>· {{ p.codigo }}</span> }
+            @if (p.finca) { <span>· {{ p.finca }}</span> }
+            @if (p.saldo_pendiente > 0) {
+              <span class="debe">· debe {{ p.saldo_pendiente | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            }
+          </div>
+
+          <!-- El motivo del bloqueo va en la lista: es la primera pregunta que hace
+               quien atiende, y abrir la ficha solo para leerlo es un paso de más. -->
+          @if (p.bloqueado && p.observacion_bloqueo) {
+            <div class="motivo">{{ p.observacion_bloqueo }}</div>
+          }
+        </li>
+      }
+    </ul>
+  } @else if (abierto() && !buscando() && termino().trim().length >= 2) {
+    <div class="resultados vacio">
+      <p>Nadie coincide con «{{ termino() }}».</p>
+      <p class="sugerencia">Prueba con la cédula completa o con un apellido.</p>
+    </div>
+  }
+</div>

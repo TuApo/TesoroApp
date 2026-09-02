@@ -107,8 +107,10 @@ export class AutorizacionesService {
   }
 
   /**
-   * Calcula el cupo disponible para mercado o préstamo,
-   * usando la MISMA lógica de límites que verificarCondiciones.
+   * @deprecated Estimación local. El cupo real lo devuelve el servidor en
+   * `GET /gestion_tesoreria/evaluar`, que además descuenta lo ya autorizado y sin recoger
+   * —algo que este cálculo nunca tuvo en cuenta y que hacía que alguien con tres
+   * autorizaciones abiertas viera cupo de sobra.
    */
   calcularCupoDisponible(operario: any, tipo: 'prestamo' | 'mercado'): number {
     if (!operario) return 0;
@@ -208,7 +210,18 @@ export class AutorizacionesService {
     return false;
   }
 
-  // Verificar condiciones
+  /**
+   * @deprecated Aviso temprano, NO la validación real.
+   *
+   * <p>Desde la V45 estas mismas reglas viven como datos en `tesoreria_regla` y las aplica
+   * el servidor en cada autorización. Esta copia se conserva porque las pantallas de
+   * mercado (ferias y comercializadora) todavía la usan para avisar antes de enviar, lo
+   * cual ahorra un viaje; pero si difiere del servidor, manda el servidor.
+   *
+   * <p>Cambiar un tope aquí YA NO cambia lo que el sistema autoriza: hay que hacerlo en
+   * Tesorería › Parametrización de reglas. Dejar esto sin marcar sería la trampa perfecta
+   * para el siguiente que venga a "subir el tope de mercado".
+   */
   verificarCondiciones(
     operario: any,
     nuevovalor: number,
@@ -407,16 +420,33 @@ export class AutorizacionesService {
     return this.normalizePersona(persona);
   }
 
-  async autorizarTransaccion(numeroDocumento: string, monto: number, cuotas: number, tipo: string, nombreAutorizador: string, sedeAutorizacion: string = ''): Promise<any> {
+  /**
+   * Crea la autorización.
+   *
+   * <p>Desde la V45 el servidor evalúa las reglas antes de crear la transacción y
+   * responde 409 con el detalle de qué falló. El cliente ya no decide: aquí solo se
+   * envían los datos.
+   *
+   * <p>`formaPago` y `numeroPago` se persisten. Se pedían en el formulario desde siempre,
+   * se imprimían en el PDF y se descartaban: de las 4.077 filas creadas desde la
+   * migración de marzo, ninguna tenía forma de pago registrada.
+   */
+  async autorizarTransaccion(numeroDocumento: string, monto: number, cuotas: number, tipo: string,
+                             nombreAutorizador: string, sedeAutorizacion: string = '',
+                             formaPago: string | null = null,
+                             numeroPago: string | null = null): Promise<any> {
     const docNorm = this.normalizeDoc(numeroDocumento);
-    const body = {
+    const body: any = {
       numero_documento: docNorm,
       autorizacion_concepto: tipo,
       autorizacion_monto: monto,
       autorizacion_cuotas: cuotas,
       autorizado_por: nombreAutorizador,
-      sede_autorizacion: sedeAutorizacion
+      sede_autorizacion: sedeAutorizacion,
+      origen: 'MOSTRADOR'
     };
+    if (formaPago) body.forma_pago = formaPago;
+    if (numeroPago) body.numero_pago = numeroPago;
 
     return firstValueFrom(this.http.post(`${this.URL_TRANSACCIONES}/autorizar/`, body).pipe(catchError(this.handleError)));
   }

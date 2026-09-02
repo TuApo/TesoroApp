@@ -1,0 +1,527 @@
+@if (cargando()) {
+  <div class="tsr-cargando">Cargando la ficha…</div>
+}
+
+@else if (error()) {
+  <div class="tsr-alerta critica">
+    <mat-icon>error</mat-icon>
+    <div>
+      <span class="titulo">No se pudo cargar</span>
+      <span class="detalle">{{ error() }}</span>
+    </div>
+  </div>
+  <button type="button" class="tsr-boton" (click)="recargar()">Reintentar</button>
+}
+
+@else if (ficha(); as f) {
+
+  <!-- ── Persona no registrada ─────────────────────────────────────────── -->
+  @if (!f.existe) {
+    <div class="tsr-tarjeta">
+      <div class="tsr-alerta" [class.critica]="!f.padron" [class.aviso]="!!f.padron">
+        <mat-icon>person_off</mat-icon>
+        <div>
+          <span class="titulo">{{ f.numero_documento }} no está en tesorería</span>
+          <span class="detalle">{{ f.mensaje }}</span>
+        </div>
+      </div>
+      @if (f.padron) {
+        <p class="nota-padron">
+          Sí aparece en el padrón de activos como
+          <b>{{ f.padron.nombre }}</b>{{ f.padron.finca ? ' · ' + f.padron.finca : '' }}.
+          Hay que darla de alta en tesorería antes de poder autorizarle.
+        </p>
+      }
+    </div>
+  }
+
+  @else {
+    <!-- ── Encabezado ─────────────────────────────────────────────────── -->
+    <div class="tsr-tarjeta encabezado">
+      <div class="identidad">
+        <div>
+          <h2 class="nombre">{{ f.persona?.nombre || 'Sin nombre' }}</h2>
+          <p class="datos">
+            <span class="doc">{{ f.persona?.numero_documento }}</span>
+            @if (f.persona?.codigo) { <span>· {{ f.persona?.codigo }}</span> }
+            @if (f.persona?.finca) { <span>· {{ f.persona?.finca }}</span> }
+            @if (f.persona?.temporal) { <span>· {{ f.persona?.temporal }}</span> }
+          </p>
+          <p class="datos">
+            Ingresó {{ f.persona?.ingreso || f.persona?.ingreso_texto || 'sin fecha' }}
+            · {{ f.persona?.dias_trabajados }} días
+            ({{ f.persona?.meses_trabajados }} meses)
+          </p>
+        </div>
+
+        <div class="marcas">
+          @if (f.persona?.bloqueado) {
+            <span class="tsr-chip rojo">Bloqueado</span>
+          } @else if (!f.persona?.activo) {
+            <span class="tsr-chip gris">Retirado</span>
+          } @else {
+            <span class="tsr-chip verde">Activo</span>
+          }
+          @if (f.padron?.en_padron) { <span class="tsr-chip azul">En padrón</span> }
+          @if (f.persona?.paz_y_salvo === false) { <span class="tsr-chip ambar">En mora</span> }
+        </div>
+      </div>
+
+      <!-- La fecha ilegible no es un detalle técnico: sin ella no hay tope por
+           antigüedad y alguien tiene que corregirla en la carga. -->
+      @if (f.persona?.ingreso_ilegible) {
+        <div class="tsr-alerta aviso">
+          <mat-icon>event_busy</mat-icon>
+          <div>
+            <span class="titulo">La fecha de ingreso no se puede interpretar</span>
+            <span class="detalle">
+              El archivo trae «{{ f.persona?.ingreso_texto }}». Sin una fecha válida no se
+              puede calcular el tope por antigüedad. Hay que corregirla en la carga.
+            </span>
+          </div>
+        </div>
+      }
+
+      <!-- ── Selector de concepto ───────────────────────────────────────── -->
+      <div class="conceptos">
+        <button type="button" class="tsr-boton"
+                [class.principal]="concepto() === 'MERCADO'"
+                (click)="cambiarConcepto('MERCADO')">Mercado</button>
+        <button type="button" class="tsr-boton"
+                [class.principal]="concepto() === 'PRESTAMO'"
+                (click)="cambiarConcepto('PRESTAMO')">Préstamo</button>
+        <button type="button" class="tsr-boton pequeno" (click)="recargar()" title="Recargar">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── Veredicto ──────────────────────────────────────────────────── -->
+    @if (evaluacion(); as ev) {
+      <div class="tsr-tarjeta veredicto" [class.aprobado]="ev.aprobado" [class.negado]="!ev.aprobado">
+        <div class="titular">
+          <mat-icon>{{ ev.aprobado ? 'check_circle' : 'block' }}</mat-icon>
+          <div>
+            <strong>
+              {{ ev.aprobado
+                 ? 'Se le puede autorizar ' + (concepto() === 'MERCADO' ? 'mercado' : 'préstamo')
+                 : 'No se le puede autorizar ' + (concepto() === 'MERCADO' ? 'mercado' : 'préstamo') }}
+            </strong>
+            @if (!ev.aprobado && ev.motivo) { <span class="motivo">{{ ev.motivo }}</span> }
+          </div>
+        </div>
+
+        <div class="tsr-cifras">
+          <div class="tsr-cifra" [class.buena]="(ev.cupo_disponible ?? 0) > 0"
+                                 [class.mala]="(ev.cupo_disponible ?? 0) <= 0">
+            <span class="valor">{{ pesos(ev.cupo_disponible) }}</span>
+            <span class="etiqueta">Cupo disponible</span>
+          </div>
+          <div class="tsr-cifra">
+            <span class="valor">{{ pesos(ev.tope_aplicado) }}</span>
+            <span class="etiqueta">Tope</span>
+            <span class="nota">{{ ev.origen_tope_texto || ev.origen_tope }}</span>
+          </div>
+          <div class="tsr-cifra" [class.aviso]="ev.saldo_pendiente > 0">
+            <span class="valor">{{ pesos(ev.saldo_pendiente) }}</span>
+            <span class="etiqueta">Ya debe</span>
+          </div>
+          @if (ev.monto_comprometido > 0) {
+            <div class="tsr-cifra aviso">
+              <span class="valor">{{ pesos(ev.monto_comprometido) }}</span>
+              <span class="etiqueta">Autorizado sin recoger</span>
+              <span class="nota">Ocupa cupo</span>
+            </div>
+          }
+          <div class="tsr-cifra">
+            <span class="valor">{{ ev.dias_trabajados }}</span>
+            <span class="etiqueta">Días trabajados</span>
+          </div>
+        </div>
+
+        <!-- El tope base distinto del aplicado significa que algo lo recortó: decirlo
+             evita que parezca un error de cálculo. -->
+        @if (ev.tope_base != null && ev.tope_aplicado != null && ev.tope_base !== ev.tope_aplicado) {
+          <p class="nota-recorte">
+            El tope base era {{ pesos(ev.tope_base) }} y quedó en {{ pesos(ev.tope_aplicado) }}
+            por las condiciones de abajo.
+          </p>
+        }
+
+        @if (ev.con_excepcion_de_rol) {
+          <div class="tsr-alerta aviso">
+            <mat-icon>admin_panel_settings</mat-icon>
+            <div>
+              <span class="titulo">Se aplicaría una excepción de rol</span>
+              <span class="detalle">
+                Tu rol {{ ev.rol_excepcion }} permite pasar por encima del tope.
+                La operación quedará registrada como excepción.
+              </span>
+            </div>
+          </div>
+        }
+
+        @if (f.evaluacion_alterna; as alt) {
+          <p class="alterna">
+            Para {{ alt.concepto === 'MERCADO' ? 'mercado' : 'préstamo' }}:
+            @if (alt.aprobado) {
+              <b>{{ pesos(alt.cupo_disponible) }}</b> disponibles.
+            } @else {
+              no se puede — {{ alt.motivo }}
+            }
+          </p>
+        }
+      </div>
+    }
+
+    <!-- ── Alertas ────────────────────────────────────────────────────── -->
+    @if (alertasCriticas().length || alertasDeAviso().length) {
+      <div class="tsr-tarjeta">
+        <h2><mat-icon>priority_high</mat-icon> Antes de autorizar</h2>
+        @for (a of alertasCriticas(); track a.titulo + a.detalle) {
+          <div class="tsr-alerta critica">
+            <mat-icon>error</mat-icon>
+            <div><span class="titulo">{{ a.titulo }}</span><span class="detalle">{{ a.detalle }}</span></div>
+          </div>
+        }
+        @for (a of alertasDeAviso(); track a.titulo + a.detalle) {
+          <div class="tsr-alerta aviso">
+            <mat-icon>warning</mat-icon>
+            <div><span class="titulo">{{ a.titulo }}</span><span class="detalle">{{ a.detalle }}</span></div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Pestañas ───────────────────────────────────────────────────── -->
+    <div class="pestanas">
+      <button type="button" [class.activa]="pestana() === 'condiciones'"
+              (click)="pestana.set('condiciones')">
+        Condiciones
+        @if (reglasQueFallan().length) {
+          <span class="contador rojo">{{ reglasQueFallan().length }}</span>
+        }
+      </button>
+      <button type="button" [class.activa]="pestana() === 'solicitudes'"
+              (click)="pestana.set('solicitudes')">
+        Solicitudes
+        @if (solicitudesPendientes().length) {
+          <span class="contador ambar">{{ solicitudesPendientes().length }}</span>
+        }
+      </button>
+      <button type="button" [class.activa]="pestana() === 'deuda'" (click)="pestana.set('deuda')">
+        Deuda
+      </button>
+      <button type="button" [class.activa]="pestana() === 'padron'" (click)="pestana.set('padron')">
+        Padrón e incapacidades
+      </button>
+    </div>
+
+    <!-- ── Condiciones ────────────────────────────────────────────────── -->
+    @if (pestana() === 'condiciones') {
+      <div class="tsr-tarjeta">
+        @if (reglasQueFallan().length === 0 && reglasSinDatos().length === 0) {
+          <div class="tsr-alerta info">
+            <mat-icon>verified</mat-icon>
+            <div>
+              <span class="titulo">Cumple todas las condiciones</span>
+              <span class="detalle">Ninguna regla vigente lo impide.</span>
+            </div>
+          </div>
+        }
+
+        @for (r of reglasQueFallan(); track r.codigo) {
+          <div class="regla" [class]="'regla ' + claseDeRegla(r)">
+            <mat-icon>{{ iconoDeRegla(r) }}</mat-icon>
+            <div class="cuerpo">
+              <div class="linea">
+                <strong>{{ r.nombre }}</strong>
+                <span class="tsr-chip" [class]="'tsr-chip ' + claseDeRegla(r)">
+                  {{ r.severidad === 'BLOQUEA' ? 'Bloquea' : 'Advierte' }}
+                </span>
+              </div>
+              <p class="mensaje">{{ r.mensaje }}</p>
+              @if (detalleLegible(r).length) {
+                <details><summary>Ver detalle</summary>
+                  <ul>@for (d of detalleLegible(r); track d) { <li>{{ d }}</li> }</ul>
+                </details>
+              }
+            </div>
+          </div>
+        }
+
+        @for (r of reglasSinDatos(); track r.codigo) {
+          <div class="regla ambar">
+            <mat-icon>help</mat-icon>
+            <div class="cuerpo">
+              <div class="linea">
+                <strong>{{ r.nombre }}</strong>
+                <span class="tsr-chip ambar">Sin datos</span>
+              </div>
+              <p class="mensaje">{{ r.mensaje }}</p>
+            </div>
+          </div>
+        }
+
+        @if (reglasQueCumplen().length) {
+          <button type="button" class="tsr-boton pequeno ver-mas"
+                  (click)="verCumplidas.set(!verCumplidas())">
+            <mat-icon>{{ verCumplidas() ? 'expand_less' : 'expand_more' }}</mat-icon>
+            {{ verCumplidas() ? 'Ocultar' : 'Ver' }} las
+            {{ reglasQueCumplen().length }} condiciones que sí cumple
+          </button>
+
+          @if (verCumplidas()) {
+            @for (r of reglasQueCumplen(); track r.codigo) {
+              <div class="regla" [class]="'regla ' + claseDeRegla(r)">
+                <mat-icon>{{ iconoDeRegla(r) }}</mat-icon>
+                <div class="cuerpo">
+                  <div class="linea"><strong>{{ r.nombre }}</strong></div>
+                  <p class="mensaje">{{ r.mensaje }}</p>
+                </div>
+              </div>
+            }
+          }
+        }
+      </div>
+    }
+
+    <!-- ── Solicitudes ────────────────────────────────────────────────── -->
+    @if (pestana() === 'solicitudes') {
+      <div class="tsr-tarjeta">
+        @if (f.resumen_solicitudes; as rs) {
+          <div class="tsr-cifras" style="margin-bottom:14px">
+            <div class="tsr-cifra" [class.aviso]="rs.pendientes > 0">
+              <span class="valor">{{ rs.pendientes }}</span>
+              <span class="etiqueta">Sin recoger</span>
+            </div>
+            <div class="tsr-cifra">
+              <span class="valor">{{ rs.ejecutadas }}</span>
+              <span class="etiqueta">Entregadas</span>
+            </div>
+            <div class="tsr-cifra">
+              <span class="valor">{{ rs.anuladas }}</span>
+              <span class="etiqueta">Anuladas</span>
+            </div>
+            <div class="tsr-cifra" [class.aviso]="rs.monto_comprometido > 0">
+              <span class="valor">{{ pesos(rs.monto_comprometido) }}</span>
+              <span class="etiqueta">Comprometido</span>
+            </div>
+          </div>
+        }
+
+        @if (!f.solicitudes?.length) {
+          <div class="tsr-vacio">
+            <mat-icon class="icono">receipt_long</mat-icon>
+            <p>Nunca ha solicitado nada.</p>
+          </div>
+        } @else {
+          <div class="tsr-scroll">
+            <table class="tsr-tabla">
+              <thead>
+                <tr>
+                  <th>Estado</th><th>Concepto</th><th class="num">Monto</th>
+                  <th>Autorizó</th><th>Entregó</th><th>Pago</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (s of f.solicitudes; track s.id) {
+                  <tr [class.apagada]="s.estado === 'ANULADA'">
+                    <td>
+                      <span class="tsr-chip" [class]="'tsr-chip ' + claseDeSolicitud(s)">
+                        {{ s.estado_texto }}
+                      </span>
+                      @if (s.dias_para_vencer != null && s.estado === 'PENDIENTE' && !s.vencida) {
+                        <div class="sub">vence en {{ s.dias_para_vencer }} d</div>
+                      }
+                      @if (s.motivo_anulacion) {
+                        <div class="sub">{{ s.motivo_anulacion }}</div>
+                      }
+                    </td>
+                    <td>
+                      {{ s.concepto }}
+                      <div class="sub">{{ s.codigo_autorizacion }}</div>
+                    </td>
+                    <td class="num">
+                      {{ pesos(s.monto_ejecutado ?? s.monto_autorizado) }}
+                      @if (s.cuotas && s.cuotas > 1) { <div class="sub">{{ s.cuotas }} cuotas</div> }
+                    </td>
+                    <td>
+                      {{ s.autorizado_por || '—' }}
+                      <div class="sub">{{ s.autorizado_en | date:'dd/MM/yy HH:mm' }}</div>
+                      @if (s.sede_autorizacion) { <div class="sub">{{ s.sede_autorizacion }}</div> }
+                    </td>
+                    <td>
+                      @if (s.ejecutado_en) {
+                        {{ s.nombre_quien_entrego || s.ejecutado_por || '—' }}
+                        <div class="sub">{{ s.ejecutado_en | date:'dd/MM/yy HH:mm' }}</div>
+                      } @else { — }
+                    </td>
+                    <td>
+                      @if (s.forma_pago) {
+                        {{ s.forma_pago }}
+                        @if (s.numero_pago) { <div class="sub">{{ s.numero_pago }}</div> }
+                      } @else {
+                        <span class="sub">sin registrar</span>
+                      }
+                    </td>
+                    <td>
+                      @if (s.estado === 'PENDIENTE') {
+                        <button type="button" class="tsr-boton pequeno peligro"
+                                (click)="anular(s)">Anular</button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Deuda ──────────────────────────────────────────────────────── -->
+    @if (pestana() === 'deuda') {
+      <div class="tsr-tarjeta">
+        @if (!desgloseDeuda().length) {
+          <div class="tsr-vacio">
+            <mat-icon class="icono">savings</mat-icon>
+            <p>No debe nada.</p>
+          </div>
+        } @else {
+          <div class="tsr-scroll">
+            <table class="tsr-tabla">
+              <thead><tr><th>Concepto</th><th class="num">Valor</th></tr></thead>
+              <tbody>
+                @for (d of desgloseDeuda(); track d.concepto) {
+                  <tr>
+                    <td>{{ nombreDeConcepto(d.concepto) }}</td>
+                    <td class="num">{{ pesos(d.valor) }}</td>
+                  </tr>
+                }
+                <tr class="total">
+                  <td><strong>Total</strong></td>
+                  <td class="num"><strong>{{ pesos(f.deuda?.total) }}</strong></td>
+                </tr>
+                @if ((f.deuda?.comprometido ?? 0) > 0) {
+                  <tr>
+                    <td>Autorizado y sin recoger</td>
+                    <td class="num">{{ pesos(f.deuda?.comprometido) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Padrón e incapacidades ─────────────────────────────────────── -->
+    @if (pestana() === 'padron') {
+      <div class="tsr-tarjeta">
+        <h2><mat-icon>fact_check</mat-icon> Padrón de activos</h2>
+
+        @if (!f.padron?.hay_padron) {
+          <div class="tsr-alerta aviso">
+            <mat-icon>info</mat-icon>
+            <div>
+              <span class="titulo">No hay carga de activos vigente</span>
+              <span class="detalle">{{ f.padron?.mensaje }}</span>
+            </div>
+          </div>
+        } @else {
+          @if (f.padron?.desactualizado) {
+            <div class="tsr-alerta aviso">
+              <mat-icon>update</mat-icon>
+              <div>
+                <span class="titulo">El padrón está desactualizado</span>
+                <span class="detalle">{{ f.padron?.aviso }}</span>
+              </div>
+            </div>
+          }
+
+          @if (f.padron?.en_padron) {
+            <div class="tsr-cifras">
+              <div class="tsr-cifra">
+                <span class="valor">{{ pesos(f.padron?.fila?.tope_autorizado) }}</span>
+                <span class="etiqueta">Tope del archivo</span>
+              </div>
+              <div class="tsr-cifra">
+                <span class="valor">{{ pesos(f.padron?.fila?.saldo_pendiente) }}</span>
+                <span class="etiqueta">Saldo según el archivo</span>
+              </div>
+              <div class="tsr-cifra" [class.buena]="f.padron?.fila?.paz_y_salvo"
+                                     [class.mala]="f.padron?.fila?.paz_y_salvo === false">
+                <span class="valor">{{ f.padron?.fila?.paz_y_salvo ? 'Sí' : 'No' }}</span>
+                <span class="etiqueta">A paz y salvo</span>
+              </div>
+            </div>
+            <p class="datos" style="margin-top:10px">
+              Carga del {{ f.padron?.carga?.fecha_corte }}
+              · {{ f.padron?.dias_desde_el_corte }} días
+              · {{ f.padron?.carga?.filas_ok }} personas
+            </p>
+            @if (f.padron?.fila?.observacion) {
+              <p class="nota-padron">{{ f.padron?.fila?.observacion }}</p>
+            }
+          } @else {
+            <div class="tsr-alerta aviso">
+              <mat-icon>person_search</mat-icon>
+              <div>
+                <span class="titulo">No aparece en la carga vigente</span>
+                <span class="detalle">{{ f.padron?.mensaje }}</span>
+              </div>
+            </div>
+          }
+        }
+      </div>
+
+      <div class="tsr-tarjeta">
+        <h2><mat-icon>healing</mat-icon> Incapacidades frente al tiempo laborado</h2>
+
+        @if (!f.incapacidades?.['regla_activa']) {
+          <p class="datos">{{ f.incapacidades?.['mensaje'] }}</p>
+        } @else {
+          <div class="tsr-alerta"
+               [class.info]="f.incapacidades?.['estado'] === 'CUMPLE'"
+               [class.aviso]="f.incapacidades?.['estado'] !== 'CUMPLE'">
+            <mat-icon>monitor_heart</mat-icon>
+            <div>
+              <span class="titulo">{{ f.incapacidades?.['mensaje'] }}</span>
+            </div>
+          </div>
+
+          @if (f.incapacidades?.['dias_laborados']) {
+            <div class="tsr-cifras">
+              <div class="tsr-cifra">
+                <span class="valor">{{ f.incapacidades?.['porcentaje'] ?? '—' }}%</span>
+                <span class="etiqueta">Del tiempo laborado</span>
+              </div>
+              <div class="tsr-cifra">
+                <span class="valor">{{ f.incapacidades?.['dias_incapacidad'] }}</span>
+                <span class="etiqueta">Días incapacitado</span>
+              </div>
+              <div class="tsr-cifra">
+                <span class="valor">{{ f.incapacidades?.['dias_laborados'] }}</span>
+                <span class="etiqueta">Días laborados</span>
+                <span class="nota">ventana de {{ f.incapacidades?.['ventana_dias'] }} días</span>
+              </div>
+              <div class="tsr-cifra">
+                <span class="valor">{{ f.incapacidades?.['incapacidades'] ?? 0 }}</span>
+                <span class="etiqueta">Incapacidades</span>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    }
+  }
+}
+
+@else {
+  <div class="tsr-vacio">
+    <mat-icon class="icono">badge</mat-icon>
+    <p>Busca una persona para ver su ficha.</p>
+    <p class="sugerencia">Puedes buscar por cédula, nombre o código de contrato.</p>
+  </div>
+}

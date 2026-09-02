@@ -1,0 +1,101 @@
+/* Padrón de activos. El formato de columnas va desplegable: se consulta al armar la
+   plantilla y estorba el resto del tiempo. */
+
+.grupo-col {
+  font-size: 12.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--tsr-gris);
+  margin: 18px 0 8px;
+}
+
+.columna {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid #eef1ee;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.columna:last-of-type { border-bottom: 0; }
+
+.columna code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--tsr-gris-suave);
+  border: 1px solid var(--tsr-borde);
+  border-radius: 4px;
+  padding: 3px 7px;
+  align-self: start;
+  white-space: nowrap;
+}
+
+.columna span { color: var(--tsr-gris); }
+
+.notas {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--tsr-gris);
+  line-height: 1.65;
+}
+
+.notas li { margin-bottom: 5px; }
+
+.check-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sub { font-size: 11.5px; color: var(--tsr-gris); margin-top: 2px; }
+.sub.error { color: var(--tsr-rojo); }
+
+.acciones-fila { display: flex; gap: 5px; flex-wrap: wrap; white-space: nowrap; }
+
+.documentos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.documentos code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: var(--tsr-gris-suave);
+  border: 1px solid var(--tsr-borde);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+
+/* Panel lateral, mismo patrón que la pantalla de reglas. */
+
+.panel-fondo { position: fixed; inset: 0; background: rgba(28,35,31,.38); z-index: 40; }
+
+.panel {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(620px, 96vw);
+  background: #fff; z-index: 41;
+  display: flex; flex-direction: column;
+  box-shadow: -12px 0 34px -18px rgba(28,35,31,.5);
+}
+
+.panel-cabecera {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--tsr-borde); flex: none;
+}
+
+.panel-cabecera h2 { margin: 0; font-size: 17px; font-weight: 600; }
+.panel-cuerpo { flex: 1; overflow-y: auto; padding: 20px; }
+
+@media (max-width: 700px) {
+  .columna { grid-template-columns: 1fr; gap: 3px; }
+  .panel { width: 100vw; }
+}

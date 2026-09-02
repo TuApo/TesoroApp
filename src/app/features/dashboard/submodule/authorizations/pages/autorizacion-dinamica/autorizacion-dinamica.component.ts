@@ -1,4 +1,4 @@
-import {  ChangeDetectorRef, Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import { AutorizacionesService } from '../../services/autorizaciones/autorizaciones.service';
 import Swal from 'sweetalert2';
@@ -8,48 +8,77 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from './historial-dialog/historial-dialog.component';
 
+import { BuscadorPersona } from '../../../treasury/components/buscador-persona/buscador-persona';
+import { FichaPersona } from '../../../treasury/components/ficha-persona/ficha-persona';
+import {
+  ConceptoRegla, Evaluacion, ResultadoBusqueda, TesoreriaApiService,
+} from '../../../treasury/service/tesoreria-api.service';
+
+/**
+ * Autorización de mercado y de préstamo.
+ *
+ * <h3>Qué cambió</h3>
+ * Esta pantalla decidía sola. Los topes por antigüedad, las ventanas de espera, los meses
+ * sin préstamo y el cupo salían de `verificarCondiciones` en el navegador, y el servidor
+ * aceptaba cualquier monto: quien tuviera sesión podía autorizar un millón con un POST, y
+ * GERENCIA/ADMIN se saltaban hasta la validación local.
+ *
+ * <p>Ahora el veredicto lo da el servidor y esta pantalla lo <b>muestra</b>. Es el mismo
+ * cálculo que respalda la autorización, así que lo que se ve en pantalla es exactamente lo
+ * que va a pasar al enviar — antes eran dos lógicas distintas y por eso alguien podía ver
+ * «cupo 350.000» y recibir un rechazo.
+ *
+ * <p>La ficha completa va debajo del formulario: quién es, qué debe, qué ha pedido y en
+ * qué estado está cada condición. Antes, un rechazo era un «no se puede» sin explicación y
+ * el mostrador acababa llamando por teléfono a tesorería.
+ */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-autorizacion-dinamica',
-  imports: [
-    SharedModule
-  ],
+  imports: [SharedModule, BuscadorPersona, FichaPersona],
   templateUrl: './autorizacion-dinamica.component.html',
-  styleUrl: './autorizacion-dinamica.component.css'
-} )
+  styleUrls: ['./autorizacion-dinamica.component.css', '../../../treasury/styles/tesoreria-comun.css'],
+})
 export class AutorizacionDinamicaComponent implements OnInit {
+
   myForm!: FormGroup;
   datosOperario: any;
-  nombreOperario: string = '';
-  sumaPrestamos: number = 0;
+  nombreOperario = '';
+  sumaPrestamos = 0;
   showValor = false;
   showCuotas = false;
   celularLabel = 'Número';
   user: any;
-  rolUsuario: string = '';
-  correoUsuario: string = '';
+  rolUsuario = '';
+  correoUsuario = '';
+  sede: string | null = null;
 
   tipoAutorizacion: 'prestamo' | 'mercado' = 'prestamo';
-  limiteDisponible: number = 0;
+
+  /** El veredicto del servidor. Es lo que decide si el botón de aprobar está habilitado. */
+  evaluacion: Evaluacion | null = null;
+  evaluando = false;
+  limiteDisponible = 0;
 
   constructor(
     private fb: FormBuilder,
     private autorizacionesService: AutorizacionesService,
+    private tesoreria: TesoreriaApiService,
     private utilityService: UtilityServiceService,
     private router: Router,
     private route: ActivatedRoute,
     private dialog: MatDialog,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
   ) { }
 
-  ngOnInit() {
+  ngOnInit(): void {
     this.user = this.utilityService.getUser();
     if (this.user) {
       this.rolUsuario = this.user.rol?.nombre ?? '';
       this.correoUsuario = this.user.correo_electronico ?? '';
+      this.sede = this.user?.sede?.nombre ?? null;
     }
 
-    // Identificar el tipo basado en la ruta (data)
     this.tipoAutorizacion = this.route.snapshot.data['tipoAutorizacion'] || 'prestamo';
 
     this.myForm = this.fb.group({
@@ -58,7 +87,7 @@ export class AutorizacionDinamicaComponent implements OnInit {
       valor: ['', [Validators.required, this.currencyValidator.bind(this)]],
       cuotas: ['', [Validators.min(1), Validators.max(this.tipoAutorizacion === 'mercado' ? 2 : 4)]],
       formaPago: [''],
-      celular: ['']
+      celular: [''],
     });
 
     if (this.tipoAutorizacion === 'prestamo') {
@@ -66,10 +95,7 @@ export class AutorizacionDinamicaComponent implements OnInit {
       this.myForm.get('formaPago')?.valueChanges.subscribe(value => {
         const celularControl = this.myForm.get('celular');
         if (value === 'Daviplata' || value === 'Master') {
-          celularControl?.setValidators([
-            Validators.required,
-            Validators.pattern(/^\d{10}$/)
-          ]);
+          celularControl?.setValidators([Validators.required, Validators.pattern(/^\d{10}$/)]);
         } else {
           celularControl?.clearValidators();
         }
@@ -77,143 +103,168 @@ export class AutorizacionDinamicaComponent implements OnInit {
       });
     }
 
-    // Si es mercado, el concepto ya está pre-seleccionado, mostrar campos de valor y cuotas
     if (this.tipoAutorizacion === 'mercado') {
       this.showValor = true;
       this.showCuotas = true;
     }
+
+    // Reevaluar al cambiar el monto o las cuotas. El servidor devuelve el veredicto
+    // completo, así que el mostrador ve el rechazo mientras teclea y no al enviar.
+    this.myForm.get('valor')?.valueChanges.subscribe(() => this.reevaluarConRetraso());
+    this.myForm.get('cuotas')?.valueChanges.subscribe(() => this.reevaluarConRetraso());
   }
+
+  get concepto(): ConceptoRegla {
+    return this.tipoAutorizacion === 'mercado' ? 'MERCADO' : 'PRESTAMO';
+  }
+
+  // ── Búsqueda ──────────────────────────────────────────────────────────────
+
+  /** Llega del buscador inteligente: cédula, nombre o código de contrato. */
+  alSeleccionarPersona(p: ResultadoBusqueda): void {
+    this.myForm.patchValue({ numero_documento: p.numero_documento });
+    this.cargarPersona(p.numero_documento);
+  }
+
+  /** Búsqueda directa por documento, para quien pega la cédula y pulsa Enter. */
+  async buscarOperario(): Promise<void> {
+    this.trimField('numero_documento');
+    const doc = this.myForm.value.numero_documento;
+    if (!doc) {
+      Swal.fire('Falta el documento', 'Escribe o busca la cédula del trabajador.', 'warning');
+      this.myForm.markAllAsTouched();
+      return;
+    }
+    this.cargarPersona(doc);
+  }
+
+  private cargarPersona(doc: string): void {
+    this.evaluando = true;
+    this.cdr.markForCheck();
+
+    this.tesoreria.ficha(doc, this.concepto, null, null, this.sede).subscribe({
+      next: f => {
+        this.evaluando = false;
+
+        if (!f.existe) {
+          this.datosOperario = null;
+          Swal.fire({ icon: 'error', title: 'No está en tesorería', text: f.mensaje });
+          this.cdr.markForCheck();
+          return;
+        }
+
+        this.datosOperario = { ...f.persona, numero_documento: f.numero_documento };
+        this.nombreOperario = f.persona?.nombre ?? '';
+        this.sumaPrestamos = f.deuda?.total ?? 0;
+        this.evaluacion = f.evaluacion ?? null;
+        this.limiteDisponible = this.evaluacion?.cupo_disponible ?? 0;
+
+        this.myForm.get('valor')?.updateValueAndValidity({ emitEvent: false });
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.evaluando = false;
+        this.datosOperario = null;
+        Swal.fire('Error de conexión', 'No se pudo consultar al trabajador.', 'error');
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  // ── Evaluación en vivo ────────────────────────────────────────────────────
+
+  private temporizador: any = null;
+
+  /**
+   * Reevalúa tras una pausa al teclear. Sin el retraso, escribir «250000» dispararía seis
+   * evaluaciones, cada una con su consulta a ms-hr por las incapacidades.
+   */
+  private reevaluarConRetraso(): void {
+    if (!this.datosOperario) return;
+    clearTimeout(this.temporizador);
+    this.temporizador = setTimeout(() => this.reevaluar(), 400);
+  }
+
+  private reevaluar(): void {
+    const doc = this.datosOperario?.numero_documento;
+    if (!doc) return;
+
+    const monto = this.montoNumerico();
+    const cuotas = Number(this.myForm.value.cuotas) || null;
+
+    this.tesoreria.evaluar(doc, this.concepto, monto || null, cuotas, this.sede).subscribe({
+      next: ev => {
+        this.evaluacion = ev;
+        this.limiteDisponible = ev.cupo_disponible ?? 0;
+        this.myForm.get('valor')?.updateValueAndValidity({ emitEvent: false });
+        this.cdr.markForCheck();
+      },
+      error: () => { /* el veredicto firme lo da el envío; un fallo aquí no debe bloquear */ },
+    });
+  }
+
+  private montoNumerico(): number {
+    const crudo = String(this.myForm.value.valor ?? '').replace(/\D/g, '');
+    return crudo ? parseInt(crudo, 10) : 0;
+  }
+
+  /** True cuando el servidor ya dijo que no. Deshabilita el botón de aprobar. */
+  get bloqueadoPorReglas(): boolean {
+    return !!this.evaluacion && !this.evaluacion.aprobado;
+  }
+
+  get motivoDelBloqueo(): string | null {
+    return this.evaluacion?.motivo ?? null;
+  }
+
+  get reglasIncumplidas() {
+    return (this.evaluacion?.reglas ?? []).filter(r => r.bloquea);
+  }
+
+  get advertencias(): string[] {
+    return this.evaluacion?.advertencias ?? [];
+  }
+
+  // ── Formulario ────────────────────────────────────────────────────────────
 
   formatCurrencyPipe(value: number): string {
-    return Number(value).toLocaleString('es-CO');
+    return Number(value ?? 0).toLocaleString('es-CO');
   }
 
-  formatCurrency(event: any) {
+  formatCurrency(event: any): void {
     const input = event.target;
     let value = input.value.replace(/\D/g, '');
     value = Number(value).toLocaleString('es-CO');
     input.value = value;
-
-    // Trigger validation
     this.myForm.get('valor')?.updateValueAndValidity();
   }
 
+  /**
+   * Aviso temprano contra el cupo que devolvió el servidor. No es la validación real —esa
+   * la hace el backend al enviar— pero evita que alguien teclee una cifra y descubra que
+   * no cabe solo al pulsar el botón.
+   */
   currencyValidator(control: AbstractControl) {
     if (!control.value) return { required: true };
-    const value = parseInt(control.value.replace(/\D/g, ''), 10);
+    const value = parseInt(String(control.value).replace(/\D/g, ''), 10);
     if (isNaN(value)) return { required: true };
-
-    if (this.limiteDisponible > 0 && value > this.limiteDisponible) {
-      return { maxLimite: true };
-    }
-
+    if (this.limiteDisponible > 0 && value > this.limiteDisponible) return { maxLimite: true };
     return null;
   }
 
-  private trimField(fieldName: string) {
+  private trimField(fieldName: string): void {
     const control = this.myForm.get(fieldName);
     if (control && control.value && typeof control.value === 'string') {
       control.setValue(control.value.trim().toUpperCase());
     }
   }
 
-  // Función para buscar operario
-  async buscarOperario() {
-    this.trimField('numero_documento');
-    const doc = this.myForm.value.numero_documento;
-
-    if (!doc) {
-      Swal.fire('Error', 'Por favor, ingrese un número de identificación válido.', 'error');
-      this.myForm.markAllAsTouched();
-      return;
-    }
-
-    Swal.fire({
-      title: 'Buscando trabajador...',
-      icon: 'info',
-      text: 'Por favor, espera mientras se procesa la información.',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      didOpen: () => { Swal.showLoading(); }
-    });
-
-    try {
-      const data = await this.autorizacionesService.traerPersonaTesoreria(doc);
-      Swal.close();
-
-      this.datosOperario = data;
-      this.nombreOperario = `${this.datosOperario.nombre}`;
-      this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
-      this.limiteDisponible = 0;
-
-      if (!this.datosOperario.activo) {
-        this.datosOperario = null;
-        Swal.fire('Empleado Inactivo', 'El empleado se encuentra inactivo y no puede solicitar autorizaciones.', 'error');
-        return;
-      }
-
-      if (this.datosOperario.bloqueado) {
-        const motivo = this.datosOperario.observacion_bloqueo ?? 'Sin observación';
-        Swal.fire({
-          icon: 'error',
-          title: 'Empleado Bloqueado',
-          html: `El empleado se encuentra bloqueado.<br><br><b>Motivo:</b> ${motivo}`
-        });
-        this.datosOperario = null;
-        return;
-      }
-
-      // Validar condiciones generales y calcular límite si es mercado
-      const isAdminOverrides = (this.rolUsuario === "GERENCIA" || this.correoUsuario === "mercarflorats@gmail.com" || this.correoUsuario === "mercarflora2.ts@gmail.com");
-
-      if (!isAdminOverrides) {
-        if (!this.autorizacionesService.verificarFondos(this.datosOperario)) {
-          this.datosOperario = null;
-          return; // El sevice ya muestra Swal
-        }
-
-        // Simular validación para calcular límite
-        const isValid = this.autorizacionesService.verificarCondiciones(this.datosOperario, 0, this.sumaPrestamos, this.tipoAutorizacion);
-        if (!isValid) {
-          this.datosOperario = null;
-          return;
-        }
-
-        // Cupo disponible: usamos el MISMO helper que el enforcement de
-        // verificarCondiciones (mercado por tramos de días + bonos de rol;
-        // préstamo tope 250k − saldo pendiente). Antes el display usaba una
-        // fórmula ad-hoc (mercado base plana 350k; préstamo salario−saldos, con
-        // salario casi siempre en 0) que no coincidía con lo que se valida al
-        // enviar: un empleado nuevo veía "cupo 350.000" y el submit lo rechazaba.
-        this.limiteDisponible = this.autorizacionesService.calcularCupoDisponible(
-          this.datosOperario, this.tipoAutorizacion);
-      }
-
-    } catch (error: any) {
-      Swal.close();
-      if (error?.status === 404) {
-        Swal.fire('Oops...', 'Este empleado no existe en la base de datos (puede que no esté registrado en la quincena actual o no pertenezca a la empresa).', 'error');
-      } else {
-        Swal.fire('Error de conexión', 'Hubo un problema al buscar el operario.', 'error');
-      }
-      this.datosOperario = null;
-    } finally {
-      // La app es zoneless y este componente es OnPush: todo lo que hay tras el
-      // `await` corre fuera del listener de plantilla que originó la búsqueda,
-      // así que sin marcar la vista aquí el formulario del empleado no aparece
-      // nunca. Va en el `finally` para cubrir también los `return` tempranos
-      // (inactivo, bloqueado, sin fondos) y la rama de error.
-      this.cdr.markForCheck();
-    }
-  }
-
-  onTipoChange(event: any) {
+  onTipoChange(event: any): void {
     const tipo = event.value;
-    if (tipo === "Otro" || tipo === "Dinero" || tipo === "Mercado" || tipo === "Anchetas") {
+    if (tipo === 'Otro' || tipo === 'Dinero' || tipo === 'Mercado' || tipo === 'Anchetas') {
       this.showValor = true;
       this.showCuotas = true;
-    } else if (tipo === "Seguro Funerario") {
+    } else if (tipo === 'Seguro Funerario') {
       this.showValor = true;
       this.showCuotas = false;
       this.myForm.patchValue({ cuotas: 1 });
@@ -223,136 +274,184 @@ export class AutorizacionDinamicaComponent implements OnInit {
     }
   }
 
-  onFormaPagoChange(event: any) {
+  onFormaPagoChange(event: any): void {
     const formaPago = event.value;
-    if (formaPago === "Daviplata") {
-      this.celularLabel = "Número de Daviplata";
-    } else if (formaPago === "Master") {
-      this.celularLabel = "Número de tarjeta Master";
-    } else if (formaPago === "Efectivo") {
-      this.celularLabel = "Número";
-    } else {
-      this.celularLabel = "Número de cuenta";
-    }
+    if (formaPago === 'Daviplata') this.celularLabel = 'Número de Daviplata';
+    else if (formaPago === 'Master') this.celularLabel = 'Número de tarjeta Master';
+    else if (formaPago === 'Efectivo') this.celularLabel = 'Número';
+    else this.celularLabel = 'Número de cuenta';
   }
 
-  abrirHistorial() {
+  abrirHistorial(): void {
     if (!this.datosOperario) return;
     const doc = this.datosOperario.numero_documento || this.myForm.value.numero_documento;
     this.dialog.open(HistorialDialogComponent, {
-      // min() en vez de 80vw/80vh fijos: en móvil el diálogo aprovecha la
-      // pantalla y en escritorio no se estira más allá de lo legible.
       width: 'min(1100px, 96vw)',
       maxWidth: '96vw',
       height: 'min(720px, 88vh)',
       panelClass: 'historial-dialog-panel',
-      data: { numeroDocumento: doc }
+      data: { numeroDocumento: doc },
     });
   }
 
-  async onSubmit() {
+  // ── Envío ─────────────────────────────────────────────────────────────────
+
+  async onSubmit(): Promise<void> {
     if (this.myForm.invalid) {
       this.myForm.markAllAsTouched();
       return;
     }
 
-    const formValues = { ...this.myForm.value, valor: this.myForm.value.valor.replace(/\D/g, '') };
-    const valNumerico = parseInt(formValues.valor, 10);
+    const formValues = { ...this.myForm.value, valor: this.montoNumerico() };
+    const valNumerico = formValues.valor;
+    const cuotasAux = Number(this.myForm.value.cuotas) || 1;
+    const nombreAutorizador =
+      `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim()
+      || this.correoUsuario;
 
-    const isAdminOverrides = (this.rolUsuario === "GERENCIA" || this.correoUsuario === "mercarflorats@gmail.com" || this.correoUsuario === "mercarflora2.ts@gmail.com");
-
-    if (!isAdminOverrides) {
-      if (!this.autorizacionesService.verificarCondiciones(this.datosOperario, valNumerico, this.sumaPrestamos, this.tipoAutorizacion)) {
-        return; // Service muestra el Swal error
-      }
+    // Confirmación cuando el servidor va a dejar pasar por excepción de rol. Antes esto
+    // ocurría en silencio: ni se avisaba ni quedaba registrado en ninguna parte.
+    if (this.evaluacion?.con_excepcion_de_rol) {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'warning',
+        title: 'Se autorizará por excepción',
+        html: `<p style="text-align:left;font-size:13.5px;color:#5c6660">
+                 Tu rol <b>${this.evaluacion.rol_excepcion}</b> permite pasar por encima del
+                 tope. La operación quedará marcada como excepción y con tu nombre.
+               </p>`,
+        showCancelButton: true,
+        confirmButtonText: 'Autorizar igualmente',
+        cancelButtonText: 'Volver',
+        confirmButtonColor: '#8a6420',
+      });
+      if (!isConfirmed) return;
     }
 
     Swal.fire({
-      title: 'Procesando...',
+      title: 'Procesando…',
       icon: 'info',
-      text: 'Generando la autorización...',
+      text: 'Generando la autorización…',
       allowOutsideClick: false,
       allowEscapeKey: false,
       showConfirmButton: false,
-      didOpen: () => { Swal.showLoading(); }
+      didOpen: () => { Swal.showLoading(); },
     });
 
-    let cuotasAux = formValues.cuotas || 1;
-    let tituloAutorizador = this.user.datos_basicos.nombres + ' ' + this.user.datos_basicos.apellidos;
-    let sedeAutorizacion = this.user?.sede?.nombre || '';
-
     try {
-      // 1. Llamar al backend unificado para crear la transacción y obtener el código directamente
-      const response = await this.autorizacionesService.autorizarTransaccion(
+      // El servidor evalúa otra vez antes de crear la transacción: es el único punto donde
+      // el veredicto es firme.
+      const response: any = await this.autorizacionesService.autorizarTransaccion(
         formValues.numero_documento,
         valNumerico,
         cuotasAux,
         formValues.tipo,
-        tituloAutorizador,
-        sedeAutorizacion
+        nombreAutorizador,
+        this.sede ?? '',
+        // Cómo se va a pagar. Se pedía desde siempre en el formulario, se imprimía en el
+        // PDF y se descartaba: 0 de las 4.077 filas creadas desde marzo lo tienen.
+        formValues.formaPago || null,
+        formValues.celular || null,
       );
 
       const codigoOH = response.codigo_autorizacion || 'GENERIC-' + Math.floor(Math.random() * 1000000);
 
-      // 2. Generar PDF (mantiene la lógica previa si es de préstamo, pero la aplicamos genérico)
       await this.autorizacionesService.generatePdf(
         this.datosOperario,
         valNumerico,
-        formValues.valor,
+        this.formatCurrencyPipe(valNumerico),
         formValues.formaPago || 'N/A',
         formValues.celular || 'N/A',
         codigoOH,
-        cuotasAux,
+        String(cuotasAux),
         this.tipoAutorizacion === 'prestamo' ? 'Prestamo' : 'Mercado',
-        tituloAutorizador
+        nombreAutorizador,
       );
 
       Swal.close();
 
+      const vence = response.vence_en
+        ? `<p style="font-size:13px;color:#5c6660;margin-top:8px">
+             Vence el ${new Date(response.vence_en).toLocaleDateString('es-CO')}
+             si no se recoge.</p>`
+        : '';
+
       Swal.fire({
         icon: 'success',
-        title: '¡Éxito!',
-        text: `La autorización ha sido aprobada. Código: ${codigoOH}`,
-        confirmButtonText: 'Aceptar'
+        title: '¡Listo!',
+        html: `Autorización aprobada.<br><b>${codigoOH}</b>${vence}`,
+        confirmButtonText: 'Aceptar',
       }).then(() => {
-        // Recargar ruta actual
         const currentUrl = this.router.url;
-        this.router.navigateByUrl('/dashboard', { skipLocationChange: true }).then(() => {
-          this.router.navigate([currentUrl]);
-        });
+        this.router.navigateByUrl('/dashboard', { skipLocationChange: true })
+          .then(() => this.router.navigate([currentUrl]));
       });
 
     } catch (error: any) {
       Swal.close();
-      const errorMsg = error.error?.error || error.error?.detail || 'Ocurrió un problema al procesar la autorización. Intenta nuevamente.';
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: errorMsg,
-        confirmButtonText: 'Aceptar'
-      });
+      this.mostrarRechazo(error);
     }
   }
 
   /**
-   * Vuelve al paso de búsqueda. No basta con `myForm.reset()`: en mercado el
-   * concepto se pre-selecciona en ngOnInit y un reset lo dejaría vacío y en
-   * estado inválido, con el select mostrando la única opción posible sin elegir.
+   * Explica el rechazo del servidor. El backend devuelve qué reglas fallaron y con qué
+   * cifras; mostrar solo «no se pudo» desperdiciaría esa información y devolvería al
+   * mostrador a llamar por teléfono.
    */
-  cancelar() {
+  private mostrarRechazo(error: any): void {
+    const cuerpo = error?.error ?? {};
+    const reglas: any[] = cuerpo.reglas_incumplidas ?? [];
+
+    if (reglas.length) {
+      const lista = reglas
+        .map(r => `<li style="margin-bottom:6px"><b>${r.nombre}</b><br>
+                     <span style="color:#5c6660">${r.mensaje}</span></li>`)
+        .join('');
+      const cupo = cuerpo.cupo_disponible != null
+        ? `<p style="font-size:13px;color:#5c6660;margin-top:10px">
+             Cupo disponible: <b>$${this.formatCurrencyPipe(cuerpo.cupo_disponible)}</b>
+             · Tope $${this.formatCurrencyPipe(cuerpo.tope_aplicado)}
+             · Ya debe $${this.formatCurrencyPipe(cuerpo.saldo_pendiente)}</p>`
+        : '';
+      Swal.fire({
+        icon: 'error',
+        title: 'No se puede autorizar',
+        html: `<ul style="text-align:left;padding-left:18px;margin:0">${lista}</ul>${cupo}`,
+        confirmButtonText: 'Entendido',
+      });
+      // El veredicto que trae el rechazo es más fresco que el que había en pantalla.
+      this.reevaluar();
+      return;
+    }
+
+    Swal.fire({
+      icon: 'error',
+      title: 'No se pudo autorizar',
+      text: cuerpo.error ?? cuerpo.detail ?? 'Ocurrió un problema. Intenta de nuevo.',
+      confirmButtonText: 'Aceptar',
+    });
+  }
+
+  /**
+   * Vuelve al paso de búsqueda. No basta con `myForm.reset()`: en mercado el concepto se
+   * preselecciona en ngOnInit y un reset lo dejaría vacío y en estado inválido, con el
+   * select mostrando la única opción posible sin elegir.
+   */
+  cancelar(): void {
     this.datosOperario = null;
+    this.evaluacion = null;
     this.myForm.reset({
       numero_documento: '',
       tipo: this.tipoAutorizacion === 'mercado' ? 'Mercado' : '',
       valor: '',
       cuotas: '',
       formaPago: '',
-      celular: ''
+      celular: '',
     });
     this.nombreOperario = '';
     this.sumaPrestamos = 0;
     this.limiteDisponible = 0;
     this.showValor = this.tipoAutorizacion === 'mercado';
     this.showCuotas = this.tipoAutorizacion === 'mercado';
+    this.cdr.markForCheck();
   }
 }

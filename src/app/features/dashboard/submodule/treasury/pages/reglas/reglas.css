@@ -1,0 +1,231 @@
+/*
+ * Parametrización de reglas. El editor va en un panel lateral y no en un diálogo
+ * centrado: una regla con tramos y ajustes es alta, y un modal la obligaría a scrollear
+ * dentro de una caja pequeña mientras la tabla de referencia queda tapada detrás.
+ */
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 16px 0 12px;
+}
+
+.filtros .grupo { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.filtros .check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13.5px;
+  color: var(--tsr-gris);
+  cursor: pointer;
+}
+
+.explicacion {
+  font-size: 13.5px;
+  color: var(--tsr-gris);
+  margin: -4px 0 14px;
+  line-height: 1.55;
+  max-width: 75ch;
+}
+
+/* ── Tabla ────────────────────────────────────────────────────────────────── */
+
+.tsr-tabla.reglas { min-width: 980px; }
+
+.sub {
+  font-size: 11.5px;
+  color: var(--tsr-gris);
+  margin-top: 2px;
+  line-height: 1.45;
+}
+
+.sub.codigo {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: -0.01em;
+}
+
+.sub.desc { max-width: 42ch; }
+
+.vigencia { font-size: 12.5px; color: var(--tsr-gris); white-space: nowrap; }
+
+.acciones-fila { display: flex; gap: 3px; white-space: nowrap; }
+.acciones-fila .tsr-boton { padding: 4px 6px; }
+.acciones-fila mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+.valor-param {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  background: var(--tsr-gris-suave);
+  border: 1px solid var(--tsr-borde);
+  border-radius: 4px;
+  padding: 3px 7px;
+}
+
+/* ── Panel lateral ────────────────────────────────────────────────────────── */
+
+.panel-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 35, 31, .38);
+  z-index: 40;
+}
+
+.panel {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: min(760px, 96vw);
+  background: #fff;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -12px 0 34px -18px rgba(28, 35, 31, .5);
+}
+
+.panel-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--tsr-borde);
+  flex: none;
+}
+
+.panel-cabecera h2 { margin: 0; font-size: 17px; font-weight: 600; }
+
+.panel-cuerpo {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.panel-pie {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--tsr-borde);
+  background: var(--tsr-gris-suave);
+  flex: none;
+}
+
+/* ── Bloques del editor ───────────────────────────────────────────────────── */
+
+.bloque {
+  border: 1px solid var(--tsr-borde);
+  border-radius: 8px;
+  padding: 14px;
+  margin: 18px 0;
+  background: #fcfdfc;
+}
+
+.bloque h3 { margin: 0; font-size: 14px; font-weight: 600; }
+
+.bloque-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.bloque .ayuda {
+  font-size: 12.5px;
+  color: var(--tsr-gris);
+  line-height: 1.5;
+  margin: 0 0 12px;
+  display: block;
+}
+
+.bloque .ayuda code {
+  font-size: 11.5px;
+  background: var(--tsr-gris-suave);
+  padding: 2px 5px;
+  border-radius: 3px;
+  word-break: break-word;
+}
+
+.tramo,
+.ajuste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  align-items: flex-end;
+  padding: 10px 0;
+  border-top: 1px solid #eef1ee;
+}
+
+.tramo > .tsr-campo,
+.ajuste > .tsr-campo { margin-bottom: 8px; flex: 1 1 130px; min-width: 0; }
+
+.tramo > .tsr-campo.estrecho,
+.ajuste > .tsr-campo.estrecho { flex: 0 1 100px; }
+
+.tramo > .tsr-boton,
+.ajuste > .tsr-boton { margin-bottom: 8px; flex: none; }
+
+textarea.json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--tsr-borde);
+  border-radius: 6px;
+  resize: vertical;
+}
+
+.error-json { color: var(--tsr-rojo); font-size: 12.5px; margin: 6px 0 0; }
+
+.check-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Historial ────────────────────────────────────────────────────────────── */
+
+.cambio {
+  border-bottom: 1px solid #eef1ee;
+  padding: 14px 0;
+}
+
+.cambio:last-child { border-bottom: 0; }
+
+.cambio-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cambio .quien { font-size: 13.5px; font-weight: 600; }
+.cambio .cuando { font-size: 12.5px; color: var(--tsr-gris); }
+
+.cambio .comentario {
+  margin: 6px 0 0;
+  font-size: 13.5px;
+  color: var(--tsr-texto);
+  font-style: italic;
+}
+
+.cambio .difs {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--tsr-gris);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.75;
+  word-break: break-word;
+}
+
+@media (max-width: 700px) {
+  .panel { width: 100vw; }
+  .panel-cuerpo { padding: 14px; }
+}

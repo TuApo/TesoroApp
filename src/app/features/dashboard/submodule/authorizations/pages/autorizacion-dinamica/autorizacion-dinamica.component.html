@@ -1,9 +1,11 @@
 <div class="page-container">
   <div class="page-header">
     <div class="header-content">
-      <h1 class="page-title">{{ tipoAutorizacion === 'prestamo' ? 'Autorización de Préstamo' : 'Autorización de
-      Mercado' }}</h1>
-      <p class="page-subtitle">Complete el formulario para generar y aprobar la solicitud</p>
+      <h1 class="page-title">{{ tipoAutorizacion === 'prestamo' ? 'Autorización de Préstamo' : 'Autorización de Mercado' }}</h1>
+      <p class="page-subtitle">
+        Busca al trabajador, revisa sus condiciones y aprueba. El sistema aplica las reglas
+        vigentes y explica cualquier rechazo.
+      </p>
     </div>
     <div class="header-icon">
       <mat-icon>{{ tipoAutorizacion === 'prestamo' ? 'payments' : 'shopping_cart' }}</mat-icon>
@@ -11,189 +13,185 @@
   </div>
 
   <div class="page-body">
-  <!-- BUSCAR EMPLEADO -->
-  @if (!datosOperario) {
-    <mat-card class="premium-card">
-      <mat-card-header>
-        <div mat-card-avatar class="card-avatar">
-          <mat-icon>badge</mat-icon>
-        </div>
-        <mat-card-title>Búsqueda de Empleado</mat-card-title>
-        <mat-card-subtitle>Ingrese el documento de identidad del solicitante</mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
-        <form [formGroup]="myForm" (ngSubmit)="buscarOperario()">
-          <mat-form-field appearance="outline" class="full-width mt-3">
-            <mat-label>Número de Identificación</mat-label>
-            <mat-icon matPrefix>badge</mat-icon>
-            <input matInput formControlName="numero_documento" placeholder="Ej: 1005851505" />
-            <mat-hint>Ingrese cédula o documento sin puntos ni comas</mat-hint>
-            @if (myForm.get('numero_documento')?.hasError('required')) {
-              <mat-error>El documento es obligatorio</mat-error>
-            }
-            @if (myForm.get('numero_documento')?.hasError('pattern')) {
-              <mat-error>Formato inválido</mat-error>
-            }
-          </mat-form-field>
-        </form>
-      </mat-card-content>
-      <mat-card-actions class="card-actions">
-        <button mat-flat-button class="btn-managerial" (click)="buscarOperario()"
-          [disabled]="!myForm.get('numero_documento')?.valid">
-          <mat-icon>search</mat-icon> Buscar empleado
-        </button>
-      </mat-card-actions>
-    </mat-card>
-  }
 
-  <!-- FORMULARIO DE AUTORIZACIÓN -->
-  @if (datosOperario) {
-    <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+    <!-- ── BÚSQUEDA ──────────────────────────────────────────────────── -->
+    @if (!datosOperario) {
       <mat-card class="premium-card">
         <mat-card-header>
-          <div mat-card-avatar class="card-avatar">
-            <mat-icon>person</mat-icon>
-          </div>
-          <mat-card-title>Información del Empleado</mat-card-title>
-          <mat-card-subtitle>Verifique los datos arrojados por el sistema</mat-card-subtitle>
+          <div mat-card-avatar class="card-avatar"><mat-icon>badge</mat-icon></div>
+          <mat-card-title>Buscar al trabajador</mat-card-title>
+          <mat-card-subtitle>Por cédula, nombre o código de contrato</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <div class="employee-summary">
-            <div class="summary-item">
-              <div class="summary-icon">
-                <mat-icon>account_circle</mat-icon>
-              </div>
-              <div class="summary-content">
-                <span class="summary-label">Nombre Completo</span>
-                <span class="summary-value">{{ nombreOperario }}</span>
-              </div>
-            </div>
-            <div class="summary-item">
-              <div class="summary-icon">
-                <mat-icon>event_available</mat-icon>
-              </div>
-              <div class="summary-content">
-                <span class="summary-label">Ingreso</span>
-                <span class="summary-value">{{ datosOperario.ingreso ? datosOperario.ingreso.split(' ')[0] : 'N/A'
-                }}</span>
-              </div>
-            </div>
-            <!-- Saldo disponible para AMBOS tipos -->
-            @if (limiteDisponible > 0) {
-              <div class="summary-item summary-item--cupo">
-                <div class="summary-icon warning">
-                  <mat-icon>credit_score</mat-icon>
-                </div>
-                <div class="summary-content">
-                  <span class="summary-label">{{ tipoAutorizacion === 'mercado' ? 'Cupo Disponible Mercado' : 'Cupo
-                  Disponible Préstamo' }}</span>
-                  <span class="summary-value summary-value--cupo">$ {{ formatCurrencyPipe(limiteDisponible) }}</span>
-                </div>
-              </div>
-            }
-          </div>
+          <!-- El buscador reemplaza al campo de cédula exacta: quien llega sin recordar su
+               número, o solo con el carné, antes no se podía atender. -->
+          <app-buscador-persona (seleccionada)="alSeleccionarPersona($event)" />
 
-          <mat-divider class="section-divider"></mat-divider>
-
-          <div class="section-heading">
-            <h3 class="section-title">
-              <mat-icon>receipt_long</mat-icon> Detalles de Autorización
-            </h3>
-            <button mat-stroked-button type="button" class="btn-secondary" (click)="abrirHistorial()">
-              <mat-icon>history</mat-icon> Ver historial
-            </button>
-          </div>
-
-          <div class="form-grid">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Concepto</mat-label>
-              <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event)">
-                @if (tipoAutorizacion === 'prestamo') {
-                  <mat-option value="Dinero">Préstamo Dinero</mat-option>
-                  <mat-option value="Seguro Funerario">Seguro Funerario</mat-option>
-                  <mat-option value="Otro">Otro</mat-option>
-                }
-                @if (tipoAutorizacion === 'mercado') {
-                  <mat-option value="Mercado">Mercado</mat-option>
-                }
-              </mat-select>
-              @if (myForm.get('tipo')?.hasError('required')) {
-                <mat-error>Seleccione un concepto</mat-error>
-              }
-            </mat-form-field>
-
-            @if (showValor) {
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Valor Solicitado</mat-label>
-                <span matTextPrefix>$&nbsp;</span>
-                <input matInput formControlName="valor" (input)="formatCurrency($event)" inputmode="numeric"
-                  placeholder="Ej: 50.000" />
-                @if (myForm.get('valor')?.hasError('required')) {
-                  <mat-error>El valor es requerido</mat-error>
-                }
-                @if (myForm.get('valor')?.hasError('maxLimite')) {
-                  <mat-error>Excede el límite. Máx: ${{ formatCurrencyPipe(limiteDisponible) }}</mat-error>
-                }
-              </mat-form-field>
-            }
-
-            @if (showCuotas) {
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Semanas / Quincenas</mat-label>
-                <mat-icon matPrefix>calendar_month</mat-icon>
-                <input matInput formControlName="cuotas" type="number" min="1"
-                  [max]="tipoAutorizacion === 'mercado' ? 2 : 4" />
-                @if (myForm.get('cuotas')?.hasError('max')) {
-                  <mat-error>Máximo {{ tipoAutorizacion === 'mercado' ? '2' : '4' }} cuotas</mat-error>
-                }
-                @if (myForm.get('cuotas')?.hasError('min')) {
-                  <mat-error>Mínimo 1 cuota</mat-error>
-                }
-              </mat-form-field>
-            }
-
-            <!-- Forma de Pago solo para prestamos -->
-            @if (tipoAutorizacion === 'prestamo') {
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Forma de Pago</mat-label>
-                <mat-select formControlName="formaPago" (selectionChange)="onFormaPagoChange($event)">
-                  <mat-option value="Daviplata">Daviplata</mat-option>
-                  <mat-option value="Efectivo">Efectivo</mat-option>
-                  <mat-option value="Master">Mastercard</mat-option>
-                  <mat-option value="Otro">Otro</mat-option>
-                </mat-select>
-                @if (myForm.get('formaPago')?.hasError('required')) {
-                  <mat-error>Seleccione una forma de pago</mat-error>
-                }
-              </mat-form-field>
-            }
-
-            @if (tipoAutorizacion === 'prestamo' && myForm.get('formaPago')?.value && myForm.get('formaPago')?.value !== 'Efectivo') {
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ celularLabel }}</mat-label>
-                <mat-icon matPrefix>dialpad</mat-icon>
-                <input matInput formControlName="celular" maxlength="10" inputmode="numeric" />
-                <mat-hint align="end">Máx. 10 dígitos</mat-hint>
-                @if (myForm.get('celular')?.hasError('required')) {
-                  <mat-error>Requerido</mat-error>
-                }
-                @if (myForm.get('celular')?.hasError('pattern')) {
-                  <mat-error>Debe tener exactamente 10 dígitos</mat-error>
-                }
-              </mat-form-field>
-            }
-          </div>
+          @if (evaluando) {
+            <p class="cargando-persona">Consultando al trabajador…</p>
+          }
         </mat-card-content>
-        <mat-card-actions class="card-actions">
-          <button mat-button type="button" class="btn-cancel" (click)="cancelar()">
-            Cancelar
-          </button>
-          <button mat-flat-button type="submit" class="btn-managerial" [disabled]="myForm.invalid">
-            <mat-icon>check_circle</mat-icon> Aprobar y generar PDF
-          </button>
-        </mat-card-actions>
       </mat-card>
-    </form>
-  }
+    }
+
+    <!-- ── FORMULARIO ────────────────────────────────────────────────── -->
+    @if (datosOperario) {
+      <form [formGroup]="myForm" (ngSubmit)="onSubmit()">
+        <mat-card class="premium-card">
+          <mat-card-header>
+            <div mat-card-avatar class="card-avatar"><mat-icon>person</mat-icon></div>
+            <mat-card-title>{{ nombreOperario }}</mat-card-title>
+            <mat-card-subtitle>
+              {{ datosOperario.numero_documento }}
+              @if (datosOperario.finca) { · {{ datosOperario.finca }} }
+              · {{ datosOperario.dias_trabajados }} días trabajados
+            </mat-card-subtitle>
+          </mat-card-header>
+
+          <mat-card-content>
+
+            <!-- ── Veredicto del servidor ─────────────────────────────── -->
+            @if (evaluacion) {
+              <div class="veredicto-linea"
+                   [class.ok]="evaluacion.aprobado"
+                   [class.no]="!evaluacion.aprobado">
+                <mat-icon>{{ evaluacion.aprobado ? 'check_circle' : 'block' }}</mat-icon>
+                <div class="veredicto-texto">
+                  @if (evaluacion.aprobado) {
+                    <strong>Puede recibir hasta {{ formatCurrencyPipe(evaluacion.cupo_disponible ?? 0) }}</strong>
+                    <span class="desglose">
+                      Tope {{ formatCurrencyPipe(evaluacion.tope_aplicado ?? 0) }}
+                      ({{ evaluacion.origen_tope_texto || evaluacion.origen_tope }})
+                      @if (evaluacion.saldo_pendiente > 0) {
+                        · ya debe {{ formatCurrencyPipe(evaluacion.saldo_pendiente) }}
+                      }
+                      @if (evaluacion.monto_comprometido > 0) {
+                        · {{ formatCurrencyPipe(evaluacion.monto_comprometido) }} autorizados sin recoger
+                      }
+                    </span>
+                  } @else {
+                    <strong>No se le puede autorizar</strong>
+                    <span class="desglose">{{ motivoDelBloqueo }}</span>
+                  }
+                </div>
+              </div>
+
+              @if (reglasIncumplidas.length) {
+                <ul class="reglas-incumplidas">
+                  @for (r of reglasIncumplidas; track r.codigo) {
+                    <li><b>{{ r.nombre }}:</b> {{ r.mensaje }}</li>
+                  }
+                </ul>
+              }
+
+              @for (a of advertencias; track a) {
+                <div class="aviso-linea"><mat-icon>warning</mat-icon><span>{{ a }}</span></div>
+              }
+            }
+
+            <mat-divider class="section-divider"></mat-divider>
+
+            <div class="section-heading">
+              <h3 class="section-title"><mat-icon>receipt_long</mat-icon> Detalles de la autorización</h3>
+              <button mat-stroked-button type="button" class="btn-secondary" (click)="abrirHistorial()">
+                <mat-icon>history</mat-icon> Ver historial
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Concepto</mat-label>
+                <mat-select formControlName="tipo" (selectionChange)="onTipoChange($event)">
+                  @if (tipoAutorizacion === 'prestamo') {
+                    <mat-option value="Dinero">Préstamo Dinero</mat-option>
+                    <mat-option value="Seguro Funerario">Seguro Funerario</mat-option>
+                    <mat-option value="Otro">Otro</mat-option>
+                  }
+                  @if (tipoAutorizacion === 'mercado') {
+                    <mat-option value="Mercado">Mercado</mat-option>
+                  }
+                </mat-select>
+                @if (myForm.get('tipo')?.hasError('required')) {
+                  <mat-error>Selecciona un concepto</mat-error>
+                }
+              </mat-form-field>
+
+              @if (showValor) {
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Valor solicitado</mat-label>
+                  <span matTextPrefix>$&nbsp;</span>
+                  <input matInput formControlName="valor" (input)="formatCurrency($event)"
+                         inputmode="numeric" placeholder="Ej: 50.000" />
+                  @if (myForm.get('valor')?.hasError('required')) {
+                    <mat-error>El valor es obligatorio</mat-error>
+                  }
+                  @if (myForm.get('valor')?.hasError('maxLimite')) {
+                    <mat-error>Supera el cupo. Máximo {{ formatCurrencyPipe(limiteDisponible) }}</mat-error>
+                  }
+                </mat-form-field>
+              }
+
+              @if (showCuotas) {
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Cuotas</mat-label>
+                  <mat-icon matPrefix>calendar_month</mat-icon>
+                  <input matInput formControlName="cuotas" type="number" min="1"
+                         [max]="tipoAutorizacion === 'mercado' ? 2 : 4" />
+                  @if (myForm.get('cuotas')?.hasError('max')) {
+                    <mat-error>Máximo {{ tipoAutorizacion === 'mercado' ? '2' : '4' }} cuotas</mat-error>
+                  }
+                  @if (myForm.get('cuotas')?.hasError('min')) {
+                    <mat-error>Mínimo 1 cuota</mat-error>
+                  }
+                </mat-form-field>
+              }
+
+              @if (tipoAutorizacion === 'prestamo') {
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Forma de pago</mat-label>
+                  <mat-select formControlName="formaPago" (selectionChange)="onFormaPagoChange($event)">
+                    <mat-option value="Daviplata">Daviplata</mat-option>
+                    <mat-option value="Efectivo">Efectivo</mat-option>
+                    <mat-option value="Master">Mastercard</mat-option>
+                    <mat-option value="Otro">Otro</mat-option>
+                  </mat-select>
+                  @if (myForm.get('formaPago')?.hasError('required')) {
+                    <mat-error>Selecciona una forma de pago</mat-error>
+                  }
+                </mat-form-field>
+              }
+
+              @if (tipoAutorizacion === 'prestamo'
+                   && myForm.get('formaPago')?.value
+                   && myForm.get('formaPago')?.value !== 'Efectivo') {
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ celularLabel }}</mat-label>
+                  <mat-icon matPrefix>dialpad</mat-icon>
+                  <input matInput formControlName="celular" maxlength="10" inputmode="numeric" />
+                  <mat-hint align="end">Máx. 10 dígitos</mat-hint>
+                  @if (myForm.get('celular')?.hasError('required')) { <mat-error>Requerido</mat-error> }
+                  @if (myForm.get('celular')?.hasError('pattern')) {
+                    <mat-error>Deben ser 10 dígitos</mat-error>
+                  }
+                </mat-form-field>
+              }
+            </div>
+          </mat-card-content>
+
+          <mat-card-actions class="card-actions">
+            <button mat-button type="button" class="btn-cancel" (click)="cancelar()">Cancelar</button>
+            <button mat-flat-button type="submit" class="btn-managerial"
+                    [disabled]="myForm.invalid || bloqueadoPorReglas">
+              <mat-icon>check_circle</mat-icon> Aprobar y generar PDF
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </form>
+
+      <!-- ── Ficha completa ─────────────────────────────────────────────
+           Debajo del formulario: lo primero es autorizar, y el detalle está a mano para
+           quien necesite explicarle algo al trabajador sin cambiar de pantalla. -->
+      <app-ficha-persona [documento]="datosOperario.numero_documento" [sede]="sede" />
+    }
   </div>
 </div>

@@ -1,0 +1,468 @@
+<div class="tsr-pagina">
+
+  <header class="tsr-cabecera">
+    <div>
+      <h1>Parametrización de reglas</h1>
+      <p>
+        Las condiciones que decide el sistema al autorizar mercado o préstamo. Antes vivían
+        dentro del código y cambiar un tope exigía desplegar la aplicación; aquí se ven, se
+        editan y se programan para que empiecen a aplicar en una fecha.
+      </p>
+    </div>
+    <div class="tsr-acciones">
+      <button type="button" class="tsr-boton" [class.principal]="vista() === 'reglas'"
+              (click)="vista.set('reglas')">Reglas</button>
+      <button type="button" class="tsr-boton" [class.principal]="vista() === 'parametros'"
+              (click)="vista.set('parametros')">Parámetros</button>
+      @if (vista() === 'reglas') {
+        <button type="button" class="tsr-boton principal" (click)="nueva()">
+          <mat-icon>add</mat-icon> Nueva regla
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error()) {
+    <div class="tsr-alerta critica">
+      <mat-icon>error</mat-icon>
+      <div><span class="titulo">No se pudo cargar</span><span class="detalle">{{ error() }}</span></div>
+    </div>
+  }
+
+  @if (cargando()) {
+    <div class="tsr-cargando">Cargando reglas…</div>
+  }
+
+  <!-- ═══════════════ REGLAS ═══════════════ -->
+  @else if (vista() === 'reglas') {
+
+    <div class="tsr-cifras">
+      <div class="tsr-cifra buena">
+        <span class="valor">{{ resumen().aplicandoHoy }}</span>
+        <span class="etiqueta">Aplicando hoy</span>
+      </div>
+      <div class="tsr-cifra mala">
+        <span class="valor">{{ resumen().bloqueantes }}</span>
+        <span class="etiqueta">Que bloquean</span>
+      </div>
+      <div class="tsr-cifra aviso">
+        <span class="valor">{{ resumen().advirtiendo }}</span>
+        <span class="etiqueta">Que solo advierten</span>
+        <span class="nota">Se miden sin frenar</span>
+      </div>
+      <div class="tsr-cifra">
+        <span class="valor">{{ resumen().programadas }}</span>
+        <span class="etiqueta">Programadas</span>
+        <span class="nota">Activas, aún no vigentes</span>
+      </div>
+      <div class="tsr-cifra">
+        <span class="valor">{{ resumen().apagadas }}</span>
+        <span class="etiqueta">Apagadas</span>
+      </div>
+    </div>
+
+    <div class="filtros">
+      <div class="grupo">
+        <button type="button" class="tsr-boton pequeno"
+                [class.principal]="filtroConcepto() === 'TODAS'"
+                (click)="filtroConcepto.set('TODAS')">Todas</button>
+        <button type="button" class="tsr-boton pequeno"
+                [class.principal]="filtroConcepto() === 'MERCADO'"
+                (click)="filtroConcepto.set('MERCADO')">Mercado</button>
+        <button type="button" class="tsr-boton pequeno"
+                [class.principal]="filtroConcepto() === 'PRESTAMO'"
+                (click)="filtroConcepto.set('PRESTAMO')">Préstamo</button>
+        <button type="button" class="tsr-boton pequeno"
+                [class.principal]="filtroConcepto() === 'TODOS'"
+                (click)="filtroConcepto.set('TODOS')">Transversales</button>
+      </div>
+      <label class="check">
+        <input type="checkbox" [checked]="soloVigentes()"
+               (change)="soloVigentes.set($any($event.target).checked)">
+        Solo las que aplican hoy
+      </label>
+    </div>
+
+    @if (!reglasFiltradas().length) {
+      <div class="tsr-vacio">
+        <mat-icon class="icono">rule</mat-icon>
+        <p>No hay reglas con ese filtro.</p>
+      </div>
+    } @else {
+      <div class="tsr-scroll">
+        <table class="tsr-tabla reglas">
+          <thead>
+            <tr>
+              <th>Estado</th><th>Regla</th><th>Aplica a</th>
+              <th>Qué hace</th><th>Severidad</th><th>Vigencia</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of reglasFiltradas(); track trackRegla($index, r)) {
+              <tr [class.apagada]="!r.activa">
+                <td>
+                  <span class="tsr-chip" [class]="'tsr-chip ' + estadoDe(r).clase">
+                    {{ estadoDe(r).texto }}
+                  </span>
+                </td>
+                <td>
+                  <strong>{{ r.nombre }}</strong>
+                  <div class="sub codigo">{{ r.codigo }}</div>
+                  @if (r.descripcion) { <div class="sub desc">{{ r.descripcion }}</div> }
+                </td>
+                <td>
+                  <span class="tsr-chip gris">
+                    {{ r.concepto === 'TODOS' ? 'Ambos' : (r.concepto === 'MERCADO' ? 'Mercado' : 'Préstamo') }}
+                  </span>
+                </td>
+                <td>
+                  {{ resumenDe(r) }}
+                  <div class="sub">{{ tipoDe(r.tipo)?.nombre || r.tipo }}</div>
+                </td>
+                <td>
+                  <span class="tsr-chip" [class]="'tsr-chip ' + claseDeSeveridad(r.severidad)">
+                    {{ textoDeSeveridad(r.severidad) }}
+                  </span>
+                </td>
+                <td class="vigencia">{{ vigenciaDe(r) }}</td>
+                <td class="acciones-fila">
+                  <button type="button" class="tsr-boton pequeno" (click)="editar(r)"
+                          title="Editar">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button type="button" class="tsr-boton pequeno" (click)="programar(r)"
+                          title="Programar vigencia">
+                    <mat-icon>event</mat-icon>
+                  </button>
+                  <button type="button" class="tsr-boton pequeno" (click)="cambiarEstado(r)"
+                          [title]="r.activa ? 'Apagar' : 'Encender'">
+                    <mat-icon>{{ r.activa ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+                  </button>
+                  <button type="button" class="tsr-boton pequeno" (click)="verHistorial(r)"
+                          title="Historial de cambios">
+                    <mat-icon>history</mat-icon>
+                  </button>
+                  <button type="button" class="tsr-boton pequeno peligro" (click)="eliminar(r)"
+                          title="Eliminar">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- ═══════════════ PARÁMETROS ═══════════════ -->
+  @else {
+    <div class="tsr-tarjeta">
+      <h2><mat-icon>tune</mat-icon> Parámetros generales</h2>
+      <p class="explicacion">
+        Valores sueltos que no justifican una regla entera: cuánto dura una autorización
+        antes de caducar, el tope duro de seguridad, si se exige el padrón de activos.
+      </p>
+
+      <div class="tsr-scroll">
+        <table class="tsr-tabla">
+          <thead><tr><th>Parámetro</th><th>Valor</th><th>Último cambio</th><th></th></tr></thead>
+          <tbody>
+            @for (p of parametros(); track p.codigo) {
+              <tr>
+                <td>
+                  <strong>{{ p.nombre }}</strong>
+                  <div class="sub codigo">{{ p.codigo }} · {{ p.grupo }}</div>
+                  @if (p.descripcion) { <div class="sub desc">{{ p.descripcion }}</div> }
+                </td>
+                <td><code class="valor-param">{{ p.valor }}</code></td>
+                <td>
+                  @if (p.actualizado_por) {
+                    {{ p.actualizado_por }}
+                    <div class="sub">{{ p.actualizado_en | date:'dd/MM/yy HH:mm' }}</div>
+                  } @else { <span class="sub">sin cambios</span> }
+                </td>
+                <td>
+                  @if (p.editable) {
+                    <button type="button" class="tsr-boton pequeno" (click)="editarParametro(p)">
+                      Cambiar
+                    </button>
+                  } @else {
+                    <span class="tsr-chip gris">Fijo</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  <!-- ═══════════════ EDITOR ═══════════════ -->
+  @if (editando(); as r) {
+    <div class="panel-fondo" (click)="cancelar()"></div>
+    <aside class="panel" role="dialog" aria-label="Editar regla">
+      <header class="panel-cabecera">
+        <h2>{{ r.id ? 'Editar regla' : 'Nueva regla' }}</h2>
+        <button type="button" class="tsr-boton pequeno" (click)="cancelar()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      <div class="panel-cuerpo">
+        <div class="tsr-fila">
+          <div class="tsr-campo">
+            <label for="codigo">Código</label>
+            <input id="codigo" type="text" [(ngModel)]="r.codigo" [disabled]="!!r.id"
+                   placeholder="MERCADO_TOPE_ANTIGUEDAD">
+            <span class="ayuda">Identificador interno. No cambia una vez creada.</span>
+          </div>
+          <div class="tsr-campo">
+            <label for="nombre">Nombre</label>
+            <input id="nombre" type="text" [(ngModel)]="r.nombre"
+                   placeholder="Tope de mercado por antigüedad">
+          </div>
+        </div>
+
+        <div class="tsr-campo">
+          <label for="descripcion">Descripción</label>
+          <textarea id="descripcion" rows="2" [(ngModel)]="r.descripcion"
+                    placeholder="Qué hace esta regla y por qué existe"></textarea>
+        </div>
+
+        <div class="tsr-fila">
+          <div class="tsr-campo">
+            <label for="tipo">Tipo</label>
+            <select id="tipo" [ngModel]="r.tipo" (ngModelChange)="alCambiarTipo($event)">
+              @for (t of catalogo()?.tipos ?? []; track t.tipo) {
+                <option [value]="t.tipo">{{ t.nombre }}</option>
+              }
+            </select>
+            <span class="ayuda">{{ tipoDe(r.tipo)?.descripcion }}</span>
+          </div>
+
+          <div class="tsr-campo">
+            <label for="concepto">Aplica a</label>
+            <select id="concepto" [(ngModel)]="r.concepto">
+              <option value="MERCADO">Solo mercado</option>
+              <option value="PRESTAMO">Solo préstamo</option>
+              <option value="TODOS">Ambos</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="tsr-fila">
+          <div class="tsr-campo">
+            <label for="severidad">Severidad</label>
+            <select id="severidad" [(ngModel)]="r.severidad">
+              @for (s of catalogo()?.severidades ?? []; track s.codigo) {
+                <option [value]="s.codigo">{{ s.nombre }}</option>
+              }
+            </select>
+            <span class="ayuda">
+              Una regla nueva casi nunca debe entrar bloqueando. Estréanala en
+              <b>Advierte</b>, mira a cuánta gente habría frenado, y súbela después.
+            </span>
+          </div>
+
+          <div class="tsr-campo">
+            <label for="prioridad">Prioridad</label>
+            <input id="prioridad" type="number" [(ngModel)]="r.prioridad">
+            <span class="ayuda">Menor número, se evalúa antes.</span>
+          </div>
+        </div>
+
+        <div class="tsr-fila">
+          <div class="tsr-campo">
+            <label for="desde">Aplica desde</label>
+            <input id="desde" type="date" [(ngModel)]="r.vigente_desde">
+          </div>
+          <div class="tsr-campo">
+            <label for="hasta">Aplica hasta</label>
+            <input id="hasta" type="date" [(ngModel)]="r.vigente_hasta">
+          </div>
+        </div>
+
+        <div class="tsr-campo">
+          <label class="check-inline">
+            <input type="checkbox" [(ngModel)]="r.activa"> Regla encendida
+          </label>
+          <span class="ayuda">
+            Apagada no se evalúa. Con fechas de vigencia, encendida y fuera de rango
+            tampoco: queda «programada».
+          </span>
+        </div>
+
+        <div class="tsr-campo">
+          <label for="mensaje">Mensaje cuando no se cumple</label>
+          <input id="mensaje" type="text" [(ngModel)]="r.mensaje_rechazo"
+                 placeholder="Lo que verá quien atiende en el mostrador">
+          <span class="ayuda">Vacío = el sistema compone uno con los datos concretos.</span>
+        </div>
+
+        <!-- ── Tramos ─────────────────────────────────────────────────── -->
+        @if (tipoDe(r.tipo)?.usa_tramos) {
+          <div class="bloque">
+            <div class="bloque-cabecera">
+              <h3>Tramos</h3>
+              <button type="button" class="tsr-boton pequeno" (click)="agregarTramo()">
+                <mat-icon>add</mat-icon> Añadir
+              </button>
+            </div>
+            <p class="ayuda">
+              Los tramos no pueden solaparse ni dejar huecos: un hueco deja a alguien sin
+              tope y no se nota hasta semanas después. Solo el último puede quedar abierto
+              (sin «hasta»).
+            </p>
+
+            @for (t of r.tramos; track $index; let i = $index) {
+              <div class="tramo">
+                <div class="tsr-campo estrecho">
+                  <label>Desde</label>
+                  <input type="number" [(ngModel)]="t.desde">
+                </div>
+                <div class="tsr-campo estrecho">
+                  <label>Hasta</label>
+                  <input type="number" [(ngModel)]="t.hasta" placeholder="sin límite">
+                </div>
+                <div class="tsr-campo estrecho">
+                  <label>Valor</label>
+                  <input type="number" [(ngModel)]="t.valor">
+                </div>
+                <div class="tsr-campo">
+                  <label>Etiqueta</label>
+                  <input type="text" [(ngModel)]="t.etiqueta" placeholder="De 8 a 15 días">
+                </div>
+                <button type="button" class="tsr-boton pequeno peligro" (click)="quitarTramo(i)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- ── Ajustes ────────────────────────────────────────────────── -->
+        @if (tipoDe(r.tipo)?.usa_ajustes) {
+          <div class="bloque">
+            <div class="bloque-cabecera">
+              <h3>Ajustes al tope</h3>
+              <button type="button" class="tsr-boton pequeno" (click)="agregarAjuste()">
+                <mat-icon>add</mat-icon> Añadir
+              </button>
+            </div>
+            <p class="ayuda">
+              Bonos y descuentos sobre el tope base según el rol, el correo, la sede o la
+              antigüedad. «Excluye» sirve para que dos bonos no se sumen entre sí.
+            </p>
+
+            @for (a of r.ajustes; track $index; let i = $index) {
+              <div class="ajuste">
+                <div class="tsr-campo">
+                  <label>Nombre</label>
+                  <input type="text" [(ngModel)]="a.nombre" placeholder="Bono rol TIENDA">
+                </div>
+                <div class="tsr-campo estrecho">
+                  <label>Sujeto</label>
+                  <select [(ngModel)]="a.tipo_sujeto">
+                    <option value="TODOS">Todos</option>
+                    <option value="ROL">Rol</option>
+                    <option value="CORREO">Correo</option>
+                    <option value="SEDE">Sede</option>
+                  </select>
+                </div>
+                @if (a.tipo_sujeto !== 'TODOS') {
+                  <div class="tsr-campo">
+                    <label>Cuál</label>
+                    <input type="text" [(ngModel)]="a.sujeto" placeholder="TIENDA">
+                  </div>
+                }
+                <div class="tsr-campo estrecho">
+                  <label>Desde días</label>
+                  <input type="number" [(ngModel)]="a.min_dias" placeholder="—">
+                </div>
+                <div class="tsr-campo estrecho">
+                  <label>Operación</label>
+                  <select [(ngModel)]="a.operacion">
+                    <option value="SUMA">Suma</option>
+                    <option value="RESTA">Resta</option>
+                    <option value="FIJA">Fija</option>
+                    <option value="FACTOR">Factor</option>
+                  </select>
+                </div>
+                <div class="tsr-campo estrecho">
+                  <label>Valor</label>
+                  <input type="number" [(ngModel)]="a.valor">
+                </div>
+                <div class="tsr-campo">
+                  <label>Excluye</label>
+                  <input type="text" [(ngModel)]="a.excluye" placeholder="Nombre de otro ajuste">
+                </div>
+                <button type="button" class="tsr-boton pequeno peligro" (click)="quitarAjuste(i)">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        }
+
+        <!-- ── Parámetros ─────────────────────────────────────────────── -->
+        <div class="bloque">
+          <h3>Parámetros del tipo</h3>
+          <p class="ayuda">
+            Configuración propia de «{{ tipoDe(r.tipo)?.nombre }}». Ejemplo para este tipo:
+            <code>{{ tipoDe(r.tipo)?.parametros_ejemplo | json }}</code>
+          </p>
+          <textarea rows="8" class="json" [ngModel]="parametrosTexto"
+                    (ngModelChange)="parametrosTexto = $event"></textarea>
+          @if (errorParametros()) {
+            <p class="error-json">{{ errorParametros() }}</p>
+          }
+        </div>
+      </div>
+
+      <footer class="panel-pie">
+        <button type="button" class="tsr-boton" (click)="cancelar()">Cancelar</button>
+        <button type="button" class="tsr-boton principal" (click)="guardar()"
+                [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : 'Guardar' }}
+        </button>
+      </footer>
+    </aside>
+  }
+
+  <!-- ═══════════════ HISTORIAL ═══════════════ -->
+  @if (viendoHistorialDe(); as codigo) {
+    <div class="panel-fondo" (click)="cerrarHistorial()"></div>
+    <aside class="panel" role="dialog" aria-label="Historial de la regla">
+      <header class="panel-cabecera">
+        <h2>Historial de {{ codigo }}</h2>
+        <button type="button" class="tsr-boton pequeno" (click)="cerrarHistorial()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      <div class="panel-cuerpo">
+        @if (!historial().length) {
+          <div class="tsr-cargando">Sin cambios registrados.</div>
+        } @else {
+          @for (c of historial(); track c.id) {
+            <div class="cambio">
+              <div class="cambio-cabecera">
+                <span class="tsr-chip azul">{{ c.accion }}</span>
+                <span class="quien">{{ c.usuario || 'sistema' }}</span>
+                <span class="cuando">{{ c.fecha | date:'dd/MM/yy HH:mm' }}</span>
+              </div>
+              @if (c.comentario) { <p class="comentario">{{ c.comentario }}</p> }
+              @if (diferencias(c).length) {
+                <ul class="difs">
+                  @for (d of diferencias(c); track d) { <li>{{ d }}</li> }
+                </ul>
+              }
+            </div>
+          }
+        }
+      </div>
+    </aside>
+  }
+</div>

@@ -1,0 +1,273 @@
+<div class="tsr-pagina">
+
+  <header class="tsr-cabecera">
+    <div>
+      <h1>Padrón de activos</h1>
+      <p>
+        El archivo de personal activo con sus topes. De aquí sale el <b>tope real</b> y el
+        estado de paz y salvo con los que se autoriza; sin él, el cupo se estima a partir
+        de la fecha de ingreso, que en tesorería es texto libre.
+      </p>
+    </div>
+    <div class="tsr-acciones">
+      <button type="button" class="tsr-boton" (click)="verFormato.set(!verFormato())">
+        <mat-icon>help_outline</mat-icon>
+        {{ verFormato() ? 'Ocultar' : 'Ver' }} columnas que entiende
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Estado actual ─────────────────────────────────────────────────── -->
+  @if (vigente(); as v) {
+    @if (v.vigente === false) {
+      <div class="tsr-alerta aviso">
+        <mat-icon>info</mat-icon>
+        <div>
+          <span class="titulo">No hay padrón vigente</span>
+          <span class="detalle">{{ v.mensaje }}</span>
+        </div>
+      </div>
+    } @else {
+      <div class="tsr-tarjeta">
+        <h2><mat-icon>check_circle</mat-icon> Padrón vigente</h2>
+        <div class="tsr-cifras">
+          <div class="tsr-cifra">
+            <span class="valor">{{ v.fecha_corte }}</span>
+            <span class="etiqueta">Fecha de corte</span>
+          </div>
+          <div class="tsr-cifra buena">
+            <span class="valor">{{ v.filas_ok }}</span>
+            <span class="etiqueta">Personas</span>
+          </div>
+          @if (v.filas_error > 0) {
+            <div class="tsr-cifra mala">
+              <span class="valor">{{ v.filas_error }}</span>
+              <span class="etiqueta">Filas con error</span>
+            </div>
+          }
+          <div class="tsr-cifra">
+            <span class="valor">{{ v.cargado_por || '—' }}</span>
+            <span class="etiqueta">Cargado por</span>
+            <span class="nota">{{ v.cargado_en | date:'dd/MM/yy HH:mm' }}</span>
+          </div>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- ── Formato ───────────────────────────────────────────────────────── -->
+  @if (verFormato() && formato(); as f) {
+    <div class="tsr-tarjeta">
+      <h2><mat-icon>table_chart</mat-icon> Columnas que entiende el importador</h2>
+
+      <h3 class="grupo-col">Obligatoria</h3>
+      @for (c of f.obligatorias; track c.columna) {
+        <div class="columna"><code>{{ c.columna }}</code><span>{{ c.descripcion }}</span></div>
+      }
+
+      <h3 class="grupo-col">Recomendadas</h3>
+      @for (c of f.recomendadas; track c.columna) {
+        <div class="columna"><code>{{ c.columna }}</code><span>{{ c.descripcion }}</span></div>
+      }
+
+      <h3 class="grupo-col">Opcionales</h3>
+      @for (c of f.opcionales; track c.columna) {
+        <div class="columna"><code>{{ c.columna }}</code><span>{{ c.descripcion }}</span></div>
+      }
+
+      <h3 class="grupo-col">Cómo lo lee</h3>
+      <ul class="notas">@for (n of f.notas; track n) { <li>{{ n }}</li> }</ul>
+    </div>
+  }
+
+  <!-- ── Subir ─────────────────────────────────────────────────────────── -->
+  <div class="tsr-tarjeta">
+    <h2><mat-icon>upload_file</mat-icon> Subir una carga nueva</h2>
+
+    <div class="tsr-fila">
+      <div class="tsr-campo">
+        <label for="archivo">Archivo de personal activo</label>
+        <input id="archivo" type="file" accept=".xlsx,.xls" (change)="alElegirArchivo($event)">
+        <span class="ayuda">Excel. La cabecera puede estar en cualquiera de las primeras 20 filas.</span>
+      </div>
+      <div class="tsr-campo">
+        <label for="corte">Fecha de corte</label>
+        <input id="corte" type="date" [(ngModel)]="fechaCorte">
+        <span class="ayuda">A qué día corresponde la información del archivo.</span>
+      </div>
+    </div>
+
+    <div class="tsr-campo">
+      <label for="obs">Observación</label>
+      <input id="obs" type="text" [(ngModel)]="observacion"
+             placeholder="Quincena, novedades, de dónde salió el archivo…">
+    </div>
+
+    <div class="tsr-campo">
+      <label class="check-inline">
+        <input type="checkbox" [(ngModel)]="activarAlSubir">
+        Activar en cuanto termine
+      </label>
+      <span class="ayuda">
+        Sin marcar, la carga queda guardada y se revisa antes de activarla. Activar cambia
+        el tope de miles de personas de una vez, así que por defecto va desmarcado.
+      </span>
+    </div>
+
+    <button type="button" class="tsr-boton principal" (click)="subir()" [disabled]="subiendo()">
+      <mat-icon>cloud_upload</mat-icon>
+      {{ subiendo() ? 'Procesando…' : 'Subir' }}
+    </button>
+  </div>
+
+  <!-- ── Resultado ─────────────────────────────────────────────────────── -->
+  @if (ultimoResultado(); as r) {
+    <div class="tsr-tarjeta">
+      <h2><mat-icon>fact_check</mat-icon> Resultado de la última carga</h2>
+
+      <div class="tsr-cifras">
+        <div class="tsr-cifra"><span class="valor">{{ r.filas_totales }}</span>
+          <span class="etiqueta">Filas leídas</span></div>
+        <div class="tsr-cifra buena"><span class="valor">{{ r.filas_ok }}</span>
+          <span class="etiqueta">Cargadas</span></div>
+        <div class="tsr-cifra" [class.mala]="r.filas_error > 0">
+          <span class="valor">{{ r.filas_error }}</span>
+          <span class="etiqueta">Con error</span></div>
+        @if (r.activada) {
+          <div class="tsr-cifra"><span class="valor">{{ r.personas_cruzadas }}</span>
+            <span class="etiqueta">Cruzadas con tesorería</span></div>
+        }
+      </div>
+
+      @for (a of r.avisos; track a) {
+        <div class="tsr-alerta aviso">
+          <mat-icon>warning</mat-icon>
+          <div><span class="detalle">{{ a }}</span></div>
+        </div>
+      }
+
+      @if (r.errores?.length) {
+        <h3 class="grupo-col">Filas que no entraron</h3>
+        <div class="tsr-scroll">
+          <table class="tsr-tabla">
+            <thead><tr><th style="width:90px">Fila</th><th>Motivo</th></tr></thead>
+            <tbody>
+              @for (e of r.errores; track e.row) {
+                <tr><td class="num">{{ e.row }}</td><td>{{ e.error }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── Historial de cargas ───────────────────────────────────────────── -->
+  <div class="tsr-tarjeta">
+    <h2><mat-icon>history</mat-icon> Cargas anteriores</h2>
+
+    @if (cargando()) {
+      <div class="tsr-cargando">Cargando…</div>
+    } @else if (!cargas().length) {
+      <div class="tsr-vacio">
+        <mat-icon class="icono">inventory</mat-icon>
+        <p>Todavía no se ha subido ningún padrón.</p>
+        <p class="sugerencia">Mientras tanto, los topes salen de la regla de antigüedad.</p>
+      </div>
+    } @else {
+      <div class="tsr-scroll">
+        <table class="tsr-tabla">
+          <thead>
+            <tr><th>Estado</th><th>Corte</th><th class="num">Filas</th>
+                <th>Archivo</th><th>Cargó</th><th></th></tr>
+          </thead>
+          <tbody>
+            @for (c of cargas(); track c.id) {
+              <tr [class.apagada]="c.estado === 'ANULADA'">
+                <td>
+                  <span class="tsr-chip" [class]="'tsr-chip ' + claseDeCarga(c)">
+                    {{ textoDeCarga(c) }}
+                  </span>
+                </td>
+                <td>{{ c.fecha_corte }}</td>
+                <td class="num">
+                  {{ c.filas_ok }}
+                  @if (c.filas_error > 0) { <div class="sub error">{{ c.filas_error }} con error</div> }
+                </td>
+                <td>
+                  {{ c.nombre_archivo || '—' }}
+                  @if (c.observacion) { <div class="sub">{{ c.observacion }}</div> }
+                </td>
+                <td>
+                  {{ c.cargado_por || '—' }}
+                  <div class="sub">{{ c.cargado_en | date:'dd/MM/yy HH:mm' }}</div>
+                </td>
+                <td class="acciones-fila">
+                  <button type="button" class="tsr-boton pequeno" (click)="verResumen(c)">
+                    Resumen
+                  </button>
+                  @if (!c.vigente && c.estado !== 'ANULADA') {
+                    <button type="button" class="tsr-boton pequeno principal" (click)="activar(c)">
+                      Activar
+                    </button>
+                  }
+                  @if (c.estado !== 'ANULADA') {
+                    <button type="button" class="tsr-boton pequeno peligro" (click)="anular(c)">
+                      Anular
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  <!-- ── Resumen de una carga ──────────────────────────────────────────── -->
+  @if (resumen(); as r) {
+    <div class="panel-fondo" (click)="cerrarResumen()"></div>
+    <aside class="panel" role="dialog" aria-label="Resumen de la carga">
+      <header class="panel-cabecera">
+        <h2>Resumen de la carga</h2>
+        <button type="button" class="tsr-boton pequeno" (click)="cerrarResumen()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+      <div class="panel-cuerpo">
+        @if (r.error) {
+          <div class="tsr-alerta critica"><mat-icon>error</mat-icon><div>{{ r.error }}</div></div>
+        } @else {
+          <div class="tsr-cifras">
+            <div class="tsr-cifra"><span class="valor">{{ r.filas_padron }}</span>
+              <span class="etiqueta">En el archivo</span></div>
+            <div class="tsr-cifra buena"><span class="valor">{{ r.en_tesoreria }}</span>
+              <span class="etiqueta">Existen en tesorería</span></div>
+            <div class="tsr-cifra" [class.mala]="r.sin_persona_en_tesoreria > 0">
+              <span class="valor">{{ r.sin_persona_en_tesoreria }}</span>
+              <span class="etiqueta">Sin persona en tesorería</span></div>
+          </div>
+
+          @if (r.sin_persona_en_tesoreria > 0) {
+            <div class="tsr-alerta aviso">
+              <mat-icon>person_off</mat-icon>
+              <div>
+                <span class="titulo">Hay gente del archivo que no está en tesorería</span>
+                <span class="detalle">
+                  A estas personas se les negaría el crédito sin explicación, porque el
+                  sistema no las conoce. Hay que darlas de alta.
+                </span>
+              </div>
+            </div>
+
+            <h3 class="grupo-col">Muestra de documentos que faltan</h3>
+            <div class="documentos">
+              @for (d of r.muestra_faltantes; track d) { <code>{{ d }}</code> }
+            </div>
+          }
+        }
+      </div>
+    </aside>
+  }
+</div>

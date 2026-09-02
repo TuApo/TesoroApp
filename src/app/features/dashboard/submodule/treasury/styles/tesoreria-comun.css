@@ -1,0 +1,339 @@
+/*
+ * Estilos compartidos de las pantallas nuevas de tesorería.
+ *
+ * Un archivo común y no uno por pantalla: las tres muestran las mismas cosas —estado de
+ * una persona, veredicto de una regla, una cifra de dinero— y que el mismo concepto se
+ * pinte distinto en cada sitio es exactamente lo que hace que nadie se fíe de lo que ve.
+ *
+ * Los colores de estado son semánticos y no decorativos: verde = se puede, ámbar = mira
+ * esto, rojo = no se puede. El mostrador lee el color antes que el texto.
+ */
+
+:host {
+  --tsr-verde: #0b6b58;
+  --tsr-verde-suave: #e6f2ef;
+  --tsr-ambar: #8a6420;
+  --tsr-ambar-suave: #fdf3e0;
+  --tsr-rojo: #a33328;
+  --tsr-rojo-suave: #fbeae8;
+  --tsr-azul: #1565c0;
+  --tsr-azul-suave: #e8f1fb;
+  --tsr-gris: #5c6660;
+  --tsr-gris-suave: #f4f6f4;
+  --tsr-borde: #dde3dd;
+  --tsr-texto: #1c231f;
+}
+
+.tsr-pagina {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  color: var(--tsr-texto);
+}
+
+.tsr-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.tsr-cabecera h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+.tsr-cabecera p {
+  margin: 0;
+  color: var(--tsr-gris);
+  font-size: 14px;
+  max-width: 70ch;
+  line-height: 1.5;
+}
+
+.tsr-acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Tarjetas ─────────────────────────────────────────────────────────────── */
+
+.tsr-tarjeta {
+  background: #fff;
+  border: 1px solid var(--tsr-borde);
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.tsr-tarjeta > h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tsr-tarjeta > h2 mat-icon,
+.tsr-tarjeta > h2 .material-icons {
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+  color: var(--tsr-verde);
+}
+
+/* ── Cifras ───────────────────────────────────────────────────────────────── */
+
+.tsr-cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1px;
+  background: var(--tsr-borde);
+  border: 1px solid var(--tsr-borde);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tsr-cifra {
+  background: #fff;
+  padding: 14px 16px;
+}
+
+.tsr-cifra .valor {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  display: block;
+  line-height: 1.2;
+}
+
+.tsr-cifra .etiqueta {
+  font-size: 12px;
+  color: var(--tsr-gris);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 6px;
+  display: block;
+  line-height: 1.35;
+}
+
+.tsr-cifra .nota {
+  font-size: 12px;
+  color: var(--tsr-gris);
+  margin-top: 4px;
+  display: block;
+}
+
+.tsr-cifra.buena .valor { color: var(--tsr-verde); }
+.tsr-cifra.aviso .valor { color: var(--tsr-ambar); }
+.tsr-cifra.mala  .valor { color: var(--tsr-rojo); }
+
+/* ── Etiquetas de estado ──────────────────────────────────────────────────── */
+
+.tsr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tsr-chip.verde  { background: var(--tsr-verde-suave); color: var(--tsr-verde); }
+.tsr-chip.ambar  { background: var(--tsr-ambar-suave); color: var(--tsr-ambar); }
+.tsr-chip.rojo   { background: var(--tsr-rojo-suave);  color: var(--tsr-rojo); }
+.tsr-chip.azul   { background: var(--tsr-azul-suave);  color: var(--tsr-azul); }
+.tsr-chip.gris   { background: var(--tsr-gris-suave);  color: var(--tsr-gris); }
+
+/* ── Alertas ──────────────────────────────────────────────────────────────── */
+
+.tsr-alerta {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border-left: 3px solid;
+  margin-bottom: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tsr-alerta .titulo { font-weight: 600; display: block; margin-bottom: 2px; }
+.tsr-alerta .detalle { color: var(--tsr-gris); }
+
+.tsr-alerta.critica { background: var(--tsr-rojo-suave); border-color: var(--tsr-rojo); }
+.tsr-alerta.critica .titulo { color: var(--tsr-rojo); }
+.tsr-alerta.aviso   { background: var(--tsr-ambar-suave); border-color: var(--tsr-ambar); }
+.tsr-alerta.aviso .titulo { color: var(--tsr-ambar); }
+.tsr-alerta.info    { background: var(--tsr-azul-suave); border-color: var(--tsr-azul); }
+.tsr-alerta.info .titulo { color: var(--tsr-azul); }
+
+/* ── Tablas ───────────────────────────────────────────────────────────────── */
+
+/* El contenedor scrollea, no el body: una tabla ancha no debe mover la página entera. */
+.tsr-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--tsr-borde);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tsr-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  min-width: 640px;
+}
+
+.tsr-tabla th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tsr-gris);
+  font-weight: 600;
+  border-bottom: 1px solid var(--tsr-borde);
+  background: var(--tsr-gris-suave);
+  white-space: nowrap;
+}
+
+.tsr-tabla td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef1ee;
+  vertical-align: top;
+}
+
+.tsr-tabla tbody tr:last-child td { border-bottom: 0; }
+.tsr-tabla tbody tr:hover { background: #fafbfa; }
+
+.tsr-tabla .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tsr-tabla .apagada { opacity: 0.55; }
+
+/* ── Formularios ──────────────────────────────────────────────────────────── */
+
+.tsr-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.tsr-campo label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--tsr-gris);
+}
+
+.tsr-campo .ayuda {
+  font-size: 12px;
+  color: var(--tsr-gris);
+  line-height: 1.45;
+}
+
+.tsr-campo input,
+.tsr-campo select,
+.tsr-campo textarea {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--tsr-borde);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--tsr-texto);
+}
+
+.tsr-campo input:focus,
+.tsr-campo select:focus,
+.tsr-campo textarea:focus {
+  outline: 2px solid var(--tsr-verde);
+  outline-offset: -1px;
+  border-color: var(--tsr-verde);
+}
+
+.tsr-fila {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 14px;
+}
+
+/* ── Botones ──────────────────────────────────────────────────────────────── */
+
+.tsr-boton {
+  font: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 8px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--tsr-borde);
+  background: #fff;
+  color: var(--tsr-texto);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .12s ease, border-color .12s ease;
+}
+
+.tsr-boton:hover:not(:disabled) { background: var(--tsr-gris-suave); }
+.tsr-boton:disabled { opacity: .5; cursor: not-allowed; }
+.tsr-boton:focus-visible { outline: 2px solid var(--tsr-verde); outline-offset: 2px; }
+
+.tsr-boton.principal {
+  background: var(--tsr-verde);
+  border-color: var(--tsr-verde);
+  color: #fff;
+}
+.tsr-boton.principal:hover:not(:disabled) { background: #095546; }
+
+.tsr-boton.peligro { color: var(--tsr-rojo); border-color: #eccbc7; }
+.tsr-boton.peligro:hover:not(:disabled) { background: var(--tsr-rojo-suave); }
+
+.tsr-boton.pequeno { padding: 5px 10px; font-size: 12.5px; }
+
+/* ── Estados vacíos y de carga ────────────────────────────────────────────── */
+
+.tsr-vacio {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--tsr-gris);
+}
+
+.tsr-vacio .icono {
+  font-size: 40px;
+  width: 40px;
+  height: 40px;
+  opacity: .4;
+  margin-bottom: 10px;
+}
+
+.tsr-vacio p { margin: 4px 0; font-size: 14px; }
+.tsr-vacio .sugerencia { font-size: 13px; opacity: .8; }
+
+.tsr-cargando {
+  padding: 24px;
+  text-align: center;
+  color: var(--tsr-gris);
+  font-size: 14px;
+}
+
+@media (max-width: 700px) {
+  .tsr-pagina { padding: 14px; }
+  .tsr-tarjeta { padding: 14px; }
+  .tsr-cabecera { flex-direction: column; }
+}
