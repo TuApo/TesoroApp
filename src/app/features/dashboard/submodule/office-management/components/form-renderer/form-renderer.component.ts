@@ -22,7 +22,7 @@ import { FieldValue, FormFieldDef } from '../../models/office-forms.models';
   imports: [CommonModule, ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatRadioModule, MatButtonModule, MatIconModule],
   template: `
   <form [formGroup]="form" class="ofr">
-    @if (!fields?.length) {
+    @if (!fields.length) {
       <p class="ofr__empty">Sin campos.</p>
     }
     @for (f of fields; track key(f, $index); let i = $index) {

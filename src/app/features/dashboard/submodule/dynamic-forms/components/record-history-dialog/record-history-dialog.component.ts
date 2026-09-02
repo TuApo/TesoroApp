@@ -93,7 +93,7 @@ export interface RecordHistoryData {
                   <p class="rhd-nota">“{{ r.note }}”</p>
                 }
 
-                @if (r.changes?.length) {
+                @if (r.changes.length) {
                   <table class="rhd-cambios">
                     <thead>
                       <tr><th>Campo</th><th>Antes</th><th>Después</th></tr>

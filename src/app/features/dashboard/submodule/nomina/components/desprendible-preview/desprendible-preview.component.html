@@ -5,10 +5,11 @@
           [disabled]="!desprendible() || downloading()"
           (click)="descargarPdf()">
     @if (downloading()) {
-      <mat-icon class="spin">progress_activity</mat-icon> Generando…
+      <mat-icon class="spin">progress_activity</mat-icon>
     } @else {
-      <mat-icon>download</mat-icon> Descargar PDF
+      <mat-icon>download</mat-icon>
     }
+    {{ downloading() ? 'Generando…' : 'Descargar PDF' }}
   </button>
   <button mat-icon-button (click)="cerrar()" aria-label="Cerrar">
     <mat-icon>close</mat-icon>

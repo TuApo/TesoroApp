@@ -91,7 +91,7 @@ interface Segmento {
         @case ('md') { <div class="md-body" [innerHTML]="seg.html ?? ''"></div> }
         @case ('echarts') {
           @if (seg.option) {
-            <div echarts [options]="seg.option ?? {}" class="chat-echart"></div>
+            <div echarts [options]="seg.option" class="chat-echart"></div>
           } @else {
             <pre class="md-code"><code>{{ seg.raw ?? '' }}</code></pre>
           }

@@ -67,10 +67,10 @@
             (click)="subirDocumento()">
       @if (uploading()) {
         <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner>
-        Subiendo…
       } @else {
-        <mat-icon>cloud_upload</mat-icon> Subir documento
+        <mat-icon>cloud_upload</mat-icon>
       }
+      {{ uploading() ? 'Subiendo…' : 'Subir documento' }}
     </button>
   </div>
 
@@ -115,7 +115,7 @@
               <div class="modulos-grid-sm">
                 @for (m of modulosOpciones; track m.clave) {
                   <label class="modulo-check-sm">
-                    <input type="checkbox" [checked]="(doc.modulos ?? []).includes(m.clave)"
+                    <input type="checkbox" [checked]="doc.modulos.includes(m.clave)"
                            (change)="toggleDocModulo(doc, m.clave)">
                     <span>{{ m.nombre }}</span>
                   </label>

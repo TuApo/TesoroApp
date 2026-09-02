@@ -50,7 +50,7 @@ export interface SubirDocumentoResult {
         </mat-select>
       </mat-form-field>
 
-      <mat-form-field appearance="outline" class="full-width" *ngIf="(data.actuaciones?.length ?? 0) > 0">
+      <mat-form-field appearance="outline" class="full-width" *ngIf="data.actuaciones.length > 0">
         <mat-label>Vincular a actuación (opcional)</mat-label>
         <mat-select [(ngModel)]="actuacionId">
           <mat-option [value]="null">— Sin vincular —</mat-option>
