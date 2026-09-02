@@ -12,7 +12,7 @@ Después de mergear `hardening/tesoroapp-modernization` a `main`, ejecutar
 ## 0) Setup
 
 ```bash
-cd c:/Users/sebst/Documents/GITGUB/APOYO_LABORAL/TesoroApp
+cd c:/Users/sebst/Documents/GITHUB/codigo/trabajo/apoyo-laboral/TesoroApp
 git checkout hardening/tesoroapp-modernization
 npm install --legacy-peer-deps   # primera vez después del checkout
 npm run start:electron           # abre Electron en dev (puerto 4400)
