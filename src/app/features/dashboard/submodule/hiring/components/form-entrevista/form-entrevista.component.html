@@ -1,1211 +1,904 @@
 <div class="contenedor">
   <form class="formulario" [formGroup]="formVacante" autocomplete="off" (ngSubmit)="onSubmit()">
 
-    <div class="ficha-layout">
+    <!-- Navegación rápida entre secciones (smooth scroll a cada anchor) -->
+    <nav class="form-nav" aria-label="Navegación del formulario">
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-identificacion')">
+        <mat-icon>badge</mat-icon> Identificación
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-datos-personales')">
+        <mat-icon>person</mat-icon> Datos
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-contacto')">
+        <mat-icon>home</mat-icon> Contacto
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-familia')">
+        <mat-icon>diversity_3</mat-icon> Familia
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-formacion')">
+        <mat-icon>school</mat-icon> Formación
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-laboral')">
+        <mat-icon>work_history</mat-icon> Laboral
+      </a>
+      <a class="form-nav-chip" href="javascript:void(0)" (click)="scrollToSection('sec-entrevista')">
+        <mat-icon>rate_review</mat-icon> Entrevista
+      </a>
+    </nav>
 
-      <!-- ══════════════════════════════════════════════════════════════════
-           FICHA DEL CANDIDATO
-           Siempre a la vista mientras se trabaja. Cada fila es el control
-           real del formulario: al hacer click se abre en sitio, se corrige y
-           se cierra. No hay una copia de los datos que pueda quedar desfasada.
-           ══════════════════════════════════════════════════════════════════ -->
-      <aside class="ficha" aria-label="Datos del candidato">
+    <div class="form-sections">
 
-        <header class="ficha-head">
-          <div class="ficha-head-text">
-            <span class="ficha-head-title">Datos del candidato</span>
-            <span class="ficha-head-hint">Click en un dato para corregirlo</span>
-          </div>
-          <mat-icon class="ficha-head-icon" aria-hidden="true">edit_note</mat-icon>
-        </header>
-
-        <!-- ── Identidad: foto + nombre ─────────────────────────────────── -->
-        <div class="ficha-id">
-          <button type="button" class="ficha-foto"
-                  [class.ficha-foto-vacia]="!fotoUrl()"
-                  matTooltip="Tomar o actualizar la foto"
-                  matTooltipPosition="right"
-                  (click)="fotoSolicitada.emit()">
-            @if (fotoUrl()) {
-              <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato"
-                   referrerpolicy="no-referrer" />
-            } @else {
-              <span class="ficha-foto-iniciales">{{ inicialesFicha }}</span>
-            }
-            <span class="ficha-foto-badge" aria-hidden="true">
-              <mat-icon>photo_camera</mat-icon>
-            </span>
-          </button>
-
-          <div class="ficha-id-text">
-            <h2 class="ficha-nombre">{{ nombreFicha || 'Candidato sin nombre' }}</h2>
-            <div class="ficha-id-chips">
-              @if (documentoFicha) {
-                <span class="ficha-chip"><mat-icon>badge</mat-icon>{{ documentoFicha }}</span>
-              }
-              @if (texto('edad')) {
-                <span class="ficha-chip">{{ texto('edad') }} años</span>
-              }
-              @if (texto('sexo')) {
-                <span class="ficha-chip">{{ texto('sexo') === 'F' ? 'Femenino' : 'Masculino' }}</span>
-              }
-            </div>
-          </div>
+      <!-- ============================
+      1. Identificación
+      ============================= -->
+      <section class="section" id="sec-identificacion">
+        <div class="section-head">
+          <span class="section-icon-wrap section-icon-blue">
+            <mat-icon inline="true" aria-hidden="true">badge</mat-icon>
+          </span>
+          <h3 class="section-title">Identificación y documento</h3>
+          <mat-divider class="section-divider"></mat-divider>
         </div>
 
-        <!-- ══════ Bloque · Identificación y documento ══════ -->
-        <section class="fblock">
-          <button type="button" class="fblock-head" (click)="alternarBloque('identificacion')"
-                  [attr.aria-expanded]="!plegado('identificacion')">
-            <span class="fblock-dot fblock-dot-blue" aria-hidden="true"></span>
-            <span class="fblock-title">Identificación y documento</span>
-            @if (faltanIdentificacion) {
-              <span class="fblock-faltan" [matTooltip]="faltanIdentificacion + ' dato(s) por completar'">{{ faltanIdentificacion }}</span>
+        <div class="datos">
+          <mat-form-field appearance="outline">
+            <mat-label>Oficina</mat-label>
+            <mat-select formControlName="oficina" required>
+              @for (o of oficinas; track o) {
+                <mat-option [value]="o">{{ o }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Tipo de documento (desde catálogo) -->
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de documento</mat-label>
+            <mat-select formControlName="tipo_doc" required>
+              @for (op of (tipoDocOpciones$ | async) ?? []; track op['codigo']) {
+                <mat-option [value]="op['codigo']">
+                  {{ op['descripcion'] }}
+                </mat-option>
+              }
+            </mat-select>
+            @let tipoDocCtrl = formVacante.get('tipo_doc');
+            @if (tipoDocCtrl?.hasError('required') && (tipoDocCtrl?.touched || tipoDocCtrl?.dirty)) {
+              <mat-error>Seleccione un tipo de documento.</mat-error>
             }
-            <mat-icon class="fblock-chevron">{{ plegado('identificacion') ? 'expand_more' : 'expand_less' }}</mat-icon>
-          </button>
+          </mat-form-field>
 
-          @if (!plegado('identificacion')) {
-            <div class="fblock-body">
+          <!-- Número de documento -->
+          <mat-form-field appearance="outline">
+            <mat-label>Número de documento</mat-label>
+            <input matInput formControlName="numero_documento" placeholder="Ej: 1005851506 o X658597" maxlength="32"
+              type="text" inputmode="text" autocomplete="off" />
+              <mat-hint>Solo números o una “X” inicial.</mat-hint>
 
-              <!-- Oficina -->
-              <div class="frow" data-fila="oficina" [class.frow-abierta]="editando('oficina')">
-                @if (editando('oficina')) {
-                  <div class="frow-editor" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Oficina</mat-label>
-                      <mat-select formControlName="oficina" required>
-                        @for (o of oficinas; track o) {
-                          <mat-option [value]="o">{{ o }}</mat-option>
-                        }
-                      </mat-select>
-                    </mat-form-field>
-                    <button type="button" class="frow-listo" (click)="cerrarFila()" matTooltip="Listo">
-                      <mat-icon>check</mat-icon>
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('oficina')">
-                    <span class="frow-label">Oficina</span>
-                    <span class="frow-value" [class.frow-vacio]="!texto('oficina')">{{ texto('oficina') || '—' }}</span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
+              @let numDoc = formVacante.get('numero_documento');
+
+              @if (numDoc?.hasError('required') && (numDoc?.touched || numDoc?.dirty)) {
+                <mat-error>El número de documento es obligatorio.</mat-error>
+              }
+              @if (numDoc?.hasError('pattern') && (numDoc?.touched || numDoc?.dirty)) {
+                <mat-error>Formato inválido: use solo dígitos o “X” al inicio.</mat-error>
+              }
+              @if (('' + (numDoc?.value ?? '')).length < 6 && (numDoc?.touched || numDoc?.dirty)) { <mat-error>Debe tener
+              mínimo 6 caracteres.</mat-error>
+            }
+          </mat-form-field>
+
+
+          <!-- Fecha de expedición -->
+          <mat-form-field appearance="outline">
+            <mat-label>Fecha de expedición</mat-label>
+            <input matInput [matDatepicker]="pickerExpedicion" formControlName="fecha_expedicion"
+              (focus)="pickerExpedicion.open()" readonly />
+              <mat-datepicker-toggle matSuffix [for]="pickerExpedicion"></mat-datepicker-toggle>
+              <mat-datepicker #pickerExpedicion startView="multi-year"></mat-datepicker>
+              @let fe = formVacante.get('fecha_expedicion');
+              @if (fe?.hasError('required') && (fe?.touched || fe?.dirty)) {
+                <mat-error>La fecha de expedición es obligatoria.</mat-error>
+              }
+            </mat-form-field>
+
+            <!-- Municipio de expedición -->
+            <mat-form-field appearance="outline">
+              <mat-label>Municipio de expedición</mat-label>
+              <input matInput type="text" formControlName="mpio_expedicion" [matAutocomplete]="autoMunicipio"
+                autocomplete="off" />
+                <mat-autocomplete #autoMunicipio="matAutocomplete" (optionSelected)="onMunicipioSelected($event)"
+                  autoActiveFirstOption>
+                  @for (ciudad of (filteredCities$ | async) ?? []; track $index) {
+                    <mat-option [value]="ciudad">{{ ciudad }}</mat-option>
+                  }
+                </mat-autocomplete>
+                @let me = formVacante.get('mpio_expedicion');
+                @if (me?.hasError('required') && (me?.touched || me?.dirty)) {
+                  <mat-error>El municipio de expedición es obligatorio.</mat-error>
                 }
-              </div>
-
-              <!-- Tipo y número de documento -->
-              <div class="frow" data-fila="documento" [class.frow-abierta]="editando('documento')">
-                @if (editando('documento')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Tipo de documento</mat-label>
-                      <mat-select formControlName="tipo_doc" required>
-                        @for (op of (tipoDocOpciones$ | async) ?? []; track op['codigo']) {
-                          <mat-option [value]="op['codigo']">{{ op['descripcion'] }}</mat-option>
-                        }
-                      </mat-select>
-                      @let tipoDocCtrl = formVacante.get('tipo_doc');
-                      @if (tipoDocCtrl?.hasError('required') && (tipoDocCtrl?.touched || tipoDocCtrl?.dirty)) {
-                        <mat-error>Seleccione un tipo de documento.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Número de documento</mat-label>
-                      <input matInput formControlName="numero_documento" placeholder="Ej: 1005851506 o X658597"
-                             maxlength="32" type="text" inputmode="text" autocomplete="off" />
-                      <mat-hint>Solo números o una “X” inicial.</mat-hint>
-                      @let numDoc = formVacante.get('numero_documento');
-                      @if (numDoc?.hasError('required') && (numDoc?.touched || numDoc?.dirty)) {
-                        <mat-error>El número de documento es obligatorio.</mat-error>
-                      }
-                      @if (numDoc?.hasError('pattern') && (numDoc?.touched || numDoc?.dirty)) {
-                        <mat-error>Formato inválido: use solo dígitos o “X” al inicio.</mat-error>
-                      }
-                      @if (('' + (numDoc?.value ?? '')).length < 6 && (numDoc?.touched || numDoc?.dirty)) {
-                        <mat-error>Debe tener mínimo 6 caracteres.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('documento')">
-                    <span class="frow-label">Documento</span>
-                    <span class="frow-value" [class.frow-vacio]="!texto('numero_documento')">
-                      {{ textoCatalogo('tipo_doc', 'tipoDoc') || 'CC' }} · {{ texto('numero_documento') || '—' }}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-              <!-- Expedición -->
-              <div class="frow" data-fila="expedicion" [class.frow-abierta]="editando('expedicion')">
-                @if (editando('expedicion')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Fecha de expedición</mat-label>
-                      <input matInput [matDatepicker]="pickerExpedicion" formControlName="fecha_expedicion"
-                             (focus)="pickerExpedicion.open()" readonly />
-                      <mat-datepicker-toggle matSuffix [for]="pickerExpedicion"></mat-datepicker-toggle>
-                      <mat-datepicker #pickerExpedicion startView="multi-year"></mat-datepicker>
-                      @let fe = formVacante.get('fecha_expedicion');
-                      @if (fe?.hasError('required') && (fe?.touched || fe?.dirty)) {
-                        <mat-error>La fecha de expedición es obligatoria.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Municipio de expedición</mat-label>
-                      <input matInput type="text" formControlName="mpio_expedicion" [matAutocomplete]="autoMunicipio"
-                             autocomplete="off" />
-                      <mat-autocomplete #autoMunicipio="matAutocomplete" (optionSelected)="onMunicipioSelected($event)"
-                                        autoActiveFirstOption>
-                        @for (ciudad of (filteredCities$ | async) ?? []; track $index) {
-                          <mat-option [value]="ciudad">{{ ciudad }}</mat-option>
-                        }
-                      </mat-autocomplete>
-                      @let me = formVacante.get('mpio_expedicion');
-                      @if (me?.hasError('required') && (me?.touched || me?.dirty)) {
-                        <mat-error>El municipio de expedición es obligatorio.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('expedicion')">
-                    <span class="frow-label">Expedición</span>
-                    <span class="frow-value" [class.frow-vacio]="!fecha('fecha_expedicion') && !texto('mpio_expedicion')">
-                      {{ fecha('fecha_expedicion') || '—' }}@if (texto('mpio_expedicion')) { · {{ texto('mpio_expedicion') }}}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
+              </mat-form-field>
             </div>
-          }
-        </section>
+          </section>
 
-        <!-- ══════ Bloque · Datos personales ══════ -->
-        <section class="fblock">
-          <button type="button" class="fblock-head" (click)="alternarBloque('personales')"
-                  [attr.aria-expanded]="!plegado('personales')">
-            <span class="fblock-dot fblock-dot-indigo" aria-hidden="true"></span>
-            <span class="fblock-title">Datos personales</span>
-            @if (faltanPersonales) {
-              <span class="fblock-faltan" [matTooltip]="faltanPersonales + ' dato(s) por completar'">{{ faltanPersonales }}</span>
+          <!-- ============================
+          2. Datos personales
+          ============================= -->
+          <section class="section" id="sec-datos-personales">
+            <div class="section-head">
+              <span class="section-icon-wrap section-icon-indigo">
+                <mat-icon inline="true" aria-hidden="true">person</mat-icon>
+              </span>
+              <h3 class="section-title">Datos personales y nacimiento</h3>
+              <mat-divider class="section-divider"></mat-divider>
+            </div>
+
+            <div class="datos">
+              <!-- Primer apellido -->
+              <mat-form-field appearance="outline">
+                <mat-label>Primer apellido</mat-label>
+                <input matInput formControlName="primer_apellido" maxlength="30" />
+                @let pA = formVacante.get('primer_apellido');
+                @if (pA?.hasError('required') && (pA?.touched || pA?.dirty)) {
+                  <mat-error>El primer apellido es obligatorio.</mat-error>
+                }
+                @if ((pA?.value?.length ?? 0) < 2 && (pA?.touched || pA?.dirty)) { <mat-error>Debe tener mínimo 2
+                letras.</mat-error>
+              }
+            </mat-form-field>
+
+            <!-- Segundo apellido -->
+            <mat-form-field appearance="outline">
+              <mat-label>Segundo apellido</mat-label>
+              <input matInput formControlName="segundo_apellido" maxlength="30" />
+            </mat-form-field>
+
+            <!-- Primer nombre -->
+            <mat-form-field appearance="outline">
+              <mat-label>Primer nombre</mat-label>
+              <input matInput formControlName="primer_nombre" maxlength="30" />
+              @let pN = formVacante.get('primer_nombre');
+              @if (pN?.hasError('required') && (pN?.touched || pN?.dirty)) {
+                <mat-error>El primer nombre es obligatorio.</mat-error>
+              }
+              @if ((pN?.value?.length ?? 0) < 2 && (pN?.touched || pN?.dirty)) { <mat-error>Debe tener mínimo 2
+              letras.</mat-error>
             }
-            <mat-icon class="fblock-chevron">{{ plegado('personales') ? 'expand_more' : 'expand_less' }}</mat-icon>
-          </button>
+          </mat-form-field>
 
-          @if (!plegado('personales')) {
-            <div class="fblock-body">
+          <!-- Segundo nombre -->
+          <mat-form-field appearance="outline">
+            <mat-label>Segundo nombre</mat-label>
+            <input matInput formControlName="segundo_nombre" maxlength="30" />
+          </mat-form-field>
 
-              <!-- Nombre completo: se muestra junto, se edita en sus 4 campos -->
-              <div class="frow" data-fila="nombres" [class.frow-abierta]="editando('nombres')">
-                @if (editando('nombres')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Primer nombre</mat-label>
-                      <input matInput formControlName="primer_nombre" maxlength="30" />
-                      @let pN = formVacante.get('primer_nombre');
-                      @if (pN?.hasError('required') && (pN?.touched || pN?.dirty)) {
-                        <mat-error>Este campo es obligatorio.</mat-error>
-                      }
-                      @if ((pN?.value?.length ?? 0) < 2 && (pN?.touched || pN?.dirty)) {
-                        <mat-error>Debe tener mínimo 2 caracteres.</mat-error>
-                      }
-                    </mat-form-field>
+          <!-- Fecha de nacimiento -->
+          <mat-form-field appearance="outline">
+            <mat-label>Fecha de nacimiento</mat-label>
+            <input matInput [matDatepicker]="pickerNacimiento" formControlName="fecha_nacimiento"
+              (focus)="pickerNacimiento.open()" readonly />
+              <mat-datepicker-toggle matSuffix [for]="pickerNacimiento"></mat-datepicker-toggle>
+              <mat-datepicker #pickerNacimiento startView="multi-year"></mat-datepicker>
+              @let fn = formVacante.get('fecha_nacimiento');
+              @if (fn?.hasError('required') && (fn?.touched || fn?.dirty)) {
+                <mat-error>La fecha de nacimiento es obligatoria.</mat-error>
+              }
+            </mat-form-field>
 
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Segundo nombre</mat-label>
-                      <input matInput formControlName="segundo_nombre" maxlength="30" />
-                    </mat-form-field>
+            <!-- edad calculada -->
+            <mat-form-field appearance="outline">
+              <mat-label>Edad</mat-label>
+              <input matInput formControlName="edad" readonly />
+            </mat-form-field>
 
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Primer apellido</mat-label>
-                      <input matInput formControlName="primer_apellido" maxlength="30" />
-                      @let pA = formVacante.get('primer_apellido');
-                      @if (pA?.hasError('required') && (pA?.touched || pA?.dirty)) {
-                        <mat-error>Este campo es obligatorio.</mat-error>
-                      }
-                      @if ((pA?.value?.length ?? 0) < 2 && (pA?.touched || pA?.dirty)) {
-                        <mat-error>Debe tener mínimo 2 caracteres.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Segundo apellido</mat-label>
-                      <input matInput formControlName="segundo_apellido" maxlength="30" />
-                    </mat-form-field>
-
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('nombres')">
-                    <span class="frow-label">Nombre completo</span>
-                    <span class="frow-value" [class.frow-vacio]="!nombreFicha">{{ nombreFicha || '—' }}</span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
+            <!-- Lugar de nacimiento -->
+            <mat-form-field appearance="outline">
+              <mat-label>Lugar de nacimiento</mat-label>
+              <input matInput type="text" formControlName="mpio_nacimiento" [matAutocomplete]="autoNacimiento"
+                autocomplete="off" maxlength="50" />
+                <mat-autocomplete #autoNacimiento="matAutocomplete" (optionSelected)="onLugarNacimientoSelected($event)"
+                  autoActiveFirstOption>
+                  @for (ciudad of (filteredCitiesNacimiento$ | async) ?? []; track $index) {
+                    <mat-option [value]="ciudad">{{ ciudad }}</mat-option>
+                  }
+                </mat-autocomplete>
+                @let ln = formVacante.get('mpio_nacimiento');
+                @if (ln?.hasError('required') && (ln?.touched || ln?.dirty)) {
+                  <mat-error>El lugar de nacimiento es obligatorio.</mat-error>
                 }
-              </div>
-
-              <!-- Nacimiento -->
-              <div class="frow" data-fila="nacimiento" [class.frow-abierta]="editando('nacimiento')">
-                @if (editando('nacimiento')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Fecha de nacimiento</mat-label>
-                      <input matInput [matDatepicker]="pickerNacimiento" formControlName="fecha_nacimiento"
-                             (focus)="pickerNacimiento.open()" readonly />
-                      <mat-datepicker-toggle matSuffix [for]="pickerNacimiento"></mat-datepicker-toggle>
-                      <mat-datepicker #pickerNacimiento startView="multi-year"></mat-datepicker>
-                      @let fn = formVacante.get('fecha_nacimiento');
-                      @if (fn?.hasError('required') && (fn?.touched || fn?.dirty)) {
-                        <mat-error>La fecha de nacimiento es obligatoria.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Lugar de nacimiento</mat-label>
-                      <input matInput type="text" formControlName="mpio_nacimiento" [matAutocomplete]="autoNacimiento"
-                             autocomplete="off" />
-                      <mat-autocomplete #autoNacimiento="matAutocomplete" (optionSelected)="onLugarNacimientoSelected($event)"
-                                        autoActiveFirstOption>
-                        @for (ciudad of (filteredCitiesNacimiento$ | async) ?? []; track $index) {
-                          <mat-option [value]="ciudad">{{ ciudad }}</mat-option>
-                        }
-                      </mat-autocomplete>
-                      @let ln = formVacante.get('mpio_nacimiento');
-                      @if (ln?.hasError('required') && (ln?.touched || ln?.dirty)) {
-                        <mat-error>El lugar de nacimiento es obligatorio.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('nacimiento')">
-                    <span class="frow-label">Nacimiento</span>
-                    <span class="frow-value" [class.frow-vacio]="!fecha('fecha_nacimiento')">
-                      {{ fecha('fecha_nacimiento') || '—' }}@if (texto('edad')) { · {{ texto('edad') }} años}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-              <!-- Lugar de nacimiento: comparte editor con la fecha -->
-              <div class="frow">
-                <button type="button" class="frow-read" (click)="editarFila('nacimiento')">
-                  <span class="frow-label">Lugar de nacimiento</span>
-                  <span class="frow-value" [class.frow-vacio]="!texto('mpio_nacimiento')">{{ texto('mpio_nacimiento') || '—' }}</span>
-                  <mat-icon class="frow-lapiz">edit</mat-icon>
-                </button>
-              </div>
+              </mat-form-field>
 
               <!-- Sexo -->
-              <div class="frow" data-fila="sexo" [class.frow-abierta]="editando('sexo')">
-                @if (editando('sexo')) {
-                  <div class="frow-editor" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Sexo</mat-label>
-                      <mat-select formControlName="sexo" required>
-                        @for (g of sexos; track g) {
-                          <mat-option [value]="g">{{ g === 'F' ? 'Femenino' : 'Masculino' }}</mat-option>
-                        }
-                      </mat-select>
-                      @let gen = formVacante.get('sexo');
-                      @if (gen?.hasError('required') && (gen?.touched || gen?.dirty)) {
-                        <mat-error>Este campo es obligatorio.</mat-error>
-                      }
-                    </mat-form-field>
-                    <button type="button" class="frow-listo" (click)="cerrarFila()" matTooltip="Listo">
-                      <mat-icon>check</mat-icon>
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('sexo')">
-                    <span class="frow-label">Sexo</span>
-                    <span class="frow-value" [class.frow-vacio]="!texto('sexo')">
-                      {{ texto('sexo') === 'F' ? 'Femenino' : (texto('sexo') === 'M' ? 'Masculino' : '—') }}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
+              <mat-form-field appearance="outline">
+                <mat-label>Sexo</mat-label>
+                <mat-select formControlName="sexo" required>
+                  @for (g of sexos; track g) {
+                    <mat-option [value]="g">{{ g }}</mat-option>
+                  }
+                </mat-select>
+                @let gen = formVacante.get('sexo');
+                @if (gen?.hasError('required') && (gen?.touched || gen?.dirty)) {
+                  <mat-error>Seleccione un género.</mat-error>
                 }
-              </div>
+              </mat-form-field>
 
               <!-- Estado civil -->
-              <div class="frow" data-fila="estado_civil" [class.frow-abierta]="editando('estado_civil')">
-                @if (editando('estado_civil')) {
-                  <div class="frow-editor" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Estado civil</mat-label>
-                      <mat-select formControlName="estado_civil" required>
-                        @for (estado of (estadoCivilOpciones$ | async) ?? []; track estado['codigo']) {
-                          <mat-option [value]="estado['codigo']">{{ estado['descripcion'] }}</mat-option>
-                        }
-                      </mat-select>
-                      @let ec = formVacante.get('estado_civil');
-                      @if (ec?.hasError('required') && (ec?.touched || ec?.dirty)) {
-                        <mat-error>Este campo es obligatorio.</mat-error>
-                      }
-                    </mat-form-field>
-                    <button type="button" class="frow-listo" (click)="cerrarFila()" matTooltip="Listo">
-                      <mat-icon>check</mat-icon>
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('estado_civil')">
-                    <span class="frow-label">Estado civil</span>
-                    <span class="frow-value" [class.frow-vacio]="!texto('estado_civil')">
-                      {{ textoCatalogo('estado_civil', 'estadoCivil') || '—' }}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
+              <mat-form-field appearance="outline">
+                <mat-label>Estado civil</mat-label>
+                <mat-select formControlName="estado_civil" required>
+                  @for (estado of (estadoCivilOpciones$ | async) ?? []; track estado['codigo']) {
+                    <mat-option [value]="estado['codigo']">
+                      {{ estado['descripcion'] }}
+                    </mat-option>
+                  }
+                </mat-select>
+                @let ec = formVacante.get('estado_civil');
+                @if (ec?.hasError('required') && (ec?.touched || ec?.dirty)) {
+                  <mat-error>Seleccione un estado civil.</mat-error>
                 }
-              </div>
-
+              </mat-form-field>
             </div>
-          }
-        </section>
+          </section>
 
-        <!-- ══════ Bloque · Contacto y domicilio ══════ -->
-        <section class="fblock">
-          <button type="button" class="fblock-head" (click)="alternarBloque('contacto')"
-                  [attr.aria-expanded]="!plegado('contacto')">
-            <span class="fblock-dot fblock-dot-cyan" aria-hidden="true"></span>
-            <span class="fblock-title">Contacto y domicilio</span>
-            @if (faltanContacto) {
-              <span class="fblock-faltan" [matTooltip]="faltanContacto + ' dato(s) por completar'">{{ faltanContacto }}</span>
-            }
-            <mat-icon class="fblock-chevron">{{ plegado('contacto') ? 'expand_more' : 'expand_less' }}</mat-icon>
-          </button>
+          <!-- ============================
+          3. Contacto y domicilio
+          ============================= -->
+          <section class="section" id="sec-contacto">
+            <div class="section-head">
+              <span class="section-icon-wrap section-icon-green">
+                <mat-icon inline="true" aria-hidden="true">home</mat-icon>
+              </span>
+              <h3 class="section-title">Contacto y domicilio</h3>
+              <mat-divider class="section-divider"></mat-divider>
+            </div>
 
-          @if (!plegado('contacto')) {
-            <div class="fblock-body">
+            <div class="datos">
+              <!-- Correo electrónico -->
+              <mat-form-field appearance="outline">
+                <mat-label>Correo electrónico</mat-label>
+                <input matInput formControlName="correo_electronico" placeholder="Ej: cuenta@correo.com" type="email"
+                  autocomplete="email" />
+                  @let email = formVacante.get('correo_electronico');
+                  @if (email?.hasError('required') && (email?.touched || email?.dirty)) {
+                    <mat-error>El correo electrónico es obligatorio.</mat-error>
+                  }
+                  @if (email?.hasError('pattern') && (email?.touched || email?.dirty)) {
+                    <mat-error>Debe ingresar un correo electrónico válido.</mat-error>
+                  }
+                </mat-form-field>
 
-              <!-- Correo -->
-              <div class="frow" data-fila="correo" [class.frow-abierta]="editando('correo')">
-                @if (editando('correo')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Correo electrónico</mat-label>
-                      <input matInput formControlName="correo_electronico" placeholder="Ej: cuenta@correo.com"
-                             type="email" autocomplete="off" />
-                      @let email = formVacante.get('correo_electronico');
-                      @if (email?.hasError('required') && (email?.touched || email?.dirty)) {
-                        <mat-error>El correo es obligatorio.</mat-error>
-                      }
-                      @if (email?.hasError('pattern') && (email?.touched || email?.dirty)) {
-                        <mat-error>Formato de correo inválido.</mat-error>
-                      }
-                    </mat-form-field>
+                <!-- Contraseña -->
+                <mat-form-field appearance="outline">
+                  <mat-label>Contraseña nueva (opcional)</mat-label>
+                  <input matInput formControlName="password" placeholder="En blanco para no cambiar..." type="password"
+                    autocomplete="new-password" />
+                    <mat-hint>Opcional: Si se llena, se cambiará la clave en el panel de administrador para este
+                    correo.</mat-hint>
+                  </mat-form-field>
 
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Contraseña nueva (opcional)</mat-label>
-                      <input matInput formControlName="password" placeholder="En blanco para no cambiar..."
-                             type="password" autocomplete="new-password" />
-                    </mat-form-field>
-
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('correo')">
-                    <span class="frow-label">Correo</span>
-                    <span class="frow-value frow-value-break" [class.frow-vacio]="!texto('correo_electronico')">
-                      {{ texto('correo_electronico') || '—' }}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-              <!-- Teléfonos -->
-              <div class="frow" data-fila="telefonos" [class.frow-abierta]="editando('telefonos')">
-                @if (editando('telefonos')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Número de celular</mat-label>
-                      <input matInput formControlName="celular" placeholder="Ej: 3175987256" maxlength="10"
-                             type="tel" inputmode="numeric" autocomplete="off" />
-                      @let cel = formVacante.get('celular');
-                      @if (cel?.hasError('required') && (cel?.touched || cel?.dirty)) {
-                        <mat-error>El celular es obligatorio.</mat-error>
-                      }
-                      @if (cel?.hasError('pattern') && (cel?.touched || cel?.dirty)) {
-                        <mat-error>Debe tener 10 dígitos.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Número de WhatsApp</mat-label>
-                      <input matInput formControlName="whatsapp" placeholder="Ej: 3175987256" maxlength="10"
-                             type="tel" inputmode="numeric" autocomplete="off" />
-                      @let wsp = formVacante.get('whatsapp');
-                      @if (wsp?.hasError('required') && (wsp?.touched || wsp?.dirty)) {
-                        <mat-error>El WhatsApp es obligatorio.</mat-error>
-                      }
-                      @if (wsp?.hasError('pattern') && (wsp?.touched || wsp?.dirty)) {
-                        <mat-error>Debe tener 10 dígitos.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('telefonos')">
-                    <span class="frow-label">Celular · WhatsApp</span>
-                    <span class="frow-value" [class.frow-vacio]="!texto('celular') && !texto('whatsapp')">
-                      {{ texto('celular') || '—' }}@if (texto('whatsapp') && texto('whatsapp') !== texto('celular')) { · {{ texto('whatsapp') }}}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-              <!-- Dirección -->
-              <div class="frow" data-fila="direccion" [class.frow-abierta]="editando('direccion')">
-                @if (editando('direccion')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Dirección de residencia</mat-label>
-                      <input matInput formControlName="direccion_de_residencia" placeholder="Ej: Calle 123 # 45-67"
-                             type="text" autocomplete="off" />
+                  <!-- Dirección de residencia -->
+                  <mat-form-field appearance="outline">
+                    <mat-label>Dirección de residencia</mat-label>
+                    <input matInput formControlName="direccion_de_residencia" placeholder="Ej: Calle 123 # 45-67" type="text"
+                      autocomplete="street-address" />
                       @let dir = formVacante.get('direccion_de_residencia');
                       @if (dir?.hasError('required') && (dir?.touched || dir?.dirty)) {
-                        <mat-error>La dirección es obligatoria.</mat-error>
+                        <mat-error>La dirección de residencia es obligatoria.</mat-error>
                       }
                     </mat-form-field>
 
-                    <mat-form-field appearance="outline" class="frow-field">
+                    <!-- Barrio -->
+                    <mat-form-field appearance="outline">
                       <mat-label>Barrio</mat-label>
                       <input matInput formControlName="barrio" placeholder="Ejemplo: Barrio la paz" maxlength="40" />
                       @let barrio = formVacante.get('barrio');
                       @if (barrio?.hasError('required') && (barrio?.touched || barrio?.dirty)) {
                         <mat-error>El barrio es obligatorio.</mat-error>
                       }
-                      @if ((barrio?.value?.length ?? 0) < 3 && (barrio?.touched || barrio?.dirty)) {
-                        <mat-error>Debe tener mínimo 3 caracteres.</mat-error>
+                      @if ((barrio?.value?.length ?? 0) < 3 && (barrio?.touched || barrio?.dirty)) { <mat-error>Debe tener mínimo
+                      3 caracteres.</mat-error>
+                    }
+                  </mat-form-field>
+
+                  <!-- Celular -->
+                  <mat-form-field appearance="outline">
+                    <mat-label>Número de celular</mat-label>
+                    <input matInput formControlName="celular" placeholder="Ej: 3175987256" maxlength="10" type="tel"
+                      inputmode="numeric" autocomplete="tel" />
+                      @let cel = formVacante.get('celular');
+                      @if (cel?.hasError('required') && (cel?.touched || cel?.dirty)) {
+                        <mat-error>El número de celular es obligatorio.</mat-error>
+                      }
+                      @if (cel?.hasError('pattern') && (cel?.touched || cel?.dirty)) {
+                        <mat-error>Debe ser un celular colombiano válido (10 dígitos, inicia con 3).</mat-error>
                       }
                     </mat-form-field>
 
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('direccion')">
-                    <span class="frow-label">Dirección</span>
-                    <span class="frow-value frow-value-break" [class.frow-vacio]="!texto('direccion_de_residencia')">
-                      {{ texto('direccion_de_residencia') || '—' }}@if (texto('barrio')) { · Barrio {{ texto('barrio') }}}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-              <!-- Convivencia -->
-              <div class="frow" data-fila="convivencia" [class.frow-abierta]="editando('convivencia')">
-                @if (editando('convivencia')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>¿Con quién vive?</mat-label>
-                      <mat-select formControlName="personas_con_quien_convive" multiple>
-                        @for (op of (conQuienViveOpciones$ | async) ?? []; track op['codigo']) {
-                          <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+                    <!-- WhatsApp -->
+                    <mat-form-field appearance="outline">
+                      <mat-label>Número de WhatsApp</mat-label>
+                      <input matInput formControlName="whatsapp" placeholder="Ej: 3175987256" maxlength="10" type="tel"
+                        inputmode="numeric" autocomplete="tel" />
+                        @let wsp = formVacante.get('whatsapp');
+                        @if (wsp?.hasError('required') && (wsp?.touched || wsp?.dirty)) {
+                          <mat-error>El número de WhatsApp es obligatorio.</mat-error>
                         }
-                      </mat-select>
-                      @if (formVacante.get('personas_con_quien_convive')?.hasError('required')) {
-                        <mat-error>Selecciona al menos una opción.</mat-error>
+                        @if (wsp?.hasError('pattern') && (wsp?.touched || wsp?.dirty)) {
+                          <mat-error>Debe ser un celular colombiano válido (10 dígitos, inicia con 3).</mat-error>
+                        }
+                      </mat-form-field>
+
+                      <!-- ¿Con quién vive? -->
+                      <mat-form-field appearance="outline">
+                        <mat-label>¿Con quién vive?</mat-label>
+                        <mat-select formControlName="personas_con_quien_convive" multiple>
+                          @for (op of (conQuienViveOpciones$ | async) ?? []; track op['codigo']) {
+                            <mat-option [value]="op['codigo']">
+                              {{ op['descripcion'] || op['codigo'] }}
+                            </mat-option>
+                          }
+                        </mat-select>
+                        @if (formVacante.get('personas_con_quien_convive')?.hasError('required')) {
+                          <mat-error>
+                            Selecciona al menos una opción.
+                          </mat-error>
+                        }
+                        @if (formVacante.get('personas_con_quien_convive')?.hasError('minLengthArray')) {
+                          <mat-error>
+                            Selecciona al menos una opción.
+                          </mat-error>
+                        }
+                      </mat-form-field>
+
+                      <!-- ¿Hace cuánto vive en la zona? -->
+                      <mat-form-field appearance="outline" class="w-full">
+                        <mat-label>¿Hace cuánto vive en la zona?</mat-label>
+                        <mat-select formControlName="hace_cuanto_vive" required>
+                          <mat-option value="MAS_DE_2_MESES">MAS DE 2 MESES</mat-option>
+                          <mat-option value="MAS_DE_6_MESES">MAS DE 6 MESES</mat-option>
+                          <mat-option value="MENOS_DE_UN_MES">MENOS DE UN MES</mat-option>
+                          <mat-option value="LIFETIME">TODO LA VIDA</mat-option>
+                          <mat-option value="UN_MES">UN MES</mat-option>
+                        </mat-select>
+                        <mat-hint>Ej.: 6 meses, 3 años o “Toda la vida”.</mat-hint>
+                        @if (formVacante.get('hace_cuanto_vive')?.hasError('required')) {
+                          <mat-error>
+                            Este campo es obligatorio.
+                          </mat-error>
+                        }
+                      </mat-form-field>
+                    </div>
+                  </section>
+
+                  <!-- ============================
+                  4. Información familiar
+                  ============================= -->
+                  <section class="section" id="sec-familia">
+                    <div class="section-head">
+                      <span class="section-icon-wrap section-icon-purple">
+                        <mat-icon inline="true" aria-hidden="true">diversity_3</mat-icon>
+                      </span>
+                      <h3 class="section-title">Información familiar</h3>
+                      <mat-divider class="section-divider"></mat-divider>
+                    </div>
+
+                    <div class="grid-2" [formGroup]="formVacante">
+                      <mat-form-field appearance="outline">
+                        <mat-label>¿Tiene hijos?</mat-label>
+                        <mat-select formControlName="tieneHijos" required>
+                          <mat-option [value]="true">Sí</mat-option>
+                          <mat-option [value]="false">No</mat-option>
+                        </mat-select>
+                        @let th = formVacante.get('tieneHijos');
+                        @if (th?.hasError('required') && (th?.touched || th?.dirty)) {
+                          <mat-error>Este campo es obligatorio.</mat-error>
+                        }
+                      </mat-form-field>
+
+                      @if (formVacante.get('tieneHijos')?.value !== true) {
+                        <div class="placeholder"></div>
                       }
-                      @if (formVacante.get('personas_con_quien_convive')?.hasError('minLengthArray')) {
-                        <mat-error>Selecciona al menos una opción.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>¿Hace cuánto vive en la zona?</mat-label>
-                      <mat-select formControlName="hace_cuanto_vive" required>
-                        <mat-option value="MAS_DE_2_MESES">MAS DE 2 MESES</mat-option>
-                        <mat-option value="MAS_DE_6_MESES">MAS DE 6 MESES</mat-option>
-                        <mat-option value="MENOS_DE_UN_MES">MENOS DE UN MES</mat-option>
-                        <mat-option value="LIFETIME">TODO LA VIDA</mat-option>
-                        <mat-option value="UN_MES">UN MES</mat-option>
-                      </mat-select>
-                      @if (formVacante.get('hace_cuanto_vive')?.hasError('required')) {
-                        <mat-error>Este campo es obligatorio.</mat-error>
-                      }
-                    </mat-form-field>
-
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('convivencia')">
-                    <span class="frow-label">Vive con · Tiempo en la zona</span>
-                    <span class="frow-value frow-value-break" [class.frow-vacio]="!conQuienVive && !tiempoEnZona">
-                      {{ conQuienVive || '—' }}@if (tiempoEnZona) { · {{ tiempoEnZona }}}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-            </div>
-          }
-        </section>
-
-        <!-- ══════ Bloque · Familia y referencias ══════ -->
-        <section class="fblock">
-          <button type="button" class="fblock-head" (click)="alternarBloque('familia')"
-                  [attr.aria-expanded]="!plegado('familia')">
-            <span class="fblock-dot fblock-dot-purple" aria-hidden="true"></span>
-            <span class="fblock-title">Familia y referencias</span>
-            @if (faltanFamilia) {
-              <span class="fblock-faltan" [matTooltip]="faltanFamilia + ' dato(s) por completar'">{{ faltanFamilia }}</span>
-            }
-            <mat-icon class="fblock-chevron">{{ plegado('familia') ? 'expand_more' : 'expand_less' }}</mat-icon>
-          </button>
-
-          @if (!plegado('familia')) {
-            <div class="fblock-body">
-
-              <!-- Hijos -->
-              <div class="frow" data-fila="hijos" [class.frow-abierta]="editando('hijos')">
-                @if (editando('hijos')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>¿Tiene hijos?</mat-label>
-                      <mat-select formControlName="tieneHijos" required>
-                        <mat-option [value]="true">Sí</mat-option>
-                        <mat-option [value]="false">No</mat-option>
-                      </mat-select>
-                      @let th = formVacante.get('tieneHijos');
-                      @if (th?.hasError('required') && (th?.touched || th?.dirty)) {
-                        <mat-error>Este campo es obligatorio.</mat-error>
-                      }
-                    </mat-form-field>
+                    </div>
 
                     @if (formVacante.get('tieneHijos')?.value === true) {
-                      <mat-form-field appearance="outline" class="frow-field">
-                        <mat-label>Número de hijos</mat-label>
-                        <input matInput type="number" min="1" formControlName="numeroHijos" placeholder="Ej: 2" />
-                        @let nh = formVacante.get('numeroHijos');
-                        @if (nh?.hasError('required') && (nh?.touched || nh?.dirty)) {
-                          <mat-error>Este campo es obligatorio.</mat-error>
-                        }
-                        @if (nh?.hasError('min')) {
-                          <mat-error>Debe ser al menos 1.</mat-error>
-                        }
-                      </mat-form-field>
+                      <div class="stack">
+                        <div class="grid-2" [formGroup]="formVacante">
+                          <mat-form-field appearance="outline">
+                            <mat-label>¿Quién los cuida?</mat-label>
+                            <input matInput formControlName="cuidadorHijos" placeholder="Ej: Madre, Abuela, Guardería..." />
+                            @let ch = formVacante.get('cuidadorHijos');
+                            @if (ch?.hasError('required') && (ch?.touched || ch?.dirty)) {
+                              <mat-error>Este campo es obligatorio.</mat-error>
+                            }
+                          </mat-form-field>
 
-                      <mat-form-field appearance="outline" class="frow-field">
-                        <mat-label>¿Quién los cuida?</mat-label>
-                        <input matInput formControlName="cuidadorHijos" placeholder="Ej: Madre, Abuela, Guardería..." />
-                        @let ch = formVacante.get('cuidadorHijos');
-                        @if (ch?.hasError('required') && (ch?.touched || ch?.dirty)) {
-                          <mat-error>Este campo es obligatorio.</mat-error>
-                        }
-                      </mat-form-field>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Número de hijos</mat-label>
+                            <input matInput type="number" min="1" formControlName="numeroHijos" placeholder="Ej: 2" />
+                            @let nh = formVacante.get('numeroHijos');
+                            @if (nh?.hasError('required') && (nh?.touched || nh?.dirty)) {
+                              <mat-error>Este campo es obligatorio.</mat-error>
+                            }
+                            @if (nh?.hasError('min')) {
+                              <mat-error>Debe ser al menos 1.</mat-error>
+                            }
+                          </mat-form-field>
+                        </div>
 
-                      <div formArrayName="hijos" class="fhijos">
-                        @for (hijo of hijosFA.controls; track $index; let i = $index) {
-                          <div class="fhijo" [formGroupName]="i">
-                            <span class="fhijo-titulo">Hijo {{ i + 1 }}</span>
+                        <div formArrayName="hijos" class="cards-stack children">
+                          @for (hijo of hijosFA.controls; track $index; let i = $index) {
+                            <div class="card" [formGroupName]="i">
+                              <div class="card-title">
+                                <span>Hijo {{ i + 1 }}</span>
+                              </div>
 
-                            <mat-form-field appearance="outline" class="frow-field">
-                              <mat-label>Número de documento</mat-label>
-                              <input matInput formControlName="numero_de_documento" type="tel" inputmode="numeric"
-                                     maxlength="15" placeholder="Solo números" autocomplete="off" />
-                              @let nd = hijo.get('numero_de_documento');
-                              @if (nd?.hasError('pattern') && (nd?.touched || nd?.dirty)) {
-                                <mat-error>Solo se permiten dígitos.</mat-error>
+                              <div class="grid-3">
+                                <!-- Número de documento del hijo -->
+                                <mat-form-field appearance="outline">
+                                  <mat-label>Número de documento</mat-label>
+                                  <input matInput formControlName="numero_de_documento" type="tel" inputmode="numeric" maxlength="15"
+                                    placeholder="Solo números" autocomplete="off" />
+                                    @let nd = hijo.get('numero_de_documento');
+                                    @if (nd?.hasError('pattern') && (nd?.touched || nd?.dirty)) {
+                                      <mat-error>Solo se permiten dígitos.</mat-error>
+                                    }
+                                    @if (nd?.hasError('minlength') && (nd?.touched || nd?.dirty)) {
+                                      <mat-error>Mínimo 6 dígitos.</mat-error>
+                                    }
+                                  </mat-form-field>
+
+                                  <!-- Fecha de nacimiento del hijo -->
+                                  <mat-form-field appearance="outline">
+                                    <mat-label>Fecha de nacimiento</mat-label>
+                                    <input matInput [matDatepicker]="pickerHijo" formControlName="fecha_nac" (focus)="pickerHijo.open()"
+                                      readonly />
+                                      <mat-datepicker-toggle matSuffix [for]="pickerHijo"></mat-datepicker-toggle>
+                                      <mat-datepicker #pickerHijo startView="multi-year"></mat-datepicker>
+                                      @let fn = hijo.get('fecha_nac');
+                                      @if (fn?.hasError('required') && (fn?.touched || fn?.dirty)) {
+                                        <mat-error>La fecha es obligatoria.</mat-error>
+                                      }
+                                    </mat-form-field>
+                                  </div>
+                                </div>
                               }
-                              @if (nd?.hasError('minlength') && (nd?.touched || nd?.dirty)) {
-                                <mat-error>Mínimo 6 dígitos.</mat-error>
-                              }
-                            </mat-form-field>
-
-                            <mat-form-field appearance="outline" class="frow-field">
-                              <mat-label>Fecha de nacimiento</mat-label>
-                              <input matInput [matDatepicker]="pickerHijo" formControlName="fecha_nac"
-                                     (focus)="pickerHijo.open()" readonly />
-                              <mat-datepicker-toggle matSuffix [for]="pickerHijo"></mat-datepicker-toggle>
-                              <mat-datepicker #pickerHijo startView="multi-year"></mat-datepicker>
-                              @let fnh = hijo.get('fecha_nac');
-                              @if (fnh?.hasError('required') && (fnh?.touched || fnh?.dirty)) {
-                                <mat-error>La fecha es obligatoria.</mat-error>
-                              }
-                            </mat-form-field>
+                            </div>
                           </div>
                         }
+
+                        <div class="section-subtitle" style="margin-top: 24px; margin-bottom: 12px; font-weight: 500; color: #475569;">
+                          Referencias Familiares
+                        </div>
+                        <div class="grid-2">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Referencia Familiar 1 (Nombre)</mat-label>
+                            <input matInput formControlName="nombreReferenciaFamiliar1" />
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Parentesco</mat-label>
+                            <mat-select formControlName="parentescoReferenciaFamiliar1">
+                              <mat-option value="">Ninguno</mat-option>
+                              @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
+                                <mat-option [value]="op['codigo']">
+                                  {{ op['descripcion'] || op['codigo'] }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+
+                        <div class="grid-2">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Referencia Familiar 2 (Nombre)</mat-label>
+                            <input matInput formControlName="nombreReferenciaFamiliar2" />
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Parentesco</mat-label>
+                            <mat-select formControlName="parentescoReferenciaFamiliar2">
+                              <mat-option value="">Ninguno</mat-option>
+                              @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
+                                <mat-option [value]="op['codigo']">
+                                  {{ op['descripcion'] || op['codigo'] }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+
+                        <div class="section-subtitle" style="margin-top: 24px; margin-bottom: 12px; font-weight: 500; color: #475569;">
+                          Referencias Personales
+                        </div>
+                        <div class="grid-2">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Referencia Personal 1 (Nombre)</mat-label>
+                            <input matInput formControlName="nombreReferenciaPersonal1" />
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Parentesco</mat-label>
+                            <mat-select formControlName="parentescoReferenciaPersonal1">
+                              <mat-option value="">Ninguno</mat-option>
+                              @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
+                                <mat-option [value]="op['codigo']">
+                                  {{ op['descripcion'] || op['codigo'] }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+
+                        <div class="grid-2">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Referencia Personal 2 (Nombre)</mat-label>
+                            <input matInput formControlName="nombreReferenciaPersonal2" />
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Parentesco</mat-label>
+                            <mat-select formControlName="parentescoReferenciaPersonal2">
+                              <mat-option value="">Ninguno</mat-option>
+                              @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
+                                <mat-option [value]="op['codigo']">
+                                  {{ op['descripcion'] || op['codigo'] }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+                        </div>
+                      </section>
+
+                      <!-- ============================
+                      5. Formación y experiencia
+                      ============================= -->
+                      <section class="section" id="sec-formacion">
+                        <div class="section-head">
+                          <span class="section-icon-wrap section-icon-cyan">
+                            <mat-icon inline="true" aria-hidden="true">school</mat-icon>
+                          </span>
+                          <h3 class="section-title">Formación y experiencia en flores</h3>
+                          <mat-divider class="section-divider"></mat-divider>
+                        </div>
+
+                        <div class="datos">
+                          <!-- Escolaridad -->
+                          <mat-form-field appearance="outline">
+                            <mat-label>Escolaridad</mat-label>
+                            <mat-select formControlName="nivel" required>
+                              @for (e of (escolaridadOpciones$ | async) ?? []; track e['codigo']) {
+                                <mat-option [value]="e['codigo']">
+                                  {{ e['descripcion'] || e['codigo'] }}
+                                </mat-option>
+                              }
+                            </mat-select>
+                            @let esc = formVacante.get('nivel');
+                            @if (esc?.hasError('required') && (esc?.touched || esc?.dirty)) {
+                              <mat-error>Requerido</mat-error>
+                            }
+                          </mat-form-field>
+
+                          <!-- ¿Estudia actualmente? -->
+                          <mat-form-field appearance="outline">
+                            <mat-label>¿Estudia actualmente?</mat-label>
+                            <mat-select formControlName="estudiaActualmente" required>
+                              <mat-option [value]="true">Sí</mat-option>
+                              <mat-option [value]="false">No</mat-option>
+                            </mat-select>
+                            @let est = formVacante.get('estudiaActualmente');
+                            @if (est?.hasError('required') && (est?.touched || est?.dirty)) {
+                              <mat-error>Requerido</mat-error>
+                            }
+                          </mat-form-field>
+
+                          <!-- Proyección 1 año -->
+                          <mat-form-field appearance="outline">
+                            <mat-label>¿Cómo se proyecta en 1 año?</mat-label>
+                            <input matInput rows="3" formControlName="proyeccion1Ano" />
+                            @let p1 = formVacante.get('proyeccion1Ano');
+                            @if (p1?.invalid && (p1?.touched || p1?.dirty)) {
+                              <mat-error>Requerido</mat-error>
+                            }
+                          </mat-form-field>
+
+                          <!-- Experiencia en flores -->
+                          <mat-form-field appearance="outline">
+                            <mat-label>¿Cuenta con experiencia en flores?</mat-label>
+                            <mat-select formControlName="experienciaFlores" required>
+                              <mat-option value="Sí">Sí</mat-option>
+                              <mat-option value="No">No</mat-option>
+                            </mat-select>
+                            @let ef = formVacante.get('experienciaFlores');
+                            @if (ef?.hasError('required') && (ef?.touched || ef?.dirty)) {
+                              <mat-error>Este campo es obligatorio.</mat-error>
+                            }
+                          </mat-form-field>
+
+                          @if (formVacante.get('experienciaFlores')?.value === 'Sí') {
+                            <mat-form-field appearance="outline">
+                              <mat-label>Tipo de experiencia en flores</mat-label>
+                              <mat-select formControlName="tipoExperienciaFlores" required>
+                                <mat-option value="CULTIVO">CULTIVO</mat-option>
+                                <mat-option value="POSCOSECHA">POSCOSECHA</mat-option>
+                                <mat-option value="AMBAS">AMBAS</mat-option>
+                                <mat-option value="OTROS">OTROS</mat-option>
+                              </mat-select>
+                              @let tef = formVacante.get('tipoExperienciaFlores');
+                              @if (tef?.hasError('required') && (tef?.touched || tef?.dirty)) {
+                                <mat-error>Este campo es obligatorio.</mat-error>
+                              }
+                            </mat-form-field>
+                          }
+
+                          @if (formVacante.get('tipoExperienciaFlores')?.value === 'OTROS') {
+                            <mat-form-field appearance="outline">
+                              <mat-label>¿Cuál?</mat-label>
+                              <input matInput formControlName="otroExperiencia" maxlength="64"
+                                placeholder="Especifique otro tipo de experiencia" />
+                                @let oe = formVacante.get('otroExperiencia');
+                                @if (oe?.hasError('required') && (oe?.touched || oe?.dirty)) {
+                                  <mat-error>Este campo es obligatorio.</mat-error>
+                                }
+                              </mat-form-field>
+                            }
+                          </div>
+                        </section>
+
+                        <!-- ============================
+                        6. Historial laboral
+                        ============================= -->
+                        <section class="section" id="sec-laboral">
+                          <div class="section-head">
+                            <span class="section-icon-wrap section-icon-amber">
+                              <mat-icon inline="true" aria-hidden="true">work_history</mat-icon>
+                            </span>
+                            <h3 class="section-title">Historial laboral</h3>
+
+                            <span class="spacer"></span>
+
+                            <button type="button" mat-flat-button (click)="addExperiencia()">
+                              <mat-icon>add</mat-icon>&nbsp;Agregar experiencia
+                            </button>
+                          </div>
+
+                          <p class="text-muted">
+                            Empresas donde ha laborado (llénelo si tiene experiencia)
+                          </p>
+
+                          <div formArrayName="experiencias" class="cards-stack">
+                            @for (exp of experienciasFA.controls; track $index; let i = $index) {
+                              <div class="card" [formGroupName]="i">
+                                <div class="card-title">
+                                  <span>Experiencia {{ i + 1 }}</span>
+                                  <span class="spacer"></span>
+                                  <button type="button" mat-icon-button color="warn" (click)="removeExperiencia(i)">
+                                    <mat-icon>delete</mat-icon>
+                                  </button>
+                                </div>
+
+                                <div class="grid-2">
+                                  <mat-form-field appearance="outline">
+                                    <mat-label>Nombre de la empresa</mat-label>
+                                    <input matInput formControlName="empresa" />
+                                  </mat-form-field>
+
+                                  <mat-form-field appearance="outline">
+                                    <mat-label>Tiempo (meses/años)</mat-label>
+                                    <input matInput formControlName="tiempo_trabajado" />
+                                  </mat-form-field>
+                                </div>
+
+                                <div class="grid-1">
+                                  <mat-form-field appearance="outline">
+                                    <mat-label>Labores realizadas</mat-label>
+                                    <input matInput rows="2" formControlName="labores_realizadas" />
+                                  </mat-form-field>
+
+                                  <mat-form-field appearance="outline">
+                                    <mat-label>Motivo retiro</mat-label>
+                                    <input matInput rows="2" formControlName="labores_principales" />
+                                  </mat-form-field>
+                                </div>
+                              </div>
+                            }
+                          </div>
+                        </section>
+
+                        <!-- ============================
+                        7. Entrevista
+                        ============================= -->
+                        <section class="section outline-section" id="sec-entrevista">
+                          <div class="section-head">
+                            <span class="section-icon-wrap section-icon-pink">
+                              <mat-icon inline="true" aria-hidden="true">rate_review</mat-icon>
+                            </span>
+                            <h3 class="section-title">Entrevista</h3>
+                            <mat-divider class="section-divider"></mat-divider>
+                          </div>
+
+                          <div class="grid-managerial-entrevista">
+                            <!-- ¿Cómo se enteró? -->
+                            <mat-form-field appearance="outline">
+                              <mat-label>¿Cómo se enteró de la vacante?*</mat-label>
+                              <mat-select formControlName="comoSeEntero" required>
+                                @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
+                                  <mat-option [value]="op['codigo']">
+                                    {{ op['descripcion'] || op['codigo'] }}
+                                  </mat-option>
+                                }
+                              </mat-select>
+                              <mat-hint>Seleccione la opción que aplique.</mat-hint>
+                              @let cse = formVacante.get('comoSeEntero');
+                              @if (cse?.hasError('required') && (cse?.touched || cse?.dirty)) {
+                                <mat-error>Requerido.</mat-error>
+                              }
+                            </mat-form-field>
+
+                            <!-- Referenciado -->
+                            <mat-form-field appearance="outline">
+                              <mat-label>Referenciado*</mat-label>
+                              <mat-select formControlName="referenciado">
+                                <mat-option value="SI">Sí</mat-option>
+                                <mat-option value="NO">No</mat-option>
+                              </mat-select>
+                            </mat-form-field>
+
+                            <!-- Nombre del referenciado -->
+                            @if (formVacante.get('referenciado')?.value === 'SI') {
+                              <mat-form-field appearance="outline">
+                                <mat-label>Nombre del referenciado*</mat-label>
+                                <input matInput formControlName="nombreReferenciado" />
+                                @if (
+                                  formVacante.get('nombreReferenciado')?.hasError('required') &&
+                                  (formVacante.get('nombreReferenciado')?.touched ||
+                                  formVacante.get('nombreReferenciado')?.dirty)
+                                  ) {
+                                  <mat-error>
+                                    Requerido cuando es “Sí”.
+                                  </mat-error>
+                                }
+                                @if (
+                                  formVacante.get('nombreReferenciado')?.hasError('maxlength') &&
+                                  (formVacante.get('nombreReferenciado')?.touched ||
+                                  formVacante.get('nombreReferenciado')?.dirty)
+                                  ) {
+                                  <mat-error>
+                                    Máximo 120 caracteres.
+                                  </mat-error>
+                                }
+                              </mat-form-field>
+                            }
+
+                            <!-- ¿Observación del evaluador? -->
+                            <mat-form-field appearance="outline">
+                              <mat-label>¿Observación del evaluador?*</mat-label>
+                              <mat-select formControlName="aplicaObservacion" required>
+                                <mat-option value="APLICA">APLICA</mat-option>
+                                <mat-option value="NO_APLICA">NO APLICA</mat-option>
+                                <mat-option value="EN_ESPERA">EN ESPERA</mat-option>
+                              </mat-select>
+                              @if (
+                                formVacante.get('aplicaObservacion')?.hasError('required') &&
+                                (formVacante.get('aplicaObservacion')?.touched ||
+                                formVacante.get('aplicaObservacion')?.dirty)
+                                ) {
+                                <mat-error>
+                                  Este campo es requerido.
+                                </mat-error>
+                              }
+                            </mat-form-field>
+
+                            <!-- ¿Por qué está en espera? -->
+                            @if (formVacante.get('aplicaObservacion')?.value === 'EN_ESPERA') {
+                              <mat-form-field appearance="outline">
+                                <mat-label>¿Por qué está en espera?*</mat-label>
+                                <input matInput formControlName="motivoEspera" />
+                                <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
+                                @if (
+                                  formVacante.get('motivoEspera')?.hasError('required') &&
+                                  (formVacante.get('motivoEspera')?.touched ||
+                                  formVacante.get('motivoEspera')?.dirty)
+                                  ) {
+                                  <mat-error>
+                                    Este campo es obligatorio.
+                                  </mat-error>
+                                }
+                                @if (
+                                  formVacante.get('motivoEspera')?.hasError('maxlength') &&
+                                  (formVacante.get('motivoEspera')?.touched ||
+                                  formVacante.get('motivoEspera')?.dirty)
+                                  ) {
+                                  <mat-error>
+                                    Máximo 300 caracteres.
+                                  </mat-error>
+                                }
+                              </mat-form-field>
+                            }
+
+                            <!-- Motivo (NO_APLICA) -->
+                            @if (formVacante.get('aplicaObservacion')?.value === 'NO_APLICA') {
+                              <mat-form-field appearance="outline">
+                                <mat-label>Motivo (obligatorio)*</mat-label>
+                                <input matInput formControlName="motivoNoAplica" />
+                                @if (
+                                  formVacante.get('motivoNoAplica')?.hasError('required') &&
+                                  (formVacante.get('motivoNoAplica')?.touched ||
+                                  formVacante.get('motivoNoAplica')?.dirty)
+                                  ) {
+                                  <mat-error>
+                                    Debe especificar el motivo.
+                                  </mat-error>
+                                }
+                              </mat-form-field>
+                            }
+                          </div>
+
+                          <div class="optional-evaluation-container">
+                            <div class="optional-evaluation-header">
+                              <mat-icon>psychology</mat-icon>
+                              <h4>Evaluación (Opcional)</h4>
+                            </div>
+
+                            <div class="optional-grid">
+                              <!-- ¿Cómo es su relación familiar? -->
+                              <mat-form-field appearance="outline">
+                                <mat-label>¿Cómo es su relación familiar?</mat-label>
+                                <input matInput formControlName="relacionFamiliar" />
+                              </mat-form-field>
+
+                              <!-- ¿Cómo considera su desempeño laboral? -->
+                              <mat-form-field appearance="outline">
+                                <mat-label>¿Cómo considera su desempeño laboral?</mat-label>
+                                <input matInput formControlName="desempenoLaboral" />
+                              </mat-form-field>
+
+                              <!-- ¿Ha recibido un reconocimiento o felicitación por el rendimiento? -->
+                              <mat-form-field appearance="outline">
+                                <mat-label>¿Reconocimiento/felicitación por rendimiento?</mat-label>
+                                <input matInput formControlName="felicitaciones" />
+                              </mat-form-field>
+
+                              <!-- ¿Ha tenido usted alguna situación conflictiva? -->
+                              <mat-form-field appearance="outline">
+                                <mat-label>¿Ha tenido situación conflictiva?</mat-label>
+                                <input matInput formControlName="situacionConflictiva" />
+                              </mat-form-field>
+
+                              <!-- Está dispuesto a realizar actividades diferentes al cargo? -->
+                              <mat-form-field appearance="outline">
+                                <mat-label>¿Dispuesto a realizar actividades diferentes?</mat-label>
+                                <mat-select formControlName="actividadesDiferentes">
+                                  <mat-option value=""></mat-option>
+                                  <mat-option value="SI">Sí</mat-option>
+                                  <mat-option value="NO">No</mat-option>
+                                </mat-select>
+                              </mat-form-field>
+
+                              <!-- Firma Entrevistador -->
+                              <mat-form-field appearance="outline">
+                                <mat-label>Nombre Entrevistador / Evaluador</mat-label>
+                                <input matInput [value]="firma" readonly disabled />
+                              </mat-form-field>
+                            </div>
+                          </div>
+                        </section>
+
+                        <!-- ============================
+                        8. Confirmación y Envío
+                        ============================= -->
                       </div>
-                    }
+                      <!-- /form-sections — cerramos aquí para que la barra de Enviar
+                           sea hermano del scrollable, no hijo (queda fija abajo). -->
 
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
+                      <!-- Barra de Enviar (siempre visible, fuera del scroll) -->
+                      <div class="sticky-actions-bar">
+                        <span class="sticky-actions-hint">
+                          <mat-icon>info</mat-icon>
+                          Revisa la información antes de enviar
+                        </span>
+                        <button type="submit" mat-flat-button color="primary" class="submit-button-sticky"
+                                [disabled]="isSubmitting">
+                          <mat-icon>{{ isSubmitting ? 'hourglass_empty' : 'send' }}</mat-icon>
+                          {{ isSubmitting ? 'Enviando...' : 'Enviar' }}
+                        </button>
+                      </div>
+                    </form>
                   </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('hijos')">
-                    <span class="frow-label">Hijos</span>
-                    <span class="frow-value" [class.frow-vacio]="!resumenHijos">
-                      {{ resumenHijos || '—' }}@if (texto('cuidadorHijos')) { · Cuida: {{ texto('cuidadorHijos') }}}
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-              <!-- Referencias familiares -->
-              <div class="frow" data-fila="ref-familiares" [class.frow-abierta]="editando('ref-familiares')">
-                @if (editando('ref-familiares')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Referencia Familiar 1 (Nombre)</mat-label>
-                      <input matInput formControlName="nombreReferenciaFamiliar1" />
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Parentesco</mat-label>
-                      <mat-select formControlName="parentescoReferenciaFamiliar1">
-                        <mat-option value="">Ninguno</mat-option>
-                        @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
-                          <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
-                        }
-                      </mat-select>
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Referencia Familiar 2 (Nombre)</mat-label>
-                      <input matInput formControlName="nombreReferenciaFamiliar2" />
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Parentesco</mat-label>
-                      <mat-select formControlName="parentescoReferenciaFamiliar2">
-                        <mat-option value="">Ninguno</mat-option>
-                        @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
-                          <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
-                        }
-                      </mat-select>
-                    </mat-form-field>
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('ref-familiares')">
-                    <span class="frow-label">Referencias familiares</span>
-                    <span class="frow-value frow-value-break"
-                          [class.frow-vacio]="!referencia('nombreReferenciaFamiliar1', 'parentescoReferenciaFamiliar1')">
-                      {{ referencia('nombreReferenciaFamiliar1', 'parentescoReferenciaFamiliar1') || '—' }}
-                      @if (referencia('nombreReferenciaFamiliar2', 'parentescoReferenciaFamiliar2')) {
-                        <br />{{ referencia('nombreReferenciaFamiliar2', 'parentescoReferenciaFamiliar2') }}
-                      }
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-              <!-- Referencias personales -->
-              <div class="frow" data-fila="ref-personales" [class.frow-abierta]="editando('ref-personales')">
-                @if (editando('ref-personales')) {
-                  <div class="frow-editor frow-editor-stack" (keydown)="onFilaKeydown($event)">
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Referencia Personal 1 (Nombre)</mat-label>
-                      <input matInput formControlName="nombreReferenciaPersonal1" />
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Parentesco</mat-label>
-                      <mat-select formControlName="parentescoReferenciaPersonal1">
-                        <mat-option value="">Ninguno</mat-option>
-                        @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
-                          <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
-                        }
-                      </mat-select>
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Referencia Personal 2 (Nombre)</mat-label>
-                      <input matInput formControlName="nombreReferenciaPersonal2" />
-                    </mat-form-field>
-                    <mat-form-field appearance="outline" class="frow-field">
-                      <mat-label>Parentesco</mat-label>
-                      <mat-select formControlName="parentescoReferenciaPersonal2">
-                        <mat-option value="">Ninguno</mat-option>
-                        @for (op of (parentescosOpciones$ | async) ?? []; track op['codigo']) {
-                          <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
-                        }
-                      </mat-select>
-                    </mat-form-field>
-                    <button type="button" class="frow-listo frow-listo-ancho" (click)="cerrarFila()">
-                      <mat-icon>check</mat-icon> Listo
-                    </button>
-                  </div>
-                } @else {
-                  <button type="button" class="frow-read" (click)="editarFila('ref-personales')">
-                    <span class="frow-label">Referencias personales</span>
-                    <span class="frow-value frow-value-break"
-                          [class.frow-vacio]="!referencia('nombreReferenciaPersonal1', 'parentescoReferenciaPersonal1')">
-                      {{ referencia('nombreReferenciaPersonal1', 'parentescoReferenciaPersonal1') || '—' }}
-                      @if (referencia('nombreReferenciaPersonal2', 'parentescoReferenciaPersonal2')) {
-                        <br />{{ referencia('nombreReferenciaPersonal2', 'parentescoReferenciaPersonal2') }}
-                      }
-                    </span>
-                    <mat-icon class="frow-lapiz">edit</mat-icon>
-                  </button>
-                }
-              </div>
-
-            </div>
-          }
-        </section>
-
-        <!-- ══════ Bloque · Datos de obra (vacante remitida) ══════ -->
-        @if (obraConDatos.length) {
-          <section class="fblock">
-            <button type="button" class="fblock-head" (click)="alternarBloque('obra')"
-                    [attr.aria-expanded]="!plegado('obra')">
-              <span class="fblock-dot fblock-dot-amber" aria-hidden="true"></span>
-              <span class="fblock-title">Datos de obra</span>
-              <mat-icon class="fblock-chevron">{{ plegado('obra') ? 'expand_more' : 'expand_less' }}</mat-icon>
-            </button>
-
-            @if (!plegado('obra')) {
-              <div class="fblock-body">
-                @for (d of obraConDatos; track d.label) {
-                  <div class="frow frow-plana">
-                    <span class="frow-label">{{ d.label }}</span>
-                    <span class="frow-value frow-value-break">{{ d.value }}</span>
-                  </div>
-                }
-                <button type="button" class="fblock-link" (click)="abrirPanel('remision')">
-                  <mat-icon>open_in_new</mat-icon> Cambiar vacante en Remisión
-                </button>
-              </div>
-            }
-          </section>
-        }
-
-      </aside>
-
-      <!-- ══════════════════════════════════════════════════════════════════
-           ÁREA DE TRABAJO
-           Las cinco cosas que se hacen con la persona al frente. Las dos
-           últimas viven en los pasos 4 y 5 del stepper de arriba: la pestaña
-           los ofrece igual y salta allá, para no obligar a buscar el paso.
-           ══════════════════════════════════════════════════════════════════ -->
-      <div class="taller">
-
-        <nav class="taller-tabs" role="tablist" aria-label="Área de trabajo">
-          <button type="button" class="ttab" role="tab" [class.ttab-activa]="panel() === 'entrevista'"
-                  [attr.aria-selected]="panel() === 'entrevista'" (click)="abrirPanel('entrevista')">
-            <mat-icon>rate_review</mat-icon>
-            <span>Entrevista</span>
-            @if (faltanEntrevista) { <span class="ttab-faltan">{{ faltanEntrevista }}</span> }
-          </button>
-
-          <button type="button" class="ttab" role="tab" [class.ttab-activa]="panel() === 'formacion'"
-                  [attr.aria-selected]="panel() === 'formacion'" (click)="abrirPanel('formacion')">
-            <mat-icon>school</mat-icon>
-            <span>Formación y laboral</span>
-            @if (faltanFormacion) { <span class="ttab-faltan">{{ faltanFormacion }}</span> }
-          </button>
-
-          <button type="button" class="ttab" role="tab" [class.ttab-activa]="panel() === 'remision'"
-                  [attr.aria-selected]="panel() === 'remision'" (click)="abrirPanel('remision')">
-            <mat-icon>work</mat-icon>
-            <span>Remisión</span>
-            @if (bloqueado()) { <mat-icon class="ttab-candado" matTooltip="Candidato en espera o no aplica">lock</mat-icon> }
-          </button>
-
-          <button type="button" class="ttab ttab-salto" role="tab" [attr.aria-selected]="false"
-                  matTooltip="Ir al paso 4 del proceso" (click)="abrirPanel('salud')">
-            <mat-icon>medical_information</mat-icon>
-            <span>Salud ocupacional</span>
-            <mat-icon class="ttab-flecha">arrow_forward</mat-icon>
-          </button>
-
-          <button type="button" class="ttab ttab-salto" role="tab" [attr.aria-selected]="false"
-                  matTooltip="Ir al paso 5 del proceso" (click)="abrirPanel('contratacion')">
-            <mat-icon>assignment_turned_in</mat-icon>
-            <span>Contratación</span>
-            <mat-icon class="ttab-flecha">arrow_forward</mat-icon>
-          </button>
-        </nav>
-
-        <div class="taller-panel">
-
-          <!-- ── Panel · Entrevista ─────────────────────────────────────── -->
-          @if (panel() === 'entrevista') {
-            <section class="section outline-section" id="sec-entrevista">
-              <div class="section-head">
-                <span class="section-icon-wrap section-icon-pink">
-                  <mat-icon inline="true" aria-hidden="true">rate_review</mat-icon>
-                </span>
-                <h3 class="section-title">Entrevista</h3>
-                <mat-divider class="section-divider"></mat-divider>
-              </div>
-
-              <div class="grid-managerial-entrevista">
-                <!-- ¿Cómo se enteró? -->
-                <mat-form-field appearance="outline">
-                  <mat-label>¿Cómo se enteró de la vacante?*</mat-label>
-                  <mat-select formControlName="comoSeEntero" required>
-                    @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
-                      <mat-option [value]="op['codigo']">
-                        {{ op['descripcion'] || op['codigo'] }}
-                      </mat-option>
-                    }
-                  </mat-select>
-                  <mat-hint>Seleccione la opción que aplique.</mat-hint>
-                  @let cse = formVacante.get('comoSeEntero');
-                  @if (cse?.hasError('required') && (cse?.touched || cse?.dirty)) {
-                    <mat-error>Requerido.</mat-error>
-                  }
-                </mat-form-field>
-
-                <!-- Referenciado -->
-                <mat-form-field appearance="outline">
-                  <mat-label>Referenciado*</mat-label>
-                  <mat-select formControlName="referenciado">
-                    <mat-option value="SI">Sí</mat-option>
-                    <mat-option value="NO">No</mat-option>
-                  </mat-select>
-                </mat-form-field>
-
-                <!-- Nombre del referenciado -->
-                @if (formVacante.get('referenciado')?.value === 'SI') {
-                  <mat-form-field appearance="outline">
-                    <mat-label>Nombre del referenciado*</mat-label>
-                    <input matInput formControlName="nombreReferenciado" />
-                    @if (
-                      formVacante.get('nombreReferenciado')?.hasError('required') &&
-                      (formVacante.get('nombreReferenciado')?.touched ||
-                      formVacante.get('nombreReferenciado')?.dirty)
-                      ) {
-                      <mat-error>
-                        Requerido cuando es “Sí”.
-                      </mat-error>
-                    }
-                    @if (
-                      formVacante.get('nombreReferenciado')?.hasError('maxlength') &&
-                      (formVacante.get('nombreReferenciado')?.touched ||
-                      formVacante.get('nombreReferenciado')?.dirty)
-                      ) {
-                      <mat-error>
-                        Máximo 120 caracteres.
-                      </mat-error>
-                    }
-                  </mat-form-field>
-                }
-
-                <!-- ¿Observación del evaluador? -->
-                <mat-form-field appearance="outline">
-                  <mat-label>¿Observación del evaluador?*</mat-label>
-                  <mat-select formControlName="aplicaObservacion" required>
-                    <mat-option value="APLICA">APLICA</mat-option>
-                    <mat-option value="NO_APLICA">NO APLICA</mat-option>
-                    <mat-option value="EN_ESPERA">EN ESPERA</mat-option>
-                  </mat-select>
-                  @if (
-                    formVacante.get('aplicaObservacion')?.hasError('required') &&
-                    (formVacante.get('aplicaObservacion')?.touched ||
-                    formVacante.get('aplicaObservacion')?.dirty)
-                    ) {
-                    <mat-error>
-                      Este campo es requerido.
-                    </mat-error>
-                  }
-                </mat-form-field>
-
-                <!-- ¿Por qué está en espera? -->
-                @if (formVacante.get('aplicaObservacion')?.value === 'EN_ESPERA') {
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Por qué está en espera?*</mat-label>
-                    <input matInput formControlName="motivoEspera" />
-                    <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
-                    @if (
-                      formVacante.get('motivoEspera')?.hasError('required') &&
-                      (formVacante.get('motivoEspera')?.touched ||
-                      formVacante.get('motivoEspera')?.dirty)
-                      ) {
-                      <mat-error>
-                        Este campo es obligatorio.
-                      </mat-error>
-                    }
-                    @if (
-                      formVacante.get('motivoEspera')?.hasError('maxlength') &&
-                      (formVacante.get('motivoEspera')?.touched ||
-                      formVacante.get('motivoEspera')?.dirty)
-                      ) {
-                      <mat-error>
-                        Máximo 300 caracteres.
-                      </mat-error>
-                    }
-                  </mat-form-field>
-                }
-
-                <!-- Motivo (NO_APLICA) -->
-                @if (formVacante.get('aplicaObservacion')?.value === 'NO_APLICA') {
-                  <mat-form-field appearance="outline">
-                    <mat-label>Motivo (obligatorio)*</mat-label>
-                    <input matInput formControlName="motivoNoAplica" />
-                    @if (
-                      formVacante.get('motivoNoAplica')?.hasError('required') &&
-                      (formVacante.get('motivoNoAplica')?.touched ||
-                      formVacante.get('motivoNoAplica')?.dirty)
-                      ) {
-                      <mat-error>
-                        Debe especificar el motivo.
-                      </mat-error>
-                    }
-                  </mat-form-field>
-                }
-              </div>
-
-              <div class="optional-evaluation-container">
-                <div class="optional-evaluation-header">
-                  <mat-icon>psychology</mat-icon>
-                  <h4>Evaluación (Opcional)</h4>
-                </div>
-
-                <div class="optional-grid">
-                  <!-- ¿Cómo es su relación familiar? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Cómo es su relación familiar?</mat-label>
-                    <input matInput formControlName="relacionFamiliar" />
-                  </mat-form-field>
-
-                  <!-- ¿Cómo considera su desempeño laboral? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Cómo considera su desempeño laboral?</mat-label>
-                    <input matInput formControlName="desempenoLaboral" />
-                  </mat-form-field>
-
-                  <!-- ¿Ha recibido un reconocimiento o felicitación por el rendimiento? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Reconocimiento/felicitación por rendimiento?</mat-label>
-                    <input matInput formControlName="felicitaciones" />
-                  </mat-form-field>
-
-                  <!-- ¿Ha tenido usted alguna situación conflictiva? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Ha tenido situación conflictiva?</mat-label>
-                    <input matInput formControlName="situacionConflictiva" />
-                  </mat-form-field>
-
-                  <!-- Está dispuesto a realizar actividades diferentes al cargo? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Dispuesto a realizar actividades diferentes?</mat-label>
-                    <mat-select formControlName="actividadesDiferentes">
-                      <mat-option value=""></mat-option>
-                      <mat-option value="SI">Sí</mat-option>
-                      <mat-option value="NO">No</mat-option>
-                    </mat-select>
-                  </mat-form-field>
-
-                  <!-- Firma Entrevistador -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>Nombre Entrevistador / Evaluador</mat-label>
-                    <input matInput [value]="firma" readonly disabled />
-                  </mat-form-field>
-                </div>
-              </div>
-            </section>
-          }
-
-          <!-- ── Panel · Formación y laboral ────────────────────────────── -->
-          @if (panel() === 'formacion') {
-            <section class="section" id="sec-formacion">
-              <div class="section-head">
-                <span class="section-icon-wrap section-icon-cyan">
-                  <mat-icon inline="true" aria-hidden="true">school</mat-icon>
-                </span>
-                <h3 class="section-title">Formación y experiencia en flores</h3>
-                <mat-divider class="section-divider"></mat-divider>
-              </div>
-
-              <div class="datos">
-                <!-- Escolaridad -->
-                <mat-form-field appearance="outline">
-                  <mat-label>Escolaridad</mat-label>
-                  <mat-select formControlName="nivel" required>
-                    @for (e of (escolaridadOpciones$ | async) ?? []; track e['codigo']) {
-                      <mat-option [value]="e['codigo']">
-                        {{ e['descripcion'] || e['codigo'] }}
-                      </mat-option>
-                    }
-                  </mat-select>
-                  @let esc = formVacante.get('nivel');
-                  @if (esc?.hasError('required') && (esc?.touched || esc?.dirty)) {
-                    <mat-error>Requerido</mat-error>
-                  }
-                </mat-form-field>
-
-                <!-- ¿Estudia actualmente? -->
-                <mat-form-field appearance="outline">
-                  <mat-label>¿Estudia actualmente?</mat-label>
-                  <mat-select formControlName="estudiaActualmente" required>
-                    <mat-option [value]="true">Sí</mat-option>
-                    <mat-option [value]="false">No</mat-option>
-                  </mat-select>
-                  @let est = formVacante.get('estudiaActualmente');
-                  @if (est?.hasError('required') && (est?.touched || est?.dirty)) {
-                    <mat-error>Requerido</mat-error>
-                  }
-                </mat-form-field>
-
-                <!-- Proyección 1 año -->
-                <mat-form-field appearance="outline">
-                  <mat-label>¿Cómo se proyecta en 1 año?</mat-label>
-                  <input matInput rows="3" formControlName="proyeccion1Ano" />
-                  @let p1 = formVacante.get('proyeccion1Ano');
-                  @if (p1?.invalid && (p1?.touched || p1?.dirty)) {
-                    <mat-error>Requerido</mat-error>
-                  }
-                </mat-form-field>
-
-                <!-- Experiencia en flores -->
-                <mat-form-field appearance="outline">
-                  <mat-label>¿Cuenta con experiencia en flores?</mat-label>
-                  <mat-select formControlName="experienciaFlores" required>
-                    <mat-option value="Sí">Sí</mat-option>
-                    <mat-option value="No">No</mat-option>
-                  </mat-select>
-                  @let ef = formVacante.get('experienciaFlores');
-                  @if (ef?.hasError('required') && (ef?.touched || ef?.dirty)) {
-                    <mat-error>Este campo es obligatorio.</mat-error>
-                  }
-                </mat-form-field>
-
-                @if (formVacante.get('experienciaFlores')?.value === 'Sí') {
-                  <mat-form-field appearance="outline">
-                    <mat-label>Tipo de experiencia en flores</mat-label>
-                    <mat-select formControlName="tipoExperienciaFlores" required>
-                      <mat-option value="CULTIVO">CULTIVO</mat-option>
-                      <mat-option value="POSCOSECHA">POSCOSECHA</mat-option>
-                      <mat-option value="AMBAS">AMBAS</mat-option>
-                      <mat-option value="OTROS">OTROS</mat-option>
-                    </mat-select>
-                    @let tef = formVacante.get('tipoExperienciaFlores');
-                    @if (tef?.hasError('required') && (tef?.touched || tef?.dirty)) {
-                      <mat-error>Este campo es obligatorio.</mat-error>
-                    }
-                  </mat-form-field>
-                }
-
-                @if (formVacante.get('tipoExperienciaFlores')?.value === 'OTROS') {
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Cuál?</mat-label>
-                    <input matInput formControlName="otroExperiencia" maxlength="64"
-                      placeholder="Especifique otro tipo de experiencia" />
-                      @let oe = formVacante.get('otroExperiencia');
-                      @if (oe?.hasError('required') && (oe?.touched || oe?.dirty)) {
-                        <mat-error>Este campo es obligatorio.</mat-error>
-                      }
-                    </mat-form-field>
-                  }
-                </div>
-              </section>
-            <section class="section" id="sec-laboral">
-              <div class="section-head">
-                <span class="section-icon-wrap section-icon-amber">
-                  <mat-icon inline="true" aria-hidden="true">work_history</mat-icon>
-                </span>
-                <h3 class="section-title">Historial laboral</h3>
-
-                <span class="spacer"></span>
-
-                <button type="button" mat-flat-button (click)="addExperiencia()">
-                  <mat-icon>add</mat-icon>&nbsp;Agregar experiencia
-                </button>
-              </div>
-
-              <p class="text-muted">
-                Empresas donde ha laborado (llénelo si tiene experiencia)
-              </p>
-
-              <div formArrayName="experiencias" class="cards-stack">
-                @for (exp of experienciasFA.controls; track $index; let i = $index) {
-                  <div class="card" [formGroupName]="i">
-                    <div class="card-title">
-                      <span>Experiencia {{ i + 1 }}</span>
-                      <span class="spacer"></span>
-                      <button type="button" mat-icon-button color="warn" (click)="removeExperiencia(i)">
-                        <mat-icon>delete</mat-icon>
-                      </button>
-                    </div>
-
-                    <div class="grid-2">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Nombre de la empresa</mat-label>
-                        <input matInput formControlName="empresa" />
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Tiempo (meses/años)</mat-label>
-                        <input matInput formControlName="tiempo_trabajado" />
-                      </mat-form-field>
-                    </div>
-
-                    <div class="grid-1">
-                      <mat-form-field appearance="outline">
-                        <mat-label>Labores realizadas</mat-label>
-                        <input matInput rows="2" formControlName="labores_realizadas" />
-                      </mat-form-field>
-
-                      <mat-form-field appearance="outline">
-                        <mat-label>Motivo retiro</mat-label>
-                        <input matInput rows="2" formControlName="labores_principales" />
-                      </mat-form-field>
-                    </div>
-                  </div>
-                }
-              </div>
-            </section>
-          }
-
-          <!-- ── Panel · Remisión ───────────────────────────────────────────
-               Proyectado desde help-information. Nunca se saca del DOM: si se
-               destruyera, el formulario de la vacante perdería lo escrito cada
-               vez que se cambia de pestaña. Solo se oculta.
-               ─────────────────────────────────────────────────────────────── -->
-          <div class="taller-remision" [class.taller-oculto]="panel() !== 'remision'">
-            <ng-content></ng-content>
-          </div>
-
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Barra de Enviar (siempre visible, fuera del scroll) -->
-    <div class="sticky-actions-bar">
-      <span class="sticky-actions-hint">
-        <mat-icon>info</mat-icon>
-        Revisa la información antes de enviar
-      </span>
-      <button type="submit" mat-flat-button color="primary" class="submit-button-sticky"
-              [disabled]="isSubmitting">
-        <mat-icon>{{ isSubmitting ? 'hourglass_empty' : 'send' }}</mat-icon>
-        {{ isSubmitting ? 'Enviando...' : 'Enviar' }}
-      </button>
-    </div>
-  </form>
-</div>
