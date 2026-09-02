@@ -29,6 +29,12 @@ import { CameraDialogComponent } from '../../components/camera-dialog/camera-dia
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { faltantesDePagoTransporte, FALTA_GUARDAR } from './pago-transporte.rules';
 import {
+  faltaVacante,
+  faltantesDeDatosObra,
+  FALTA_VACANTE,
+  FALTA_GUARDAR_OBRA,
+} from './datos-obra.rules';
+import {
   aplicarResultadoPruebaLocal,
   esVacanteDePruebaTecnica,
   etiquetaPruebaTecnica,
@@ -558,8 +564,25 @@ export class RecruitmentPipelineComponent {
     }
   });
 
+  /**
+   * Vacante y "Datos de obra" se leen del MISMO proceso que la pestaña
+   * Contratación escribe (`procesoContratacion`), no de `entrevistas[0]`: con
+   * un turno nuevo el contrato sigue en la entrevista anterior y saldrían como
+   * faltantes datos que sí están guardados.
+   */
+  readonly faltaVacanteGuardada = computed<boolean>(() =>
+    faltaVacante(this.procesoContratacion())
+  );
+
+  readonly faltantesDatosObra = computed<string[]>(() =>
+    faltantesDeDatosObra(this.procesoContratacion()?.contrato)
+  );
+
   readonly puedeGenerarDocumentacion = computed<boolean>(() =>
-    !!this.candidatoSeleccionado()?.numero_documento && this.faltantesPagoTransporte().length === 0
+    !!this.candidatoSeleccionado()?.numero_documento &&
+    !this.faltaVacanteGuardada() &&
+    this.faltantesPagoTransporte().length === 0 &&
+    this.faltantesDatosObra().length === 0
   );
 
   /**
@@ -579,16 +602,86 @@ export class RecruitmentPipelineComponent {
     return `No se puede ${accion}.\nFalta ${faltan.length === 1 ? 'este dato' : `estos ${faltan.length} datos`} en "Pago y Transporte":\n${lista}\n\nCompleta y GUARDA en Contratación → Pago y Transporte.`;
   }
 
-  /** El tooltip dice QUÉ falta: un botón gris sin motivo no se puede accionar. */
+  /**
+   * Un paso del tooltip por pestaña pendiente.
+   *
+   * SIN sangrías: `.tooltip-faltantes` usa `white-space: pre-line`, que respeta
+   * los saltos de línea pero COLAPSA las secuencias de espacios, así que
+   * cualquier indentación se perdería. La jerarquía se marca con viñetas.
+   */
+  private pasoSubTab(faltan: string[], subTab: string, sentinela: string): string {
+    if (faltan.length === 1 && faltan[0] === sentinela) {
+      return `Todavía no se ha guardado "${subTab}".\nVe a Contratación → ${subTab}, complétala y pulsa Guardar.`;
+    }
+    const cuenta = faltan.length === 1
+      ? `Falta 1 dato en "${subTab}":`
+      : `Faltan ${faltan.length} datos en "${subTab}":`;
+    return `${cuenta}\n${faltan.map(f => `• ${f}`).join('\n')}`;
+  }
+
+  /**
+   * El tooltip dice QUÉ falta, DÓNDE arreglarlo y POR QUÉ importa: un botón
+   * gris sin motivo no se puede accionar, y "faltan datos" a secas obliga a
+   * abrir las tres pestañas a ciegas.
+   */
   readonly tooltipGenerarDocumentacion = computed<string>(() => {
     if (!this.candidatoSeleccionado()?.numero_documento) {
-      return 'Selecciona primero un candidato';
+      return 'Selecciona primero un candidato para generar su documentación.';
     }
-    const faltan = this.faltantesPagoTransporte();
-    if (!faltan.length) {
+
+    const faltaVac = this.faltaVacanteGuardada();
+    const pago = this.faltantesPagoTransporte();
+    const obra = this.faltantesDatosObra();
+
+    if (!faltaVac && !pago.length && !obra.length) {
       return 'Generar o subir documentación';
     }
-    return this.textoFaltantes(faltan, 'generar la documentación');
+
+    const pasos: string[] = [];
+    if (faltaVac) {
+      pasos.push(
+        'La vacante todavía no está elegida.\n' +
+        'Ve a Contratación → Vacantes, selecciónala y pulsa Guardar.',
+      );
+    }
+
+    // Los dos sub-tabs viven en la MISMA fila de contrato y viajan en el mismo
+    // PATCH (`datosObraPayload()` va dentro de `contrato_detalle`). Si la fila
+    // no existe, ambos cantan su sentinela: se dice una sola vez para no mandar
+    // a la operadora a dos sitios por un único guardado.
+    const sinFilaDeContrato =
+      pago.length === 1 && pago[0] === FALTA_GUARDAR &&
+      obra.length === 1 && obra[0] === FALTA_GUARDAR_OBRA;
+
+    if (sinFilaDeContrato) {
+      pasos.push(
+        'Todavía no se ha guardado la pestaña de Contratación.\n' +
+        'Completa "Pago y Transporte" y "Datos de obra" y pulsa Guardar: ' +
+        'las dos se guardan juntas.',
+      );
+    } else {
+      if (pago.length) {
+        pasos.push(this.pasoSubTab(pago, 'Pago y Transporte', FALTA_GUARDAR));
+      }
+      if (obra.length) {
+        pasos.push(this.pasoSubTab(obra, 'Datos de obra', FALTA_GUARDAR_OBRA));
+      }
+    }
+
+    // Con un solo paso el encabezado "Falta una cosa" sobra: el propio paso
+    // ya lo dice ("Falta 1 dato en ..."), y numerarlo "1)" sin un "2)" debajo
+    // se lee raro.
+    const cuerpo = pasos.length === 1
+      ? pasos[0]
+      : `Faltan ${pasos.length} cosas por completar:\n\n` +
+        pasos.map((p, i) => `${i + 1}) ${p}`).join('\n\n');
+
+    return (
+      'Todavía no se puede generar la documentación.\n\n' +
+      'Los documentos se arman con estos datos: si falta alguno, saldrían en blanco.\n\n' +
+      `${cuerpo}\n\n` +
+      'Cuando lo guardes, el botón se activa solo.'
+    );
   });
 
   // ───────── Finalizar contratación ─────────
@@ -648,8 +741,12 @@ export class RecruitmentPipelineComponent {
   readonly puedeFinalizarContratacion = computed<boolean>(() => {
     if (!this.candidatoSeleccionado()?.numero_documento) return false;
     if (this.finalizando()) return false;
-    // Mismos requisitos que generar documentación + fecha de ingreso: sin ella
-    // no hay nada que cruzar contra el ARL ni que escribir en el Excel.
+    // Requisitos de "Pago y Transporte" + fecha de ingreso: sin ella no hay
+    // nada que cruzar contra el ARL ni que escribir en el Excel.
+    //
+    // Ojo: NO exige vacante ni "Datos de obra". Esos dos solo bloquean GENERAR
+    // la documentación (los imprime el PDF); finalizar solo manda al reporte
+    // del día documentos que ya están subidos.
     if (this.faltantesPagoTransporte().length > 0) return false;
     return !!this.fechaIngresoContrato();
   });
@@ -874,28 +971,6 @@ export class RecruitmentPipelineComponent {
    * cuando hay un contrato activo (los demás tabs quedan deshabilitados).
    */
   readonly tabIndex = signal(0);
-
-  /**
-   * Salto desde la ficha de Selección a los pasos 4 (exámenes) y 5
-   * (contratación) del stepper.
-   *
-   * La ficha ofrece esos dos pasos como pestaña para que, con la persona al
-   * frente, no haya que volver arriba a buscarlos. Respeta el mismo bloqueo
-   * que los tabs: con contrato activo no se entra sin dar de baja o usar
-   * "Modificar de todas formas", igual que si se hiciera click en el paso.
-   */
-  irAPaso(paso: 'salud' | 'contratacion'): void {
-    if (this.bloqueoContratoTabs()) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Contrato activo',
-        text: 'Dé de baja el contrato activo o use "Modificar de todas formas" para continuar.',
-        confirmButtonColor: '#21263C',
-      });
-      return;
-    }
-    this.tabIndex.set(paso === 'salud' ? 3 : 4);
-  }
 
   // ───────── Form Parte 3 ─────────
   formGroup3: FormGroup = this.fb.group({

@@ -367,6 +367,10 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
     documentos: [
       // Elite Blu menos los específicos de Elite/Elite Blu
       ...COMUN_BASE_APOYO_BLU,
+      // El acuerdo de uso de imagen lo emite Apoyo Laboral, no la empresa
+      // usuaria: aplica a cualquier vacante de la temporal que no tenga
+      // perfil propio (p.ej. FLORAPACK COLOMBIA), no solo al grupo Elite.
+      'Manejo Imagen',
     ],
   },
 ];

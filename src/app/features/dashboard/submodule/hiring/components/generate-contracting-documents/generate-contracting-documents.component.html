@@ -1,453 +1,600 @@
-<main class="hiring-docs-container">
-  <mat-card class="premium-card">
-    <mat-card-header class="card-header-premium">
-      <div class="header-content">
-        <button mat-icon-button class="btn-back" aria-label="Volver a contratación"
-          routerLink="/dashboard/hiring/recruitment-pipeline" matTooltip="Volver">
-          <mat-icon>arrow_back</mat-icon>
+<main class="gcd">
+
+  <!-- ═══════════ BARRA SUPERIOR ═══════════
+       Una sola fila. Las acciones globales viven acá y no en el pie del panel:
+       eso libera ~170 px de alto, que es justo lo que le faltaba a la lista en
+       portátiles de 768 px. -->
+  <header class="gcd-top">
+    <button mat-icon-button class="gcd-back" aria-label="Volver a contratación"
+      routerLink="/dashboard/hiring/recruitment-pipeline" matTooltip="Volver a contratación">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+
+    <!-- La foto ES el avatar, y girarla se hace acá mismo. El EXIF de las
+         cámaras a veces viene mal y la foto sale acostada; girarla acá la
+         corrige en ficha técnica, hoja de vida Minerva y carnet a la vez. -->
+    <div class="gcd-who">
+      @if (foto) {
+        <img class="gcd-avatar" [src]="fotoPreview() || foto" alt="Foto del candidato">
+        <button type="button" class="gcd-rot" (click)="girarFoto()"
+          aria-label="Girar foto 90 grados"
+          [matTooltip]="rotacionFoto() === 0
+            ? 'Gira la foto 90°. Aplica a ficha técnica, hoja de vida y carnet.'
+            : 'Girada ' + rotacionFoto() + '°. Genera de nuevo el documento para verla aplicada.'">
+          <mat-icon>rotate_right</mat-icon>
         </button>
-        <div class="header-icon-container">
-          <mat-icon class="header-icon">description</mat-icon>
+      } @else {
+        <div class="gcd-avatar gcd-avatar-vacio" matTooltip="Sin foto cargada">
+          <mat-icon>person</mat-icon>
         </div>
-        <div class="header-text">
-          <h1 class="titulo">Documentos de Contratación</h1>
-          <p class="subtitulo">
-            <span>Cédula:</span> <span class="badge">{{ cedula || '—' }}</span>
-            <span class="dot-separator">•</span>
-            <span>Contratación:</span> <span class="badge">{{ codigoContratacion || '—' }}</span>
-            <span class="dot-separator">•</span>
-            <span>Temporal:</span> <span class="badge">{{ vacante?.temporal || '—' }}</span>
-            <span class="dot-separator">•</span>
-            <span>Empresa Usuaria:</span> <span class="badge">{{ vacante?.empresaUsuariaSolicita || '—' }}</span>
-            <span class="dot-separator">•</span>
-            <span>Finca:</span> <span class="badge">{{ vacante?.finca || '—' }}</span>
-          </p>
+      }
 
+      <div class="gcd-who-txt">
+        <h1 class="gcd-nombre">Documentos de Contratación</h1>
+        <p class="gcd-sub">
+          <span class="gcd-cc">C.C. {{ cedula || '—' }}</span>
+          <span class="gcd-dot">·</span>
+          <span>Contratación {{ codigoContratacion || '—' }}</span>
+        </p>
+      </div>
+    </div>
 
-          
+    <!-- Metadatos: tira horizontal desplazable. Antes envolvían en dos o tres
+         líneas y el encabezado crecía hasta 150 px. -->
+    <div class="gcd-metas">
+      <span class="gcd-meta"><i>Temporal</i>{{ vacante?.temporal || '—' }}</span>
+      <span class="gcd-meta"><i>Empresa</i>{{ vacante?.empresaUsuariaSolicita || '—' }}</span>
+      <span class="gcd-meta"><i>Finca</i>{{ vacante?.finca || '—' }}</span>
+    </div>
+
+    <div class="gcd-prog" [matTooltip]="progresoExpediente.completados + ' de ' + progresoExpediente.total + ' documentos del expediente'">
+      <div class="gcd-ring" [class.completo]="progresoExpediente.porcentaje === 100">
+        <svg viewBox="0 0 36 36" aria-hidden="true">
+          <circle class="bg" cx="18" cy="18" r="15.5"></circle>
+          <circle class="fg" cx="18" cy="18" r="15.5"
+            [attr.stroke-dasharray]="(progresoExpediente.porcentaje * 0.9739) + ' 999'"></circle>
+        </svg>
+        <b>{{ progresoExpediente.porcentaje }}%</b>
+      </div>
+      <div class="gcd-prog-txt">
+        <span class="a">{{ progresoExpediente.completados }} de {{ progresoExpediente.total }}</span>
+        <span class="b">documentos listos</span>
+      </div>
+    </div>
+
+    <div class="gcd-top-act">
+      <button mat-flat-button class="gcd-btn gcd-btn-primary" (click)="cargarpdf()"
+        matTooltip="Sube al servidor todo lo que esté listo">
+        <mat-icon>cloud_sync</mat-icon>
+        <span class="gcd-btn-label">Guardar y cargar</span>
+      </button>
+
+      <button mat-icon-button class="gcd-ib gcd-ib-bordered" [matMenuTriggerFor]="menuGlobal"
+        aria-label="Más acciones" matTooltip="Más acciones">
+        <mat-icon>more_horiz</mat-icon>
+      </button>
+
+      <mat-menu #menuGlobal="matMenu" xPosition="before" class="gcd-menu">
+        <button mat-menu-item (click)="abrirModalLote()">
+          <mat-icon>stacks</mat-icon>
+          <span>Generar lote masivo (Tu Alianza)</span>
+        </button>
+
+        <!-- Paquete unido: exclusivo de la oficina de Soacha. -->
+        @if (esOficinaSoacha) {
+          <button mat-menu-item (click)="descargarPaqueteSoacha()"
+            matTooltip="Ficha Técnica, Cédula, ARL, Ficha Social, Exámenes y hoja 1 del Contrato en un solo PDF">
+            <mat-icon>picture_as_pdf</mat-icon>
+            <span>Descargar paquete Soacha</span>
+          </button>
+        }
+
+        <!-- Paquetes unidos de Faca Primera: Finca Usuarios y Finca. -->
+        @if (esOficinaFacaPrimera) {
+          <button mat-menu-item (click)="descargarPaqueteFincaUsuarios()"
+            [matTooltip]="'Ficha Técnica, Cédula, ARL, Ficha Social, Contrato, Manejo de Imagen, '
+              + (induccionHabilitada || 'Inducción (ninguna habilitada)') + ' y Exámenes en un solo PDF'">
+            <mat-icon>picture_as_pdf</mat-icon>
+            <span>Descargar paquete Finca Usuarios</span>
+          </button>
+          <button mat-menu-item (click)="descargarPaqueteFinca()"
+            [matTooltip]="'Ficha Técnica, Cédula, Procuraduría, Contraloría, OFAC, Policivos, ADRES, Sisbén, '
+              + 'Autorización de Ingreso, Contrato, Manejo de Imagen, '
+              + (induccionHabilitada || 'Inducción (ninguna habilitada)')
+              + ', ARL, Exámenes, AFP y Semanas cotizadas en un solo PDF'">
+            <mat-icon>picture_as_pdf</mat-icon>
+            <span>Descargar paquete Finca</span>
+          </button>
+        }
+      </mat-menu>
+    </div>
+  </header>
+
+  <!-- Segmentado: solo visible en modo de un panel (lo decide el CSS). -->
+  <div class="gcd-paneswitch">
+    <div class="gcd-seg">
+      <button type="button" (click)="setVista('lista')" [attr.aria-pressed]="vista === 'lista'">
+        <mat-icon>checklist</mat-icon> Documentos
+        <span class="n">{{ progresoExpediente.completados }}/{{ progresoExpediente.total }}</span>
+      </button>
+      <button type="button" (click)="setVista('preview')" [attr.aria-pressed]="vista === 'preview'">
+        <mat-icon>picture_as_pdf</mat-icon> Vista previa
+      </button>
+    </div>
+  </div>
+
+  <div class="gcd-work" [attr.data-vista]="vista">
+
+    <!-- ═══════════ PANEL: LISTA ═══════════ -->
+    <section class="gcd-panel gcd-panel-docs">
+
+      <div class="gcd-dhead">
+        <div class="gcd-search" [class.has]="busquedaDoc">
+          <mat-icon>search</mat-icon>
+          <input type="text" [(ngModel)]="busquedaDoc" name="busquedaDoc"
+            placeholder="Buscar documento…" aria-label="Buscar documento" autocomplete="off">
+          <button type="button" class="gcd-clear" (click)="limpiarBusqueda()" aria-label="Limpiar búsqueda">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+
+        <div class="gcd-filters">
+          <button type="button" class="gcd-fchip" (click)="setFiltro('todos')"
+            [attr.aria-pressed]="filtroEstado === 'todos'">
+            Todos <span class="n">{{ conteoFiltros.todos }}</span>
+          </button>
+          <button type="button" class="gcd-fchip" (click)="setFiltro('pendientes')"
+            [attr.aria-pressed]="filtroEstado === 'pendientes'">
+            Pendientes <span class="n">{{ conteoFiltros.pendientes }}</span>
+          </button>
+          <button type="button" class="gcd-fchip" (click)="setFiltro('listos')"
+            [attr.aria-pressed]="filtroEstado === 'listos'">
+            Listos <span class="n">{{ conteoFiltros.listos }}</span>
+          </button>
         </div>
       </div>
-    </mat-card-header>
 
-    <mat-card-content class="card-content" style="padding: 24px;">
-      <section class="documents-layout">
-
-        <!-- Left Panel: Document List -->
-        <article class="docs-list-panel">
-
-          <!-- Header con progreso del expediente -->
-          <header class="panel-header">
-            <div class="panel-header-row">
-              <h2 class="panel-title">Lista de Documentos</h2>
-              <span class="progreso-tag" [class.completo]="progresoExpediente.porcentaje === 100">
-                {{ progresoExpediente.completados }}/{{ progresoExpediente.total }} · {{ progresoExpediente.porcentaje }}%
-              </span>
-            </div>
-            <mat-progress-bar
-              class="progreso-bar"
-              mode="determinate"
-              [value]="progresoExpediente.porcentaje"
-              [color]="progresoExpediente.porcentaje === 100 ? 'accent' : 'primary'">
-            </mat-progress-bar>
-
-            <!-- Giro de la foto: el EXIF de las cámaras a veces viene mal y la
-                 foto sale acostada. Acá se corrige y se aplica a TODOS los
-                 documentos que la llevan. -->
-            @if (foto) {
-              <div class="foto-giro">
-                <img class="foto-giro-thumb" [src]="fotoPreview() || foto" alt="Foto del candidato">
-                <div class="foto-giro-txt">
-                  <span class="foto-giro-label">Foto</span>
-                  <span class="foto-giro-hint">
-                    @if (rotacionFoto() === 0) {
-                      Se endereza sola. Si sale volteada, gírala.
-                    } @else {
-                      Girada {{ rotacionFoto() }}° — aplica a ficha, hoja de vida y carnet.
-                    }
-                  </span>
-                </div>
-                <button mat-stroked-button class="foto-giro-btn" (click)="girarFoto()"
-                  matTooltip="Gira la foto 90°. Genera de nuevo el documento para verla aplicada.">
-                  <mat-icon>rotate_right</mat-icon> Girar
-                </button>
-              </div>
-            }
-          </header>
-
-          <!-- Tabs horizontales con badges -->
-          <mat-tab-group class="docs-tabs"
-            mat-stretch-tabs="false"
-            mat-align-tabs="start"
-            animationDuration="180ms">
-
-            <!-- Tab 1: AUTO-GENERABLES -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">auto_awesome</mat-icon>
-                <span>Auto-generables</span>
-                <span class="tab-badge">{{ progresoGenerables.completados }}/{{ progresoGenerables.total }}</span>
-              </ng-template>
-              <div class="docs-list" role="list">
-                @if (!docsGenerables.length) {
-                  <div class="docs-empty">
-                    <mat-icon>auto_awesome</mat-icon>
-                    <p>No hay documentos auto-generables.</p>
-                  </div>
-                }
-                @for (grupo of docsGenerablesAgrupados; track grupo.key) {
-                  <div class="doc-section">
-                    <h4 class="doc-section-title">
-                      <mat-icon class="doc-section-icon">{{ grupo.icon }}</mat-icon>
-                      <span class="doc-section-label">{{ grupo.label }}</span>
-                      <span class="doc-section-count"
-                        [class.completo]="grupo.completados === grupo.items.length">
-                        {{ grupo.completados }}/{{ grupo.items.length }}
-                      </span>
-                    </h4>
-                    @for (doc of grupo.items; track doc.titulo) {
-                      <ng-container *ngTemplateOutlet="docRow; context: { $implicit: doc }"></ng-container>
-                    }
-                  </div>
-                }
-              </div>
-            </mat-tab>
-
-            <!-- Tab 2: SOLO SUBIDA -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">cloud_upload</mat-icon>
-                <span>Solo subida</span>
-                <span class="tab-badge">{{ progresoSubir.completados }}/{{ progresoSubir.total }}</span>
-              </ng-template>
-              <div class="docs-list" role="list">
-                @if (!docsSubir.length) {
-                  <div class="docs-empty">
-                    <mat-icon>cloud_upload</mat-icon>
-                    <p>No hay documentos de solo subida.</p>
-                  </div>
-                }
-                @for (grupo of docsSubirAgrupados; track grupo.key) {
-                  <div class="doc-section">
-                    <h4 class="doc-section-title">
-                      <mat-icon class="doc-section-icon">{{ grupo.icon }}</mat-icon>
-                      <span class="doc-section-label">{{ grupo.label }}</span>
-                      <span class="doc-section-count"
-                        [class.completo]="grupo.completados === grupo.items.length">
-                        {{ grupo.completados }}/{{ grupo.items.length }}
-                      </span>
-                    </h4>
-                    @for (doc of grupo.items; track doc.titulo) {
-                      <ng-container *ngTemplateOutlet="docRow; context: { $implicit: doc }"></ng-container>
-                    }
-                  </div>
-                }
-              </div>
-            </mat-tab>
-
-            <!-- Tab 3: DE OTRAS PANTALLAS (solo lectura) -->
-            <!-- Estos documentos NO se administran aquí y por eso NO entran en
-                 los contadores de progreso: mover esos números cambiaría el
-                 criterio de "completo" de todas las empresas. Solo se muestran
-                 para poder consultarlos sin salir de esta pantalla. -->
-            <mat-tab>
-              <ng-template mat-tab-label>
-                <mat-icon class="tab-icon">visibility</mat-icon>
-                <span>De otras pantallas</span>
-                <span class="tab-badge">{{ docsOtrasPantallasDisponibles.length }}</span>
-              </ng-template>
-              <div class="docs-list" role="list">
-                @if (!docsOtrasPantallasDisponibles.length) {
-                  <div class="docs-empty">
-                    <mat-icon>visibility_off</mat-icon>
-                    <p>No hay documentos cargados desde otras pantallas.</p>
-                  </div>
-                } @else {
-                  <p class="doc-externos-nota">
-                    <mat-icon>info</mat-icon>
-                    Se cargan en otras pantallas. Aquí solo se consultan, y no
-                    cuentan para el progreso de este checklist.
-                  </p>
-                  @for (doc of docsOtrasPantallasDisponibles; track doc.titulo) {
-                    <div class="doc-item doc-item-externo" role="listitem">
-                      <div class="doc-item-main">
-                        <mat-icon class="doc-estado-icon completado">cloud_done</mat-icon>
-                        <div class="doc-item-text">
-                          <span class="doc-titulo">{{ doc.titulo }}</span>
-                          <span class="doc-origen">{{ doc.origen }}</span>
-                        </div>
-                      </div>
-                      <button mat-icon-button class="action-btn" matTooltip="Ver PDF"
-                        (click)="verPDF(doc)">
-                        <mat-icon>visibility</mat-icon>
-                      </button>
-                    </div>
-                  }
-                }
-              </div>
-            </mat-tab>
-          </mat-tab-group>
-
-          <!-- Template reusable de fila — evita duplicar el HTML por tab -->
-          <ng-template #docRow let-doc>
-            @let estado = estadoDoc(doc);
-            <div class="doc-item" role="listitem"
-              [class.is-completado]="estado !== 'pendiente'"
-              [class.is-pendiente]="estado === 'pendiente'">
-              <!-- Círculo de estado -->
-              <div class="doc-state-circle"
-                [class.completado-local]="estado === 'completado_local'"
-                [class.completado-servidor]="estado === 'completado_servidor'"
-                [class.pendiente]="estado === 'pendiente'">
-                @if (estado === 'completado_local') {
-                  <mat-icon>cloud_upload</mat-icon>
-                } @else if (estado === 'completado_servidor') {
-                  <mat-icon>cloud_done</mat-icon>
-                } @else {
-                  <mat-icon>radio_button_unchecked</mat-icon>
-                }
-              </div>
-
-              <div class="doc-item-info">
-                <h3 class="doc-item-title" [matTooltip]="doc.titulo">{{ doc.titulo }}</h3>
-
-                <p class="doc-item-status">
-                  @if (estado === 'completado_local') {
-                    <span class="status-chip chip-local">
-                      <mat-icon>cached</mat-icon> Listo para subir
-                    </span>
-                  } @else if (estado === 'completado_servidor') {
-                    <span class="status-chip chip-servidor">
-                      <mat-icon>verified</mat-icon> En servidor
-                    </span>
-                  } @else {
-                    <span class="status-chip chip-pendiente">
-                      <mat-icon>schedule</mat-icon> Pendiente
-                    </span>
-                  }
-                  @if (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]?.date) {
-                    <span class="doc-item-date">
-                      · {{ uploadedFiles[doc.titulo]
-                          ? (today | date:'shortDate')
-                          : (existingDocs[doc.titulo].date | date:'shortDate') }}
-                    </span>
-                  }
-                </p>
-              </div>
-
-              <div class="doc-item-actions">
-                @if (!isSubirPDF(doc)) {
-                  @if (hasVariants(doc)) {
-                    <!-- Documentos con 2 variantes (básica / TA Completa): mat-menu de selección. -->
-                    <button mat-icon-button class="action-btn action-generar"
-                      matTooltip="Generar PDF (elige variante)"
-                      [matMenuTriggerFor]="variantMenu">
-                      <mat-icon>auto_awesome</mat-icon>
-                    </button>
-                    <mat-menu #variantMenu="matMenu">
-                      <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'basica')">
-                        <mat-icon>description</mat-icon>
-                        <span>Básica</span>
-                      </button>
-                      <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'completa')">
-                        <mat-icon>menu_book</mat-icon>
-                        <span>TA Completa</span>
-                      </button>
-                      @if (doc.titulo === 'Contrato' && esGerencia) {
-                        <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'administrativo')">
-                          <mat-icon>badge</mat-icon>
-                          <span>Administrativo (Término Fijo)</span>
-                        </button>
-                      }
-                    </mat-menu>
-                  } @else {
-                    <button mat-icon-button class="action-btn action-generar" matTooltip="Generar PDF automático"
-                      (click)="generarPDF(doc.titulo)">
-                      <mat-icon>auto_awesome</mat-icon>
-                    </button>
-                  }
-                }
-                <button mat-icon-button class="action-btn" matTooltip="Ver PDF" (click)="verPDF(doc)"
-                  [disabled]="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]">
-                  <mat-icon>visibility</mat-icon>
-                </button>
-                <button mat-icon-button class="action-btn" [matMenuTriggerFor]="docMenu"
-                  aria-label="Opciones de documento">
-                  <mat-icon>more_vert</mat-icon>
-                </button>
-                <mat-menu #docMenu="matMenu">
-                  @if (doc.titulo === 'Ficha Técnica') {
-                    <!-- Ficha Técnica: typeId distinto en backend (34 vs 111). El menú permite elegir. -->
-                    <label mat-menu-item class="upload-label-menu"
-                      style="cursor: pointer; width: 100%; display: flex; align-items: center;">
-                      <input type="file" hidden (change)="subirArchivoVariant($event, doc.titulo, 'basica')" accept=".pdf" />
-                      <mat-icon class="text-accent">cloud_upload</mat-icon>
-                      <span>Subir Básica (PDF)</span>
-                    </label>
-                    <label mat-menu-item class="upload-label-menu"
-                      style="cursor: pointer; width: 100%; display: flex; align-items: center;">
-                      <input type="file" hidden (change)="subirArchivoVariant($event, doc.titulo, 'completa')" accept=".pdf" />
-                      <mat-icon class="text-accent">cloud_upload</mat-icon>
-                      <span>Subir TA Completa (PDF)</span>
-                    </label>
-                  } @else {
-                    <label mat-menu-item class="upload-label-menu"
-                      style="cursor: pointer; width: 100%; display: flex; align-items: center;">
-                      <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
-                      <mat-icon class="text-accent">cloud_upload</mat-icon>
-                      <span>Subir PDF Manual</span>
-                    </label>
-                  }
-                </mat-menu>
-              </div>
-            </div>
-          </ng-template>
-
-          <!-- Bottom Action -->
-          <footer class="panel-actions">
-            <button mat-flat-button class="btn-managerial w-100" (click)="cargarpdf()">
-              <mat-icon>cloud_sync</mat-icon>
-              <span>Guardar y Cargar al Servidor</span>
-            </button>
-            <button mat-stroked-button color="accent" class="w-100 mt-2" (click)="abrirModalLote()" style="margin-top: 10px; border: 2px solid currentColor;">
-              <mat-icon>library_add_check</mat-icon>
-              <span>Generar Lote TA (Masivo)</span>
-            </button>
-            <!-- Paquete unido: exclusivo de la oficina de Soacha. -->
-            @if (esOficinaSoacha) {
-              <button mat-stroked-button color="primary" class="w-100 mt-2"
-                (click)="descargarPaqueteSoacha()"
-                matTooltip="Ficha Técnica, Cédula, ARL, Ficha Social, Exámenes y hoja 1 del Contrato en un solo PDF"
-                style="margin-top: 10px; border: 2px solid currentColor;">
-                <mat-icon>picture_as_pdf</mat-icon>
-                <span>Descargar paquete Soacha</span>
-              </button>
-            }
-            <!-- Paquetes unidos de Faca Primera: Finca Usuarios y Finca. -->
-            @if (esOficinaFacaPrimera) {
-              <button mat-stroked-button color="primary" class="w-100 mt-2"
-                (click)="descargarPaqueteFincaUsuarios()"
-                [matTooltip]="'Ficha Técnica, Cédula, ARL, Ficha Social, Contrato, Manejo de Imagen, '
-                  + (induccionHabilitada || 'Inducción (ninguna habilitada)') + ' y Exámenes en un solo PDF'"
-                style="margin-top: 10px; border: 2px solid currentColor;">
-                <mat-icon>picture_as_pdf</mat-icon>
-                <span>Descargar paquete Finca Usuarios</span>
-              </button>
-              <button mat-stroked-button color="primary" class="w-100 mt-2"
-                (click)="descargarPaqueteFinca()"
-                [matTooltip]="'Ficha Técnica, Cédula, Procuraduría, Contraloría, OFAC, Policivos, ADRES, Sisbén, '
-                  + 'Autorización de Ingreso, Contrato, Manejo de Imagen, '
-                  + (induccionHabilitada || 'Inducción (ninguna habilitada)')
-                  + ', ARL, Exámenes, AFP y Semanas cotizadas en un solo PDF'"
-                style="margin-top: 10px; border: 2px solid currentColor;">
-                <mat-icon>picture_as_pdf</mat-icon>
-                <span>Descargar paquete Finca</span>
-              </button>
-            }
-          </footer>
-        </article>
-
-        <!-- Right Panel: PDF Preview -->
-        <article class="preview-panel">
-          <header class="preview-header">
-            <h2 class="panel-title">Vista Previa del Documento</h2>
-          </header>
-          <div class="iframe-container">
-            <iframe #pdfPreviewIframe class="pdf-iframe" title="Vista previa PDF"></iframe>
-          </div>
-        </article>
-
-      </section>
-    </mat-card-content>
-  </mat-card>
-</main>
-
-<!-- MODAL BATCH OVERLAY -->
-@if (batchMode) {
-  <div class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-700 shadow-2xl rounded-xl w-11/12 h-[85vh] flex flex-col max-w-7xl overflow-hidden relative font-sans">
-      <div class="p-4 border-b border-slate-700 flex justify-between items-center text-white bg-slate-800">
-        <h2 class="text-2xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-yellow-500 flex items-center gap-2 m-0">
-          <mat-icon class="text-orange-400">burst_mode</mat-icon>
-          Generación Masiva - Contrato TU ALIANZA
-        </h2>
-        <button mat-icon-button (click)="cerrarBatch()" class="text-slate-400 hover:text-white">
-          <mat-icon>close</mat-icon>
+      <!-- Pestañas de origen. Sustituyen al mat-tab-group: al angostarse
+           pierden el texto y dejan icono + contador, en vez de desbordar. -->
+      <div class="gcd-otabs" role="tablist">
+        <button type="button" role="tab" (click)="setTab('generables')"
+          [attr.aria-selected]="tabDocs === 'generables'">
+          <mat-icon>auto_awesome</mat-icon>
+          <span class="t">Generables</span>
+          <span class="c">{{ progresoGenerables.completados }}/{{ progresoGenerables.total }}</span>
+        </button>
+        <button type="button" role="tab" (click)="setTab('subir')"
+          [attr.aria-selected]="tabDocs === 'subir'">
+          <mat-icon>upload_file</mat-icon>
+          <span class="t">Subida</span>
+          <span class="c">{{ progresoSubir.completados }}/{{ progresoSubir.total }}</span>
+        </button>
+        <button type="button" role="tab" (click)="setTab('otras')"
+          [attr.aria-selected]="tabDocs === 'otras'">
+          <mat-icon>link</mat-icon>
+          <span class="t">Externos</span>
+          <span class="c">{{ docsOtrasPantallasDisponibles.length }}</span>
         </button>
       </div>
-      <div class="flex flex-1 overflow-hidden">
-        <div class="w-1/3 border-r border-slate-700 overflow-y-auto p-4 space-y-3 bg-slate-900/50">
-          @for (item of batchCedulas; track item) {
-            <div
-              (click)="blockSeleccionado = item"
-              class="p-4 rounded-lg border border-slate-700 bg-slate-800 flex items-center justify-between cursor-pointer transition-all"
-               [ngClass]="{
-                 'border-yellow-500/50 bg-yellow-900/20': item.status === 'Processing',
-                 'border-green-500/50 bg-green-900/20': item.status === 'Done',
-                 'border-red-500/50 bg-red-900/20': item.status === 'Error',
-                 'ring-2 ring-orange-500': item === blockSeleccionado
-               }">
-              <div class="flex flex-col overflow-hidden">
-                <p class="font-bold text-gray-100 text-base m-0 flex items-center gap-2">
-                  <mat-icon class="text-sm text-slate-400">badge</mat-icon>
-                  {{item.cedula}}
-                </p>
-                <p class="text-xs font-semibold uppercase tracking-wider m-0 mt-1"
-                     [ngClass]="{
-                       'text-yellow-400': item.status === 'Processing',
-                       'text-green-400': item.status === 'Done',
-                       'text-red-400': item.status === 'Error',
-                       'text-slate-400': item.status === 'Pending'
-                     }">
-                  {{item.guardado ? 'SUBIDO' : item.status}}
-                </p>
-                @if (item.error) {
-                  <p class="text-xs text-red-400 mt-1 max-w-[200px] truncate m-0" [title]="item.error">{{item.error}}</p>
+
+      <div class="gcd-list" role="list">
+
+        @if (tabDocs === 'otras') {
+          <!-- Estos documentos NO se administran aquí y por eso NO entran en
+               los contadores de progreso: mover esos números cambiaría el
+               criterio de "completo" de todas las empresas. Solo se muestran
+               para poder consultarlos sin salir de esta pantalla. -->
+          @if (!otrasFiltradas.length) {
+            <div class="gcd-empty">
+              <mat-icon>{{ busquedaDoc ? 'search_off' : 'visibility_off' }}</mat-icon>
+              <p>
+                @if (busquedaDoc) {
+                  Ningún documento externo coincide con «{{ busquedaDoc }}».
+                } @else {
+                  No hay documentos cargados desde otras pantallas.
                 }
-              </div>
-              <div class="flex-shrink-0 ml-2">
-                @if (item.status === 'Processing') {
-                  <mat-icon class="text-yellow-400 animate-spin">refresh</mat-icon>
-                }
-                @if (item.status === 'Done') {
-                  <mat-icon class="text-green-400">check_circle</mat-icon>
-                }
-                @if (item.status === 'Error') {
-                  <mat-icon class="text-red-400">error</mat-icon>
-                }
-                @if (item.status === 'Pending') {
-                  <mat-icon class="text-slate-500">schedule</mat-icon>
-                }
-              </div>
+              </p>
             </div>
+          } @else {
+            <p class="gcd-nota">
+              <mat-icon>info</mat-icon>
+              Se cargan en otras pantallas. Aquí solo se consultan, y no cuentan
+              para el progreso de este checklist.
+            </p>
+            @for (doc of otrasFiltradas; track doc.titulo) {
+              <div class="gcd-row gcd-row-ext" role="listitem">
+                <span class="gcd-tile ext"><mat-icon>link</mat-icon></span>
+                <span class="gcd-rinfo">
+                  <span class="t" [matTooltip]="doc.titulo">{{ doc.titulo }}</span>
+                  <span class="m">{{ doc.origen }}</span>
+                </span>
+                <span class="gcd-ract">
+                  <button mat-icon-button class="gcd-ib" matTooltip="Ver PDF" (click)="verPDF(doc)">
+                    <mat-icon>visibility</mat-icon>
+                  </button>
+                </span>
+              </div>
+            }
           }
-        </div>
-        <div class="w-2/3 bg-slate-200 flex flex-col relative items-center justify-center p-3">
-          @if (blockSeleccionado?.blobUrl) {
-            <iframe [src]="blockSeleccionado.blobUrl" class="w-full h-full rounded shadow-xl bg-white border border-slate-300"></iframe>
-          }
-          @if (!blockSeleccionado?.blobUrl) {
-            <div class="flex flex-col items-center justify-center text-slate-400 h-full">
-              <mat-icon style="font-size: 64px; width: 64px; height: 64px; opacity: 0.5;" class="mb-4">picture_as_pdf</mat-icon>
-              <p class="text-lg font-medium text-slate-500 m-0">
-                {{ blockSeleccionado?.status === 'Processing' ? 'Generando contrato...' : 'Selecciona un contrato completado para revisarlo' }}
+
+        } @else {
+          @if (!gruposFiltrados.length) {
+            <div class="gcd-empty">
+              <mat-icon>{{ hayFiltroActivo ? 'search_off' : 'inbox' }}</mat-icon>
+              <p>
+                @if (busquedaDoc) {
+                  Ningún documento coincide con «{{ busquedaDoc }}».
+                } @else if (filtroEstado === 'pendientes') {
+                  Nada pendiente por aquí. Todo listo.
+                } @else if (filtroEstado === 'listos') {
+                  Todavía no hay documentos completados en esta pestaña.
+                } @else {
+                  No hay documentos en esta pestaña.
+                }
               </p>
             </div>
           }
-        </div>
+
+          @for (grupo of gruposFiltrados; track grupo.key) {
+            <h2 class="gcd-sec">
+              <mat-icon>{{ grupo.icon }}</mat-icon>
+              <span class="s">{{ grupo.label }}</span>
+              <span class="c" [class.ok]="grupo.completados === grupo.totalSeccion">
+                {{ grupo.completados }}/{{ grupo.totalSeccion }}
+              </span>
+            </h2>
+            @for (doc of grupo.items; track doc.titulo) {
+              <ng-container *ngTemplateOutlet="docRow; context: { $implicit: doc }"></ng-container>
+            }
+          }
+        }
       </div>
-      <div class="p-4 border-t border-slate-700 bg-slate-800 flex justify-end gap-3 items-center">
-        <div class="mr-auto text-slate-400 text-sm font-medium">
-          Total: {{batchCedulas.length}} | Listos: {{(batchCedulas | keyvalue).length === 0 ? 0 : _getExitosos()}}
+    </section>
+
+    <!-- Template reusable de fila — evita duplicar el HTML por pestaña -->
+    <ng-template #docRow let-doc>
+      @let estado = estadoDoc(doc);
+      <div class="gcd-row" role="listitem"
+        [class.is-completado]="estado !== 'pendiente'"
+        (click)="hasFile(doc) ? verPDF(doc) : null">
+
+        <span class="gcd-tile"
+          [class.pendiente]="estado === 'pendiente'"
+          [class.local]="estado === 'completado_local'"
+          [class.servidor]="estado === 'completado_servidor'">
+          @if (estado === 'completado_local') {
+            <mat-icon>cloud_upload</mat-icon>
+          } @else if (estado === 'completado_servidor') {
+            <mat-icon>check_circle</mat-icon>
+          } @else {
+            <mat-icon>radio_button_unchecked</mat-icon>
+          }
+        </span>
+
+        <span class="gcd-rinfo">
+          <span class="t" [matTooltip]="doc.titulo">{{ doc.titulo }}</span>
+          <span class="m">
+            @if (estado === 'completado_local') {
+              <span class="st local">Listo para subir</span>
+            } @else if (estado === 'completado_servidor') {
+              <span class="st servidor">En servidor</span>
+            } @else {
+              <span class="st pendiente">Pendiente</span>
+            }
+            @if (uploadedFiles[doc.titulo] || existingDocs[doc.titulo]?.date) {
+              <span class="sep">·</span>
+              <span>{{ uploadedFiles[doc.titulo]
+                  ? (today | date:'shortDate')
+                  : (existingDocs[doc.titulo].date | date:'shortDate') }}</span>
+            }
+          </span>
+        </span>
+
+        <span class="gcd-ract" (click)="$event.stopPropagation()">
+          @if (!isSubirPDF(doc)) {
+            @if (hasVariants(doc)) {
+              <!-- Documentos con 2 variantes (básica / TA Completa): mat-menu de selección. -->
+              <button mat-icon-button class="gcd-ib gen" matTooltip="Generar PDF (elige variante)"
+                [matMenuTriggerFor]="variantMenu">
+                <mat-icon>auto_awesome</mat-icon>
+              </button>
+              <mat-menu #variantMenu="matMenu" xPosition="before" class="gcd-menu">
+                <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'basica')">
+                  <mat-icon>description</mat-icon>
+                  <span>Básica</span>
+                </button>
+                <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'completa')">
+                  <mat-icon>menu_book</mat-icon>
+                  <span>TA Completa</span>
+                </button>
+                @if (doc.titulo === 'Contrato' && esGerencia) {
+                  <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'administrativo')">
+                    <mat-icon>badge</mat-icon>
+                    <span>Administrativo (Término Fijo)</span>
+                  </button>
+                }
+              </mat-menu>
+            } @else {
+              <button mat-icon-button class="gcd-ib gen" matTooltip="Generar PDF automático"
+                (click)="generarPDF(doc.titulo)">
+                <mat-icon>auto_awesome</mat-icon>
+              </button>
+            }
+          }
+
+          <button mat-icon-button class="gcd-ib" matTooltip="Ver PDF" (click)="verPDF(doc)"
+            [disabled]="!uploadedFiles[doc.titulo] && !existingDocs[doc.titulo]">
+            <mat-icon>visibility</mat-icon>
+          </button>
+
+          <button mat-icon-button class="gcd-ib" [matMenuTriggerFor]="docMenu"
+            aria-label="Opciones de documento" matTooltip="Más opciones">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+
+          <mat-menu #docMenu="matMenu" xPosition="before" class="gcd-menu">
+            @if (doc.titulo === 'Ficha Técnica') {
+              <!-- Ficha Técnica: typeId distinto en backend (34 vs 111). El menú permite elegir. -->
+              <label mat-menu-item class="gcd-upload-label">
+                <input type="file" hidden (change)="subirArchivoVariant($event, doc.titulo, 'basica')" accept=".pdf" />
+                <mat-icon>cloud_upload</mat-icon>
+                <span>Subir Básica (PDF)</span>
+              </label>
+              <label mat-menu-item class="gcd-upload-label">
+                <input type="file" hidden (change)="subirArchivoVariant($event, doc.titulo, 'completa')" accept=".pdf" />
+                <mat-icon>cloud_upload</mat-icon>
+                <span>Subir TA Completa (PDF)</span>
+              </label>
+            } @else {
+              <label mat-menu-item class="gcd-upload-label">
+                <input type="file" hidden (change)="subirArchivo($event, doc.titulo)" accept=".pdf" />
+                <mat-icon>cloud_upload</mat-icon>
+                <span>Subir PDF Manual</span>
+              </label>
+            }
+          </mat-menu>
+        </span>
+      </div>
+    </ng-template>
+
+    <!-- ═══════════ PANEL: VISOR ═══════════
+         Nunca dentro de un @if: `setPdfPreview` escribe directo en el iframe y
+         necesita que exista siempre en el DOM. En modo de un panel se oculta
+         con CSS, no se destruye. -->
+    <section class="gcd-panel gcd-panel-view">
+      <div class="gcd-vbar">
+        <button mat-icon-button class="gcd-ib gcd-vback" (click)="setVista('lista')"
+          matTooltip="Volver a la lista">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <h2 class="gcd-vtitle">Vista previa del documento</h2>
+      </div>
+      <div class="gcd-vbody">
+        <iframe #pdfPreviewIframe class="gcd-iframe" title="Vista previa PDF"></iframe>
+      </div>
+    </section>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       LOTE MASIVO
+       Paso 1: pegar y revisar cédulas. Paso 2: cola de generación.
+       ═══════════════════════════════════════════════════════════════ -->
+  @if (batchMode) {
+    <div class="gcd-batch" role="dialog" aria-modal="true" aria-label="Generación masiva de contratos">
+      <div class="gcd-bx" [attr.data-step]="loteStep" [attr.data-vista]="loteVista">
+
+        <div class="gcd-bhead">
+          <span class="icn"><mat-icon>stacks</mat-icon></span>
+          <div class="tt">
+            <b>Generación masiva de contratos</b>
+            <span>
+              @if (procesandoBatch) {
+                Generando {{ loteStats.generados + loteStats.errores + 1 }} de {{ loteStats.total }}…
+              } @else if (guardandoBatch) {
+                Subiendo al servidor {{ loteSubidas }} de {{ lotePorSubir }}…
+              } @else if (loteStep === 'cedulas') {
+                Tu Alianza · pega las cédulas para empezar
+              } @else {
+                Tu Alianza · {{ loteStats.total }} cédulas en el lote
+              }
+            </span>
+          </div>
+          <button mat-icon-button class="gcd-ib gcd-ib-bordered" (click)="cerrarBatch()"
+            aria-label="Cerrar" matTooltip="Cerrar el lote">
+            <mat-icon>close</mat-icon>
+          </button>
         </div>
-        <button mat-stroked-button (click)="guardarBatch()" [disabled]="!todoGenerado || guardandoBatch" class="bg-gradient-to-r from-orange-500 to-yellow-500 text-white font-bold px-6 py-2 rounded-lg disabled:opacity-50" style="border:none">
-          <mat-icon class="mr-2">cloud_upload</mat-icon>
-          {{ guardandoBatch ? 'Subiendo...' : 'Subir Lote' }}
-        </button>
-        <button mat-flat-button color="primary" (click)="ejecutarBatch()" [disabled]="procesandoBatch" class="px-6 py-2 font-bold rounded-lg shadow-lg shadow-blue-500/30">
-          <mat-icon class="mr-2">play_arrow</mat-icon>
-          Comenzar
-        </button>
+
+        @if (loteStep === 'cola') {
+          <mat-progress-bar class="gcd-bmeter" mode="determinate"
+            [class.subiendo]="guardandoBatch"
+            [value]="loteProgreso"
+            [color]="guardandoBatch ? 'primary' : 'accent'">
+          </mat-progress-bar>
+        }
+
+        <!-- ─── Paso 1 · cédulas ─── -->
+        @if (loteStep === 'cedulas') {
+          <div class="gcd-bstep gcd-bstep-input">
+            <div class="gcd-binput">
+              <label class="gcd-blabel" for="loteCedulas">Cédulas a procesar</label>
+              <textarea id="loteCedulas" [(ngModel)]="loteTexto" name="loteTexto"
+                spellcheck="false"
+                placeholder="Una cédula por línea&#10;1004507044&#10;1065612553"></textarea>
+              <p class="gcd-bhint">Una por línea. Se ignoran puntos, espacios y líneas vacías.</p>
+            </div>
+
+            <aside class="gcd-bcheck">
+              <h3>Revisión</h3>
+              @let rev = loteParseo;
+              <ul class="gcd-bchecks">
+                <li [class.ok]="rev.validas.length" [class.off]="!rev.validas.length">
+                  <mat-icon>{{ rev.validas.length ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                  <span><b>{{ rev.validas.length }}</b> cédula{{ rev.validas.length === 1 ? '' : 's' }} válida{{ rev.validas.length === 1 ? '' : 's' }}</span>
+                </li>
+                <li [class.warn]="rev.repetidas.length" [class.off]="!rev.repetidas.length">
+                  <mat-icon>{{ rev.repetidas.length ? 'content_copy' : 'remove' }}</mat-icon>
+                  <span>
+                    <b>{{ rev.repetidas.length }}</b> repetida{{ rev.repetidas.length === 1 ? '' : 's' }}
+                    @if (rev.repetidas.length) { — se procesan una sola vez }
+                  </span>
+                </li>
+                <li [class.warn]="rev.invalidas.length" [class.off]="!rev.invalidas.length">
+                  <mat-icon>{{ rev.invalidas.length ? 'error' : 'remove' }}</mat-icon>
+                  <span>
+                    <b>{{ rev.invalidas.length }}</b> línea{{ rev.invalidas.length === 1 ? '' : 's' }} que no parece{{ rev.invalidas.length === 1 ? '' : 'n' }} un documento
+                    @if (rev.invalidas.length) { — se omiten }
+                  </span>
+                </li>
+              </ul>
+
+              <h3>Se procesarán</h3>
+              <div class="gcd-bchips">
+                @for (c of rev.validas; track c) {
+                  <span class="cq">{{ c }}</span>
+                }
+                @for (c of rev.repetidas; track $index) {
+                  <span class="cq dup" matTooltip="Repetida — se procesa una sola vez">{{ c }}</span>
+                }
+                @if (!rev.validas.length && !rev.repetidas.length) {
+                  <span class="gcd-bhint">Nada todavía.</span>
+                }
+              </div>
+            </aside>
+          </div>
+        }
+
+        <!-- ─── Paso 2 · cola ─── -->
+        @if (loteStep === 'cola') {
+          <div class="gcd-bstep gcd-bstep-run">
+            <div class="gcd-bseg">
+              <button type="button" (click)="setLoteVista('cola')" [attr.aria-pressed]="loteVista === 'cola'">Cola</button>
+              <button type="button" (click)="setLoteVista('preview')" [attr.aria-pressed]="loteVista === 'preview'">Vista previa</button>
+            </div>
+
+            <div class="gcd-bbody">
+              <div class="gcd-blist">
+                @for (item of batchCedulas; track item.cedula) {
+                  <div class="gcd-bi" [ngClass]="claseLote(item)"
+                    [attr.aria-current]="item === blockSeleccionado"
+                    (click)="seleccionarLote(item)">
+                    <span class="gcd-tile" [ngClass]="claseLote(item)">
+                      <mat-icon>{{ iconoLote(item) }}</mat-icon>
+                    </span>
+                    <span class="tx">
+                      <span class="cc">{{ item.cedula }}</span>
+                      <span class="sx" [matTooltip]="estadoLote(item)">{{ estadoLote(item) }}</span>
+                    </span>
+                    @if (!procesandoBatch && !guardandoBatch) {
+                      <button type="button" class="drop" (click)="$event.stopPropagation(); quitarDelLote(item)"
+                        aria-label="Quitar del lote" matTooltip="Quitar del lote">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+
+              <div class="gcd-bprev">
+                @if (blockSeleccionado?.blobUrl) {
+                  <iframe [src]="blockSeleccionado.blobUrl" title="Contrato generado" class="gcd-biframe"></iframe>
+                } @else {
+                  <div class="gcd-bempty">
+                    <mat-icon>
+                      {{ blockSeleccionado?.status === 'Error' ? 'report'
+                        : blockSeleccionado?.status === 'Processing' ? 'hourglass_top' : 'picture_as_pdf' }}
+                    </mat-icon>
+                    <p>
+                      @if (blockSeleccionado?.status === 'Error') {
+                        Esta cédula no generó contrato.<br>{{ blockSeleccionado.error }}
+                      } @else if (blockSeleccionado?.status === 'Processing') {
+                        Generando el contrato…
+                      } @else {
+                        Selecciona una cédula ya generada para revisar su contrato.
+                      }
+                    </p>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+
+        <!-- Resumen de la última subida (antes era un tercer Swal). -->
+        @if (loteResumen) {
+          <div class="gcd-bdone" [class.bad]="loteResumen.fallidos.length">
+            <mat-icon>{{ loteResumen.fallidos.length ? 'warning' : 'check_circle' }}</mat-icon>
+            <div>
+              @if (!loteResumen.fallidos.length) {
+                Se subieron correctamente <b>{{ loteResumen.ok }}</b> contratos.
+              } @else {
+                Subidos <b>{{ loteResumen.ok }}</b>, fallidos <b>{{ loteResumen.fallidos.length }}</b>.
+                Puedes volver a pulsar «Subir al servidor» para reintentarlos.
+                <ul>
+                  @for (f of loteResumen.fallidos; track f.cedula) {
+                    <li><b>{{ f.cedula }}</b>: {{ f.error }}</li>
+                  }
+                </ul>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="gcd-bfoot">
+          <span class="cnt">
+            @if (loteStep === 'cedulas') {
+              Se generará el contrato completo Tu Alianza de cada cédula.
+            } @else {
+              Total <b>{{ loteStats.total }}</b> · Generados <b>{{ loteStats.generados }}</b>
+              @if (loteStats.subidos) { · Subidos <b>{{ loteStats.subidos }}</b> }
+              @if (loteStats.errores) { · <span class="er">Con error <b>{{ loteStats.errores }}</b></span> }
+              @if (loteStats.pendientes) { · Pendientes <b>{{ loteStats.pendientes }}</b> }
+            }
+          </span>
+
+          @if (loteStep === 'cola' && !procesandoBatch && !guardandoBatch) {
+            <button mat-stroked-button class="gcd-btn gcd-btn-quiet" (click)="volverACedulas()">
+              <mat-icon>arrow_back</mat-icon> Editar cédulas
+            </button>
+          }
+
+          @if (loteStep === 'cola' && !procesandoBatch && !guardandoBatch && loteStats.errores) {
+            <button mat-stroked-button class="gcd-btn gcd-btn-quiet" (click)="reintentarFallidos()">
+              <mat-icon>refresh</mat-icon> Reintentar {{ loteStats.errores }} fallido{{ loteStats.errores === 1 ? '' : 's' }}
+            </button>
+          }
+
+          @if (procesandoBatch) {
+            <button mat-stroked-button class="gcd-btn gcd-btn-quiet" (click)="detenerBatch()">
+              <mat-icon>stop_circle</mat-icon> Detener
+            </button>
+          }
+
+          @if (loteStep === 'cola' && !procesandoBatch && loteHayPorSubir) {
+            <button mat-stroked-button class="gcd-btn gcd-btn-quiet" (click)="guardarBatch()"
+              [disabled]="guardandoBatch">
+              <mat-icon>cloud_upload</mat-icon>
+              {{ guardandoBatch ? 'Subiendo…' : 'Subir ' + _getExitosos() + ' al servidor' }}
+            </button>
+          }
+
+          @if (loteStep === 'cedulas') {
+            <button mat-flat-button class="gcd-btn gcd-btn-primary" (click)="prepararLote()"
+              [disabled]="!loteParseo.validas.length">
+              <mat-icon>arrow_forward</mat-icon>
+              {{ loteParseo.validas.length
+                  ? 'Preparar ' + loteParseo.validas.length + ' contrato' + (loteParseo.validas.length === 1 ? '' : 's')
+                  : 'Preparar contratos' }}
+            </button>
+          } @else if (!procesandoBatch && !guardandoBatch && loteStats.pendientes) {
+            <button mat-flat-button class="gcd-btn gcd-btn-primary" (click)="ejecutarBatch()">
+              <mat-icon>play_arrow</mat-icon>
+              Comenzar{{ loteStats.generados || loteStats.errores ? ' con ' + loteStats.pendientes + ' pendientes' : '' }}
+            </button>
+          }
+        </div>
       </div>
     </div>
-  </div>
-}
+  }
+</main>

@@ -117,6 +117,105 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return isNaN(fallback.getTime()) ? new Date() : fallback;
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // Estado de PRESENTACIÓN
+  //
+  // Nada de acá toca datos ni contratos: solo decide qué se ve. Existe
+  // porque en portátiles de 768 px el encabezado, el giro de foto y el pie
+  // con hasta cuatro botones dejaban la lista de documentos en ~170 px
+  // (unas dos filas de treinta y pico).
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Panel visible cuando el componente es angosto (≤ 800 px de ancho útil). */
+  vista: 'lista' | 'preview' = 'lista';
+
+  /** Pestaña de origen. Sustituye al mat-tab-group, que desbordaba al angostarse. */
+  tabDocs: 'generables' | 'subir' | 'otras' = 'generables';
+
+  /** Búsqueda por título. Con 30+ documentos es más rápido que recorrer secciones. */
+  busquedaDoc = '';
+
+  /** Filtro por estado del documento. */
+  filtroEstado: 'todos' | 'pendientes' | 'listos' = 'todos';
+
+  private hostRef = inject(ElementRef<HTMLElement>);
+
+  /** El componente está en modo de un solo panel (mismo umbral que el CSS). */
+  private get modoUnPanel(): boolean {
+    const w = this.hostRef?.nativeElement?.clientWidth ?? 0;
+    return w > 0 && w <= 800;
+  }
+
+  setVista(v: 'lista' | 'preview') { this.vista = v; }
+
+  setTab(t: 'generables' | 'subir' | 'otras') {
+    this.tabDocs = t;
+  }
+
+  setFiltro(f: 'todos' | 'pendientes' | 'listos') {
+    this.filtroEstado = f;
+  }
+
+  limpiarBusqueda() { this.busquedaDoc = ''; }
+
+  /** Normaliza para comparar sin tildes ni mayúsculas. */
+  private static normBusqueda(s: string): string {
+    return String(s ?? '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toLowerCase().trim();
+  }
+
+  private coincideBusqueda(titulo: string): boolean {
+    const q = GenerateContractingDocumentsComponent.normBusqueda(this.busquedaDoc);
+    if (!q) return true;
+    return GenerateContractingDocumentsComponent.normBusqueda(titulo).includes(q);
+  }
+
+  private pasaFiltroEstado(doc: { titulo: string }): boolean {
+    if (this.filtroEstado === 'pendientes') return !this.hasFile(doc);
+    if (this.filtroEstado === 'listos') return this.hasFile(doc);
+    return true;
+  }
+
+  /**
+   * Grupos de la pestaña activa, ya filtrados por búsqueda y estado.
+   *
+   * Los CONTADORES de cada sección se siguen calculando sobre el grupo
+   * completo (`agruparPorSeccion`), no sobre lo filtrado: si al buscar
+   * "carnet" la sección dijera 0/1 en vez de 4/7, el número dejaría de
+   * significar avance del expediente.
+   */
+  get gruposFiltrados(): Array<{ key: DocSeccion; label: string; icon: string; items: { titulo: string }[]; completados: number; totalSeccion: number }> {
+    const base = this.tabDocs === 'subir'
+      ? this.docsSubirAgrupados
+      : this.docsGenerablesAgrupados;
+
+    return base
+      .map(g => ({
+        ...g,
+        totalSeccion: g.items.length,
+        items: g.items.filter(d => this.coincideBusqueda(d.titulo) && this.pasaFiltroEstado(d)),
+      }))
+      .filter(g => g.items.length > 0);
+  }
+
+  /** Documentos de otras pantallas, filtrados solo por búsqueda (no tienen estado propio acá). */
+  get otrasFiltradas() {
+    return this.docsOtrasPantallasDisponibles.filter(d => this.coincideBusqueda(d.titulo));
+  }
+
+  /** Hay algo escrito o algún filtro distinto de "todos". */
+  get hayFiltroActivo(): boolean {
+    return !!this.busquedaDoc.trim() || this.filtroEstado !== 'todos';
+  }
+
+  /** Conteos para los chips de filtro (sobre los documentos visibles del expediente). */
+  get conteoFiltros(): { todos: number; pendientes: number; listos: number } {
+    const vis = this.documentosVisibles;
+    const listos = vis.filter(d => this.hasFile(d)).length;
+    return { todos: vis.length, pendientes: vis.length - listos, listos };
+  }
+
   cedula: string = '';
   nombreCompletoLogin: string = '';
   codigoContratacion: any = '';
@@ -280,9 +379,189 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   guardandoBatch = false;
   todoGenerado = false;
 
+  // ── Lote masivo: estado de presentación ──
+  // La entrada de cédulas pasó del SweetAlert con textarea a un primer paso
+  // dentro del mismo panel: así se puede revisar lo pegado (repetidas, basura)
+  // antes de disparar 30 generaciones, y volver a editar sin perder el lote.
+  /** Paso visible del panel de lote. */
+  loteStep: 'cedulas' | 'cola' = 'cedulas';
+  /** Texto crudo pegado por el usuario. */
+  loteTexto = '';
+  /** Progreso de la subida (antes iba en un Swal bloqueante). */
+  loteSubidas = 0;
+  lotePorSubir = 0;
+  /** Resumen de la última subida. Reemplaza el Swal final. */
+  loteResumen: { ok: number; fallidos: { cedula: string; error: string }[] } | null = null;
+
   _getExitosos(): number {
     return this.batchCedulas?.filter?.((x: any) => x?.status === 'Done' && !x?.guardado)?.length || 0;
   }
+
+  /**
+   * Parseo del texto pegado. Misma regla que tenía el Swal (una por línea,
+   * se ignoran las vacías) más lo que antes pasaba de largo: las cédulas
+   * REPETIDAS, que generaban el mismo contrato dos veces y lo subían dos
+   * veces.
+   *
+   * El filtro de "no parece un documento" es a propósito PERMISIVO
+   * (alfanumérico, 4-20). Descartar de más es el error caro: una cédula que
+   * se cae en silencio deja a una persona sin contrato y nadie se entera.
+   * Una que pasa de más termina como fila en Error diciendo "Candidato no
+   * encontrado", que se ve. Por eso solo se descarta lo que claramente es
+   * otra cosa (encabezados con espacios, nombres, símbolos).
+   */
+  get loteParseo(): { validas: string[]; repetidas: string[]; invalidas: string[] } {
+    const validas: string[] = [];
+    const repetidas: string[] = [];
+    const invalidas: string[] = [];
+    const vistas = new Set<string>();
+
+    for (const linea of String(this.loteTexto ?? '').split('\n')) {
+      const c = linea.replace(/[.\s-]/g, '').trim();
+      if (!c) continue;
+      if (!/^[A-Za-z0-9]{4,20}$/.test(c)) { invalidas.push(linea.trim()); continue; }
+      if (vistas.has(c)) { repetidas.push(c); continue; }
+      vistas.add(c);
+      validas.push(c);
+    }
+    return { validas, repetidas, invalidas };
+  }
+
+  /** Conteos del lote, para el pie del panel. */
+  get loteStats(): { total: number; generados: number; subidos: number; errores: number; pendientes: number } {
+    const items = this.batchCedulas ?? [];
+    const subidos = items.filter(x => x?.guardado).length;
+    return {
+      total: items.length,
+      generados: items.filter(x => x?.status === 'Done').length,
+      subidos,
+      errores: items.filter(x => x?.status === 'Error').length,
+      pendientes: items.filter(x => x?.status === 'Pending' || x?.status === 'Processing').length,
+    };
+  }
+
+  /** Porcentaje de la barra del panel de lote (generación o subida). */
+  get loteProgreso(): number {
+    if (this.guardandoBatch) {
+      return this.lotePorSubir ? Math.round((this.loteSubidas / this.lotePorSubir) * 100) : 0;
+    }
+    const s = this.loteStats;
+    if (!s.total) return 0;
+    return Math.round(((s.generados + s.errores) / s.total) * 100);
+  }
+
+  /** Hay contratos generados que todavía no se han subido. */
+  get loteHayPorSubir(): boolean {
+    return this._getExitosos() > 0;
+  }
+
+  /** Texto de estado de un ítem del lote. */
+  estadoLote(item: any): string {
+    if (item?.guardado) return 'Subido al servidor';
+    switch (item?.status) {
+      case 'Done': return 'Generado · listo para subir';
+      case 'Processing': return 'Generando contrato…';
+      case 'Error': return item?.error || 'Error desconocido';
+      default: return 'En espera';
+    }
+  }
+
+  /** Clase de estado de un ítem del lote. */
+  claseLote(item: any): string {
+    if (item?.guardado) return 'subido';
+    switch (item?.status) {
+      case 'Done': return 'listo';
+      case 'Processing': return 'procesando';
+      case 'Error': return 'error';
+      default: return 'pendiente';
+    }
+  }
+
+  /** Ícono de estado de un ítem del lote. */
+  iconoLote(item: any): string {
+    if (item?.guardado) return 'cloud_done';
+    switch (item?.status) {
+      case 'Done': return 'check_circle';
+      case 'Processing': return 'autorenew';
+      case 'Error': return 'error';
+      default: return 'schedule';
+    }
+  }
+
+  /**
+   * Arma el lote a partir del texto pegado y pasa al paso de la cola.
+   * Es lo mismo que hacía el `if (text)` del Swal, con las repetidas fuera.
+   */
+  prepararLote(): void {
+    const { validas } = this.loteParseo;
+    if (!validas.length) return;
+
+    this.batchCedulas = validas.map((c: string) => ({
+      cedula: c,
+      status: 'Pending',
+      blobUrl: null,
+      file: null,
+      error: null,
+      guardado: false,
+    }));
+    this.blockSeleccionado = this.batchCedulas[0];
+    this.todoGenerado = false;
+    this.loteResumen = null;
+    this.loteStep = 'cola';
+  }
+
+  /** Vuelve al paso de cédulas sin perder lo generado. */
+  volverACedulas(): void {
+    if (this.procesandoBatch || this.guardandoBatch) return;
+    this.loteResumen = null;
+    this.loteStep = 'cedulas';
+  }
+
+  /**
+   * Detiene el lote en curso sin cerrarlo.
+   *
+   * Antes la única forma de parar era cerrar el modal, y `cerrarBatch()`
+   * vacía `batchCedulas`: se perdían los contratos ya generados y sin subir.
+   * El `for` de `ejecutarBatch` revisa la bandera al principio de cada ítem,
+   * así que el que esté en curso termina y no queda en "Processing".
+   */
+  detenerBatch(): void {
+    this.batchCancelado = true;
+  }
+
+  /** Saca una cédula del lote (solo con el lote quieto). */
+  quitarDelLote(item: any): void {
+    if (this.procesandoBatch || this.guardandoBatch) return;
+    if (item?.rawBlobUrl) { try { URL.revokeObjectURL(item.rawBlobUrl); } catch { /* ya revocado */ } }
+    this.batchCedulas = this.batchCedulas.filter(x => x !== item);
+    if (this.blockSeleccionado === item) this.blockSeleccionado = this.batchCedulas[0] ?? null;
+    if (!this.batchCedulas.length) this.loteStep = 'cedulas';
+    this.todoGenerado = this.batchCedulas.some(x => x.status === 'Done');
+  }
+
+  /**
+   * Devuelve los fallidos a "Pending" y vuelve a correr el lote.
+   * `ejecutarBatch` salta los que ya están en 'Done', así que solo reintenta
+   * lo que falló.
+   */
+  async reintentarFallidos(): Promise<void> {
+    if (this.procesandoBatch || this.guardandoBatch) return;
+    for (const item of this.batchCedulas) {
+      if (item?.status === 'Error') { item.status = 'Pending'; item.error = null; }
+    }
+    this.loteResumen = null;
+    await this.ejecutarBatch();
+  }
+
+  /** Selecciona un ítem del lote (y en pantalla angosta muestra su PDF). */
+  seleccionarLote(item: any): void {
+    this.blockSeleccionado = item;
+    if (this.modoUnPanel) this.loteVista = 'preview';
+  }
+
+  /** Panel visible del lote cuando el componente es angosto. */
+  loteVista: 'cola' | 'preview' = 'cola';
+  setLoteVista(v: 'cola' | 'preview') { this.loteVista = v; }
 
   private platformId = inject(PLATFORM_ID);
   private route = inject(ActivatedRoute);
@@ -1625,6 +1904,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private urlPreviewActual: string | null = null;
 
   private setPdfPreview(url: string, intento = 0) {
+    // En modo de un solo panel el visor está oculto por CSS (nunca con @if:
+    // el iframe tiene que seguir en el DOM para que esta asignación llegue).
+    // Al generar o al ver un PDF se pasa solo al visor, que es lo que el
+    // usuario quiere mirar en ese momento.
+    if (intento === 0 && this.modoUnPanel) this.vista = 'preview';
+
     const el = this.pdfPreviewIframe?.nativeElement;
     if (!el) {
       // El iframe puede no estar montado todavía (generación disparada antes de
@@ -2113,9 +2398,28 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
   }
 
+  /**
+   * Documentos exentos del requisito de biometría completa.
+   *
+   * Son autorizaciones que la persona firma a mano cuando se las entregan: no
+   * llevan recuadro de huella ni de foto y la firma se inserta solo si existe
+   * (`fetchAsArrayBufferOrNull` tolera que falte). Exigir firma+huella+foto
+   * dejaba trabado al personal administrativo, que se contrata sin pasar por
+   * la captura biométrica.
+   */
+  private static readonly DOCS_SIN_BIOMETRIA = new Set<string>([
+    'Manejo Imagen',   // Acuerdo y autorización de uso de imagen
+    'Sagaro Imagen',   // Acuerdo uso de imagen (Sagaro)
+    'Sagaro Celular',  // Política de uso de celular, cámaras y dispositivos
+    'Sagaro Lockers',  // Acta de entrega de locker
+    'OTRO SI Sagaro Fumigador',
+  ]);
+
   async generarPDF(documento: string): Promise<void> {
-    // Biometría completa (firma, huella, foto) es requisito para generar.
-    if (!await this.exigirBiometria()) return;
+    // Biometría completa (firma, huella, foto) es requisito para generar,
+    // salvo las autorizaciones de uso de imagen / celular y cámaras.
+    if (!GenerateContractingDocumentsComponent.DOCS_SIN_BIOMETRIA.has(documento)
+      && !await this.exigirBiometria()) return;
 
     // Contratos Otrosí no depende de la empresa
     if (documento === 'Contratos Otrosí') {
@@ -9877,15 +10181,27 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.setFont('helvetica', 'bold');
     doc.text('Para constancia se firma ante testigos el día ' + fechaFirmaTextoLargo + ' En el Municipio de ' + this.municipioFirma, 5, y);
 
-    // Firma
-    const firmaPath = 'firma/FirmaMayra.png';
-    doc.addImage(firmaPath, 'PNG', 5, y + 10, 20, 20);
-    doc.setFont('helvetica', 'bold');
-    // El Empleador
-    doc.text('EL EMPLEADOR', 5, y + 35);
-    // MAYRA HUAMANÍ L.
-    doc.text('MAYRA HUAMANÍ L.', 5, y + 38);
-    doc.text('C.E. 332318', 5, y + 41);
+    // Firma del EMPLEADOR.
+    //
+    // Apoyo Laboral firma con el bloque ESCANEADO completo (`firma/image.png`):
+    // trae la firma, el sello de la empresa y el propio rótulo "El Empleador /
+    // MAYRA HUAMANÍ L. / C.E. 332318". Por eso acá NO se escriben esas tres
+    // líneas con `doc.text`: saldrían duplicadas encima del escaneo.
+    //
+    // Tu Alianza sigue con la firma suelta + rótulo impreso: el sello del PNG
+    // es de Apoyo Laboral y no puede aparecer en un contrato de Alianza.
+    if (marca === 'APOYO') {
+      // 34 x 24.4 mm mantiene la proporción del PNG (1054x757) y no invade la
+      // línea de firma del trabajador, que arranca en x = 40.
+      doc.addImage('firma/image.png', 'PNG', 5, y + 10, 34, 24.4);
+    } else {
+      doc.addImage('firma/FirmaMayra.png', 'PNG', 5, y + 10, 20, 20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('EL EMPLEADOR', 5, y + 35);
+      doc.text('MAYRA HUAMANÍ L.', 5, y + 38);
+      doc.text('C.E. 332318', 5, y + 41);
+    }
+    // El resto del bloque va en redonda en ambas ramas.
     doc.setFont('helvetica', 'normal');
     // linea de firma larga
     doc.setLineWidth(0.1);
@@ -9937,35 +10253,25 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.verPDF({ titulo: 'Contrato' });
   }
 
+  /**
+   * Abre el panel de lote en el paso de cédulas.
+   *
+   * Antes esto era un `Swal.fire` con un textarea: no se veía cuántas cédulas
+   * habían quedado, ni las repetidas, y al equivocarse había que volver a
+   * pegar la lista entera. Ahora el textarea es el primer paso del mismo
+   * panel (ver `prepararLote`), que es a donde va lo que hacía el `if (text)`.
+   */
   async abrirModalLote() {
-    const { value: text } = await Swal.fire({
-      title: 'Generar Lote TA',
-      input: 'textarea',
-      inputLabel: 'Pegue las cédulas separadas por salto de línea',
-      inputPlaceholder: 'Ej:\n1004507044\n1065612553',
-      showCancelButton: true,
-      confirmButtonText: 'Procesar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-    });
-
-    if (text) {
-      const cedulas = text.split('\n').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
-      if (cedulas.length === 0) return;
-
-      this.batchCedulas = cedulas.map((c: string) => ({
-        cedula: c,
-        status: 'Pending',
-        blobUrl: null,
-        file: null,
-        error: null,
-        guardado: false
-      }));
-      this.blockSeleccionado = this.batchCedulas[0];
-      this.batchMode = true;
-      this.todoGenerado = false;
-    }
+    this.loteStep = 'cedulas';
+    this.loteVista = 'cola';
+    this.loteTexto = '';
+    this.loteResumen = null;
+    this.loteSubidas = 0;
+    this.lotePorSubir = 0;
+    this.batchCedulas = [];
+    this.blockSeleccionado = null;
+    this.todoGenerado = false;
+    this.batchMode = true;
   }
 
   /** Señal de cancelación del lote: el for la revisa en cada ítem. */
@@ -9983,6 +10289,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.batchMode = false;
     this.batchCedulas = [];
     this.blockSeleccionado = null;
+    this.loteStep = 'cedulas';
+    this.loteTexto = '';
+    this.loteResumen = null;
+    this.loteSubidas = 0;
+    this.lotePorSubir = 0;
   }
 
   async ejecutarBatch() {
@@ -10007,6 +10318,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
       item.status = 'Processing';
       this.blockSeleccionado = item;
+      // La app corre zoneless: sin esto la cola no se repinta y el usuario
+      // ve el lote congelado en "En espera" mientras de verdad avanza.
+      this.cdr.markForCheck();
 
       try {
         const datoCandidato = await firstValueFrom(
@@ -10074,6 +10388,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         item.status = 'Error';
         item.error = err?.message || 'Error desconocido';
       }
+      this.cdr.markForCheck();
     }
 
     // Restaurar estado
@@ -10086,10 +10401,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.entrevistaDoc = bEntrevista;
     this.procesandoBatch = false;
     this.todoGenerado = this.batchCedulas.some(x => x.status === 'Done');
+    this.cdr.markForCheck();
   }
 
   async guardarBatch() {
     this.guardandoBatch = true;
+    this.loteResumen = null;
 
     const items = this.batchCedulas.filter(x => x.status === 'Done' && !x.guardado && x.file);
     if (items.length === 0) {
@@ -10098,12 +10415,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       return;
     }
 
-    Swal.fire({
-      title: 'Guardando...',
-      html: `Subiendo contratos al sistema... <b>0/${items.length}</b>`,
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading()
-    });
+    // El progreso va en la barra del propio panel, no en un Swal bloqueante:
+    // durante la subida el usuario puede seguir viendo la cola y qué cédula
+    // va, en vez de quedarse mirando un popup.
+    this.loteSubidas = 0;
+    this.lotePorSubir = items.length;
+    this.cdr.markForCheck();
 
     const typeId = this.typeMap['Contrato'] || 25;
     let success = 0;
@@ -10125,34 +10442,16 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       }
 
       // Actualizar progreso
-      const total = success + fallidos.length;
-      Swal.update({ html: `Subiendo contratos al sistema... <b>${total}/${items.length}</b>` });
+      this.loteSubidas = success + fallidos.length;
+      this.cdr.markForCheck();
     }
 
-    Swal.close();
     this.guardandoBatch = false;
-
-    if (fallidos.length === 0) {
-      Swal.fire({
-        icon: 'success',
-        title: '¡Carga exitosa!',
-        html: `Se subieron correctamente <b>${success}</b> contratos.`
-      });
-    } else {
-      const errorList = fallidos
-        .map(f => `<li><b>${f.cedula}</b>: ${f.error}</li>`)
-        .join('');
-      Swal.fire({
-        icon: 'warning',
-        title: 'Carga finalizada con errores',
-        html: `<p>Subidos: <b>${success}</b> | Fallidos: <b>${fallidos.length}</b></p>
-               <div style="text-align:left;max-height:200px;overflow-y:auto;font-size:13px;margin-top:10px;">
-                 <ul style="padding-left:20px;">${errorList}</ul>
-               </div>
-               <p style="font-size:12px;color:#888;margin-top:10px;">Puede intentar subir los fallidos nuevamente.</p>`,
-        width: '500px'
-      });
-    }
+    // El resumen queda dentro del panel, con la lista de fallidos a la vista
+    // y el botón de reintentar al lado: antes era un tercer Swal que había
+    // que cerrar para poder volver a intentarlo.
+    this.loteResumen = { ok: success, fallidos };
+    this.cdr.markForCheck();
   }
 
   async generarContratoCompletoTrabajoTuAlianza(isBatch: boolean = false) {
