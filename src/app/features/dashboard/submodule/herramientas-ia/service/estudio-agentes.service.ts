@@ -56,8 +56,23 @@ export interface AgenteRegistrado {
   /** true si el fichero que lee el pool va por detrás de lo guardado. */
   desincronizado: boolean;
   origen: string;
+  /** false = espejo de un agente de ruflo: se organiza aquí, pero su .md no es nuestro. */
+  gestionado: boolean;
+  /** true = la IA ya mejoró su ficha (descripción en español, capacidades reales). */
+  enriquecido: boolean;
+  /** La carpeta de ruflo de la que salió. */
+  categoriaOrigen: string | null;
   creadoEn: string;
   actualizadoEn: string | null;
+}
+
+/** Lo que devuelve importar o enriquecer el catálogo. */
+export interface Espejo {
+  nuevos: number;
+  refrescados: number;
+  enriquecidos: number;
+  pendientesDeEnriquecer: number;
+  total: number;
 }
 
 export interface AgenteReq {
@@ -232,6 +247,18 @@ export class EstudioAgentesService {
 
   proponer(conversacion: TurnoChat[]): Observable<Borrador> {
     return this.http.post<Borrador>(`${this.base}/asistente/borrador`, { conversacion });
+  }
+
+  // ── Catálogo del pool ─────────────────────────────────────────────────────
+
+  /** Trae del pool lo que falte y refresca lo que ya estaba. No pisa los propios. */
+  importarCatalogo(): Observable<Espejo> {
+    return this.http.post<Espejo>(`${this.base}/catalogo/importar`, {});
+  }
+
+  /** Mejora la ficha de un lote. Se repite hasta que pendientesDeEnriquecer llega a 0. */
+  enriquecerCatalogo(): Observable<Espejo> {
+    return this.http.post<Espejo>(`${this.base}/catalogo/enriquecer`, {});
   }
 
   // ── Crecimiento ───────────────────────────────────────────────────────────

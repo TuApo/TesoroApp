@@ -18,7 +18,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import Swal from 'sweetalert2';
 
 import {
-  AgenteRegistrado, Area, Borrador, EstudioAgentesService, Propuesta, TurnoChat, VersionAgente,
+  AgenteRegistrado, Area, Borrador, Espejo, EstudioAgentesService, Propuesta, TurnoChat,
+  VersionAgente,
 } from '../../service/estudio-agentes.service';
 import { Adjunto, AgentesService } from '../../service/agentes.service';
 
@@ -87,6 +88,12 @@ export class EstudioAgentesComponent implements OnInit {
   subiendo = signal(false);
   historial = signal<VersionAgente[]>([]);
 
+  // ── Catálogo del pool ─────────────────────────────────────────────────────
+
+  importando = signal(false);
+  enriqueciendo = signal(false);
+  pendientesEnriquecer = signal(0);
+
   // ── Bandeja de propuestas ─────────────────────────────────────────────────
 
   propuestas = signal<Propuesta[]>([]);
@@ -132,6 +139,74 @@ export class EstudioAgentesComponent implements OnInit {
       error: () => this.asistenteDisponible.set(false),
     });
     this.cargarPropuestas();
+  }
+
+  // ── Catálogo del pool ─────────────────────────────────────────────────────
+
+  /** Trae los agentes que ya trabajan en el pool. No pisa los propios. */
+  importar(): void {
+    if (this.importando()) return;
+    this.importando.set(true);
+    this.svc.importarCatalogo().subscribe({
+      next: (r) => {
+        this.importando.set(false);
+        this.pendientesEnriquecer.set(r.pendientesDeEnriquecer);
+        this.recargar();
+        Swal.fire({
+          icon: 'success',
+          title: `${r.nuevos} agente${r.nuevos === 1 ? '' : 's'} nuevo${r.nuevos === 1 ? '' : 's'}`,
+          html: `${r.refrescados} ya estaban y se refrescaron.<br><br>`
+            + `Vienen con la ficha en bruto del pool: en inglés y sin decir cuándo llamarlos. `
+            + `Dale a <b>Mejorar fichas</b> para que queden legibles.`,
+          confirmButtonColor: '#6d28d9',
+        });
+      },
+      error: (e) => {
+        this.importando.set(false);
+        this.avisar(e);
+      },
+    });
+  }
+
+  /**
+   * Mejora las fichas por lotes hasta agotarlas.
+   *
+   * Va lote a lote porque son 81 agentes con su persona entera y no caben en una sola
+   * llamada; así lo que sale bien queda guardado aunque el siguiente lote falle.
+   */
+  enriquecer(): void {
+    if (this.enriqueciendo()) return;
+    this.enriqueciendo.set(true);
+    this.siguienteLote(0);
+  }
+
+  private siguienteLote(acumulado: number): void {
+    this.svc.enriquecerCatalogo().subscribe({
+      next: (r: Espejo) => {
+        const total = acumulado + r.enriquecidos;
+        this.pendientesEnriquecer.set(r.pendientesDeEnriquecer);
+        if (r.pendientesDeEnriquecer > 0 && r.enriquecidos > 0) {
+          this.recargar();
+          this.siguienteLote(total);
+          return;
+        }
+        this.enriqueciendo.set(false);
+        this.recargar();
+        Swal.fire({
+          icon: 'success',
+          title: `${total} ficha${total === 1 ? '' : 's'} mejorada${total === 1 ? '' : 's'}`,
+          text: r.pendientesDeEnriquecer
+            ? `Quedan ${r.pendientesDeEnriquecer}; vuelve a darle para seguir.`
+            : 'Todas al día: descripción en español, capacidades reales y área asignada.',
+          confirmButtonColor: '#6d28d9',
+        });
+      },
+      error: (e) => {
+        this.enriqueciendo.set(false);
+        this.recargar();
+        this.avisar(e);
+      },
+    });
   }
 
   // ── Bandeja ───────────────────────────────────────────────────────────────
@@ -243,6 +318,7 @@ export class EstudioAgentesComponent implements OnInit {
     this.svc.agentes().subscribe({
       next: (a) => {
         this.agentes.set(a ?? []);
+        this.pendientesEnriquecer.set((a ?? []).filter((x) => !x.enriquecido).length);
         this.cargando.set(false);
         this.error.set(null);
       },

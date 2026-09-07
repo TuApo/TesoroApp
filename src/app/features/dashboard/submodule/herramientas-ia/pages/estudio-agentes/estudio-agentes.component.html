@@ -85,6 +85,22 @@
                    [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)">
           </mat-form-field>
 
+          <button class="es-plano" (click)="importar()" [disabled]="importando()"
+                  matTooltip="Trae los agentes que ya trabajan en el pool. No pisa los tuyos.">
+            @if (importando()) { <mat-spinner diameter="16"></mat-spinner> }
+            @else { <mat-icon>download</mat-icon> }
+            Traer del pool
+          </button>
+
+          @if (pendientesEnriquecer() > 0) {
+            <button class="es-plano hay" (click)="enriquecer()" [disabled]="enriqueciendo()"
+                    matTooltip="Reescribe las fichas en español, con capacidades reales y área">
+              @if (enriqueciendo()) { <mat-spinner diameter="16"></mat-spinner> }
+              @else { <mat-icon>auto_fix_high</mat-icon> }
+              Mejorar fichas <span class="es-pill">{{ pendientesEnriquecer() }}</span>
+            </button>
+          }
+
           <button class="es-primario" (click)="abrirChat()" [disabled]="!asistenteDisponible()"
                   [matTooltip]="asistenteDisponible()
                     ? 'Cuéntale qué necesitas y te redacta el agente'
@@ -101,10 +117,15 @@
             } @else {
               <p><b>El estudio está vacío.</b></p>
               <p class="es-sub">
-                Los 81 agentes de ruflo se encargan desde <i>Agente Desarrollo</i> y son de solo
-                lectura. Aquí se escriben los tuyos — lo más rápido es contarle al asistente qué
-                necesitas.
+                Los agentes que ya trabajan en el pool todavía no están aquí. Tráelos y podrás
+                organizarlos por área y dejar su ficha legible — vienen en inglés, en una línea
+                y sin decir cuándo llamarlos.
               </p>
+              <button class="es-primario" (click)="importar()" [disabled]="importando()">
+                @if (importando()) { <mat-spinner diameter="16"></mat-spinner> }
+                @else { <mat-icon>download</mat-icon> }
+                Traer los agentes del pool
+              </button>
             }
           </div>
         }
@@ -125,6 +146,18 @@
                 @if (a.origen === 'asistente') {
                   <span class="es-tag suave" matTooltip="Lo redactó el asistente">
                     <mat-icon>auto_awesome</mat-icon>
+                  </span>
+                }
+                @if (!a.gestionado) {
+                  <span class="es-tag suave"
+                        [matTooltip]="'Viene del pool (' + (a.categoriaOrigen || 'ruflo')
+                          + '). Se organiza aquí, pero su persona es de solo lectura.'">
+                    <mat-icon>link</mat-icon> del pool
+                  </span>
+                }
+                @if (!a.enriquecido) {
+                  <span class="es-tag malo" matTooltip="Ficha en bruto: sin mejorar todavía">
+                    ficha en bruto
                   </span>
                 }
                 @if (a.desincronizado) {
