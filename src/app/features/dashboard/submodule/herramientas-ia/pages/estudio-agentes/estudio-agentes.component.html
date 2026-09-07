@@ -1,0 +1,395 @@
+<div class="es-shell">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────────────── -->
+  <header class="es-top">
+    <div class="es-title">
+      <mat-icon class="es-title-icon">smart_toy</mat-icon>
+      <div>
+        <h1>Estudio de agentes</h1>
+        <p>
+          Aquí se escriben los agentes propios y se reparten por áreas. Viven en base de
+          datos: se versionan, se recuperan y sobreviven a que alguien reinstale el workspace.
+        </p>
+      </div>
+    </div>
+    <div class="es-top-right">
+      @if (desincronizados() > 0) {
+        <button class="es-aviso-btn" (click)="sincronizar()"
+                matTooltip="Reescribe en el workspace los agentes publicados que van por detrás">
+          <mat-icon>sync_problem</mat-icon>
+          {{ desincronizados() }} sin sincronizar
+        </button>
+      } @else {
+        <button class="es-plano" (click)="sincronizar()"
+                matTooltip="Vuelve a escribir todos los publicados en el workspace">
+          <mat-icon>sync</mat-icon> Sincronizar
+        </button>
+      }
+    </div>
+  </header>
+
+  @if (error(); as e) {
+    <div class="es-error"><mat-icon>error_outline</mat-icon><span>{{ e }}</span></div>
+  }
+
+  @if (cargando()) {
+    <div class="es-cargando"><mat-spinner diameter="34"></mat-spinner><span>Abriendo el estudio…</span></div>
+  }
+
+  <!-- ══════════════════════════ CATÁLOGO ══════════════════════════ -->
+  @if (vista() === 'catalogo' && !cargando()) {
+    <div class="es-grid">
+
+      <!-- Áreas -->
+      <aside class="es-areas">
+        <div class="es-areas-cab">
+          <span>Áreas</span>
+          <button class="es-mini" (click)="nuevaArea()" matTooltip="Área nueva">
+            <mat-icon>add</mat-icon>
+          </button>
+        </div>
+
+        <button class="es-area" [class.on]="!areaFiltro()" (click)="filtrarPor(null)">
+          <span class="es-punto" style="background:#94a3b8"></span>
+          <span class="es-area-n">Todas</span>
+          <span class="es-area-c">{{ agentes().length }}</span>
+        </button>
+
+        @for (a of areas(); track a.id) {
+          <button class="es-area" [class.on]="areaFiltro() === a.id" (click)="filtrarPor(a.id)">
+            <span class="es-punto" [style.background]="a.color || '#94a3b8'"></span>
+            <span class="es-area-n">{{ a.nombre }}</span>
+            <span class="es-area-c">{{ a.agentes }}</span>
+            <mat-icon class="es-area-x" (click)="$event.stopPropagation(); borrarArea(a)"
+                      matTooltip="Borrar área">close</mat-icon>
+          </button>
+        }
+
+        @if (!areas().length) {
+          <p class="es-vacio-mini">Todavía no hay áreas. Crea una para empezar a agrupar.</p>
+        }
+      </aside>
+
+      <!-- Agentes -->
+      <section class="es-lista">
+        <div class="es-barra">
+          <mat-form-field appearance="outline" class="es-buscar">
+            <mat-icon matPrefix>search</mat-icon>
+            <input matInput placeholder="Buscar por nombre, clave o descripción"
+                   [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)">
+          </mat-form-field>
+
+          <button class="es-primario" (click)="abrirChat()" [disabled]="!asistenteDisponible()"
+                  [matTooltip]="asistenteDisponible()
+                    ? 'Cuéntale qué necesitas y te redacta el agente'
+                    : 'No hay proveedor de IA configurado en ms-ai'">
+            <mat-icon>forum</mat-icon> Crear hablando
+          </button>
+        </div>
+
+        @if (!agentesVisibles().length) {
+          <div class="es-vacio">
+            <mat-icon>smart_toy</mat-icon>
+            @if (agentes().length) {
+              <p>Ningún agente encaja con la búsqueda.</p>
+            } @else {
+              <p><b>El estudio está vacío.</b></p>
+              <p class="es-sub">
+                Los 81 agentes de ruflo se encargan desde <i>Agente Desarrollo</i> y son de solo
+                lectura. Aquí se escriben los tuyos — lo más rápido es contarle al asistente qué
+                necesitas.
+              </p>
+            }
+          </div>
+        }
+
+        <div class="es-tarjetas">
+          @for (a of agentesVisibles(); track a.id) {
+            <article class="es-tarjeta" (click)="abrir(a)"
+                     [style.border-left-color]="colorArea(a)">
+              <div class="es-t-cab">
+                <h3>{{ a.nombre }}</h3>
+                <span class="es-estado" [class]="a.estado">{{ etiquetaEstado(a.estado) }}</span>
+              </div>
+              <code class="es-clave">{{ a.clave }}</code>
+              <p class="es-desc">{{ a.descripcion || 'Sin descripción.' }}</p>
+              <div class="es-t-pie">
+                @if (a.areaNombre) { <span class="es-tag">{{ a.areaNombre }}</span> }
+                <span class="es-tag suave">v{{ a.version }}</span>
+                @if (a.origen === 'asistente') {
+                  <span class="es-tag suave" matTooltip="Lo redactó el asistente">
+                    <mat-icon>auto_awesome</mat-icon>
+                  </span>
+                }
+                @if (a.desincronizado) {
+                  <span class="es-tag malo" matTooltip="El workspace tiene una versión vieja">
+                    <mat-icon>sync_problem</mat-icon> desincronizado
+                  </span>
+                }
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    </div>
+  }
+
+  <!-- ══════════════════════════ CHAT ══════════════════════════ -->
+  @if (vista() === 'chat') {
+    <div class="es-chat-grid">
+      <section class="es-chat">
+        <div class="es-chat-cab">
+          <button class="es-plano" (click)="vista.set('catalogo')">
+            <mat-icon>arrow_back</mat-icon> Volver
+          </button>
+          <span>Cuéntame qué agente necesitas</span>
+        </div>
+
+        <div class="es-hilo">
+          @if (!conversacion().length) {
+            <div class="es-pista">
+              <p><b>Habla como se lo contarías a alguien del equipo.</b></p>
+              <p class="es-sub">
+                Qué tiene que hacer, sobre qué parte del sistema, qué <i>no</i> debe tocar y
+                cuándo se da por terminado. Si algo no lo dices, te lo pregunto — no me lo invento.
+              </p>
+            </div>
+          }
+          @for (t of conversacion(); track $index) {
+            <div class="es-turno" [class.mio]="t.rol === 'persona'">
+              <p>{{ t.texto }}</p>
+            </div>
+          }
+          @if (pensando()) {
+            <div class="es-turno"><p class="es-pensando">Escribiendo el agente…</p></div>
+          }
+        </div>
+
+        <div class="es-escribir">
+          <textarea rows="3" placeholder="Necesito un agente que…"
+                    [ngModel]="mensaje()" (ngModelChange)="mensaje.set($event)"
+                    (keydown.control.enter)="enviar()"></textarea>
+          <button class="es-primario" (click)="enviar()" [disabled]="pensando() || !mensaje().trim()">
+            <mat-icon>send</mat-icon>
+          </button>
+        </div>
+      </section>
+
+      <!-- Borrador -->
+      <aside class="es-borrador">
+        @if (borrador(); as b) {
+          <div class="es-b-cab">
+            <h3>{{ b.nombre || 'Borrador' }}</h3>
+            <code>{{ b.clave }}</code>
+          </div>
+          <p class="es-desc">{{ b.descripcion }}</p>
+
+          @if (b.agentesParecidos?.length) {
+            <div class="es-alerta">
+              <mat-icon>info</mat-icon>
+              <div>
+                <b>Ya hay agentes que hacen algo parecido</b>
+                <p>{{ b.agentesParecidos.join(', ') }} — quizá te sirva duplicar uno.</p>
+              </div>
+            </div>
+          }
+
+          @if (b.preguntas?.length) {
+            <div class="es-alerta ambar">
+              <mat-icon>help_outline</mat-icon>
+              <div>
+                <b>Falta por concretar</b>
+                <ul>@for (p of b.preguntas; track $index) { <li>{{ p }}</li> }</ul>
+              </div>
+            </div>
+          }
+
+          @if (b.capacidades?.length) {
+            <div class="es-caps">
+              @for (c of b.capacidades; track $index) { <span class="es-tag">{{ c }}</span> }
+            </div>
+          }
+
+          <label class="es-lbl">Persona (el prompt)</label>
+          <pre class="es-persona">{{ b.persona }}</pre>
+
+          <button class="es-primario ancho" (click)="aceptarBorrador()">
+            <mat-icon>check</mat-icon> Crear este agente
+          </button>
+          <p class="es-nota">
+            Nace en borrador. Podrás retocarlo antes de publicarlo al pool.
+          </p>
+        } @else {
+          <div class="es-vacio pequeno">
+            <mat-icon>draft</mat-icon>
+            <p>El borrador aparece aquí en cuanto me cuentes algo.</p>
+          </div>
+        }
+      </aside>
+    </div>
+  }
+
+  <!-- ══════════════════════════ FICHA ══════════════════════════ -->
+  @if (vista() === 'ficha' && abierto(); as a) {
+    <section class="es-ficha">
+      <div class="es-f-cab">
+        <button class="es-plano" (click)="cerrarFicha()">
+          <mat-icon>arrow_back</mat-icon> Catálogo
+        </button>
+        <div class="es-f-id">
+          <h2>{{ a.nombre }}</h2>
+          <code>{{ a.clave }}</code>
+          <span class="es-estado" [class]="a.estado">{{ etiquetaEstado(a.estado) }}</span>
+          <span class="es-tag suave">v{{ a.version }}</span>
+        </div>
+        <div class="es-f-acciones">
+          @if (a.estado !== 'activo') {
+            <button class="es-primario" (click)="publicar(a)">
+              <mat-icon>rocket_launch</mat-icon> Publicar
+            </button>
+          } @else {
+            <button class="es-plano" (click)="archivar(a)" matTooltip="Lo retira del pool, no lo borra">
+              <mat-icon>inventory_2</mat-icon> Archivar
+            </button>
+          }
+          <button class="es-plano peligro" (click)="borrar(a)">
+            <mat-icon>delete_outline</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <nav class="es-f-tabs">
+        <button [class.on]="pestanaFicha() === 'persona'" (click)="verPestana('persona')">
+          <mat-icon>psychology</mat-icon> Ficha
+        </button>
+        <button [class.on]="pestanaFicha() === 'adjuntos'" (click)="verPestana('adjuntos')">
+          <mat-icon>attach_file</mat-icon> Documentos
+          @if (adjuntos().length) { <span class="es-pill">{{ adjuntos().length }}</span> }
+        </button>
+        <button [class.on]="pestanaFicha() === 'historial'" (click)="verPestana('historial')">
+          <mat-icon>history</mat-icon> Historial
+        </button>
+      </nav>
+
+      <!-- Ficha -->
+      @if (pestanaFicha() === 'persona') {
+        <div class="es-form">
+          <div class="es-fila">
+            <mat-form-field appearance="outline">
+              <mat-label>Nombre</mat-label>
+              <input matInput [ngModel]="fNombre()" (ngModelChange)="fNombre.set($event)">
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Área</mat-label>
+              <mat-select [ngModel]="fArea()" (ngModelChange)="fArea.set($event)">
+                @for (ar of areas(); track ar.id) {
+                  <mat-option [value]="ar.id">{{ ar.nombre }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Prioridad</mat-label>
+              <mat-select [ngModel]="fPrioridad()" (ngModelChange)="fPrioridad.set($event)">
+                <mat-option value="alta">Alta</mat-option>
+                <mat-option value="media">Media</mat-option>
+                <mat-option value="baja">Baja</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <mat-form-field appearance="outline" class="es-ancho">
+            <mat-label>Cuándo hay que llamarlo</mat-label>
+            <input matInput [ngModel]="fDescripcion()" (ngModelChange)="fDescripcion.set($event)">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="es-ancho">
+            <mat-label>Capacidades (separadas por comas)</mat-label>
+            <input matInput [ngModel]="fCapacidades()" (ngModelChange)="fCapacidades.set($event)">
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="es-ancho">
+            <mat-label>Persona — el prompt que decide cómo trabaja</mat-label>
+            <textarea matInput rows="18" class="es-mono"
+                      [ngModel]="fPersona()" (ngModelChange)="fPersona.set($event)"></textarea>
+          </mat-form-field>
+
+          <div class="es-guardar">
+            <mat-form-field appearance="outline" class="es-motivo">
+              <mat-label>Qué cambiaste (va al historial)</mat-label>
+              <input matInput [ngModel]="fMotivo()" (ngModelChange)="fMotivo.set($event)">
+            </mat-form-field>
+            <button class="es-primario" (click)="guardar()" [disabled]="guardando()">
+              @if (guardando()) { <mat-spinner diameter="18"></mat-spinner> }
+              @else { <mat-icon>save</mat-icon> }
+              Guardar
+            </button>
+          </div>
+          @if (a.estado === 'activo') {
+            <p class="es-nota">Al guardar se reescribe también en el workspace: el pool coge la versión nueva.</p>
+          }
+        </div>
+      }
+
+      <!-- Documentos -->
+      @if (pestanaFicha() === 'adjuntos') {
+        <div class="es-adjuntos">
+          @if (a.estado !== 'activo') {
+            <div class="es-alerta ambar">
+              <mat-icon>info</mat-icon>
+              <div>
+                <b>Publícalo primero</b>
+                <p>Los documentos los guarda el puente junto al agente, y ahí sólo existe una vez publicado.</p>
+              </div>
+            </div>
+          } @else {
+            <label class="es-soltar">
+              <input type="file" multiple hidden (change)="subirArchivos($event)">
+              <mat-icon>cloud_upload</mat-icon>
+              <span><b>Añadir documentos</b></span>
+              <span class="es-sub">
+                PDF, imágenes, hojas de cálculo, lo que sea. El agente los recibe antes de
+                arrancar; las imágenes las <b>mira</b> de verdad, no las lee como texto.
+              </span>
+              @if (subiendo()) { <mat-spinner diameter="20"></mat-spinner> }
+            </label>
+
+            @if (!adjuntos().length) {
+              <p class="es-vacio-mini">Todavía no tiene documentos.</p>
+            }
+            <ul class="es-ficheros">
+              @for (f of adjuntos(); track f.nombre) {
+                <li>
+                  <mat-icon>description</mat-icon>
+                  <span class="es-f-n">{{ f.nombre }}</span>
+                  <span class="es-f-p">{{ pesoLegible(f.bytes) }}</span>
+                  <button class="es-mini" (click)="borrarAdjunto(f.nombre)"><mat-icon>close</mat-icon></button>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+
+      <!-- Historial -->
+      @if (pestanaFicha() === 'historial') {
+        <div class="es-historial">
+          @if (!historial().length) {
+            <p class="es-vacio-mini">Sin versiones anteriores: nadie lo ha tocado desde que se creó.</p>
+          }
+          @for (v of historial(); track v.id) {
+            <article class="es-version">
+              <div class="es-v-cab">
+                <span class="es-tag suave">v{{ v.version }}</span>
+                <span class="es-v-motivo">{{ v.motivo || 'sin motivo anotado' }}</span>
+                <button class="es-plano" (click)="restaurar(v)">
+                  <mat-icon>restore</mat-icon> Volver a esta
+                </button>
+              </div>
+              <pre class="es-persona corta">{{ v.persona }}</pre>
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+</div>

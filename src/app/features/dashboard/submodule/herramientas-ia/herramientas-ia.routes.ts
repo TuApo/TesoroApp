@@ -21,6 +21,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'estudio',
+    loadComponent: () =>
+      import('./pages/estudio-agentes/estudio-agentes.component').then(
+        (m) => m.EstudioAgentesComponent,
+      ),
+  },
+  {
     path: 'conocimiento',
     loadComponent: () =>
       import('./pages/conocimiento/conocimiento.component').then(
