@@ -59,16 +59,20 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   cameraError = '';
   facingMode: 'user' | 'environment' = 'user'; // Default 'user' para selfies
   /**
-   * Espejo de la VISTA PREVIA. Apagado a propósito.
+   * Espejo. Se aplica A LA VEZ a la previa y al archivo, nunca a uno solo:
+   * lo que se ve ES lo que se guarda. Cuando solo volteaba la previa, la foto
+   * "cambiaba de lado" al confirmarla y no se parecía a lo que la persona
+   * acababa de ver.
    *
-   * El archivo se guarda siempre sin voltear —es una foto de identificación:
-   * volteada, la cara sale al revés respecto a la cédula y el texto del fondo
-   * se lee espejado—. Con la previa en espejo, la foto "cambiaba de lado" al
-   * confirmarla y no se parecía a lo que la persona acababa de ver. Ahora lo
-   * que se ve ES lo que se guarda; el espejo sigue disponible a mano
-   * (`toggleMirror`) para quien lo prefiera para encuadrarse.
+   * Encendido para la cámara frontal, que es como la entregan los equipos con
+   * los que se usa esto: sin voltearla, la foto salía invertida respecto a la
+   * persona. La trasera no lo necesita —esa no espeja nada— y por eso
+   * `toggleFacing` lo recalcula en vez de fijarlo.
+   *
+   * Contrapartida asumida: en una foto espejada el texto que haya de fondo se
+   * lee al revés. El botón de la barra lo apaga para quien lo necesite crudo.
    */
-  isMirror = false;
+  isMirror = true;
   isUploadMode = false; // Modo "Adjuntar" recuperado como estado
 
   previewUrl: string | null = null; // Para mostrar antes de confirmar
@@ -448,15 +452,21 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
 
   async toggleFacing(): Promise<void> {
     this.facingMode = this.facingMode === 'environment' ? 'user' : 'environment';
-    // Ni siquiera en selfie: la previa tiene que enseñar la foto que se va a
-    // guardar (ver `isMirror`).
-    this.isMirror = false;
+    // Solo la frontal llega espejada; la trasera enseña la escena tal cual y
+    // voltearla la estropearía (ver `isMirror`).
+    this.isMirror = this.facingMode === 'user';
     await this.startCamera();
     this.reiniciarValidacion();
   }
 
+  /**
+   * Voltea previa y archivo a la vez. Existia y no lo llamaba nadie: ahora
+   * tiene boton, porque no todas las camaras espejan y la unica forma de
+   * saberlo es mirarse en la pantalla.
+   */
   toggleMirror(): void {
     this.isMirror = !this.isMirror;
+    this.cdr.markForCheck();
   }
 
   toggleUploadMode(): void {
@@ -518,16 +528,16 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     // que afirmar; decir lo contrario sería mentir en la pantalla de revisión.
     const verificada = this.parpadeoHecho && this.pasoRostro !== 'sin-validador';
 
-    // Se guarda SIEMPRE la imagen real, sin espejo.
+    // El archivo se voltea EXACTAMENTE igual que la previa.
     //
-    // `isMirror` voltea unicamente la vista previa (CSS .mirror sobre el
-    // <video>), que es lo que ayuda a encuadrarse como en un espejo. El frame
-    // que entrega el <video> ya viene sin voltear, asi que dibujarlo tal cual
-    // produce la foto correcta.
-    //
-    // Antes se replicaba el volteo en el canvas y el ARCHIVO quedaba invertido:
-    // en una foto de identificacion la cara sale al reves respecto a la cedula,
-    // y cualquier texto del fondo se lee espejado.
+    // `isMirror` pone `transform: scaleX(-1)` sobre el <video>, y eso es puro
+    // CSS: `drawImage` recibe el fotograma crudo y no se entera. Sin replicar
+    // aqui el volteo, la foto salia del lado contrario al que la persona
+    // acababa de aprobar en pantalla.
+    if (this.isMirror) {
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.drawImage(video, 0, 0, w, h);
 
     canvas.toBlob((blob) => {

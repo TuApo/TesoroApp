@@ -128,6 +128,14 @@
           <button mat-icon-button class="secondary-btn" (click)="toggleUploadMode()" matTooltip="Adjuntar archivo">
             <mat-icon>perm_media</mat-icon>
           </button>
+          <!-- Espejo: voltea la previa Y el archivo a la vez. Tiene botón
+               porque no todas las cámaras espejan igual, y la única forma de
+               saber cuál es la buena es verse en la pantalla. -->
+          <button mat-icon-button class="secondary-btn" [class.activo]="isMirror"
+                  (click)="toggleMirror()"
+                  [matTooltip]="isMirror ? 'Espejo activado (quitar)' : 'Espejo desactivado (poner)'">
+            <mat-icon>flip</mat-icon>
+          </button>
           <!-- Center: Shutter -->
           <!-- La foto se toma sola en cuanto hay una persona de verdad bien
                encuadrada. El obturador queda para quien no quiera esperar la
