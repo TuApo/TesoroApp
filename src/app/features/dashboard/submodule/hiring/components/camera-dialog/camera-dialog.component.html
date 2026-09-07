@@ -3,7 +3,7 @@
   <div class="dialog-header">
     <div class="header-title">
       <mat-icon>photo_camera</mat-icon>
-      <span>{{ isUploadMode ? 'Adjuntar imagen' : 'Tomar foto' }}</span>
+      <span>{{ isUploadMode ? 'Adjuntar imagen' : (previewUrl ? 'Revisa tu foto' : 'Tomar foto') }}</span>
     </div>
     <button mat-icon-button (click)="cancel()" class="close-btn">
       <mat-icon>close</mat-icon>
@@ -51,11 +51,22 @@
         }
         <!-- ══ GUÍA DE PERSONA PRESENTE ══
              El óvalo dice dónde ponerse y el rótulo dice qué hacer AHORA
-             (acércate → parpadea → listo). Sin la guía, un obturador apagado
-             se lee como una aplicación rota. -->
+             (acércate → céntrate → mira de frente → parpadea). Cuando todo
+             encaja, la cuenta atrás dentro del óvalo avisa de que la foto va
+             a salir sola: sin ese aviso el disparo automático se siente como
+             una aplicación que hace cosas por su cuenta. -->
         @if (!previewUrl && !cameraError && pasoRostro !== 'sin-validador') {
           <div class="rostro-guia" [class.rostro-ok]="pasoRostro === 'listo'">
-            <div class="rostro-ovalo"></div>
+            <div #ovaloEl class="rostro-ovalo">
+              @if (cuenta > 0) {
+                <!-- El `track cuenta` es intencionado: al cambiar el número el
+                     elemento se recrea y la animación vuelve a empezar. Con un
+                     solo elemento reutilizado, el latido solo se vería una vez. -->
+                @for (n of [cuenta]; track n) {
+                  <span class="rostro-cuenta">{{ n }}</span>
+                }
+              }
+            </div>
             <div class="rostro-msg">
               @if (pasoRostro === 'cargando') {
                 <mat-spinner diameter="16" mode="indeterminate"></mat-spinner>
@@ -83,6 +94,17 @@
 
       <!-- STATE: PREVIEW (Captured or Uploaded) -->
       @if (previewUrl) {
+        <!-- La foto salió sola: hay que preguntar de forma explícita si se ve
+             bien, porque nadie pulsó nada para tomarla. -->
+        <div class="revision">
+          <span class="revision-pregunta">¿Se ve bien?</span>
+          @if (personaVerificada) {
+            <span class="revision-sello">
+              <mat-icon>verified_user</mat-icon>
+              Persona verificada: parpadeo detectado
+            </span>
+          }
+        </div>
         <div class="controls-row">
           <button mat-flat-button color="warn" (click)="clearSelection()">
             <mat-icon>refresh</mat-icon> {{ isUploadMode ? 'Otra' : 'Repetir' }}
@@ -107,12 +129,13 @@
             <mat-icon>perm_media</mat-icon>
           </button>
           <!-- Center: Shutter -->
-          <!-- Apagado hasta que haya una persona de verdad delante: cara en
-               cuadro, cerca y con un parpadeo. Con el detector no disponible
-               queda habilitado, para no dejar a nadie sin foto. -->
+          <!-- La foto se toma sola en cuanto hay una persona de verdad bien
+               encuadrada. El obturador queda para quien no quiera esperar la
+               cuenta atrás, y es el único disparo con el detector no
+               disponible: ahí queda habilitado, para no dejar a nadie sin foto. -->
           <button class="shutter-btn" (click)="capture()"
                   [class.shutter-espera]="!puedeCapturar"
-                  [matTooltip]="puedeCapturar ? 'Tomar la foto' : mensajeRostro"
+                  [matTooltip]="puedeCapturar ? 'Tomar la foto ahora' : mensajeRostro"
                   [disabled]="loadingCamera || !!cameraError || !puedeCapturar"></button>
           <!-- Right: Facing/Mirror -->
           <button mat-icon-button class="secondary-btn" (click)="toggleFacing()" matTooltip="Cambiar cámara">

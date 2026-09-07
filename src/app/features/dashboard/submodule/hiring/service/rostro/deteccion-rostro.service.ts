@@ -4,12 +4,44 @@ import { Injectable } from '@angular/core';
 export interface LecturaRostro {
   /** Hay una cara en cuadro. */
   hayCara: boolean;
+  /**
+   * Centro de la cara en coordenadas normalizadas del fotograma (0..1). El
+   * encuadre se decide contra el óvalo que se dibuja en pantalla, y para eso
+   * no basta el tamaño: hace falta saber dónde está.
+   */
+  centroX: number;
+  centroY: number;
   /** Alto de la cara respecto al alto del cuadro (0..1). */
-  ocupacion: number;
+  alto: number;
+  /** Giro horizontal de la cabeza: 0 de frente, ±1 de perfil. */
+  giro: number;
+  /** Inclinación de la cabeza en grados: 0 con los ojos a nivel. */
+  inclinacion: number;
   /** Cuánto cerrado está cada ojo (0 abierto, 1 cerrado). */
   ojoIzq: number;
   ojoDer: number;
 }
+
+/** Sin cara en cuadro: valores neutros para no tener que comprobar nulos. */
+const SIN_CARA: LecturaRostro = {
+  hayCara: false,
+  centroX: 0.5,
+  centroY: 0.5,
+  alto: 0,
+  giro: 0,
+  inclinacion: 0,
+  ojoIzq: 0,
+  ojoDer: 0,
+};
+
+/**
+ * Puntos de la malla de 478 que hacen falta para saber si mira de frente.
+ * Son índices fijos del modelo: la punta de la nariz y las esquinas externas
+ * de los dos ojos.
+ */
+const P_NARIZ = 1;
+const P_OJO_DERECHO = 33;
+const P_OJO_IZQUIERDO = 263;
 
 /**
  * ¿HAY UNA PERSONA DELANTE?
@@ -89,15 +121,19 @@ export class DeteccionRostroService {
     }
 
     const puntos = r?.faceLandmarks?.[0];
-    if (!puntos?.length) return { hayCara: false, ocupacion: 0, ojoIzq: 0, ojoDer: 0 };
+    if (!puntos?.length) return SIN_CARA;
 
-    // Alto de la caja de la cara en coordenadas normalizadas: es la medida de
-    // "qué tan cerca está" que no depende de la resolución de la cámara.
-    let min = 1;
-    let max = 0;
+    // Caja de la cara en coordenadas normalizadas: es la medida de "dónde
+    // está y qué tan cerca" que no depende de la resolución de la cámara.
+    let minX = 1;
+    let maxX = 0;
+    let minY = 1;
+    let maxY = 0;
     for (const p of puntos) {
-      if (p.y < min) min = p.y;
-      if (p.y > max) max = p.y;
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
     }
 
     const cat: Array<{ categoryName: string; score: number }> =
@@ -107,9 +143,46 @@ export class DeteccionRostroService {
 
     return {
       hayCara: true,
-      ocupacion: Math.max(0, Math.min(1, max - min)),
+      centroX: (minX + maxX) / 2,
+      centroY: (minY + maxY) / 2,
+      alto: Math.max(0, Math.min(1, maxY - minY)),
+      ...this.orientacion(video, puntos),
       ojoIzq: valor('eyeBlinkLeft'),
       ojoDer: valor('eyeBlinkRight'),
+    };
+  }
+
+  /**
+   * ¿Mira de frente?
+   *
+   * El giro sale de comparar cuánto dista la nariz de cada ojo: de frente las
+   * dos distancias son iguales y de perfil una se come a la otra. Se mide así
+   * —y no con la matriz de pose del modelo— porque es una proporción, o sea
+   * que no depende de la escala de la cara ni de la resolución del vídeo.
+   *
+   * La inclinación es el ángulo de la línea entre los dos ojos, y ese sí hay
+   * que calcularlo en píxeles: en coordenadas normalizadas cada eje va por su
+   * cuenta y un vídeo 16:9 falsearía el ángulo.
+   */
+  private orientacion(
+    video: HTMLVideoElement,
+    puntos: Array<{ x: number; y: number }>,
+  ): { giro: number; inclinacion: number } {
+    const nariz = puntos[P_NARIZ];
+    const ojoDer = puntos[P_OJO_DERECHO];
+    const ojoIzq = puntos[P_OJO_IZQUIERDO];
+    if (!nariz || !ojoDer || !ojoIzq) return { giro: 0, inclinacion: 0 };
+
+    const aDer = Math.abs(nariz.x - ojoDer.x);
+    const aIzq = Math.abs(ojoIzq.x - nariz.x);
+    const suma = aDer + aIzq;
+
+    const dx = (ojoIzq.x - ojoDer.x) * (video.videoWidth || 1);
+    const dy = (ojoIzq.y - ojoDer.y) * (video.videoHeight || 1);
+
+    return {
+      giro: suma > 0 ? (aIzq - aDer) / suma : 0,
+      inclinacion: (Math.atan2(dy, dx) * 180) / Math.PI,
     };
   }
 }

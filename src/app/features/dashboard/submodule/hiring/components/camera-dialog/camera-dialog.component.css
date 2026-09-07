@@ -233,6 +233,9 @@ video.mirror {
   border-radius: 50%;
   box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .18);
   transition: border-color .2s ease, box-shadow .2s ease;
+  /* La cuenta atrás va DENTRO del óvalo: es donde está mirando la persona. */
+  display: grid;
+  place-items: center;
 }
 
 .rostro-ok .rostro-ovalo {
@@ -285,4 +288,63 @@ video.mirror {
 .shutter-btn.shutter-espera {
   opacity: .45;
   cursor: not-allowed;
+}
+
+/* Cuenta atrás del disparo automático, en el centro del óvalo. */
+.rostro-cuenta {
+  font-size: clamp(52px, 13vh, 104px);
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, .7);
+  animation: rostro-late .45s ease-out;
+}
+
+@keyframes rostro-late {
+  from { transform: scale(1.4); opacity: .2; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   REVISIÓN DE LA FOTO
+   La foto sale sola, sin que nadie pulse nada: la pregunta tiene que estar
+   escrita, y el sello dice por qué se da por buena que hay una persona.
+   ══════════════════════════════════════════════════════════════════════════ */
+.revision {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.revision-pregunta {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.revision-sello {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(52, 105, 10, .82);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.revision-sello mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+/* Nada de esto se mueve para quien pidió que no se muevan las cosas. */
+@media (prefers-reduced-motion: reduce) {
+  .rostro-cuenta {
+    animation: none;
+  }
 }

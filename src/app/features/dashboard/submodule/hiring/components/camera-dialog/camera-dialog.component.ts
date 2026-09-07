@@ -7,7 +7,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { DeteccionRostroService } from '../../service/rostro/deteccion-rostro.service';
+import { DeteccionRostroService, LecturaRostro } from '../../service/rostro/deteccion-rostro.service';
 
 export type CameraDialogResult = { file: File; previewUrl: string };
 
@@ -19,7 +19,11 @@ export type PasoRostro =
   | 'sin-validador'
   | 'buscando'
   | 'acercate'
+  | 'alejate'
+  | 'centra'
+  | 'frente'
   | 'parpadea'
+  /** Todo en orden: la cuenta atrás del disparo automático está corriendo. */
   | 'listo';
 
 @Component({
@@ -47,6 +51,8 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   @ViewChild('videoEl', { static: false }) videoEl?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl', { static: false }) canvasEl?: ElementRef<HTMLCanvasElement>;
   @ViewChild('fileInput', { static: false }) fileInput?: ElementRef<HTMLInputElement>;
+  /** El óvalo de la guía: es contra ÉL contra lo que se mide el encuadre. */
+  @ViewChild('ovaloEl', { static: false }) ovaloEl?: ElementRef<HTMLElement>;
 
   stream?: MediaStream;
   loadingCamera = false;
@@ -72,29 +78,59 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   // ¿HAY UNA PERSONA DELANTE?
   //
   // Antes se podía fotografiar una cédula, una pantalla o una silla vacía y
-  // quedaba como foto de perfil. Se piden dos cosas que una foto impresa no
-  // puede hacer: acercarse y parpadear. Todo ocurre en el equipo (MediaPipe
-  // sobre wasm); la cara no viaja a ningún lado.
+  // quedaba como foto de perfil. Se piden cuatro cosas: caber en el óvalo,
+  // estar centrado, mirar de frente y parpadear —lo último, algo que una foto
+  // impresa no puede hacer—. Todo ocurre en el equipo (MediaPipe sobre wasm);
+  // la cara no viaja a ningún lado.
+  //
+  // Cuando las cuatro se cumplen la foto se toma SOLA, tras una cuenta atrás
+  // corta que se cancela si la persona se mueve. Después se revisa y se
+  // confirma o se repite: nadie se queda con una foto que no aprobó.
   //
   // Si el detector no carga, el paso queda en 'sin-validador' y el obturador
   // sigue habilitado: esto no puede dejar a nadie sin poder tomar la foto.
   // ══════════════════════════════════════════════════════════════════════
 
-  /** La cara tiene que ocupar esta fracción del alto del cuadro. */
-  private static readonly CERCA = 0.42;
+  /** Alto de la cara respecto al del óvalo: fuera de este rango, no encuadra. */
+  private static readonly LLENADO_MIN = 0.52;
+  private static readonly LLENADO_MAX = 0.95;
+  /** Desvío tolerado del centro de la cara, en fracción del óvalo. */
+  private static readonly DESVIO_X = 0.20;
+  private static readonly DESVIO_Y = 0.18;
+  /** De frente: giro de la cabeza (0 frontal, ±1 perfil) e inclinación en grados. */
+  private static readonly GIRO_MAX = 0.30;
+  private static readonly INCLINACION_MAX = 15;
   /** Ojo cerrado / ojo abierto: dos umbrales para no contar medio parpadeo. */
   private static readonly OJO_CERRADO = 0.5;
   private static readonly OJO_ABIERTO = 0.2;
+  /** Cuenta atrás del disparo automático: tres números de medio segundo. */
+  private static readonly CUENTA_MS = 1500;
+  /**
+   * Respaldo cuando el óvalo todavía no está pintado: el criterio de antes,
+   * el alto de la cara sobre el alto del cuadro.
+   */
+  private static readonly CERCA = 0.42;
 
   pasoRostro: PasoRostro = 'cargando';
   /** Qué tan cerca está, 0..1, para la barra de la guía. */
   cercania = 0;
+  /** Cuenta atrás visible del disparo automático (3..1; 0 = sin disparo armado). */
+  cuenta = 0;
+  /** La foto en pantalla salió de una cara viva, con su parpadeo comprobado. */
+  personaVerificada = false;
 
   private rafId = 0;
   private ojosCerrados = false;
   private parpadeoHecho = false;
+  /** Momento en que toca disparar. 0 = no hay disparo armado. */
+  private disparoEn = 0;
+  /**
+   * El disparo ya salió y el PNG se está codificando. Sin esto el bucle
+   * seguiría corriendo durante esos milisegundos y dispararía varias veces.
+   */
+  private capturaEnCurso = false;
 
-  /** ¿Se puede disparar la foto? */
+  /** ¿Se puede disparar la foto a mano? */
   get puedeCapturar(): boolean {
     return this.pasoRostro === 'listo' || this.pasoRostro === 'sin-validador';
   }
@@ -105,8 +141,11 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       case 'cargando': return 'Preparando la cámara…';
       case 'buscando': return 'Ubica la cara dentro del óvalo';
       case 'acercate': return 'Acércate un poco más';
+      case 'alejate': return 'Aléjate un poco';
+      case 'centra': return 'Centra la cara en el óvalo';
+      case 'frente': return 'Mira de frente a la cámara';
       case 'parpadea': return 'Ahora parpadea';
-      case 'listo': return '¡Listo! Toma la foto';
+      case 'listo': return this.cuenta > 0 ? 'No te muevas…' : '¡Listo!';
       default: return '';
     }
   }
@@ -126,18 +165,25 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     this.bucle();
   }
 
-  /** Vuelve a pedir cara + parpadeo (cambio de cámara, repetir foto). */
+  /** Vuelve a pedir encuadre + parpadeo (cambio de cámara, repetir foto). */
   private reiniciarValidacion(): void {
     if (this.pasoRostro === 'sin-validador') return;
     this.pasoRostro = 'buscando';
     this.cercania = 0;
     this.ojosCerrados = false;
     this.parpadeoHecho = false;
+    this.desarmar();
   }
 
   private detenerValidacion(): void {
     if (this.rafId) cancelAnimationFrame(this.rafId);
     this.rafId = 0;
+  }
+
+  /** Cancela la cuenta atrás del disparo automático. */
+  private desarmar(): void {
+    this.disparoEn = 0;
+    this.cuenta = 0;
   }
 
   private bucle = (): void => {
@@ -146,12 +192,16 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     const video = this.videoEl?.nativeElement;
     // Con la previa en pantalla el vídeo está oculto: no hay nada que leer.
     if (!video || this.previewUrl || this.isUploadMode || !this.stream) return;
+    // El disparo ya salió y el archivo se está armando: no dispares otra vez.
+    if (this.capturaEnCurso) return;
 
-    const lectura = this.rostro.leer(video, performance.now());
+    const ahora = performance.now();
+    const lectura = this.rostro.leer(video, ahora);
     if (!lectura) return;
 
     const antes = this.pasoRostro;
     const cercaAntes = this.cercania;
+    const cuentaAntes = this.cuenta;
 
     if (!lectura.hayCara) {
       this.cercania = 0;
@@ -159,13 +209,22 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       // Se pierde el avance a propósito: si la cara se fue, lo que venga
       // después puede ser otra persona.
       this.parpadeoHecho = false;
+      this.desarmar();
       this.pasoRostro = 'buscando';
     } else {
-      this.cercania = Math.min(1, lectura.ocupacion / CameraDialogComponent.CERCA);
-      const cerca = lectura.ocupacion >= CameraDialogComponent.CERCA;
+      const encuadre = this.medirEncuadre(video, lectura);
+      this.cercania = encuadre.avance;
 
-      if (!cerca) {
-        this.pasoRostro = 'acercate';
+      if (encuadre.motivo) {
+        // Se movió: el parpadeo ya hecho se conserva —la persona sigue ahí—,
+        // pero el disparo armado se cancela y hay que volver a estar quieto.
+        //
+        // Los ojos solo se leen con la cara BIEN encuadrada: de lejos o de
+        // perfil los blendshapes del párpado son ruido y colarían parpadeos
+        // que nadie hizo.
+        this.ojosCerrados = false;
+        this.desarmar();
+        this.pasoRostro = encuadre.motivo;
       } else {
         // Parpadeo = los dos ojos se cierran y se vuelven a abrir. Exigir los
         // dos evita contar un guiño o una sombra sobre un ojo.
@@ -180,15 +239,85 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
           this.parpadeoHecho = true;
         }
 
-        // 'listo' solo con los ojos ABIERTOS: si no, la foto sale pestañeando.
-        this.pasoRostro = this.parpadeoHecho && abiertos ? 'listo' : 'parpadea';
+        // Se dispara solo con los ojos ABIERTOS: si no, la foto sale
+        // pestañeando —y encima justo después del parpadeo que se pidió—.
+        if (!this.parpadeoHecho || !abiertos) {
+          this.desarmar();
+          this.pasoRostro = 'parpadea';
+        } else {
+          this.pasoRostro = 'listo';
+          if (!this.disparoEn) this.disparoEn = ahora + CameraDialogComponent.CUENTA_MS;
+
+          const falta = this.disparoEn - ahora;
+          if (falta <= 0) {
+            this.cuenta = 0;
+            this.tomarFoto();
+            this.cdr.markForCheck();
+            return;
+          }
+          this.cuenta = Math.ceil(falta / (CameraDialogComponent.CUENTA_MS / 3));
+        }
       }
     }
 
-    if (antes !== this.pasoRostro || Math.abs(cercaAntes - this.cercania) > 0.02) {
+    if (antes !== this.pasoRostro
+      || cuentaAntes !== this.cuenta
+      || Math.abs(cercaAntes - this.cercania) > 0.02) {
       this.cdr.markForCheck();
     }
   };
+
+  /**
+   * ¿La cara CABE, centrada y de frente, en el óvalo que se ve en pantalla?
+   *
+   * El óvalo es HTML y los puntos del detector vienen normalizados al
+   * fotograma del vídeo, que se pinta con `object-fit: cover` —o sea,
+   * recortado— y a veces en espejo. Hay que llevar la caja de la cara a
+   * coordenadas de pantalla antes de compararla con el óvalo; medir contra el
+   * fotograma, como se hacía antes, pedía acercarse mucho más de lo que el
+   * óvalo daba a entender.
+   */
+  private medirEncuadre(
+    video: HTMLVideoElement,
+    lectura: LecturaRostro,
+  ): { motivo: PasoRostro | null; avance: number } {
+    const ovalo = this.ovaloEl?.nativeElement;
+    const anchoVideo = video.videoWidth;
+    const altoVideo = video.videoHeight;
+    const cajaVideo = video.getBoundingClientRect();
+    const cajaOvalo = ovalo?.getBoundingClientRect();
+
+    // Todavía sin óvalo pintado o sin medidas del vídeo: el criterio de antes.
+    if (!cajaOvalo?.height || !anchoVideo || !altoVideo || !cajaVideo.width) {
+      const avance = Math.min(1, lectura.alto / CameraDialogComponent.CERCA);
+      return { motivo: avance < 1 ? 'acercate' : null, avance };
+    }
+
+    // `object-fit: cover` escala el fotograma por el MAYOR de los dos factores
+    // y recorta por igual a los dos lados lo que sobra.
+    const escala = Math.max(cajaVideo.width / anchoVideo, cajaVideo.height / altoVideo);
+    const anchoPintado = anchoVideo * escala;
+    const altoPintado = altoVideo * escala;
+    const izquierda = cajaVideo.left + (cajaVideo.width - anchoPintado) / 2;
+    const arriba = cajaVideo.top + (cajaVideo.height - altoPintado) / 2;
+
+    const x = izquierda + (this.isMirror ? 1 - lectura.centroX : lectura.centroX) * anchoPintado;
+    const y = arriba + lectura.centroY * altoPintado;
+
+    const llenado = (lectura.alto * altoPintado) / cajaOvalo.height;
+    const desvioX = Math.abs(x - (cajaOvalo.left + cajaOvalo.width / 2)) / cajaOvalo.width;
+    const desvioY = Math.abs(y - (cajaOvalo.top + cajaOvalo.height / 2)) / cajaOvalo.height;
+
+    let motivo: PasoRostro | null = null;
+    if (llenado < CameraDialogComponent.LLENADO_MIN) motivo = 'acercate';
+    else if (llenado > CameraDialogComponent.LLENADO_MAX) motivo = 'alejate';
+    else if (desvioX > CameraDialogComponent.DESVIO_X
+          || desvioY > CameraDialogComponent.DESVIO_Y) motivo = 'centra';
+    else if (Math.abs(lectura.giro) > CameraDialogComponent.GIRO_MAX
+          || Math.abs(lectura.inclinacion) > CameraDialogComponent.INCLINACION_MAX) motivo = 'frente';
+
+    return { motivo, avance: Math.min(1, llenado / CameraDialogComponent.LLENADO_MIN) };
+  }
 
   async ngOnInit(): Promise<void> {
     // Precargar foto existente si llega (dataURL o http(s))
@@ -224,6 +353,10 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
 
   private async loadInitialPreview(initial: string | null): Promise<void> {
     if (!initial) return;
+
+    // La foto que ya tenía el candidato no la validó esta cámara: no se puede
+    // decir de ella que haya un parpadeo detrás.
+    this.personaVerificada = false;
 
     // 1) Si es dataURL, úsalo tal cual y crea File para permitir "Usar esta imagen"
     if (initial.startsWith('data:')) {
@@ -352,8 +485,19 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     setTimeout(() => this.fileInput?.nativeElement?.click(), 0);
   }
 
+  /**
+   * El obturador de siempre. Ya no es el camino normal —la foto se toma sola—
+   * pero sigue ahí para quien no quiera esperar la cuenta atrás, y es el único
+   * disparo posible cuando el detector no está disponible.
+   */
   capture(): void {
     if (!this.puedeCapturar) return;
+    this.tomarFoto();
+  }
+
+  /** Dispara. Lo llaman el obturador y la cuenta atrás al llegar a cero. */
+  private tomarFoto(): void {
+    if (this.capturaEnCurso) return;
     if (!this.videoEl?.nativeElement || !this.canvasEl?.nativeElement) return;
     const video = this.videoEl.nativeElement;
     const canvas = this.canvasEl.nativeElement;
@@ -365,6 +509,14 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+
+    this.capturaEnCurso = true;
+    this.desarmar();
+
+    // Se lee AQUÍ, no en el callback del blob: para entonces el bucle ya pudo
+    // cambiar de paso. Con 'sin-validador' no hubo detector y no hay parpadeo
+    // que afirmar; decir lo contrario sería mentir en la pantalla de revisión.
+    const verificada = this.parpadeoHecho && this.pasoRostro !== 'sin-validador';
 
     // Se guarda SIEMPRE la imagen real, sin espejo.
     //
@@ -379,9 +531,15 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     ctx.drawImage(video, 0, 0, w, h);
 
     canvas.toBlob((blob) => {
-      if (!blob) return;
+      if (!blob) {
+        // Sin archivo no hay nada que revisar: devolver la cámara al bucle.
+        this.capturaEnCurso = false;
+        this.cdr.markForCheck();
+        return;
+      }
       const ts = new Date().toISOString().replace(/[:.]/g, '');
       const file = new File([blob], `foto-${ts}.png`, { type: blob.type || 'image/png' });
+      this.personaVerificada = verificada;
       this.setPreviewFile(file);
     }, 'image/png', 0.92);
   }
@@ -390,6 +548,8 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+    // Un archivo del disco no pasó por la cámara: nadie parpadeó delante.
+    this.personaVerificada = false;
     this.setPreviewFile(file);
   }
 
@@ -397,14 +557,17 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     this.capturedFile = null;
     this.revokePreview();
     this.previewUrl = null;
+    this.personaVerificada = false;
+    this.capturaEnCurso = false;
     if (this.fileInput?.nativeElement) {
       this.fileInput.nativeElement.value = '';
     }
     // Si no es modo subida, reactivar cámara
     if (!this.isUploadMode) {
       this.startCamera();
-      // Repetir la foto vuelve a exigir cara y parpadeo: si no, la segunda
-      // toma se colaría con la validación de la primera.
+      // Repetir la foto vuelve a exigir encuadre y parpadeo: si no, la segunda
+      // toma se colaría con la validación de la primera —y se dispararía sola
+      // en el acto, sin dar tiempo ni a recolocarse—.
       this.reiniciarValidacion();
     }
     this.cdr.markForCheck();
@@ -425,6 +588,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     this.revokePreview();
     this.capturedFile = file;
     this.previewUrl = URL.createObjectURL(file);
+    this.capturaEnCurso = false;
     this.cdr.markForCheck();
   }
 
