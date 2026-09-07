@@ -13,6 +13,12 @@
       </div>
     </div>
     <div class="es-top-right">
+      <button class="es-plano" [class.hay]="pendientes() > 0"
+              (click)="vista() === 'propuestas' ? vista.set('catalogo') : vista.set('propuestas')"
+              matTooltip="Lo que la red propone al ver patrones en lo que falla">
+        <mat-icon>inbox</mat-icon> Propuestas
+        @if (pendientes() > 0) { <span class="es-pill">{{ pendientes() }}</span> }
+      </button>
       @if (desincronizados() > 0) {
         <button class="es-aviso-btn" (click)="sincronizar()"
                 matTooltip="Reescribe en el workspace los agentes publicados que van por detrás">
@@ -227,6 +233,117 @@
         }
       </aside>
     </div>
+  }
+
+  <!-- ══════════════════════════ PROPUESTAS ══════════════════════════ -->
+  @if (vista() === 'propuestas') {
+    <section class="es-bandeja">
+      <div class="es-b-barra">
+        <button class="es-plano" (click)="vista.set('catalogo')">
+          <mat-icon>arrow_back</mat-icon> Catálogo
+        </button>
+        <div class="es-b-tit">
+          <b>Bandeja de propuestas</b>
+          <span class="es-sub">
+            La red mira las tareas que salieron mal y propone. <b>No aplica nada</b>:
+            todo espera aquí a que alguien lo lea.
+          </span>
+        </div>
+        <div class="es-b-acc">
+          <button class="es-plano" (click)="alternarFiltroPropuestas()">
+            <mat-icon>filter_list</mat-icon>
+            {{ verTodas() ? 'Solo pendientes' : 'Ver todas' }}
+          </button>
+          <button class="es-primario" (click)="repasar()" [disabled]="repasando()">
+            @if (repasando()) { <mat-spinner diameter="16"></mat-spinner> }
+            @else { <mat-icon>auto_awesome</mat-icon> }
+            {{ repasando() ? 'Mirando…' : 'Repasar ahora' }}
+          </button>
+        </div>
+      </div>
+
+      @if (!autoEncendido()) {
+        <div class="es-alerta">
+          <mat-icon>schedule</mat-icon>
+          <div>
+            <b>El repaso automático está apagado</b>
+            <p>
+              Se enciende con <code>AGENTES_CRECIMIENTO_AUTO=true</code> en el entorno de
+              ms-ai, sin tocar código. Mientras tanto, el botón de arriba funciona siempre.
+            </p>
+          </div>
+        </div>
+      }
+
+      @if (!propuestas().length) {
+        <div class="es-vacio">
+          <mat-icon>inbox</mat-icon>
+          <p><b>La bandeja está vacía.</b></p>
+          <p class="es-sub">
+            Es lo normal si el pool va bien. Dale a <i>Repasar ahora</i> para que mire la
+            bitácora — si no ve un patrón claro, no propondrá nada, y esa suele ser la
+            respuesta correcta.
+          </p>
+        </div>
+      }
+
+      @for (p of propuestas(); track p.id) {
+        <article class="es-prop" [class.revisada]="p.estado !== 'pendiente'">
+          <div class="es-p-cab">
+            <span class="es-tag" [class.malo]="p.tipo === 'ajuste'">
+              {{ p.tipo === 'ajuste' ? 'Arreglar' : 'Agente nuevo' }}
+            </span>
+            <h3>{{ p.nombre || p.clave }}</h3>
+            <span class="es-conf" [style.--c]="p.confianza >= 80 ? '#059669' : '#d97706'">
+              {{ p.confianza }}% de confianza
+            </span>
+            @if (p.estado !== 'pendiente') {
+              <span class="es-estado" [class.activo]="p.estado === 'aceptada'"
+                    [class.archivado]="p.estado === 'descartada'">
+                {{ p.estado === 'aceptada' ? 'Aceptada' : 'Descartada' }}
+              </span>
+            }
+          </div>
+
+          <p class="es-p-motivo">{{ p.motivo }}</p>
+          <p class="es-p-origen">
+            <mat-icon>trending_flat</mat-icon>
+            {{ etiquetaDisparador(p.disparador) }}
+            @if (p.disparadorRef) { · <code>{{ p.disparadorRef }}</code> }
+          </p>
+
+          @if (p.referencias?.length) {
+            <details class="es-p-ref">
+              <summary>En qué se apoya ({{ p.referencias.length }})</summary>
+              <ul>@for (r of p.referencias; track $index) { <li>{{ r }}</li> }</ul>
+            </details>
+          }
+
+          @if (p.persona) {
+            <details class="es-p-ref">
+              <summary>
+                {{ p.tipo === 'ajuste' ? 'Persona ya parcheada (lo que quedaría)' : 'Persona propuesta' }}
+              </summary>
+              <pre class="es-persona corta">{{ p.persona }}</pre>
+            </details>
+          }
+
+          @if (p.estado === 'pendiente') {
+            <div class="es-p-acc">
+              <button class="es-primario" (click)="aceptarPropuesta(p)">
+                <mat-icon>check</mat-icon>
+                {{ p.tipo === 'ajuste' ? 'Aplicar el ajuste' : 'Crear el agente' }}
+              </button>
+              <button class="es-plano peligro" (click)="descartarPropuesta(p)">
+                <mat-icon>close</mat-icon> Descartar
+              </button>
+            </div>
+          } @else if (p.notaRevision) {
+            <p class="es-p-nota"><mat-icon>comment</mat-icon> {{ p.notaRevision }}</p>
+          }
+        </article>
+      }
+    </section>
   }
 
   <!-- ══════════════════════════ FICHA ══════════════════════════ -->

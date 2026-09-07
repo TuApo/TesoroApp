@@ -18,11 +18,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import Swal from 'sweetalert2';
 
 import {
-  AgenteRegistrado, Area, Borrador, EstudioAgentesService, TurnoChat, VersionAgente,
+  AgenteRegistrado, Area, Borrador, EstudioAgentesService, Propuesta, TurnoChat, VersionAgente,
 } from '../../service/estudio-agentes.service';
 import { Adjunto, AgentesService } from '../../service/agentes.service';
 
-type Vista = 'catalogo' | 'chat' | 'ficha';
+type Vista = 'catalogo' | 'chat' | 'ficha' | 'propuestas';
 type PestanaFicha = 'persona' | 'adjuntos' | 'historial';
 
 /**
@@ -87,6 +87,14 @@ export class EstudioAgentesComponent implements OnInit {
   subiendo = signal(false);
   historial = signal<VersionAgente[]>([]);
 
+  // ── Bandeja de propuestas ─────────────────────────────────────────────────
+
+  propuestas = signal<Propuesta[]>([]);
+  pendientes = signal(0);
+  repasando = signal(false);
+  autoEncendido = signal(false);
+  verTodas = signal(false);
+
   // ── Chat de creación ──────────────────────────────────────────────────────
 
   conversacion = signal<TurnoChat[]>([]);
@@ -123,6 +131,107 @@ export class EstudioAgentesComponent implements OnInit {
       next: (s) => this.asistenteDisponible.set(!!s.disponible),
       error: () => this.asistenteDisponible.set(false),
     });
+    this.cargarPropuestas();
+  }
+
+  // ── Bandeja ───────────────────────────────────────────────────────────────
+
+  cargarPropuestas(): void {
+    this.svc.propuestas(this.verTodas() ? 'todas' : 'pendientes').subscribe({
+      next: (p) => {
+        this.propuestas.set(p ?? []);
+        this.pendientes.set((p ?? []).filter((x) => x.estado === 'pendiente').length);
+      },
+      error: () => this.propuestas.set([]),
+    });
+  }
+
+  alternarFiltroPropuestas(): void {
+    this.verTodas.set(!this.verTodas());
+    this.cargarPropuestas();
+  }
+
+  /**
+   * Lanza el repaso a mano: mira lo que falló y busca patrones. Puede tardar —
+   * es una llamada al modelo con la bitácora entera.
+   */
+  repasar(): void {
+    if (this.repasando()) return;
+    this.repasando.set(true);
+    this.svc.repasar().subscribe({
+      next: (r) => {
+        this.repasando.set(false);
+        this.autoEncendido.set(r.automatico);
+        this.cargarPropuestas();
+        Swal.fire({
+          icon: r.propuestas ? 'success' : 'info',
+          title: r.propuestas
+            ? `${r.propuestas} propuesta${r.propuestas === 1 ? '' : 's'} nueva${r.propuestas === 1 ? '' : 's'}`
+            : 'Nada que proponer',
+          text: r.propuestas
+            ? 'Están en la bandeja, sin aplicar. Léelas antes de aceptar.'
+            : 'No vi ningún patrón claro en lo que falló. Suele ser la respuesta correcta.',
+          confirmButtonColor: '#6d28d9',
+        });
+      },
+      error: (e) => {
+        this.repasando.set(false);
+        this.avisar(e);
+      },
+    });
+  }
+
+  async aceptarPropuesta(p: Propuesta): Promise<void> {
+    const esAjuste = p.tipo === 'ajuste';
+    const r = await Swal.fire({
+      icon: 'question',
+      title: esAjuste ? `¿Aplicar el ajuste a "${p.clave}"?` : `¿Crear "${p.nombre}"?`,
+      html: esAjuste
+        ? 'Se guarda una versión nueva de su persona. La anterior queda en el historial, '
+          + 'así que puedes volver atrás.'
+        : 'Nace en <b>borrador</b>: no se suelta al pool hasta que lo publiques.',
+      input: 'text',
+      inputPlaceholder: 'Nota para el historial (opcional)',
+      showCancelButton: true,
+      confirmButtonText: esAjuste ? 'Aplicar' : 'Crear',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6d28d9',
+    });
+    if (!r.isConfirmed) return;
+    this.svc.aceptarPropuesta(p.id, r.value || undefined).subscribe({
+      next: (a) => {
+        this.cargarPropuestas();
+        this.recargar();
+        this.abrir(a);
+      },
+      error: (e) => this.avisar(e),
+    });
+  }
+
+  async descartarPropuesta(p: Propuesta): Promise<void> {
+    const r = await Swal.fire({
+      icon: 'question',
+      title: '¿Descartar la propuesta?',
+      text: 'Se queda registrada como descartada; no vuelve a proponerse igual.',
+      input: 'text',
+      inputPlaceholder: 'Por qué no vale (opcional, pero ayuda)',
+      showCancelButton: true,
+      confirmButtonText: 'Descartar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#b91c1c',
+    });
+    if (!r.isConfirmed) return;
+    this.svc.descartarPropuesta(p.id, r.value || undefined).subscribe({
+      next: () => this.cargarPropuestas(),
+      error: (e) => this.avisar(e),
+    });
+  }
+
+  etiquetaDisparador(d: string): string {
+    return d === 'tarea_fallida' ? 'patrón en tareas fallidas'
+      : d === 'sin_agente' ? 'encargo sin agente que encajara'
+      : d === 'programado' ? 'repaso automático'
+      : 'repaso a mano';
   }
 
   recargar(): void {

@@ -110,6 +110,49 @@ export interface Borrador {
   agentesParecidos: string[];
 }
 
+// ── Crecimiento: la bandeja de propuestas ────────────────────────────────────
+
+export type TipoPropuesta = 'nuevo' | 'ajuste';
+export type EstadoPropuesta = 'pendiente' | 'aceptada' | 'descartada';
+
+/**
+ * Lo que la red propone al ver un patrón en las tareas que fallaron.
+ *
+ * Nace `pendiente` y ahí se queda: nada se aplica sin que alguien le dé al botón.
+ * `referencias` es lo que permite discutirla en vez de creérsela — son ids de tarea y
+ * mensajes de error concretos.
+ */
+export interface Propuesta {
+  id: string;
+  tipo: TipoPropuesta;
+  estado: EstadoPropuesta;
+  disparador: string;
+  disparadorRef: string | null;
+  agenteId: string | null;
+  clave: string | null;
+  nombre: string | null;
+  areaId: string | null;
+  descripcion: string | null;
+  /** En un ajuste, la persona YA parcheada: se lee lo que va a quedar, no el parche. */
+  persona: string | null;
+  capacidades: string[];
+  motivo: string;
+  referencias: string[];
+  /** 0..100. Por debajo de 60 ni se guarda. */
+  confianza: number;
+  notaRevision: string | null;
+  resultadoId: string | null;
+  revisadoEn: string | null;
+  creadoEn: string;
+}
+
+export interface Repaso {
+  propuestas: number;
+  pendientes: number;
+  /** Si el repaso programado está encendido (AGENTES_CRECIMIENTO_AUTO). */
+  automatico: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EstudioAgentesService {
   private http = inject(HttpClient);
@@ -189,5 +232,25 @@ export class EstudioAgentesService {
 
   proponer(conversacion: TurnoChat[]): Observable<Borrador> {
     return this.http.post<Borrador>(`${this.base}/asistente/borrador`, { conversacion });
+  }
+
+  // ── Crecimiento ───────────────────────────────────────────────────────────
+
+  propuestas(filtro: 'pendientes' | 'todas' = 'pendientes'): Observable<Propuesta[]> {
+    return this.http.get<Propuesta[]>(`${this.base}/propuestas?filtro=${filtro}`);
+  }
+
+  /** Lanza el repaso a mano. El programado viene apagado por defecto. */
+  repasar(): Observable<Repaso> {
+    return this.http.post<Repaso>(`${this.base}/propuestas/repasar`, {});
+  }
+
+  /** Aplica la propuesta. Un agente nuevo nace en borrador, no se suelta al pool. */
+  aceptarPropuesta(id: string, nota?: string): Observable<AgenteRegistrado> {
+    return this.http.post<AgenteRegistrado>(`${this.base}/propuestas/${id}/aceptar`, { nota });
+  }
+
+  descartarPropuesta(id: string, nota?: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/propuestas/${id}/descartar`, { nota });
   }
 }
