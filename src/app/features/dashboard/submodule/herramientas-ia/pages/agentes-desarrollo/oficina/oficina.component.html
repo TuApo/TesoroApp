@@ -1,0 +1,93 @@
+<div class="of-wrap">
+
+  <!-- ── Barra de mandos ───────────────────────────────────────────────── -->
+  <div class="of-barra">
+    <div class="of-marcadores">
+      @if (resumen(); as r) {
+        <span class="of-marca trabajando" matTooltip="Agentes con una tarea en curso">
+          <span class="of-punto"></span>{{ r.trabajando }} trabajando
+        </span>
+        <span class="of-marca cola" matTooltip="Encargos esperando cuenta libre">
+          {{ r.cola }} en cola
+        </span>
+        <span class="of-marca" matTooltip="Escritorios montados en la oficina">
+          {{ r.agentes }} agentes · {{ r.deptos }} departamentos
+        </span>
+        <span class="of-marca" matTooltip="Documentos del módulo Conocimiento en el cerebro">
+          <mat-icon>hub</mat-icon>{{ r.docs }}
+        </span>
+      }
+      @if (deptoEnfocado()) {
+        <button class="of-volver" (click)="vistaGeneral()">
+          <mat-icon>arrow_back</mat-icon>{{ nombreDepto() }}
+        </button>
+      }
+      @if (recortado() > 0) {
+        <span class="of-marca aviso"
+              matTooltip="La oficina monta una muestra proporcional por categoría para no cargar el navegador con miles de mallas">
+          <mat-icon>filter_list</mat-icon>{{ recortado() }} sin escritorio
+        </span>
+      }
+    </div>
+
+    <div class="of-botones">
+      <button (click)="alejar()" matTooltip="Alejar"><mat-icon>zoom_out</mat-icon></button>
+      <button (click)="acercar()" matTooltip="Acercar"><mat-icon>zoom_in</mat-icon></button>
+      <button (click)="vistaGeneral()" matTooltip="Vista general"><mat-icon>fullscreen_exit</mat-icon></button>
+      <button (click)="alternarOscuro()" [class.on]="oscuro()" matTooltip="Modo oscuro">
+        <mat-icon>{{ oscuro() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+      <button [matMenuTriggerFor]="menuCalidad" matTooltip="Calidad de dibujo">
+        <mat-icon>tune</mat-icon>
+      </button>
+      <mat-menu #menuCalidad="matMenu">
+        <button mat-menu-item (click)="ponerCalidad('alta')" [class.on]="calidad() === 'alta'">
+          Alta <small>sombras y antialias</small>
+        </button>
+        <button mat-menu-item (click)="ponerCalidad('media')" [class.on]="calidad() === 'media'">
+          Media <small>sin sombras</small>
+        </button>
+        <button mat-menu-item (click)="ponerCalidad('baja')" [class.on]="calidad() === 'baja'">
+          Baja <small>para equipos justos</small>
+        </button>
+      </mat-menu>
+    </div>
+  </div>
+
+  <!-- ── La oficina ────────────────────────────────────────────────────── -->
+  <div class="of-caja" #caja>
+    <canvas #lienzo class="of-lienzo"></canvas>
+    <div class="of-hud" #hud></div>
+
+    @if (montando()) {
+      <div class="of-capa">
+        <div class="of-cargando"></div>
+        <p>Montando la oficina…</p>
+      </div>
+    } @else if (fallo(); as f) {
+      <div class="of-capa mala">
+        <mat-icon>videogame_asset_off</mat-icon>
+        <p><b>La oficina 3D no arrancó.</b></p>
+        <p class="of-detalle">{{ f }}</p>
+        <p class="of-detalle">
+          Suele ser WebGL apagado o sin aceleración por hardware en este equipo.
+          El resto del panel funciona igual.
+        </p>
+        <button class="of-reintentar" (click)="reintentar()">
+          <mat-icon>refresh</mat-icon>Reintentar
+        </button>
+      </div>
+    } @else if (!catalogo()) {
+      <div class="of-capa">
+        <p>Esperando el catálogo del pool…</p>
+      </div>
+    }
+  </div>
+
+  <p class="of-pie">
+    Cada escritorio es un agente real del catálogo; el plinto, su categoría.
+    La pantalla y el holograma cuentan la tarea que tiene ahora mismo.
+    <b>Clic en un agente</b> para encargarle algo, <b>clic en un plinto</b> para entrar en la
+    categoría, y el centro es el módulo Conocimiento: cada punto, un documento.
+  </p>
+</div>

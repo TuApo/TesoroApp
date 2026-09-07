@@ -31,6 +31,9 @@
     <button [class.on]="pestana() === 'panel'" (click)="pestana.set('panel')">
       <mat-icon>dashboard</mat-icon> Panel
     </button>
+    <button [class.on]="pestana() === 'oficina'" (click)="pestana.set('oficina')">
+      <mat-icon>meeting_room</mat-icon> Oficina
+    </button>
     <button [class.on]="pestana() === 'nuevo'" (click)="pestana.set('nuevo')">
       <mat-icon>add_task</mat-icon> Nuevo encargo
     </button>
@@ -277,6 +280,18 @@
       </div>
     }
   }
+
+  <!-- ── OFICINA ───────────────────────────────────────────────────────────── -->
+  <!-- Se deja montada al cambiar de pestaña (@if la destruiria y habria que
+       reconstruir los escritorios): la escena se pausa sola con [activa]. -->
+  <section class="ag-oficina" [hidden]="pestana() !== 'oficina'">
+    <app-oficina
+      [catalogo]="catalogo()"
+      [estado]="estado()"
+      [activa]="pestana() === 'oficina'"
+      (agenteElegido)="desdeOficina($event)"
+      (documentoElegido)="verDocumento($event)" />
+  </section>
 
   <!-- ── NUEVO ENCARGO ─────────────────────────────────────────────────────── -->
   @if (pestana() === 'nuevo') {

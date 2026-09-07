@@ -25,13 +25,15 @@ import { MatMenuModule } from '@angular/material/menu';
 
 import Swal from 'sweetalert2';
 
+import { OficinaComponent } from './oficina/oficina.component';
+
 import {
   AgentesService, AgenteCatalogo, Catalogo, Cuenta, EstadoAgentes, EventoBitacora,
   Repo, Tarea, Vigilante, Mision, DisparoMision, AgenteFicha,
   SugerenciaAgentes, PlantillaEnjambre, ReportesMision, ReporteMision,
 } from '../../service/agentes.service';
 
-type Pestana = 'panel' | 'nuevo' | 'agentes' | 'misiones' | 'historial';
+type Pestana = 'panel' | 'oficina' | 'nuevo' | 'agentes' | 'misiones' | 'historial';
 
 /** Cada cuánto se refresca el panel. Ojo: /ia/** va con rate limit en el gateway. */
 const MS_REFRESCO_PANEL = 3000;
@@ -60,6 +62,7 @@ function escaparHtml(texto: string): string {
     MatFormFieldModule, MatInputModule, MatSelectModule, MatSlideToggleModule,
     MatProgressSpinnerModule, MatProgressBarModule, MatChipsModule, MatMenuModule,
     NgxEchartsDirective,
+    OficinaComponent,
   ],
   // Echarts se carga perezoso: son ~1 MB y el panel se abre muchas veces sin mirar
   // una sola grafica.
@@ -1408,6 +1411,35 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       case 'bypassPermissions': return 'sin pedir permiso para nada';
       default: return p;
     }
+  }
+
+  // ── La oficina ────────────────────────────────────────────────────────────
+
+  /**
+   * Clic en un agente dentro de la oficina. Si tiene faena, se abre su consola
+   * en vivo; si no, se le prepara un encargo. Es lo que espera quien pincha a
+   * alguien: ver qué hace, o darle algo que hacer.
+   */
+  desdeOficina(clave: string): void {
+    const e = this.estado();
+    const viva = [...(e?.enCurso ?? []), ...(e?.cola ?? [])].find((t) => t.agente === clave);
+    if (viva) {
+      this.pestana.set('panel');
+      this.abrirConsola(viva);
+      return;
+    }
+    const a = this.catalogo()?.agentes.find((x) => x.clave === clave);
+    if (a) this.encargarleA(a);
+  }
+
+  /** Clic en un punto del cerebro: es un documento del módulo Conocimiento. */
+  verDocumento(d: { id: number; nombre: string }): void {
+    Swal.fire({
+      icon: 'info',
+      title: d.nombre,
+      text: 'Documento del módulo Conocimiento. Se gestiona desde Herramientas IA → Conocimiento.',
+      confirmButtonColor: '#6d28d9',
+    });
   }
 
   encargarleA(a: AgenteCatalogo): void {
