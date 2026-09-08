@@ -1,0 +1,147 @@
+/* ============================================================
+   ESTILOS COMUNES de los submodulos de gestion de incapacidades
+   (informes, alertas, SST, correos). Mismo lenguaje visual .disab-*
+   de registro/consulta: hero degradado, KPIs, tablas y chips.
+   ============================================================ */
+
+:host {
+  --disab-primary: #1976d2;
+  --disab-primary-dark: #1565c0;
+  --disab-primary-light: #e3f2fd;
+  --disab-accent: #00bcd4;
+  --disab-bg: #f5f7fb;
+  --disab-surface: #ffffff;
+  --disab-border: rgba(15, 23, 42, 0.08);
+  --disab-text: #1a1a2e;
+  --disab-text-muted: #64748b;
+  --disab-danger: #c62828;
+  --disab-warn: #b26a00;
+  --disab-ok: #2e7d32;
+  --disab-radius: 16px;
+  --disab-radius-sm: 10px;
+  --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --disab-shadow-md: 0 6px 18px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
+  display: block;
+  background: var(--disab-bg);
+  min-height: 100%;
+}
+
+.ges-contenedor { padding: 12px 8px 40px; }
+.ges-contenido { max-width: 1600px; margin: 0 auto; }
+
+.disab-card {
+  border-radius: var(--disab-radius) !important;
+  border: 1px solid var(--disab-border);
+  box-shadow: var(--disab-shadow-md) !important;
+  background: var(--disab-surface);
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+/* ── Hero ──────────────────────────────────────────────────── */
+.disab-hero {
+  display: flex; align-items: center; gap: 18px; padding: 24px 28px;
+  background: var(--disab-gradient); color: #fff; position: relative; overflow: hidden; flex-wrap: wrap;
+}
+.disab-hero-icon {
+  width: 60px; height: 60px; border-radius: 14px; background: rgba(255, 255, 255, 0.2);
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; backdrop-filter: blur(8px);
+}
+.disab-hero-icon mat-icon { font-size: 34px; width: 34px; height: 34px; color: #fff; }
+.disab-hero-texts { position: relative; z-index: 1; min-width: 0; flex: 1 1 320px; }
+.disab-hero-title { margin: 0 0 4px; font-size: 22px; font-weight: 700; color: #fff; }
+.disab-hero-sub { margin: 0; font-size: 13px; font-weight: 500; color: rgba(255, 255, 255, 0.9); line-height: 1.45; max-width: 70ch; }
+.hero-acciones { position: relative; z-index: 1; display: flex; gap: 10px; flex-wrap: wrap; }
+.hero-btn { border-radius: 12px !important; font-weight: 600 !important; text-transform: none !important; display: inline-flex !important; align-items: center; gap: 8px; }
+.hero-btn-primario { background: #ffffff !important; color: var(--disab-primary-dark) !important; }
+.hero-btn-secundario { color: #ffffff !important; border-color: rgba(255, 255, 255, 0.6) !important; }
+
+/* ── Filtros ───────────────────────────────────────────────── */
+.ges-filtros {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 14px 20px 4px;
+}
+.ges-filtros mat-form-field { min-width: 160px; flex: 0 1 220px; }
+.ges-filtros .ges-filtro-ancho { flex: 1 1 260px; }
+.ges-filtros .ges-espaciador { flex: 1 1 auto; }
+
+/* ── KPI ───────────────────────────────────────────────────── */
+.kpi-fila {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; padding: 14px 20px 6px;
+}
+.kpi-tarjeta {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--disab-radius-sm);
+  border: 1px solid var(--disab-border); background: var(--disab-surface); box-shadow: var(--disab-shadow-sm);
+  text-align: left; position: relative; overflow: hidden; cursor: default; font: inherit;
+}
+.kpi-tarjeta::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--disab-primary); }
+.kpi-tarjeta.kpi-alerta::before { background: var(--disab-danger); }
+.kpi-tarjeta.kpi-aviso::before { background: var(--disab-warn); }
+.kpi-tarjeta.kpi-ok::before { background: var(--disab-ok); }
+.kpi-tarjeta.kpi-clic { cursor: pointer; }
+.kpi-tarjeta.kpi-clic:hover { box-shadow: var(--disab-shadow-md); }
+.kpi-tarjeta.kpi-activo { outline: 2px solid var(--disab-primary); }
+.kpi-icono { width: 38px; height: 38px; border-radius: 10px; background: var(--disab-primary-light); color: var(--disab-primary-dark); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.kpi-alerta .kpi-icono { background: #ffebee; color: var(--disab-danger); }
+.kpi-aviso .kpi-icono { background: #fff8e1; color: var(--disab-warn); }
+.kpi-ok .kpi-icono { background: #e8f5e9; color: var(--disab-ok); }
+.kpi-textos { display: flex; flex-direction: column; min-width: 0; }
+.kpi-valor { font-size: 22px; font-weight: 800; color: var(--disab-text); line-height: 1.1; }
+.kpi-etiqueta { font-size: 12px; color: var(--disab-text-muted); font-weight: 600; }
+
+/* ── Cuerpo / secciones ────────────────────────────────────── */
+.ges-cuerpo { padding: 10px 20px 24px; }
+.ges-seccion-titulo { margin: 14px 0 8px; font-size: 15px; font-weight: 700; color: var(--disab-text); display: flex; align-items: center; gap: 8px; }
+.ges-nota { margin: 6px 0 12px; font-size: 12.5px; color: var(--disab-text-muted); line-height: 1.45; }
+.ges-aviso {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: var(--disab-radius-sm);
+  background: #fff8e1; border: 1px solid #f59e0b; color: #7c4a03; font-size: 13px; margin: 8px 0 12px;
+}
+.ges-aviso mat-icon { flex-shrink: 0; }
+.ges-aviso.ges-aviso-info { background: var(--disab-primary-light); border-color: #90caf9; color: #0d47a1; }
+.ges-aviso.ges-aviso-peligro { background: #ffebee; border-color: #ef9a9a; color: #7f1d1d; }
+
+.ges-estado { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 12px; color: var(--disab-text-muted); text-align: center; }
+.ges-estado mat-icon { font-size: 40px; width: 40px; height: 40px; }
+.ges-estado.ges-estado-error { color: var(--disab-danger); }
+
+/* ── Tabla ─────────────────────────────────────────────────── */
+.ges-tabla-contenedor { overflow-x: auto; border: 1px solid var(--disab-border); border-radius: var(--disab-radius-sm); }
+.ges-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ges-tabla th { text-align: left; padding: 9px 10px; background: #f1f5fb; color: #334155; font-weight: 700; white-space: nowrap; border-bottom: 1px solid var(--disab-border); position: sticky; top: 0; }
+.ges-tabla td { padding: 8px 10px; border-bottom: 1px solid var(--disab-border); vertical-align: top; }
+.ges-tabla tr:hover td { background: #f8fafc; }
+.ges-tabla .ges-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ges-tabla .ges-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.ges-tabla .ges-acciones { white-space: nowrap; text-align: right; }
+.ges-tabla .ges-nombre { font-weight: 600; color: var(--disab-text); }
+.ges-tabla .ges-sub { display: block; font-size: 11.5px; color: var(--disab-text-muted); }
+
+/* ── Chips ─────────────────────────────────────────────────── */
+.ges-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.ges-chip mat-icon { font-size: 14px; width: 14px; height: 14px; }
+.ges-chip-neutro { background: #eef2f7; color: #334155; }
+.ges-chip-ok { background: #e8f5e9; color: var(--disab-ok); }
+.ges-chip-aviso { background: #fff8e1; color: var(--disab-warn); }
+.ges-chip-peligro { background: #ffebee; color: var(--disab-danger); }
+.ges-chip-info { background: var(--disab-primary-light); color: var(--disab-primary-dark); }
+.ges-chip-morado { background: #f3e5f5; color: #6a1b9a; }
+
+/* ── Graficas ──────────────────────────────────────────────── */
+.ges-graficas { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+.ges-grafica { border: 1px solid var(--disab-border); border-radius: var(--disab-radius-sm); padding: 12px 14px; background: var(--disab-surface); box-shadow: var(--disab-shadow-sm); }
+.ges-grafica.ges-grafica-ancha { grid-column: 1 / -1; }
+.ges-grafica-titulo { font-size: 13.5px; font-weight: 700; color: var(--disab-text); margin: 0 0 6px; }
+.ges-echart { width: 100%; height: 300px; }
+.ges-echart.ges-echart-alta { height: 360px; }
+
+/* ── Paginacion / pie ──────────────────────────────────────── */
+.ges-pie { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0 0; font-size: 12.5px; color: var(--disab-text-muted); }
+.ges-pie .ges-espaciador { flex: 1 1 auto; }
+
+@media (max-width: 720px) {
+  .disab-hero { padding: 18px; }
+  .ges-cuerpo { padding: 8px 10px 20px; }
+  .ges-filtros { padding: 10px 10px 0; }
+  .kpi-fila { padding: 10px 10px 4px; }
+}

@@ -759,26 +759,16 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   });
 
   /**
-   * Soportes SIN los cuales ni siquiera se puede GUARDAR (reunion 2026-08-20):
-   *  - la incapacidad medica, siempre ("se debe al menos subir el soporte de la
-   *    incapacidad; el resto se puede completar despues editando"), y
-   *  - el formulario de Salud Total cuando el backend lo exige (EPS Salud Total +
-   *    enfermedad general): "se lo estamos dando, no tiene excusa para no subirlo".
-   * Los demas obligatorios solo bloquean el paso a VALIDADA, no el guardado.
+   * Soportes SIN los cuales ni siquiera se puede GUARDAR como RECIBIDA: solo la
+   * incapacidad medica (reunion 2026-08-20: "se debe al menos subir el soporte de la
+   * incapacidad; el resto se puede completar despues editando"; ratificado 2026-09-07:
+   * "guardar como recibida solo cuando se tenga al menos la incapacidad, asi aun no se
+   * tenga lo demas"). El formulario de Salud Total y los demas obligatorios solo
+   * bloquean el paso a VALIDADA, no el guardado.
    */
   readonly soportesBloqueantesGuardar = computed<string[]>(() => {
     const cargados = new Set(this.tiposCargados());
-    const bloqueantes: string[] = [];
-    if (!cargados.has('INCAPACIDAD_MEDICA')) {
-      bloqueantes.push(ETIQUETA_SOPORTE['INCAPACIDAD_MEDICA']);
-    }
-    const saludTotal = this.soportesVisibles().find(
-      (s) => s.tipo === 'FORMULARIO_SALUD_TOTAL' && s.obligatorio,
-    );
-    if (saludTotal && !cargados.has('FORMULARIO_SALUD_TOTAL')) {
-      bloqueantes.push(saludTotal.etiqueta || ETIQUETA_SOPORTE['FORMULARIO_SALUD_TOTAL']);
-    }
-    return bloqueantes;
+    return cargados.has('INCAPACIDAD_MEDICA') ? [] : [ETIQUETA_SOPORTE['INCAPACIDAD_MEDICA']];
   });
 
   /** true cuando el soporte visible es el formulario de Salud Total (tarjeta especial). */
@@ -1582,7 +1572,13 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       telefono: (p.celular || p.whatsapp || '').trim(),
       arl: (p.arl || ARL_POR_DEFECTO).trim(),
       cargo: '',
-      responsable: (o.nombreQuienRecibe || '').trim(),
+      // Reunion 2026-09-07: el responsable del diligenciamiento es el TRABAJADOR, no quien
+      // recibe en la oficina; si no hay nombre del trabajador se cae a quien recibe.
+      responsable:
+        [p.primerNombre, p.segundoNombre, p.primerApellido, p.segundoApellido]
+          .filter(Boolean)
+          .join(' ')
+          .trim() || (o.nombreQuienRecibe || '').trim(),
       cedula: (p.numeroDocumento || '').trim(),
     };
     this.dialogo
@@ -1747,7 +1743,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       esHistorica || validacionFresca === null ? [] : this.soportesBloqueantesGuardar();
     if (bloqueantes.length > 0) {
       this.errorGuardado.set(
-        `Para recibir la incapacidad debes adjuntar: ${bloqueantes.join(' y ')}. ` +
+        `Para recibir la incapacidad debes adjuntar al menos: ${bloqueantes.join(' y ')}. ` +
           'Los demas soportes se pueden completar despues editando el registro.',
       );
       this.desplazarASoportes();

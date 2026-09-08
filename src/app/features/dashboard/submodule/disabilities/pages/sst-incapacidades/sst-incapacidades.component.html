@@ -1,0 +1,99 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-sst">
+        <div class="disab-hero-icon"><mat-icon>health_and_safety</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Seguridad y salud en el trabajo</h1>
+          <p class="disab-hero-sub">
+            Incapacidades por accidente de trabajo y enfermedad laboral (ARL) con el seguimiento de la investigacion del
+            accidente: SST sube el levantamiento escaneado y queda anclado a la incapacidad; la jefatura ve cuales tienen
+            investigacion, cuales no y cuales vencieron el plazo de {{ resumen()?.plazoDias ?? 15 }} dias.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+        </div>
+      </div>
+
+      @if (resumen(); as r) {
+        <div class="kpi-fila">
+          <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-activo]="filtros.estado === ''" (click)="filtroRapido('')"><span class="kpi-icono"><mat-icon>healing</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.total | number }}</span><span class="kpi-etiqueta">Incapacidades ARL</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-ok kpi-clic" [class.kpi-activo]="filtros.estado === 'COMPLETA'" (click)="filtroRapido('COMPLETA')"><span class="kpi-icono"><mat-icon>task_alt</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.conInvestigacion | number }}</span><span class="kpi-etiqueta">Con investigacion</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-aviso kpi-clic" [class.kpi-activo]="filtros.estado === 'PENDIENTE'" (click)="filtroRapido('PENDIENTE')"><span class="kpi-icono"><mat-icon>pending_actions</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.sinInvestigacion | number }}</span><span class="kpi-etiqueta">Sin investigacion</span></span></button>
+          <div class="kpi-tarjeta kpi-alerta"><span class="kpi-icono"><mat-icon>alarm</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.vencidas | number }}</span><span class="kpi-etiqueta">Plazo vencido</span></span></div>
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>do_not_disturb_on</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.noAplica | number }}</span><span class="kpi-etiqueta">No aplica</span></span></div>
+        </div>
+      }
+
+      <div class="ges-filtros">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Desde (inicio)</mat-label><input matInput type="date" [(ngModel)]="filtros.desde" (change)="filtrar()" /></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Hasta</mat-label><input matInput type="date" [(ngModel)]="filtros.hasta" (change)="filtrar()" /></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Investigacion</mat-label>
+          <mat-select [(ngModel)]="filtros.estado" (selectionChange)="filtrar()">
+            <mat-option value="">Todas</mat-option>
+            @for (e of estados; track e[0]) { <mat-option [value]="e[0]">{{ e[1] }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ges-filtro-ancho">
+          <mat-label>Buscar (cedula, nombre, finca)</mat-label>
+          <input matInput [(ngModel)]="filtros.q" (keyup.enter)="filtrar()" />
+          <button matSuffix mat-icon-button type="button" (click)="filtrar()" aria-label="Buscar"><mat-icon>search</mat-icon></button>
+        </mat-form-field>
+        <span class="ges-espaciador"></span>
+        @if (cargando()) { <mat-spinner diameter="26"></mat-spinner> }
+      </div>
+
+      <div class="ges-cuerpo">
+        @if (error()) {
+          <div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+        } @else if (!cargando() && filas().length === 0) {
+          <div class="ges-estado"><mat-icon>task_alt</mat-icon><p>No hay incapacidades ARL con estos filtros.</p></div>
+        } @else {
+          <div class="ges-tabla-contenedor">
+            <table class="ges-tabla">
+              <thead><tr><th>Codigo</th><th>Persona</th><th>Finca / centro de costo</th><th>Tipo</th><th>Periodo</th><th>Diagnostico</th><th>FURAT</th><th>Plazo</th><th>Investigacion</th><th class="ges-acciones"></th></tr></thead>
+              <tbody>
+                @for (f of filas(); track trackFila($index, f)) {
+                  <tr [class.fila-vencida]="f.vencida">
+                    <td class="ges-mono">{{ f.codigoConsecutivo || '#' + f.incapacidadId }}<span class="ges-sub">{{ f.oficina || '' }}</span></td>
+                    <td><span class="ges-nombre">{{ f.nombreCompleto }}</span><span class="ges-sub ges-mono">CC {{ f.cedula }}</span></td>
+                    <td>{{ f.empresa || '—' }}<span class="ges-sub">{{ f.centroCosto || '' }}</span></td>
+                    <td><span class="ges-chip ges-chip-peligro">{{ f.tipoIncapacidadEtiqueta }}</span><span class="ges-sub">{{ f.arl || '' }}</span></td>
+                    <td class="nowrap">{{ f.fechaInicio | date: 'dd/MM/yyyy' }} → {{ f.fechaFin | date: 'dd/MM/yyyy' }}<span class="ges-sub">{{ f.dias }} dias · {{ f.estadoIncapacidad }}</span></td>
+                    <td>{{ f.codigoDiagnostico || '—' }}<span class="ges-sub diag">{{ f.descripcionDiagnostico || '' }}</span></td>
+                    <td>@if (f.tieneFurat) { <mat-icon class="ok" matTooltip="FURAT cargado">check_circle</mat-icon> } @else { <mat-icon class="falta" matTooltip="Sin FURAT">radio_button_unchecked</mat-icon> }</td>
+                    <td class="nowrap">{{ f.fechaLimite | date: 'dd/MM/yyyy' }}
+                      @if (f.investigacion.estado === 'PENDIENTE' || f.investigacion.estado === 'EN_PROCESO') {
+                        <span class="ges-sub" [class.vencido]="f.vencida">{{ f.vencida ? 'Vencido hace ' + (-f.diasRestantes) + ' d' : 'Quedan ' + f.diasRestantes + ' d' }}</span>
+                      }
+                    </td>
+                    <td>
+                      <span class="ges-chip" [class]="'ges-chip ' + claseEstado(f)">{{ f.investigacion.estadoEtiqueta }}</span>
+                      @if (f.investigacion.nombreArchivo) { <span class="ges-sub"><mat-icon inline>attach_file</mat-icon> {{ f.investigacion.nombreArchivo }}</span> }
+                      @if (f.investigacion.responsable) { <span class="ges-sub">{{ f.investigacion.responsable }} · {{ f.investigacion.fechaInvestigacion | date: 'dd/MM/yyyy' }}</span> }
+                    </td>
+                    <td class="ges-acciones">
+                      @if (subiendo() === f.incapacidadId) {
+                        <mat-spinner diameter="22"></mat-spinner>
+                      } @else {
+                        <button type="button" mat-icon-button matTooltip="Subir investigacion (PDF/JPG/PNG)" (click)="elegirArchivo(f)"><mat-icon>upload_file</mat-icon></button>
+                        @if (f.investigacion.documentId) {
+                          <button type="button" mat-icon-button matTooltip="Descargar investigacion" (click)="descargar(f)"><mat-icon>download</mat-icon></button>
+                        }
+                        <button type="button" mat-icon-button matTooltip="Editar seguimiento" (click)="editar(f)"><mat-icon>edit_note</mat-icon></button>
+                      }
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <mat-paginator [length]="total()" [pageIndex]="page()" [pageSize]="size()" [pageSizeOptions]="[25, 50, 100]" (page)="paginar($event)" showFirstLastButtons></mat-paginator>
+        }
+      </div>
+    </mat-card>
+  </div>
+</div>
+<input #entradaArchivo type="file" accept="application/pdf,image/jpeg,image/png" hidden (change)="archivoElegido($event)" />

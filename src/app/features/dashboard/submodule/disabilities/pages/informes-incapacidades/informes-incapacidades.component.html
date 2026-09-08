@@ -1,0 +1,207 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <!-- ════════ HERO ════════ -->
+      <div class="disab-hero disab-hero-informes">
+        <div class="disab-hero-icon"><mat-icon>insights</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Informes de incapacidades</h1>
+          <p class="disab-hero-sub">
+            Estadisticas globales por tipo, mes, oficina, finca y EPS; personas en 180 y 540 dias;
+            recurrencia de incapacidades cortas y quienes mas se incapacitan. Los totales salen de la
+            base del aplicativo (incluye el historico importado).
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <button type="button" mat-flat-button class="hero-btn hero-btn-primario" (click)="exportarGlobal()" [disabled]="!global()">
+            <mat-icon>download</mat-icon><span>Exportar a Excel</span>
+          </button>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargar()" [disabled]="cargando()">
+            <mat-icon>refresh</mat-icon><span>Actualizar</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ════════ FILTROS ════════ -->
+      <div class="ges-filtros">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Desde (fecha de inicio)</mat-label>
+          <input matInput type="date" [(ngModel)]="desde" (change)="cargar()" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Hasta</mat-label>
+          <input matInput type="date" [(ngModel)]="hasta" (change)="cargar()" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Empleador</mat-label>
+          <mat-select [(ngModel)]="grupo" (selectionChange)="cargar()">
+            <mat-option value="">Todos</mat-option>
+            <mat-option value="APOYO">Apoyo Laboral</mat-option>
+            <mat-option value="ALIANZA">Tu Alianza</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <span class="ges-espaciador"></span>
+        @if (cargando()) { <mat-spinner diameter="26"></mat-spinner> }
+      </div>
+
+      @if (error()) {
+        <div class="ges-cuerpo"><div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div></div>
+      }
+
+      <!-- ════════ KPI ════════ -->
+      @if (global(); as g) {
+        <div class="kpi-fila">
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>healing</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.total | number }}</span><span class="kpi-etiqueta">Incapacidades</span></span></div>
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>event</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.totalDias | number }}</span><span class="kpi-etiqueta">Dias de incapacidad</span></span></div>
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>groups</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.personas | number }}</span><span class="kpi-etiqueta">Personas</span></span></div>
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>child_care</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.licenciasMaternidad | number }} / {{ g.licenciasPaternidad | number }}</span><span class="kpi-etiqueta">Lic. maternidad / paternidad</span></span></div>
+          <div class="kpi-tarjeta kpi-alerta kpi-clic" (click)="abrirInformeUmbral()" matTooltip="Ver el informe de umbrales"><span class="kpi-icono"><mat-icon>flag</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral180 | number }}</span><span class="kpi-etiqueta">Superan 180 dias · {{ g.proximas180 }} proximas</span></span></div>
+          <div class="kpi-tarjeta kpi-aviso kpi-clic" (click)="abrirInformeUmbral()" matTooltip="Ver el informe de umbrales"><span class="kpi-icono"><mat-icon>hourglass_top</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral540 | number }}</span><span class="kpi-etiqueta">Superan 540 dias</span></span></div>
+          <a class="kpi-tarjeta kpi-alerta kpi-clic" [routerLink]="rutaSst" matTooltip="Ir a Seguridad y salud en el trabajo"><span class="kpi-icono"><mat-icon>health_and_safety</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.arl.sinInvestigacion | number }}</span><span class="kpi-etiqueta">ARL sin investigacion (de {{ g.arl.total }})</span></span></a>
+        </div>
+      }
+
+      <!-- ════════ TABS ════════ -->
+      <div class="ges-cuerpo">
+        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)" animationDuration="150ms">
+          <mat-tab label="Global">
+            <ng-template matTabContent>
+              @if (global(); as g) {
+                @if (g.total === 0) {
+                  <div class="ges-estado"><mat-icon>bar_chart</mat-icon><p>No hay incapacidades en el rango elegido.</p></div>
+                } @else {
+                  <div class="ges-graficas">
+                    <div class="ges-grafica"><p class="ges-grafica-titulo">Por tipo de incapacidad</p><div echarts [options]="opcionPorTipo()" class="ges-echart"></div></div>
+                    <div class="ges-grafica"><p class="ges-grafica-titulo">Por EPS / ARL</p><div echarts [options]="opcionPorEps()" class="ges-echart"></div></div>
+                    <div class="ges-grafica ges-grafica-ancha"><p class="ges-grafica-titulo">Por mes (fecha de inicio), apilado por tipo</p><div echarts [options]="opcionPorMes()" class="ges-echart ges-echart-alta"></div></div>
+                    <div class="ges-grafica"><p class="ges-grafica-titulo">Por oficina que radica</p><div echarts [options]="opcionPorOficina()" class="ges-echart ges-echart-alta"></div></div>
+                    <div class="ges-grafica"><p class="ges-grafica-titulo">Fincas / empresas que mas se enferman (top 15)</p><div echarts [options]="opcionPorEmpresa()" class="ges-echart ges-echart-alta"></div></div>
+                    <div class="ges-grafica"><p class="ges-grafica-titulo">Centros de costo (top 15)</p><div echarts [options]="opcionPorCentroCosto()" class="ges-echart ges-echart-alta"></div></div>
+                    <div class="ges-grafica"><p class="ges-grafica-titulo">Responsable de pago</p><div echarts [options]="opcionPorResponsable()" class="ges-echart"></div></div>
+                  </div>
+                }
+              } @else if (!cargando()) {
+                <div class="ges-estado"><mat-icon>bar_chart</mat-icon><p>Sin datos.</p></div>
+              }
+            </ng-template>
+          </mat-tab>
+
+          <mat-tab label="180 / 540 dias">
+            <ng-template matTabContent>
+              @if (global(); as g) {
+                <p class="ges-nota">
+                  Acumulado por persona y diagnostico (cadena continua, regla R7). Al superar 180 dias el pago pasa al
+                  fondo de pensiones; al superar 540 vuelve a la EPS. El informe detallado permite elegir el margen de
+                  anticipacion y exportarlo.
+                </p>
+                <div class="kpi-fila kpi-fila-compacta">
+                  <div class="kpi-tarjeta kpi-alerta"><span class="kpi-icono"><mat-icon>flag</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral180 }}</span><span class="kpi-etiqueta">Superan 180</span></span></div>
+                  <div class="kpi-tarjeta kpi-aviso"><span class="kpi-icono"><mat-icon>schedule</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.proximas180 }}</span><span class="kpi-etiqueta">Proximas a 180 (30 dias)</span></span></div>
+                  <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>report</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral540 }}</span><span class="kpi-etiqueta">Superan 540</span></span></div>
+                </div>
+                <button type="button" mat-flat-button color="primary" (click)="abrirInformeUmbral()">
+                  <mat-icon>list_alt</mat-icon> Abrir informe detallado de umbrales
+                </button>
+              }
+            </ng-template>
+          </mat-tab>
+
+          <mat-tab label="Recurrencia (cortas)">
+            <ng-template matTabContent>
+              <p class="ges-nota">
+                Personas con incapacidades <strong>cortas</strong> repetidas en el <strong>mismo mes</strong>, que no son
+                prorroga entre si: son las que paga el empleador y la EPS no reconoce. Se listan las IPS y diagnosticos
+                para que gestion humana vea el patron.
+              </p>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Dias maximos por incapacidad</mat-label>
+                  <mat-select [(ngModel)]="maxDias" (selectionChange)="cargar()">
+                    <mat-option [value]="1">1 dia</mat-option>
+                    <mat-option [value]="2">Hasta 2 dias</mat-option>
+                    <mat-option [value]="3">Hasta 3 dias</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Minimo de eventos en el mes</mat-label>
+                  <mat-select [(ngModel)]="minEventos" (selectionChange)="cargar()">
+                    <mat-option [value]="2">2 o mas</mat-option>
+                    <mat-option [value]="3">3 o mas</mat-option>
+                    <mat-option [value]="4">4 o mas</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-stroked-button (click)="exportarRecurrencia()" [disabled]="!recurrencia()?.filas?.length">
+                  <mat-icon>download</mat-icon> Exportar
+                </button>
+              </div>
+              @if (recurrencia(); as r) {
+                @if (r.filas.length === 0) {
+                  <div class="ges-estado"><mat-icon>task_alt</mat-icon><p>Nadie repite incapacidades cortas en el rango.</p></div>
+                } @else {
+                  <div class="ges-tabla-contenedor">
+                    <table class="ges-tabla">
+                      <thead><tr><th>Cedula</th><th>Nombre</th><th>Empresa / finca</th><th>Oficina</th><th>EPS</th><th>Mes</th><th class="ges-num">Eventos</th><th class="ges-num">Dias</th><th>Diagnosticos</th><th>IPS</th><th>Fechas</th></tr></thead>
+                      <tbody>
+                        @for (f of r.filas; track trackRec($index, f)) {
+                          <tr>
+                            <td class="ges-mono">{{ f.cedula }}</td>
+                            <td class="ges-nombre">{{ f.nombreCompleto }}</td>
+                            <td>{{ f.empresa || '—' }}<span class="ges-sub">{{ f.centroCosto || '' }}</span></td>
+                            <td>{{ f.oficina || '—' }}</td>
+                            <td>{{ f.eps || '—' }}</td>
+                            <td>{{ f.mesEtiqueta }}</td>
+                            <td class="ges-num"><span class="ges-chip" [class.ges-chip-peligro]="f.eventos >= 4" [class.ges-chip-aviso]="f.eventos < 4">{{ f.eventos }}</span></td>
+                            <td class="ges-num">{{ f.dias }}</td>
+                            <td>{{ f.diagnosticos.join(', ') }}</td>
+                            <td>{{ f.ips.join(', ') }}</td>
+                            <td class="ges-fechas">{{ f.fechas.join(' · ') }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="ges-pie"><mat-icon>groups</mat-icon> {{ r.total }} persona(s)-mes con recurrencia</div>
+                }
+              }
+            </ng-template>
+          </mat-tab>
+
+          <mat-tab label="Top personas">
+            <ng-template matTabContent>
+              <p class="ges-nota">Quienes mas incapacidades registraron en el rango (todas las de la persona, de cualquier tipo).</p>
+              <div class="ges-filtros ges-filtros-inline">
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-stroked-button (click)="exportarTop()" [disabled]="!top()?.filas?.length"><mat-icon>download</mat-icon> Exportar</button>
+              </div>
+              @if (top(); as t) {
+                @if (t.filas.length === 0) {
+                  <div class="ges-estado"><mat-icon>task_alt</mat-icon><p>Sin datos en el rango.</p></div>
+                } @else {
+                  <div class="ges-tabla-contenedor">
+                    <table class="ges-tabla">
+                      <thead><tr><th class="ges-num">#</th><th>Cedula</th><th>Nombre</th><th>Empresa / finca</th><th>Oficina</th><th class="ges-num">Incapacidades</th><th class="ges-num">Dias</th></tr></thead>
+                      <tbody>
+                        @for (f of t.filas; track trackTop($index, f)) {
+                          <tr>
+                            <td class="ges-num">{{ $index + 1 }}</td>
+                            <td class="ges-mono">{{ f.cedula }}</td>
+                            <td class="ges-nombre">{{ f.nombreCompleto }}</td>
+                            <td>{{ f.empresa || '—' }}</td>
+                            <td>{{ f.oficina || '—' }}</td>
+                            <td class="ges-num"><strong>{{ f.eventos }}</strong></td>
+                            <td class="ges-num">{{ f.dias }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              }
+            </ng-template>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+    </mat-card>
+  </div>
+</div>

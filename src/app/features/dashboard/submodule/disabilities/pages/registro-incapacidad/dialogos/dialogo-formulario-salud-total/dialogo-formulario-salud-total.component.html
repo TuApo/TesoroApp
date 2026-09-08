@@ -41,6 +41,27 @@
       }
     </div>
 
+    <div class="fst-accidente" [class.fst-accidente--exigido]="exigeFechaHora()">
+      <p class="fst-instruccion">
+        Datos del accidente
+        @if (exigeFechaHora()) {
+          <strong>(obligatorios: respondiste SI a alguna pregunta)</strong>
+        } @else {
+          (solo si lo hubo)
+        }
+      </p>
+      <div class="fst-accidente-campos">
+        <mat-form-field appearance="outline" class="fst-campo">
+          <mat-label>Fecha del accidente</mat-label>
+          <input matInput type="date" formControlName="fechaAccidente" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="fst-campo">
+          <mat-label>Hora del accidente</mat-label>
+          <input matInput type="time" formControlName="horaAccidente" />
+        </mat-form-field>
+      </div>
+    </div>
+
     <mat-form-field appearance="outline" class="fst-campo">
       <mat-label>Breve relato (solo si hubo un accidente)</mat-label>
       <textarea
@@ -52,8 +73,9 @@
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="fst-campo">
-      <mat-label>Nombre de quien diligencia</mat-label>
+      <mat-label>Nombre del responsable del diligenciamiento (el trabajador)</mat-label>
       <input matInput formControlName="responsable" />
+      <mat-hint>Va en la casilla de firma del formato; se toma del trabajador de la incapacidad.</mat-hint>
     </mat-form-field>
   </form>
 

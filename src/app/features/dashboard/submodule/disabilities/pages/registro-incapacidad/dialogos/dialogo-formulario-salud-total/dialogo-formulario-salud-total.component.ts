@@ -10,10 +10,14 @@
  * sobre los campos AcroForm REALES del formato: NOMBRES, APELLIDOS, TELEFONO, ARL, CARGO,
  * los pares de casillas 1SI/1NO..6SI/6NO, FECHA/HORA ACCIDENTE, RELATO y FIRMA RESPONSABLE.
  *
+ * Reunion 2026-09-07 (Nathalia): el "responsable del diligenciamiento" es el PROPIO
+ * TRABAJADOR (no el coordinador), asi que la firma se prellena con su nombre; y el formato
+ * lleva fecha y hora del accidente, obligatorias cuando alguna respuesta es SI (hubo evento).
+ *
  * Devuelve al cerrar un `File` PDF listo para adjuntar, o `undefined` si se cancela.
  */
 
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -30,8 +34,25 @@ export interface DatosFormularioSaludTotal {
   telefono: string;
   arl: string;
   cargo: string;
+  /** Nombre de quien diligencia: el TRABAJADOR (reunion 2026-09-07). */
   responsable: string;
   cedula: string;
+}
+
+/**
+ * Fecha del accidente en el formato del formulario (dd/mm/aaaa) a partir del `type="date"`
+ * del navegador (aaaa-mm-dd). Vacio si no hay fecha.
+ */
+export function fechaAccidenteLegible(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const partes = iso.split('-');
+  if (partes.length !== 3) return iso;
+  return `${partes[2]}/${partes[1]}/${partes[0]}`;
+}
+
+/** true si alguna de las 6 respuestas es SI: hubo un evento y la fecha/hora son obligatorias. */
+export function huboAccidente(respuestas: readonly ('SI' | 'NO')[]): boolean {
+  return respuestas.some((r) => r === 'SI');
 }
 
 /** Las 6 preguntas EXACTAS del formato oficial, en el orden en que aparecen impresas. */
@@ -134,19 +155,42 @@ export class DialogoFormularioSaludTotalComponent {
       ),
     ),
     relato: new FormControl('', { nonNullable: true }),
+    fechaAccidente: new FormControl('', { nonNullable: true }),
+    horaAccidente: new FormControl('', { nonNullable: true }),
     responsable: new FormControl(this.datos.responsable ?? '', {
       nonNullable: true,
       validators: [Validators.required],
     }),
   });
 
+  /** Respuestas actuales (senal derivada del formulario). */
+  readonly respuestasActuales = signal<('SI' | 'NO')[]>(PREGUNTAS_SALUD_TOTAL.map(() => 'NO'));
+  /** Con algun SI, la fecha y la hora del accidente pasan a ser obligatorias. */
+  readonly exigeFechaHora = computed(() => huboAccidente(this.respuestasActuales()));
+
+  constructor() {
+    this.form.controls.respuestas.valueChanges.subscribe(() => {
+      const grupo = this.form.controls.respuestas.getRawValue() as Record<string, 'SI' | 'NO'>;
+      this.respuestasActuales.set(PREGUNTAS_SALUD_TOTAL.map((_, i) => grupo[`p${i + 1}`]));
+    });
+  }
+
+  /** Falta fecha u hora cuando el formulario las exige. */
+  faltaFechaHora(): boolean {
+    if (!this.exigeFechaHora()) return false;
+    return !this.form.controls.fechaAccidente.value || !this.form.controls.horaAccidente.value;
+  }
+
   cancelar(): void {
     this.ref.close(undefined);
   }
 
   async generar(): Promise<void> {
-    if (this.form.invalid || this.generando()) {
+    if (this.form.invalid || this.generando() || this.faltaFechaHora()) {
       this.form.markAllAsTouched();
+      if (this.faltaFechaHora()) {
+        this.error.set('Hubo un accidente: indica la fecha y la hora del accidente.');
+      }
       return;
     }
     this.generando.set(true);
@@ -163,7 +207,11 @@ export class DialogoFormularioSaludTotalComponent {
         base,
         { ...this.datos, responsable: this.form.controls.responsable.value.trim() },
         respuestas,
-        { relato: this.form.controls.relato.value.trim() || undefined },
+        {
+          relato: this.form.controls.relato.value.trim() || undefined,
+          fechaAccidente: fechaAccidenteLegible(this.form.controls.fechaAccidente.value) || undefined,
+          horaAccidente: this.form.controls.horaAccidente.value || undefined,
+        },
       );
       const nombre = `formato-salud-total-${(this.datos.cedula || 'trabajador').trim()}.pdf`;
       this.ref.close(new File([new Uint8Array(bytes)], nombre, { type: 'application/pdf' }));

@@ -1,0 +1,171 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-alertas">
+        <div class="disab-hero-icon"><mat-icon>notification_important</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Alertas de incapacidades</h1>
+          <p class="disab-hero-sub">
+            Bandeja de las alertas que genera el motor al registrar: personas que superan o se acercan a los 180 y 540
+            dias, incapacidades prescritas, traslapes e incapacidades reportadas como falsas. Marca cada una como
+            atendida o descartada dejando nota.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <button type="button" mat-flat-button class="hero-btn hero-btn-primario" (click)="abrirInformeUmbral()"><mat-icon>list_alt</mat-icon><span>Informe 180 / 540</span></button>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargarResumen(); cargar(); cargarUmbral()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+        </div>
+      </div>
+
+      @if (resumen(); as r) {
+        <div class="kpi-fila">
+          <button type="button" class="kpi-tarjeta kpi-clic" (click)="filtroRapido('', '')" matTooltip="Todas las pendientes"><span class="kpi-icono"><mat-icon>inbox</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientes | number }}</span><span class="kpi-etiqueta">Pendientes</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-alerta kpi-clic" (click)="filtroRapido('INCAPACIDAD_FALSA', 'CONTRATACION')" matTooltip="Falsedad: quedan para contratacion (bloqueo pendiente de coordinar)"><span class="kpi-icono"><mat-icon>gpp_bad</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientesFalsedad | number }}</span><span class="kpi-etiqueta">Falsedad → contratacion</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-aviso kpi-clic" (click)="filtroRapido('MAS_DE_180_DIAS', '')" matTooltip="180 / 540 dias"><span class="kpi-icono"><mat-icon>flag</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientes180 | number }}</span><span class="kpi-etiqueta">180 / 540 dias</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-clic" (click)="filtroRapido('TRASLAPE', '')"><span class="kpi-icono"><mat-icon>call_merge</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientesTraslape | number }}</span><span class="kpi-etiqueta">Traslapes</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-aviso kpi-clic" (click)="filtroRapido('PRESCRITA', '')"><span class="kpi-icono"><mat-icon>timer_off</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientesPrescritas | number }}</span><span class="kpi-etiqueta">Prescritas</span></span></button>
+        </div>
+      }
+
+      <div class="ges-cuerpo">
+        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)" animationDuration="150ms">
+          <mat-tab label="Bandeja">
+            <ng-template matTabContent>
+              <div class="ges-aviso ges-aviso-info">
+                <mat-icon>info</mat-icon>
+                <span>
+                  Las alertas de <strong>incapacidad falsa</strong> dirigidas a <strong>Contratacion</strong> aparecen aqui
+                  marcadas; el bloqueo automatico del trabajador en la base de contratacion queda pendiente de coordinar
+                  con contratacion (Ivan) y por ahora no se toca nada alla.
+                </span>
+              </div>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Estado</mat-label>
+                  <mat-select [(ngModel)]="filtros.estado" (selectionChange)="filtrar()">
+                    <mat-option value="">Todos</mat-option>
+                    @for (e of estados; track e[0]) { <mat-option [value]="e[0]">{{ e[1] }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Tipo</mat-label>
+                  <mat-select [(ngModel)]="filtros.tipo" (selectionChange)="filtrar()">
+                    <mat-option value="">Todos</mat-option>
+                    @for (t of tipos; track t[0]) { <mat-option [value]="t[0]">{{ t[1] }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Dirigida a</mat-label>
+                  <mat-select [(ngModel)]="filtros.destino" (selectionChange)="filtrar()">
+                    <mat-option value="">Todas las areas</mat-option>
+                    @for (d of destinos; track d[0]) { <mat-option [value]="d[0]">{{ d[1] }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Cedula</mat-label>
+                  <input matInput [(ngModel)]="filtros.cedula" (keyup.enter)="filtrar()" (blur)="filtrar()" placeholder="Solo numeros" />
+                </mat-form-field>
+                <span class="ges-espaciador"></span>
+                @if (cargando()) { <mat-spinner diameter="26"></mat-spinner> }
+              </div>
+
+              @if (error()) {
+                <div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+              } @else if (!cargando() && filas().length === 0) {
+                <div class="ges-estado"><mat-icon>task_alt</mat-icon><p>No hay alertas con estos filtros.</p></div>
+              } @else {
+                <div class="ges-tabla-contenedor">
+                  <table class="ges-tabla">
+                    <thead><tr><th>Alerta</th><th>Dirigida a</th><th>Persona</th><th>Incapacidad</th><th>Mensaje</th><th>Estado</th><th>Creada</th><th class="ges-acciones"></th></tr></thead>
+                    <tbody>
+                      @for (f of filas(); track trackFila($index, f)) {
+                        <tr [class.fila-falsedad]="f.paraContratacion">
+                          <td><span class="ges-chip" [class]="'ges-chip ' + claseTipo(f.tipo)">{{ f.tipoEtiqueta }}</span></td>
+                          <td>
+                            {{ f.destinoEtiqueta }}
+                            @if (f.paraContratacion) {
+                              <span class="ges-sub bloqueo">Bloqueo en contratacion: pendiente de coordinar</span>
+                            }
+                          </td>
+                          <td><span class="ges-nombre">{{ f.nombreCompleto }}</span><span class="ges-sub ges-mono">CC {{ f.cedula }}</span><span class="ges-sub">{{ f.empresa || '' }} {{ f.centroCosto ? '· ' + f.centroCosto : '' }}</span></td>
+                          <td>
+                            <a [routerLink]="[rutaConsulta]" [queryParams]="{ cedula: f.cedula }" class="ges-mono">{{ f.codigoConsecutivo || '#' + f.incapacidadId }}</a>
+                            <span class="ges-sub">{{ f.tipoIncapacidadEtiqueta }} · {{ f.fechaInicio | date: 'dd/MM/yyyy' }} → {{ f.fechaFin | date: 'dd/MM/yyyy' }} · {{ f.dias }} d</span>
+                            @if (f.diasAcumulados) { <span class="ges-sub">Acumulado: {{ f.diasAcumulados }} d</span> }
+                          </td>
+                          <td class="celda-mensaje">{{ f.mensaje }}
+                            @if (f.nota) { <span class="ges-sub"><mat-icon inline>sticky_note_2</mat-icon> {{ f.nota }}</span> }
+                          </td>
+                          <td>
+                            <span class="ges-chip" [class]="'ges-chip ' + claseEstado(f.estado)">{{ f.estadoEtiqueta }}</span>
+                            @if (f.atendidaPor) { <span class="ges-sub">{{ f.atendidaPor }} · {{ f.atendidaEn | date: 'dd/MM/yy HH:mm' }}</span> }
+                          </td>
+                          <td class="ges-sub-td">{{ f.creadaEn | date: 'dd/MM/yyyy HH:mm' }}</td>
+                          <td class="ges-acciones">
+                            @if (f.estado === 'PENDIENTE') {
+                              <button type="button" mat-icon-button matTooltip="Marcar atendida" (click)="atender(f, 'ATENDIDA')"><mat-icon>task_alt</mat-icon></button>
+                              <button type="button" mat-icon-button matTooltip="Descartar" (click)="atender(f, 'DESCARTADA')"><mat-icon>block</mat-icon></button>
+                            } @else {
+                              <button type="button" mat-icon-button matTooltip="Reabrir" (click)="atender(f, 'PENDIENTE')"><mat-icon>undo</mat-icon></button>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+                <mat-paginator [length]="total()" [pageIndex]="page()" [pageSize]="size()" [pageSizeOptions]="[25, 50, 100]" (page)="paginar($event)" showFirstLastButtons></mat-paginator>
+              }
+            </ng-template>
+          </mat-tab>
+
+          <mat-tab label="Proximos a 180 / 540">
+            <ng-template matTabContent>
+              <p class="ges-nota">Calculado en vivo sobre el acumulado por persona y diagnostico (no depende de que exista una alerta guardada).</p>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Avisar con</mat-label>
+                  <mat-select [(ngModel)]="margenUmbral" (selectionChange)="cargarUmbral()">
+                    <mat-option [value]="15">15 dias de anticipacion</mat-option>
+                    <mat-option [value]="30">30 dias de anticipacion</mat-option>
+                    <mat-option [value]="60">60 dias de anticipacion</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-stroked-button (click)="abrirInformeUmbral()"><mat-icon>open_in_new</mat-icon> Informe completo / exportar</button>
+              </div>
+              @if (cargandoUmbral()) {
+                <div class="ges-estado"><mat-spinner diameter="36"></mat-spinner></div>
+              } @else if (umbral(); as u) {
+                @if (u.filas.length === 0) {
+                  <div class="ges-estado"><mat-icon>task_alt</mat-icon><p>Nadie esta proximo a los umbrales.</p></div>
+                } @else {
+                  <div class="ges-tabla-contenedor">
+                    <table class="ges-tabla">
+                      <thead><tr><th>Cedula</th><th>Nombre</th><th>Empresa</th><th>EPS</th><th>Diagnostico</th><th class="ges-num">Dias acum.</th><th>Fin ultima</th><th>Tramo</th></tr></thead>
+                      <tbody>
+                        @for (f of u.filas; track trackUmbral($index, f)) {
+                          <tr>
+                            <td class="ges-mono">{{ f.cedula }}</td>
+                            <td class="ges-nombre">{{ f.nombreCompleto }}</td>
+                            <td>{{ f.empresa || '—' }}</td>
+                            <td>{{ f.eps || '—' }}</td>
+                            <td>{{ f.codigoDiagnostico || '—' }} <span class="ges-sub">{{ f.descripcionDiagnostico || '' }}</span></td>
+                            <td class="ges-num"><strong>{{ f.diasAcumulados }}</strong></td>
+                            <td>{{ f.fechaFinUltima | date: 'dd/MM/yyyy' }}</td>
+                            <td><span class="ges-chip" [class.ges-chip-peligro]="f.tramo === 'SUPERA_180'" [class.ges-chip-aviso]="f.tramo === 'PROXIMO_180'" [class.ges-chip-morado]="f.tramo === 'SUPERA_540' || f.tramo === 'PROXIMO_540'">{{ f.tramoEtiqueta }}</span></td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="ges-pie"><mat-icon>groups</mat-icon> {{ u.total }} persona(s) · margen {{ u.margenDias }} dias</div>
+                }
+              }
+            </ng-template>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+    </mat-card>
+  </div>
+</div>

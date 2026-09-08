@@ -41,5 +41,39 @@ export const routes: Routes = [
         import('./pages/consulta-incapacidades/consulta-incapacidades.component').then(
           (m) => m.ConsultaIncapacidadesComponent,
         ),
-    }
+    },
+
+    // ── Submodulos de la reunion funcional 2026-09-07 ───────────────────
+    // Informes (estadisticas globales, 180/540, recurrencia, top), bandeja de
+    // alertas, seguridad y salud en el trabajo (investigaciones ARL) y correos
+    // a empresas usuarias (lote diario, directorio, trazabilidad). Cada uno
+    // tiene su entrada de menu en db_admin (V107) bajo Salud > Incapacidades.
+    {
+      path: 'informes',
+      loadComponent: () =>
+        import('./pages/informes-incapacidades/informes-incapacidades.component').then(
+          (m) => m.InformesIncapacidadesComponent,
+        ),
+    },
+    {
+      path: 'alertas',
+      loadComponent: () =>
+        import('./pages/alertas-incapacidades/alertas-incapacidades.component').then(
+          (m) => m.AlertasIncapacidadesComponent,
+        ),
+    },
+    {
+      path: 'sst',
+      loadComponent: () =>
+        import('./pages/sst-incapacidades/sst-incapacidades.component').then(
+          (m) => m.SstIncapacidadesComponent,
+        ),
+    },
+    {
+      path: 'correos',
+      loadComponent: () =>
+        import('./pages/correos-empresas/correos-empresas.component').then(
+          (m) => m.CorreosEmpresasComponent,
+        ),
+    },
 ];

@@ -1,0 +1,329 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-correos">
+        <div class="disab-hero-icon"><mat-icon>forward_to_inbox</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Correos a empresas usuarias</h1>
+          <p class="disab-hero-sub">
+            Notificacion a las fincas de las incapacidades registradas: un correo por finca al final del dia
+            (o uno por incapacidad al recibirla, segun la configuracion), dirigido al asistente al trabajador y
+            en copia a los demas contactos, con la tabla de cedulas y la primera pagina de cada soporte.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          @if (config(); as c) {
+            <span class="hero-modo" [class.hero-modo-prueba]="c.modoPlataforma === 'prueba'" matTooltip="Modo de la plataforma (variable INCAPACIDADES_CORREO_MODO)">
+              <mat-icon>{{ c.modoPlataforma === 'activo' ? 'verified' : 'science' }}</mat-icon>
+              {{ c.modoPlataforma === 'activo' ? 'Envio ACTIVO' : c.modoPlataforma === 'prueba' ? 'Modo PRUEBA · todo va a ' + c.destinoPrueba : 'Envio APAGADO' }}
+            </span>
+          }
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargarConfig(); cargarPreview()" [disabled]="cargandoPreview()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+        </div>
+      </div>
+
+      <div class="ges-cuerpo">
+        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="cambiarTab($event)" animationDuration="150ms">
+
+          <!-- ════════ LOTE DE HOY ════════ -->
+          <mat-tab label="Lote de hoy">
+            <ng-template matTabContent>
+              @if (config(); as c) {
+                <div class="ges-aviso" [class.ges-aviso-info]="c.envioModo === 'DIARIO'">
+                  <mat-icon>{{ c.envioModo === 'DIARIO' ? 'schedule_send' : 'bolt' }}</mat-icon>
+                  <span>
+                    @if (c.envioModo === 'DIARIO') {
+                      Modo <strong>DIARIO</strong>: el sistema envia solo, todos los dias a las <strong>{{ c.envioHora }}</strong>, un correo por finca con
+                      lo registrado (ultima corrida automatica: {{ c.ultimaCorrida || 'ninguna todavia' }}). Aqui puedes revisar lo que saldra y adelantarlo.
+                    } @else {
+                      Modo <strong>INMEDIATO</strong>: cada incapacidad envia su correo al recibirla. Lo que aparece aqui es lo que aun no ha salido
+                      (fallidas o sin destinatario) y puede enviarse en lote.
+                    }
+                  </span>
+                </div>
+              }
+              @if (errorPreview()) {
+                <div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ errorPreview() }}</span></div>
+              }
+              @if (cargandoPreview()) {
+                <div class="ges-estado"><mat-spinner diameter="36"></mat-spinner><p>Armando la previsualizacion...</p></div>
+              } @else if (preview(); as p) {
+                <div class="kpi-fila kpi-fila-compacta">
+                  <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>mail</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ gruposConDestino().length }}</span><span class="kpi-etiqueta">Correos que saldrian</span></span></div>
+                  <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>healing</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ p.totalIncapacidades }}</span><span class="kpi-etiqueta">Incapacidades pendientes</span></span></div>
+                  <div class="kpi-tarjeta" [class.kpi-alerta]="gruposSinDestino().length > 0"><span class="kpi-icono"><mat-icon>contact_mail</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ gruposSinDestino().length }}</span><span class="kpi-etiqueta">Sin destinatario en el directorio</span></span></div>
+                </div>
+                <div class="ges-filtros ges-filtros-inline">
+                  <span class="ges-nota">Fecha del lote: <strong>{{ p.fecha | date: 'dd/MM/yyyy' }}</strong>. Los correos se agrupan por la finca que casa con el centro de costo / empresa de cada incapacidad.</span>
+                  <span class="ges-espaciador"></span>
+                  <button type="button" mat-flat-button color="primary" [disabled]="enviando() || p.totalIncapacidades === 0" (click)="enviarAhora()">
+                    @if (enviando()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>send</mat-icon> }
+                    Enviar correos de hoy ahora
+                  </button>
+                </div>
+                @if (p.grupos.length === 0) {
+                  <div class="ges-estado"><mat-icon>mark_email_read</mat-icon><p>No hay incapacidades pendientes de notificar.</p></div>
+                }
+                <mat-accordion multi>
+                  @for (g of p.grupos; track trackGrupo($index, g)) {
+                    <mat-expansion-panel [class.panel-sin-destino]="g.sinDestinatario">
+                      <mat-expansion-panel-header>
+                        <mat-panel-title>
+                          <mat-icon class="panel-icono">{{ g.sinDestinatario ? 'report' : 'business' }}</mat-icon>
+                          <span class="panel-empresa">{{ g.empresaMatch || g.incapacidades[0]?.empresa || 'Sin finca' }}</span>
+                          <span class="ges-chip ges-chip-neutro">{{ g.grupo === 'ALIANZA' ? 'Tu Alianza' : 'Apoyo Laboral' }}</span>
+                          <span class="ges-chip ges-chip-info">{{ g.incapacidades.length }} incapacidad(es)</span>
+                        </mat-panel-title>
+                        <mat-panel-description>
+                          @if (g.sinDestinatario) {
+                            <span class="texto-peligro">Sin destinatario: {{ g.detalle }}</span>
+                          } @else {
+                            <span>Para: <strong>{{ g.destinatario }}</strong>@if (g.copias.length) { · CC: {{ g.copias.join(', ') }} }</span>
+                          }
+                        </mat-panel-description>
+                      </mat-expansion-panel-header>
+                      <p class="ges-nota"><strong>Asunto:</strong> {{ g.asunto }}</p>
+                      <div class="ges-tabla-contenedor">
+                        <table class="ges-tabla">
+                          <thead><tr><th>Codigo</th><th>Cedula</th><th>Nombre (no viaja en el correo)</th><th>Centro de costo</th><th>Tipo</th><th>Inicio</th><th>Fin</th><th class="ges-num">Dias</th><th>Registrada</th></tr></thead>
+                          <tbody>
+                            @for (i of g.incapacidades; track i.incapacidadId) {
+                              <tr>
+                                <td class="ges-mono">{{ i.codigoConsecutivo || '#' + i.incapacidadId }}</td>
+                                <td class="ges-mono">{{ i.cedula }}</td>
+                                <td>{{ i.nombreCompleto }}</td>
+                                <td>{{ i.centroCosto || i.empresa || '—' }}</td>
+                                <td>{{ i.tipoIncapacidadEtiqueta }}</td>
+                                <td>{{ i.fechaInicio | date: 'dd/MM/yyyy' }}</td>
+                                <td>{{ i.fechaFin | date: 'dd/MM/yyyy' }}</td>
+                                <td class="ges-num">{{ i.dias }}</td>
+                                <td>{{ i.creadoEn | date: 'dd/MM HH:mm' }}</td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                      <div class="ges-pie">
+                        <span class="ges-espaciador"></span>
+                        <button type="button" mat-stroked-button (click)="verGrupo(g)"><mat-icon>preview</mat-icon> Ver correo tal como saldra</button>
+                      </div>
+                    </mat-expansion-panel>
+                  }
+                </mat-accordion>
+              }
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ CONFIGURACION ════════ -->
+          <mat-tab label="Configuracion">
+            <ng-template matTabContent>
+              <p class="ges-nota">
+                La reunion funcional acordo el envio automatico al final del dia ("con eso no dependemos de nadie"); otra
+                jefatura prefiere el correo al recibir cada incapacidad. Por eso el modo es configurable sin despliegue.
+              </p>
+              <mat-radio-group class="cfg-modos" [(ngModel)]="modoEnvio">
+                <mat-radio-button value="DIARIO">
+                  <strong>Diario, en lote</strong> — un correo por finca al final del dia con todas las incapacidades recibidas.
+                </mat-radio-button>
+                <mat-radio-button value="INMEDIATO">
+                  <strong>Inmediato</strong> — un correo por incapacidad en el momento en que se guarda como recibida (al cargar el soporte).
+                </mat-radio-button>
+              </mat-radio-group>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Hora del envio diario</mat-label>
+                  <input matInput type="time" [(ngModel)]="horaEnvio" [disabled]="modoEnvio !== 'DIARIO'" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Ventana (dias hacia atras)</mat-label>
+                  <input matInput type="number" min="1" max="30" [(ngModel)]="ventanaDias" />
+                  <mat-hint>Hasta cuantos dias atras se buscan incapacidades aun no notificadas</mat-hint>
+                </mat-form-field>
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-flat-button color="primary" [disabled]="guardandoConfig()" (click)="guardarConfig()"><mat-icon>save</mat-icon> Guardar</button>
+              </div>
+              @if (config(); as c) {
+                <div class="ges-aviso" [class.ges-aviso-info]="c.modoPlataforma === 'activo'">
+                  <mat-icon>{{ c.modoPlataforma === 'activo' ? 'verified' : 'science' }}</mat-icon>
+                  <span>
+                    @if (c.modoPlataforma === 'prueba') {
+                      La plataforma esta en <strong>modo PRUEBA</strong>: todos los correos (inmediatos o en lote) salen a
+                      <strong>{{ c.destinoPrueba }}</strong> con el destinatario real anotado en el cuerpo. Para promover a real hay que poner
+                      <code>INCAPACIDADES_CORREO_MODO=activo</code> en el contenedor de ms-hr y redesplegar.
+                    } @else if (c.modoPlataforma === 'activo') {
+                      La plataforma esta en <strong>modo ACTIVO</strong>: los correos salen a los contactos reales del directorio.
+                    } @else {
+                      El envio esta <strong>APAGADO</strong> en la plataforma (INCAPACIDADES_CORREO_MODO=off).
+                    }
+                  </span>
+                </div>
+              }
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ DIRECTORIO ════════ -->
+          <mat-tab label="Directorio de correos">
+            <ng-template matTabContent>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Empleador</mat-label>
+                  <mat-select [(ngModel)]="filtroGrupo" (selectionChange)="cargarDirectorio()">
+                    <mat-option value="">Ambos</mat-option>
+                    <mat-option value="APOYO">Apoyo Laboral</mat-option>
+                    <mat-option value="ALIANZA">Tu Alianza</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ges-filtro-ancho">
+                  <mat-label>Buscar finca, correo o contacto</mat-label>
+                  <input matInput [(ngModel)]="filtroTexto" (input)="filtrarTexto()" />
+                  <mat-icon matSuffix>search</mat-icon>
+                </mat-form-field>
+                <mat-slide-toggle [(ngModel)]="incluirInactivos" (change)="cargarDirectorio()">Ver retirados</mat-slide-toggle>
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-flat-button color="primary" (click)="agregarCorreo()"><mat-icon>person_add</mat-icon> Agregar correo</button>
+              </div>
+              @if (cargandoDirectorio()) {
+                <div class="ges-estado"><mat-spinner diameter="36"></mat-spinner></div>
+              } @else if (gruposDirectorio().length === 0) {
+                <div class="ges-estado"><mat-icon>contact_mail</mat-icon><p>Sin fincas para ese filtro.</p></div>
+              } @else {
+                <p class="ges-nota">{{ gruposDirectorio().length }} finca(s). El contacto <strong>principal</strong> recibe el correo dirigido; los demas van en copia.</p>
+                <div class="dir-lista">
+                  @for (g of gruposDirectorio(); track trackDir($index, g)) {
+                    <div class="dir-finca">
+                      <div class="dir-finca-cabecera">
+                        <div>
+                          <span class="dir-finca-nombre">{{ g.empresa }}</span>
+                          <span class="ges-chip ges-chip-neutro">{{ g.grupo === 'ALIANZA' ? 'Tu Alianza' : 'Apoyo Laboral' }}</span>
+                          <span class="ges-sub">
+                            @if (g.contactoNombre) { Asistente: {{ g.contactoNombre }} · }
+                            @if (g.oficinaResponsable) { Oficina: {{ g.oficinaResponsable }} · }
+                            @if (g.telefono) { Tel: {{ g.telefono }} }
+                          </span>
+                        </div>
+                        <button type="button" mat-stroked-button (click)="agregarCorreo(g)"><mat-icon>add</mat-icon> Correo</button>
+                      </div>
+                      <table class="ges-tabla dir-tabla">
+                        <tbody>
+                          @for (f of g.filas; track trackFila($index, f)) {
+                            <tr [class.dir-inactivo]="!f.activo">
+                              <td class="dir-principal">
+                                @if (f.esPrincipal && f.activo) {
+                                  <span class="ges-chip ges-chip-ok" matTooltip="Recibe el correo dirigido"><mat-icon>star</mat-icon> Principal</span>
+                                } @else if (f.activo) {
+                                  <span class="ges-chip ges-chip-neutro">Copia</span>
+                                } @else {
+                                  <span class="ges-chip ges-chip-peligro">Retirado</span>
+                                }
+                              </td>
+                              <td class="ges-mono dir-correo">{{ f.correo }}</td>
+                              <td>{{ f.rol || '—' }}<span class="ges-sub">orden {{ f.orden }}</span></td>
+                              <td class="ges-acciones">
+                                @if (f.activo) {
+                                  @if (!f.esPrincipal) {
+                                    <button type="button" mat-icon-button matTooltip="Hacer principal" (click)="marcarPrincipal(f)"><mat-icon>star_outline</mat-icon></button>
+                                  }
+                                  <button type="button" mat-icon-button matTooltip="Editar" (click)="editarCorreo(f)"><mat-icon>edit</mat-icon></button>
+                                  <button type="button" mat-icon-button matTooltip="Retirar del directorio" (click)="desactivarCorreo(f)"><mat-icon>person_remove</mat-icon></button>
+                                } @else {
+                                  <button type="button" mat-icon-button matTooltip="Reactivar" (click)="reactivarCorreo(f)"><mat-icon>restore</mat-icon></button>
+                                }
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </div>
+              }
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ ENVIADOS ════════ -->
+          <mat-tab label="Enviados">
+            <ng-template matTabContent>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Desde</mat-label><input matInput type="date" [(ngModel)]="enviadosDesde" (change)="filtrarEnviados()" /></mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Hasta</mat-label><input matInput type="date" [(ngModel)]="enviadosHasta" (change)="filtrarEnviados()" /></mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Estado (envios)</mat-label>
+                  <mat-select [(ngModel)]="enviadosEstado" (selectionChange)="filtrarEnviados()">
+                    <mat-option value="">Todos</mat-option>
+                    <mat-option value="ENVIADO">Enviado</mat-option>
+                    <mat-option value="FALLIDO">Fallido</mat-option>
+                    <mat-option value="SIN_DESTINATARIO">Sin destinatario</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Ver</mat-label>
+                  <mat-select [(ngModel)]="vista">
+                    <mat-option value="LOTES">Lotes (por finca)</mat-option>
+                    <mat-option value="ENVIOS">Envios (por incapacidad)</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <span class="ges-espaciador"></span>
+                @if (cargandoEnviados()) { <mat-spinner diameter="26"></mat-spinner> }
+              </div>
+
+              @if (vista === 'LOTES') {
+                @if (lotes().length === 0) {
+                  <div class="ges-estado"><mat-icon>outbox</mat-icon><p>No hay lotes en el rango.</p></div>
+                } @else {
+                  <div class="ges-tabla-contenedor">
+                    <table class="ges-tabla">
+                      <thead><tr><th>Fecha</th><th>Finca</th><th>Para</th><th>Copias</th><th class="ges-num">Incap.</th><th>Estado</th><th>Disparo</th><th>Enviado</th><th class="ges-acciones"></th></tr></thead>
+                      <tbody>
+                        @for (l of lotes(); track trackLote($index, l)) {
+                          <tr>
+                            <td>{{ l.fechaLote | date: 'dd/MM/yyyy' }}</td>
+                            <td class="ges-nombre">{{ l.empresaMatch || '—' }}<span class="ges-sub">{{ l.grupo === 'ALIANZA' ? 'Tu Alianza' : 'Apoyo Laboral' }}</span></td>
+                            <td class="ges-mono">{{ l.destinatario || '—' }}</td>
+                            <td class="celda-cc">{{ l.cc || '—' }}</td>
+                            <td class="ges-num">{{ l.totalIncapacidades }}</td>
+                            <td><span class="ges-chip" [class]="'ges-chip ' + claseEstado(l.estado)">{{ l.estado }}</span>@if (l.mensajeError) { <span class="ges-sub">{{ l.mensajeError }}</span> }</td>
+                            <td>{{ l.disparo }} <span class="ges-sub">{{ l.modo }} · {{ l.creadoPor || '' }}</span></td>
+                            <td>{{ l.creadoEn | date: 'dd/MM/yy HH:mm' }}</td>
+                            <td class="ges-acciones"><button type="button" mat-icon-button matTooltip="Ver correo enviado" (click)="verLote(l)"><mat-icon>preview</mat-icon></button></td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                }
+              } @else {
+                @if (envios().length === 0) {
+                  <div class="ges-estado"><mat-icon>outbox</mat-icon><p>No hay envios en el rango.</p></div>
+                } @else {
+                  <div class="ges-tabla-contenedor">
+                    <table class="ges-tabla">
+                      <thead><tr><th>Fecha</th><th>Incapacidad</th><th>Persona</th><th>Finca</th><th>Para</th><th>Estado</th><th>Lote</th><th class="ges-acciones"></th></tr></thead>
+                      <tbody>
+                        @for (h of envios(); track trackEnvio($index, h)) {
+                          <tr>
+                            <td>{{ h.notificacion.creadoEn | date: 'dd/MM/yy HH:mm' }}</td>
+                            <td class="ges-mono">{{ h.incapacidad.codigoConsecutivo || '#' + h.incapacidad.incapacidadId }}<span class="ges-sub">{{ h.incapacidad.tipoIncapacidadEtiqueta }} · {{ h.incapacidad.fechaInicio | date: 'dd/MM' }} → {{ h.incapacidad.fechaFin | date: 'dd/MM' }}</span></td>
+                            <td><span class="ges-nombre">{{ h.incapacidad.nombreCompleto }}</span><span class="ges-sub ges-mono">CC {{ h.incapacidad.cedula }}</span></td>
+                            <td>{{ h.notificacion.empresaMatch || h.incapacidad.centroCosto || '—' }}</td>
+                            <td class="ges-mono">{{ h.notificacion.destinatarios || '—' }}@if (h.notificacion.cc) { <span class="ges-sub">CC: {{ h.notificacion.cc }}</span> }</td>
+                            <td><span class="ges-chip" [class]="'ges-chip ' + claseEstado(h.notificacion.estado)">{{ h.notificacion.estado }}</span><span class="ges-sub">{{ h.notificacion.modo }}</span>@if (h.notificacion.mensajeError) { <span class="ges-sub">{{ h.notificacion.mensajeError }}</span> }</td>
+                            <td>{{ h.notificacion.loteId ? '#' + h.notificacion.loteId : 'individual' }}</td>
+                            <td class="ges-acciones">
+                              @if (h.notificacion.tieneCuerpo) { <button type="button" mat-icon-button matTooltip="Ver correo" (click)="verEnvio(h)"><mat-icon>preview</mat-icon></button> }
+                              <button type="button" mat-icon-button matTooltip="Reenviar (individual)" (click)="reenviar(h)"><mat-icon>forward_to_inbox</mat-icon></button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  <mat-paginator [length]="totalEnvios()" [pageIndex]="pageEnvios()" [pageSize]="sizeEnvios()" [pageSizeOptions]="[50, 100, 200]" (page)="paginarEnvios($event)" showFirstLastButtons></mat-paginator>
+                }
+              }
+            </ng-template>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+    </mat-card>
+  </div>
+</div>
