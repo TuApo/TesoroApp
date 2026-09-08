@@ -273,6 +273,15 @@
               <span class="fh-obj">{{ t.titulo || t.objetivo }}</span>
               <span class="fh-meta">{{ duracion(t.duracionMs) }}</span>
               <span class="fh-fecha">{{ t.creada | date:'dd/MM HH:mm' }}</span>
+              @if (sePuedeRetomar(t)) {
+                <button mat-icon-button class="fh-retomar"
+                        [matTooltip]="t.estado === 'interrumpida'
+                          ? 'Se cortó a mitad: retomar donde lo dejó'
+                          : 'Volver a intentarlo desde donde quedó'"
+                        (click)="$event.stopPropagation(); retomarTarea(t)">
+                  <mat-icon>replay</mat-icon>
+                </button>
+              }
             </div>
           }
         </mat-card>

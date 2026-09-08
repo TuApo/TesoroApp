@@ -385,6 +385,33 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Se puede retomar lo que quedó a medias, no lo que acabó bien ni lo que sigue vivo. */
+  sePuedeRetomar(t: Tarea): boolean {
+    return t.estado === 'interrumpida' || t.estado === 'error' || t.estado === 'limite';
+  }
+
+  async retomarTarea(t: Tarea): Promise<void> {
+    const r = await Swal.fire({
+      icon: 'question',
+      title: '¿Retomar este encargo?',
+      html: 'Si el agente alcanzó a abrir sesión, sigue donde lo dejó sin rehacer lo que '
+        + 'ya estaba bien. Si no, arranca de cero con el mismo objetivo.',
+      showCancelButton: true,
+      confirmButtonText: 'Retomar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6d28d9',
+    });
+    if (!r.isConfirmed) return;
+    this.svc.reanudarTarea(t.id).subscribe({
+      next: (nueva) => {
+        this.refrescar();
+        this.pestana.set('panel');
+        this.abrirConsola(nueva);
+      },
+      error: (e) => this.avisarError(e),
+    });
+  }
+
   async cancelarTarea(t: Tarea): Promise<void> {
     const r = await Swal.fire({
       title: '¿Parar a este agente?',

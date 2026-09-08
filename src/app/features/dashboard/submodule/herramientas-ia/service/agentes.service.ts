@@ -486,6 +486,16 @@ export class AgentesService {
       params: { desde: String(desde) },
     });
   }
+  /**
+   * Retoma una tarea que se quedó a medias.
+   *
+   * Si alcanzó a abrir sesión la continúa con `--resume` y el agente conserva lo hecho;
+   * si no, relanza el objetivo desde cero. Lo decide el puente, no el panel.
+   */
+  reanudarTarea(id: string): Observable<Tarea> {
+    return this.http.post<Tarea>(`${this.base}/tareas/${id}/reanudar`, {});
+  }
+
   cancelar(id: string): Observable<unknown> {
     return this.http.post(`${this.base}/tareas/${id}/cancelar`, {});
   }
