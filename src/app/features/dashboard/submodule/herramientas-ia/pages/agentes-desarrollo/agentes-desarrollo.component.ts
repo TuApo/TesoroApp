@@ -27,7 +27,7 @@ import Swal from 'sweetalert2';
 
 import { OficinaComponent } from './oficina/oficina.component';
 import {
-  DesdeEncargo, EstudioAgentesService, PreviewAgente,
+  DesdeEncargo, EstudioAgentesService, PreviewAgente, SkillDetectada,
 } from '../../service/estudio-agentes.service';
 
 import {
@@ -114,6 +114,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   // ── ¿Hay quien haga esto? ─────────────────────────────────────────────────
   analizando = signal(false);
   analisis = signal<DesdeEncargo | null>(null);
+  skillsDelEncargo = signal<SkillDetectada[]>([]);
   creandoAgente = signal(false);
 
   // ── Encargo guiado ────────────────────────────────────────────────────────
@@ -1468,6 +1469,13 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
     if (this.analizando()) return;
     this.analizando.set(true);
     this.analisis.set(null);
+    this.skillsDelEncargo.set([]);
+    // Las skills se piden a la vez pero por separado: son dos preguntas distintas al
+    // modelo y que falle una no debe dejar sin la otra.
+    this.estudio.detectarSkills(objetivo, this.fAgente() || undefined).subscribe({
+      next: (sk) => this.skillsDelEncargo.set(sk ?? []),
+      error: () => this.skillsDelEncargo.set([]),
+    });
     this.estudio.desdeEncargo(objetivo, this.fContexto() || undefined).subscribe({
       next: (r) => {
         this.analizando.set(false);

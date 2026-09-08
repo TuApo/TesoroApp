@@ -446,6 +446,20 @@
               </button>
             </div>
 
+            @if (skillsDelEncargo().length) {
+              <div class="an-skills">
+                <b><mat-icon>school</mat-icon> Skills que cargará para esto</b>
+                <div class="an-sk-lista">
+                  @for (sk of skillsDelEncargo(); track sk.clave) {
+                    <span class="an-sk" [matTooltip]="sk.porQue">{{ sk.clave }}</span>
+                  }
+                </div>
+                <p class="an-nota">
+                  Se le nombran al arrancar; sin esto elegiría entre 47 por parecido de texto.
+                </p>
+              </div>
+            }
+
             @if (an.encajan.length) {
               <div class="an-encajan">
                 @for (e of an.encajan; track e.clave) {

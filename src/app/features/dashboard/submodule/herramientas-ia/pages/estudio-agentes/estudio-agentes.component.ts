@@ -18,13 +18,13 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import Swal from 'sweetalert2';
 
 import {
-  AgenteRegistrado, Area, Borrador, Espejo, EstudioAgentesService, Propuesta, TurnoChat,
-  VersionAgente,
+  AgenteRegistrado, Area, Borrador, Espejo, EstudioAgentesService, Propuesta, Skill,
+  SkillDeAgente, TurnoChat, VersionAgente,
 } from '../../service/estudio-agentes.service';
 import { Adjunto, AgentesService } from '../../service/agentes.service';
 
-type Vista = 'catalogo' | 'chat' | 'ficha' | 'propuestas';
-type PestanaFicha = 'persona' | 'adjuntos' | 'historial';
+type Vista = 'catalogo' | 'chat' | 'ficha' | 'propuestas' | 'skills';
+type PestanaFicha = 'persona' | 'skills' | 'adjuntos' | 'historial';
 
 /**
  * Estudio de agentes: donde se escriben los agentes propios y se reparten por áreas.
@@ -87,6 +87,30 @@ export class EstudioAgentesComponent implements OnInit {
   adjuntos = signal<Adjunto[]>([]);
   subiendo = signal(false);
   historial = signal<VersionAgente[]>([]);
+
+  // ── Skills ────────────────────────────────────────────────────────────────
+
+  skills = signal<Skill[]>([]);
+  skillsAgente = signal<SkillDeAgente[]>([]);
+  importandoSkills = signal(false);
+  repartiendo = signal(false);
+  pendientesReparto = signal(0);
+  filtroSkill = signal('');
+  soloActivas = signal(false);
+
+  skillsVisibles = computed(() => {
+    const q = this.filtroSkill().trim().toLowerCase();
+    return this.skills().filter((s) => {
+      if (this.soloActivas() && !s.activa) return false;
+      if (!q) return true;
+      return (s.clave + ' ' + s.nombre + ' ' + (s.descripcion ?? '')).toLowerCase().includes(q);
+    });
+  });
+
+  /** Las que se perderían si alguien reinstala ruflo. Es el aviso que importa. */
+  skillsFragiles = computed(() => this.skills().filter((s) => s.activa && !s.perdurable).length);
+
+  skillsHuerfanas = computed(() => this.skills().filter((s) => s.activa && s.agentes === 0).length);
 
   // ── Catálogo del pool ─────────────────────────────────────────────────────
 
@@ -207,6 +231,139 @@ export class EstudioAgentesComponent implements OnInit {
         this.avisar(e);
       },
     });
+  }
+
+  // ── Skills ────────────────────────────────────────────────────────────────
+
+  abrirSkills(): void {
+    this.vista.set('skills');
+    if (!this.skills().length) this.cargarSkills();
+  }
+
+  cargarSkills(): void {
+    this.svc.skills().subscribe({
+      next: (s) => this.skills.set(s ?? []),
+      error: () => this.skills.set([]),
+    });
+  }
+
+  /** Lee del disco lo que hay. Lo que ya no está se apaga, no se borra. */
+  importarSkills(): void {
+    if (this.importandoSkills()) return;
+    this.importandoSkills.set(true);
+    this.svc.importarSkills().subscribe({
+      next: (r) => {
+        this.importandoSkills.set(false);
+        this.pendientesReparto.set(r.pendientes);
+        this.cargarSkills();
+        Swal.fire({
+          icon: 'success',
+          title: `${r.total} skill${r.total === 1 ? '' : 's'} registrada${r.total === 1 ? '' : 's'}`,
+          html: `${r.nuevas} nuevas · ${r.refrescadas} refrescadas`
+            + (r.desaparecidas ? `<br><br><b>${r.desaparecidas} ya no están en disco</b> y se `
+              + 'apagaron. Suele significar que alguien reinstaló ruflo.' : ''),
+          confirmButtonColor: '#6d28d9',
+        });
+      },
+      error: (e) => {
+        this.importandoSkills.set(false);
+        this.avisar(e);
+      },
+    });
+  }
+
+  /** Reparte por lotes hasta que no queden agentes sin mirar. */
+  repartirSkills(): void {
+    if (this.repartiendo()) return;
+    this.repartiendo.set(true);
+    this.siguienteReparto(0);
+  }
+
+  private siguienteReparto(acumulado: number): void {
+    this.svc.repartirSkills().subscribe({
+      next: (r) => {
+        const total = acumulado + r.agentesRepartidos;
+        this.pendientesReparto.set(r.pendientes);
+        if (r.pendientes > 0 && r.agentesRepartidos > 0) {
+          this.siguienteReparto(total);
+          return;
+        }
+        this.repartiendo.set(false);
+        this.cargarSkills();
+        Swal.fire({
+          icon: 'success',
+          title: `${total} agente${total === 1 ? '' : 's'} con sus skills`,
+          text: r.pendientes
+            ? `Quedan ${r.pendientes}; vuelve a darle para seguir.`
+            : 'Todos repartidos. Cada uno carga las suyas al arrancar un encargo.',
+          confirmButtonColor: '#6d28d9',
+        });
+      },
+      error: (e) => {
+        this.repartiendo.set(false);
+        this.avisar(e);
+      },
+    });
+  }
+
+  alternarSkill(s: Skill): void {
+    this.svc.alternarSkill(s.id, !s.activa).subscribe({
+      next: () => this.cargarSkills(),
+      error: (e) => this.avisar(e),
+    });
+  }
+
+  private cargarSkillsDeAgente(id: string): void {
+    this.svc.skillsDeAgente(id).subscribe({
+      next: (s) => this.skillsAgente.set(s ?? []),
+      error: () => this.skillsAgente.set([]),
+    });
+  }
+
+  async anadirSkillAlAgente(): Promise<void> {
+    const a = this.abierto();
+    if (!a) return;
+    if (!this.skills().length) this.cargarSkills();
+    const puestas = new Set(this.skillsAgente().map((x) => x.clave));
+    const libres = this.skills().filter((s) => s.activa && !puestas.has(s.clave));
+    if (!libres.length) {
+      Swal.fire({ icon: 'info', title: 'No queda ninguna por añadir',
+        text: 'Ya tiene todas las skills activas asignadas.', confirmButtonColor: '#6d28d9' });
+      return;
+    }
+    const opciones: Record<string, string> = {};
+    for (const s of libres) opciones[s.clave] = `${s.clave} — ${(s.descripcion ?? '').slice(0, 60)}`;
+    const r = await Swal.fire({
+      title: 'Añadir una skill',
+      input: 'select',
+      inputOptions: opciones,
+      inputPlaceholder: 'Elige una',
+      showCancelButton: true,
+      confirmButtonText: 'Añadir',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6d28d9',
+    });
+    if (!r.isConfirmed || !r.value) return;
+    this.svc.asignarSkill(a.id, String(r.value)).subscribe({
+      next: () => this.cargarSkillsDeAgente(a.id),
+      error: (e) => this.avisar(e),
+    });
+  }
+
+  quitarSkillDelAgente(clave: string): void {
+    const a = this.abierto();
+    if (!a) return;
+    this.svc.quitarSkill(a.id, clave).subscribe({
+      next: () => this.cargarSkillsDeAgente(a.id),
+      error: (e) => this.avisar(e),
+    });
+  }
+
+  etiquetaOrigenSkill(o: string): string {
+    return o === 'tuapo' ? 'de la plataforma'
+      : o === 'importada' ? 'importada'
+      : o === 'propia' ? 'propia'
+      : 'de ruflo';
   }
 
   // ── Bandeja ───────────────────────────────────────────────────────────────
@@ -401,7 +558,9 @@ export class EstudioAgentesComponent implements OnInit {
     this.pestanaFicha.set('persona');
     this.adjuntos.set([]);
     this.historial.set([]);
+    this.skillsAgente.set([]);
     this.vista.set('ficha');
+    this.cargarSkillsDeAgente(a.id);
     // Los adjuntos los guarda el puente, y ahí solo existe si está publicado.
     if (a.estado === 'activo') this.cargarAdjuntos(a.clave);
   }

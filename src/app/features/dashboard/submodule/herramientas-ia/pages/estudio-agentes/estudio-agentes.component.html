@@ -19,6 +19,11 @@
         <mat-icon>inbox</mat-icon> Propuestas
         @if (pendientes() > 0) { <span class="es-pill">{{ pendientes() }}</span> }
       </button>
+      <button class="es-plano" (click)="vista() === 'skills' ? vista.set('catalogo') : abrirSkills()"
+              matTooltip="Qué sabe hacer el pool y quién usa cada cosa">
+        <mat-icon>school</mat-icon> Skills
+        @if (skills().length) { <span class="es-pill">{{ skills().length }}</span> }
+      </button>
       @if (desincronizados() > 0) {
         <button class="es-aviso-btn" (click)="sincronizar()"
                 matTooltip="Reescribe en el workspace los agentes publicados que van por detrás">
@@ -268,6 +273,99 @@
     </div>
   }
 
+  <!-- ══════════════════════════ SKILLS ══════════════════════════ -->
+  @if (vista() === 'skills') {
+    <section class="es-bandeja">
+      <div class="es-b-barra">
+        <button class="es-plano" (click)="vista.set('catalogo')">
+          <mat-icon>arrow_back</mat-icon> Catálogo
+        </button>
+        <div class="es-b-tit">
+          <b>Skills del pool</b>
+          <span class="es-sub">
+            Conocimiento que el agente carga al empezar. Claude las descubre todas solo,
+            pero con tantas elige por parecido: repartirlas es lo que hace que cargue la
+            que toca.
+          </span>
+        </div>
+        <div class="es-b-acc">
+          <button class="es-plano" (click)="importarSkills()" [disabled]="importandoSkills()">
+            @if (importandoSkills()) { <mat-spinner diameter="16"></mat-spinner> }
+            @else { <mat-icon>sync</mat-icon> }
+            Leer del disco
+          </button>
+          <button class="es-primario" (click)="repartirSkills()" [disabled]="repartiendo()">
+            @if (repartiendo()) { <mat-spinner diameter="16"></mat-spinner> }
+            @else { <mat-icon>auto_fix_high</mat-icon> }
+            {{ repartiendo() ? 'Repartiendo…' : 'Repartir entre los agentes' }}
+            @if (pendientesReparto() > 0) { <span class="es-pill">{{ pendientesReparto() }}</span> }
+          </button>
+        </div>
+      </div>
+
+      @if (skillsFragiles() > 0) {
+        <div class="es-alerta ambar">
+          <mat-icon>warning</mat-icon>
+          <div>
+            <b>{{ skillsFragiles() }} skills se perderían si alguien reinstala ruflo</b>
+            <p>
+              Viven en la carpeta del pool, no en un repositorio. Las que van marcadas
+              <b>del repo</b> viajan con el código y sobreviven a todo.
+            </p>
+          </div>
+        </div>
+      }
+
+      <div class="es-sk-filtros">
+        <input type="text" placeholder="Filtrar por nombre o descripción"
+               [ngModel]="filtroSkill()" (ngModelChange)="filtroSkill.set($event)">
+        <label class="es-sk-check">
+          <input type="checkbox" [ngModel]="soloActivas()" (ngModelChange)="soloActivas.set($event)">
+          Solo activas
+        </label>
+        @if (skillsHuerfanas() > 0) {
+          <span class="es-tag suave">{{ skillsHuerfanas() }} sin usar por nadie</span>
+        }
+      </div>
+
+      @if (!skillsVisibles().length) {
+        <div class="es-vacio">
+          <mat-icon>school</mat-icon>
+          <p><b>No hay skills registradas.</b></p>
+          <p class="es-sub">Dale a <i>Leer del disco</i> para traer las que el pool ya tiene.</p>
+        </div>
+      }
+
+      <div class="es-sk-lista">
+        @for (s of skillsVisibles(); track s.id) {
+          <article class="es-sk" [class.apagada]="!s.activa">
+            <div class="es-sk-cab">
+              <code>{{ s.clave }}</code>
+              @if (s.perdurable) {
+                <span class="es-tag" matTooltip="Viaja con el repositorio: sobrevive a reinstalar ruflo">
+                  del repo
+                </span>
+              } @else {
+                <span class="es-tag malo" matTooltip="Vive en la carpeta del pool: se pierde al reinstalar ruflo">
+                  frágil
+                </span>
+              }
+              <span class="es-tag suave">{{ etiquetaOrigenSkill(s.origen) }}</span>
+              <span class="es-sk-uso" [class.cero]="s.agentes === 0">
+                {{ s.agentes }} agente{{ s.agentes === 1 ? '' : 's' }}
+              </span>
+              <button class="es-mini" (click)="alternarSkill(s)"
+                      [matTooltip]="s.activa ? 'Apagar: deja de repartirse y de detectarse' : 'Encender'">
+                <mat-icon>{{ s.activa ? 'toggle_on' : 'toggle_off' }}</mat-icon>
+              </button>
+            </div>
+            <p class="es-sk-desc">{{ s.descripcion || 'Sin descripción — Claude no sabrá cuándo cargarla.' }}</p>
+          </article>
+        }
+      </div>
+    </section>
+  }
+
   <!-- ══════════════════════════ PROPUESTAS ══════════════════════════ -->
   @if (vista() === 'propuestas') {
     <section class="es-bandeja">
@@ -412,6 +510,10 @@
         <button [class.on]="pestanaFicha() === 'persona'" (click)="verPestana('persona')">
           <mat-icon>psychology</mat-icon> Ficha
         </button>
+        <button [class.on]="pestanaFicha() === 'skills'" (click)="verPestana('skills')">
+          <mat-icon>school</mat-icon> Skills
+          @if (skillsAgente().length) { <span class="es-pill">{{ skillsAgente().length }}</span> }
+        </button>
         <button [class.on]="pestanaFicha() === 'adjuntos'" (click)="verPestana('adjuntos')">
           <mat-icon>attach_file</mat-icon> Documentos
           @if (adjuntos().length) { <span class="es-pill">{{ adjuntos().length }}</span> }
@@ -476,6 +578,41 @@
           </div>
           @if (a.estado === 'activo') {
             <p class="es-nota">Al guardar se reescribe también en el workspace: el pool coge la versión nueva.</p>
+          }
+        </div>
+      }
+
+      <!-- Skills del agente -->
+      @if (pestanaFicha() === 'skills') {
+        <div class="es-sk-agente">
+          <div class="es-sk-a-cab">
+            <p class="es-sub">
+              Lo que este agente carga al arrancar un encargo. <b>Pocas a propósito</b>: con
+              quince delante vuelve a elegir por parecido, que es justo lo que esto evita.
+            </p>
+            <button class="es-plano" (click)="anadirSkillAlAgente()">
+              <mat-icon>add</mat-icon> Añadir
+            </button>
+          </div>
+
+          @if (!skillsAgente().length) {
+            <p class="es-vacio-mini">
+              Ninguna asignada. Usa <i>Repartir entre los agentes</i> en Skills, o añádelas a mano.
+            </p>
+          }
+          @for (s of skillsAgente(); track s.clave) {
+            <article class="es-sk">
+              <div class="es-sk-cab">
+                <code>{{ s.clave }}</code>
+                <span class="es-tag suave">{{ etiquetaOrigenSkill(s.origen) }}</span>
+                <button class="es-mini" (click)="quitarSkillDelAgente(s.clave)"
+                        matTooltip="Quitársela a este agente">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              <p class="es-sk-desc">{{ s.descripcion }}</p>
+              @if (s.motivo) { <p class="es-sk-motivo">{{ s.motivo }}</p> }
+            </article>
           }
         </div>
       }

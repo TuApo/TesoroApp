@@ -168,6 +168,55 @@ export interface Repaso {
   automatico: boolean;
 }
 
+// ── Skills ───────────────────────────────────────────────────────────────────
+
+/**
+ * Una skill: una carpeta con su SKILL.md que Claude carga cuando hace falta.
+ *
+ * La `descripcion` no es documentación, es el criterio de selección: es lo único que el
+ * modelo lee para decidir si la carga.
+ */
+export interface Skill {
+  id: string;
+  clave: string;
+  nombre: string;
+  descripcion: string | null;
+  /** pool | microservices | TesoroApp — dónde vive su carpeta. */
+  ambito: string;
+  /** true = viaja con un repo y sobrevive a reinstalar ruflo. */
+  perdurable: boolean;
+  /** ruflo | tuapo | importada | propia */
+  origen: string;
+  activa: boolean;
+  lineas: number;
+  /** Cuántos agentes la tienen asignada. */
+  agentes: number;
+  vistoEn: string | null;
+}
+
+export interface SkillDeAgente {
+  clave: string;
+  nombre: string;
+  descripcion: string | null;
+  origen: string;
+  motivo: string | null;
+}
+
+export interface ResultadoSkills {
+  nuevas: number;
+  refrescadas: number;
+  desaparecidas: number;
+  agentesRepartidos: number;
+  pendientes: number;
+  total: number;
+}
+
+export interface SkillDetectada {
+  clave: string;
+  nombre: string;
+  porQue: string;
+}
+
 // ── Preview de agente a partir de un encargo ─────────────────────────────────
 
 export interface Encaje {
@@ -289,6 +338,44 @@ export class EstudioAgentesService {
   /** Mira un encargo y dice con qué agente se hace, o cuál haría falta. No crea nada. */
   desdeEncargo(objetivo: string, contexto?: string): Observable<DesdeEncargo> {
     return this.http.post<DesdeEncargo>(`${this.base}/asistente/desde-encargo`, { objetivo, contexto });
+  }
+
+  // ── Skills ────────────────────────────────────────────────────────────────
+
+  skills(): Observable<Skill[]> {
+    return this.http.get<Skill[]>(`${this.base}/skills`);
+  }
+
+  /** Lee del disco lo que hay. Una que ya no está se apaga, no se borra. */
+  importarSkills(): Observable<ResultadoSkills> {
+    return this.http.post<ResultadoSkills>(`${this.base}/skills/importar`, {});
+  }
+
+  /** Reparte skills a un lote de agentes que aún no las tienen. */
+  repartirSkills(): Observable<ResultadoSkills> {
+    return this.http.post<ResultadoSkills>(`${this.base}/skills/repartir`, {});
+  }
+
+  /** Qué skills pide este encargo. */
+  detectarSkills(objetivo: string, agente?: string): Observable<SkillDetectada[]> {
+    return this.http.post<SkillDetectada[]>(`${this.base}/skills/detectar`, { objetivo, agente });
+  }
+
+  skillsDeAgente(id: string): Observable<SkillDeAgente[]> {
+    return this.http.get<SkillDeAgente[]>(`${this.base}/agentes/${id}/skills`);
+  }
+
+  asignarSkill(agenteId: string, clave: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/agentes/${agenteId}/skills/${clave}`, {});
+  }
+
+  quitarSkill(agenteId: string, clave: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/agentes/${agenteId}/skills/${clave}`);
+  }
+
+  /** Apagarla la saca del reparto y de la detección, sin borrar quién la tenía. */
+  alternarSkill(id: string, activa: boolean): Observable<Skill> {
+    return this.http.post<Skill>(`${this.base}/skills/${id}/activa/${activa}`, {});
   }
 
   // ── Catálogo del pool ─────────────────────────────────────────────────────
