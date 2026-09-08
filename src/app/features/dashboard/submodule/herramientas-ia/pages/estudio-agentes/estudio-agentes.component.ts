@@ -403,6 +403,7 @@ export class EstudioAgentesComponent implements OnInit {
     return o === 'tuapo' ? 'de la plataforma'
       : o === 'importada' ? 'importada'
       : o === 'propia' ? 'propia'
+      : o === 'ejemplo' ? 'de ejemplo'
       : 'de ruflo';
   }
 
