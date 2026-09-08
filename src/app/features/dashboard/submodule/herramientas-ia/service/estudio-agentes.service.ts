@@ -168,6 +168,43 @@ export interface Repaso {
   automatico: boolean;
 }
 
+// ── Preview de agente a partir de un encargo ─────────────────────────────────
+
+export interface Encaje {
+  clave: string;
+  nombre: string;
+  porQue: string;
+  /** 0..100. Si el mejor no pasa de 60, el encargo no está cubierto. */
+  ajuste: number;
+}
+
+/**
+ * El agente que haría falta para este encargo.
+ *
+ * `alimentacion` es la parte que se olvida y la que decide si sirve: un agente sin el
+ * runbook, el esquema o el ejemplo delante entrega generalidades.
+ */
+export interface PreviewAgente {
+  clave: string;
+  nombre: string;
+  descripcion: string;
+  persona: string;
+  capacidades: string[];
+  areaSugerida: string;
+  alimentacion: string[];
+  preguntas: string[];
+  /** corto | medio | largo. Mide escribirlo y afinarlo, no ejecutarlo. */
+  esfuerzo: string;
+  porQue: string;
+}
+
+export interface DesdeEncargo {
+  cubierto: boolean;
+  encajan: Encaje[];
+  propuesta: PreviewAgente | null;
+  veredicto: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EstudioAgentesService {
   private http = inject(HttpClient);
@@ -247,6 +284,11 @@ export class EstudioAgentesService {
 
   proponer(conversacion: TurnoChat[]): Observable<Borrador> {
     return this.http.post<Borrador>(`${this.base}/asistente/borrador`, { conversacion });
+  }
+
+  /** Mira un encargo y dice con qué agente se hace, o cuál haría falta. No crea nada. */
+  desdeEncargo(objetivo: string, contexto?: string): Observable<DesdeEncargo> {
+    return this.http.post<DesdeEncargo>(`${this.base}/asistente/desde-encargo`, { objetivo, contexto });
   }
 
   // ── Catálogo del pool ─────────────────────────────────────────────────────

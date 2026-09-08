@@ -414,14 +414,114 @@
       </div>
 
       @if (!fEnjambre()) {
-        <mat-form-field appearance="outline" class="ancho">
-          <mat-label>Agente</mat-label>
-          <mat-select [value]="fAgente()" (valueChange)="fAgente.set($event)">
-            @for (a of agentesOrdenados(); track a.clave) {
-              <mat-option [value]="a.clave">{{ a.nombre }} — {{ a.categoriaNombre }}</mat-option>
+        <div class="form-fila agente-fila">
+          <mat-form-field appearance="outline" class="ancho">
+            <mat-label>Agente</mat-label>
+            <mat-select [value]="fAgente()" (valueChange)="fAgente.set($event)">
+              @for (a of agentesOrdenados(); track a.clave) {
+                <mat-option [value]="a.clave">
+                  <span class="op-n">{{ a.nombre }}</span>
+                  <span class="op-c">{{ a.categoriaNombre }}</span>
+                  @if (a.descripcion) { <span class="op-d">{{ a.descripcion }}</span> }
+                </mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <button type="button" class="btn-analizar" (click)="analizarEncargo()"
+                  [disabled]="analizando()"
+                  matTooltip="Mira el objetivo y dice quién debería hacerlo, o qué agente falta">
+            @if (analizando()) { <mat-spinner diameter="17"></mat-spinner> }
+            @else { <mat-icon>psychology</mat-icon> }
+            {{ analizando() ? 'Mirando…' : '¿Quién debería hacerlo?' }}
+          </button>
+        </div>
+
+        @if (analisis(); as an) {
+          <section class="analisis">
+            <div class="an-cab">
+              <mat-icon>{{ an.cubierto ? 'check_circle' : 'person_add' }}</mat-icon>
+              <p>{{ an.veredicto }}</p>
+              <button type="button" class="an-x" (click)="cerrarAnalisis()">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+
+            @if (an.encajan.length) {
+              <div class="an-encajan">
+                @for (e of an.encajan; track e.clave) {
+                  <button type="button" class="an-e" (click)="usarAgente(e.clave)">
+                    <div class="an-e-cab">
+                      <b>{{ e.nombre || e.clave }}</b>
+                      <span class="an-aj" [class.bien]="e.ajuste >= 75"
+                            [class.flojo]="e.ajuste < 60">{{ e.ajuste }}%</span>
+                    </div>
+                    <span class="an-e-p">{{ e.porQue }}</span>
+                    <span class="an-e-usar">Usar este</span>
+                  </button>
+                }
+              </div>
             }
-          </mat-select>
-        </mat-form-field>
+
+            @if (an.propuesta; as p) {
+              <div class="an-prop">
+                <div class="an-p-cab">
+                  <mat-icon>auto_awesome</mat-icon>
+                  <div>
+                    <b>Ninguno encaja del todo. Haría falta este:</b>
+                    <p class="an-p-por">{{ p.porQue }}</p>
+                  </div>
+                </div>
+
+                <div class="an-p-id">
+                  <h4>{{ p.nombre }}</h4>
+                  <code>{{ p.clave }}</code>
+                  @if (etiquetaEsfuerzo(p.esfuerzo); as esf) {
+                    <span class="an-esf" [class.largo]="p.esfuerzo === 'largo'">{{ esf }}</span>
+                  }
+                </div>
+                <p class="an-p-desc">{{ p.descripcion }}</p>
+
+                @if (p.alimentacion.length) {
+                  <div class="an-alim">
+                    <b><mat-icon>inventory_2</mat-icon> Con qué hay que alimentarlo</b>
+                    <ul>@for (a of p.alimentacion; track $index) { <li>{{ a }}</li> }</ul>
+                    <p class="an-nota">
+                      Se le suben como documentos en su ficha. Sin esto entrega generalidades.
+                    </p>
+                  </div>
+                }
+
+                @if (p.preguntas.length) {
+                  <div class="an-alim ambar">
+                    <b><mat-icon>help_outline</mat-icon> Falta por concretar</b>
+                    <ul>@for (q of p.preguntas; track $index) { <li>{{ q }}</li> }</ul>
+                  </div>
+                }
+
+                @if (p.capacidades.length) {
+                  <div class="an-caps">
+                    @for (c of p.capacidades; track $index) { <span class="chip-cap">{{ c }}</span> }
+                  </div>
+                }
+
+                <details class="an-persona">
+                  <summary>Ver la persona completa que se le escribiría</summary>
+                  <pre>{{ p.persona }}</pre>
+                </details>
+
+                <button type="button" class="btn-crear-agente" (click)="crearDesdePreview(p)"
+                        [disabled]="creandoAgente()">
+                  @if (creandoAgente()) { <mat-spinner diameter="17"></mat-spinner> }
+                  @else { <mat-icon>add</mat-icon> }
+                  Crear este agente
+                </button>
+                <p class="an-nota centro">
+                  Nace en borrador: no entra al pool hasta que lo publiques.
+                </p>
+              </div>
+            }
+          </section>
+        }
       } @else {
         <div class="enjambre-picker">
           <div class="ep-cab">

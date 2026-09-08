@@ -26,6 +26,9 @@ import { MatMenuModule } from '@angular/material/menu';
 import Swal from 'sweetalert2';
 
 import { OficinaComponent } from './oficina/oficina.component';
+import {
+  DesdeEncargo, EstudioAgentesService, PreviewAgente,
+} from '../../service/estudio-agentes.service';
 
 import {
   AgentesService, AgenteCatalogo, Catalogo, Cuenta, EstadoAgentes, EventoBitacora,
@@ -73,6 +76,7 @@ function escaparHtml(texto: string): string {
 })
 export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   private svc = inject(AgentesService);
+  private estudio = inject(EstudioAgentesService);
   private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private sanitizer = inject(DomSanitizer);
   private router = inject(Router);
@@ -106,6 +110,11 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   fAgentesEnjambre = signal<string[]>([]);
   fModoEnjambre = signal<'paralelo' | 'secuencial'>('paralelo');
   enviando = signal(false);
+
+  // ── ¿Hay quien haga esto? ─────────────────────────────────────────────────
+  analizando = signal(false);
+  analisis = signal<DesdeEncargo | null>(null);
+  creandoAgente = signal(false);
 
   // ── Encargo guiado ────────────────────────────────────────────────────────
   fMetas = signal('');
@@ -1438,6 +1447,99 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
       case 'bypassPermissions': return 'sin pedir permiso para nada';
       default: return p;
     }
+  }
+
+  // ── ¿Hay quien haga esto? ─────────────────────────────────────────────────
+
+  /**
+   * Mira el objetivo escrito y dice con qué agente se hace — o cuál haría falta.
+   *
+   * Va aquí, en el formulario, porque es justo cuando se descubre que no hay quien lo
+   * haga; irse a otra pantalla a inventar un agente en ese momento es perder el hilo.
+   */
+  analizarEncargo(): void {
+    const objetivo = this.fObjetivo().trim();
+    if (!objetivo) {
+      Swal.fire({ icon: 'warning', title: 'Escribe primero el objetivo',
+        text: 'Sin saber qué hay que hacer no puedo decirte quién debería hacerlo.',
+        confirmButtonColor: '#6d28d9' });
+      return;
+    }
+    if (this.analizando()) return;
+    this.analizando.set(true);
+    this.analisis.set(null);
+    this.estudio.desdeEncargo(objetivo, this.fContexto() || undefined).subscribe({
+      next: (r) => {
+        this.analizando.set(false);
+        this.analisis.set(r);
+      },
+      error: (e) => {
+        this.analizando.set(false);
+        this.avisarError(e);
+      },
+    });
+  }
+
+  /** Elegir uno de los que ya encajan: cierra el análisis y lo deja seleccionado. */
+  usarAgente(clave: string): void {
+    this.fAgente.set(clave);
+    this.fEnjambre.set(false);
+    this.analisis.set(null);
+  }
+
+  cerrarAnalisis(): void {
+    this.analisis.set(null);
+  }
+
+  /**
+   * Crea el agente propuesto. Nace en BORRADOR: aceptar el preview no lo suelta al
+   * pool, solo lo escribe para que alguien lo lea antes de publicarlo.
+   */
+  async crearDesdePreview(p: PreviewAgente): Promise<void> {
+    const alimenta = p.alimentacion?.length
+      ? '<br><br><b>Habrá que darle:</b><br>· ' + p.alimentacion.join('<br>· ')
+      : '';
+    const r = await Swal.fire({
+      icon: 'question',
+      title: `¿Crear "${p.nombre}"?`,
+      html: 'Nace en <b>borrador</b>: no se suelta al pool hasta que lo publiques desde '
+        + 'el Estudio de agentes.' + alimenta,
+      showCancelButton: true,
+      confirmButtonText: 'Crear el agente',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#6d28d9',
+    });
+    if (!r.isConfirmed) return;
+    this.creandoAgente.set(true);
+    this.estudio.crearAgente({
+      clave: p.clave,
+      nombre: p.nombre,
+      descripcion: p.descripcion,
+      persona: p.persona,
+      capacidades: p.capacidades,
+    }, 'encargo').subscribe({
+      next: () => {
+        this.creandoAgente.set(false);
+        this.analisis.set(null);
+        Swal.fire({
+          icon: 'success', title: 'Agente creado',
+          html: 'Está en <b>Estudio de agentes</b>, en borrador. Revísale la persona, '
+            + 'súbele los documentos que necesita y publícalo cuando te convenza.',
+          confirmButtonColor: '#6d28d9',
+        });
+      },
+      error: (e) => {
+        this.creandoAgente.set(false);
+        this.avisarError(e);
+      },
+    });
+  }
+
+  etiquetaEsfuerzo(e: string): string {
+    return e === 'largo' ? 'Escribirlo y afinarlo lleva su tiempo'
+      : e === 'medio' ? 'Un rato de trabajo'
+      : e === 'corto' ? 'Rápido de dejar listo'
+      : '';
   }
 
   // ── La oficina ────────────────────────────────────────────────────────────
