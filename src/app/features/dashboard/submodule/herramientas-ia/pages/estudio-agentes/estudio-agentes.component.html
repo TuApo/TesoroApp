@@ -135,6 +135,37 @@
           </div>
         }
 
+        <!-- Clasificación por lo que los agentes SON, no solo por el área que les
+             asignamos: el tipo viene de su propio frontmatter. -->
+        @if (tiposConAgentes().length) {
+          <div class="es-clasif">
+            <span class="es-clasif-lbl">Tipo</span>
+            <button class="es-chip" [class.on]="!tipoFiltro()" (click)="tipoFiltro.set('')">
+              Todos <span>{{ agentes().length }}</span>
+            </button>
+            @for (t of tiposConAgentes(); track t.clave) {
+              <button class="es-chip" [class.on]="tipoFiltro() === t.clave"
+                      (click)="tipoFiltro.set(tipoFiltro() === t.clave ? '' : t.clave)">
+                {{ etiquetaTipo(t.clave) }} <span>{{ t.n }}</span>
+              </button>
+            }
+            @if (prioridadesConAgentes().length > 1) {
+              <span class="es-clasif-lbl sep">Prioridad</span>
+              @for (p of prioridadesConAgentes(); track p.clave) {
+                <button class="es-chip" [class.on]="prioridadFiltro() === p.clave"
+                        (click)="prioridadFiltro.set(prioridadFiltro() === p.clave ? '' : p.clave)">
+                  {{ p.clave }} <span>{{ p.n }}</span>
+                </button>
+              }
+            }
+            @if (hayFiltroAgente()) {
+              <button class="es-chip limpiar" (click)="limpiarFiltrosAgente()">
+                <mat-icon>filter_alt_off</mat-icon> Quitar filtros
+              </button>
+            }
+          </div>
+        }
+
         <div class="es-tarjetas">
           @for (a of agentesVisibles(); track a.id) {
             <article class="es-tarjeta" (click)="abrir(a)"
@@ -147,6 +178,11 @@
               <p class="es-desc">{{ a.descripcion || 'Sin descripción.' }}</p>
               <div class="es-t-pie">
                 @if (a.areaNombre) { <span class="es-tag">{{ a.areaNombre }}</span> }
+                @if (a.tipo) {
+                  <span class="es-tag suave" matTooltip="Cómo se clasifica el agente a sí mismo">
+                    {{ etiquetaTipo(a.tipo) }}
+                  </span>
+                }
                 <span class="es-tag suave">v{{ a.version }}</span>
                 @if (a.origen === 'asistente') {
                   <span class="es-tag suave" matTooltip="Lo redactó el asistente">

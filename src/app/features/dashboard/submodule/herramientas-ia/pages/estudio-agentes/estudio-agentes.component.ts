@@ -66,6 +66,8 @@ export class EstudioAgentesComponent implements OnInit {
   agentes = signal<AgenteRegistrado[]>([]);
   areaFiltro = signal<string | null>(null);
   busqueda = signal('');
+  tipoFiltro = signal('');
+  prioridadFiltro = signal('');
 
   asistenteDisponible = signal(false);
 
@@ -137,13 +139,51 @@ export class EstudioAgentesComponent implements OnInit {
 
   agentesVisibles = computed(() => {
     const area = this.areaFiltro();
+    const tipo = this.tipoFiltro();
+    const pri = this.prioridadFiltro();
     const q = this.busqueda().trim().toLowerCase();
     return this.agentes().filter((a) => {
       if (area && a.areaId !== area) return false;
+      if (tipo && (a.tipo ?? '') !== tipo) return false;
+      if (pri && (a.prioridadNormalizada ?? a.prioridad) !== pri) return false;
       if (!q) return true;
       return (a.nombre + ' ' + a.clave + ' ' + (a.descripcion ?? '')).toLowerCase().includes(q);
     });
   });
+
+  /**
+   * Los tipos que de verdad hay, con su cuenta.
+   *
+   * Sale de los datos, no de una lista escrita a mano: si mañana el pool trae un tipo
+   * nuevo aparece solo, y si uno deja de existir desaparece en vez de quedar como un
+   * filtro que no devuelve nada.
+   */
+  tiposConAgentes = computed(() => {
+    const cuenta = new Map<string, number>();
+    for (const a of this.agentes()) {
+      if (!a.tipo) continue;
+      cuenta.set(a.tipo, (cuenta.get(a.tipo) ?? 0) + 1);
+    }
+    return [...cuenta.entries()]
+      .map(([clave, n]) => ({ clave, n }))
+      .sort((x, y) => y.n - x.n || x.clave.localeCompare(y.clave));
+  });
+
+  prioridadesConAgentes = computed(() => {
+    const cuenta = new Map<string, number>();
+    for (const a of this.agentes()) {
+      const p = a.prioridadNormalizada ?? a.prioridad;
+      if (!p) continue;
+      cuenta.set(p, (cuenta.get(p) ?? 0) + 1);
+    }
+    const orden = ['critica', 'alta', 'media', 'baja'];
+    return [...cuenta.entries()]
+      .map(([clave, n]) => ({ clave, n }))
+      .sort((x, y) => orden.indexOf(x.clave) - orden.indexOf(y.clave));
+  });
+
+  hayFiltroAgente = computed(() =>
+    !!(this.busqueda().trim() || this.tipoFiltro() || this.prioridadFiltro() || this.areaFiltro()));
 
   /** Cuántos activos están por detrás del workspace. Es el aviso que importa. */
   desincronizados = computed(() => this.agentes().filter((a) => a.desincronizado).length);
@@ -541,6 +581,25 @@ export class EstudioAgentesComponent implements OnInit {
 
   filtrarPor(id: string | null): void {
     this.areaFiltro.set(id);
+  }
+
+  limpiarFiltrosAgente(): void {
+    this.busqueda.set('');
+    this.tipoFiltro.set('');
+    this.prioridadFiltro.set('');
+    this.areaFiltro.set(null);
+  }
+
+  etiquetaTipo(t: string): string {
+    const m: Record<string, string> = {
+      coordinacion: 'Coordinación', desarrollo: 'Desarrollo', seguridad: 'Seguridad',
+      arquitectura: 'Arquitectura', analisis: 'Análisis', pruebas: 'Pruebas',
+      automatizacion: 'Automatización', documentacion: 'Documentación',
+      optimizacion: 'Optimización', datos: 'Datos', devops: 'DevOps',
+      sincronizacion: 'Sincronización', enjambre: 'Enjambre', memoria: 'Memoria',
+      general: 'General',
+    };
+    return m[t] ?? t;
   }
 
   // ── Ficha ─────────────────────────────────────────────────────────────────

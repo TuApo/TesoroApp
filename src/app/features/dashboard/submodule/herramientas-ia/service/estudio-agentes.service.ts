@@ -62,6 +62,9 @@ export interface AgenteRegistrado {
   enriquecido: boolean;
   /** La carpeta de ruflo de la que salió. */
   categoriaOrigen: string | null;
+  /** Cómo se clasifica el agente a sí mismo, ya normalizado (coordinacion, desarrollo…). */
+  tipo: string | null;
+  prioridadNormalizada: string | null;
   creadoEn: string;
   actualizadoEn: string | null;
 }
