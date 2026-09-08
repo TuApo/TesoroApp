@@ -3,12 +3,13 @@ import {
   computed, effect, inject, input, output, signal, viewChild,
 } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { catchError, of } from 'rxjs';
 
-import type { Catalogo, EstadoAgentes } from '../../../service/agentes.service';
+import type { Catalogo, EstadoAgentes, Tarea } from '../../../service/agentes.service';
 import { ConocimientoService, DocDto } from '../../../service/conocimiento.service';
 import { construirPlano, estadoVivo } from './oficina-plano';
 import type { PlanoOficina } from './oficina-plano';
@@ -29,7 +30,7 @@ import type { Calidad, OficinaEscena } from './oficina-escena';
 @Component({
   selector: 'app-oficina',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatTooltipModule, MatMenuModule],
+  imports: [CommonModule, FormsModule, MatIconModule, MatTooltipModule, MatMenuModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './oficina.component.html',
   styleUrls: ['./oficina.component.css'],
@@ -63,6 +64,14 @@ export class OficinaComponent implements OnDestroy {
   readonly docs = signal<DocDto[]>([]);
   readonly docsPedidos = signal(false);
 
+  // ── Panel lateral ─────────────────────────────────────────────────────────
+
+  readonly panelAbierto = signal(true);
+  readonly panelPestana = signal<'ahora' | 'historico'>('ahora');
+  readonly filtroTexto = signal('');
+  readonly filtroEstado = signal<string>('');
+  readonly filtroAgente = signal<string>('');
+
   private escena: OficinaEscena | null = null;
   private plano: PlanoOficina | null = null;
   private firmaPlano = '';
@@ -91,6 +100,56 @@ export class OficinaComponent implements OnDestroy {
       docs: this.docs().length,
     };
   });
+
+  // ── Listas del panel ──────────────────────────────────────────────────────
+
+  /**
+   * Lo que esta pasando AHORA. En curso primero y despues la cola: es el orden en que
+   * se mira, no el alfabetico.
+   *
+   * OJO: el estado sale de `tarea.estado`, no del array que la trae. El puente mete en
+   * `enCurso[]` tareas todavia en `pendiente` y el panel enseñaria gente trabajando con
+   * el pool parado.
+   */
+  readonly ahora = computed(() => {
+    const e = this.estado();
+    if (!e) return [] as Tarea[];
+    const vistas = new Set<string>();
+    const out: Tarea[] = [];
+    for (const t of [...e.enCurso, ...e.cola]) {
+      if (vistas.has(t.id)) continue;
+      vistas.add(t.id);
+      out.push(t);
+    }
+    const peso = (t: Tarea) => (t.estado === 'en_curso' || t.estado === 'asignada' ? 0 : 1);
+    return out.sort((a, b) => peso(a) - peso(b) || b.creada - a.creada);
+  });
+
+  readonly historico = computed(() => this.estado()?.ultimas ?? []);
+
+  /** Las claves que aparecen en pantalla, para poder filtrar por agente sin listar 81. */
+  readonly agentesConTareas = computed(() => {
+    const s = new Set<string>();
+    for (const t of [...this.ahora(), ...this.historico()]) if (t.agente) s.add(t.agente);
+    return [...s].sort();
+  });
+
+  readonly listaVisible = computed(() => {
+    const base = this.panelPestana() === 'ahora' ? this.ahora() : this.historico();
+    const q = this.filtroTexto().trim().toLowerCase();
+    const est = this.filtroEstado();
+    const ag = this.filtroAgente();
+    return base.filter((t) => {
+      if (est && t.estado !== est) return false;
+      if (ag && t.agente !== ag) return false;
+      if (!q) return true;
+      return ((t.titulo ?? '') + ' ' + (t.objetivo ?? '') + ' ' + (t.agenteNombre ?? '')
+        + ' ' + (t.agente ?? '')).toLowerCase().includes(q);
+    });
+  });
+
+  readonly hayFiltro = computed(() =>
+    !!(this.filtroTexto().trim() || this.filtroEstado() || this.filtroAgente()));
 
   /** Avisa si la oficina se quedo corta respecto al catalogo real. */
   readonly recortado = computed(() => {
@@ -236,6 +295,66 @@ export class OficinaComponent implements OnDestroy {
     const v = !this.oscuro();
     this.oscuro.set(v);
     this.escena?.modoOscuro(v);
+  }
+
+  // ── Panel ─────────────────────────────────────────────────────────────────
+
+  alternarPanel(): void {
+    this.panelAbierto.set(!this.panelAbierto());
+    // La escena mide su contenedor: sin esto se queda con el ancho viejo hasta que
+    // alguien toque la ventana.
+    requestAnimationFrame(() => this.escena?.redimensionar());
+  }
+
+  verPestanaPanel(p: 'ahora' | 'historico'): void {
+    this.panelPestana.set(p);
+    this.filtroEstado.set('');
+  }
+
+  limpiarFiltros(): void {
+    this.filtroTexto.set('');
+    this.filtroEstado.set('');
+    this.filtroAgente.set('');
+  }
+
+  /** Clic en una tarea: lleva la camara a quien la hace y avisa al panel de arriba. */
+  mirarTarea(t: Tarea): void {
+    if (!t.agente) return;
+    this.escena?.irAAgente(t.agente);
+  }
+
+  abrirTarea(t: Tarea): void {
+    if (t.agente) this.agenteElegido.emit(t.agente);
+  }
+
+  etiquetaEstadoTarea(e: string): string {
+    switch (e) {
+      case 'en_curso': return 'trabajando';
+      case 'asignada': return 'arrancando';
+      case 'pendiente': return 'en cola';
+      case 'ok': return 'hecha';
+      case 'error': return 'falló';
+      case 'limite': return 'tope de uso';
+      case 'cancelada': return 'cancelada';
+      case 'interrumpida': return 'incompleta';
+      default: return e;
+    }
+  }
+
+  /** Hace cuánto, en corto. Una fecha completa no cabe y tampoco se necesita. */
+  hace(ms: number | undefined): string {
+    if (!ms) return '';
+    const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 60) return `hace ${s}s`;
+    if (s < 3600) return `hace ${Math.round(s / 60)}m`;
+    if (s < 86400) return `hace ${Math.round(s / 3600)}h`;
+    return `hace ${Math.round(s / 86400)}d`;
+  }
+
+  duracionCorta(ms: number | undefined): string {
+    if (!ms) return '';
+    const s = Math.round(ms / 1000);
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
   }
 
   reintentar(): void {

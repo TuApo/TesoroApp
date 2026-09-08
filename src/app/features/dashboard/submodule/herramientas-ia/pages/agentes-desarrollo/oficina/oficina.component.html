@@ -40,6 +40,10 @@
       <button [matMenuTriggerFor]="menuCalidad" matTooltip="Calidad de dibujo">
         <mat-icon>tune</mat-icon>
       </button>
+      <button (click)="alternarPanel()" [class.on]="panelAbierto()"
+              [matTooltip]="panelAbierto() ? 'Ocultar el panel de actividad' : 'Ver qué se está ejecutando'">
+        <mat-icon>{{ panelAbierto() ? 'right_panel_close' : 'right_panel_open' }}</mat-icon>
+      </button>
       <mat-menu #menuCalidad="matMenu">
         <button mat-menu-item (click)="ponerCalidad('alta')" [class.on]="calidad() === 'alta'">
           Alta <small>sombras y antialias</small>
@@ -54,7 +58,8 @@
     </div>
   </div>
 
-  <!-- ── La oficina ────────────────────────────────────────────────────── -->
+  <!-- ── La oficina y su panel ─────────────────────────────────────────── -->
+  <div class="of-escenario" [class.con-panel]="panelAbierto()">
   <div class="of-caja" #caja>
     <canvas #lienzo class="of-lienzo"></canvas>
     <div class="of-hud" #hud></div>
@@ -82,6 +87,82 @@
         <p>Esperando el catálogo del pool…</p>
       </div>
     }
+  </div>
+
+  <!-- ── Panel de actividad ────────────────────────────────────────────── -->
+  @if (panelAbierto()) {
+    <aside class="of-panel">
+      <nav class="of-p-tabs">
+        <button [class.on]="panelPestana() === 'ahora'" (click)="verPestanaPanel('ahora')">
+          Ahora
+          @if (ahora().length) { <span class="of-p-n">{{ ahora().length }}</span> }
+        </button>
+        <button [class.on]="panelPestana() === 'historico'" (click)="verPestanaPanel('historico')">
+          Histórico
+          @if (historico().length) { <span class="of-p-n">{{ historico().length }}</span> }
+        </button>
+      </nav>
+
+      <div class="of-p-filtros">
+        <input type="text" placeholder="Filtrar por agente u objetivo"
+               [ngModel]="filtroTexto()" (ngModelChange)="filtroTexto.set($event)">
+        <div class="of-p-selects">
+          <select [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event)">
+            <option value="">Cualquier estado</option>
+            @if (panelPestana() === 'ahora') {
+              <option value="en_curso">Trabajando</option>
+              <option value="asignada">Arrancando</option>
+              <option value="pendiente">En cola</option>
+            } @else {
+              <option value="ok">Hechas</option>
+              <option value="error">Fallaron</option>
+              <option value="interrumpida">Incompletas</option>
+              <option value="limite">Tope de uso</option>
+              <option value="cancelada">Canceladas</option>
+            }
+          </select>
+          <select [ngModel]="filtroAgente()" (ngModelChange)="filtroAgente.set($event)">
+            <option value="">Cualquier agente</option>
+            @for (a of agentesConTareas(); track a) { <option [value]="a">{{ a }}</option> }
+          </select>
+        </div>
+        @if (hayFiltro()) {
+          <button class="of-p-limpiar" (click)="limpiarFiltros()">
+            <mat-icon>filter_alt_off</mat-icon> Quitar filtros
+          </button>
+        }
+      </div>
+
+      <div class="of-p-lista">
+        @if (!listaVisible().length) {
+          <p class="of-p-vacio">
+            @if (hayFiltro()) { Nada encaja con el filtro. }
+            @else if (panelPestana() === 'ahora') { Nadie está trabajando ahora mismo. }
+            @else { Todavía no hay historial. }
+          </p>
+        }
+        @for (t of listaVisible(); track t.id) {
+          <article class="of-t" [attr.data-e]="t.estado"
+                   (click)="mirarTarea(t)" (dblclick)="abrirTarea(t)"
+                   matTooltip="Un clic lleva la cámara al agente; dos, abren su consola">
+            <div class="of-t-cab">
+              <span class="of-t-est">{{ etiquetaEstadoTarea(t.estado) }}</span>
+              <span class="of-t-ag">{{ t.agenteNombre || t.agente || 'General' }}</span>
+            </div>
+            <p class="of-t-obj">{{ t.titulo || t.objetivo }}</p>
+            <div class="of-t-pie">
+              @if (t.cuentaNombre) { <span>{{ t.cuentaNombre }}</span> }
+              @if (t.duracionMs) { <span>{{ duracionCorta(t.duracionMs) }}</span> }
+              <span>{{ hace(t.fin || t.inicio || t.creada) }}</span>
+              @if (t.estado === 'en_curso' && t.ultimaHerramienta) {
+                <span class="of-t-herr">{{ t.ultimaHerramienta }}</span>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    </aside>
+  }
   </div>
 
   <p class="of-pie">
