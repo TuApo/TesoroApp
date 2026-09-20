@@ -80,15 +80,19 @@
   @if (d.workspace_indicators.length > 0) {
     <section class="table-section">
       <h3>Comparacion de workspaces</h3>
-      <table mat-table [dataSource]="d.workspace_indicators" class="tbl">
-        <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Workspace</th><td mat-cell *matCellDef="let w"><strong>{{ w.name }}</strong></td></ng-container>
-        <ng-container matColumnDef="boards"><th mat-header-cell *matHeaderCellDef>Boards</th><td mat-cell *matCellDef="let w">{{ w.board_count }}</td></ng-container>
-        <ng-container matColumnDef="tasks"><th mat-header-cell *matHeaderCellDef>Tareas</th><td mat-cell *matCellDef="let w">{{ w.task_count }}</td></ng-container>
-        <ng-container matColumnDef="overdue"><th mat-header-cell *matHeaderCellDef>Vencidas</th><td mat-cell *matCellDef="let w"><span class="val-warn">{{ w.overdue_task_count }}</span></td></ng-container>
-        <ng-container matColumnDef="progress"><th mat-header-cell *matHeaderCellDef>Progreso</th><td mat-cell *matCellDef="let w"><mat-progress-bar mode="determinate" [value]="w.progress_percent"></mat-progress-bar><span class="pct">{{ w.progress_percent }}%</span></td></ng-container>
-        <tr mat-header-row *matHeaderRowDef="wsCols"></tr>
-        <tr mat-row *matRowDef="let row; columns: wsCols;"></tr>
-      </table>
+      <app-tabla-estandar
+        id="matder-analitica-workspaces"
+        titulo="Comparación de workspaces"
+        modulo="Matder"
+        [datos]="d.workspace_indicators"
+        [columnas]="columnasWs"
+        [filaId]="idWs">
+        <ng-template tablaCelda="name" let-w><strong>{{ w.name }}</strong></ng-template>
+        <ng-template tablaCelda="overdue" let-w><span class="val-warn">{{ w.overdue_task_count }}</span></ng-template>
+        <ng-template tablaCelda="progress" let-w>
+          <mat-progress-bar mode="determinate" [value]="w.progress_percent"></mat-progress-bar><span class="pct">{{ w.progress_percent }}%</span>
+        </ng-template>
+      </app-tabla-estandar>
     </section>
   }
 
@@ -96,16 +100,19 @@
   @if (d.board_indicators.length > 0) {
     <section class="table-section">
       <h3>Rendimiento por tablero</h3>
-      <table mat-table [dataSource]="d.board_indicators" class="tbl">
-        <ng-container matColumnDef="name"><th mat-header-cell *matHeaderCellDef>Tablero</th><td mat-cell *matCellDef="let b"><strong>{{ b.name }}</strong></td></ng-container>
-        <ng-container matColumnDef="ws"><th mat-header-cell *matHeaderCellDef>Workspace</th><td mat-cell *matCellDef="let b">{{ b.workspace_name }}</td></ng-container>
-        <ng-container matColumnDef="tasks"><th mat-header-cell *matHeaderCellDef>Tareas</th><td mat-cell *matCellDef="let b">{{ b.task_count }}</td></ng-container>
-        <ng-container matColumnDef="overdue"><th mat-header-cell *matHeaderCellDef>Vencidas</th><td mat-cell *matCellDef="let b"><span class="val-warn">{{ b.overdue_task_count }}</span></td></ng-container>
-        <ng-container matColumnDef="unassigned"><th mat-header-cell *matHeaderCellDef>Sin asignar</th><td mat-cell *matCellDef="let b">{{ b.unassigned_task_count }}</td></ng-container>
-        <ng-container matColumnDef="progress"><th mat-header-cell *matHeaderCellDef>Progreso</th><td mat-cell *matCellDef="let b"><mat-progress-bar mode="determinate" [value]="b.progress_percent"></mat-progress-bar><span class="pct">{{ b.progress_percent }}%</span></td></ng-container>
-        <tr mat-header-row *matHeaderRowDef="boardCols"></tr>
-        <tr mat-row *matRowDef="let row; columns: boardCols;"></tr>
-      </table>
+      <app-tabla-estandar
+        id="matder-analitica-tableros"
+        titulo="Rendimiento por tablero"
+        modulo="Matder"
+        [datos]="d.board_indicators"
+        [columnas]="columnasBoards"
+        [filaId]="idBoard">
+        <ng-template tablaCelda="name" let-b><strong>{{ b.name }}</strong></ng-template>
+        <ng-template tablaCelda="overdue" let-b><span class="val-warn">{{ b.overdue_task_count }}</span></ng-template>
+        <ng-template tablaCelda="progress" let-b>
+          <mat-progress-bar mode="determinate" [value]="b.progress_percent"></mat-progress-bar><span class="pct">{{ b.progress_percent }}%</span>
+        </ng-template>
+      </app-tabla-estandar>
     </section>
   }
 } @else {

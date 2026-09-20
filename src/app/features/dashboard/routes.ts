@@ -2,12 +2,13 @@ import { Routes } from '@angular/router';
 import { DashboardComponent } from './pages/dashboard/dashboard.component';
 import { dynamicFormRouteMatch } from './submodule/dynamic-forms/dynamic-form-route.guard';
 import { permisosLecturaGuard } from '../../core/guards/permisos-lectura.guard';
+import { cambioPasswordGuard } from '../../core/guards/cambio-password.guard';
 
 export const routes: Routes = [
   {
     path: '',
     component: DashboardComponent,
-    canActivateChild: [permisosLecturaGuard],
+    canActivateChild: [cambioPasswordGuard, permisosLecturaGuard],
     children: [
       { path: '', loadComponent: () => import('./submodule/home/home/home.component').then(m => m.HomeComponent) },
       { path: 'authorizations', loadChildren: () => import('./submodule/authorizations/authorizations.routes').then(m => m.routes) },
@@ -33,7 +34,12 @@ export const routes: Routes = [
       { path: 'matder', loadChildren: () => import('./submodule/matder/matder.routes').then(m => m.routes) },
       { path: 'disabilities', loadChildren: () => import('./submodule/disabilities/disabilities.routes').then(m => m.routes) },
       { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.routes').then(m => m.routes) },
+      { path: 'marketing', loadChildren: () => import('./submodule/marketing/marketing.routes').then(m => m.routes) },
       { path: 'market', loadChildren: () => import('./submodule/market/market.routes').then(m => m.routes) },
+      // Tienda: POS, inventario, catálogo, promociones, pedidos e indicadores.
+      // La ruta coincide con db_admin.modulo (ms-auth-admin V92); si no coincidiera,
+      // permisosLecturaGuard devolvería al usuario al home desde su propia pantalla.
+      { path: 'tienda', loadChildren: () => import('./submodule/tienda/tienda.routes').then(m => m.routes) },
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.routes').then(m => m.routes) },
       { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
       { path: 'reuniones', loadChildren: () => import('./submodule/reuniones/reuniones.routes').then(m => m.routes) },

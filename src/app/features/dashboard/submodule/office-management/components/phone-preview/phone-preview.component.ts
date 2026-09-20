@@ -29,7 +29,7 @@ import { FormFieldDef } from '../../models/office-forms.models';
   `,
   styles: [`
     .pp { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-    .pp__title { font-size: 13px; font-weight: 600; color: #475569; }
+    .pp__title { font-size: 13px; font-weight: 600; color: var(--text-2); }
     .pp__phone {
       width: 300px; max-width: 100%; background: #0f172a; border-radius: 38px; padding: 12px;
       box-shadow: 0 20px 45px rgba(15,23,42,.28); position: relative;
@@ -38,11 +38,11 @@ import { FormFieldDef } from '../../models/office-forms.models';
       width: 120px; height: 22px; background: #0f172a; border-radius: 0 0 14px 14px; z-index: 2; }
     .pp__statusbar { display: flex; justify-content: space-between; color: #e2e8f0; font-size: 11px;
       padding: 4px 18px 8px; }
-    .pp__screen { background: #ffffff; border-radius: 28px; height: 520px; overflow-y: auto;
+    .pp__screen { background: var(--surface); border-radius: 28px; height: 520px; overflow-y: auto;
       padding: 18px 16px 28px; }
     .pp__header { margin-bottom: 14px; }
-    .pp__ftitle { font-size: 17px; font-weight: 700; color: #0f172a; }
-    .pp__fdesc { font-size: 12px; color: #64748b; margin-top: 2px; }
+    .pp__ftitle { font-size: 17px; font-weight: 700; color: var(--text); }
+    .pp__fdesc { font-size: 12px; color: var(--muted); margin-top: 2px; }
     .pp__body { }
   `],
 })

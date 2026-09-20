@@ -55,17 +55,17 @@ import { FormResponse, ResponseValue } from '../../models/office-forms.models';
   styles: [`
     .rd { padding: 8px 4px 40px; max-width: 760px; }
     .rd__head { display: flex; align-items: center; gap: 12px; }
-    .rd__head h1 { font-size: 22px; font-weight: 800; margin: 0; color: #0f172a; }
-    .rd__head p { color: #64748b; margin: 2px 0 0; }
+    .rd__head h1 { font-size: 22px; font-weight: 800; margin: 0; color: var(--text); }
+    .rd__head p { color: var(--muted); margin: 2px 0 0; }
     .rd__loading { display: flex; justify-content: center; padding: 50px 0; }
-    .meta { display: flex; align-items: center; gap: 16px; margin: 16px 0; color: #475569; font-size: 13px; flex-wrap: wrap; }
-    .chip { font-size: 11px; background: #eef2f7; color: #475569; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
-    .chip--pub { background: #e0f2fe; color: #0369a1; }
+    .meta { display: flex; align-items: center; gap: 16px; margin: 16px 0; color: var(--text-2); font-size: 13px; flex-wrap: wrap; }
+    .chip { font-size: 11px; background: var(--surface-3); color: var(--text-2); padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    .chip--pub { background: #e0f2fe; background: light-dark(#e0f2fe, #102e4c); color: #0369a1; color: light-dark(#0369a1, #97d5f7); }
     .values { display: flex; flex-direction: column; gap: 12px; }
-    .val { border: 1px solid #e6eaf0; border-radius: 12px; background: #fff; padding: 14px 16px; }
-    .val__label { font-weight: 600; color: #1e293b; margin-bottom: 6px; }
-    .val__text { color: #334155; white-space: pre-wrap; }
-    .val__empty { color: #94a3b8; }
+    .val { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 14px 16px; }
+    .val__label { font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .val__text { color: var(--text-2); white-space: pre-wrap; }
+    .val__empty { color: var(--text-faint); }
   `],
 })
 export class ResponseDetailComponent implements OnInit {

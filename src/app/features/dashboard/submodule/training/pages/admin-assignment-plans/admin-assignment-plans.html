@@ -51,70 +51,53 @@
       </div>
     }
 
-    @if (cargando()) {
-      <p class="cargando">Cargando planes…</p>
-    } @else if (error()) {
+    @if (error()) {
       <div class="aviso-error">
         <mat-icon>error_outline</mat-icon>
         <span>{{ error() }}</span>
         <button type="button" class="btn-secundario pequeno" (click)="cargar()">Reintentar</button>
       </div>
-    } @else if (!planes().length) {
-      <div class="vacio">
-        <mat-icon>rule</mat-icon>
-        <p>Todavía no hay ningún plan. El primero que crees decidirá a quién le llega formación sola.</p>
-      </div>
     } @else {
-      <table class="tabla">
-        <thead>
-          <tr>
-            <th>Plan</th>
-            <th>Audiencia</th>
-            <th>Contenido</th>
-            <th>Cuándo</th>
-            <th>Última corrida</th>
-            <th>Estado</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (p of planes(); track p.id) {
-            <tr>
-              <td>
-                <button type="button" class="enlace" (click)="abrirPlan(p)">{{ p.nombre }}</button>
-                @if (p.codigo) { <div class="mono">{{ p.codigo }}</div> }
-              </td>
-              <td>{{ p.criterios }} {{ p.criterios === 1 ? 'criterio' : 'criterios' }}</td>
-              <td>{{ p.items }} {{ p.items === 1 ? 'curso' : 'cursos' }}</td>
-              <td>
-                @if (p.disparadores?.length) {
-                  @for (d of p.disparadores; track d) { <span class="chip chip-curso">{{ d }}</span> }
-                } @else { <span class="apagado">Solo manual</span> }
-              </td>
-              <td>
-                @if (p.ultima_corrida; as c) {
-                  {{ c.modo === 'SIMULACION' ? 'Simulación' : 'Ejecución' }} ·
-                  {{ c.coincidencias }}/{{ c.evaluadas }}
-                  <div class="mono">{{ fecha(c.terminado_at || c.iniciado_at) }}</div>
-                } @else { <span class="apagado">Nunca se ha corrido</span> }
-              </td>
-              <td>
-                <span class="chip" [class.chip-abierto]="p.activo" [class.chip-cerrado]="!p.activo">
-                  {{ p.activo ? 'Activo' : 'Inactivo' }}
-                </span>
-              </td>
-              <td class="acciones-fila">
-                <button type="button" class="btn-icono" title="Editar" (click)="editar(p)">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button type="button" class="btn-icono peligro" title="Borrar" (click)="eliminar(p)">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+      <!-- «Ver» y el doble clic abren el plan (antes: el nombre como enlace). -->
+      <app-tabla-estandar
+        id="capacitaciones-planes"
+        titulo="Planes de asignación"
+        modulo="Capacitaciones"
+        vacio="Todavía no hay ningún plan. El primero que crees decidirá a quién le llega formación sola."
+        [datos]="planes()"
+        [columnas]="columnasPlanes"
+        [filaId]="idPlan"
+        [cargando]="cargando()"
+        (filaClick)="abrirPlan($event)">
+
+        <ng-template tablaCelda="plan" let-p>
+          <strong>{{ p.nombre }}</strong>
+          @if (p.codigo) { <div class="mono">{{ p.codigo }}</div> }
+        </ng-template>
+
+        <ng-template tablaCelda="cuando" let-p>
+          @if (p.disparadores?.length) {
+            @for (d of p.disparadores; track d) { <span class="chip chip-curso">{{ d }}</span> }
+          } @else { <span class="apagado">Solo manual</span> }
+        </ng-template>
+
+        <ng-template tablaCelda="ultima" let-p>
+          @if (p.ultima_corrida; as c) {
+            {{ c.modo === 'SIMULACION' ? 'Simulación' : 'Ejecución' }} ·
+            {{ c.coincidencias }}/{{ c.evaluadas }}
+            <div class="mono">{{ fecha(c.terminado_at || c.iniciado_at) }}</div>
+          } @else { <span class="apagado">Nunca se ha corrido</span> }
+        </ng-template>
+
+        <ng-template tablaAcciones let-p>
+          <button type="button" class="btn-icono" title="Editar" (click)="editar(p)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button type="button" class="btn-icono peligro" title="Borrar" (click)="eliminar(p)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
     }
   }
 
@@ -235,30 +218,22 @@
       <h2>Contenido — qué se le asigna</h2>
       <p class="ayuda">El plazo son los días que tiene la persona desde que se le matricula.</p>
 
-      @if (!items().length) {
-        <p class="apagado">Todavía no asigna ningún curso.</p>
-      } @else {
-        <table class="tabla">
-          <thead>
-            <tr><th>Orden</th><th>Curso</th><th>Plazo</th><th></th></tr>
-          </thead>
-          <tbody>
-            @for (i of items(); track i.id) {
-              <tr>
-                <td>{{ i.orden }}</td>
-                <td>{{ i.curso_nombre || i.programa_nombre || nombreCurso(i.course_id) }}</td>
-                <td>{{ i.plazo_dias ? i.plazo_dias + ' días' : 'Sin plazo' }}</td>
-                <td>
-                  <button type="button" class="btn-icono peligro" title="Quitar"
-                          (click)="quitarItem(i)">
-                    <mat-icon>delete</mat-icon>
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      <app-tabla-estandar
+        id="capacitaciones-planes-contenido"
+        [titulo]="'Contenido · ' + p.nombre"
+        modulo="Capacitaciones"
+        vacio="Todavía no asigna ningún curso."
+        [datos]="items()"
+        [columnas]="columnasItems"
+        [filaId]="idItem">
+
+        <ng-template tablaAcciones let-i>
+          <button type="button" class="btn-icono peligro" title="Quitar"
+                  (click)="quitarItem(i)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
 
       @if (nuevoItem(); as ni) {
         <div class="campos alta">
@@ -294,28 +269,29 @@
         <b>AL_INGRESO</b> lo evalúa el reconciliador cada vez que entra gente nueva.
       </p>
 
-      @if (!disparadores().length) {
-        <p class="apagado">Solo manual.</p>
-      } @else {
-        <table class="tabla">
-          <thead><tr><th>Evento</th><th>Cron</th><th>Código</th><th></th></tr></thead>
-          <tbody>
-            @for (d of disparadores(); track d.id) {
-              <tr>
-                <td>{{ d.evento }}</td>
-                <td class="mono">{{ d.cron || '—' }}</td>
-                <td class="mono">{{ d.event_code || '—' }}</td>
-                <td>
-                  <button type="button" class="btn-icono peligro" title="Quitar"
-                          (click)="quitarDisparador(d)">
-                    <mat-icon>delete</mat-icon>
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      <app-tabla-estandar
+        id="capacitaciones-planes-disparadores"
+        [titulo]="'Disparadores · ' + p.nombre"
+        modulo="Capacitaciones"
+        vacio="Solo manual."
+        [datos]="disparadores()"
+        [columnas]="columnasDisparadores"
+        [filaId]="idDisparador">
+
+        <ng-template tablaCelda="cron" let-d>
+          <span class="mono">{{ d.cron || '—' }}</span>
+        </ng-template>
+        <ng-template tablaCelda="codigo" let-d>
+          <span class="mono">{{ d.event_code || '—' }}</span>
+        </ng-template>
+
+        <ng-template tablaAcciones let-d>
+          <button type="button" class="btn-icono peligro" title="Quitar"
+                  (click)="quitarDisparador(d)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
 
       @if (nuevoDisparador(); as nd) {
         <div class="campos alta">
@@ -349,35 +325,24 @@
         antes de activar — sobre todo <b>a quién NO alcanzó</b>.
       </p>
 
-      @if (!corridas().length) {
-        <p class="apagado">Nunca se ha corrido.</p>
-      } @else {
-        <table class="tabla">
-          <thead>
-            <tr><th>Cuándo</th><th>Modo</th><th>Estado</th><th>Evaluadas</th>
-                <th>Coinciden</th><th>Matrículas</th><th></th></tr>
-          </thead>
-          <tbody>
-            @for (c of corridas(); track c.id) {
-              <tr>
-                <td>{{ fecha(c.terminado_at || c.iniciado_at) }}</td>
-                <td>{{ c.modo === 'SIMULACION' ? 'Simulación' : 'Ejecución' }}</td>
-                <td>
-                  <span class="chip" [class.chip-ok]="c.estado === 'OK'"
-                        [class.chip-mal]="c.estado === 'ERROR'">{{ c.estado }}</span>
-                  @if (c.error_mensaje) { <div class="mono">{{ c.error_mensaje }}</div> }
-                </td>
-                <td>{{ c.evaluadas }}</td>
-                <td>{{ c.coincidencias }}</td>
-                <td>{{ c.matriculas }}</td>
-                <td>
-                  <button type="button" class="enlace" (click)="verBitacora(c)">Ver bitácora</button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      <!-- «Ver bitácora» es el botón de detalle de la tabla (también doble clic). -->
+      <app-tabla-estandar
+        id="capacitaciones-planes-corridas"
+        [titulo]="'Corridas · ' + p.nombre"
+        modulo="Capacitaciones"
+        textoDetalle="Ver bitácora"
+        vacio="Nunca se ha corrido."
+        [datos]="corridas()"
+        [columnas]="columnasCorridas"
+        [filaId]="idCorrida"
+        (filaClick)="verBitacora($event)">
+
+        <ng-template tablaCelda="estado" let-c>
+          <span class="chip" [class.chip-ok]="c.estado === 'OK'"
+                [class.chip-mal]="c.estado === 'ERROR'">{{ c.estado }}</span>
+          @if (c.error_mensaje) { <div class="mono">{{ c.error_mensaje }}</div> }
+        </ng-template>
+      </app-tabla-estandar>
 
       @if (corridaVista(); as c) {
         <div class="bitacora">
@@ -390,33 +355,21 @@
                     (click)="cambiarFiltroBitacora('todos')">Todos</button>
           </div>
 
-          @if (!bitacora().length) {
-            <p class="apagado">
-              @if (c.evaluadas === 0) {
-                Esta corrida no evaluó a nadie: el módulo aún no tiene personas sincronizadas.
-              } @else {
-                Nadie en esta categoría.
-              }
-            </p>
-          } @else {
-            <table class="tabla">
-              <thead><tr><th>Cédula</th><th>Persona</th><th>¿Coincide?</th><th>Motivo</th></tr></thead>
-              <tbody>
-                @for (l of bitacora(); track l.id) {
-                  <tr>
-                    <td class="mono">{{ l.cedula || '—' }}</td>
-                    <td>{{ l.persona_nombre || '—' }}</td>
-                    <td>
-                      <span class="chip" [class.chip-ok]="l.coincide" [class.chip-mal]="!l.coincide">
-                        {{ l.coincide ? 'Sí' : 'No' }}
-                      </span>
-                    </td>
-                    <td>{{ l.motivo || '—' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          }
+          <app-tabla-estandar
+            id="capacitaciones-planes-bitacora"
+            [titulo]="'Bitácora · ' + p.nombre"
+            modulo="Capacitaciones"
+            [vacio]="c.evaluadas === 0
+              ? 'Esta corrida no evaluó a nadie: el módulo aún no tiene personas sincronizadas.'
+              : 'Nadie en esta categoría.'"
+            [datos]="bitacora()"
+            [columnas]="columnasBitacora"
+            [filaId]="idLinea">
+
+            <ng-template tablaCelda="cedula" let-l>
+              <span class="mono">{{ l.cedula || '—' }}</span>
+            </ng-template>
+          </app-tabla-estandar>
         </div>
       }
     </div>

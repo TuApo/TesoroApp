@@ -32,6 +32,11 @@ import { FormsModule, FormArray, FormBuilder, FormGroup, Validators, ReactiveFor
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { SearchForCandidateComponent } from '../../components/search-for-candidate/search-for-candidate.component';
+// El desplegable con buscador nació en Vacantes, pero es standalone y no sabe
+// nada de vacantes: las listas de IPS y de exámenes son igual de largas y con
+// nombres que nadie recuerda enteros.
+import { SmartSelectComponent } from '../../../vacancies/components/smart-select/smart-select.component';
+import { VerPdfsComponent } from '../../components/ver-pdfs/ver-pdfs.component';
 import { DocumentoPromptDialogComponent, DocumentoPrompt } from './documento-prompt.dialog';
 import { FichaCandidatoComponent } from '../../components/ficha-candidato/ficha-candidato.component';
 import { SelectionQuestionsComponent } from '../../components/selection-questions/selection-questions.component';
@@ -77,6 +82,7 @@ import QRCode from 'qrcode';
 import { PdfService } from '@/app/shared/services/pdf/pdf.service';
 import { HomeService } from '../../../home/service/home.service';
 import { ReportesService } from '../../service/reportes/reportes.service';
+import { RobotsService, EstadoColaAntecedentes } from '../../service/robots/robots.service';
 import { HiringService } from '../../service/hiring.service';
 import {
   ArlExcelError,
@@ -94,6 +100,8 @@ import {
   PipelineNavService,
 } from '../../service/pipeline-nav/pipeline-nav.service';
 import { Avance, avanceDeForm, pctDe, sumarAvances } from '../../shared/progreso.util';
+import { AutoGuardado } from '../../shared/auto-guardado';
+import { AutoGuardadoEstadoComponent } from '../../components/auto-guardado-estado/auto-guardado-estado.component';
 
 export const MY_DATE_FORMATS: MatDateFormats = {
   parse: { dateInput: 'DD/MM/YYYY' },
@@ -108,6 +116,15 @@ export const MY_DATE_FORMATS: MatDateFormats = {
 type LocalFile = { file: File | string; fileName: string };
 type ServerDocInfo = {
   id: number;
+  /**
+   * OJO: el expediente (`GET /gestion_documental/documentos/`) devuelve el
+   * nombre en `title`, no en `fileName`, y NO manda `size`. La tarjeta pintaba
+   * el nombre vacío por leer la clave equivocada.
+   */
+  title?: string;
+  type_name?: string;
+  contract_number?: string | null;
+  created_at?: string;
   fileName: string;
   type: number;
   file_url: string;
@@ -165,6 +182,8 @@ interface SubPasoContratacion {
     MatMenuModule,
     FichaCandidatoComponent,
     SearchForCandidateComponent, SelectionQuestionsComponent, HiringQuestionsComponent, HelpInformationComponent,
+    AutoGuardadoEstadoComponent,
+    SmartSelectComponent,
     RouterLink
   ],
   templateUrl: './recruitment-pipeline.component.html',
@@ -194,6 +213,17 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   // Biometría desde backend
   biometria = signal<{ firma?: any; huella?: any; foto?: any; created_at?: string; updated_at?: string } | null>(null);
   examenMedicoDoc = signal<ServerDocInfo | null>(null); // Signal para el documento ID 32
+
+  /**
+   * TODOS los soportes de exámenes médicos (tipo 32) de esta persona.
+   *
+   * `examenMedicoDoc` se queda con UNO —el del titular, para el botón "Ver
+   * examen médico" de los accesos rápidos—, y con eso no se podía comprobar si
+   * los exámenes de ESTA contratación se hicieron: quien revisa necesita ver
+   * qué hay cargado, cuándo y poder abrirlo. Se ordenan del más reciente al más
+   * antiguo, que es el orden en que se miran.
+   */
+  readonly examenDocs = signal<ServerDocInfo[]>([]);
   arlDoc = signal<ServerDocInfo | null>(null); // Signal para el documento ID 30
   fotoDoc = signal<ServerDocInfo | null>(null); // Signal para el documento FOTO ID 89
 
@@ -358,6 +388,24 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
 
   readonly typeMap: Record<string, number> = { examenesMedicos: 32, arl: 30 };
 
+  /**
+   * IPS que practican los exámenes. Estaban escritas a mano en la plantilla, una
+   * `mat-option` por línea; aquí son datos para poder pasárselas al desplegable
+   * con buscador. La lista es la misma, en el mismo orden.
+   */
+  readonly IPS_OPCIONES: readonly string[] = [
+    'JAVAP', 'ESTRATEGO', 'HELSEN', 'ASISTIR', 'SIGMEDICAL', 'PORSALUD',
+    'ASTON MEDICAL', 'ACR VITAL', 'SANILAB', 'KAREN SOTELO',
+    'JOHON VLADIMIR CRISTANCHO',
+  ];
+
+  /** Laboratorios. Como la de IPS más 'NO APLICA', que allí no aplica. */
+  readonly IPSLAB_OPCIONES: readonly string[] = [
+    'JAVAP', 'ESTRATEGO', 'HELSEN', 'ASISTIR', 'SIGMEDICAL', 'PORSALUD',
+    'ASTON MEDICAL', 'ACR VITAL', 'SANILAB', 'NO APLICA', 'KAREN SOTELO',
+    'JOHON VLADIMIR CRISTANCHO',
+  ];
+
   readonly filteredExamOptions: string[] = [
     'Exámen Ingreso', 'Colinesterasa', 'Glicemia Basal', 'Perfil lípidico', 'Visiometria', 'Optometría', 'Audiometría',
     'Espirometría', 'Sicometrico', 'Frotis de uñas', 'Frotis de garganta', 'Cuadro hematico', 'Creatinina', 'TGO',
@@ -404,6 +452,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   private isBrowser = signal(false);
   private seleccionEstado = inject(SeleccionEstadoService);
   private reportesSvc = inject(ReportesService);
+  private robotsSvc = inject(RobotsService);
   private hiringSvc = inject(HiringService);
 
   /**
@@ -562,6 +611,27 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   readonly noPasoPrueba = computed<boolean>(() => this.resultadoPrueba() === 'no_paso');
   readonly noSePresentoPrueba = computed<boolean>(() => this.resultadoPrueba() === 'no_se_presento');
 
+  /**
+   * Exámenes de ingreso exige que la prueba técnica esté APROBADA.
+   *
+   * Solo aplica cuando la vacante remitida es de prueba técnica: en
+   * "Contratación inmediata" no hay prueba que pasar, así que el paso sigue
+   * abierto como hasta ahora. Mandar a exámenes —que cuestan dinero y cita— a
+   * quien todavía no aprobó era el error que esto cierra.
+   */
+  readonly examenesBloqueadosPorPrueba = computed<boolean>(
+    () => this.esPruebaTecnica() && !this.pasoPrueba(),
+  );
+
+  /** Motivo único del bloqueo por prueba técnica pendiente, para rail y pestaña. */
+  readonly MOTIVO_PRUEBA_PENDIENTE =
+    'Primero registra que pasó la prueba técnica (Selección → Remisión)';
+
+  /** ¿Este sub-paso del rail está cerrado por prueba técnica pendiente? */
+  subBloqueadoPorPrueba(sub: SubPasoSeleccion): boolean {
+    return sub.id === 'examenes' && this.examenesBloqueadosPorPrueba();
+  }
+
   readonly etiquetaPrueba = computed<string>(() => etiquetaPruebaTecnica(this._proceso()));
 
   readonly tooltipPrueba = computed<string>(() => {
@@ -669,6 +739,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    */
   readonly arlIndex = signal<ArlIndex | null>(null);
   readonly finalizando = signal(false);
+  /** Bloquea el acceso rápido mientras se encola y se espera a los robots. */
+  readonly forzandoAntecedentes = signal(false);
   /** Titulares finalizados en esta sesión, para no repetir el ida y vuelta. */
   private readonly finalizadas = signal<Set<string>>(new Set());
 
@@ -973,8 +1045,14 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   private readonly AVANCES_SELECCION: readonly ClaveAvance[] = [
     'entrevista', 'formacion', 'antecedentes', 'remision', 'examenes',
   ];
+  /*
+   * Referencias y Traslados salieron de Contratación (2026-09-02): no hacen
+   * falta para contratar. Al quitarlos del agregado, el porcentaje del paso
+   * pasa a medirse sobre los TRES que quedan, que es lo que de verdad falta por
+   * llenar; contándolos, Contratación no llegaba al 100 % nunca.
+   */
   private readonly AVANCES_CONTRATACION: readonly ClaveAvance[] = [
-    'pago', 'obra', 'referencias', 'traslados', 'huella',
+    'pago', 'obra', 'huella',
   ];
   /*
    * Documentos salió de Contratación y es módulo propio: el expediente no se
@@ -1010,12 +1088,35 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    * comparten la 2 y se distinguen por el panel.
    */
   readonly subSeleccion: readonly SubPasoSeleccion[] = [
-    { id: 'entrevista',   label: 'Entrevista',             icon: 'rate_review',         tab: 2, panel: 'entrevista', clave: 'entrevista' },
-    { id: 'formacion',    label: 'Formación y laboral',    icon: 'school',              tab: 2, panel: 'formacion',  clave: 'formacion' },
     { id: 'antecedentes', label: 'Antecedentes',           icon: 'gavel',               tab: 1, panel: null,         clave: 'antecedentes' },
+    { id: 'formacion',    label: 'Formación y laboral',    icon: 'school',              tab: 2, panel: 'formacion',  clave: 'formacion' },
+    { id: 'entrevista',   label: 'Entrevista',             icon: 'rate_review',         tab: 2, panel: 'entrevista', clave: 'entrevista' },
     { id: 'remision',     label: 'Remisión',               icon: 'work',                tab: 2, panel: 'remision',   clave: 'remision' },
     { id: 'examenes',     label: 'Exámenes de ingreso',    icon: 'medical_information', tab: 3, panel: null,         clave: 'examenes' },
   ];
+
+  /**
+   * Los pasos que van DESPUÉS del veredicto: no existen hasta que el evaluador
+   * dice que la persona aplica.
+   *
+   * Remitir a una vacante o mandar a exámenes a alguien marcado NO APLICA —o en
+   * espera de vacante— no es un error que haya que avisar: es un paso que no
+   * toca. Estaban visibles y deshabilitados, lo que invitaba a pulsarlos para
+   * ver por qué no dejaban.
+   */
+  private static readonly SUBPASOS_TRAS_VEREDICTO: readonly string[] = ['remision', 'examenes'];
+
+  /** ¿El evaluador ya dijo que aplica? Es lo que abre Remisión y Exámenes. */
+  readonly aplica = computed<boolean>(() => this.seleccionEstado.aplicaObservacion() === 'APLICA');
+
+  /** Los pasos de Selección que hoy tienen sentido para esta persona. */
+  readonly subSeleccionVisible = computed<readonly SubPasoSeleccion[]>(() =>
+    this.aplica()
+      ? this.subSeleccion
+      : this.subSeleccion.filter(
+          (s) => !RecruitmentPipelineComponent.SUBPASOS_TRAS_VEREDICTO.includes(s.id),
+        ),
+  );
 
   /**
    * Los pasos de la IA. No llevan porcentaje: no son formularios que se llenen,
@@ -1028,12 +1129,19 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   ];
 
   /** Los pasos de Contratación. El contenido lo pinta `app-hiring-questions`. */
+  /**
+   * Los pasos de Contratación. El contenido lo pinta `app-hiring-questions`.
+   *
+   * Referencias (idx 2) y Traslados (idx 3) NO están: no se necesitan para
+   * contratar. Sus pestañas siguen existiendo en `app-hiring-questions` y por
+   * eso los índices de aquí no se renumeran —igual que la pestaña 0 del grupo de
+   * este componente, que es un hueco a propósito—: Documentos vive en la 5 y la
+   * 6, y correrlos rompería el rail, `irAPaso` y los saltos del formulario.
+   */
   readonly subContratacion: readonly SubPasoContratacion[] = [
-    { id: 'pago',        label: 'Pago y Transporte', icon: 'payments',    idx: 0, clave: 'pago' },
-    { id: 'obra',        label: 'Datos de obra',     icon: 'engineering', idx: 1, clave: 'obra' },
-    { id: 'referencias', label: 'Referencias',       icon: 'groups',      idx: 2, clave: 'referencias' },
-    { id: 'traslados',   label: 'Traslados',         icon: 'swap_horiz',  idx: 3, clave: 'traslados' },
-    { id: 'huella',      label: 'Cédula & Huella',   icon: 'fingerprint', idx: 4, clave: 'huella' },
+    { id: 'pago',      label: 'Pago y Transporte', icon: 'payments',    idx: 0, clave: 'pago' },
+    { id: 'obra',      label: 'Datos de obra',     icon: 'engineering', idx: 1, clave: 'obra' },
+    { id: 'huella',    label: 'Cédula & Huella',   icon: 'fingerprint', idx: 4, clave: 'huella' },
   ];
 
   /**
@@ -1097,10 +1205,20 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   /** Último paso de Selección visitado, para volver donde se dejó. */
   private readonly ultimoSubSeleccion = signal<string>('entrevista');
 
-  readonly avanceSeleccion = computed<Avance>(() => this.nav.agregado(this.AVANCES_SELECCION));
+  // Misma cuenta que el anillo de la capa: solo los pasos visibles.
+  readonly avanceSeleccion = computed<Avance>(() => this.avanceCapa('seleccion'));
   readonly avanceContratacion = computed<Avance>(() => this.nav.agregado(this.AVANCES_CONTRATACION));
 
   private avanceCapa(id: CapaId): Avance {
+    // Selección mide solo sus pasos VISIBLES: con Remisión y Exámenes ocultos
+    // —porque aún no hay veredicto— contarlos dejaba un porcentaje que no había
+    // forma de subir desde la pantalla.
+    if (id === 'seleccion') {
+      const claves = this.subSeleccionVisible()
+        .map((s) => s.clave)
+        .filter((c): c is ClaveAvance => c !== null);
+      return this.nav.agregado(claves);
+    }
     const capa = this.capas.find((c) => c.id === id);
     return this.nav.agregado(capa?.claves ?? []);
   }
@@ -1183,12 +1301,34 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       this.tabIndex.set(2);
       return;
     }
-    const sub = this.subSeleccion.find((s) => s.id === this.ultimoSubSeleccion());
-    this.abrirSubSeleccion(sub ?? this.subSeleccion[0]);
+    // Puede ser un paso que ya no está a la vista (se remitió y luego se cambió
+    // el veredicto): se cae al primero visible en vez de a una pestaña vacía.
+    const visibles = this.subSeleccionVisible();
+    const sub = visibles.find((s) => s.id === this.ultimoSubSeleccion());
+    this.abrirSubSeleccion(sub ?? visibles[0]);
+  }
+
+  /**
+   * Qué hacer cuando se envía la entrevista.
+   *
+   * Con veredicto APLICA el paso siguiente es remitir a una vacante, y hasta
+   * ahora había que ir a buscarlo en el rail: el operador guardaba, veía el
+   * "Listo" y se quedaba en la misma pantalla. Con NO APLICA o EN ESPERA no se
+   * mueve, porque Remisión ni siquiera está a la vista.
+   *
+   * Se hace por evento propio y no por `guardado`, que lo emiten también la
+   * remisión y los demás tabs: colgarlo de ahí haría saltar la pantalla cada vez
+   * que se guarda cualquier otra cosa.
+   */
+  trasEnviarEntrevista(veredicto: 'APLICA' | 'NO_APLICA' | 'EN_ESPERA' | null): void {
+    if (veredicto !== 'APLICA') return;
+    const remision = this.subSeleccion.find((s) => s.id === 'remision');
+    if (remision) this.abrirSubSeleccion(remision);
   }
 
   abrirSubSeleccion(sub: SubPasoSeleccion): void {
     if (this.bloqueoContratoTabs()) return;
+    if (this.subBloqueadoPorPrueba(sub)) return;
     this.accesosAbiertos.set(false);
     this.ultimoSubSeleccion.set(sub.id);
     if (sub.panel) this.nav.panelSeleccion.set(sub.panel);
@@ -1386,6 +1526,24 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     selectedExamsArray: this.fb.array([]),
   });
 
+  /**
+   * Exámenes de ingreso sin botón "Guardar Salud Ocupacional": IPS, exámenes y
+   * resultados se guardan al cambiar; un PDF adjuntado se une y se sube solo.
+   */
+  readonly autoSalud = new AutoGuardado(
+    () => this.imprimirSaludOcupacional({ silencioso: true }),
+    () => {
+      const c = this.candidatoSeleccionado();
+      return c?.numero_documento ? `${c.tipo_doc || 'CC'}|${c.numero_documento}` : '';
+    },
+  );
+
+  /** Hay PDFs de exámenes adjuntados o quitados que aún no se subieron. */
+  private examFilesPendientes = false;
+
+  /** Persona para la que se cargó Salud Ocupacional (para soltar lo pendiente al cambiar). */
+  private cedulaSalud: string | null = null;
+
   private selectedExamsCtrl = this.formGroup3.get('selectedExams')!;
   private selectedExamsArray = this.formGroup3.get('selectedExamsArray') as FormArray;
 
@@ -1556,15 +1714,25 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       this.liberarPreviewFoto();
       this.fotoDataUrl.set(null);
       this.fotoUrlFallida.set(null);
-
-      this.mostrarTabla();
     });
+
+    this.autoSalud.vigilar(this.formGroup3, this.destroyRef);
 
     // 3) Autollenar Salud Ocupacional desde la PRIMERA entrevista
     effect(() => {
       if (!this.isBrowser()) return;
       const cand = this.candidatoSeleccionado();
       const formArray = this.selectedExamsArray;
+
+      // Otra persona: lo pendiente de la anterior se descarta y lo que se
+      // parchee ahora no cuenta como editado por el usuario.
+      const cedulaSalud = cand?.numero_documento ? `${cand.tipo_doc || 'CC'}|${cand.numero_documento}` : null;
+      if (cedulaSalud !== this.cedulaSalud) {
+        this.cedulaSalud = cedulaSalud;
+        this.autoSalud.cancelar();
+        this.examFilesPendientes = false;
+        this.formGroup3.markAsPristine();
+      }
 
       if (!cand || !cand.entrevistas?.length) {
         this.saludFingerprint = null;
@@ -1758,6 +1926,24 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    * proceso nuevo SIN tener que volver a buscar a la persona.
    */
   recargarCandidato(): void {
+    // Con el guardado automático cada campo guardado pide recarga: las que llegan
+    // seguidas se juntan en una sola. Se recuerda la persona para no recargar a
+    // otra si se cambió entre medias.
+    const pedida = (this.numeroDocumento || this.candidatoSeleccionado()?.numero_documento || '')
+      .toString().trim();
+    if (!pedida) return;
+    if (this.recargaTimer) clearTimeout(this.recargaTimer);
+    this.recargaTimer = setTimeout(() => {
+      this.recargaTimer = null;
+      const actual = (this.numeroDocumento || this.candidatoSeleccionado()?.numero_documento || '')
+        .toString().trim();
+      if (actual === pedida) this.recargarCandidatoYa();
+    }, 700);
+  }
+
+  private recargaTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private recargarCandidatoYa(): void {
     const ced = (this.numeroDocumento || this.candidatoSeleccionado()?.numero_documento || '')
       .toString().trim();
     if (!ced) return;
@@ -2514,7 +2700,20 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   }
 
   // ========= Guardar + Unir + Subir =========
-  async imprimirSaludOcupacional(): Promise<void> {
+  async imprimirSaludOcupacional(opts: { silencioso?: boolean } = {}): Promise<void> {
+    if (opts.silencioso) {
+      // Guardado automático: sin cargador ni avisos; si falla, lanza y lo
+      // muestra el indicador.
+      if (this.bloqueado() || this.examenesBloqueadosPorPrueba()) return;
+      if (!this.candidatoSeleccionado()?.numero_documento) return;
+      this.isSavingMedical.set(true);
+      try {
+        await this._imprimirSaludOcupacionalCore(true);
+      } finally {
+        this.isSavingMedical.set(false);
+      }
+      return;
+    }
     if (this.isSavingMedical()) return;
 
     // Bloqueo: candidato EN ESPERA de vacante o NO APLICA → no se cargan exámenes.
@@ -2547,7 +2746,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     }
   }
 
-  private async _imprimirSaludOcupacionalCore(): Promise<void> {
+  private async _imprimirSaludOcupacionalCore(silencioso = false): Promise<void> {
     const f = this.formGroup3.value;
     const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
 
@@ -2589,6 +2788,20 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     if (hayNoApto) {
       payload.rechazado = true;
       payload.detalle = '901 examen';
+    } else if (silencioso) {
+      // Sin botón, un "NO APTO" marcado por error se guarda al instante. Volver a
+      // "APTO" lo deshace, pero SOLO si el rechazo lo puso este paso (detalle
+      // '901 examen'): un rechazo por otra causa no se toca.
+      const proc: any = ent0?.proceso;
+      if (proc?.rechazado === true && String(proc?.detalle ?? '').trim() === '901 examen') {
+        payload.rechazado = false;
+        payload.detalle = null;
+      }
+      // El código de contrato se pide cuando Salud Ocupacional está completo
+      // (IPS y exámenes), no con la primera casilla.
+      if (this.formGroup3.valid) {
+        payload.contrato = { sede_abbr: sedeAbbr || undefined, generar_codigo: true };
+      }
     } else {
       // Guardar exámenes médicos SIEMPRE pide código: el backend es idempotente
       // (si el contrato ya tiene código lo devuelve tal cual, no renumera) y
@@ -2621,6 +2834,27 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     const pairs = selectedExams
       .map((name, i) => ({ name: name ?? `EXAMEN_${i + 1}`, file: files[i] }))
       .filter(p => !!p.file && this.isPdf(p.file));
+
+    if (silencioso) {
+      const resp = await firstValueFrom(this.registroProceso.updateProcesoByDocumento(payload, 'PATCH'));
+      this.formGroup3.markAsPristine();
+      const procResp: any = (resp as any)?.proceso;
+      if (this.modificacionForzada() && procResp) {
+        this.overrideAuditNombre.set(procResp.modificado_por || this.usuarioActual());
+        this.overrideAuditFecha.set(procResp.modificado_en || new Date().toISOString());
+      }
+      // Los PDFs solo se unen y suben cuando cambiaron: no en cada casilla.
+      if (this.examFilesPendientes && pairs.length) {
+        this.examFilesPendientes = false;
+        const mergedFile = await this.mergeExamPdfs(pairs, `EXAMENES_MEDICOS_${cedula}_${this.yyyymmdd()}.pdf`);
+        const tipoDoc = (this.candidatoSeleccionado()?.tipo_doc ?? undefined) as string | undefined;
+        const contrato = this.candidatoSeleccionado()?.codigo_contrato || undefined;
+        await firstValueFrom(this.docSvc.guardarDocumento(mergedFile.name, cedula, TYPE_EXAM, mergedFile, contrato, tipoDoc));
+        this.docSvc.invalidarDocumentos(cedula);
+        await this.refreshDocsDelCandidato(cedula, true);
+      }
+      return;
+    }
 
     try {
       // Abrir loader
@@ -2731,6 +2965,9 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     if (f && this.isPdf(f)) {
       files[index] = f;
       this.examFiles.set(files);
+      // Elegir el PDF ES guardarlo: se une con los demás y se sube.
+      this.examFilesPendientes = true;
+      this.autoSalud.programar();
     } else {
       Swal.fire('Archivo inválido', 'Seleccione un PDF válido.', 'warning');
     }
@@ -3112,6 +3349,181 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     this.ver('foto');
   }
 
+  /** Nombre legible de un soporte. El expediente lo manda en `title`. */
+  nombreDoc(d: ServerDocInfo | null | undefined): string {
+    return (d?.title || d?.fileName || 'Soporte sin nombre').toString();
+  }
+
+  /** Extensión en mayúsculas, para el distintivo de la tarjeta. */
+  extensionDoc(d: ServerDocInfo | null | undefined): string {
+    const m = /\.([a-z0-9]{2,5})(?:\?|$)/i.exec(this.nombreDoc(d));
+    return m ? m[1].toUpperCase() : 'DOC';
+  }
+
+  esImagenDoc(d: ServerDocInfo | null | undefined): boolean {
+    return /^(JPG|JPEG|PNG|WEBP|GIF|BMP)$/.test(this.extensionDoc(d));
+  }
+
+  /** Icono por tipo de archivo: un PDF y una foto no se miran igual. */
+  iconoDoc(d: ServerDocInfo | null | undefined): string {
+    if (this.esImagenDoc(d)) return 'image';
+    return this.extensionDoc(d) === 'PDF' ? 'picture_as_pdf' : 'description';
+  }
+
+  /**
+   * Abre el visor con los soportes cargados, posicionado en el que se pulsó.
+   *
+   * Los archivos se BAJAN antes de abrir el diálogo. `file_url` es una ruta
+   * protegida (`/api/v1/documents/{id}/download`) y el gateway responde 401 a
+   * quien no lleve token: un `<iframe>` y una pestaña nueva no mandan cabeceras,
+   * así que el visor salía EN BLANCO y la descarga bajaba un HTML. Se resuelven
+   * a `blob:` con `ArchivosBackendService`, que sí pasa por el interceptor.
+   *
+   * Reutiliza `VerPdfsComponent` —el visor de Reportes—: previsualiza el PDF
+   * incrustado, pinta las imágenes y trae su propio botón de descarga.
+   */
+  async previsualizarExamenes(inicial?: ServerDocInfo): Promise<void> {
+    const docs = this.examenDocs().filter((d) => !!d.file_url);
+    if (!docs.length) {
+      this.snack.open('No hay soportes que previsualizar.', 'OK', { duration: 2500 });
+      return;
+    }
+    // El visor arranca en el primero de la lista, así que el pulsado se pone de
+    // primero en vez de tocar el componente compartido.
+    const orden = inicial ? [inicial, ...docs.filter((d) => d.id !== inicial.id)] : docs;
+
+    Swal.fire({
+      title: 'Abriendo soportes…',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    const resueltos: { doc: ServerDocInfo; url: string; mime: string }[] = [];
+    for (const d of orden) {
+      const r = await this.archivos.resolverBlob(d.file_url);
+      // El MIME lo dice el servidor en el Content-Type. Se pasa al visor porque
+      // un `blob:` no tiene extension y sin el todo caia en "vista previa no
+      // disponible"; el nombre del documento queda de respaldo.
+      if (r) resueltos.push({ doc: d, url: r.url, mime: r.blob.type || '' });
+    }
+    Swal.close();
+
+    if (!resueltos.length) {
+      this.snack.open('No se pudo abrir ningún soporte.', 'OK', { duration: 3000 });
+      return;
+    }
+
+    this.dialog
+      .open(VerPdfsComponent, {
+        // Casi a pantalla completa: un resultado de laboratorio escaneado es
+        // una hoja carta entera y con el 90vw/80vh de antes había que hacer
+        // zoom para leer los valores. `maxWidth` explícito porque el de
+        // MatDialog es 80vw y se comía el ancho pedido; `docs-viewer-dialog-xl`
+        // suelta el `max-height: 80vh` del visor (styles.css).
+        width: '96vw',
+        maxWidth: '96vw',
+        height: '94vh',
+        maxHeight: '94vh',
+        panelClass: ['docs-viewer-dialog', 'docs-viewer-dialog-xl'],
+        data: {
+          title: 'Resultados de exámenes médicos',
+          documents: resueltos.map(({ doc, url, mime }) => ({
+            id: doc.id,
+            title: this.nombreDoc(doc),
+            type_name: doc.type_name,
+            file_url: url,
+            mime,
+          })),
+        },
+      })
+      .afterClosed()
+      .subscribe(() => {
+        // Los `blob:` los creamos nosotros; si no se sueltan, cada apertura deja
+        // el archivo entero en memoria hasta recargar la página.
+        for (const { url } of resueltos) URL.revokeObjectURL(url);
+      });
+  }
+
+  /**
+   * Descarga el soporte con su nombre real.
+   *
+   * `window.open` sobre la ruta protegida bajaba un HTML de 401. Se pide el
+   * archivo con token y se fuerza la descarga con un `<a download>`.
+   */
+  async descargarDocumento(doc: ServerDocInfo | null | undefined): Promise<void> {
+    if (!doc?.file_url) {
+      this.snack.open('Ese soporte no tiene archivo asociado.', 'OK', { duration: 2500 });
+      return;
+    }
+    const r = await this.archivos.resolverBlob(doc.file_url);
+    if (!r) {
+      this.snack.open('No se pudo descargar el soporte.', 'OK', { duration: 3000 });
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = r.url;
+    a.download = this.nombreDoc(doc);
+    a.click();
+    // Se revoca en el siguiente ciclo: revocar en la misma vuelta cancela la
+    // descarga en algunos navegadores.
+    setTimeout(() => URL.revokeObjectURL(r.url), 1000);
+  }
+
+  /**
+   * Retira un soporte del expediente.
+   *
+   * Es borrado LÓGICO en el servidor (`is_active=false`): el archivo se conserva
+   * y deja de listarse. Se pregunta antes porque el soporte es parte de la
+   * historia laboral de la persona, no un adjunto cualquiera.
+   */
+  async eliminarExamenCargado(doc: ServerDocInfo): Promise<void> {
+    const cedula = this.candidatoSeleccionado()?.numero_documento || this.numeroDocumento;
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: '¿Quitar este soporte?',
+      html: `Se retirará <b>${this.nombreDoc(doc)}</b> del expediente.<br>`
+          + 'El archivo se conserva en el servidor, pero deja de aparecer aquí.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      confirmButtonColor: '#dc2626',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+    });
+    if (!r.isConfirmed) return;
+
+    try {
+      await firstValueFrom(this.docSvc.eliminarDocumento(doc.id, cedula));
+      // Se quita ya de la lista: esperar al refresco deja la tarjeta en pantalla
+      // y parece que el borrado no hizo nada.
+      this.examenDocs.update((docs) => docs.filter((d) => d.id !== doc.id));
+      if (this.examenMedicoDoc()?.id === doc.id) this.examenMedicoDoc.set(null);
+      if (cedula) await this.refreshDocsDelCandidato(String(cedula), true);
+      this.snack.open('Soporte retirado del expediente.', 'OK', { duration: 2500 });
+    } catch (e: any) {
+      console.error('[examenes] no se pudo eliminar el soporte', e);
+      Swal.fire('Error', mensajeDeErrorLog(e, 'No se pudo retirar el soporte.'), 'error');
+    }
+  }
+
+  /**
+   * Abre un soporte en otra pestaña.
+   *
+   * Igual que la previsualización: se baja primero con token. Abrir `file_url`
+   * tal cual llevaba a un 401 y la pestaña salía en blanco.
+   */
+  async verDocumento(doc: ServerDocInfo | null | undefined): Promise<void> {
+    if (!doc?.file_url) {
+      this.snack.open('Ese soporte no tiene archivo asociado.', 'OK', { duration: 2500 });
+      return;
+    }
+    const r = await this.archivos.resolverBlob(doc.file_url);
+    if (!r) {
+      this.snack.open('No se pudo abrir el soporte.', 'OK', { duration: 3000 });
+      return;
+    }
+    this.openInNewTab(r.url);
+  }
+
   verExamenMedico(): void {
     const doc = this.examenMedicoDoc();
     if (!doc || !doc.file_url) {
@@ -3309,12 +3721,21 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       const delTipo = (t: number) =>
         this.elegirDocDelTitular(docs.filter((d: any) => Number(d?.type) === t), cedula);
       this.examenMedicoDoc.set(delTipo(32));
+      // La lista completa, sin el filtro de titular: si un soporte quedó
+      // guardado con otra grafía del documento ('CC' vs 'C.C'), esconderlo haría
+      // creer que los exámenes no se hicieron. Se muestran todos y quien revisa
+      // decide; el nombre y la fecha están a la vista.
+      this.examenDocs.set(
+        docs.filter((d: any) => Number(d?.type) === 32)
+            .sort((x: any, y: any) => String(y?.uploaded_at ?? '').localeCompare(String(x?.uploaded_at ?? ''))),
+      );
       this.arlDoc.set(delTipo(30));
       this.fotoDoc.set(delTipo(89));
     } catch {
       // El fallo de una consulta vieja tampoco debe borrar lo del candidato actual.
       if (cedula !== this.cedulaAtendida) return;
       this.examenMedicoDoc.set(null);
+      this.examenDocs.set([]);
       this.arlDoc.set(null);
       this.fotoDoc.set(null);
     }
@@ -3361,6 +3782,208 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     const doc = this.getBioDoc(kind);
     if (!doc) return null;
     return this.archivos.visible(doc.file_url || doc.file || null);
+  }
+
+  // =========================================================
+  // 🤖 FORZAR ANTECEDENTES (acceso rápido del pipeline)
+  // =========================================================
+
+  /**
+   * Las 8 fuentes de la cola, con el mismo reparto bloqueante/opcional que
+   * declara `/EstadosRobots/cola/config`. Se listan aquí —y no se derivan de la
+   * respuesta— para poder nombrar en el resumen una fuente que el backend
+   * devuelve en `null` porque nunca se consultó.
+   */
+  private static readonly FUENTES_ANTECEDENTES: ReadonlyArray<{
+    key: keyof EstadoColaAntecedentes; label: string; bloqueante: boolean;
+  }> = [
+    { key: 'estado_adress',              label: 'ADRES (EPS)',            bloqueante: true },
+    { key: 'estado_policivo',            label: 'Policivos / Rama',       bloqueante: true },
+    { key: 'estado_procuraduria',        label: 'Procuraduría',           bloqueante: true },
+    { key: 'estado_contraloria',         label: 'Contraloría',            bloqueante: true },
+    { key: 'estado_ofac',                label: 'OFAC',                   bloqueante: true },
+    { key: 'estado_sisben',              label: 'Sisbén',                 bloqueante: true },
+    { key: 'estado_fondo_pension',       label: 'Fondo de pensión',       bloqueante: false },
+    { key: 'estado_medidas_correctivas', label: 'Medidas correctivas',    bloqueante: false },
+  ];
+
+  /** Punto verde del acceso: las 6 fuentes BLOQUEANTES ya consultadas. */
+  readonly antecedentesCompletosUI = computed<boolean>(() => {
+    const cand = this.candidatoSeleccionado();
+    const cola = (cand?.['cola_antecedentes'] ?? cand?.['colaAntecedentes']) as
+      EstadoColaAntecedentes | null | undefined;
+    if (!cola) return false;
+    return RecruitmentPipelineComponent.FUENTES_ANTECEDENTES
+      .filter((f) => f.bloqueante)
+      .every((f) => String(cola[f.key] ?? '').toUpperCase() === 'FINALIZADO');
+  });
+
+  tooltipForzarAntecedentes(): string {
+    if (!this.candidatoSeleccionado()?.['numero_documento']) return 'Selecciona primero un candidato';
+    if (this.forzandoAntecedentes()) return 'Consultando…';
+    return 'Volver a pedirle a los robots las 8 fuentes de antecedentes';
+  }
+
+  /**
+   * Re-abre las 8 fuentes y espera a que los robots pasen.
+   *
+   * Lo que hace de verdad: `forzar-consulta-antecedentes` deja las 8 en
+   * SIN_CONSULTAR y devuelve enseguida —el trabajo es asíncrono—. El worker
+   * poll-ea la cola cada 15 s, así que en vez de despedir al operador con un
+   * "en unos minutos estará", se sondea la cola hasta ~40 s y se le dice fuente
+   * por fuente en qué quedó.
+   *
+   * No se promete resultado: hoy las fuentes sin robot que las consulte vuelven
+   * BLOQUEADO en segundos, y eso se muestra tal cual. Un antecedente que nadie
+   * verificó no puede pintarse como verificado.
+   */
+  async forzarAntecedentesRapido(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    const doc = String(cand?.['numero_documento'] ?? '').trim();
+    if (!doc || this.forzandoAntecedentes()) return;
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'question',
+      title: 'Forzar antecedentes',
+      html: `Se vuelven a pedir las <b>8 fuentes</b> de la cédula <b>${doc}</b>.<br><br>`
+        + 'Cuesta una pasada completa de la flota (y CAPTCHAs de pago), así que '
+        + 'se usa cuando el dato está viejo o no sirve. Para re-consultar una '
+        + 'sola fuente, hazlo desde su tarjeta en <b>Antecedentes</b>.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, consultar las 8',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#111827',
+    });
+    if (!isConfirmed) return;
+
+    this.forzandoAntecedentes.set(true);
+    try {
+      Swal.fire({
+        title: 'Encolando…',
+        text: 'Pidiéndole a los robots que vuelvan a consultar.',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      await firstValueFrom(this.registroProceso.forzarConsultaAntecedentes({
+        numero_documento: doc,
+        tipo_doc: (cand?.['tipo_doc'] as string) || null,
+      }));
+
+      Swal.update({
+        title: 'Esperando a los robots…',
+        text: 'Las fuentes se van resolviendo una a una.',
+      });
+      const cola = await this.esperarRobots(doc);
+
+      Swal.close();
+      if (cola) this.reflejarColaAntecedentes(cand!, cola);
+      await this.resumenAntecedentes(doc, cola);
+    } catch (err) {
+      Swal.close();
+      await Swal.fire('Error', mensajeDeErrorLog(
+        'forzarConsultaAntecedentes', err, 'No se pudo pedir la consulta.'), 'error');
+    } finally {
+      this.forzandoAntecedentes.set(false);
+    }
+  }
+
+  /**
+   * Sondea la cola hasta que ninguna fuente siga pendiente, o hasta el tope.
+   *
+   * El tope existe porque una fuente puede quedarse en cola de verdad —sin
+   * ningún robot que la atienda—: dejar el spinner girando para siempre sería
+   * mentirle al operador de otra forma.
+   */
+  private async esperarRobots(doc: string): Promise<EstadoColaAntecedentes | null> {
+    // 21 s: por encima de una vuelta completa del worker (poll cada 15 s), así
+    // que si HAY robot atendiendo se ve el resultado aquí mismo. Si no lo hay,
+    // esperar más no cambia nada —lo pendiente se resuelve cuando pase la
+    // flota— y dejar al operador mirando un spinner sería peor que decírselo.
+    const INTENTOS = 7;
+    const ESPERA_MS = 3000;
+    let ultima: EstadoColaAntecedentes | null = null;
+
+    for (let i = 0; i < INTENTOS; i++) {
+      await new Promise((r) => setTimeout(r, ESPERA_MS));
+      try {
+        ultima = await firstValueFrom(this.robotsSvc.getEstadoColaAntecedentes(doc));
+      } catch (err) {
+        // Un sondeo caído no invalida el encolado: se reintenta y, si nunca
+        // responde, el resumen lo dice con lo último que se supo.
+        console.warn('[antecedentes] sondeo falló', err);
+        continue;
+      }
+      if (ultima && !this.quedanPendientes(ultima)) return ultima;
+    }
+    return ultima;
+  }
+
+  private quedanPendientes(cola: EstadoColaAntecedentes): boolean {
+    return RecruitmentPipelineComponent.FUENTES_ANTECEDENTES.some((f) => {
+      const e = String(cola[f.key] ?? '').toUpperCase();
+      return e === 'SIN_CONSULTAR' || e === 'EN_PROGRESO';
+    });
+  }
+
+  /**
+   * Deja la cola nueva dentro del candidato en memoria.
+   *
+   * Referencia NUEVA y `refrescoSilencioso`: es el mismo motivo que en
+   * `marcarContacto` —con la misma referencia la señal no notifica— y además
+   * evita relanzar la cascada entera por un cambio que ya tenemos en la mano.
+   */
+  private reflejarColaAntecedentes(cand: Record<string, any>, cola: EstadoColaAntecedentes): void {
+    this.refrescoSilencioso = true;
+    this.candidatoSeleccionado.set({ ...cand, cola_antecedentes: cola });
+  }
+
+  /** Resumen fuente por fuente de cómo quedó la pasada. */
+  private async resumenAntecedentes(doc: string, cola: EstadoColaAntecedentes | null): Promise<void> {
+    if (!cola) {
+      await Swal.fire({
+        icon: 'info',
+        title: 'Encolado',
+        html: `Las 8 fuentes de <b>${doc}</b> quedaron en cola, pero no se pudo leer `
+          + 'en qué quedaron. Míralo en la pestaña <b>Antecedentes</b>.',
+        confirmButtonColor: '#111827',
+      });
+      return;
+    }
+
+    const consultadas: string[] = [];
+    const bloqueadas: string[] = [];
+    const enCola: string[] = [];
+
+    for (const f of RecruitmentPipelineComponent.FUENTES_ANTECEDENTES) {
+      const estado = String(cola[f.key] ?? '').toUpperCase();
+      if (estado === 'FINALIZADO') consultadas.push(f.label);
+      else if (estado === 'BLOQUEADO') bloqueadas.push(f.label);
+      else enCola.push(f.label);
+    }
+
+    const lista = (titulo: string, items: string[], color: string) => items.length
+      ? `<p style="margin:.35rem 0;"><b style="color:${color}">${titulo}</b><br>${items.join(', ')}</p>`
+      : '';
+
+    await Swal.fire({
+      icon: bloqueadas.length || enCola.length ? 'warning' : 'success',
+      title: consultadas.length ? 'Antecedentes consultados' : 'Ninguna fuente se pudo consultar',
+      html: lista('Consultados', consultadas, '#15803d')
+        + lista('Bloqueados · verificar a mano', bloqueadas, '#b45309')
+        + lista('Siguen en cola', enCola, '#6b7280')
+        + (bloqueadas.length
+          ? '<p style="margin:.75rem 0 0;">Lo <b>bloqueado</b> es el robot diciendo '
+            + '"lo intenté y no pude": esas fuentes hay que consultarlas manualmente.</p>'
+          : '')
+        + (enCola.length
+          ? '<p style="margin:.5rem 0 0;">Lo que sigue <b>en cola</b> quedó pedido: '
+            + 'ningún robot lo ha atendido todavía. Se resuelve solo cuando pase la '
+            + 'flota —míralo más tarde en <b>Antecedentes</b>—, y mientras tanto '
+            + '<b>verifícalo a mano</b> si el proceso no puede esperar.</p>'
+          : ''),
+      confirmButtonColor: '#111827',
+    });
   }
 
   // =========================================================

@@ -13,13 +13,13 @@
 .header-section h1 {
   font-size: 28px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--text);
   margin: 0 0 8px 0;
   letter-spacing: -0.5px;
 }
 
 .header-section p {
-  color: #6b7280;
+  color: var(--muted);
   margin: 0;
   font-size: 15px;
 }
@@ -39,17 +39,11 @@
 .toolbar {
   padding: 16px 24px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end; /* el buscador ahora vive en la tabla estándar */
   align-items: center;
   gap: 20px;
-  border-bottom: 1px solid #f3f4f6;
-  background-color: #fafafa;
-}
-
-.search-field {
-  flex: 1;
-  max-width: 400px;
-  margin-bottom: -1.25em; /* Angular Material 15+ flex fix */
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface-2);
 }
 
 .baja-masiva-btn {
@@ -67,58 +61,14 @@
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.35);
 }
 
+/* Contenedor de la tabla estándar (ella pagina y hace scroll horizontal). */
 .table-container {
-  position: relative;
-  min-height: 300px;
-  max-height: calc(100vh - 280px);
-  overflow: auto;
+  padding: 16px 24px;
 }
 
-.loading-shade {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(255, 255, 255, 0.7);
-  z-index: 10;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  backdrop-filter: blur(2px);
-}
-
-table {
-  width: 100%;
-}
-
-th.mat-header-cell {
-  background-color: #f8fafc;
-  color: #475569;
-  font-weight: 600;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 2px solid #e2e8f0;
-}
-
-td.mat-cell {
-  color: #334155;
-  font-size: 14px;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-tr.mat-row:hover {
-  background-color: #f8fafc;
-  cursor: pointer;
-}
-
-.empty-cell {
-  text-align: center;
-  padding: 48px !important;
-  color: #64748b;
-  font-size: 15px;
-}
-
+/* Celdas propias (plantillas tablaCelda) */
 .chip-oficina {
-  background-color: #e0e7ff;
+  background-color: #e0e7ff; background-color: light-dark(#e0e7ff, #0f1f4d);
   color: #4338ca;
   padding: 4px 10px;
   border-radius: 12px;

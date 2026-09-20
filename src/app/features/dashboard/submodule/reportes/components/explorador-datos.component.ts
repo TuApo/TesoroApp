@@ -190,20 +190,20 @@ import { ConstructorStore } from '../services/constructor.store';
     .exp__buscar {
       display: flex; align-items: center; gap: .35rem;
       padding: .4rem .6rem; margin: 0 0 .5rem;
-      border: 1px solid var(--rp-borde, #e2e8f0); border-radius: 10px;
-      background: var(--rp-fondo-input, #f8fafc);
+      border: 1px solid var(--rp-borde, var(--border)); border-radius: 10px;
+      background: var(--rp-fondo-input, var(--surface-2));
     }
-    .exp__buscar mat-icon { color: #94a3b8; font-size: 20px; width: 20px; height: 20px; }
+    .exp__buscar mat-icon { color: var(--text-faint); font-size: 20px; width: 20px; height: 20px; }
     .exp__buscar input {
       flex: 1; border: 0; outline: 0; background: transparent; font-size: .86rem;
-      color: var(--rp-texto, #0f172a); min-width: 0;
+      color: var(--rp-texto, var(--text)); min-width: 0;
     }
     .exp__buscar button { width: 28px; height: 28px; line-height: 28px; }
 
     .exp__ayuda {
       display: flex; align-items: center; gap: .4rem; margin: 0 0 .5rem;
       padding: .5rem .6rem; border-radius: 10px; font-size: .78rem;
-      background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe;
+      background: #eff6ff; background: light-dark(#eff6ff, #0f284d); color: #1d4ed8; border: 1px solid #bfdbfe; border: 1px solid light-dark(#bfdbfe, #0d3b7a);
     }
     .exp__ayuda mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
@@ -212,11 +212,11 @@ import { ConstructorStore } from '../services/constructor.store';
     .origen__cab {
       display: flex; align-items: center; gap: .4rem; padding: .5rem .25rem .3rem;
       font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
-      color: var(--rp-texto-suave, #64748b);
+      color: var(--rp-texto-suave, var(--muted));
     }
     .origen__cab mat-icon { font-size: 17px; width: 17px; height: 17px; }
     .origen__cab small {
-      margin-left: auto; font-weight: 600; background: var(--rp-fondo-chip, #f1f5f9);
+      margin-left: auto; font-weight: 600; background: var(--rp-fondo-chip, var(--surface-3));
       border-radius: 999px; padding: 0 .4rem;
     }
 
@@ -224,26 +224,26 @@ import { ConstructorStore } from '../services/constructor.store';
       position: relative; border-radius: 10px; margin-bottom: 2px;
       border: 1px solid transparent;
     }
-    .tabla:hover { background: var(--rp-hover, #f8fafc); }
-    .tabla--activa { background: var(--rp-activa, #f0f9ff); border-color: #bae6fd; }
-    .tabla--raiz { border-color: #7dd3fc; }
+    .tabla:hover { background: var(--rp-hover, var(--surface-2)); }
+    .tabla--activa { background: var(--rp-activa, #f0f9ff); background: var(--rp-activa, light-dark(#f0f9ff, #0f2e4d)); border-color: #bae6fd; border-color: light-dark(#bae6fd, #0e4f79); }
+    .tabla--raiz { border-color: #7dd3fc; border-color: light-dark(#7dd3fc, #0d5179); }
 
     .tabla__cab {
       display: flex; align-items: center; gap: .3rem; width: 100%;
       padding: .4rem 2.2rem .4rem .2rem; border: 0; background: transparent;
       cursor: pointer; text-align: left; color: inherit; font: inherit;
     }
-    .tabla__chev { font-size: 18px; width: 18px; height: 18px; color: #94a3b8; }
-    .tabla__ico { font-size: 18px; width: 18px; height: 18px; color: #64748b; }
+    .tabla__chev { font-size: 18px; width: 18px; height: 18px; color: var(--text-faint); }
+    .tabla__ico { font-size: 18px; width: 18px; height: 18px; color: var(--muted); }
     .tabla__nombre {
-      flex: 1; font-size: .85rem; font-weight: 600; color: var(--rp-texto, #0f172a);
+      flex: 1; font-size: .85rem; font-weight: 600; color: var(--rp-texto, var(--text));
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .marca {
       font-style: normal; font-size: .64rem; font-weight: 700; text-transform: uppercase;
       background: #0284c7; color: #fff; border-radius: 999px; padding: 1px 6px; margin-left: .35rem;
     }
-    .tabla__filas { font-size: .68rem; color: #94a3b8; font-variant-numeric: tabular-nums; }
+    .tabla__filas { font-size: .68rem; color: var(--text-faint); font-variant-numeric: tabular-nums; }
     .tabla__add { position: absolute; right: 2px; top: 2px; width: 30px; height: 30px; line-height: 30px; }
     .tabla__add mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
@@ -252,53 +252,53 @@ import { ConstructorStore } from '../services/constructor.store';
     .tecnico {
       display: inline-flex; align-items: center; gap: .2rem;
       font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .66rem;
-      color: #64748b; background: var(--rp-fondo-chip, #f1f5f9);
+      color: var(--muted); background: var(--rp-fondo-chip, var(--surface-3));
       border-radius: 6px; padding: 1px 5px;
     }
     .tecnico mat-icon { font-size: 12px; width: 12px; height: 12px; }
-    .tecnico--edit { color: #b45309; background: #fef3c7; }
-    .detalle__desc { margin: 0 0 .4rem; font-size: .73rem; color: #64748b; line-height: 1.35; }
+    .tecnico--edit { color: #b45309; color: light-dark(#b45309, #f7c097); background: #fef3c7; background: light-dark(#fef3c7, #373625); }
+    .detalle__desc { margin: 0 0 .4rem; font-size: .73rem; color: var(--muted); line-height: 1.35; }
 
     .rels { margin-bottom: .4rem; }
     .rels__t {
       display: block; font-size: .66rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .04em; color: #94a3b8; margin-bottom: .15rem;
+      letter-spacing: .04em; color: var(--text-faint); margin-bottom: .15rem;
     }
-    .rel { display: flex; align-items: center; gap: .25rem; font-size: .71rem; color: #475569; }
-    .rel mat-icon { font-size: 13px; width: 13px; height: 13px; color: #94a3b8; }
-    .rel__warn { color: #f59e0b !important; }
+    .rel { display: flex; align-items: center; gap: .25rem; font-size: .71rem; color: var(--text-2); }
+    .rel mat-icon { font-size: 13px; width: 13px; height: 13px; color: var(--text-faint); }
+    .rel__warn { color: #f59e0b !important; color: light-dark(#f59e0b, #f7d397) !important; }
 
     .campos { display: flex; flex-direction: column; }
     .campo {
       display: flex; align-items: center; gap: .25rem; padding: .18rem .2rem;
       border-radius: 6px; cursor: grab; min-width: 0;
     }
-    .campo:hover { background: var(--rp-hover-fuerte, #eef2ff); }
+    .campo:hover { background: var(--rp-hover-fuerte, #eef2ff); background: var(--rp-hover-fuerte, light-dark(#eef2ff, #0f1f4d)); }
     .campo__chk { transform: scale(.8); margin-right: -4px; }
-    .campo__tipo { font-size: 15px; width: 15px; height: 15px; color: #94a3b8; flex: 0 0 auto; }
+    .campo__tipo { font-size: 15px; width: 15px; height: 15px; color: var(--text-faint); flex: 0 0 auto; }
     .campo__nombre {
-      flex: 1; font-size: .78rem; color: #334155; min-width: 0;
+      flex: 1; font-size: .78rem; color: var(--text-2); min-width: 0;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .campo__tec {
       font-family: ui-monospace, Menlo, monospace; font-size: .62rem; color: #cbd5e1;
       max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .campo__pk { font-size: 13px; width: 13px; height: 13px; color: #f59e0b; }
+    .campo__pk { font-size: 13px; width: 13px; height: 13px; color: #f59e0b; color: light-dark(#f59e0b, #f7d397); }
     .campo__fk { font-size: 13px; width: 13px; height: 13px; color: #6366f1; }
     .campo__sens { font-size: 13px; width: 13px; height: 13px; color: #ef4444; }
     .campo__agg { width: 24px; height: 24px; line-height: 24px; }
     .campo__agg mat-icon { font-size: 15px; width: 15px; height: 15px; }
-    .campos__vacio { font-size: .72rem; color: #94a3b8; margin: .2rem 0; }
+    .campos__vacio { font-size: .72rem; color: var(--text-faint); margin: .2rem 0; }
 
-    .vacio { text-align: center; padding: 2rem .5rem; color: #94a3b8; }
+    .vacio { text-align: center; padding: 2rem .5rem; color: var(--text-faint); }
     .vacio mat-icon { font-size: 34px; width: 34px; height: 34px; opacity: .6; }
     .vacio p { font-size: .8rem; margin: .4rem 0 0; }
 
     /* Modo oscuro: la app lo aplica con .dark-theme en el body. */
     :host-context(.dark-theme) {
       --rp-borde: #334155; --rp-fondo-input: #1e293b; --rp-texto: #e2e8f0;
-      --rp-texto-suave: #94a3b8; --rp-fondo-chip: #1e293b; --rp-hover: #1e293b;
+      --rp-texto-suave: var(--text-faint); --rp-fondo-chip: #1e293b; --rp-hover: #1e293b;
       --rp-hover-fuerte: #263449; --rp-activa: #0c2942;
     }
     :host-context(.dark-theme) .campo__nombre { color: #cbd5e1; }

@@ -13,10 +13,9 @@
     </button>
   </div>
 
-  <!-- Filtros -->
+  <!-- Filtro rápido por temporal. La búsqueda por texto, el orden y los filtros por
+       columna los da la tabla. -->
   <div class="pe-filtros">
-    <input class="filtro-input" placeholder="Buscar por EPS, nombre…"
-           (input)="setFiltroTexto($event)" />
     <div class="filtro-chips">
       <span class="chip-filtro" [class.active]="!filtroTemporal()"
             (click)="setFiltroTemporal(null)">Todas</span>
@@ -27,95 +26,58 @@
     </div>
   </div>
 
-  @if (cargando()) {
-    <div class="pe-loading"><mat-spinner diameter="40"></mat-spinner></div>
-  }
+  <app-tabla-estandar
+    class="pe-tabla"
+    id="afiliaciones-plantillas-eps"
+    titulo="Plantillas de documentos EPS"
+    modulo="Afiliaciones"
+    entidad="plantillas_eps"
+    busqueda="Buscar por EPS, nombre…"
+    vacio='No hay plantillas configuradas. Crea la primera con el botón "Nueva plantilla".'
+    [datos]="plantillasFiltradas()"
+    [columnas]="columnas"
+    [filaId]="idPlantilla"
+    [filaClase]="claseFila"
+    [cargando]="cargando()">
 
-  <!-- Tabla -->
-  <div class="pe-table-wrap">
-    <table mat-table [dataSource]="plantillasFiltradas()" class="pe-table">
+    <ng-template tablaCelda="epsNombre" let-p>
+      <div class="eps-nombre">{{ p.epsNombre }}</div>
+      <div class="eps-key">{{ p.epsKey }}</div>
+    </ng-template>
 
-      <ng-container matColumnDef="epsNombre">
-        <th mat-header-cell *matHeaderCellDef>EPS</th>
-        <td mat-cell *matCellDef="let p">
-          <div class="eps-nombre">{{ p.epsNombre }}</div>
-          <div class="eps-key">{{ p.epsKey }}</div>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="nombre" let-p>
+      <div>{{ p.nombrePlantilla }}</div>
+      @if (p.googleDocId) {
+        <div class="doc-id">Doc: {{ p.googleDocId | slice:0:20 }}…</div>
+      }
+    </ng-template>
 
-      <ng-container matColumnDef="temporalKey">
-        <th mat-header-cell *matHeaderCellDef>Temporal</th>
-        <td mat-cell *matCellDef="let p">
-          @if (p.temporalKey) {
-            <span class="tag tag-temporal">{{ p.temporalKey }}</span>
-          } @else {
-            <span class="tag tag-all">Todas</span>
-          }
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="campos" let-p>
+      <span class="badge-campos">{{ p.totalCampos }}</span>
+      @if (p.tieneHtml) {
+        <span class="tag tag-ok" matTooltip="HTML configurado">HTML ✓</span>
+      } @else {
+        <span class="tag tag-warn" matTooltip="Sin HTML — no se puede generar PDF">Sin HTML</span>
+      }
+    </ng-template>
 
-      <ng-container matColumnDef="sexo">
-        <th mat-header-cell *matHeaderCellDef>Sexo</th>
-        <td mat-cell *matCellDef="let p">{{ labelSexo(p.sexo) }}</td>
-      </ng-container>
+    <ng-template tablaCelda="activa" let-p>
+      @if (p.activa) { <span class="tag tag-ok">Activa</span> }
+      @else          { <span class="tag tag-off">Inactiva</span> }
+      <div class="version-txt">v{{ p.version }}</div>
+    </ng-template>
 
-      <ng-container matColumnDef="nombre">
-        <th mat-header-cell *matHeaderCellDef>Nombre plantilla</th>
-        <td mat-cell *matCellDef="let p">
-          <div>{{ p.nombrePlantilla }}</div>
-          @if (p.googleDocId) {
-            <div class="doc-id">Doc: {{ p.googleDocId | slice:0:20 }}…</div>
-          }
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="campos">
-        <th mat-header-cell *matHeaderCellDef>Campos</th>
-        <td mat-cell *matCellDef="let p">
-          <span class="badge-campos">{{ p.totalCampos }}</span>
-          @if (p.tieneHtml) {
-            <span class="tag tag-ok" matTooltip="HTML configurado">HTML ✓</span>
-          } @else {
-            <span class="tag tag-warn" matTooltip="Sin HTML — no se puede generar PDF">Sin HTML</span>
-          }
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="activa">
-        <th mat-header-cell *matHeaderCellDef>Estado</th>
-        <td mat-cell *matCellDef="let p">
-          @if (p.activa) { <span class="tag tag-ok">Activa</span> }
-          @else          { <span class="tag tag-off">Inactiva</span> }
-          <div class="version-txt">v{{ p.version }}</div>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="acciones">
-        <th mat-header-cell *matHeaderCellDef></th>
-        <td mat-cell *matCellDef="let p">
-          <button mat-icon-button matTooltip="Editar" (click)="editar(p)">
-            <mat-icon>edit</mat-icon>
-          </button>
-          @if (p.activa) {
-            <button mat-icon-button color="warn" matTooltip="Desactivar" (click)="desactivar(p)">
-              <mat-icon>block</mat-icon>
-            </button>
-          }
-        </td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="cols"></tr>
-      <tr mat-row *matRowDef="let row; columns: cols;" [class.inactiva]="!row.activa"></tr>
-
-    </table>
-
-    @if (!cargando() && !plantillasFiltradas().length) {
-      <div class="pe-empty">
-        <mat-icon>description</mat-icon>
-        <p>No hay plantillas configuradas. Crea la primera con el botón "Nueva plantilla".</p>
-      </div>
-    }
-  </div>
+    <ng-template tablaAcciones let-p>
+      <button mat-icon-button matTooltip="Editar" (click)="editar(p)">
+        <mat-icon>edit</mat-icon>
+      </button>
+      @if (p.activa) {
+        <button mat-icon-button color="warn" matTooltip="Desactivar" (click)="desactivar(p)">
+          <mat-icon>block</mat-icon>
+        </button>
+      }
+    </ng-template>
+  </app-tabla-estandar>
 
   <!-- Nota de uso -->
   <mat-card class="pe-info">

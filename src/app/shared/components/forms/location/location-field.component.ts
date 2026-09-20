@@ -108,10 +108,10 @@ import {
     }
     .loc-coords .material-symbols-outlined {
       font-size: 18px;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
     }
     .loc-meta {
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       font-size: 0.85rem;
     }
     .loc-link { text-decoration: none; }

@@ -122,69 +122,37 @@
               <mat-card-subtitle>Marque productos y ajuste cantidades del inventario</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
-              <mat-form-field appearance="outline" class="full-width" style="margin-top: 12px;">
-                <mat-label>Filtrar productos</mat-label>
-                <mat-icon matPrefix>search</mat-icon>
-                <input matInput (keyup)="applyFilterInventario($event)" placeholder="Buscar..." #inputInventario />
-              </mat-form-field>
-              <div class="table-container mt-3">
-                <table mat-table [dataSource]="dataSourceInventario">
-                  <ng-container matColumnDef="seleccion">
-                    <th mat-header-cell *matHeaderCellDef>Sel.</th>
-                    <td mat-cell *matCellDef="let element">
-                      <mat-checkbox [formControl]="$any(element.get('seleccionado'))"
-                      (change)="onProductSelectionChange(element)" (click)="$event.stopPropagation()"></mat-checkbox>
-                    </td>
-                  </ng-container>
-                  <ng-container matColumnDef="cantidadSeleccionada">
-                    <th mat-header-cell *matHeaderCellDef>Cant.</th>
-                    <td mat-cell *matCellDef="let element">
-                      <div class="cantidad-container" (click)="$event.stopPropagation()">
-                        <button mat-icon-button type="button" (click)="decrementarCantidadPorRow(element)"
-                          [disabled]="!element.get('seleccionado')?.value || element.get('cantidadSeleccionada')?.value <= 1">
-                          <mat-icon>remove_circle_outline</mat-icon>
-                        </button>
-                        <span class="cantidad">{{ element.get('cantidadSeleccionada')?.value || 0 }}</span>
-                        <button mat-icon-button type="button" (click)="incrementarCantidadPorRow(element)"
-                          [disabled]="!element.get('seleccionado')?.value || element.get('cantidadSeleccionada')?.value >= element.get('disponible')?.value">
-                          <mat-icon>add_circle_outline</mat-icon>
-                        </button>
-                      </div>
-                    </td>
-                  </ng-container>
-                  <ng-container matColumnDef="concepto">
-                    <th mat-header-cell *matHeaderCellDef>Concepto</th>
-                    <td mat-cell *matCellDef="let element">{{ element.get('concepto')?.value }}</td>
-                  </ng-container>
-                  <ng-container matColumnDef="disponible">
-                    <th mat-header-cell *matHeaderCellDef>Disponible</th>
-                    <td mat-cell *matCellDef="let element">
-                      <span class="badge"
-                        [ngClass]="element.get('disponible')?.value > 0 ? 'badge-success' : 'badge-danger'">
-                        Disp: {{ element.get('disponible')?.value }}
-                      </span>
-                    </td>
-                  </ng-container>
-                  <ng-container matColumnDef="valorUnidad">
-                    <th mat-header-cell *matHeaderCellDef>Valor Und.</th>
-                    <td mat-cell *matCellDef="let element">{{ element.get('valorUnidad')?.value |
-                    currency:'COP':'symbol-narrow':'1.0-0' }}</td>
-                  </ng-container>
-                  <ng-container matColumnDef="fechaRecibida">
-                    <th mat-header-cell *matHeaderCellDef>F. Recibido</th>
-                    <td mat-cell *matCellDef="let element">{{ (element.get('fechaRecibida')?.value | date:'dd-MM-yyyy
-                    HH:mm') || '' }}</td>
-                  </ng-container>
-                  <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
-                  <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario"
-                    [class.row-selected]="row.get('seleccionado')?.value" (click)="toggleRowSelection(row)"
-                    style="cursor: pointer;">
-                  </tr>
-                  <tr class="mat-row" *matNoDataRow>
-                    <td class="mat-cell" colspan="6">No hay datos "{{ inputInventario.value }}"</td>
-                  </tr>
-                </table>
-              </div>
+              <app-tabla-estandar
+                class="tabla-inventario mt-3"
+                id="mercado-comercializadora-inventario"
+                titulo="Inventario de productos"
+                modulo="Mercado"
+                busqueda="Buscar producto…"
+                vacio="No hay productos en el inventario."
+                [datos]="filasInventario"
+                [columnas]="columnasInventario"
+                [filaId]="idLote"
+                [filaClase]="claseLote">
+
+                <ng-template tablaCelda="seleccion" let-element>
+                  <mat-checkbox [formControl]="$any(element.get('seleccionado'))"
+                  (change)="onProductSelectionChange(element)"></mat-checkbox>
+                </ng-template>
+
+                <ng-template tablaCelda="cantidadSeleccionada" let-element>
+                  <div class="cantidad-container">
+                    <button mat-icon-button type="button" (click)="decrementarCantidadPorRow(element)"
+                      [disabled]="!element.get('seleccionado')?.value || element.get('cantidadSeleccionada')?.value <= 1">
+                      <mat-icon>remove_circle_outline</mat-icon>
+                    </button>
+                    <span class="cantidad">{{ element.get('cantidadSeleccionada')?.value || 0 }}</span>
+                    <button mat-icon-button type="button" (click)="incrementarCantidadPorRow(element)"
+                      [disabled]="!element.get('seleccionado')?.value || element.get('cantidadSeleccionada')?.value >= element.get('disponible')?.value">
+                      <mat-icon>add_circle_outline</mat-icon>
+                    </button>
+                  </div>
+                </ng-template>
+              </app-tabla-estandar>
             </mat-card-content>
             <!-- RESUMEN DE SELECCIÓN -->
             @if (totalProductosSeleccionados > 0) {

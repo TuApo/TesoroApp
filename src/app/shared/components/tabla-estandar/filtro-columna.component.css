@@ -1,0 +1,124 @@
+:host { display: inline-flex; flex-shrink: 0; }
+
+.fc-disparador {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px;
+  background: transparent; color: var(--text-faint); cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.fc-disparador .mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.fc-disparador:hover { background: var(--surface-3); color: var(--muted); }
+.fc-disparador--activo, .fc-disparador--activo:hover {
+  background: rgba(140, 213, 10, .16); color: var(--lime-ink);
+}
+
+/* El panel vive en el overlay del CDK (fuera del :host), pero sus estilos de
+   componente siguen aplicando porque la plantilla es de este componente. Por
+   eso aquí NO sirve `:host-context(...)`: el tema llega solo por los tokens. */
+.fc-panel {
+  width: 260px; max-width: calc(100vw - 16px);
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-sans); overflow: hidden;
+}
+.fc-cabecera {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px 8px 12px; border-bottom: 1px solid var(--border);
+}
+.fc-titulo {
+  margin: 0; font-size: 12px; font-weight: 700; color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fc-cerrar {
+  display: inline-flex; border: 0; background: transparent; color: var(--text-faint);
+  padding: 2px; border-radius: 4px; cursor: pointer;
+}
+.fc-cerrar:hover { background: var(--surface-3); }
+.fc-cerrar .mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+.fc-orden { display: flex; gap: 4px; padding: 8px; border-bottom: 1px solid var(--border); }
+.fc-orden__btn {
+  flex: 1; padding: 6px 8px; border: 0; border-radius: 8px; cursor: pointer;
+  font: 600 12px var(--font-sans); background: var(--surface-2); color: var(--text-2);
+  transition: background-color .15s ease;
+}
+.fc-orden__btn:hover { background: var(--surface-3); }
+.fc-orden__btn--activo, .fc-orden__btn--activo:hover {
+  background: var(--mat-sys-primary); color: var(--mat-sys-on-primary);
+}
+
+.fc-bloque { padding: 8px; }
+.fc-bloque--lista { border-top: 1px solid var(--border); padding-bottom: 4px; }
+.fc-input {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px;
+  font: 12px var(--font-sans); background: var(--surface); color: var(--text); outline: none;
+}
+.fc-input:focus { border-color: var(--lime); }
+.fc-input::placeholder { color: var(--text-faint); }
+.fc-buscar { position: relative; }
+.fc-buscar .mat-icon {
+  position: absolute; left: 7px; top: 50%; transform: translateY(-50%);
+  font-size: 14px; width: 14px; height: 14px; color: var(--text-faint); pointer-events: none;
+}
+.fc-input--icono { padding-left: 26px; }
+
+.fc-atajos { display: flex; justify-content: space-between; padding: 6px 4px 2px; }
+.fc-atajo {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: 600 11px var(--font-sans); color: var(--muted);
+}
+.fc-atajo:hover { text-decoration: underline; }
+.fc-atajo--marca { color: var(--lime-ink); }
+
+.fc-lista { max-height: 208px; overflow-y: auto; padding-bottom: 4px; overscroll-behavior: contain; }
+.fc-valor {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 8px;
+  border: 0; border-radius: 6px; background: none; cursor: pointer; text-align: left;
+  color: var(--text-2);
+}
+.fc-valor:hover { background: var(--surface-2); }
+.fc-check {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 14px; height: 14px; border-radius: 4px;
+  border: 1px solid var(--border-strong); background: var(--surface);
+}
+.fc-check--on { border-color: var(--lime-dark); background: var(--lime-dark); color: #fff; }
+.fc-check .mat-icon { font-size: 11px; width: 11px; height: 11px; font-weight: 700; }
+.fc-valor__texto { font: 12px var(--font-sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-valor__texto--vacio { font-style: italic; color: var(--text-faint); }
+.fc-nota { margin: 0; padding: 8px; font: 11px var(--font-sans); color: var(--text-faint); }
+
+.fc-pie { padding: 8px; border-top: 1px solid var(--border); }
+.fc-limpiar {
+  width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; cursor: pointer;
+  font: 600 12px var(--font-sans); background: var(--surface-2); color: var(--text-2);
+}
+.fc-limpiar:hover { background: var(--surface-3); }
+
+/* ── Rango de fechas (columnas con fechas) ─────────────────────────────── */
+.fc-fechas { display: flex; flex-direction: column; gap: 8px; }
+.fc-rango { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.fc-rango__campo, .fc-formato { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.fc-rango__campo > span, .fc-formato > span {
+  font: 600 10.5px var(--font-sans); letter-spacing: .04em; text-transform: uppercase; color: var(--muted);
+}
+.fc-select { height: 32px; cursor: pointer; }
+.fc-atajos { display: flex; flex-wrap: wrap; gap: 5px; }
+.fc-atajo {
+  padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--text-2); font: 600 11.5px var(--font-sans); cursor: pointer;
+}
+.fc-atajo:hover { background: var(--surface-3); color: var(--text); }
+.fc-atajo--limpiar { color: var(--danger-fg); border-color: var(--danger-border); background: var(--danger-bg); }
+
+/* Modo servidor: el embudo solo ordena; se dice por qué. */
+.fc-nota {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}

@@ -1,0 +1,109 @@
+<section class="banco">
+
+  <header class="cabecera">
+    <div>
+      <h2>Banco de imágenes</h2>
+      <p class="sub">Fotos de fincas, personas y fondos para las piezas. Una foto de
+         personas solo se puede usar con su autorización firmada.</p>
+    </div>
+    <label class="btn btn--primario">
+      <mat-icon>upload</mat-icon>
+      {{ subiendo() ? 'Subiendo…' : 'Subir imagen' }}
+      <input type="file" accept="image/*" hidden (change)="subir($event)" [disabled]="subiendo()" />
+    </label>
+  </header>
+
+  <div class="barra">
+    <button *ngFor="let t of tipos" type="button"
+            [class.activo]="filtro() === t.clave" (click)="filtrar(t.clave)">{{ t.etiqueta }}</button>
+  </div>
+
+  <div class="alerta" *ngIf="bloqueadas() > 0">
+    <mat-icon>gpp_maybe</mat-icon>
+    <span>
+      <strong>{{ bloqueadas() }} imagen{{ bloqueadas() === 1 ? '' : 'es' }} sin autorización.</strong>
+      No se pueden usar en piezas hasta que se registre el documento firmado.
+    </span>
+  </div>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <div class="vacio" *ngIf="!cargando() && !imagenes().length">
+    <mat-icon>photo_library</mat-icon>
+    <p><strong>El banco está vacío.</strong></p>
+    <p>Sube fotos de las fincas y del equipo para que las piezas dejen de ser solo tipografía.</p>
+  </div>
+
+  <ul class="rejilla" *ngIf="!cargando() && imagenes().length">
+    <li *ngFor="let i of imagenes()" [class.bloqueada]="!i.seleccionable" (click)="abrir(i)">
+      <div class="lienzo">
+        <img *ngIf="urlPrevia(i) as u; else sinPrevia" [src]="u" [alt]="i.titulo" loading="lazy" />
+        <ng-template #sinPrevia><span class="cargandoImg">…</span></ng-template>
+        <span class="candado" *ngIf="!i.seleccionable" title="Sin autorización">
+          <mat-icon>lock</mat-icon>
+        </span>
+      </div>
+      <div class="pie">
+        <span class="titulo">{{ i.titulo }}</span>
+        <span class="tipo">{{ etiquetaTipo(i.tipo) }}</span>
+      </div>
+    </li>
+  </ul>
+
+  <!-- ── panel de una imagen ────────────────────────────────────────────── -->
+  <div class="telon" *ngIf="abierta() as i" (click)="cerrar()">
+    <aside class="panel" (click)="$event.stopPropagation()">
+      <header class="panel__cab">
+        <h3>{{ i.titulo }}</h3>
+        <button type="button" class="mini" (click)="cerrar()"><mat-icon>close</mat-icon></button>
+      </header>
+
+      <img class="grande" *ngIf="urlPrevia(i) as u" [src]="u" [alt]="i.titulo" />
+
+      <dl class="ficha">
+        <div><dt>Tipo</dt><dd>{{ etiquetaTipo(i.tipo) }}</dd></div>
+        <div><dt>Formato</dt><dd>{{ i.mime }}</dd></div>
+        <div *ngIf="i.oficina_id"><dt>Oficina</dt><dd>{{ i.oficina_id }}</dd></div>
+      </dl>
+
+      <div class="estado" [class.estado--mal]="!i.seleccionable">
+        <mat-icon>{{ i.seleccionable ? 'verified_user' : 'gpp_maybe' }}</mat-icon>
+        <span>{{ i.seleccionable ? 'Se puede usar en piezas.' : i.motivo_bloqueo }}</span>
+      </div>
+
+      <section class="consent" *ngIf="i.exige_consentimiento">
+        <h4>Autorizaciones de uso de imagen</h4>
+
+        <p class="ayuda" *ngIf="!consentimientos().length">
+          Todavía no hay ninguna. Sube el formulario firmado por la persona retratada.
+        </p>
+
+        <ul class="autorizaciones">
+          <li *ngFor="let c of consentimientos()" [class.caducada]="!c.vigente">
+            <div class="auth__datos">
+              <span class="auth__persona">
+                {{ c.nombre || 'Sin nombre' }} · {{ c.persona_cedula }}
+              </span>
+              <span class="auth__plazo">
+                Desde {{ c.vigente_desde }}{{ c.vigente_hasta ? ' hasta ' + c.vigente_hasta : ' · sin caducidad' }}
+              </span>
+              <span class="auth__revocada" *ngIf="c.revocado_en">
+                Retirada · {{ c.revocado_motivo }}
+              </span>
+            </div>
+            <span class="etq" [class.etq--ok]="c.vigente">{{ c.vigente ? 'Vigente' : 'No vigente' }}</span>
+            <button type="button" class="mini mini--peligro" *ngIf="c.vigente"
+                    (click)="revocar(c)" title="Retirar la autorización">
+              <mat-icon>block</mat-icon>
+            </button>
+          </li>
+        </ul>
+
+        <label class="btn btn--fantasma btn--ancho">
+          <mat-icon>attach_file</mat-icon> Registrar autorización firmada
+          <input type="file" accept="application/pdf,image/*" hidden (change)="registrar($event)" />
+        </label>
+      </section>
+    </aside>
+  </div>
+</section>

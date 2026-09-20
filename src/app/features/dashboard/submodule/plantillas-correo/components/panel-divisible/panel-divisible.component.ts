@@ -72,16 +72,16 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     }
     .pd__divisor::before {
       content: ''; position: absolute; top: 0; bottom: 0; width: 2px;
-      background: #e2e8f0; border-radius: 2px; transition: background .12s;
+      background: var(--surface-4); border-radius: 2px; transition: background .12s;
     }
     .pd__divisor:hover::before, .pd--arrastrando .pd__divisor::before { background: #0f766e; }
     .pd__divisor:focus-visible { outline: 2px solid #0f766e; outline-offset: -2px; border-radius: 4px; }
     .pd__asa {
       position: relative; display: flex; align-items: center; justify-content: center;
-      width: 14px; height: 34px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px;
+      width: 14px; height: 34px; background: var(--surface-3); border: 1px solid var(--border); border-radius: 4px;
     }
-    .pd__asa mat-icon { font-size: 14px; width: 14px; height: 14px; color: #94a3b8; }
-    .pd__divisor:hover .pd__asa { border-color: #0f766e; background: #ecfdf5; }
+    .pd__asa mat-icon { font-size: 14px; width: 14px; height: 14px; color: var(--text-faint); }
+    .pd__divisor:hover .pd__asa { border-color: #0f766e; background: #ecfdf5; background: light-dark(#ecfdf5, #133b39); }
 
     @media (max-width: 1100px) {
       .pd { flex-direction: column; }

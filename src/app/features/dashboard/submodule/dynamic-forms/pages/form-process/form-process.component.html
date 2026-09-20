@@ -36,10 +36,6 @@
 
   <mat-card-content class="card-content">
 
-    @if (cargando()) {
-      <mat-progress-bar mode="indeterminate" class="fp-barra"></mat-progress-bar>
-    }
-
     <!-- Contadores: el pulso del proceso de un vistazo -->
     @if (resumen(); as r) {
       <div class="fp-tarjetas">
@@ -84,21 +80,12 @@
       </div>
     }
 
-    <!-- Filtros -->
+    <!-- Filtros de negocio (se aplican en el backend). La búsqueda por llave va en el
+         buscador de la tabla, que también consulta al backend. -->
     <div class="fp-filtros">
-      @if (etiquetaLlave(); as llave) {
-        <mat-form-field appearance="outline" class="fp-buscar">
-          <mat-label>Buscar por {{ llave }}</mat-label>
-          <input matInput type="search" [ngModel]="busquedaLlave()"
-                 (ngModelChange)="buscarLlave($event)" placeholder="Ej. 1020304050">
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
-      }
       <mat-checkbox [checked]="soloCambiados()" (change)="alternarCambiados($event.checked)">
         Solo los que cambiaron
       </mat-checkbox>
-      <span class="grow"></span>
-      <span class="fp-total" aria-live="polite">{{ total() }} registro(s)</span>
     </div>
 
     @if (error()) {
@@ -110,87 +97,76 @@
           Reintentar
         </button>
       </div>
-    } @else if (!cargando() && filas().length === 0) {
-      <div class="fp-vacio">
-        <span class="material-symbols-outlined fp-vacio-icono">inbox</span>
-        <p>No hay registros que coincidan con el filtro.</p>
-        @if (puedeCargar()) {
-          <button mat-flat-button class="btn-managerial" (click)="abrirCargaMasiva()">
-            <mat-icon>upload_file</mat-icon>
-            Cargar datos desde un archivo
-          </button>
-        }
-      </div>
     } @else {
-      <div class="fp-tabla-scroll">
-        <table class="fp-tabla">
-          <thead>
-            <tr>
-              <th scope="col" class="fp-col-id">ID</th>
-              @if (etiquetaLlave(); as llave) {
-                <th scope="col">{{ llave }}</th>
+      <!-- Paginación en el servidor: la tabla pide cada página y avisa la búsqueda. -->
+      <app-tabla-estandar
+        id="formularios-control-proceso"
+        titulo="Control del proceso"
+        modulo="Formularios dinámicos"
+        entidad="df_submission"
+        [busqueda]="etiquetaLlave() ? 'Buscar por ' + etiquetaLlave() : false"
+        [datos]="filas()"
+        [columnas]="columnasTabla()"
+        [filaId]="idFila"
+        [filaClase]="claseFila"
+        [cargando]="cargando()"
+        [totalServidor]="total()"
+        [filasPorPagina]="size()"
+        (paginaCambio)="onPage($event)"
+        (busquedaCambio)="buscarLlave($event)">
+
+        <ng-template tablaCelda="cambios" let-fila>
+          @if (fila.changed) {
+            <span class="chip chip-cambio"
+                  [matTooltip]="'Se modificó después de enviarse · ' + (fila.revision_no - 1) + ' cambio(s)'">
+              {{ fila.revision_no - 1 }}
+            </span>
+          } @else {
+            <span class="fp-sin-dato">—</span>
+          }
+        </ng-template>
+
+        <ng-template tablaCelda="ultimo" let-fila>
+          @if (fila.last_change_at) {
+            <span class="fp-cambio">
+              <span class="fp-fecha">{{ fila.last_change_at | date:'dd/MM/yyyy HH:mm' }}</span>
+              @if (fila.last_change_by) {
+                <span class="fp-autor">{{ fila.last_change_by }}</span>
               }
-              <th scope="col">Estado</th>
-              <th scope="col" class="fp-col-centro">Cambios</th>
-              <th scope="col">Último cambio</th>
-              @for (col of columnasVisibles(); track col.key) {
-                <th scope="col" [title]="col.section_title || ''">{{ col.label }}</th>
-              }
-              <th scope="col" class="fp-col-acciones">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (fila of filas(); track fila.id) {
-              <tr [class.fp-fila--cambiada]="fila.changed">
-                <td class="fp-col-id">{{ fila.id }}</td>
-                @if (etiquetaLlave()) {
-                  <td class="fp-llave">{{ fila.record_key || '—' }}</td>
-                }
-                <td>
-                  <span class="chip" [class]="claseEstado(fila.status)">{{ etiquetaEstado(fila.status) }}</span>
-                </td>
-                <td class="fp-col-centro">
-                  @if (fila.changed) {
-                    <span class="chip chip-cambio"
-                          [matTooltip]="'Se modificó después de enviarse · ' + (fila.revision_no - 1) + ' cambio(s)'">
-                      {{ fila.revision_no - 1 }}
-                    </span>
-                  } @else {
-                    <span class="fp-sin-dato">—</span>
-                  }
-                </td>
-                <td class="fp-cambio">
-                  @if (fila.last_change_at) {
-                    <span class="fp-fecha">{{ fila.last_change_at | date:'dd/MM/yyyy HH:mm' }}</span>
-                    @if (fila.last_change_by) {
-                      <span class="fp-autor">{{ fila.last_change_by }}</span>
-                    }
-                  } @else {
-                    <span class="fp-sin-dato">—</span>
-                  }
-                </td>
-                @for (col of columnasVisibles(); track col.key) {
-                  <td class="fp-valor" [title]="valor(fila, col)">{{ valor(fila, col) || '—' }}</td>
-                }
-                <td class="fp-col-acciones">
-                  <button mat-icon-button (click)="verHistorial(fila)"
-                          matTooltip="Ver todo lo que le pasó a este registro"
-                          [attr.aria-label]="'Historial del registro ' + fila.id">
-                    <mat-icon>history</mat-icon>
-                  </button>
-                  @if (puedeEditar()) {
-                    <button mat-icon-button (click)="editar(fila)"
-                            matTooltip="Editar las columnas que tienes habilitadas"
-                            [attr.aria-label]="'Editar el registro ' + fila.id">
-                      <mat-icon>edit</mat-icon>
-                    </button>
-                  }
-                </td>
-              </tr>
+            </span>
+          } @else {
+            <span class="fp-sin-dato">—</span>
+          }
+        </ng-template>
+
+        <ng-template tablaAcciones let-fila>
+          <button mat-icon-button (click)="verHistorial(fila)"
+                  matTooltip="Ver todo lo que le pasó a este registro"
+                  [attr.aria-label]="'Historial del registro ' + fila.id">
+            <mat-icon>history</mat-icon>
+          </button>
+          @if (puedeEditar()) {
+            <button mat-icon-button (click)="editar(fila)"
+                    matTooltip="Editar las columnas que tienes habilitadas"
+                    [attr.aria-label]="'Editar el registro ' + fila.id">
+              <mat-icon>edit</mat-icon>
+            </button>
+          }
+        </ng-template>
+
+        <ng-template tablaVacio>
+          <div class="fp-vacio">
+            <span class="material-symbols-outlined fp-vacio-icono">inbox</span>
+            <p>No hay registros que coincidan con el filtro.</p>
+            @if (puedeCargar()) {
+              <button mat-flat-button class="btn-managerial" (click)="abrirCargaMasiva()">
+                <mat-icon>upload_file</mat-icon>
+                Cargar datos desde un archivo
+              </button>
             }
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </ng-template>
+      </app-tabla-estandar>
 
       @if (hayColumnasOcultas()) {
         <p class="fp-nota">
@@ -199,15 +175,6 @@
           más el historial completo de cambios.
         </p>
       }
-
-      <mat-paginator
-        [length]="total()"
-        [pageIndex]="page()"
-        [pageSize]="size()"
-        [pageSizeOptions]="[10, 25, 50, 100]"
-        (page)="onPage($event)"
-        aria-label="Paginación de registros">
-      </mat-paginator>
     }
   </mat-card-content>
 </mat-card>

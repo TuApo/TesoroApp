@@ -4,10 +4,13 @@ import { isPlatformBrowser } from '@angular/common';
 import { Component, inject, OnInit, PLATFORM_ID, ViewChild, ElementRef, ChangeDetectionStrategy, ChangeDetectorRef, signal } from '@angular/core';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import {
-  PDFDocument, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees,
+  PDFDocument, PDFForm, PDFTextField, PDFCheckBox, StandardFonts, rgb, degrees,
   pushGraphicsState, popGraphicsState, moveTo, lineTo, closePath, clip, endPath,
 } from 'pdf-lib';
-import { dibujarImagenPlana, aplanarFormulario } from './pdf-aplanado.util';
+import { dibujarImagenPlana, aplanarFormulario, prepararParaDiligenciar } from './pdf-aplanado.util';
+import {
+  FichaDiligenciarDialogComponent, FichaDiligenciarData, FichaDiligenciarResultado,
+} from '../ficha-diligenciar/ficha-diligenciar.dialog';
 import Swal from 'sweetalert2';
 import { separarReferencias } from './referencias.util';
 import { MatDialog } from '@angular/material/dialog';
@@ -31,7 +34,8 @@ import { fillMinervaPdf } from './minerva-fill';
 import { fillFichaSocialPdf } from './ficha-social-fill';
 import { fillFichaTecnicaPdf } from './ficha-tecnica-fill';
 import { buildContratoAdministrativoPdf } from './contrato-administrativo-fill';
-import { salarioContratoCO, SMMLV_VIGENTE } from './salario.util';
+import { anioCreacionContrato, salarioContratoCO, salarioMinimoDelAnio, SalarioMinimoVigencia, SMMLV_VIGENTE } from './salario.util';
+import { SalarioMinimoService } from '../../service/salario-minimo/salario-minimo.service';
 import {
   buildCartaDescuentoFlorPdf,
   buildFormatoTimbrePdf,
@@ -41,9 +45,14 @@ import {
 import { switchMap, map, take, catchError, tap, finalize } from 'rxjs/operators';
 import { of, forkJoin, firstValueFrom, throwError } from 'rxjs';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { isDocumentoVisible, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
+import { isDocumentoVisible, resolverPerfil, getDocSeccion, SECCION_LABELS, type DocSeccion } from './documentos-por-empresa.config';
+import {
+  DocumentosParametrizadosService,
+  type ResolucionDocumental,
+} from '../../service/documentos-parametrizados/documentos-parametrizados.service';
 import {
   DOCUMENTOS_PAQUETE,
+  SOLO_PLANTILLA_HTML,
   TYPE_ID_POR_TITULO,
   esSoloSubir,
 } from '../../shared/paquete-documental.data';
@@ -194,18 +203,29 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * Campo "Salario Mensual Ordinario" de la caratula de los contratos, ya
    * convertido a letras: "$ 2.500.000 DOS MILLONES QUINIENTOS MIL PESOS M/C".
    *
-   * Antes iba el SMMLV escrito a mano dentro del codigo, asi que TODO contrato
-   * salia con el minimo aunque la vacante pagara otra cosa. Ahora sale de la
-   * vacante; si esta no trae salario se cae al minimo legal, que es el piso que
-   * la ley garantiza de todas formas.
+   * Decision de negocio (2026-09-16): todas las empresas pagan el minimo, y el
+   * documento imprime el del AÑO EN QUE SE CREO EL CONTRATO (Parametrizacion de
+   * vacantes › Salario minimo): un contrato de 2025 reimpreso hoy sigue diciendo
+   * el minimo de 2025. Solo si no hay configuracion para ese año sale el salario
+   * de la vacante y, sin este, el minimo vigente.
    */
   get salarioContratoDoc(): string {
+    const minimo = this.salarioMinimoContrato;
+    if (minimo != null) return salarioContratoCO(minimo, 'M/C', minimo);
     const crudo =
       this.vacante?.salario ??
       this._entrevistaSel?.proceso?.vacante_salario ??
       this.entrevistaDoc?.proceso?.vacante_salario ??
       null;
     return salarioContratoCO(crudo) || salarioContratoCO(SMMLV_VIGENTE);
+  }
+
+  /** Años configurados de salario minimo; se cargan con el candidato en `ngOnInit`. */
+  private vigenciasSalario: SalarioMinimoVigencia[] = [];
+
+  /** Salario minimo del año de creacion del contrato; `null` = sin configuracion. */
+  get salarioMinimoContrato(): number | null {
+    return salarioMinimoDelAnio(this.vigenciasSalario, anioCreacionContrato(this._contratoObra));
   }
 
   /**
@@ -301,10 +321,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
   private permissions = inject(PermissionsService);
   private dialog = inject(MatDialog);
+  private salarioMinimoService = inject(SalarioMinimoService);
 
   // La lista del paquete vive en `shared/paquete-documental.data`; aquí solo se
   // envuelve en la forma que espera la plantilla.
-  documentos = DOCUMENTOS_PAQUETE.map((titulo) => ({ titulo }));
+  // Sin los que solo existen como plantilla HTML: aquí no hay con qué generarlos (van por Documentos).
+  documentos = DOCUMENTOS_PAQUETE.filter((titulo) => !SOLO_PLANTILLA_HTML.has(titulo)).map((titulo) => ({ titulo }));
 
   nombreCompleto = '';
 
@@ -434,11 +456,15 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         ? this.gestionDocumentalService.getDocumentosDeCandidato(this.cedula).pipe(take(1), catchError(() => of([])))
         : of([]);
 
+      // Salario minimo por año: nunca falla (sin configuracion = lista vacia).
+      const vigenciasSalario$ = this.salarioMinimoService.vigencias().pipe(take(1));
+
       // 5) Ejecutar, cargar vacante (si hay), y setear estado
-      forkJoin({ datoCandidato: datoCandidato$, datoAdministrativo: datoAdministrativo$, datoAdministrativoBiometria: datoAdministrativoBiometria$, docsBackend: docsBackend$ })
+      forkJoin({ datoCandidato: datoCandidato$, datoAdministrativo: datoAdministrativo$, datoAdministrativoBiometria: datoAdministrativoBiometria$, docsBackend: docsBackend$, vigenciasSalario: vigenciasSalario$ })
         .pipe(
-          switchMap(({ datoCandidato, datoAdministrativo, datoAdministrativoBiometria, docsBackend }) => {
+          switchMap(({ datoCandidato, datoAdministrativo, datoAdministrativoBiometria, docsBackend, vigenciasSalario }) => {
             this.candidato = datoCandidato;
+            this.vigenciasSalario = vigenciasSalario ?? [];
             console.log('datoCandidato', datoCandidato);
 
             // Mapear documentos existentes
@@ -573,6 +599,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         .subscribe({
           next: () => {
             this.cdr.markForCheck();
+            // Llegada desde Documentos del pipeline (clic en "Ficha Técnica"): se
+            // genera y se abre para diligenciar lo que falta. `setTimeout` para que
+            // el `finalize(Swal.close)` de arriba no cierre el diálogo de plantilla.
+            if (this.route.snapshot.queryParamMap.get('abrir') === 'ficha-tecnica'
+                && this.candidato && Object.keys(this.candidato).length) {
+              setTimeout(() => this.diligenciarFichaTecnica('basica'), 0);
+            }
           },
           error: (err) => {
             console.error(err);
@@ -627,14 +660,18 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
   /**
    * Plantilla (Apoyo Laboral / Tu Alianza) para Contrato y Ficha Técnica.
-   * El rol admin la escoge en un diálogo (puede generar cualquiera de las dos
-   * desde la misma pantalla); al resto de roles se la impone la temporal de la
-   * vacante (`this.empresa`), como siempre.
-   * Devuelve null si el admin cancela el diálogo.
+   *
+   * La decide la temporal con la que se firma el contrato: la de la vacante a la
+   * que se remitió a la persona (`this.empresa`). Antes el rol admin tenía que
+   * escogerla en un diálogo cada vez (2026-09-16: "se supone que está
+   * parametrizado"); ahora el diálogo solo sale, y solo al admin, cuando la
+   * temporal no es ninguna de las dos. Devuelve null si se cancela.
    */
   private async elegirPlantillaApoyoAlianza(titulo: string): Promise<'APOYO' | 'ALIANZA' | null> {
-    const emp = (this.empresa ?? '').toUpperCase().trim();
-    if (!this.esSuperAdmin) return emp.includes('ALIANZA') ? 'ALIANZA' : 'APOYO';
+    const emp = (this.empresa ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+    if (emp.includes('ALIANZA')) return 'ALIANZA';
+    if (emp.includes('APOYO')) return 'APOYO';
+    if (!this.esSuperAdmin) return 'APOYO';
     const res = await Swal.fire({
       title: titulo,
       text: `¿Con qué plantilla lo generas? (temporal de la vacante: ${this.empresa || 'sin definir'})`,
@@ -1237,6 +1274,42 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   // ───────── Cache de filtro (perf) ─────────
+  // ── Parametrización documental (interruptor OFF | SOMBRA | ON por temporal) ──────────
+  private readonly docsParametrizados = inject(DocumentosParametrizadosService);
+  private _resolucionDocs: ResolucionDocumental | null = null;
+  private _resolucionKey = '<unset>';
+  /** Con la temporal en ON y la parametrización sin resolver: por qué no hay documentos. */
+  errorDocumentosParametrizados: string | null = null;
+  /** Con la temporal en ON y resuelto: la lista sale de la parametrización (se indica en cabecera). */
+  documentosParametrizadosActivos = false;
+
+  /**
+   * Pide la resolución documental UNA vez por vacante. OFF no cambia nada. SOMBRA sigue con
+   * las regex y registra la comparación. ON sustituye las regex (ver documentosVisibles).
+   */
+  private asegurarResolucionDocumental(ctxKey: string): void {
+    if (ctxKey === this._resolucionKey) return;
+    this._resolucionKey = ctxKey;
+    this._resolucionDocs = null;
+    this.errorDocumentosParametrizados = null;
+    this.documentosParametrizadosActivos = false;
+    const v = this.vacante;
+    if (!v?.temporal) return;
+    this.docsParametrizados.resolverVacante(v).pipe(take(1)).subscribe((r) => {
+      if (ctxKey !== this._resolucionKey) return;
+      this._resolucionDocs = r;
+      this.documentosParametrizadosActivos = r.modo === 'ON' && r.estado === 'OK';
+      this.errorDocumentosParametrizados = r.modo === 'ON' && r.estado === 'ERROR' ? r.mensaje : null;
+      if (r.modo === 'SOMBRA') {
+        const ctx = { temporal: v.temporal ?? null, empresaUsuaria: v.empresa_usuaria_solicita ?? null, finca: v.finca ?? null };
+        const titulosRegex = this.documentos.filter(d => isDocumentoVisible(d.titulo, ctx)).map(d => d.titulo);
+        this.docsParametrizados.registrarSombra(v, resolverPerfil(ctx)?.nombre ?? null, titulosRegex, r, 'GENERAR_DOCUMENTOS');
+      }
+      this._docsVisiblesKey = '<unset>';
+      this.cdr.markForCheck();
+    });
+  }
+
   // Recalcula `documentosVisibles` solo cuando cambia el contexto (temporal/empresa/finca).
   // El objeto retornado se reutiliza por referencia → derivados (docsGenerables, etc.) son estables.
   private _docsVisiblesCache: { titulo: string }[] | null = null;
@@ -1255,16 +1328,23 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     const emp = this.vacante?.empresa_usuaria_solicita ?? null;
     const fin = this.vacante?.finca ?? null;
     const sinFiltro = this.esSuperAdmin;
-    const key = `${sinFiltro}|${tmp}|${emp}|${fin}`;
+    const ctxKey = `${this.vacante?.id ?? ''}|${tmp}|${emp}|${fin}|${this.vacante?.configuracion_centro_cargo_id ?? ''}`;
+    this.asegurarResolucionDocumental(ctxKey);
+    const r = this._resolucionDocs;
+    const key = `${sinFiltro}|${ctxKey}|${r?.modo ?? '?'}|${r?.estado ?? '?'}`;
 
     if (key === this._docsVisiblesKey && this._docsVisiblesCache) {
       return this._docsVisiblesCache;
     }
 
     const ctx = { temporal: tmp, empresaUsuaria: emp, finca: fin };
+    // Temporal en ON: SOLO la parametrización. Sin filas (o error) no se muestra nada y
+    // la cabecera explica por qué; no hay caída silenciosa a un perfil regex.
     const visibles = sinFiltro
       ? [...this.documentos]
-      : this.documentos.filter(d => isDocumentoVisible(d.titulo, ctx));
+      : r?.modo === 'ON'
+        ? this.documentos.filter(d => DocumentosParametrizadosService.visibleEnParametrizacion(d.titulo, r))
+        : this.documentos.filter(d => isDocumentoVisible(d.titulo, ctx));
 
     this._docsVisiblesKey = key;
     this._docsVisiblesCache = visibles;
@@ -1533,6 +1613,77 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
 
+  /**
+   * Genera la ficha técnica y la abre para DILIGENCIAR lo que le falta.
+   *
+   * Pedido 2026-09-16: desde Documentos del pipeline, clic en "Ficha Técnica"
+   * tiene que mostrarla para completarla a mano. Se usa el MISMO generador de
+   * siempre; solo cambia la salida (ver `entregarFichaTecnica`).
+   */
+  async diligenciarFichaTecnica(variant: 'basica' | 'completa' = 'basica'): Promise<void> {
+    if (!await this.exigirBiometria()) return;
+    this.modoDiligenciar = true;
+    try {
+      await this.runFichaTecnicaVariant(variant);
+    } finally {
+      this.modoDiligenciar = false;
+    }
+  }
+
+  /** `true` mientras la ficha se genera para diligenciar (campos sin aplanar). */
+  private modoDiligenciar = false;
+
+  /**
+   * Salida común de las tres fichas técnicas (Apoyo, Tu Alianza, TA Completa).
+   *
+   * Normal: aplana, deja el PDF listo para subir y lo previsualiza, como siempre.
+   * Diligenciar: deja los campos editables, abre el visor para completarlos y al
+   * guardar sube la ficha ya aplanada al expediente.
+   */
+  private async entregarFichaTecnica(pdfDoc: PDFDocument, form: PDFForm, typeId?: number): Promise<void> {
+    const nombre = 'Ficha tecnica.pdf';
+    if (!this.modoDiligenciar) {
+      aplanarFormulario(form);
+      const file = new File([this.toSafeArrayBuffer(await pdfDoc.save())], nombre, { type: 'application/pdf' });
+      this.uploadedFiles['Ficha Técnica'] = { file, fileName: nombre, ...(typeId ? { typeId } : {}) };
+      this.verPDF({ titulo: 'Ficha Técnica' });
+      return;
+    }
+
+    prepararParaDiligenciar(form);
+    const bytes = await pdfDoc.save();
+    const r = await firstValueFrom(this.dialog.open<
+      FichaDiligenciarDialogComponent, FichaDiligenciarData, FichaDiligenciarResultado
+    >(FichaDiligenciarDialogComponent, {
+      maxWidth: '100vw', maxHeight: '100vh', width: '100vw', height: '100vh',
+      panelClass: 'pdf-editor-fullscreen-dialog', disableClose: true, autoFocus: false,
+      data: { titulo: 'Ficha Técnica', bytes, nombreArchivo: nombre },
+    }).afterClosed());
+    if (!r?.file) return;
+
+    this.uploadedFiles['Ficha Técnica'] = { file: r.file, fileName: nombre, ...(typeId ? { typeId } : {}) };
+    this.verPDF({ titulo: 'Ficha Técnica' });
+    await this.subirUnDocumento('Ficha Técnica');
+  }
+
+  /** Sube SOLO este documento (el resto de lo generado sigue esperando a «Guardar y Cargar»). */
+  private async subirUnDocumento(titulo: string): Promise<void> {
+    const info = this.uploadedFiles[titulo];
+    const typeId = info?.typeId ?? this.typeMap[titulo];
+    if (!info?.file || !typeId) return;
+    Swal.fire({ title: 'Guardando…', text: `Subiendo ${titulo} al expediente.`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+      await firstValueFrom(this.gestionDocumentalService.guardarDocumento(
+        info.fileName, this.cedula, typeId, info.file, this.codigoContratacion,
+        String(this.candidato?.tipo_doc || '').trim() || undefined));
+      await this.cerrarLoadingSwal();
+      await Swal.fire({ icon: 'success', title: 'Guardada', text: `${titulo} quedó en el expediente.`, timer: 2200, showConfirmButton: false });
+    } catch (err: any) {
+      await this.cerrarLoadingSwal();
+      await Swal.fire('No se pudo subir', `${titulo} está diligenciada aquí pero no se subió: ${err?.error?.message || err?.message || 'error desconocido'}. Usa «Guardar y Cargar al Servidor».`, 'error');
+    }
+  }
+
   async cargarpdf() {
     Swal.fire({
       title: 'Cargando...',
@@ -1665,7 +1816,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   private biometriaFaltante(): string[] {
     const tiene = (v: any) => typeof v === 'string' && v.trim() !== '';
     const falta: string[] = [];
-    if (!tiene(this.firma)) falta.push('Firma');
+    // La FIRMA no se exige (2026-09-16): la persona firma a mano sobre el
+    // documento impreso; no tiene que estar capturada antes de generar. Si ya
+    // está capturada, los generadores la siguen poniendo.
     if (!tiene(this.huella)) falta.push('Huella');
     if (!tiene(this.foto)) falta.push('Foto');
     return falta;
@@ -1743,11 +1896,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   /**
-   * Bloquea la generación si a la persona le falta firma, huella o foto.
+   * Bloquea la generación si a la persona le falta huella o foto (la firma no:
+   * se firma a mano sobre el documento).
    *
    * Antes solo avisaba y dejaba "Generar de todas formas", pero los documentos
    * salían con los recuadros en blanco y tocaba reimprimirlos: ahora la
-   * biometría completa es requisito duro. Devuelve `true` solo si están las 3.
+   * huella y la foto son requisito duro. Devuelve `true` solo si están las 2.
    */
   private async exigirBiometria(): Promise<boolean> {
     // Sin candidato cargado no hay nada que juzgar: el aviso sería falso.
@@ -1769,7 +1923,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     // Una tarjeta por requisito con su estado, para que se vea de una qué
     // está cargado y qué es exactamente lo que falta.
     const filas = [
-      { label: 'Firma', icono: '✍️' },
       { label: 'Huella', icono: '👆' },
       { label: 'Foto', icono: '📷' },
     ].map(({ label, icono }) => {
@@ -1796,11 +1949,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         `<p style="text-align:left;margin:0 0 12px;color:#374151;">` +
         (nombre ? `<b>${this.escapeHtml(nombre)}</b>` : 'La persona') +
         (this.cedula ? ` <span style="color:#6b7280;">(${this.escapeHtml(String(this.cedula))})</span>` : '') +
-        ` no tiene la biometría completa:</p>` +
+        ` no tiene la huella y la foto cargadas:</p>` +
         filas +
         `<p style="text-align:left;margin:12px 0 0;font-size:13px;color:#6b7280;">` +
-        `Los documentos se imprimen y se firman: sin firma, huella y foto salen ` +
-        `incompletos. Captura lo que falta y vuelve a generar.</p>`,
+        `La firma no hace falta: se firma a mano sobre el documento impreso. Sin huella ` +
+        `y foto los documentos salen incompletos. Captura lo que falta y vuelve a generar.</p>`,
       confirmButtonText: 'Entendido',
       confirmButtonColor: '#111827',
       width: 460,
@@ -1918,6 +2071,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         firmaAdministrativoBase64: this.firmaPersonalAdministrativo ?? '',
         user: this.user,
         nombreCompletoLogin: this.nombreCompletoLogin,
+        salarioMinimo: this.salarioMinimoContrato,
       });
 
       const pdfBlob = doc.output('blob');
@@ -1955,7 +2109,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   }
 
   async generarPDF(documento: string): Promise<void> {
-    // Biometría completa (firma, huella, foto) es requisito para generar.
+    // Huella y foto son requisito para generar (la firma no: se firma a mano).
     if (!await this.exigirBiometria()) return;
 
     // Contratos Otrosí no depende de la empresa
@@ -11380,6 +11534,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         cargo: this.safe(this.cargoDoc),
         referenciasA: this.referenciasA,
         referenciasF: this.referenciasF,
+        salarioMinimo: this.salarioMinimoContrato,
       };
       fillFichaTecnicaPdf(form, customFont, cand, vac, ctx);
 
@@ -11432,16 +11587,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         }
       }
 
-      // Bloquear campos
-      aplanarFormulario(form);
-
-      // Guardar PDF
-      const pdfBytes = await pdfDoc.save();
-      const ab = this.toSafeArrayBuffer(pdfBytes);
-      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
-
-      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha Técnica' });
+      await this.entregarFichaTecnica(pdfDoc, form);
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -12095,16 +12241,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         customFont
       );
 
-      // Bloquear campos
-      aplanarFormulario(form);
-
-      // Guardar PDF
-      const pdfBytes = await pdfDoc.save();
-      const ab = this.toSafeArrayBuffer(pdfBytes);
-      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
-
-      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf' };
-      this.verPDF({ titulo: 'Ficha Técnica' });
+      await this.entregarFichaTecnica(pdfDoc, form);
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });
@@ -12694,19 +12831,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         customFont
       );
 
-      // Bloquear campos
-      aplanarFormulario(form);
-
-      // Guardar PDF
-      const pdfBytes = await pdfDoc.save();
-      const ab = this.toSafeArrayBuffer(pdfBytes);
-      const file = new File([ab], 'Ficha tecnica.pdf', { type: 'application/pdf' });
-
       // Misma UI entry "Ficha Técnica"; typeId 111 override para que el backend
       // reciba el tipo "TA Completa" al subir. Pisa cualquier versión previa
       // (básica o completa anterior) — última gana.
-      this.uploadedFiles['Ficha Técnica'] = { file, fileName: 'Ficha tecnica.pdf', typeId: 111 };
-      this.verPDF({ titulo: 'Ficha Técnica' });
+      await this.entregarFichaTecnica(pdfDoc, form, 111);
     } catch (error) {
       console.error('Error generando ficha técnica:', error);
       Swal.fire({ icon: 'error', title: 'Error', text: 'Ocurrió un error al generar la ficha técnica.' });

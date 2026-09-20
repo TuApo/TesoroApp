@@ -53,50 +53,30 @@
         </div>
       </div>
 
-      @if (demoras.length) {
-        <div class="vd-tabla-wrap">
-          <table class="vd-tabla">
-            <thead>
-              <tr>
-                <th class="vd-col-dias">Días</th>
-                <th>Cargo</th>
-                <th>Centro de costo</th>
-                <th>Oficina</th>
-                <th class="vd-num">Solic.</th>
-                <th class="vd-num">Falt.</th>
-                <th class="vd-num">Cand.</th>
-                <th class="vd-num">Cumpl.</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (fila of demoras; track fila.raw.id) {
-                <tr>
-                  <td><span [ngClass]="clasePorDias(fila.dias)">{{ fila.dias === null ? '—' : fila.dias }}</span></td>
-                  <td class="vd-elipsis" [matTooltip]="fila.cargo">{{ fila.cargo }}</td>
-                  <td class="vd-elipsis" [matTooltip]="fila.finca">{{ fila.finca }}</td>
-                  <td class="vd-elipsis" [matTooltip]="fila.oficina">{{ fila.oficina }}</td>
-                  <td class="vd-num">{{ fila.req }}</td>
-                  <td class="vd-num vd-falt">{{ fila.falt }}</td>
-                  <td class="vd-num">{{ fila.candidatos }}</td>
-                  <td class="vd-num"><span [ngClass]="claseCumpl(fila.cumpl)">{{ fila.cumpl }}%</span></td>
-                  <td class="vd-num">
-                    @if (fila.ingresoVencido) {
-                      <mat-icon class="vd-alerta-icon" matTooltip="La fecha de ingreso ya pasó">event_busy</mat-icon>
-                    }
-                    <button mat-icon-button class="vd-ver" (click)="abrir(fila)"
-                            matTooltip="Ver candidatos asignados">
-                      <mat-icon>open_in_new</mat-icon>
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        <div class="vd-chart-vacio"><mat-icon>check_circle</mat-icon><span>No hay vacantes pendientes.</span></div>
-      }
+      <app-tabla-estandar
+        id="vacantes-indicadores-demoras"
+        titulo="Vacantes con más demora"
+        modulo="Vacantes"
+        vacio="No hay vacantes pendientes."
+        [datos]="demoras"
+        [columnas]="columnasDemoras"
+        [filaId]="idDemora"
+        [filasPorPagina]="0">
+
+        <ng-template tablaCelda="falt" let-fila>
+          <span class="vd-falt">{{ fila.falt }}</span>
+        </ng-template>
+
+        <ng-template tablaAcciones let-fila>
+          @if (fila.ingresoVencido) {
+            <mat-icon class="vd-alerta-icon" matTooltip="La fecha de ingreso ya pasó">event_busy</mat-icon>
+          }
+          <button mat-icon-button class="vd-ver" (click)="abrir(fila)"
+                  matTooltip="Ver candidatos asignados">
+            <mat-icon>open_in_new</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
     </div>
 
     <!-- Gráficas -->

@@ -221,22 +221,23 @@
                                     </div>
 
                                     <div class="arl-errors-table-wrapper">
-                                        <table class="arl-errors-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Cédula</th>
-                                                    <th>Hallazgo</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @for(err of arlErrors; track err.cedula + err.error) {
-                                                <tr>
-                                                    <td class="arl-cedula">{{ err.cedula }}</td>
-                                                    <td class="arl-error-msg">{{ err.error }}</td>
-                                                </tr>
-                                                }
-                                            </tbody>
-                                        </table>
+                                        <app-tabla-estandar
+                                            id="contratacion-reporte-errores-arl"
+                                            titulo="Hallazgos ARL"
+                                            modulo="Contratación"
+                                            [datos]="arlErrors"
+                                            [columnas]="columnasArl"
+                                            [filasPorPagina]="25"
+                                            [ayuda]="false">
+
+                                            <ng-template tablaCelda="cedula" let-err>
+                                                <span class="arl-cedula">{{ err.cedula }}</span>
+                                            </ng-template>
+
+                                            <ng-template tablaCelda="error" let-err>
+                                                <span class="arl-error-msg">{{ err.error }}</span>
+                                            </ng-template>
+                                        </app-tabla-estandar>
                                     </div>
                                 </div>
                                 }

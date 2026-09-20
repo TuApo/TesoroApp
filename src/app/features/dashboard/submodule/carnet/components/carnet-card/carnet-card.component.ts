@@ -32,6 +32,8 @@ import { Carnet } from '../../models/carnet.model';
  */
 @Component({
   selector: 'app-carnet-card',
+  // Documento (se imprime o se captura): se queda en claro aunque la app esté en oscuro.
+  host: { class: 'tema-claro-fijo' },
   standalone: true,
   imports: [CommonModule, MatIconModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,

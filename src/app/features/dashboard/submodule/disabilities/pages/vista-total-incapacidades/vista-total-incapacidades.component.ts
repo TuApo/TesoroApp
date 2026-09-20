@@ -1,10 +1,7 @@
-import {  Component, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy, ViewChild, AfterViewInit, ChangeDetectorRef } from '@angular/core';
+import {  Component, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 
 import { isPlatformBrowser } from '@angular/common';
-import { MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -12,7 +9,6 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatBadgeModule } from '@angular/material/badge';
-import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -32,9 +28,49 @@ import { DatePipe } from '@angular/common'; // Importa DatePipe
 import { forkJoin, mergeMap } from 'rxjs';
 import * as ExcelJS from 'exceljs';
 import { getLocalStorageItem } from '../../../../../../core/utils/safe-storage';
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge, ValorCelda } from '../../../../../../shared/components/tabla-estandar';
 
 interface ColumnTitle {
   [key: string]: string;
+}
+
+type RolTarjeta = NonNullable<ColumnaTabla['tarjeta']>;
+
+/** Incapacidades: claves que se ven siempre (el resto, en pantallas anchas). */
+const PRINCIPALES_T1: readonly string[] = [
+  'Tipo_de_documento', 'Numero_de_documento', 'numero_de_contrato', 'nombre', 'apellido', 'Oficina',
+  'Temporal', 'consecutivoSistema', 'tipo_incapacidad', 'codigo_diagnostico', 'F_inicio', 'F_final',
+  'dias_incapacidad', 'estado_incapacidad',
+];
+
+/** Rol en la vista de tarjetas; las claves que no estan no salen en la tarjeta. */
+const ROL_TARJETA_T1: Readonly<Record<string, RolTarjeta>> = {
+  nombre: 'titulo',
+  apellido: 'titulo',
+  Numero_de_documento: 'subtitulo',
+  estado_incapacidad: 'badge',
+  consecutivoSistema: 'meta',
+  tipo_incapacidad: 'meta',
+  F_inicio: 'meta',
+  F_final: 'meta',
+  dias_incapacidad: 'meta',
+};
+
+const ROL_TARJETA_T4: Readonly<Record<string, RolTarjeta>> = {
+  Numero_de_documento: 'titulo',
+  consecutivoSistema_id: 'subtitulo',
+  estado_del_documento_incapacidad: 'meta',
+  numero_de_radicado: 'meta',
+  fecha_de_recepcion_de_la_incapacidad: 'meta',
+  respuesta_de_la_eps: 'meta',
+  valor_incapacidad: 'meta',
+};
+
+/** Dato plano para la tabla estandar: numeros y booleanos tal cual, el resto como texto. */
+function valorPlano(value: unknown): ValorCelda {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  return String(value);
 }
 
 
@@ -43,7 +79,7 @@ interface ColumnTitle {
   selector: 'app-vista-total-incapacidades',
   standalone: true,
   imports: [
-    MatTableModule,
+    ...TABLA_ESTANDAR,
     MatFormFieldModule,
     MatInputModule,
     MatOptionModule,
@@ -54,8 +90,6 @@ interface ColumnTitle {
     MatIconModule,
     FormsModule,
     MatCardModule,
-    MatPaginatorModule,
-    MatSortModule,
     MatProgressSpinnerModule,
     MatProgressBarModule,
     MatExpansionModule,
@@ -68,16 +102,7 @@ interface ColumnTitle {
   styleUrl: './vista-total-incapacidades.component.css',
   providers: [DatePipe, provideNativeDateAdapter()]
 } )
-export class VistaTotalIncapacidadesComponent implements OnInit, AfterViewInit {
-  @ViewChild('pagT1', { static: false }) paginatorTabla1!: MatPaginator;
-  @ViewChild('pagT4', { static: false }) paginatorTabla4!: MatPaginator;
-  @ViewChild('sortT1', { static: false }) sortT1!: MatSort;
-  @ViewChild('sortT4', { static: false }) sortT4!: MatSort;
-
-  // Filtros rápidos inline por tabla
-  quickFilterT1: string = '';
-  quickFilterT4: string = '';
-
+export class VistaTotalIncapacidadesComponent implements OnInit {
   // Loading state granular por acción (permite mostrar spinner específico por botón)
   downloadingExcel = false;
   downloadingDia = false;
@@ -320,10 +345,37 @@ export class VistaTotalIncapacidadesComponent implements OnInit, AfterViewInit {
     'respuesta_final_incapacidad': 'Respuesta final incapacidad'
   };
 
-  dataSourceTable1 = new MatTableDataSource<any>();
-  dataSourceTable4 = new MatTableDataSource<any>();
-  copiadataSourceTable1 = new MatTableDataSource<any>();
-  copiadataSourceTable4 = new MatTableDataSource<any>();
+  /** Filas de las dos tablas (tabla estandar: busqueda, filtros, orden y paginacion los da la tabla). */
+  readonly filasTabla1 = signal<any[]>([]);
+  readonly filasTabla4 = signal<any[]>([]);
+  /** Copia de lo cargado para restablecer las tablas tras un filtro sin resultados. */
+  copiaTabla1: any[] = [];
+  copiaTabla4: any[] = [];
+
+  /**
+   * Incapacidades: una columna por clave de ColumnsTable1, con el mismo titulo
+   * de antes. Las principales se ven siempre; el resto desde 1024 px. En la
+   * tarjeta (movil) solo salen las de ROL_TARJETA_T1.
+   */
+  readonly columnasTabla1: ColumnaTabla<any>[] = this.ColumnsTable1.map((col): ColumnaTabla<any> => ({
+    id: col,
+    header: this.toTitleCase(col, this.columnTitlesTable1),
+    valor: (fila) => valorPlano(fila?.[col]),
+    formato: (fila) => this.fmt(fila?.[col]),
+    prioridad: PRINCIPALES_T1.includes(col) ? 1 : 3,
+    tarjeta: ROL_TARJETA_T1[col] ?? 'oculto',
+    badge: col === 'estado_incapacidad' ? (fila) => this.badgeEstado(fila?.[col]) : undefined,
+  }));
+
+  /** Reportes: una columna por clave de displayedColumnsTable4, con el mismo titulo de antes. */
+  readonly columnasTabla4: ColumnaTabla<any>[] = this.displayedColumnsTable4.map((col, i): ColumnaTabla<any> => ({
+    id: col,
+    header: this.toTitleCase(col, this.columnTitlesTable4),
+    valor: (fila) => valorPlano(fila?.[col]),
+    formato: (fila) => this.fmt(fila?.[col]),
+    prioridad: i < 8 ? 1 : 3,
+    tarjeta: ROL_TARJETA_T4[col] ?? 'oculto',
+  }));
   tiposIncapacidad: string[] = [
     'ENFERMEDAD GENERAL',
     'LICENCIA DE MATERNIDAD',
@@ -388,46 +440,6 @@ export class VistaTotalIncapacidadesComponent implements OnInit, AfterViewInit {
     }
   }
 
-  ngAfterViewInit(): void {
-    // Conectar paginadores y sort con sus data sources
-    if (this.paginatorTabla1) this.dataSourceTable1.paginator = this.paginatorTabla1;
-    if (this.paginatorTabla4) this.dataSourceTable4.paginator = this.paginatorTabla4;
-    if (this.sortT1) this.dataSourceTable1.sort = this.sortT1;
-    if (this.sortT4) this.dataSourceTable4.sort = this.sortT4;
-
-    // filterPredicate para búsqueda rápida (todas las columnas visibles)
-    this.dataSourceTable1.filterPredicate = this._makeFilterPredicate(this.ColumnsTable1);
-    this.dataSourceTable4.filterPredicate = this._makeFilterPredicate(this.displayedColumnsTable4);
-  }
-
-  private _makeFilterPredicate(columns: string[]) {
-    return (row: any, filter: string) => {
-      if (!filter) return true;
-      const needle = filter.toLowerCase();
-      for (const col of columns) {
-        const v = row?.[col];
-        if (v != null && String(v).toLowerCase().includes(needle)) return true;
-      }
-      return false;
-    };
-  }
-
-  // Aplicar filtro rápido (escribe directo en dataSource.filter)
-  applyQuickFilterT1(value: string) {
-    this.quickFilterT1 = value;
-    this.dataSourceTable1.filter = (value || '').trim().toLowerCase();
-    if (this.dataSourceTable1.paginator) this.dataSourceTable1.paginator.firstPage();
-  }
-
-  applyQuickFilterT4(value: string) {
-    this.quickFilterT4 = value;
-    this.dataSourceTable4.filter = (value || '').trim().toLowerCase();
-    if (this.dataSourceTable4.paginator) this.dataSourceTable4.paginator.firstPage();
-  }
-
-  clearQuickFilterT1() { this.applyQuickFilterT1(''); }
-  clearQuickFilterT4() { this.applyQuickFilterT4(''); }
-
   // Formatear valores de celda: null/empty/"N/A" → "—" (em-dash)
   fmt(value: any): string {
     if (value == null || value === '' || value === 'N/A' || value === 'null' || value === 'undefined') return '—';
@@ -444,8 +456,19 @@ export class VistaTotalIncapacidadesComponent implements OnInit, AfterViewInit {
     return 'disab-chip-status disab-chip-status-neutral';
   }
 
-  // trackBy para las filas: evita re-renderizar filas idénticas cuando cambia la referencia del array
-  trackByConsecutivo = (_: number, row: any) => row?.consecutivoSistema ?? row?.idReporte ?? _;
+  /** Chip de estado_incapacidad con los mismos criterios de estadoClass, en tonos de la tabla estandar. */
+  badgeEstado(estado: any): { texto: string; tono: TonoBadge } | null {
+    const clase = this.estadoClass(estado);
+    if (!clase) return null;
+    const tono: TonoBadge = clase.includes('-ok') ? 'ok'
+      : clase.includes('-pending') ? 'warn'
+      : clase.includes('-danger') ? 'danger'
+      : 'neutro';
+    return { texto: this.fmt(estado), tono };
+  }
+
+  // Clave de fila: evita re-renderizar filas idénticas cuando cambia la referencia del array
+  idFila = (row: any, i: number) => row?.consecutivoSistema ?? row?.idReporte ?? i;
 
   mostrarCargando(estado: boolean) { 
     if (estado) {
@@ -537,10 +560,10 @@ private loadData(): void {
 
 
   private handleDataSuccess(incapacidades: any[], reporte: any[]): void {
-    this.dataSourceTable1.data = incapacidades;
-    this.dataSourceTable4.data = reporte;
-    this.copiadataSourceTable1.data = incapacidades;
-    this.copiadataSourceTable4.data = reporte;
+    this.filasTabla1.set(incapacidades);
+    this.filasTabla4.set(reporte);
+    this.copiaTabla1 = incapacidades;
+    this.copiaTabla4 = reporte;
     this.toggleLoader(false, false);
     this.toggleOverlay(false);
   }
@@ -568,7 +591,7 @@ private loadData(): void {
     const fechaInicioDate = new Date(fechaInicio);
 
     // Filtra los datos según la fecha de inicio proporcionada
-    const filteredData = this.dataSourceTable1.data.filter(item => {
+    const filteredData = this.filasTabla1().filter(item => {
       const itemDate = new Date(item.F_inicio);
       return this.isDateWithinRange(itemDate, fechaInicioDate);
     });
@@ -607,21 +630,19 @@ private loadData(): void {
   }
 
   private updateDataSources(data: any[]): void {
-    this.dataSourceTable1.data = data;
-    this.dataSourceTable1._updateChangeSubscription();
-    this.dataSourceTable4.data = data;
-    this.dataSourceTable4._updateChangeSubscription();
+    this.filasTabla1.set(data);
+    this.filasTabla4.set(data);
   }
 
   applyFilter(): void {
-    const filteredData = this.filterData(this.dataSourceTable1.data);
-    const filteredData2 = this.filterData(this.dataSourceTable4.data);
+    const filteredData = this.filterData(this.filasTabla1());
+    const filteredData2 = this.filterData(this.filasTabla4());
 
     if (filteredData.length === 0) {
       this.showInfo('No se encontraron datos con los criterios seleccionados.');
       this.resetFilterCriteria();
-      this.dataSourceTable1.data = this.copiadataSourceTable1.data;
-      this.dataSourceTable4.data = this.copiadataSourceTable4.data;
+      this.filasTabla1.set(this.copiaTabla1);
+      this.filasTabla4.set(this.copiaTabla4);
     }else{
       this.updateDataSources(filteredData);
       this.resetFilterCriteria();
@@ -853,7 +874,7 @@ downloadDocsRango(sevenet: boolean) {
 private combineDataForExcel(): any[] {
     const reporteMap = this.createReportMap();
     console.log('Mapa de Reporte:', reporteMap); // <-- Esto imprime el mapa completo
-  return this.dataSourceTable1.data.map((item: any) => {
+  return this.filasTabla1().map((item: any) => {
     console.log('Registro:', item); // <-- Esto imprime el objeto tal como llega
     const row = this.combineItemData(item, reporteMap);
     return row;
@@ -862,7 +883,7 @@ private combineDataForExcel(): any[] {
 
   private createReportMap(): Map<string, any> {
     const map = new Map<string, any>();
-    this.dataSourceTable4.data.forEach((item: any) => {
+    this.filasTabla4().forEach((item: any) => {
       const mappedItem = this.mapDataWithTitles([item], this.columnTitlesTable4excel)[0];
       if (item['consecutivoSistema_id']) {
         map.set(item['consecutivoSistema_id'], mappedItem);

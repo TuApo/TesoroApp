@@ -97,3 +97,125 @@ describe('RegistroProcesoContratacion · sobre de by-document', () => {
     req.flush({ id: 1, numero_documento: '123', tipo_doc: 'CC' });
   });
 });
+
+/**
+ * EL GUARDADO REEMPLAZA LAS LISTAS.
+ *
+ * `formaciones`, `experiencias` e `hijos` se borran y se recrean en el backend
+ * cuando llegan no vacías. Todo lo que el formulario no mande en esas listas se
+ * pierde, y así se estuvo borrando en cada entrevista guardada la institución,
+ * el título, el año y el nivel de educación superior que la persona había
+ * diligenciado en el formulario de la vacante.
+ */
+describe('RegistroProcesoContratacion · el upsert no puede vaciar lo que no edita', () => {
+  let srv: RegistroProcesoContratacion;
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        RegistroProcesoContratacion,
+      ],
+    });
+    srv = TestBed.inject(RegistroProcesoContratacion);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  /**
+   * Manda el formulario y devuelve el cuerpo que salió por HTTP.
+   *
+   * Es un PATCH, y el servicio pasa todo el payload por MAYÚSCULAS SIN TILDES
+   * antes de mandarlo: las expectativas de abajo comparan contra eso.
+   */
+  function enviar(form: any): any {
+    srv.upsertCandidatoByDocumentoFromForm(form).subscribe({ error: () => undefined });
+    const req = http.expectOne((r) => r.method === 'PATCH' && r.url.includes('by-document-upsert'));
+    const body = req.request.body;
+    req.flush({ ok: true });
+    return body;
+  }
+
+  const base = { tipo_doc: 'CC', numero_documento: '1122415324' };
+
+  it('la formación viaja completa, no solo el nivel', () => {
+    const body = enviar({
+      ...base,
+      nivel: 'OTROS',
+      estudiosExtra: 'TECNÓLOGO',
+      tituloObtenido: 'GESTIÓN AGROPECUARIA',
+      institucionEstudio: 'SENA',
+      anioFinalizacion: 2021,
+    });
+
+    expect(body.formaciones.length).toBe(1);
+    expect(body.formaciones[0]).toEqual(jasmine.objectContaining({
+      nivel: 'OTROS',
+      estudios_extra: 'TECNOLOGO',
+      titulo_obtenido: 'GESTION AGROPECUARIA',
+      institucion: 'SENA',
+      anio_finalizacion: 2021,
+    }));
+  });
+
+  it('un año vacío no viaja como 0 ni como NaN', () => {
+    const body = enviar({ ...base, nivel: '11', anioFinalizacion: '' });
+    expect(body.formaciones[0].anio_finalizacion).toBeNull();
+  });
+
+  it('sin nivel no se manda la lista: así el backend no borra la que ya hay', () => {
+    const body = enviar({ ...base, nivel: '' });
+    expect(body.formaciones).toBeUndefined();
+  });
+
+  it('cada empresa viaja con los datos que la entrevista no edita', () => {
+    const body = enviar({
+      ...base,
+      experiencias: [{
+        empresa: 'FLORES SÁGARO',
+        telefonos: '6015551234',
+        direccion: 'KM 3 VIA CHIA',
+        barrio: 'LA BALSA',
+        nombre_jefe: 'PEDRO PEREZ',
+        cargo: 'OPERARIO',
+        fecha_retiro: '2025-11-30',
+        motivo_retiro: 'RENUNCIA',
+        tiempo_trabajado: '2 AÑOS',
+      }],
+    });
+
+    expect(body.experiencias[0]).toEqual(jasmine.objectContaining({
+      empresa: 'FLORES SAGARO',
+      telefonos: '6015551234',
+      direccion: 'KM 3 VIA CHIA',
+      barrio: 'LA BALSA',
+      nombre_jefe: 'PEDRO PEREZ',
+      cargo: 'OPERARIO',
+      fecha_retiro: '2025-11-30',
+      motivo_retiro: 'RENUNCIA',
+    }));
+  });
+
+  it('flores y experiencia laboral son dos preguntas, no una', () => {
+    // Tiene experiencia laboral pero NO en flores: antes las dos compartían
+    // `tiene_experiencia` y quedaba marcado como florista.
+    const body = enviar({ ...base, experienciaLaboral: 'SI', experienciaFlores: 'No' });
+    expect(body.experiencia_resumen.tiene_experiencia).toBeTrue();
+    expect(body.entrevistas[0].cuenta_experiencia_flores).toBe('NO');
+  });
+
+  it('el tipo de experiencia en flores va a su columna, no a la de áreas', () => {
+    const body = enviar({
+      ...base,
+      experienciaFlores: 'Sí',
+      tipoExperienciaFlores: 'CULTIVO',
+      areaExperiencia: ['CORTE', 'CLASIFICACION'],
+    });
+    expect(body.entrevistas[0].tipo_experiencia_flores).toBe('CULTIVO');
+    expect(body.experiencia_resumen.area_experiencia).toBe('CORTE, CLASIFICACION');
+  });
+});

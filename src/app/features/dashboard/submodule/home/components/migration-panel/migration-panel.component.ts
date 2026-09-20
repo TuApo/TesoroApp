@@ -19,6 +19,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import Swal from 'sweetalert2';
 
+import { BadgeCelda, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+
 import {
   MigrationBatchDownload,
   MigrationPlan,
@@ -27,6 +29,15 @@ import {
 } from '../../service/migration.service';
 
 type BatchStatus = 'pending' | 'in_progress' | 'done' | 'skipped' | 'error';
+
+/** Chip de estado de cada lote (mismos textos e íconos que la tabla anterior). */
+const ESTADO_LOTE: Record<BatchStatus, BadgeCelda> = {
+  pending:     { texto: 'pendiente', tono: 'neutro', icono: 'schedule' },
+  in_progress: { texto: 'bajando',   tono: 'warn',   icono: 'sync' },
+  done:        { texto: 'ok',        tono: 'ok',     icono: 'check' },
+  skipped:     { texto: 'ya estaba', tono: 'neutro', icono: 'skip_next' },
+  error:       { texto: 'error',     tono: 'danger', icono: 'error' },
+};
 
 interface BatchProgressRow {
   batch_id: string;
@@ -75,6 +86,7 @@ const AUTO_RETRY_MAX = 2;
     MatProgressBarModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './migration-panel.component.html',
   styleUrls: ['./migration-panel.component.css'],
@@ -87,6 +99,31 @@ export class MigrationPanelComponent {
 
   // Toggle único para ver tabla detalle.
   showDetails = signal<boolean>(false);
+
+  /** Detalle por lote en la tabla estándar. */
+  readonly columnasLotes: ColumnaTabla<BatchProgressRow>[] = [
+    { id: 'lote', header: 'Lote', valor: (b) => b.batch_id, tarjeta: 'titulo' },
+    { id: 'personas', header: 'Personas', valor: (b) => b.owners, align: 'right', tarjeta: 'meta' },
+    { id: 'versiones', header: 'Versiones', valor: (b) => b.versions, align: 'right', prioridad: 2, tarjeta: 'meta' },
+    { id: 'tamano', header: 'Tamaño', valor: (b) => b.bytes, align: 'right', tarjeta: 'meta',
+      formato: (b) => this.formatBytes(b.bytes), copiaTexto: (b) => String(b.bytes ?? '') },
+    { id: 'estado', header: 'Estado', valor: (b) => ESTADO_LOTE[b.status]?.texto ?? b.status, tarjeta: 'badge',
+      badge: (b) => ESTADO_LOTE[b.status] },
+    { id: 'files', header: 'Files', prioridad: 2, tarjeta: 'meta',
+      valor: (b) => (b.files_written !== undefined && b.files_written >= 0
+        ? `${b.files_written} / ${b.files_missing ?? 0}` : '') },
+    { id: 'tiempo', header: 'Tiempo', valor: (b) => b.duration_ms ?? null, align: 'right', prioridad: 3,
+      tarjeta: 'meta', formato: (b) => this.formatMs(b.duration_ms) },
+    { id: 'detalle', header: 'Detalle', valor: (b) => b.error ?? '', prioridad: 3, tarjeta: 'cuerpo' },
+  ];
+
+  readonly idLote = (b: BatchProgressRow) => b.batch_id;
+  readonly claseFilaLote = (b: BatchProgressRow): string => {
+    if (b.status === 'error') return 'te-fila--peligro';
+    if (b.status === 'in_progress') return 'te-fila--alerta';
+    if (b.status === 'skipped') return 'te-fila--atenuada';
+    return '';
+  };
 
   // Estado de migración
   plan = signal<MigrationPlan | null>(null);

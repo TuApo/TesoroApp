@@ -1,18 +1,14 @@
 import { Component, OnInit, signal, inject } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { SelectionModel } from '@angular/cdk/collections';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatInputModule } from '@angular/material/input';
-import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '@/environments/environment';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 
 interface ActivoRow {
@@ -33,12 +29,7 @@ interface ActivoRow {
     MatCardModule, 
     MatButtonModule, 
     MatIconModule, 
-    MatTableModule, 
-    MatCheckboxModule, 
-    MatProgressSpinnerModule,
-    MatInputModule,
-    FormsModule,
-    DatePipe
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './manage-contracts.component.html',
   styleUrls: ['./manage-contracts.component.css']
@@ -49,10 +40,37 @@ export class ManageContractsComponent implements OnInit {
   
   loading = signal<boolean>(true);
   dataSource = signal<ActivoRow[]>([]);
-  displayedColumns: string[] = ['select', 'numero_documento', 'nombres', 'oficina', 'centro_costos', 'fecha_ingreso'];
+  /** Casillas de la tabla estándar para la baja masiva (la tabla marca/desmarca todo lo filtrado). */
   selection = new SelectionModel<ActivoRow>(true, []);
-  
-  filterText = signal<string>('');
+
+  readonly columnas: ColumnaTabla<ActivoRow>[] = [
+    { id: 'numero_documento', header: 'Cédula', valor: (r) => r.numero_documento, tarjeta: 'subtitulo' },
+    { id: 'nombres', header: 'Candidato', valor: (r) => `${r.nombres ?? ''} ${r.apellidos ?? ''}`.trim(),
+      tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'oficina', header: 'Oficina', valor: (r) => r.oficina ?? '', tarjeta: 'badge' },
+    { id: 'centro_costos', header: 'Centro Costo', valor: (r) => r.centro_costos ?? '',
+      formato: (r) => r.centro_costos || 'N/A', prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'fecha_ingreso', header: 'Ingreso', valor: (r) => this.fechaIngreso(r), tarjeta: 'meta',
+      formato: (r) => {
+        const d = this.fechaIngreso(r);
+        return d
+          ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+          : 'Sin fecha';
+      } },
+  ];
+  readonly idFila = (r: ActivoRow) => r.codigo_contrato || r.numero_documento;
+
+  /**
+   * Fecha de ingreso como Date local con el día en UTC (lo mismo que pintaba
+   * `date:'dd/MM/yyyy':'UTC'`): así el orden, los filtros y la copia a Excel
+   * no corren el día por la zona horaria.
+   */
+  private fechaIngreso(r: ActivoRow): Date | null {
+    if (!r.fecha_ingreso) return null;
+    const d = new Date(r.fecha_ingreso);
+    if (isNaN(d.getTime())) return null;
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
 
   ngOnInit() {
     this.cargarContratosActivos();
@@ -69,31 +87,6 @@ export class ManageContractsComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
-  }
-
-  isAllSelected() {
-    const numSelected = this.selection.selected.length;
-    const numRows = this.filteredData().length;
-    return numSelected === numRows && numRows > 0;
-  }
-
-  toggleAllRows() {
-    if (this.isAllSelected()) {
-      this.selection.clear();
-      return;
-    }
-    this.selection.select(...this.filteredData());
-  }
-
-  filteredData() {
-    const f = this.filterText().toLowerCase();
-    return this.dataSource().filter(x => 
-      x.numero_documento.includes(f) || 
-      x.nombres.toLowerCase().includes(f) || 
-      x.apellidos.toLowerCase().includes(f) ||
-      x.oficina?.toLowerCase().includes(f) ||
-      x.centro_costos?.toLowerCase().includes(f)
-    );
   }
 
   async darBajaMasiva() {

@@ -131,25 +131,25 @@ export interface CambiarEstadoResult {
   `,
   styles: [`
     .proceso-info  { margin: 0 0 8px; font-size: 14px; }
-    .estado-actual { margin: 0 0 16px; font-size: 13px; color: #666; }
+    .estado-actual { margin: 0 0 16px; font-size: 13px; color: var(--muted); }
     .full-width    { width: 100%; margin-bottom: 8px; }
 
     .chip { display: inline-block; padding: 2px 10px; border-radius: 12px;
             font-size: 12px; font-weight: 500; }
-    .semaforo-verde    { background: #e8f5e9; color: #2e7d32; }
-    .semaforo-amarillo { background: #fff8e1; color: #f57f17; }
-    .semaforo-rojo     { background: #ffebee; color: #c62828; }
+    .semaforo-verde    { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
+    .semaforo-amarillo { background: #fff8e1; background: light-dark(#fff8e1, #383524); color: #f57f17; }
+    .semaforo-rojo     { background: #ffebee; background: light-dark(#ffebee, #38162a); color: #c62828; }
 
     /* Documentos */
-    .docs-section  { margin-top: 12px; border-top: 1px solid #e0e0e0; padding-top: 12px; }
+    .docs-section  { margin-top: 12px; border-top: 1px solid var(--border-strong); padding-top: 12px; }
     .docs-header   { display: flex; align-items: center; justify-content: space-between;
                      margin-bottom: 10px; }
     .docs-title    { display: flex; align-items: center; gap: 6px;
-                     font-size: 14px; font-weight: 500; color: #555; }
+                     font-size: 14px; font-weight: 500; color: var(--text-2); }
     .docs-icon     { font-size: 18px; width: 18px; height: 18px; }
     .docs-loading  { display: flex; align-items: center; gap: 8px;
-                     font-size: 13px; color: #888; padding: 8px 0; }
-    .docs-empty    { font-size: 13px; color: #999; margin: 4px 0 0; font-style: italic; }
+                     font-size: 13px; color: var(--muted); padding: 8px 0; }
+    .docs-empty    { font-size: 13px; color: var(--text-faint); margin: 4px 0 0; font-style: italic; }
 
     .doc-row {
       display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
@@ -157,12 +157,12 @@ export interface CambiarEstadoResult {
     .tipo-field { flex: 0 0 200px; margin: 0; }
     .file-label {
       display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;
-      cursor: pointer; border: 1px dashed #bbb; border-radius: 4px;
-      padding: 6px 10px; font-size: 13px; color: #555;
+      cursor: pointer; border: 1px dashed var(--text-faint); border-radius: 4px;
+      padding: 6px 10px; font-size: 13px; color: var(--text-2);
       transition: border-color .2s, background .2s;
     }
-    .file-label:hover  { border-color: #1976d2; background: #e3f2fd; }
-    .file-label.has-file { border-color: #2e7d32; background: #e8f5e9; color: #2e7d32; }
+    .file-label:hover  { border-color: #1976d2; background: #e3f2fd; background: light-dark(#e3f2fd, #122d4a); }
+    .file-label.has-file { border-color: #2e7d32; background: #e8f5e9; background: light-dark(#e8f5e9, #193430); color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
     .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     @media (max-width: 600px) {

@@ -1,0 +1,52 @@
+<section class="enlaces">
+  <header>
+    <h2>Mis enlaces</h2>
+    <p class="sub">
+      Tu código va dentro del QR de cada pieza que descargas. Quien entre por él queda
+      contado como tuyo, hasta que lo contraten.
+    </p>
+  </header>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <div class="codigo" *ngIf="!cargando() && codigo() as c">
+    <span class="etiqueta">Tu código de referido</span>
+    <div class="valor">
+      <strong>{{ c }}</strong>
+      <button type="button" class="mini" (click)="copiar(c)" title="Copiar"><mat-icon>content_copy</mat-icon></button>
+    </div>
+    <span class="nota">
+      No lleva letras que se confundan al teclear —nada de ceros ni oes, ni unos ni eles—
+      porque la gente lo escribe mirando un afiche.
+    </span>
+  </div>
+
+  <div class="vacio" *ngIf="!cargando() && enlaces().length === 0">
+    <mat-icon>link_off</mat-icon>
+    <p>
+      Todavía no tienes enlaces. Se crean solos cuando generas las piezas de una vacante
+      desde la pantalla de Piezas.
+    </p>
+  </div>
+
+  <ul class="lista" *ngIf="enlaces().length">
+    <li *ngFor="let e of enlaces(); trackBy: trackEnlace">
+      <div class="datos">
+        <span class="url">{{ e.url_legible }}</span>
+        <span class="meta">
+          <span *ngIf="e.vacante_id">Vacante {{ e.vacante_id }}</span>
+          <span *ngIf="e.creado_en"> · {{ e.creado_en | date:'d MMM y' }}</span>
+        </span>
+      </div>
+      <div class="acciones">
+        <button type="button" class="mini" (click)="copiar(e.url)" title="Copiar enlace">
+          <mat-icon>content_copy</mat-icon>
+        </button>
+        <button type="button" class="mini" *ngIf="puedeCompartir()" (click)="compartir(e)"
+                title="Compartir">
+          <mat-icon>share</mat-icon>
+        </button>
+      </div>
+    </li>
+  </ul>
+</section>

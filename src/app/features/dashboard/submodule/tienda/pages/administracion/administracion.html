@@ -1,0 +1,237 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>account_tree</mat-icon> Administración de tiendas</h1>
+      <p class="tienda-subtitulo">
+        Los escalones de la jerarquía son datos, no columnas: puede insertar un nivel nuevo
+        o mover una región entera sin que nadie toque el sistema. Quien tenga alcance sobre
+        una rama ve automáticamente las tiendas que se creen debajo.
+      </p>
+    </div>
+    <div class="acciones-cabecera">
+      <button type="button" class="boton secundario" (click)="abrir('negocio')">
+        <mat-icon>business</mat-icon> Nuevo negocio
+      </button>
+      <button type="button" class="boton secundario" (click)="abrir('nivel')">
+        <mat-icon>layers</mat-icon> Nuevo nivel
+      </button>
+    </div>
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  <!-- ── Altas de organización ─────────────────────────────────────────── -->
+  @if (formularioAbierto() === 'negocio') {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Nuevo negocio</h2>
+      <p class="nota">Un negocio tiene su propio catálogo, sus precios y sus tiendas.</p>
+      <div class="tienda-barra">
+        <div class="campo"><label>Código</label>
+          <input [(ngModel)]="nuevoNegocio.codigo" placeholder="COMERCIAL" /></div>
+        <div class="campo"><label>Nombre</label>
+          <input [(ngModel)]="nuevoNegocio.nombre" placeholder="Comercializadora" /></div>
+        <div class="campo"><label>NIT</label>
+          <input [(ngModel)]="nuevoNegocio.nit" /></div>
+        <button type="button" class="boton" (click)="crearNegocio()"
+                [disabled]="!nuevoNegocio.codigo || !nuevoNegocio.nombre">Crear</button>
+      </div>
+    </section>
+  }
+
+  @if (formularioAbierto() === 'nivel') {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Nuevo nivel de la jerarquía</h2>
+      <p class="nota">
+        Un nivel es un escalón: Organización, Negocio, Región, Tienda… Insertar
+        <em>Distrito</em> entre Región y Tienda es crear un nivel con profundidad intermedia.
+        Marque <strong>contiene tiendas</strong> solo en el escalón donde cuelgan los puntos.
+      </p>
+      <div class="tienda-barra">
+        <div class="campo"><label>Código</label>
+          <input [(ngModel)]="nuevoNivel.codigo" placeholder="DISTRITO" /></div>
+        <div class="campo"><label>Nombre</label>
+          <input [(ngModel)]="nuevoNivel.nombre" placeholder="Distrito" /></div>
+        <div class="campo"><label>Profundidad</label>
+          <input type="number" [(ngModel)]="nuevoNivel.profundidad" min="0" /></div>
+        <div class="campo campo-casilla">
+          <label><input type="checkbox" [(ngModel)]="nuevoNivel.contiene_tiendas" />
+            Contiene tiendas</label>
+        </div>
+        <button type="button" class="boton" (click)="crearNivel()"
+                [disabled]="!nuevoNivel.codigo || !nuevoNivel.nombre">Crear</button>
+      </div>
+    </section>
+  }
+
+  <div class="disposicion">
+
+    <!-- ── El árbol ────────────────────────────────────────────────────── -->
+    <section class="tienda-tarjeta panel-arbol">
+      <div class="titulo-con-accion">
+        <h2 class="titulo-seccion">Estructura</h2>
+        @if (moviendo(); as m) {
+          <div class="modo-mover">
+            <mat-icon>drive_file_move</mat-icon>
+            Moviendo <strong>{{ m.nombre }}</strong> — elija su nuevo padre
+            <button type="button" class="boton secundario" (click)="cancelarMover()">Cancelar</button>
+          </div>
+        }
+      </div>
+
+      @if (cargando()) {
+        <p class="nota">Cargando la estructura…</p>
+      } @else if (filas().length === 0) {
+        <div class="tienda-vacio">
+          <mat-icon>account_tree</mat-icon>
+          <p>No hay estructura todavía.</p>
+        </div>
+      } @else {
+        <ul class="arbol">
+          @for (f of filas(); track f.nodo.id) {
+            <li class="fila-arbol"
+                [class.seleccionada]="seleccionado()?.id === f.nodo.id"
+                [class.destino]="moviendo() && moviendo()!.id !== f.nodo.id"
+                [style.padding-left.px]="10 + f.profundidad * 22"
+                (click)="soltarEn(f.nodo)">
+              <mat-icon class="icono-nodo">
+                {{ f.nodo.tienda_id ? 'store' : (f.profundidad === 0 ? 'domain' : 'folder') }}
+              </mat-icon>
+              <span class="nombre-nodo">{{ f.nodo.nombre }}</span>
+              <span class="insignia neutra">{{ f.nodo.nivel_nombre }}</span>
+              @if (f.nodo.tienda_id) { <span class="insignia info">tienda</span> }
+              @if (!moviendo() && f.profundidad > 0) {
+                <button type="button" class="mini" title="Mover esta rama"
+                        (click)="empezarAMover(f.nodo, $event)">
+                  <mat-icon>drive_file_move</mat-icon>
+                </button>
+              }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- ── Panel del nodo seleccionado ─────────────────────────────────── -->
+    <section class="tienda-tarjeta panel-detalle">
+      @if (seleccionado(); as nodo) {
+        <h2 class="titulo-seccion">{{ nodo.nombre }}</h2>
+        <p class="nota">{{ nodo.nivel_nombre }} · código {{ nodo.codigo }}</p>
+
+        <div class="acciones-nodo">
+          @if (!nodo.tienda_id) {
+            <button type="button" class="boton secundario" (click)="abrir('nodo')">
+              <mat-icon>add</mat-icon> Colgar nivel
+            </button>
+            <button type="button" class="boton secundario" (click)="abrir('tienda')">
+              <mat-icon>add_business</mat-icon> Crear tienda aquí
+            </button>
+          }
+          <button type="button" class="boton secundario" (click)="abrir('alcance')">
+            <mat-icon>person_add</mat-icon> Dar alcance
+          </button>
+        </div>
+
+        @if (formularioAbierto() === 'nodo') {
+          <div class="formulario">
+            <div class="campo"><label>Nivel</label>
+              <select [(ngModel)]="nuevoNodo.nivel_id">
+                <option value="">Elija el escalón…</option>
+                @for (n of nivelesPosibles(); track n.id) {
+                  <option [value]="n.id">{{ n.nombre }}</option>
+                }
+              </select>
+            </div>
+            <div class="campo"><label>Código</label><input [(ngModel)]="nuevoNodo.codigo" /></div>
+            <div class="campo"><label>Nombre</label><input [(ngModel)]="nuevoNodo.nombre" /></div>
+            <button type="button" class="boton" (click)="crearNodo()"
+                    [disabled]="!nuevoNodo.nivel_id || !nuevoNodo.codigo || !nuevoNodo.nombre">
+              Crear
+            </button>
+          </div>
+        }
+
+        @if (formularioAbierto() === 'tienda') {
+          <div class="formulario">
+            <div class="campo"><label>Código</label><input [(ngModel)]="nuevaTienda.codigo" /></div>
+            <div class="campo"><label>Nombre</label><input [(ngModel)]="nuevaTienda.nombre" /></div>
+            <div class="campo"><label>Tipo</label>
+              <select [(ngModel)]="nuevaTienda.tipo">
+                <option value="FISICA">Física — mostrador con inventario</option>
+                <option value="GLOBAL">Global — surte lo que las demás no tienen</option>
+                <option value="BODEGA">Bodega — tiene inventario, no vende</option>
+                <option value="VIRTUAL">Virtual — solo pedidos</option>
+              </select>
+            </div>
+            <div class="campo"><label>Municipio</label><input [(ngModel)]="nuevaTienda.municipio" /></div>
+            <div class="campo"><label>Dirección</label><input [(ngModel)]="nuevaTienda.direccion" /></div>
+            <div class="campo campo-casilla">
+              <label><input type="checkbox" [(ngModel)]="nuevaTienda.publicada_en_virtual" />
+                Visible en la tienda virtual</label>
+              <label><input type="checkbox" [(ngModel)]="nuevaTienda.permite_domicilio" />
+                Hace domicilios</label>
+            </div>
+            <button type="button" class="boton" (click)="crearTienda()"
+                    [disabled]="!nuevaTienda.codigo || !nuevaTienda.nombre">Crear tienda</button>
+          </div>
+        }
+
+        @if (formularioAbierto() === 'alcance') {
+          <div class="formulario">
+            <p class="nota">
+              El alcance se da sobre <strong>este nodo y todo lo que cuelgue de él</strong>.
+              Si mañana se crea una tienda debajo, esta persona la verá sin volver a tocar
+              permisos.
+            </p>
+            <div class="campo"><label>Usuario (id)</label>
+              <input [(ngModel)]="nuevoAlcance.usuario_id"
+                     placeholder="uuid del usuario en Administración" /></div>
+            <div class="campo"><label>Rol en la tienda</label>
+              <select [(ngModel)]="nuevoAlcance.rol_tienda">
+                @for (r of rolesTienda(); track r) { <option [value]="r">{{ r }}</option> }
+              </select>
+            </div>
+            <div class="campo"><label>Vigente hasta (opcional)</label>
+              <input type="date" [(ngModel)]="nuevoAlcance.vigente_hasta" /></div>
+            <div class="campo campo-casilla">
+              <label><input type="checkbox" [(ngModel)]="nuevoAlcance.ve_todo" />
+                Ve TODAS las tiendas de todos los negocios</label>
+            </div>
+            <button type="button" class="boton" (click)="asignarAlcance()"
+                    [disabled]="!nuevoAlcance.usuario_id">Conceder</button>
+          </div>
+        }
+
+        <h3 class="titulo-seccion pequeno">Quién administra esta rama</h3>
+        @if (alcances().length === 0) {
+          <p class="nota">Nadie tiene alcance explícito aquí.</p>
+        } @else {
+          <ul class="lista-alcances">
+            @for (a of alcances(); track a.id) {
+              <li>
+                <span class="mono">{{ a.usuario_id }}</span>
+                <span class="insignia neutra">{{ a.rol_tienda }}</span>
+                @if (a.ve_todo) { <span class="insignia info">ve todo</span> }
+                @if (a.vigente_hasta) {
+                  <span class="insignia aviso">hasta {{ a.vigente_hasta | date:'shortDate' }}</span>
+                }
+                <button type="button" class="mini peligro" title="Retirar"
+                        (click)="retirarAlcance(a)"><mat-icon>close</mat-icon></button>
+              </li>
+            }
+          </ul>
+        }
+      } @else {
+        <div class="tienda-vacio">
+          <mat-icon>touch_app</mat-icon>
+          <p>Seleccione un nodo del árbol para trabajar sobre él.</p>
+        </div>
+      }
+    </section>
+  </div>
+</div>

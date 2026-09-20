@@ -1,10 +1,12 @@
 import {
-  Component, ChangeDetectionStrategy, OnInit, OnDestroy, signal, computed, inject, PLATFORM_ID,
+  Component, ChangeDetectionStrategy, OnInit, OnDestroy, signal, computed, inject, PLATFORM_ID, LOCALE_ID,
 } from '@angular/core';
-import { CommonModule, isPlatformBrowser } from '@angular/common';
+import { CommonModule, formatDate, isPlatformBrowser } from '@angular/common';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Router } from '@angular/router';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import type { EChartsOption } from 'echarts';
 import { markdownToHtml } from '@/app/features/dashboard/submodule/nomina/pages/analitica-nomina-ia/markdown-lite';
 import { firstValueFrom } from 'rxjs';
@@ -66,10 +68,11 @@ function escaparHtml(texto: string): string {
     MatProgressSpinnerModule, MatProgressBarModule, MatChipsModule, MatMenuModule,
     NgxEchartsDirective,
     OficinaComponent,
+    ...TABLA_ESTANDAR,
   ],
   // Echarts se carga perezoso: son ~1 MB y el panel se abre muchas veces sin mirar
   // una sola grafica.
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './agentes-desarrollo.component.html',
   styleUrls: ['./agentes-desarrollo.component.css'],
@@ -80,6 +83,7 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private sanitizer = inject(DomSanitizer);
   private router = inject(Router);
+  private locale = inject(LOCALE_ID);
 
   // ── Estado general ────────────────────────────────────────────────────────
   pestana = signal<Pestana>('panel');
@@ -154,6 +158,27 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   cuentas = computed(() => this.estado()?.cuentas ?? []);
   vigilantes = computed(() => this.estado()?.vigilantes ?? []);
   ultimas = computed(() => this.estado()?.ultimas ?? []);
+
+  /** Pestaña Historial (tabla estándar): «Ver» o doble clic abre la conversación. */
+  readonly columnasHistorial: ColumnaTabla<Tarea>[] = [
+    { id: 'estado', header: 'Estado', valor: (t) => this.etiquetaEstado(t.estado), align: 'center', tarjeta: 'badge' },
+    { id: 'agente', header: 'Agente', valor: (t) => t.agenteNombre || t.agente || 'General', tarjeta: 'subtitulo' },
+    { id: 'encargo', header: 'Encargo', valor: (t) => t.titulo || t.objetivo, tarjeta: 'titulo', minAncho: '220px' },
+    { id: 'cuenta', header: 'Cuenta', valor: (t) => t.cuentaNombre ?? '', formato: (t) => t.cuentaNombre || '—',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'duracion', header: 'Duración', valor: (t) => (t.duracionMs > 0 ? t.duracionMs : null),
+      formato: (t) => this.duracion(t.duracionMs), copiaTexto: (t) => this.duracion(t.duracionMs),
+      align: 'right', prioridad: 2, tarjeta: 'meta' },
+    { id: 'turnos', header: 'Turnos', valor: (t) => t.turnos || null, formato: (t) => (t.turnos ? String(t.turnos) : '—'),
+      align: 'right', prioridad: 3, tarjeta: 'meta' },
+    { id: 'ficheros', header: 'Ficheros', valor: (t) => t.archivosTocados?.length || null,
+      formato: (t) => (t.archivosTocados?.length ? String(t.archivosTocados.length) : '—'),
+      align: 'right', prioridad: 3, tarjeta: 'meta' },
+    { id: 'cuando', header: 'Cuándo', valor: (t) => new Date(t.creada),
+      formato: (t) => formatDate(t.creada, 'dd/MM HH:mm', this.locale),
+      copiaTexto: (t) => formatDate(t.creada, 'dd/MM HH:mm', this.locale), tarjeta: 'meta' },
+  ];
+  readonly idTarea = (t: Tarea) => t.id;
 
   /** Agentes que están literalmente trabajando ahora mismo, con su cuenta. */
   agentesTrabajando = computed(() =>

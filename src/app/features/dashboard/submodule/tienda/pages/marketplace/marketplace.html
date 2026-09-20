@@ -1,0 +1,233 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>storefront</mat-icon> Tienda</h1>
+      <p class="tienda-subtitulo">Lo que puede pedir en el punto que le corresponde.</p>
+    </div>
+    @if (inicio()?.cupo?.existe) {
+      <div class="cupo-caja" [class.cupo-corto]="noAlcanzaElCupo()">
+        <span class="cupo-etiqueta">Cupo disponible</span>
+        <strong class="cupo-valor">
+          {{ inicio()!.cupo!.disponible | currency:'COP':'symbol-narrow':'1.0-0' }}
+        </strong>
+        @if (inicio()!.cupo!.comprometido > 0) {
+          <span class="cupo-nota">
+            {{ inicio()!.cupo!.comprometido | currency:'COP':'symbol-narrow':'1.0-0' }}
+            apartado en pedidos sin recoger
+          </span>
+        }
+      </div>
+    }
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  @if (cargando()) {
+    <p class="nota">Abriendo su tienda…</p>
+  } @else if (!inicio() || inicio()!.tiendas.length === 0) {
+    <div class="tienda-tarjeta tienda-vacio">
+      <mat-icon>store_mall_directory</mat-icon>
+      <p>Todavía no hay ninguna tienda publicada.</p>
+    </div>
+  } @else {
+
+    <!-- Decir la verdad sobre por qué ve estas tiendas. Dar a entender que la primera es
+         "su" tienda cuando nadie la asignó mandaría a alguien al punto equivocado. -->
+    @if (inicio()!.sin_tienda_asignada) {
+      <div class="tienda-aviso suave">
+        <mat-icon>info</mat-icon>
+        <span>
+          @if (inicio()!.oficina) {
+            Su oficina ({{ inicio()!.oficina }}) todavía no tiene una tienda asignada.
+          } @else {
+            No pudimos determinar su oficina.
+          }
+          Está viendo todas las tiendas publicadas; confirme con su jefe cuál le corresponde.
+        </span>
+      </div>
+    }
+
+    @if (inicio()!.cupo_error) {
+      <div class="tienda-aviso suave">
+        <mat-icon>report_problem</mat-icon>
+        <span>{{ inicio()!.cupo_error }} Puede seguir comprando y pagar de otra forma.</span>
+      </div>
+    }
+
+    @if (cupoTexto(inicio()!.cupo); as motivo) {
+      @if (motivo) {
+        <div class="tienda-aviso suave">
+          <mat-icon>credit_card_off</mat-icon><span>{{ motivo }}</span>
+        </div>
+      }
+    }
+
+    <div class="barra-tienda">
+      @if (inicio()!.tiendas.length > 1) {
+        <label class="campo">
+          <span>Tienda</span>
+          <select [ngModel]="tienda()" (ngModelChange)="cambiarTienda($event)">
+            @for (t of inicio()!.tiendas; track t.id) {
+              <option [value]="t.id">{{ t.nombre }} — {{ t.municipio }}</option>
+            }
+          </select>
+        </label>
+      } @else if (tiendaActual()) {
+        <p class="tienda-unica">
+          <mat-icon>place</mat-icon>
+          <strong>{{ tiendaActual()!.nombre }}</strong>
+          <span>{{ tiendaActual()!.direccion }} · {{ tiendaActual()!.municipio }}</span>
+        </p>
+      }
+
+      <label class="campo crecer">
+        <span>Buscar</span>
+        <input type="search" placeholder="Arroz, aceite, guantes…"
+               [ngModel]="busqueda()" (ngModelChange)="buscar($event)" />
+      </label>
+    </div>
+
+    <div class="marketplace-cuerpo">
+
+      <section class="catalogo">
+        @if (cargandoCatalogo()) {
+          <p class="nota">Cargando el catálogo…</p>
+        } @else if (articulos().length === 0) {
+          <div class="tienda-tarjeta tienda-vacio">
+            <mat-icon>search_off</mat-icon>
+            <p>No encontramos nada con «{{ busqueda() }}».</p>
+          </div>
+        } @else {
+          <div class="rejilla-productos">
+            @for (a of articulos(); track $any(a)['id']) {
+              <article class="tienda-tarjeta producto">
+                <h3>{{ $any(a)['nombre'] }}</h3>
+                @if ($any(a)['marca']) { <p class="marca">{{ $any(a)['marca'] }}</p> }
+                <p class="precio">
+                  {{ $any(a)['precio'] | currency:'COP':'symbol-narrow':'1.0-0' }}
+                </p>
+                <p class="disponibilidad" [class.encargo]="esBajoPedido(a)">
+                  <mat-icon>{{ esBajoPedido(a) ? 'schedule_send' : 'inventory_2' }}</mat-icon>
+                  {{ disponibilidad(a) }}
+                </p>
+                <button type="button" class="boton" (click)="agregar(a)">Agregar</button>
+              </article>
+            }
+          </div>
+        }
+      </section>
+
+      <aside class="carrito tienda-tarjeta">
+        <h2><mat-icon>shopping_cart</mat-icon> Su pedido</h2>
+
+        @if (lineas().length === 0) {
+          <p class="nota">Todavía no ha agregado nada.</p>
+        } @else {
+          <ul class="lineas">
+            @for (l of lineas(); track l.id) {
+              <li>
+                <span class="cantidad">{{ l.cantidad }}×</span>
+                <span class="nombre">{{ l.nombre }}</span>
+                <span class="subtotal">{{ l.subtotal | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                <button type="button" class="quitar" (click)="quitar(l)" aria-label="Quitar">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </li>
+            }
+          </ul>
+
+          <p class="total-linea">
+            <span>Total</span>
+            <strong>{{ total() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+          </p>
+
+          @if (metodoPago() === 'NOMINA' && cupoDespues() !== null) {
+            <p class="cupo-restante" [class.negativo]="noAlcanzaElCupo()">
+              @if (noAlcanzaElCupo()) {
+                <mat-icon>error_outline</mat-icon>
+                Le faltan {{ -cupoDespues()! | currency:'COP':'symbol-narrow':'1.0-0' }} de cupo
+              } @else {
+                <mat-icon>savings</mat-icon>
+                Le quedarían {{ cupoDespues() | currency:'COP':'symbol-narrow':'1.0-0' }}
+              }
+            </p>
+          }
+
+          <hr />
+
+          <label class="campo">
+            <span>¿Cómo lo recibe?</span>
+            <select [ngModel]="tipoEntrega()" (ngModelChange)="tipoEntrega.set($event)">
+              <option value="RECOGE_TIENDA">Lo recojo en la tienda</option>
+              <option value="RECOGE_OFICINA">Lo recojo en la oficina</option>
+              @if (tiendaActual()?.permite_domicilio) {
+                <option value="DOMICILIO">Que me lo lleven</option>
+              }
+            </select>
+          </label>
+
+          @if (tipoEntrega() === 'DOMICILIO') {
+            <label class="campo">
+              <span>Dirección</span>
+              <input type="text" [ngModel]="direccion()" (ngModelChange)="direccion.set($event)"
+                     placeholder="Calle 12 # 5-30, barrio…" />
+            </label>
+          }
+
+          <div class="cita">
+            <label class="campo">
+              <span>{{ tipoEntrega() === 'DOMICILIO' ? 'Día de entrega' : 'Día que pasa' }}</span>
+              <input type="date" [ngModel]="fechaCita()" (ngModelChange)="fechaCita.set($event)" />
+            </label>
+            <label class="campo">
+              <span>Hora</span>
+              <input type="time" [ngModel]="horaCita()" (ngModelChange)="horaCita.set($event)" />
+            </label>
+          </div>
+
+          <label class="campo">
+            <span>Indicaciones</span>
+            <input type="text" [ngModel]="indicaciones()" (ngModelChange)="indicaciones.set($event)"
+                   placeholder="Timbre 2, portería…" />
+          </label>
+
+          <label class="campo">
+            <span>¿Cómo lo paga?</span>
+            <select [ngModel]="metodoPago()" (ngModelChange)="metodoPago.set($event)">
+              @if (inicio()?.cupo?.existe) {
+                <option value="NOMINA">Con mi cupo de nómina</option>
+              }
+              <option value="EFECTIVO">En efectivo al recibirlo</option>
+            </select>
+          </label>
+
+          @if (metodoPago() === 'NOMINA') {
+            <p class="nota-cupo">
+              <mat-icon>lock</mat-icon>
+              Al confirmar se aparta ese valor de su cupo. No se le descuenta hasta que
+              reciba el mercado.
+            </p>
+          }
+
+          <button type="button" class="boton principal ancho"
+                  [disabled]="enviando() || noAlcanzaElCupo()"
+                  (click)="confirmar()">
+            {{ enviando() ? 'Confirmando…' : 'Confirmar pedido' }}
+          </button>
+
+          <p class="nota tercero-nota">
+            ¿Va a mandar a alguien a recogerlo? Puede autorizarlo desde
+            <strong>Mis pedidos</strong> una vez creado.
+          </p>
+        }
+      </aside>
+
+    </div>
+  }
+</div>

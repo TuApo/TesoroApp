@@ -23,38 +23,28 @@
            (ngModelChange)="oficina.set($event)" (keyup.enter)="cargar()" />
   </div>
 
-  @if (cargando()) {
-    <p class="vacio">Cargando…</p>
-  } @else if (!filas().length) {
-    <p class="vacio">
-      {{ estado() === 'PENDIENTE' ? 'No hay nada esperando. Todo al día.' : 'Nada por aquí.' }}
-    </p>
-  } @else {
-    <div class="tabla-marco">
-      <table class="tabla">
-        <thead>
-          <tr>
-            <th>Persona</th><th>Documento</th><th>Oficina</th><th>Recibido</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (f of filas(); track f.id) {
-            <tr>
-              <td>{{ f.nombre || '—' }}</td>
-              <td>{{ f.numero_documento || '—' }}</td>
-              <td>{{ f.oficina || '—' }}</td>
-              <td>{{ f.creado_en | date:'dd/MM/yy HH:mm' }}</td>
-              <td class="der">
-                <button type="button" class="btn-ver" (click)="abrir(f)">
-                  {{ f.estado === 'PENDIENTE' ? 'Revisar' : 'Ver' }}
-                </button>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  }
+  <!-- Modo servidor: el backend pagina, la tabla pide cada página. -->
+  <app-tabla-estandar
+    id="cambios-pendientes-bandeja"
+    titulo="Cambios por aprobar"
+    modulo="Contratación"
+    entidad="cambios_pendientes"
+    [busqueda]="false"
+    [vacio]="estado() === 'PENDIENTE' ? 'No hay nada esperando. Todo al día.' : 'Nada por aquí.'"
+    [datos]="filas()"
+    [columnas]="columnas"
+    [filaId]="idFila"
+    [cargando]="cargando()"
+    [totalServidor]="total()"
+    [filasPorPagina]="porPagina()"
+    (paginaCambio)="cambiarPagina($event)">
+
+    <ng-template tablaAcciones let-f>
+      <button type="button" class="btn-ver" (click)="abrir(f)">
+        {{ f.estado === 'PENDIENTE' ? 'Revisar' : 'Ver' }}
+      </button>
+    </ng-template>
+  </app-tabla-estandar>
 </section>
 
 @if (abierto(); as d) {

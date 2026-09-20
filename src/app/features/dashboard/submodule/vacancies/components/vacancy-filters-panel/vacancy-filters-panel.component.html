@@ -1,0 +1,152 @@
+<!-- ====== FILTROS (afectan al Listado Y a los Indicadores) ====== -->
+<section class="filtros-vacantes" aria-label="Filtros de vacantes">
+  <div class="filtros-head">
+    <mat-icon class="filtros-icon">tune</mat-icon>
+    <span class="filtros-titulo">Filtros</span>
+    @if (f.filtrosActivos > 0) {
+      <span class="filtros-badge">{{ f.filtrosActivos }}</span>
+    }
+    <span class="filtros-resultado">{{ resultado }} vacante(s)</span>
+
+    <mat-button-toggle-group
+      [value]="f.viewMode"
+      (change)="onToggleView($event.value)"
+      aria-label="Cambiar vista"
+      class="view-toggle">
+
+      <mat-button-toggle value="table">
+        <mat-icon>table_chart</mat-icon>
+        <span class="toggle-text">Todos</span>
+      </mat-button-toggle>
+
+      <mat-button-toggle value="faltantes">
+        <mat-icon>warning</mat-icon>
+        <span class="toggle-text">Faltantes</span>
+      </mat-button-toggle>
+
+      <mat-button-toggle value="completados">
+        <mat-icon>check_circle</mat-icon>
+        <span class="toggle-text">Completados</span>
+      </mat-button-toggle>
+
+      <mat-button-toggle value="inactivas">
+        <mat-icon>block</mat-icon>
+        <span class="toggle-text">Inactivas</span>
+      </mat-button-toggle>
+    </mat-button-toggle-group>
+
+    <span class="filtros-spacer"></span>
+    @if (f.filtrosActivos > 0) {
+      <button mat-button color="primary" (click)="limpiarFiltros()">
+        <mat-icon>filter_alt_off</mat-icon>
+        <span>Limpiar</span>
+      </button>
+    }
+    <button mat-icon-button (click)="toggleFiltros()"
+            [matTooltip]="f.filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros'">
+      <mat-icon>{{ f.filtrosAbiertos ? 'expand_less' : 'expand_more' }}</mat-icon>
+    </button>
+  </div>
+
+  @if (f.filtrosAbiertos) {
+    <div class="filtros-grid">
+
+      <!-- Oficina: eligen gerencia y quien tenga varias sedes; el resto la ve anclada -->
+      @if (f.puedeElegirOficina) {
+        <app-smart-select [compacto]="true"
+          class="filtro-campo"
+          label="Oficina" icono="store"
+          [(ngModel)]="f.filtros.oficina" [ngModelOptions]="{ standalone: true }"
+          [opciones]="opcionesOficina()"
+          [valor]="valorOpcion" [etiqueta]="etiquetaOpcion"
+          placeholderBuscar="Buscar oficina…"
+          (cambio)="onOficinaChange()">
+        </app-smart-select>
+      } @else {
+        <div class="filtro-oficina-fija" matTooltip="Ves las vacantes de tu oficina">
+          <mat-icon>location_on</mat-icon>
+          <div class="ofi-texto">
+            <span class="ofi-label">Oficina</span>
+            <span class="ofi-valor">{{ f.sede || 'Todas' }}</span>
+          </div>
+        </div>
+      }
+
+      <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+        <mat-label>Publicada desde</mat-label>
+        <input matInput [matDatepicker]="pickDesde" [(ngModel)]="f.filtros.desde"
+               (ngModelChange)="onFiltroChange()" />
+        <mat-datepicker-toggle matIconSuffix [for]="pickDesde"></mat-datepicker-toggle>
+        <mat-datepicker #pickDesde></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filtro-campo" subscriptSizing="dynamic">
+        <mat-label>Publicada hasta</mat-label>
+        <input matInput [matDatepicker]="pickHasta" [(ngModel)]="f.filtros.hasta"
+               (ngModelChange)="onFiltroChange()" />
+        <mat-datepicker-toggle matIconSuffix [for]="pickHasta"></mat-datepicker-toggle>
+        <mat-datepicker #pickHasta></mat-datepicker>
+      </mat-form-field>
+
+      <app-smart-select [compacto]="true"
+        class="filtro-campo"
+        label="Demora" icono="hourglass_bottom"
+        [(ngModel)]="f.filtros.antiguedad" [ngModelOptions]="{ standalone: true }"
+        [opciones]="opcAntiguedad"
+        [valor]="valorAntiguedad" [etiqueta]="etiquetaOpcion"
+        (cambio)="onFiltroChange()">
+      </app-smart-select>
+
+      <app-smart-select [compacto]="true"
+        class="filtro-campo"
+        label="Centro de costo" icono="agriculture"
+        [(ngModel)]="f.filtros.finca" [ngModelOptions]="{ standalone: true }"
+        [opciones]="conFincas()"
+        [valor]="valorOpcion" [etiqueta]="etiquetaOpcion"
+        placeholderBuscar="Buscar centro…"
+        (cambio)="onFiltroChange()">
+      </app-smart-select>
+
+      <app-smart-select [compacto]="true"
+        class="filtro-campo"
+        label="Empresa usuaria" icono="business"
+        [(ngModel)]="f.filtros.empresa" [ngModelOptions]="{ standalone: true }"
+        [opciones]="conEmpresas()"
+        [valor]="valorOpcion" [etiqueta]="etiquetaOpcion"
+        placeholderBuscar="Buscar empresa…"
+        (cambio)="onFiltroChange()">
+      </app-smart-select>
+
+      <app-smart-select [compacto]="true"
+        class="filtro-campo"
+        label="Cargo" icono="badge"
+        [(ngModel)]="f.filtros.cargo" [ngModelOptions]="{ standalone: true }"
+        [opciones]="conCargos()"
+        [valor]="valorOpcion" [etiqueta]="etiquetaOpcion"
+        placeholderBuscar="Buscar cargo…"
+        (cambio)="onFiltroChange()">
+      </app-smart-select>
+
+      <app-smart-select [compacto]="true"
+        class="filtro-campo"
+        label="Municipio" icono="place"
+        [(ngModel)]="f.filtros.municipio" [ngModelOptions]="{ standalone: true }"
+        [opciones]="conMunicipios()"
+        [valor]="valorOpcion" [etiqueta]="etiquetaOpcion"
+        placeholderBuscar="Buscar municipio…"
+        (cambio)="onFiltroChange()">
+      </app-smart-select>
+
+      <app-smart-select [compacto]="true"
+        class="filtro-campo"
+        label="Tipo de contrato" icono="assignment"
+        [(ngModel)]="f.filtros.tipo" [ngModelOptions]="{ standalone: true }"
+        [opciones]="conTipos()"
+        [valor]="valorOpcion" [etiqueta]="etiquetaOpcion"
+        placeholderBuscar="Buscar tipo…"
+        (cambio)="onFiltroChange()">
+      </app-smart-select>
+
+    </div>
+  }
+</section>

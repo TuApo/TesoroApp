@@ -1,7 +1,7 @@
 import {
   Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, inject
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 
@@ -10,7 +10,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -20,12 +19,28 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { LegalService } from '../../services/legal.service';
 import {
   ProcesoLegal, ActuacionLegal, TerminoLegal, ParteProceso, DocumentoProceso, ProcesoEstado
 } from '../../models/legal.models';
 import { NuevaActuacionDialogComponent, NuevaActuacionResult } from './nueva-actuacion-dialog.component';
 import { CambiarEstadoDialogComponent, CambiarEstadoResult } from '../bandeja/cambiar-estado-dialog.component';
+
+/** Fecha del backend ('yyyy-MM-dd' o ISO) como Date local: un 'yyyy-MM-dd' con
+ *  `new Date()` se leería en UTC y en Colombia caería el día anterior. */
+function aFecha(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** dd/MM/yyyy como el `date` pipe de antes (locale por defecto; no lanza si la fecha es mala). */
+function fechaCorta(v: string | null | undefined): string {
+  const d = aFecha(v);
+  return d ? formatDate(d, 'dd/MM/yyyy', 'en-US') : '';
+}
 
 @Component({
   selector: 'app-expediente-legal',
@@ -34,9 +49,10 @@ import { CambiarEstadoDialogComponent, CambiarEstadoResult } from '../bandeja/ca
   imports: [
     CommonModule, FormsModule, ReactiveFormsModule,
     MatTabsModule, MatButtonModule, MatIconModule, MatChipsModule, MatCardModule,
-    MatTableModule, MatFormFieldModule, MatInputModule, MatSelectModule,
+    MatFormFieldModule, MatInputModule, MatSelectModule,
     MatSnackBarModule, MatDialogModule, MatProgressSpinnerModule, MatTooltipModule,
-    MatDividerModule
+    MatDividerModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './expediente.component.html',
   styleUrl: './expediente.component.css'
@@ -63,7 +79,19 @@ export class ExpedienteComponent implements OnInit {
   cargandoDocumentos = false;
   subiendoDocumento = false;
 
-  columnasTerminos = ['tipo', 'descripcion', 'fechaInicio', 'fechaVencimiento', 'estado'];
+  /** Términos del proceso en la tabla estándar. */
+  readonly columnasTerminos: ColumnaTabla<TerminoLegal>[] = [
+    { id: 'tipo', header: 'Tipo', valor: (t) => t.tipo, tarjeta: 'titulo' },
+    { id: 'descripcion', header: 'Descripción', valor: (t) => t.descripcion ?? '',
+      formato: (t) => t.descripcion || '—', prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'fechaInicio', header: 'Fecha inicio', valor: (t) => aFecha(t.fecha_inicio),
+      formato: (t) => fechaCorta(t.fecha_inicio), prioridad: 2, tarjeta: 'meta' },
+    { id: 'fechaVencimiento', header: 'Vencimiento', valor: (t) => aFecha(t.fecha_vencimiento),
+      formato: (t) => fechaCorta(t.fecha_vencimiento), tarjeta: 'subtitulo' },
+    { id: 'estado', header: 'Estado', valor: (t) => this.terminoEstadoLabel(t), tarjeta: 'badge' },
+  ];
+
+  readonly idTermino = (t: TerminoLegal) => t.id;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');

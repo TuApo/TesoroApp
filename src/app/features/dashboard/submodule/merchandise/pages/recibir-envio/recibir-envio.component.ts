@@ -1,36 +1,56 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, LOCALE_ID, inject } from '@angular/core';
+import { formatCurrency, getCurrencySymbol } from '@angular/common';
 import { FormGroup, FormControl } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { MatTableDataSource } from '@angular/material/table';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { ComercializadoraService } from '../../service/comercializadora/comercializadora.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-recibir-envio',
-  imports: [SharedModule, MatCheckboxModule],
+  imports: [SharedModule, MatCheckboxModule, ...TABLA_ESTANDAR],
   templateUrl: './recibir-envio.component.html',
   styleUrl: './recibir-envio.component.css'
 })
 export class RecibirEnvioComponent implements OnInit {
 
-  private static readonly COLUMNAS_BASE: string[] = [
-    'select',
-    'codigo',
-    'concepto',
-    'cantidadEnvio',
-    'cantidadRecibida',
-    'valorUnidad',
-    'PersonaEnvia',
-    'comentariosEnvio'
+  private locale = inject(LOCALE_ID);
+
+  /**
+   * Columnas de la tabla estándar. Selección y cantidad recibida son controles
+   * (interactivas, no se copian ni se ordenan).
+   */
+  private readonly columnasBase: ColumnaTabla<any>[] = [
+    { id: 'select', header: 'Sel.', valor: (e) => (this.seleccionados[e.codigo] ? 'Sí' : ''), interactiva: true,
+      copiable: false, ordenable: false, filtrable: false, tarjeta: 'cuerpo' },
+    { id: 'codigo', header: 'Código', valor: (e) => e.codigo, tarjeta: 'subtitulo' },
+    { id: 'concepto', header: 'Concepto', valor: (e) => e.concepto, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'cantidadEnvio', header: 'Enviada', valor: (e) => e.cantidadEnvio, align: 'center', tarjeta: 'meta' },
+    { id: 'cantidadRecibida', header: 'Cant. Recibida',
+      valor: (e) => (this.seleccionados[e.codigo] ? Number(this.cantidadForm.get(e.codigo)?.value) || 0 : null),
+      interactiva: true, copiable: false, ordenable: false, filtrable: false, tarjeta: 'cuerpo' },
+    { id: 'valorUnidad', header: 'Valor Und.', valor: (e) => this.numero(e.valorUnidad), align: 'right',
+      formato: (e) => this.moneda(e.valorUnidad), tarjeta: 'meta' },
+    { id: 'PersonaEnvia', header: 'Envía', valor: (e) => e.PersonaEnvia ?? '', prioridad: 2, tarjeta: 'meta' },
+    { id: 'comentariosEnvio', header: 'Comentarios', valor: (e) => e.comentariosEnvio ?? '', prioridad: 3,
+      tarjeta: 'cuerpo', minAncho: '160px' },
   ];
 
-  displayedColumnsInventario: string[] = [...RecibirEnvioComponent.COLUMNAS_BASE];
+  /** Destino: solo aparece cuando el usuario recibe en varias oficinas. */
+  private readonly columnaDestino: ColumnaTabla<any> = {
+    id: 'destino', header: 'Destino', valor: (e) => e.destino ?? '', formato: (e) => e.destino || '—',
+    tarjeta: 'meta',
+  };
 
-  dataSourceInventario = new MatTableDataSource<any>();
+  columnasInventario: ColumnaTabla<any>[] = [...this.columnasBase];
+  readonly idEnvio = (e: any) => e.codigo;
+  /** La fila marcada se resalta (clase de la tabla estándar). */
+  readonly claseEnvio = (e: any) => (this.seleccionados[e.codigo] ? 'te-fila--destacada' : '');
+
   productos: any[] = [];
 
   cargando = true;
@@ -110,17 +130,13 @@ export class RecibirEnvioComponent implements OnInit {
       const variasOficinas = new Set(
         this.productos.map((p: any) => String(p.destino ?? '').toUpperCase()).filter(Boolean),
       ).size > 1;
-      this.displayedColumnsInventario = variasOficinas
-        ? [...RecibirEnvioComponent.COLUMNAS_BASE.slice(0, 3), 'destino',
-           ...RecibirEnvioComponent.COLUMNAS_BASE.slice(3)]
-        : [...RecibirEnvioComponent.COLUMNAS_BASE];
-
-      this.dataSourceInventario.data = this.productos;
+      this.columnasInventario = variasOficinas
+        ? [...this.columnasBase.slice(0, 3), this.columnaDestino, ...this.columnasBase.slice(3)]
+        : [...this.columnasBase];
 
     } catch (error) {
       console.error('Error cargando productos pendientes:', error);
       this.productos = [];
-      this.dataSourceInventario.data = [];
       this.showError('Hubo un error al obtener los envíos pendientes, por favor intente de nuevo');
     } finally {
       this.cargando = false;
@@ -241,9 +257,15 @@ export class RecibirEnvioComponent implements OnInit {
     }
   }
 
-  applyFilterInventario(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSourceInventario.filter = filterValue.trim().toLowerCase();
+  // Formato de la tabla (mismo resultado que el pipe currency)
+  private numero(v: unknown): number | null {
+    const n = Number(v);
+    return v === null || v === undefined || v === '' || isNaN(n) ? null : n;
+  }
+
+  private moneda(v: unknown): string {
+    const n = this.numero(v);
+    return n === null ? '' : formatCurrency(n, this.locale, getCurrencySymbol('COP', 'narrow', this.locale), 'COP', '1.0-0');
   }
 
   private showError(message: string) {

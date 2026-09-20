@@ -1,12 +1,12 @@
 :host {
-  --rp-fondo: #f8fafc; --rp-panel: #fff; --rp-borde: #e2e8f0;
-  --rp-texto: #0f172a; --rp-texto-suave: #64748b;
+  --rp-fondo: var(--surface-2); --rp-panel: var(--surface); --rp-borde: var(--border);
+  --rp-texto: var(--text); --rp-texto-suave: var(--muted);
   display: block; min-height: 100%; padding: 1rem 1.2rem 3rem;
   background: var(--rp-fondo); color: var(--rp-texto);
 }
 :host-context(.dark-theme) {
   --rp-fondo: #0f172a; --rp-panel: #1e293b; --rp-borde: #334155;
-  --rp-texto: #f1f5f9; --rp-texto-suave: #94a3b8;
+  --rp-texto: #f1f5f9; --rp-texto-suave: var(--text-faint);
 }
 
 .cat { max-width: 1200px; margin: 0 auto; }
@@ -22,10 +22,10 @@
 }
 .metrica b { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .metrica span { font-size: .7rem; color: var(--rp-texto-suave); }
-.metrica--v b { color: #0284c7; }
+.metrica--v b { color: #0284c7; color: light-dark(#0284c7, #97d6f7); }
 
 .incid {
-  border: 1px solid #fde68a; background: #fffbeb; color: #92400e;
+  border: 1px solid #fde68a; border: 1px solid light-dark(#fde68a, #6a5d1c); background: #fffbeb; background: light-dark(#fffbeb, #383624); color: #92400e; color: light-dark(#92400e, #f5bc99);
   border-radius: 12px; padding: .8rem 1rem; margin-bottom: 1rem;
 }
 .incid h3 { display: flex; align-items: center; gap: .35rem; margin: 0 0 .3rem; font-size: .92rem; }
@@ -51,7 +51,7 @@
 }
 .ds mat-panel-description { gap: .5rem; font-size: .78rem; }
 .sens, .edit { display: inline-flex; align-items: center; gap: .15rem; }
-.sens { color: #dc2626; } .edit { color: #b45309; }
+.sens { color: #dc2626; color: light-dark(#dc2626, #ef9e9e); } .edit { color: #b45309; color: light-dark(#b45309, #f7c097); }
 .sens mat-icon, .edit mat-icon { font-size: 14px; width: 14px; height: 14px; }
 
 .ds__cuerpo h4 {
@@ -65,17 +65,17 @@
   background: rgba(148, 163, 184, .15); border-radius: 999px; padding: 2px 4px 2px 8px;
 }
 .perm mat-icon { font-size: 14px; width: 14px; height: 14px; }
-.perm em { font-style: normal; font-size: .66rem; color: #dc2626; font-weight: 700; }
+.perm em { font-style: normal; font-size: .66rem; color: #dc2626; color: light-dark(#dc2626, #ef9e9e); font-weight: 700; }
 .perm button { width: 22px; height: 22px; line-height: 22px; }
 .perm button mat-icon { font-size: 13px; width: 13px; height: 13px; }
 
-.cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .2rem; }
+.cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: .2rem; }
 .col { display: flex; align-items: center; gap: .3rem; font-size: .78rem; padding: .15rem 0; min-width: 0; }
 .col__n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .col__t { font-size: .64rem; color: var(--rp-texto-suave); }
-.col__s { font-size: 13px; width: 13px; height: 13px; color: #dc2626; }
-.col__a { font-size: 13px; width: 13px; height: 13px; color: #059669; }
-.col__e { font-size: 13px; width: 13px; height: 13px; color: #b45309; }
+.col__s { font-size: 13px; width: 13px; height: 13px; color: #dc2626; color: light-dark(#dc2626, #ef9e9e); }
+.col__a { font-size: 13px; width: 13px; height: 13px; color: #059669; color: light-dark(#059669, #97f7d9); }
+.col__e { font-size: 13px; width: 13px; height: 13px; color: #b45309; color: light-dark(#b45309, #f7c097); }
 
 .esq { width: 260px; margin-bottom: 1rem; }
 .tablas, .rel { display: flex; flex-direction: column; gap: .3rem; }
@@ -85,16 +85,16 @@
 }
 .tabla--ya { opacity: .6; }
 .tabla > mat-icon, .rel > mat-icon { color: var(--rp-texto-suave); }
-.tabla--ya > mat-icon { color: #059669; }
+.tabla--ya > mat-icon { color: #059669; color: light-dark(#059669, #97f7d9); }
 .tabla__txt, .rel__txt { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .tabla__txt b, .rel__txt b { font-size: .86rem; }
 .tabla__txt span { font-size: .7rem; color: var(--rp-texto-suave); }
-.ya { font-size: .74rem; color: #059669; font-weight: 600; }
+.ya { font-size: .74rem; color: #059669; color: light-dark(#059669, #97f7d9); font-weight: 600; }
 .rel { margin-bottom: .3rem; }
 
 @media (max-width: 720px) {
   :host { padding: .7rem .6rem 2rem; }
-  .cols { grid-template-columns: 1fr; }
+  .cols { grid-template-columns: minmax(0, 1fr); }
 }
 
-::ng-deep .peligro { color: #dc2626 !important; }
+::ng-deep .peligro { color: #dc2626 !important; color: light-dark(#dc2626, #ef9e9e) !important; }

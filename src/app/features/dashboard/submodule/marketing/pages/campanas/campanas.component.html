@@ -1,0 +1,146 @@
+<section class="camp">
+
+  <header class="cabecera">
+    <div>
+      <h2>Campañas</h2>
+      <p class="sub">Agrupa una convocatoria bajo un nombre y un periodo, y mira cuánta
+         gente trajo de verdad.</p>
+    </div>
+    <button type="button" class="btn btn--primario" (click)="nueva()">
+      <mat-icon>add</mat-icon> Nueva campaña
+    </button>
+  </header>
+
+  <label class="campo" *ngIf="marcas().length > 1">
+    <span>Marca</span>
+    <select [ngModel]="marcaId()" (ngModelChange)="cambiarMarca($event)">
+      <option *ngFor="let m of marcas()" [value]="m.id">{{ m.nombre }}</option>
+    </select>
+  </label>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <div class="vacio" *ngIf="!cargando() && !lista().length">
+    <mat-icon>campaign</mat-icon>
+    <p><strong>Todavía no hay campañas.</strong></p>
+    <p>Una campaña agrupa las piezas y los enlaces de una convocatoria, y te dice cuántos
+       candidatos entraron por ella.</p>
+  </div>
+
+  <ul class="lista" *ngIf="!cargando() && lista().length">
+    <li *ngFor="let c of lista()" [class.vigente]="c.vigente" (click)="abrir(c)">
+      <div class="datos">
+        <div class="titulo">
+          {{ c.nombre }}
+          <span class="etq" [class.etq--viva]="c.vigente"
+                [class.etq--cerrada]="c.estado === 'CERRADA'">{{ c.estado | titlecase }}</span>
+        </div>
+        <div class="meta">{{ periodo(c) }}<span *ngIf="c.publico"> · {{ c.publico }}</span></div>
+        <div class="objetivo" *ngIf="c.objetivo">{{ c.objetivo }}</div>
+        <div class="aviso" *ngIf="aviso(c) as a"><mat-icon>schedule</mat-icon> {{ a }}</div>
+      </div>
+      <div class="acciones" (click)="$event.stopPropagation()">
+        <button type="button" class="mini" (click)="editar(c)"
+                *ngIf="c.estado !== 'CERRADA'" title="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="mini" *ngIf="c.estado === 'BORRADOR'"
+                (click)="cambiarEstado(c, 'ACTIVA')" title="Activar"><mat-icon>play_arrow</mat-icon></button>
+        <button type="button" class="mini" *ngIf="c.estado === 'ACTIVA'"
+                (click)="cambiarEstado(c, 'CERRADA')" title="Cerrar"><mat-icon>stop</mat-icon></button>
+        <button type="button" class="mini" *ngIf="c.estado === 'CERRADA'"
+                (click)="cambiarEstado(c, 'ACTIVA')" title="Reabrir"><mat-icon>replay</mat-icon></button>
+      </div>
+    </li>
+  </ul>
+
+  <!-- ── detalle con sus cifras ─────────────────────────────────────────── -->
+  <div class="telon" *ngIf="abierta() || cargandoResumen()" (click)="cerrarDetalle()">
+    <aside class="panel" (click)="$event.stopPropagation()">
+      <p class="cargando" *ngIf="cargandoResumen()">Calculando…</p>
+
+      <ng-container *ngIf="abierta() as r">
+        <header class="panel__cab">
+          <h3>{{ r.campana.nombre }}</h3>
+          <button type="button" class="mini" (click)="cerrarDetalle()"><mat-icon>close</mat-icon></button>
+        </header>
+        <p class="panel__periodo">{{ periodo(r.campana) }}</p>
+
+        <div class="nota" *ngIf="!r.periodo_declarado">
+          <mat-icon>info</mat-icon>
+          <span>Sin periodo declarado: estas cifras son de los últimos 90 días, no de la campaña.</span>
+        </div>
+
+        <div class="embudo">
+          <div class="paso">
+            <span class="paso__n">{{ r.clics_unicos | number }}</span>
+            <span class="paso__t">Entraron por un enlace</span>
+          </div>
+          <div class="paso">
+            <span class="paso__n">{{ r.preregistros | number }}</span>
+            <span class="paso__t">Se registraron</span>
+            <span class="paso__tasa" *ngIf="r.clics_unicos">{{ r.tasa_registro }}%</span>
+          </div>
+          <div class="paso">
+            <span class="paso__n">{{ r.contratados | number }}</span>
+            <span class="paso__t">Quedaron contratados</span>
+            <span class="paso__tasa" *ngIf="r.preregistros">{{ r.tasa_contratacion }}%</span>
+          </div>
+        </div>
+
+        <dl class="ficha">
+          <div><dt>Piezas generadas</dt><dd>{{ r.piezas_generadas | number }}</dd></div>
+          <div><dt>Descargas</dt><dd>{{ r.descargas | number }}</dd></div>
+          <div><dt>Personas difundiendo</dt><dd>{{ r.difusores | number }}</dd></div>
+        </dl>
+
+        <p class="objetivo" *ngIf="r.campana.objetivo"><strong>Objetivo:</strong> {{ r.campana.objetivo }}</p>
+      </ng-container>
+    </aside>
+  </div>
+
+  <!-- ── formulario ─────────────────────────────────────────────────────── -->
+  <div class="telon" *ngIf="editando() as e" (click)="cerrarForm()">
+    <form class="hoja" (click)="$event.stopPropagation()" (ngSubmit)="guardar()">
+      <h3>{{ e.id ? 'Editar campaña' : 'Nueva campaña' }}</h3>
+
+      <label class="campo">
+        <span>Nombre</span>
+        <input type="text" [ngModel]="e.nombre" name="nombre" required maxlength="160"
+               placeholder="Temporada alta de flores"
+               (ngModelChange)="campo('nombre', $event)" />
+      </label>
+
+      <label class="campo">
+        <span>Objetivo</span>
+        <input type="text" [ngModel]="e.objetivo" name="objetivo" maxlength="500"
+               placeholder="Cubrir 200 vacantes de poscosecha antes de octubre"
+               (ngModelChange)="campo('objetivo', $event)" />
+      </label>
+
+      <label class="campo">
+        <span>A quién va dirigida</span>
+        <input type="text" [ngModel]="e.publico" name="publico" maxlength="255"
+               placeholder="Operarios de la sabana de Bogotá"
+               (ngModelChange)="campo('publico', $event)" />
+      </label>
+
+      <div class="fila">
+        <label class="campo">
+          <span>Desde</span>
+          <input type="date" [ngModel]="e.desde" name="desde" (ngModelChange)="campo('desde', $event)" />
+        </label>
+        <label class="campo">
+          <span>Hasta</span>
+          <input type="date" [ngModel]="e.hasta" name="hasta" (ngModelChange)="campo('hasta', $event)" />
+        </label>
+      </div>
+      <small class="pista">Pon las dos fechas o ninguna: media vigencia no se puede leer.</small>
+
+      <div class="botones">
+        <button type="button" class="btn btn--fantasma" (click)="cerrarForm()">Cancelar</button>
+        <button type="submit" class="btn btn--primario" [disabled]="guardando() || !e.nombre">
+          {{ guardando() ? 'Guardando…' : 'Guardar' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</section>

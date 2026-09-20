@@ -3,8 +3,8 @@
 /* ── Botón estrella de favorito ── */
 .ws-top-right { display: flex; align-items: center; gap: 4px; }
 .fav-btn { color: var(--mt-faint); transition: color .15s, transform .15s; }
-.fav-btn:hover { color: var(--warning); transform: scale(1.12); }
-.fav-btn.is-fav { color: var(--warning); }
+.fav-btn:hover { color: var(--warning); color: light-dark(var(--warning), #efce9f); transform: scale(1.12); }
+.fav-btn.is-fav { color: var(--warning); color: light-dark(var(--warning), #efce9f); }
 .fav-btn.is-fav mat-icon { filter: drop-shadow(0 1px 2px rgba(245, 158, 11, .35)); }
 
 /* ── Hero corporativo ── */
@@ -45,7 +45,7 @@
   transition: transform var(--mt-ease) .2s, box-shadow var(--mt-ease) .2s, border-color var(--mt-ease) .2s;
 }
 .ws-card::before { content: ''; position: absolute; top: 0; left: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, var(--mt-blue), var(--mt-accent)); opacity: 0; transition: opacity var(--mt-ease) .2s; }
-.ws-card:hover { transform: translateY(-4px); box-shadow: var(--mt-shadow-hover) !important; border-color: #cdd6e6; }
+.ws-card:hover { transform: translateY(-4px); box-shadow: var(--mt-shadow-hover) !important; border-color: var(--border-strong); }
 .ws-card:hover::before { opacity: 1; }
 .ws-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .ws-top strong { color: var(--mt-ink); font-size: 1.02rem; }
@@ -57,10 +57,10 @@
 .ws-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 
 /* ── Chips de rol ── */
-.role-owner { background: #fef9c3 !important; color: #854d0e !important; }
-.role-manager { background: var(--mt-prog-soft) !important; color: #1e40af !important; }
-.role-member { background: var(--mt-done-soft) !important; color: #166534 !important; }
-.role-viewer { background: #f1f5f9 !important; color: var(--mt-muted) !important; }
+.role-owner { background: #fef9c3 !important; background: light-dark(#fef9c3, #373b25) !important; color: #854d0e !important; color: light-dark(#854d0e, #f4ca99) !important; }
+.role-manager { background: var(--mt-prog-soft) !important; color: #1e40af !important; color: light-dark(#1e40af, #9fb2ef) !important; }
+.role-member { background: var(--mt-done-soft) !important; color: #166534 !important; color: light-dark(#166534, #a3ebbe) !important; }
+.role-viewer { background: var(--surface-3) !important; color: var(--mt-muted) !important; }
 
 /* ── Vacío ── */
 .empty-state { text-align: center; padding: 56px; color: var(--mt-muted); }
@@ -69,7 +69,7 @@
 
 /* ── Detalle ── */
 .detail-info { display: grid; gap: 8px; padding: 18px; background: var(--mt-surface-2); border-radius: var(--mt-r-sm); border: 1px solid var(--mt-border); }
-.detail-stat { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: #334155; }
+.detail-stat { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--text-2); }
 .detail-stat mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--mt-blue); }
 
 /* ── Miembros ── */
@@ -84,7 +84,7 @@
 .member-info strong { display: block; font-size: .9rem; color: var(--mt-ink); }
 .member-username { font-size: .75rem; color: var(--mt-muted); }
 .member-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.inactive-badge { font-size: .7rem; color: var(--danger); font-weight: 700; }
+.inactive-badge { font-size: .7rem; color: var(--danger); color: light-dark(var(--danger), #f2a29c); font-weight: 700; }
 .member-actions { display: flex; align-items: center; gap: 8px; }
 .role-select { width: 130px; }
 
@@ -93,18 +93,18 @@
 .role-chip-icon { font-size: 14px !important; width: 14px !important; height: 14px !important; vertical-align: middle; margin-right: 3px; }
 
 /* Badge de propietario (rol no editable) */
-.owner-lock { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 10px; background: #fef9c3; color: #854d0e; font-size: .82rem; font-weight: 700; white-space: nowrap; }
+.owner-lock { display: inline-flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 10px; background: #fef9c3; background: light-dark(#fef9c3, #373b25); color: #854d0e; color: light-dark(#854d0e, #f4ca99); font-size: .82rem; font-weight: 700; white-space: nowrap; }
 .owner-lock mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
 /* Leyenda de roles / permisos */
-.roles-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 0 0 18px; padding: 16px 18px; background: var(--mt-surface-2); border: 1px solid var(--mt-border); border-radius: var(--mt-r-sm); }
+.roles-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap: 12px; margin: 0 0 18px; padding: 16px 18px; background: var(--mt-surface-2); border: 1px solid var(--mt-border); border-radius: var(--mt-r-sm); }
 .role-legend-item { display: flex; gap: 10px; align-items: flex-start; }
 .role-legend-item mat-icon { color: var(--mt-blue); flex-shrink: 0; }
 .role-legend-item strong { display: block; font-size: .85rem; color: var(--mt-ink); }
 .role-legend-item span { display: block; font-size: .74rem; color: var(--mt-muted); line-height: 1.35; margin-top: 2px; }
 
 @media (max-width: 900px) {
-  .hero { grid-template-columns: 1fr; }
+  .hero { grid-template-columns: minmax(0, 1fr); }
   .member-form { flex-direction: column; }
 }
 
@@ -113,14 +113,14 @@
   .hero { padding: 18px 14px; }
   .hero-copy h1 { font-size: 1.4rem; }
   .hero-actions { flex-wrap: wrap; gap: 8px; }
-  .ws-grid { grid-template-columns: 1fr; gap: 12px; }
+  .ws-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .ws-card { padding: 14px; }
   .ws-dates { display: none; }
   .filters { flex-direction: column; gap: 8px; }
   .search-field { min-width: 100%; }
   .filter-field { min-width: 100%; }
   .roles-legend { grid-template-columns: 1fr 1fr; }
-  .members-grid { grid-template-columns: 1fr; }
+  .members-grid { grid-template-columns: minmax(0, 1fr); }
   .member-card { flex-direction: column; align-items: flex-start; gap: 8px; }
   .member-actions { width: 100%; justify-content: flex-start; }
   .role-select { width: 100%; }

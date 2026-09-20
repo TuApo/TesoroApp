@@ -1,68 +1,16 @@
 <h1 mat-dialog-title>Detalles de adres</h1>
 <div mat-dialog-content>
-  <div class="table-container">
-    <table mat-table [dataSource]="data">
-      <ng-container matColumnDef="numero_cedula">
-        <th mat-header-cell *matHeaderCellDef> Cedula </th>
-        <td mat-cell *matCellDef="let element"> {{element.numero_cedula}} </td>
-      </ng-container>
-      <ng-container matColumnDef="tipo_documento">
-        <th mat-header-cell *matHeaderCellDef> Tipo Documento </th>
-        <td mat-cell *matCellDef="let element"> {{element.tipo_documento}} </td>
-      </ng-container>
-      <ng-container matColumnDef="nombre">
-        <th mat-header-cell *matHeaderCellDef> Nombre </th>
-        <td mat-cell *matCellDef="let element"> {{element.nombre}} </td>
-      </ng-container>
-      <ng-container matColumnDef="apellido">
-        <th mat-header-cell *matHeaderCellDef> Apellido </th>
-        <td mat-cell *matCellDef="let element"> {{element.apellido}} </td>
-      </ng-container>
-      <ng-container matColumnDef="departamento">
-        <th mat-header-cell *matHeaderCellDef> Departamento </th>
-        <td mat-cell *matCellDef="let element"> {{element.departamento}} </td>
-      </ng-container>
-      <ng-container matColumnDef="municipio">
-        <th mat-header-cell *matHeaderCellDef> Municipio </th>
-        <td mat-cell *matCellDef="let element"> {{element.municipio}} </td>
-      </ng-container>
-      <ng-container matColumnDef="estado">
-        <th mat-header-cell *matHeaderCellDef> Estado </th>
-        <td mat-cell *matCellDef="let element"> {{element.estado}} </td>
-      </ng-container>
-      <ng-container matColumnDef="entidad">
-        <th mat-header-cell *matHeaderCellDef> Entidad </th>
-        <td mat-cell *matCellDef="let element"> {{element.entidad}} </td>
-      </ng-container>
-      <ng-container matColumnDef="regimen">
-        <th mat-header-cell *matHeaderCellDef> Régimen </th>
-        <td mat-cell *matCellDef="let element"> {{element.regimen}} </td>
-      </ng-container>
-      <ng-container matColumnDef="fecha_afiliacion_efectiva">
-        <th mat-header-cell *matHeaderCellDef> Fecha Afiliación Efectiva </th>
-        <td mat-cell *matCellDef="let element"> {{element.fecha_afiliacion_efectiva}} </td>
-      </ng-container>
-      <ng-container matColumnDef="fecha_finalizacion_afiliacion">
-        <th mat-header-cell *matHeaderCellDef> Fecha Finalización Afiliación </th>
-        <td mat-cell *matCellDef="let element"> {{element.fecha_finalizacion_afiliacion}} </td>
-      </ng-container>
-      <ng-container matColumnDef="tipo_afiliacion">
-        <th mat-header-cell *matHeaderCellDef> Tipo Afiliación </th>
-        <td mat-cell *matCellDef="let element"> {{element.tipo_afiliacion}} </td>
-      </ng-container>
-      <ng-container matColumnDef="pdf_documento">
-        <th mat-header-cell *matHeaderCellDef> PDF Documento </th>
-        <td mat-cell *matCellDef="let element"> <a [href]="element.pdf_documento" target="_blank">Ver Documento</a> </td>
-      </ng-container>
-      <ng-container matColumnDef="marca_temporal">
-        <th mat-header-cell *matHeaderCellDef> Marca Temporal </th>
-        <td mat-cell *matCellDef="let element"> {{element.marca_temporal}} </td>
-      </ng-container>
+  <app-tabla-estandar
+    id="traslados-adres"
+    titulo="Detalles de ADRES"
+    modulo="Traslados EPS"
+    [datos]="data"
+    [columnas]="columnas">
 
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-    </table>
-  </div>
+    <ng-template tablaCelda="pdf_documento" let-e>
+      <a [href]="e.pdf_documento" target="_blank">Ver Documento</a>
+    </ng-template>
+  </app-tabla-estandar>
 </div>
 <div mat-dialog-actions>
   <button mat-button mat-dialog-close>Cerrar</button>

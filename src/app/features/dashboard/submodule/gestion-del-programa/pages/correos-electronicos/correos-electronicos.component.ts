@@ -1,11 +1,8 @@
-import { ChangeDetectorRef, Component, OnInit, OnDestroy, AfterViewInit, ViewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectorRef, Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatSortModule, MatSort } from '@angular/material/sort';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -18,6 +15,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import Swal from 'sweetalert2';
 
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+} from '../../../../../../shared/components/tabla-estandar';
 import { CorreosService } from '../../services/correos.service';
 import { CorreoFormDialogComponent } from './correo-form-dialog.component';
 import {
@@ -32,6 +32,13 @@ import {
 
 type FiltroEstado = 'activas' | 'inactivas' | 'todas';
 
+/** ISO del backend → Date (null si no hay o no es válida). */
+function aFecha(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 /**
  * Administración → Gestión del Programa → Correos electrónicos.
  *
@@ -40,9 +47,9 @@ type FiltroEstado = 'activas' | 'inactivas' | 'todas';
  * diaria al pool; solo suman las cuentas activas y verificadas.
  *
  * Mismo patrón que Entidades Externas / Centros de Costo: filtros de servidor
- * (proveedor, estado activo, estado de verificación), buscador libre en cliente,
- * paginación con MatPaginator, confirmaciones con Swal y borrado lógico
- * (desactivar/reactivar). NO existe acción de eliminar.
+ * (proveedor, estado activo, estado de verificación); búsqueda, orden,
+ * filtros por columna y paginación los da la tabla estándar; confirmaciones
+ * con Swal y borrado lógico (desactivar/reactivar). NO existe acción de eliminar.
  */
 @Component({
   selector: 'app-correos-electronicos',
@@ -51,9 +58,6 @@ type FiltroEstado = 'activas' | 'inactivas' | 'todas';
     CommonModule,
     FormsModule,
     MatCardModule,
-    MatTableModule,
-    MatSortModule,
-    MatPaginatorModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -63,29 +67,51 @@ type FiltroEstado = 'activas' | 'inactivas' | 'todas';
     MatTooltipModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './correos-electronicos.component.html',
   styleUrls: ['./correos-electronicos.component.css'],
 })
-export class CorreosElectronicosComponent implements OnInit, OnDestroy, AfterViewInit {
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
+export class CorreosElectronicosComponent implements OnInit, OnDestroy {
+  /** Decorador y no `viewChild()`: la spec crea el componente con `new`, fuera de inyección. */
+  @ViewChild(TablaEstandarComponent) private tabla?: TablaEstandarComponent<CorreoCuenta>;
 
   /**
-   * OJO: cada id de aquí DEBE tener su `matColumnDef` en el HTML. Si falta uno,
-   * MatTable lanza y no pinta NINGUNA fila (la tabla se ve vacía con el contador
-   * en 4). Lo cubre la prueba de render de la spec.
+   * Columnas de la tabla estándar. Las acciones van en la plantilla
+   * `tablaAcciones`, no como columna.
    *
    * La cuota declarada no tiene columna propia: lo que importa operativamente es
    * el restante ('disponible_hoy'); el declarado vive en el indicador de arriba
    * y en el tooltip de 'limite_efectivo'.
    */
-  displayedColumns = [
-    'direccion', 'nombre_mostrar', 'proveedor', 'proposito',
-    'enviados_hoy', 'disponible_hoy', 'limite_efectivo', 'estado_verificacion', 'activo',
-    'actualizado_en', 'acciones',
+  readonly columnas: ColumnaTabla<CorreoCuenta>[] = [
+    { id: 'direccion', header: 'Dirección', valor: (c) => c.direccion, tarjeta: 'titulo', minAncho: '200px' },
+    { id: 'nombre_mostrar', header: 'Remitente', valor: (c) => c.nombre_mostrar ?? '',
+      formato: (c) => c.nombre_mostrar || '—', tarjeta: 'subtitulo' },
+    { id: 'proveedor', header: 'Proveedor', valor: (c) => this.proveedorLabel(c.proveedor),
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'proposito', header: 'Propósito', valor: (c) => c.proposito ?? '',
+      formato: (c) => c.proposito || '—', prioridad: 3, tarjeta: 'cuerpo' },
+    { id: 'enviados_hoy', header: 'Enviados hoy', valor: (c) => c.enviados_hoy, align: 'right', tarjeta: 'meta' },
+    { id: 'disponible_hoy', header: 'Disponible', valor: (c) => c.disponible_hoy, align: 'right', tarjeta: 'meta' },
+    { id: 'limite_efectivo', header: 'Corte automático', valor: (c) => c.limite_efectivo, align: 'right',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'estado_verificacion', header: 'Verificación', valor: (c) => this.estadoMeta(c.estado_verificacion).label,
+      tarjeta: 'badge' },
+    { id: 'activo', header: 'Estado', valor: (c) => (c.activo ? 'Activa' : 'Inactiva'), tarjeta: 'meta',
+      badge: (c) => c.activo
+        ? { texto: 'Activa', tono: 'ok', icono: 'check_circle' }
+        : { texto: 'Inactiva', tono: 'neutro', icono: 'cancel' } },
+    { id: 'actualizado_en', header: 'Actualizada', valor: (c) => aFecha(c.actualizado_en || c.creado_en),
+      formato: (c) => this.fechaHora(c.actualizado_en || c.creado_en),
+      copiaTexto: (c) => this.fechaHora(c.actualizado_en || c.creado_en), prioridad: 3, tarjeta: 'meta' },
   ];
-  dataSource = new MatTableDataSource<CorreoCuenta>([]);
+
+  readonly idCuenta = (c: CorreoCuenta) => c.id;
+  readonly claseFila = (c: CorreoCuenta) => (c.activo ? '' : 'te-fila--atenuada');
+
+  /** Cuentas que devolvió el backend con los filtros de servidor. */
+  cuentas: CorreoCuenta[] = [];
 
   readonly PROVEEDORES = PROVEEDORES_CORREO;
   readonly PROVEEDOR_LABEL: Record<string, string> =
@@ -119,12 +145,9 @@ export class CorreosElectronicosComponent implements OnInit, OnDestroy, AfterVie
     return this.resumen?.umbral_corte_pct ?? UMBRAL_CORTE_PCT;
   }
 
-  filterSearch = '';
   filterProveedor: ProveedorCorreo | '' = '';
   filterEstado: FiltroEstado = 'activas';
   filterVerificacion: EstadoVerificacionCorreo | '' = '';
-
-  private all: CorreoCuenta[] = [];
 
   constructor(
     private correos: CorreosService,
@@ -141,11 +164,6 @@ export class CorreosElectronicosComponent implements OnInit, OnDestroy, AfterVie
   ngOnDestroy(): void {
     this.detenerAutoRefresco();
     if (this.timerReloj) clearInterval(this.timerReloj);
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
   }
 
   // ── Auto-refresco ────────────────────────────────────────────────────────
@@ -219,8 +237,7 @@ export class CorreosElectronicosComponent implements OnInit, OnDestroy, AfterVie
       estadoVerificacion: this.filterVerificacion || null,
     }).subscribe({
       next: (data) => {
-        this.all = data ?? [];
-        this.aplicarFiltros();
+        this.cuentas = data ?? [];
         this.isLoading = false;
         this.cargaFallida = false;
         this.marcarRefresco();
@@ -233,8 +250,7 @@ export class CorreosElectronicosComponent implements OnInit, OnDestroy, AfterVie
           this.cdr.markForCheck();
           return;
         }
-        this.all = [];
-        this.dataSource.data = [];
+        this.cuentas = [];
         this.cargaFallida = true;
         this.snackBar.open(
           err?.error?.error ?? 'Error al cargar las cuentas de correo', 'Cerrar', { duration: 4000 },
@@ -265,30 +281,14 @@ export class CorreosElectronicosComponent implements OnInit, OnDestroy, AfterVie
 
   // ── Filtros ──────────────────────────────────────────────────────────────
 
-  aplicarFiltros(): void {
-    const q = (this.filterSearch || '').trim().toLowerCase();
-    this.dataSource.data = this.all.filter((c) => {
-      if (!q) return true;
-      const blob = [c.direccion, c.nombre_mostrar, c.proposito, c.smtp_host, c.smtp_usuario]
-        .filter(Boolean).join(' ').toLowerCase();
-      return blob.includes(q);
-    });
-    if (this.paginator) this.paginator.firstPage();
-    this.cdr.markForCheck();
-  }
-
-  onSearchChange(value: string): void {
-    this.filterSearch = value;
-    this.aplicarFiltros();
-  }
-
   /** Proveedor, estado y verificación se filtran en el backend → recargar. */
   onServerFilterChange(): void {
     this.cargar();
   }
 
   limpiarFiltros(): void {
-    this.filterSearch = '';
+    // Búsqueda, orden y filtros por columna viven en la tabla estándar.
+    this.tabla?.limpiarTodo();
     this.filterProveedor = '';
     this.filterEstado = 'activas';
     this.filterVerificacion = '';
@@ -299,6 +299,12 @@ export class CorreosElectronicosComponent implements OnInit, OnDestroy, AfterVie
 
   proveedorLabel(p: string): string {
     return this.PROVEEDOR_LABEL[p] ?? p;
+  }
+
+  /** dd/MM/yyyy HH:mm como el `date` pipe de antes (locale por defecto). */
+  fechaHora(v: string | null | undefined): string {
+    const d = aFecha(v);
+    return d ? formatDate(d, 'dd/MM/yyyy HH:mm', 'en-US') : '—';
   }
 
   /** % del cupo del día ya consumido, para la barrita de la columna Disponible. */

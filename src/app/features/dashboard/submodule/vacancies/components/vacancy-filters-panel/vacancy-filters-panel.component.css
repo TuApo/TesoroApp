@@ -1,0 +1,146 @@
+/* ====== Filtros de la cabecera (afectan Listado + Indicadores) ====== */
+.filtros-vacantes {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+}
+
+.filtros-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.filtros-icon {
+  color: #1e3a8a; color: light-dark(#1e3a8a, #a3b6eb);
+}
+.filtros-titulo {
+  font-weight: 700;
+  font-size: .86rem;
+  color: var(--text);
+}
+.filtros-badge {
+  background: #1e3a8a;
+  color: #fff;
+  border-radius: 999px;
+  font-size: .7rem;
+  font-weight: 700;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.filtros-resultado {
+  font-size: .76rem;
+  color: var(--muted);
+}
+.filtros-spacer {
+  flex: 1 1 auto;
+}
+
+/* Selector de pestaña. Vive aquí desde la separación de vistas: en la cabecera
+   oscura llevaba overrides de color que sobre este fondo claro lo dejaban
+   ilegible, así que se usa el estilo estándar de Material. */
+.view-toggle {
+  margin-left: 8px;
+  background: var(--surface);
+  border-radius: 8px;
+}
+::ng-deep .view-toggle .mat-button-toggle-label-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  line-height: 1;
+  font-size: .8rem;
+}
+::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked {
+  background-color: #1e3a8a !important;
+}
+::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked .mat-button-toggle-label-content {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+::ng-deep .view-toggle .mat-button-toggle-appearance-standard.mat-button-toggle-checked .mat-button-toggle-label-content .mat-icon {
+  color: #ffffff !important;
+}
+
+.filtros-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.filtro-campo {
+  width: 100%;
+  min-width: 0;
+}
+/* Oficina fija (usuarios sin permiso de gerencia) */
+.filtro-oficina-fija {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  min-width: 0;
+  box-sizing: border-box;
+}
+.filtro-oficina-fija mat-icon {
+  color: #1e3a8a; color: light-dark(#1e3a8a, #a3b6eb);
+}
+.ofi-texto {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ofi-label {
+  font-size: .68rem;
+  color: var(--text-faint);
+  line-height: 1.1;
+}
+.ofi-valor {
+  font-size: .84rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .filtros-vacantes { padding: 10px; }
+  .filtros-grid { gap: 8px; }
+  .toggle-text { display: none; }
+}
+
+/* Los dos datepickers son los únicos campos que no pasaron a `app-smart-select`.
+   Se les da la misma superficie para que la fila no mezcle dos estilos:
+   selectores con borde visible junto a cajas casi sin borde se veía a medio
+   terminar. */
+::ng-deep .filtros-vacantes .mat-mdc-form-field .mat-mdc-text-field-wrapper {
+  border-radius: 10px;
+  background: var(--surface);
+}
+::ng-deep .filtros-vacantes .mat-mdc-form-field .mdc-notched-outline__leading,
+::ng-deep .filtros-vacantes .mat-mdc-form-field .mdc-notched-outline__notch,
+::ng-deep .filtros-vacantes .mat-mdc-form-field .mdc-notched-outline__trailing {
+  border-color: var(--border-strong);
+}
+::ng-deep .filtros-vacantes .mat-mdc-form-field:hover .mdc-notched-outline__leading,
+::ng-deep .filtros-vacantes .mat-mdc-form-field:hover .mdc-notched-outline__notch,
+::ng-deep .filtros-vacantes .mat-mdc-form-field:hover .mdc-notched-outline__trailing {
+  border-color: var(--text-faint);
+}
+::ng-deep .filtros-vacantes .mat-mdc-form-field.mat-focused .mdc-notched-outline__leading,
+::ng-deep .filtros-vacantes .mat-mdc-form-field.mat-focused .mdc-notched-outline__notch,
+::ng-deep .filtros-vacantes .mat-mdc-form-field.mat-focused .mdc-notched-outline__trailing {
+  border-color: #21263C;
+  border-width: 1px;
+}

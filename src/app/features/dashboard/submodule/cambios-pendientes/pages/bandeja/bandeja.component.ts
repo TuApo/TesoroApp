@@ -1,7 +1,10 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, LOCALE_ID, OnInit, inject, signal, viewChild } from '@angular/core';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+} from '../../../../../../shared/components/tabla-estandar';
 import {
   CambioDetalle, CambioPendiente, CambiosPendientesService,
 } from '../../services/cambios-pendientes.service';
@@ -22,19 +25,40 @@ interface Diferencia { campo: string; actual: string; propuesto: string; }
 @Component({
   selector: 'app-bandeja-cambios',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, ...TABLA_ESTANDAR],
   templateUrl: './bandeja.component.html',
   styleUrls: ['./bandeja.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class BandejaComponent implements OnInit {
   private readonly api = inject(CambiosPendientesService);
+  private readonly locale = inject(LOCALE_ID);
 
   readonly filas = signal<CambioPendiente[]>([]);
   readonly total = signal(0);
   readonly cargando = signal(false);
   readonly estado = signal<'PENDIENTE' | 'APROBADO' | 'RECHAZADO'>('PENDIENTE');
   readonly oficina = signal('');
+  /** Tamaño de página que se pide al backend: la tabla está en modo servidor. */
+  readonly porPagina = signal(25);
+  private readonly tabla = viewChild(TablaEstandarComponent);
+
+  /**
+   * El backend pagina y no ordena ni busca por texto: las columnas no se ordenan
+   * y la tabla va sin buscador. El estado y la oficina son los filtros de negocio.
+   */
+  readonly columnas: ColumnaTabla<CambioPendiente>[] = [
+    { id: 'persona', header: 'Persona', valor: (f) => f.nombre ?? '', formato: (f) => f.nombre || '—',
+      tarjeta: 'titulo', ordenable: false, minAncho: '180px' },
+    { id: 'documento', header: 'Documento', valor: (f) => f.numero_documento ?? '',
+      formato: (f) => f.numero_documento || '—', tarjeta: 'subtitulo', ordenable: false },
+    { id: 'oficina', header: 'Oficina', valor: (f) => f.oficina ?? '', formato: (f) => f.oficina || '—',
+      prioridad: 2, tarjeta: 'cuerpo', ordenable: false },
+    { id: 'recibido', header: 'Recibido', valor: (f) => (f.creado_en ? new Date(f.creado_en) : null),
+      formato: (f) => this.fechaHora(f.creado_en), copiaTexto: (f) => this.fechaHora(f.creado_en),
+      tarjeta: 'meta', ordenable: false },
+  ];
+  readonly idFila = (f: CambioPendiente) => f.id;
 
   readonly abierto = signal<CambioDetalle | null>(null);
   readonly diferencias = signal<Diferencia[]>([]);
@@ -42,10 +66,13 @@ export class BandejaComponent implements OnInit {
 
   ngOnInit(): void { void this.cargar(); }
 
-  async cargar(): Promise<void> {
+  async cargar(pagina = 0): Promise<void> {
+    // Una consulta nueva (estado u oficina) arranca en la primera página, también en la tabla.
+    if (pagina === 0) this.tabla()?.pagina.set(0);
     this.cargando.set(true);
     try {
-      const r = await this.api.listar(this.estado(), this.oficina().trim() || undefined);
+      const r = await this.api.listar(
+        this.estado(), this.oficina().trim() || undefined, pagina, this.porPagina());
       this.filas.set(r.results ?? []);
       this.total.set(r.count ?? 0);
     } catch {
@@ -60,6 +87,16 @@ export class BandejaComponent implements OnInit {
   cambiarEstado(e: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'): void {
     this.estado.set(e);
     void this.cargar();
+  }
+
+  /** La tabla pide otra página (o cambió las filas por página). */
+  cambiarPagina(e: { pagina: number; porPagina: number }): void {
+    this.porPagina.set(e.porPagina);
+    void this.cargar(e.pagina);
+  }
+
+  private fechaHora(v: string | null | undefined): string {
+    return v ? formatDate(v, 'dd/MM/yy HH:mm', this.locale) : '';
   }
 
   async abrir(fila: CambioPendiente): Promise<void> {

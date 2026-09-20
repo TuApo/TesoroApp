@@ -8,7 +8,8 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin, of } from 'rxjs';
@@ -47,7 +48,7 @@ interface QuickLink {
     MatTooltipModule,
     NgxEchartsDirective,
   ],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   templateUrl: './home-dashboard.component.html',
   styleUrls: ['./home-dashboard.component.css'],
 })
@@ -189,14 +190,14 @@ export class HomeDashboardComponent implements OnInit {
 
     this.pipelineOpt = {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      grid: { left: 10, right: 30, top: 10, bottom: 10, containLabel: true },
-      xAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } }, axisLine: { show: false }, axisTick: { show: false } },
-      yAxis: { type: 'category', data: stages, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 11, color: '#475569' } },
+      grid: { left: 10, right: 44, top: 10, bottom: 10, containLabel: true },
+      xAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } }, axisLine: { show: false }, axisTick: { show: false } },
+      yAxis: { type: 'category', data: stages, axisLine: { show: false }, axisTick: { show: false }, axisLabel: { fontSize: 11 } },
       series: [{
         type: 'bar',
         barMaxWidth: 28,
         data: stages.map(s => ({ value: counts[s], itemStyle: { color: this.STAGE_COLORS[s] || '#94a3b8', borderRadius: [0, 4, 4, 0] } })),
-        label: { show: true, position: 'right', formatter: '{c}', fontSize: 11, fontWeight: 'bold', color: '#334155' },
+        label: { show: true, position: 'right', formatter: '{c}', fontSize: 11, fontWeight: 'bold' },
       }],
     };
   }
@@ -222,8 +223,8 @@ export class HomeDashboardComponent implements OnInit {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { bottom: 0, data: stages, textStyle: { fontSize: 10 }, itemWidth: 12, itemHeight: 8 },
       grid: { left: 10, right: 10, top: 10, bottom: 55, containLabel: true },
-      xAxis: { type: 'category', data: top.map(o => o.name), axisLabel: { rotate: 35, fontSize: 9, interval: 0, color: '#475569' }, axisLine: { lineStyle: { color: '#e2e8f0' } } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } }, axisLine: { show: false } },
+      xAxis: { type: 'category', data: top.map(o => o.name), axisLabel: { rotate: 35, fontSize: 9, interval: 0 }, axisLine: { show: true } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } }, axisLine: { show: false } },
       series: stages.map((stage, i) => ({
         name: stage, type: 'bar', stack: 'total', barMaxWidth: 40,
         itemStyle: { color: stageColors[i] },
@@ -251,8 +252,8 @@ export class HomeDashboardComponent implements OnInit {
     this.timelineOpt = {
       tooltip: { trigger: 'axis' },
       grid: { left: 10, right: 20, top: 20, bottom: 30, containLabel: true },
-      xAxis: { type: 'category', data: labels, boundaryGap: false, axisLabel: { fontSize: 10, color: '#475569' }, axisLine: { lineStyle: { color: '#e2e8f0' } } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } }, axisLine: { show: false }, axisLabel: { fontSize: 10 } },
+      xAxis: { type: 'category', data: labels, boundaryGap: false, axisLabel: { fontSize: 10 }, axisLine: { show: true } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } }, axisLine: { show: false }, axisLabel: { fontSize: 10 } },
       series: [{
         name: 'Ingresos',
         type: 'line',
@@ -276,8 +277,8 @@ export class HomeDashboardComponent implements OnInit {
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { bottom: 0, data: ['Confirmados', 'Pendientes'], textStyle: { fontSize: 10 }, itemWidth: 12, itemHeight: 8 },
       grid: { left: 10, right: 10, top: 10, bottom: 55, containLabel: true },
-      xAxis: { type: 'category', data: top.map(o => o.clave || o.oficina || '?'), axisLabel: { rotate: 35, fontSize: 9, interval: 0, color: '#475569' }, axisLine: { lineStyle: { color: '#e2e8f0' } } },
-      yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed', color: '#e2e8f0' } }, axisLine: { show: false } },
+      xAxis: { type: 'category', data: top.map(o => o.clave || o.oficina || '?'), axisLabel: { rotate: 35, fontSize: 9, interval: 0 }, axisLine: { show: true } },
+      yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } }, axisLine: { show: false } },
       series: [
         { name: 'Confirmados', type: 'bar', stack: 'total', itemStyle: { color: '#10b981' }, data: top.map(o => o.contratados || 0) },
         { name: 'Pendientes',  type: 'bar', stack: 'total', itemStyle: { color: '#f59e0b' }, data: top.map(o => o.pendientes  || 0) },

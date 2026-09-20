@@ -3,7 +3,6 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormArray, Validators, FormGroup } from '@angular/forms';
-import { MatTableModule } from '@angular/material/table';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,9 +14,9 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatExpansionModule } from '@angular/material/expansion';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDividerModule } from '@angular/material/divider';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { PlantillaEpsService } from '../../services/plantilla-eps.service';
 import {
   PlantillaResumen, PlantillaDetalle, PlantillaRequest,
@@ -36,10 +35,11 @@ import { PlantillaDialogComponent } from './plantilla-dialog.component';
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule,
-    MatTableModule, MatCardModule, MatButtonModule, MatIconModule,
+    MatCardModule, MatButtonModule, MatIconModule,
     MatDialogModule, MatFormFieldModule, MatInputModule, MatSelectModule,
     MatChipsModule, MatTooltipModule, MatSnackBarModule, MatExpansionModule,
-    MatProgressSpinnerModule, MatSlideToggleModule, MatDividerModule,
+    MatSlideToggleModule, MatDividerModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './plantillas-eps.component.html',
   styleUrls: ['./plantillas-eps.component.css'],
@@ -50,26 +50,32 @@ export class PlantillasEpsComponent implements OnInit {
   camposDisponibles = signal<CampoDisponible[]>([]);
   cargando = signal(false);
 
-  filtroTexto = signal('');
   filtroTemporal = signal<string | null>(null);
 
+  /** Filtro rápido por temporal; la búsqueda por texto la hace la tabla estándar. */
   plantillasFiltradas = computed(() => {
-    const txt = this.filtroTexto().toLowerCase();
     const tmp = this.filtroTemporal();
-    return this.plantillas().filter(p => {
-      const matchTxt = !txt || p.epsNombre.toLowerCase().includes(txt)
-                             || p.nombrePlantilla.toLowerCase().includes(txt)
-                             || p.epsKey.toLowerCase().includes(txt);
-      const matchTmp = !tmp || p.temporalKey === tmp;
-      return matchTxt && matchTmp;
-    });
+    return this.plantillas().filter(p => !tmp || p.temporalKey === tmp);
   });
 
   temporalesUnicos = computed(() =>
     [...new Set(this.plantillas().map(p => p.temporalKey).filter(Boolean))] as string[]
   );
 
-  cols = ['epsNombre','temporalKey','sexo','nombre','campos','activa','acciones'];
+  readonly columnas: ColumnaTabla<PlantillaResumen>[] = [
+    // La búsqueda cubre nombre y clave de la EPS: las dos van en el valor.
+    { id: 'epsNombre', header: 'EPS', valor: p => `${p.epsNombre} (${p.epsKey})`,
+      copiaTexto: p => p.epsNombre, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'temporalKey', header: 'Temporal', valor: p => p.temporalKey || 'Todas', tarjeta: 'badge',
+      badge: p => p.temporalKey ? { texto: p.temporalKey, tono: 'violet' } : { texto: 'Todas', tono: 'neutro' } },
+    { id: 'sexo', header: 'Sexo', valor: p => this.labelSexo(p.sexo), prioridad: 2, tarjeta: 'meta' },
+    { id: 'nombre', header: 'Nombre plantilla', valor: p => p.nombrePlantilla, tarjeta: 'subtitulo' },
+    { id: 'campos', header: 'Campos', valor: p => p.totalCampos, prioridad: 2, tarjeta: 'meta' },
+    { id: 'activa', header: 'Estado', valor: p => (p.activa ? 'Activa' : 'Inactiva'), tarjeta: 'badge' },
+  ];
+
+  readonly idPlantilla = (p: PlantillaResumen) => p.id;
+  readonly claseFila = (p: PlantillaResumen) => (p.activa ? '' : 'te-fila--atenuada');
 
   constructor(
     private svc: PlantillaEpsService,
@@ -133,10 +139,6 @@ export class PlantillasEpsComponent implements OnInit {
       next: () => { this.snack.open('Plantilla desactivada', '', { duration: 3000 }); this.cargar(); },
       error: () => this.snack.open('Error al desactivar', '', { duration: 3000 })
     });
-  }
-
-  setFiltroTexto(ev: Event) {
-    this.filtroTexto.set((ev.target as HTMLInputElement).value);
   }
 
   setFiltroTemporal(val: string | null) {

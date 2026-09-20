@@ -124,7 +124,7 @@ interface FilaNodo {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      border: 1px solid var(--slate-200);
+      border: 1px solid var(--border);
       border-radius: 12px;
       background: var(--surface);
       padding: 8px;
@@ -136,11 +136,11 @@ interface FilaNodo {
       align-items: center;
       gap: 6px;
       padding: 4px 8px;
-      border: 1px solid var(--slate-200);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--slate-50);
+      background: var(--surface-2);
     }
-    .mtp-buscador-icon { font-size: 20px; color: var(--slate-500); flex-shrink: 0; }
+    .mtp-buscador-icon { font-size: 20px; color: var(--muted); flex-shrink: 0; }
     .mtp-buscador-input {
       flex: 1 1 auto;
       min-width: 0;
@@ -155,7 +155,7 @@ interface FilaNodo {
       background: transparent;
       cursor: pointer;
       display: inline-flex;
-      color: var(--slate-500);
+      color: var(--muted);
       padding: 2px;
     }
     .mtp-buscador-limpiar .material-symbols-outlined { font-size: 18px; }
@@ -185,10 +185,10 @@ interface FilaNodo {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      color: var(--slate-500);
+      color: var(--muted);
       border-radius: 6px;
     }
-    .mtp-chevron:hover { background: var(--slate-100, #f1f5f9); }
+    .mtp-chevron:hover { background: var(--surface-3); }
     .mtp-chevron .material-symbols-outlined { font-size: 20px; }
     .mtp-chevron--vacio { cursor: default; }
 
@@ -203,7 +203,7 @@ interface FilaNodo {
       cursor: pointer;
       user-select: none;
     }
-    .mtp-nodo:hover { background: var(--slate-50); }
+    .mtp-nodo:hover { background: var(--surface-2); }
     .mtp-nodo--sel {
       background: color-mix(in srgb, var(--lime) 18%, transparent);
       outline: 1px solid var(--lime);
@@ -216,7 +216,7 @@ interface FilaNodo {
     .mtp-nodo--off:hover { background: transparent; }
 
     .mtp-radio { accent-color: var(--navy); flex-shrink: 0; }
-    .mtp-nodo-icon { font-size: 20px; color: var(--navy); flex-shrink: 0; }
+    .mtp-nodo-icon { font-size: 20px; color: var(--navy-ink); flex-shrink: 0; }
     .mtp-nodo-label {
       flex: 1 1 auto;
       min-width: 0;
@@ -226,7 +226,7 @@ interface FilaNodo {
       font-size: 0.9rem;
       color: var(--text);
     }
-    .mtp-nodo-lock { font-size: 16px; color: var(--slate-400, #94a3b8); flex-shrink: 0; }
+    .mtp-nodo-lock { font-size: 16px; color: var(--text-faint); flex-shrink: 0; }
 
     .mtp-estado {
       display: flex;

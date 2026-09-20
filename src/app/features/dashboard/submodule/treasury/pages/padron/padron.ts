@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   CargaPadron, FormatoPadron, ResultadoCargaPadron, TesoreriaApiService,
 } from '../../service/tesoreria-api.service';
@@ -26,7 +27,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-tesoreria-padron',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
   templateUrl: './padron.html',
   styleUrls: ['../../styles/tesoreria-comun.css', './padron.css'],
 })
@@ -43,6 +44,26 @@ export class PadronActivos implements OnInit {
   readonly subiendo = signal(false);
   readonly ultimoResultado = signal<ResultadoCargaPadron | null>(null);
   readonly verFormato = signal(false);
+
+  // ── Tablas (tabla estándar) ───────────────────────────────────────────────
+
+  /** Filas del archivo que no entraron en la última carga. */
+  readonly columnasErrores: ColumnaTabla<{ row: number; error: string }>[] = [
+    { id: 'fila', header: 'Fila', valor: (e) => e.row, align: 'right', ancho: '90px', tarjeta: 'subtitulo' },
+    { id: 'motivo', header: 'Motivo', valor: (e) => e.error, tarjeta: 'titulo' },
+  ];
+
+  /** Historial de cargas. Las líneas secundarias (errores, observación, fecha) van en plantilla. */
+  readonly columnasCargas: ColumnaTabla<CargaPadron>[] = [
+    { id: 'estado', header: 'Estado', valor: (c) => this.textoDeCarga(c), tarjeta: 'badge' },
+    { id: 'corte', header: 'Corte', valor: (c) => c.fecha_corte, tarjeta: 'titulo' },
+    { id: 'filas', header: 'Filas', valor: (c) => c.filas_ok, align: 'right', tarjeta: 'subtitulo' },
+    { id: 'archivo', header: 'Archivo', valor: (c) => c.nombre_archivo ?? '', prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'cargo', header: 'Cargó', valor: (c) => c.cargado_por ?? '', prioridad: 2, tarjeta: 'meta' },
+  ];
+
+  readonly idCarga = (c: CargaPadron) => c.id;
+  readonly claseFilaCarga = (c: CargaPadron) => (c.estado === 'ANULADA' ? 'te-fila--atenuada' : '');
 
   archivo: File | null = null;
   fechaCorte = new Date().toISOString().slice(0, 10);

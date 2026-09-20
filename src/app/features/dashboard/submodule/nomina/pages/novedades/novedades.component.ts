@@ -1,16 +1,12 @@
 import { ChangeDetectorRef, Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -19,6 +15,7 @@ import { catchError } from 'rxjs/operators';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   Client, HistoricoNovedadesKpis, NominaService, NovedadComun, NovedadPeriodo,
   PeriodoNominaDto, TnlImportacionResponse,
@@ -41,19 +38,16 @@ type FiltroNaturaleza = 'TODAS' | 'DEVENGO' | 'DEDUCCION' | 'OTRO';
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
     MatButtonToggleModule,
     MatIconModule,
-    MatProgressSpinnerModule,
     MatAutocompleteModule,
     MatTooltipModule,
     MatDialogModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './novedades.component.html',
   styleUrls: ['./novedades.component.css'],
@@ -70,7 +64,7 @@ export class NovedadesComponent implements OnInit {
   filteredPeriodos$!: Observable<PeriodoNominaDto[]>;
 
   // ── Tabla / filtros locales ─────────────────────────────────────────────
-  queryControl = new FormControl('');
+  // La búsqueda por texto, el orden y los filtros por columna los da la tabla estándar.
   filtroNaturaleza: FiltroNaturaleza = 'TODAS';
   filtroOrigen: 'TODOS' | 'TNL' | 'MANUAL' = 'TODOS';
 
@@ -79,14 +73,30 @@ export class NovedadesComponent implements OnInit {
   /** Registros manuales completos (para edición: la común no trae observación). */
   private manualesPorId = new Map<number, NovedadPeriodo>();
 
-  dataSource = new MatTableDataSource<NovedadComun>([]);
-  displayedColumns = [
-    'origen', 'empleado', 'concepto', 'naturaleza', 'cantidad',
-    'fechas', 'valor', 'estado', 'acciones',
+  /** Filas visibles: histórico con los filtros de origen y naturaleza aplicados. */
+  filas: NovedadComun[] = [];
+
+  /**
+   * Empleado y concepto llevan en el valor nombre + documento y código +
+   * descripción: así la búsqueda los encuentra por cualquiera, como el buscador anterior.
+   */
+  readonly columnas: ColumnaTabla<NovedadComun>[] = [
+    { id: 'origen', header: 'Origen', valor: (r) => r.origen, tarjeta: 'badge' },
+    { id: 'empleado', header: 'Empleado', tarjeta: 'titulo', minAncho: '180px',
+      valor: (r) => [r.nombre_empleado, r.documento].filter(Boolean).join(' — ') },
+    { id: 'concepto', header: 'Concepto', tarjeta: 'subtitulo', minAncho: '180px',
+      valor: (r) => [r.codigo_concepto, r.descripcion_concepto].filter(Boolean).join(' — ') },
+    { id: 'naturaleza', header: 'Naturaleza', valor: (r) => r.naturaleza || 'INFORMATIVA', prioridad: 2, tarjeta: 'badge' },
+    { id: 'cantidad', header: 'Cantidad', align: 'right', prioridad: 2, tarjeta: 'meta',
+      valor: (r) => r.horas ?? r.dias ?? null },
+    { id: 'fechas', header: 'Fechas', prioridad: 3, tarjeta: 'meta',
+      valor: (r) => r.fecha_inicio || '' },
+    { id: 'valor', header: 'Valor', align: 'right', tarjeta: 'meta', valor: (r) => r.valor ?? null },
+    { id: 'estado', header: 'Estado', valor: (r) => this.etiquetaEstado(r.estado), tarjeta: 'badge' },
   ];
 
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+  readonly idNovedad = (r: NovedadComun) => `${r.origen}-${r.id}`;
+
   @ViewChild('tnlFileInput') tnlFileInput!: ElementRef<HTMLInputElement>;
 
   isLoading = false;
@@ -144,22 +154,6 @@ export class NovedadesComponent implements OnInit {
       if (v && typeof v === 'object') this.cargarNovedades();
     });
 
-    this.queryControl.valueChanges.subscribe(() => this.aplicarFiltros());
-
-    // Filtro/orden client-side coherente con las columnas visibles.
-    this.dataSource.sortingDataAccessor = (row, col) => {
-      switch (col) {
-        case 'origen': return row.origen || '';
-        case 'empleado': return (row.nombre_empleado || row.documento || '').toLowerCase();
-        case 'concepto': return (row.codigo_concepto || '').toLowerCase();
-        case 'naturaleza': return row.naturaleza || '';
-        case 'cantidad': return row.horas ?? row.dias ?? -1;
-        case 'fechas': return row.fecha_inicio || '';
-        case 'valor': return row.valor ?? -1;
-        case 'estado': return row.estado || '';
-        default: return (row as any)[col] ?? '';
-      }
-    };
   }
 
   // ── Contexto ─────────────────────────────────────────────────────────────
@@ -186,7 +180,7 @@ export class NovedadesComponent implements OnInit {
   private resetLista(): void {
     this.novedades = [];
     this.manualesPorId.clear();
-    this.dataSource.data = [];
+    this.filas = [];
     this.kpis = { total: 0, pendientes: 0, parcialmente_aplicadas: 0, aplicadas: 0,
       sin_homologacion: 0, rechazadas: 0, bloqueadas: 0, anuladas: 0,
       origen_tnl: 0, origen_manual: 0 };
@@ -227,7 +221,6 @@ export class NovedadesComponent implements OnInit {
   }
 
   aplicarFiltros(): void {
-    const q = (this.queryControl.value || '').trim().toLowerCase();
     let rows = this.novedades;
     if (this.filtroOrigen !== 'TODOS') {
       rows = rows.filter(r => r.origen === this.filtroOrigen);
@@ -239,16 +232,7 @@ export class NovedadesComponent implements OnInit {
         return nat === this.filtroNaturaleza;
       });
     }
-    if (q) {
-      rows = rows.filter(r =>
-        (r.nombre_empleado || '').toLowerCase().includes(q) ||
-        (r.documento || '').toLowerCase().includes(q) ||
-        (r.codigo_concepto || '').toLowerCase().includes(q) ||
-        (r.descripcion_concepto || '').toLowerCase().includes(q));
-    }
-    this.dataSource.data = rows;
-    if (!this.dataSource.paginator && this.paginator) this.dataSource.paginator = this.paginator;
-    if (!this.dataSource.sort && this.sort) this.dataSource.sort = this.sort;
+    this.filas = rows;
   }
 
   cambiarFiltroNaturaleza(f: FiltroNaturaleza): void {
@@ -425,8 +409,8 @@ export class NovedadesComponent implements OnInit {
 
   // ── Export simple de lo listado (client-side) ───────────────────────────
   exportarExcel(): void {
-    if (!this.dataSource.data.length) return;
-    const data = this.dataSource.data.map(r => ({
+    if (!this.filas.length) return;
+    const data = this.filas.map(r => ({
       'Origen': r.origen,
       'Documento': r.documento,
       'Empleado': r.nombre_empleado || '',

@@ -1,6 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
-import { take } from 'rxjs';
+import { firstValueFrom, take } from 'rxjs';
 
 import { environment } from '@/environments/environment';
 
@@ -77,6 +77,30 @@ export class ArchivosBackendService {
     if (ya) return ya;
     if (!this.fallidas.has(abs)) this.descargar(abs);
     return null;
+  }
+
+  /**
+   * El archivo YA descargado, como `blob:` y con su tipo MIME.
+   *
+   * `visible()` sirve para pintar: devuelve `null` la primera vez y la señal
+   * repinta cuando llega. Esto es para ACCIONES —previsualizar en un diálogo,
+   * descargar— donde hay que esperar el archivo antes de hacer nada. Sin esto
+   * el iframe y la pestaña nueva reciben la ruta protegida SIN cabecera y el
+   * gateway responde 401: se veía en blanco.
+   *
+   * El `blob:` lo libera quien llama (`URL.revokeObjectURL`) cuando cierra lo
+   * que lo estaba mostrando.
+   */
+  async resolverBlob(u: string | null | undefined): Promise<{ url: string; blob: Blob } | null> {
+    const abs = this.absoluta(u);
+    if (!abs) return null;
+    if (this.esDirecta(abs)) return { url: abs, blob: new Blob() };
+    try {
+      const blob = await firstValueFrom(this.http.get(abs, { responseType: 'blob' }));
+      return { url: URL.createObjectURL(blob), blob };
+    } catch {
+      return null;
+    }
   }
 
   private descargar(abs: string): void {

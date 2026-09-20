@@ -170,9 +170,9 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
       gap: 12px;
       padding: 20px 24px 12px;
     }
-    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); }
     h2[mat-dialog-title] { margin: 0; font-size: 18px; }
-    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
     mat-dialog-content { padding: 16px 24px !important; }
     .form-grid {
       display: grid;
@@ -184,11 +184,11 @@ import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.servi
     .form-divider { margin: 8px 0 0; }
     .section-title {
       display: flex; align-items: center; gap: 8px;
-      font-weight: 600; font-size: 14px; color: #3f51b5;
+      font-weight: 600; font-size: 14px; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2);
       margin-top: 8px;
     }
     .section-title mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .section-hint { margin: 0 0 4px; font-size: 12px; color: #666; }
+    .section-hint { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
     .toggle-row {
       display: flex;
       gap: 32px;

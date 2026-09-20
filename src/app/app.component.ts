@@ -1,5 +1,6 @@
-import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, signal, computed } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, signal, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { ThemeService } from './core/services/theme.service';
 
 
 declare global {
@@ -85,6 +86,10 @@ type UpdaterState = 'idle' | 'checking' | 'available' | 'downloading' | 'ready';
 })
 export class AppComponent implements OnInit, OnDestroy {
   title = 'Tesoreria';
+
+  // Se inyecta aquí para que el tema quede aplicado (y escuchando el modo del
+  // sistema, si esa es la preferencia) desde el arranque, en cualquier ruta.
+  private readonly theme = inject(ThemeService);
 
   // ─── Updater overlay state ───────────────────────────────────────────────
   // Mostrar el overlay desde el segundo cero bloquea login y navegación hasta

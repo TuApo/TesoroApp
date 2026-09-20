@@ -1,0 +1,176 @@
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">work_outline</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Listado de Vacantes</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Gestión y control de ofertas de empleo.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="spacer grow" style="flex: 1 1 auto;"></span>
+
+    <button mat-icon-button class="btn-managerial-icon" style="z-index: 1; margin-left: 16pt;" [matMenuTriggerFor]="accionesMenu" aria-label="Acciones de vacantes">
+      <mat-icon>more_vert</mat-icon>
+    </button>
+
+    <mat-menu #accionesMenu="matMenu">
+      <button mat-menu-item (click)="openModal()">
+        <mat-icon>add</mat-icon>
+        <span>Añadir Vacante</span>
+      </button>
+
+      <button mat-menu-item (click)="fileInput.click()">
+        <mat-icon>upload_file</mat-icon>
+        <span>Subir Excel Vacantes</span>
+      </button>
+
+      <button mat-menu-item (click)="descargarExcelVacantes($event)">
+        <mat-icon>download</mat-icon>
+        <span>Descargar Excel Vacantes</span>
+      </button>
+
+      <button mat-menu-item (click)="abrirFormularioPreRegistroVacantes()">
+        <mat-icon>open_in_new</mat-icon>
+        <span>Formulario Pre Registro Vacantes</span>
+      </button>
+    </mat-menu>
+
+    <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
+  </mat-card-header>
+  <mat-card-content class="card-content">
+
+    <!-- Filtros compartidos con "Indicadores de Vacantes" (mismo servicio de estado) -->
+    <app-vacancy-filters-panel
+      [resultado]="visibleRows().length"
+      [opciones]="opcionesFiltro()"
+      (recargar)="onRecargarConjunto()">
+    </app-vacancy-filters-panel>
+
+    <!-- MENU POR FILA (1 SOLO) -->
+    <mat-menu #rowMenu="matMenu">
+      <ng-template matMenuContent let-row="row">
+        <button mat-menu-item (click)="openModalEdit(row)">
+          <mat-icon>edit</mat-icon>
+          <span>Editar</span>
+        </button>
+
+        @if (permitido) {
+          <button mat-menu-item (click)="eliminarVacante(row)">
+            <mat-icon>delete</mat-icon>
+            <span>Eliminar</span>
+          </button>
+        }
+
+        <mat-divider></mat-divider>
+
+        <div class="menu-toggle" (click)="$event.stopPropagation()">
+          <mat-slide-toggle
+            [checked]="row.activo"
+            (change)="setActivo(row, $event.checked)"
+            [disabled]="busyActivoIds.has(row.id)">
+            {{ row.activo ? 'Activo' : 'Inactivo' }}
+          </mat-slide-toggle>
+        </div>
+      </ng-template>
+    </mat-menu>
+
+    <!-- Barra de acciones masivas (aparece al seleccionar filas con el check) -->
+    @if (seleccionCount() > 0) {
+      <div class="bulk-actions-bar">
+        <mat-icon class="bulk-icon">checklist</mat-icon>
+        <span class="bulk-count">{{ seleccionCount() }} seleccionada(s)</span>
+        <span class="bulk-spacer"></span>
+        <button mat-stroked-button color="primary" (click)="inactivarSeleccionadas()">
+          <mat-icon>block</mat-icon>
+          <span>Inactivar</span>
+        </button>
+        @if (permitido) {
+          <button mat-stroked-button color="warn" (click)="eliminarSeleccionadas()">
+            <mat-icon>delete</mat-icon>
+            <span>Eliminar</span>
+          </button>
+        }
+      </div>
+    }
+
+    <!-- TABLA -->
+    <app-standard-filter-table
+      [data]="visibleRows()"
+      [columnDefinitions]="columnDefinitions"
+      [isLoading]="loading()"
+      [tableTitle]="tableTitle"
+      [enableSelection]="true"
+      [pageSizeOptions]="pageSizeOptions"
+      [defaultPageSize]="defaultPageSize">
+
+      <!-- Acciones (porque col.name === 'actions') -->
+      <ng-template #actionsTemplate let-row>
+        <button
+          mat-icon-button
+          [matMenuTriggerFor]="rowMenu"
+          [matMenuTriggerData]="{ row: row }"
+          aria-label="Acciones">
+          <mat-icon>more_vert</mat-icon>
+        </button>
+      </ng-template>
+
+      <!-- Cumplimiento (pill clickeable: abre detalle de candidatos asignados) -->
+      <ng-template appCellTemplate="cumpl" let-row>
+        <button type="button" class="cumpl-pill-btn" [ngClass]="cumplClass(row)"
+          (click)="abrirCumplimiento(row, $event)"
+          matTooltip="Ver candidatos asignados · quitar vacante · descargar" matTooltipPosition="above">
+          {{ cumplimientoPct(row) }}%
+        </button>
+      </ng-template>
+
+      <!-- Salario con currency -->
+      <ng-template appCellTemplate="salario" let-row>
+        {{ row.salario | currency }}
+      </ng-template>
+
+      <!-- Municipio: chip si son más de 2; nombres si son 2 o menos -->
+      <ng-template appCellTemplate="municipioLabel" let-row>
+        @if (municipiosCount(row) > 2) {
+          <span class="texto-chip" [matTooltip]="municipiosTooltip(row)"
+            matTooltipClass="tooltip-multilinea" matTooltipPosition="above">
+            <mat-icon>place</mat-icon> {{ municipiosCount(row) }} municipios
+          </span>
+        } @else if (municipiosCount(row) > 0) {
+          {{ municipiosTexto(row) }}
+        } @else {
+          <span class="text-muted">—</span>
+        }
+      </ng-template>
+
+      <!-- Embudo: 8 etapas colapsadas en una sola columna de chips -->
+      <ng-template appCellTemplate="embudo" let-row>
+        <div class="embudo-cell">
+          <span class="embudo-chip" matTooltip="Requeridos">R&nbsp;{{ row.req ?? 0 }}</span>
+          <span class="embudo-chip" matTooltip="Faltantes">Fa&nbsp;{{ row.falt ?? 0 }}</span>
+          <span class="embudo-chip" matTooltip="Entrevistados">En&nbsp;{{ row.entrev ?? 0 }}</span>
+          <span class="embudo-chip" matTooltip="Prueba técnica">Pr&nbsp;{{ row.prueba ?? 0 }}</span>
+          <span class="embudo-chip" matTooltip="Contratación inmediata">Au&nbsp;{{ row.auto ?? 0 }}</span>
+          <span class="embudo-chip" matTooltip="Exámenes médicos">Ex&nbsp;{{ row.exm ?? 0 }}</span>
+          <span class="embudo-chip" matTooltip="Firmados">Fi&nbsp;{{ row.firm ?? 0 }}</span>
+          <span class="embudo-chip" matTooltip="Ingresados">In&nbsp;{{ row.ing ?? 0 }}</span>
+        </div>
+      </ng-template>
+
+      <!-- Observación del perfil + Descripción en UN solo chip; ambas salen
+           en el tooltip al pasar el cursor -->
+      <ng-template appCellTemplate="perfil" let-row>
+        @if (tienePerfil(row)) {
+          <span class="texto-chip" [matTooltip]="perfilTooltip(row)"
+            matTooltipClass="tooltip-multilinea" matTooltipPosition="above">
+            <mat-icon>info</mat-icon> Ver
+          </span>
+        } @else {
+          <span class="text-muted">—</span>
+        }
+      </ng-template>
+
+    </app-standard-filter-table>
+  </mat-card-content>
+</mat-card>

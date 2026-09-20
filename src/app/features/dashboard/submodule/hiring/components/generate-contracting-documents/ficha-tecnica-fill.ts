@@ -83,6 +83,11 @@ export interface FichaTecnicaContext {
   referenciasA: readonly string[];
   /** Pool de descripciones aleatorias para referencias familiares (REFERENCIAS_F). */
   referenciasF: readonly string[];
+  /**
+   * Salario minimo del año de creacion del contrato (Parametrizacion de vacantes ›
+   * Salario minimo). Si llega, es el sueldo impreso; `null` = el de la vacante.
+   */
+  salarioMinimo?: number | null;
 }
 
 /** Saca 2 strings distintos de un pool (con normalización). */
@@ -224,9 +229,13 @@ export function fillFichaTecnicaPdf(
   // ════════════════════════════════════════════════════════════════════
   // INFORMACIÓN LABORAL / SALARIAL
   // ════════════════════════════════════════════════════════════════════
-  const fechaIngreso = s(vac.fechadeIngreso || contrato.fecha_ingreso);
+  // El CONTRATO manda sobre la vacante. La vacante solo PROPONE una fecha de ingreso;
+  // quien contrata puede ajustarla en "Pago y Transporte" y esa es la que rige para
+  // esta persona. Al revés —como estaba— la ficha imprimía la fecha de la vacante y
+  // el ajuste no llegaba a ningún documento, así que editarlo no servía de nada.
+  const fechaIngreso = s(contrato.fecha_ingreso || vac.fechadeIngreso);
   setText('Fecha de Ingreso', parseDateToDDMMYYYY(fechaIngreso));
-  setText('Sueldo Básico', formatMoneyCOP(vac.salario || proceso.vacante_salario || ''));
+  setText('Sueldo Básico', formatMoneyCOP(ctx.salarioMinimo ?? (vac.salario || proceso.vacante_salario || '')));
 
   setText('Nombre de la RutaUsa Ruta', s(ctx.usaRuta));
   setText('Nombre de la RutaAuxilio Trasporte', s(ctx.auxilio_transporte));

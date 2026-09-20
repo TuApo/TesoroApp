@@ -83,16 +83,16 @@ import { FieldValue, FormFieldDef } from '../../models/office-forms.models';
   `,
   styles: [`
     .ofr { display: flex; flex-direction: column; gap: 14px; }
-    .ofr__empty { color: #94a3b8; text-align: center; padding: 24px 0; }
+    .ofr__empty { color: var(--text-faint); text-align: center; padding: 24px 0; }
     .ofr__field { display: flex; flex-direction: column; gap: 4px; }
-    .ofr__label { font-weight: 600; font-size: 13px; color: #1e293b; }
-    .ofr__req { color: #dc2626; }
-    .ofr__help { font-size: 12px; color: #64748b; margin-bottom: 2px; }
+    .ofr__label { font-weight: 600; font-size: 13px; color: var(--text); }
+    .ofr__req { color: #dc2626; color: light-dark(#dc2626, #ef9e9e); }
+    .ofr__help { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
     .ofr__ff { width: 100%; }
     .ofr__radio { display: flex; flex-direction: column; gap: 6px; }
     .ofr__file { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .ofr__filename { font-size: 12px; color: #334155; }
-    .ofr__hint { font-size: 12px; color: #94a3b8; }
+    .ofr__filename { font-size: 12px; color: var(--text-2); }
+    .ofr__hint { font-size: 12px; color: var(--text-faint); }
   `],
 })
 export class FormRendererComponent implements OnChanges {

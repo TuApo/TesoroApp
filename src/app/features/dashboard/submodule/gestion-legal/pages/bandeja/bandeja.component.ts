@@ -1,14 +1,10 @@
 import {
-  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, inject
+  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, inject, viewChild
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { Router } from '@angular/router';
-import { BreakpointObserver } from '@angular/cdk/layout';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -18,16 +14,28 @@ import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+} from '../../../../../../shared/components/tabla-estandar';
 import { LegalService } from '../../services/legal.service';
 import { ProcesoLegal, ProcesoTipo, ProcesoEstado } from '../../models/legal.models';
 import { CambiarEstadoDialogComponent, CambiarEstadoResult } from './cambiar-estado-dialog.component';
 
-const COLS_DESKTOP = ['radicado', 'tipo', 'trabajador', 'estado', 'fechaInicio', 'responsable', 'acciones'];
-const COLS_MOBILE  = ['trabajador', 'estado', 'acciones'];
+/** Fecha del backend ('yyyy-MM-dd' o ISO) como Date local: un 'yyyy-MM-dd' con
+ *  `new Date()` se leería en UTC y en Colombia caería el día anterior. */
+function aFecha(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** dd/MM/yyyy como el `date` pipe de antes (locale por defecto; no lanza si la fecha es mala). */
+function fechaCorta(v: string | null | undefined): string {
+  const d = aFecha(v);
+  return d ? formatDate(d, 'dd/MM/yyyy', 'en-US') : '—';
+}
 
 @Component({
   selector: 'app-bandeja-legal',
@@ -35,9 +43,10 @@ const COLS_MOBILE  = ['trabajador', 'estado', 'acciones'];
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, FormsModule, ReactiveFormsModule,
-    MatTableModule, MatPaginatorModule, MatChipsModule, MatButtonModule,
+    MatChipsModule, MatButtonModule,
     MatIconModule, MatSelectModule, MatFormFieldModule, MatInputModule,
-    MatTooltipModule, MatSnackBarModule, MatDialogModule, MatProgressSpinnerModule
+    MatTooltipModule, MatSnackBarModule, MatDialogModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './bandeja.component.html',
   styleUrl: './bandeja.component.css'
@@ -62,34 +71,30 @@ export class BandejaComponent implements OnInit {
   filtroSemaforo = new FormControl<string>('');
   busqueda = new FormControl<string>('');
 
-  // Paginación
+  // Paginación (en el servidor: la tabla estándar pide la página y el tamaño)
   pageIndex = 0;
   pageSize = 50;
 
-  // Tabla
-  columnasVisibles = COLS_DESKTOP;
-  viewMode: 'table' | 'cards' = 'table';
+  /** La tabla estándar recuerda su página y su búsqueda: se le reinician cuando
+   *  un filtro de negocio devuelve el backend a la página 1. */
+  private readonly tabla = viewChild(TablaEstandarComponent);
 
-  private bp = inject(BreakpointObserver);
+  // Tabla estándar (modo servidor). El backend no ordena: columnas sin orden.
+  readonly columnas: ColumnaTabla<ProcesoLegal>[] = [
+    { id: 'radicado', header: 'Radicado', valor: (p) => p.radicado, tarjeta: 'subtitulo', ordenable: false },
+    { id: 'tipo', header: 'Tipo', valor: (p) => p.tipo_nombre, prioridad: 2, tarjeta: 'meta', ordenable: false },
+    { id: 'trabajador', header: 'Trabajador', valor: (p) => p.trabajador_nombre,
+      tarjeta: 'titulo', minAncho: '180px', ordenable: false },
+    { id: 'cedula', header: 'Cédula', valor: (p) => p.trabajador_cedula, tarjeta: 'cuerpo', ordenable: false },
+    { id: 'estado', header: 'Estado', valor: (p) => p.estado_nombre, tarjeta: 'badge', ordenable: false },
+    { id: 'fechaInicio', header: 'Fecha inicio', valor: (p) => aFecha(p.fecha_inicio),
+      formato: (p) => fechaCorta(p.fecha_inicio),
+      prioridad: 2, tarjeta: 'meta', ordenable: false },
+    { id: 'responsable', header: 'Responsable', valor: (p) => p.responsable_id ?? '',
+      formato: (p) => p.responsable_id || '—', prioridad: 3, tarjeta: 'meta', ordenable: false },
+  ];
 
-  constructor() {
-    this.busqueda.valueChanges.pipe(
-      debounceTime(400),
-      distinctUntilChanged(),
-      takeUntilDestroyed()
-    ).subscribe(() => { this.pageIndex = 0; this.cargar(); });
-
-    this.bp.observe('(max-width: 768px)').pipe(takeUntilDestroyed()).subscribe(r => {
-      this.columnasVisibles = r.matches ? COLS_MOBILE : COLS_DESKTOP;
-      this.viewMode = r.matches ? 'cards' : 'table';
-      this.cdr.markForCheck();
-    });
-  }
-
-  setViewMode(mode: 'table' | 'cards'): void {
-    this.viewMode = mode;
-    this.cdr.markForCheck();
-  }
+  readonly idProceso = (p: ProcesoLegal) => p.id;
 
   ngOnInit(): void {
     this.cargarCatalogos();
@@ -139,6 +144,7 @@ export class BandejaComponent implements OnInit {
 
   aplicarFiltros(): void {
     this.pageIndex = 0;
+    this.reiniciarTabla();
     if (this.filtroTipo.value != null) {
       this.svc.getEstados(this.filtroTipo.value).subscribe({
         next: e => { this.estados = e; this.cdr.markForCheck(); },
@@ -154,14 +160,29 @@ export class BandejaComponent implements OnInit {
     this.filtroSemaforo.reset('');
     this.busqueda.reset('');
     this.pageIndex = 0;
+    this.reiniciarTabla(true);
     this.cargarCatalogos();
     this.cargar();
   }
 
-  onPageChange(ev: PageEvent): void {
-    this.pageIndex = ev.pageIndex;
-    this.pageSize = ev.pageSize;
+  onPageChange(ev: { pagina: number; porPagina: number }): void {
+    this.pageIndex = ev.pagina;
+    this.pageSize = ev.porPagina;
     this.cargar();
+  }
+
+  /** Búsqueda de la tabla estándar: la resuelve el backend (`q`) desde la página 1. */
+  buscar(q: string): void {
+    this.busqueda.setValue(q, { emitEvent: false });
+    this.pageIndex = 0;
+    this.cargar();
+  }
+
+  private reiniciarTabla(limpiarBusqueda = false): void {
+    const t = this.tabla();
+    if (!t) return;
+    t.pagina.set(0);
+    if (limpiarBusqueda) t.q.set('');
   }
 
   irExpediente(proceso: ProcesoLegal): void {

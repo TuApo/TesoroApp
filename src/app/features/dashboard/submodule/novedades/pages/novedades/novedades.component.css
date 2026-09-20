@@ -32,8 +32,8 @@
 .filter-chip {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 6px 14px; border-radius: 999px;
-  border: 1.5px solid var(--mt-border, #e5e7eb);
-  background: var(--mt-surface, #fff); color: var(--mt-text-secondary, #6b7280);
+  border: 1.5px solid var(--mt-border, var(--border));
+  background: var(--mt-surface, var(--surface)); color: var(--mt-text-secondary, var(--muted));
   font-size: .8rem; font-weight: 600; cursor: pointer;
   transition: background .15s, border-color .15s, color .15s;
 }
@@ -49,16 +49,16 @@
 
 .notif-card {
   display: flex; align-items: flex-start; gap: 14px; padding: 14px 16px;
-  background: var(--mt-surface, #fff); border-radius: 14px;
-  border: 1px solid var(--mt-border, #e5e7eb);
+  background: var(--mt-surface, var(--surface)); border-radius: 14px;
+  border: 1px solid var(--mt-border, var(--border));
   transition: background .15s, box-shadow .15s;
   position: relative;
 }
 .notif-card.clickable { cursor: pointer; }
 .notif-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
 .notif-card.unread {
-  background: var(--mt-surface-accent, #eff6ff);
-  border-color: var(--mt-border-accent, #bfdbfe);
+  background: var(--mt-surface-accent, #eff6ff); background: var(--mt-surface-accent, light-dark(#eff6ff, #0f284d));
+  border-color: var(--mt-border-accent, #bfdbfe); border-color: var(--mt-border-accent, light-dark(#bfdbfe, #0d3b7a));
 }
 
 .notif-icon {
@@ -69,9 +69,9 @@
 
 .notif-body { flex: 1; min-width: 0; }
 .notif-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 3px; }
-.notif-header strong { font-size: .88rem; color: var(--mt-text, #111827); }
-.notif-time { font-size: .7rem; color: #9ca3af; white-space: nowrap; flex-shrink: 0; }
-.notif-msg { margin: 0 0 8px; font-size: .82rem; color: var(--mt-text-secondary, #374151); line-height: 1.4; }
+.notif-header strong { font-size: .88rem; color: var(--mt-text, var(--text)); }
+.notif-time { font-size: .7rem; color: var(--text-faint); white-space: nowrap; flex-shrink: 0; }
+.notif-msg { margin: 0 0 8px; font-size: .82rem; color: var(--mt-text-secondary, var(--text-2)); line-height: 1.4; }
 
 .notif-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .type-badge {
@@ -80,7 +80,7 @@
 .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #2563eb; margin-left: auto; }
 .notif-go {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: .72rem; font-weight: 600; color: #2563eb;
+  font-size: .72rem; font-weight: 600; color: #2563eb; color: light-dark(#2563eb, #98b5f6);
   opacity: 0; transition: opacity .15s;
 }
 .notif-go mat-icon { width: 15px; height: 15px; font-size: 15px; }
@@ -91,11 +91,11 @@
   flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
   border: none; background: transparent;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: #9ca3af;
+  cursor: pointer; color: var(--text-faint);
   transition: background .15s, color .15s; opacity: 0;
 }
 .notif-card:hover .btn-delete { opacity: 1; }
-.btn-delete:hover { background: #fee2e2; color: #dc2626; }
+.btn-delete:hover { background: #fee2e2; background: light-dark(#fee2e2, #371725); color: #dc2626; }
 .btn-delete mat-icon { font-size: 16px; width: 16px; height: 16px; }
 
 /* ── Load more ───────────────────────────────────────────────── */
@@ -103,8 +103,8 @@
 .load-more-row button { border-radius: 12px !important; font-weight: 600; gap: 6px; }
 
 /* ── Empty ───────────────────────────────────────────────────── */
-.empty { text-align: center; padding: 48px; color: #6b7280; }
-.empty mat-icon { font-size: 48px; width: 48px; height: 48px; color: #9ca3af; display: block; margin: 0 auto 12px; }
+.empty { text-align: center; padding: 48px; color: var(--muted); }
+.empty mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--text-faint); display: block; margin: 0 auto 12px; }
 .empty h3 { margin: 0 0 8px; }
 
 /* ── Responsive ───────────────────────────────────────────────── */
@@ -113,16 +113,17 @@
   .hero { padding: 18px 14px !important; }
   .hero-copy h1 { font-size: 1.4rem; }
   .hero-actions { flex-wrap: wrap; gap: 8px; }
-  .hero { grid-template-columns: 1fr; }
+  .hero { grid-template-columns: minmax(0, 1fr); }
   .unread-badge { display: none; }
 }
 
 /* ── Urgencia ────────────────────────────────────────────────────────────────
    Realce independiente del color del tipo: ese lo elige quien configura el
    catálogo y podría coincidir con el de un aviso informativo. */
-.notif-card.urgente {
-  border-left: 3px solid #dc2626;
-}
+/* .notif-card.urgente y .urgencia-badge quedaron sin uso: la urgencia cruda
+   ("URGENTE", "CRITICA") ya no se muestra como texto. Ahora el nivel se lee en
+   la cabecera del grupo y en el riel de color de cada tarjeta, que es lo mismo
+   que hace la campana. */
 
 .urgencia-badge {
   display: inline-flex;
@@ -130,8 +131,8 @@
   gap: 2px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #fee2e2;
-  color: #b91c1c;
+  background: #fee2e2; background: light-dark(#fee2e2, #371725);
+  color: #b91c1c; color: light-dark(#b91c1c, #f09e9e);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .02em;
@@ -142,3 +143,128 @@
   width: 13px;
   height: 13px;
 }
+
+
+/* =============================================================================
+   Prioridad — el mismo lenguaje que la campana del top bar
+   ========================================================================== */
+
+.semaforo {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.nivel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 10px 14px;
+  border: 1px solid var(--nivel-borde);
+  border-radius: var(--r-md, 14px);
+  background: var(--nivel-fondo);
+  color: var(--nivel-texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .12s ease;
+}
+
+.nivel[data-nivel="INMEDIATA"] {
+  --nivel-fondo: var(--danger-bg); --nivel-borde: var(--danger-border);
+  --nivel-texto: var(--danger-fg); --nivel-color: var(--danger);
+}
+.nivel[data-nivel="MEDIA"] {
+  --nivel-fondo: var(--warn-bg); --nivel-borde: var(--warn-border);
+  --nivel-texto: var(--warn-fg); --nivel-color: var(--warning);
+}
+.nivel[data-nivel="LEVE"] {
+  --nivel-fondo: var(--info-bg); --nivel-borde: var(--info-border);
+  --nivel-texto: var(--info-fg); --nivel-color: var(--primary);
+}
+
+/* Lleva el atributo en el selector porque `.nivel[data-nivel="…"]` es clase +
+   atributo: una clase sola no le ganaría y los ceros se quedaban en rojo. */
+.nivel[data-nivel].nivel--vacio {
+  --nivel-fondo: var(--surface-2); --nivel-borde: var(--border);
+  --nivel-texto: var(--text-faint);
+}
+
+.nivel:hover:not(.nivel--vacio) { transform: translateY(-1px); }
+.nivel:focus-visible { outline: none; box-shadow: var(--ring); }
+.nivel--activo { box-shadow: 0 0 0 2px var(--nivel-color) inset; }
+
+.nivel__cifra { font-size: 22px; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.nivel__nombre { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
+
+.grupo { margin: 0 0 18px; }
+.grupo[data-nivel="INMEDIATA"] { --grupo-color: var(--danger); }
+.grupo[data-nivel="MEDIA"] { --grupo-color: var(--warning); }
+.grupo[data-nivel="LEVE"] { --grupo-color: var(--primary); }
+
+.grupo__titulo {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 10px; padding: 0 2px;
+  font-size: 11px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted);
+}
+.grupo__punto { width: 8px; height: 8px; border-radius: 50%; background: var(--grupo-color); }
+.grupo__cuenta { margin-left: auto; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+
+/* El riel repite el nivel en cada tarjeta: al hacer scroll, la cabecera del
+   grupo se pierde de vista y sin él no se sabe qué se está mirando. */
+.notif-card { padding-left: 19px; }
+.notif-card[data-nivel="INMEDIATA"] { --riel-color: var(--danger); }
+.notif-card[data-nivel="MEDIA"] { --riel-color: var(--warning); }
+.notif-card[data-nivel="LEVE"] { --riel-color: var(--primary); }
+
+.notif-riel {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  border-radius: 14px 0 0 14px;
+  background: var(--riel-color); opacity: .3;
+}
+.notif-card.unread .notif-riel { opacity: 1; }
+
+.modulo-badge {
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--surface-3); color: var(--text-2);
+  font-size: 11px; font-weight: 650;
+}
+
+@media (max-width: 768px) {
+  .semaforo { gap: 8px; }
+  .nivel { padding: 8px 10px; }
+  .nivel__cifra { font-size: 18px; }
+  .nivel__nombre { font-size: 9.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nivel { transition: none; }
+  .nivel:hover:not(.nivel--vacio) { transform: none; }
+}
+
+/* El tinte de "sin leer" toma el color de SU nivel. Antes era siempre azul, así
+   que una tarjeta de atención inmediata salía azul con el riel rojo: dos
+   señales de color distintas para el mismo aviso.
+   rgba fijo y no color-mix(): html2canvas 1.4.1, el del reporte de bugs, no
+   sabe parsear las funciones de color modernas y devuelve la captura vacía. */
+.notif-card[data-nivel="INMEDIATA"].unread {
+  background: rgba(239, 68, 68, .07);
+  border-color: var(--danger-border);
+}
+.notif-card[data-nivel="MEDIA"].unread {
+  background: rgba(245, 158, 11, .09);
+  border-color: var(--warn-border);
+}
+.notif-card[data-nivel="LEVE"].unread {
+  background: rgba(43, 89, 240, .06);
+  border-color: var(--info-border);
+}
+
+/* La acción se ve SIEMPRE, no solo al pasar el ratón: esta app corre también
+   como APK en Android, donde no hay hover y la pista de que la tarjeta lleva a
+   algún sitio no aparecía nunca. */
+.notif-card.clickable .notif-go { opacity: .85; }
+.notif-card.clickable:hover .notif-go { opacity: 1; }

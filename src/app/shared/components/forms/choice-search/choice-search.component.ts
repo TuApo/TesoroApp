@@ -139,9 +139,9 @@ let nextUid = 0;
       box-sizing: border-box;
       min-height: 40px;
       padding: 4px 4px 4px 10px;
-      border: 1px solid var(--slate-300, #cbd5e1);
+      border: 1px solid var(--border-strong);
       border-radius: var(--r-sm, 10px);
-      background: var(--surface, #fff);
+      background: var(--surface);
       cursor: text;
     }
     .df-cs__box--open {
@@ -149,7 +149,7 @@ let nextUid = 0;
       box-shadow: 0 0 0 2px rgba(140, 213, 10, 0.35);
     }
     .df-cs__box--invalid { border-color: #c0392b; }
-    .df-cs--disabled .df-cs__box { background: var(--slate-50, #f8fafc); cursor: default; }
+    .df-cs--disabled .df-cs__box { background: var(--surface-2); cursor: default; }
 
     .df-cs__input {
       flex: 1 1 90px;
@@ -159,9 +159,9 @@ let nextUid = 0;
       outline: none;
       background: transparent;
       font: inherit;
-      color: var(--navy-deep, #0f172a);
+      color: var(--navy-ink);
     }
-    .df-cs__input:disabled { color: var(--slate-500, #64748b); }
+    .df-cs__input:disabled { color: var(--muted); }
 
     .df-cs__btn {
       flex: 0 0 auto;
@@ -174,10 +174,10 @@ let nextUid = 0;
       border: none;
       border-radius: 8px;
       background: transparent;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       cursor: pointer;
     }
-    .df-cs__btn:hover:not(:disabled) { background: var(--slate-100, #f1f5f9); color: var(--navy, #21263c); }
+    .df-cs__btn:hover:not(:disabled) { background: var(--surface-3); color: var(--navy-ink); }
     .df-cs__btn:disabled { opacity: 0.45; cursor: not-allowed; }
     .df-cs__btn .material-symbols-outlined { font-size: 20px; }
     .df-cs__chev { transition: transform 0.15s ease; }
@@ -189,11 +189,11 @@ let nextUid = 0;
       gap: 2px;
       max-width: 100%;
       padding: 2px 2px 2px 10px;
-      border: 1px solid var(--slate-200, #e2e8f0);
+      border: 1px solid var(--border);
       border-radius: 999px;
-      background: var(--slate-100, #f1f5f9);
+      background: var(--surface-3);
       font-size: 0.84rem;
-      color: var(--navy-deep, #0f172a);
+      color: var(--navy-ink);
     }
     .df-cs__chip-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .df-cs__chip-x {
@@ -206,10 +206,10 @@ let nextUid = 0;
       border: none;
       border-radius: 50%;
       background: transparent;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       cursor: pointer;
     }
-    .df-cs__chip-x:hover { background: var(--slate-200, #e2e8f0); color: #c0392b; }
+    .df-cs__chip-x:hover { background: var(--surface-4); color: #c0392b; color: light-dark(#c0392b, #eaaaa3); }
     .df-cs__chip-x .material-symbols-outlined { font-size: 15px; }
 
     .df-cs__list {
@@ -218,9 +218,9 @@ let nextUid = 0;
       padding: 4px;
       max-height: 240px;
       overflow-y: auto;
-      border: 1px solid var(--slate-200, #e2e8f0);
+      border: 1px solid var(--border);
       border-radius: var(--r-sm, 10px);
-      background: var(--surface, #fff);
+      background: var(--surface);
       box-shadow: var(--shadow-sm, 0 6px 16px rgba(17, 24, 39, 0.08));
     }
     .df-cs__opt {
@@ -230,14 +230,14 @@ let nextUid = 0;
       padding: 7px 8px;
       border-radius: 8px;
       font-size: 0.9rem;
-      color: var(--navy-deep, #0f172a);
+      color: var(--navy-ink);
       cursor: pointer;
     }
-    .df-cs__opt--active { background: var(--slate-100, #f1f5f9); }
+    .df-cs__opt--active { background: var(--surface-3); }
     .df-cs__opt--on { font-weight: 600; }
     .df-cs__opt--off { opacity: 0.45; cursor: not-allowed; }
-    .df-cs__tick { flex: 0 0 auto; font-size: 18px; color: var(--slate-500, #64748b); }
-    .df-cs__opt--on .df-cs__tick { color: var(--navy, #21263c); }
+    .df-cs__tick { flex: 0 0 auto; font-size: 18px; color: var(--muted); }
+    .df-cs__opt--on .df-cs__tick { color: var(--navy-ink); }
     .df-cs__txt { min-width: 0; word-break: break-word; }
     .df-cs__hit {
       padding: 0 1px;
@@ -249,7 +249,7 @@ let nextUid = 0;
     .df-cs__none {
       padding: 8px;
       font-size: 0.85rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
     }
   `],
 })

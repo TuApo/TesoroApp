@@ -129,8 +129,8 @@ const ALTO_LIENZO = 180;
       width: 100%;
       height: 180px;
       box-sizing: border-box;
-      background: #fff;
-      border: 1px dashed var(--slate-300, #cbd5e1);
+      background: var(--surface);
+      border: 1px dashed var(--border-strong);
       border-radius: var(--r-sm, 10px);
       touch-action: none; /* que firmar no haga scroll en móvil */
       cursor: crosshair;
@@ -146,8 +146,8 @@ const ALTO_LIENZO = 180;
     .sig-img {
       max-height: 120px;
       max-width: 100%;
-      background: #fff;
-      border: 1px solid var(--slate-300, #cbd5e1);
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
       border-radius: var(--r-sm, 10px);
     }
     .sig-config {
@@ -155,18 +155,18 @@ const ALTO_LIENZO = 180;
       align-items: center;
       gap: 8px;
       padding: 10px 12px;
-      border: 1px dashed var(--slate-300, #cbd5e1);
+      border: 1px dashed var(--border-strong);
       border-radius: var(--r-sm, 10px);
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       font-size: 0.88rem;
-      background: var(--slate-50, #f8fafc);
+      background: var(--surface-2);
     }
     .sig-status {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       font-size: 0.85rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
     }
     .df-spin { animation: df-spin 1s linear infinite; }
     @keyframes df-spin { to { transform: rotate(360deg); } }

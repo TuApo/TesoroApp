@@ -1,0 +1,125 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-sst">
+        <div class="disab-hero-icon"><mat-icon>health_and_safety</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Seguridad y salud en el trabajo</h1>
+          <p class="disab-hero-sub">
+            Incapacidades por accidente de trabajo y enfermedad laboral (ARL) con el seguimiento de la investigacion del
+            accidente: SST sube el levantamiento escaneado y queda anclado a la incapacidad; la jefatura ve cuales tienen
+            investigacion, cuales no y cuales vencieron el plazo de {{ resumen()?.plazoDias ?? 15 }} dias.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+        </div>
+      </div>
+
+      @if (resumen(); as r) {
+        <div class="kpi-fila">
+          <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-activo]="filtros.estado === ''" (click)="filtroRapido('')"><span class="kpi-icono"><mat-icon>healing</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.total | number }}</span><span class="kpi-etiqueta">Incapacidades ARL</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-ok kpi-clic" [class.kpi-activo]="filtros.estado === 'COMPLETA'" (click)="filtroRapido('COMPLETA')"><span class="kpi-icono"><mat-icon>task_alt</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.conInvestigacion | number }}</span><span class="kpi-etiqueta">Con investigacion</span></span></button>
+          <button type="button" class="kpi-tarjeta kpi-aviso kpi-clic" [class.kpi-activo]="filtros.estado === 'PENDIENTE'" (click)="filtroRapido('PENDIENTE')"><span class="kpi-icono"><mat-icon>pending_actions</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.sinInvestigacion | number }}</span><span class="kpi-etiqueta">Sin investigacion</span></span></button>
+          <div class="kpi-tarjeta kpi-alerta"><span class="kpi-icono"><mat-icon>alarm</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.vencidas | number }}</span><span class="kpi-etiqueta">Plazo vencido</span></span></div>
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>do_not_disturb_on</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.noAplica | number }}</span><span class="kpi-etiqueta">No aplica</span></span></div>
+        </div>
+      }
+
+      <div class="ges-filtros">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Desde (inicio)</mat-label><input matInput type="date" [(ngModel)]="filtros.desde" (change)="filtrar()" /></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Hasta</mat-label><input matInput type="date" [(ngModel)]="filtros.hasta" (change)="filtrar()" /></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Investigacion</mat-label>
+          <mat-select [(ngModel)]="filtros.estado" (selectionChange)="filtrar()">
+            <mat-option value="">Todas</mat-option>
+            @for (e of estados; track e[0]) { <mat-option [value]="e[0]">{{ e[1] }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="ges-cuerpo">
+        @if (error()) {
+          <div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+        }
+        <!-- Modo servidor: la pagina y la busqueda (cedula, nombre, finca) van al backend. -->
+        <app-tabla-estandar
+          id="incapacidades-sst"
+          titulo="Incapacidades ARL - investigacion SST"
+          modulo="Incapacidades"
+          busqueda="Buscar (cedula, nombre, finca)…"
+          vacio="No hay incapacidades ARL con estos filtros."
+          [datos]="filas()"
+          [columnas]="columnas"
+          [filaId]="idFila"
+          [filaClase]="claseFila"
+          [cargando]="cargando()"
+          [totalServidor]="total()"
+          [filasPorPagina]="size()"
+          (paginaCambio)="paginar($event)"
+          (busquedaCambio)="buscar($event)">
+
+          <ng-template tablaCelda="codigo" let-f>
+            <span class="celda-mono">{{ f.codigoConsecutivo || '#' + f.incapacidadId }}</span>
+            @if (f.oficina) { <span class="celda-sub">{{ f.oficina }}</span> }
+          </ng-template>
+
+          <ng-template tablaCelda="persona" let-f>
+            <span class="celda-nombre">{{ f.nombreCompleto }}</span>
+            <span class="celda-sub celda-mono">CC {{ f.cedula }}</span>
+          </ng-template>
+
+          <ng-template tablaCelda="finca" let-f>
+            {{ f.empresa || '—' }}
+            @if (f.centroCosto) { <span class="celda-sub">{{ f.centroCosto }}</span> }
+          </ng-template>
+
+          <ng-template tablaCelda="tipo" let-f>
+            <span class="ges-chip ges-chip-peligro">{{ f.tipoIncapacidadEtiqueta }}</span>
+            @if (f.arl) { <span class="celda-sub">{{ f.arl }}</span> }
+          </ng-template>
+
+          <ng-template tablaCelda="periodo" let-f>
+            <span class="nowrap">{{ f.fechaInicio | date: 'dd/MM/yyyy' }} → {{ f.fechaFin | date: 'dd/MM/yyyy' }}</span>
+            <span class="celda-sub">{{ f.dias }} dias · {{ f.estadoIncapacidad }}</span>
+          </ng-template>
+
+          <ng-template tablaCelda="diagnostico" let-f>
+            {{ f.codigoDiagnostico || '—' }}
+            @if (f.descripcionDiagnostico) { <span class="celda-sub diag">{{ f.descripcionDiagnostico }}</span> }
+          </ng-template>
+
+          <ng-template tablaCelda="furat" let-f>
+            @if (f.tieneFurat) { <mat-icon class="ok" matTooltip="FURAT cargado">check_circle</mat-icon> } @else { <mat-icon class="falta" matTooltip="Sin FURAT">radio_button_unchecked</mat-icon> }
+          </ng-template>
+
+          <ng-template tablaCelda="plazo" let-f>
+            <span class="nowrap">{{ f.fechaLimite | date: 'dd/MM/yyyy' }}</span>
+            @if (f.investigacion.estado === 'PENDIENTE' || f.investigacion.estado === 'EN_PROCESO') {
+              <span class="celda-sub" [class.vencido]="f.vencida">{{ f.vencida ? 'Vencido hace ' + (-f.diasRestantes) + ' d' : 'Quedan ' + f.diasRestantes + ' d' }}</span>
+            }
+          </ng-template>
+
+          <ng-template tablaCelda="investigacion" let-f>
+            <span [class]="'ges-chip ' + claseEstado(f)">{{ f.investigacion.estadoEtiqueta }}</span>
+            @if (f.investigacion.nombreArchivo) { <span class="celda-sub"><mat-icon inline>attach_file</mat-icon> {{ f.investigacion.nombreArchivo }}</span> }
+            @if (f.investigacion.responsable) { <span class="celda-sub">{{ f.investigacion.responsable }} · {{ f.investigacion.fechaInvestigacion | date: 'dd/MM/yyyy' }}</span> }
+          </ng-template>
+
+          <ng-template tablaAcciones let-f>
+            @if (subiendo() === f.incapacidadId) {
+              <mat-spinner diameter="22"></mat-spinner>
+            } @else {
+              <button type="button" mat-icon-button matTooltip="Subir investigacion (PDF/JPG/PNG)" (click)="elegirArchivo(f)"><mat-icon>upload_file</mat-icon></button>
+              @if (f.investigacion.documentId) {
+                <button type="button" mat-icon-button matTooltip="Descargar investigacion" (click)="descargar(f)"><mat-icon>download</mat-icon></button>
+              }
+              <button type="button" mat-icon-button matTooltip="Editar seguimiento" (click)="editar(f)"><mat-icon>edit_note</mat-icon></button>
+            }
+          </ng-template>
+        </app-tabla-estandar>
+      </div>
+    </mat-card>
+  </div>
+</div>
+<input #entradaArchivo type="file" accept="application/pdf,image/jpeg,image/png" hidden (change)="archivoElegido($event)" />

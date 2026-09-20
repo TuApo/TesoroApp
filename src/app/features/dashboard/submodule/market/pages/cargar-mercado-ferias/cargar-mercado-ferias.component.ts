@@ -1,9 +1,9 @@
-import {  Component, OnInit, PLATFORM_ID, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
+import {  Component, OnInit, PLATFORM_ID, LOCALE_ID, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { formatCurrency, formatDate, getCurrencySymbol, isPlatformBrowser } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, AbstractControl } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { MatTableDataSource } from '@angular/material/table';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
@@ -16,13 +16,14 @@ import { HistorialDialogComponent } from '../../../authorizations/pages/autoriza
   selector: 'app-cargar-mercado-ferias',
   standalone: true,
   imports: [
-    SharedModule, MatCheckboxModule
+    SharedModule, MatCheckboxModule, ...TABLA_ESTANDAR
   ],
   templateUrl: './cargar-mercado-ferias.component.html',
   styleUrl: './cargar-mercado-ferias.component.css'
 } )
 export class CargarMercadoFeriasComponent implements OnInit {
   private platformId = inject(PLATFORM_ID);
+  private locale = inject(LOCALE_ID);
   myForm!: FormGroup;
   datosOperario: any;
   nombreOperario: string = '';
@@ -32,12 +33,28 @@ export class CargarMercadoFeriasComponent implements OnInit {
   fechaIngreso: string = '';
   limiteDisponible: number = 0;
 
-  displayedColumnsInventarioSimple: string[] = [
-    'select', 'cantidadSeleccionada',
-    'concepto', 'disponible', 'valorUnidad',
-    'PersonaEnvia', 'fechaRecibida'];
-
-  dataSourceInventario = new MatTableDataSource<any>();
+  /**
+   * Inventario en la tabla estándar. Selección y cantidad son controles
+   * (interactivas, no se copian ni se ordenan); el resto son datos planos.
+   */
+  readonly columnasInventario: ColumnaTabla<any>[] = [
+    { id: 'select', header: 'Sel.', valor: (e) => (e.seleccionado ? 'Sí' : ''), interactiva: true,
+      copiable: false, ordenable: false, filtrable: false, tarjeta: 'cuerpo' },
+    { id: 'cantidadSeleccionada', header: 'Cant.', valor: (e) => (e.seleccionado ? e.cantidadSeleccionada : null),
+      interactiva: true, copiable: false, ordenable: false, filtrable: false, tarjeta: 'cuerpo' },
+    { id: 'concepto', header: 'Concepto', valor: (e) => e.concepto, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'disponible', header: 'Disponible', valor: (e) => e.disponible, align: 'center', tarjeta: 'badge',
+      badge: (e) => ({ texto: String(e.disponible ?? 0), tono: 'neutro' }) },
+    { id: 'valorUnidad', header: 'Valor Und.', valor: (e) => this.numero(e.valorUnidad), align: 'right',
+      formato: (e) => this.moneda(e.valorUnidad), tarjeta: 'subtitulo' },
+    { id: 'PersonaEnvia', header: 'Envía', valor: (e) => e.PersonaEnvia ?? '', prioridad: 2, tarjeta: 'meta' },
+    { id: 'fechaRecibida', header: 'F. Recibido', prioridad: 2, tarjeta: 'meta',
+      valor: (e) => (e.fechaRecibida ? new Date(e.fechaRecibida) : null),
+      formato: (e) => this.fechaHora(e.fechaRecibida), copiaTexto: (e) => this.fechaHora(e.fechaRecibida) },
+  ];
+  readonly idProducto = (e: any) => e.lote_id;
+  /** La fila marcada se resalta (clase de la tabla estándar). */
+  readonly claseProducto = (e: any) => (e.seleccionado ? 'te-fila--destacada' : '');
 
   usuario: any;
 
@@ -112,8 +129,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
           // Guardamos el id del lote para consumir luego
           lote_id: lote.id,
         }));
-
-        this.dataSourceInventario.data = this.productos;
       }
 
       // Cerrar swal de carga al finalizar exitosamente
@@ -350,11 +365,6 @@ export class CargarMercadoFeriasComponent implements OnInit {
     }
   }
 
-  applyFilterInventario(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSourceInventario.filter = filterValue.trim().toLowerCase();
-  }
-
   incrementarCantidad(element: any) {
     if (!element.seleccionado) return; // Solo si está seleccionado
 
@@ -449,6 +459,21 @@ export class CargarMercadoFeriasComponent implements OnInit {
       panelClass: 'historial-dialog-panel',
       data: { numeroDocumento: doc }
     });
+  }
+
+  // Formatos de la tabla de inventario (mismo resultado que los pipes currency/date)
+  private numero(v: unknown): number | null {
+    const n = Number(v);
+    return v === null || v === undefined || v === '' || isNaN(n) ? null : n;
+  }
+
+  private moneda(v: unknown): string {
+    const n = this.numero(v);
+    return n === null ? '' : formatCurrency(n, this.locale, getCurrencySymbol('COP', 'narrow', this.locale), 'COP', '1.0-0');
+  }
+
+  private fechaHora(v: unknown): string {
+    return v ? formatDate(v as string | number, 'dd-MM-yyyy HH:mm', this.locale) : '';
   }
 
   // === MEJORAS UX PARA PREVENIR ERRORES ===

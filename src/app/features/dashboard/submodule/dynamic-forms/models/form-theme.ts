@@ -120,20 +120,29 @@ export function temaEfectivo(theme?: FormTheme | null): FormTheme {
 export function variablesTema(theme?: FormTheme | null): Record<string, string> {
   const t = temaEfectivo(theme);
   const compacta = t.density === 'compacta';
+  // El tema de un formulario elige su IDENTIDAD (color de acción, cabecera,
+  // icono, radios), pero la superficie, el fondo y el texto siguen el modo de
+  // la plataforma: en oscuro, una tarjeta blanca con el texto del tema oscuro
+  // quedaba ilegible. `light-dark()` resuelve cada uno según `color-scheme`,
+  // que tokens.css fija con el tema claro/oscuro.
+  const porModo = (claro: string, tokenOscuro: string) => `light-dark(${claro}, var(${tokenOscuro}))`;
   const vars: Record<string, string> = {
     '--df-primary': t.primary!,
     '--df-on-primary': t.on_primary!,
     '--df-accent': t.accent!,
-    '--df-surface': t.surface!,
-    '--df-bg': t.bg!,
-    '--df-text': t.text!,
+    // El acento pintado como TEXTO sobre la superficie: en oscuro, un navy
+    // sobre fondo oscuro no se lee, así que ahí manda el token de la app.
+    '--df-accent-texto': porModo(t.accent!, '--text'),
+    '--df-surface': porModo(t.surface!, '--surface'),
+    '--df-bg': porModo(t.bg!, '--bg'),
+    '--df-text': porModo(t.text!, '--text'),
     '--df-header-from': t.header_from!,
     '--df-header-to': t.header_to!,
     '--df-radius': `${t.radius}px`,
     '--df-gap': compacta ? '10px' : '16px',
     '--df-pad': compacta ? '12px 14px' : '18px 20px',
     '--df-header-pad': compacta ? '16px 20px' : '22px 28px',
-    '--df-borde': mezclarConBlanco(t.accent!, 0.86),
+    '--df-borde': porModo(mezclarConBlanco(t.accent!, 0.86), '--border'),
   };
   vars['--df-header-bg'] = t.header_style === 'solid'
     ? t.header_from!

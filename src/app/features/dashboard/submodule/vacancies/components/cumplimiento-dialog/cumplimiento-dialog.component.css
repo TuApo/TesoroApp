@@ -2,14 +2,13 @@
   --azul: #1565c0;
   --azul-2: #1e88e5;
   --ok: #2e7d32;
-  --ok-bg: #e8f5e9;
+  --ok-bg: light-dark(#e8f5e9, #193430);
   --warn: #ef6c00;
-  --warn-bg: #fff3e0;
+  --warn-bg: light-dark(#fff3e0, #382f24);
   --low: #c62828;
-  --low-bg: #ffebee;
-  --ink: #1f2733;
-  --muted: #6b7686;
-  --line: #eceef2;
+  --low-bg: light-dark(#ffebee, #38162a);
+  --ink: var(--text);
+  --line: var(--border);
 }
 
 .cumpl-dialog {
@@ -30,7 +29,7 @@
   align-items: center;
   gap: 14px;
   padding: 18px 20px 14px;
-  background: linear-gradient(120deg, #eef4ff 0%, #f7faff 60%, #ffffff 100%);
+  background: linear-gradient(120deg, #eef4ff 0%, var(--surface-2) 60%, var(--surface) 100%); background: linear-gradient(120deg, light-dark(#eef4ff, #0f244d) 0%, var(--surface-2) 60%, var(--surface) 100%);
   border-bottom: 1px solid var(--line);
 }
 
@@ -74,12 +73,12 @@
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: #9aa4b2;
+  color: var(--text-faint);
 }
 
 .cumpl-dot { color: #c3cad4; margin: 0 2px; }
 
-.cumpl-close { flex: 0 0 auto; color: #5b6470; }
+.cumpl-close { flex: 0 0 auto; color: var(--muted); }
 
 /* ───────── Banda de KPIs ───────── */
 .cumpl-kpis {
@@ -89,7 +88,7 @@
   gap: 10px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--line);
-  background: #fbfcfe;
+  background: var(--surface);
 }
 
 .kpi {
@@ -99,13 +98,13 @@
   flex-direction: column;
   justify-content: center;
   padding: 6px 14px 6px 0;
-  border-right: 1px dashed #e7eaf0;
+  border-right: 1px dashed var(--border);
 }
 
 .kpi-grow { flex: 1 1 auto; border-right: none; padding-right: 0; justify-content: center; }
 
 .kpi-num { font-size: 22px; font-weight: 800; line-height: 1; color: var(--ink); }
-.kpi-num.kpi-ok { color: var(--ok); }
+.kpi-num.kpi-ok { color: var(--ok); color: light-dark(var(--ok), #ade1b0); }
 .kpi-num.kpi-warn { color: var(--warn); }
 
 .kpi-lbl {
@@ -125,7 +124,7 @@
 }
 
 .kpi-pct { font-size: 18px; font-weight: 800; }
-.kpi-pct.tono-ok { color: var(--ok); }
+.kpi-pct.tono-ok { color: var(--ok); color: light-dark(var(--ok), #ade1b0); }
 .kpi-pct.tono-warn { color: var(--warn); }
 .kpi-pct.tono-low { color: var(--low); }
 
@@ -133,7 +132,7 @@
   margin-top: 6px;
   height: 9px;
   border-radius: 999px;
-  background: #e9edf3;
+  background: var(--surface-3);
   overflow: hidden;
 }
 
@@ -159,106 +158,6 @@
   min-height: 0;
   overflow-y: auto;
 }
-
-.cumpl-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 40px 8px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.cumpl-state mat-icon {
-  font-size: 38px;
-  width: 38px;
-  height: 38px;
-  color: #c3cad4;
-}
-
-.spin { animation: cumpl-spin 1s linear infinite; }
-@keyframes cumpl-spin { to { transform: rotate(360deg); } }
-
-.cumpl-toolbar {
-  display: flex;
-  align-items: center;
-  padding: 0 2px 10px;
-}
-
-.cumpl-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #3a4453;
-}
-
-.cumpl-count mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--azul); }
-
-.cumpl-sel-pill {
-  margin-left: 4px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: #e7f0ff;
-  color: var(--azul);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.cumpl-table-wrap {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  /* `hidden` recortaba la última columna cuando la tabla no cabía (así se
-     perdía el botón de resultado). Con `auto` la tabla scrollea dentro del
-     marco en vez de quedar cortada. */
-  overflow: auto;
-  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.04);
-}
-
-.cumpl-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.cumpl-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: #f6f8fb;
-  text-align: left;
-  font-weight: 700;
-  font-size: 11px;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  color: #7a8494;
-  padding: 11px 12px;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-.cumpl-table tbody td {
-  padding: 9px 12px;
-  border-bottom: 1px solid #f2f4f7;
-  vertical-align: middle;
-}
-
-.cumpl-table tbody tr:last-child td { border-bottom: none; }
-
-.cumpl-table tbody tr {
-  cursor: pointer;
-  transition: background .12s;
-}
-
-.cumpl-table tbody tr:hover { background: #f6faff; }
-.cumpl-table tbody tr.fila-sel { background: #eaf3ff; }
-
-.col-check { width: 46px; text-align: center; }
-.col-num { width: 40px; color: var(--muted); }
-.col-doc { width: 150px; }
-.col-etapa { width: 140px; }
 
 /* Persona (avatar + nombre) */
 .persona { display: flex; align-items: center; gap: 10px; }
@@ -290,7 +189,7 @@
 
 .persona-meta {
   font-size: 11px;
-  color: #98a1ae;
+  color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -302,8 +201,8 @@
   display: inline-block;
   padding: 1px 7px;
   border-radius: 6px;
-  background: #eef1f6;
-  color: #5b6470;
+  background: var(--surface-3);
+  color: var(--muted);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: .5px;
@@ -314,7 +213,7 @@
 .doc-num {
   font-family: 'Roboto Mono', 'Consolas', monospace;
   font-weight: 600;
-  color: #2c3645;
+  color: var(--text-2);
   letter-spacing: .3px;
 }
 
@@ -329,16 +228,16 @@
   border: 1px solid transparent;
 }
 
-.etapa-asignado     { background: #eef1f6; color: #5b6470; }
-.etapa-prereg       { background: #eceff1; color: #546e7a; }
-.etapa-entrevistado { background: #e8eaf6; color: #3949ab; }
-.etapa-prueba       { background: #ede7f6; color: #6a4caf; }
-.etapa-autorizado   { background: #e3f2fd; color: #1565c0; }
-.etapa-examenes     { background: #e0f7fa; color: #00838f; }
-.etapa-contratado   { background: var(--ok-bg); color: var(--ok); border-color: #c8e6c9; }
-.etapa-ingreso      { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
-.etapa-nopaso       { background: #fdecea; color: #c62828; border-color: #f5c2c0; }
-.etapa-nopresento   { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
+.etapa-asignado     { background: var(--surface-3); color: var(--muted); }
+.etapa-prereg       { background: var(--surface-3); color: var(--muted); }
+.etapa-entrevistado { background: #e8eaf6; background: light-dark(#e8eaf6, #192343); color: #3949ab; }
+.etapa-prueba       { background: #ede7f6; background: light-dark(#ede7f6, #212043); color: #6a4caf; }
+.etapa-autorizado   { background: #e3f2fd; background: light-dark(#e3f2fd, #122d4a); color: #1565c0; color: light-dark(#1565c0, #9ac4f4); }
+.etapa-examenes     { background: var(--surface-4); color: #00838f; color: light-dark(#00838f, #97eff7); }
+.etapa-contratado   { background: var(--ok-bg); color: var(--ok); color: light-dark(var(--ok), #ade1b0); border-color: #c8e6c9; border-color: light-dark(#c8e6c9, #235934); }
+.etapa-ingreso      { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); color: #1b5e20; color: light-dark(#1b5e20, #a8e6ac); border-color: #a5d6a7; border-color: light-dark(#a5d6a7, #235935); }
+.etapa-nopaso       { background: #fdecea; background: light-dark(#fdecea, #341d28); color: #c62828; border-color: #f5c2c0; border-color: light-dark(#f5c2c0, #5f2028); }
+.etapa-nopresento   { background: #fff3e0; background: light-dark(#fff3e0, #382f24); color: #e65100; border-color: #ffcc80; border-color: light-dark(#ffcc80, #6c4a1b); }
 
 /* Motivo de "no pasó la prueba técnica" bajo el chip de etapa. */
 .etapa-motivo {
@@ -349,7 +248,7 @@
   max-width: 130px;
   font-size: 10.5px;
   line-height: 1.25;
-  color: #b71c1c;
+  color: #b71c1c; color: light-dark(#b71c1c, #f09e9e);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -372,10 +271,10 @@
   gap: 7px;
   margin: 12px 2px 4px;
   font-size: 12px;
-  color: #8a6d00;
+  color: #8a6d00; color: light-dark(#8a6d00, #f7e397);
 }
 
-.cumpl-hint mat-icon { font-size: 18px; width: 18px; height: 18px; color: #f5b400; }
+.cumpl-hint mat-icon { font-size: 18px; width: 18px; height: 18px; color: #f5b400; color: light-dark(#f5b400, #f7dd97); }
 
 /* ───────── Acciones ───────── */
 .cumpl-actions {
@@ -385,7 +284,7 @@
   gap: 10px;
   padding: 14px 20px 18px;
   border-top: 1px solid var(--line);
-  background: #fbfcfe;
+  background: var(--surface);
 }
 
 .cumpl-actions-spacer { flex: 1 1 auto; }
@@ -393,7 +292,7 @@
 .btn-quitar {
   --mdc-outlined-button-label-text-color: var(--low);
   color: var(--low);
-  border-color: #f3c2c2 !important;
+  border-color: #f3c2c2 !important; border-color: light-dark(#f3c2c2, #5c202b) !important;
   font-weight: 600;
 }
 .btn-quitar:hover:not([disabled]) { background: var(--low-bg); }
@@ -426,9 +325,8 @@
 
 /* ── Columna de resultado (prueba técnica / examen médico) ────────────────── */
 .col-resultado {
+  display: inline-flex;
   white-space: nowrap;
-  text-align: right;
-  width: 96px;
 }
 
 /* Botones de icono: la columna tiene que caber sin empujar la tabla fuera del
@@ -446,10 +344,10 @@
   font-size: 19px;
 }
 
-.btn-resultado.res-ok { color: #2e7d32; }
-.btn-resultado.res-mal { color: #c62828; }
-.btn-resultado.res-noshow { color: #ef6c00; }
-.btn-resultado.res-vacio { color: #94a3b8; }
+.btn-resultado.res-ok { color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
+.btn-resultado.res-mal { color: #c62828; color: light-dark(#c62828, #eca2a2); }
+.btn-resultado.res-noshow { color: #ef6c00; color: light-dark(#ef6c00, #f7c297); }
+.btn-resultado.res-vacio { color: var(--text-faint); }
 
 .resultado-vacio {
   color: var(--muted);

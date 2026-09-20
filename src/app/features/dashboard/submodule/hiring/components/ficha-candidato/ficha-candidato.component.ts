@@ -216,6 +216,7 @@ export class FichaCandidatoComponent {
       { label: 'Lugar de nacimiento', value: this.txt(cc.mpio_nacimiento) },
       { label: 'Sexo', value: c?.sexo === 'F' ? 'Femenino' : c?.sexo === 'M' ? 'Masculino' : null },
       { label: 'Estado civil', value: this.estadoCivilDe(c?.estado_civil) },
+      { label: 'Tipo de sangre (RH)', value: this.txt(c?.rh) },
     ];
   });
 
@@ -227,21 +228,134 @@ export class FichaCandidatoComponent {
       { label: 'Correo', value: this.txt(ct.email ?? ct.correo_electronico), break: true },
       { label: 'Celular · WhatsApp', value: this.unir(this.txt(ct.celular), this.txt(ct.whatsapp)) },
       { label: 'Dirección', value: this.unir(this.txt(r.direccion), this.txt(r.barrio) ? `Barrio ${r.barrio}` : null), break: true },
-      { label: 'Vive con', value: this.txt(c?.vivienda?.personas_con_quien_convive) },
+      { label: 'Hace cuánto vive ahí', value: this.txt(r.hace_cuanto_vive) },
     ];
   });
 
-  readonly familia = computed<Fila[]>(() => {
+  /**
+   * Hijos: son BENEFICIARIOS (caja de compensación y subsidio familiar), así
+   * que se listan uno a uno con documento y fecha. "3 hijos" no sirve para
+   * afiliar a nadie.
+   */
+  readonly hijos = computed<Fila[]>(() => {
     const c = this.candidato();
-    const hijos = Array.isArray(c?.hijos) ? c.hijos : [];
-    const refs = Array.isArray(c?.referencias) ? c.referencias : [];
-    const fam = refs.filter((r: any) => String(r?.tipo ?? '').toUpperCase().startsWith('FAM'));
-    return [
-      { label: 'Hijos', value: hijos.length ? `${hijos.length}` : 'No registra' },
+    const lista = Array.isArray(c?.hijos) ? c.hijos : [];
+    const filas: Fila[] = [
+      { label: 'Cuántos hijos', value: lista.length ? `${lista.length}` : 'No registra' },
       { label: 'Quién los cuida', value: this.txt(c?.vivienda?.responsable_hijos) },
-      { label: 'Referencias familiares',
-        value: fam.length ? fam.map((r: any) => this.txt(r.nombre)).filter(Boolean).join(' · ') : null,
-        break: true },
+    ];
+    lista.forEach((h: any, i: number) => {
+      const nombre = [h?.primer_nombre, h?.segundo_nombre, h?.primer_apellido, h?.segundo_apellido]
+        .map((x: unknown) => this.txt(x)).filter(Boolean).join(' ');
+      filas.push({
+        label: `Hijo ${i + 1}`,
+        value: this.unir(
+          this.txt(nombre) ?? this.txt(h?.nombre),
+          this.unir(this.txt(h?.numero_de_documento), this.fecha(h?.fecha_nac)),
+        ),
+        break: true,
+      });
+    });
+    return filas;
+  });
+
+  /**
+   * Referencias con TELÉFONO: es lo que se marca antes de contratar. Solo el
+   * nombre no sirve para verificar nada.
+   */
+  readonly referencias = computed<Fila[]>(() => {
+    const refs = Array.isArray(this.candidato()?.referencias) ? this.candidato()!.referencias : [];
+    const tipoDe = (r: any) => String(r?.tipo ?? '').trim().toUpperCase();
+    const orden = (base: string) => refs
+      .filter((r: any) => tipoDe(r).startsWith(base))
+      .sort((a: any, b: any) => (a?.id ?? 0) - (b?.id ?? 0));
+    const fila = (r: any, rotulo: string): Fila => ({
+      label: rotulo,
+      value: this.unir(
+        this.txt(r?.nombre),
+        this.unir(this.txt(r?.parentesco), this.txt(r?.telefono)),
+      ),
+      break: true,
+    });
+    const fam = orden('FAM');
+    const per = orden('PERSONAL');
+    const filas: Fila[] = [];
+    fam.slice(0, 2).forEach((r: any, i: number) => filas.push(fila(r, `Familiar ${i + 1}`)));
+    per.slice(0, 2).forEach((r: any, i: number) => filas.push(fila(r, `Personal ${i + 1}`)));
+    if (!filas.length) filas.push({ label: 'Referencias', value: null });
+    return filas;
+  });
+
+  /**
+   * Pareja, padres, emergencia y tallas: las secciones del formulario de la
+   * vacante que la ficha no mostraba.
+   *
+   * Las tres primeras salen de `familiares`, UNA fila por tipo. Se pintan aquí
+   * para que el seleccionador pueda COTEJARLAS con la persona delante —que es
+   * el punto del requisito— y no solo corregirlas a ciegas en el diálogo.
+   */
+  private familiar(tipo: string): any | null {
+    const lista = this.candidato()?.familiares;
+    if (!Array.isArray(lista)) return null;
+    return lista.find((x: any) => String(x?.tipo ?? '').trim().toUpperCase() === tipo) ?? null;
+  }
+
+  /** Nombre completo de un familiar: estructurado si lo hay, legacy si no. */
+  private nombreFamiliar(f: any): string | null {
+    if (!f) return null;
+    const estructurado = [f.primer_nombre, f.segundo_nombre, f.primer_apellido, f.segundo_apellido]
+      .map((x: unknown) => this.txt(x)).filter(Boolean).join(' ');
+    return this.txt(estructurado) ?? this.unir(this.txt(f.nombre), this.txt(f.apellido));
+  }
+
+  readonly pareja = computed<Fila[]>(() => {
+    const c = this.familiar('CONYUGUE');
+    return [
+      { label: 'Pareja', value: this.nombreFamiliar(c), break: true },
+      { label: '¿Vive con su pareja?', value: this.txt(c?.vive_con) },
+      { label: 'Documento', value: this.txt(c?.numero_de_documento) },
+      { label: 'Teléfono', value: this.txt(c?.telefono) },
+      { label: 'Ocupación', value: this.txt(c?.ocupacion) },
+      { label: 'Dirección', value: this.unir(this.txt(c?.direccion), this.txt(c?.municipio)), break: true },
+    ];
+  });
+
+  readonly padres = computed<Fila[]>(() => {
+    const p = this.familiar('PADRE');
+    const m = this.familiar('MADRE');
+    return [
+      { label: 'Papá', value: this.nombreFamiliar(p), break: true },
+      { label: '¿Lo conoce o vive?', value: this.txt(p?.vive_con) },
+      { label: 'Teléfono del papá', value: this.txt(p?.telefono) },
+      { label: 'Mamá', value: this.nombreFamiliar(m), break: true },
+      { label: '¿La conoce o vive?', value: this.txt(m?.vive_con) },
+      { label: 'Teléfono de la mamá', value: this.txt(m?.telefono) },
+    ];
+  });
+
+  readonly emergencia = computed<Fila[]>(() => {
+    const e = this.familiar('EMERGENCIA');
+    return [
+      { label: 'Contacto', value: this.nombreFamiliar(e), break: true },
+      { label: 'Parentesco', value: this.txt(e?.parentesco) },
+      { label: 'Teléfono', value: this.txt(e?.telefono) },
+      { label: 'Dirección', value: this.unir(this.txt(e?.direccion), this.txt(e?.municipio)), break: true },
+    ];
+  });
+
+  /** 0 es el default de la tabla y significa "sin talla": no se pinta como dato. */
+  private talla(v: unknown): string | null {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? String(n) : null;
+  }
+
+  readonly dotacion = computed<Fila[]>(() => {
+    const d = this.candidato()?.dotacion ?? {};
+    return [
+      { label: 'Chaqueta', value: this.talla(d.chaqueta) },
+      { label: 'Pantalón', value: this.talla(d.pantalon) },
+      { label: 'Camisa', value: this.talla(d.camisa) },
+      { label: 'Calzado', value: this.talla(d.calzado) },
     ];
   });
 

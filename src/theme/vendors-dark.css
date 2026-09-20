@@ -1,0 +1,60 @@
+/* =============================================================================
+   MODO OSCURO PARA LIBRERÍAS DE TERCEROS
+   Material se resuelve con los --mat-sys-* de tokens.css. Lo de aquí son las
+   librerías que traen colores fijos en su propio CSS.
+   ========================================================================== */
+
+/* ── SweetAlert2 ─────────────────────────────────────────────────────────
+   Swal pinta el popup en blanco con texto #545454 fijos. En oscuro quedaba un
+   rectángulo blanco encima de todo. */
+html[data-theme='dark'] .swal2-popup {
+  background: var(--surface);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+html[data-theme='dark'] .swal2-title { color: var(--text); }
+html[data-theme='dark'] .swal2-html-container,
+html[data-theme='dark'] .swal2-footer { color: var(--text-2); }
+html[data-theme='dark'] .swal2-footer { border-top-color: var(--border); }
+html[data-theme='dark'] .swal2-close { color: var(--muted); }
+html[data-theme='dark'] .swal2-close:hover { color: var(--danger-fg); }
+html[data-theme='dark'] .swal2-input,
+html[data-theme='dark'] .swal2-textarea,
+html[data-theme='dark'] .swal2-select,
+html[data-theme='dark'] .swal2-file {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+html[data-theme='dark'] .swal2-input::placeholder,
+html[data-theme='dark'] .swal2-textarea::placeholder { color: var(--text-faint); }
+html[data-theme='dark'] .swal2-validation-message {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+html[data-theme='dark'] .swal2-timer-progress-bar { background: rgb(var(--ink-rgb) / .3); }
+html[data-theme='dark'] .swal2-toast { box-shadow: 0 0 0 1px var(--border), var(--shadow-md); }
+/* El «success» dibuja dos medias lunas del color del fondo para tapar el anillo. */
+html[data-theme='dark'] .swal2-icon.swal2-success [class^='swal2-success-circular-line'],
+html[data-theme='dark'] .swal2-icon.swal2-success .swal2-success-fix {
+  background-color: var(--surface) !important;
+}
+
+/* ── Controles nativos ───────────────────────────────────────────────────
+   color-scheme: dark ya oscurece barras de scroll, calendarios nativos y
+   autocompletado; esto cubre lo que el navegador deja en blanco. */
+html[data-theme='dark'] input:-webkit-autofill,
+html[data-theme='dark'] textarea:-webkit-autofill,
+html[data-theme='dark'] select:-webkit-autofill {
+  -webkit-text-fill-color: var(--text);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  caret-color: var(--text);
+}
+
+/* ── Imágenes de documentos ──────────────────────────────────────────────
+   Logos en PNG con fondo blanco: en oscuro se ven como parches. Un fondo
+   claro redondeado los enmarca en vez de dejarlos flotando. */
+html[data-theme='dark'] img.logo-documento {
+  background: #fff;
+  border-radius: 6px;
+}

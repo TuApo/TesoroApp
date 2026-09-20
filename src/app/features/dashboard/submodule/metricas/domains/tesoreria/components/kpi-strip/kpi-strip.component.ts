@@ -63,12 +63,12 @@ import { MatIconModule } from '@angular/material/icon';
     }
     .kpi-strip {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
       gap: 1.5rem;
       margin-bottom: 2rem;
     }
     .kpi-card {
-      background: #ffffff;
+      background: var(--surface);
       border-radius: 16px;
       padding: 1.5rem;
       display: flex;
@@ -76,7 +76,7 @@ import { MatIconModule } from '@angular/material/icon';
       justify-content: space-between;
       gap: 1.25rem;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-      border: 1px solid #f1f5f9;
+      border: 1px solid var(--border);
       transition: all 0.3s ease;
       overflow: hidden;
     }
@@ -108,7 +108,7 @@ import { MatIconModule } from '@angular/material/icon';
     .kpi-label {
       margin: 0;
       font-size: 0.875rem;
-      color: #64748b;
+      color: var(--muted);
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -121,7 +121,7 @@ import { MatIconModule } from '@angular/material/icon';
       font-size: 2.25rem;
       font-weight: 700;
       line-height: 1.2;
-      color: #0f172a;
+      color: var(--text);
       white-space: nowrap;
       text-overflow: ellipsis;
       overflow: hidden;
@@ -129,21 +129,21 @@ import { MatIconModule } from '@angular/material/icon';
     .kpi-sub {
       margin: 0;
       font-size: 0.75rem;
-      color: #94a3b8;
+      color: var(--text-faint);
     }
 
     /* Colors */
-    .danger .kpi-icon-wrapper { background: #fee2e2; color: #ef4444; }
+    .danger .kpi-icon-wrapper { background: #fee2e2; background: light-dark(#fee2e2, #371725); color: #ef4444; }
     .danger .kpi-value { color: #ef4444; }
 
-    .success .kpi-icon-wrapper { background: #d1fae5; color: #10b981; }
-    .success .kpi-value { color: #10b981; }
+    .success .kpi-icon-wrapper { background: #d1fae5; background: light-dark(#d1fae5, #133b38); color: #10b981; color: light-dark(#10b981, #98f6d7); }
+    .success .kpi-value { color: #10b981; color: light-dark(#10b981, #98f6d7); }
 
-    .warning .kpi-icon-wrapper { background: #fef3c7; color: #f59e0b; }
-    .warning .kpi-value { color: #f59e0b; }
+    .warning .kpi-icon-wrapper { background: #fef3c7; background: light-dark(#fef3c7, #373625); color: #f59e0b; }
+    .warning .kpi-value { color: #f59e0b; color: light-dark(#f59e0b, #f7d397); }
 
-    .info .kpi-icon-wrapper { background: #e0f2fe; color: #0ea5e9; }
-    .info .kpi-value { color: #0ea5e9; }
+    .info .kpi-icon-wrapper { background: #e0f2fe; background: light-dark(#e0f2fe, #102e4c); color: #0ea5e9; }
+    .info .kpi-value { color: #0ea5e9; color: light-dark(#0ea5e9, #97d9f7); }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush
 })

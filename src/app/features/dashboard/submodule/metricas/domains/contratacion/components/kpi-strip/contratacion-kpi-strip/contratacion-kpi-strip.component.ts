@@ -66,7 +66,7 @@ import { ContratacionKpiSummary } from '../../../models/contratacion-metricas.mo
     styles: [`
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
       gap: 1.5rem;
       margin-bottom: 2rem;
     }
@@ -75,8 +75,8 @@ import { ContratacionKpiSummary } from '../../../models/contratacion-metricas.mo
       border-radius: 16px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
       transition: all 0.3s ease;
-      background: #ffffff;
-      border: 1px solid #f1f5f9;
+      background: var(--surface);
+      border: 1px solid var(--border);
       overflow: hidden;
     }
 
@@ -102,7 +102,7 @@ import { ContratacionKpiSummary } from '../../../models/contratacion-metricas.mo
     }
 
     .kpi-label {
-      color: #64748b;
+      color: var(--muted);
       font-size: 0.875rem;
       font-weight: 500;
       text-transform: uppercase;
@@ -118,7 +118,7 @@ import { ContratacionKpiSummary } from '../../../models/contratacion-metricas.mo
 
     .kpi-subtext {
       font-size: 0.75rem;
-      color: #94a3b8;
+      color: var(--text-faint);
     }
 
     .kpi-icon-bg {
@@ -138,13 +138,13 @@ import { ContratacionKpiSummary } from '../../../models/contratacion-metricas.mo
 
     /* Colors */
     .text-blue { color: #3b82f6; }
-    .bg-blue-100 { background-color: #dbeafe; }
+    .bg-blue-100 { background-color: var(--surface-4); }
 
-    .text-emerald { color: #10b981; }
-    .bg-emerald-100 { background-color: #d1fae5; }
+    .text-emerald { color: #10b981; color: light-dark(#10b981, #98f6d7); }
+    .bg-emerald-100 { background-color: #d1fae5; background-color: light-dark(#d1fae5, #133b38); }
 
-    .text-amber { color: #f59e0b; }
-    .bg-amber-100 { background-color: #fef3c7; }
+    .text-amber { color: #f59e0b; color: light-dark(#f59e0b, #f7d397); }
+    .bg-amber-100 { background-color: #fef3c7; background-color: light-dark(#fef3c7, #373625); }
   `],
     changeDetection: ChangeDetectionStrategy.OnPush
 })

@@ -1,0 +1,102 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>delivery_dining</mat-icon> Pedidos</h1>
+      <p class="tienda-subtitulo">
+        Lo que pide la gente desde la tienda virtual, lo que lleva más esperando primero.
+        Cada cambio de estado le llega al comprador.
+      </p>
+    </div>
+    <app-selector-tienda />
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  @if (pedidos().length === 0) {
+    <div class="tienda-tarjeta tienda-vacio">
+      <mat-icon>inbox</mat-icon>
+      <p>No hay pedidos pendientes en esta tienda.</p>
+    </div>
+  } @else {
+    <div class="lista-pedidos">
+      @for (p of pedidos(); track p.id) {
+        <article class="tienda-tarjeta pedido">
+          <div class="pedido-cabecera">
+            <div>
+              <strong>{{ p.numero }}</strong>
+              <span class="insignia" [class]="'insignia ' + claseEstado(p.estado)">{{ p.estado }}</span>
+              @if (p.bajo_pedido) {
+                <span class="insignia aviso" title="Hay artículos que hay que traer">bajo pedido</span>
+              }
+            </div>
+            <span class="total">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+
+          <div class="pedido-datos">
+            <span><mat-icon>person</mat-icon> {{ p.cliente_nombre || p.cliente_cedula }}</span>
+            <span><mat-icon>local_shipping</mat-icon> {{ p.tipo_entrega }}</span>
+            @if (p.direccion_texto) {
+              <span><mat-icon>place</mat-icon> {{ p.direccion_texto }}</span>
+            }
+            @if (p.fecha_estimada) {
+              <span><mat-icon>event</mat-icon> estimado {{ p.fecha_estimada | date:'shortDate' }}</span>
+            }
+            <span><mat-icon>schedule</mat-icon> {{ p.creado_en | date:'short' }}</span>
+          </div>
+
+          <div class="pedido-acciones">
+            <button type="button" class="boton secundario" (click)="ver(p)">Ver detalle</button>
+            @if (p.estado === 'CREADO') {
+              <button type="button" class="boton" (click)="confirmar(p)">
+                <mat-icon>check</mat-icon> Confirmar y apartar
+              </button>
+            }
+            @for (s of siguientes[p.estado] ?? []; track s.codigo) {
+              <button type="button" class="boton" (click)="avanzar(p, s.codigo)">{{ s.nombre }}</button>
+            }
+          </div>
+
+          @if (detalle() && $any(detalle())['pedido']?.id === p.id) {
+            <div class="pedido-detalle">
+              <h3>Artículos</h3>
+              <ul>
+                @for (l of $any(detalle())['lineas']; track $any(l)['id']) {
+                  <li>
+                    <span>{{ $any(l)['cantidad'] }} × {{ $any(l)['descripcion'] }}</span>
+                    @if ($any(l)['disponibilidad'] === 'BAJO_PEDIDO') {
+                      <span class="insignia aviso">se pide</span>
+                    }
+                    <span class="numero">{{ $any(l)['total'] | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                  </li>
+                }
+              </ul>
+
+              <h3>Seguimiento</h3>
+              <ol class="seguimiento">
+                @for (e of $any(detalle())['seguimiento']; track $any(e)['id']) {
+                  <li>
+                    <strong>{{ $any(e)['estado'] }}</strong>
+                    <span>{{ $any(e)['ocurrido_en'] | date:'short' }}</span>
+                    @if ($any(e)['comentario']) { <em>{{ $any(e)['comentario'] }}</em> }
+                  </li>
+                }
+              </ol>
+
+              <div class="rechazo">
+                <div class="campo campo-ancho"><label>Motivo del rechazo</label>
+                  <input [(ngModel)]="motivoRechazo" placeholder="El comprador lo va a leer" /></div>
+                <button type="button" class="boton peligro" (click)="rechazar(p)">Rechazar pedido</button>
+              </div>
+            </div>
+          }
+        </article>
+      }
+    </div>
+  }
+</div>

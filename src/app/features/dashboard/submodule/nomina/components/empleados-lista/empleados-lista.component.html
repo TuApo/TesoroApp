@@ -2,12 +2,6 @@
 
   <!-- Toolbar de filtros -->
   <div class="emp-toolbar">
-    <mat-form-field appearance="outline" class="emp-toolbar__search">
-      <mat-label>Buscar (nombre o documento)</mat-label>
-      <input matInput [ngModel]="q()" (ngModelChange)="q.set($event); onSearchInput()" placeholder="Ej: Pérez, 1020304050" />
-      <mat-icon matPrefix>search</mat-icon>
-    </mat-form-field>
-
     <mat-form-field appearance="outline" class="emp-toolbar__field">
       <mat-label>Cliente</mat-label>
       <mat-select [ngModel]="clienteId()" (ngModelChange)="onClienteChange($event)">
@@ -50,90 +44,38 @@
     </button>
   </div>
 
-  <!-- Tabla -->
+  <!-- Tabla (modo servidor: el backend pagina y hace la búsqueda libre) -->
   <div class="emp-table-wrap">
-    @if (loading()) {
-      <div class="emp-loading">
-        <mat-spinner diameter="36"></mat-spinner>
-        <span>Cargando empleados…</span>
-      </div>
-    }
+    <app-tabla-estandar
+      id="nomina-empleados"
+      titulo="Empleados"
+      modulo="Nómina"
+      entidad="empleados"
+      busqueda="Buscar (nombre o documento)…"
+      vacio="No se encontraron empleados con los filtros actuales."
+      [datos]="empleados()"
+      [columnas]="columnas"
+      [filaId]="idEmpleado"
+      [cargando]="loading()"
+      [totalServidor]="total()"
+      [filasPorPagina]="pageSize()"
+      (paginaCambio)="onPage($event)"
+      (busquedaCambio)="onBuscar($event)"
+      (filaClick)="abrirEditor($event)">
 
-    <table mat-table [dataSource]="empleados()" class="emp-table" matSort>
+      <ng-template tablaCelda="documento" let-e>
+        <span class="cell-strong">{{ tipoDoc(e) }} {{ e.numero_documento }}</span>
+      </ng-template>
 
-      <ng-container matColumnDef="documento">
-        <th mat-header-cell *matHeaderCellDef>Documento</th>
-        <td mat-cell *matCellDef="let e">
-          <div class="cell-strong">{{ tipoDoc(e) }} {{ e.numero_documento }}</div>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="nombre">
-        <th mat-header-cell *matHeaderCellDef>Nombre</th>
-        <td mat-cell *matCellDef="let e">{{ e.nombre_completo || '—' }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="cliente">
-        <th mat-header-cell *matHeaderCellDef>Cliente</th>
-        <td mat-cell *matCellDef="let e">{{ e.contrato_activo?.cliente_nombre || '—' }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="ceco">
-        <th mat-header-cell *matHeaderCellDef>CECO</th>
-        <td mat-cell *matCellDef="let e">{{ e.contrato_activo?.centro_de_costo || '—' }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="salario">
-        <th mat-header-cell *matHeaderCellDef>Salario</th>
-        <td mat-cell *matCellDef="let e">{{ fmtSalario(e.contrato_activo?.salario_basico) }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="fecha_ingreso">
-        <th mat-header-cell *matHeaderCellDef>Ingreso</th>
-        <td mat-cell *matCellDef="let e">{{ fmtFecha(e.contrato_activo?.fecha_ingreso) }}</td>
-      </ng-container>
-
-      <ng-container matColumnDef="estado">
-        <th mat-header-cell *matHeaderCellDef>Estado</th>
-        <td mat-cell *matCellDef="let e">
-          <span class="estado-chip" [attr.data-estado]="e.contrato_activo?.estado || 'SIN'">
-            {{ e.contrato_activo?.estado || 'SIN CONTRATO' }}
-          </span>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="acciones">
-        <th mat-header-cell *matHeaderCellDef class="col-acciones">Acciones</th>
-        <td mat-cell *matCellDef="let e" class="col-acciones">
-          <button mat-icon-button color="primary" (click)="abrirEditor(e); $event.stopPropagation()" matTooltip="Editar">
-            <mat-icon>edit</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" (click)="eliminar(e, $event)" matTooltip="Retirar">
-            <mat-icon>person_off</mat-icon>
-          </button>
-        </td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns" class="emp-row" (click)="abrirEditor(row)"></tr>
-
-      <tr class="mat-row" *matNoDataRow>
-        <td class="emp-empty" [attr.colspan]="displayedColumns.length">
-          @if (!loading()) {
-            <mat-icon>inbox</mat-icon>
-            <p>No se encontraron empleados con los filtros actuales.</p>
-          }
-        </td>
-      </tr>
-    </table>
+      <ng-template tablaAcciones let-e>
+        <button mat-icon-button color="primary" (click)="abrirEditor(e); $event.stopPropagation()" matTooltip="Editar">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" (click)="eliminar(e, $event)" matTooltip="Retirar">
+          <mat-icon>person_off</mat-icon>
+        </button>
+      </ng-template>
+    </app-tabla-estandar>
   </div>
-
-  <mat-paginator
-    [length]="total()"
-    [pageIndex]="pageIndex()"
-    [pageSize]="pageSize()"
-    [pageSizeOptions]="[25, 50, 100, 200]"
-    (page)="onPage($event)">
-  </mat-paginator>
 
 </div>

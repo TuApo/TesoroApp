@@ -32,6 +32,23 @@
   }
 </header>
 
+<!-- Prioridad: resumen y filtro. Va antes que los tipos porque con la bandeja
+     llena lo primero que hay que decidir no es de qué módulo es, sino qué
+     apremia. El conteo es de lo cargado (ver `conteos` en el componente). -->
+<div class="semaforo" role="group" aria-label="Filtrar por prioridad">
+  @for (n of niveles; track n.clave) {
+    <button type="button" class="nivel" [attr.data-nivel]="n.clave"
+            [class.nivel--activo]="filtroPrioridad() === n.clave"
+            [class.nivel--vacio]="conteos()[n.clave] === 0"
+            [attr.aria-pressed]="filtroPrioridad() === n.clave"
+            [matTooltip]="n.ayuda"
+            (click)="filtrarPrioridad(n.clave)">
+      <span class="nivel__cifra">{{ conteos()[n.clave] }}</span>
+      <span class="nivel__nombre">{{ n.largo }}</span>
+    </button>
+  }
+</div>
+
 <!-- Filtros: los dos transversales + uno por tipo del catálogo del backend. -->
 <div class="filter-row">
   <button class="filter-chip" [class.active]="filtro() === 'todas'" (click)="setFiltro('todas')">
@@ -60,55 +77,70 @@
     </p>
   </div>
 } @else {
-  <div class="notif-list">
-    @for (n of items(); track n.id) {
-      <div class="notif-card"
-        [class.unread]="!n.leida"
-        [class.urgente]="destacada(n)"
-        [class.clickable]="esNavegable(n)"
-        (click)="abrir(n)">
+  @for (g of grupos(); track g.clave) {
+    <section class="grupo" [attr.data-nivel]="g.clave">
+      <h2 class="grupo__titulo">
+        <span class="grupo__punto"></span>{{ g.largo }}
+        <span class="grupo__cuenta">{{ g.filas.length }}</span>
+      </h2>
 
-        <div class="notif-icon" [style.background]="n.color + '15'" [style.color]="n.color">
-          <mat-icon>{{ n.icono }}</mat-icon>
-        </div>
+      <div class="notif-list">
+        @for (n of g.filas; track n.id) {
+          <div class="notif-card" [attr.data-nivel]="g.clave"
+            [class.unread]="!n.leida"
+            [class.clickable]="esNavegable(n)"
+            (click)="abrir(n)">
 
-        <div class="notif-body">
-          <div class="notif-header">
-            <strong>{{ n.titulo }}</strong>
-            <span class="notif-time">{{ n.creada_en | date:'d MMM, y h:mm a' }}</span>
+            <span class="notif-riel" aria-hidden="true"></span>
+
+            <div class="notif-icon" [style.background]="n.color + '15'" [style.color]="n.color">
+              <mat-icon>{{ n.icono }}</mat-icon>
+            </div>
+
+            <div class="notif-body">
+              <div class="notif-header">
+                <strong>{{ n.titulo }}</strong>
+                <span class="notif-time">{{ n.creada_en | date:'d MMM, y h:mm a' }}</span>
+              </div>
+              @if (n.mensaje) { <p class="notif-msg">{{ n.mensaje }}</p> }
+              <div class="notif-meta">
+                <span class="modulo-badge">{{ modulo(n) }}</span>
+                @if (n.tipo_nombre) {
+                  <span class="type-badge" [style.background]="n.color + '18'" [style.color]="n.color">
+                    {{ n.tipo_nombre }}
+                  </span>
+                }
+                @if (esNavegable(n)) {
+                  <span class="notif-go"><mat-icon>arrow_forward</mat-icon> {{ accion(n) }}</span>
+                }
+                @if (!n.leida) { <span class="unread-dot"></span> }
+              </div>
+            </div>
+
+            <button class="btn-delete" [disabled]="estaArchivando(n.id)"
+              matTooltip="Archivar. Sigue disponible en el histórico."
+              (click)="archivar($event, n)">
+              @if (estaArchivando(n.id)) {
+                <mat-spinner diameter="14"></mat-spinner>
+              } @else {
+                <mat-icon>inventory_2</mat-icon>
+              }
+            </button>
+
           </div>
-          @if (n.mensaje) { <p class="notif-msg">{{ n.mensaje }}</p> }
-          <div class="notif-meta">
-            @if (n.tipo_nombre) {
-              <span class="type-badge" [style.background]="n.color + '18'" [style.color]="n.color">
-                {{ n.tipo_nombre }}
-              </span>
-            }
-            @if (destacada(n)) {
-              <span class="urgencia-badge">
-                <mat-icon>priority_high</mat-icon> {{ n.urgencia }}
-              </span>
-            }
-            @if (esNavegable(n)) {
-              <span class="notif-go"><mat-icon>arrow_forward</mat-icon> Ir</span>
-            }
-            @if (!n.leida) { <span class="unread-dot"></span> }
-          </div>
-        </div>
-
-        <button class="btn-delete" [disabled]="estaArchivando(n.id)"
-          matTooltip="Archivar. Sigue disponible en el histórico."
-          (click)="archivar($event, n)">
-          @if (estaArchivando(n.id)) {
-            <mat-spinner diameter="14"></mat-spinner>
-          } @else {
-            <mat-icon>inventory_2</mat-icon>
-          }
-        </button>
-
+        }
       </div>
-    }
-  </div>
+    </section>
+  }
+
+  @if (grupos().length === 0) {
+    <div class="empty">
+      <mat-icon>filter_alt_off</mat-icon>
+      <h3>Nada con ese filtro</h3>
+      <p>No hay novedades de esa prioridad entre las cargadas.</p>
+      <button mat-stroked-button (click)="filtrarPrioridad(filtroPrioridad()!)">Quitar el filtro</button>
+    </div>
+  }
 
   @if (hasMore()) {
     <div class="load-more-row">

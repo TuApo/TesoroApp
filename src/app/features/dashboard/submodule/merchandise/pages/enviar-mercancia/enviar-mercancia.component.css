@@ -57,12 +57,12 @@
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     margin-bottom: 24px;
-    border: 1px solid rgba(0, 0, 0, 0.04);
+    border: 1px solid rgb(var(--ink-rgb) / 0.04);
 }
 
 .card-avatar {
-    background-color: #ccfbf1;
-    color: #0d9488;
+    background-color: #ccfbf1; background-color: light-dark(#ccfbf1, #123c43);
+    color: #0d9488; color: light-dark(#0d9488, #98f6ee);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -80,9 +80,16 @@
     align-items: start;
 }
 
+@media (max-width: 640px) {
+    /* El contenido del dashboard ya trae su margen en móvil. */
+    .page-container {
+        padding: 8px 0;
+    }
+}
+
 @media (max-width: 900px) {
     .two-column-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -94,7 +101,7 @@
 
 @media (max-width: 768px) {
     .form-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 

@@ -34,6 +34,11 @@ export interface BuildContratoAdministrativoOpts {
   user: any;
   /** nombre completo del usuario logueado (testigo 2) */
   nombreCompletoLogin: string;
+  /**
+   * Salario minimo del año de creacion del contrato (Parametrizacion de vacantes ›
+   * Salario minimo). Si llega, es el salario impreso; `null` = sin configuracion.
+   */
+  salarioMinimo?: number | null;
 }
 
 interface EmpresaConfig {
@@ -529,10 +534,12 @@ function renderDatosBasicos(
 
   const cargo = cargoDeVacante(o.vacante) || s(o.vacante?.cargo);
   // El salario se imprime en cifra + letras ("$ 2.500.000 DOS MILLONES ... PESOS
-  // M/C"): antes salia el valor crudo del serializer ("1750905.00"). Si la
-  // vacante no trae salario se cae al minimo legal, que es el piso de ley.
-  const salario =
-    salarioContratoCO(
+  // M/C"): antes salia el valor crudo del serializer ("1750905.00"). Manda el
+  // minimo del año del contrato (2026-09-16); sin configuracion, el de la vacante
+  // y, si esta no trae salario, el minimo legal, que es el piso de ley.
+  const salario = o.salarioMinimo != null
+    ? salarioContratoCO(o.salarioMinimo, 'M/C', o.salarioMinimo)
+    : salarioContratoCO(
       o.vacante?.salario ??
         o.candidato?.entrevistas?.[0]?.proceso?.vacante_salario ??
         o.candidato?.entrevistas?.[0]?.proceso?.contrato?.salario

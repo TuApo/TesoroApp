@@ -1,10 +1,8 @@
-import { ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
+import { SelectionModel } from '@angular/cdk/collections';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -17,6 +15,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { Observable, startWith, map } from 'rxjs';
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import {
   NominaService,
   Client,
@@ -40,9 +39,6 @@ import Swal from 'sweetalert2';
     SharedModule, 
     FormsModule,
     ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
     MatCardModule,
     MatFormFieldModule,
     MatSelectModule,
@@ -53,7 +49,8 @@ import Swal from 'sweetalert2';
     MatAutocompleteModule,
     MatDividerModule,
     MatCheckboxModule,
-    MatDialogModule
+    MatDialogModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './historico-nomina.component.html',
   styleUrls: ['./historico-nomina.component.css']
@@ -78,21 +75,28 @@ export class HistoricoNominaComponent implements OnInit {
   filteredClientes$!: Observable<Client[]>;
   filteredCecos$!: Observable<CostCenter[]>;
   
-  historicoDataSource = new MatTableDataSource<any>([]);
-  displayedColumns: string[] = [
-    'select',
-    'identificacion', 'nombre_completo', 'ceco_nombre',
-    'total_devengado', 'total_deducido', 'neto_pagar',
-    'estado_pago', 'liquidado_at'
+  /** Resultado de la última búsqueda en el histórico. */
+  historico: any[] = [];
+
+  readonly columnas: ColumnaTabla<any>[] = [
+    { id: 'identificacion', header: 'Identificación', valor: (r) => r.identificacion, tarjeta: 'subtitulo' },
+    { id: 'nombre_completo', header: 'Empleado', valor: (r) => r.nombre_completo, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'ceco_nombre', header: 'Centro de Costo', valor: (r) => r.ceco_nombre ?? '', prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'total_devengado', header: 'Devengado', valor: (r) => r.total_devengado, align: 'right', prioridad: 3, tarjeta: 'meta' },
+    { id: 'total_deducido', header: 'Deducido', valor: (r) => r.total_deducido, align: 'right', prioridad: 3, tarjeta: 'meta' },
+    { id: 'neto_pagar', header: 'Neto a Pagar', valor: (r) => r.neto_pagar, align: 'right', tarjeta: 'meta' },
+    { id: 'estado_pago', header: 'Estado', valor: (r) => r.estado_pago, tarjeta: 'badge',
+      badge: (r) => (r.estado_pago ? { texto: r.estado_pago, tono: this.tonoEstado(r.estado_pago) } : null) },
+    { id: 'liquidado_at', header: 'Fecha', prioridad: 2, tarjeta: 'meta',
+      valor: (r) => (r.liquidado_at ? new Date(r.liquidado_at) : null) },
   ];
 
-  /** IDs (id_nomina_emp) seleccionados para acción masiva. */
-  selectedIds = new Set<number>();
+  readonly idNomina = (r: any) => r.id_nomina_emp;
+
+  /** Nóminas marcadas con las casillas de la tabla para la acción masiva. */
+  readonly seleccion = new SelectionModel<any>(true, []);
   /** Estados permitidos para el cambio de estado_pago. */
   readonly estadosPermitidos: EstadoPagoNomina[] = ESTADOS_PAGO_NOMINA;
-
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
 
   isLoading = false;
 
@@ -120,10 +124,19 @@ export class HistoricoNominaComponent implements OnInit {
     private dialog: MatDialog,
   ) {}
 
+  /** Tono del chip de estado de pago. */
+  private tonoEstado(estado: string): TonoBadge {
+    switch ((estado || '').toUpperCase()) {
+      case 'PAGADA': case 'PAGADO': return 'ok';
+      case 'APROBADA': return 'info';
+      case 'PENDIENTE': return 'warn';
+      default: return 'neutro';
+    }
+  }
+
   /**
-   * Click sobre una fila del histórico → abre el preview del desprendible.
-   * El click en el checkbox de selección masiva se maneja aparte para que
-   * marcar una fila no dispare la apertura del dialog.
+   * «Ver» / doble clic sobre una fila del histórico → abre el preview del
+   * desprendible. Las casillas de selección masiva no lo disparan.
    */
   abrirDesprendible(row: any): void {
     if (row?.id_nomina_emp == null) return;
@@ -284,7 +297,7 @@ export class HistoricoNominaComponent implements OnInit {
     }
 
     this.isLoading = true;
-    this.selectedIds.clear();
+    this.seleccion.clear();
     this.resumen = null; // el resumen anterior queda obsoleto al re-buscar
     // Contexto para la cabecera del resumen (empresa · periodo).
     const empresaTxt = this.clientControl.value?.nombre_legal || 'Todas las empresas';
@@ -295,9 +308,7 @@ export class HistoricoNominaComponent implements OnInit {
     this.cargarResumen(params);
     this.nominaService.getHistorico(params).subscribe({
       next: (data) => {
-        this.historicoDataSource.data = data;
-        this.historicoDataSource.paginator = this.paginator;
-        this.historicoDataSource.sort = this.sort;
+        this.historico = data ?? [];
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -309,39 +320,12 @@ export class HistoricoNominaComponent implements OnInit {
     });
   }
 
-  // ── Selección masiva ────────────────────────────────────────────────────
-  isRowSelected(row: any): boolean {
-    return this.selectedIds.has(row.id_nomina_emp);
-  }
-
-  toggleRow(row: any, checked: boolean): void {
-    if (checked) this.selectedIds.add(row.id_nomina_emp);
-    else this.selectedIds.delete(row.id_nomina_emp);
-  }
-
-  isAllRowsSelected(): boolean {
-    const data = this.historicoDataSource.data;
-    return data.length > 0 && data.every(r => this.selectedIds.has(r.id_nomina_emp));
-  }
-
-  isSomeRowsSelected(): boolean {
-    return this.selectedIds.size > 0 && !this.isAllRowsSelected();
-  }
-
-  toggleAllRows(checked: boolean): void {
-    if (checked) {
-      this.historicoDataSource.data.forEach(r => this.selectedIds.add(r.id_nomina_emp));
-    } else {
-      this.historicoDataSource.data.forEach(r => this.selectedIds.delete(r.id_nomina_emp));
-    }
-  }
-
   /**
    * Abre un diálogo para elegir el nuevo estado y aplica el cambio a los
    * registros seleccionados. Funciona igual para uno solo o varios.
    */
   cambiarEstadoSeleccion(): void {
-    const ids = Array.from(this.selectedIds);
+    const ids = this.seleccion.selected.map(r => r.id_nomina_emp as number);
     if (ids.length === 0) {
       Swal.fire('Atención', 'Seleccione al menos una nómina para cambiar el estado.', 'info');
       return;
@@ -385,10 +369,11 @@ export class HistoricoNominaComponent implements OnInit {
     this.nominaService.cambiarEstadoNomina(ids, estado).subscribe({
       next: (resp) => {
         // Refleja el cambio localmente sin recargar
-        this.historicoDataSource.data = this.historicoDataSource.data.map(r =>
-          this.selectedIds.has(r.id_nomina_emp) ? { ...r, estado_pago: resp.estado || estado } : r
+        const cambiados = new Set(ids);
+        this.historico = this.historico.map(r =>
+          cambiados.has(r.id_nomina_emp) ? { ...r, estado_pago: resp.estado || estado } : r
         );
-        this.selectedIds.clear();
+        this.seleccion.clear();
         this.isLoading = false;
         this.cdr.markForCheck();
         // Actualiza el tablero de resumen con el estado ya persistido en BD,
@@ -413,12 +398,12 @@ export class HistoricoNominaComponent implements OnInit {
   }
 
   exportarExcel(): void {
-    if (this.historicoDataSource.data.length === 0) return;
+    if (this.historico.length === 0) return;
     
     const p = this.periodoControl.value;
     const desc = p?.descripcion || 'Historico';
 
-    const dataToExport = this.historicoDataSource.data.map(item => ({
+    const dataToExport = this.historico.map(item => ({
       'Identificación': item.identificacion,
       'Nombre Completo': item.nombre_completo,
       'Centro de Costo': item.ceco_nombre,

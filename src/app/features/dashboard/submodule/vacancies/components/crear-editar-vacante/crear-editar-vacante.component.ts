@@ -32,22 +32,16 @@ import { Observable, Subject, of } from 'rxjs';
 import { catchError, map, startWith, takeUntil } from 'rxjs/operators';
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
-import {
-  resolverDescripcionObra,
-  esDescripcionGenerada,
-  claveDescripcion,
-  fechaParaDescripcionVacante,
-} from '@/app/shared/data/labores-por-mes.data';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import {
   OpcionCentro,
-  OpcionEmpresa,
   OpcionTemporal,
   VacancyCascadeService,
   canonicalTemporal,
   ResultadoLabor,
 } from '../../service/vacancy-cascade/vacancy-cascade.service';
+import { CalendarioPago, CentroGrupoPago } from '../../../users/services/parametrizacion-vacantes/parametrizacion-vacantes.service';
 import {
   CargoAutorizado,
   ParametrizacionVacantesService,
@@ -102,6 +96,10 @@ const ETIQUETAS_CAMPO: Record<string, string> = {
   area_operativa_codigo: 'Área operativa',
   ubicacionPruebaTecnica: 'Ubicación de la prueba',
   empresa_ref: 'Empresa usuaria',
+  // El control se sigue llamando `descripcion` (es la clave del backend), pero en
+  // pantalla el campo es «Características del cargo»: el aviso tiene que nombrarlo
+  // como lo ve quien lo está llenando.
+  descripcion: 'Características del cargo',
 };
 
 export const MY_DATE_FORMATS = {
@@ -120,6 +118,18 @@ interface DistMunControls {
   cantidad: FormControl<number | null>;
 }
 type DistMunGroup = FormGroup<DistMunControls>;
+
+/**
+ * Grupos tipados del FormArray de DETALLES DE CARGO.
+ *
+ * «Personas solicitadas (total)» dice cuántas personas se piden; esto dice de qué:
+ * "Operario de corte 2", "Poscosecha 1". La suma tiene que dar exactamente el total.
+ */
+interface DetalleCargoControls {
+  detalle: FormControl<string>;
+  cantidad: FormControl<number | null>;
+}
+type DetalleCargoGroup = FormGroup<DetalleCargoControls>;
 
 type DepCiudades = { ciudades: string[] };
 
@@ -166,10 +176,44 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   // ── Cascada: Temporal → Empresa → Centro de costo → (Area) → Cargo ────────
   temporales: OpcionTemporal[] = [];
-  empresas: OpcionEmpresa[] = [];
-  centros: OpcionCentro[] = [];
+  /**
+   * Empresas del alcance, con «Todas las empresas» delante.
+   *
+   * La empresa dejó de ser un eslabón obligatorio para poder llegar al centro
+   * de costo: ahora es un FILTRO. Por eso el tipo admite `ref: null`, que es la
+   * opción de no filtrar.
+   */
+  empresas: Array<{ ref: number | null; nombre: string }> = [];
+  /**
+   * TODOS los centros de la temporal, sin filtrar por empresa.
+   *
+   * Se cargan de una vez al elegir la temporal para poder buscar el centro por
+   * su nombre sin saber a qué empresa pertenece —que es como se busca en la
+   * práctica: se recuerda la finca, no la razón social—. Lo que ve el
+   * desplegable es `centros`, que es esta lista recortada por el filtro.
+   */
+  centrosTemporal: OpcionCentro[] = [];
   areasOperativas: Array<{ id: number; codigo: string; nombre: string | null }> = [];
   cargosAutorizados: CargoAutorizado[] = [];
+
+  /**
+   * Lo que ofrece el desplegable de centro de costo.
+   *
+   * Sin empresa elegida son todos los de la temporal —así se puede buscar por
+   * nombre—; con empresa elegida, solo los suyos. Las opciones sin empresa
+   * conocida (las del maestro y la que trae la vacante guardada) no se filtran
+   * nunca: dejarlas fuera vaciaría el desplegable de una vacante que sí tiene
+   * centro.
+   */
+  get centros(): OpcionCentro[] {
+    const ref = this.vacanteForm?.get('empresa_ref')?.value ?? null;
+    if (ref == null) return this.centrosTemporal;
+    return this.centrosTemporal.filter((c) => c.empresaRef == null || c.empresaRef === ref);
+  }
+
+  /** Opción de cabecera del filtro de empresa: no filtrar. */
+  readonly EMPRESA_TODAS: { ref: number | null; nombre: string } =
+    { ref: null, nombre: 'Todas las empresas' };
 
   /** Temporal elegida. Decide de donde salen empresas y centros. */
   temporalSel: OpcionTemporal | null = null;
@@ -184,6 +228,30 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   errorLabor: string | null = null;
   /** El centro encadena por area antes del cargo. Lo dicen los datos del centro. */
   modoPorArea = false;
+
+  // ── Grupo de pago, fechas de pago y casino (V115) ────────────────────────
+  // El grupo es del CENTRO: con uno solo se elige solo, con varios hay que
+  // decirlo, y sin ninguno no se puede publicar porque la vacante saldria sin
+  // fechas de pago ni casino que imprimir en el contrato.
+
+  /**
+   * TODO el catalogo de grupos de pago activos, con `asignada` diciendo cual tiene
+   * configurado el centro elegido. Se pueden elegir todos: el que no este asignado se
+   * ASIGNA al guardar (ver `guardar()`), pidiendo antes su calendario.
+   */
+  gruposPago: CentroGrupoPago[] = [];
+  /** Calendarios de pago activos. Solo se piden cuando hay que asignar un grupo. */
+  calendariosPago: CalendarioPago[] = [];
+  /** Hay un PUT de parametrizacion en vuelo: el boton no debe dispararse dos veces. */
+  asignandoGrupo = false;
+  /**
+   * Si este centro exige grupo de pago. Lo dice el BACKEND por los datos: solo las
+   * temporales que ya tienen esta parametrizacion lo exigen, asi que Tu Alianza sigue
+   * publicando como hasta ahora en vez de quedarse bloqueada.
+   */
+  exigeGrupoPago = false;
+  /** Codigo funcional cuando el backend no resuelve el pago o el casino. */
+  errorPagoCasino: string | null = null;
   /** Hay peticiones de la cascada en vuelo. */
   cargandoCascada = false;
 
@@ -250,32 +318,34 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
    * Campos que trae la ficha del centro de costo.
    *
    * Los que la ficha SÍ trae se bloquean: la vacante no es el sitio para
-   * cambiar la dirección o el salario de un centro. Antes se podían editar y
-   * solo se marcaban como "ajustado a mano", que es como decir que el dato de
-   * la vacante y el de la ficha podían discrepar sin que nadie lo revisara.
+   * cambiar la dirección de un centro. Antes se podían editar y solo se
+   * marcaban como "ajustado a mano", que es como decir que el dato de la
+   * vacante y el de la ficha podían discrepar sin que nadie lo revisara.
    *
    * Los que la ficha deja en blanco quedan ABIERTOS: el maestro no siempre da
-   * salario ni auxilio —cuando sus subcentros no coinciden llegan en null— y
-   * alguien tiene que poder completarlos.
+   * los datos y alguien tiene que poder completarlos.
    *
    * Bloquear no es esconder: `getRawValue()` incluye los deshabilitados, así
    * que el valor viaja igual en el payload.
    */
   readonly CAMPOS_HEREDADOS = ['empresa_usuaria_solicita', 'direccion', 'salario', 'auxilio_transporte'] as const;
 
+  /**
+   * Lo que NUNCA se bloquea, aunque la ficha del centro lo traiga.
+   *
+   * Decisión de negocio (2026-09-02): el salario y el auxilio se negocian por
+   * vacante. La ficha del centro sigue prellenándolos —es el punto de partida
+   * bueno— pero quien publica tiene que poder ajustarlos sin ir a editar el
+   * maestro. Se quedan en `CAMPOS_HEREDADOS` para que sigan mostrando de qué
+   * centro vienen; lo que cambia es que no se deshabilitan.
+   */
+  private readonly CAMPOS_SIEMPRE_EDITABLES: readonly string[] = ['salario', 'auxilio_transporte'];
+
+  /** Salario mínimo legal mensual vigente: el valor por defecto de toda vacante. */
+  static readonly SALARIO_MINIMO = 1750905;
+
   /** Campos heredados que quedaron abiertos porque la ficha no los trae. */
   private abiertos = new Set<string>();
-
-  /** true si alguno quedó abierto; lo dice el rótulo del bloque. */
-  get hayHeredadosAbiertos(): boolean {
-    return this.abiertos.size > 0;
-  }
-
-  /** Texto bajo un campo heredado. */
-  ayudaHeredado(control: string): string | undefined {
-    if (!this.heredadoDe) return undefined;
-    return this.abiertos.has(control) ? 'Su ficha no lo trae: complétalo aquí' : undefined;
-  }
 
   /**
    * Bloquea lo que la ficha del centro trae y abre lo que deja en blanco.
@@ -297,7 +367,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     for (const nombre of this.CAMPOS_HEREDADOS) {
       const ctrl = this.vacanteForm.get(nombre);
       if (!ctrl) continue;
-      if (centro && trae[nombre]) {
+      if (centro && trae[nombre] && !this.CAMPOS_SIEMPRE_EDITABLES.includes(nombre)) {
         ctrl.disable({ emitEvent: false });
       } else {
         ctrl.enable({ emitEvent: false });
@@ -391,13 +461,19 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   detalleTemporal = (t: OpcionTemporal) =>
     t.parametrizada ? null : 'Sin parametrizar · los centros salen del maestro';
 
-  valorEmpresa = (e: OpcionEmpresa) => e.ref;
-  etiquetaEmpresa = (e: OpcionEmpresa) => e.nombre;
+  valorEmpresa = (e: { ref: number | null }) => e.ref;
+  etiquetaEmpresa = (e: { nombre: string }) => e.nombre;
 
   valorCentro = (c: OpcionCentro) => c.clave;
   etiquetaCentro = (c: OpcionCentro) => c.label;
   /** La empresa es lo que distingue dos fincas homónimas. */
   detalleCentro = (c: OpcionCentro) => c.empresa;
+
+  valorGrupoPago = (g: CentroGrupoPago) => g.grupo_pago_id;
+  // Solo el NOMBRE. Antes la segunda linea traia las fechas de pago del calendario, pero
+  // son cuatro renglones por opcion: la lista dejaba de leerse y de caber. Las fechas
+  // siguen viendose, en su propio campo, en cuanto se elige el grupo.
+  etiquetaGrupoPago = (g: CentroGrupoPago) => g.nombre;
 
   valorArea = (a: { id: number; codigo: string; nombre: string | null }) => a.codigo;
   etiquetaArea = (a: { id: number; codigo: string; nombre: string | null }) => a.nombre || a.codigo;
@@ -415,16 +491,147 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   /** Texto de apoyo del selector de empresa. */
   get ayudaEmpresa(): string | undefined {
     if (!this.temporalSel) return 'Elige primero la temporal.';
+    return 'Opcional: recorta la lista de centros.';
+  }
+
+  /**
+   * Texto de apoyo del selector de centro de costo.
+   *
+   * Ya no manda elegir la empresa: el centro se busca por nombre entre todos
+   * los de la temporal y es él quien trae su empresa.
+   */
+  get ayudaCentro(): string | undefined {
+    if (!this.temporalSel) return 'Elige primero la temporal.';
+    return 'Búscalo por nombre: trae su empresa y su dirección.';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // LABOR RESUELTA (sección 3 · Vinculación)
+  // ────────────────────────────────────────────────────────────────────────
+  // Es el texto que ANTES se volcaba en «Descripción». Ahora vive aquí, junto a
+  // la fecha de ingreso que lo determina, y se muestra como dato resuelto: no se
+  // teclea, lo devuelve `resolver-labor` a partir del centro, el cargo y el MES
+  // DE INGRESO. Se guarda en `labor_descripcion_snapshot`, que ya viajaba en el
+  // payload como parte de la traza de la labor.
+
+  /** true cuando ya hay fecha de ingreso: es lo único que activa la labor. */
+  get hayFechaIngreso(): boolean {
+    return !!this.soloDia(this.vacanteForm?.get('fechadeIngreso')?.value);
+  }
+
+  /** Labor resuelta para esa fecha de ingreso. Vacío = todavía no se resolvió. */
+  get laborResuelta(): string {
+    return String(this.vacanteForm?.get('labor_descripcion_snapshot')?.value ?? '').trim();
+  }
+
+  /**
+   * Fecha de ingreso en texto, para la nota del campo.
+   *
+   * Se formatea aquí y no con el pipe `date`: el diálogo usa `MomentDateAdapter`,
+   * así que el valor del calendario es un Moment y el pipe no lo acepta.
+   */
+  get textoFechaIngreso(): string {
+    const d = this.soloDia(this.vacanteForm?.get('fechadeIngreso')?.value);
+    return d ? d.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  }
+
+  /**
+   * Mes de la fecha de ingreso, en letra.
+   *
+   * Se pinta bajo el campo porque es LA pregunta que levanta ese texto: de qué
+   * mes es la labor. Todas las reglas de un mismo area suelen decir lo mismo los
+   * doce meses salvo por el codigo que llevan delante (1AD, 2AD…), así que sin
+   * nombrar el mes parece que el campo no reacciona a la fecha.
+   */
+  get mesIngreso(): string {
+    const d = this.soloDia(this.vacanteForm?.get('fechadeIngreso')?.value);
+    if (!d) return '';
+    const m = d.toLocaleDateString('es-CO', { month: 'long' });
+    return m.charAt(0).toUpperCase() + m.slice(1);
+  }
+
+  /**
+   * Por qué el campo está vacío teniendo ya fecha de ingreso.
+   *
+   * Se dice el motivo en vez de dejar un hueco: sin cargo no hay nada que
+   * resolver, y con cargo pero sin parametrización el detalle sale del aviso
+   * `errorLabor` que ya se pinta debajo.
+   */
+  get avisoLabor(): string | undefined {
+    if (this.laborResuelta) return undefined;
+    if (!String(this.vacanteForm?.get('cargo')?.value ?? '').trim()) {
+      return 'Elige el cargo en «La vacante» para que se resuelva la labor.';
+    }
+    if (this.cargandoCascada) return 'Resolviendo la labor…';
+    return 'No hay labor parametrizada para este centro, cargo y mes de ingreso.';
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // GRUPO DE PAGO, FECHAS DE PAGO Y CASINO (sección 2 · La vacante)
+  // ────────────────────────────────────────────────────────────────────────
+  // Los tres los resuelve el backend a partir del centro y del grupo elegido, y
+  // llegan en solo lectura: son parametrización del centro, no algo que quien
+  // publica deba recordar ni pueda ajustar aquí.
+
+  /** El grupo elegido, si sigue entre los del centro. */
+  get grupoPagoSel(): CentroGrupoPago | null {
+    const id = this.vacanteForm?.get('grupo_pago_ref')?.value ?? null;
+    return this.gruposPago.find((g) => g.grupo_pago_id === id) ?? null;
+  }
+
+  /** Los que este centro YA tiene configurados, con su calendario. */
+  get gruposPagoAsignados(): CentroGrupoPago[] {
+    return this.gruposPago.filter((g) => g.asignada);
+  }
+
+  /**
+   * El grupo elegido todavia no es de este centro. Entonces hace falta su calendario, y
+   * al guardar se asigna en el parametrizador.
+   */
+  get grupoPorAsignar(): boolean {
+    const sel = this.grupoPagoSel;
+    return !!sel && !sel.asignada;
+  }
+
+  /** El centro aun no tiene ningun grupo configurado. Ya no bloquea: se puede asignar. */
+  get centroSinGruposPago(): boolean {
+    return this.exigeGrupoPago && this.centroSel?.id != null && this.gruposPagoAsignados.length === 0;
+  }
+
+  /** Solo se pregunta el grupo cuando hay más de uno; con uno se pone solo. */
+  get eligeGrupoPago(): boolean {
+    return this.exigeGrupoPago && this.gruposPago.length > 0;
+  }
+
+  get fechasPagoResueltas(): string {
+    return String(this.vacanteForm?.get('fechas_pago_texto_snapshot')?.value ?? '').trim();
+  }
+
+  get casinoResuelto(): string {
+    return String(this.vacanteForm?.get('casino_texto_snapshot')?.value ?? '').trim();
+  }
+
+
+  /** Texto de apoyo del selector de grupo de pago. */
+  get ayudaGrupoPago(): string | undefined {
+    if (this.centroSinGruposPago) {
+      return 'Este centro no tiene grupos de pago configurados: no se puede publicar.';
+    }
+    if (this.gruposPagoAsignados.length === 1 && !this.grupoPorAsignar) {
+      return 'El centro solo tiene configurado este grupo: se elige solo.';
+    }
+    if (this.grupoPorAsignar) {
+      return 'Este centro aún no tiene este grupo: se le asignará al guardar.';
+    }
     return undefined;
   }
 
-  /** Texto de apoyo del selector de centro de costo. */
-  get ayudaCentro(): string | undefined {
-    if (!this.temporalSel) return 'Elige primero la temporal.';
-    if (this.parametrizada && !this.vacanteForm?.get('empresa_ref')?.value) {
-      return 'Elige primero la empresa.';
-    }
-    return undefined;
+  /** Texto de apoyo del campo Dirección. */
+  get ayudaDireccion(): string | undefined {
+    if (!this.heredadoDe) return undefined;
+    return this.abiertos.has('direccion')
+      ? 'Su ficha no la trae: complétala aquí'
+      : `Viene de la ficha de ${this.heredadoDe}`;
   }
 
   /** Texto de apoyo del selector de cargo. */
@@ -452,8 +659,13 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   /** Qué controles mira cada sección. `extra` son reglas que no son un control. */
   private readonly SECCIONES: ReadonlyArray<{ id: number; controles: string[] }> = [
-    { id: 1, controles: ['temporal', 'centro_clave', 'empresa_usuaria_solicita', 'direccion', 'salario', 'auxilio_transporte'] },
-    { id: 2, controles: ['cargo', 'area_operativa_codigo', 'area', 'personas_solicitadas', 'tipo_contratacion', 'experiencia', 'codigo_elite', 'descripcion'] },
+    // Empresa, salario y auxilio ya no se pintan (se retiró la fila de datos
+    // heredados): siguen viajando en el payload, pero contarlos aquí dejaba la
+    // barra en rojo por campos que nadie puede ver ni tocar.
+    { id: 1, controles: ['temporal', 'centro_clave', 'direccion'] },
+    // `grupo_pago_ref` cuenta en la 2: el desplegable se pregunta tras el codigo bot,
+    // y la barra tiene que medir la seccion donde el campo esta a la vista.
+    { id: 2, controles: ['cargo', 'area_operativa_codigo', 'area', 'personas_solicitadas', 'tipo_contratacion', 'experiencia', 'codigo_elite', 'grupo_pago_ref', 'descripcion'] },
     { id: 3, controles: ['prueba_ocontratacion', 'fechadeIngreso', 'fechadePruebatecnica', 'horade_pruebatecnica', 'ubicacionPruebaTecnica'] },
     { id: 4, controles: ['municipio'] },
     { id: 5, controles: ['oficinasSeleccionadas'] },
@@ -497,6 +709,17 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       if (!bloqueadoConValor && !this.esObligatorio(ctrl)) continue;
       total++;
       if (this.tieneValor(ctrl)) hechos++;
+    }
+    // La sección 2 tampoco se resuelve con el total a secas: el desglose por
+    // detalle de cargo tiene que sumarlo exacto, y ese error deja `guardar()`
+    // bloqueado. Sin contarlo aquí, la barra decía 100% con el diálogo sin
+    // responder al botón.
+    if (id === 2) {
+      total++;
+      const lineasCompletas = this.detallesCargo.controls.every(
+        (c) => !!(c.get('detalle')!.value || '').toString().trim()
+      );
+      if (this.detallesCargo.length && lineasCompletas && this.restanteDetallesCargo === 0) hechos++;
     }
     // La sección 4 no se resuelve con que haya municipios: el reparto tiene que
     // sumar exactamente el total pedido, que es lo que valida el formulario.
@@ -646,7 +869,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
         cargo: ['', Validators.required],
         finca: ['', Validators.required],
-        empresa_usuaria_solicita: ['', Validators.required],
+        // Sin `required` A PROPÓSITO desde que se retiró la fila de heredados: lo
+        // rellena el centro de costo y ya no hay campo donde completarlo, así que
+        // un obligatorio vacío aquí dejaba `guardar()` sin responder y sin nada
+        // rojo que mirar (58 de los 1.041 centros del maestro no traen empresa).
+        empresa_usuaria_solicita: [''],
         direccion: ['', Validators.required],
 
         experiencia: ['', Validators.required],
@@ -656,7 +883,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim(),
         ],
         estadovacante: ['Activa'],
-        salario: [1750905, [Validators.required, Validators.min(0)]],
+        salario: [CrearEditarVacanteComponent.SALARIO_MINIMO, [Validators.required, Validators.min(0)]],
         codigo_elite: [''],
 
         // Condicional 1: Fecha de ingreso
@@ -669,12 +896,20 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         horade_pruebatecnica: [{ value: '', disabled: true }],
         ubicacionPruebaTecnica: [{ value: '', disabled: true }],
 
-        tipo_contratacion: ['', Validators.required],
+        // Arranca en «Obra Labor» (2026-09-03, a petición del usuario): es el tipo
+        // con el que se publica casi siempre y el ÚNICO que puede fijar el rol
+        // CONTRATACION, así que empezar en blanco era un paso de más para todos.
+        // Los roles sin límite lo siguen pudiendo cambiar.
+        tipo_contratacion: [TIPO_UNICO_CONTRATACION, Validators.required],
 
         municipio: [[], Validators.required],
         barrio: [''],
 
         personas_solicitadas: [null, [Validators.required, Validators.min(1)]],
+        // Desglose del total por detalle de cargo. Arranca vacío: la primera línea la
+        // siembra `sembrarDetalleCargo()` en cuanto el total tiene valor, para que el
+        // campo aparezca justo DESPUÉS de decir cuántas personas se piden.
+        detallesCargo: this.fb.array<DetalleCargoGroup>([]),
         municipiosDistribucion: this.fb.array<DistMunGroup>([]),
 
         // Arranca VACIO y no en 0: con 0 `Validators.required` pasaba (0 no es
@@ -705,6 +940,24 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         esquema_labor_codigo: [null as string | null],
         labor_origen_resolucion: [null as string | null],
 
+        // Grupo de pago de la vacante y traza de lo que resolvio el backend
+        // (columnas V18 de db_automation). Los textos son SNAPSHOT: se guardan
+        // congelados para que un cambio posterior en el calendario o en los
+        // valores del casino no reescriba lo que ya se publico.
+        grupo_pago_ref: [null as number | null],
+        // SOLO PANTALLA: el calendario con el que se asignara el grupo al centro cuando
+        // este todavia no lo tenga. No es un campo de la vacante —el payload de
+        // `vacancy-list` solo manda claves conocidas— y se usa en `guardar()` para el PUT
+        // del parametrizador. Lo que la vacante guarda es el `calendario_pago_ref` que
+        // devuelve la resolucion, no esto.
+        calendario_pago_nuevo: [null as number | null],
+        grupo_pago_nombre_snapshot: [null as string | null],
+        calendario_pago_ref: [null as number | null],
+        fechas_pago_texto_snapshot: [null as string | null],
+        politica_casino_ref: [null as number | null],
+        casino_origen_resolucion: [null as string | null],
+        casino_texto_snapshot: [null as string | null],
+
         // Oficinas
         oficinasSeleccionadas: [[], Validators.required],
         oficinas_que_contratan: this.fb.array([]),
@@ -713,6 +966,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         validators: [
           this.sumNoExcedeTotalValidator(),
           this.sumIgualTotalValidator(), // ✅ NUEVO: NO deja guardar si la suma no cuadra
+          this.sumDetallesIgualTotalValidator(),
         ],
       }
     );
@@ -821,11 +1075,25 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .valueChanges.pipe(startWith(this.vacanteForm.get('municipio')!.value), takeUntilDestroyed(this.destroyRef))
       .subscribe((actual: unknown) => this.syncDistribucionConSeleccion(Array.isArray(actual) ? actual : []));
 
-    // ✅ Revalida si cambia el total
+    // ✅ Revalida si cambia el total. Y abre el desglose por detalle de cargo en
+    // cuanto el total tiene valor: es el campo que va justo detrás.
     this.vacanteForm
       .get('personas_solicitadas')!
       .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.sembrarDetalleCargo();
+        this.vacanteForm.updateValueAndValidity({ emitEvent: false });
+      });
+
+    // ✅ Revalida al tocar cualquier cantidad del desglose, para que el aviso de
+    // "faltan/sobran" se actualice mientras se escribe y no solo al guardar.
+    this.detallesCargo.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.vacanteForm.updateValueAndValidity({ emitEvent: false }));
+
+    // Una vacante que se abre con total ya puesto (edición) también tiene que
+    // mostrar el desglose sin esperar a que alguien toque el campo.
+    this.sembrarDetalleCargo();
 
     // ✅ Revalida cuando cambie cualquier cantidad de distribución (para que el mensaje se actualice al instante)
     this.municipiosDistribucion.valueChanges
@@ -863,11 +1131,12 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           .setValue(this.vacanteForm.get('fechadeIngreso')!.value ? this.SI : 'No', { emitEvent: false });
       });
 
+    // `fechadePruebatecnica` y `fecha_publicado` salieron de esta lista: la labor
+    // depende SOLO de la fecha de ingreso, así que tocarlas ya no puede cambiarla
+    // y solo provocaba una consulta de más por cada pulsación del calendario.
     const disparan = [
       'cargo',
       'fechadeIngreso',
-      'fechadePruebatecnica',
-      'fecha_publicado',
       'temporal',
       'prueba_ocontratacion',
       'finca',
@@ -877,10 +1146,10 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       this.vacanteForm
         .get(campo)!
         .valueChanges.pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe(() => this.sugerirDescripcion());
+        .subscribe(() => this.resolverLaborDelCargo());
     }
 
-    this.sugerirDescripcion();
+    this.resolverLaborDelCargo();
   }
 
   ngOnDestroy(): void {
@@ -1122,6 +1391,133 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     };
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // DETALLE DE CARGO: desglose del total solicitado
+  // ──────────────────────────────────────────────────────────────────────────
+  // El total dice CUÁNTAS personas se piden; estas líneas dicen DE QUÉ. Van
+  // pegadas al total a propósito: es el dato que se acaba de escribir y el que
+  // tienen que sumar. La regla es la misma que en el reparto por municipio —la
+  // suma tiene que dar el total exacto— y por eso se resuelve igual: un error
+  // de formulario que deja `guardar()` bloqueado hasta que cuadre.
+
+  get detallesCargo(): FormArray<DetalleCargoGroup> {
+    return this.vacanteForm.get('detallesCargo') as FormArray<DetalleCargoGroup>;
+  }
+
+  /** Suma de las cantidades del desglose. */
+  get totalDetallesCargo(): number {
+    return this.detallesCargo.controls
+      .map((c) => Number(c.get('cantidad')!.value) || 0)
+      .reduce((a: number, b: number) => a + b, 0);
+  }
+
+  /** Lo que falta por desglosar. Negativo cuando se pasó del total. */
+  get restanteDetallesCargo(): number {
+    const total = Number(this.vacanteForm.get('personas_solicitadas')!.value) || 0;
+    return total - this.totalDetallesCargo;
+  }
+
+  /** true cuando el desglose se pasó del total (el resumen cambia de rótulo). */
+  get sobranDetallesCargo(): boolean {
+    return this.restanteDetallesCargo < 0;
+  }
+
+  /** Cuánto se desvía el desglose del total, siempre en positivo. */
+  get desviacionDetallesCargo(): number {
+    return Math.abs(this.restanteDetallesCargo);
+  }
+
+  /** Una línea nueva del desglose. Arranca en 1, que es el mínimo que admite. */
+  private nuevoDetalleCargo(detalle = '', cantidad = 1): DetalleCargoGroup {
+    return this.fb.group<DetalleCargoControls>({
+      detalle: this.fb.control<string>(detalle, {
+        nonNullable: true,
+        validators: [Validators.required],
+      }),
+      cantidad: this.fb.control<number | null>(Math.max(1, Math.trunc(cantidad) || 1), [
+        Validators.required,
+        Validators.min(1),
+      ]),
+    });
+  }
+
+  agregarDetalleCargo(): void {
+    this.detallesCargo.push(this.nuevoDetalleCargo());
+    this.vacanteForm.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * Quita una línea. La última no se quita: el desglose es obligatorio desde que
+   * hay un total, y dejarlo en cero solo escondería el descuadre.
+   */
+  quitarDetalleCargo(i: number): void {
+    if (this.detallesCargo.length <= 1) return;
+    this.detallesCargo.removeAt(i);
+    this.vacanteForm.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /**
+   * Los dos botones del contador. El teclado sigue funcionando sobre el input,
+   * pero con `min="1"` el navegador no impide TECLEAR un 0: por eso el valor se
+   * sanea aquí y en `normalizarCantidadDetalle`.
+   */
+  subirCantidadDetalle(i: number): void {
+    const ctrl = this.detallesCargo.at(i)?.get('cantidad');
+    if (!ctrl) return;
+    ctrl.setValue((Number(ctrl.value) || 0) + 1);
+    ctrl.markAsTouched();
+  }
+
+  bajarCantidadDetalle(i: number): void {
+    const ctrl = this.detallesCargo.at(i)?.get('cantidad');
+    if (!ctrl) return;
+    ctrl.setValue(Math.max(1, (Number(ctrl.value) || 1) - 1));
+    ctrl.markAsTouched();
+  }
+
+  /** Al salir del input: entero y nunca por debajo de 1. */
+  normalizarCantidadDetalle(i: number): void {
+    const ctrl = this.detallesCargo.at(i)?.get('cantidad');
+    if (!ctrl) return;
+    const n = Math.trunc(Number(ctrl.value));
+    ctrl.setValue(Number.isFinite(n) && n >= 1 ? n : 1);
+  }
+
+  /**
+   * La primera línea aparece sola en cuanto el total tiene valor, que es lo que
+   * se pidió: escribir "personas solicitadas" y encontrarse el desglose abierto.
+   * No se siembra nada mientras el total esté vacío ni si ya hay líneas (editar
+   * una vacante guardada no debe añadirle una fila en blanco).
+   */
+  private sembrarDetalleCargo(): void {
+    const total = Number(this.vacanteForm.get('personas_solicitadas')!.value) || 0;
+    if (total < 1 || this.detallesCargo.length) return;
+    this.detallesCargo.push(this.nuevoDetalleCargo());
+  }
+
+  /**
+   * La suma del desglose tiene que ser EXACTAMENTE el total: ni pasarse (se
+   * estarían pidiendo más personas de las autorizadas) ni quedarse corto (habría
+   * cupos sin decir para qué son). Se distinguen los dos casos porque el aviso
+   * tiene que decir cuál de los dos es.
+   */
+  private sumDetallesIgualTotalValidator(): ValidatorFn {
+    return (group: AbstractControl) => {
+      const arr = group.get('detallesCargo') as FormArray | null;
+      if (!arr || arr.length === 0) return null;
+
+      const total = Number(group.get('personas_solicitadas')?.value) || 0;
+      if (total <= 0) return null;
+
+      const suma = (arr.controls || [])
+        .map((c) => Number(c.get('cantidad')?.value) || 0)
+        .reduce((a: number, b: number) => a + b, 0);
+
+      if (suma > total) return { excesoDetallesCargo: true };
+      return suma === total ? null : { faltanDetallesCargo: true };
+    };
+  }
+
   // ---------- Filtro de municipios ----------
 
 
@@ -1187,7 +1583,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
       quienpublicolavacante: v?.quienpublicolavacante ?? '',
       estadovacante: v?.estadovacante ?? 'Activa',
-      salario: v?.salario ?? 1750905,
+      // Una vacante guardada sin salario (o en 0) se abre con el mínimo legal.
+      salario: Number(v?.salario) > 0 ? Number(v?.salario) : CrearEditarVacanteComponent.SALARIO_MINIMO,
       codigo_elite: v?.codigo_elite ?? '',
 
       oficinasSeleccionadas: Array.isArray(v?.oficinas_que_contratan)
@@ -1199,7 +1596,10 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
       horade_pruebatecnica: v?.horade_pruebatecnica ?? '',
       ubicacionPruebaTecnica: v?.ubicacionPruebaTecnica ?? '',
-      tipo_contratacion: v?.tipo_contratacion ?? '',
+      // Al reabrir manda lo GUARDADO; solo se cae al valor por defecto si la
+      // vacante no traía tipo (el campo es obligatorio, así que en blanco dejaba
+      // el guardado bloqueado hasta elegirlo a mano).
+      tipo_contratacion: v?.tipo_contratacion || TIPO_UNICO_CONTRATACION,
       municipio: Array.isArray(v?.municipio) ? v.municipio : [],
       auxilio_transporte: v?.auxilio_transporte ?? '',
       personas_solicitadas: v?.personas_solicitadas ?? null,
@@ -1217,6 +1617,17 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       labor_descripcion_snapshot: v?.labor_descripcion_snapshot ?? null,
       esquema_labor_codigo: v?.esquema_labor_codigo ?? null,
       labor_origen_resolucion: v?.labor_origen_resolucion ?? null,
+
+      // Pago y casino: igual que la labor, se reponen TAL CUAL se publicaron.
+      // Reabrir una vacante no debe reescribir sus textos aunque el calendario
+      // o los valores del casino hayan cambiado desde entonces.
+      grupo_pago_ref: v?.grupo_pago_ref ?? null,
+      grupo_pago_nombre_snapshot: v?.grupo_pago_nombre_snapshot ?? null,
+      calendario_pago_ref: v?.calendario_pago_ref ?? null,
+      fechas_pago_texto_snapshot: v?.fechas_pago_texto_snapshot ?? null,
+      politica_casino_ref: v?.politica_casino_ref ?? null,
+      casino_origen_resolucion: v?.casino_origen_resolucion ?? null,
+      casino_texto_snapshot: v?.casino_texto_snapshot ?? null,
     });
 
     // Oficinas
@@ -1225,6 +1636,30 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     (Array.isArray(v?.oficinas_que_contratan) ? v.oficinas_que_contratan : []).forEach((o: any) =>
       fa.push(this.fb.group({ nombre: [o?.nombre ?? '', Validators.required] }))
     );
+
+    // Desglose por detalle de cargo.
+    //
+    // Las vacantes anteriores a la columna `detalles_cargo` (V17) no traen ninguno.
+    // NO se dejan en blanco: se siembra una línea con el cargo de la vacante y el
+    // total, que es el desglose que implícitamente tenían. Dejarla vacía habría
+    // bloqueado la edición de todas las vacantes ya publicadas con un campo
+    // obligatorio que nadie había podido llenar.
+    const detGuardados = Array.isArray(v?.detallesCargo)
+      ? v.detallesCargo
+      : (Array.isArray(v?.detalles_cargo) ? v.detalles_cargo : []);
+    const detFA = this.detallesCargo;
+    detFA.clear();
+
+    if (detGuardados.length) {
+      detGuardados.forEach((d: any) =>
+        detFA.push(this.nuevoDetalleCargo((d?.detalle ?? '').toString(), Number(d?.cantidad) || 1))
+      );
+    } else {
+      const totalGuardado = Number(v?.personas_solicitadas) || 0;
+      if (totalGuardado >= 1) {
+        detFA.push(this.nuevoDetalleCargo(String(v?.cargo ?? '').trim(), totalGuardado));
+      }
+    }
 
     // Distribución
     const dist = Array.isArray(v?.municipiosDistribucion) ? v.municipiosDistribucion : [];
@@ -1326,7 +1761,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       this.centroSel = null;
       this.heredadoDe = null;
       this.liberarHeredados();
-      this.centros = [];
+      this.centrosTemporal = [];
       this.areasOperativas = [];
       this.cargosAutorizados = [];
       this.modoPorArea = false;
@@ -1337,14 +1772,25 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     if (!this.temporalSel) return;
 
     if (this.temporalSel.parametrizada) {
+      // Las empresas y TODOS sus centros se piden de una vez. Antes los centros
+      // esperaban a que se eligiera una empresa, y eso obligaba a saber de qué
+      // empresa era la finca antes de poder buscarla.
       this.cargandoCascada = true;
       this.cascada
         .empresasDe(this.temporalSel.configRef)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((lista) => {
-          this.empresas = lista;
-          this.cargandoCascada = false;
+          this.empresas = [this.EMPRESA_TODAS, ...lista];
           if (opts.conservarSeleccion) this.reengancharEmpresaGuardada();
+
+          this.cascada
+            .centrosDeVarias(lista.map((e) => e.ref))
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((centros) => {
+              this.centrosTemporal = this.conCentroGuardado(centros);
+              this.cargandoCascada = false;
+              this.reengancharCentroGuardado();
+            });
         });
     } else {
       // Temporal sin alcance parametrizado: los centros salen del maestro y no
@@ -1354,14 +1800,21 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         .centrosDelMaestro(this.temporalSel.valor)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe((lista) => {
-          this.centros = this.conCentroGuardado(lista);
+          this.centrosTemporal = this.conCentroGuardado(lista);
           this.cargandoCascada = false;
           this.reengancharCentroGuardado();
         });
     }
   }
 
-  /** Cambió la empresa: se recargan sus centros. */
+  /**
+   * Cambió la empresa. Ya no dispara ninguna petición: los centros de la
+   * temporal están cargados y la empresa solo RECORTA la lista (`centros`).
+   *
+   * Sí se suelta el centro elegido: era de la empresa anterior, y dejarlo
+   * puesto es como se guardaba una vacante con la finca de una empresa y la
+   * razón social de otra.
+   */
   onEmpresaChange(ref: number | null): void {
     const empresa = this.empresas.find((e) => e.ref === ref) ?? null;
     this.vacanteForm.patchValue({
@@ -1376,20 +1829,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     }, { emitEvent: false });
     this.limpiarTrazaLabor();
     this.centroSel = null;
-    this.centros = [];
+    this.heredadoDe = null;
+    this.liberarHeredados();
     this.areasOperativas = [];
     this.cargosAutorizados = [];
     this.modoPorArea = false;
-
-    if (ref == null) return;
-    this.cargandoCascada = true;
-    this.cascada
-      .centrosDe(ref)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((lista) => {
-        this.centros = this.conCentroGuardado(lista);
-        this.cargandoCascada = false;
-      });
   }
 
   /**
@@ -1408,23 +1852,15 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private reengancharEmpresaGuardada(): void {
     const nombre = this.normalizarNombre(this.vacanteForm.get('empresa_usuaria_solicita')?.value);
     if (!nombre) return;
-    const empresa = this.empresas.find((e) => this.normalizarNombre(e.nombre) === nombre);
-    if (!empresa) {
-      // La empresa guardada ya no está en el alcance. La vacante sigue siendo
-      // editable: se ofrece su propio centro como única opción para no dejarla
-      // bloqueada por un cambio de parametrización posterior.
-      this.centros = this.conCentroGuardado([]);
-      this.reengancharCentroGuardado();
-      return;
+    const empresa = this.empresas.find(
+      (e) => e.ref != null && this.normalizarNombre(e.nombre) === nombre,
+    );
+    // Si la empresa guardada ya no está en el alcance no se filtra por ella: la
+    // vacante sigue editable porque `conCentroGuardado` mete su propio centro
+    // en la lista. Los centros los carga quien llama, en una sola petición.
+    if (empresa) {
+      this.vacanteForm.get('empresa_ref')!.setValue(empresa.ref, { emitEvent: false });
     }
-    this.vacanteForm.get('empresa_ref')!.setValue(empresa.ref, { emitEvent: false });
-    this.cascada
-      .centrosDe(empresa.ref)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((lista) => {
-        this.centros = this.conCentroGuardado(lista);
-        this.reengancharCentroGuardado();
-      });
   }
 
   /**
@@ -1444,12 +1880,17 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       {
         clave: `g:${finca}`,
         id: this.vacanteForm.get('centro_costo_id')?.value ?? null,
+        // Sin referencia de empresa: el filtro de empresa NO la descarta nunca,
+        // que es justo lo que se quiere para el centro que la vacante ya tiene.
+        empresaRef: null,
         finca,
         label: `${finca} (guardado en la vacante)`,
         empresa: String(this.vacanteForm.get('empresa_usuaria_solicita')?.value ?? '') || null,
         direccion: String(this.vacanteForm.get('direccion')?.value ?? '') || null,
         temporal: String(this.vacanteForm.get('temporal')?.value ?? '') || null,
-        salario: null,
+        // Sin centro, el salario vuelve al mínimo legal: `null` dejaba el campo
+        // vacío y obligatorio, y la vacante no se podía guardar sin teclearlo.
+        salario: CrearEditarVacanteComponent.SALARIO_MINIMO,
         auxilio_transporte: null,
       },
       ...lista,
@@ -1483,17 +1924,39 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       centro_costo_id: centro.id,
       centro_clave: centro.clave,
     };
-    if (centro.empresa) patch['empresa_usuaria_solicita'] = centro.empresa;
+    // La empresa ya no se ve, así que si el centro no la trae se cae a la del
+    // filtro antes que dejarla en blanco en la vacante publicada.
+    const empresaFiltro = this.empresas.find(
+      (e) => e.ref != null && e.ref === this.vacanteForm.get('empresa_ref')?.value,
+    )?.nombre;
+    if (centro.empresa || empresaFiltro) {
+      patch['empresa_usuaria_solicita'] = centro.empresa || empresaFiltro;
+    }
     if (centro.direccion) patch['direccion'] = centro.direccion;
+    // El centro TRAE su empresa: al buscarlo por nombre, el filtro de empresa se
+    // pone solo en la que le corresponde en vez de quedarse en «Todas» dando la
+    // impresión de que ese dato quedó sin resolver.
+    if (centro.empresaRef != null) patch['empresa_ref'] = centro.empresaRef;
 
     // Pago y transporte son datos DEL CENTRO, no algo que quien publica tenga
     // que recordar. Solo entran cuando la fuente los da sin ambigüedad (mismo
     // valor en todos los subcentros); si difieren llega null y se deja lo que
     // haya para digitarlo.
-    if (opts.pisarAjustes && centro.salario != null && Number(centro.salario) > 0) {
-      patch['salario'] = Number(centro.salario);
+    if (opts.pisarAjustes) {
+      // El centro manda si trae un salario real; si no lo trae —o llega en 0
+      // porque sus subcentros no coinciden— se pone el mínimo legal. Dejarlo
+      // vacío obligaba a teclearlo en cada vacante y era el hueco por el que
+      // salían publicaciones sin salario.
+      const delCentro = Number(centro.salario);
+      patch['salario'] = Number.isFinite(delCentro) && delCentro > 0
+        ? delCentro
+        : CrearEditarVacanteComponent.SALARIO_MINIMO;
     }
-    if (opts.pisarAjustes && centro.auxilio_transporte != null) {
+    if (opts.pisarAjustes) {
+      // Se resuelve SIEMPRE, no solo cuando la ficha lo dice. El campo dejó de
+      // estar en pantalla y sigue siendo obligatorio: dejarlo vacío bloqueaba el
+      // guardado sin decir por qué. `No` es el mismo valor por defecto que ya
+      // tiene la entidad `CentroCosto` en el backend.
       patch['auxilio_transporte'] = centro.auxilio_transporte ? 'Si' : 'No';
     }
 
@@ -1515,10 +1978,14 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       this.limpiarTrazaLabor();
     }
 
+    // Grupos de pago del centro: se piden SIEMPRE que el centro esté
+    // parametrizado, incluso al reabrir, porque de ellos depende poder guardar.
+    this.cargarPagoDelCentro(centro.id, opts.pisarAjustes);
+
     // Un centro del maestro no tiene parametrización que consultar: el cargo
     // sigue siendo el autocompletado del maestro de cargos.
     if (centro.id == null) {
-      this.sugerirDescripcion();
+      this.resolverLaborDelCargo();
       return;
     }
 
@@ -1567,7 +2034,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .subscribe((lista) => {
         this.cargosAutorizados = this.conCargoGuardado(lista);
         this.cargandoCascada = false;
-        this.sugerirDescripcion();
+        this.resolverLaborDelCargo();
       });
   }
 
@@ -1609,7 +2076,198 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       .setValue(cargo?.configuracion_id ?? null, { emitEvent: false });
     this.vacanteForm.get('esquema_labor_codigo')!
       .setValue(cargo?.esquema_codigo ?? null, { emitEvent: false });
-    this.sugerirDescripcion();
+    this.resolverLaborDelCargo();
+  }
+
+  /**
+   * Carga los grupos de pago del centro y decide qué hacer con ellos.
+   *
+   * Con UNO se elige solo —preguntar por algo que no tiene alternativa es ruido—;
+   * con VARIOS el grupo pasa a ser obligatorio; con NINGUNO se avisa y el
+   * guardado queda bloqueado, porque la vacante saldría sin fechas de pago ni
+   * casino que imprimir.
+   *
+   * `pisar` es false al reabrir una vacante: lo que se guardó manda sobre lo que
+   * hoy diga la parametrización, igual que con la traza de la labor.
+   */
+  private cargarPagoDelCentro(centroId: number | null, pisar: boolean): void {
+    if (centroId == null) {
+      this.gruposPago = [];
+      this.exigeGrupoPago = false;
+      this.errorPagoCasino = null;
+      this.aplicarObligatoriedadGrupoPago();
+      if (pisar) this.limpiarTrazaPago();
+      return;
+    }
+    this.cascada
+      .modoPagoDe(centroId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((modo) => {
+        this.exigeGrupoPago = !!modo?.exige_grupo_pago;
+        this.cascada
+          .gruposPagoDe(centroId)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe((grupos) => {
+            this.gruposPago = grupos;
+            const guardado = this.vacanteForm.get('grupo_pago_ref')?.value ?? null;
+            const sigueValido = !pisar && grupos.some((g) => g.grupo_pago_id === guardado);
+            // `grupos` es el catalogo entero; el que se pone SOLO es el del CENTRO, y solo
+            // cuando tiene exactamente uno configurado. Con el catalogo se elegiria siempre
+            // el primero y la vacante saldria en un grupo que nadie escogio.
+            const delCentro = grupos.filter((g) => g.asignada);
+            const elegido = sigueValido
+              ? guardado
+              : (delCentro.length === 1 ? delCentro[0].grupo_pago_id : null);
+            this.vacanteForm.get('grupo_pago_ref')!.setValue(elegido, { emitEvent: false });
+            this.aplicarObligatoriedadGrupoPago();
+            if (elegido == null) {
+              if (pisar) this.limpiarTrazaPago();
+              this.errorPagoCasino = null;
+              return;
+            }
+            this.resolverPagoCasinoDelGrupo();
+          });
+      });
+  }
+
+  /**
+   * El grupo es obligatorio cuando hay entre qué elegir; el CALENDARIO lo es solo
+   * mientras el grupo elegido no sea de este centro, porque sin él no se puede asignar
+   * (el backend exige `calendario_pago_id` en cada item) y no hay forma de inventarse
+   * cuándo se paga.
+   */
+  private aplicarObligatoriedadGrupoPago(): void {
+    const ctrl = this.vacanteForm?.get('grupo_pago_ref');
+    if (ctrl) {
+      if (this.eligeGrupoPago) ctrl.addValidators(Validators.required);
+      else ctrl.removeValidators(Validators.required);
+      ctrl.updateValueAndValidity({ emitEvent: false });
+    }
+
+    const cal = this.vacanteForm?.get('calendario_pago_nuevo');
+    if (cal) {
+      if (this.grupoPorAsignar) cal.addValidators(Validators.required);
+      else cal.removeValidators(Validators.required);
+      cal.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
+  /** Cambió el grupo de pago: se vuelven a resolver fechas de pago y casino. */
+  onGrupoPagoChange(_id: number | null): void {
+    this.limpiarTrazaPago({ conservarGrupo: true });
+    this.aplicarObligatoriedadGrupoPago();
+
+    // El grupo no es (todavia) de este centro. No se pregunta al backend: responderia 409
+    // GRUPO_PAGO_NO_CONFIGURADO, que es justo lo que ya sabemos por `asignada`. En su
+    // lugar se pide el calendario y se deja el NOMBRE apuntado; las fechas y el casino
+    // llegan al guardar, cuando el grupo ya este asignado.
+    if (this.grupoPorAsignar) {
+      const sel = this.grupoPagoSel!;
+      this.vacanteForm.patchValue({ grupo_pago_nombre_snapshot: sel.nombre }, { emitEvent: false });
+      this.errorPagoCasino = null;
+      this.cargarCalendariosPago();
+      return;
+    }
+
+    this.vacanteForm.get('calendario_pago_nuevo')!.setValue(null, { emitEvent: false });
+    this.resolverPagoCasinoDelGrupo();
+  }
+
+  /**
+   * Calendarios activos para asignar el grupo. Se piden una vez por dialogo, y se propone
+   * el que YA usan los grupos de este centro cuando todos coinciden: es el dato que hay,
+   * no una suposicion, y en un centro con un solo calendario ahorra la eleccion. Si
+   * discrepan no se propone nada: elegir uno al azar fijaria cuando se le paga a la gente.
+   */
+  private cargarCalendariosPago(): void {
+    const proponer = () => {
+      const ctrl = this.vacanteForm.get('calendario_pago_nuevo')!;
+      if (ctrl.value != null) return;
+      const usados = [...new Set(
+        this.gruposPagoAsignados.map((g) => g.calendario_pago_id).filter((x): x is number => x != null),
+      )];
+      if (usados.length === 1) ctrl.setValue(usados[0], { emitEvent: false });
+    };
+
+    if (this.calendariosPago.length) { proponer(); return; }
+    this.cascada
+      .calendariosPago()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((lista) => {
+        this.calendariosPago = lista;
+        proponer();
+      });
+  }
+
+  valorCalendario = (c: CalendarioPago) => c.id;
+  etiquetaCalendario = (c: CalendarioPago) => c.codigo;
+  /** Lo que distingue un calendario de otro es CUANDO paga; aqui si hace falta verlo. */
+  detalleCalendario = (c: CalendarioPago) => c.texto_documento ?? null;
+
+  /**
+   * Resuelve FECHAS DE PAGO y CASINO en el backend y guarda su traza.
+   *
+   * Los dos textos se guardan como snapshot junto a las referencias: así un
+   * cambio posterior en el calendario o en los valores del casino no reescribe
+   * lo que ya se publicó. Si el backend no puede resolver, no se inventa nada:
+   * se deja la traza vacía y se muestra el código.
+   */
+  private resolverPagoCasinoDelGrupo(alResolver?: (ok: boolean) => void): void {
+    const centroId = this.centroSel?.id ?? null;
+    const grupoPagoId = this.vacanteForm.get('grupo_pago_ref')?.value ?? null;
+    if (centroId == null || grupoPagoId == null) {
+      this.errorPagoCasino = null;
+      alResolver?.(false);
+      return;
+    }
+
+    this.cascada
+      .resolverPagoCasino({ centroId, grupoPagoId })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => {
+        if (res.ok) {
+          const r = res.resolucion;
+          // Una advertencia (hoy solo CALENDARIO_VENCIDO) no impide publicar,
+          // pero se muestra: el contrato imprimiría unas fechas ya pasadas.
+          this.errorPagoCasino = r.advertencias?.length ? r.advertencias[0] : null;
+          this.vacanteForm.patchValue({
+            grupo_pago_ref: r.grupo_pago_id,
+            grupo_pago_nombre_snapshot: r.grupo_pago_nombre,
+            calendario_pago_ref: r.calendario_pago_id,
+            fechas_pago_texto_snapshot: r.fechas_pago_texto,
+            politica_casino_ref: r.politica_casino_id,
+            casino_origen_resolucion: r.casino_origen,
+            casino_texto_snapshot: r.casino_texto,
+          }, { emitEvent: false });
+          alResolver?.(true);
+          return;
+        }
+        // No se pudo resolver (casino sin parametrizar, o sin conexion). Las fechas y el
+        // casino se quedan vacios —y se avisa en pantalla—, pero el NOMBRE del grupo se
+        // conserva: es la eleccion de quien publica, es lo que hereda Contratacion, y un
+        // fallo de red no tiene por que borrarla.
+        this.limpiarTrazaPago({ conservarGrupo: true });
+        const sel = this.grupoPagoSel;
+        if (sel) {
+          this.vacanteForm.patchValue({ grupo_pago_nombre_snapshot: sel.nombre }, { emitEvent: false });
+        }
+        this.errorPagoCasino = res.codigo;
+        alResolver?.(false);
+      });
+  }
+
+  /** Borra la traza del pago y el casino; se rehace al volver a resolver. */
+  private limpiarTrazaPago(opts: { conservarGrupo: boolean } = { conservarGrupo: false }): void {
+    const patch: Record<string, unknown> = {
+      grupo_pago_nombre_snapshot: null,
+      calendario_pago_ref: null,
+      fechas_pago_texto_snapshot: null,
+      politica_casino_ref: null,
+      casino_origen_resolucion: null,
+      casino_texto_snapshot: null,
+    };
+    if (!opts.conservarGrupo) patch['grupo_pago_ref'] = null;
+    this.vacanteForm.patchValue(patch, { emitEvent: false });
   }
 
   /** Borra la traza de la labor resuelta; se rehace al volver a resolver. */
@@ -1635,43 +2293,38 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Propone la descripción de la obra con la misma regla de la base de
-   * contratación: la labor depende del MES y del área, y el área sale del
-   * cargo. De qué hoja de "labores por mes" se lee lo decide la temporal, y
-   * Elite Blu tiene la suya aunque sea de Apoyo.
+   * Resuelve la LABOR del centro+cargo y guarda su traza.
    *
-   * El mes sale de la fecha de ingreso; si no la hay todavía, de la de prueba
-   * técnica, y solo como último recurso de la de publicación (ver
-   * `fechaParaDescripcionVacante`). Aquí es una aproximación: la definitiva es
-   * la fecha de ingreso de la pantalla de contratación, que la vuelve a
-   * calcular antes de que salga en los documentos.
+   * YA NO ESCRIBE EN «Características del cargo» (2026-09-03, a petición del
+   * usuario): ese campo se redacta a mano SIEMPRE, sin importar el área ni el
+   * cargo elegidos. Antes proponía el texto —del backend si el centro estaba
+   * parametrizado, y si no de la hoja cableada `labores-por-mes.data.ts`— y eso
+   * es justo lo que se pidió quitar.
    *
-   * Se reescribe cuando el campo está vacío, cuando lo que hay salió de estas
-   * tablas, o cuando quedó de otro mes. Un texto redactado a mano no se pisa.
+   * La llamada a `resolver-labor` SIGUE haciéndose, porque no era solo para el
+   * texto: devuelve la traza (configuración, regla, código de labor, esquema,
+   * origen) que se guarda con la vacante y con la que después se explica de
+   * dónde salió su labor. Quitarla habría publicado vacantes sin esa traza.
+   *
+   * LA FECHA ES LA DE INGRESO Y NINGUNA OTRA (2026-09-04, a petición del usuario).
+   * Antes caía a la fecha de prueba técnica y, en último término, a la de
+   * publicación —es decir, a HOY—, y eso hacía que la labor mostrada fuera la del
+   * mes en curso y no la del mes en que la persona entra a trabajar. Sin fecha de
+   * ingreso no se resuelve nada: el campo se queda vacío, que es la respuesta
+   * honesta, en vez de enseñar la labor de otro mes.
    */
-  private sugerirDescripcion(): void {
-    const ctrl = this.vacanteForm.get('descripcion');
-    if (!ctrl) return;
-
-    const actual = String(ctrl.value ?? '').trim();
-    const redactadaAMano =
-      actual !== '' && !esDescripcionGenerada(actual) && !claveDescripcion(actual);
-    if (redactadaAMano) return;
-
+  private resolverLaborDelCargo(): void {
     const v = this.vacanteForm.getRawValue();
-    const fecha = fechaParaDescripcionVacante(
-      v.fechadeIngreso,
-      v.fechadePruebatecnica,
-      v.fecha_publicado,
-    );
-    if (!fecha) return;
+    const fecha = this.soloDia(v.fechadeIngreso);
+    if (!fecha) {
+      this.limpiarTrazaLabor();
+      this.errorLabor = null;
+      return;
+    }
 
-    // Con centro parametrizado manda el BACKEND: `resolver-labor` sabe de reglas,
-    // esquemas y overrides que la hoja de labores cableada no conoce, y devuelve
-    // además la traza (configuración, regla, código) que se guarda con la vacante
-    // para que dentro de un año se pueda explicar de dónde salió este texto.
-    // Ante cualquier fallo se cae a la hoja de siempre: quedarse sin descripción
-    // bloquearía el guardado, porque el campo es obligatorio.
+    // Solo hay a quien preguntar si el centro está parametrizado: `resolver-labor`
+    // sabe de reglas, esquemas y overrides, y devuelve la traza (configuración,
+    // regla, código) que se guarda con la vacante.
     const centroId = this.centroSel?.id ?? null;
     const cargo = String(v.cargo ?? '').trim();
     if (centroId != null && cargo) {
@@ -1696,47 +2349,25 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
               esquema_labor_codigo: r.esquema?.codigo ?? null,
               labor_origen_resolucion: r.origen_resolucion ?? null,
             }, { emitEvent: false });
-            if (r.labor !== actual) ctrl.setValue(r.labor);
+            // El texto resuelto NO se vuelca en el campo: solo se guarda como
+            // `labor_descripcion_snapshot` para la traza.
             return;
           }
 
           // CENTRO PARAMETRIZADO Y EL BACKEND NO RESUELVE: se dice, no se tapa.
-          //
-          // Aqui estaba la caida silenciosa al TypeScript cableado. Con ella, una vacante
-          // sobre un centro SIN configuracion salia con una labor plausible y nadie se
-          // enteraba de que faltaba parametrizacion. El flujo nuevo (ALIANZA, APOYO, BLU,
-          // HMVE, JARDINES) resuelve contra la BD o no resuelve: la descripcion se deja
-          // como este y la persona ve el motivo.
-          //
-          // `labores-por-mes.data.ts` NO se borra ni se deja de usar en el camino de abajo:
-          // un centro sin `centroSel` (el flujo viejo) lo sigue teniendo.
+          // La vacante se puede publicar igual —el texto se escribe a mano—, pero
+          // queda SIN traza de labor, y eso hay que verlo antes de guardar, no
+          // descubrirlo cuando haga falta generar sus documentos.
           this.limpiarTrazaLabor();
           this.errorLabor = res.ok ? 'RESOLUCION_VACIA' : res.codigo;
         });
       return;
     }
 
-    // Sin centro parametrizado no hay a quien preguntar: queda el camino legacy.
+    // Sin centro parametrizado no hay a quien preguntar, y ya no queda nada que
+    // proponer: el camino legacy contra `labores-por-mes.data.ts` se retiró con
+    // el autocompletado, que era su único uso aquí.
     this.errorLabor = null;
-    this.sugerirDesdeHojaDeLabores(ctrl, actual, v, fecha);
-  }
-
-  /** La regla cableada de siempre (`labores-por-mes.data.ts`). */
-  private sugerirDesdeHojaDeLabores(ctrl: AbstractControl, actual: string, v: any, fecha: Date | string): void {
-    const sugerida = resolverDescripcionObra(
-      v.cargo,
-      fecha,
-      `${v.empresa_usuaria_solicita ?? ''} ${v.finca ?? ''}`,
-      v.temporal,
-      v.empresa_usuaria_solicita,
-    );
-
-    // Si no hay labor para esa combinación se deja lo que haya: el campo es
-    // obligatorio y quien publica la escribe a mano. Pasa con los cargos de
-    // jardinería de Tu Alianza (área JAR), que no tienen labores definidas.
-    if (sugerida && sugerida !== actual) {
-      ctrl.setValue(sugerida);
-    }
   }
 
   actualizarOficinasQueContratan(seleccionadas: any[]): void {
@@ -1776,6 +2407,10 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     this.vacanteForm.markAllAsTouched();
     this.vacanteForm.updateValueAndValidity({ emitEvent: false });
 
+    // Ya hay un PUT de parametrizacion en vuelo: un segundo clic mandaria la misma
+    // asignacion otra vez.
+    if (this.asignandoGrupo) return;
+
     // ✅ Si la suma no cuadra o excede, el form queda INVALID y NO guarda
     if (this.vacanteForm.invalid) {
       // Y se ABREN las secciones a las que les falta algo. Plegar ahorra espacio,
@@ -1785,7 +2420,84 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // El grupo elegido no es de este centro: se ASIGNA en el parametrizador y solo
+    // despues se cierra, ya con las fechas de pago y el casino resueltos.
+    if (this.grupoPorAsignar) {
+      this.asignarGrupoAlCentroYCerrar();
+      return;
+    }
+
     this.dialogRef.close(this.vacanteForm.getRawValue());
+  }
+
+  /**
+   * Asigna al centro el grupo elegido y cierra con la traza puesta.
+   *
+   * Por que se escribe la parametrizacion desde aqui: el grupo decide las fechas de pago
+   * y el casino del contrato, y antes solo se podian elegir los que alguien hubiera
+   * configurado antes en Parametrizacion de vacantes. Quien publica sabe a que grupo va
+   * la contratacion; obligarle a pedir que se configure —o cablear la equivalencia en el
+   * codigo— era el problema. Asi el parametrizador queda completo desde donde aparece la
+   * necesidad, y sigue siendo la unica fuente: esto no guarda una copia, guarda la
+   * ASIGNACION y despues pregunta.
+   *
+   * El PUT es de REEMPLAZO TOTAL, asi que viajan los que ya estaban mas el nuevo. Si el
+   * backend lo rechaza (un casino que contradice el grupo, por ejemplo) no se cierra: se
+   * muestra el codigo y la vacante no se guarda con una traza a medias.
+   */
+  private asignarGrupoAlCentroYCerrar(): void {
+    const centroId = this.centroSel?.id ?? null;
+    const sel = this.grupoPagoSel;
+    const calendarioId: number | null = this.vacanteForm.get('calendario_pago_nuevo')?.value ?? null;
+    if (centroId == null || !sel || calendarioId == null) return;
+
+    // Los que YA estaban tienen que viajar con su calendario: el PUT reemplaza la lista
+    // entera y lo que no vaya se da de baja. `calendario_pago_id` es NOT NULL en la tabla,
+    // asi que si alguno llega sin el, el problema es la lectura y NO se toca nada: filtrar
+    // en silencio desasignaria un grupo que si estaba configurado.
+    const previos = this.gruposPagoAsignados;
+    if (previos.some((g) => g.calendario_pago_id == null)) {
+      this.errorPagoCasino = 'ERROR_ASIGNACION';
+      this.plegadas.delete(2);
+      return;
+    }
+    const items = [
+      ...previos.map((g) => ({
+        grupo_pago_id: g.grupo_pago_id,
+        calendario_pago_id: g.calendario_pago_id as number,
+      })),
+      { grupo_pago_id: sel.grupo_pago_id, calendario_pago_id: calendarioId },
+    ];
+
+    this.asignandoGrupo = true;
+    this.errorPagoCasino = null;
+    this.cascada
+      .asignarGruposAlCentro(centroId, items)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((res) => {
+        if (!res.ok) {
+          this.asignandoGrupo = false;
+          this.errorPagoCasino = res.codigo;
+          this.plegadas.delete(2);
+          return;
+        }
+        // Vuelve la lista con el grupo ya `asignada`, asi que `grupoPorAsignar` se apaga
+        // y el calendario deja de pedirse.
+        this.gruposPago = res.grupos;
+        this.vacanteForm.get('calendario_pago_nuevo')!.setValue(null, { emitEvent: false });
+        this.aplicarObligatoriedadGrupoPago();
+        this.resolverPagoCasinoDelGrupo((ok) => {
+          this.asignandoGrupo = false;
+          if (!ok) {
+            // El grupo YA quedo asignado; lo que falta es otra cosa (casino sin
+            // parametrizar, sin conexion). Se dice y no se guarda la vacante: al
+            // reintentar, el grupo ya es del centro y el camino es el normal.
+            this.plegadas.delete(2);
+            return;
+          }
+          this.dialogRef.close(this.vacanteForm.getRawValue());
+        });
+      });
   }
 
   /** Despliega toda sección con obligatorios sin resolver. */

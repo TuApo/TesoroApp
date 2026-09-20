@@ -19,6 +19,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subscription } from 'rxjs';
 import * as XLSX from 'xlsx';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../../../shared/components/tabla-estandar';
 import {
   FilaCargaMasivaRadicados,
   ResultadoCargaMasivaRadicados,
@@ -92,6 +93,7 @@ function marcaDeTiempo(): string {
     MatButtonModule,
     MatProgressBarModule,
     MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './dialogo-carga-masiva-radicados.component.html',
   styleUrl: './dialogo-carga-masiva-radicados.component.css',
@@ -154,6 +156,20 @@ export class DialogoCargaMasivaRadicadosComponent implements OnDestroy {
   );
 
   readonly hayFallidos = computed(() => this.filasFallidas().length > 0);
+
+  // ── Tabla de resultados (tabla estandar) ──────────────────────────────
+
+  readonly columnasResultado: ColumnaTabla<FilaCargaMasivaRadicados>[] = [
+    { id: 'fila', header: 'Fila', valor: (f) => f.fila, align: 'right', ancho: '60px', tarjeta: 'meta' },
+    { id: 'cedula', header: 'Cedula', valor: (f) => f.cedula, tarjeta: 'titulo' },
+    { id: 'fechaInicio', header: 'Fecha inicio', valor: (f) => f.fechaInicio, tarjeta: 'meta' },
+    { id: 'radicado', header: 'Radicado', valor: (f) => f.numeroRadicado, tarjeta: 'subtitulo' },
+    { id: 'resultado', header: 'Resultado', valor: (f) => f.mensaje, tarjeta: 'cuerpo', minAncho: '200px' },
+  ];
+
+  readonly idResultado = (f: FilaCargaMasivaRadicados) => f.fila;
+  /** Las filas que no se radicaron se resaltan. */
+  readonly claseResultado = (f: FilaCargaMasivaRadicados) => (f.ok ? '' : 'te-fila--peligro');
 
   // ── Plantilla ─────────────────────────────────────────────────────────
 

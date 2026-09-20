@@ -13,7 +13,6 @@ import {
   MatDialogModule,
   MatDialogRef,
 } from '@angular/material/dialog';
-import { MatTableModule } from '@angular/material/table';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,11 +21,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSortModule } from '@angular/material/sort';
 
 import { Subscription } from 'rxjs';
 
 import { ChangeDetectorRef } from '@angular/core';
+
+import { ColumnaTabla, TABLA_ESTANDAR } from '../tabla-estandar';
 
 import {
   PreviewDialogData,
@@ -44,8 +44,6 @@ import {
   imports: [
     ReactiveFormsModule,
     MatDialogModule,
-    MatTableModule,
-    MatSortModule,
     MatDividerModule,
     MatIconModule,
     MatButtonModule,
@@ -53,7 +51,8 @@ import {
     MatInputModule,
     MatSelectModule,
     MatChipsModule,
-    MatTooltipModule
+    MatTooltipModule,
+    ...TABLA_ESTANDAR,
 ],
   templateUrl: './validation-preview-dialog.component.html',
   styleUrl: './validation-preview-dialog.component.css',
@@ -71,9 +70,21 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
   form!: FormGroup;
   issues: PreviewIssue[] = [];
 
-  // filtro (sin ngModel)
-  readonly filterCtrl = new FormControl<string>('', { nonNullable: true });
+  // filtro de negocio "solo errores"; la búsqueda por texto la hace la tabla estándar
   showErrorsOnly = false;
+
+  /**
+   * Filas que ve la tabla (sin las quitadas y, si aplica, solo las que tienen
+   * issues). Se reasigna con un arreglo NUEVO en cada cambio: la tabla estándar
+   * recibe señales y no se entera de mutaciones en sitio.
+   */
+  filas: TItem[] = [];
+  /** Columna de estado + las columnas que define el schema de quien abre el diálogo. */
+  readonly columnas: ColumnaTabla<TItem>[];
+  readonly idFila = (item: TItem) => this.schema.itemId(item);
+  /** Resalta la fila que se está editando en el panel derecho. */
+  readonly claseFila = (item: TItem) =>
+    this.schema.itemId(item) === this.selectedId ? 'te-fila--destacada' : '';
 
   /** Resumen por tipo: cuando es true, solo lista categorías de error. */
   summaryErrorsOnly = false;
@@ -123,6 +134,18 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
 
     this.uploadHandler = data.uploadHandler;
 
+    this.columnas = [
+      { id: '__status', header: 'Est.', valor: (it) => this.estadoFila(it), align: 'center',
+        tarjeta: 'badge', ancho: '56px' },
+      ...this.schema.columns.map((c, i): ColumnaTabla<TItem> => ({
+        id: c.key,
+        header: c.header,
+        valor: (it) => c.cell(it),
+        minAncho: c.width,
+        tarjeta: i === 0 ? 'titulo' : i === 1 ? 'subtitulo' : 'meta',
+      })),
+    ];
+
     this.recomputeIssues();
 
     // Prioridad: Seleccionar el primer registro con errores o issues externos
@@ -137,6 +160,7 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     // UX Improvement: If there are blocking errors, filter by errors automatically so the user sees them.
     if (this.totalErrors > 0) {
       this.showErrorsOnly = true;
+      this.refrescarFilas();
     }
   }
 
@@ -152,13 +176,7 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
   // Table helpers
   // ----------------------------
 
-  displayedColumns(): string[] {
-    return ['__status', ...this.schema.columns.map((c) => c.key), '__actions'];
-  }
-
   filteredItems(): TItem[] {
-    const q = (this.filterCtrl.value ?? '').trim().toLowerCase();
-
     // Base filter: not removed
     let items = this.items.filter((it) => !this.removedIds.has(this.schema.itemId(it)));
 
@@ -167,19 +185,24 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
       items = items.filter(it => this.issueCount(it) > 0 || this.warnCount(it) > 0);
     }
 
-    // Text filter
-    if (!q) return items;
-
-    return items.filter((it) => {
-      const row = this.schema.columns
-        .map((c) => String(c.cell(it) ?? '').toLowerCase())
-        .join(' | ');
-      return row.includes(q);
-    });
+    return items;
   }
 
-  clearFilter(): void {
-    this.filterCtrl.setValue('');
+  /** Recalcula las filas de la tabla con un arreglo nuevo (ver `filas`). */
+  private refrescarFilas(): void {
+    this.filas = this.filteredItems();
+  }
+
+  toggleErrorsOnly(): void {
+    this.showErrorsOnly = !this.showErrorsOnly;
+    this.refrescarFilas();
+  }
+
+  /** Valor plano de la columna de estado: filtra, ordena y se copia. */
+  estadoFila(item: TItem): string {
+    if (this.issueCount(item) > 0) return 'Error';
+    if (this.warnCount(item) > 0) return 'Advertencia';
+    return 'Correcto';
   }
 
   get filteredCount(): number {
@@ -547,6 +570,8 @@ export class ValidationPreviewDialogComponent<TItem = any, TResult = any>
     // tabla se queda vacía ("No se encontraron registros") ocultando las filas
     // correctas y el operador no encuentra qué confirmar.
     if (this.totalErrors === 0) this.showErrorsOnly = false;
+
+    this.refrescarFilas();
   }
 
   // ----------------------------

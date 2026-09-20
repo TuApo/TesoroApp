@@ -159,39 +159,27 @@
         </div>
       </div>
 
-      <div class="cmr-tabla-envoltura">
-        <table class="cmr-tabla">
-          <thead>
-            <tr>
-              <th class="cmr-col-fila">Fila</th>
-              <th>Cedula</th>
-              <th>Fecha inicio</th>
-              <th>Radicado</th>
-              <th>Resultado</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (fila of res.filas; track fila.fila) {
-              <tr [class.cmr-fila-fallida]="!fila.ok">
-                <td class="cmr-col-fila">{{ fila.fila }}</td>
-                <td>{{ fila.cedula }}</td>
-                <td>{{ fila.fechaInicio }}</td>
-                <td>{{ fila.numeroRadicado }}</td>
-                <td>
-                  <span class="cmr-resultado" [class.cmr-resultado-ok]="fila.ok">
-                    @if (fila.ok) {
-                      <mat-icon class="cmr-icono-ok">check_circle</mat-icon>
-                    } @else {
-                      <mat-icon class="cmr-icono-error">cancel</mat-icon>
-                    }
-                    {{ fila.mensaje }}
-                  </span>
-                </td>
-              </tr>
+      <app-tabla-estandar
+        id="incapacidades-carga-masiva-radicados"
+        titulo="Resultado carga masiva de radicados"
+        modulo="Incapacidades"
+        vacio="El archivo no trae filas."
+        [datos]="res.filas"
+        [columnas]="columnasResultado"
+        [filaId]="idResultado"
+        [filaClase]="claseResultado">
+
+        <ng-template tablaCelda="resultado" let-fila>
+          <span class="cmr-resultado" [class.cmr-resultado-ok]="fila.ok">
+            @if (fila.ok) {
+              <mat-icon class="cmr-icono-ok">check_circle</mat-icon>
+            } @else {
+              <mat-icon class="cmr-icono-error">cancel</mat-icon>
             }
-          </tbody>
-        </table>
-      </div>
+            {{ fila.mensaje }}
+          </span>
+        </ng-template>
+      </app-tabla-estandar>
     </section>
   }
 </mat-dialog-content>

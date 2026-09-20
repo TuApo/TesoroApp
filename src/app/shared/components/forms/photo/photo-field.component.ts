@@ -222,7 +222,7 @@ interface PhotoSlot {
   styles: [`
     .pf-group { display: flex; flex-direction: column; gap: 8px; }
     .pf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    .pf-counter { font-size: 0.8rem; color: var(--slate-500, #64748b); }
+    .pf-counter { font-size: 0.8rem; color: var(--muted); }
     .pf-hidden-input {
       position: absolute; width: 1px; height: 1px;
       opacity: 0; overflow: hidden; clip: rect(0 0 0 0);
@@ -232,20 +232,20 @@ interface PhotoSlot {
     .pf-thumb-wrap--error .df-field__thumb { border-color: #c0392b; }
     .pf-dim { opacity: 0.45; }
     .pf-name {
-      font-size: 0.75rem; color: var(--slate-500, #64748b);
+      font-size: 0.75rem; color: var(--muted);
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .pf-slot-error {
-      font-size: 0.72rem; color: #c0392b;
+      font-size: 0.72rem; color: #c0392b; color: light-dark(#c0392b, #eaaaa3);
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
     .pf-placeholder {
       width: 96px; height: 96px; display: flex; align-items: center; justify-content: center;
-      border: 1px dashed var(--slate-300, #cbd5e1); border-radius: var(--r-sm, 10px);
-      background: var(--slate-50, #f8fafc); color: var(--slate-500, #64748b);
+      border: 1px dashed var(--border-strong); border-radius: var(--r-sm, 10px);
+      background: var(--surface-2); color: var(--muted);
       box-sizing: border-box;
     }
-    .pf-placeholder--error { color: #c0392b; cursor: pointer; font: inherit; }
+    .pf-placeholder--error { color: #c0392b; color: light-dark(#c0392b, #eaaaa3); cursor: pointer; font: inherit; }
     .pf-overlay {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
       border-radius: var(--r-sm, 10px); background: rgba(255, 255, 255, 0.35);
@@ -253,7 +253,7 @@ interface PhotoSlot {
     .pf-overlay--error { background: rgba(192, 57, 43, 0.12); }
     .pf-spinner {
       width: 26px; height: 26px; border-radius: 50%;
-      border: 3px solid var(--slate-300, #cbd5e1);
+      border: 3px solid var(--border-strong);
       border-top-color: var(--navy, #21263c);
       animation: pf-spin 0.8s linear infinite;
     }
@@ -281,7 +281,7 @@ interface PhotoSlot {
     }
     .pf-lightbox__img {
       max-width: 92vw; max-height: 92vh; object-fit: contain;
-      border-radius: var(--r-sm, 10px); background: #fff;
+      border-radius: var(--r-sm, 10px); background: var(--surface);
     }
     .pf-lightbox__close {
       position: absolute; top: 16px; right: 16px;

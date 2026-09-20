@@ -11,8 +11,10 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonModule } from '@angular/material/button';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 
 /** Tarjeta de KPI del panel. */
 interface KpiTile {
@@ -56,8 +58,8 @@ const MS_DIA = 86_400_000;
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-vacantes-dashboard',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatTooltipModule, MatButtonModule, NgxEchartsDirective],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  imports: [CommonModule, MatIconModule, MatTooltipModule, MatButtonModule, NgxEchartsDirective, ...TABLA_ESTANDAR],
+  providers: [provideEchartsTema()],
   templateUrl: './vacantes-dashboard.component.html',
   styleUrl: './vacantes-dashboard.component.css',
 })
@@ -73,6 +75,22 @@ export class VacantesDashboardComponent implements OnChanges {
 
   kpis: KpiTile[] = [];
   demoras: FilaDemora[] = [];
+
+  /** Columnas del ranking de demoras (tabla estándar). */
+  readonly columnasDemoras: ColumnaTabla<FilaDemora>[] = [
+    { id: 'dias', header: 'Días', valor: (f) => f.dias, align: 'center', tarjeta: 'badge',
+      badge: (f) => ({ texto: f.dias === null ? '—' : String(f.dias), tono: this.tonoDias(f.dias) }) },
+    { id: 'cargo', header: 'Cargo', valor: (f) => f.cargo, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'finca', header: 'Centro de costo', valor: (f) => f.finca, tarjeta: 'subtitulo' },
+    { id: 'oficina', header: 'Oficina', valor: (f) => f.oficina, prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'req', header: 'Solic.', valor: (f) => f.req, align: 'right', tarjeta: 'meta' },
+    { id: 'falt', header: 'Falt.', valor: (f) => f.falt, align: 'right', tarjeta: 'meta' },
+    { id: 'candidatos', header: 'Cand.', valor: (f) => f.candidatos, align: 'right', prioridad: 2,
+      tarjeta: 'meta' },
+    { id: 'cumpl', header: 'Cumpl.', valor: (f) => f.cumpl, align: 'right', tarjeta: 'badge',
+      badge: (f) => ({ texto: `${f.cumpl}%`, tono: this.tonoCumpl(f.cumpl) }) },
+  ];
+  readonly idDemora = (f: FilaDemora) => f.raw?.id;
 
   antiguedadOpt: EChartsOption = {};
   embudoOpt: EChartsOption = {};
@@ -466,17 +484,19 @@ export class VacantesDashboardComponent implements OnChanges {
   }
 
   // ==================== Helpers de plantilla ====================
-  clasePorDias(dias: number | null): string {
-    if (dias === null) return 'dias-pill';
-    if (dias > 30) return 'dias-pill dias-critico';
-    if (dias > 15) return 'dias-pill dias-alerta';
-    return 'dias-pill dias-ok';
+  /** Tono del chip de días: más de 30 es crítico, más de 15 alerta. */
+  tonoDias(dias: number | null): 'ok' | 'warn' | 'danger' | 'neutro' {
+    if (dias === null) return 'neutro';
+    if (dias > 30) return 'danger';
+    if (dias > 15) return 'warn';
+    return 'ok';
   }
 
-  claseCumpl(pct: number): string {
-    if (pct >= 100) return 'mini-pill pill-ok';
-    if (pct >= 70) return 'mini-pill pill-warn';
-    return 'mini-pill pill-error';
+  /** Tono del chip de cumplimiento. */
+  tonoCumpl(pct: number): 'ok' | 'warn' | 'danger' {
+    if (pct >= 100) return 'ok';
+    if (pct >= 70) return 'warn';
+    return 'danger';
   }
 
   abrir(fila: FilaDemora): void {

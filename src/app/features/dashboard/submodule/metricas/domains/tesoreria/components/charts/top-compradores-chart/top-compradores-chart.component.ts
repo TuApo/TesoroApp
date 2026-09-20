@@ -1,5 +1,6 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { EmptyStateComponent } from '../../../../../shared/components/empty-state/empty-state.component';
 import { TopComprador } from '../../../models/tesoreria-metricas.models';
@@ -8,7 +9,7 @@ import { TopComprador } from '../../../models/tesoreria-metricas.models';
     selector: 'app-top-compradores-chart',
     standalone: true,
     imports: [NgxEchartsDirective, EmptyStateComponent],
-    providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+    providers: [provideEchartsTema()],
     template: `
     @if (hasData) {
       <div class="chart-container">

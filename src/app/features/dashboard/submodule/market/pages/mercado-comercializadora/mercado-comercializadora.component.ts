@@ -1,4 +1,5 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, LOCALE_ID, inject } from '@angular/core';
+import { formatCurrency, formatDate, getCurrencySymbol } from '@angular/common';
 import {
   FormBuilder,
   FormGroup,
@@ -8,7 +9,6 @@ import {
 } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { Router } from '@angular/router';
-import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
@@ -18,25 +18,53 @@ import { HistorialService } from '../../../history/service/historial/historial.s
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SharedModule } from '../../../../../../shared/shared.module'; // si lo usas
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-mercado-comercializadora',
   templateUrl: './mercado-comercializadora.component.html',
   styleUrls: ['./mercado-comercializadora.component.css'],
-  imports: [SharedModule, MatCheckboxModule] // si usas Standalone Components
+  imports: [SharedModule, MatCheckboxModule, ...TABLA_ESTANDAR] // si usas Standalone Components
 } )
 export class MercadoComercializadoraComponent implements OnInit {
   myForm: FormGroup;
   datosOperario: any;
   nombreOperario: string = '';
   sumaPrestamos: number = 0;
-  // Columnas para la tabla "Inventario"
-  displayedColumnsInventario: string[] = [
-    'seleccion', 'cantidadSeleccionada',
-    'concepto', 'disponible', 'valorUnidad', 'fechaRecibida'
+  private locale = inject(LOCALE_ID);
+  /**
+   * Filas de la tabla "Inventario": un FormGroup por lote. Se reasigna con un
+   * arreglo nuevo (el FormArray muta sus controles en sitio y la tabla estándar
+   * no se enteraría).
+   */
+  filasInventario: FormGroup[] = [];
+  /** Selección y cantidad son controles (interactivas, no se copian ni se ordenan). */
+  readonly columnasInventario: ColumnaTabla<FormGroup>[] = [
+    { id: 'seleccion', header: 'Sel.', valor: (g) => (g.get('seleccionado')?.value ? 'Sí' : ''),
+      interactiva: true, copiable: false, ordenable: false, filtrable: false, tarjeta: 'cuerpo' },
+    { id: 'cantidadSeleccionada', header: 'Cant.',
+      valor: (g) => (g.get('seleccionado')?.value ? Number(g.get('cantidadSeleccionada')?.value) || 0 : null),
+      interactiva: true, copiable: false, ordenable: false, filtrable: false, tarjeta: 'cuerpo' },
+    { id: 'concepto', header: 'Concepto', valor: (g) => g.get('concepto')?.value ?? '', tarjeta: 'titulo',
+      minAncho: '160px' },
+    { id: 'disponible', header: 'Disponible', valor: (g) => Number(g.get('disponible')?.value) || 0,
+      align: 'center', tarjeta: 'badge',
+      // Solo se resalta la excepción: agotado.
+      badge: (g) => {
+        const n = Number(g.get('disponible')?.value) || 0;
+        return { texto: `Disp: ${n}`, tono: n > 0 ? 'neutro' : 'danger' };
+      } },
+    { id: 'valorUnidad', header: 'Valor Und.', valor: (g) => this.numero(g.get('valorUnidad')?.value),
+      align: 'right', formato: (g) => this.moneda(g.get('valorUnidad')?.value), tarjeta: 'subtitulo' },
+    { id: 'fechaRecibida', header: 'F. Recibido', prioridad: 2, tarjeta: 'meta',
+      valor: (g) => (g.get('fechaRecibida')?.value ? new Date(g.get('fechaRecibida')!.value) : null),
+      formato: (g) => this.fechaHora(g.get('fechaRecibida')?.value),
+      copiaTexto: (g) => this.fechaHora(g.get('fechaRecibida')?.value) },
   ];
-  dataSourceInventario = new MatTableDataSource<any>();
+  readonly idLote = (g: FormGroup) => g.get('lote_id')?.value;
+  /** La fila marcada se resalta (clase de la tabla estándar). */
+  readonly claseLote = (g: FormGroup) => (g.get('seleccionado')?.value ? 'te-fila--destacada' : '');
   rolUsuario: string = '';
   correoUsuario: string = '';
   fechaIngreso: string = '';
@@ -226,7 +254,7 @@ export class MercadoComercializadoraComponent implements OnInit {
         this.inventarioFormArray.push(g);
       });
 
-      this.dataSourceInventario.data = this.inventarioFormArray.controls;
+      this.filasInventario = [...this.inventarioFormArray.controls] as FormGroup[];
       // App zoneless: sin markForCheck la tabla no se repinta tras el await
       this.cdr.markForCheck();
     } catch (error: any) {
@@ -255,19 +283,6 @@ export class MercadoComercializadoraComponent implements OnInit {
       allowOutsideClick: false,
       allowEscapeKey: false,
     });
-  }
-
-  applyFilterInventario(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSourceInventario.filterPredicate = (rowControl: any, filter: string) => {
-      const rowValue = rowControl.value; // el objeto con {concepto, ...}
-      // Busca coincidencia en los campos que desees:
-      return (
-        rowValue.concepto?.toLowerCase().includes(filter) ||
-        rowValue.PersonaEnvia?.toLowerCase().includes(filter)
-      );
-    };
-    this.dataSourceInventario.filter = filterValue.trim().toLowerCase();
   }
 
   async onSubmit() {
@@ -437,15 +452,6 @@ export class MercadoComercializadoraComponent implements OnInit {
     }
   }
 
-
-  toggleRowSelection(row: FormGroup) {
-    const control = row.get('seleccionado');
-    if (control) {
-      control.setValue(!control.value);
-      this.onProductSelectionChange(row);
-    }
-  }
-
   get totalProductosSeleccionados(): number {
     return this.inventarioFormArray.controls
       .filter((c: any) => c.get('seleccionado')?.value)
@@ -469,11 +475,26 @@ export class MercadoComercializadoraComponent implements OnInit {
     this.limiteDisponible = 0;
     this.codigosFormArray.clear();
     this.inventarioFormArray.clear();
-    this.dataSourceInventario.data = [];
+    this.filasInventario = [];
     this.myForm.reset();
     this.cdr.markForCheck();
     // El inventario vive fuera del empleado: se recarga para no dejar la tabla vacía
     this.loadProductos();
+  }
+
+  // Formatos de la tabla de inventario (mismo resultado que los pipes currency/date)
+  private numero(v: unknown): number | null {
+    const n = Number(v);
+    return v === null || v === undefined || v === '' || isNaN(n) ? null : n;
+  }
+
+  private moneda(v: unknown): string {
+    const n = this.numero(v);
+    return n === null ? '' : formatCurrency(n, this.locale, getCurrencySymbol('COP', 'narrow', this.locale), 'COP', '1.0-0');
+  }
+
+  private fechaHora(v: unknown): string {
+    return v ? formatDate(v as string | number, 'dd-MM-yyyy HH:mm', this.locale) : '';
   }
 
   abrirHistorial() {

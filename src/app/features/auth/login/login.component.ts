@@ -5,8 +5,10 @@ import {
 } from '@angular/forms';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
+import { CLAVE_CAMBIO_PENDIENTE, RUTA_CAMBIO_PASSWORD } from '../../../core/guards/cambio-password.guard';
 import { LoginService } from '../service/login.service';
 import { SharedModule } from '../../../shared/shared.module';
+import { LoginEscenaComponent } from './login-escena.component';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { setLocalStorageItem } from '../../../core/utils/safe-storage';
 import { OfflineSyncService } from '../../../core/services/offline-sync.service';
@@ -85,7 +87,7 @@ function passwordsMatchValidator(group: AbstractControl): ValidationErrors | nul
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-login',
-  imports: [SharedModule],
+  imports: [SharedModule, LoginEscenaComponent],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',
 })
@@ -104,10 +106,19 @@ export class LoginComponent implements OnInit {
   private etiquetaBiometria = '';
   desbloqueando = signal(false);
 
+  /** Pestaña visible cuando hay acceso guardado: el método rápido o la contraseña. */
+  readonly pestana = signal<'rapido' | 'clave'>('rapido');
+  /** «Cambiar»: entrar con otra cuenta sin borrar el acceso guardado. */
+  readonly otraCuenta = signal(false);
+  /** PIN escrito en la pestaña de acceso rápido (4 a 12 dígitos). */
+  readonly pinRapido = signal('');
+  readonly errorPin = signal('');
+
   // ── Login ────────────────────────────────────────────────────────────────
   loginForm!: FormGroup;
   hide = true;
-  loading = false;
+  readonly loading = signal(false);
+  readonly anio = new Date().getFullYear();
   desktopRelease = signal<AppRelease | null>(null);
 
   // ── OTP recovery ─────────────────────────────────────────────────────────
@@ -204,7 +215,7 @@ export class LoginComponent implements OnInit {
   }
 
   async onSubmit(): Promise<void> {
-    if (this.loginForm.invalid || this.loading) {
+    if (this.loginForm.invalid || this.loading()) {
       this.loginForm.markAllAsTouched();
       return;
     }
@@ -247,7 +258,7 @@ export class LoginComponent implements OnInit {
     password: string,
     origen: 'formulario' | 'acceso-rapido',
   ): Promise<void> {
-    this.loading = true;
+    this.loading.set(true);
     try {
       const resp = await this.loginS.login(login, password);
       if (!resp?.token || !resp?.user) {
@@ -257,13 +268,36 @@ export class LoginComponent implements OnInit {
       setLocalStorageItem('user', JSON.stringify(resp.user));
       const rolNombre = resp.user?.rol?.nombre ?? '';
 
+      // V86: la cuenta sigue con la clave INICIAL con la que se creó desde el formulario
+      // público —su número de documento, que se le mostró en pantalla—. Hasta que ponga una
+      // suya no entra a ningún módulo: de eso se encarga `cambioPasswordGuard`.
+      const debeCambiar = (resp as any)?.debe_cambiar_password === true;
+      try {
+        if (debeCambiar) localStorage.setItem(CLAVE_CAMBIO_PENDIENTE, '1');
+        else localStorage.removeItem(CLAVE_CAMBIO_PENDIENTE);
+      } catch { /* sin storage: el guard deja pasar y el backend sigue pidiéndolo */ }
+
+      if (debeCambiar) {
+        this.offlineSync.syncNow().catch(() => null);
+        this.router.navigate([RUTA_CAMBIO_PASSWORD]);
+        await Swal.fire({
+          icon: 'info',
+          title: 'Cree su contraseña',
+          text: 'Entró con la clave que le dimos al registrarse, que es su número de documento. '
+            + 'Como esa clave la puede saber cualquiera, elija una suya para continuar.',
+          confirmButtonColor: '#111827',
+        });
+        return;
+      }
+
       this.offlineSync.syncNow().catch(() => null);
       // La parametrización se baja tras entrar (no al arrancar la app): antes
       // del login no hay token y todos los catálogos responderían 401.
       this.catalogPreload.preload().catch(() => null);
 
       if (origen === 'formulario') {
-        // Se ofrece ANTES de navegar: la contraseña en claro solo existe aquí.
+        // Se ofrece ANTES de navegar: la contraseña en claro solo existe aquí. No se ofrece
+        // guardar una clave que la persona está a punto de cambiar.
         await this.ofrecerAccesoRapido(login, password, resp.user);
       }
 
@@ -303,7 +337,7 @@ export class LoginComponent implements OnInit {
         });
       }
     } finally {
-      this.loading = false;
+      this.loading.set(false);
     }
   }
 
@@ -394,7 +428,7 @@ export class LoginComponent implements OnInit {
   /** Desbloquea con el método guardado y entra sin escribir la contraseña. */
   async desbloquearAccesoRapido(): Promise<void> {
     const estado = this.accesoRapido();
-    if (!estado || this.desbloqueando() || this.loading) return;
+    if (!estado || this.desbloqueando() || this.loading()) return;
 
     this.desbloqueando.set(true);
     try {
@@ -435,6 +469,65 @@ export class LoginComponent implements OnInit {
     } finally {
       this.desbloqueando.set(false);
     }
+  }
+
+  /**
+   * PIN escrito en la propia pantalla (sin el diálogo): mismas reglas que el
+   * diálogo de desbloqueo. Un PIN errado descuenta intentos; agotarlos o un
+   * registro vencido destruyen el acceso guardado y se vuelve a la contraseña.
+   */
+  async entrarConPin(): Promise<void> {
+    const estado = this.accesoRapido();
+    const pin = this.pinRapido().trim();
+    if (!estado || this.desbloqueando() || this.loading()) return;
+    if (!/^\d{4,12}$/.test(pin)) {
+      this.errorPin.set('El PIN tiene entre 4 y 12 dígitos.');
+      return;
+    }
+    this.desbloqueando.set(true);
+    this.errorPin.set('');
+    try {
+      const credenciales = await this.qa.desbloquear(pin);
+      this.pinRapido.set('');
+      this.accesoRapido.set(await this.qa.cargarEstado());
+      await this.autenticar(credenciales.login, credenciales.password, 'acceso-rapido');
+    } catch (e) {
+      const err = e as ErrorAccesoRapido;
+      this.pinRapido.set('');
+      const nuevo = await this.qa.cargarEstado();
+      this.accesoRapido.set(nuevo);
+      if (err?.codigo === 'factor-invalido' && nuevo) {
+        const n = err.intentosRestantes ?? nuevo.intentosRestantes;
+        this.errorPin.set(`PIN incorrecto. Te quedan ${n} ${n === 1 ? 'intento' : 'intentos'}.`);
+      } else {
+        this.pestana.set('clave');
+        await Swal.fire({
+          icon: err?.codigo === 'bloqueado' ? 'error' : 'warning',
+          title: err?.codigo === 'bloqueado' ? 'Acceso rápido bloqueado' : 'No se pudo desbloquear',
+          text: err?.message || 'Entra con tu contraseña.',
+        });
+      }
+    } finally {
+      this.desbloqueando.set(false);
+    }
+  }
+
+  /** Solo dígitos en el campo del PIN. */
+  escribirPin(valor: string): void {
+    this.pinRapido.set(valor.replace(/\D/g, '').slice(0, 12));
+    this.errorPin.set('');
+  }
+
+  cambiarPestana(p: 'rapido' | 'clave'): void {
+    this.pestana.set(p);
+    this.errorPin.set('');
+  }
+
+  /** «Cambiar»: formulario limpio para otra cuenta; el acceso guardado se conserva. */
+  usarOtraCuenta(): void {
+    this.otraCuenta.set(true);
+    this.pestana.set('clave');
+    this.loginForm.reset({ login: '', password: '', recordar: false });
   }
 
   /** Icono Material que representa el método guardado. */
@@ -480,6 +573,7 @@ export class LoginComponent implements OnInit {
 
     await this.qa.olvidar();
     this.accesoRapido.set(null);
+    this.pestana.set('clave');
   }
 
   // ── OTP: Paso 1 ─ Solicitar código ────────────────────────────────────────

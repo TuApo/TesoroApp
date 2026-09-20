@@ -1,7 +1,7 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, computed, inject, signal,
+  ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute } from '@angular/router';
@@ -11,11 +11,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -23,6 +19,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { saveAs } from 'file-saver';
 import Swal from 'sweetalert2';
 
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent, TonoBadge,
+} from '../../../../../../shared/components/tabla-estandar';
 import { DynamicFormService } from '../../services/dynamic-form.service';
 import { ProcessControlService } from '../../services/process-control.service';
 import { ApiProblem, SubmissionStatus } from '../../models/dynamic-forms.models';
@@ -35,6 +34,9 @@ import { RecordEditDialogComponent, RecordEditData } from '../../components/reco
 
 /** Columnas del formulario que caben en la tabla sin volverla ilegible; el resto, al Excel. */
 const MAX_COLUMNAS_TABLA = 12;
+
+/** Filas por página que acepta el backend (la pantalla nunca ofreció más de 100). */
+const MAX_POR_PAGINA = 100;
 
 /**
  * CONTROL DEL PROCESO — la quinta vista de un formulario dinámico.
@@ -55,9 +57,10 @@ const MAX_COLUMNAS_TABLA = 12;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, FormsModule,
-    MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule, MatFormFieldModule,
-    MatIconModule, MatInputModule, MatPaginatorModule, MatProgressBarModule, MatSelectModule,
+    MatButtonModule, MatCardModule, MatCheckboxModule, MatDialogModule,
+    MatIconModule, MatSelectModule,
     MatSnackBarModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './form-process.component.html',
   styleUrls: ['./form-process.component.css'],
@@ -107,6 +110,17 @@ export class FormProcessComponent implements OnInit {
   /** Serial de carga: descarta respuestas que llegan tarde tras cambiar un filtro. */
   private serial = 0;
 
+  private readonly tabla = viewChild(TablaEstandarComponent);
+
+  /**
+   * En modo servidor la tabla lleva su propio número de página: cuando un filtro vuelve a
+   * la primera (`page.set(0)`), se le avisa para que el paginador no se quede atrás.
+   */
+  private readonly sincronizarPagina = effect(() => {
+    const p = this.page();
+    this.tabla()?.pagina.set(p);
+  });
+
   // ── Derivados ───────────────────────────────────────────────────────
 
   /** Columnas que se pintan en la tabla (las primeras; el resto vive en el Excel). */
@@ -123,6 +137,40 @@ export class FormProcessComponent implements OnInit {
     const permitidas = visibles == null ? todas.length : todas.filter(c => visibles.includes(c.key)).length;
     return permitidas > MAX_COLUMNAS_TABLA;
   });
+
+  /**
+   * Columnas de la tabla estándar: las fijas del proceso más las del formulario. El
+   * backend no ordena por columna, así que ninguna es ordenable (la tabla está en modo
+   * servidor y no ordena por su cuenta).
+   */
+  readonly columnasTabla = computed<ColumnaTabla<ProcessRecord>[]>(() => {
+    const llave = this.etiquetaLlave();
+    const cols: ColumnaTabla<ProcessRecord>[] = [
+      { id: 'id', header: 'ID', valor: f => f.id, ordenable: false, tarjeta: 'subtitulo', ancho: '74px' },
+    ];
+    if (llave) {
+      cols.push({ id: 'llave', header: llave, valor: f => f.record_key ?? '',
+        formato: f => f.record_key || '—', ordenable: false, tarjeta: 'titulo' });
+    }
+    cols.push(
+      { id: 'estado', header: 'Estado', valor: f => this.etiquetaEstado(f.status), ordenable: false,
+        tarjeta: 'badge', badge: f => ({ texto: this.etiquetaEstado(f.status), tono: this.tonoEstado(f.status) }) },
+      { id: 'cambios', header: 'Cambios', align: 'center', ordenable: false, tarjeta: 'meta',
+        valor: f => (f.changed ? f.revision_no - 1 : null) },
+      { id: 'ultimo', header: 'Último cambio', ordenable: false, tarjeta: 'meta',
+        valor: f => (f.last_change_at ? new Date(f.last_change_at) : null),
+        copiaTexto: f => (f.last_change_at ? formatDate(f.last_change_at, 'dd/MM/yyyy HH:mm', 'en-US') : '') },
+      ...this.columnasVisibles().map((c): ColumnaTabla<ProcessRecord> => ({
+        id: 'campo:' + c.key, header: c.label, valor: f => this.valor(f, c),
+        formato: f => this.valor(f, c) || '—', ordenable: false, prioridad: 2, tarjeta: 'cuerpo',
+      })),
+    );
+    return cols;
+  });
+
+  readonly idFila = (f: ProcessRecord) => f.id;
+  /** Un registro tocado después de enviarse se resalta: es lo que se viene a buscar aquí. */
+  readonly claseFila = (f: ProcessRecord) => (f.changed ? 'te-fila--alerta' : '');
 
   readonly puedeEditar = computed(() => this.acceso()?.can_edit_responses === true);
   readonly puedeCargar = computed(() => this.acceso()?.can_bulk_load === true);
@@ -224,9 +272,15 @@ export class FormProcessComponent implements OnInit {
     this.cargar();
   }
 
-  onPage(e: PageEvent): void {
-    this.page.set(e.pageIndex);
-    this.size.set(e.pageSize);
+  onPage(e: { pagina: number; porPagina: number }): void {
+    // La tabla ofrece 250 por página; si se elige más del tope, se le pide que use el tope
+    // (vuelve a emitir con ese tamaño y ahí sí se consulta).
+    if (e.porPagina > MAX_POR_PAGINA) {
+      this.tabla()?.cambiarPorPagina(MAX_POR_PAGINA);
+      return;
+    }
+    this.page.set(e.pagina);
+    this.size.set(e.porPagina);
     this.cargar();
   }
 
@@ -342,13 +396,13 @@ export class FormProcessComponent implements OnInit {
     }
   }
 
-  claseEstado(estado: string): string {
+  tonoEstado(estado: string): TonoBadge {
     switch (estado) {
-      case 'DRAFT': return 'chip-neutro';
-      case 'SUBMITTED': return 'chip-info';
-      case 'APPROVED': return 'chip-ok';
-      case 'REJECTED': return 'chip-error';
-      default: return 'chip-neutro';
+      case 'DRAFT': return 'neutro';
+      case 'SUBMITTED': return 'info';
+      case 'APPROVED': return 'ok';
+      case 'REJECTED': return 'danger';
+      default: return 'neutro';
     }
   }
 

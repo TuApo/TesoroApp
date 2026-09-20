@@ -5,15 +5,15 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-danger: #c62828;
   --disab-radius-sm: 10px;
   --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
   display: block;
-  background: #f7f9fc;
+  background: var(--surface-2);
 }
 
 /* ── Cabecera ──────────────────────────────────────────────── */
@@ -92,7 +92,7 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
@@ -107,7 +107,7 @@
 .det-cuerpo {
   padding: 18px 22px 8px !important;
   max-height: 66vh;
-  background: #f7f9fc;
+  background: var(--surface-2);
 }
 
 .det-cargando {
@@ -131,14 +131,14 @@
 }
 
 .det-aviso-error {
-  background: #fff8e1;
+  background: #fff8e1; background: light-dark(#fff8e1, #383524);
   border: 1px solid rgba(178, 106, 0, 0.25);
-  color: #8a5a00;
+  color: #8a5a00; color: light-dark(#8a5a00, #f7d597);
 }
 
 /* ── Bloques ───────────────────────────────────────────────── */
 .det-bloque {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--disab-border);
   border-radius: 14px;
   padding: 14px 16px 16px;
@@ -180,7 +180,7 @@
 }
 
 .det-hint-alerta {
-  color: #ef6c00;
+  color: #ef6c00; color: light-dark(#ef6c00, #f7c297);
   font-style: normal;
   font-weight: 700;
 }
@@ -188,7 +188,7 @@
 /* ── Ficha ─────────────────────────────────────────────────── */
 .det-ficha {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
   gap: 10px 18px;
   margin: 0;
 }
@@ -197,8 +197,8 @@
   min-width: 0;
   padding: 8px 10px;
   border-radius: var(--disab-radius-sm);
-  background: #f8fafc;
-  border: 1px solid rgba(15, 23, 42, 0.05);
+  background: var(--surface-2);
+  border: 1px solid rgb(var(--ink-rgb) / 0.05);
 }
 
 .det-campo-ancho {
@@ -274,13 +274,13 @@
   padding: 10px 12px;
   border-radius: var(--disab-radius-sm);
   border: 1px solid var(--disab-border);
-  background: #fbfdff;
+  background: var(--surface);
   flex-wrap: wrap;
 }
 
 .det-soporte-falta {
   border-color: rgba(239, 108, 0, 0.35);
-  background: #fff8f0;
+  background: #fff8f0; background: light-dark(#fff8f0, #382c24);
 }
 
 .det-soporte-icono {
@@ -296,7 +296,7 @@
 }
 
 .det-soporte-falta .det-soporte-icono {
-  background: #fff3e0;
+  background: #fff3e0; background: light-dark(#fff3e0, #382f24);
   color: #ef6c00;
 }
 
@@ -323,7 +323,7 @@
   letter-spacing: 0.4px;
   text-transform: uppercase;
   color: #ef6c00;
-  background: #fff3e0;
+  background: #fff3e0; background: light-dark(#fff3e0, #382f24);
   border-radius: 999px;
   padding: 2px 8px;
 }
@@ -390,7 +390,7 @@
   margin-left: 6px;
   margin-top: 4px;
   flex-shrink: 0;
-  border: 2px solid #fff;
+  border: 2px solid var(--surface);
   box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.08);
   background: var(--disab-primary);
   z-index: 1;
@@ -416,7 +416,7 @@
   margin-top: 4px;
   font-size: 12.5px;
   color: var(--disab-text);
-  background: #f1f5f9;
+  background: var(--surface-3);
   border-radius: 8px;
   padding: 6px 9px;
 }
@@ -443,7 +443,7 @@
 /* ── Acciones ──────────────────────────────────────────────── */
 .det-acciones {
   padding: 12px 22px 18px !important;
-  background: #f7f9fc;
+  background: var(--surface-2);
   border-top: 1px solid var(--disab-border);
   gap: 8px;
   flex-wrap: wrap;
@@ -468,7 +468,7 @@
 }
 
 .det-btn-validar {
-  color: #2e7d32 !important;
+  color: #2e7d32 !important; color: light-dark(#2e7d32, #ade1b0) !important;
   border-color: rgba(46, 125, 50, 0.4) !important;
 }
 
@@ -489,7 +489,7 @@
   }
 
   .det-ficha {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .det-campo-ancho {
@@ -521,7 +521,7 @@
 }
 
 .rad-icono-pdf mat-icon {
-  color: #b3261e;
+  color: #b3261e; color: light-dark(#b3261e, #efa39f);
 }
 
 .rad-sync {
@@ -538,11 +538,11 @@
 }
 
 .rad-sync-ok {
-  color: #1b873f;
+  color: #1b873f; color: light-dark(#1b873f, #a2ecba);
 }
 
 .rad-sync-pend {
-  color: #b26a00;
+  color: #b26a00; color: light-dark(#b26a00, #f7d097);
 }
 
 .rad-form {
@@ -555,7 +555,7 @@
 
 .rad-form-campos {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -564,16 +564,16 @@
   flex-direction: column;
   gap: 5px;
   font-size: 0.82rem;
-  color: rgba(0, 0, 0, 0.62);
+  color: rgb(var(--ink-rgb) / 0.62);
 }
 
 .rad-campo input {
-  border: 1px solid rgba(0, 0, 0, 0.22);
+  border: 1px solid rgb(var(--ink-rgb) / 0.22);
   border-radius: 8px;
   padding: 8px 10px;
   font: inherit;
-  color: rgba(0, 0, 0, 0.87);
-  background: #fff;
+  color: rgb(var(--ink-rgb) / 0.87);
+  background: var(--surface);
 }
 
 .rad-campo input:focus {
@@ -588,9 +588,9 @@
 }
 
 .rad-donde {
-  border: 1px solid rgba(0, 0, 0, 0.22);
+  border: 1px solid rgb(var(--ink-rgb) / 0.22);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   padding: 6px 12px;
   font: inherit;
   font-size: 0.8rem;
@@ -659,7 +659,7 @@
   height: min(70vh, 720px);
   border: 1px solid var(--disab-border, rgba(15, 43, 90, 0.14));
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .det-visor-imagen {
@@ -669,7 +669,7 @@
   margin: 0 auto;
   border: 1px solid var(--disab-border, rgba(15, 43, 90, 0.14));
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 /* En pantallas chicas el iframe del PDF es poco util: se acorta y el

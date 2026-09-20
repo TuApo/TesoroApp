@@ -10,8 +10,8 @@
 .premium-card {
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #f1f5f9;
-  background-color: #ffffff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   overflow: hidden;
   margin-bottom: 24px;
 }
@@ -65,7 +65,7 @@
 .header-text { display: flex; flex-direction: column; min-width: 0; }
 
 .titulo {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.4rem !important;
   font-weight: 700 !important;
   color: #ffffff;
@@ -74,7 +74,7 @@
 }
 
 .subtitulo {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.85rem !important;
   color: #cbd5e1 !important;
   margin: 0 !important;
@@ -106,15 +106,13 @@
 
 .card-content { padding: 0 24px 20px 24px; }
 
-.fp-barra { margin-bottom: 12px; border-radius: 4px; }
-
 /* ── Contadores ──────────────────────────────────────────────────────── */
 
 /* Cada tarjeta es un FILTRO, no un adorno: pulsar "Modificados" es la forma más rápida
    de ir a lo único que suele importar en una auditoría. Por eso son <button>. */
 .fp-tarjetas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(128px, 100%), 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -125,9 +123,9 @@
   align-items: flex-start;
   gap: 2px;
   padding: 12px 14px;
-  border: 1px solid var(--slate-200, #e8edf3);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--slate-50, #f8fafc);
+  background: var(--surface-2);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -135,7 +133,7 @@
 }
 
 .fp-tarjeta:hover {
-  border-color: var(--slate-300, #cbd5e1);
+  border-color: var(--border-strong);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
@@ -146,12 +144,12 @@
 
 .fp-tarjeta.activa {
   border-color: var(--navy, #21263c);
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: inset 0 0 0 1px var(--navy, #21263c);
 }
 
 .fp-tarjeta--info { cursor: default; }
-.fp-tarjeta--info:hover { border-color: var(--slate-200, #e8edf3); box-shadow: none; }
+.fp-tarjeta--info:hover { border-color: var(--border); box-shadow: none; }
 
 .fp-tarjeta--cambio.activa {
   border-color: #b45309;
@@ -161,18 +159,18 @@
 .fp-numero {
   font-size: 1.35rem;
   font-weight: 700;
-  color: var(--navy, #21263c);
+  color: var(--navy-ink);
   line-height: 1.1;
 }
 
 .fp-etiqueta {
   font-size: 0.76rem;
   font-weight: 600;
-  color: var(--muted, #64748b);
+  color: var(--muted);
   letter-spacing: 0.01em;
 }
 
-.fp-pie { font-size: 0.7rem; color: var(--muted, #94a3b8); }
+.fp-pie { font-size: 0.7rem; color: var(--muted, var(--text-faint)); }
 
 /* ── Filtros ─────────────────────────────────────────────────────────── */
 
@@ -184,78 +182,13 @@
   margin-bottom: 8px;
 }
 
-.fp-buscar { width: 280px; max-width: 100%; }
-
-.fp-total {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--muted, #64748b);
-}
-
-/* ── Tabla ───────────────────────────────────────────────────────────── */
-
-/* La tabla scrollea DENTRO de su contenedor: con 12 columnas de formulario más las 5
-   fijas, dejar que empuje el ancho de la página rompe el layout del dashboard. */
-.fp-tabla-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--slate-200, #e8edf3);
-  border-radius: 12px;
-}
-
-.fp-tabla {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.84rem;
-}
-
-.fp-tabla thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 11px 12px;
-  text-align: left;
-  white-space: nowrap;
-  background: var(--slate-100, #eef2f7);
-  color: var(--navy, #21263c);
-  font-weight: 700;
-  font-size: 0.76rem;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  border-bottom: 1px solid var(--slate-200, #e2e8f0);
-}
-
-.fp-tabla tbody td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--slate-100, #f1f5f9);
-  vertical-align: middle;
-  color: var(--slate-700, #334155);
-}
-
-.fp-tabla tbody tr:last-child td { border-bottom: none; }
-.fp-tabla tbody tr:hover { background: var(--slate-50, #f8fafc); }
-
-/* Un registro tocado después de enviarse se marca en el borde izquierdo: es la señal
-   que se busca al abrir esta pantalla, y tiene que verse sin leer ninguna columna. */
-.fp-fila--cambiada td:first-child { box-shadow: inset 3px 0 0 #f59e0b; }
-
-.fp-col-id { width: 74px; font-variant-numeric: tabular-nums; color: var(--muted, #64748b); }
-.fp-col-centro { text-align: center; }
-.fp-col-acciones { width: 96px; white-space: nowrap; text-align: right; }
-
-.fp-llave { font-weight: 600; font-variant-numeric: tabular-nums; }
-
-.fp-valor {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* ── Celdas propias (plantillas tablaCelda) ──────────────────────────── */
 
 .fp-cambio { display: flex; flex-direction: column; line-height: 1.25; }
 .fp-fecha { font-variant-numeric: tabular-nums; }
 .fp-autor {
   font-size: 0.72rem;
-  color: var(--muted, #94a3b8);
+  color: var(--muted, var(--text-faint));
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 160px;
@@ -276,11 +209,7 @@
   white-space: nowrap;
 }
 
-.chip-neutro { background: var(--slate-100, #eef2f7); color: var(--slate-700, #475569); }
-.chip-info { background: #e0f2fe; color: #075985; }
-.chip-ok { background: #dcfce7; color: #166534; }
-.chip-error { background: #fee2e2; color: #991b1b; }
-.chip-cambio { background: #fef3c7; color: #92400e; font-variant-numeric: tabular-nums; }
+.chip-cambio { background: #fef3c7; background: light-dark(#fef3c7, #373625); color: #92400e; color: light-dark(#92400e, #f5bc99); font-variant-numeric: tabular-nums; }
 
 /* ── Estados y notas ─────────────────────────────────────────────────── */
 
@@ -290,12 +219,12 @@
   align-items: center;
   gap: 10px;
   padding: 48px 16px;
-  color: var(--muted, #64748b);
+  color: var(--muted);
   text-align: center;
 }
 
 .fp-vacio-icono { font-size: 44px; opacity: 0.7; }
-.fp-vacio p { margin: 0; font-weight: 600; color: var(--slate-700, #334155); }
+.fp-vacio p { margin: 0; font-weight: 600; color: var(--text-2); }
 
 .fp-nota {
   display: flex;
@@ -303,7 +232,7 @@
   gap: 8px;
   margin: 10px 0 0;
   font-size: 0.78rem;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 
 .fp-nota-icono { font-size: 17px; width: 17px; height: 17px; }
@@ -311,5 +240,4 @@
 @media (max-width: 700px) {
   .card-header-premium { padding: 18px 16px 16px !important; }
   .card-content { padding: 0 12px 16px; }
-  .fp-buscar { width: 100%; }
 }

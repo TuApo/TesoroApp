@@ -1,11 +1,8 @@
-import { ChangeDetectorRef, Component, OnInit, AfterViewInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';
 
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatSortModule, MatSort } from '@angular/material/sort';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -17,8 +14,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { NominaService, ConceptoNomina } from '../../service/nomina/nomina.service';
 import { ConceptoFormDialogComponent } from './concepto-form-dialog.component';
 
@@ -30,9 +27,6 @@ import { ConceptoFormDialogComponent } from './concepto-form-dialog.component';
     ReactiveFormsModule,
     FormsModule,
     MatCardModule,
-    MatTableModule,
-    MatSortModule,
-    MatPaginatorModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -44,23 +38,20 @@ import { ConceptoFormDialogComponent } from './concepto-form-dialog.component';
     MatSnackBarModule,
     MatChipsModule,
     MatDividerModule,
-    MatProgressSpinnerModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './parametrizacion-novedades.component.html',
   styleUrls: ['./parametrizacion-novedades.component.css'],
 })
-export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit {
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-
-  displayedColumns = ['codigo', 'descripcion', 'abreviatura', 'naturaleza', 'unidad', 'afecta_ibc', 'activo', 'acciones'];
-  dataSource = new MatTableDataSource<ConceptoNomina>([]);
+export class ParametrizacionNovedadesComponent implements OnInit {
+  /** Conceptos que pasan los filtros de unidad / naturaleza / agrupador. */
+  conceptos: ConceptoNomina[] = [];
   isLoading = false;
 
+  // La búsqueda por texto, el orden y los filtros por columna los da la tabla estándar.
   filterUnidad = '';
   filterNaturaleza = '';
   filterAgrupador = '';
-  filterSearch = '';
 
   /** Agrupador: super-categoría de reporte (V29). El valor '' = todos,
    *  'SIN' = sin agrupar (agrupador NULL en BD). */
@@ -85,6 +76,23 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
     OTRO:             { label: 'Otro',              color: 'nat-otro' },
   };
 
+  readonly columnas: ColumnaTabla<ConceptoNomina>[] = [
+    { id: 'codigo', header: 'Código', valor: (c) => c.codigo, tarjeta: 'subtitulo' },
+    { id: 'descripcion', header: 'Descripción', valor: (c) => c.descripcion, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'abreviatura', header: 'Abreviatura', valor: (c) => c.abreviatura ?? '', prioridad: 2, tarjeta: 'meta' },
+    { id: 'naturaleza', header: 'Naturaleza', tarjeta: 'badge',
+      valor: (c) => this.NATURALEZA_LABELS[c.naturaleza]?.label ?? c.naturaleza },
+    { id: 'unidad', header: 'Unidad', tarjeta: 'badge',
+      valor: (c) => this.UNIDAD_LABELS[c.unidad]?.label ?? c.unidad },
+    { id: 'afecta_ibc', header: 'Afecta IBC', align: 'center', prioridad: 2, tarjeta: 'meta',
+      valor: (c) => c.afecta_ibc },
+    { id: 'activo', header: 'Estado', align: 'center', interactiva: true, copiable: false, tarjeta: 'meta',
+      valor: (c) => (c.activo ? 'Activo' : 'Inactivo') },
+  ];
+
+  readonly idConcepto = (c: ConceptoNomina, i: number) => c.id_concepto ?? `i${i}`;
+  readonly claseFila = (c: ConceptoNomina) => (c.activo ? '' : 'te-fila--atenuada');
+
   private allConceptos: ConceptoNomina[] = [];
 
   constructor(
@@ -96,11 +104,6 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
 
   ngOnInit(): void {
     this.cargarConceptos();
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
   }
 
   cargarConceptos(): void {
@@ -122,33 +125,19 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
   }
 
   aplicarFiltros(): void {
-    const q = (this.filterSearch || '').trim().toLowerCase();
     const u = this.filterUnidad || '';
     const n = this.filterNaturaleza || '';
     const g = this.filterAgrupador || '';
-    this.dataSource.data = this.allConceptos.filter(c => {
+    this.conceptos = this.allConceptos.filter(c => {
       if (u && c.unidad !== u) return false;
       if (n && c.naturaleza !== n) return false;
       if (g) {
         if (g === 'SIN') { if (c.agrupador) return false; }
         else if (c.agrupador !== g) return false;
       }
-      if (q) {
-        const blob = [
-          c.codigo, c.descripcion, c.abreviatura,
-          c.naturaleza, c.unidad, c.agrupador,
-        ].filter(Boolean).join(' ').toLowerCase();
-        if (!blob.includes(q)) return false;
-      }
       return true;
     });
-    if (this.paginator) this.paginator.firstPage();
     this.cdr.markForCheck();
-  }
-
-  onSearchChange(value: string): void {
-    this.filterSearch = value;
-    this.aplicarFiltros();
   }
 
   abrirDialogoCrear(): void {
@@ -176,6 +165,8 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
     this.nominaService.actualizarConcepto(concepto.id_concepto!, { activo: nuevoEstado }).subscribe({
       next: () => {
         concepto.activo = nuevoEstado;
+        // Arreglo nuevo: la tabla estándar solo recalcula cuando cambia la referencia.
+        this.conceptos = [...this.conceptos];
         this.snackBar.open(
           `Novedad ${nuevoEstado ? 'activada' : 'desactivada'}`,
           'Cerrar',
@@ -194,11 +185,10 @@ export class ParametrizacionNovedadesComponent implements OnInit, AfterViewInit 
     this.filterUnidad = '';
     this.filterNaturaleza = '';
     this.filterAgrupador = '';
-    this.filterSearch = '';
     this.aplicarFiltros();
   }
 
   contarPor(campo: keyof ConceptoNomina, valor: any): number {
-    return this.dataSource.data.filter(c => c[campo] === valor).length;
+    return this.conceptos.filter(c => c[campo] === valor).length;
   }
 }

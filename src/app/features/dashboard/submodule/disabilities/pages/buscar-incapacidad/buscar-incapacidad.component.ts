@@ -1,6 +1,4 @@
-import {  Component, OnInit, ViewChild, AfterViewInit , ChangeDetectionStrategy } from '@angular/core';
-import { MatTableDataSource } from '@angular/material/table';
-import { MatTableModule } from '@angular/material/table';
+import {  Component, OnInit, ChangeDetectionStrategy, signal } from '@angular/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,12 +11,45 @@ import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSelectModule } from '@angular/material/select';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+
+import { ColumnaTabla, TABLA_ESTANDAR, ValorCelda } from '../../../../../../shared/components/tabla-estandar';
+
+type RolTarjeta = NonNullable<ColumnaTabla['tarjeta']>;
+
+/** Incapacidades: claves que se ven siempre (el resto, en pantallas anchas). */
+const PRINCIPALES_T1: readonly string[] = [
+  'Tipo_de_documento', 'Numero_de_documento', 'consecutivoSistema', 'numero_de_contrato', 'nombre', 'apellido',
+  'Oficina', 'celular_o_telefono_01', 'celular_o_telefono_02', 'correoElectronico', 'tipo_incapacidad',
+  'F_inicio', 'F_final', 'dias_incapacidad', 'estado_incapacidad',
+];
+
+/** Incapacidades: rol en la vista de tarjetas; las claves que no estan no salen en la tarjeta. */
+const ROL_TARJETA_T1: Readonly<Record<string, RolTarjeta>> = {
+  nombre: 'titulo',
+  apellido: 'titulo',
+  Numero_de_documento: 'subtitulo',
+  consecutivoSistema: 'meta',
+  tipo_incapacidad: 'meta',
+  F_inicio: 'meta',
+  F_final: 'meta',
+  dias_incapacidad: 'meta',
+  estado_incapacidad: 'meta',
+};
+
+/** Columnas de Incapacidades que se editan en la celda (telefonos y correo). */
+const COLUMNAS_EDITABLES: readonly string[] = ['celular_o_telefono_01', 'celular_o_telefono_02', 'correoElectronico'];
+
+/** Dato plano para la tabla estandar: numeros y booleanos tal cual, el resto como texto. */
+function valorPlano(value: unknown): ValorCelda {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  return String(value);
+}
 
 export interface ColumnConfig {
   key: string;
@@ -32,7 +63,7 @@ export interface ColumnConfig {
   standalone: true,
 
   imports: [
-    MatTableModule,
+    ...TABLA_ESTANDAR,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -40,7 +71,6 @@ export interface ColumnConfig {
     MatIconModule,
     FormsModule,
     MatCardModule,
-    MatPaginatorModule,
     MatProgressSpinnerModule,
     MatExpansionModule,
     MatDividerModule,
@@ -50,10 +80,8 @@ export interface ColumnConfig {
   templateUrl: './buscar-incapacidad.component.html',
   styleUrl: './buscar-incapacidad.component.css'
 } )
-export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
-  @ViewChild('pagT1', { static: false }) paginatorT1!: MatPaginator;
+export class BuscarIncapacidadComponent implements OnInit {
   query: string = '';
-  columnFilters: { [key: string]: string[] } = {};
   isSidebarHidden = false;
 
   toggleSidebar() {
@@ -671,8 +699,53 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
     'TURFLOR',
     'VALMAR PRODUCTORA'];
 
-  dataSourcetable1 = new MatTableDataSource<any>();
-  copiadataSourcetable1 = new MatTableDataSource<any>();
+  /**
+   * Resultado de la busqueda, comun a las 7 pestanas (cada una lo muestra con
+   * sus columnas). Tabla estandar: busqueda, filtros por columna, orden,
+   * paginacion y copiado los da la tabla.
+   */
+  readonly filas = signal<any[]>([]);
+  /** Copia de lo encontrado para restablecer tras un filtro sin resultados. */
+  copiaFilas: any[] = [];
+
+  /**
+   * Incapacidades: una columna por clave de ColumnsTable1 con el mismo titulo
+   * de antes. Los telefonos y el correo se editan en la celda (interactivas) y
+   * los soportes son un enlace de descarga.
+   */
+  readonly columnasIncapacidades: ColumnaTabla<any>[] = this.ColumnsTable1.map((col): ColumnaTabla<any> => {
+    const descarga = this.isDownloadableColumn(col);
+    return {
+      id: col,
+      header: this.toTitleCase(col, this.columnTitlesTable1),
+      valor: (fila) => valorPlano(descarga ? fila?.[col + '_link'] : fila?.[col]),
+      prioridad: PRINCIPALES_T1.includes(col) ? 1 : 3,
+      tarjeta: ROL_TARJETA_T1[col] ?? 'oculto',
+      // Constante de modulo y no `isEditable()`: este campo se inicializa antes que `editableColumns`.
+      interactiva: descarga || COLUMNAS_EDITABLES.includes(col),
+      ...(descarga ? { ordenable: false, filtrable: false, copiable: false } : {}),
+    };
+  });
+
+  /** Reporte (con el boton Editar de cada fila en las acciones). */
+  readonly columnasReporte = this.columnasDe(this.displayedColumnsTable4, this.columnTitlesTable4);
+  readonly columnasArl = this.columnasDe(this.displayedColumnsTable2, this.columnTitlesTable2);
+  // SS, movimientos, pagas y Factura Elite usaban `columnTitles` para el titulo: se conserva.
+  readonly columnasSeguridadSocial = this.columnasDe(this.displayedColumnsTable3, this.columnTitles);
+  readonly columnasMovimientos = this.columnasDe(this.displayedColumnsTable5, this.columnTitles);
+  readonly columnasPagas = this.columnasDe(this.displayedColumnsTable6, this.columnTitles);
+  readonly columnasFacturaElite = this.columnasDe(this.displayedColumnsTable7, this.columnTitles);
+
+  /** Columnas planas para las pestanas de solo lectura: las 8 primeras siempre visibles. */
+  private columnasDe(claves: string[], titulos: { [key: string]: string }): ColumnaTabla<any>[] {
+    return claves.map((col, i): ColumnaTabla<any> => ({
+      id: col,
+      header: this.toTitleCase(col, titulos),
+      valor: (fila) => valorPlano(fila?.[col]),
+      prioridad: i < 8 ? 1 : 3,
+      tarjeta: i === 0 ? 'titulo' : i === 1 ? 'subtitulo' : i < 8 ? 'meta' : 'oculto',
+    }));
+  }
   overlayVisible = false;
   loaderVisible = false;
 
@@ -714,11 +787,6 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
     this.displayedColumns = [...this.columnConfigs.map(config => config.key), 'edit'];
   }
 
-  ngAfterViewInit(): void {
-    if (this.paginatorT1) {
-      this.dataSourcetable1.paginator = this.paginatorT1;
-    }
-  }
   toTitleCase(text: string, columnTitles: { [key: string]: string }): string {
     if (!text) return '';
 
@@ -798,8 +866,8 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
           });
           // Asignar los datos al DataSource
           this.cargarInformacion(false);
-          this.dataSourcetable1.data = combinedData;
-          this.copiadataSourcetable1.data = combinedData;
+          this.filas.set(combinedData);
+          this.copiaFilas = combinedData;
           this.isSearchded = true;
 
         },
@@ -816,7 +884,7 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
     } else {
       this.toggleLoader(false, false);
       // Clear the tables if the query is empty
-      this.dataSourcetable1.data = [];
+      this.filas.set([]);
 
     }
   }
@@ -868,8 +936,8 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
       this.filterCriteria.temporal = 'AL';
     }
 
-    // Filtrar los datos para dataSourceTable1 basados en los criterios seleccionados
-    const filteredData = this.dataSourcetable1.data.filter(item => {
+    // Filtrar los datos de la tabla basados en los criterios seleccionados
+    const filteredData = this.filas().filter(item => {
       const numeroDeDocumentoMatch = this.filterCriteria.numeroDeDocumento
         ? exactStringMatch(item.Numero_de_documento?.toString(), this.filterCriteria.numeroDeDocumento)
         : true;
@@ -913,10 +981,9 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
         estadorobot: '',
         temporal: ''
       };
-      this.dataSourcetable1.data = this.copiadataSourcetable1.data;
+      this.filas.set(this.copiaFilas);
     }else{
-      this.dataSourcetable1.data = filteredData;
-      this.dataSourcetable1._updateChangeSubscription(); // Asegura que la tabla se actualice
+      this.filas.set(filteredData);
     }
 
 
@@ -929,7 +996,7 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
       estadorobot: '',
       temporal: ''
     };
-    this.dataSourcetable1.data = this.copiadataSourcetable1.data;
+    this.filas.set(this.copiaFilas);
   }
 
   resetFileInput(event: any): void {
@@ -1026,19 +1093,6 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
     });
   }
   displayedColumns: string[] = [];
-  applyColumnFilter(): void {
-    this.dataSourcetable1.filterPredicate = (data, filter) => {
-      return this.columnConfigs.every(config => {
-        if (!config.filterable || !config.filterValue) {
-          return true;
-        }
-        const value = data[config.key] ? data[config.key].toString().toLowerCase() : '';
-        return value.includes(config.filterValue!.toLowerCase());
-      });
-    };
-
-    this.dataSourcetable1.filter = 'apply';
-  }
   editRow(element: any) {
     // Activa el modo de edición en la fila seleccionada
     element.editing = true;
@@ -1048,19 +1102,10 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
     const filterableColumns = ['T1', 'T2', 'Total']; // Define las columnas que son filtrables
     return filterableColumns.includes(column);
   }
-  applyFilterColumn(column: string, filterValue: string) {
-    filterValue = filterValue.trim().toLowerCase();
-
-    this.dataSourcetable1.filterPredicate = (data: any, filter: string) => {
-      return data[column]?.toString().toLowerCase().includes(filter);
-    };
-
-    this.dataSourcetable1.filter = filterValue;
-  }
   isEditable(column: string): boolean {
     return this.editableColumns.includes(column);
   }
-  editableColumns: string[] = ['celular_o_telefono_01', 'celular_o_telefono_02', 'correoElectronico'];
+  editableColumns: string[] = [...COLUMNAS_EDITABLES];
   editingRow: any = null; // La fila que está siendo editada
   editedValues: any = {}; // Almacena los valores editados
   updateValue(row: any, column: string, event: any) {
@@ -1069,10 +1114,13 @@ export class BuscarIncapacidadComponent implements OnInit, AfterViewInit {
     this.editingRow = row;
   }
   saveChanges(): void {
-    const index = this.dataSourcetable1.data.findIndex(item => item === this.editingRow);
+    const datos = this.filas();
+    const index = datos.findIndex(item => item === this.editingRow);
     if (index !== -1) {
-      this.dataSourcetable1.data[index] = { ...this.dataSourcetable1.data[index], ...this.editedValues };
-      this.dataSourcetable1.data = [...this.dataSourcetable1.data]; // Forzar la actualización de la tabla
+      // Arreglo nuevo (no se muta en sitio): la tabla estandar se entera por la senal.
+      const actualizados = [...datos];
+      actualizados[index] = { ...actualizados[index], ...this.editedValues };
+      this.filas.set(actualizados);
 
       this.incapacidadService.updateIncapacidad(this.editingRow.consecutivoSistema_id, this.editingRow).subscribe(
         response => {

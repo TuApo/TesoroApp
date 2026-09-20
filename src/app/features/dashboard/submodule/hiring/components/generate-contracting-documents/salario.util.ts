@@ -190,10 +190,57 @@ export function montoEnLetrasCOP(valor: number, sufijoMoneda: string = 'M/C'): s
  * exactamente el mínimo legal; con cualquier otro monto sería falso.
  * Devuelve '' si la vacante no trae salario, para que el llamador decida el
  * fallback en vez de imprimir "$ 0".
+ *
+ * `smmlv` = el mínimo contra el que se compara: el del año del contrato cuando
+ * se conoce (ver `salarioMinimoDelAnio`); si no, el vigente.
  */
-export function salarioContratoCO(valor: any, sufijoMoneda: string = 'M/C'): string {
+export function salarioContratoCO(valor: any, sufijoMoneda: string = 'M/C', smmlv: number = SMMLV_VIGENTE): string {
   const n = parseMontoCOP(valor);
   if (n == null || n <= 0) return '';
-  const prefijo = Math.round(n) === SMMLV_VIGENTE ? 'S.M.M.L.V ' : '';
+  const prefijo = Math.round(n) === Math.round(smmlv) ? 'S.M.M.L.V ' : '';
   return `${prefijo}${formatoPesosCO(n)} ${montoEnLetrasCOP(n, sufijoMoneda)}`;
+}
+
+/**
+ * Salario mínimo y auxilio de UN año, tal como lo sirve ms-auth-admin
+ * (Parametrización de vacantes › Salario mínimo, tabla `salario_minimo_vigencia`).
+ */
+export interface SalarioMinimoVigencia {
+  anio: number;
+  salario_minimo: number | string;
+  auxilio_transporte: number | string;
+  observacion?: string | null;
+}
+
+/**
+ * Año en que se creó el contrato: el que decide qué salario mínimo imprimen sus
+ * documentos (decisión de negocio 2026-09-16).
+ *
+ * Mismo orden que los reportes de contratación: `fecha_contrato` y, si falta,
+ * `fecha_contratacion_form`. Después `fecha_ingreso` y `created_at`, que en los
+ * contratos migrados es la fecha de la migración y no sirve si hay otra. Sin
+ * ninguna (contrato todavía sin fechas) es el año en curso. Se descartan años
+ * imposibles (hay un `0226-01-15` en los datos).
+ */
+export function anioCreacionContrato(contrato: any, hoy: Date = new Date()): number {
+  for (const campo of ['fecha_contrato', 'fecha_contratacion_form', 'fecha_ingreso', 'created_at']) {
+    const m = /^(\d{4})-\d{2}-\d{2}/.exec(String(contrato?.[campo] ?? '').trim());
+    const anio = m ? Number(m[1]) : NaN;
+    if (anio >= 2000 && anio <= 2100) return anio;
+  }
+  return hoy.getFullYear();
+}
+
+/**
+ * Salario mínimo del año: el configurado para ese año o, si no tiene, el del último
+ * año anterior que sí lo tenga. `null` = nada configurado hasta ese año (o la
+ * configuración no cargó): el llamador usa el salario de la vacante.
+ */
+export function salarioMinimoDelAnio(vigencias: readonly SalarioMinimoVigencia[] | null | undefined, anio: number): number | null {
+  let elegida: SalarioMinimoVigencia | null = null;
+  for (const v of vigencias ?? []) {
+    if (v.anio <= anio && (!elegida || v.anio > elegida.anio)) elegida = v;
+  }
+  const n = elegida ? parseMontoCOP(elegida.salario_minimo) : null;
+  return n != null && n > 0 ? n : null;
 }

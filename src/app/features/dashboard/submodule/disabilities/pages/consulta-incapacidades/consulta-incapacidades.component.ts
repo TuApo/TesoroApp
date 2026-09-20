@@ -28,7 +28,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSort, Sort } from '@angular/material/sort';
+import { Sort } from '@angular/material/sort';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Router, RouterLink } from '@angular/router';
 import { Observable, Subject, Subscription, forkJoin, of } from 'rxjs';
@@ -234,8 +234,9 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
   /** Se libera entera en ngOnDestroy. */
   private readonly subs = new Subscription();
 
-  /** Instancia de MatSort ya enganchada y su suscripcion (se rehacen al vuelo). */
-  private sortEnganchado?: MatSort;
+  /** Ordenamiento de la tabla ya enganchado y su suscripcion (se rehacen al vuelo).
+   *  Solo importa `sortChange`: la tabla estándar lo expone con la forma de MatSort. */
+  private sortEnganchado?: StandardFilterTable['sort'];
   private suscripcionOrden?: Subscription;
 
   readonly rutaRegistro = RUTA_REGISTRO;
@@ -675,9 +676,11 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
   // ── Opciones de los desplegables ──────────────────────────────────────
 
   private opcionesDeCatalogo(
-    lista: readonly { codigo: string; etiqueta: string; automatico?: boolean }[],
+    lista: readonly { codigo: string; etiqueta: string; automatico?: boolean }[] | null | undefined,
   ): OpcionSelect[] {
-    return lista.map((o) => ({
+    // Si el backend no manda alguna lista, la pantalla se queda sin ese filtro,
+    // pero no se rompe entera (antes reventaba el render y no salía ni la tabla).
+    return (lista ?? []).map((o) => ({
       valor: o.codigo,
       etiqueta: o.etiqueta || o.codigo,
       detalle: o.codigo,
@@ -1025,6 +1028,26 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
   }
 
   // ── Paginacion ────────────────────────────────────────────────────────
+
+  /** La tabla (modo servidor) pide otra página o cambia el tamaño. */
+  alCambiarPaginaTabla(evento: { page: number; size: number }): void {
+    this.alCambiarPagina({ pageIndex: evento.page, pageSize: evento.size, length: this.total() } as PageEvent);
+  }
+
+  /** El buscador de la tabla filtra contra el servidor, no solo la página. */
+  alBuscarEnTabla(texto: string): void {
+    const actual = (this.formulario.controls.q.value ?? '').trim();
+    if (actual === (texto ?? '').trim()) return;
+    this.formulario.controls.q.setValue(texto ?? '');
+  }
+
+  /** El orden de la tabla también se resuelve en el servidor. */
+  alOrdenarTabla(evento: { active: string; direction: 'asc' | 'desc' | '' }): void {
+    if (!evento.direction) this.orden.set(undefined);
+    else this.orden.set({ campo: CAMPO_ORDEN[evento.active] ?? evento.active, direccion: evento.direction });
+    this.pagina.set(0);
+    this.recargarLista$.next();
+  }
 
   alCambiarPagina(evento: PageEvent): void {
     let recargar = false;

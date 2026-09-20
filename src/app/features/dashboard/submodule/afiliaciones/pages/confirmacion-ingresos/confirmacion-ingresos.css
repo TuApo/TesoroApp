@@ -11,11 +11,8 @@
   padding: 0 0.25rem;
 }
 .base-toggle { display: flex; align-items: center; gap: 0.5rem; }
-.base-label { font-size: 0.85rem; color: #64748b; }
+.base-label { font-size: 0.85rem; color: var(--muted); }
 
-.vista-toggle mat-button-toggle-group { border-radius: 8px; }
-.vista-toggle ::ng-deep .mat-button-toggle-checked { background: #eff6ff; color: #1d4ed8; }
-.vista-toggle mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
 /* Barra masiva */
 .bulk-bar {
@@ -24,59 +21,18 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: #eff6ff; background: light-dark(#eff6ff, #0f284d);
+  border: 1px solid #bfdbfe; border: 1px solid light-dark(#bfdbfe, #0d3b7a);
   border-radius: 12px;
   margin-bottom: 0.75rem;
 }
-.bulk-count { display: flex; align-items: center; gap: 0.4rem; color: #1d4ed8; font-size: 0.95rem; }
+.bulk-count { display: flex; align-items: center; gap: 0.4rem; color: #1d4ed8; color: light-dark(#1d4ed8, #9cb3f2); font-size: 0.95rem; }
 .bulk-field { width: 150px; }
 .bulk-nota { flex: 1; min-width: 180px; }
 .bulk-bar ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
 
-/* Listado: envuelve la vista (tabla o tarjetas) y el paginador, que es común a las dos */
-.listado {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  overflow: hidden;
-}
-
-/* Tabla */
-.table-container {
-  overflow: auto;
-  max-height: 620px;
-  background: #fff;
-}
-.gestion-mat-table { width: 100%; min-width: 1100px; }
-
-th.mat-mdc-header-cell {
-  background: #f8fafc;
-  color: #475569;
-  font-weight: 600;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  border-bottom: 2px solid #e2e8f0;
-  padding: 0.6rem 0.75rem !important;
-  white-space: nowrap;
-
-  /* El StickyStyler del CDK escribe `z-index: 100` INLINE en las celdas
-     sticky. Sin `!important` no hay forma de bajarlo desde CSS, y a 100 la
-     cabecera se pintaría por encima del submenú (50) y del navbar (60)
-     allí donde se solapen. La escala de contenido de página no pasa de 10. */
-  z-index: 3 !important;
-}
-td.mat-mdc-cell {
-  padding: 0.5rem 0.75rem !important;
-  font-size: 0.85rem;
-  color: #334155;
-  border-bottom: 1px solid #f1f5f9;
-}
-.table-row { cursor: pointer; }
-.table-row:hover { background: #f8fafc; }
-.row-selected { background: #eff6ff !important; }
-.col-select { width: 44px; }
+/* Listado: la tabla estándar (tabla o tarjetas). Aquí solo quedan las celdas propias
+   (plantillas tablaCelda) y la tarjeta vCard (plantilla tablaTarjeta). */
 
 /* Empresa usuaria: razón social larga, se corta con puntos suspensivos (el tooltip trae todo). */
 .empresa-usuaria-cell {
@@ -87,25 +43,20 @@ td.mat-mdc-cell {
 .kv-wide { grid-column: 1 / -1; }
 
 .chip-empresa {
-  background: #eff6ff; color: #1d4ed8;
+  background: #eff6ff; background: light-dark(#eff6ff, #0f284d); color: #1d4ed8;
   padding: 0.15rem 0.55rem; border-radius: 6px;
   font-size: 0.78rem; font-weight: 500; white-space: nowrap;
 }
 
 .contacto-cell { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.8rem; }
-.contacto-cell .correo { color: #64748b; }
+.contacto-cell .correo { color: var(--muted); }
 .mini-icon { font-size: 14px; width: 14px; height: 14px; vertical-align: middle; margin-right: 2px; }
 
 /* Banderas */
 .flag { color: #cbd5e1; display: inline-flex; }
-.flag.on { color: #16a34a; }
+.flag.on { color: #16a34a; color: light-dark(#16a34a, #9cf2bc); }
 .flag mat-icon { font-size: 22px; width: 22px; height: 22px; }
 
-.no-data-cell { text-align: center; padding: 3rem 1rem !important; }
-.no-data { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; color: #94a3b8; }
-.no-data mat-icon { font-size: 44px; width: 44px; height: 44px; }
-
-::ng-deep .mat-mdc-paginator { border-top: 1px solid #e2e8f0; background: #f8fafc; }
 
 /* Drawer de detalle */
 .drawer-backdrop {
@@ -113,22 +64,22 @@ td.mat-mdc-cell {
 }
 .drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 92vw;
-  background: #fff; z-index: 1001; box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+  background: var(--surface); z-index: 1001; box-shadow: -4px 0 24px rgba(0,0,0,0.15);
   display: flex; flex-direction: column;
 }
 .drawer-header {
   display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0;
+  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
 }
-.drawer-header h3 { margin: 0; font-size: 1.1rem; color: #0f172a; }
-.drawer-sub { font-size: 0.82rem; color: #64748b; }
+.drawer-header h3 { margin: 0; font-size: 1.1rem; color: var(--text); }
+.drawer-sub { font-size: 0.82rem; color: var(--muted); }
 .drawer-body { overflow-y: auto; padding: 1rem 1.25rem; }
 .drawer-section { margin-bottom: 1.5rem; }
-.drawer-section h4 { margin: 0 0 0.6rem; font-size: 0.9rem; color: #1e293b; }
+.drawer-section h4 { margin: 0 0 0.6rem; font-size: 0.9rem; color: var(--text); }
 
 .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
-.kv-grid > div { font-size: 0.85rem; color: #334155; }
-.kv-grid > div span { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: #94a3b8; }
+.kv-grid > div { font-size: 0.85rem; color: var(--text-2); }
+.kv-grid > div span { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); }
 .doc-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
 
 /* Chips de estado ADRES */
@@ -136,11 +87,11 @@ td.mat-mdc-cell {
   display: inline-block; padding: 0.15rem 0.5rem; border-radius: 6px;
   font-size: 0.75rem; font-weight: 600; white-space: nowrap;
 }
-.adres-ok { background: #d1fae5; color: #065f46; }
-.adres-bad { background: #ffedd5; color: #9a3412; }
-.adres-muerto { background: #fee2e2; color: #991b1b; }
-.adres-neutro { background: #e2e8f0; color: #334155; }
-.adres-sin { font-size: 0.75rem; color: #94a3b8; }
+.adres-ok { background: #d1fae5; background: light-dark(#d1fae5, #133b38); color: #065f46; color: light-dark(#065f46, #97f7dc); }
+.adres-bad { background: #ffedd5; background: light-dark(#ffedd5, #382d24); color: #9a3412; color: light-dark(#9a3412, #f3b19b); }
+.adres-muerto { background: #fee2e2; background: light-dark(#fee2e2, #371725); color: #991b1b; color: light-dark(#991b1b, #eea0a0); }
+.adres-neutro { background: var(--surface-4); color: var(--text-2); }
+.adres-sin { font-size: 0.75rem; color: var(--text-faint); }
 
 .conf-controls { display: flex; gap: 0.75rem; }
 .conf-field { flex: 1; }
@@ -150,26 +101,26 @@ td.mat-mdc-cell {
 .validador-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.25rem; }
 .validador-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px;
 }
-.validador-name { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; color: #334155; }
+.validador-name { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; color: var(--text-2); }
 .validador-name mat-icon { color: #cbd5e1; font-size: 20px; width: 20px; height: 20px; }
-.validador-name mat-icon.on { color: #16a34a; }
+.validador-name mat-icon.on { color: #16a34a; color: light-dark(#16a34a, #9cf2bc); }
 .validador-actions { display: flex; gap: 0.4rem; }
 .validador-actions button { min-width: 0; line-height: 30px; padding: 0 0.7rem; }
 
 .hist-title { margin-top: 1.25rem !important; }
-.empty-hist { color: #94a3b8; font-size: 0.85rem; }
+.empty-hist { color: var(--text-faint); font-size: 0.85rem; }
 .intentos-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.intento-item { padding: 0.5rem 0.75rem; border: 1px solid #f1f5f9; border-radius: 8px; background: #f8fafc; }
+.intento-item { padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
 .intento-top { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
-.intento-chip { background: #e0e7ff; color: #3730a3; padding: 0.1rem 0.45rem; border-radius: 5px; font-size: 0.72rem; font-weight: 600; }
-.intento-canal { font-size: 0.78rem; color: #475569; }
-.intento-res { font-size: 0.72rem; font-weight: 600; color: #065f46; }
-.intento-res.rechazado { color: #9f1239; }
-.intento-masivo { font-size: 0.68rem; color: #92400e; background: #fef3c7; padding: 0.05rem 0.35rem; border-radius: 4px; }
-.intento-meta { font-size: 0.72rem; color: #94a3b8; margin-top: 0.2rem; }
-.intento-nota { font-size: 0.8rem; color: #334155; margin-top: 0.25rem; }
+.intento-chip { background: #e0e7ff; background: light-dark(#e0e7ff, #0f1f4d); color: #3730a3; color: light-dark(#3730a3, #aca8e5); padding: 0.1rem 0.45rem; border-radius: 5px; font-size: 0.72rem; font-weight: 600; }
+.intento-canal { font-size: 0.78rem; color: var(--text-2); }
+.intento-res { font-size: 0.72rem; font-weight: 600; color: #065f46; color: light-dark(#065f46, #97f7dc); }
+.intento-res.rechazado { color: #9f1239; color: light-dark(#9f1239, #f49ab3); }
+.intento-masivo { font-size: 0.68rem; color: #92400e; color: light-dark(#92400e, #f5bc99); background: #fef3c7; background: light-dark(#fef3c7, #373625); padding: 0.05rem 0.35rem; border-radius: 4px; }
+.intento-meta { font-size: 0.72rem; color: var(--text-faint); margin-top: 0.2rem; }
+.intento-nota { font-size: 0.8rem; color: var(--text-2); margin-top: 0.25rem; }
 
 /* ── Expediente: traslados, badges de documentos y vista previa ────────── */
 
@@ -179,10 +130,10 @@ td.mat-mdc-cell {
   font-size: 0.72rem; font-weight: 600; white-space: nowrap;
   max-width: 160px; overflow: hidden; text-overflow: ellipsis;
 }
-.tr-ok { background: #d1fae5; color: #065f46; }
-.tr-bad { background: #fee2e2; color: #991b1b; }
-.tr-proceso { background: #fef3c7; color: #92400e; }
-.tr-neutro { background: #e2e8f0; color: #334155; }
+.tr-ok { background: #d1fae5; background: light-dark(#d1fae5, #133b38); color: #065f46; color: light-dark(#065f46, #97f7dc); }
+.tr-bad { background: #fee2e2; background: light-dark(#fee2e2, #371725); color: #991b1b; color: light-dark(#991b1b, #eea0a0); }
+.tr-proceso { background: #fef3c7; background: light-dark(#fef3c7, #373625); color: #92400e; color: light-dark(#92400e, #f5bc99); }
+.tr-neutro { background: var(--surface-4); color: var(--text-2); }
 .tr-sin { font-size: 0.75rem; color: #cbd5e1; }
 
 /* Badges "tiene cédula / ADRES / traslado" en la tabla. */
@@ -190,43 +141,43 @@ td.mat-mdc-cell {
 .doc-badge {
   display: inline-flex; align-items: center; gap: 0.12rem;
   font-size: 0.72rem; font-weight: 600; color: #cbd5e1;
-  background: #f8fafc; border: 1px solid #eef2f7; border-radius: 6px; padding: 0.05rem 0.3rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.05rem 0.3rem;
 }
-.doc-badge.on { color: #1d4ed8; background: #eff6ff; border-color: #dbeafe; }
+.doc-badge.on { color: #1d4ed8; background: #eff6ff; background: light-dark(#eff6ff, #0f284d); border-color: var(--border); }
 .doc-badge .mini-icon { font-size: 14px; width: 14px; height: 14px; }
 .doc-badges-cargando { color: #cbd5e1; font-size: 0.9rem; letter-spacing: 0.1em; }
 
 /* Encabezados de sección del expediente. */
-.sec-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: -3px; color: #64748b; }
+.sec-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: -3px; color: var(--muted); }
 .sec-count {
-  margin-left: 0.35rem; font-size: 0.7rem; font-weight: 700; color: #3730a3;
-  background: #e0e7ff; border-radius: 999px; padding: 0.05rem 0.4rem;
+  margin-left: 0.35rem; font-size: 0.7rem; font-weight: 700; color: #3730a3; color: light-dark(#3730a3, #aca8e5);
+  background: #e0e7ff; background: light-dark(#e0e7ff, #0f1f4d); border-radius: 999px; padding: 0.05rem 0.4rem;
 }
 
 /* Franja "de quién es": la identidad con la que hizo match el dato/documento. */
 .owner-strip {
   display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
-  font-size: 0.8rem; color: #334155;
-  background: #f8fafc; border: 1px solid #eef2f7; border-radius: 8px;
+  font-size: 0.8rem; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
   padding: 0.4rem 0.6rem; margin-bottom: 0.6rem;
 }
-.owner-ced { font-size: 0.75rem; color: #64748b; }
-.owner-alerta { display: inline-flex; align-items: center; gap: 0.2rem; color: #b45309; font-size: 0.72rem; font-weight: 600; }
+.owner-ced { font-size: 0.75rem; color: var(--muted); }
+.owner-alerta { display: inline-flex; align-items: center; gap: 0.2rem; color: #b45309; color: light-dark(#b45309, #f7c097); font-size: 0.72rem; font-weight: 600; }
 
 .form-marca {
-  display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #334155;
-  background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+  display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-2);
+  background: #fffbeb; background: light-dark(#fffbeb, #383624); border: 1px solid #fde68a; border: 1px solid light-dark(#fde68a, #6a5d1c); border-radius: 8px;
   padding: 0.4rem 0.6rem; margin-bottom: 0.6rem;
 }
 
 /* Tarjetas de traslado. */
 .traslados-list { display: flex; flex-direction: column; gap: 0.6rem; }
-.traslado-card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.6rem 0.75rem; }
+.traslado-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.75rem; }
 .traslado-card.inactivo { opacity: 0.65; }
 .traslado-top { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.45rem; }
-.traslado-cod { font-size: 0.72rem; color: #94a3b8; }
-.traslado-inactivo { font-size: 0.68rem; color: #92400e; background: #fef3c7; padding: 0.05rem 0.35rem; border-radius: 4px; }
-.traslado-obs { font-size: 0.8rem; color: #334155; margin-top: 0.4rem; }
+.traslado-cod { font-size: 0.72rem; color: var(--text-faint); }
+.traslado-inactivo { font-size: 0.68rem; color: #92400e; color: light-dark(#92400e, #f5bc99); background: #fef3c7; background: light-dark(#fef3c7, #373625); padding: 0.05rem 0.35rem; border-radius: 4px; }
+.traslado-obs { font-size: 0.8rem; color: var(--text-2); margin-top: 0.4rem; }
 .tr-doc-btn { margin-top: 0.5rem; }
 .kv-grid.compact { gap: 0.35rem 0.75rem; }
 
@@ -234,52 +185,42 @@ td.mat-mdc-cell {
 .grupo-toggle { margin-bottom: 0.7rem; }
 .grupo-toggle .mini-icon { font-size: 16px; width: 16px; height: 16px; margin-right: 0.2rem; vertical-align: -3px; }
 .docs-list { display: flex; flex-direction: column; gap: 0.6rem; }
-.doc-card { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+.doc-card { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .doc-card-top { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.55rem 0.65rem; }
-.doc-tipo-icon { color: #64748b; }
+.doc-tipo-icon { color: var(--muted); }
 .doc-card-id { flex: 1; min-width: 0; }
 .doc-nombre {
-  font-size: 0.84rem; color: #1e293b; font-weight: 600;
+  font-size: 0.84rem; color: var(--text); font-weight: 600;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.doc-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; font-size: 0.71rem; color: #94a3b8; margin-top: 0.15rem; }
-.doc-vigente { color: #065f46; background: #d1fae5; border-radius: 4px; padding: 0 0.3rem; font-weight: 600; }
+.doc-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; font-size: 0.71rem; color: var(--text-faint); margin-top: 0.15rem; }
+.doc-vigente { color: #065f46; color: light-dark(#065f46, #97f7dc); background: #d1fae5; background: light-dark(#d1fae5, #133b38); border-radius: 4px; padding: 0 0.3rem; font-weight: 600; }
 .doc-card-acciones { display: flex; flex-shrink: 0; }
 .doc-card-acciones button { width: 34px; height: 34px; line-height: 34px; }
 
-.doc-preview { border-top: 1px solid #f1f5f9; background: #f8fafc; }
-.doc-preview img { display: block; width: 100%; max-height: 460px; object-fit: contain; background: #fff; }
-.doc-preview iframe { display: block; width: 100%; height: 460px; border: 0; background: #fff; }
+.doc-preview { border-top: 1px solid var(--border); background: var(--surface-2); }
+.doc-preview img { display: block; width: 100%; max-height: 460px; object-fit: contain; background: var(--surface); }
+.doc-preview iframe { display: block; width: 100%; height: 460px; border: 0; background: var(--surface); }
 .preview-vacio {
   display: flex; align-items: center; gap: 0.5rem; justify-content: center;
-  padding: 1.2rem 0.75rem; color: #94a3b8; font-size: 0.8rem; text-align: center;
+  padding: 1.2rem 0.75rem; color: var(--text-faint); font-size: 0.8rem; text-align: center;
 }
-.docs-mas { font-size: 0.75rem; color: #94a3b8; margin-top: 0.5rem; }
+.docs-mas { font-size: 0.75rem; color: var(--text-faint); margin-top: 0.5rem; }
 
 /* ── Vista tarjeta (vCard) ─────────────────────────────────────────────
    Misma información que la fila, ordenada para leerse de arriba a abajo.
-   Es la única vista por debajo de 1024px: la tabla tiene 17 columnas. */
-
-.cards-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-  gap: 0.75rem;
-  padding: 0.75rem;
-  max-height: 70vh;
-  overflow-y: auto;
-  background: #f8fafc;
-}
+   La rejilla de tarjetas la pone la tabla estándar (minAnchoTarjeta 330px). */
 
 .vcard {
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.vcard:hover { border-color: #cbd5e1; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06); }
+.vcard:hover { border-color: var(--border-strong); box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06); }
 .vcard-sel { border-color: #60a5fa; box-shadow: 0 0 0 2px #dbeafe inset; }
 
 .vcard-head {
@@ -287,16 +228,16 @@ td.mat-mdc-cell {
   align-items: flex-start;
   gap: 0.4rem;
   padding: 0.6rem 0.7rem 0.5rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border);
 }
 .vcard-check { flex-shrink: 0; }
 .vcard-id { flex: 1; min-width: 0; cursor: pointer; }
 .vcard-nombre {
-  font-size: 0.95rem; font-weight: 600; color: #0f172a; line-height: 1.25;
+  font-size: 0.95rem; font-weight: 600; color: var(--text); line-height: 1.25;
   overflow-wrap: anywhere;
 }
-.vcard-doc { font-size: 0.78rem; color: #64748b; margin-top: 0.1rem; }
-.vcard-cargo { color: #94a3b8; }
+.vcard-doc { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+.vcard-cargo { color: var(--text-faint); }
 
 .vcard-body {
   display: grid;
@@ -305,10 +246,10 @@ td.mat-mdc-cell {
   padding: 0.6rem 0.7rem;
   cursor: pointer;
 }
-.vcard-kv { font-size: 0.83rem; color: #334155; min-width: 0; overflow-wrap: anywhere; }
+.vcard-kv { font-size: 0.83rem; color: var(--text-2); min-width: 0; overflow-wrap: anywhere; }
 .vcard-kv > span:first-child {
   display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.03em;
-  color: #94a3b8; margin-bottom: 0.05rem;
+  color: var(--text-faint); margin-bottom: 0.05rem;
 }
 .vcard-kv-ancho { grid-column: 1 / -1; }
 
@@ -320,11 +261,11 @@ td.mat-mdc-cell {
 .vcard-link {
   display: inline-flex; align-items: center; gap: 0.15rem;
   font-size: 0.8rem; color: #1d4ed8; text-decoration: none;
-  background: #eff6ff; border: 1px solid #dbeafe; border-radius: 999px;
+  background: #eff6ff; background: light-dark(#eff6ff, #0f284d); border: 1px solid var(--border); border-radius: 999px;
   padding: 0.22rem 0.6rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; min-height: 32px;
 }
-.vcard-link:active { background: #dbeafe; }
+.vcard-link:active { background: var(--surface-4); }
 
 .vcard-flags {
   display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem;
@@ -332,19 +273,18 @@ td.mat-mdc-cell {
 }
 .vflag {
   font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em;
-  color: #94a3b8; background: #f1f5f9; border: 1px solid #e2e8f0;
+  color: var(--text-faint); background: var(--surface-3); border: 1px solid var(--border);
   border-radius: 999px; padding: 0.15rem 0.5rem;
 }
-.vflag.on { color: #065f46; background: #d1fae5; border-color: #a7f3d0; }
+.vflag.on { color: #065f46; color: light-dark(#065f46, #97f7dc); background: #d1fae5; background: light-dark(#d1fae5, #133b38); border-color: #a7f3d0; border-color: light-dark(#a7f3d0, #17654e); }
 .vcard-docs { display: flex; gap: 0.25rem; margin-left: auto; }
 
 .vcard-actions {
   display: flex; align-items: center; gap: 0.2rem;
-  padding: 0.4rem 0.5rem; border-top: 1px solid #f1f5f9; background: #f8fafc;
+  padding: 0.4rem 0.5rem; border-top: 1px solid var(--border); background: var(--surface-2);
 }
 .vcard-actions button:first-child { margin-right: auto; }
 
-.cards-list .no-data { grid-column: 1 / -1; padding: 2.5rem 1rem; }
 
 /* ── Responsive ────────────────────────────────────────────────────────
    El objetivo es el celular en la oficina/finca: sin scroll horizontal,
@@ -363,8 +303,11 @@ td.mat-mdc-cell {
     align-items: stretch;
     gap: 0.75rem;
   }
-  .base-toggle { justify-content: space-between; }
-  .base-toggle mat-button-toggle-group { flex: 1; }
+  /* Sin min-width:0 el interruptor y el grupo de fechas medían lo que su
+     texto en una línea (462 px) y empujaban la página fuera de la pantalla. */
+  .controls-row > * { min-width: 0; max-width: 100%; }
+  .base-toggle { justify-content: space-between; flex-wrap: wrap; }
+  .base-toggle mat-button-toggle-group { flex: 1; max-width: 100%; overflow-x: auto; }
   .btn-pegado { width: 100%; height: 44px; }
 
   /* La barra masiva pasa a bloque: los selects a ancho completo y los
@@ -373,21 +316,13 @@ td.mat-mdc-cell {
   .bulk-field, .bulk-nota { width: 100%; min-width: 0; }
   .bulk-bar button { width: 100%; height: 42px; }
 
-  .cards-list {
-    grid-template-columns: 1fr;
-    gap: 0.6rem;
-    padding: 0.6rem;
-    max-height: none;
-  }
   .vcard-actions button { min-width: 40px; height: 40px; }
-
-  ::ng-deep .mat-mdc-paginator .mat-mdc-paginator-container { justify-content: center; }
 }
 
 @media (max-width: 640px) {
   .drawer { width: 100%; max-width: 100vw; }
   .drawer-body { padding: 0.9rem 1rem; }
-  .kv-grid { grid-template-columns: 1fr; }
+  .kv-grid { grid-template-columns: minmax(0, 1fr); }
   .kv-grid.compact { grid-template-columns: 1fr 1fr; }
   .doc-preview iframe { height: 320px; }
   .doc-preview img { max-height: 320px; }
@@ -402,6 +337,6 @@ td.mat-mdc-cell {
 }
 
 @media (max-width: 420px) {
-  .vcard-body { grid-template-columns: 1fr; }
+  .vcard-body { grid-template-columns: minmax(0, 1fr); }
   .vcard-link { font-size: 0.76rem; }
 }

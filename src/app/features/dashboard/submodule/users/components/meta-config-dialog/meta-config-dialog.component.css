@@ -42,7 +42,7 @@
   align-items: center;
   gap: 12px;
   padding: 4px 0 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
   /* gris 200 */
 }
 
@@ -50,93 +50,12 @@
   flex: 1 1 auto;
 }
 
-/* ===== Contenedor scrolleable para tablas ===== */
+/* ===== Contenedor scrolleable para las tablas estándar ===== */
 .table-scroll {
   /* Altura razonable para que no expanda el diálogo */
   max-height: 38vh;
   overflow: auto;
   /* X e Y según se necesite */
-  border: 1px solid #ececec;
-  border-radius: 12px;
-  background: #fff;
-}
-
-/* ===== Tabla (Material) ===== */
-table[mat-table] {
-  width: 100%;
-  min-width: 640px;
-  /* permite scroll horizontal con muchas columnas */
-  border-radius: 12px;
-  border-collapse: separate;
-  border-spacing: 0;
-  background: #ffffff;
-}
-
-th[mat-header-cell] {
-  font-weight: 600;
-  color: #6b7280;
-  /* gris 500 */
-  background: #fafafa;
-  border-bottom: 1px solid #ececec;
-  white-space: nowrap;
-
-  /* Mantener el header visible al hacer scroll vertical */
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-td[mat-cell],
-th[mat-header-cell] {
-  padding: 10px 14px !important;
-  line-height: 1.25;
-}
-
-td[mat-cell] {
-  color: #1f2937;
-  /* gris 800 */
-  border-bottom: 1px solid #ececec;
-  vertical-align: middle;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-tr[mat-row]:hover td[mat-cell] {
-  background: #f5f6f8;
-}
-
-.right {
-  text-align: right;
-}
-
-.mat-column-acciones {
-  width: 120px;
-}
-
-td.mat-column-acciones {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-/* Estado sin datos */
-.no-data td {
-  padding: 18px 14px;
-  text-align: center;
-  color: #6b7280;
-  background: #fafafa;
-}
-
-/* Botones de acción compactos */
-button[mat-icon-button] {
-  width: 36px;
-  height: 36px;
-  line-height: 36px;
-}
-
-button[mat-icon-button] mat-icon {
-  font-size: 20px;
 }
 
 /* ===== Editor ===== */
@@ -145,9 +64,9 @@ button[mat-icon-button] mat-icon {
   gap: 16px;
   margin-top: 8px;
   padding: 16px;
-  border: 1px solid #ececec;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: #fafafa;
+  background: var(--surface-2);
 }
 
 .editor .row {
@@ -175,7 +94,7 @@ button[mat-icon-button] mat-icon {
 }
 
 .muted {
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .actions {
@@ -215,12 +134,7 @@ mat-form-field {
   }
 
   .editor .row {
-    grid-template-columns: 1fr;
-  }
-
-  td[mat-cell],
-  th[mat-header-cell] {
-    padding: 8px 12px !important;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .table-scroll {

@@ -27,7 +27,7 @@
 /* Stats */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(190px, 100%), 1fr));
   gap: 14px;
   margin-bottom: 16px;
 }
@@ -42,9 +42,9 @@
 
 .stat-icon { font-size: 30px; width: 30px; height: 30px; }
 .stat-icon.primary { color: #5c6bc0; }
-.stat-icon.success { color: #43a047; }
-.stat-icon.warn    { color: #ef6c00; }
-.stat-icon.accent  { color: #039be5; }
+.stat-icon.success { color: #43a047; color: light-dark(#43a047, #aee0b0); }
+.stat-icon.warn    { color: #ef6c00; color: light-dark(#ef6c00, #f7c297); }
+.stat-icon.accent  { color: #039be5; color: light-dark(#039be5, #97d7f7); }
 
 .stat-body { display: flex; flex-direction: column; }
 .stat-num   { font-size: 26px; font-weight: 700; line-height: 1; }
@@ -118,20 +118,8 @@
 
 .filtro-field { min-width: 150px; max-width: 260px; }
 
-.loading-overlay {
-  display: flex;
-  justify-content: center;
-  padding: 40px;
-}
-
-/* Tabla */
-.tabla-wrapper { overflow-x: auto; border-radius: 8px; }
-
-.tabla-activity { width: 100%; min-width: 700px; }
-
-.td-fecha { font-size: 12px; white-space: nowrap; }
+/* Celdas propias (plantillas tablaCelda) */
 .td-mono  { font-family: monospace; font-size: 12px; }
-.td-desc  { font-size: 12px; max-width: 300px; }
 
 .actor-cell {
   display: flex;
@@ -139,13 +127,13 @@
   gap: 8px;
 }
 
-.actor-avatar { color: #9e9e9e; font-size: 28px; width: 28px; height: 28px; }
+.actor-avatar { color: var(--text-faint); font-size: 28px; width: 28px; height: 28px; }
 .actor-nombre { font-size: 13px; font-weight: 500; }
 .actor-rol    { font-size: 11px; opacity: .55; }
 
 .modulo-chip {
   display: inline-block;
-  background: #e8eaf6;
+  background: #e8eaf6; background: light-dark(#e8eaf6, #192343);
   color: #3949ab;
   padding: 2px 8px;
   border-radius: 4px;
@@ -159,101 +147,10 @@
   color: #9fa8da;
 }
 
-.pagina-label { font-size: 13px; }
-
 .entidad-text { font-size: 13px; font-weight: 500; }
 .entidad-id   { font-size: 11px; opacity: .5; margin-left: 4px; font-family: monospace; }
 
-.action-chip {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.fila-nav:hover { background: rgba(92,107,192,.04); }
-.fila-fail td   { background: rgba(229,57,53,.04); }
-
-.icon-ok   { color: #43a047; }
-.icon-fail { color: #e53935; }
-
-.empty-state {
-  text-align: center;
-  padding: 50px 24px;
-  opacity: .4;
-}
-
-.empty-state mat-icon {
-  font-size: 44px;
-  width: 44px;
-  height: 44px;
-  margin-bottom: 8px;
-}
-
-.empty-state p { margin: 0; font-size: 13px; }
-
-/* ── Mobile cards ─────────────────────────────────────────────────────────── */
-.mobile-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 4px 0 12px;
-}
-
-.act-card {
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.act-card.card-fail {
-  border-left: 3px solid #e53935;
-  background: rgba(229,57,53,.02);
-}
-
-.card-top-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.card-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.card-label {
-  font-size: 10px;
-  font-weight: 700;
-  color: #999;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-
-.card-val {
-  font-size: 13px;
-  color: #333;
-  word-break: break-word;
-}
-
-.card-mono { font-family: monospace; font-size: 12px; }
-.card-desc { font-size: 12px; opacity: 0.75; }
-
-.card-date {
-  font-size: 11px;
-  color: #888;
-  white-space: nowrap;
-}
-
-.icon-ok   { color: #43a047; }
+.icon-ok   { color: #43a047; color: light-dark(#43a047, #aee0b0); }
 .icon-fail { color: #e53935; }
 
 @media (max-width: 768px) {

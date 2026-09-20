@@ -1,10 +1,9 @@
-import { AfterViewInit, ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatSortModule, MatSort } from '@angular/material/sort';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -20,6 +19,7 @@ import { MatChipsModule } from '@angular/material/chips';
 
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { NotificacionesConfigService } from '../../services/notificaciones-config.service';
 import { ReglaFormDialogComponent, ReglaFormDialogData } from './regla-form-dialog.component';
 import { TipoFormDialogComponent, TipoFormDialogData } from './tipo-form-dialog.component';
@@ -62,8 +62,6 @@ import {
     CommonModule,
     FormsModule,
     MatCardModule,
-    MatTableModule,
-    MatSortModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -76,36 +74,50 @@ import {
     MatSlideToggleModule,
     MatTabsModule,
     MatChipsModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './notificaciones.component.html',
   styleUrls: ['./notificaciones.component.css'],
 })
-export class NotificacionesComponent implements OnInit, AfterViewInit {
-  @ViewChild(MatSort) sortReglas!: MatSort;
-
+export class NotificacionesComponent implements OnInit {
   /**
-   * OJO: cada id de aquí DEBE tener su `matColumnDef` en el HTML. Si falta uno,
-   * MatTable lanza y no pinta NINGUNA fila (la tabla se ve vacía con el contador
-   * en su número real). Lo cubre la prueba de render de la spec.
+   * Columnas de las dos tablas estándar. El valor de cada una es el dato plano
+   * (búsqueda, filtros, orden y copiado); lo visual va en plantillas `tablaCelda`.
+   * Las acciones van en `tablaAcciones`, no como columna.
    */
-  readonly columnasReglas = [
-    'nombre', 'evento_clave', 'tipo', 'audiencia', 'canales',
-    'urgencia', 'destino', 'activo', 'acciones',
+  readonly columnasReglas: ColumnaTabla<NotifRegla>[] = [
+    { id: 'nombre', header: 'Regla', valor: (r) => r.nombre, tarjeta: 'titulo', minAncho: '200px' },
+    { id: 'evento_clave', header: 'Cuando pasa', valor: (r) => r.evento_clave, tarjeta: 'subtitulo' },
+    { id: 'tipo', header: 'Tipo', valor: (r) => this.tipoDe(r)?.nombre ?? '', prioridad: 2, tarjeta: 'meta' },
+    { id: 'audiencia', header: 'A quién', valor: (r) => this.audienciaDe(r), prioridad: 2, tarjeta: 'meta' },
+    { id: 'canales', header: 'Por dónde', valor: (r) => r.canales.map((c) => this.canalMeta(c).label).join(', '),
+      prioridad: 3, tarjeta: 'meta' },
+    { id: 'urgencia', header: 'Urgencia', valor: (r) => this.urgMeta(this.urgenciaDe(r)).label, tarjeta: 'badge' },
+    { id: 'destino', header: 'Al hacer clic', valor: (r) => this.destinoLabel(r.destino_tipo),
+      prioridad: 3, tarjeta: 'meta' },
+    { id: 'activo', header: 'Activa', valor: (r) => r.activo, interactiva: true, copiable: false, tarjeta: 'meta' },
   ];
-  readonly columnasTipos = [
-    'aspecto', 'clave', 'nombre', 'urgencia_default', 'agrupable', 'orden', 'activo', 'acciones',
+  readonly columnasTipos: ColumnaTabla<NotificationType>[] = [
+    { id: 'aspecto', header: 'Aspecto', valor: (t) => t.icono, copiable: false, filtrable: false,
+      ordenable: false, tarjeta: 'meta' },
+    { id: 'clave', header: 'Clave', valor: (t) => t.clave, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (t) => t.nombre, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'urgencia_default', header: 'Urgencia por defecto', valor: (t) => this.urgMeta(t.urgencia_default).label,
+      tarjeta: 'badge' },
+    { id: 'agrupable', header: 'Agrupable', valor: (t) => t.agrupable, prioridad: 3, tarjeta: 'meta' },
+    { id: 'orden', header: 'Orden', valor: (t) => t.orden, align: 'right', prioridad: 3, tarjeta: 'meta' },
+    { id: 'activo', header: 'Activo', valor: (t) => t.activo, interactiva: true, copiable: false, tarjeta: 'meta' },
   ];
 
-  reglas = new MatTableDataSource<NotifRegla>([]);
-  tipos = new MatTableDataSource<NotificationType>([]);
+  reglas: NotifRegla[] = [];
+  tipos: NotificationType[] = [];
 
   /** Índice clave→tipo: la tabla de reglas pinta el ícono y el color del tipo. */
   tipoPorId = new Map<string, NotificationType>();
 
   eventos: string[] = [];
 
-  // Filtros
-  filtroTexto = '';
+  // Filtros de negocio (la búsqueda por texto la da la tabla estándar)
   filtroEvento = '';
   filtroEstado: 'activas' | 'inactivas' | 'todas' = 'todas';
   filtroTipos: 'activos' | 'inactivos' | 'todos' = 'todos';
@@ -122,30 +134,40 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
     Object.fromEntries(CANALES.map((c) => [c.value, { label: c.label, icono: c.icono, disponible: c.disponible }])) as
       Record<Canal, { label: string; icono: string; disponible: boolean }>;
 
+  /**
+   * Pestaña abierta. 0 = Reglas, 1 = Tipos.
+   *
+   * <p>Va en la URL porque el menú tiene un submódulo para cada una: «Reglas de
+   * envío» y «Catálogo de tipos» son entradas distintas y tienen que abrir cada
+   * una la suya. De paso, el enlace de una pestaña concreta se puede compartir.</p>
+   */
+  pestanaActiva = 0;
+
+  private readonly PESTANAS = ['reglas', 'tipos'];
+
   constructor(
     private api: NotificacionesConfigService,
     private dialog: MatDialog,
     private snack: MatSnackBar,
     private cdr: ChangeDetectorRef,
+    private ruta: ActivatedRoute,
+    private router: Router,
   ) {}
 
-  ngOnInit(): void {
-    this.reglas.filterPredicate = (r, filtro) => this.coincide(r, filtro);
-    this.tipos.filterPredicate = (t, filtro) => {
-      const q = filtro.trim().toLowerCase();
-      if (!q) return true;
-      return [t.clave, t.nombre, t.descripcion ?? ''].join(' ').toLowerCase().includes(q);
-    };
-    this.cargar();
+  /** Refleja la pestaña en la URL, sin apilar entradas en el historial. */
+  cambiarPestana(indice: number): void {
+    this.pestanaActiva = indice;
+    this.router.navigate(
+      ['/dashboard/gestion-del-programa/notificaciones', this.PESTANAS[indice] ?? 'reglas'],
+      { replaceUrl: true },
+    );
   }
 
-  /**
-   * El @ViewChild(MatSort) todavia no esta resuelto en ngOnInit, asi que
-   * engancharlo alli dependeria de que la respuesta HTTP llegue despues de que
-   * la vista se inicialice. Aqui es determinista.
-   */
-  ngAfterViewInit(): void {
-    this.reglas.sort = this.sortReglas;
+  ngOnInit(): void {
+    const pestana = this.ruta.snapshot.paramMap.get('pestana');
+    const indice = pestana ? this.PESTANAS.indexOf(pestana) : -1;
+    this.pestanaActiva = indice >= 0 ? indice : 0;
+    this.cargar();
   }
 
   // ── Carga ────────────────────────────────────────────────────────────────
@@ -160,9 +182,9 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
     this.cargaFallida = false;
     this.api.listarTipos().subscribe({
       next: (tipos) => {
-        this.tipos.data = tipos;
+        this.tipos = tipos;
         this.tipoPorId = new Map(tipos.map((t) => [t.id, t]));
-        this.aplicarFiltroTipos();
+        this.recalcularTiposVisibles();
         this.cargarReglas();
       },
       error: (e) => this.fallo(e, 'No se pudo cargar el catálogo de tipos'),
@@ -176,8 +198,8 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
   private cargarReglas(): void {
     this.api.listarReglas(this.filtroEvento || null).subscribe({
       next: (reglas) => {
-        this.reglas.data = reglas;
-        this.aplicarFiltroReglas();
+        this.reglas = reglas;
+        this.recalcularReglasVisibles();
         this.cargando = false;
         this.cdr.markForCheck();
       },
@@ -203,34 +225,17 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
   // ── Filtros ──────────────────────────────────────────────────────────────
 
   /**
-   * El filtro de MatTable es un solo string, así que el estado viaja empaquetado
-   * con el texto. Sin esto, cambiar "activas/inactivas" no repintaría la tabla
-   * porque `filter` no habría cambiado.
+   * Las reglas se filtran por estado en cliente (el endpoint filtra solo por
+   * evento). Es un CAMPO y no un getter: alimenta `[datos]` de la tabla, y un
+   * arreglo nuevo en cada ciclo la haría recalcularlo todo cada vez.
    */
-  private aplicarFiltroReglas(): void {
-    this.reglas.filter = `${this.filtroTexto.trim().toLowerCase()}||${this.filtroEstado}`;
-  }
+  reglasVisibles: NotifRegla[] = [];
 
-  private aplicarFiltroTipos(): void {
-    this.tipos.filter = this.filtroTexto.trim().toLowerCase();
-    this.recalcularTiposVisibles();
-  }
-
-  private coincide(r: NotifRegla, filtro: string): boolean {
-    const [texto, estado] = filtro.split('||');
-    if (estado === 'activas' && !r.activo) return false;
-    if (estado === 'inactivas' && r.activo) return false;
-    if (!texto) return true;
-    return [
-      r.nombre, r.descripcion ?? '', r.evento_clave, r.tipo_clave ?? '',
-      r.plantilla_titulo, r.destino_valor ?? '',
-    ].join(' ').toLowerCase().includes(texto);
-  }
-
-  onTextoChange(valor: string): void {
-    this.filtroTexto = valor;
-    this.aplicarFiltroReglas();
-    this.aplicarFiltroTipos();
+  private recalcularReglasVisibles(): void {
+    this.reglasVisibles =
+      this.filtroEstado === 'activas' ? this.reglas.filter((r) => r.activo)
+      : this.filtroEstado === 'inactivas' ? this.reglas.filter((r) => !r.activo)
+      : this.reglas;
   }
 
   onEventoChange(): void {
@@ -238,7 +243,7 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
   }
 
   onEstadoChange(): void {
-    this.aplicarFiltroReglas();
+    this.recalcularReglasVisibles();
   }
 
   onFiltroTiposChange(): void {
@@ -248,14 +253,14 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
   /**
    * Los tipos se filtran por estado en cliente; el endpoint devuelve todos.
    *
-   * Es un CAMPO y no un getter a proposito: alimenta [dataSource], y un getter
-   * que devuelve un array nuevo en cada ciclo de deteccion haria que MatTable
-   * se repintara entero cada vez.
+   * Es un CAMPO y no un getter a proposito: alimenta `[datos]` de la tabla, y un
+   * getter que devuelve un array nuevo en cada ciclo de deteccion haria que la
+   * tabla se recalculara entera cada vez.
    */
   tiposVisibles: NotificationType[] = [];
 
   private recalcularTiposVisibles(): void {
-    const base = this.tipos.filteredData;
+    const base = this.tipos;
     this.tiposVisibles =
       this.filtroTipos === 'activos' ? base.filter((t) => t.activo)
       : this.filtroTipos === 'inactivos' ? base.filter((t) => !t.activo)
@@ -264,12 +269,12 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
 
   // ── Indicadores ──────────────────────────────────────────────────────────
 
-  get reglasActivas(): number { return this.reglas.data.filter((r) => r.activo).length; }
-  get tiposActivos(): number { return this.tipos.data.filter((t) => t.activo).length; }
-  get eventosCubiertos(): number { return new Set(this.reglas.data.map((r) => r.evento_clave)).size; }
+  get reglasActivas(): number { return this.reglas.filter((r) => r.activo).length; }
+  get tiposActivos(): number { return this.tipos.filter((t) => t.activo).length; }
+  get eventosCubiertos(): number { return new Set(this.reglas.map((r) => r.evento_clave)).size; }
   /** Reglas activas que además mandan correo: es el número que cuesta plata. */
   get reglasConCorreo(): number {
-    return this.reglas.data.filter((r) => r.activo && r.canales.includes('EMAIL')).length;
+    return this.reglas.filter((r) => r.activo && r.canales.includes('EMAIL')).length;
   }
 
   // ── Acciones sobre reglas ────────────────────────────────────────────────
@@ -303,11 +308,11 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
   }
 
   abrirCrearRegla(): void {
-    this.abrirDialogoRegla({ tipos: this.tipos.data, eventos: this.eventos });
+    this.abrirDialogoRegla({ tipos: this.tipos, eventos: this.eventos });
   }
 
   abrirEditarRegla(regla: NotifRegla): void {
-    this.abrirDialogoRegla({ regla, tipos: this.tipos.data, eventos: this.eventos });
+    this.abrirDialogoRegla({ regla, tipos: this.tipos, eventos: this.eventos });
   }
 
   private abrirDialogoRegla(data: ReglaFormDialogData): void {
@@ -358,7 +363,8 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
     this.alternandoId = regla.id;
     this.api.alternarActivo(regla.id, activo).subscribe({
       next: (actualizada) => {
-        this.reglas.data = this.reglas.data.map((r) => (r.id === actualizada.id ? actualizada : r));
+        this.reglas = this.reglas.map((r) => (r.id === actualizada.id ? actualizada : r));
+        this.recalcularReglasVisibles();
         this.alternandoId = null;
         this.snack.open(activo ? 'Regla activada' : 'Regla desactivada', 'Cerrar', { duration: 3000 });
         this.cdr.markForCheck();
@@ -405,7 +411,7 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
    */
   async alternarTipo(tipo: NotificationType, activo: boolean, toggle: MatSlideToggle): Promise<void> {
     if (!activo) {
-      const enUso = this.reglas.data.filter((r) => r.tipo_id === tipo.id && r.activo).length;
+      const enUso = this.reglas.filter((r) => r.tipo_id === tipo.id && r.activo).length;
       if (enUso) {
         const res = await Swal.fire({
           title: '¿Desactivar el tipo?',
@@ -426,7 +432,7 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
     }
     this.api.actualizarTipo(tipo.id, { activo }).subscribe({
       next: (actualizado) => {
-        this.tipos.data = this.tipos.data.map((t) => (t.id === actualizado.id ? actualizado : t));
+        this.tipos = this.tipos.map((t) => (t.id === actualizado.id ? actualizado : t));
         this.tipoPorId.set(actualizado.id, actualizado);
         this.recalcularTiposVisibles();
         this.snack.open(activo ? 'Tipo activado' : 'Tipo desactivado', 'Cerrar', { duration: 3000 });
@@ -460,6 +466,7 @@ export class NotificacionesComponent implements OnInit, AfterViewInit {
     return this.URGENCIA[u] ?? { label: u, icono: 'info', clase: 'urg-info' };
   }
 
-  /** `trackBy` de ambas tablas: sin esto Angular repinta toda la lista por toggle. */
-  trackById = (_: number, item: { id: string }): string => item.id;
+  /** Clave de fila de ambas tablas: sin esto Angular repinta toda la lista por toggle. */
+  readonly idFila = (item: { id: string }): string => item.id;
+  readonly claseFila = (item: { activo: boolean }): string => (item.activo ? '' : 'te-fila--atenuada');
 }

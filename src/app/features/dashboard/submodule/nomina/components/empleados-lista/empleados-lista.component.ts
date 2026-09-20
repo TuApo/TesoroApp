@@ -1,25 +1,29 @@
 import {
-  Component, ChangeDetectionStrategy, OnInit, signal, computed, inject,
+  Component, ChangeDetectionStrategy, OnInit, signal, computed, inject, viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { debounceTime, Subject } from 'rxjs';
 
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent, TonoBadge,
+} from '../../../../../../shared/components/tabla-estandar';
 import {
   NominaService, Empleado, EmpleadosQuery, Client, CostCenter,
 } from '../../service/nomina/nomina.service';
 import { EmpleadoEditorDialogComponent } from '../empleado-editor-dialog/empleado-editor-dialog.component';
+
+/** Tono del chip de estado del contrato activo (sin contrato → neutro). */
+const TONO_ESTADO: Record<string, TonoBadge> = {
+  ACTIVO: 'ok', INACTIVO: 'warn', RETIRADO: 'danger', FINALIZADO: 'violet',
+};
 
 @Component({
   selector: 'app-empleados-lista',
@@ -27,9 +31,10 @@ import { EmpleadoEditorDialogComponent } from '../empleado-editor-dialog/emplead
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, FormsModule,
-    MatTableModule, MatPaginatorModule, MatIconModule, MatButtonModule,
+    MatIconModule, MatButtonModule,
     MatFormFieldModule, MatInputModule, MatSelectModule,
-    MatProgressSpinnerModule, MatDialogModule, MatTooltipModule,
+    MatDialogModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './empleados-lista.component.html',
   styleUrl: './empleados-lista.component.css',
@@ -53,22 +58,47 @@ export class EmpleadosListaComponent implements OnInit {
   clientes = signal<Client[]>([]);
   cecos = signal<CostCenter[]>([]);
 
-  displayedColumns = [
-    'documento', 'nombre', 'cliente', 'ceco', 'salario',
-    'fecha_ingreso', 'estado', 'acciones',
+  /**
+   * Columnas de la tabla estándar (modo servidor: el backend pagina y busca;
+   * por eso no son ordenables, el endpoint no recibe orden).
+   */
+  readonly columnas: ColumnaTabla<Empleado>[] = [
+    { id: 'documento', header: 'Documento', ordenable: false, tarjeta: 'subtitulo',
+      valor: (e) => `${this.tipoDoc(e)} ${e.numero_documento ?? ''}`.trim() },
+    { id: 'nombre', header: 'Nombre', ordenable: false, tarjeta: 'titulo', minAncho: '180px',
+      valor: (e) => e.nombre_completo ?? '', formato: (e) => e.nombre_completo || '—' },
+    { id: 'cliente', header: 'Cliente', ordenable: false, tarjeta: 'cuerpo',
+      valor: (e) => e.contrato_activo?.cliente_nombre ?? '',
+      formato: (e) => e.contrato_activo?.cliente_nombre || '—' },
+    { id: 'ceco', header: 'CECO', ordenable: false, prioridad: 2, tarjeta: 'cuerpo',
+      valor: (e) => e.contrato_activo?.centro_de_costo ?? '',
+      formato: (e) => e.contrato_activo?.centro_de_costo || '—' },
+    { id: 'salario', header: 'Salario', ordenable: false, prioridad: 2, align: 'right', tarjeta: 'meta',
+      valor: (e) => {
+        const v = e.contrato_activo?.salario_basico;
+        return v == null ? null : Number(v);
+      },
+      formato: (e) => this.fmtSalario(e.contrato_activo?.salario_basico) },
+    { id: 'fecha_ingreso', header: 'Ingreso', ordenable: false, prioridad: 3, tarjeta: 'meta',
+      valor: (e) => (e.contrato_activo?.fecha_ingreso ? this.fmtFecha(e.contrato_activo.fecha_ingreso) : ''),
+      formato: (e) => this.fmtFecha(e.contrato_activo?.fecha_ingreso) },
+    { id: 'estado', header: 'Estado', ordenable: false, tarjeta: 'badge',
+      valor: (e) => e.contrato_activo?.estado || 'SIN CONTRATO',
+      badge: (e) => ({
+        texto: e.contrato_activo?.estado || 'SIN CONTRATO',
+        tono: TONO_ESTADO[e.contrato_activo?.estado ?? ''] ?? 'neutro',
+      }) },
   ];
 
-  private searchSubject = new Subject<void>();
+  readonly idEmpleado = (e: Empleado, i: number) => e.id_persona ?? `i${i}`;
+
+  /** La tabla guarda su página: al cambiar un filtro de negocio se vuelve a la 1. */
+  private readonly tabla = viewChild(TablaEstandarComponent);
 
   ngOnInit(): void {
     this.svc.getClientesActivos().subscribe({
       next: (cs) => this.clientes.set(cs),
       error: () => this.clientes.set([]),
-    });
-    // Debounce búsqueda libre para no golpear al backend en cada tecla
-    this.searchSubject.pipe(debounceTime(300)).subscribe(() => {
-      this.pageIndex.set(0);
-      this.fetch();
     });
     this.fetch();
   }
@@ -83,38 +113,48 @@ export class EmpleadosListaComponent implements OnInit {
         error: () => this.cecos.set([]),
       });
     }
-    this.pageIndex.set(0);
+    this.irAPrimeraPagina();
     this.fetch();
   }
 
   onEstadoChange(value: string): void {
     this.estado.set(value);
-    this.pageIndex.set(0);
+    this.irAPrimeraPagina();
     this.fetch();
   }
 
   onCecoChange(id: number | null): void {
     this.cecoId.set(id);
-    this.pageIndex.set(0);
+    this.irAPrimeraPagina();
     this.fetch();
   }
 
-  onSearchInput(): void { this.searchSubject.next(); }
-
-  onPage(e: PageEvent): void {
-    this.pageIndex.set(e.pageIndex);
-    this.pageSize.set(e.pageSize);
+  /** Búsqueda libre de la tabla estándar (ya llega con debounce): va al backend desde la página 1. */
+  onBuscar(texto: string): void {
+    this.q.set(texto);
+    this.pageIndex.set(0); // la tabla ya volvió a su página 1
     this.fetch();
   }
 
+  onPage(e: { pagina: number; porPagina: number }): void {
+    this.pageIndex.set(e.pagina);
+    this.pageSize.set(e.porPagina);
+    this.fetch();
+  }
+
+  /** Limpia los filtros de negocio. La búsqueda libre la limpia la propia tabla. */
   limpiarFiltros(): void {
-    this.q.set('');
     this.clienteId.set(null);
     this.cecoId.set(null);
     this.estado.set('ACTIVO');
     this.cecos.set([]);
-    this.pageIndex.set(0);
+    this.irAPrimeraPagina();
     this.fetch();
+  }
+
+  private irAPrimeraPagina(): void {
+    this.pageIndex.set(0);
+    this.tabla()?.pagina.set(0);
   }
 
   private fetch(): void {

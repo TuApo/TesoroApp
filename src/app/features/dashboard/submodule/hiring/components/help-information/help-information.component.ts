@@ -32,9 +32,11 @@ import {
   VacanteOpcion,
 } from '../vacante-asignar/vacante-asignar.dialog';
 import {
-  coincidenTodas, textoBuscableVacante, tokensDeConsulta,
+  coincidenTodas, normalizarBusqueda, textoBuscableVacante, tokensDeConsulta,
 } from '../../shared/busqueda-vacantes.util';
 import { Avance, tieneValor } from '../../shared/progreso.util';
+import { AutoGuardado, GuardadoIncompleto } from '../../shared/auto-guardado';
+import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
 
 // ================== Constantes ==================
 export const MY_DATE_FORMATS = {
@@ -54,6 +56,8 @@ interface PublicacionDTO {
   oficinas_que_contratan: OficinaDTO[];
   empresa_usuaria_solicita: string;
   finca: string | null;
+  /** Dirección de la empresa/finca. Viene en casi todas; la de la prueba casi nunca. */
+  direccion?: string | null;
   ubicacionPruebaTecnica: string | null;
   experiencia: string | null;
   fechadePruebatecnica: string | null;
@@ -76,10 +80,22 @@ interface PublicacionDTO {
   activo?: boolean;
 }
 
+/** Una dirección que se le ofrece al operador en Remisión, y de dónde sale. */
+export interface DireccionSugerida {
+  direccion: string;
+  origen: string;
+}
+
+/** Para comparar direcciones: sin tildes, sin mayúsculas y con espacios colapsados. */
+function claveDireccion(v: unknown): string {
+  return normalizarBusqueda(v).replace(/\s+/g, ' ').trim();
+}
+
 @Component({
   selector: 'app-help-information',
   standalone: true,
-  imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule, FormEntrevistaComponent],
+  imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule, FormEntrevistaComponent,
+    AutoGuardadoEstadoComponent],
   templateUrl: './help-information.component.html',
   styleUrl: './help-information.component.css',
   providers: [
@@ -111,6 +127,9 @@ export class HelpInformationComponent implements OnInit {
   /** Reenvía el "guardado" de la entrevista (y de la remisión) al padre para que
    *  recargue el candidato. */
   guardado = output<void>();
+
+  /** Reenvía el "entrevista enviada" al pipeline, que decide a dónde llevar. */
+  entrevistaEnviada = output<'APLICA' | 'NO_APLICA' | 'EN_ESPERA' | null>();
 
   /** Foto del candidato ya resuelta por el pipeline; la pinta la ficha. */
   fotoUrl = input<string | null>(null);
@@ -174,6 +193,85 @@ export class HelpInformationComponent implements OnInit {
   // Vacante actualmente seleccionada (mantiene sincronía entre lista e id)
   vacanteSeleccionada = signal<PublicacionDTO | null>(null);
 
+  /**
+   * Direcciones conocidas de la empresa de la vacante, para sugerir en Remisión.
+   *
+   * Primero lo que dice la propia vacante (su dirección y el lugar de la prueba);
+   * después las direcciones de OTRAS vacantes de la misma finca y luego de la
+   * misma empresa usuaria. Se compara por finca O por empresa porque el nombre de
+   * la empresa no siempre se escribe igual ("FLORES DE LOS ANDES" / "… S.").
+   */
+  readonly direccionesEmpresa = computed<DireccionSugerida[]>(() => {
+    const v = this.vacanteSeleccionada();
+    if (!v) return [];
+
+    const out: DireccionSugerida[] = [];
+    const vistas = new Set<string>();
+    const agregar = (dir: unknown, origen: string) => {
+      const d = String(dir ?? '').trim();
+      const k = claveDireccion(d);
+      if (!k || vistas.has(k)) return;
+      vistas.add(k);
+      out.push({ direccion: d, origen });
+    };
+
+    agregar(v.direccion, 'Dirección de la empresa en la vacante');
+    agregar(v.ubicacionPruebaTecnica, 'Lugar de la prueba técnica');
+
+    const empresa = claveDireccion(v.empresa_usuaria_solicita);
+    const finca = claveDireccion(v.finca);
+    const otras = this.vacantes()
+      .filter((o) => Number(o.id) !== Number(v.id))
+      .map((o) => ({
+        o,
+        mismaFinca: !!finca && claveDireccion(o.finca) === finca,
+        mismaEmpresa: !!empresa && claveDireccion(o.empresa_usuaria_solicita) === empresa,
+      }))
+      .filter((x) => x.mismaFinca || x.mismaEmpresa)
+      .sort((a, b) => Number(b.mismaFinca) - Number(a.mismaFinca));
+
+    for (const { o, mismaFinca } of otras) {
+      agregar(o.direccion, mismaFinca
+        ? `Otra vacante de la finca ${o.finca}`
+        : `Misma empresa · finca ${o.finca || 'sin finca'}`);
+    }
+    return out.slice(0, 8);
+  });
+
+  /**
+   * Sugerencias filtradas por lo tecleado. Si el campo ya tiene una de ellas se
+   * muestran todas: al abrir el desplegable se quiere ver las alternativas, no
+   * solo la que ya está puesta.
+   */
+  direccionesParaMostrar(): DireccionSugerida[] {
+    const todas = this.direccionesEmpresa();
+    const actual = this.vacantesForm.get('direccionEmpresa')?.value;
+    const k = claveDireccion(actual);
+    if (!k || todas.some((d) => claveDireccion(d.direccion) === k)) return todas;
+    const tokens = tokensDeConsulta(actual);
+    return todas.filter((d) => coincidenTodas(normalizarBusqueda(`${d.direccion} ${d.origen}`), tokens));
+  }
+
+  /** Con qué dirección se prellena: la de la empresa; si no hay, el lugar de la prueba. */
+  private direccionPorDefecto(v: PublicacionDTO | null | undefined): string {
+    return String(v?.direccion ?? '').trim() || String(v?.ubicacionPruebaTecnica ?? '').trim();
+  }
+
+  /**
+   * Dirección al pasar a la vacante `v`. Lo vacío se llena; lo que venía de la
+   * vacante ANTERIOR se cambia, porque es de otra empresa; lo escrito a mano (o
+   * guardado distinto) se respeta.
+   */
+  private direccionAlElegirVacante(v: PublicacionDTO, anterior: PublicacionDTO | null): string {
+    const actual = String(this.vacantesForm.get('direccionEmpresa')?.value ?? '').trim();
+    const nueva = this.direccionPorDefecto(v);
+    if (!actual) return nueva;
+    const k = claveDireccion(actual);
+    const venia = !!anterior && Number(anterior.id) !== Number(v.id)
+      && [anterior.direccion, anterior.ubicacionPruebaTecnica].some((d) => claveDireccion(d) === k);
+    return venia && nueva ? nueva : actual;
+  }
+
   // ========= Filtro y Búsqueda =========
   searchVacanteCtrl = this.fb.control<string>('', { nonNullable: true });
   searchVacanteSig = toSignal(this.searchVacanteCtrl.valueChanges.pipe(startWith('')));
@@ -193,7 +291,11 @@ export class HelpInformationComponent implements OnInit {
    */
   limpiarVacante = signal<boolean>(false);
 
-  // ========= "No pasó la prueba técnica" =========
+  // ========= Resultado de la prueba técnica =========
+  /** El candidato PASÓ la prueba técnica. Es lo que habilita Exámenes de ingreso. */
+  pasoPrueba = signal<boolean>(false);
+  /** Fecha (ISO) en que se marcó que pasó la prueba técnica. */
+  pasoPruebaAt = signal<string | null>(null);
   /** El candidato fue remitido a prueba técnica pero NO la pasó. */
   noPasoPrueba = signal<boolean>(false);
   /** Fecha (ISO) en que se marcó que no pasó la prueba técnica. */
@@ -255,6 +357,8 @@ export class HelpInformationComponent implements OnInit {
         const texto = textoBuscableVacante([
           emp, finca, cargo, v.codigo_elite, v.temporal,
           this.oficinasResumen(v.oficinas_que_contratan),
+          // La fecha de creación también se busca (p. ej. "2026-09-12" o "09-12").
+          String(v.fecha_publicado ?? ''),
         ]);
         if (!coincidenTodas(texto, tokens)) continue;
       }
@@ -401,7 +505,7 @@ export class HelpInformationComponent implements OnInit {
       .subscribe((r: VacanteAsignarResultado | undefined) => {
         if (!r) return;
         this.onVacanteIdChange('quitar' in r ? this.SIN_VACANTE : r.id);
-        this.guardarVacantes();
+        void this.autoRemision.ahora();
       });
   }
 
@@ -445,6 +549,18 @@ export class HelpInformationComponent implements OnInit {
     this.nav.publicar('remision', avance);
   }
 
+  /**
+   * Remisión sin botón "Guardar" / "Quitar vacante": elegir la vacante, el tipo
+   * o cambiar un dato de la citación se guarda solo.
+   */
+  readonly autoRemision = new AutoGuardado(
+    () => this.guardarVacantes({ silencioso: true }),
+    () => {
+      const c = this.candidatoSeleccionado();
+      return c?.numero_documento ? `${c.tipo_doc || 'CC'}|${c.numero_documento}` : '';
+    },
+  );
+
   // ========= Constructor =========
   constructor() {
     // --- Form principal (inyectamos tipoCtrl para observarlo como signal)
@@ -459,6 +575,8 @@ export class HelpInformationComponent implements OnInit {
       horaPruebaEntrevista: [''],
       direccionEmpresa: ['']
     });
+
+    this.autoRemision.vigilar(this.vacantesForm, this.destroyRef);
 
     // --- Effect: reaccionar a inputs (candidato)
     effect(() => {
@@ -527,7 +645,7 @@ export class HelpInformationComponent implements OnInit {
           area: currentVals.area || (v.area ?? ''),
           fechaPruebaEntrevista: currentVals.fechaPruebaEntrevista || toDate(v.fechadePruebatecnica),
           horaPruebaEntrevista: currentVals.horaPruebaEntrevista || toTime(v.horade_pruebatecnica),
-          direccionEmpresa: currentVals.direccionEmpresa || (v.ubicacionPruebaTecnica ?? '')
+          direccionEmpresa: currentVals.direccionEmpresa || this.direccionPorDefecto(v)
         }, { emitEvent: true }); // emitEvent true para que los signals de visibilidad (como isAutorizacion) reaccionen
       }
     });
@@ -538,29 +656,33 @@ export class HelpInformationComponent implements OnInit {
     if (user) {
       this.sede = user.sede?.nombre || null;
 
-      if (this.sede) {
-        this.vacantesService.getVacantesPorOficina(this.sede).pipe(
-          takeUntilDestroyed(this.destroyRef)
-        ).subscribe({
-          next: (vacantes) => {
-            this.vacantes.set(vacantes);
-          },
-          error: (err) => {
-            // Sin este aviso, un backend caído se veía igual que "no hay
-            // vacantes": el operador no sabía que era un error.
-            console.warn('[help-information] No se pudieron cargar las vacantes:', err?.status, err?.error);
-            Swal.fire({
-              icon: 'warning',
-              title: 'No se pudieron cargar las vacantes',
-              text: 'Revisa la conexión e intenta de nuevo. La vacante asignada puede no mostrarse hasta recargar.',
-              toast: true,
-              position: 'top-end',
-              timer: 5000,
-              showConfirmButton: false,
-            });
-          }
-        });
-      }
+      // Las vacantes ACTIVAS que el usuario puede ver, igual que el tablero de
+      // Vacantes: ADMIN/GERENCIA todas, el resto las de TODAS sus sedes, más las
+      // que no tienen oficina declarada. Antes se pedían solo las de la sede
+      // principal por nombre exacto: de 46 activas, a BOSA le salían 2, y las 17
+      // sin oficina no le salían a nadie. Además esta lista trae el conteo de
+      // contratados, sin el cual una vacante completa nunca se ocultaba.
+      this.vacantesService.listarVacantes().pipe(
+        takeUntilDestroyed(this.destroyRef)
+      ).subscribe({
+        next: (vacantes: any) => {
+          this.vacantes.set(Array.isArray(vacantes) ? vacantes : []);
+        },
+        error: (err) => {
+          // Sin este aviso, un backend caído se veía igual que "no hay
+          // vacantes": el operador no sabía que era un error.
+          console.warn('[help-information] No se pudieron cargar las vacantes:', err?.status, err?.error);
+          Swal.fire({
+            icon: 'warning',
+            title: 'No se pudieron cargar las vacantes',
+            text: 'Revisa la conexión e intenta de nuevo. La vacante asignada puede no mostrarse hasta recargar.',
+            toast: true,
+            position: 'top-end',
+            timer: 5000,
+            showConfirmButton: false,
+          });
+        }
+      });
     }
   }
 
@@ -572,6 +694,8 @@ export class HelpInformationComponent implements OnInit {
     // Al cambiar de candidato, descartamos cualquier intención previa de limpiar.
     this.limpiarVacante.set(false);
     // Reseteamos el estado de "no pasó la prueba técnica"; se rehidrata desde el proceso.
+    this.pasoPrueba.set(false);
+    this.pasoPruebaAt.set(null);
     this.noPasoPrueba.set(false);
     this.noPasoPruebaAt.set(null);
     this.motivoNoPaso.set(null);
@@ -590,6 +714,7 @@ export class HelpInformationComponent implements OnInit {
     const cambioPersona = ced !== this.cedulaVista;
     this.cedulaVista = ced;
     if (cambioPersona) {
+      this.autoRemision.cancelar();
       this.selectedVacanteId.set(null);
       this.vacanteSeleccionada.set(null);
       this.vacantesForm.reset({
@@ -621,13 +746,17 @@ export class HelpInformationComponent implements OnInit {
     }
 
     this.limpiarVacante.set(false);
+    // La anterior se busca por id y no con `vacanteSeleccionada`, que la
+    // sincroniza un effect y todavía no se ha enterado del cambio.
+    const list = this.vacantes();
+    const idAnterior = this.selectedVacanteId();
+    const anterior = idAnterior != null ? (list.find(x => Number(x.id) === Number(idAnterior)) ?? null) : null;
     this.selectedVacanteId.set(idNum);
 
     // Cuando el usuario elige del dropdown, rellenamos las fechas/salarios base de la vacante.
-    const list = this.vacantes();
     const v = list.find(x => Number(x.id) === idNum);
     if (v) {
-      this.patchVacanteToForm(v);
+      this.patchVacanteToForm(v, anterior);
     }
   }
 
@@ -641,6 +770,8 @@ export class HelpInformationComponent implements OnInit {
     this.vacanteSeleccionada.set(null);
     this.limpiarVacante.set(true);
     // Quitar la vacante también descarta el resultado de prueba técnica en la UI.
+    this.pasoPrueba.set(false);
+    this.pasoPruebaAt.set(null);
     this.noPasoPrueba.set(false);
     this.noPasoPruebaAt.set(null);
     this.motivoNoPaso.set(null);
@@ -677,7 +808,7 @@ export class HelpInformationComponent implements OnInit {
     return '';
   }
 
-  private patchVacanteToForm(v: PublicacionDTO): void {
+  private patchVacanteToForm(v: PublicacionDTO, anterior: PublicacionDTO | null = null): void {
     const toDate = (yyyyMmDd: string | null) => yyyyMmDd ? new Date(`${yyyyMmDd}T00:00:00`) : null;
     const toTime = (hhmmss: string | null) => hhmmss ? hhmmss.slice(0, 5) : null;
     const salarioNum = v.salario && v.salario !== '0.00' ? Number(v.salario) : null;
@@ -691,7 +822,9 @@ export class HelpInformationComponent implements OnInit {
       area: v.area ?? '',
       fechaPruebaEntrevista: toDate(v.fechadePruebatecnica),
       horaPruebaEntrevista: toTime(v.horade_pruebatecnica),
-      direccionEmpresa: v.ubicacionPruebaTecnica ?? ''
+      // Una dirección escrita a mano o guardada en el proceso no queda pisada
+      // por la de la publicación; la que venía de la vacante anterior, sí.
+      direccionEmpresa: this.direccionAlElegirVacante(v, anterior)
     }, { emitEvent: true });
   }
 
@@ -722,13 +855,20 @@ export class HelpInformationComponent implements OnInit {
         const n = Number(p.vacante_salario);
         if (Number.isFinite(n)) patch['salario'] = n;
       }
-      // Los demás campos (empresa, cargo, área, hora, dirección) no se guardan
-      // en el proceso: los completa el effect de la vacante SOLO donde estén vacíos.
+      // La dirección SÍ se guarda en el proceso (V55): si hay una guardada
+      // manda sobre la de la vacante, que es solo el punto de partida.
+      if (p?.vacante_direccion != null && String(p.vacante_direccion).trim() !== '') {
+        patch['direccionEmpresa'] = String(p.vacante_direccion);
+      }
+      // Los demás (empresa, cargo, área, hora) no se guardan en el proceso: los
+      // completa el effect de la vacante SOLO donde estén vacíos.
       if (Object.keys(patch).length) this.vacantesForm.patchValue(patch, { emitEvent: true });
     }
 
-    // Estado de "no pasó la prueba técnica" (resultado registrado en el proceso):
-    // verdad del servidor, se refleja siempre.
+    // Resultado de la prueba técnica registrado en el proceso: verdad del
+    // servidor, se refleja siempre.
+    this.pasoPrueba.set(!!p?.paso_prueba_tecnica);
+    this.pasoPruebaAt.set(p?.paso_prueba_tecnica_at ?? null);
     this.noPasoPrueba.set(!!p?.no_paso_prueba_tecnica);
     this.noPasoPruebaAt.set(p?.no_paso_prueba_tecnica_at ?? null);
     this.motivoNoPaso.set(p?.motivo_no_paso_prueba_tecnica ?? null);
@@ -762,7 +902,23 @@ export class HelpInformationComponent implements OnInit {
   }
 
 
-  async guardarVacantes(): Promise<void> {
+  /**
+   * Guarda la remisión. `silencioso` es el guardado automático: sin cargador ni
+   * avisos de éxito, lanza si falla y, si todavía falta la vacante o el tipo,
+   * lo dice en el indicador en vez de abrir un aviso.
+   */
+  async guardarVacantes(opts: { silencioso?: boolean } = {}): Promise<void> {
+    const silencioso = !!opts.silencioso;
+    if (silencioso) {
+      if (this.bloqueado()) return;
+      if (this.limpiarVacante() && !this.vacanteSeleccionada()) {
+        await this.limpiarVacanteEnBackend(true);
+        return;
+      }
+      if (!this.vacanteSeleccionada()) throw new GuardadoIncompleto('Elija la vacante para guardar la remisión');
+      if (!this.vacantesForm.get('tipo')?.value) throw new GuardadoIncompleto('Elija el tipo para guardar la remisión');
+      if (!this.candidatoSeleccionado()?.numero_documento) return;
+    }
     // Bloqueo: no se puede remitir si el candidato está EN ESPERA de vacante o NO APLICA.
     if (this.bloqueado()) {
       await Swal.fire({
@@ -854,6 +1010,12 @@ export class HelpInformationComponent implements OnInit {
       // guardado en el proceso.
       ...(vacante_tipo ? { vacante_tipo } : {}),
       vacante_fecha_prueba: vacanteFechaPrueba, // <-- YA en YYYY-MM-DD o null
+      // La dirección de la citación. Se capturaba, contaba para el avance del
+      // paso y se imprimía en el formato… pero no se guardaba: al reabrir la
+      // remisión el campo se rellenaba desde la vacante y lo corregido a mano
+      // se perdía sin aviso. Se manda siempre —también vacía— para que borrarla
+      // a propósito también quede guardado.
+      vacante_direccion: (this.vacantesForm.get('direccionEmpresa')?.value ?? '').toString().trim(),
       vacante_salario,
       ...(tipo === 'Prueba técnica' ? { prueba_tecnica: true } : {}),
       ...(tipo === 'Autorización de ingreso' ? { autorizado: true } : {}),
@@ -861,6 +1023,13 @@ export class HelpInformationComponent implements OnInit {
 
 
     // 4) Llamar al backend
+    if (silencioso) {
+      await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
+      this.vacantesForm.markAsPristine();
+      // El pipeline recarga: la vacante alimenta "Datos de obra" y las píldoras.
+      this.guardado.emit();
+      return;
+    }
     try {
       Swal.fire({
         title: 'Guardando...',
@@ -904,9 +1073,10 @@ export class HelpInformationComponent implements OnInit {
    * remisión (tipo, salario, fecha de prueba) y desmarca las banderas
    * prueba_tecnica / autorizado. El backend ya soporta publicacion=null.
    */
-  private async limpiarVacanteEnBackend(): Promise<void> {
+  private async limpiarVacanteEnBackend(silencioso = false): Promise<void> {
     const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
     if (!numeroDocumento) {
+      if (silencioso) return;
       await Swal.fire({
         title: 'No hay número de documento del candidato.',
         icon: 'info',
@@ -927,7 +1097,15 @@ export class HelpInformationComponent implements OnInit {
       confirmButtonText: 'Sí, quitar',
       cancelButtonText: 'Cancelar',
     });
-    if (!confirm.isConfirmed) return;
+    if (!confirm.isConfirmed) {
+      if (silencioso) {
+        // Sin botón, "Sin vacante" ya limpió la pantalla: se vuelve a lo guardado.
+        this.limpiarVacante.set(false);
+        const proceso = this.candidatoSeleccionado()?.entrevistas?.[0]?.proceso;
+        if (proceso) this.patchProcesoSeleccionToForms(proceso, true);
+      }
+      return;
+    }
 
     const payload: ProcesoUpdateByDocumentRequest = {
       numero_documento: numeroDocumento,
@@ -938,6 +1116,13 @@ export class HelpInformationComponent implements OnInit {
       prueba_tecnica: false,
       autorizado: false,
     };
+
+    if (silencioso) {
+      await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
+      this.limpiarVacante.set(false);
+      this.guardado.emit();
+      return;
+    }
 
     try {
       Swal.fire({
@@ -968,6 +1153,97 @@ export class HelpInformationComponent implements OnInit {
         icon: 'error',
         confirmButtonText: 'OK',
       });
+      console.error(err);
+    } finally {
+      Swal.close();
+    }
+  }
+
+  /**
+   * Marca que el candidato PASÓ la prueba técnica.
+   *
+   * No pide motivo: aprobar no hay que justificarlo. Es el resultado que abre
+   * el paso de Exámenes de ingreso en el pipeline.
+   *
+   * Solo viaja `paso_prueba_tecnica`. El backend trata los tres resultados como
+   * un trío EXCLUYENTE (`ProcesoPatch.resultadoPruebaTecnica`): basta con que
+   * llegue una de las tres claves para que las otras dos —y sus motivos— se
+   * apaguen. Por eso no hace falta mandar los `false` a mano.
+   */
+  async marcarPasoPrueba(): Promise<void> {
+    if (this.bloqueado()) {
+      await Swal.fire({
+        title: `Candidato ${this.motivoBloqueo()}`,
+        text: 'No se puede registrar el resultado de la prueba técnica con la observación actual.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3500,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
+    if (!numeroDocumento) {
+      await Swal.fire({
+        title: 'No hay número de documento del candidato.',
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      });
+      return;
+    }
+
+    const confirm = await Swal.fire({
+      title: '¿Pasó la prueba técnica?',
+      text: 'Se registrará el resultado y quedará habilitado el paso de Exámenes de ingreso.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, pasó',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!confirm.isConfirmed) return;
+
+    const payload: ProcesoUpdateByDocumentRequest = {
+      numero_documento: numeroDocumento,
+      paso_prueba_tecnica: true,
+    };
+
+    try {
+      Swal.fire({
+        title: 'Guardando...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+
+      const res = await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
+      const proc: any = res?.proceso;
+
+      this.pasoPrueba.set(true);
+      this.pasoPruebaAt.set(proc?.paso_prueba_tecnica_at ?? new Date().toISOString());
+      // El trío es excluyente: al pasar, "no pasó" deja de estar registrado.
+      this.noPasoPrueba.set(false);
+      this.noPasoPruebaAt.set(null);
+      this.motivoNoPaso.set(null);
+      this.guardado.emit();
+
+      await Swal.fire({
+        title: 'Resultado registrado: pasó la prueba técnica.',
+        icon: 'success',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2500,
+        timerProgressBar: true,
+      });
+    } catch (err: any) {
+      const msg = err?.error?.detail || 'No se pudo registrar el resultado.';
+      await Swal.fire({ title: 'Error', text: msg, icon: 'error', confirmButtonText: 'OK' });
       console.error(err);
     } finally {
       Swal.close();
@@ -1050,6 +1326,9 @@ export class HelpInformationComponent implements OnInit {
       this.noPasoPrueba.set(true);
       this.noPasoPruebaAt.set(proc?.no_paso_prueba_tecnica_at ?? new Date().toISOString());
       this.motivoNoPaso.set(proc?.motivo_no_paso_prueba_tecnica ?? motivoText);
+      // Trío excluyente: el backend ya apagó "pasó"; la pantalla lo acompaña.
+      this.pasoPrueba.set(false);
+      this.pasoPruebaAt.set(null);
       this.guardado.emit();
 
       await Swal.fire({
@@ -1070,15 +1349,19 @@ export class HelpInformationComponent implements OnInit {
     }
   }
 
-  /** Quita la marca de "no pasó la prueba técnica" (limpia fecha y motivo). */
-  async quitarNoPasoPrueba(): Promise<void> {
+  /**
+   * Quita el resultado registrado de la prueba técnica (pasó o no pasó), con su
+   * fecha y su motivo. Mandar una sola clave del trío en `false` deja las tres
+   * apagadas en el backend.
+   */
+  async quitarResultadoPrueba(): Promise<void> {
     if (this.bloqueado()) return;
 
     const numeroDocumento = this.candidatoSeleccionado()?.numero_documento;
     if (!numeroDocumento) return;
 
     const confirm = await Swal.fire({
-      title: '¿Quitar la marca de "no pasó"?',
+      title: '¿Quitar el resultado de la prueba técnica?',
       text: 'Se eliminará el resultado y el motivo registrados para la prueba técnica.',
       icon: 'warning',
       showCancelButton: true,
@@ -1089,6 +1372,7 @@ export class HelpInformationComponent implements OnInit {
 
     const payload: ProcesoUpdateByDocumentRequest = {
       numero_documento: numeroDocumento,
+      paso_prueba_tecnica: false,
       no_paso_prueba_tecnica: false,
     };
 
@@ -1101,13 +1385,15 @@ export class HelpInformationComponent implements OnInit {
 
       await firstValueFrom(this.gc.updateProcesoByDocumento(this.withOverride(payload), 'PATCH'));
 
+      this.pasoPrueba.set(false);
+      this.pasoPruebaAt.set(null);
       this.noPasoPrueba.set(false);
       this.noPasoPruebaAt.set(null);
       this.motivoNoPaso.set(null);
       this.guardado.emit();
 
       await Swal.fire({
-        title: 'Marca quitada.',
+        title: 'Resultado quitado.',
         icon: 'success',
         toast: true,
         position: 'top-end',
@@ -1141,8 +1427,21 @@ export class HelpInformationComponent implements OnInit {
     return Math.max(0, this.totalRequeridaOf(v) - this.firm(v));
   }
   oficinasResumen(ofs: any[]): string {
-    if (!Array.isArray(ofs) || !ofs.length) return '—';
-    return ofs.map(o => `${o?.nombre ?? 'Oficina'} (${this.toInt(o?.numeroDeGenteRequerida)})`).join(', ');
+    if (!Array.isArray(ofs) || !ofs.length) return 'Sin oficina';
+    // La lista general trae la oficina sin el cupo por oficina: sin ese dato se
+    // pinta solo el nombre en vez de un "(0)" que parecería real.
+    return ofs.map(o => o?.numeroDeGenteRequerida != null
+      ? `${o?.nombre ?? 'Oficina'} (${this.toInt(o.numeroDeGenteRequerida)})`
+      : `${o?.nombre ?? 'Oficina'}`).join(', ');
+  }
+
+  /** "Creada 2026-09-12 · hace 4 días": para ubicar la vacante por su fecha. */
+  fechaCreacion(v: any): string {
+    const f = this.formatShortDate(v?.fecha_publicado);
+    if (f === '—') return 'Sin fecha de creación';
+    const dias = this.diasDesde(v?.fecha_publicado);
+    const hace = dias === null ? '' : dias === 0 ? ' · hoy' : dias === 1 ? ' · hace 1 día' : ` · hace ${dias} días`;
+    return `Creada ${f}${hace}`;
   }
   formatShortDate(d: any): string {
     if (!d) return '—';

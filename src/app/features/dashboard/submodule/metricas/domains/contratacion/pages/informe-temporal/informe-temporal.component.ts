@@ -13,7 +13,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../../../shared/utils/echarts-tema';
 import { fromEvent, timer, EMPTY } from 'rxjs';
 import { filter, switchMap, catchError } from 'rxjs/operators';
 import Swal from 'sweetalert2';
@@ -51,7 +52,7 @@ type SegmentKind = 'oficina' | 'finca' | 'fecha' | 'pipeline' | 'motivo';
     NgxEchartsDirective,
     StandardFilterTable,
   ],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   templateUrl: './informe-temporal.component.html',
   styleUrls: ['./informe-temporal.component.css'],
 })

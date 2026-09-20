@@ -64,63 +64,53 @@
           </div>
         </mat-card>
 
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="vc__buscar">
-          <mat-icon matPrefix>search</mat-icon>
-          <input matInput placeholder="Filtrar variables"
-                 [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" />
-        </mat-form-field>
+        <!-- La búsqueda, el orden y los filtros por columna los da la tabla estándar. -->
+        <app-tabla-estandar
+          id="plantillas-correo-variables"
+          [titulo]="'Variables de ' + o.nombre"
+          modulo="Plantillas de correo"
+          entidad="variables"
+          busqueda="Filtrar variables"
+          vacio="Este origen todavía no tiene variables."
+          [datos]="variables()"
+          [columnas]="columnas"
+          [filaId]="idVariable"
+          [filaClase]="claseFila"
+          [cargando]="cargando()">
 
-        <table mat-table [dataSource]="filtradas()" class="vc__tabla">
-          <ng-container matColumnDef="clave">
-            <th mat-header-cell *matHeaderCellDef>Clave</th>
-            <td mat-cell *matCellDef="let v">
-              <code class="vc__clave" [class.vc__clave--off]="!v.activo">{{ marcador(v.clave) }}</code>
-            </td>
-          </ng-container>
+          <ng-template tablaCelda="clave" let-v>
+            <code class="vc__clave" [class.vc__clave--off]="!v.activo">{{ marcador(v.clave) }}</code>
+          </ng-template>
 
-          <ng-container matColumnDef="etiqueta">
-            <th mat-header-cell *matHeaderCellDef>Etiqueta</th>
-            <td mat-cell *matCellDef="let v">
-              {{ v.etiqueta }}
-              @if (v.descripcion) { <div class="vc__desc">{{ v.descripcion }}</div> }
-            </td>
-          </ng-container>
+          <ng-template tablaCelda="etiqueta" let-v>
+            {{ v.etiqueta }}
+            @if (v.descripcion) { <div class="vc__desc">{{ v.descripcion }}</div> }
+          </ng-template>
 
-          <ng-container matColumnDef="grupo">
-            <th mat-header-cell *matHeaderCellDef>Grupo</th>
-            <td mat-cell *matCellDef="let v"><span class="vc__grupo">{{ v.grupo }}</span></td>
-          </ng-container>
+          <ng-template tablaCelda="grupo" let-v>
+            <span class="vc__grupo">{{ v.grupo }}</span>
+          </ng-template>
 
-          <ng-container matColumnDef="tipo">
-            <th mat-header-cell *matHeaderCellDef>Tipo</th>
-            <td mat-cell *matCellDef="let v">
-              {{ v.tipo }}
-              @if (v.formato) { <div class="vc__desc">{{ v.formato }}</div> }
-            </td>
-          </ng-container>
+          <ng-template tablaCelda="tipo" let-v>
+            {{ v.tipo }}
+            @if (v.formato) { <div class="vc__desc">{{ v.formato }}</div> }
+          </ng-template>
 
-          <ng-container matColumnDef="ejemplo">
-            <th mat-header-cell *matHeaderCellDef>Ejemplo</th>
-            <td mat-cell *matCellDef="let v" class="vc__ejemplo">{{ v.ejemplo }}</td>
-          </ng-container>
+          <ng-template tablaCelda="ejemplo" let-v>
+            <span class="vc__ejemplo">{{ v.ejemplo }}</span>
+          </ng-template>
 
-          <ng-container matColumnDef="acciones">
-            <th mat-header-cell *matHeaderCellDef></th>
-            <td mat-cell *matCellDef="let v" class="vc__acciones">
-              <button mat-icon-button (click)="editarVariable(v)" matTooltip="Editar">
-                <mat-icon>edit</mat-icon>
+          <ng-template tablaAcciones let-v>
+            <button mat-icon-button (click)="editarVariable(v)" matTooltip="Editar">
+              <mat-icon>edit</mat-icon>
+            </button>
+            @if (v.activo) {
+              <button mat-icon-button (click)="desactivar(v)" matTooltip="Desactivar">
+                <mat-icon>visibility_off</mat-icon>
               </button>
-              @if (v.activo) {
-                <button mat-icon-button (click)="desactivar(v)" matTooltip="Desactivar">
-                  <mat-icon>visibility_off</mat-icon>
-                </button>
-              }
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="columnas"></tr>
-          <tr mat-row *matRowDef="let row; columns: columnas" [class.vc__fila--off]="!row.activo"></tr>
-        </table>
+            }
+          </ng-template>
+        </app-tabla-estandar>
       }
     </div>
   </div>

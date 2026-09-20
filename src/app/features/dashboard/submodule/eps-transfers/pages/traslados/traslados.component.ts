@@ -1,8 +1,5 @@
-import { Component, OnInit, AfterViewInit, ViewChild, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { MatTableDataSource } from '@angular/material/table';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { MatPaginator } from '@angular/material/paginator';
-import { MatSort } from '@angular/material/sort';
 import { TrasladosService } from '../../service/traslados.service';
 import { catchError } from 'rxjs/operators';
 import { lastValueFrom, of } from 'rxjs';
@@ -13,6 +10,7 @@ import { CambiarEstadoComponent } from '../../components/cambiar-estado/cambiar-
 import { InfoCardComponent } from '../../../../../../shared/components/info-card/info-card.component';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { ElectronWindowService } from '../../../../../../core/services/electron-window.service';
 import { environment } from '@/environments/environment';
 
@@ -22,21 +20,29 @@ import { environment } from '@/environments/environment';
   imports: [
     InfoCardComponent,
     SharedModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './traslados.component.html',
   styleUrls: ['./traslados.component.css'],
 })
-export class TrasladosComponent implements OnInit, AfterViewInit {
-  displayedColumns: string[] = [
-    'codigo_traslado',
-    'estado_del_traslado',
-    'observacion_estado',
-    'numero_cedula',
-    'solicitud_traslado',
-    'cedulas',
-    'eps_a_trasladar',
-    'actions',
+export class TrasladosComponent implements OnInit {
+  readonly columnas: ColumnaTabla<any>[] = [
+    { id: 'codigo_traslado', header: 'Código', valor: (e) => e.codigo_traslado, tarjeta: 'subtitulo' },
+    { id: 'estado_del_traslado', header: 'Estado', tarjeta: 'badge',
+      valor: (e) => e.estado_del_traslado ?? '',
+      badge: (e) => ({ texto: e.estado_del_traslado || '—', tono: this.tonoEstado(e.estado_del_traslado) }) },
+    { id: 'observacion_estado', header: 'Observación', valor: (e) => e.observacion_estado ?? '',
+      prioridad: 3, tarjeta: 'cuerpo', minAncho: '180px' },
+    { id: 'numero_cedula', header: 'Cédula', valor: (e) => e.numero_cedula, tarjeta: 'titulo' },
+    { id: 'solicitud_traslado', header: 'Solicitud', align: 'center', interactiva: true, prioridad: 2,
+      tarjeta: 'cuerpo', valor: (e) => (e.solicitud_disponible === 1 ? 'Disponible' : 'No disponible') },
+    { id: 'cedulas', header: 'Cédula escaneada', align: 'center', interactiva: true, prioridad: 2,
+      tarjeta: 'cuerpo', valor: (e) => (e.cedula_disponible === 1 ? 'Disponible' : 'No disponible') },
+    { id: 'eps_a_trasladar', header: 'EPS a trasladar', valor: (e) => e.eps_a_trasladar ?? '',
+      formato: (e) => e.eps_a_trasladar || '—', tarjeta: 'cuerpo' },
   ];
+
+  readonly idTraslado = (e: any) => e.codigo_traslado;
 
   estadosCount: { [key: string]: number } = {};
 
@@ -47,28 +53,21 @@ export class TrasladosComponent implements OnInit, AfterViewInit {
    */
   readonly mantenerOrden = (): number => 0;
 
-  dataSource = new MatTableDataSource<any>();
-
+  /** Traslados asignados al usuario (todos). */
+  traslados: any[] = [];
   /**
-   * Predicado por defecto de MatTableDataSource (busca en todos los campos).
-   * Se guarda porque `applyFilterByEstado` lo reemplaza por uno de match
-   * exacto: sin restaurarlo, el buscador de texto libre dejaría de funcionar
-   * después de usar el filtro por estado.
+   * Lo que se entrega a la tabla: `traslados` ya filtrado por el estado del
+   * select. La búsqueda de texto, el orden y los filtros por columna los hace
+   * la tabla estándar sobre esto.
    */
-  private readonly filtroPorTexto = this.dataSource.filterPredicate;
+  trasladosVisibles: any[] = [];
 
   numTraslados: number = 5;
   numTrasladosResponsableNull: number = 0;
   operario: any = {};
   dataLoaded: boolean = false;
-  // Texto y estado son excluyentes (comparten dataSource.filter): se reflejan
-  // en la vista para que al aplicar uno se vea que el otro se soltó.
   estadoSeleccionado = '';
-  textoBusqueda = '';
   user: any;
-
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
 
   constructor(
     private trasladosService: TrasladosService,
@@ -77,11 +76,6 @@ export class TrasladosComponent implements OnInit, AfterViewInit {
     private cdr: ChangeDetectorRef,
     private electronWindow: ElectronWindowService,
   ) { }
-
-  ngAfterViewInit(): void {
-    this.dataSource.paginator = this.paginator;
-    this.dataSource.sort = this.sort;
-  }
 
   async ngOnInit(): Promise<void> {
     try {
@@ -133,7 +127,7 @@ export class TrasladosComponent implements OnInit, AfterViewInit {
         )
       );
 
-      this.dataSource.data = response.traslados ?? [];
+      this.traslados = response.traslados ?? [];
 
       // Al recargar, el filtro por estado anterior puede no existir en los datos nuevos.
       this.limpiarFiltros();
@@ -157,7 +151,7 @@ export class TrasladosComponent implements OnInit, AfterViewInit {
   }
 
   updateEstadosCount(): void {
-    this.estadosCount = this.dataSource.data.reduce((acc, element) => {
+    this.estadosCount = this.traslados.reduce((acc, element) => {
       const estado = element.estado_del_traslado;
       if (estado) {
         acc[estado] = (acc[estado] || 0) + 1;
@@ -191,11 +185,17 @@ export class TrasladosComponent implements OnInit, AfterViewInit {
     return e === 'rechazado' || e === 'no efectivo' || e === 'devuelto' || e === 'cancelado';
   }
 
+  /** Tono del chip de estado en la tabla estándar. */
+  private tonoEstado(raw: string | null | undefined): 'ok' | 'warn' | 'danger' | 'neutro' {
+    if (this.estadoEsOk(raw)) return 'ok';
+    if (this.estadoEsPendiente(raw)) return 'warn';
+    if (this.estadoEsRechazado(raw)) return 'danger';
+    return 'neutro';
+  }
+
   private limpiarFiltros(): void {
     this.estadoSeleccionado = '';
-    this.textoBusqueda = '';
-    this.dataSource.filterPredicate = this.filtroPorTexto;
-    this.dataSource.filter = '';
+    this.trasladosVisibles = this.traslados;
   }
 
   applyFilterByEstado(estado: string): void {
@@ -206,20 +206,10 @@ export class TrasladosComponent implements OnInit, AfterViewInit {
     }
 
     this.estadoSeleccionado = estado;
-    this.textoBusqueda = '';
-    this.dataSource.filterPredicate = (data: any, filter: string) =>
-      String(data.estado_del_traslado ?? '').trim().toLowerCase() === filter;
-    this.dataSource.filter = estado.trim().toLowerCase();
-    this.cdr.markForCheck();
-  }
-
-  applyFilter(event: Event): void {
-    // El select de estado deja su propio predicado puesto; hay que devolver el
-    // de texto libre antes de buscar, y soltar el estado para no confundir.
-    this.textoBusqueda = (event.target as HTMLInputElement).value;
-    this.estadoSeleccionado = '';
-    this.dataSource.filterPredicate = this.filtroPorTexto;
-    this.dataSource.filter = this.textoBusqueda.trim().toLowerCase();
+    const filtro = estado.trim().toLowerCase();
+    this.trasladosVisibles = this.traslados.filter(
+      (t) => String(t.estado_del_traslado ?? '').trim().toLowerCase() === filtro
+    );
     this.cdr.markForCheck();
   }
 

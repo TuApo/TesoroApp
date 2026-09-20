@@ -1,0 +1,63 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>storefront</mat-icon> Tienda</h1>
+      <p class="tienda-subtitulo">
+        Inventario, punto de venta y tienda virtual.
+        @if (ctx.esSuperAdmin()) {
+          Está viendo <strong>todas las tiendas</strong> de la organización.
+        }
+      </p>
+    </div>
+    <app-selector-tienda />
+  </header>
+
+  @if (resumen(); as r) {
+    @if (r.sin_tiendas || r.sin_alcance) {
+      <div class="tienda-tarjeta tienda-vacio">
+        <mat-icon>storefront</mat-icon>
+        <p><strong>{{ r.mensaje }}</strong></p>
+        @if (r.sin_tiendas && ctx.esSuperAdmin()) {
+          <button type="button" class="boton" (click)="ir('administracion')">
+            <mat-icon>add_business</mat-icon> Crear la primera tienda
+          </button>
+        }
+      </div>
+    } @else {
+      <section class="tienda-rejilla">
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Vendido (30 días)</span>
+          <span class="valor">{{ r.ventas_total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">{{ r.ventas_cantidad ?? 0 }} transacciones</span>
+        </article>
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Margen bruto</span>
+          <span class="valor">{{ r.margen_bruto | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">{{ r.margen_pct ?? 0 }}% sobre la venta</span>
+        </article>
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Cobrado por nómina</span>
+          <span class="valor">{{ r.credito_nomina | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">Lo que no entra en caja</span>
+        </article>
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Valor del inventario</span>
+          <span class="valor">{{ r.valor_inventario | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">{{ r.productos_sin_stock ?? 0 }} productos agotados</span>
+        </article>
+      </section>
+    }
+  }
+
+  <section class="atajos">
+    @for (a of atajosVisibles(); track a.ruta) {
+      <button type="button" class="atajo" (click)="ir(a.ruta)">
+        <mat-icon>{{ a.icono }}</mat-icon>
+        <span class="atajo-titulo">{{ a.titulo }}</span>
+        <span class="atajo-ayuda">{{ a.ayuda }}</span>
+      </button>
+    }
+  </section>
+
+</div>

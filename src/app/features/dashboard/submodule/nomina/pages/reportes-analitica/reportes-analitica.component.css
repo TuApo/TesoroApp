@@ -16,11 +16,11 @@
 }
 .title {
   display: flex; align-items: center; gap: .5rem;
-  font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0;
+  font-size: 1.5rem; font-weight: 700; color: var(--text); margin: 0;
   letter-spacing: -0.02em;
 }
-.title mat-icon { color: #1565C0; }
-.subtitle { margin: .25rem 0 0; color: #64748b; font-size: .9rem; max-width: 720px; }
+.title mat-icon { color: #1565C0; color: light-dark(#1565C0, #9ac4f4); }
+.subtitle { margin: .25rem 0 0; color: var(--muted); font-size: .9rem; max-width: 720px; }
 
 /* ── Filtros ────────────────────────────────────────────────────────────── */
 .filtros-card {
@@ -41,8 +41,8 @@
 .f-tipo   { min-width: 220px; flex: 1 1 220px; }
 .f-periodo { width: 200px; }
 .f-gran { display: flex; flex-direction: column; gap: .2rem; }
-.f-gran-label { font-size: .72rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.f-clear { color: #64748b; }
+.f-gran-label { font-size: .72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.f-clear { color: var(--muted); }
 
 /* ── Pestañas ───────────────────────────────────────────────────────────── */
 .tab-ico { margin-right: .4rem; vertical-align: middle; }
@@ -51,13 +51,13 @@
 /* ── KPIs ───────────────────────────────────────────────────────────────── */
 .kpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
   gap: .85rem;
   margin-bottom: 1.1rem;
 }
 .kpi {
   display: flex; align-items: center; gap: .75rem;
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
   padding: .85rem .95rem;
   box-shadow: 0 1px 3px rgba(0,0,0,.05);
   min-width: 0;               /* permite que el texto encoja en vez de desbordar */
@@ -66,21 +66,21 @@
 .kpi-icon {
   width: 38px; height: 38px; border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  background: #eef2ff; color: #1565C0; flex-shrink: 0;
+  background: #eef2ff; background: light-dark(#eef2ff, #0f1f4d); color: #1565C0; color: light-dark(#1565C0, #9ac4f4); flex-shrink: 0;
 }
 .kpi-primary { border-color: #1565C0; }
 .kpi-primary .kpi-icon { background: #1565C0; color: #fff; }
-.kpi-up   .kpi-icon { background: #e8f5e9; color: #2E7D32; }
-.kpi-down .kpi-icon { background: #fdecea; color: #C62828; }
+.kpi-up   .kpi-icon { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); color: #2E7D32; color: light-dark(#2E7D32, #ade1b0); }
+.kpi-down .kpi-icon { background: #fdecea; background: light-dark(#fdecea, #341d28); color: #C62828; }
 .kpi-body { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .kpi-value {
-  font-size: 1.08rem; font-weight: 700; color: #0f172a;
+  font-size: 1.08rem; font-weight: 700; color: var(--text);
   line-height: 1.2; letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;   /* montos largos parten dentro de la tarjeta, nunca se salen */
 }
 .kpi-label {
-  font-size: .76rem; color: #64748b; font-weight: 500;
+  font-size: .76rem; color: var(--muted); font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 
@@ -99,23 +99,33 @@
 }
 .chart-card:hover { box-shadow: 0 10px 25px -5px rgba(0,0,0,.1); transform: translateY(-2px); }
 .chart-card.span-2 { grid-column: 1 / -1; }
-.chart-title { font-size: 1.02rem; font-weight: 700; color: #1e293b; margin-bottom: .5rem; letter-spacing: -0.015em; }
+.chart-title { font-size: 1.02rem; font-weight: 700; color: var(--text); margin-bottom: .5rem; letter-spacing: -0.015em; }
 .echart { width: 100%; height: 320px; }
 .echart.tall { height: 360px; }
 
 /* ── Estados (loading / vacío) ──────────────────────────────────────────── */
 .state-box {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: .6rem; padding: 3.5rem 1rem; color: #64748b; text-align: center;
-  background: #fff; border: 1px dashed #cbd5e1; border-radius: 16px;
+  gap: .6rem; padding: 3.5rem 1rem; color: var(--muted); text-align: center;
+  background: var(--surface); border: 1px dashed var(--border-strong); border-radius: 16px;
 }
-.state-box.empty mat-icon { font-size: 44px; width: 44px; height: 44px; color: #94a3b8; }
-.state-box p { margin: 0; font-weight: 600; color: #475569; }
+.state-box.empty mat-icon { font-size: 44px; width: 44px; height: 44px; color: var(--text-faint); }
+.state-box p { margin: 0; font-weight: 600; color: var(--text-2); }
 .state-box span { font-size: .85rem; }
 
 @media (max-width: 860px) {
-  .charts-grid { grid-template-columns: 1fr; }
+  .charts-grid { grid-template-columns: minmax(0, 1fr); }
   .chart-card.span-2 { grid-column: auto; }
+}
+
+/* Móvil: cada filtro a lo ancho y el selector de granularidad desliza en vez
+   de sacar la página de la pantalla. */
+@media (max-width: 640px) {
+  .filtros mat-form-field, .f-year, .f-empresa, .f-ceco, .f-estado,
+  .f-agrupador, .f-tipo, .f-periodo { width: 100%; min-width: 0; flex: 1 1 100%; }
+  .f-gran { width: 100%; min-width: 0; }
+  .f-gran mat-button-toggle-group { max-width: 100%; overflow-x: auto; }
+  .kpis { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); }
 }
 
 /* ── Buscador dentro del panel del mat-select (overlay → estilos globales) ── */
@@ -123,15 +133,15 @@
   display: flex; align-items: center; gap: .45rem;
   padding: .5rem .85rem;
   position: sticky; top: 0; z-index: 2;
-  background: #fff; border-bottom: 1px solid #eef2f7;
+  background: var(--surface); border-bottom: 1px solid var(--border);
 }
 ::ng-deep .rep-select-panel .rep-select-search mat-icon {
-  color: #94a3b8; font-size: 18px; width: 18px; height: 18px; flex-shrink: 0;
+  color: var(--text-faint); font-size: 18px; width: 18px; height: 18px; flex-shrink: 0;
 }
 ::ng-deep .rep-select-panel .rep-select-search input {
   flex: 1; min-width: 0; border: none; outline: none; background: transparent;
-  font-size: .9rem; color: #111827;
+  font-size: .9rem; color: var(--text);
 }
 ::ng-deep .rep-select-panel .rep-select-empty {
-  padding: .65rem .85rem; color: #94a3b8; font-size: .85rem;
+  padding: .65rem .85rem; color: var(--text-faint); font-size: .85rem;
 }

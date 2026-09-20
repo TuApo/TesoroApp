@@ -908,28 +908,23 @@
   @if (pestana() === 'historial' && estado(); as e) {
     <mat-card class="bloque">
       <div class="bloque-cab"><h2><mat-icon>history</mat-icon> Historial de trabajo</h2></div>
-      <table class="tabla-hist">
-        <thead>
-          <tr>
-            <th></th><th>Agente</th><th>Encargo</th><th>Cuenta</th>
-            <th>Duración</th><th>Turnos</th><th>Ficheros</th><th>Cuándo</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (t of e.ultimas; track t.id) {
-            <tr (click)="abrirConsola(t)">
-              <td><mat-icon class="ic" [attr.data-e]="t.estado">{{ iconoEstado(t.estado) }}</mat-icon></td>
-              <td>{{ t.agenteNombre || t.agente || 'General' }}</td>
-              <td class="td-obj">{{ t.titulo || t.objetivo }}</td>
-              <td>{{ t.cuentaNombre || '—' }}</td>
-              <td>{{ duracion(t.duracionMs) }}</td>
-              <td>{{ t.turnos || '—' }}</td>
-              <td>{{ t.archivosTocados.length || '—' }}</td>
-              <td>{{ t.creada | date:'dd/MM HH:mm' }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
+      <app-tabla-estandar
+        id="herramientas-ia-agentes-historial"
+        titulo="Historial de trabajo"
+        modulo="Herramientas IA"
+        busqueda="Agente, encargo, cuenta…"
+        vacio="Todavía no hay trabajos en el historial."
+        [datos]="e.ultimas"
+        [columnas]="columnasHistorial"
+        [filaId]="idTarea"
+        (filaClick)="abrirConsola($event)">
+        <ng-template tablaCelda="estado" let-t>
+          <mat-icon class="hist-ic" [attr.data-e]="t.estado" [matTooltip]="etiquetaEstado(t.estado)">{{ iconoEstado(t.estado) }}</mat-icon>
+        </ng-template>
+        <ng-template tablaCelda="encargo" let-t>
+          <span class="td-obj">{{ t.titulo || t.objetivo }}</span>
+        </ng-template>
+      </app-tabla-estandar>
     </mat-card>
   }
 

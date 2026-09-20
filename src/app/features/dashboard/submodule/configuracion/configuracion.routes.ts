@@ -32,6 +32,22 @@ export const routes: Routes = [
           ),
       },
       {
+        // Solo administradores. El shell esconde la entrada y el backend rechaza los
+        // endpoints de gestion a quien no sea ADMIN: la puerta de verdad esta alla.
+        path: 'conectores',
+        loadComponent: () =>
+          import('./pages/conectores/conectores.component').then((m) => m.ConectoresComponent),
+      },
+      {
+        // A donde vuelve el navegador desde la pagina del proveedor. Va antes del
+        // comodin y fuera de 'conectores' para que no lo capture su propia ruta.
+        path: 'conectores/callback',
+        loadComponent: () =>
+          import('./pages/conectores-callback/conectores-callback.component').then(
+            (m) => m.ConectoresCallbackComponent,
+          ),
+      },
+      {
         path: 'acerca',
         loadComponent: () =>
           import('./pages/acerca/acerca.component').then((m) => m.AcercaConfigComponent),

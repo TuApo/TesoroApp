@@ -76,12 +76,12 @@
 
           <button mat-flat-button color="warn" class="btn-bulk"
                   (click)="cambiarEstadoSeleccion()"
-                  [disabled]="selectedIds.size === 0 || isLoading">
+                  [disabled]="seleccion.selected.length === 0 || isLoading">
             <mat-icon>edit_note</mat-icon>
-            CAMBIAR ESTADO ({{ selectedIds.size }})
+            CAMBIAR ESTADO ({{ seleccion.selected.length }})
           </button>
 
-          <button mat-stroked-button color="accent" class="btn-export" (click)="exportarExcel()" [disabled]="historicoDataSource.data.length === 0">
+          <button mat-stroked-button color="accent" class="btn-export" (click)="exportarExcel()" [disabled]="historico.length === 0">
             <mat-icon>file_download</mat-icon>
             EXPORTAR EXCEL
           </button>
@@ -128,108 +128,36 @@
     </div>
   </div>
 
-  <div class="table-container mat-elevation-z8">
-    <div class="loading-shade" *ngIf="isLoading">
-      <mat-spinner></mat-spinner>
-    </div>
+  <app-tabla-estandar
+    id="nomina-historico-nomina"
+    titulo="Histórico de liquidación"
+    modulo="Nómina"
+    entidad="historico_nomina"
+    textoDetalle="Desprendible"
+    vacio="No se encontraron registros históricos con los parámetros seleccionados."
+    [datos]="historico"
+    [columnas]="columnas"
+    [filaId]="idNomina"
+    [seleccion]="seleccion"
+    [cargando]="isLoading"
+    (filaClick)="abrirDesprendible($event)">
 
-    <table mat-table [dataSource]="historicoDataSource" matSort>
-      <!-- Selección -->
-      <ng-container matColumnDef="select">
-        <th mat-header-cell *matHeaderCellDef>
-          <mat-checkbox
-            (change)="toggleAllRows($event.checked)"
-            [checked]="isAllRowsSelected()"
-            [indeterminate]="isSomeRowsSelected()"
-            [disabled]="historicoDataSource.data.length === 0"
-            aria-label="Seleccionar todas las filas">
-          </mat-checkbox>
-        </th>
-        <td mat-cell *matCellDef="let row">
-          <mat-checkbox
-            (click)="$event.stopPropagation()"
-            (change)="toggleRow(row, $event.checked)"
-            [checked]="isRowSelected(row)"
-            aria-label="Seleccionar fila">
-          </mat-checkbox>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="nombre_completo" let-row>
+      <strong>{{ row.nombre_completo }}</strong>
+    </ng-template>
 
-      <!-- Identificacion -->
-      <ng-container matColumnDef="identificacion">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Identificación </th>
-        <td mat-cell *matCellDef="let row"> {{row.identificacion}} </td>
-      </ng-container>
+    <ng-template tablaCelda="ceco_nombre" let-row>
+      <span class="chip-ceco">{{ row.ceco_nombre }}</span>
+    </ng-template>
 
-      <!-- Nombre -->
-      <ng-container matColumnDef="nombre_completo">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Empleado </th>
-        <td mat-cell *matCellDef="let row"> 
-          <div class="name-cell">
-            <strong>{{row.nombre_completo}}</strong>
-          </div>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="total_devengado" let-row>{{ row.total_devengado | currency }}</ng-template>
 
-      <!-- CECO -->
-      <ng-container matColumnDef="ceco_nombre">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Centro de Costo </th>
-        <td mat-cell *matCellDef="let row"> 
-          <span class="chip-ceco">{{row.ceco_nombre}}</span>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="total_deducido" let-row>{{ row.total_deducido | currency }}</ng-template>
 
-      <!-- Devengado -->
-      <ng-container matColumnDef="total_devengado">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Devengado </th>
-        <td mat-cell *matCellDef="let row"> {{row.total_devengado | currency}} </td>
-      </ng-container>
+    <ng-template tablaCelda="neto_pagar" let-row>
+      <span class="neto-cell">{{ row.neto_pagar | currency }}</span>
+    </ng-template>
 
-      <!-- Deducido -->
-      <ng-container matColumnDef="total_deducido">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Deducido </th>
-        <td mat-cell *matCellDef="let row"> {{row.total_deducido | currency}} </td>
-      </ng-container>
-
-      <!-- Neto -->
-      <ng-container matColumnDef="neto_pagar">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Neto a Pagar </th>
-        <td mat-cell *matCellDef="let row" class="neto-cell"> 
-          {{row.neto_pagar | currency}} 
-        </td>
-      </ng-container>
-
-      <!-- Estado -->
-      <ng-container matColumnDef="estado_pago">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Estado </th>
-        <td mat-cell *matCellDef="let row"> 
-          <span class="badge" [ngClass]="row.estado_pago?.toLowerCase()">
-            {{row.estado_pago}}
-          </span>
-        </td>
-      </ng-container>
-
-      <!-- Fecha -->
-      <ng-container matColumnDef="liquidado_at">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header> Fecha </th>
-        <td mat-cell *matCellDef="let row"> {{row.liquidado_at | date:'short'}} </td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns;"
-          class="clickable-row"
-          (click)="abrirDesprendible(row)"></tr>
-
-      <tr class="mat-row" *matNoDataRow>
-        <td class="mat-cell" colspan="9">
-          <div class="empty-state" *ngIf="!isLoading">
-            <mat-icon>search_off</mat-icon>
-            <p>No se encontraron registros históricos con los parámetros seleccionados.</p>
-          </div>
-        </td>
-      </tr>
-    </table>
-
-    <mat-paginator [pageSizeOptions]="[10, 25, 100]" showFirstLastButtons aria-label="Seleccionar página"></mat-paginator>
-  </div>
+    <ng-template tablaCelda="liquidado_at" let-row>{{ row.liquidado_at | date:'short' }}</ng-template>
+  </app-tabla-estandar>
 </div>

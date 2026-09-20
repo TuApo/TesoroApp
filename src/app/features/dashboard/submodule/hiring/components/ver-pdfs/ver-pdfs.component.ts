@@ -23,6 +23,15 @@ export interface ViewerDocument {
   title: string;
   type_name?: string;
   file_url: string;
+  /**
+   * Tipo MIME real, cuando quien abre el visor lo sabe.
+   *
+   * Es lo unico fiable: `file_url` puede ser un `blob:` (sin extension) o una
+   * ruta de la API como `/api/v1/documents/123/download?versionId=456`, que
+   * tampoco termina en `.pdf`. Sin esto, esos documentos —que son casi todos—
+   * caian en "Vista previa no disponible" aunque fueran PDF.
+   */
+  mime?: string;
 }
 
 export interface VerPdfsData {
@@ -127,28 +136,41 @@ export class VerPdfsComponent implements OnInit {
   // HELPERS DE TIPO
   // ---------------------------------------------------------------------------
 
+  /**
+   * Texto sobre el que se adivina la extension.
+   *
+   * Se mira el TITULO ademas de la URL: el titulo del expediente si trae el
+   * nombre real del archivo ("EXAMENES_MEDICOS_....pdf"), mientras que la URL
+   * de descarga y los `blob:` no tienen extension ninguna.
+   */
+  private nombreParaTipo(doc: ViewerDocument | null): string {
+    return `${doc?.title ?? ''} ${doc?.file_url ?? ''}`.toLowerCase();
+  }
+
+  private tieneExtension(doc: ViewerDocument | null, exts: string[]): boolean {
+    const s = this.nombreParaTipo(doc);
+    return exts.some((e) => s.includes(e));
+  }
+
   isPdf(doc: ViewerDocument | null): boolean {
     if (!doc?.file_url) return false;
-    const url = doc.file_url.toLowerCase();
-    return url.endsWith('.pdf');
+    if (doc.mime) return doc.mime.toLowerCase().includes('pdf');
+    return this.tieneExtension(doc, ['.pdf']);
   }
 
   isExcel(doc: ViewerDocument | null): boolean {
     if (!doc?.file_url) return false;
-    const url = doc.file_url.toLowerCase();
-    return url.endsWith('.xlsx') || url.endsWith('.xls');
+    if (doc.mime) {
+      const m = doc.mime.toLowerCase();
+      return m.includes('spreadsheet') || m.includes('excel');
+    }
+    return this.tieneExtension(doc, ['.xlsx', '.xls']);
   }
 
   isImage(doc: ViewerDocument | null): boolean {
     if (!doc?.file_url) return false;
-    const url = doc.file_url.toLowerCase();
-    return (
-      url.endsWith('.png') ||
-      url.endsWith('.jpg') ||
-      url.endsWith('.jpeg') ||
-      url.endsWith('.gif') ||
-      url.endsWith('.webp')
-    );
+    if (doc.mime) return doc.mime.toLowerCase().startsWith('image/');
+    return this.tieneExtension(doc, ['.png', '.jpg', '.jpeg', '.gif', '.webp']);
   }
 
   getChipLabel(doc: ViewerDocument): string {

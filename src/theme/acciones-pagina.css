@@ -1,0 +1,700 @@
+/* =====================================================================
+   Barra de acciones de página
+   ---------------------------------------------------------------------
+   Las pantallas abrían con una franja oscura: icono + título + descripción
+   del módulo + botones. El título ya sale en la barra superior (lo publica
+   NavegacionService desde el menú), así que la franja se reduce a una barra
+   compacta y clara que solo lleva las acciones:
+
+   - Si la franja no trae acciones, desaparece.
+   - Si el título dice algo MÁS que el módulo (qué formulario, qué respuesta,
+     qué cédula, qué workspace…) se conserva, pequeño y sin franja: esas
+     pantallas se listan en «contexto» más abajo.
+   - La portada de un formulario (--portada) es diseño del propio formulario
+     y no se toca.
+
+   Va en un solo sitio en vez de en los ~45 CSS de cada pantalla. `:not(#_)`
+   no filtra nada: sube la especificidad para ganarle a los `!important`
+   encapsulados de cada componente (clase + atributo de Angular).
+   ===================================================================== */
+
+/* ---------- 1. Franjas que se quitan enteras (solo título) ---------- */
+:is(app-autorizacion-dinamica, app-historial-autorizaciones, app-enviar-mercancia,
+    app-editar-envio, app-recibir-envio, app-cargar-mercado, app-cargar-mercado-ferias,
+    app-mercado-comercializadora, app-prestamo-calamidad, app-prestamo-para-realizar) .page-header:not(#_),
+app-upload-treasury header.hero:not(#_),
+app-metricas-home .metricas-header:not(#_),
+/* Inicio: el saludo ocupaba la primera pantalla y empujaba los indicadores. */
+app-home > header.hero:not(#_) {
+  display: none !important;
+}
+
+/* ---------- 2. Franjas que pasan a barra de acciones ---------- */
+:is(
+  .dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+  app-analisis-nomina .analisis-header,
+  app-manage-workers header.top-bar,
+  :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero
+):not(#_) {
+  background: none !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin: 0 0 12px !important;
+  padding: 0 !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  color: var(--text) !important;
+  overflow: visible !important;
+  text-align: left !important;
+}
+
+:is(
+  .dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+  app-analisis-nomina .analisis-header,
+  app-manage-workers header.top-bar,
+  :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero
+):not(#_)::before,
+:is(
+  .dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+  app-analisis-nomina .analisis-header,
+  app-manage-workers header.top-bar,
+  :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero
+):not(#_)::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Dentro de una tarjeta que no tiene padding propio (la franja iba a sangre),
+   la barra se alinea con el contenido de la tarjeta. */
+.dashboard-page-wrapper .mat-mdc-card > .card-header-premium:not(.card-header-premium--portada):not(#_) {
+  padding: 14px 20px 0 !important;
+}
+
+/* Sin acciones y sin título que aporte: la barra no se pinta. */
+.dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada):not(#_):not(:is(
+    app-form-runtime, app-form-response-detail, app-form-builder, app-form-exam, app-form-analytics,
+    app-form-responses, app-form-supports, app-form-process, app-option-sources,
+    app-generate-contracting-documents, app-cambiar-contrasena) *):not(:has(
+    button, a[href], input:not([type=file]):not([type=hidden]), textarea, select, mat-form-field,
+    mat-select, mat-slide-toggle, mat-button-toggle-group, mat-checkbox)) {
+  display: none !important;
+}
+
+/* ---------- 3. Lo decorativo se va siempre ---------- */
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  :is(.header-icon-container, div.header-icon, .form-icon, .hero-icon, .profile-card, .eyebrow),
+.dashboard-page-wrapper .card-header-premium:not(#_) > .mat-mdc-card-header-text:empty {
+  display: none !important;
+}
+
+/* ---------- 4. El título se va, salvo en las pantallas de contexto ---------- */
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero:not(.hero--contexto)):not(#_):not(:is(
+    app-form-runtime, app-form-response-detail, app-form-builder, app-form-exam, app-form-analytics,
+    app-form-responses, app-form-supports, app-form-process, app-option-sources,
+    app-generate-contracting-documents, app-cambiar-contrasena) *)
+  :is(.header-text, .header-left, .top-bar-left, .hero-copy > h1, .hero-copy > .hero-text,
+      mat-card-title, mat-card-subtitle, .titulo, .subtitulo) {
+  display: none !important;
+}
+
+/* Un bloque de título que no contiene ningún control desaparece entero (se
+   lleva su margen). Si contiene botones, queda como fila de acciones. */
+.dashboard-page-wrapper .card-header-premium:not(#_):not(:is(
+    app-form-runtime, app-form-response-detail, app-form-builder, app-form-exam, app-form-analytics,
+    app-form-responses, app-form-supports, app-form-process, app-option-sources,
+    app-generate-contracting-documents, app-cambiar-contrasena) *)
+  > .header-content:not(:has(button, a[href], input:not([type=file]):not([type=hidden]), textarea, select, mat-form-field, mat-slide-toggle)) {
+  display: none !important;
+}
+
+/* Contenedores de acciones: fila compacta pegada a la derecha. */
+:is(.dashboard-page-wrapper .card-header-premium, app-analisis-nomina .analisis-header,
+    app-manage-workers header.top-bar, :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  :is(.header-content, .header-actions, .header-right, .header-buttons, .right,
+      .top-bar-right, .hero-copy, .hero-actions) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  /* Del tamaño de sus botones: si ocupa todo el ancho, el botón «Acciones»
+     salta a otra línea. */
+  flex: 0 1 auto !important;
+  width: auto !important;
+  background: none !important;
+  border: 0 !important;
+}
+
+:is(.dashboard-page-wrapper .card-header-premium, app-analisis-nomina .analisis-header,
+    app-manage-workers header.top-bar, :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  :is(.header-actions, .header-right, .header-buttons, .right, .top-bar-right, .hero-actions) {
+  margin-left: auto !important;
+}
+
+:is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero:not(#_) > .hero-copy {
+  flex: 1 1 auto !important;
+  max-width: none !important;
+}
+
+/* ---------- 5. Pantallas de contexto: título pequeño, sin franja ---------- */
+:is(app-form-runtime, app-form-response-detail, app-form-builder, app-form-exam, app-form-analytics,
+    app-form-responses, app-form-supports, app-form-process, app-option-sources,
+    app-generate-contracting-documents, app-cambiar-contrasena) .card-header-premium:not(.card-header-premium--portada):not(#_),
+:is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero.hero--contexto:not(#_) {
+  justify-content: flex-start !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  :is(.header-content, .header-text, .force-center, .hero-copy) {
+  color: var(--text) !important;
+  text-align: left !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_) :is(.titulo, mat-card-title, h1) {
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.01em !important;
+  color: var(--text) !important;
+  margin: 0 !important;
+  text-shadow: none !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_) :is(.subtitulo, mat-card-subtitle, .hero-text) {
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+  color: var(--muted) !important;
+  margin: 2px 0 0 !important;
+  opacity: 1 !important;
+}
+
+.dashboard-page-wrapper .card-header-premium:not(#_) :is(.badge, .dot-separator) {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+/* El bloque de título de estas pantallas se queda a la izquierda (la regla
+   de contenedores de acciones lo empujaría a la derecha). */
+.dashboard-page-wrapper :is(app-form-runtime, app-form-response-detail, app-form-builder, app-form-exam,
+    app-form-analytics, app-form-responses, app-form-supports, app-form-process, app-option-sources,
+    app-generate-contracting-documents, app-cambiar-contrasena) .card-header-premium:not(#_) .header-content {
+  justify-content: flex-start !important;
+  flex: 1 1 auto !important;
+}
+
+.dashboard-page-wrapper app-workspaces-page header.hero.hero--contexto:not(#_) > .hero-copy {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 2px !important;
+}
+
+.dashboard-page-wrapper app-workspaces-page header.hero.hero--contexto:not(#_) .hero-actions {
+  justify-content: flex-start !important;
+  margin: 10px 0 0 !important;
+}
+
+/* ---------- 6. Botones: pensados para fondo oscuro, ahora en claro ---------- */
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  button:not(.mat-mdc-icon-button):not(.mat-mdc-menu-item):not([role=switch]) {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 10px !important;
+  font-size: 13.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  button:not(.mat-mdc-icon-button):not(.mat-mdc-menu-item):not([role=switch]):hover:not(:disabled) {
+  background: var(--surface-3) !important;
+}
+
+/* Acción principal: la del color de marca. El segundo :not(#_) le gana a la
+   regla general de botones de arriba, que acumula tres :not() de clase. */
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  button:not(#_):is(.btn-managerial:not(.btn-managerial--alt), .mat-mdc-raised-button.mat-primary,
+            .mat-mdc-unelevated-button.mat-primary) {
+  background: var(--brand-blue) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+  button:not(#_):is(.btn-managerial:not(.btn-managerial--alt), .mat-mdc-raised-button.mat-primary,
+            .mat-mdc-unelevated-button.mat-primary):hover:not(:disabled) {
+  background: var(--brand-blue-strong) !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_) button:not(#_):is(.tq-btn-danger, .mat-warn) {
+  background: var(--danger-bg) !important;
+  color: var(--danger-fg) !important;
+  border-color: var(--danger-border) !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_) button:disabled {
+  opacity: 0.5 !important;
+}
+
+/* Botones de icono (⋮, recargar, volver): neutros. */
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_) button.mat-mdc-icon-button {
+  width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 7px !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  color: var(--text-2) !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  --mat-icon-button-state-layer-size: 38px;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_) button.mat-mdc-icon-button:hover:not(:disabled) {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+}
+
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-analisis-nomina .analisis-header, app-manage-workers header.top-bar,
+    :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_) button .mat-icon {
+  color: inherit !important;
+}
+
+/* Interruptores y etiquetas que venían en blanco. */
+:is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+    app-manage-workers header.top-bar):not(#_) :is(.mdc-label, .mdc-label *, label, .mat-mdc-slide-toggle, .toggle-label) {
+  color: var(--text-2) !important;
+}
+
+/* ---------- 7. Gestión de Trabajadores: buscador y contadores ---------- */
+app-manage-workers header.top-bar:not(#_) .top-bar-right {
+  flex: 1 1 auto !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .search-box {
+  flex: 1 1 260px !important;
+  max-width: 420px !important;
+  margin-right: auto !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .search-input .mat-mdc-text-field-wrapper {
+  background: var(--surface-2) !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .search-input :is(.mdc-notched-outline__leading,
+    .mdc-notched-outline__trailing, .mdc-notched-outline__notch) {
+  border-color: var(--border) !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .search-input input {
+  color: var(--text) !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .search-input :is(.mat-mdc-form-field-icon-prefix .mat-icon, .mdc-floating-label) {
+  color: var(--muted) !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .search-input input::placeholder {
+  color: var(--muted) !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .stat-pill {
+  background: var(--ok-bg) !important;
+  color: var(--ok-fg) !important;
+  border: 1px solid var(--ok-border) !important;
+}
+
+app-manage-workers header.top-bar:not(#_) :is(.stat-num, .stat-lbl, .stat-pill .mat-icon) {
+  color: inherit !important;
+}
+
+app-manage-workers header.top-bar:not(#_) .toggle-inactive {
+  background: var(--surface-2) !important;
+  color: var(--text-2) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* ---------- 8. Teléfono: las acciones ocupan el ancho y se reparten ---------- */
+@media (max-width: 600px) {
+  :is(.dashboard-page-wrapper .barra-acciones,
+  .dashboard-page-wrapper .card-header-premium:not(.card-header-premium--portada),
+      app-manage-workers header.top-bar, :is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page,
+      app-analytics-page, app-groups-page, app-notifications-page, app-import-page,
+      app-audit-page, app-favorites-page, app-novedades) header.hero):not(#_)
+    :is(.header-actions, .header-right, .header-buttons, .right, .top-bar-right, .hero-actions) {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+
+  .dashboard-page-wrapper .mat-mdc-card > .card-header-premium:not(.card-header-premium--portada):not(#_) {
+    padding: 12px 12px 0 !important;
+  }
+
+  /* El botón «Acciones» se queda arriba a la derecha y lo que abre cae debajo,
+     así no cambia de sitio al pulsarlo. */
+  .dashboard-page-wrapper .acciones-pagina > button.acciones-pagina__toggle.acciones-pagina__toggle:not(#_):not(#_) {
+    order: -1;
+  }
+}
+
+/* ---------- 9. Módulo colapsable (botón «Acciones») ----------
+   El botón lo pone AccionesPaginaService (core/services) en cada cabecera con
+   acciones. Plegada, solo se ve el botón; abierta, las acciones a su izquierda.
+   Doble :not(#_) para ganarle a las reglas de botones y contenedores de arriba. */
+.dashboard-page-wrapper .acciones-pagina > button.acciones-pagina__toggle:not(#_):not(#_) {
+  order: 99;
+  margin-left: auto !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 10px 0 12px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--border-strong) !important;
+  background: var(--surface) !important;
+  color: var(--text-2) !important;
+  font: 600 13px/1 var(--font-sans) !important;
+  cursor: pointer;
+  box-shadow: none !important;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.dashboard-page-wrapper .acciones-pagina > button.acciones-pagina__toggle:not(#_):not(#_):hover {
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
+}
+
+.dashboard-page-wrapper .acciones-pagina > button.acciones-pagina__toggle:not(#_):not(#_):focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.dashboard-page-wrapper .acciones-pagina--abierta > button.acciones-pagina__toggle:not(#_):not(#_) {
+  border-color: var(--brand-blue) !important;
+  color: var(--brand-blue) !important;
+  background: var(--blue-soft, var(--surface-3)) !important;
+}
+
+.acciones-pagina__toggle .material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.acciones-pagina__toggle .acciones-pagina__icono {
+  /* En oscuro el azul de marca queda flojo sobre el panel: se usa el azul
+     claro de enlaces, que es el que contrasta ahí. */
+  color: light-dark(var(--brand-blue), var(--link));
+}
+
+.acciones-pagina__toggle .acciones-pagina__chevron {
+  transition: transform .2s ease;
+}
+
+.acciones-pagina--abierta > .acciones-pagina__toggle .acciones-pagina__chevron {
+  transform: rotate(180deg);
+}
+
+/* Plegada: se esconde todo lo que sea acción (botones, buscador, interruptores,
+   contenedores que los traen). El título de las pantallas de contexto se queda. */
+.dashboard-page-wrapper .acciones-pagina:not(.acciones-pagina--abierta):not(#_):not(#_)
+  > :not(.acciones-pagina__toggle):not(.hero-copy):not(:is(
+      app-form-runtime, app-form-response-detail, app-form-builder, app-form-exam, app-form-analytics,
+      app-form-responses, app-form-supports, app-form-process, app-option-sources,
+      app-generate-contracting-documents, app-cambiar-contrasena) .header-content):is(
+      button, a[href], mat-slide-toggle, mat-form-field, select, textarea, mat-menu,
+      :has(button, a[href], input:not([type=file]):not([type=hidden]), textarea, select, mat-form-field,
+           mat-select, mat-slide-toggle, mat-button-toggle-group, mat-checkbox)),
+.dashboard-page-wrapper .acciones-pagina:not(.acciones-pagina--abierta):not(#_):not(#_) > .hero-copy > .hero-actions {
+  display: none !important;
+}
+
+/* Al abrir, las acciones entran con un leve deslizamiento. */
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-page-wrapper .acciones-pagina--abierta > :not(.acciones-pagina__toggle) {
+    animation: acciones-entrar .18s ease-out;
+  }
+}
+
+@keyframes acciones-entrar {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+
+/* ---------- 10. Lo que marca AccionesPaginaService ----------
+   `data-acciones="oculto"`: el bloque de título que repetía el nombre del
+   módulo (o la cabecera entera, si solo era eso). La clase .barra-acciones la
+   pone el servicio en las cabeceras que sí traen acciones y entra en todas las
+   listas de arriba, así que se pintan igual que las que el CSS ya conocía. */
+.dashboard-page-wrapper [data-acciones="oculto"]:not(#_) {
+  display: none !important;
+}
+
+/* ---------- 11. Aspecto de panel, igual que el de «Filtros» ----------
+   Mismo lenguaje que .filtros-vacantes: caja con borde, fondo suave y una fila
+   de cabecera (icono + nombre + cuántas acciones + flecha a la derecha). La
+   fila ocupa el ancho completo y las acciones caen debajo. Va al final del
+   archivo para mandar sobre las reglas de barra de arriba. */
+.dashboard-page-wrapper .acciones-pagina:not(#_):not(#_) {
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  background: var(--surface-2) !important;
+  padding: 10px 12px !important;
+  margin: 0 0 14px !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  gap: 8px !important;
+  row-gap: 10px !important;
+}
+
+/* La cabecera del panel: toda la fila, sin aspecto de botón. */
+.dashboard-page-wrapper .acciones-pagina > button.acciones-pagina__toggle.acciones-pagina__toggle:not(#_):not(#_) {
+  order: -1;
+  flex: 1 0 100%;
+  width: 100% !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: none !important;
+  color: var(--text) !important;
+  font-weight: 700 !important;
+  font-size: .86rem !important;
+}
+
+.dashboard-page-wrapper .acciones-pagina > button.acciones-pagina__toggle:not(#_):not(#_):hover {
+  background: none !important;
+  color: var(--text) !important;
+}
+
+.acciones-pagina__toggle .acciones-pagina__icono {
+  color: var(--brand-blue);
+  font-size: 20px;
+}
+
+.acciones-pagina__toggle .acciones-pagina__cuenta {
+  font-size: .76rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* La flecha, al extremo derecho de la fila, como en Filtros. */
+.acciones-pagina__toggle .acciones-pagina__chevron {
+  margin-left: auto;
+  font-size: 22px;
+  color: var(--text-2);
+}
+
+/* Abierto: las acciones empiezan a la izquierda, bajo la cabecera. */
+.dashboard-page-wrapper .acciones-pagina--abierta:not(#_):not(#_)
+  > :not(.acciones-pagina__toggle):not([data-acciones="oculto"]) {
+  margin-left: 0 !important;
+  justify-content: flex-start !important;
+}
+
+/* Dentro de una tarjeta, el panel respira igual que el resto del contenido. */
+.dashboard-page-wrapper .mat-mdc-card > .acciones-pagina:not(#_):not(#_) {
+  margin: 4px 0 12px !important;
+}
+
+@media (max-width: 600px) {
+  .dashboard-page-wrapper .acciones-pagina:not(#_):not(#_) {
+    padding: 10px !important;
+  }
+}
+
+/* Los separadores elásticos de la cabecera vieja (span vacío que empujaba los
+   botones a la derecha) sobran dentro del panel: las acciones van pegadas a la
+   izquierda, bajo su cabecera. */
+.dashboard-page-wrapper .acciones-pagina:not(#_):not(#_) > :is(.grow, .spacer, .filtros-spacer, span:empty) {
+  display: none !important;
+}
+
+/* ---------- 12. Pista de acciones y opciones sacadas del menú ----------
+   Todo lo que trae la cabecera vive en una fila que, si no cabe, se arrastra
+   de lado (ratón) o se desliza (dedo), en vez de apilarse o recortarse. */
+.dashboard-page-wrapper .acciones-pagina > .acciones-pagina__pista {
+  display: flex;
+  flex: 1 0 100%;
+  width: 100%;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  padding-bottom: 2px;
+  cursor: grab;
+}
+
+.dashboard-page-wrapper .acciones-pagina:not(.acciones-pagina--abierta) > .acciones-pagina__pista {
+  display: none;
+}
+
+.dashboard-page-wrapper .acciones-pagina__pista::-webkit-scrollbar {
+  height: 6px;
+}
+
+.dashboard-page-wrapper .acciones-pagina__pista::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+}
+
+.dashboard-page-wrapper .acciones-pagina__pista--arrastrando {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* Dentro de la pista nada se encoge ni se va a la derecha. */
+.dashboard-page-wrapper .acciones-pagina__pista > *:not(#_) {
+  flex: 0 0 auto !important;
+  margin-left: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+}
+
+/* El botón de tres puntos ya no hace falta: sus opciones están a la vista. */
+.dashboard-page-wrapper [data-acciones="menu-origen"]:not(#_) {
+  display: none !important;
+}
+
+/* Cada opción sacada del menú, con el mismo aire que los demás botones. */
+.dashboard-page-wrapper .acciones-pagina__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  white-space: nowrap;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: 600 13.5px/1 var(--font-sans);
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+.dashboard-page-wrapper .acciones-pagina__item:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+
+.dashboard-page-wrapper .acciones-pagina__item:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.dashboard-page-wrapper .acciones-pagina__item .material-icons {
+  font-size: 18px;
+  color: var(--text-2);
+}
+
+/* Mientras se leen o se pulsan las opciones, el menú real no se ve (los
+   diálogos que abran esas opciones sí, van en otra capa del overlay). */
+.acciones-extrayendo .cdk-overlay-connected-position-bounding-box,
+.acciones-extrayendo .cdk-overlay-backdrop {
+  visibility: hidden !important;
+}

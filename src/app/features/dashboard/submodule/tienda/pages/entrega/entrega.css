@@ -1,0 +1,139 @@
+/* Pantalla del punto de entrega. Se usa de pie, con una persona esperando enfrente:
+   todo lo importante tiene que caber sin desplazarse y los botones son grandes. */
+
+.buscador {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+.buscador .crecer { flex: 1 1 280px; }
+.buscador input { font-size: 1.15rem; letter-spacing: .02em; }
+
+.entrega-cuerpo {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.persona h2 {
+  display: flex; align-items: center; gap: .4rem;
+  margin: 0; font-size: 1.1rem;
+}
+.persona h3 {
+  display: flex; align-items: center; gap: .35rem;
+  margin: 1rem 0 .4rem; font-size: .9rem; opacity: .85;
+}
+.cedula-linea { margin: .1rem 0 .75rem; opacity: .7; font-variant-numeric: tabular-nums; }
+
+.foto-marco { display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+.foto {
+  width: 100%;
+  max-width: 240px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid rgba(128, 128, 128, .3);
+}
+.pie { font-size: .75rem; opacity: .7; }
+
+.foto-vacia {
+  width: 100%;
+  padding: 1.5rem 1rem;
+  border-radius: 10px;
+  border: 1px dashed rgba(128, 128, 128, .45);
+  display: flex; flex-direction: column; align-items: center; gap: .4rem;
+  text-align: center;
+  font-size: .8rem;
+  opacity: .8;
+}
+/* Que no se pudiera preguntar es un problema del sistema, no de la persona, y se pinta
+   distinto para que nadie lo lea como "no tiene foto". */
+.foto-vacia.desconocido {
+  border-color: rgba(224, 138, 30, .6);
+  color: #e08a1e; color: light-dark(#e08a1e, #f2cc9c);
+  opacity: 1;
+}
+
+.documentos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.documentos li { display: flex; align-items: center; gap: .4rem; font-size: .82rem; }
+.documentos mat-icon { font-size: 16px; width: 16px; height: 16px; opacity: .6; }
+.documentos em { opacity: .6; font-size: .75rem; }
+
+.titulo-seccion { margin: 0 0 .6rem; font-size: 1rem; }
+.pedidos { display: flex; flex-direction: column; gap: .75rem; }
+
+.pedido { cursor: pointer; border: 2px solid transparent; transition: border-color .15s; }
+.pedido:hover { border-color: rgba(128, 128, 128, .3); }
+.pedido.activo { border-color: var(--tienda-acento, #3f7ddb); }
+
+.pedido .cabecera {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+}
+.pedido .total { margin-left: auto; font-weight: 600; }
+.pedido .datos {
+  display: flex; gap: .9rem; flex-wrap: wrap;
+  margin-top: .35rem; font-size: .8rem; opacity: .8;
+}
+.pedido .datos span { display: flex; align-items: center; gap: .25rem; }
+.pedido .datos mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+.tercero {
+  margin-top: .6rem;
+  padding-top: .6rem;
+  border-top: 1px solid rgba(128, 128, 128, .25);
+}
+.tercero-titulo {
+  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+  margin: 0 0 .5rem; font-size: .85rem;
+}
+.tercero-titulo mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.tercero-fotos { display: flex; gap: 1rem; flex-wrap: wrap; }
+.tercero-fotos figure {
+  margin: 0; display: flex; flex-direction: column; align-items: center; gap: .2rem;
+  font-size: .72rem; opacity: .85;
+}
+.tercero-fotos mat-icon { font-size: 22px; width: 22px; height: 22px; }
+.falta { color: #d33; color: light-dark(#d33, #ef9f9f); font-style: normal; font-weight: 600; }
+
+.tienda-error.compacto {
+  margin-top: .5rem;
+  font-size: .78rem;
+  padding: .4rem .6rem;
+}
+
+.decision { margin-top: .5rem; display: flex; flex-direction: column; gap: .6rem; }
+.decision h2 { display: flex; align-items: center; gap: .4rem; margin: 0; font-size: 1.05rem; }
+.decision h3 { margin: .8rem 0 .3rem; font-size: .85rem; opacity: .85; }
+.decision textarea { width: 100%; resize: vertical; font: inherit; }
+
+.botones-decision { display: flex; gap: .6rem; flex-wrap: wrap; }
+.botones-decision .boton { flex: 1 1 160px; justify-content: center; }
+.boton.dudoso { background: #e08a1e; color: #fff; }
+.boton.dudoso:hover { background: #c9770f; }
+
+.historial-validaciones { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+.historial-validaciones li { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .8rem; }
+.historial-validaciones .fecha { opacity: .65; }
+.historial-validaciones em { opacity: .85; }
+
+.bandeja { margin-bottom: 1rem; }
+.bandeja h2 { display: flex; align-items: center; gap: .4rem; margin: 0 0 .5rem; font-size: 1rem; }
+.lista-dudosos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.lista-dudosos li { display: flex; gap: .5rem; flex-wrap: wrap; align-items: baseline; font-size: .82rem; }
+.lista-dudosos .fecha, .lista-dudosos .quien { opacity: .65; }
+
+.insignia.ok { background: rgba(76, 175, 80, .18); color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
+.insignia.malo { background: rgba(244, 67, 54, .18); color: #c62828; color: light-dark(#c62828, #eca2a2); }
+.insignia.dudoso { background: rgba(224, 138, 30, .2); color: #b26a05; color: light-dark(#b26a05, #f7cf97); }
+.insignia.espera { background: rgba(120, 120, 120, .18); }
+
+@media (max-width: 900px) {
+  .entrega-cuerpo { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 600px) {
+  .botones-decision .boton { flex: 1 1 100%; }
+  .buscador { flex-direction: column; align-items: stretch; }
+}

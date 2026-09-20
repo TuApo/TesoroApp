@@ -283,56 +283,35 @@
     }
 
     <!-- ============ Listado ============ -->
-    <div class="tabla-scroll">
-      <table class="tabla">
-        <thead>
-          <tr>
-            <th>Origen</th>
-            <th>Tabla</th>
-            <th>Muestra</th>
-            <th>Cascada</th>
-            <th>Reglas</th>
-            <th class="th-acciones">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (o of origenes(); track o.id) {
-            <tr [class.inactivo]="!o.active">
-              <td>
-                <strong>{{ o.name }}</strong>
-                <span class="codigo">{{ o.code }}</span>
-              </td>
-              <td>{{ o.catalog_code }}</td>
-              <td>{{ o.label_field }}</td>
-              <td>
-                @if (o.parent_source_code) {
-                  {{ o.parent_source_code }} → {{ o.parent_link_field }}
-                } @else { — }
-              </td>
-              <td class="reglas">{{ resumenReglas(o) }}</td>
-              <td class="acciones">
-                <button type="button" class="icon-btn" (click)="probar(o)" matTooltip="Ver qué opciones devuelve">
-                  <mat-icon>play_arrow</mat-icon>
-                </button>
-                <button type="button" class="icon-btn" (click)="editar(o)" matTooltip="Editar">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button type="button" class="icon-btn icon-btn--danger" (click)="eliminar(o)" matTooltip="Eliminar">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="6" class="vacio">
-                Todavía no hay orígenes. Crea una tabla parametrizada y luego un origen sobre ella
-                para usarla como opciones de un campo.
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
+    <app-tabla-estandar
+      id="formularios-origenes-opciones"
+      titulo="Orígenes de opciones"
+      modulo="Formularios dinámicos"
+      entidad="df_option_source"
+      vacio="Todavía no hay orígenes. Crea una tabla parametrizada y luego un origen sobre ella para usarla como opciones de un campo."
+      [datos]="origenes()"
+      [columnas]="columnasListado"
+      [filaId]="idOrigen"
+      [filaClase]="claseOrigen"
+      [cargando]="cargando()">
+
+      <ng-template tablaCelda="origen" let-o>
+        <strong>{{ o.name }}</strong>
+        <span class="codigo">{{ o.code }}</span>
+      </ng-template>
+
+      <ng-template tablaAcciones let-o>
+        <button type="button" class="icon-btn" (click)="probar(o)" matTooltip="Ver qué opciones devuelve">
+          <mat-icon>play_arrow</mat-icon>
+        </button>
+        <button type="button" class="icon-btn" (click)="editar(o)" matTooltip="Editar">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button type="button" class="icon-btn icon-btn--danger" (click)="eliminar(o)" matTooltip="Eliminar">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </ng-template>
+    </app-tabla-estandar>
 
     <!-- ============ Prueba de resolución ============ -->
     @if (probando(); as code) {

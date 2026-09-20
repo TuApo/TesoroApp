@@ -3,12 +3,12 @@
      (las custom properties cascadean por el DOM aunque Angular encapsule los
      selectores). Cada página puede leerlos con var(--cfg-*). */
   --cfg-accent: #2563eb;
-  --cfg-accent-soft: #eff6ff;
-  --cfg-ink: #0f172a;
-  --cfg-muted: #64748b;
-  --cfg-border: #e2e8f0;
-  --cfg-surface: #ffffff;
-  --cfg-surface-2: #f8fafc;
+  --cfg-accent-soft: light-dark(#eff6ff, #0f284d);
+  --cfg-ink: var(--text);
+  --cfg-muted: var(--muted);
+  --cfg-border: var(--border);
+  --cfg-surface: var(--surface);
+  --cfg-surface-2: var(--surface-2);
   --cfg-radius: 16px;
 
   display: block;
@@ -49,7 +49,7 @@
 }
 
 .cfg-header__title {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.6rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -102,7 +102,7 @@
 
 .cfg-nav__item.is-active {
   background: var(--cfg-accent-soft);
-  border-color: #bfdbfe;
+  border-color: #bfdbfe; border-color: light-dark(#bfdbfe, #0d3b7a);
 }
 
 .cfg-nav__icon {
@@ -168,7 +168,7 @@
   }
 
   .cfg-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
   }
 

@@ -102,67 +102,51 @@
     </div>
 
     @if (pestana() === 'matriz') {
-      @if (!matriz().length) {
-        <div class="vacio">
-          <mat-icon>fact_check</mat-icon>
-          <p>Ningún curso tiene gente matriculada todavía.</p>
-        </div>
-      } @else {
-        <table class="tabla">
-          <thead>
-            <tr>
-              <th>Curso</th>
-              <th>Personas</th>
-              <th>Al día</th>
-              <th>Por vencer</th>
-              <th>Vencidos</th>
-              <th>En curso</th>
-              <th>Pendientes</th>
-              <th>Cumplimiento</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (f of matriz(); track f.course_id) {
-              <tr>
-                <td>
-                  {{ f.curso }}
-                  @if (f.obligatorio) { <span class="chip chip-curso">Obligatorio</span> }
-                  @if (f.vigencia_meses) {
-                    <div class="mono">Vigencia {{ f.vigencia_meses }} meses</div>
-                  }
-                </td>
-                <td>{{ f.personas }}</td>
-                <td>
-                  <button type="button" class="celda" [disabled]="!f.al_dia"
-                          (click)="abrirDetalle('AL_DIA', f)">{{ f.al_dia }}</button>
-                </td>
-                <td>
-                  <button type="button" class="celda aviso" [disabled]="!f.por_vencer"
-                          (click)="abrirDetalle('POR_VENCER', f)">{{ f.por_vencer }}</button>
-                </td>
-                <td>
-                  <button type="button" class="celda alerta" [disabled]="!f.vencidos"
-                          (click)="abrirDetalle('VENCIDO', f)">{{ f.vencidos }}</button>
-                </td>
-                <td>
-                  <button type="button" class="celda" [disabled]="!f.en_curso"
-                          (click)="abrirDetalle('EN_CURSO', f)">{{ f.en_curso }}</button>
-                </td>
-                <td>
-                  <button type="button" class="celda" [disabled]="!f.pendientes"
-                          (click)="abrirDetalle('PENDIENTE', f)">{{ f.pendientes }}</button>
-                </td>
-                <td>
-                  <div class="barra" [title]="f.porcentaje + '%'">
-                    <div class="relleno" [style.width.%]="f.porcentaje"></div>
-                  </div>
-                  <span class="mono">{{ f.porcentaje }}%</span>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      <app-tabla-estandar
+        id="capacitaciones-cumplimiento-matriz"
+        titulo="Matriz de cumplimiento por curso"
+        modulo="Capacitaciones"
+        vacio="Ningún curso tiene gente matriculada todavía."
+        [datos]="matriz()"
+        [columnas]="columnasMatriz"
+        [filaId]="idFilaMatriz">
+
+        <ng-template tablaCelda="curso" let-f>
+          {{ f.curso }}
+          @if (f.obligatorio) { <span class="chip chip-curso">Obligatorio</span> }
+          @if (f.vigencia_meses) {
+            <div class="mono">Vigencia {{ f.vigencia_meses }} meses</div>
+          }
+        </ng-template>
+
+        <ng-template tablaCelda="al_dia" let-f>
+          <button type="button" class="celda" [disabled]="!f.al_dia"
+                  (click)="abrirDetalle('AL_DIA', f)">{{ f.al_dia }}</button>
+        </ng-template>
+        <ng-template tablaCelda="por_vencer" let-f>
+          <button type="button" class="celda aviso" [disabled]="!f.por_vencer"
+                  (click)="abrirDetalle('POR_VENCER', f)">{{ f.por_vencer }}</button>
+        </ng-template>
+        <ng-template tablaCelda="vencidos" let-f>
+          <button type="button" class="celda alerta" [disabled]="!f.vencidos"
+                  (click)="abrirDetalle('VENCIDO', f)">{{ f.vencidos }}</button>
+        </ng-template>
+        <ng-template tablaCelda="en_curso" let-f>
+          <button type="button" class="celda" [disabled]="!f.en_curso"
+                  (click)="abrirDetalle('EN_CURSO', f)">{{ f.en_curso }}</button>
+        </ng-template>
+        <ng-template tablaCelda="pendientes" let-f>
+          <button type="button" class="celda" [disabled]="!f.pendientes"
+                  (click)="abrirDetalle('PENDIENTE', f)">{{ f.pendientes }}</button>
+        </ng-template>
+
+        <ng-template tablaCelda="cumplimiento" let-f>
+          <div class="barra" [title]="f.porcentaje + '%'">
+            <div class="relleno" [style.width.%]="f.porcentaje"></div>
+          </div>
+          <span class="mono">{{ f.porcentaje }}%</span>
+        </ng-template>
+      </app-tabla-estandar>
     }
 
     @if (pestana() === 'excepciones') {
@@ -171,28 +155,22 @@
         cargo crudo, así que a esta gente <b>ningún plan la alcanza</b> y no aparece error en
         ningún sitio. Ordenados por cuánta gente afectan.
       </p>
-      @if (!excepciones().length) {
-        <div class="vacio">
-          <mat-icon>check_circle</mat-icon>
-          <p>No hay cargos sin clasificar.</p>
-        </div>
-      } @else {
-        <table class="tabla">
-          <thead>
-            <tr><th>Cargo</th><th>Sufijo de sitio</th><th>Contratos activos</th><th>Origen</th></tr>
-          </thead>
-          <tbody>
-            @for (c of excepciones(); track c.id) {
-              <tr>
-                <td>{{ c.cargo_crudo }}</td>
-                <td class="mono">{{ c.sufijo_sitio || '—' }}</td>
-                <td>{{ c.contratos_activos }}</td>
-                <td class="mono">{{ c.origen || '—' }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      }
+      <app-tabla-estandar
+        id="capacitaciones-cumplimiento-excepciones"
+        titulo="Cargos sin familia"
+        modulo="Capacitaciones"
+        vacio="No hay cargos sin clasificar."
+        [datos]="excepciones()"
+        [columnas]="columnasExcepciones"
+        [filaId]="idExcepcion">
+
+        <ng-template tablaCelda="sufijo" let-c>
+          <span class="mono">{{ c.sufijo_sitio || '—' }}</span>
+        </ng-template>
+        <ng-template tablaCelda="origen" let-c>
+          <span class="mono">{{ c.origen || '—' }}</span>
+        </ng-template>
+      </app-tabla-estandar>
     }
 
     <!-- ══ Detalle ════════════════════════════════════════════════════════ -->
@@ -208,32 +186,20 @@
           </button>
         </div>
 
-        @if (ocupado()) {
-          <p class="cargando">Cargando…</p>
-        } @else if (!personas().length) {
-          <p class="apagado">Nadie en esta categoría.</p>
-        } @else {
-          <table class="tabla">
-            <thead>
-              <tr><th>Cédula</th><th>Persona</th><th>Cargo</th><th>Curso</th>
-                  <th>Vence</th><th>Avance</th><th>Estado</th></tr>
-            </thead>
-            <tbody>
-              @for (p of personas(); track p.person_id + p.course_id) {
-                <tr>
-                  <td class="mono">{{ p.cedula || '—' }}</td>
-                  <td>{{ p.nombre }}</td>
-                  <td>{{ p.cargo || '—' }}</td>
-                  <td>{{ p.curso }}</td>
-                  <td>{{ fecha(p.vence_at) }}</td>
-                  <td>{{ p.porcentaje ?? 0 }}%</td>
-                  <td><span class="chip" [class]="'chip ' + claseEstado(p.estado)">
-                    {{ etiquetaEstado(p.estado) }}</span></td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        }
+        <app-tabla-estandar
+          id="capacitaciones-cumplimiento-detalle"
+          [titulo]="'Cumplimiento · ' + etiquetaEstado(d.estado) + (d.curso ? ' · ' + d.curso.curso : '')"
+          modulo="Capacitaciones"
+          vacio="Nadie en esta categoría."
+          [datos]="personas()"
+          [columnas]="columnasPersonas"
+          [filaId]="idPersona"
+          [cargando]="ocupado()">
+
+          <ng-template tablaCelda="cedula" let-p>
+            <span class="mono">{{ p.cedula || '—' }}</span>
+          </ng-template>
+        </app-tabla-estandar>
       </div>
     }
   }

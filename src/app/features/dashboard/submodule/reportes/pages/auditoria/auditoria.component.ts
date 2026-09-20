@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal, viewChild } from '@angular/core';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,8 +10,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent, TonoBadge,
+} from '../../../../../../shared/components/tabla-estandar';
 import { ReportesApiService } from '../../services/reportes-api.service';
 import { FilaAuditoria } from '../../models/reportes.models';
 
@@ -21,6 +22,9 @@ import { FilaAuditoria } from '../../models/reportes.models';
  * Registra quién creó, modificó, ejecutó, exportó o compartió cada reporte, y —lo
  * más importante— qué datos se editaron desde una tabla, con el valor anterior y
  * el nuevo. Es la contrapartida obligatoria de permitir edición en línea.
+ *
+ * La tabla estándar va en modo servidor: el backend pagina y filtra por acción y fechas,
+ * pero no busca por texto ni ordena por columna, así que esas dos cosas van apagadas.
  */
 @Component({
   selector: 'app-auditoria-reportes',
@@ -28,7 +32,7 @@ import { FilaAuditoria } from '../../models/reportes.models';
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, FormsModule, RouterLink, MatIconModule, MatButtonModule,
     MatTooltipModule, MatFormFieldModule, MatSelectModule, MatInputModule,
-    MatDatepickerModule, MatNativeDateModule, MatPaginatorModule, MatProgressBarModule],
+    MatDatepickerModule, MatNativeDateModule, ...TABLA_ESTANDAR],
   template: `
   <div class="au">
     <header class="au__head">
@@ -67,63 +71,51 @@ import { FilaAuditoria } from '../../models/reportes.models';
       <button mat-stroked-button (click)="limpiar()"><mat-icon>filter_alt_off</mat-icon> Limpiar</button>
     </div>
 
-    @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+    <app-tabla-estandar
+      id="reportes-auditoria"
+      titulo="Auditoría de reportes"
+      modulo="Reportes"
+      entidad="auditoria_reportes"
+      [busqueda]="false"
+      vacio="No hay actividad registrada con estos filtros."
+      [datos]="filas()"
+      [columnas]="columnas"
+      [filaId]="idFila"
+      [filaClase]="claseFila"
+      [cargando]="cargando()"
+      [totalServidor]="total()"
+      [filasPorPagina]="tam"
+      (paginaCambio)="paginar($event)">
 
-    <div class="tabla-wrap">
-      <table class="tabla">
-        <thead>
-          <tr>
-            <th>Cuándo</th><th>Quién</th><th>Acción</th><th>Recurso</th><th>Detalle</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (f of filas(); track f.id) {
-            <tr [class.fila--fallo]="!f.exito">
-              <td class="nowrap">{{ f.occurred_at | date:'dd/MM/yyyy HH:mm:ss' }}</td>
-              <td class="actor">{{ f.actor_email || f.actor_id || '—' }}</td>
-              <td>
-                <span class="acc" [class]="claseAccion(f.accion)">
-                  <mat-icon>{{ icono(f.accion) }}</mat-icon>{{ rotulo(f.accion) }}
-                </span>
-              </td>
-              <td class="nowrap">{{ f.recurso || '—' }}</td>
-              <td class="detalle">{{ resumen(f) }}</td>
-              <td>
-                @if (f.metadata) {
-                  <button mat-icon-button (click)="alternar(f.id)"
-                          [matTooltip]="expandidas().has(f.id) ? 'Ocultar detalle' : 'Ver detalle'">
-                    <mat-icon>{{ expandidas().has(f.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                  </button>
-                }
-              </td>
-            </tr>
-            @if (expandidas().has(f.id) && f.metadata) {
-              <tr class="meta">
-                <td colspan="6"><pre>{{ formatear(f.metadata) }}</pre></td>
-              </tr>
-            }
-          }
-          @if (!filas().length && !cargando()) {
-            <tr><td colspan="6" class="vacio">No hay actividad registrada con estos filtros.</td></tr>
-          }
-        </tbody>
-      </table>
-    </div>
+      <!-- El detalle se despliega dentro de su propia celda: la tabla no tiene filas extra. -->
+      <ng-template tablaCelda="detalle" let-f>
+        <span class="detalle">{{ resumen(f) }}</span>
+        @if (expandidas().has(f.id) && f.metadata) {
+          <pre class="meta">{{ formatear(f.metadata) }}</pre>
+        }
+      </ng-template>
 
-    <mat-paginator [length]="total()" [pageSize]="tam" [pageSizeOptions]="[25, 50, 100]"
-                   (page)="paginar($event)"></mat-paginator>
+      <ng-template tablaAcciones let-f>
+        @if (f.metadata) {
+          <button mat-icon-button (click)="alternar(f.id)"
+                  [matTooltip]="expandidas().has(f.id) ? 'Ocultar detalle' : 'Ver detalle'">
+            <mat-icon>{{ expandidas().has(f.id) ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+        }
+      </ng-template>
+    </app-tabla-estandar>
   </div>
   `,
   styles: [`
     :host {
-      --rp-fondo: #f8fafc; --rp-panel: #fff; --rp-borde: #e2e8f0;
-      --rp-texto: #0f172a; --rp-texto-suave: #64748b;
+      --rp-fondo: var(--surface-2); --rp-panel: var(--surface); --rp-borde: var(--border);
+      --rp-texto: var(--text); --rp-texto-suave: var(--muted);
       display: block; min-height: 100%; padding: 1rem 1.2rem 3rem;
       background: var(--rp-fondo); color: var(--rp-texto);
     }
     :host-context(.dark-theme) {
       --rp-fondo: #0f172a; --rp-panel: #1e293b; --rp-borde: #334155;
-      --rp-texto: #f1f5f9; --rp-texto-suave: #94a3b8;
+      --rp-texto: #f1f5f9; --rp-texto-suave: var(--text-faint);
     }
     .au { max-width: 1400px; margin: 0 auto; }
     .au__head { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: 1rem; }
@@ -133,44 +125,20 @@ import { FilaAuditoria } from '../../models/reportes.models';
     .filtros { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-bottom: .8rem; }
     .filtros mat-form-field { width: 190px; }
 
-    .tabla-wrap {
-      overflow-x: auto; border: 1px solid var(--rp-borde); border-radius: 12px;
-      background: var(--rp-panel);
-    }
-    .tabla { width: 100%; border-collapse: collapse; font-size: .82rem; }
-    .tabla th {
-      text-align: left; padding: .6rem .7rem; font-size: .7rem; text-transform: uppercase;
-      letter-spacing: .04em; color: var(--rp-texto-suave); border-bottom: 1px solid var(--rp-borde);
-      position: sticky; top: 0; background: var(--rp-panel); z-index: 1;
-    }
-    .tabla td { padding: .5rem .7rem; border-bottom: 1px solid var(--rp-borde); vertical-align: top; }
-    .nowrap { white-space: nowrap; }
-    .actor { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .detalle { color: var(--rp-texto-suave); max-width: 420px; }
-    .fila--fallo { background: #fef2f2; }
-
-    .acc {
-      display: inline-flex; align-items: center; gap: .2rem; white-space: nowrap;
-      font-size: .72rem; font-weight: 600; border-radius: 999px; padding: 2px 8px;
-      background: #f1f5f9; color: #475569;
-    }
-    .acc mat-icon { font-size: 13px; width: 13px; height: 13px; }
-    .acc--crea { background: #d1fae5; color: #047857; }
-    .acc--edita { background: #fef3c7; color: #b45309; }
-    .acc--borra { background: #fee2e2; color: #b91c1c; }
-    .acc--dato { background: #ede9fe; color: #6d28d9; }
-
-    .meta td { background: rgba(148, 163, 184, .08); }
-    .meta pre {
-      margin: 0; font-size: .74rem; white-space: pre-wrap; word-break: break-word;
+    /* Celdas propias (plantilla tablaCelda del detalle) */
+    .detalle { display: inline-block; color: var(--rp-texto-suave); max-width: 420px; white-space: normal; }
+    .meta {
+      margin: .4rem 0 0; padding: .5rem .6rem; border-radius: 8px; background: var(--surface-2);
+      font-size: .74rem; white-space: pre-wrap; word-break: break-word; max-width: 560px;
       font-family: ui-monospace, Menlo, monospace;
     }
-    .vacio { text-align: center; padding: 2.5rem; color: var(--rp-texto-suave); }
 
     @media (max-width: 720px) { :host { padding: .7rem .5rem 2rem; } .filtros mat-form-field { width: 100%; } }
   `],
 })
 export class AuditoriaComponent implements OnInit {
+  /** Tope de filas por página del endpoint de auditoría (ms-reports). */
+  private static readonly MAX_POR_PAGINA = 200;
 
   private api = inject(ReportesApiService);
 
@@ -179,6 +147,27 @@ export class AuditoriaComponent implements OnInit {
   readonly total = signal(0);
   readonly acciones = signal<string[]>([]);
   readonly expandidas = signal<Set<number>>(new Set());
+
+  private readonly tabla = viewChild(TablaEstandarComponent);
+
+  readonly columnas: ColumnaTabla<FilaAuditoria>[] = [
+    { id: 'cuando', header: 'Cuándo', ordenable: false, tarjeta: 'subtitulo',
+      valor: f => (f.occurred_at ? new Date(f.occurred_at) : null),
+      formato: f => (f.occurred_at ? formatDate(f.occurred_at, 'dd/MM/yyyy HH:mm:ss', 'en-US') : '') },
+    { id: 'quien', header: 'Quién', ordenable: false, tarjeta: 'titulo', minAncho: '140px',
+      valor: f => f.actor_email || f.actor_id || '', formato: f => f.actor_email || f.actor_id || '—' },
+    { id: 'accion', header: 'Acción', ordenable: false, tarjeta: 'badge',
+      valor: f => this.rotulo(f.accion),
+      badge: f => ({ texto: this.rotulo(f.accion), tono: this.tonoAccion(f.accion), icono: this.icono(f.accion) }) },
+    { id: 'recurso', header: 'Recurso', ordenable: false, prioridad: 2, tarjeta: 'meta',
+      valor: f => f.recurso ?? '', formato: f => f.recurso || '—' },
+    // Siempre visible: es donde se despliega el JSON del botón de la fila.
+    { id: 'detalle', header: 'Detalle', ordenable: false, tarjeta: 'cuerpo', minAncho: '220px',
+      valor: f => this.resumen(f) },
+  ];
+
+  readonly idFila = (f: FilaAuditoria) => f.id;
+  readonly claseFila = (f: FilaAuditoria) => (f.exito ? '' : 'te-fila--peligro');
 
   accion = '';
   desde: Date | null = null;
@@ -196,6 +185,9 @@ export class AuditoriaComponent implements OnInit {
 
   cargar(p: number): void {
     this.pagina = p;
+    // En modo servidor la tabla lleva su propio número de página: al volver a la primera
+    // por un cambio de filtro, se le avisa para que el paginador no se quede atrás.
+    this.tabla()?.pagina.set(p);
     this.cargando.set(true);
     this.api.auditoria({
       accion: this.accion,
@@ -208,9 +200,15 @@ export class AuditoriaComponent implements OnInit {
     });
   }
 
-  paginar(ev: PageEvent): void {
-    this.tam = ev.pageSize;
-    this.cargar(ev.pageIndex);
+  paginar(ev: { pagina: number; porPagina: number }): void {
+    // El backend sirve como mucho 200 por página: si se elige más (la tabla ofrece 250),
+    // se le pide a la tabla que use 200, que vuelve a emitir con ese tamaño.
+    if (ev.porPagina > AuditoriaComponent.MAX_POR_PAGINA) {
+      this.tabla()?.cambiarPorPagina(AuditoriaComponent.MAX_POR_PAGINA);
+      return;
+    }
+    this.tam = ev.porPagina;
+    this.cargar(ev.pagina);
   }
 
   limpiar(): void {
@@ -256,12 +254,12 @@ export class AuditoriaComponent implements OnInit {
     return 'edit';
   }
 
-  claseAccion(a: string): string {
-    if (a === 'DATO_EDITADO') return 'acc--dato';
-    if (a.includes('ELIMINADO') || a === 'ACCESO_DENEGADO') return 'acc--borra';
-    if (a.includes('CREADO')) return 'acc--crea';
-    if (a.includes('MODIFICADO')) return 'acc--edita';
-    return '';
+  tonoAccion(a: string): TonoBadge {
+    if (a === 'DATO_EDITADO') return 'violet';
+    if (a.includes('ELIMINADO') || a === 'ACCESO_DENEGADO') return 'danger';
+    if (a.includes('CREADO')) return 'ok';
+    if (a.includes('MODIFICADO')) return 'warn';
+    return 'neutro';
   }
 
   /** Resumen legible del metadata, para no obligar a abrir el JSON en cada fila. */

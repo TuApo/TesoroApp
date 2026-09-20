@@ -10,7 +10,7 @@
  * formulario incompleto, y que al guardar salga el payload correcto —
  * incluyendo el BARRIO, que se acaba de mudar desde la pestaña de Antecedentes.
  */
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, flush, flushMicrotasks, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
@@ -157,6 +157,133 @@ describe('FormEntrevistaComponent', () => {
       expect(comp.formVacante.get('primer_nombre')!.value).toBe('OTRO');
       expect(comp.formVacante.get('barrio')!.value).toBe('CENTRO');
     });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  describe('formación', () => {
+
+    it('trae TODO el detalle de la escolaridad, no solo el nivel', () => {
+      // El guardado reemplaza `formaciones`: si la pantalla no carga estos
+      // cuatro campos, la siguiente entrevista guardada los deja en NULL.
+      abrir(candidato({
+        formaciones: [{
+          nivel: 'OTROS',
+          estudios_extra: 'TECNÓLOGO',
+          titulo_obtenido: 'GESTIÓN AGROPECUARIA',
+          institucion: 'SENA',
+          anio_finalizacion: 2021,
+        }],
+      }));
+
+      expect(comp.formVacante.get('nivel')!.value).toBe('OTROS');
+      // Con tilde en la base (lo escribe el formulario público) y sin ella en la
+      // lista: el guardado de la entrevista quita las tildes, así que las dos
+      // escrituras tienen que caer en la misma opción o el select sale vacío.
+      expect(comp.formVacante.get('estudiosExtra')!.value).toBe('TECNOLOGO');
+      expect(comp.formVacante.get('tituloObtenido')!.value).toBe('GESTIÓN AGROPECUARIA');
+      expect(comp.formVacante.get('institucionEstudio')!.value).toBe('SENA');
+      expect(comp.formVacante.get('anioFinalizacion')!.value).toBe(2021);
+    });
+
+    it('el nivel superior ya guardado por la entrevista (sin tilde) también casa', () => {
+      abrir(candidato({ formaciones: [{ nivel: 'OTROS', estudios_extra: 'TECNOLOGO' }] }));
+      expect(comp.formVacante.get('estudiosExtra')!.value).toBe('TECNOLOGO');
+    });
+
+    it('un nivel superior que no está en la lista no ensucia el select', () => {
+      abrir(candidato({ formaciones: [{ nivel: 'OTROS', estudios_extra: 'CUALQUIER COSA' }] }));
+      expect(comp.formVacante.get('estudiosExtra')!.value).toBe('');
+    });
+
+    it('sin formación registrada los campos quedan vacíos, no en undefined', () => {
+      abrir(candidato());
+      expect(comp.formVacante.get('estudiosExtra')!.value).toBe('');
+      expect(comp.formVacante.get('anioFinalizacion')!.value).toBeNull();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  describe('hijos: nombre y edad', () => {
+
+    /**
+     * Fecha de nacimiento que hoy da exactamente `meses` de vida.
+     *
+     * Se arma con los componentes LOCALES y no con `toISOString()`: en una zona
+     * detrás de UTC, el ISO de la tarde cae en el día siguiente y la prueba
+     * pasaría o fallaría según la hora a la que se corriera.
+     */
+    function naceHace(meses: number): string {
+      const hoy = new Date();
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - meses, 1);
+      // Sin acotar el día, un 31 restado sobre un mes de 30 desborda al
+      // siguiente (`setMonth` no recorta) y la prueba fallaría un día al mes.
+      const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(hoy.getDate(), ultimo));
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${d.getFullYear()}-${mm}-${dd}`;
+    }
+
+    it('la edad va en años a partir del año de vida', () => {
+      abrir(candidato({
+        hijos: [{ numero_de_documento: '111111', fecha_nac: naceHace(84), primer_nombre: 'SARA', primer_apellido: 'BAZA' }],
+      }));
+      expect(comp.hijosResumen().length).toBe(1);
+      expect(comp.hijosResumen()[0].nombre).toBe('SARA BAZA');
+      expect(comp.hijosResumen()[0].edad).toBe('7 años');
+    });
+
+    it('por debajo del año la edad se dice en MESES', () => {
+      // "0 años" no es una respuesta para un bebé, y es justo la edad que
+      // decide si la persona necesita quién lo cuide.
+      abrir(candidato({
+        hijos: [{ numero_de_documento: '222222', fecha_nac: naceHace(8), primer_nombre: 'LUIS' }],
+      }));
+      expect(comp.hijosResumen()[0].edad).toBe('8 meses');
+    });
+
+    it('el recién nacido no dice "0 meses"', () => {
+      abrir(candidato({
+        hijos: [{ numero_de_documento: '333333', fecha_nac: naceHace(0), primer_nombre: 'ANA' }],
+      }));
+      expect(comp.hijosResumen()[0].edad).toBe('menos de un mes');
+    });
+
+    it('sin nombre registrado se identifica por el documento', () => {
+      abrir(candidato({ hijos: [{ numero_de_documento: '444444', fecha_nac: naceHace(24) }] }));
+      expect(comp.hijosResumen()[0].nombre).toBe('Doc. 444444');
+      expect(comp.hijosResumen()[0].edad).toBe('2 años');
+    });
+
+    it('sin fecha de nacimiento lo dice en vez de inventar una edad', () => {
+      abrir(candidato({ hijos: [{ numero_de_documento: '555555', primer_nombre: 'EVA' }] }));
+      expect(comp.hijosResumen()[0].edad).toBe('sin fecha de nacimiento');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  describe('guardado automático (sin botón "Enviar")', () => {
+
+    it('cambiar una respuesta la guarda sola, aunque falten obligatorios', fakeAsync(() => {
+      abrir(candidato());
+      tick();
+      const ctrl = comp.formVacante.get('experienciaFlores')!;
+      ctrl.markAsDirty();
+      ctrl.setValue('Sí');
+      tick(300);
+      flushMicrotasks();
+      expect(candidatos.upsertCandidatoByDocumentoFromForm).toHaveBeenCalled();
+      const [, proceso] = candidatos.upsertCandidatoByDocumentoFromForm.calls.mostRecent().args;
+      expect(proceso).withContext('a medias no se marca entrevistado').toBeUndefined();
+      flush();
+    }));
+
+    it('cargar a la persona no escribe nada', fakeAsync(() => {
+      abrir(candidato());
+      tick(2000);
+      expect(candidatos.upsertCandidatoByDocumentoFromForm).not.toHaveBeenCalled();
+      flush();
+    }));
   });
 
   // ─────────────────────────────────────────────────────────────

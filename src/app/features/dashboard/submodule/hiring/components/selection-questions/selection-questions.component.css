@@ -24,13 +24,13 @@
   padding-top: 2px !important;
   padding-bottom: 2px !important;
   border-radius: 12px !important;
-  border: 1px solid #E1E7EF !important;
+  border: 1px solid var(--border) !important;
   transition: background-color .2s ease, border-color .2s ease, box-shadow .2s ease !important;
 }
 
 /* Focus sin halo azul */
 :host ::ng-deep .mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper {
-  background: #fff !important;
+  background: var(--surface) !important;
   box-shadow: none !important;
   outline: none !important;
 }
@@ -55,7 +55,7 @@
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
-  color: #2f3640 !important;
+  color: var(--text-2) !important;
 }
 
 /* ───── Contenedor de suffix de MDC alineado a la derecha ───── */
@@ -98,13 +98,13 @@
   padding: 0 !important;
 }
 :host ::ng-deep .acciones-suffix .mat-mdc-icon-button:hover {
-  background: rgba(0, 0, 0, .05) !important;
+  background: rgb(var(--ink-rgb) / 0.05) !important;
 }
 
 /* Flecha y label neutros */
 :host ::ng-deep .mat-mdc-select-arrow { opacity: .75 !important; }
 :host ::ng-deep .mat-mdc-form-field .mdc-floating-label {
-  color: #2f3640 !important;
+  color: var(--text-2) !important;
   white-space: nowrap !important;
 }
 
@@ -122,7 +122,7 @@
 /* ====== Nombre del archivo debajo del input ====== */
 .uploaded-file-name {
   font-size: .66rem !important;     /* más pequeño para caber en una sola línea */
-  color: #64748b !important;
+  color: var(--muted) !important;
   font-style: normal !important;  /* sin cursiva */
   line-height: 1.3 !important;
   margin: 0 !important;
@@ -144,8 +144,8 @@
   gap: 4px !important;
   padding: 2px 8px !important;
   border-radius: 999px !important;
-  background: #f1f5f9 !important;
-  border: 1px solid #e2e8f0 !important;
+  background: var(--surface-3) !important;
+  border: 1px solid var(--border) !important;
   line-height: 1.2 !important;
   max-width: 100% !important;        /* no excede el ancho del campo */
   box-sizing: border-box !important;
@@ -156,9 +156,9 @@
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
-  color: #b91c1c !important;
-  background: #fef2f2 !important;
-  border: 1px solid #fde2e2 !important;
+  color: #b91c1c !important; color: light-dark(#b91c1c, #f09e9e) !important;
+  background: #fef2f2 !important; background: light-dark(#fef2f2, #351927) !important;
+  border: 1px solid #fde2e2 !important; border: 1px solid light-dark(#fde2e2, #661621) !important;
   border-radius: 8px !important;
   font-size: .74rem !important;
   line-height: 1.2 !important;
@@ -178,7 +178,7 @@
 
 .queue-row {
   font-size: .8rem !important;
-  color: #5c667a !important;
+  color: var(--muted) !important;
   font-style: italic !important;
   font-weight: 500 !important;
 }
@@ -268,7 +268,7 @@ mat-form-field.example-full-width {
   align-items: center !important;
   justify-content: center !important;
   border-radius: 50% !important;
-  color: var(--estado-color, #6E7781) !important; /* currentColor */
+  color: var(--estado-color, var(--muted)) !important; /* currentColor */
   border: 2px solid currentColor !important;
   transition: all .25s ease-in-out !important;
   box-shadow: 0 1px 0 rgba(16, 24, 40, .06) inset !important;
@@ -278,17 +278,17 @@ mat-form-field.example-full-width {
 /* Forzado de colores por estado (si se inyecta inline-style) */
 .estado-icon[ng-reflect-style*="#2E7D32"],
 .estado-icon[style*="#2E7D32"] {
-  color: #2E7D32 !important;
+  color: #2E7D32 !important; color: light-dark(#2E7D32, #ade1b0) !important;
   border-color: #2E7D32 !important;
 }
 .estado-icon[ng-reflect-style*="#C62828"],
 .estado-icon[style*="#C62828"] {
-  color: #C62828 !important;
+  color: #C62828 !important; color: light-dark(#C62828, #eca2a2) !important;
   border-color: #C62828 !important;
 }
 .estado-icon[ng-reflect-style*="#6E7781"],
 .estado-icon[style*="#6E7781"] {
-  color: #6E7781 !important;
+  color: var(--muted) !important;
   border-color: #6E7781 !important;
 }
 
@@ -332,11 +332,11 @@ mat-form-field.example-full-width {
   margin-top: 2px;
   font-size: 11.5px;
   line-height: 1.3;
-  color: #6b7280;
+  color: var(--muted);
 }
 
 .robot-origen.aplicado {
-  color: #166534;
+  color: #166534; color: light-dark(#166534, #a3ebbe);
 }
 
 .robot-origen .robot-icon {
@@ -344,11 +344,11 @@ mat-form-field.example-full-width {
   width: 14px;
   height: 14px;
   line-height: 14px;
-  color: #9ca3af;
+  color: var(--text-faint);
 }
 
 .robot-origen.aplicado .robot-icon {
-  color: #16a34a;
+  color: #16a34a; color: light-dark(#16a34a, #9cf2bc);
 }
 
 .robot-origen .robot-tag {
@@ -358,7 +358,7 @@ mat-form-field.example-full-width {
 
 @media (max-width: 460px) {
   .seleccion, .secciones, .seccion {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 10px !important;
     padding: 0 6px !important;
   }
@@ -421,9 +421,9 @@ mat-form-field.example-full-width {
   box-sizing: border-box !important;
   gap: 0 !important;
   padding: 14px 14px 12px !important;
-  border: 1px solid #e6eaf0 !important;
+  border: 1px solid var(--border) !important;
   border-radius: 14px !important;
-  background: #fff !important;
+  background: var(--surface) !important;
   box-shadow: 0 1px 2px rgba(16, 24, 40, .04) !important;
   transition: box-shadow .18s ease, border-color .18s ease !important;
   /* El contenido arranca arriba: si sobra alto por ser la fila más alta, ese
@@ -434,7 +434,7 @@ mat-form-field.example-full-width {
 }
 
 .seccion > .input-container:hover {
-  border-color: #d4dbe6 !important;
+  border-color: var(--border-strong) !important;
   box-shadow: 0 4px 14px rgba(16, 24, 40, .07) !important;
 }
 
@@ -445,12 +445,16 @@ mat-form-field.example-full-width {
   inset: 0 0 auto 0;
   height: 3px;
   border-radius: 14px 14px 0 0;
-  background: #dfe4ec;
+  background: var(--surface-4);
 }
 .seccion > .input-container[data-estado="listo"]::before    { background: #16a34a; }
 .seccion > .input-container[data-estado="progreso"]::before { background: #f59e0b; }
 .seccion > .input-container[data-estado="alerta"]::before   { background: #dc2626; }
-.seccion > .input-container[data-estado="falta"]::before    { background: #dfe4ec; }
+.seccion > .input-container[data-estado="falta"]::before    { background: var(--surface-4); }
+/* Pizarra, no ambar: ambar ya significa "el robot esta trabajando" y esto es
+   justo lo contrario — se rindio y hay que hacerlo a mano. El texto de la
+   pildora lleva el significado; el color solo acompana. */
+.seccion > .input-container[data-estado="bloqueado"]::before { background: #475569; }
 
 /* ───────────── Encabezado ───────────── */
 .tarjeta-head {
@@ -466,13 +470,13 @@ mat-form-field.example-full-width {
   font-weight: 700 !important;
   letter-spacing: .3px !important;
   text-transform: uppercase !important;
-  color: #64748b !important;
+  color: var(--muted) !important;
   line-height: 1.2 !important;
 }
 
 /* Asterisco de campo obligatorio: sin selección no se deja guardar. */
 .req-star {
-  color: #c62828;
+  color: #c62828; color: light-dark(#c62828, #eca2a2);
   font-weight: 700;
   margin-left: 2px;
   cursor: help;
@@ -484,12 +488,13 @@ mat-form-field.example-full-width {
   width: 9px; height: 9px;
   border-radius: 50%;
   flex: 0 0 auto;
-  background: #cbd5e1;
+  background: var(--border-strong);
   box-shadow: 0 0 0 3px rgba(203, 213, 225, .25);
 }
 .tarjeta-punto[data-estado="listo"]    { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .18); }
 .tarjeta-punto[data-estado="progreso"] { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .18); }
 .tarjeta-punto[data-estado="alerta"]   { background: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .18); }
+.tarjeta-punto[data-estado="bloqueado"] { background: #475569; box-shadow: 0 0 0 3px rgba(71, 85, 105, .18); }
 
 /* ───────────── El campo ───────────── */
 .seccion > .input-container .mat-mdc-form-field {
@@ -514,7 +519,7 @@ mat-form-field.example-full-width {
   margin-top: 10px !important;
   padding-top: 9px !important;
   padding-left: 0 !important;
-  border-top: 1px dashed #eef1f6 !important;
+  border-top: 1px dashed var(--border) !important;
   gap: 6px !important;
 }
 
@@ -540,16 +545,16 @@ mat-form-field.example-full-width {
   margin: 8px 0 0 !important;
   padding: 5px 8px !important;
   border-radius: 8px !important;
-  background: #fff7ed !important;
-  border: 1px solid #fed7aa !important;
-  color: #9a3412 !important;
+  background: #fff7ed !important; background: light-dark(#fff7ed, #382d24) !important;
+  border: 1px solid #fed7aa !important; border: 1px solid light-dark(#fed7aa, #6b441c) !important;
+  color: #9a3412 !important; color: light-dark(#9a3412, #f3b19b) !important;
   font-size: .69rem !important;
   line-height: 1.25 !important;
   box-sizing: border-box !important;
 }
 
 .doc-warning .warn-icon {
-  color: #ea580c !important;
+  color: #ea580c !important; color: light-dark(#ea580c, #f7b897) !important;
   font-size: 15px !important;
   width: 15px !important;
   height: 15px !important;
@@ -572,14 +577,14 @@ mat-form-field.example-full-width {
   background: transparent !important;
   padding: 2px 6px !important;
   border-radius: 6px !important;
-  color: #9a3412 !important;
+  color: #9a3412 !important; color: light-dark(#9a3412, #f3b19b) !important;
   font-size: .69rem !important;
   font-weight: 700 !important;
   text-decoration: underline !important;
   cursor: pointer !important;
 }
 .doc-warning .btn-forzar-fuente:hover:not(:disabled) {
-  background: #ffedd5 !important;
+  background: #ffedd5 !important; background: light-dark(#ffedd5, #382d24) !important;
 }
 .doc-warning .btn-forzar-fuente:disabled {
   opacity: .5 !important;

@@ -1,61 +1,99 @@
-<aside id="app-sidebar" class="sidebar" [class.is-open]="!isSidebarHidden"
-  [class.show-detail]="!!activeRoot && hasChildren(activeRoot)" [class.right-pinned]="pinOpen">
+<aside id="app-sidebar" class="sidebar" [class.is-open]="!isSidebarHidden" [class.expandido]="modoLista"
+  [class.show-detail]="isMobile && !!activeRoot && hasChildren(activeRoot)" [class.right-pinned]="pinOpen">
+
+  <!-- Árbol de submódulos: lo usan el panel lateral (compacto/móvil) y los grupos del menú expandido. -->
+  <ng-template #tree let-nodes="nodes" let-level="level">
+    @for (node of nodes; track trackByNodeId($index, node)) {
+      <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
+        <button type="button" class="submodule-button" (click)="onNodeClick(node)"
+          [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
+          [class.active-submodule]="(!hasChildren(node) || hasOwnScreen(node)) && isRouteActive(getNodeRoute(node))">
+          <mat-icon fontSet="material-symbols-outlined">
+            {{ hasChildren(node) ? 'folder' : getNodeIcon(node) }}
+          </mat-icon>
+          <span class="submodule-text">{{ node.nombre }}</span>
+          @if (hasChildren(node)) {
+            <mat-icon fontSet="material-symbols-outlined" class="expand-icon">
+              {{ isExpanded(node.id) ? 'expand_less' : 'expand_more' }}
+            </mat-icon>
+          }
+        </button>
+        @if (hasChildren(node) && isExpanded(node.id)) {
+          <ng-container *ngTemplateOutlet="tree; context: { nodes: node.hijos || [], level: level + 1 }">
+          </ng-container>
+        }
+      </div>
+    }
+  </ng-template>
 
   <!-- PANEL IZQUIERDO -->
   <div class="left" (mouseleave)="scheduleClose($event)">
 
     <!-- BRAND -->
-    <a class="sidebar-brand" routerLink="/dashboard" aria-label="Ir al inicio" (click)="isMobile && closeAll('api')">
-      <img class="sidebar-brand__logo" src="logos/logo_alianza.svg" alt="Tu Apo" />
-    </a>
+    <div class="brand-row">
+      <a class="sidebar-brand" routerLink="/dashboard" aria-label="Ir al inicio" (click)="isMobile && closeAll('api')">
+        <img class="sidebar-brand__logo" src="logos/logo_alianza.svg" alt="Tu Apo" />
+        @if (modoLista) {
+          <span class="brand-text">Tu Apo<small>Gestión de talento</small></span>
+        }
+      </a>
+    </div>
 
     <!-- BOTONES DE MÓDULO -->
-    <nav class="module-buttons" aria-label="Módulos principales">
+    <nav class="module-buttons" [class.module-list]="modoLista" aria-label="Módulos principales">
 
       <!-- HOME fijo -->
-      <button type="button" routerLink="/dashboard" routerLinkActive="active-module-button"
+      <button type="button" class="home-button" routerLink="/dashboard" routerLinkActive="active-module-button"
         [routerLinkActiveOptions]="{ exact: true }" aria-label="Inicio" title="Inicio"
         (click)="onRootClick(null)">
         <mat-icon fontSet="material-symbols-outlined">home</mat-icon>
         <span class="m-btn-label">Inicio</span>
       </button>
 
-      <!-- Módulos raíz: el panel derecho se abre solo por click, NO por hover. -->
-      @for (root of visibleRoots; track trackByNodeId($index, root)) {
-        <button type="button" (click)="onRootClick(root)" [title]="root.nombre"
-          [attr.aria-label]="root.nombre"
-          [attr.aria-current]="isTreeActive(root) ? 'true' : null"
-          [class.active-module-button]="activeRoot?.id === root.id || isTreeActive(root)"
-          [attr.aria-expanded]="activeRoot?.id === root.id && hasChildren(root)"
-          [attr.aria-controls]="activeRoot?.id === root.id && hasChildren(root) ? 'right-panel-content' : null">
-          <mat-icon fontSet="material-symbols-outlined">
-            {{ getModuleIcon(root) }}
-          </mat-icon>
-          <span class="m-btn-label">{{ root.nombre }}</span>
-        </button>
+      @if (modoLista) {
+        <!-- Menú expandido: cada módulo con su nombre y sus submódulos desplegables. -->
+        @for (root of visibleRoots; track trackByNodeId($index, root)) {
+          <div class="grupo" [class.grupo--activo]="isTreeActive(root)" [class.grupo--abierto]="grupoEstaAbierto(root)">
+            <button type="button" class="grupo__cabeza" (click)="onGrupoClick(root)" [title]="root.nombre"
+              [attr.aria-expanded]="hasChildren(root) ? grupoEstaAbierto(root) : null"
+              [attr.aria-current]="isTreeActive(root) ? 'true' : null">
+              <mat-icon fontSet="material-symbols-outlined">{{ getModuleIcon(root) }}</mat-icon>
+              <span class="grupo__nombre">{{ root.nombre }}</span>
+              @if (hasChildren(root)) {
+                <mat-icon fontSet="material-symbols-outlined" class="grupo__flecha">expand_more</mat-icon>
+              }
+            </button>
+            @if (grupoEstaAbierto(root) && hasChildren(root)) {
+              <div class="grupo__hijos">
+                <ng-container *ngTemplateOutlet="tree; context: { nodes: root.hijos || [], level: 2 }"></ng-container>
+              </div>
+            }
+          </div>
+        }
+      } @else {
+        <!-- Compacto / móvil: iconos; el panel derecho se abre solo por click, NO por hover. -->
+        @for (root of visibleRoots; track trackByNodeId($index, root)) {
+          <button type="button" (click)="onRootClick(root)" [title]="root.nombre"
+            [attr.aria-label]="root.nombre"
+            [attr.aria-current]="isTreeActive(root) ? 'true' : null"
+            [class.active-module-button]="activeRoot?.id === root.id || isTreeActive(root)"
+            [attr.aria-expanded]="activeRoot?.id === root.id && hasChildren(root)"
+            [attr.aria-controls]="activeRoot?.id === root.id && hasChildren(root) ? 'right-panel-content' : null">
+            <mat-icon fontSet="material-symbols-outlined">
+              {{ getModuleIcon(root) }}
+            </mat-icon>
+            <span class="m-btn-label">{{ root.nombre }}</span>
+          </button>
+        }
       }
     </nav>
 
-    <!-- BOTONES INFERIORES -->
-    <div class="bottom-buttons">
-      <!-- Configuración: ahora es un sub-módulo aquí (antes vivía en el engranaje del header). -->
-      <button type="button" class="config-button" routerLink="/dashboard/configuracion"
-        routerLinkActive="active-module-button"
-        title="Configuración" aria-label="Configuración"
-        (click)="isMobile && closeAll('api')">
-        <mat-icon fontSet="material-symbols-outlined">settings</mat-icon>
-        <span class="m-btn-label">Config</span>
-      </button>
-      <button type="button" class="logout-button" (click)="cerrarSesion()"
-        title="Cerrar sesión" aria-label="Cerrar sesión">
-        <mat-icon fontSet="material-symbols-outlined">logout</mat-icon>
-        <span class="m-btn-label">Salir</span>
-      </button>
-    </div>
+    <!-- Configuración, tema y salir viven ahora en el menú del perfil (arriba a la derecha). -->
   </div>
 
-  <!-- PANEL DERECHO (flyout / pinned) -->
-  @if (!!activeRoot && hasChildren(activeRoot)) {
+  <!-- PANEL DERECHO (tira de submódulos): solo en móvil. En escritorio el menú
+       compacto se expande con el grupo abierto. -->
+  @if (isMobile && !!activeRoot && hasChildren(activeRoot)) {
     <div
       class="right"
       [class.is-compact]="isMobile && isMobileCompact"
@@ -90,29 +128,6 @@
           </div>
           <!-- Árbol de sub-módulos (scrollable) -->
           <nav [attr.aria-label]="'Submódulos de ' + activeRoot!.nombre">
-            <ng-template #tree let-nodes="nodes" let-level="level">
-              @for (node of nodes; track trackByNodeId($index, node)) {
-                <div class="tree-wrap" [style.paddingLeft.px]="(level - 2) * 14">
-                  <button type="button" class="submodule-button" (click)="onNodeClick(node)"
-                    [attr.aria-expanded]="hasChildren(node) ? isExpanded(node.id) : null"
-                    [class.active-submodule]="(!hasChildren(node) || hasOwnScreen(node)) && isRouteActive(getNodeRoute(node))">
-                    <mat-icon fontSet="material-symbols-outlined">
-                      {{ hasChildren(node) ? 'folder' : getNodeIcon(node) }}
-                    </mat-icon>
-                    <span class="submodule-text">{{ node.nombre }}</span>
-                    @if (hasChildren(node)) {
-                      <mat-icon fontSet="material-symbols-outlined" class="expand-icon">
-                        {{ isExpanded(node.id) ? 'expand_less' : 'expand_more' }}
-                      </mat-icon>
-                    }
-                  </button>
-                  @if (hasChildren(node) && isExpanded(node.id)) {
-                    <ng-container *ngTemplateOutlet="tree; context: { nodes: node.hijos || [], level: level + 1 }">
-                    </ng-container>
-                  }
-                </div>
-              }
-            </ng-template>
             <ng-container *ngTemplateOutlet="tree; context: { nodes: activeRoot!.hijos || [], level: 2 }">
             </ng-container>
           </nav>

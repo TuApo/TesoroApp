@@ -122,70 +122,66 @@
               <mat-icon class="disab-tab-icon">list_alt</mat-icon>
               <span>Incapacidades</span>
               <span class="disab-chip disab-chip-primary disab-tab-chip">
-                {{ dataSourcetable1.data.length }}
+                {{ filas().length }}
               </span>
             </ng-template>
 
-            <div class="disab-table-wrapper mat-elevation-z1">
-              <div class="disab-table-scroll">
-                <table mat-table [dataSource]="dataSourcetable1" class="disab-table" aria-label="Tabla principal de incapacidades">
-                  @for (column of ColumnsTable1; track column) {
-                    <ng-container [matColumnDef]="column">
-                      <th mat-header-cell *matHeaderCellDef>
-                        <div class="disab-th-wrap">
-                          <span class="disab-th-label">{{ toTitleCase(column, columnTitlesTable1) }}</span>
-                          @if (columnFilters[column]) {
-                            <mat-form-field appearance="outline" class="disab-th-filter">
-                              <mat-select (selectionChange)="applyFilterColumn(column, $event.value)" placeholder="Filtrar">
-                                @for (filter of columnFilters[column]; track filter) {
-                                  <mat-option [value]="filter">{{ filter }}</mat-option>
-                                }
-                              </mat-select>
-                            </mat-form-field>
-                          }
-                        </div>
-                      </th>
-                      <td mat-cell *matCellDef="let element">
-                        @if (isDownloadableColumn(column)) {
-                          @if (element[column + '_link']) {
-                            <a class="disab-download-link" [href]="element[column + '_link']" [download]="column + '.pdf'">
-                              <mat-icon>download</mat-icon>
-                              <span>Descargar {{ toTitleCase(column, columnTitlesTable1) }}</span>
-                            </a>
-                          }
-                        } @else {
-                          @if (isEditable(column)) {
-                            <input
-                              matInput
-                              [value]="element[column]"
-                              (input)="updateValue(element, column, $event)"
-                              class="disab-editable"
-                            />
-                          } @else {
-                            {{ element[column] }}
-                          }
-                        }
-                      </td>
-                    </ng-container>
-                  }
-                  <tr mat-header-row *matHeaderRowDef="ColumnsTable1; sticky: true"></tr>
-                  <tr mat-row *matRowDef="let row; columns: ColumnsTable1;"></tr>
-                  <tr class="mat-row disab-no-data" *matNoDataRow>
-                    <td class="mat-cell" [attr.colspan]="ColumnsTable1.length">
-                      <mat-icon>inbox</mat-icon>
-                      <span>No hay datos</span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-              <mat-paginator
-                #pagT1
-                [pageSizeOptions]="[10, 25, 50, 100]"
-                [pageSize]="25"
-                showFirstLastButtons
-                aria-label="Paginación de incapacidades"
-              ></mat-paginator>
-            </div>
+            <app-tabla-estandar
+              id="incapacidades-buscar-incapacidades"
+              titulo="Incapacidades"
+              modulo="Incapacidades"
+              vacio="No hay datos"
+              [datos]="filas()"
+              [columnas]="columnasIncapacidades">
+
+              <ng-template tablaCelda="historial_clinico" let-element>
+                @if (element['historial_clinico_link']) {
+                  <a class="disab-download-link" [href]="element['historial_clinico_link']" download="historial_clinico.pdf">
+                    <mat-icon>download</mat-icon>
+                    <span>Descargar {{ toTitleCase('historial_clinico', columnTitlesTable1) }}</span>
+                  </a>
+                }
+              </ng-template>
+
+              <ng-template tablaCelda="link_incapacidad" let-element>
+                @if (element['link_incapacidad_link']) {
+                  <a class="disab-download-link" [href]="element['link_incapacidad_link']" download="link_incapacidad.pdf">
+                    <mat-icon>download</mat-icon>
+                    <span>Descargar {{ toTitleCase('link_incapacidad', columnTitlesTable1) }}</span>
+                  </a>
+                }
+              </ng-template>
+
+              <!-- Editable en la celda (isEditable) -->
+              <ng-template tablaCelda="celular_o_telefono_01" let-element>
+                <input
+                  matInput
+                  [value]="element['celular_o_telefono_01']"
+                  (input)="updateValue(element, 'celular_o_telefono_01', $event)"
+                  class="disab-editable"
+                />
+              </ng-template>
+
+              <!-- Editable en la celda (isEditable) -->
+              <ng-template tablaCelda="celular_o_telefono_02" let-element>
+                <input
+                  matInput
+                  [value]="element['celular_o_telefono_02']"
+                  (input)="updateValue(element, 'celular_o_telefono_02', $event)"
+                  class="disab-editable"
+                />
+              </ng-template>
+
+              <!-- Editable en la celda (isEditable) -->
+              <ng-template tablaCelda="correoElectronico" let-element>
+                <input
+                  matInput
+                  [value]="element['correoElectronico']"
+                  (input)="updateValue(element, 'correoElectronico', $event)"
+                  class="disab-editable"
+                />
+              </ng-template>
+            </app-tabla-estandar>
           </mat-tab>
 
           <!-- Tab 2: Reporte -->
@@ -195,34 +191,20 @@
               <span>Reporte</span>
             </ng-template>
 
-            <div class="disab-table-wrapper mat-elevation-z1">
-              <div class="disab-table-scroll">
-                <table mat-table [dataSource]="dataSourcetable1" class="disab-table" aria-label="Información del reporte">
-                  @for (column of displayedColumnsTable4; track column) {
-                    <ng-container [matColumnDef]="column">
-                      <th mat-header-cell *matHeaderCellDef>{{ toTitleCase(column, columnTitlesTable4) }}</th>
-                      <td mat-cell *matCellDef="let element">{{ element[column] }}</td>
-                    </ng-container>
-                  }
-                  <ng-container matColumnDef="edit">
-                    <th mat-header-cell *matHeaderCellDef>Editar</th>
-                    <td mat-cell *matCellDef="let element">
-                      <button mat-icon-button color="primary" (click)="openEditDialog(element)" matTooltip="Editar fila">
-                        <mat-icon>edit</mat-icon>
-                      </button>
-                    </td>
-                  </ng-container>
-                  <tr mat-header-row *matHeaderRowDef="displayedColumnsWithEdit; sticky: true"></tr>
-                  <tr mat-row *matRowDef="let row; columns: displayedColumnsWithEdit;"></tr>
-                  <tr class="mat-row disab-no-data" *matNoDataRow>
-                    <td class="mat-cell" [attr.colspan]="displayedColumnsWithEdit.length">
-                      <mat-icon>inbox</mat-icon>
-                      <span>No hay datos</span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
+            <app-tabla-estandar
+              id="incapacidades-buscar-reporte"
+              titulo="Información del reporte"
+              modulo="Incapacidades"
+              vacio="No hay datos"
+              [datos]="filas()"
+              [columnas]="columnasReporte">
+
+              <ng-template tablaAcciones let-element>
+                <button mat-icon-button color="primary" (click)="openEditDialog(element)" matTooltip="Editar fila">
+                  <mat-icon>edit</mat-icon>
+                </button>
+              </ng-template>
+            </app-tabla-estandar>
           </mat-tab>
 
           <!-- Tab 3: ARL -->
@@ -232,26 +214,13 @@
               <span>ARL</span>
             </ng-template>
 
-            <div class="disab-table-wrapper mat-elevation-z1">
-              <div class="disab-table-scroll">
-                <table mat-table [dataSource]="dataSourcetable1" class="disab-table" aria-label="Información ARL">
-                  @for (column of displayedColumnsTable2; track column) {
-                    <ng-container [matColumnDef]="column">
-                      <th mat-header-cell *matHeaderCellDef>{{ toTitleCase(column, columnTitlesTable2) }}</th>
-                      <td mat-cell *matCellDef="let element">{{ element[column] }}</td>
-                    </ng-container>
-                  }
-                  <tr mat-header-row *matHeaderRowDef="displayedColumnsTable2; sticky: true"></tr>
-                  <tr mat-row *matRowDef="let row; columns: displayedColumnsTable2;"></tr>
-                  <tr class="mat-row disab-no-data" *matNoDataRow>
-                    <td class="mat-cell" [attr.colspan]="displayedColumnsTable2.length">
-                      <mat-icon>inbox</mat-icon>
-                      <span>No hay datos</span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
+            <app-tabla-estandar
+              id="incapacidades-buscar-arl"
+              titulo="Información ARL"
+              modulo="Incapacidades"
+              vacio="No hay datos"
+              [datos]="filas()"
+              [columnas]="columnasArl" />
           </mat-tab>
 
           <!-- Tab 4: SS -->
@@ -261,26 +230,13 @@
               <span>Seguridad Social</span>
             </ng-template>
 
-            <div class="disab-table-wrapper mat-elevation-z1">
-              <div class="disab-table-scroll">
-                <table mat-table [dataSource]="dataSourcetable1" class="disab-table" aria-label="Información SS">
-                  @for (column of displayedColumnsTable3; track column) {
-                    <ng-container [matColumnDef]="column">
-                      <th mat-header-cell *matHeaderCellDef>{{ toTitleCase(column, columnTitles) }}</th>
-                      <td mat-cell *matCellDef="let element">{{ element[column] }}</td>
-                    </ng-container>
-                  }
-                  <tr mat-header-row *matHeaderRowDef="displayedColumnsTable3; sticky: true"></tr>
-                  <tr mat-row *matRowDef="let row; columns: displayedColumnsTable3;"></tr>
-                  <tr class="mat-row disab-no-data" *matNoDataRow>
-                    <td class="mat-cell" [attr.colspan]="displayedColumnsTable3.length">
-                      <mat-icon>inbox</mat-icon>
-                      <span>No hay datos</span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
+            <app-tabla-estandar
+              id="incapacidades-buscar-seguridad-social"
+              titulo="Información SS"
+              modulo="Incapacidades"
+              vacio="No hay datos"
+              [datos]="filas()"
+              [columnas]="columnasSeguridadSocial" />
           </mat-tab>
 
           <!-- Tab 5: Movimientos banco -->
@@ -290,26 +246,13 @@
               <span>Movimientos banco</span>
             </ng-template>
 
-            <div class="disab-table-wrapper mat-elevation-z1">
-              <div class="disab-table-scroll">
-                <table mat-table [dataSource]="dataSourcetable1" class="disab-table" aria-label="Movimientos de banco">
-                  @for (column of displayedColumnsTable5; track column) {
-                    <ng-container [matColumnDef]="column">
-                      <th mat-header-cell *matHeaderCellDef>{{ toTitleCase(column, columnTitles) }}</th>
-                      <td mat-cell *matCellDef="let element">{{ element[column] }}</td>
-                    </ng-container>
-                  }
-                  <tr mat-header-row *matHeaderRowDef="displayedColumnsTable5; sticky: true"></tr>
-                  <tr mat-row *matRowDef="let row; columns: displayedColumnsTable5;"></tr>
-                  <tr class="mat-row disab-no-data" *matNoDataRow>
-                    <td class="mat-cell" [attr.colspan]="displayedColumnsTable5.length">
-                      <mat-icon>inbox</mat-icon>
-                      <span>No hay datos</span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
+            <app-tabla-estandar
+              id="incapacidades-buscar-movimientos-banco"
+              titulo="Movimientos de banco"
+              modulo="Incapacidades"
+              vacio="No hay datos"
+              [datos]="filas()"
+              [columnas]="columnasMovimientos" />
           </mat-tab>
 
           <!-- Tab 6: Incapacidades pagas -->
@@ -319,26 +262,13 @@
               <span>Incapacidades pagas</span>
             </ng-template>
 
-            <div class="disab-table-wrapper mat-elevation-z1">
-              <div class="disab-table-scroll">
-                <table mat-table [dataSource]="dataSourcetable1" class="disab-table" aria-label="Reporte incapacidades pagas">
-                  @for (column of displayedColumnsTable6; track column) {
-                    <ng-container [matColumnDef]="column">
-                      <th mat-header-cell *matHeaderCellDef>{{ toTitleCase(column, columnTitles) }}</th>
-                      <td mat-cell *matCellDef="let element">{{ element[column] }}</td>
-                    </ng-container>
-                  }
-                  <tr mat-header-row *matHeaderRowDef="displayedColumnsTable6; sticky: true"></tr>
-                  <tr mat-row *matRowDef="let row; columns: displayedColumnsTable6;"></tr>
-                  <tr class="mat-row disab-no-data" *matNoDataRow>
-                    <td class="mat-cell" [attr.colspan]="displayedColumnsTable6.length">
-                      <mat-icon>inbox</mat-icon>
-                      <span>No hay datos</span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
+            <app-tabla-estandar
+              id="incapacidades-buscar-incapacidades-pagas"
+              titulo="Reporte incapacidades pagas"
+              modulo="Incapacidades"
+              vacio="No hay datos"
+              [datos]="filas()"
+              [columnas]="columnasPagas" />
           </mat-tab>
 
           <!-- Tab 7: Factura Élite -->
@@ -348,26 +278,13 @@
               <span>Factura Élite</span>
             </ng-template>
 
-            <div class="disab-table-wrapper mat-elevation-z1">
-              <div class="disab-table-scroll">
-                <table mat-table [dataSource]="dataSourcetable1" class="disab-table" aria-label="Factura Élite">
-                  @for (column of displayedColumnsTable7; track column) {
-                    <ng-container [matColumnDef]="column">
-                      <th mat-header-cell *matHeaderCellDef>{{ toTitleCase(column, columnTitles) }}</th>
-                      <td mat-cell *matCellDef="let element">{{ element[column] }}</td>
-                    </ng-container>
-                  }
-                  <tr mat-header-row *matHeaderRowDef="displayedColumnsTable7; sticky: true"></tr>
-                  <tr mat-row *matRowDef="let row; columns: displayedColumnsTable7;"></tr>
-                  <tr class="mat-row disab-no-data" *matNoDataRow>
-                    <td class="mat-cell" [attr.colspan]="displayedColumnsTable7.length">
-                      <mat-icon>inbox</mat-icon>
-                      <span>No hay datos</span>
-                    </td>
-                  </tr>
-                </table>
-              </div>
-            </div>
+            <app-tabla-estandar
+              id="incapacidades-buscar-factura-elite"
+              titulo="Factura Élite"
+              modulo="Incapacidades"
+              vacio="No hay datos"
+              [datos]="filas()"
+              [columnas]="columnasFacturaElite" />
           </mat-tab>
 
         </mat-tab-group>

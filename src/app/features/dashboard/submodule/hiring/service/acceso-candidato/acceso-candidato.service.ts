@@ -33,7 +33,9 @@ export class AccesoCandidatoService {
     return firstValueFrom(
       this.http.post<ReenviarAccesoRespuesta>(
         `${this.apiUrl}/api/v1/admin/acceso-candidato/reenviar`,
-        { numeroDocumento },
+        // snake_case: ms-auth-admin serializa en snake y `numeroDocumento` llegaba vacío
+        // (400 "must not be blank"), así que el botón nunca enviaba el código.
+        { numero_documento: numeroDocumento },
       ),
     );
   }

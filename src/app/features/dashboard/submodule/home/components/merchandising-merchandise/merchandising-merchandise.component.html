@@ -16,138 +16,51 @@
     </div>
   </div>
 
-  <!-- ===== LOADING ===== -->
-  @if (loading) {
-    <div class="loading-state">
-      <mat-spinner diameter="36"></mat-spinner>
-      <span>Cargando inventario...</span>
-    </div>
-  }
-
-  @if (!loading) {
-    <!-- ===== FILTRO ===== -->
-    @if (dataSourceDetallado.data.length > 0) {
-      <mat-form-field appearance="outline" class="filter-field">
-        <mat-label>Filtrar productos</mat-label>
-        <mat-icon matPrefix>search</mat-icon>
-        <input matInput (keyup)="applyFilter($event)" placeholder="Buscar...">
-      </mat-form-field>
-    }
+  @if (loading || lotes.length > 0) {
     <!-- ===== TABLA RESUMEN ===== -->
-    @if (dataSourceResumen.data.length > 0) {
-      <div class="table-section">
-        <h3 class="table-title">
-          <mat-icon>summarize</mat-icon> Resumen por Producto
-        </h3>
-        <div class="table-container">
-          <table mat-table [dataSource]="dataSourceResumen" class="premium-table">
-            <ng-container matColumnDef="producto_nombre">
-              <th mat-header-cell *matHeaderCellDef>Producto</th>
-              <td mat-cell *matCellDef="let row">{{ row.producto_nombre }}</td>
-            </ng-container>
-            <ng-container matColumnDef="destino">
-              <th mat-header-cell *matHeaderCellDef>Destino</th>
-              <td mat-cell *matCellDef="let row">{{ row.destino || '—' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="total_recibido">
-              <th mat-header-cell *matHeaderCellDef>Recibido</th>
-              <td mat-cell *matCellDef="let row">{{ row.total_recibido }}</td>
-            </ng-container>
-            <ng-container matColumnDef="total_vendido">
-              <th mat-header-cell *matHeaderCellDef>Vendido</th>
-              <td mat-cell *matCellDef="let row">{{ row.total_vendido }}</td>
-            </ng-container>
-            <ng-container matColumnDef="total_disponible">
-              <th mat-header-cell *matHeaderCellDef>Disponible</th>
-              <td mat-cell *matCellDef="let row">
-                <span class="stock-chip" [class.low]="row.total_disponible <= 3"
-                  [class.empty]="row.total_disponible === 0">
-                  {{ row.total_disponible }}
-                </span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="valor_unitario">
-              <th mat-header-cell *matHeaderCellDef>Valor Unidad</th>
-              <td mat-cell *matCellDef="let row">${{ formatCurrency(row.valor_unitario) }}</td>
-            </ng-container>
-            <ng-container matColumnDef="valor_total">
-              <th mat-header-cell *matHeaderCellDef>Valor Total</th>
-              <td mat-cell *matCellDef="let row" class="amount-cell">${{ formatCurrency(row.valor_total) }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="displayedColumnsResumen"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumnsResumen;"></tr>
-            <tr class="mat-row" *matNoDataRow>
-              <td class="mat-cell" colspan="7">Sin resultados</td>
-            </tr>
-          </table>
-        </div>
-      </div>
-    }
+    <div class="table-section">
+      <h3 class="table-title">
+        <mat-icon>summarize</mat-icon> Resumen por Producto
+      </h3>
+      <app-tabla-estandar
+        id="home-inventario-resumen"
+        titulo="Inventario por producto"
+        modulo="Comercializadora"
+        busqueda="Filtrar productos…"
+        vacio="Sin resultados"
+        [datos]="resumen"
+        [columnas]="columnasResumen"
+        [cargando]="loading">
+        <ng-template tablaCelda="valor_total" let-row>
+          <span class="amount-cell">${{ formatCurrency(row.valor_total) }}</span>
+        </ng-template>
+      </app-tabla-estandar>
+    </div>
+
     <!-- ===== TABLA DETALLADA ===== -->
-    @if (dataSourceDetallado.data.length > 0) {
-      <div class="table-section">
-        <h3 class="table-title">
-          <mat-icon>receipt_long</mat-icon> Detalle por Lote
-        </h3>
-        <div class="table-container">
-          <table mat-table [dataSource]="dataSourceDetallado" class="premium-table">
-            <ng-container matColumnDef="producto_nombre">
-              <th mat-header-cell *matHeaderCellDef>Producto</th>
-              <td mat-cell *matCellDef="let row">{{ row.producto_nombre }}</td>
-            </ng-container>
-            <ng-container matColumnDef="destino">
-              <th mat-header-cell *matHeaderCellDef>Destino</th>
-              <td mat-cell *matCellDef="let row">{{ row.destino || '—' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="codigo">
-              <th mat-header-cell *matHeaderCellDef>Código</th>
-              <td mat-cell *matCellDef="let row">
-                <span class="code-chip">{{ row.codigo || '—' }}</span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="cantidad_inicial">
-              <th mat-header-cell *matHeaderCellDef>Cant. Recibida</th>
-              <td mat-cell *matCellDef="let row">{{ row.cantidad_inicial }}</td>
-            </ng-container>
-            <ng-container matColumnDef="cantidad_vendida">
-              <th mat-header-cell *matHeaderCellDef>Cant. Vendida</th>
-              <td mat-cell *matCellDef="let row">{{ row.cantidad_vendida }}</td>
-            </ng-container>
-            <ng-container matColumnDef="disponible">
-              <th mat-header-cell *matHeaderCellDef>Disponible</th>
-              <td mat-cell *matCellDef="let row">
-                <span class="stock-chip" [class.low]="row.disponible <= 3" [class.empty]="row.disponible === 0">
-                  {{ row.disponible }}
-                </span>
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="valor_unitario">
-              <th mat-header-cell *matHeaderCellDef>Valor Unidad</th>
-              <td mat-cell *matCellDef="let row">${{ formatCurrency(row.valor_unitario) }}</td>
-            </ng-container>
-            <ng-container matColumnDef="fecha_recepcion">
-              <th mat-header-cell *matHeaderCellDef>Fecha Recepción</th>
-              <td mat-cell *matCellDef="let row">{{ row.fecha_recepcion | date:'dd/MM/yyyy' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="realizado_por">
-              <th mat-header-cell *matHeaderCellDef>Recibido por</th>
-              <td mat-cell *matCellDef="let row">{{ row.realizado_por || '—' }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="displayedColumnsDetallado"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumnsDetallado;"></tr>
-            <tr class="mat-row" *matNoDataRow>
-              <td class="mat-cell" colspan="9">Sin resultados</td>
-            </tr>
-          </table>
-        </div>
-      </div>
-    }
+    <div class="table-section">
+      <h3 class="table-title">
+        <mat-icon>receipt_long</mat-icon> Detalle por Lote
+      </h3>
+      <app-tabla-estandar
+        id="home-inventario-lotes"
+        titulo="Inventario por lote"
+        modulo="Comercializadora"
+        busqueda="Filtrar productos…"
+        vacio="Sin resultados"
+        [datos]="lotes"
+        [columnas]="columnasDetallado"
+        [cargando]="loading">
+        <ng-template tablaCelda="codigo" let-row>
+          <span class="code-chip">{{ row.codigo || '—' }}</span>
+        </ng-template>
+      </app-tabla-estandar>
+    </div>
+  } @else {
     <!-- ===== EMPTY STATE ===== -->
-    @if (dataSourceDetallado.data.length === 0) {
-      <div class="empty-state">
-        <mat-icon>inventory</mat-icon>
-        <p>No hay productos en inventario para tu sede</p>
-      </div>
-    }
+    <div class="empty-state">
+      <mat-icon>inventory</mat-icon>
+      <p>No hay productos en inventario para tu sede</p>
+    </div>
   }
 </div>

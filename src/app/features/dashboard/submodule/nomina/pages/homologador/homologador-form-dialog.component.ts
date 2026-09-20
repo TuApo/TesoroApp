@@ -148,9 +148,9 @@ interface HomologadorDialogData {
       gap: 12px;
       padding: 20px 24px 12px;
     }
-    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); }
     h2[mat-dialog-title] { margin: 0; font-size: 18px; }
-    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
     mat-dialog-content { padding: 16px 24px !important; max-height: 65vh; }
     .form-grid {
       display: grid;
@@ -161,12 +161,12 @@ interface HomologadorDialogData {
     .section-title {
       font-size: 13px;
       font-weight: 600;
-      color: #3f51b5;
+      color: #3f51b5; color: light-dark(#3f51b5, #acb4e2);
       text-transform: uppercase;
       letter-spacing: 0.5px;
       margin: 12px 0 4px;
       padding-bottom: 4px;
-      border-bottom: 1px solid #e0e0e0;
+      border-bottom: 1px solid var(--border-strong);
     }
     .section-title:first-child { margin-top: 0; }
     .compact-field { margin-top: -8px; }
@@ -175,8 +175,8 @@ interface HomologadorDialogData {
       align-items: center;
       padding: 16px 0;
     }
-    .opt-codigo { font-weight: 600; color: #3f51b5; font-family: monospace; }
-    .opt-nat { font-size: 11px; color: #888; margin-left: 4px; }
+    .opt-codigo { font-weight: 600; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); font-family: monospace; }
+    .opt-nat { font-size: 11px; color: var(--muted); margin-left: 4px; }
     mat-dialog-actions { padding: 12px 24px 16px !important; }
   `],
 })

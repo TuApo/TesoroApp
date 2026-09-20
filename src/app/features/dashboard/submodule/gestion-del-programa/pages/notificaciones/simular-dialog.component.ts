@@ -230,32 +230,32 @@ export interface SimularDialogData {
   `,
   styles: [`
     .dialog-header { display: flex; align-items: center; gap: 12px; padding: 20px 24px 12px; }
-    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); }
     h2[mat-dialog-title] { margin: 0; font-size: 18px; }
-    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
     .dialog-subtitle code, .preview-destino code, .muestra code {
-      background: #f2f3f7; border: 1px solid #e3e5ee; border-radius: 4px; padding: 1px 5px; font-size: 11px;
+      background: var(--surface-3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 11px;
     }
     mat-dialog-content { padding: 16px 24px !important; }
     mat-dialog-actions { padding: 12px 24px 16px !important; }
 
-    .bloque h3 { margin: 16px 0 8px; font-size: 14px; font-weight: 600; color: #23262f; }
+    .bloque h3 { margin: 16px 0 8px; font-size: 14px; font-weight: 600; color: var(--text); }
     .bloque:first-child h3 { margin-top: 0; }
-    .ayuda { font-size: 12px; color: #6b6f80; line-height: 1.4; margin: 0 0 8px; }
+    .ayuda { font-size: 12px; color: var(--muted); line-height: 1.4; margin: 0 0 8px; }
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
     .ancho-total { width: 100%; }
 
-    .selector { border: 1px solid #e3e5ee; border-radius: 10px; padding: 12px; background: #fafbfe; margin-bottom: 12px; }
+    .selector { border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface); margin-bottom: 12px; }
     .sel-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .sel-buscar { flex: 1 1 220px; }
-    .sel-contador { font-size: 12px; color: #6b6f80; white-space: nowrap; }
+    .sel-contador { font-size: 12px; color: var(--muted); white-space: nowrap; }
     .sel-cargando { display: flex; justify-content: center; padding: 12px 0; }
     .sel-lista { max-height: 180px; overflow-y: auto; }
     .sel-item { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px; border-radius: 6px; cursor: pointer; }
-    .sel-item:hover { background: #f0f2fa; }
+    .sel-item:hover { background: var(--surface-3); }
     .sel-nombre { font-size: 13px; }
-    .sel-detalle { font-size: 11px; color: #8a8fa3; }
-    .sel-vacio { font-size: 12px; color: #8a8fa3; margin: 8px 4px; }
+    .sel-detalle { font-size: 11px; color: var(--text-faint); }
+    .sel-vacio { font-size: 12px; color: var(--text-faint); margin: 8px 4px; }
 
     .acciones-sim { display: flex; justify-content: flex-end; padding: 8px 0 4px; }
     .acciones-sim mat-spinner { margin-right: 8px; }
@@ -268,17 +268,17 @@ export interface SimularDialogData {
     .veredicto > div { display: flex; flex-direction: column; line-height: 1.3; }
     .veredicto-titulo { font-size: 14px; font-weight: 700; }
     .veredicto-sub { font-size: 12px; opacity: .85; }
-    .veredicto-ok { background: #e9f7ee; border: 1px solid #cfe9d9; color: #1c6b34; }
-    .veredicto-no { background: #f2f3f7; border: 1px solid #e3e5ee; color: #4a4f63; }
-    .veredicto-vacio { background: #fff4e5; border: 1px solid #ffd8a8; color: #8a5300; }
+    .veredicto-ok { background: #e9f7ee; background: light-dark(#e9f7ee, #193436); border: 1px solid #cfe9d9; border: 1px solid light-dark(#cfe9d9, #235946); color: #1c6b34; color: light-dark(#1c6b34, #a6e8ba); }
+    .veredicto-no { background: var(--surface-3); border: 1px solid var(--border); color: var(--text-2); }
+    .veredicto-vacio { background: #fff4e5; background: light-dark(#fff4e5, #382d24); border: 1px solid #ffd8a8; border: 1px solid light-dark(#ffd8a8, #6c461b); color: #8a5300; color: light-dark(#8a5300, #f7d197); }
 
-    .metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+    .metricas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); gap: 10px; }
     .metrica {
       display: flex; flex-direction: column; gap: 2px;
-      background: #f5f6fa; border: 1px solid #e7e9f3; border-radius: 9px; padding: 10px 12px;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px;
     }
-    .m-label { font-size: 11px; color: #6b6f80; }
-    .m-valor { font-size: 20px; font-weight: 700; color: #23262f; }
+    .m-label { font-size: 11px; color: var(--muted); }
+    .m-valor { font-size: 20px; font-weight: 700; color: var(--text); }
     .m-valor.pequeno { font-size: 13px; font-weight: 600; }
 
     .aviso {
@@ -286,12 +286,12 @@ export interface SimularDialogData {
       border-radius: 8px; padding: 8px 12px; margin: 12px 0; font-size: 13px; line-height: 1.35;
     }
     .aviso mat-icon { font-size: 18px; width: 18px; height: 18px; margin-top: 1px; flex: 0 0 auto; }
-    .aviso-warn { background: #fff4e5; color: #8a5300; border: 1px solid #ffd8a8; }
-    .aviso code { background: #fff; border: 1px solid #f0d0a8; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+    .aviso-warn { background: #fff4e5; background: light-dark(#fff4e5, #382d24); color: #8a5300; color: light-dark(#8a5300, #f7d197); border: 1px solid #ffd8a8; border: 1px solid light-dark(#ffd8a8, #6c461b); }
+    .aviso code { background: var(--surface); border: 1px solid #f0d0a8; border: 1px solid light-dark(#f0d0a8, #5e4429); border-radius: 4px; padding: 1px 5px; font-size: 11px; }
 
     .tarjeta-preview {
       display: flex; gap: 12px; align-items: flex-start;
-      border: 1px solid #e3e5ee; border-radius: 10px; padding: 12px 14px; background: #fff;
+      border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--surface);
     }
     .preview-avatar {
       display: inline-flex; align-items: center; justify-content: center;
@@ -299,23 +299,23 @@ export interface SimularDialogData {
     }
     .preview-avatar mat-icon { font-size: 21px; width: 21px; height: 21px; }
     .preview-texto { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-    .preview-titulo { font-size: 14px; font-weight: 600; color: #23262f; }
-    .preview-mensaje { font-size: 13px; color: #4a4f63; }
-    .preview-destino { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #6b6f80; }
+    .preview-titulo { font-size: 14px; font-weight: 600; color: var(--text); }
+    .preview-mensaje { font-size: 13px; color: var(--text-2); }
+    .preview-destino { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
     .preview-destino mat-icon { font-size: 15px; width: 15px; height: 15px; }
 
     .muestra { margin-top: 12px; font-size: 12px; }
-    .muestra summary { cursor: pointer; color: #3f51b5; }
+    .muestra summary { cursor: pointer; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); }
     .muestra ul { margin: 8px 0 0; padding-left: 18px; max-height: 160px; overflow-y: auto; }
-    .muestra li { margin-bottom: 3px; color: #4a4f63; }
+    .muestra li { margin-bottom: 3px; color: var(--text-2); }
 
     .sello {
       display: flex; align-items: center; gap: 6px;
-      margin: 14px 0 0; font-size: 12px; color: #1c6b34;
+      margin: 14px 0 0; font-size: 12px; color: #1c6b34; color: light-dark(#1c6b34, #a6e8ba);
     }
     .sello mat-icon { font-size: 16px; width: 16px; height: 16px; }
 
-    @media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
   `],
 })
 export class SimularDialogComponent implements OnInit {

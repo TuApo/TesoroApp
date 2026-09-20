@@ -71,7 +71,7 @@ h1 {
 .datos {
   display: grid;
   /* auto-fit + minmax: rellena con tantas columnas como quepan (de 220px mín). */
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 12px;
   width: 100%;
   margin-top: 10pt;
@@ -89,12 +89,12 @@ h1 {
 /* ========= Cards y secciones ========= */
 .cards-stack {
   display: grid;
-  gap: 12px;
-  padding: 10pt 0;
+  gap: 8px;
+  padding: 6px 0 0;
 }
 
 .card {
-  padding: 16px 0;
+  padding: 6px 0 0;
 }
 
 .card-title {
@@ -106,8 +106,8 @@ h1 {
 
 .section {
   width: 100%;
-  padding: 28px 0 32px;
-  margin: 12px 0 8px;
+  padding: 12px 0 14px;
+  margin: 4px 0;
   box-sizing: border-box;
   /* offset para que cuando se haga scrollIntoView, el header sticky no tape la sección */
   scroll-margin-top: 80px;
@@ -116,8 +116,8 @@ h1 {
 .section-head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
 /* Icono dentro de un círculo de color tenue por sección */
@@ -125,8 +125,8 @@ h1 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   flex-shrink: 0;
   border: 1px solid;
@@ -134,31 +134,31 @@ h1 {
 }
 
 .section-icon-wrap mat-icon {
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
 }
 
-.section-icon-blue   { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-.section-icon-indigo { background: #eef2ff; color: #4338ca; border-color: #c7d2fe; }
-.section-icon-green  { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
-.section-icon-purple { background: #faf5ff; color: #7e22ce; border-color: #e9d5ff; }
-.section-icon-cyan   { background: #ecfeff; color: #0e7490; border-color: #a5f3fc; }
-.section-icon-amber  { background: #fffbeb; color: #b45309; border-color: #fde68a; }
-.section-icon-pink   { background: #fdf2f8; color: #be185d; border-color: #fbcfe8; }
+.section-icon-blue   { background: #eff6ff; background: light-dark(#eff6ff, #0f284d); color: #1d4ed8; border-color: #bfdbfe; border-color: light-dark(#bfdbfe, #0d3b7a); }
+.section-icon-indigo { background: #eef2ff; background: light-dark(#eef2ff, #0f1f4d); color: #4338ca; border-color: #c7d2fe; border-color: light-dark(#c7d2fe, #0d257a); }
+.section-icon-green  { background: #ecfdf5; background: light-dark(#ecfdf5, #133b39); color: #047857; color: light-dark(#047857, #97f7db); border-color: #a7f3d0; border-color: light-dark(#a7f3d0, #17654e); }
+.section-icon-purple { background: var(--surface-2); color: #7e22ce; color: light-dark(#7e22ce, #ca9fef); border-color: #e9d5ff; border-color: light-dark(#e9d5ff, #39107c); }
+.section-icon-cyan   { background: #ecfeff; background: light-dark(#ecfeff, #0f3c4d); color: #0e7490; color: light-dark(#0e7490, #99e1f5); border-color: #a5f3fc; border-color: light-dark(#a5f3fc, #0e6578); }
+.section-icon-amber  { background: #fffbeb; background: light-dark(#fffbeb, #383624); color: #b45309; color: light-dark(#b45309, #f7c097); border-color: #fde68a; border-color: light-dark(#fde68a, #6a5d1c); }
+.section-icon-pink   { background: #fdf2f8; background: light-dark(#fdf2f8, #321b3a); color: #be185d; color: light-dark(#be185d, #f29bc0); border-color: #fbcfe8; border-color: light-dark(#fbcfe8, #651851); }
 
 /* Divider tras el título: ocupa el resto de la línea, sutil pero perceptible */
 .section-divider {
   flex: 1;
-  border-top-color: #e2e8f0 !important;
+  border-top-color: var(--border) !important;
   border-top-width: 1px !important;
   margin-left: 4px;
 }
 
 .section-title {
   font-weight: 700;
-  color: #0f172a;
-  font-size: 1.18rem;
+  color: var(--text);
+  font-size: 1rem;
   letter-spacing: -0.01em;
   line-height: 1.2;
   margin: 0;
@@ -174,15 +174,15 @@ h1 {
 }
 
 .grid-1 {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .grid-2 {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
 }
 
 .grid-3 {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 }
 
 .stack {
@@ -199,7 +199,7 @@ h1 {
 }
 
 .cards-stack.children {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
 }
 
 /* ========= Tipografía Material ========= */
@@ -394,7 +394,7 @@ mat-icon,
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #fff;
+  background: var(--surface);
   padding: 6px 0 10px;
 }
 
@@ -409,7 +409,7 @@ mat-icon,
 /* Las grids ya son auto-fit, así que se adaptan solas. Sólo overrides para 600px. */
 @media (max-width: 600px) {
   .datos {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   :host ::ng-deep .mat-horizontal-content-container {
@@ -431,24 +431,41 @@ mat-icon,
 
 .centered-title {
   text-align: center;
-  color: #1e293b;
+  color: var(--text);
   font-size: 1.15rem;
   margin-bottom: 24px;
 }
 
+/* Rejilla de TRES columnas, no un flex que envuelve: las tres preguntas
+   obligatorias tienen que quedarse en su fila. Con flex, un campo condicional
+   —el nombre del referenciado, el motivo— entraba como cuarto elemento y
+   reacomodaba la fila entera cada vez que aparecía o desaparecía. */
 .grid-managerial-entrevista {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  align-items: flex-start;
+  align-items: start;
   width: 100%;
 }
 
 .grid-managerial-entrevista>mat-form-field {
-  flex: 1 1 200px;
   min-width: 0;
   /* Prevent overflow */
   margin: 0 !important;
+}
+
+/* Lo que depende de otra respuesta baja a su propio renglón y ocupa el ancho de
+   las tres de arriba: son textos largos (un motivo de 300 caracteres) y en una
+   columna de un tercio se leen a cuatro palabras por línea. */
+.gme-ancho {
+  grid-column: 1 / -1;
+}
+
+/* Por debajo de tablet las tres no caben sin cortar los rótulos. */
+@media (max-width: 900px) {
+  .grid-managerial-entrevista {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ==================================
@@ -481,8 +498,8 @@ mat-icon,
 .optional-evaluation-container {
   width: 100%;
   margin-top: 24px;
-  background-color: #f8fafc; /* subtle slate background */
-  border: 1px solid #e2e8f0;
+  background-color: var(--surface-2); /* subtle slate background */
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 24px;
   box-sizing: border-box;
@@ -492,20 +509,20 @@ mat-icon,
   display: flex;
   align-items: center;
   margin-bottom: 24px;
-  border-bottom: 2px solid #e2e8f0;
+  border-bottom: 2px solid var(--border);
   padding-bottom: 12px;
 }
 
 .optional-evaluation-header h4 {
   margin: 0;
-  color: #334155;
+  color: var(--text-2);
   font-weight: 600;
   font-size: 1.15rem;
 }
 
 .optional-evaluation-header mat-icon {
   margin-right: 12px;
-  color: #64748b;
+  color: var(--muted);
   font-size: 28px;
   height: 28px;
   width: 28px;
@@ -513,7 +530,7 @@ mat-icon,
 
 .optional-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 16px;
 }
 
@@ -532,8 +549,8 @@ mat-icon,
   gap: 6px;
   padding: 10px 8px;
   margin: 0 -4px 0;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
   box-shadow: 0 4px 8px -6px rgba(15, 23, 42, 0.18);
   z-index: 2;
 }
@@ -553,8 +570,8 @@ mat-icon,
   gap: 4px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--surface-3);
+  color: var(--text-2);
   font-size: 0.78rem;
   font-weight: 600;
   text-decoration: none;
@@ -572,9 +589,9 @@ mat-icon,
 }
 
 .form-nav-chip:hover {
-  background: #dbeafe;
-  color: #1d4ed8;
-  border-color: #bfdbfe;
+  background: var(--surface-4);
+  color: #1d4ed8; color: light-dark(#1d4ed8, #9cb3f2);
+  border-color: #bfdbfe; border-color: light-dark(#bfdbfe, #0d3b7a);
   transform: translateY(-1px);
 }
 
@@ -589,48 +606,43 @@ mat-icon,
   display: none;  /* ya no hace falta: la barra no es sticky, es flex item */
 }
 
+/* "Enviar" flota sobre el panel en vez de ocupar una franja entera abajo.
+   La franja se comía ~66px de alto en todo momento —una fila y media de campos—
+   para enseñar un botón y una frase. Ahora es una píldora en la esquina; el
+   `padding-bottom` de `.taller-panel` reserva su hueco al final del scroll para
+   que nunca tape el último campo. */
 .sticky-actions-bar {
-  flex-shrink: 0;
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  margin: 0 -4px;
-  background: #ffffff;
-  border-top: 1px solid #e2e8f0;
-  box-shadow: 0 -6px 14px -8px rgba(15, 23, 42, 0.18);
-  flex-wrap: wrap;
-  z-index: 2;
+  gap: 10px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  z-index: 3;
+  pointer-events: none;
 }
 
-.sticky-actions-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #475569;
-  font-size: 0.85rem;
-  font-weight: 500;
-}
+.sticky-actions-bar > * { pointer-events: auto; }
 
-.sticky-actions-hint mat-icon {
-  color: #64748b;
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-}
+/* El contenedor de la píldora es el <form>, que es de quien cuelga la barra;
+   sin `position: relative` el `absolute` se referiría al viewport. */
+.formulario { position: relative; }
 
 .submit-button-sticky {
   display: inline-flex !important;
   align-items: center;
   gap: 6px;
-  padding: 0 28px !important;
-  height: 42px !important;
+  padding: 0 20px !important;
+  height: 38px !important;
   font-weight: 600 !important;
-  font-size: 0.95rem !important;
-  border-radius: 8px !important;
+  font-size: 0.9rem !important;
+  border-radius: 999px !important;
   letter-spacing: 0.01em;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.55);
+  box-shadow: 0 6px 18px -6px rgba(37, 99, 235, 0.7);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -651,14 +663,8 @@ mat-icon,
     flex-wrap: nowrap;
   }
   .sticky-actions-bar {
-    justify-content: center;
-  }
-  .sticky-actions-hint {
-    display: none;
-  }
-  .submit-button-sticky {
-    width: 100%;
-    justify-content: center;
+    right: 10px;
+    bottom: 10px;
   }
 }
 /* ==========================================================================
@@ -681,11 +687,11 @@ mat-icon,
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  gap: 18px;
+  gap: 10px;
   align-items: stretch;
   flex: 1;
   min-height: 0;
-  padding: 4px 4px 0;
+  padding: 2px 2px 0;
   box-sizing: border-box;
 }
 
@@ -707,7 +713,7 @@ mat-icon,
    ~16px de ancho útil en Windows. */
 .ficha::-webkit-scrollbar { width: 6px; }
 .ficha::-webkit-scrollbar-thumb {
-  background: var(--slate-300);
+  background: var(--border-strong);
   border-radius: 999px;
 }
 
@@ -754,7 +760,7 @@ mat-icon,
   gap: 14px;
   padding: 14px;
   background: var(--surface);
-  border: 1px solid var(--slate-200);
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-sm);
 }
@@ -765,9 +771,9 @@ mat-icon,
   width: 76px;
   height: 76px;
   padding: 0;
-  border: 2px solid var(--slate-200);
+  border: 2px solid var(--border);
   border-radius: 50%;
-  background: var(--slate-100);
+  background: var(--surface-3);
   cursor: pointer;
   overflow: hidden;
   transition: border-color .16s ease, box-shadow .16s ease;
@@ -794,7 +800,7 @@ mat-icon,
   height: 100%;
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--slate-500);
+  color: var(--muted);
   letter-spacing: .04em;
 }
 
@@ -816,7 +822,7 @@ mat-icon,
   font-size: 14px;
   width: 14px;
   height: 14px;
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .ficha-id-text {
@@ -831,7 +837,7 @@ mat-icon,
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.25;
-  color: var(--navy-deep);
+  color: var(--navy-ink);
   overflow-wrap: anywhere;
 }
 
@@ -848,9 +854,9 @@ mat-icon,
   padding: 3px 8px;
   font-size: .72rem;
   font-weight: 600;
-  color: var(--slate-700);
-  background: var(--slate-100);
-  border: 1px solid var(--slate-200);
+  color: var(--text-2);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -864,7 +870,7 @@ mat-icon,
 /* ── Bloques de la ficha ── */
 .fblock {
   background: var(--surface);
-  border: 1px solid var(--slate-200);
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
   overflow: hidden;
 }
@@ -881,7 +887,7 @@ mat-icon,
   text-align: left;
 }
 
-.fblock-head:hover { background: var(--slate-50); }
+.fblock-head:hover { background: var(--surface-2); }
 
 .fblock-dot {
   flex: none;
@@ -903,7 +909,7 @@ mat-icon,
   font-weight: 800;
   letter-spacing: .07em;
   text-transform: uppercase;
-  color: var(--slate-700);
+  color: var(--text-2);
 }
 
 /* Contador de obligatorios sin llenar: ámbar, que es el token de "atención"
@@ -926,13 +932,13 @@ mat-icon,
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--slate-400);
+  color: var(--text-faint);
 }
 
 .fblock-body {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--slate-200);
+  border-top: 1px solid var(--border);
 }
 
 .fblock-link {
@@ -943,14 +949,14 @@ mat-icon,
   padding: 6px 10px;
   font-size: .75rem;
   font-weight: 600;
-  color: var(--navy);
-  background: var(--slate-100);
-  border: 1px solid var(--slate-200);
+  color: var(--navy-ink);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
 }
 
-.fblock-link:hover { background: var(--slate-200); }
+.fblock-link:hover { background: var(--surface-4); }
 
 .fblock-link mat-icon {
   font-size: 15px;
@@ -959,7 +965,7 @@ mat-icon,
 }
 
 /* ── Fila de dato ── */
-.frow + .frow { border-top: 1px solid var(--slate-100); }
+.frow + .frow { border-top: 1px solid var(--border); }
 
 .frow-read {
   display: grid;
@@ -978,7 +984,7 @@ mat-icon,
 
 .frow-read:hover,
 .frow-read:focus-visible {
-  background: var(--slate-50);
+  background: var(--surface-2);
   outline: none;
 }
 
@@ -993,7 +999,7 @@ mat-icon,
   font-size: .68rem;
   font-weight: 600;
   letter-spacing: .04em;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 .frow-value {
@@ -1001,14 +1007,14 @@ mat-icon,
   font-size: .84rem;
   font-weight: 600;
   line-height: 1.35;
-  color: var(--navy-deep);
+  color: var(--navy-ink);
   min-width: 0;
 }
 
 .frow-value-break { overflow-wrap: anywhere; }
 
 .frow-vacio {
-  color: var(--slate-400);
+  color: var(--text-faint);
   font-weight: 500;
 }
 
@@ -1019,7 +1025,7 @@ mat-icon,
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: var(--slate-400);
+  color: var(--text-faint);
   opacity: 0;
   transition: opacity .14s ease;
 }
@@ -1029,7 +1035,7 @@ mat-icon,
 
 /* ── Fila en edición ── */
 .frow-abierta {
-  background: var(--slate-50);
+  background: var(--surface-2);
   box-shadow: inset 3px 0 0 var(--lime);
 }
 
@@ -1108,7 +1114,7 @@ mat-icon,
   flex-direction: column;
   padding: 10px;
   background: var(--surface);
-  border: 1px dashed var(--slate-300);
+  border: 1px dashed var(--border-strong);
   border-radius: 10px;
 }
 
@@ -1118,7 +1124,7 @@ mat-icon,
   font-weight: 800;
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 /* ─────────────────── Área de trabajo (columna derecha) ─────────────────── */
@@ -1128,7 +1134,7 @@ mat-icon,
   min-width: 0;
   min-height: 0;
   background: var(--surface);
-  border: 1px solid var(--slate-200);
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
@@ -1137,11 +1143,14 @@ mat-icon,
 /* La barra de pestañas de esta área se fue al rail lateral del pipeline; aquí
    solo queda el panel. Ver `.rails` en recruitment-pipeline.component.css. */
 
+/* El panel es la superficie de trabajo y la hoja de entrevista es larga: cada
+   píxel de relleno son campos que hay que ir a buscar con el scroll. El hueco
+   de abajo deja sitio a la píldora de "Enviar", que flota sobre el panel. */
 .taller-panel {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 18px;
+  padding: 10px 12px 56px;
 }
 
 /* La ÚNICA transición: el módulo elegido entra sobreponiéndose de izquierda a
@@ -1173,9 +1182,9 @@ mat-icon,
 }
 
 .taller-panel .section + .section {
-  margin-top: 26px;
-  padding-top: 22px;
-  border-top: 1px solid var(--slate-200);
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
 }
 
 /* ───────────────────────────── Responsivo ──────────────────────────────── */
@@ -1231,7 +1240,7 @@ mat-icon,
   flex-wrap: wrap;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid var(--slate-200);
+  border-bottom: 1px solid var(--border);
 }
 
 .ia-head-txt { min-width: 0; }
@@ -1240,7 +1249,7 @@ mat-icon,
 .ia-sub {
   margin: 2px 0 0;
   font-size: .76rem;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 .ia-btn {
@@ -1260,12 +1269,12 @@ mat-icon,
 .ia-btn:hover { filter: brightness(1.12); }
 
 .ia-btn-ghost {
-  background: var(--slate-100);
-  color: var(--navy);
-  border: 1px solid var(--slate-200);
+  background: var(--surface-3);
+  color: var(--navy-ink);
+  border: 1px solid var(--border);
 }
 
-.ia-btn-ghost:hover { background: var(--slate-200); filter: none; }
+.ia-btn-ghost:hover { background: var(--surface-4); filter: none; }
 
 .ia-btn:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -1282,16 +1291,16 @@ mat-icon,
   gap: 9px;
   padding: 16px;
   border-radius: 12px;
-  background: var(--slate-50);
-  border: 1px solid var(--slate-200);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   font-size: .86rem;
-  color: var(--slate-700);
+  color: var(--text-2);
 }
 
 .ia-error {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #b42318;
+  background: #fef2f2; background: light-dark(#fef2f2, #351927);
+  border-color: #fecaca; border-color: light-dark(#fecaca, #6a121c);
+  color: #b42318; color: light-dark(#b42318, #f2a29c);
 }
 
 .ia-spin { animation: ia-giro 1.1s linear infinite; }
@@ -1307,7 +1316,7 @@ mat-icon,
   margin: 0 0 14px;
   font-size: .92rem;
   line-height: 1.55;
-  color: var(--navy-deep);
+  color: var(--navy-ink);
 }
 
 .ia-ajuste {
@@ -1318,14 +1327,14 @@ mat-icon,
   padding: 10px 14px;
   border-radius: 10px;
   font-size: .84rem;
-  background: var(--slate-100);
-  border: 1px solid var(--slate-200);
-  color: var(--slate-700);
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-2);
 }
 
 .ia-ajuste[data-nivel="alto"]  { background: var(--ok-bg);   border-color: var(--ok-border);   color: var(--ok-fg); }
 .ia-ajuste[data-nivel="medio"] { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg); }
-.ia-ajuste[data-nivel="bajo"]  { background: #fef2f2;        border-color: #fecaca;            color: #b42318; }
+.ia-ajuste[data-nivel="bajo"]  { background: #fef2f2; background: light-dark(#fef2f2, #351927);        border-color: #fecaca; border-color: light-dark(#fecaca, #6a121c);            color: #b42318; color: light-dark(#b42318, #f2a29c); }
 
 /* La red de apoyo es un dato de logística, no un veredicto: se pinta neutra
    a propósito para que no se lea como un semáforo de aptitud. */
@@ -1341,7 +1350,7 @@ mat-icon,
 .ia-col {
   padding: 14px;
   border-radius: 12px;
-  border: 1px solid var(--slate-200);
+  border: 1px solid var(--border);
   background: var(--surface);
 }
 
@@ -1355,7 +1364,7 @@ mat-icon,
   font-weight: 800;
   letter-spacing: .05em;
   text-transform: uppercase;
-  color: var(--slate-700);
+  color: var(--text-2);
 }
 
 .ia-col h4 mat-icon,
@@ -1374,7 +1383,7 @@ mat-icon,
   flex-direction: column;
   gap: 3px;
   padding: 8px 0;
-  border-top: 1px solid var(--slate-100);
+  border-top: 1px solid var(--border);
 }
 
 .ia-item:first-of-type { border-top: 0; padding-top: 0; }
@@ -1382,14 +1391,14 @@ mat-icon,
 .ia-punto {
   font-size: .85rem;
   line-height: 1.4;
-  color: var(--navy-deep);
+  color: var(--navy-ink);
 }
 
 /* La evidencia es el campo del expediente del que sale el punto: sin ella no
    hay forma de comprobar si la IA se lo invento. */
 .ia-evi {
   font-size: .72rem;
-  color: var(--slate-500);
+  color: var(--muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow-wrap: anywhere;
 }
@@ -1397,7 +1406,7 @@ mat-icon,
 .ia-vacio {
   margin: 0;
   font-size: .8rem;
-  color: var(--slate-400);
+  color: var(--text-faint);
   font-style: italic;
 }
 
@@ -1405,8 +1414,8 @@ mat-icon,
   margin-top: 16px;
   padding: 14px;
   border-radius: 12px;
-  border: 1px solid var(--slate-200);
-  background: var(--slate-50);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .ia-bloque ul {
@@ -1414,7 +1423,7 @@ mat-icon,
   padding-left: 20px;
   font-size: .85rem;
   line-height: 1.6;
-  color: var(--slate-700);
+  color: var(--text-2);
 }
 
 .ia-nota {
@@ -1423,7 +1432,7 @@ mat-icon,
   gap: 7px;
   margin: 18px 0 0;
   font-size: .76rem;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 .ia-nota mat-icon {
@@ -1447,34 +1456,71 @@ mat-icon,
    ========================================================================== */
 .sug-card {
   /* Encabeza la entrevista, así que el aire va debajo y no encima. */
-  margin: 0 0 22px;
-  padding: 16px;
-  border: 1px solid var(--slate-200);
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: linear-gradient(180deg, rgba(99, 102, 241, .05), transparent 120px);
+}
+
+/* Plegada es una sola línea: el título y el chevrón, nada más. Es el estado de
+   partida porque lo que se quiere en pantalla son los campos de la entrevista;
+   la sugerencia se abre cuando se va a mirar. */
+.sug-card.plegada {
+  padding: 4px 8px;
+  background: var(--surface-2);
 }
 
 .sug-head {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
-.sug-head-txt { min-width: 0; }
+.sug-card.plegada .sug-head { margin-bottom: 0; }
+
+/* La cabecera es el propio botón de plegado: se pulsa en cualquier punto. */
+.sug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sug-chevron {
+  flex: none;
+  color: var(--muted);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.sug-head-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 .sug-spacer { flex: 1; }
 
 .sug-title {
   margin: 0;
   font-size: .92rem;
   font-weight: 700;
-  color: var(--navy-deep);
+  color: var(--navy-ink);
 }
 
 .sug-sub {
   margin: 2px 0 0;
   font-size: .76rem;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 /* El cargo propuesto es la conclusión: se lee primero y en una sola línea. */
@@ -1484,9 +1530,9 @@ mat-icon,
   gap: 10px;
   padding: 12px 14px;
   margin-bottom: 14px;
-  border: 1px solid #c7d2fe;
+  border: 1px solid #c7d2fe; border: 1px solid light-dark(#c7d2fe, #0d257a);
   border-radius: 10px;
-  background: #eef2ff;
+  background: #eef2ff; background: light-dark(#eef2ff, #0f1f4d);
 }
 
 .sug-cargo mat-icon {
@@ -1498,17 +1544,17 @@ mat-icon,
 }
 
 .sug-cargo-sin {
-  border-color: var(--slate-200);
-  background: var(--slate-50);
+  border-color: var(--border);
+  background: var(--surface-2);
 }
 
-.sug-cargo-sin mat-icon { color: var(--slate-400); }
+.sug-cargo-sin mat-icon { color: var(--text-faint); }
 
 .sug-cargo-nombre {
   display: block;
   font-size: .95rem;
   font-weight: 700;
-  color: var(--navy-deep);
+  color: var(--navy-ink);
 }
 
 .sug-cargo-porque {
@@ -1516,7 +1562,7 @@ mat-icon,
   margin-top: 2px;
   font-size: .8rem;
   line-height: 1.45;
-  color: var(--slate-700);
+  color: var(--text-2);
 }
 
 .sug-cols {
@@ -1527,7 +1573,7 @@ mat-icon,
 
 .sug-col {
   padding: 12px;
-  border: 1px solid var(--slate-200);
+  border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
 }
@@ -1541,7 +1587,7 @@ mat-icon,
   font-weight: 800;
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 .sug-col h5 mat-icon {
@@ -1553,16 +1599,16 @@ mat-icon,
 .sug-col-ok  { border-left: 3px solid var(--ok-fg); }
 .sug-col-ok h5 mat-icon { color: var(--ok-fg); }
 .sug-col-no  { border-left: 3px solid #b91c1c; }
-.sug-col-no h5 mat-icon { color: #b91c1c; }
+.sug-col-no h5 mat-icon { color: #b91c1c; color: light-dark(#b91c1c, #f09e9e); }
 
 .sug-item { padding: 6px 0; }
-.sug-item + .sug-item { border-top: 1px solid var(--slate-100); }
+.sug-item + .sug-item { border-top: 1px solid var(--border); }
 
 .sug-punto {
   display: block;
   font-size: .81rem;
   line-height: 1.4;
-  color: var(--navy-deep);
+  color: var(--navy-ink);
 }
 
 /* De qué campo del expediente sale el punto: sin eso no se puede verificar. */
@@ -1570,14 +1616,14 @@ mat-icon,
   display: block;
   margin-top: 2px;
   font-size: .7rem;
-  color: var(--slate-400);
+  color: var(--text-faint);
 }
 
 .sug-vacia {
   margin: 0;
   font-size: .82rem;
   line-height: 1.5;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 @media (max-width: 900px) {
@@ -1619,4 +1665,138 @@ mat-icon,
 .taller-panel:has(.ia-chat-panel) {
   padding: 0;
   overflow: hidden;
+}
+
+
+/* ── Barra "Datos del candidato" del panel de Entrevista ──────────────────
+   Mismo lenguaje visual que la tarjeta de la IA que va justo debajo: son las
+   dos piezas de contexto que encabezan el panel, y con estilos distintos se
+   leerían como cosas de dos sitios diferentes. */
+/* Ya no es una tarjeta con título: es la tira de accesos a las secciones. El
+   encabezado decía en dos renglones lo que los propios accesos enseñan. */
+.val-card {
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.val-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.val-head-txt { min-width: 0; }
+.val-spacer { flex: 1; }
+
+.val-title {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.val-sub {
+  margin: 2px 0 0;
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+/* Los accesos por sección se envuelven: son nueve y en pantallas estrechas
+   una sola fila los sacaría del ancho del panel. */
+.val-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 0;
+}
+
+.val-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+
+.val-chip:hover {
+  border-color: #6366f1;
+  background: #eef2ff; background: light-dark(#eef2ff, #0f1f4d);
+  color: #4338ca;
+}
+
+.val-chip mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+
+/* ── Sección "Entrevista" ─────────────────────────────────────────────────
+   Mismo marco que las secciones de datos que la preceden (viven en
+   `ficha-campos`, con estilos propios por estar encapsulados): sin esto la
+   última sección se leería como si fuera de otro sitio. */
+.fe-bloque {
+  padding: 10px 12px 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 8px;
+}
+
+.fe-bloque-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fe-bloque-head h3 {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.fe-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.fe-dot-pink   { background: #ec4899; }
+.fe-dot-cyan   { background: #06b6d4; }
+.fe-dot-amber  { background: #f59e0b; }
+
+/* Las secciones de esta plantilla (cómo llegó, formación, experiencia,
+   historial laboral y el veredicto) usan la MISMA rejilla que las de
+   `ficha-campos`: van seguidas en el mismo scroll y una rejilla distinta se
+   notaría como un salto a mitad de la hoja. Los estilos de aquel componente
+   están encapsulados, así que la rejilla se repite. */
+.fe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
+  gap: 4px 14px;
+}
+
+.fe-ancho { grid-column: 1 / -1; }
+
+/* El botón "Agregar experiencia" a la derecha del título de la sección. */
+.fe-bloque-head .spacer { flex: 1 1 auto; }
+
+.fe-nota {
+  margin: -4px 0 8px;
+  font-size: .76rem;
+  color: var(--muted);
 }

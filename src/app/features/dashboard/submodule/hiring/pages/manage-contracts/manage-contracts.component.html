@@ -7,13 +7,8 @@
   <mat-card class="content-card">
     <mat-card-content class="card-content-flex">
 
+      <!-- La búsqueda la trae la tabla estándar; aquí queda la acción masiva. -->
       <div class="toolbar">
-        <mat-form-field appearance="outline" class="search-field">
-          <mat-label>Buscar (Cédula, Nombres, Oficina, Finca...)</mat-label>
-          <input matInput [ngModel]="filterText()" (ngModelChange)="filterText.set($event)" placeholder="Escriba para filtrar...">
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
-
         <button mat-flat-button color="warn" (click)="darBajaMasiva()" [disabled]="selection.selected.length === 0" class="baja-masiva-btn">
           <mat-icon>block</mat-icon>
           Dar de Baja Seleccionados ({{selection.selected.length}})
@@ -21,80 +16,26 @@
       </div>
 
       <div class="table-container">
-        @if (loading()) {
-          <div class="loading-shade">
-            <mat-spinner diameter="40"></mat-spinner>
-          </div>
-        }
+        <app-tabla-estandar
+          id="contratacion-gestion-contratos"
+          titulo="Contratos activos"
+          modulo="Contratación"
+          busqueda="Cédula, nombres, oficina, centro de costo…"
+          vacio="No se encontraron contratos activos."
+          [datos]="dataSource()"
+          [columnas]="columnas"
+          [filaId]="idFila"
+          [seleccion]="selection"
+          [cargando]="loading()">
 
-        <table mat-table [dataSource]="filteredData()" class="mat-elevation-z2" style="width: 100%;">
+          <ng-template tablaCelda="nombres" let-element>
+            <strong>{{element.nombres}} {{element.apellidos}}</strong>
+          </ng-template>
 
-          <!-- Checkbox Column -->
-          <ng-container matColumnDef="select">
-            <th mat-header-cell *matHeaderCellDef style="width: 60px; padding-left: 16px;">
-              <mat-checkbox (change)="$event ? toggleAllRows() : null"
-                [checked]="selection.hasValue() && isAllSelected()"
-                [indeterminate]="selection.hasValue() && !isAllSelected()">
-              </mat-checkbox>
-            </th>
-            <td mat-cell *matCellDef="let row" style="width: 60px; padding-left: 16px;">
-              <mat-checkbox (click)="$event.stopPropagation()"
-                (change)="$event ? selection.toggle(row) : null"
-                [checked]="selection.isSelected(row)">
-              </mat-checkbox>
-            </td>
-          </ng-container>
-
-          <!-- Cédula Column -->
-          <ng-container matColumnDef="numero_documento">
-            <th mat-header-cell *matHeaderCellDef> Cédula </th>
-            <td mat-cell *matCellDef="let element"> {{element.numero_documento}} </td>
-          </ng-container>
-
-          <!-- Nombres Column -->
-          <ng-container matColumnDef="nombres">
-            <th mat-header-cell *matHeaderCellDef> Candidato </th>
-            <td mat-cell *matCellDef="let element">
-              <strong>{{element.nombres}} {{element.apellidos}}</strong>
-            </td>
-          </ng-container>
-
-          <!-- Oficina Column -->
-          <ng-container matColumnDef="oficina">
-            <th mat-header-cell *matHeaderCellDef> Oficina </th>
-            <td mat-cell *matCellDef="let element">
-              <span class="chip-oficina">{{element.oficina}}</span>
-            </td>
-          </ng-container>
-
-          <!-- C.Costos Column -->
-          <ng-container matColumnDef="centro_costos">
-            <th mat-header-cell *matHeaderCellDef> Centro Costo </th>
-            <td mat-cell *matCellDef="let element"> {{element.centro_costos || 'N/A'}} </td>
-          </ng-container>
-
-          <!-- Ingreso Column -->
-          <ng-container matColumnDef="fecha_ingreso">
-            <th mat-header-cell *matHeaderCellDef> Ingreso </th>
-            <td mat-cell *matCellDef="let element">
-              {{element.fecha_ingreso ? (element.fecha_ingreso | date:'dd/MM/yyyy':'UTC') : 'Sin fecha'}}
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;" (click)="selection.toggle(row)"></tr>
-
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell empty-cell" colspan="6">
-              @if (loading()) {
-                <span>Cargando contratos activos...</span>
-              }
-              @if (!loading()) {
-                <span>No se encontraron contratos activos{{filterText() ? ' con la búsqueda actual' : ''}}.</span>
-              }
-            </td>
-          </tr>
-        </table>
+          <ng-template tablaCelda="oficina" let-element>
+            <span class="chip-oficina">{{element.oficina}}</span>
+          </ng-template>
+        </app-tabla-estandar>
       </div>
 
     </mat-card-content>

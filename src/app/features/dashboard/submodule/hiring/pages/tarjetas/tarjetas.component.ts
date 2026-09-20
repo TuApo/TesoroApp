@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
 
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { DynamicFormDialogComponent, DynamicDialogData, FieldConfig } from '@/app/shared/components/dynamic-form-dialog/dynamic-form-dialog.component';
 import { TarjetasService, Tarjeta, ImportResult } from '../../service/tarjetas.service';
@@ -28,7 +29,8 @@ import Swal from 'sweetalert2';
     MatProgressBarModule,
     MatTooltipModule,
     MatChipsModule,
-    StandardFilterTable
+    StandardFilterTable,
+    ...TABLA_ESTANDAR,
 ],
   templateUrl: './tarjetas.component.html',
   styleUrls: ['./tarjetas.component.css']
@@ -41,6 +43,12 @@ export class TarjetasComponent implements AfterViewInit {
     { name: 'card_number', header: 'Número Tarjeta', type: 'text', sortable: true, filterable: true },
     { name: 'created_at', header: 'Fecha Creación', type: 'date', sortable: true, filterable: true },
     { name: 'actions', header: 'Acciones', type: 'custom', filterable: false, sortable: false, stickyEnd: true, width: '120px' }
+  ];
+
+  /** Errores por fila que devuelve la importación del Excel (tabla estándar). */
+  readonly columnasErrores: ColumnaTabla<{ row: number | string; error: string }>[] = [
+    { id: 'row', header: 'Fila', valor: (e) => e.row, align: 'right', ancho: '90px', tarjeta: 'titulo' },
+    { id: 'error', header: 'Error', valor: (e) => e.error, tarjeta: 'cuerpo', minAncho: '220px' },
   ];
 
   data: Tarjeta[] = [];

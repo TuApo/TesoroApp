@@ -14,6 +14,12 @@ export const routes: Routes = [
   { path: 'manage-groups', component: GestionGruposComponent },
   { path: 'manage-modules', component: GestionModulosComponent },
   { path: 'manage-parameterization', component: GestionParametrizacionComponent },
+  // Parametrizacion de CREACION DE VACANTES (areas operativas, esquemas y reglas de
+  // labor). Va aqui, junto al resto de parametrizacion, para no abrir una aplicacion
+  // paralela. Se carga en lazy: son 5 tablas que la mayoria de usuarios no abre.
+  { path: 'manage-vacancy-parameterization',
+    loadComponent: () => import('./pages/parametrizacion-vacantes/parametrizacion-vacantes.component')
+      .then(m => m.ParametrizacionVacantesComponent) },
   { path: 'change-password', component: CambiarContrasenaComponent },
   { path: 'create-transfer-user', component: CreacionUsuariosTrasladosComponent },
 ];

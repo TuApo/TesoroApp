@@ -6,11 +6,11 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
-  --disab-surface: #ffffff;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
+  --disab-surface: var(--surface);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   display: block;
   width: 100%;
 }
@@ -36,7 +36,7 @@
 }
 
 .sb-limpiar:hover {
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .sb-limpiar mat-icon {
@@ -66,12 +66,12 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: #ffffff;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: var(--surface);
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.08);
 }
 
 ::ng-deep .sb-panel .sb-buscador-icono {
-  color: #1976d2;
+  color: #1976d2; color: light-dark(#1976d2, #9bc7f3);
   font-size: 20px;
   width: 20px;
   height: 20px;
@@ -84,20 +84,20 @@
   border: 0;
   outline: none;
   font-size: 14px;
-  color: #1a1a2e;
+  color: var(--text);
   background: transparent;
   padding: 6px 0;
 }
 
 ::ng-deep .sb-panel .sb-buscador-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-faint);
 }
 
 ::ng-deep .sb-panel .sb-buscador-limpiar {
   border: 0;
   background: none;
   cursor: pointer;
-  color: #64748b;
+  color: var(--muted);
   display: inline-flex;
   align-items: center;
   padding: 2px;
@@ -122,20 +122,20 @@
 
 ::ng-deep .sb-panel .sb-opcion-todas {
   font-style: italic;
-  color: #64748b;
+  color: var(--muted);
 }
 
 ::ng-deep .sb-panel .sb-opcion-detalle {
   margin-left: 8px;
   font-size: 11.5px;
-  color: #64748b;
+  color: var(--muted);
 }
 
 ::ng-deep .sb-panel .sb-opcion-auto {
   margin-left: 8px;
   display: inline-flex;
   align-items: center;
-  color: #b26a00;
+  color: #b26a00; color: light-dark(#b26a00, #f7d097);
 }
 
 ::ng-deep .sb-panel .sb-opcion-auto mat-icon {
@@ -148,7 +148,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #1565c0;
+  color: #1565c0; color: light-dark(#1565c0, #9ac4f4);
   font-weight: 600;
 }
 
@@ -161,6 +161,6 @@
 ::ng-deep .sb-panel .sb-vacio {
   padding: 14px 16px;
   font-size: 13px;
-  color: #64748b;
+  color: var(--muted);
   text-align: center;
 }

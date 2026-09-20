@@ -90,7 +90,7 @@
       </section>
 
       <!-- ===================== RESULTADOS / ESTADOS ===================== -->
-      @if (dataSource.data.length > 0) {
+      @if (resultados.length > 0) {
         <section class="tq-results-card">
           <div class="tq-results-header">
             <div class="tq-results-summary">
@@ -98,84 +98,53 @@
                 <mat-icon class="tq-results-icon">fact_check</mat-icon>
               </span>
               <h2 class="tq-results-title">Resultados</h2>
-              <span class="tq-chip">{{ dataSource.data.length }} traslado(s)</span>
             </div>
           </div>
 
           <div class="tq-table-wrapper">
-            <table mat-table [dataSource]="dataSource" class="tq-table">
+            <app-tabla-estandar
+              id="traslados-consulta"
+              titulo="Consulta de traslados"
+              modulo="Traslados EPS"
+              entidad="traslados"
+              [datos]="resultados"
+              [columnas]="columnas"
+              [filaId]="idTraslado">
 
-              <!-- Código de Traslado -->
-              <ng-container matColumnDef="codigo_traslado">
-                <th mat-header-cell *matHeaderCellDef class="tq-th">Código</th>
-                <td mat-cell *matCellDef="let element" class="tq-td tq-td--center">
-                  <span class="tq-code">{{ element.codigo_traslado }}</span>
-                </td>
-              </ng-container>
+              <ng-template tablaCelda="codigo_traslado" let-element>
+                <span class="tq-code">{{ element.codigo_traslado }}</span>
+              </ng-template>
 
-              <!-- Solicitud -->
-              <ng-container matColumnDef="solicitud_traslado">
-                <th mat-header-cell *matHeaderCellDef class="tq-th tq-th--center">Solicitud</th>
-                <td mat-cell *matCellDef="let element" class="tq-td tq-td--center">
-                  @if (resolveSolicitudUrl(element); as url) {
-                    <button
-                      type="button"
-                      class="tq-doc-btn"
-                      (click)="verDocumento(url)"
-                      matTooltip="Abrir el PDF de la solicitud"
-                      matTooltipPosition="above">
-                      <mat-icon>picture_as_pdf</mat-icon>
-                      <span>Ver</span>
-                    </button>
-                  } @else {
-                    <span class="tq-doc-empty">
-                      <mat-icon class="tq-doc-empty-icon">block</mat-icon>
-                      Sin documento
-                    </span>
-                  }
-                </td>
-              </ng-container>
-
-              <!-- EPS -->
-              <ng-container matColumnDef="eps_a_trasladar">
-                <th mat-header-cell *matHeaderCellDef class="tq-th">EPS a Trasladar</th>
-                <td mat-cell *matCellDef="let element" class="tq-td">
-                  <span class="tq-eps">{{ element.eps_a_trasladar || '—' }}</span>
-                </td>
-              </ng-container>
-
-              <!-- Responsable -->
-              <ng-container matColumnDef="responsable">
-                <th mat-header-cell *matHeaderCellDef class="tq-th">Responsable</th>
-                <td mat-cell *matCellDef="let element" class="tq-td">
-                  @if (element.responsable) {
-                    <span class="tq-responsable">
-                      <mat-icon class="tq-responsable-icon">person</mat-icon>
-                      {{ element.responsable }}
-                    </span>
-                  } @else {
-                    <span class="tq-muted">Sin asignar</span>
-                  }
-                </td>
-              </ng-container>
-
-              <!-- Estado -->
-              <ng-container matColumnDef="estado_del_traslado">
-                <th mat-header-cell *matHeaderCellDef class="tq-th tq-th--center">Estado</th>
-                <td mat-cell *matCellDef="let element" class="tq-td tq-td--center">
-                  <span
-                    class="tq-badge"
-                    [class.tq-badge--ok]="estadoEsOk(element.estado_del_traslado)"
-                    [class.tq-badge--warn]="estadoEsPendiente(element.estado_del_traslado)"
-                    [class.tq-badge--err]="estadoEsRechazado(element.estado_del_traslado)">
-                    {{ element.estado_del_traslado || '—' }}
+              <ng-template tablaCelda="solicitud_traslado" let-element>
+                @if (resolveSolicitudUrl(element); as url) {
+                  <button
+                    type="button"
+                    class="tq-doc-btn"
+                    (click)="verDocumento(url)"
+                    matTooltip="Abrir el PDF de la solicitud"
+                    matTooltipPosition="above">
+                    <mat-icon>picture_as_pdf</mat-icon>
+                    <span>Ver</span>
+                  </button>
+                } @else {
+                  <span class="tq-doc-empty">
+                    <mat-icon class="tq-doc-empty-icon">block</mat-icon>
+                    Sin documento
                   </span>
-                </td>
-              </ng-container>
+                }
+              </ng-template>
 
-              <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true" class="tq-header-row"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="tq-row"></tr>
-            </table>
+              <ng-template tablaCelda="responsable" let-element>
+                @if (element.responsable) {
+                  <span class="tq-responsable">
+                    <mat-icon class="tq-responsable-icon">person</mat-icon>
+                    {{ element.responsable }}
+                  </span>
+                } @else {
+                  <span class="tq-muted">Sin asignar</span>
+                }
+              </ng-template>
+            </app-tabla-estandar>
           </div>
         </section>
       } @else {

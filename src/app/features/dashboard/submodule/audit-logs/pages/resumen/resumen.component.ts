@@ -11,7 +11,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { forkJoin } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -30,7 +31,7 @@ function firstOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 
     MatTooltipModule, MatProgressSpinnerModule, MatCardModule, MatChipsModule,
     NgxEchartsDirective,
   ],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   templateUrl: './resumen.component.html',
   styleUrl: './resumen.component.css',
 })

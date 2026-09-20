@@ -310,73 +310,68 @@
           </div>
         }
 
-        @if (!f.solicitudes?.length) {
-          <div class="tsr-vacio">
-            <mat-icon class="icono">receipt_long</mat-icon>
-            <p>Nunca ha solicitado nada.</p>
-          </div>
-        } @else {
-          <div class="tsr-scroll">
-            <table class="tsr-tabla">
-              <thead>
-                <tr>
-                  <th>Estado</th><th>Concepto</th><th class="num">Monto</th>
-                  <th>Autorizó</th><th>Entregó</th><th>Pago</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (s of f.solicitudes; track s.id) {
-                  <tr [class.apagada]="s.estado === 'ANULADA'">
-                    <td>
-                      <span class="tsr-chip" [class]="'tsr-chip ' + claseDeSolicitud(s)">
-                        {{ s.estado_texto }}
-                      </span>
-                      @if (s.dias_para_vencer != null && s.estado === 'PENDIENTE' && !s.vencida) {
-                        <div class="sub">vence en {{ s.dias_para_vencer }} d</div>
-                      }
-                      @if (s.motivo_anulacion) {
-                        <div class="sub">{{ s.motivo_anulacion }}</div>
-                      }
-                    </td>
-                    <td>
-                      {{ s.concepto }}
-                      <div class="sub">{{ s.codigo_autorizacion }}</div>
-                    </td>
-                    <td class="num">
-                      {{ pesos(s.monto_ejecutado ?? s.monto_autorizado) }}
-                      @if (s.cuotas && s.cuotas > 1) { <div class="sub">{{ s.cuotas }} cuotas</div> }
-                    </td>
-                    <td>
-                      {{ s.autorizado_por || '—' }}
-                      <div class="sub">{{ s.autorizado_en | date:'dd/MM/yy HH:mm' }}</div>
-                      @if (s.sede_autorizacion) { <div class="sub">{{ s.sede_autorizacion }}</div> }
-                    </td>
-                    <td>
-                      @if (s.ejecutado_en) {
-                        {{ s.nombre_quien_entrego || s.ejecutado_por || '—' }}
-                        <div class="sub">{{ s.ejecutado_en | date:'dd/MM/yy HH:mm' }}</div>
-                      } @else { — }
-                    </td>
-                    <td>
-                      @if (s.forma_pago) {
-                        {{ s.forma_pago }}
-                        @if (s.numero_pago) { <div class="sub">{{ s.numero_pago }}</div> }
-                      } @else {
-                        <span class="sub">sin registrar</span>
-                      }
-                    </td>
-                    <td>
-                      @if (s.estado === 'PENDIENTE') {
-                        <button type="button" class="tsr-boton pequeno peligro"
-                                (click)="anular(s)">Anular</button>
-                      }
-                    </td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        }
+        <app-tabla-estandar
+          id="tesoreria-ficha-solicitudes"
+          [titulo]="'Solicitudes ' + f.numero_documento"
+          modulo="Tesorería"
+          entidad="solicitudes"
+          vacio="Nunca ha solicitado nada."
+          [datos]="f.solicitudes ?? []"
+          [columnas]="columnasSolicitudes"
+          [filaId]="idSolicitud"
+          [filaClase]="claseFilaSolicitud">
+
+          <ng-template tablaCelda="estado" let-s>
+            <span class="tsr-chip" [class]="'tsr-chip ' + claseDeSolicitud(s)">
+              {{ s.estado_texto }}
+            </span>
+            @if (s.dias_para_vencer != null && s.estado === 'PENDIENTE' && !s.vencida) {
+              <div class="sub">vence en {{ s.dias_para_vencer }} d</div>
+            }
+            @if (s.motivo_anulacion) {
+              <div class="sub">{{ s.motivo_anulacion }}</div>
+            }
+          </ng-template>
+
+          <ng-template tablaCelda="concepto" let-s>
+            {{ s.concepto }}
+            <div class="sub">{{ s.codigo_autorizacion }}</div>
+          </ng-template>
+
+          <ng-template tablaCelda="monto" let-s>
+            {{ pesos(s.monto_ejecutado ?? s.monto_autorizado) }}
+            @if (s.cuotas && s.cuotas > 1) { <div class="sub">{{ s.cuotas }} cuotas</div> }
+          </ng-template>
+
+          <ng-template tablaCelda="autorizo" let-s>
+            {{ s.autorizado_por || '—' }}
+            <div class="sub">{{ s.autorizado_en | date:'dd/MM/yy HH:mm' }}</div>
+            @if (s.sede_autorizacion) { <div class="sub">{{ s.sede_autorizacion }}</div> }
+          </ng-template>
+
+          <ng-template tablaCelda="entrego" let-s>
+            @if (s.ejecutado_en) {
+              {{ s.nombre_quien_entrego || s.ejecutado_por || '—' }}
+              <div class="sub">{{ s.ejecutado_en | date:'dd/MM/yy HH:mm' }}</div>
+            } @else { — }
+          </ng-template>
+
+          <ng-template tablaCelda="pago" let-s>
+            @if (s.forma_pago) {
+              {{ s.forma_pago }}
+              @if (s.numero_pago) { <div class="sub">{{ s.numero_pago }}</div> }
+            } @else {
+              <span class="sub">sin registrar</span>
+            }
+          </ng-template>
+
+          <ng-template tablaAcciones let-s>
+            @if (s.estado === 'PENDIENTE') {
+              <button type="button" class="tsr-boton pequeno peligro"
+                      (click)="anular(s)">Anular</button>
+            }
+          </ng-template>
+        </app-tabla-estandar>
       </div>
     }
 

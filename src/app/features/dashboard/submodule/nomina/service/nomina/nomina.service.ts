@@ -1007,18 +1007,30 @@ export interface EntidadExterna {
   codigo?: string | null;
   tipo: TipoEntidadExterna;
   activo: boolean;
+  /** Contacto. Aplica a cualquier tipo, no solo a las empresas usuarias. */
+  representante_legal?: string | null;
+  direccion?: string | null;
+  telefono?: string | null;
+  correo?: string | null;
   centros_costo_count: number | null;
   contratos_count: number | null;
 }
 
 /** Payload de creación/edición. tipo es obligatorio y controlado (selector);
- *  el frontend nunca envía id ni activo (el estado se cambia por desactivar/reactivar). */
+ *  el frontend nunca envía id ni activo (el estado se cambia por desactivar/reactivar).
+ *
+ *  OJO: el PUT REEMPLAZA la entidad completa. Todo campo que no se mande se guarda en
+ *  null, así que el formulario tiene que reenviar también lo que no editó. */
 export interface EntidadExternaUpsert {
   nombre: string;
   nombre_comercial?: string | null;
   nit?: string | null;
   codigo?: string | null;
   tipo: TipoEntidadExterna;
+  representante_legal?: string | null;
+  direccion?: string | null;
+  telefono?: string | null;
+  correo?: string | null;
 }
 
 /**

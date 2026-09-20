@@ -156,7 +156,7 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
     </div>
   `,
   styles: [`
-    :host { --azul: #21263c; --linea: #e8edf3; --muted: #64748b; display: block; }
+    :host { --azul: #21263c; --linea: light-dark(#e8edf3, #233e63); display: block; }
 
     /* El ancho lo fija el panel del MatDialog (ver dialog.open en
        help-information). Acá solo se ocupa el espacio disponible: si se fija
@@ -206,7 +206,7 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
 
     .rm-actions {
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      padding: 12px 20px 16px !important; border-top: 1px solid var(--linea); background: #fcfdfe;
+      padding: 12px 20px 16px !important; border-top: 1px solid var(--linea); background: var(--surface);
     }
     .rm-spacer { flex: 1; }
     .rm-generar {

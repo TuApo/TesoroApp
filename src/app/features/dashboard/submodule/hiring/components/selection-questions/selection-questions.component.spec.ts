@@ -23,6 +23,7 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import { RobotsService } from '../../service/robots/robots.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
 
 /** Candidato mínimo con los antecedentes ya guardados que se quieran probar. */
 function candidatoCon(antecedentes: Array<{ nombre: string; observacion: any }>) {
@@ -66,6 +67,7 @@ describe('SelectionQuestionsComponent', () => {
         { provide: RegistroProcesoContratacion, useValue: rpc },
         { provide: RobotsService, useValue: robots },
         { provide: UtilityServiceService, useValue: {} },
+        { provide: ArchivosBackendService, useValue: {} },
       ],
     }).compileComponents();
 
@@ -124,6 +126,103 @@ describe('SelectionQuestionsComponent', () => {
 
       abrirCandidato({ ...candidatoCon([]), numero_documento: '999' });
       expect(comp.antecedentes.get('eps')!.value).toBe('');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  describe('avance publicado al rail del pipeline', () => {
+    // Lo guardado y lo que trae el robot entran con `emitEvent: false`: el %
+    // del rail se quedaba en 0 (o en el del candidato anterior) con las
+    // tarjetas ya llenas, y solo se movía al tocar un campo a mano.
+
+    it('cuenta los antecedentes GUARDADOS al abrir el candidato', () => {
+      abrirCandidato(candidatoCon([
+        { nombre: 'EPS', observacion: 'SURA' },
+        { nombre: 'AFP', observacion: 'PORVENIR' },
+        { nombre: 'POLICIVOS', observacion: 'CUMPLE' },
+      ]));
+
+      expect(TestBed.inject(PipelineNavService).avance('antecedentes'))
+        .toEqual({ hechos: 3, total: 7 });
+    });
+
+    it('cuenta lo que PRELLENA el robot', fakeAsync(() => {
+      const robots = TestBed.inject(RobotsService) as jasmine.SpyObj<RobotsService>;
+      robots.getResultadosAntecedentes.and.returnValue(of({
+        cedula: '1082490391', encontrado: true,
+        campos: { ofac: { valor: 'CUMPLE' }, procuraduria: { valor: 'CUMPLE' } },
+      } as any));
+
+      abrirCandidato(candidatoCon([{ nombre: 'EPS', observacion: 'SURA' }]));
+      tick();
+
+      expect(TestBed.inject(PipelineNavService).avance('antecedentes'))
+        .toEqual({ hechos: 3, total: 7 });
+    }));
+
+    it('una recarga de la MISMA persona no borra lo que llenó el robot', fakeAsync(() => {
+      // Caso real: la tarjeta decía "Robot: NO REGISTRA SANCIONES — autocompletado"
+      // con el campo vacío. La recarga re-aplicaba lo guardado (sin esos campos)
+      // y la consulta al robot ya estaba sellada, así que nadie los volvía a poner.
+      const robots = TestBed.inject(RobotsService) as jasmine.SpyObj<RobotsService>;
+      robots.getResultadosAntecedentes.and.returnValue(of({
+        cedula: '1082490391', encontrado: true,
+        campos: {
+          procuraduria: { valor: 'CUMPLE', crudo: 'NO REGISTRA SANCIONES' },
+          policivos: { valor: 'CUMPLE', crudo: 'NO REGISTRA ANTECEDENTES' },
+          eps: { valor: 'SURA', crudo: 'EPS SURAMERICANA S.A.' },
+        },
+      } as any));
+
+      const guardado = candidatoCon([{ nombre: 'EPS', observacion: 'Sin Buscar' }]);
+      abrirCandidato(guardado);
+      tick();
+      abrirCandidato({ ...guardado });   // recarga del padre: referencia nueva, misma persona
+      tick();
+
+      expect(comp.antecedentes.get('procuraduria')!.value).toBe('CUMPLE');
+      expect(comp.antecedentes.get('policivos')!.value).toBe('CUMPLE');
+      expect(comp.antecedentes.get('eps')!.value).toBe('SURA');
+      expect(comp.vieneDelRobot(comp.fields.find(f => f.key === 'procuraduria')!)).toBeTrue();
+      expect(TestBed.inject(PipelineNavService).avance('antecedentes'))
+        .toEqual({ hechos: 3, total: 7 });
+    }));
+
+    it('lo guardado a mano distinto del robot se respeta y deja de decir autocompletado', fakeAsync(() => {
+      const robots = TestBed.inject(RobotsService) as jasmine.SpyObj<RobotsService>;
+      robots.getResultadosAntecedentes.and.returnValue(of({
+        cedula: '1082490391', encontrado: true,
+        campos: { procuraduria: { valor: 'CUMPLE', crudo: 'NO REGISTRA SANCIONES' } },
+      } as any));
+
+      abrirCandidato(candidatoCon([]));
+      tick();
+      abrirCandidato(candidatoCon([{ nombre: 'PROCURADURIA', observacion: 'NO CUMPLE' }]));
+      tick();
+
+      expect(comp.antecedentes.get('procuraduria')!.value).toBe('NO CUMPLE');
+      expect(comp.vieneDelRobot(comp.fields.find(f => f.key === 'procuraduria')!)).toBeFalse();
+    }));
+
+    it('elegir un valor a mano NO dispara la recarga del form (no se borra)', () => {
+      // Regresión: el effect del candidato quedaba suscrito a la señal de
+      // avances; al moverse el % re-aplicaba lo guardado y borraba la selección.
+      abrirCandidato(candidatoCon([{ nombre: 'EPS', observacion: 'SURA' }]));
+
+      comp.antecedentes.get('procuraduria')!.setValue('CUMPLE');
+      fixture.detectChanges();
+
+      expect(comp.antecedentes.get('procuraduria')!.value).toBe('CUMPLE');
+      expect(TestBed.inject(PipelineNavService).avance('antecedentes'))
+        .toEqual({ hechos: 2, total: 7 });
+    });
+
+    it('al cambiar de candidato no arrastra el avance del anterior', () => {
+      abrirCandidato(candidatoCon([{ nombre: 'EPS', observacion: 'SURA' }]));
+      abrirCandidato({ ...candidatoCon([]), numero_documento: '999' });
+
+      expect(TestBed.inject(PipelineNavService).avance('antecedentes'))
+        .toEqual({ hechos: 0, total: 7 });
     });
   });
 

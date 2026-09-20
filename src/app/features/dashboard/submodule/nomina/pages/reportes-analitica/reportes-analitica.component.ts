@@ -12,7 +12,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTabsModule } from '@angular/material/tabs';
 
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 
 import {
@@ -50,7 +51,7 @@ interface BucketPeriodo {
     MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule, MatTabsModule,
     NgxEchartsDirective,
   ],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   templateUrl: './reportes-analitica.component.html',
   styleUrls: ['./reportes-analitica.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

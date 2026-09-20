@@ -1,11 +1,8 @@
-import { ChangeDetectorRef, Component, OnInit, AfterViewInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatSortModule, MatSort } from '@angular/material/sort';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -14,10 +11,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { NominaService, EntidadExterna, TipoEntidadExterna } from '../../service/nomina/nomina.service';
 import { EntidadExternaFormDialogComponent, TIPOS_ENTIDAD } from './entidad-externa-form-dialog.component';
 
@@ -27,7 +24,9 @@ type FiltroEstado = 'activas' | 'inactivas' | 'todas';
  * Submódulo Nómina → Entidades Externas. Mantenimiento con borrado lógico de la
  * tabla polimórfica nomina_entidades_externas, restringido a los tipos
  * permitidos. Listar / buscar / filtrar por tipo y estado / crear / editar /
- * desactivar / reactivar. NO existe eliminación física.
+ * desactivar / reactivar. NO existe eliminación física. Tipo y estado se
+ * filtran en el backend; la búsqueda por texto, el orden y los filtros por
+ * columna los hace la tabla estándar sobre el resultado.
  */
 @Component({
   selector: 'app-entidades-externas',
@@ -36,9 +35,6 @@ type FiltroEstado = 'activas' | 'inactivas' | 'todas';
     CommonModule,
     FormsModule,
     MatCardModule,
-    MatTableModule,
-    MatSortModule,
-    MatPaginatorModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -47,17 +43,14 @@ type FiltroEstado = 'activas' | 'inactivas' | 'todas';
     MatDialogModule,
     MatTooltipModule,
     MatSnackBarModule,
-    MatProgressSpinnerModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './entidades-externas.component.html',
   styleUrls: ['./entidades-externas.component.css'],
 })
-export class EntidadesExternasComponent implements OnInit, AfterViewInit {
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-
-  displayedColumns = ['nombre', 'nit', 'codigo', 'tipo', 'activo', 'centros_costo_count', 'contratos_count', 'acciones'];
-  dataSource = new MatTableDataSource<EntidadExterna>([]);
+export class EntidadesExternasComponent implements OnInit {
+  /** Lo que devolvió el backend con los filtros de tipo y estado. */
+  entidades: EntidadExterna[] = [];
   isLoading = false;
 
   readonly TIPOS = TIPOS_ENTIDAD;
@@ -66,9 +59,27 @@ export class EntidadesExternasComponent implements OnInit, AfterViewInit {
 
   filterTipo: TipoEntidadExterna | '' = '';   // '' = todos
   filterEstado: FiltroEstado = 'activas';
-  filterSearch = '';
 
-  private all: EntidadExterna[] = [];
+  readonly columnas: ColumnaTabla<EntidadExterna>[] = [
+    // El nombre comercial va en el valor para que la búsqueda lo encuentre, como antes.
+    { id: 'nombre', header: 'Nombre', tarjeta: 'titulo', minAncho: '200px',
+      valor: (e) => (e.nombre_comercial ? `${e.nombre} — ${e.nombre_comercial}` : e.nombre) },
+    { id: 'nit', header: 'NIT', valor: (e) => e.nit ?? '', formato: (e) => e.nit || '—', tarjeta: 'subtitulo' },
+    { id: 'codigo', header: 'Código', valor: (e) => e.codigo ?? '', formato: (e) => e.codigo || '—',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'tipo', header: 'Tipo', valor: (e) => this.tipoLabel(e.tipo), tarjeta: 'cuerpo' },
+    { id: 'activo', header: 'Estado', valor: (e) => (e.activo ? 'Activa' : 'Inactiva'), tarjeta: 'badge',
+      badge: (e) => e.activo
+        ? { texto: 'Activa', tono: 'ok', icono: 'check_circle' }
+        : { texto: 'Inactiva', tono: 'neutro', icono: 'cancel' } },
+    { id: 'centros_costo_count', header: 'Centros de costo', align: 'right', prioridad: 2, tarjeta: 'meta',
+      valor: (e) => (this.aplicaConteos(e) ? e.centros_costo_count : null) },
+    { id: 'contratos_count', header: 'Contratos', align: 'right', prioridad: 2, tarjeta: 'meta',
+      valor: (e) => (this.aplicaConteos(e) ? e.contratos_count : null) },
+  ];
+
+  readonly idEntidad = (e: EntidadExterna) => e.id;
+  readonly claseFila = (e: EntidadExterna) => (e.activo ? '' : 'te-fila--atenuada');
 
   constructor(
     private nominaService: NominaService,
@@ -79,11 +90,6 @@ export class EntidadesExternasComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.cargar();
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
   }
 
   private estadoParam(): boolean | null {
@@ -100,8 +106,7 @@ export class EntidadesExternasComponent implements OnInit, AfterViewInit {
       activo: this.estadoParam(),
     }).subscribe({
       next: (data) => {
-        this.all = data ?? [];
-        this.aplicarFiltros();
+        this.entidades = data ?? [];
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -113,30 +118,12 @@ export class EntidadesExternasComponent implements OnInit, AfterViewInit {
     });
   }
 
-  aplicarFiltros(): void {
-    const q = (this.filterSearch || '').trim().toLowerCase();
-    this.dataSource.data = this.all.filter((e) => {
-      if (!q) return true;
-      const blob = [e.nombre, e.nombre_comercial, e.nit, e.codigo]
-        .filter(Boolean).join(' ').toLowerCase();
-      return blob.includes(q);
-    });
-    if (this.paginator) this.paginator.firstPage();
-    this.cdr.markForCheck();
-  }
-
-  onSearchChange(value: string): void {
-    this.filterSearch = value;
-    this.aplicarFiltros();
-  }
-
   /** tipo y estado se filtran en el backend → recargar. */
   onServerFilterChange(): void {
     this.cargar();
   }
 
   limpiarFiltros(): void {
-    this.filterSearch = '';
     this.filterTipo = '';
     this.filterEstado = 'activas';
     this.cargar();

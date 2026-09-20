@@ -5,16 +5,16 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-danger: #c62828;
   --disab-success: #2e7d32;
   --disab-radius-sm: 10px;
   --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
   display: block;
-  background: #f7f9fc;
+  background: var(--surface-2);
 }
 
 /* ── Cabecera ──────────────────────────────────────────────── */
@@ -89,11 +89,11 @@
 .cmr-cuerpo {
   padding: 16px 20px 6px !important;
   max-height: 62vh;
-  background: #f7f9fc;
+  background: var(--surface-2);
 }
 
 .cmr-bloque {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--disab-border);
   border-radius: 14px;
   padding: 14px 16px;
@@ -148,7 +148,7 @@
 .cmr-dropzone {
   border: 2px dashed rgba(25, 118, 210, 0.35);
   border-radius: var(--disab-radius-sm);
-  background: #fbfdff;
+  background: var(--surface);
   padding: 22px 16px;
   text-align: center;
   cursor: pointer;
@@ -224,7 +224,7 @@
 
 /* ── Progreso ──────────────────────────────────────────────── */
 .cmr-progreso {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid rgba(25, 118, 210, 0.28);
   border-radius: 14px;
   padding: 14px 16px;
@@ -252,9 +252,9 @@
   margin: 0 0 14px;
   padding: 9px 12px;
   border-radius: var(--disab-radius-sm);
-  background: #ffebee;
+  background: #ffebee; background: light-dark(#ffebee, #38162a);
   border: 1px solid rgba(198, 40, 40, 0.25);
-  color: #8e1c1c;
+  color: #8e1c1c; color: light-dark(#8e1c1c, #eda1a1);
   font-size: 12.5px;
 }
 
@@ -297,68 +297,21 @@
 
 .cmr-contador-total {
   background: var(--disab-primary-light);
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .cmr-contador-exitosos {
-  background: #e8f5e9;
-  color: var(--disab-success);
+  background: #e8f5e9; background: light-dark(#e8f5e9, #193430);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .cmr-contador-fallidos {
-  background: #ffebee;
+  background: #ffebee; background: light-dark(#ffebee, #38162a);
   color: var(--disab-danger);
 }
 
 /* ── Tabla de resultados ───────────────────────────────────── */
-/* La tabla scrollea SOLA (vertical y horizontal): el dialogo no se desborda. */
-.cmr-tabla-envoltura {
-  max-height: 280px;
-  overflow: auto;
-  border: 1px solid var(--disab-border);
-  border-radius: var(--disab-radius-sm);
-}
-
-.cmr-tabla {
-  width: 100%;
-  min-width: 560px;
-  border-collapse: collapse;
-  font-size: 12.5px;
-}
-
-.cmr-tabla thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: #f1f5f9;
-  color: var(--disab-text);
-  text-align: left;
-  font-weight: 700;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--disab-border);
-  white-space: nowrap;
-}
-
-.cmr-tabla tbody td {
-  padding: 7px 10px;
-  border-bottom: 1px solid var(--disab-border);
-  color: var(--disab-text);
-  vertical-align: top;
-}
-
-.cmr-tabla tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.cmr-fila-fallida {
-  background: #fff5f5;
-}
-
-.cmr-col-fila {
-  width: 52px;
-  text-align: right;
-}
-
+/* La tabla es la estandar; aqui solo la celda propia «Resultado» (plantilla tablaCelda). */
 .cmr-resultado {
   display: inline-flex;
   align-items: flex-start;
@@ -368,7 +321,7 @@
 }
 
 .cmr-resultado-ok {
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .cmr-resultado mat-icon {
@@ -379,7 +332,7 @@
 }
 
 .cmr-icono-ok {
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .cmr-icono-error {
@@ -389,7 +342,7 @@
 /* ── Acciones ──────────────────────────────────────────────── */
 .cmr-acciones {
   padding: 12px 20px 18px !important;
-  background: #f7f9fc;
+  background: var(--surface-2);
   border-top: 1px solid var(--disab-border);
   gap: 8px;
   flex-wrap: wrap;
@@ -424,7 +377,7 @@
 }
 
 .cmr-btn-plantilla {
-  color: var(--disab-primary-dark) !important;
+  color: var(--disab-primary-dark) !important; color: light-dark(var(--disab-primary-dark), #9ac4f4) !important;
   border-color: rgba(25, 118, 210, 0.35) !important;
 }
 
@@ -440,7 +393,7 @@
 }
 
 .cmr-btn-procesar[disabled] {
-  background: #cbd5e1 !important;
+  background: var(--border-strong) !important;
   color: #ffffff !important;
 }
 

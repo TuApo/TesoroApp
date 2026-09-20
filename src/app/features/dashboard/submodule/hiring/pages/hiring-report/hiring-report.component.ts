@@ -11,6 +11,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 // Models & Shared
 import { SharedModule } from '@/app/shared/shared.module';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatDatepickerModule } from '@angular/material/datepicker';
@@ -75,7 +76,8 @@ interface DocConfig {
     MatDatepickerModule,
     MatCheckboxModule,
     MatNativeDateModule,
-    MatDialogModule
+    MatDialogModule,
+    ...TABLA_ESTANDAR,
 ],
   templateUrl: './hiring-report.component.html',
   styleUrls: ['./hiring-report.component.css'],
@@ -108,6 +110,12 @@ export class HiringReportComponent implements OnInit, OnDestroy {
   cedulasPreview: any[] = [];
   trasladosPreview: any[] = [];
   arlErrors: { cedula: string; error: string }[] = [];
+
+  /** Hallazgos ARL en la tabla estándar. La lista se reasigna entera (no se muta): la tabla solo ve arreglos nuevos. */
+  readonly columnasArl: ColumnaTabla<{ cedula: string; error: string }>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (e) => e.cedula, tarjeta: 'titulo' },
+    { id: 'error', header: 'Hallazgo', valor: (e) => e.error, tarjeta: 'cuerpo', minAncho: '180px' },
+  ];
 
   // Config
   readonly DOCS: DocConfig[] = [
@@ -1469,6 +1477,8 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     if (!this.datoscruced.length || !this.arlRows.length) return;
 
     const { dni, vig } = this.arlIndices;
+    // Se acumula aparte y se asigna al final: la tabla estándar solo detecta arreglos nuevos.
+    const errores: { cedula: string; error: string }[] = [];
 
     // Indexar ARL por cédula
     const arlMap = new Map<string, any[][]>();
@@ -1489,11 +1499,11 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       const arlRowsForCedula = arlMap.get(cedula);
 
       if (!arlRowsForCedula || arlRowsForCedula.length === 0) {
-        this.arlErrors.push({ cedula, error: 'No existe en ARL' });
+        errores.push({ cedula, error: 'No existe en ARL' });
       } else {
         // Duplicados en ARL: riesgo de cobro duplicado por retiro.
         if (arlRowsForCedula.length > 1) {
-          this.arlErrors.push({
+          errores.push({
             cedula,
             error: `Múltiples registros en ARL (${arlRowsForCedula.length}) para la misma cédula. Riesgo de cobro duplicado si la persona se retira.`,
           });
@@ -1541,10 +1551,11 @@ export class HiringReportComponent implements OnInit, OnDestroy {
 
         if (!matchFound) {
           const unicas = Array.from(new Set(fechasArlTexto));
-          this.arlErrors.push({ cedula, error: `Fecha de ingreso (${fechaIngreso}) diferente a fecha(s) ARL (${unicas.join(' o ')})` });
+          errores.push({ cedula, error: `Fecha de ingreso (${fechaIngreso}) diferente a fecha(s) ARL (${unicas.join(' o ')})` });
         }
       }
     });
+    this.arlErrors = errores;
   }
 
   // Helper state for ARL indices
@@ -1683,19 +1694,20 @@ export class HiringReportComponent implements OnInit, OnDestroy {
       outputData.push([cedulaCruce, estadoArl, estadoFechas, fechaEnArl, fechaIngresoCruce, erroresPrevios, ...cruceRow]);
     });
 
-    // Recolectar errores ARL para mostrar en la UI
-    this.arlErrors = [];
+    // Recolectar errores ARL para mostrar en la UI (arreglo nuevo: la tabla estándar no ve mutaciones)
+    const errores: { cedula: string; error: string }[] = [];
     for (let i = 1; i < outputData.length; i++) {
       const row = outputData[i];
       const cedula = row[0];
       const arl = row[1];
       const arlFechas = row[2];
       if (arl === 'NO') {
-        this.arlErrors.push({ cedula, error: 'No existe en ARL' });
+        errores.push({ cedula, error: 'No existe en ARL' });
       } else if (arlFechas === 'NO') {
-        this.arlErrors.push({ cedula, error: `Fecha de ingreso (${row[4]}) diferente a fecha ARL (${row[3]})` });
+        errores.push({ cedula, error: `Fecha de ingreso (${row[4]}) diferente a fecha ARL (${row[3]})` });
       }
     }
+    this.arlErrors = errores;
 
     // Generar Excel con ExcelJS (soporte de estilos)
     const wb = new ExcelJS.Workbook();

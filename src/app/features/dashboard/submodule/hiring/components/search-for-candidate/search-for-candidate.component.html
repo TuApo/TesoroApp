@@ -117,127 +117,104 @@
       </div>
     }
 
-    @if (recientesLoading && recientes.length === 0) {
-      <p class="recientes-empty">Cargando…</p>
-    } @else if (recientes.length === 0) {
-      <p class="recientes-empty">No hay personas registradas hoy todavía.</p>
-    } @else {
-      <div class="recientes-table-wrapper">
-        <table class="recientes-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Documento</th>
-              <th>Apellidos Nombres</th>
-              <th>Hora de llegada</th>
-              <th>Oficina</th>
-              <th>Barrio</th>
-              <th>Municipio</th>
-              <th>Departamento</th>
-              <th>Edad</th>
-              <th>Experiencia</th>
-              <th>Antecedentes</th>
-              <th>Formulario</th>
-              <th>Carnet</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (item of recientes; track trackByRecienteId($index, item); let i = $index) {
-              <tr [class.fila-atendida]="item.atendido_hoy">
-                <td>{{ i + 1 }}</td>
-                <td>{{ item.tipo_doc }} {{ item.numero_documento }}</td>
-                <td>{{ item.apellidos_nombres || '—' }}</td>
-                <td>{{ item.updated_at | date:'HH:mm' }}</td>
-                <td>{{ item.oficina || '—' }}</td>
-                <td>{{ item.barrio || '—' }}</td>
-                <td>{{ item.municipio || '—' }}</td>
-                <td>{{ item.departamento || '—' }}</td>
-                <td>{{ item.edad != null ? item.edad : '—' }}</td>
-                <td>
-                  @if (item.tiene_experiencia) {
-                    <div class="exp-cell">
-                      <span class="badge-formulario badge-completo" matTooltip="Cuenta con experiencia previa">
-                        <mat-icon>check_circle</mat-icon> Sí
-                      </span>
-                      @if (item.area_experiencia) {
-                        <span class="exp-area"
-                          [matTooltip]="item.anios_experiencia != null ? (item.anios_experiencia + ' año(s) de experiencia') : 'Área en la que tiene experiencia'">
-                          {{ item.area_experiencia }}@if (item.anios_experiencia != null) {<span class="exp-anios"> · {{ item.anios_experiencia }} a</span>}
-                        </span>
-                      }
-                    </div>
-                  } @else {
-                    <span class="badge-formulario badge-sin-iniciar" matTooltip="No registra experiencia previa">
-                      <mat-icon>remove_circle_outline</mat-icon> No
-                    </span>
-                  }
-                </td>
-                <td>
-                  <div class="antecedentes-cell">
-                    <span class="badge-formulario {{ antecedentesBadgeClass(item) }}"
-                      [matTooltip]="item.antecedentes?.updated_at
-                        ? ('Robot actualizó: ' + (item.antecedentes!.updated_at | date:'dd/MM HH:mm'))
-                        : 'Estado de los antecedentes del robot para esta cédula'">
-                      <mat-icon>{{ antecedentesIcon(item) }}</mat-icon> {{ antecedentesLabel(item) }}
-                    </span>
-                    <div class="fuentes-chips">
-                      @for (f of antecedenteFuentes; track f.key) {
-                        <span class="chip-fuente {{ fuenteChipClass(item, f.key) }}"
-                          [matTooltip]="fuenteTooltip(item, f.key, f.label)">
-                          {{ f.abbr }}
-                        </span>
-                      }
-                    </div>
-                  </div>
-                </td>
-                <td>
-                  @if (item.formulario_completo) {
-                    <span class="badge-formulario badge-completo" matTooltip="Formulario web enviado completo">
-                      <mat-icon>check_circle</mat-icon> Completo
-                    </span>
-                  } @else if ((item.formulario_paso || 0) >= 1) {
-                    <span class="badge-formulario badge-parcial" matTooltip="Sólo guardó datos básicos (paso 1)">
-                      <mat-icon>edit_note</mat-icon> Paso 1
-                    </span>
-                  } @else {
-                    <span class="badge-formulario badge-sin-iniciar" matTooltip="No ha iniciado el formulario web">
-                      <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
-                    </span>
-                  }
-                </td>
-                <!-- Carnet: lo consume también la generación masiva, que por
-                     defecto solo toma a los pendientes. -->
-                <td>
-                  @if (item.carnet_generado) {
-                    <span class="badge-formulario badge-completo" matTooltip="El carnet ya se generó">
-                      <mat-icon>badge</mat-icon> Generado
-                    </span>
-                  } @else {
-                    <span class="badge-formulario badge-sin-iniciar" matTooltip="Todavía no se le genera el carnet">
-                      <mat-icon>badge</mat-icon> Pendiente
-                    </span>
-                  }
-                </td>
-                <td>
-                  @if (item.atendido_hoy) {
-                    <span class="badge-formulario badge-atendido" matTooltip="Ya fue atendido hoy">
-                      <mat-icon>task_alt</mat-icon> Atendido
-                    </span>
-                  } @else {
-                    <button mat-flat-button color="primary" class="btn-atender"
-                      (click)="seleccionarReciente(item)">
-                      <mat-icon>arrow_forward</mat-icon>
-                      Atender
-                    </button>
-                  }
-                </td>
-              </tr>
+    <!-- Cola del día en la tabla estándar: búsqueda, filtros, copia a Excel y
+         tarjetas en móvil. Las filas ya atendidas hoy salen atenuadas. -->
+    <app-tabla-estandar
+      id="contratacion-turnos-recientes"
+      titulo="Turnos del día"
+      modulo="Contratación"
+      entidad="candidatos_recientes"
+      busqueda="Documento, nombre, oficina, barrio…"
+      vacio="No hay personas registradas hoy todavía."
+      [datos]="recientes"
+      [columnas]="columnasRecientes"
+      [filaId]="idReciente"
+      [filaClase]="claseReciente"
+      [cargando]="recientesLoading">
+
+      <ng-template tablaCelda="experiencia" let-item>
+        @if (item.tiene_experiencia) {
+          <div class="exp-cell">
+            <span class="badge-formulario badge-completo" matTooltip="Cuenta con experiencia previa">
+              <mat-icon>check_circle</mat-icon> Sí
+            </span>
+            @if (item.area_experiencia) {
+              <span class="exp-area"
+                [matTooltip]="item.anios_experiencia != null ? (item.anios_experiencia + ' año(s) de experiencia') : 'Área en la que tiene experiencia'">
+                {{ item.area_experiencia }}@if (item.anios_experiencia != null) {<span class="exp-anios"> · {{ item.anios_experiencia }} a</span>}
+              </span>
             }
-          </tbody>
-        </table>
-      </div>
-    }
+          </div>
+        } @else {
+          <span class="badge-formulario badge-sin-iniciar" matTooltip="No registra experiencia previa">
+            <mat-icon>remove_circle_outline</mat-icon> No
+          </span>
+        }
+      </ng-template>
+
+      <ng-template tablaCelda="antecedentes" let-item>
+        <div class="antecedentes-cell">
+          <span class="badge-formulario {{ antecedentesBadgeClass(item) }}"
+            [matTooltip]="item.antecedentes?.updated_at
+              ? ('Robot actualizó: ' + (item.antecedentes!.updated_at | date:'dd/MM HH:mm'))
+              : 'Estado de los antecedentes del robot para esta cédula'">
+            <mat-icon>{{ antecedentesIcon(item) }}</mat-icon> {{ antecedentesLabel(item) }}
+          </span>
+          <div class="fuentes-chips">
+            @for (f of antecedenteFuentes; track f.key) {
+              <span class="chip-fuente {{ fuenteChipClass(item, f.key) }}"
+                [matTooltip]="fuenteTooltip(item, f.key, f.label)">
+                {{ f.abbr }}
+              </span>
+            }
+          </div>
+        </div>
+      </ng-template>
+
+      <ng-template tablaCelda="formulario" let-item>
+        @if (item.formulario_completo) {
+          <span class="badge-formulario badge-completo" matTooltip="Formulario web enviado completo">
+            <mat-icon>check_circle</mat-icon> Completo
+          </span>
+        } @else if ((item.formulario_paso || 0) >= 1) {
+          <span class="badge-formulario badge-parcial" matTooltip="Sólo guardó datos básicos (paso 1)">
+            <mat-icon>edit_note</mat-icon> Paso 1
+          </span>
+        } @else {
+          <span class="badge-formulario badge-sin-iniciar" matTooltip="No ha iniciado el formulario web">
+            <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
+          </span>
+        }
+      </ng-template>
+
+      <!-- Carnet: lo consume también la generación masiva, que por
+           defecto solo toma a los pendientes. -->
+      <ng-template tablaCelda="carnet" let-item>
+        @if (item.carnet_generado) {
+          <span class="badge-formulario badge-completo" matTooltip="El carnet ya se generó">
+            <mat-icon>badge</mat-icon> Generado
+          </span>
+        } @else {
+          <span class="badge-formulario badge-sin-iniciar" matTooltip="Todavía no se le genera el carnet">
+            <mat-icon>badge</mat-icon> Pendiente
+          </span>
+        }
+      </ng-template>
+
+      <ng-template tablaAcciones let-item>
+        @if (item.atendido_hoy) {
+          <span class="badge-formulario badge-atendido" matTooltip="Ya fue atendido hoy">
+            <mat-icon>task_alt</mat-icon> Atendido
+          </span>
+        } @else {
+          <button mat-flat-button color="primary" class="btn-atender"
+            (click)="seleccionarReciente(item)">
+            <mat-icon>arrow_forward</mat-icon>
+            Atender
+          </button>
+        }
+      </ng-template>
+    </app-tabla-estandar>
   </div>
 
 </div>

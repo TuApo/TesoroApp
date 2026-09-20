@@ -189,8 +189,8 @@ const VISTA_POR_SUFIJO: ReadonlyMap<string, FormView> = new Map([
       gap: 2px;
       padding: 4px;
       border-radius: 999px;
-      background: var(--slate-100, #eef2f7);
-      border: 1px solid var(--slate-200, #e2e8f0);
+      background: var(--surface-3);
+      border: 1px solid var(--border);
     }
     .fvh-tab {
       display: inline-flex;
@@ -200,7 +200,7 @@ const VISTA_POR_SUFIJO: ReadonlyMap<string, FormView> = new Map([
       border: none;
       border-radius: 999px;
       background: transparent;
-      color: var(--muted, #64748b);
+      color: var(--muted);
       font: inherit;
       font-size: 0.855rem;
       font-weight: 600;
@@ -211,8 +211,8 @@ const VISTA_POR_SUFIJO: ReadonlyMap<string, FormView> = new Map([
     }
     .fvh-tab-icono { font-size: 19px; transition: color 0.18s ease; }
     .fvh-tab:hover {
-      color: var(--navy, #21263c);
-      background: #fff;
+      color: var(--navy-ink);
+      background: var(--surface);
       box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10);
     }
     .fvh-tab:focus-visible {
@@ -240,10 +240,10 @@ const VISTA_POR_SUFIJO: ReadonlyMap<string, FormView> = new Map([
       gap: 7px;
       flex-shrink: 0;
       padding: 8px 16px;
-      border: 1px solid var(--slate-300, #cbd5e1);
+      border: 1px solid var(--border-strong);
       border-radius: 999px;
-      background: #fff;
-      color: var(--navy, #21263c);
+      background: var(--surface);
+      color: var(--navy-ink);
       font: inherit;
       font-size: 0.855rem;
       font-weight: 600;
@@ -252,12 +252,12 @@ const VISTA_POR_SUFIJO: ReadonlyMap<string, FormView> = new Map([
       white-space: nowrap;
       transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
     }
-    .fvh-editar-icono { font-size: 19px; color: var(--muted, #64748b); transition: color 0.18s ease; }
+    .fvh-editar-icono { font-size: 19px; color: var(--muted); transition: color 0.18s ease; }
     .fvh-editar:hover {
       border-color: var(--navy, #21263c);
       box-shadow: 0 2px 8px rgba(15, 23, 42, 0.10);
     }
-    .fvh-editar:hover .fvh-editar-icono { color: var(--navy, #21263c); }
+    .fvh-editar:hover .fvh-editar-icono { color: var(--navy-ink); }
     .fvh-editar:focus-visible {
       outline: 2px solid var(--lime, #8cd50a);
       outline-offset: 2px;
@@ -279,16 +279,16 @@ const VISTA_POR_SUFIJO: ReadonlyMap<string, FormView> = new Map([
       gap: 12px;
       min-height: 40vh;
       padding: 32px 16px;
-      color: var(--muted, #64748b);
+      color: var(--muted);
       text-align: center;
     }
-    .fvh-estado p { margin: 0; font-weight: 600; color: var(--slate-700, #334155); }
-    .fvh-estado--error .material-symbols-outlined { font-size: 44px; color: var(--danger, #b42318); }
-    .fvh-estado--error p { color: var(--danger, #b42318); }
+    .fvh-estado p { margin: 0; font-weight: 600; color: var(--text-2); }
+    .fvh-estado--error .material-symbols-outlined { font-size: 44px; color: var(--danger, #b42318); color: light-dark(var(--danger, #b42318), #f2a29c); }
+    .fvh-estado--error p { color: var(--danger, #b42318); color: light-dark(var(--danger, #b42318), #f2a29c); }
     .fvh-spinner {
       width: 34px;
       height: 34px;
-      border: 3px solid var(--slate-200, #e8edf3);
+      border: 3px solid var(--border);
       border-top-color: var(--navy, #21263c);
       border-radius: 50%;
       animation: fvh-giro 0.8s linear infinite;

@@ -154,7 +154,7 @@
 /* ── Escenario: la oficina y su panel ──────────────────────────────────────── */
 /* El panel es una columna fija: si fuera flexible, la escena 3D cambiaría de ancho
    con cada texto largo y el ResizeObserver estaría recalculando todo el rato. */
-.of-escenario { display: grid; grid-template-columns: 1fr; gap: 12px; align-items: stretch; }
+.of-escenario { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; }
 .of-escenario.con-panel { grid-template-columns: 1fr 340px; }
 
 .of-panel {
@@ -231,6 +231,6 @@
 }
 
 @media (max-width: 1100px) {
-  .of-escenario.con-panel { grid-template-columns: 1fr; }
+  .of-escenario.con-panel { grid-template-columns: minmax(0, 1fr); }
   .of-panel { height: clamp(280px, 45vh, 460px); }
 }

@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
 
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { ChartDataPoint } from '../../../models/contratacion-metricas.models';
 import { EmptyStateComponent } from '../../../../../shared/components/empty-state/empty-state.component';
@@ -9,7 +10,7 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
     selector: 'app-formularios-por-oficina-chart',
     standalone: true,
     imports: [NgxEchartsDirective, EmptyStateComponent],
-    providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+    providers: [provideEchartsTema()],
     template: `
     @if (hasData) {
       <div class="chart-container">
@@ -33,7 +34,7 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
     .chart-container { height: 100%; width: 100%; display: flex; flex-direction: column; }
     .echarts-wrapper { height: 100%; min-height: 350px; width: 100%; flex: 1; }
     .echarts-wrapper.clickable { cursor: pointer; }
-    .hint { font-size: 0.72rem; color: #94a3b8; text-align: right; padding: 4px 6px 0; }
+    .hint { font-size: 0.72rem; color: var(--text-faint); text-align: right; padding: 4px 6px 0; }
   `],
     changeDetection: ChangeDetectionStrategy.OnPush
 })

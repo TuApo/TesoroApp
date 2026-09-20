@@ -13,54 +13,69 @@
 
   @if (data.modo === 'correo') {
 
-    <!-- Envío REAL con una plantilla publicada: es lo único que demuestra que
-         el correo existe y no rebota. -->
-    <label class="cc-campo">
-      <span class="cc-campo-rot">Plantilla que se enviará</span>
-      @if (cargandoPlantillas()) {
-        <span class="cc-cargando"><mat-icon class="cc-spin">progress_activity</mat-icon> Cargando…</span>
-      } @else {
-        <select class="cc-select" [value]="plantillaId() ?? ''" (change)="elegirPlantilla($event)">
-          @for (p of disponibles(); track p.id) {
-            <option [value]="p.id">{{ p.nombre }}@if (p.asunto_actual) { — {{ p.asunto_actual }} }</option>
-          } @empty {
-            <option value="">No hay plantillas publicadas</option>
-          }
-        </select>
-      }
-      <small class="cc-ayuda">
-        El correo sale con los datos de esta persona. Si quieres que lleve el enlace de
-        ingreso, el usuario y la contraseña, usa una plantilla que los incluya.
-      </small>
-    </label>
+    <!-- Sin plantilla: un correo con código y botón. Vale cualquiera de los dos. -->
+    <p class="cc-ayuda cc-intro">
+      Le llega un correo con un <strong>código de 6 dígitos</strong> y un botón
+      <strong>«Confirmar mi correo»</strong>. Sirve cualquiera de los dos: anota aquí el código
+      que te dicte, o espera a que pulse el botón y se marca solo.
+    </p>
 
-    <button type="button" class="cc-btn cc-btn-primario"
-            [disabled]="!plantillaId() || !data.destino || enviando()"
-            (click)="enviarCorreo()">
-      <mat-icon>{{ enviando() ? 'hourglass_empty' : 'send' }}</mat-icon>
-      {{ enviando() ? 'Enviando…' : 'Enviar y comprobar' }}
-    </button>
-
-    @if (resultado(); as r) {
-      @if (r.enviado) {
+    @if (estado(); as e) {
+      @if (e.confirmado) {
         <div class="cc-ok">
-          <mat-icon>check_circle</mat-icon>
+          <mat-icon>verified</mat-icon>
           <div>
-            <strong>Salió sin rebotar.</strong>
-            Enviado desde {{ r.remitente }} a {{ r.destinatario }}.
-            @if (r.disponible_hoy !== null) {
-              <span class="cc-cuota">Quedan {{ r.disponible_hoy }} envíos hoy por esa cuenta.</span>
-            }
+            <strong>Correo comprobado.</strong>
+            {{ e.confirmado_por === 'ENLACE' ? 'La persona pulsó el botón del correo.' : 'El código coincide.' }}
           </div>
         </div>
+      } @else if (!e.vigente) {
+        <div class="cc-error">
+          <mat-icon>schedule</mat-icon>
+          <div><strong>Este correo ya no vale</strong> (venció o se envió otro). Envía uno nuevo.</div>
+        </div>
+      } @else {
+        <div class="cc-ok">
+          <mat-icon>mark_email_read</mat-icon>
+          <div>
+            <strong>Enviado a {{ e.correo }}.</strong>
+            <span class="cc-cuota">
+              <mat-icon class="cc-spin cc-espera">progress_activity</mat-icon>
+              Esperando a que pulse el botón del correo… Vence en 24 horas.
+            </span>
+          </div>
+        </div>
+
+        <label class="cc-campo">
+          <span class="cc-campo-rot">Código que te dicta la persona</span>
+          <div class="cc-fila-codigo">
+            <input class="cc-input cc-codigo" type="text" inputmode="numeric" autocomplete="one-time-code"
+                   maxlength="6" placeholder="000000" [value]="codigo()" (input)="alEscribirCodigo($event)"
+                   (keydown.enter)="verificarCodigo()" />
+            <button type="button" class="cc-btn cc-btn-primario"
+                    [disabled]="codigo().length !== 6 || verificando()" (click)="verificarCodigo()">
+              <mat-icon>{{ verificando() ? 'hourglass_empty' : 'check' }}</mat-icon>
+              {{ verificando() ? 'Verificando…' : 'Verificar código' }}
+            </button>
+          </div>
+        </label>
       }
+    }
+
+    @if (!estado()?.confirmado) {
+      <button type="button" class="cc-btn" [class.cc-btn-primario]="!estado()" [class.cc-btn-secundario]="!!estado()"
+              [disabled]="!data.destino || !data.cedula || enviando()"
+              (click)="enviarCorreo()">
+        <mat-icon>{{ enviando() ? 'hourglass_empty' : 'send' }}</mat-icon>
+        {{ enviando() ? 'Enviando…' : (estado() ? 'Reenviar correo' : 'Enviar correo de comprobación') }}
+      </button>
     }
 
     @if (error(); as e) {
       <div class="cc-error">
         <mat-icon>error_outline</mat-icon>
         <div>
-          <strong>No se pudo comprobar.</strong> {{ e }}
+          {{ e }}
           <span class="cc-cuota">El contacto NO queda marcado como comprobado.</span>
         </div>
       </div>

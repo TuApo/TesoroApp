@@ -131,55 +131,34 @@
 
   <!-- ─── TABLA detalle (colapsable) ─────────────────────────────── -->
   @if (showDetails() && batches().length > 0) {
-    <section class="table-wrap">
-      <table class="batches-table">
-        <thead>
-          <tr>
-            <th>Lote</th>
-            <th>Personas</th>
-            <th>Versiones</th>
-            <th>Tamaño</th>
-            <th>Estado</th>
-            <th matTooltip="archivos escritos / faltantes según server">Files</th>
-            <th>Tiempo</th>
-            <th>Detalle</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (b of batches(); track b.batch_id) {
-            <tr [class]="'row-' + b.status">
-              <td><code>{{ b.batch_id }}</code></td>
-              <td>{{ b.owners }}</td>
-              <td>{{ b.versions }}</td>
-              <td>{{ formatBytes(b.bytes) }}</td>
-              <td>
-                <span class="badge badge-{{ b.status }}">
-                  @switch (b.status) {
-                    @case ('pending')     { <mat-icon>schedule</mat-icon> pendiente }
-                    @case ('in_progress') { <mat-icon class="spin">sync</mat-icon> bajando }
-                    @case ('done')        { <mat-icon>check</mat-icon> ok }
-                    @case ('skipped')     { <mat-icon>skip_next</mat-icon> ya estaba }
-                    @case ('error')       { <mat-icon>error</mat-icon> error }
-                  }
-                </span>
-              </td>
-              <td>
-                @if (b.files_written !== undefined && b.files_written >= 0) {
-                  <span [class.warn]="(b.files_missing ?? 0) > 0">
-                    {{ b.files_written }}<span class="muted"> / {{ b.files_missing }}</span>
-                  </span>
-                } @else if (b.status === 'skipped') {
-                  <em class="muted">—</em>
-                } @else {
-                  <span class="muted">—</span>
-                }
-              </td>
-              <td>{{ formatMs(b.duration_ms) }}</td>
-              <td class="error-cell">{{ b.error || '' }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </section>
+    <app-tabla-estandar
+      id="home-migracion-lotes"
+      titulo="Lotes de migración"
+      modulo="Home"
+      [datos]="batches()"
+      [columnas]="columnasLotes"
+      [filaId]="idLote"
+      [filaClase]="claseFilaLote">
+
+      <ng-template tablaCelda="lote" let-b>
+        <code>{{ b.batch_id }}</code>
+      </ng-template>
+
+      <ng-template tablaCelda="files" let-b>
+        @if (b.files_written !== undefined && b.files_written >= 0) {
+          <span [class.warn]="(b.files_missing ?? 0) > 0">
+            {{ b.files_written }}<span class="muted"> / {{ b.files_missing }}</span>
+          </span>
+        } @else if (b.status === 'skipped') {
+          <em class="muted">—</em>
+        } @else {
+          <span class="muted">—</span>
+        }
+      </ng-template>
+
+      <ng-template tablaCelda="detalle" let-b>
+        <span class="error-cell">{{ b.error || '' }}</span>
+      </ng-template>
+    </app-tabla-estandar>
   }
 </div>

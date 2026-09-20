@@ -1,9 +1,10 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { TrainingAdminService, Curso, CursoRequest } from '../../service/training-admin.service';
 
 /**
@@ -16,7 +17,7 @@ import { TrainingAdminService, Curso, CursoRequest } from '../../service/trainin
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-courses',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
   templateUrl: './admin-courses.html',
   styleUrl: './admin-courses.css'
 })
@@ -28,18 +29,21 @@ export class AdminCourses implements OnInit {
   readonly cargando = signal(true);
   readonly error = signal<string | null>(null);
   readonly guardando = signal(false);
-  readonly busqueda = signal('');
 
   /** Formulario del curso que se está creando o editando; null = panel cerrado. */
   readonly editando = signal<(CursoRequest & { id?: string }) | null>(null);
 
-  readonly filtrados = computed(() => {
-    const q = this.busqueda().trim().toLowerCase();
-    const lista = this.cursos();
-    if (!q) return lista;
-    return lista.filter(c =>
-      c.nombre.toLowerCase().includes(q) || c.codigo.toLowerCase().includes(q));
-  });
+  /** La búsqueda por nombre o código, el orden y los filtros los hace la tabla estándar. */
+  readonly columnas: ColumnaTabla<Curso>[] = [
+    { id: 'curso', header: 'Curso', valor: (c) => c.nombre, tarjeta: 'titulo', minAncho: '200px' },
+    { id: 'codigo', header: 'Código', valor: (c) => c.codigo, tarjeta: 'subtitulo' },
+    { id: 'modalidad', header: 'Modalidad', valor: (c) => c.modalidad_default, prioridad: 2, tarjeta: 'meta' },
+    { id: 'vigencia', header: 'Vigencia', prioridad: 2, tarjeta: 'meta',
+      valor: (c) => (c.vigencia_meses ? c.vigencia_meses + ' meses' : 'No vence') },
+    { id: 'estado', header: 'Estado', tarjeta: 'badge', valor: (c) => this.estadoTexto(c),
+      badge: (c) => ({ texto: this.estadoTexto(c), tono: c.estado === 'ARCHIVADO' ? 'neutro' : c.version_publicada ? 'ok' : 'warn' }) },
+  ];
+  readonly idCurso = (c: Curso) => c.id;
 
   async ngOnInit(): Promise<void> {
     await this.cargar();
@@ -140,10 +144,5 @@ export class AdminCourses implements OnInit {
   estadoTexto(c: Curso): string {
     if (c.estado === 'ARCHIVADO') return 'Archivado';
     return c.version_publicada ? `Publicado · v${c.version_publicada}` : 'Sin publicar';
-  }
-
-  estadoClase(c: Curso): string {
-    if (c.estado === 'ARCHIVADO') return 'chip-archivado';
-    return c.version_publicada ? 'chip-publicado' : 'chip-borrador';
   }
 }

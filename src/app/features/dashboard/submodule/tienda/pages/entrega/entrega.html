@@ -1,0 +1,221 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>how_to_reg</mat-icon> Entrega de mercados</h1>
+      <p class="tienda-subtitulo">Teclee la cédula que le entregan y compruebe antes de entregar.</p>
+    </div>
+    <button type="button" class="boton secundario" (click)="abrirBandeja()">
+      <mat-icon>flag</mat-icon>
+      {{ verBandeja() ? 'Ocultar dudosos' : 'Ver marcados como dudosos' }}
+    </button>
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  @if (verBandeja()) {
+    <section class="tienda-tarjeta bandeja">
+      <h2><mat-icon>flag</mat-icon> Validaciones marcadas como dudosas</h2>
+      @if (sospechosas().length === 0) {
+        <p class="nota">No hay ninguna pendiente de revisar.</p>
+      } @else {
+        <ul class="lista-dudosos">
+          @for (v of sospechosas(); track v.id) {
+            <li>
+              <strong>{{ v.cedula_presentada }}</strong>
+              <span class="fecha">{{ v.creado_en | date:'short' }}</span>
+              <em>{{ v.comentario }}</em>
+              @if (v.revisado_por_nombre) { <span class="quien">— {{ v.revisado_por_nombre }}</span> }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+
+  <form class="buscador tienda-tarjeta" (ngSubmit)="buscar()">
+    <label class="campo crecer">
+      <span>Cédula de quien reclama</span>
+      <input type="text" inputmode="numeric" autocomplete="off" autofocus
+             placeholder="Número de la cédula o de la fotocopia"
+             [ngModel]="cedula()" (ngModelChange)="cedula.set($event)" name="cedula" />
+    </label>
+    <button type="submit" class="boton principal" [disabled]="buscando() || !cedula().trim()">
+      {{ buscando() ? 'Buscando…' : 'Buscar' }}
+    </button>
+  </form>
+
+  @if (expediente(); as e) {
+    <div class="entrega-cuerpo">
+
+      <section class="tienda-tarjeta persona">
+        <h2><mat-icon>badge</mat-icon> {{ e.nombre || e.cedula }}</h2>
+        <p class="cedula-linea">{{ e.cedula }}</p>
+
+        <div class="foto-marco">
+          @switch (estadoFoto(e)) {
+            @case ('SI') {
+              <img [src]="e.foto_url" alt="Foto de contratación" class="foto" />
+              <span class="pie">Foto de contratación</span>
+            }
+            @case ('NO') {
+              <div class="foto-vacia">
+                <mat-icon>no_photography</mat-icon>
+                <span>Esta persona no tiene foto cargada en contratación</span>
+              </div>
+            }
+            @default {
+              <!-- No se pudo preguntar. Es distinto de no tener foto, y decirlo importa:
+                   en un caso falta el dato, en el otro falló el sistema. -->
+              <div class="foto-vacia desconocido">
+                <mat-icon>cloud_off</mat-icon>
+                <span>No se pudo consultar contratación. Compruebe por otro medio.</span>
+              </div>
+            }
+          }
+        </div>
+
+        <h3><mat-icon>folder</mat-icon> Documentos</h3>
+        @if (e.documentos.length === 0) {
+          <p class="nota">No hay documentos cargados para esta cédula.</p>
+        } @else {
+          <ul class="documentos">
+            @for (d of e.documentos; track d.document_id) {
+              <li>
+                <mat-icon>description</mat-icon>
+                <span>{{ d.type_name || d.nombre_archivo }}</span>
+                @if (d.periodo_etiqueta) { <em>{{ d.periodo_etiqueta }}</em> }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="pedidos">
+        <h2 class="titulo-seccion">Pedidos por entregar</h2>
+
+        @if (e.pedidos.length === 0) {
+          <div class="tienda-tarjeta tienda-vacio">
+            <mat-icon>inbox</mat-icon>
+            <p>Esta cédula no tiene pedidos pendientes de entrega.</p>
+          </div>
+        } @else {
+          @for (p of e.pedidos; track p.id) {
+            <article class="tienda-tarjeta pedido"
+                     [class.activo]="seleccionado()?.id === p.id"
+                     (click)="elegir(p)">
+              <div class="cabecera">
+                <strong>{{ p.numero }}</strong>
+                <span class="insignia" [class]="'insignia ' + claseValidacion(p.validacion_estado)">
+                  {{ textoValidacion(p.validacion_estado) }}
+                </span>
+                <span class="total">{{ p.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              </div>
+              <div class="datos">
+                <span><mat-icon>local_shipping</mat-icon> {{ p.tipo_entrega }}</span>
+                <span><mat-icon>flag</mat-icon> {{ p.estado }}</span>
+                @if (p.programado_en) {
+                  <span><mat-icon>event</mat-icon> {{ p.programado_en | date:'short' }}</span>
+                }
+              </div>
+
+              @if (p.reclama === 'TERCERO' && p.tercero; as t) {
+                <div class="tercero">
+                  <p class="tercero-titulo">
+                    <mat-icon>group</mat-icon>
+                    Lo reclama <strong>{{ t.nombre }}</strong> ({{ t.cedula }})
+                    @if (t.parentesco) { <span>· {{ t.parentesco }}</span> }
+                  </p>
+                  <div class="tercero-fotos">
+                    <figure>
+                      <span>Rostro</span>
+                      @if (t.rostro_doc_id) { <mat-icon>photo_camera</mat-icon> }
+                      @else { <em class="falta">sin foto</em> }
+                    </figure>
+                    <figure>
+                      <span>Cédula frente</span>
+                      @if (t.cedula_frente_doc_id) { <mat-icon>badge</mat-icon> }
+                      @else { <em class="falta">falta</em> }
+                    </figure>
+                    <figure>
+                      <span>Cédula reverso</span>
+                      @if (t.cedula_reverso_doc_id) { <mat-icon>badge</mat-icon> }
+                      @else { <em class="falta">falta</em> }
+                    </figure>
+                  </div>
+                  @if (!t.cedula_frente_doc_id || !t.cedula_reverso_doc_id) {
+                    <p class="tienda-error compacto">
+                      <mat-icon>error_outline</mat-icon>
+                      Falta la cédula por alguna cara. Sin las dos no hay con qué cotejar
+                      y no se puede aprobar.
+                    </p>
+                  }
+                </div>
+              }
+            </article>
+          }
+        }
+
+        @if (seleccionado(); as p) {
+          <section class="tienda-tarjeta decision">
+            <h2><mat-icon>fact_check</mat-icon> Decisión sobre {{ p.numero }}</h2>
+
+            <label class="campo">
+              <span>¿Qué le presentaron?</span>
+              <select [ngModel]="medio()" (ngModelChange)="medio.set($event)">
+                <option value="CEDULA">La cédula original</option>
+                <option value="FOTOCOPIA">Una fotocopia</option>
+                <option value="DIGITAL">Cédula digital</option>
+              </select>
+            </label>
+
+            <label class="campo">
+              <span>Comentario</span>
+              <textarea rows="2" placeholder="Qué vio, qué le llamó la atención…"
+                        [ngModel]="comentario()" (ngModelChange)="comentario.set($event)"></textarea>
+            </label>
+
+            <div class="botones-decision">
+              <button type="button" class="boton principal" [disabled]="enviando()"
+                      (click)="decidir('APROBADA')">
+                <mat-icon>check</mat-icon> Aprobar y entregar
+              </button>
+              <button type="button" class="boton dudoso" [disabled]="enviando()"
+                      (click)="decidir('SOSPECHOSA')">
+                <mat-icon>help</mat-icon> Parece falso
+              </button>
+              <button type="button" class="boton peligro" [disabled]="enviando()"
+                      (click)="decidir('RECHAZADA')">
+                <mat-icon>block</mat-icon> Rechazar
+              </button>
+            </div>
+            <p class="nota">
+              «Parece falso» no rechaza: deja el pedido detenido y anotado para que alguien
+              lo mire con calma. Úselo cuando dude, no cuando esté seguro.
+            </p>
+
+            @if (validaciones().length > 0) {
+              <h3>Lo que ya se registró</h3>
+              <ul class="historial-validaciones">
+                @for (v of validaciones(); track v.id) {
+                  <li>
+                    <span class="insignia" [class]="'insignia ' + claseValidacion(v.resultado)">
+                      {{ v.resultado }}
+                    </span>
+                    <span class="fecha">{{ v.creado_en | date:'short' }}</span>
+                    @if (v.comentario) { <em>{{ v.comentario }}</em> }
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+        }
+      </section>
+    </div>
+  }
+</div>

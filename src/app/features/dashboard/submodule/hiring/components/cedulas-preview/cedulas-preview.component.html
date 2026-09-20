@@ -22,71 +22,34 @@
     </div>
   </div>
 
-  <!-- Desktop View -->
-  @if (data.length > 0) {
-    <div class="table-container desktop-only">
-      <table mat-table [dataSource]="data" class="preview-table">
-        <!-- Status Column -->
-        <ng-container matColumnDef="status">
-          <th mat-header-cell *matHeaderCellDef> Estado </th>
-          <td mat-cell *matCellDef="let element">
-            <mat-icon [class.valid-icon]="element.esValido" [class.invalid-icon]="!element.esValido"
-              [matTooltip]="element.esValido ? 'Correcto' : element.error">
-              {{ element.esValido ? 'check_circle' : 'cancel' }}
-            </mat-icon>
-          </td>
-        </ng-container>
-        <!-- Documento Column -->
-        <ng-container matColumnDef="documento">
-          <th mat-header-cell *matHeaderCellDef> Documento </th>
-          <td mat-cell *matCellDef="let element"> {{ element.documento || '---' }} </td>
-        </ng-container>
-        <!-- Nombre Column -->
-        <ng-container matColumnDef="nombre">
-          <th mat-header-cell *matHeaderCellDef> Nombre Extraído </th>
-          <td mat-cell *matCellDef="let element">
-            <span class="nombre-text">{{ element.nombre || '---' }}</span>
-          </td>
-        </ng-container>
-        <!-- Archivo Column -->
-        <ng-container matColumnDef="archivo">
-          <th mat-header-cell *matHeaderCellDef> Archivo Original </th>
-          <td mat-cell *matCellDef="let element">
-            <span class="filename" [matTooltip]="element.nombreArchivo">{{ element.nombreArchivo }}</span>
-          </td>
-        </ng-container>
-        <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;" [class.row-error]="!row.esValido"></tr>
-      </table>
-    </div>
-  } @else {
-    <div class="empty-state">
-      <mat-icon>upload_file</mat-icon>
-      <p>Selecciona archivos para ver la vista previa.</p>
-    </div>
-  }
+  <!-- La tabla estándar trae la vista en tarjetas para móvil: ya no hay vista móvil propia. -->
+  <div class="preview-body">
+    <app-tabla-estandar
+      id="contratacion-reporte-previa-cedulas"
+      titulo="Vista previa cédulas"
+      modulo="Contratación"
+      [datos]="data"
+      [columnas]="columnas"
+      [filaClase]="claseFila">
 
-  <!-- Mobile View -->
-  @if (data.length > 0) {
-    <div class="cards-container mobile-only">
-      @for (item of data; track $index) {
-        <mat-card class="preview-card" [class.card-error]="!item.esValido">
-          <mat-card-header>
-            <mat-icon mat-card-avatar [class.valid-icon]="item.esValido" [class.invalid-icon]="!item.esValido">
-              {{ item.esValido ? 'check_circle' : 'error' }}
-            </mat-icon>
-            <mat-card-title>{{ item.documento || 'Sin Documento' }}</mat-card-title>
-            <mat-card-subtitle>{{ item.nombre || 'Sin Nombre' }}</mat-card-subtitle>
-          </mat-card-header>
-          <mat-card-content>
-            <p class="filename-mobile">{{ item.nombreArchivo }}</p>
-            @if (!item.esValido) {
-              <p class="error-msg">{{ item.error }}</p>
-            }
-          </mat-card-content>
-        </mat-card>
-      }
-    </div>
-  }
+      <ng-template tablaCelda="status" let-element>
+        <mat-icon [class.valid-icon]="element.esValido" [class.invalid-icon]="!element.esValido"
+          [matTooltip]="element.esValido ? 'Correcto' : element.error">
+          {{ element.esValido ? 'check_circle' : 'cancel' }}
+        </mat-icon>
+      </ng-template>
+
+      <ng-template tablaCelda="archivo" let-element>
+        <span class="filename" [matTooltip]="element.nombreArchivo">{{ element.nombreArchivo }}</span>
+      </ng-template>
+
+      <ng-template tablaVacio>
+        <div class="empty-state">
+          <mat-icon>upload_file</mat-icon>
+          <p>Selecciona archivos para ver la vista previa.</p>
+        </div>
+      </ng-template>
+    </app-tabla-estandar>
+  </div>
 
 </div>

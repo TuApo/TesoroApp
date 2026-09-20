@@ -48,107 +48,73 @@
 
   <!-- ───────── Cuerpo ───────── -->
   <div mat-dialog-content class="cumpl-body">
-    @if (loading()) {
-      <div class="cumpl-state">
-        <mat-icon class="spin">progress_activity</mat-icon>
-        <span>Cargando candidatos…</span>
-      </div>
-    } @else if (total() === 0) {
-      <div class="cumpl-state">
-        <mat-icon>person_off</mat-icon>
-        <span>No hay personas asignadas a esta vacante.</span>
-      </div>
-    } @else {
-      <div class="cumpl-toolbar">
-        <span class="cumpl-count">
-          <mat-icon>groups</mat-icon>
-          {{ total() }} {{ total() === 1 ? 'persona' : 'personas' }}
-          @if (seleccionCount() > 0) {
-            <span class="cumpl-sel-pill">{{ seleccionCount() }} seleccionada(s)</span>
+    <app-tabla-estandar
+      id="vacantes-cumplimiento-candidatos"
+      titulo="Candidatos de la vacante"
+      modulo="Vacantes"
+      vacio="No hay personas asignadas a esta vacante."
+      [datos]="candidatos()"
+      [columnas]="columnas"
+      [filaId]="idProceso"
+      [seleccion]="seleccion"
+      [cargando]="loading()">
+
+      <ng-template tablaCelda="candidato" let-c>
+        <div class="persona">
+          <span class="persona-avatar">{{ iniciales(c) }}</span>
+          <div class="persona-info">
+            <span class="persona-nombre">{{ nombreBonito(c) }}</span>
+            <span class="persona-meta">{{ nombreMostrar(c) }}</span>
+          </div>
+        </div>
+      </ng-template>
+
+      <ng-template tablaCelda="documento" let-c>
+        <span class="doc-tipo">{{ c.tipo_doc || 'CC' }}</span>
+        <span class="doc-num">{{ c.numero_documento }}</span>
+      </ng-template>
+
+      <ng-template tablaCelda="etapa" let-c>
+        <span class="etapa-chip" [ngClass]="etapaClass(c.etapa)"
+          [matTooltip]="c.no_paso_prueba_tecnica ? noPasoTooltip(c) : ''"
+          matTooltipClass="cumpl-nopaso-tooltip">
+          {{ c.etapa || '—' }}
+        </span>
+        @if (c.no_paso_prueba_tecnica && c.motivo_no_paso_prueba_tecnica) {
+          <span class="etapa-motivo" [matTooltip]="noPasoTooltip(c)" matTooltipClass="cumpl-nopaso-tooltip">
+            <mat-icon>info</mat-icon>{{ c.motivo_no_paso_prueba_tecnica }}
+          </span>
+        }
+      </ng-template>
+
+      <!-- Registrar resultado: se ofrece según la etapa en la que va
+           la persona, o si ya tiene un resultado que se quiera cambiar. -->
+      <ng-template tablaCelda="resultado" let-c>
+        <span class="col-resultado">
+          @if (puedeRegistrar(c, 'prueba')) {
+            <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'prueba') }}"
+              [disabled]="working()"
+              [matTooltip]="'Prueba técnica: ' + etiquetaResultado(c, 'prueba') + ' · click para cambiar'"
+              (click)="registrarResultado(c, 'prueba')">
+              <mat-icon>assignment_ind</mat-icon>
+            </button>
+          }
+          @if (puedeRegistrar(c, 'examen')) {
+            <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'examen') }}"
+              [disabled]="working()"
+              [matTooltip]="'Examen médico: ' + etiquetaResultado(c, 'examen') + ' · click para cambiar'"
+              (click)="registrarResultado(c, 'examen')">
+              <mat-icon>medical_information</mat-icon>
+            </button>
+          }
+          @if (!puedeRegistrar(c, 'prueba') && !puedeRegistrar(c, 'examen')) {
+            <span class="resultado-vacio">—</span>
           }
         </span>
-      </div>
+      </ng-template>
+    </app-tabla-estandar>
 
-      <div class="cumpl-table-wrap">
-        <table class="cumpl-table">
-          <thead>
-            <tr>
-              <th class="col-check">
-                <mat-checkbox
-                  [checked]="allSelected()"
-                  [indeterminate]="someSelected()"
-                  (change)="toggleAll($event.checked)">
-                </mat-checkbox>
-              </th>
-              <th class="col-num">#</th>
-              <th>Candidato</th>
-              <th class="col-doc">Documento</th>
-              <th class="col-etapa">Etapa</th>
-              <th class="col-resultado">Resultado</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (c of candidatos(); track c.proceso_id; let i = $index) {
-              <tr [class.fila-sel]="isSelected(c)" (click)="toggle(c, !isSelected(c))">
-                <td class="col-check" (click)="$event.stopPropagation()">
-                  <mat-checkbox [checked]="isSelected(c)" (change)="toggle(c, $event.checked)"></mat-checkbox>
-                </td>
-                <td class="col-num">{{ i + 1 }}</td>
-                <td>
-                  <div class="persona">
-                    <span class="persona-avatar">{{ iniciales(c) }}</span>
-                    <div class="persona-info">
-                      <span class="persona-nombre">{{ nombreBonito(c) }}</span>
-                      <span class="persona-meta">{{ nombreMostrar(c) }}</span>
-                    </div>
-                  </div>
-                </td>
-                <td class="col-doc">
-                  <span class="doc-tipo">{{ c.tipo_doc || 'CC' }}</span>
-                  <span class="doc-num">{{ c.numero_documento }}</span>
-                </td>
-                <td class="col-etapa">
-                  <span class="etapa-chip" [ngClass]="etapaClass(c.etapa)"
-                    [matTooltip]="c.no_paso_prueba_tecnica ? noPasoTooltip(c) : ''"
-                    matTooltipClass="cumpl-nopaso-tooltip">
-                    {{ c.etapa || '—' }}
-                  </span>
-                  @if (c.no_paso_prueba_tecnica && c.motivo_no_paso_prueba_tecnica) {
-                    <span class="etapa-motivo" [matTooltip]="noPasoTooltip(c)" matTooltipClass="cumpl-nopaso-tooltip">
-                      <mat-icon>info</mat-icon>{{ c.motivo_no_paso_prueba_tecnica }}
-                    </span>
-                  }
-                </td>
-
-                <!-- Registrar resultado: se ofrece según la etapa en la que va
-                     la persona, o si ya tiene un resultado que se quiera cambiar. -->
-                <td class="col-resultado" (click)="$event.stopPropagation()">
-                  @if (puedeRegistrar(c, 'prueba')) {
-                    <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'prueba') }}"
-                      [disabled]="working()"
-                      [matTooltip]="'Prueba técnica: ' + etiquetaResultado(c, 'prueba') + ' · click para cambiar'"
-                      (click)="registrarResultado(c, 'prueba')">
-                      <mat-icon>assignment_ind</mat-icon>
-                    </button>
-                  }
-                  @if (puedeRegistrar(c, 'examen')) {
-                    <button mat-icon-button class="btn-resultado {{ claseResultado(c, 'examen') }}"
-                      [disabled]="working()"
-                      [matTooltip]="'Examen médico: ' + etiquetaResultado(c, 'examen') + ' · click para cambiar'"
-                      (click)="registrarResultado(c, 'examen')">
-                      <mat-icon>medical_information</mat-icon>
-                    </button>
-                  }
-                  @if (!puedeRegistrar(c, 'prueba') && !puedeRegistrar(c, 'examen')) {
-                    <span class="resultado-vacio">—</span>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-
+    @if (!loading() && total() > 0) {
       <p class="cumpl-hint">
         <mat-icon>info</mat-icon>
         <strong>Descargar</strong> usa las filas seleccionadas (o todas si no marcas ninguna).

@@ -18,6 +18,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import { ProcessControlService } from '../../services/process-control.service';
 import { ApiProblem } from '../../models/dynamic-forms.models';
 import {
@@ -33,9 +34,6 @@ export interface BulkLoadData {
 }
 
 type Paso = 'cargar' | 'preview' | 'resultado';
-
-/** Filas que se pintan de entrada; el resto queda tras "mostrar todas". */
-const TOPE_RENDER = 200;
 
 /**
  * CARGA MASIVA para crear o corregir registros en bloque.
@@ -60,6 +58,7 @@ const TOPE_RENDER = 200;
     CommonModule, FormsModule,
     MatDialogModule, MatButtonModule, MatButtonToggleModule, MatFormFieldModule,
     MatIconModule, MatInputModule, MatProgressBarModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './bulk-load-dialog.component.html',
   styleUrls: ['./bulk-load-dialog.component.css'],
@@ -81,19 +80,34 @@ export class BulkLoadDialogComponent {
   readonly totalFilas = computed(() => this.filas().length);
 
   readonly preview = signal<BulkPreview | null>(null);
-  readonly mostrarTodas = signal(false);
   readonly aplicado = signal<{ creados: number; actualizados: number; saltados: number; errores: number } | null>(null);
   readonly fallidas = signal<BulkRow[]>([]);
 
   /** Texto pegado desde Excel (paso 1, alternativa al archivo). */
   textoPegado = '';
 
-  readonly filasVisibles = computed<BulkRow[]>(() => {
-    const rows = this.preview()?.rows ?? [];
-    return this.mostrarTodas() ? rows : rows.slice(0, TOPE_RENDER);
-  });
+  /** Revisión fila por fila (paso 2). La tabla estándar pagina: ya no hace falta un tope. */
+  readonly columnasRevision: ColumnaTabla<BulkRow>[] = [
+    { id: 'fila', header: 'Fila', valor: f => f.row_number, ancho: '56px', tarjeta: 'subtitulo' },
+    { id: 'resultado', header: 'Resultado', valor: f => this.etiquetaResultado(f.outcome), tarjeta: 'badge',
+      badge: f => ({ texto: this.etiquetaResultado(f.outcome), tono: this.tonoResultado(f.outcome) }) },
+    { id: 'registro', header: 'Registro', tarjeta: 'titulo',
+      valor: f => (f.submission_id ? `#${f.submission_id}` : f.record_key ?? '') },
+    { id: 'detalle', header: 'Detalle', tarjeta: 'cuerpo', minAncho: '260px',
+      valor: f => [
+        f.errors.length ? f.errors.join(' · ') : f.changes.length ? this.resumenCambios(f) : 'Nada que cambiar',
+        f.ignored_columns.length ? `Sin permiso para escribir: ${f.ignored_columns.join(', ')}` : '',
+      ].filter(Boolean).join(' · ') },
+  ];
 
-  readonly hayMas = computed(() => (this.preview()?.rows.length ?? 0) > TOPE_RENDER);
+  /** Filas que fallaron al aplicar (paso 3). */
+  readonly columnasFallidas: ColumnaTabla<BulkRow>[] = [
+    { id: 'fila', header: 'Fila', valor: f => f.row_number, ancho: '56px', tarjeta: 'titulo' },
+    { id: 'motivo', header: 'Motivo', valor: f => f.errors.join(' · '), tarjeta: 'cuerpo', minAncho: '260px' },
+  ];
+
+  readonly idFila = (f: BulkRow) => f.row_number;
+  readonly claseFila = (f: BulkRow) => (f.outcome === 'ERROR' ? 'te-fila--peligro' : '');
 
   readonly aplicables = computed(() => {
     const p = this.preview();
@@ -215,7 +229,6 @@ export class BulkLoadDialogComponent {
     }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: p => {
         this.preview.set(p);
-        this.mostrarTodas.set(false);
         this.paso.set('preview');
         this.cargando.set(false);
       },
@@ -289,13 +302,13 @@ export class BulkLoadDialogComponent {
     }
   }
 
-  claseResultado(o: string): string {
+  tonoResultado(o: string): TonoBadge {
     switch (o) {
-      case 'CREATE': return 'blk-chip--crear';
-      case 'UPDATE': return 'blk-chip--actualizar';
-      case 'NO_CHANGE': return 'blk-chip--igual';
-      case 'ERROR': return 'blk-chip--error';
-      default: return '';
+      case 'CREATE': return 'ok';
+      case 'UPDATE': return 'warn';
+      case 'NO_CHANGE': return 'neutro';
+      case 'ERROR': return 'danger';
+      default: return 'neutro';
     }
   }
 

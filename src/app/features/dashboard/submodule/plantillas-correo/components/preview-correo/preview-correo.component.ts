@@ -90,30 +90,30 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     .pv { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
     .pv__barra { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .pv__asunto {
-      flex: 1 1 240px; min-width: 0; font-size: 13px; color: var(--mat-sys-on-surface-variant, #5f6368);
+      flex: 1 1 240px; min-width: 0; font-size: 13px; color: var(--mat-sys-on-surface-variant, var(--muted));
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .pv__chip { font-size: 12px; }
-    .pv__chip--aviso { --mdc-chip-elevated-container-color: #fef3c7; }
-    .pv__chip--ok { --mdc-chip-elevated-container-color: #d1fae5; }
+    .pv__chip--aviso { --mdc-chip-elevated-container-color: light-dark(#fef3c7, #373625); }
+    .pv__chip--ok { --mdc-chip-elevated-container-color: light-dark(#d1fae5, #133b38); }
     .pv__preheader {
       display: flex; align-items: center; gap: 6px; font-size: 12px; font-style: italic;
-      color: #6b7280; background: #f8fafc; border-left: 3px solid #cbd5e1; padding: 6px 10px; border-radius: 4px;
+      color: var(--muted); background: var(--surface-2); border-left: 3px solid var(--border-strong); padding: 6px 10px; border-radius: 4px;
     }
     .pv__preheader mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .pv__lienzo {
       flex: 1 1 auto; min-height: 420px; display: flex; justify-content: center;
-      background: #e2e8f0; border-radius: 8px; padding: 12px; overflow: auto;
+      background: var(--surface-4); border-radius: 8px; padding: 12px; overflow: auto;
     }
     /* El iframe se lleva el ancho del lienzo de correo, no el del panel: así lo
        que se ve aquí es lo que llega, y no una versión estirada. */
-    .pv__iframe { width: 100%; max-width: 640px; height: 100%; min-height: 400px; border: 0; background: #fff; border-radius: 6px; }
+    .pv__iframe { width: 100%; max-width: 640px; height: 100%; min-height: 400px; border: 0; background: var(--surface); border-radius: 6px; }
     .pv__lienzo--movil .pv__iframe { max-width: 360px; }
     .pv__aviso {
       display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5;
-      background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; padding: 10px 12px; border-radius: 6px;
+      background: #fffbeb; background: light-dark(#fffbeb, #383624); border: 1px solid #fcd34d; color: #92400e; color: light-dark(#92400e, #f5bc99); padding: 10px 12px; border-radius: 6px;
     }
-    .pv__aviso code { background: rgba(0,0,0,.06); padding: 1px 5px; border-radius: 3px; word-break: break-all; }
+    .pv__aviso code { background: rgb(var(--ink-rgb) / 0.06); padding: 1px 5px; border-radius: 3px; word-break: break-all; }
   `],
 })
 export class PreviewCorreoComponent {

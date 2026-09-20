@@ -16,46 +16,24 @@
     </div>
     <!-- Contenedor con scroll para la tabla -->
     <div class="table-scroll">
-      <table mat-table [dataSource]="campos()" class="mat-elevation-z1">
-        <ng-container matColumnDef="campo">
-          <th mat-header-cell *matHeaderCellDef> Campo </th>
-          <td mat-cell *matCellDef="let r">{{ r.campo }}</td>
-        </ng-container>
-        <ng-container matColumnDef="tipo">
-          <th mat-header-cell *matHeaderCellDef> Tipo </th>
-          <td mat-cell *matCellDef="let r">{{ r.tipo }}</td>
-        </ng-container>
-        <ng-container matColumnDef="obligatorio">
-          <th mat-header-cell *matHeaderCellDef> Oblig. </th>
-          <td mat-cell *matCellDef="let r">{{ r.obligatorio ? 'Sí' : 'No' }}</td>
-        </ng-container>
-        <ng-container matColumnDef="visible">
-          <th mat-header-cell *matHeaderCellDef> Visible </th>
-          <td mat-cell *matCellDef="let r">{{ r.visible ? 'Sí' : 'No' }}</td>
-        </ng-container>
-        <ng-container matColumnDef="orden">
-          <th mat-header-cell *matHeaderCellDef> Orden </th>
-          <td mat-cell *matCellDef="let r">{{ r.orden }}</td>
-        </ng-container>
-        <ng-container matColumnDef="acciones">
-          <th mat-header-cell *matHeaderCellDef class="right"> Acciones </th>
-          <td mat-cell *matCellDef="let r" class="right">
-            <button mat-icon-button matTooltip="Editar" (click)="startEditCampo(r)">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="deleteCampo(r)">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </td>
-        </ng-container>
-        <tr mat-header-row *matHeaderRowDef="displayedColumnsCampos"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumnsCampos"></tr>
-        @if (!campos().length) {
-          <tr class="no-data">
-            <td [attr.colspan]="displayedColumnsCampos.length">Sin campos todavía.</td>
-          </tr>
-        }
-      </table>
+      <app-tabla-estandar
+        id="usuarios-meta-campos"
+        titulo="Campos"
+        modulo="Parametrización"
+        vacio="Sin campos todavía."
+        [datos]="campos()"
+        [columnas]="columnasCampos"
+        [filaId]="idCampo"
+        [cargando]="loading()">
+        <ng-template tablaAcciones let-r>
+          <button mat-icon-button matTooltip="Editar" (click)="startEditCampo(r)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="deleteCampo(r)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
     </div>
     <!-- Editor Campo -->
     <form [formGroup]="formCampo" class="editor">
@@ -102,58 +80,24 @@
     <!-- Contenedor con scroll para la tabla -->
     <div class="table-scroll">
       <!-- Tabla DINÁMICA: una columna por cada MetaCampo visible + fijas -->
-      <table mat-table [dataSource]="valores()" class="mat-elevation-z1">
-        <!-- Columnas dinámicas -->
-        @for (c of camposVisiblesOrdenados; track c) {
-          <ng-container [matColumnDef]="c.campo">
-            <th mat-header-cell *matHeaderCellDef>{{ c.campo }}</th>
-            <td mat-cell *matCellDef="let r">
-              @switch (c.tipo) {
-                @case ('BOOLEAN') {
-                  <span>{{ r.datos?.[c.campo] ? 'Sí' : 'No' }}</span>
-                }
-                @case ('DATE') {
-                  <span>{{ r.datos?.[c.campo] }}</span>
-                }
-                @case ('JSON') {
-                  <span><code class="mono">{{ r.datos?.[c.campo] | json }}</code></span>
-                }
-                @default {
-                  <span>{{ r.datos?.[c.campo] }}</span>
-                }
-              }
-            </td>
-          </ng-container>
-        }
-        <!-- Fijas: Activo / Actualizado / Acciones -->
-        <ng-container matColumnDef="activo">
-          <th mat-header-cell *matHeaderCellDef>Activo</th>
-          <td mat-cell *matCellDef="let r">{{ r.activo ? 'Sí' : 'No' }}</td>
-        </ng-container>
-        <ng-container matColumnDef="updated_at">
-          <th mat-header-cell *matHeaderCellDef>Actualizado</th>
-          <td mat-cell *matCellDef="let r">{{ r.updated_at | date: 'yyyy-MM-dd HH:mm' }}</td>
-        </ng-container>
-        <ng-container matColumnDef="acciones">
-          <th mat-header-cell *matHeaderCellDef class="right">Acciones</th>
-          <td mat-cell *matCellDef="let r" class="right">
-            <button mat-icon-button matTooltip="Editar" (click)="startEditValor(r)">
-              <mat-icon>edit</mat-icon>
-            </button>
-            <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="deleteValor(r)">
-              <mat-icon>delete</mat-icon>
-            </button>
-          </td>
-        </ng-container>
-        <!-- Header / Rows con columnas dinámicas -->
-        <tr mat-header-row *matHeaderRowDef="displayedColumnsValores"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumnsValores"></tr>
-        @if (!valores().length) {
-          <tr class="no-data">
-            <td [attr.colspan]="displayedColumnsValores.length">Sin valores todavía.</td>
-          </tr>
-        }
-      </table>
+      <app-tabla-estandar
+        id="usuarios-meta-valores"
+        titulo="Valores"
+        modulo="Parametrización"
+        vacio="Sin valores todavía."
+        [datos]="valores()"
+        [columnas]="columnasValores()"
+        [filaId]="idValor"
+        [cargando]="loading()">
+        <ng-template tablaAcciones let-r>
+          <button mat-icon-button matTooltip="Editar" (click)="startEditValor(r)">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" matTooltip="Eliminar" (click)="deleteValor(r)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
     </div>
     <!-- Editor Valor (dinámico según MetaCampos) -->
     <form [formGroup]="formValor" class="editor">

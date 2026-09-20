@@ -5,12 +5,12 @@
     --accent-color: #8CD50A;
     --success-color: #2e7d32;
     --error-color: #d32f2f;
-    --bg-light: #f8f9fa;
-    --border-color: #e0e0e0;
+    --bg-light: var(--surface-2);
+    --border-color: var(--border-strong);
 }
 
 .preview-container {
-    background: #fff;
+    background: var(--surface);
     border-radius: 16px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     overflow: hidden;
@@ -79,41 +79,17 @@
     color: #ff8a80;
 }
 
-/* Table Container */
-.table-container {
-    overflow: auto;
-    max-height: 400px;
-    /* Adjust as needed */
+/* Cuerpo: la tabla estándar pinta tabla o tarjetas según el ancho */
+.preview-body {
+    padding: 12px 16px 16px;
     flex: 1;
+    min-width: 0;
 }
 
-.preview-table {
-    width: 100%;
-}
-
-.preview-table th {
-    background: #f1f1f1;
-    color: #555;
-    font-size: 12px;
-    text-transform: uppercase;
-    font-weight: 600;
-    padding: 0 16px;
-}
-
-.preview-table td {
-    font-size: 13px;
-    color: #333;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.row-error {
-    background-color: #fff8f8;
-}
-
+/* Celdas propias (plantillas tablaCelda) */
 /* Icons */
 .valid-icon {
-    color: var(--success-color);
+    color: var(--success-color); color: light-dark(var(--success-color), #ade1b0);
 }
 
 .invalid-icon {
@@ -122,17 +98,13 @@
 
 /* Text Utils */
 .filename {
-    color: #666;
+    color: var(--muted);
     font-style: italic;
     max-width: 150px;
     display: block;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-}
-
-.nombre-text {
-    font-weight: 500;
 }
 
 /* Empty State */
@@ -142,7 +114,7 @@
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: #999;
+    color: var(--text-faint);
     gap: 16px;
 }
 
@@ -153,55 +125,8 @@
     opacity: 0.5;
 }
 
-/* Mobile View */
-.mobile-only {
-    display: none;
-}
-
-.desktop-only {
-    display: block;
-}
-
-.cards-container {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    background: var(--bg-light);
-}
-
-.preview-card {
-    border-radius: 12px;
-}
-
-.preview-card.card-error {
-    border-left: 4px solid var(--error-color);
-}
-
-.error-msg {
-    color: var(--error-color);
-    font-size: 12px;
-    margin-top: 8px;
-    display: block;
-}
-
-.filename-mobile {
-    font-size: 12px;
-    color: #777;
-    margin: 4px 0 0 0;
-    word-break: break-all;
-}
-
 /* Responsive */
 @media (max-width: 768px) {
-    .desktop-only {
-        display: none;
-    }
-
-    .mobile-only {
-        display: flex;
-    }
-
     .preview-header {
         flex-direction: column;
         align-items: flex-start;

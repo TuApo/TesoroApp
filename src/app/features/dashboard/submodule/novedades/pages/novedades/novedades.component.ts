@@ -12,6 +12,9 @@ import {
   NotificationType,
 } from '../../../../../../core/services/notification-center.service';
 import { NotificationTargetService } from '../../../../../../core/services/notification-target.service';
+import {
+  NIVELES, Prioridad, etiquetaDestino, prioridadDe,
+} from '../../../../../../core/services/notification-priority';
 
 const PAGE_SIZE = 30;
 
@@ -47,6 +50,63 @@ export class NovedadesComponent implements OnInit {
   archivando = signal<Set<string>>(new Set());
 
   leidas = computed(() => this.items().filter(n => n.leida).length);
+
+  // ── Prioridad ────────────────────────────────────────────────────────────
+  // La misma clasificación que la campana, del mismo sitio: si el panel dice
+  // «atención inmediata» y aquí se llamara de otra forma, parecerían dos cosas.
+  readonly niveles = NIVELES;
+  filtroPrioridad = signal<Prioridad | null>(null);
+
+  /** Nombre del módulo por clave de tipo, para mostrarlo y agrupar por él. */
+  private modulosPorTipo = computed(() => {
+    const mapa = new Map<string, string>();
+    for (const t of this.tipos()) mapa.set(t.clave, t.modulo_nombre || t.nombre);
+    return mapa;
+  });
+
+  /**
+   * Cuántas hay de cada nivel entre las cargadas.
+   *
+   * <p>Entre las CARGADAS, no en total: esta página pagina de 30 en 30 y el
+   * backend filtra por tipo, no por urgencia. Decir «3 inmediatas» cuando solo
+   * se ha mirado la primera página sería mentir, así que el rótulo del semáforo
+   * habla de lo que hay a la vista.</p>
+   */
+  conteos = computed<Record<Prioridad, number>>(() => {
+    const c: Record<Prioridad, number> = { INMEDIATA: 0, MEDIA: 0, LEVE: 0 };
+    for (const n of this.items()) c[prioridadDe(n.urgencia)]++;
+    return c;
+  });
+
+  visibles = computed<NotificationItem[]>(() => {
+    const p = this.filtroPrioridad();
+    return p ? this.items().filter(n => prioridadDe(n.urgencia) === p) : this.items();
+  });
+
+  /** La lista agrupada por nivel, en orden de urgencia. */
+  grupos = computed(() => {
+    const filas = this.visibles();
+    return NIVELES
+      .map(n => ({ ...n, filas: filas.filter(f => prioridadDe(f.urgencia) === n.clave) }))
+      .filter(g => g.filas.length > 0);
+  });
+
+  /** Pulsar el nivel activo lo suelta: el filtro es un interruptor. */
+  filtrarPrioridad(p: Prioridad): void {
+    this.filtroPrioridad.update(actual => (actual === p ? null : p));
+  }
+
+  prioridad(n: NotificationItem): Prioridad {
+    return prioridadDe(n.urgencia);
+  }
+
+  modulo(n: NotificationItem): string {
+    return (n.tipo_clave && this.modulosPorTipo().get(n.tipo_clave)) || n.tipo_nombre || 'General';
+  }
+
+  accion(n: NotificationItem): string {
+    return etiquetaDestino(n.destino_tipo);
+  }
 
   constructor(
     private notifSvc: NotificationCenterService,
@@ -90,6 +150,10 @@ export class NovedadesComponent implements OnInit {
   async setFiltro(f: Filtro): Promise<void> {
     if (this.filtro() === f) return;
     this.filtro.set(f);
+    // El filtro de prioridad se suelta al cambiar de tipo: mantenerlo dejaba la
+    // pantalla vacía sin que se viera por qué (dos filtros activos, uno de
+    // ellos fuera de la vista tras recargar).
+    this.filtroPrioridad.set(null);
     await this.cargar(true);
   }
 

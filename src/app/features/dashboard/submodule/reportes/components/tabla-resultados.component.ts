@@ -115,40 +115,40 @@ import { EditarCeldaDialogComponent } from './editar-celda-dialog.component';
     .aviso {
       display: flex; align-items: flex-start; gap: .4rem;
       padding: .45rem .6rem; border-radius: 10px; font-size: .78rem;
-      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+      background: #fffbeb; background: light-dark(#fffbeb, #383624); border: 1px solid #fde68a; border: 1px solid light-dark(#fde68a, #6a5d1c); color: #92400e; color: light-dark(#92400e, #f5bc99);
     }
     .aviso mat-icon { font-size: 17px; width: 17px; height: 17px; flex: 0 0 auto; }
-    .aviso--corte { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+    .aviso--corte { background: #eff6ff; background: light-dark(#eff6ff, #0f284d); border-color: #bfdbfe; border-color: light-dark(#bfdbfe, #0d3b7a); color: #1d4ed8; }
 
     .totales {
       display: flex; align-items: center; gap: .9rem; flex-wrap: wrap;
       padding: .5rem .8rem; border-radius: 12px;
-      background: var(--rp-totales, #f8fafc); border: 1px solid var(--rp-borde, #e2e8f0);
+      background: var(--rp-totales, var(--surface-2)); border: 1px solid var(--rp-borde, var(--border));
     }
-    .totales > mat-icon { color: #64748b; font-size: 18px; width: 18px; height: 18px; }
+    .totales > mat-icon { color: var(--muted); font-size: 18px; width: 18px; height: 18px; }
     .total { display: flex; flex-direction: column; line-height: 1.15; }
-    .total em { font-style: normal; font-size: .68rem; color: #94a3b8; }
-    .total b { font-size: .95rem; font-variant-numeric: tabular-nums; color: #0f172a; }
-    .totales__nota { margin-left: auto; font-size: .7rem; color: #94a3b8; }
+    .total em { font-style: normal; font-size: .68rem; color: var(--text-faint); }
+    .total b { font-size: .95rem; font-variant-numeric: tabular-nums; color: var(--text); }
+    .totales__nota { margin-left: auto; font-size: .7rem; color: var(--text-faint); }
 
     .pie {
-      display: flex; gap: 1rem; flex-wrap: wrap; font-size: .72rem; color: #94a3b8;
+      display: flex; gap: 1rem; flex-wrap: wrap; font-size: .72rem; color: var(--text-faint);
       padding: 0 .2rem;
     }
     .pie span { display: inline-flex; align-items: center; gap: .2rem; }
     .pie mat-icon { font-size: 14px; width: 14px; height: 14px; }
-    .pie__edit { color: #0284c7; }
+    .pie__edit { color: #0284c7; color: light-dark(#0284c7, #97d6f7); }
 
     .skeleton { display: flex; flex-direction: column; gap: .4rem; padding: .5rem 0; }
     .skeleton__fila {
       height: 34px; border-radius: 8px;
-      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+      background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-4) 37%, var(--surface-3) 63%);
       background-size: 400% 100%; animation: brillo 1.3s ease-in-out infinite;
     }
     @keyframes brillo { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
     @media (prefers-reduced-motion: reduce) { .skeleton__fila { animation: none; } }
 
-    .vacio { text-align: center; padding: 3rem 1rem; color: #94a3b8; }
+    .vacio { text-align: center; padding: 3rem 1rem; color: var(--text-faint); }
     .vacio mat-icon { font-size: 44px; width: 44px; height: 44px; opacity: .5; }
     .vacio p { font-size: .86rem; margin: .6rem 0 0; }
 

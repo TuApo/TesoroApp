@@ -1,0 +1,144 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>insights</mat-icon> Indicadores</h1>
+      <p class="tienda-subtitulo">
+        Todo agregado en el servidor. El margen exige que los productos tengan costo:
+        si sale en cero, revise que las entradas de inventario lo lleven.
+      </p>
+    </div>
+    <app-selector-tienda />
+  </header>
+
+  <div class="tienda-barra">
+    <div class="campo"><label>Desde</label>
+      <input type="date" [(ngModel)]="desde" (change)="cargar()" /></div>
+    <div class="campo"><label>Hasta</label>
+      <input type="date" [(ngModel)]="hasta" (change)="cargar()" /></div>
+    @if (puedeCompararTiendas()) {
+      <div class="campo campo-casilla">
+        <label>
+          <input type="checkbox" [checked]="todasLasTiendas()"
+                 (change)="todasLasTiendas.set(!todasLasTiendas())" />
+          Todas mis tiendas
+        </label>
+      </div>
+    }
+  </div>
+
+  @if (resumen(); as r) {
+    @if (r.sin_tiendas || r.sin_alcance) {
+      <div class="tienda-tarjeta tienda-vacio">
+        <mat-icon>insights</mat-icon><p>{{ r.mensaje }}</p>
+      </div>
+    } @else {
+      <section class="tienda-rejilla">
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Vendido</span>
+          <span class="valor">{{ r.ventas_total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">{{ r.ventas_cantidad ?? 0 }} transacciones · ticket
+            {{ r.ticket_promedio | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+        </article>
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Margen bruto</span>
+          <span class="valor">{{ r.margen_bruto | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">{{ r.margen_pct ?? 0 }}% de la venta</span>
+        </article>
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Cobrado por nómina</span>
+          <span class="valor">{{ r.credito_nomina | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">No entra en caja: se descuenta por quincena</span>
+        </article>
+        <article class="tienda-tarjeta tienda-kpi">
+          <span class="etiqueta">Inventario</span>
+          <span class="valor">{{ r.valor_inventario | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          <span class="ayuda">{{ r.productos_sin_stock ?? 0 }} agotados · rotación
+            {{ r.rotacion ?? '—' }}</span>
+        </article>
+      </section>
+
+      <div class="disposicion-graficas">
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Venta y margen por día</h2>
+          @if (serie().length === 0) {
+            <p class="nota">
+              Todavía no hay serie diaria. Se calcula de madrugada; el día en curso no
+              aparece hasta el cierre.
+            </p>
+          } @else {
+            <div echarts [options]="grafica()" class="grafica"></div>
+          }
+        </section>
+
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Cómo se cobra</h2>
+          @if (!hayPagos()) {
+            <p class="nota">Sin ventas en el rango.</p>
+          } @else {
+            <div echarts [options]="graficaPagos()" class="grafica"></div>
+          }
+        </section>
+      </div>
+
+      <div class="disposicion-tablas">
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Qué deja dinero</h2>
+          <p class="nota">Ordenado por margen, no por venta: lo que más sale no siempre es
+            lo que más deja.</p>
+          <app-tabla-estandar
+            id="tienda-indicadores-rentabilidad"
+            titulo="Qué deja dinero"
+            modulo="Tienda"
+            vacio="Sin datos en el rango."
+            [datos]="rentabilidad()"
+            [columnas]="columnasRentabilidad"
+            [filaId]="idRentabilidad">
+
+            <ng-template tablaCelda="margen" let-p>
+              <strong>{{ $any(p)['margen'] | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+            </ng-template>
+          </app-tabla-estandar>
+        </section>
+
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Lo que la gente buscó y no encontró</h2>
+          <p class="nota">
+            La mejor lista de compras que existe: la hacen los propios compradores.
+          </p>
+          @if (sinResultado().length === 0) {
+            <p class="nota">
+              @if (todasLasTiendas()) { Elija una tienda para ver sus búsquedas. }
+              @else { Sin búsquedas fallidas en el período. }
+            </p>
+          } @else {
+            <ul class="lista-busquedas">
+              @for (b of sinResultado(); track $any(b)['termino']) {
+                <li><span>{{ $any(b)['termino'] }}</span>
+                  <span class="insignia aviso">{{ $any(b)['veces'] }} veces</span></li>
+              }
+            </ul>
+          }
+        </section>
+      </div>
+
+      @if (ranking().length > 1) {
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Comparación entre tiendas</h2>
+          <app-tabla-estandar
+            id="tienda-indicadores-ranking"
+            titulo="Comparación entre tiendas"
+            modulo="Tienda"
+            [datos]="ranking()"
+            [columnas]="columnasRanking"
+            [filaId]="idRanking">
+
+            <ng-template tablaCelda="tienda" let-t>
+              <span class="mono">{{ $any(t)['tienda_id'] }}</span>
+            </ng-template>
+          </app-tabla-estandar>
+        </section>
+      }
+    }
+  }
+</div>

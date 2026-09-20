@@ -5,13 +5,13 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
   --disab-accent: #00bcd4;
-  --disab-bg: #f5f7fb;
-  --disab-surface: #ffffff;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-bg: var(--surface-2);
+  --disab-surface: var(--surface);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-radius: 16px;
   --disab-radius-sm: 10px;
   --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -39,7 +39,7 @@
 .disab-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(245, 247, 251, 0.8);
+  background: rgb(var(--surface-rgb) / 0.8);
   backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
@@ -52,7 +52,7 @@
 .disab-overlay-text {
   font-size: 15px;
   font-weight: 600;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 /* ── Tarjeta principal ──────────────────────────────────────── */
@@ -187,7 +187,7 @@
 
 /* ── Archivo maestro ────────────────────────────────────────── */
 .disab-master-card {
-  background: linear-gradient(135deg, #e3f2fd 0%, #e0f7fa 100%);
+  background: linear-gradient(135deg, #e3f2fd 0%, var(--surface-4) 100%); background: linear-gradient(135deg, light-dark(#e3f2fd, #122d4a) 0%, var(--surface-4) 100%);
   border: 1px solid rgba(25, 118, 210, 0.18);
   border-left: 4px solid var(--disab-primary);
   border-radius: 14px;
@@ -208,7 +208,7 @@
 /* ── Grid de archivos mensuales ─────────────────────────────── */
 .disab-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 18px;
 }
 
@@ -217,7 +217,7 @@
   flex-direction: column;
   gap: 10px;
   padding: 16px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--disab-border);
   border-radius: 14px;
   box-shadow: var(--disab-shadow-sm);
@@ -289,7 +289,7 @@
     padding: 20px 18px 24px !important;
   }
   .disab-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .disab-section-hint {
     margin-left: 0;

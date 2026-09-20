@@ -166,9 +166,9 @@ export type DispositivoPreview = 'movil' | 'escritorio';
       display: inline-flex;
       padding: 3px;
       gap: 3px;
-      border: 1px solid var(--border, #e5e7eb);
+      border: 1px solid var(--border);
       border-radius: 999px;
-      background: var(--surface, #fff);
+      background: var(--surface);
     }
     .pv__tab {
       display: inline-flex;
@@ -177,14 +177,14 @@ export type DispositivoPreview = 'movil' | 'escritorio';
       border: none;
       border-radius: 999px;
       background: transparent;
-      color: var(--slate-600, #475569);
+      color: var(--text-2);
       font: inherit;
       font-size: 0.78rem;
       font-weight: 600;
       padding: 5px 12px;
       cursor: pointer;
     }
-    .pv__tab:hover { background: var(--slate-100, #f1f5f9); }
+    .pv__tab:hover { background: var(--surface-3); }
     .pv__tab:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 1px; }
     .pv__tab--on,
     .pv__tab--on:hover {
@@ -197,16 +197,16 @@ export type DispositivoPreview = 'movil' | 'escritorio';
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      border: 1px solid var(--border, #e5e7eb);
+      border: 1px solid var(--border);
       border-radius: 999px;
-      background: var(--surface, #fff);
-      color: var(--slate-600, #475569);
+      background: var(--surface);
+      color: var(--text-2);
       font: inherit;
       font-size: 0.75rem;
       padding: 5px 11px;
       cursor: pointer;
     }
-    .pv__reset:hover { background: var(--slate-100, #f1f5f9); }
+    .pv__reset:hover { background: var(--surface-3); }
     .pv__reset:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 1px; }
     .pv__reset .material-symbols-outlined { font-size: 15px; }
 
@@ -215,7 +215,7 @@ export type DispositivoPreview = 'movil' | 'escritorio';
     .pv__screen {
       /* --pv-pad: el ancho del respiro lateral; la cabecera lo sangra para ir a borde. */
       overflow-y: auto;
-      background: var(--df-bg, var(--slate-50, #f8fafc));
+      background: var(--df-bg, var(--surface-2));
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -267,8 +267,8 @@ export type DispositivoPreview = 'movil' | 'escritorio';
       align-items: center;
       justify-content: center;
       border-radius: 50%;
-      background: var(--slate-200, #e8edf3);
-      color: var(--slate-700, #334155);
+      background: var(--surface-4);
+      color: var(--text-2);
       font-size: 11px;
       font-weight: 700;
     }
@@ -278,7 +278,7 @@ export type DispositivoPreview = 'movil' | 'escritorio';
     }
     .pv__pasos-txt {
       font-size: 11px;
-      color: var(--muted, #64748b);
+      color: var(--muted);
     }
     .pv__empty {
       display: flex;
@@ -286,7 +286,7 @@ export type DispositivoPreview = 'movil' | 'escritorio';
       align-items: center;
       gap: 8px;
       margin-top: 90px;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       text-align: center;
       padding: 0 20px;
     }
@@ -294,18 +294,18 @@ export type DispositivoPreview = 'movil' | 'escritorio';
     .pv__empty p { margin: 0; font-size: 0.88rem; }
 
     .pv__section {
-      background: var(--df-surface, #fff);
-      border: 1px solid var(--df-borde, #e8edf3);
+      background: var(--df-surface, var(--surface));
+      border: 1px solid var(--df-borde, #e8edf3); border: 1px solid var(--df-borde, light-dark(#e8edf3, #233e63));
       border-radius: var(--df-radius, 14px);
       padding: 12px;
     }
     .pv__section-title {
       margin: 0 0 10px;
       padding-bottom: 8px;
-      border-bottom: 1px solid var(--df-borde, #e8edf3);
+      border-bottom: 1px solid var(--df-borde, #e8edf3); border-bottom: 1px solid var(--df-borde, light-dark(#e8edf3, #233e63));
       font-size: 0.95rem;
       font-weight: 700;
-      color: var(--df-accent, #21263c);
+      color: var(--df-accent-texto, var(--text));
     }
     .pv__fields {
       display: flex;
@@ -341,7 +341,7 @@ export type DispositivoPreview = 'movil' | 'escritorio';
       margin: 0 auto;
       border: 10px solid var(--navy-deep, #0f172a);
       border-radius: 42px;
-      background: var(--surface, #fff);
+      background: var(--surface);
       box-shadow: var(--shadow-md, 0 10px 26px rgba(17,24,39,.10));
       overflow: hidden;
       display: flex;
@@ -369,9 +369,9 @@ export type DispositivoPreview = 'movil' | 'escritorio';
     .desk {
       width: 100%;
       min-width: 0;
-      border: 1px solid var(--slate-300, #cbd5e1);
+      border: 1px solid var(--border-strong);
       border-radius: 14px;
-      background: var(--surface, #fff);
+      background: var(--surface);
       box-shadow: var(--shadow-md, 0 10px 26px rgba(17,24,39,.10));
       overflow: hidden;
       display: flex;
@@ -394,8 +394,10 @@ export type DispositivoPreview = 'movil' | 'escritorio';
       flex: 1 1 auto;
       margin-left: 8px;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.1);
-      color: rgba(255, 255, 255, 0.7);
+      /* La maqueta va sobre la superficie de la app (clara u oscura), así que
+         la pestaña usa los tokens: en claro, el blanco no se leía. */
+      background: var(--surface-3);
+      color: var(--text-2);
       font-size: 0.72rem;
       padding: 3px 10px;
       white-space: nowrap;

@@ -1,12 +1,24 @@
 import {  Component, OnInit, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
+
+/** Fecha del backend ('yyyy-MM-dd' o ISO) como Date local: un 'yyyy-MM-dd' con
+ *  `new Date()` se leería en UTC y en Colombia caería el día anterior. */
+function aFecha(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Existencias como chip: agotado en rojo, 3 o menos en ámbar (igual que el chip anterior). */
+function tonoStock(n: number): TonoBadge {
+  if (n === 0) return 'danger';
+  return n <= 3 ? 'warn' : 'ok';
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -16,10 +28,7 @@ import { ComercializadoraService } from '../../../merchandise/service/comerciali
     CommonModule,
     MatCardModule,
     MatIconModule,
-    MatProgressSpinnerModule,
-    MatTableModule,
-    MatFormFieldModule,
-    MatInputModule
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './merchandising-merchandise.component.html',
   styleUrl: './merchandising-merchandise.component.css'
@@ -31,18 +40,47 @@ export class MerchandisingMerchandiseComponent implements OnInit {
   loading = false;
 
   // Tabla detallada (por lote)
-  dataSourceDetallado = new MatTableDataSource<any>();
-  displayedColumnsDetallado: string[] = [
-    'producto_nombre', 'destino', 'codigo', 'cantidad_inicial',
-    'cantidad_vendida', 'disponible', 'valor_unitario',
-    'fecha_recepcion', 'realizado_por'
+  lotes: any[] = [];
+  readonly columnasDetallado: ColumnaTabla<any>[] = [
+    { id: 'producto_nombre', header: 'Producto', valor: (r) => r.producto_nombre, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'destino', header: 'Destino', valor: (r) => r.destino ?? '', formato: (r) => r.destino || '—',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'codigo', header: 'Código', valor: (r) => r.codigo ?? '', tarjeta: 'subtitulo' },
+    { id: 'cantidad_inicial', header: 'Cant. Recibida', valor: (r) => r.cantidad_inicial, align: 'right',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'cantidad_vendida', header: 'Cant. Vendida', valor: (r) => r.cantidad_vendida, align: 'right',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'disponible', header: 'Disponible', valor: (r) => r.disponible, align: 'right', tarjeta: 'badge',
+      badge: (r) => ({ texto: String(r.disponible ?? 0), tono: tonoStock(r.disponible) }) },
+    { id: 'valor_unitario', header: 'Valor Unidad', valor: (r) => Number(r.valor_unitario || 0), align: 'right',
+      formato: (r) => '$' + this.formatCurrency(r.valor_unitario), copiaTexto: (r) => String(Number(r.valor_unitario || 0)),
+      prioridad: 3, tarjeta: 'meta' },
+    { id: 'fecha_recepcion', header: 'Fecha Recepción', valor: (r) => aFecha(r.fecha_recepcion),
+      // Mismo texto que el `date` pipe de antes (locale por defecto).
+      formato: (r) => { const d = aFecha(r.fecha_recepcion); return d ? formatDate(d, 'dd/MM/yyyy', 'en-US') : ''; },
+      prioridad: 3, tarjeta: 'meta' },
+    { id: 'realizado_por', header: 'Recibido por', valor: (r) => r.realizado_por ?? '',
+      formato: (r) => r.realizado_por || '—', prioridad: 3, tarjeta: 'meta' },
   ];
 
   // Tabla resumen (agrupada por producto)
-  dataSourceResumen = new MatTableDataSource<any>();
-  displayedColumnsResumen: string[] = [
-    'producto_nombre', 'destino', 'total_recibido', 'total_vendido',
-    'total_disponible', 'valor_unitario', 'valor_total'
+  resumen: any[] = [];
+  readonly columnasResumen: ColumnaTabla<any>[] = [
+    { id: 'producto_nombre', header: 'Producto', valor: (r) => r.producto_nombre, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'destino', header: 'Destino', valor: (r) => r.destino ?? '', formato: (r) => r.destino || '—',
+      tarjeta: 'subtitulo' },
+    { id: 'total_recibido', header: 'Recibido', valor: (r) => r.total_recibido, align: 'right',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'total_vendido', header: 'Vendido', valor: (r) => r.total_vendido, align: 'right',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'total_disponible', header: 'Disponible', valor: (r) => r.total_disponible, align: 'right', tarjeta: 'badge',
+      badge: (r) => ({ texto: String(r.total_disponible ?? 0), tono: tonoStock(r.total_disponible) }) },
+    { id: 'valor_unitario', header: 'Valor Unidad', valor: (r) => r.valor_unitario, align: 'right',
+      formato: (r) => '$' + this.formatCurrency(r.valor_unitario), copiaTexto: (r) => String(r.valor_unitario),
+      prioridad: 3, tarjeta: 'meta' },
+    { id: 'valor_total', header: 'Valor Total', valor: (r) => r.valor_total, align: 'right',
+      formato: (r) => '$' + this.formatCurrency(r.valor_total), copiaTexto: (r) => String(r.valor_total),
+      tarjeta: 'cuerpo' },
   ];
 
   // Métricas
@@ -63,10 +101,10 @@ export class MerchandisingMerchandiseComponent implements OnInit {
       const lotes = Array.isArray(data) ? data : (data?.results || []);
 
       // Tabla detallada
-      this.dataSourceDetallado.data = lotes;
+      this.lotes = lotes;
 
       // Tabla resumen (agrupada por producto_nombre)
-      this.dataSourceResumen.data = this.agruparPorProducto(lotes);
+      this.resumen = this.agruparPorProducto(lotes);
 
       // Métricas
       this.totalLotes = lotes.length;
@@ -76,18 +114,12 @@ export class MerchandisingMerchandiseComponent implements OnInit {
       );
     } catch (error) {
       console.error('Error cargando inventario:', error);
-      this.dataSourceDetallado.data = [];
-      this.dataSourceResumen.data = [];
+      this.lotes = [];
+      this.resumen = [];
     } finally {
       this.loading = false;
       this.cdr.markForCheck();
     }
-  }
-
-  applyFilter(event: Event): void {
-    const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
-    this.dataSourceDetallado.filter = filterValue;
-    this.dataSourceResumen.filter = filterValue;
   }
 
   private agruparPorProducto(lotes: any[]): any[] {

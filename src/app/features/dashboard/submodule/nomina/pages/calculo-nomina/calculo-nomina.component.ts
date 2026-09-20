@@ -19,7 +19,6 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTableModule } from '@angular/material/table';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
@@ -30,6 +29,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { PeriodoDialogComponent } from './periodo-dialog/periodo-dialog.component';
 import { CalcularConNovedadesDialogComponent } from '../../components/calcular-con-novedades-dialog/calcular-con-novedades-dialog.component';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -49,7 +49,6 @@ import { saveAs } from 'file-saver';
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
-    MatTableModule,
     MatAutocompleteModule,
     MatCheckboxModule,
     MatDividerModule,
@@ -57,7 +56,8 @@ import { saveAs } from 'file-saver';
     MatDatepickerModule,
     MatNativeDateModule,
     MatDialogModule,
-    MatTooltipModule
+    MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './calculo-nomina.component.html',
   styleUrl: './calculo-nomina.component.css',
@@ -92,13 +92,39 @@ export class CalculoNominaComponent implements OnInit {
   
   // Resultados
   contratos: any[] = [];
+  /** Copia de `contratos` que recibe la tabla estándar (arreglo nuevo en cada cambio). */
   contratosFiltrados: any[] = [];
   // Snapshot crudo del último cálculo del backend, indexado por id_contrato.
   // Se usa para exportar la plantilla sin re-pegarle al backend (evita drift
   // entre lo que ve el usuario y lo que se baja).
   private _empleadosCalculados: Map<number, any> = new Map();
-  filtroBusqueda: string = '';
-  displayedColumns: string[] = ['empleado', 'num_doc', 'salario', 'dias', 'devengado', 'aux_trans', 'salud', 'pension', 'neto'];
+  /**
+   * Columnas de la tabla estándar. La búsqueda la hace la tabla; «Empleado»
+   * lleva nombre + centro de costo en el valor para encontrar por cualquiera.
+   * Salud y pensión van como número positivo (lo que se descuenta).
+   */
+  readonly columnas: ColumnaTabla<any>[] = [
+    { id: 'empleado', header: 'Empleado', tarjeta: 'titulo', minAncho: '180px',
+      valor: (c) => [`${c.primer_nombre ?? ''} ${c.primer_apellido ?? ''}`.trim(), c.centro_de_costo]
+        .filter(Boolean).join(' — ') },
+    { id: 'num_doc', header: 'Documento', valor: (c) => c.numero_documento, tarjeta: 'subtitulo' },
+    { id: 'salario', header: 'Salario Mes', align: 'right', prioridad: 3, tarjeta: 'meta',
+      valor: (c) => Number(c.salario) || 0 },
+    { id: 'dias', header: 'Días', align: 'center', prioridad: 2, tarjeta: 'meta',
+      valor: (c) => Number(c.dias_laborados ?? 0) },
+    { id: 'devengado', header: 'Sueldo Q', align: 'right', prioridad: 3, tarjeta: 'meta',
+      valor: (c) => this.getDevengadoBasico(c) },
+    { id: 'aux_trans', header: 'Aux. Trans', align: 'right', prioridad: 3, tarjeta: 'meta',
+      valor: (c) => this.getAuxilioTransporte(c) },
+    { id: 'salud', header: 'Salud', align: 'right', prioridad: 3, tarjeta: 'meta',
+      valor: (c) => this.getDeduccionSalud(c) },
+    { id: 'pension', header: 'Pensión', align: 'right', prioridad: 3, tarjeta: 'meta',
+      valor: (c) => this.getDeduccionPension(c) },
+    { id: 'neto', header: 'Neto a Pagar', align: 'right', tarjeta: 'badge',
+      valor: (c) => this.getNetoQuincena(c) },
+  ];
+
+  readonly idContrato = (c: any, i: number) => c.id_contrato ?? `i${i}`;
   loading: boolean = false;
   guardando: boolean = false;
   // Flag separado del de "descargando plantilla" para no inhabilitar ambos
@@ -418,6 +444,8 @@ export class CalculoNominaComponent implements OnInit {
     this.contratos.forEach(c => {
       c.dias_laborados = this.diasCalculados;
     });
+    // La tabla estándar solo se entera con un arreglo nuevo.
+    if (this.contratos.length) this.aplicarFiltroEmpleados();
   }
 
   buscarEmpleados(): void {
@@ -689,28 +717,13 @@ export class CalculoNominaComponent implements OnInit {
   }
 
   /**
-   * Filtra la tabla en vivo conforme el usuario escribe o pega texto.
-   * Matchea contra nombre completo, documento y centro de costo (case-insensitive).
+   * Publica los contratos a la tabla estándar como arreglo NUEVO: la tabla solo
+   * recalcula (búsqueda, filtros, copiado) cuando cambia la referencia. La
+   * búsqueda por texto la hace la propia tabla.
    */
   aplicarFiltroEmpleados(): void {
-    const term = (this.filtroBusqueda || '').trim().toLowerCase();
-    if (!term) {
-      this.contratosFiltrados = [...this.contratos];
-    } else {
-      this.contratosFiltrados = this.contratos.filter(c => {
-        const nombre = `${c.primer_nombre || ''} ${c.segundo_nombre || ''} ${c.primer_apellido || ''} ${c.segundo_apellido || ''}`.toLowerCase();
-        const doc = String(c.numero_documento || '').toLowerCase();
-        const ceco = String(c.centro_de_costo || '').toLowerCase();
-        const codigo = String(c.codigo_contrato || '').toLowerCase();
-        return nombre.includes(term) || doc.includes(term) || ceco.includes(term) || codigo.includes(term);
-      });
-    }
+    this.contratosFiltrados = [...this.contratos];
     this.cdr.markForCheck();
-  }
-
-  limpiarFiltroEmpleados(): void {
-    this.filtroBusqueda = '';
-    this.aplicarFiltroEmpleados();
   }
 
   // Lecturas de presentación (NO calculan: solo leen el preview oficial del backend)

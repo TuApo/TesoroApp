@@ -34,12 +34,12 @@ import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
     .title {
       font-size: 1.15rem;
       font-weight: 600;
-      color: #1e293b;
+      color: var(--text);
       margin: 0;
     }
     .subtitle {
       font-size: 0.875rem;
-      color: #64748b;
+      color: var(--muted);
       margin: 0;
     }
   `],

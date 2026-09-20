@@ -63,64 +63,59 @@
         <span><b>{{ hojas() }}</b> hoja(s)</span>
       </div>
 
-      <div class="cm-tabla-wrap">
-        <table class="cm-tabla">
-          <thead>
-            <tr>
-              <th class="col-check"></th>
-              <th>Documento</th>
-              <th>Nombre</th>
-              <th class="col-temporal">Temporal</th>
-              <th class="col-estado">Carnet</th>
-              <th>Estado de los datos</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (f of filas(); track f.cedula) {
-              <tr [class.fila-bloqueada]="!puedeGenerar(f)">
-                <td class="col-check">
-                  <mat-checkbox
-                    [checked]="estaMarcada(f)"
-                    [disabled]="!puedeGenerar(f) || generando()"
-                    (change)="marcar(f, $event.checked)"
-                    [matTooltip]="puedeGenerar(f)
-                      ? (f.yaGenerado ? 'Ya tiene carnet: márcalo para regenerarlo' : 'Se generará')
-                      : 'No se puede generar: faltan datos'">
-                  </mat-checkbox>
-                </td>
-                <td class="col-doc">{{ f.cedula }}</td>
-                <td>{{ f.nombre || '—' }}</td>
-                <td class="col-temporal">
-                  <span class="chip"
-                    [class.chip-apoyo]="f.temporal === 'apoyo'"
-                    [class.chip-alianza]="f.temporal === 'alianza'"
-                    [matTooltip]="f.temporal === 'alianza'
-                      ? 'Tu Alianza: carnet con QR, logo TA y coordinador 3152306148'
-                      : 'Apoyo Laboral: carnet CR80 con código de barras, logo AL y coordinador 3102518013'">
-                    {{ f.temporal === 'alianza' ? 'Tu Alianza' : 'Apoyo' }}
-                  </span>
-                </td>
-                <td class="col-estado">
-                  @if (f.yaGenerado) {
-                    <span class="chip chip-generado"><mat-icon>check_circle</mat-icon> Generado</span>
-                  } @else {
-                    <span class="chip chip-pendiente"><mat-icon>schedule</mat-icon> Pendiente</span>
-                  }
-                </td>
-                <td>
-                  @if (f.error) {
-                    <span class="cm-error"><mat-icon>error</mat-icon> {{ f.error }}</span>
-                  } @else if (f.faltantes.length) {
-                    <span class="cm-error"><mat-icon>warning</mat-icon> Falta: {{ f.faltantes.join(', ') }}</span>
-                  } @else {
-                    <span class="cm-completo"><mat-icon>task_alt</mat-icon> Completo</span>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
+      <!-- Tabla estándar: la casilla es propia (no el SelectionModel de la
+           tabla) porque las filas con datos incompletos no se pueden marcar. -->
+      <app-tabla-estandar
+        id="contratacion-carnet-masivo"
+        titulo="Carnets masivos"
+        modulo="Contratación"
+        busqueda="Documento, nombre, temporal o faltante…"
+        [datos]="filas()"
+        [columnas]="columnas"
+        [filaId]="idFila"
+        [filaClase]="claseFila"
+        [filasPorPagina]="25">
+
+        <ng-template tablaCelda="sel" let-f>
+          <mat-checkbox
+            [checked]="estaMarcada(f)"
+            [disabled]="!puedeGenerar(f) || generando()"
+            (change)="marcar(f, $event.checked)"
+            [matTooltip]="puedeGenerar(f)
+              ? (f.yaGenerado ? 'Ya tiene carnet: márcalo para regenerarlo' : 'Se generará')
+              : 'No se puede generar: faltan datos'">
+          </mat-checkbox>
+        </ng-template>
+
+        <ng-template tablaCelda="temporal" let-f>
+          <span class="chip"
+            [class.chip-apoyo]="f.temporal === 'apoyo'"
+            [class.chip-alianza]="f.temporal === 'alianza'"
+            [matTooltip]="f.temporal === 'alianza'
+              ? 'Tu Alianza: carnet con QR, logo TA y coordinador 3152306148'
+              : 'Apoyo Laboral: carnet CR80 con código de barras, logo AL y coordinador 3102518013'">
+            {{ f.temporal === 'alianza' ? 'Tu Alianza' : 'Apoyo' }}
+          </span>
+        </ng-template>
+
+        <ng-template tablaCelda="carnet" let-f>
+          @if (f.yaGenerado) {
+            <span class="chip chip-generado"><mat-icon>check_circle</mat-icon> Generado</span>
+          } @else {
+            <span class="chip chip-pendiente"><mat-icon>schedule</mat-icon> Pendiente</span>
+          }
+        </ng-template>
+
+        <ng-template tablaCelda="estado" let-f>
+          @if (f.error) {
+            <span class="cm-error"><mat-icon>error</mat-icon> {{ f.error }}</span>
+          } @else if (f.faltantes.length) {
+            <span class="cm-error"><mat-icon>warning</mat-icon> Falta: {{ f.faltantes.join(', ') }}</span>
+          } @else {
+            <span class="cm-completo"><mat-icon>task_alt</mat-icon> Completo</span>
+          }
+        </ng-template>
+      </app-tabla-estandar>
 
       <!-- El volteo NO se puede adivinar (depende de la impresora) y encima se
            llama distinto en cada formato, porque Apoyo imprime en hoja

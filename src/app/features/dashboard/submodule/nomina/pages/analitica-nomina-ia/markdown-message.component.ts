@@ -1,6 +1,7 @@
 import { Component, ChangeDetectionStrategy, ViewEncapsulation, input, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { markdownToHtml } from './markdown-lite';
 
@@ -24,7 +25,7 @@ interface Segmento {
   selector: 'app-markdown-message',
   standalone: true,
   imports: [CommonModule, NgxEchartsDirective],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Sin encapsulación: los estilos deben alcanzar el HTML inyectado con
   // [innerHTML] (tablas, títulos…), que NO recibe los atributos de
@@ -34,56 +35,56 @@ interface Segmento {
   styles: [`
     app-markdown-message { display: block; }
     .md-body {
-      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      font-size: .93rem; line-height: 1.62; color: #1e293b;
+      font-family: var(--font-sans);
+      font-size: .93rem; line-height: 1.62; color: var(--text);
       -webkit-font-smoothing: antialiased; word-break: break-word;
     }
     .md-body :first-child { margin-top: 0; }
     .md-body :last-child { margin-bottom: 0; }
 
     /* Títulos con jerarquía clara */
-    .md-body h1, .md-body h2, .md-body h3, .md-body h4 { margin: 1.05em 0 .45em; line-height: 1.25; font-weight: 700; color: #0f172a; letter-spacing: -.01em; }
+    .md-body h1, .md-body h2, .md-body h3, .md-body h4 { margin: 1.05em 0 .45em; line-height: 1.25; font-weight: 700; color: var(--text); letter-spacing: -.01em; }
     .md-body h1 { font-size: 1.3rem; }
-    .md-body h2 { font-size: 1.14rem; padding-bottom: .28em; border-bottom: 1px solid #eef2f7; }
+    .md-body h2 { font-size: 1.14rem; padding-bottom: .28em; border-bottom: 1px solid var(--border); }
     .md-body h3 { font-size: 1.02rem; }
-    .md-body h4 { font-size: .94rem; color: #334155; }
+    .md-body h4 { font-size: .94rem; color: var(--text-2); }
 
     .md-body p { margin: .55em 0; }
-    .md-body strong { font-weight: 700; color: #0f172a; }
-    .md-body em { color: #475569; }
+    .md-body strong { font-weight: 700; color: var(--text); }
+    .md-body em { color: var(--text-2); }
     .md-body ul, .md-body ol { margin: .5em 0 .5em 1.35em; padding: 0; }
     .md-body li { margin: .28em 0; }
     .md-body li::marker { color: #7C3AED; }
-    .md-body a { color: #1565C0; text-decoration: none; font-weight: 600; }
+    .md-body a { color: #1565C0; color: light-dark(#1565C0, #9ac4f4); text-decoration: none; font-weight: 600; }
     .md-body a:hover { text-decoration: underline; }
-    .md-body blockquote { margin: .7em 0; padding: .5em .9em; border-left: 3px solid #c4b5fd; color: #475569; background: #faf7ff; border-radius: 0 8px 8px 0; }
-    .md-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 1em 0; }
-    .md-body code { background: rgba(124,58,237,.10); color: #6d28d9; padding: .12em .4em; border-radius: 6px; font-size: .86em; font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace; }
+    .md-body blockquote { margin: .7em 0; padding: .5em .9em; border-left: 3px solid #c4b5fd; border-left: 3px solid light-dark(#c4b5fd, #211379); color: var(--text-2); background: var(--surface-2); border-radius: 0 8px 8px 0; }
+    .md-body hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+    .md-body code { background: rgba(124,58,237,.10); color: #6d28d9; color: light-dark(#6d28d9, #bea0ee); padding: .12em .4em; border-radius: 6px; font-size: .86em; font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace; }
 
     /* Tablas: encabezado marcado, filas cebra, hover, números tabulares */
-    .md-table-wrap { overflow-x: auto; margin: .85em 0; border: 1px solid #e6eaf0; border-radius: 12px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
-    .md-body table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 340px; background: #fff; }
+    .md-table-wrap { overflow-x: auto; margin: .85em 0; border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+    .md-body table { border-collapse: collapse; width: 100%; font-size: .88rem; min-width: 340px; background: var(--surface); }
     .md-body thead th {
-      background: #f1f5f9; color: #334155; font-weight: 700; text-align: left;
+      background: var(--surface-3); color: var(--text-2); font-weight: 700; text-align: left;
       font-size: .74rem; text-transform: uppercase; letter-spacing: .04em;
-      padding: .6em .8em; border-bottom: 2px solid #e2e8f0; white-space: nowrap;
+      padding: .6em .8em; border-bottom: 2px solid var(--border); white-space: nowrap;
     }
     .md-body tbody td {
-      padding: .55em .8em; border-bottom: 1px solid #eef2f7; color: #1e293b;
+      padding: .55em .8em; border-bottom: 1px solid var(--border); color: var(--text);
       font-variant-numeric: tabular-nums; vertical-align: top;
     }
-    .md-body tbody tr:nth-child(even) td { background: #f8fafc; }
-    .md-body tbody tr:hover td { background: #f3efff; }
+    .md-body tbody tr:nth-child(even) td { background: var(--surface-2); }
+    .md-body tbody tr:hover td { background: #f3efff; background: light-dark(#f3efff, #19164d); }
     .md-body tbody tr:last-child td { border-bottom: none; }
-    .md-body tbody td:first-child { font-weight: 600; color: #0f172a; }
+    .md-body tbody td:first-child { font-weight: 600; color: var(--text); }
     /* Columnas numéricas (montos / cantidades): alineadas a la derecha, como el desprendible */
     .md-body th.md-num, .md-body td.md-num { text-align: right; white-space: nowrap; }
-    .md-body tbody td.md-num { font-weight: 600; color: #0f172a; }
+    .md-body tbody td.md-num { font-weight: 600; color: var(--text); }
 
     /* Bloques de código */
     .md-code { background: #0f172a; color: #e2e8f0; padding: .85em 1.05em; border-radius: 12px; overflow-x: auto; margin: .8em 0; font-size: .82rem; line-height: 1.5; }
     .md-code code { font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace; white-space: pre; background: none; color: inherit; padding: 0; }
-    .chat-echart { width: 100%; height: 320px; margin: .8em 0; background: #fff; border: 1px solid #eef2f7; border-radius: 12px; }
+    .chat-echart { width: 100%; height: 320px; margin: .8em 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
   `],
   template: `
     @for (seg of segmentos(); track $index) {

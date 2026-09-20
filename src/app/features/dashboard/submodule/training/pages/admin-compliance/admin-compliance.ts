@@ -2,6 +2,7 @@ import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } 
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import {
   TrainingAdminService, ResumenCumplimiento, FilaMatriz, FilaPersonaCumplimiento,
   CargoSinFamilia, Curso,
@@ -21,7 +22,7 @@ import {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-compliance',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
   templateUrl: './admin-compliance.html',
   styleUrl: './admin-compliance.css'
 })
@@ -52,6 +53,48 @@ export class AdminCompliance implements OnInit {
     { clave: 'PENDIENTE', etiqueta: 'Pendientes' },
     { clave: 'REPROBADO', etiqueta: 'Reprobados' },
   ];
+
+  /**
+   * Matriz por curso. Los conteos son números planos (se copian a Excel tal cual); en
+   * pantalla son botones que bajan al detalle, por eso esas columnas van como interactivas.
+   */
+  readonly columnasMatriz: ColumnaTabla<FilaMatriz>[] = [
+    { id: 'curso', header: 'Curso', valor: (f) => f.curso, tarjeta: 'titulo', minAncho: '200px' },
+    { id: 'personas', header: 'Personas', valor: (f) => f.personas, tarjeta: 'subtitulo' },
+    { id: 'al_dia', header: 'Al día', valor: (f) => f.al_dia, interactiva: true, tarjeta: 'meta' },
+    { id: 'por_vencer', header: 'Por vencer', valor: (f) => f.por_vencer, interactiva: true, tarjeta: 'meta' },
+    { id: 'vencidos', header: 'Vencidos', valor: (f) => f.vencidos, interactiva: true, tarjeta: 'meta' },
+    { id: 'en_curso', header: 'En curso', valor: (f) => f.en_curso, interactiva: true, prioridad: 2, tarjeta: 'meta' },
+    { id: 'pendientes', header: 'Pendientes', valor: (f) => f.pendientes, interactiva: true, prioridad: 2, tarjeta: 'meta' },
+    { id: 'cumplimiento', header: 'Cumplimiento', valor: (f) => f.porcentaje, formato: (f) => `${f.porcentaje}%`,
+      tarjeta: 'cuerpo' },
+  ];
+  readonly idFilaMatriz = (f: FilaMatriz) => f.course_id;
+
+  /** Excepciones: cargos sin familia, ya ordenados por el backend por contratos afectados. */
+  readonly columnasExcepciones: ColumnaTabla<CargoSinFamilia>[] = [
+    { id: 'cargo', header: 'Cargo', valor: (c) => c.cargo_crudo, tarjeta: 'titulo' },
+    { id: 'sufijo', header: 'Sufijo de sitio', valor: (c) => c.sufijo_sitio ?? '', tarjeta: 'subtitulo' },
+    { id: 'contratos', header: 'Contratos activos', valor: (c) => c.contratos_activos, tarjeta: 'meta' },
+    { id: 'origen', header: 'Origen', valor: (c) => c.origen ?? '', prioridad: 2, tarjeta: 'meta' },
+  ];
+  readonly idExcepcion = (c: CargoSinFamilia) => c.id;
+
+  /** Detalle de una celda: las personas en ese estado de cumplimiento. */
+  readonly columnasPersonas: ColumnaTabla<FilaPersonaCumplimiento>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (p) => p.cedula ?? '', tarjeta: 'subtitulo' },
+    { id: 'persona', header: 'Persona', valor: (p) => p.nombre, tarjeta: 'titulo' },
+    { id: 'cargo', header: 'Cargo', valor: (p) => p.cargo ?? '', formato: (p) => p.cargo || '—',
+      prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'curso', header: 'Curso', valor: (p) => p.curso, tarjeta: 'cuerpo' },
+    { id: 'vence', header: 'Vence', prioridad: 2, tarjeta: 'meta',
+      valor: (p) => (p.vence_at ? new Date(p.vence_at) : null), formato: (p) => this.fecha(p.vence_at) },
+    { id: 'avance', header: 'Avance', valor: (p) => p.porcentaje ?? 0, formato: (p) => `${p.porcentaje ?? 0}%`,
+      tarjeta: 'meta' },
+    { id: 'estado', header: 'Estado', tarjeta: 'badge', valor: (p) => this.etiquetaEstado(p.estado),
+      badge: (p) => ({ texto: this.etiquetaEstado(p.estado), tono: this.tonoEstado(p.estado) }) },
+  ];
+  readonly idPersona = (p: FilaPersonaCumplimiento) => p.person_id + p.course_id;
 
   /** Sin matrículas no hay nada que medir: el panel lo dice en vez de pintar 0 % en rojo. */
   readonly sinDatos = computed(() => (this.resumen()?.matriculas ?? 0) === 0);
@@ -121,13 +164,13 @@ export class AdminCompliance implements OnInit {
   }
 
   /** Verde solo si está realmente al día; el resto se distingue por gravedad. */
-  claseEstado(estado: string): string {
+  tonoEstado(estado: string): TonoBadge {
     switch (estado) {
-      case 'AL_DIA': return 'chip-ok';
-      case 'VENCIDO': return 'chip-mal';
-      case 'POR_VENCER': return 'chip-aviso';
-      case 'REPROBADO': return 'chip-mal';
-      default: return 'chip-cerrado';
+      case 'AL_DIA': return 'ok';
+      case 'VENCIDO': return 'danger';
+      case 'POR_VENCER': return 'warn';
+      case 'REPROBADO': return 'danger';
+      default: return 'neutro';
     }
   }
 

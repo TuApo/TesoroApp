@@ -42,12 +42,12 @@ import { MatIconModule } from '@angular/material/icon';
     .title {
       font-size: 1rem;
       font-weight: 600;
-      color: #475569;
+      color: var(--text-2);
       margin: 0 0 0.5rem 0;
     }
     .description {
       font-size: 0.875rem;
-      color: #94a3b8;
+      color: var(--text-faint);
       max-width: 300px;
       margin: 0;
     }

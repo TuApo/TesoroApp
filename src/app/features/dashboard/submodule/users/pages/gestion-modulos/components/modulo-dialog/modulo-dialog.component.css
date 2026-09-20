@@ -4,7 +4,7 @@
 :host {
     display: block;
     margin: -24px;
-    background: #ffffff;
+    background: var(--surface);
     border-radius: 16px;
     overflow: hidden;
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
@@ -105,7 +105,7 @@
 }
 
 .dialog-header__close {
-    color: #94a3b8 !important;
+    color: var(--text-faint) !important;
     z-index: 1;
     transition: all 0.2s ease;
     flex-shrink: 0;
@@ -150,18 +150,18 @@
 .field-label {
     font-size: 12.5px;
     font-weight: 600;
-    color: #334155;
+    color: var(--text-2);
     margin: 0;
     letter-spacing: 0.01em;
 }
 
 .required {
-    color: var(--danger);
+    color: var(--danger); color: light-dark(var(--danger), #f2a29c);
     font-weight: 700;
 }
 
 .optional {
-    color: #94a3b8;
+    color: var(--text-faint);
     font-weight: 400;
     font-size: 11.5px;
 }
@@ -174,7 +174,7 @@
 }
 
 ::ng-deep .field-modern .mat-mdc-text-field-wrapper {
-    background: #ffffff !important;
+    background: var(--surface) !important;
     border-radius: 10px !important;
     transition: background 0.2s ease, box-shadow 0.2s ease;
 }
@@ -182,14 +182,14 @@
 ::ng-deep .field-modern .mdc-notched-outline__leading,
 ::ng-deep .field-modern .mdc-notched-outline__notch,
 ::ng-deep .field-modern .mdc-notched-outline__trailing {
-    border-color: #cbd5e1 !important;
+    border-color: var(--border-strong) !important;
     border-width: 1.5px !important;
 }
 
 ::ng-deep .field-modern:hover .mdc-notched-outline__leading,
 ::ng-deep .field-modern:hover .mdc-notched-outline__notch,
 ::ng-deep .field-modern:hover .mdc-notched-outline__trailing {
-    border-color: #94a3b8 !important;
+    border-color: var(--text-faint) !important;
 }
 
 ::ng-deep .field-modern.mat-focused .mdc-notched-outline__leading,
@@ -208,7 +208,7 @@
 }
 
 ::ng-deep .field-modern .mat-icon {
-    color: #94a3b8;
+    color: var(--text-faint);
     margin-right: 8px;
     font-size: 20px;
     width: 20px;
@@ -217,7 +217,7 @@
 }
 
 ::ng-deep .field-modern.mat-focused .mat-icon {
-    color: var(--navy);
+    color: var(--navy-ink);
 }
 
 /* ══════════════════════════════════════
@@ -235,8 +235,8 @@
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    background: var(--slate-100);
-    color: var(--slate-700);
+    background: var(--surface-3);
+    color: var(--text-2);
     border-radius: 999px;
     font-size: 11.5px;
     font-weight: 600;
@@ -254,18 +254,18 @@
     justify-content: space-between;
     gap: 12px;
     padding: 10px 14px;
-    background: var(--slate-50);
-    border: 1px solid var(--slate-200);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     border-radius: 10px;
-    color: var(--slate-700);
+    color: var(--text-2);
     font-size: 12.5px;
     line-height: 1.4;
     flex-wrap: wrap;
 }
 
 .suggestions-header.is-ai {
-    background: var(--slate-50);
-    border-color: var(--slate-300);
+    background: var(--surface-2);
+    border-color: var(--border-strong);
 }
 
 .suggestions-header__msg {
@@ -287,17 +287,17 @@
     font-size: 18px;
     width: 18px;
     height: 18px;
-    color: var(--navy);
+    color: var(--navy-ink);
     flex-shrink: 0;
 }
 
 .suggestions-header strong {
-    color: var(--slate-900);
+    color: var(--text);
     font-weight: 700;
 }
 
 .suggestions-header .sparkle {
-    color: var(--navy);
+    color: var(--navy-ink);
     animation: sparkle 1.6s ease-in-out infinite;
 }
 
@@ -306,8 +306,8 @@
     align-items: center;
     margin-left: 6px;
     padding: 1px 7px;
-    background: var(--slate-200);
-    color: var(--slate-700);
+    background: var(--surface-4);
+    color: var(--text-2);
     border-radius: 999px;
     font-size: 10.5px;
     font-weight: 700;
@@ -353,9 +353,9 @@
 }
 
 .ai-action--ask:disabled {
-    background: var(--slate-200);
-    color: var(--slate-400);
-    border-color: var(--slate-200);
+    background: var(--surface-4);
+    color: var(--text-faint);
+    border-color: var(--border);
     box-shadow: none;
     cursor: not-allowed;
 }
@@ -376,15 +376,15 @@
 }
 
 .ai-action--reset {
-    background: #ffffff;
-    color: #64748b;
-    border-color: #e2e8f0;
+    background: var(--surface);
+    color: var(--muted);
+    border-color: var(--border);
 }
 
 .ai-action--reset:hover {
-    background: #f8fafc;
-    color: #334155;
-    border-color: #cbd5e1;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border-color: var(--border-strong);
 }
 
 .ai-action--reset mat-icon {
@@ -399,10 +399,10 @@
     align-items: center;
     gap: 8px;
     padding: 8px 12px;
-    background: #fef3f2;
+    background: #fef3f2; background: light-dark(#fef3f2, #351c27);
     border: 1px solid rgba(180, 35, 24, 0.25);
     border-radius: 8px;
-    color: var(--danger);
+    color: var(--danger); color: light-dark(var(--danger), #f2a29c);
     font-size: 12px;
 }
 
@@ -410,7 +410,7 @@
     font-size: 16px;
     width: 16px;
     height: 16px;
-    color: var(--danger);
+    color: var(--danger); color: light-dark(var(--danger), #f2a29c);
     flex-shrink: 0;
 }
 
@@ -418,7 +418,7 @@
     margin-left: auto;
     background: transparent;
     border: 1px solid rgba(180, 35, 24, 0.40);
-    color: var(--danger);
+    color: var(--danger); color: light-dark(var(--danger), #f2a29c);
     border-radius: 6px;
     padding: 3px 10px;
     font-size: 11.5px;
@@ -439,7 +439,7 @@
 /* Grid de sugerencias (tarjetas con etiqueta) */
 .suggestions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(96px, 100%), 1fr));
     gap: 10px;
     animation: fadeInUp 0.25s ease-out;
 }
@@ -458,9 +458,9 @@
     height: 78px;
     padding: 8px 6px;
     border-radius: 12px;
-    border: 1.5px solid #e2e8f0;
-    background: #ffffff;
-    color: #475569;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
     cursor: pointer;
     transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: center;
@@ -468,7 +468,7 @@
 
 .suggestion-chip:hover {
     border-color: var(--lime);
-    color: var(--navy);
+    color: var(--navy-ink);
     background: rgba(140, 213, 10, 0.06);
     transform: translateY(-2px);
     box-shadow: 0 6px 14px rgba(140, 213, 10, 0.18);
@@ -516,8 +516,8 @@
 .ruta-field {
     display: flex;
     align-items: stretch;
-    background: #ffffff;
-    border: 1.5px solid #cbd5e1;
+    background: var(--surface);
+    border: 1.5px solid var(--border-strong);
     border-radius: 10px;
     height: 48px;
     overflow: hidden;
@@ -525,7 +525,7 @@
 }
 
 .ruta-field:hover {
-    border-color: #94a3b8;
+    border-color: var(--text-faint);
 }
 
 .ruta-field:focus-within {
@@ -543,12 +543,12 @@
     align-items: center;
     gap: 4px;
     padding: 0 14px;
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--surface-3);
+    color: var(--text-2);
     font-weight: 700;
     font-family: 'JetBrains Mono', 'Consolas', monospace;
     font-size: 14px;
-    border-right: 1px solid #e2e8f0;
+    border-right: 1px solid var(--border);
     user-select: none;
 }
 
@@ -556,7 +556,7 @@
     font-size: 16px;
     width: 16px;
     height: 16px;
-    color: #94a3b8;
+    color: var(--text-faint);
 }
 
 .ruta-input {
@@ -568,13 +568,13 @@
     font-family: 'JetBrains Mono', 'Consolas', monospace;
     font-size: 14px;
     background: transparent;
-    color: #0f172a;
+    color: var(--text);
     min-width: 0;
 }
 
 .ruta-input::placeholder {
     color: #cbd5e1;
-    font-family: 'Inter', 'Roboto', sans-serif;
+    font-family: var(--font-sans);
     font-size: 13px;
 }
 
@@ -585,12 +585,12 @@
     padding: 0 12px;
     background: transparent;
     border: none;
-    border-left: 1px solid #e2e8f0;
+    border-left: 1px solid var(--border);
     cursor: pointer;
     font-weight: 600;
     font-size: 12px;
     transition: all 0.18s ease;
-    color: #475569;
+    color: var(--text-2);
 }
 
 .ruta-action mat-icon {
@@ -600,12 +600,12 @@
 }
 
 .ruta-clear {
-    color: #94a3b8;
+    color: var(--text-faint);
 }
 
 .ruta-clear:hover {
-    background: var(--slate-100);
-    color: var(--danger);
+    background: var(--surface-3);
+    color: var(--danger); color: light-dark(var(--danger), #f2a29c);
 }
 
 .ruta-hint {
@@ -614,7 +614,7 @@
     gap: 6px;
     margin-top: 8px;
     padding: 0 2px;
-    color: #64748b;
+    color: var(--muted);
     font-size: 12px;
     line-height: 1.4;
 }
@@ -623,13 +623,13 @@
     font-size: 14px;
     width: 14px;
     height: 14px;
-    color: #94a3b8;
+    color: var(--text-faint);
     margin-top: 1px;
     flex-shrink: 0;
 }
 
 .field-error {
-    color: var(--danger);
+    color: var(--danger); color: light-dark(var(--danger), #f2a29c);
     font-size: 12px;
     margin-top: 4px;
     padding: 0 2px;
@@ -644,21 +644,21 @@
     align-items: center;
     gap: 12px;
     padding: 20px 40px;
-    background: #f8fafc;
-    border-top: 1px solid #e2e8f0;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
     flex-shrink: 0;
 }
 
 .btn-cancel {
-    background: #f1f5f9 !important;
-    color: #475569 !important;
+    background: var(--surface-3) !important;
+    color: var(--text-2) !important;
     font-weight: 600;
     border-radius: 8px !important;
     transition: background 0.2s ease;
 }
 
 .btn-cancel:hover {
-    background: #e2e8f0 !important;
+    background: var(--surface-4) !important;
 }
 
 /* Acción primaria del diálogo: navy con lima encima; el hover invierte. */
@@ -759,6 +759,6 @@
     }
 
     .suggestions-grid {
-        grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(min(82px, 100%), 1fr));
     }
 }

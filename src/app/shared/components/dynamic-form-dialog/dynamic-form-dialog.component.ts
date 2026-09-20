@@ -39,6 +39,13 @@ export interface FieldConfig {
   pattern?: string | RegExp;
   options?: FieldOption[];         // para 'select'
   multiple?: boolean;              // para 'select' múltiple (opcional)
+  /**
+   * Buscador dentro del panel del `select`. Sin declararlo aparece solo cuando la lista
+   * pasa de `UMBRAL_BUSCADOR` opciones, que es donde el desplegable deja de servir para
+   * encontrar algo. Ponlo en `false` para quitarlo de una lista larga, o en `true` para
+   * forzarlo en una corta.
+   */
+  searchable?: boolean;
   disabled?: boolean;
   step?: number;                   // para number
   prefix?: string;
@@ -76,10 +83,23 @@ export interface DynamicDialogData {
 ]
 } )
 export class DynamicFormDialogComponent {
+  /** A partir de aquí un desplegable deja de servir para encontrar algo. */
+  private static readonly UMBRAL_BUSCADOR = 10;
+
   form!: FormGroup;
 
   /** control de visibilidad por campo password */
   showPwd: Record<string, boolean> = {};
+
+  /** Lo escrito en el buscador de cada select. */
+  busqueda: Record<string, string> = {};
+
+  /**
+   * Último filtrado por campo. El template llama a `opcionesVisibles` en cada ciclo de
+   * detección y normalizar 200 etiquetas cada vez no hace falta: mientras el texto no
+   * cambie se devuelve el mismo array —que además mantiene estable el `track` de `@for`.
+   */
+  private cacheFiltro: Record<string, { q: string; res: FieldOption[] }> = {};
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: DynamicDialogData,
@@ -189,5 +209,73 @@ export class DynamicFormDialogComponent {
 
   togglePwd(name: string) {
     this.showPwd[name] = !this.showPwd[name];
+  }
+
+  // ── Buscador de los select ────────────────────────────────────────────────
+
+  tieneBuscador(f: FieldConfig): boolean {
+    if (f.type !== 'select') return false;
+    if (typeof f.searchable === 'boolean') return f.searchable;
+    return (f.options?.length ?? 0) >= DynamicFormDialogComponent.UMBRAL_BUSCADOR;
+  }
+
+  buscar(f: FieldConfig, texto: string): void {
+    this.busqueda[f.name] = texto;
+  }
+
+  /** El panel se cierra: se limpia para que al reabrirlo esté la lista completa. */
+  panelCerrado(f: FieldConfig, abierto: boolean): void {
+    if (!abierto) this.busqueda[f.name] = '';
+  }
+
+  /**
+   * Las teclas se quedan en el input. Sin esto, mat-select las lee como navegación
+   * —escribir "a" salta a la primera opción con "a" y el cursor se va del buscador—.
+   * Escape y Tab sí pasan: son las dos formas de salir del panel.
+   */
+  teclaBuscador(ev: KeyboardEvent): void {
+    if (ev.key !== 'Escape' && ev.key !== 'Tab') ev.stopPropagation();
+  }
+
+  /**
+   * Opciones que se ven. Coincidencia por PALABRAS y en cualquier orden, sin acentos ni
+   * puntuación: "petalia alejo" encuentra "SAN ALEJO (PETALIA S.A.S.)". Buscar la cadena
+   * entera habría obligado a escribir la etiqueta tal cual, que es justo lo que se
+   * quiere evitar.
+   *
+   * Lo ya seleccionado NUNCA se filtra: si desapareciera de la lista, mat-select se
+   * quedaría sin la opción de su propio valor y el campo se vería vacío.
+   */
+  opcionesVisibles(f: FieldConfig): FieldOption[] {
+    const todas = f.options ?? [];
+    const q = this.normalizar(this.busqueda[f.name] ?? '');
+
+    const cache = this.cacheFiltro[f.name];
+    if (cache && cache.q === q) return cache.res;
+
+    let res = todas;
+    if (q) {
+      const palabras = q.split(' ');
+      const sel = this.form?.get(f.name)?.value;
+      const elegidos = new Set(Array.isArray(sel) ? sel : sel != null ? [sel] : []);
+      res = todas.filter(o => {
+        if (elegidos.has(o.value)) return true;
+        const heno = this.normalizar(o.label);
+        return palabras.every(p => heno.includes(p));
+      });
+    }
+
+    this.cacheFiltro[f.name] = { q, res };
+    return res;
+  }
+
+  /** Mayúsculas, sin tildes y sin puntuación: compara lo que se lee, no cómo se escribió. */
+  private normalizar(v: string): string {
+    return (v ?? '')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9 ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }

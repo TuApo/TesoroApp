@@ -9,6 +9,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import { GestionParametrizacionService } from '@/app/features/dashboard/submodule/users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import {
   OptionCatalog, OptionRuleFilter, OptionSource, OptionSourceRequest, OptionSourceRules, OptionsResult,
@@ -42,6 +43,7 @@ interface ColumnaNueva {
   imports: [
     CommonModule, FormsModule, MatCardModule, MatButtonModule, MatIconModule,
     MatProgressBarModule, MatSnackBarModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './option-sources.component.html',
   styleUrls: ['./option-sources.component.css'],
@@ -54,6 +56,21 @@ export class OptionSourcesComponent {
   readonly cargando = signal(false);
   readonly guardando = signal(false);
   readonly origenes = signal<OptionSource[]>([]);
+
+  /** Listado de orígenes en la tabla estándar (la edición de filas nuevas sigue siendo la rejilla propia). */
+  readonly columnasListado: ColumnaTabla<OptionSource>[] = [
+    // Nombre y código en el valor: la búsqueda encuentra el origen por cualquiera de los dos.
+    { id: 'origen', header: 'Origen', valor: o => `${o.name} (${o.code})`, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'tabla', header: 'Tabla', valor: o => o.catalog_code, tarjeta: 'subtitulo' },
+    { id: 'muestra', header: 'Muestra', valor: o => o.label_field, prioridad: 2, tarjeta: 'meta' },
+    { id: 'cascada', header: 'Cascada', prioridad: 2, tarjeta: 'meta',
+      valor: o => (o.parent_source_code ? `${o.parent_source_code} → ${o.parent_link_field}` : ''),
+      formato: o => (o.parent_source_code ? `${o.parent_source_code} → ${o.parent_link_field}` : '—') },
+    { id: 'reglas', header: 'Reglas', valor: o => this.resumenReglas(o), prioridad: 3, tarjeta: 'cuerpo' },
+  ];
+
+  readonly idOrigen = (o: OptionSource) => o.id;
+  readonly claseOrigen = (o: OptionSource) => (o.active ? '' : 'te-fila--atenuada');
   readonly catalogos = signal<OptionCatalog[]>([]);
   readonly columnas = signal<string[]>([]);
 

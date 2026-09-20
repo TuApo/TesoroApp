@@ -1,0 +1,63 @@
+:host {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  background: var(--surface-4);
+  overflow: hidden;
+}
+
+.ph-dlg { display: flex; flex-direction: column; width: 100%; height: 100%; }
+
+.ph-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .06);
+}
+
+.ph-icono { font-size: 26px; width: 26px; height: 26px; color: var(--navy-ink); }
+.ph-titulos h2 { margin: 0; font-size: 16px; font-weight: 800; color: var(--navy-ink); }
+.ph-titulos p { margin: 2px 0 0; font-size: 12px; color: var(--muted); max-width: 760px; }
+.ph-spacer { flex: 1; }
+.ph-conteo { font-size: 12px; font-weight: 600; color: var(--text-2); }
+
+.ph-leyenda { padding: 0 4px; border-radius: 3px; }
+.ph-leyenda-vacio { background: #fef3c7; background: light-dark(#fef3c7, #373625); outline: 1px dashed #d97706; }
+.ph-leyenda-editado { background: #dcfce7; background: light-dark(#dcfce7, #123b33); outline: 1px solid #16a34a; }
+
+.ph-error,
+.ph-cargando {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+}
+.ph-error { background: #fef2f2; background: light-dark(#fef2f2, #351927); color: #b91c1c; color: light-dark(#b91c1c, #f09e9e); }
+.ph-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  font-size: 13px;
+  background: #fffbeb; background: light-dark(#fffbeb, #383624);
+  color: #92400e; color: light-dark(#92400e, #f5bc99);
+  border-bottom: 1px solid #fde68a; border-bottom: 1px solid light-dark(#fde68a, #6a5d1c);
+}
+.ph-aviso mat-icon { flex: none; }
+.ph-cargando { color: var(--muted); }
+.ph-spin { animation: ph-giro 1s linear infinite; font-size: 18px; width: 18px; height: 18px; }
+@keyframes ph-giro { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ph-spin { animation: none; } }
+
+.ph-marco { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--surface-4); }
+.ph-oculto { visibility: hidden; }
+
+@media (max-width: 700px) {
+  .ph-head { padding: 10px 14px; }
+  .ph-titulos p { display: none; }
+}

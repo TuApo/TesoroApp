@@ -11,7 +11,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 
 import { NominaService, Client, CostCenter, PeriodoNominaDto, GranularidadTemporal } from '../../service/nomina/nomina.service';
@@ -38,7 +39,7 @@ interface BucketPeriodo { clave: string; etiqueta: string; desde: string; hasta:
     MatButtonModule, MatIconModule, MatProgressSpinnerModule, MatTooltipModule,
     NgxEchartsDirective, MarkdownMessageComponent,
   ],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './informe-tab.component.html',
   styleUrls: ['./informe-tab.component.css'],

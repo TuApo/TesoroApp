@@ -199,11 +199,11 @@ export interface NovedadFormDialogData {
     .dialog-icon {
       width: 44px; height: 44px; font-size: 26px;
       display: flex; align-items: center; justify-content: center;
-      background: #f0fdfa; color: #0d9488; border-radius: 12px;
+      background: #f0fdfa; background: light-dark(#f0fdfa, #143a41); color: #0d9488; color: light-dark(#0d9488, #98f6ee); border-radius: 12px;
       flex-shrink: 0;
     }
     .dialog-titles h2 { margin: 0; padding: 0; font-size: 1.15rem; }
-    .dialog-subtitle { margin: 2px 0 0; color: #64748b; font-size: .82rem; }
+    .dialog-subtitle { margin: 2px 0 0; color: var(--muted); font-size: .82rem; }
 
     mat-dialog-content { padding-top: 20px !important; }
 
@@ -215,40 +215,40 @@ export interface NovedadFormDialogData {
     .span-2 { grid-column: 1 / -1; }
 
     .opt-two-lines { display: flex; flex-direction: column; line-height: 1.25; padding: 2px 0; }
-    .opt-two-lines small { color: #94a3b8; font-size: .75rem; }
+    .opt-two-lines small { color: var(--text-faint); font-size: .75rem; }
     .opt-loading { display: flex; align-items: center; gap: 8px; }
 
     .opt-concepto { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .opt-codigo {
       font-family: monospace; font-weight: 700; font-size: .78rem;
-      background: #f0fdfa; color: #0f766e; border: 1px solid #99f6e4;
+      background: #f0fdfa; background: light-dark(#f0fdfa, #143a41); color: #0f766e; color: light-dark(#0f766e, #9bf2ec); border: 1px solid #99f6e4; border: 1px solid light-dark(#99f6e4, #136964);
       padding: 1px 6px; border-radius: 5px; flex-shrink: 0;
     }
     .opt-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     .opt-badge {
       font-size: .62rem; font-weight: 700; text-transform: uppercase;
-      background: #f3f4f6; color: #4b5563;
+      background: var(--surface-3); color: var(--text-2);
       padding: 2px 7px; border-radius: 10px; flex-shrink: 0;
     }
-    .opt-badge.devengo   { background: #e8f5e9; color: #2e7d32; }
-    .opt-badge.deduccion { background: #ffebee; color: #c62828; }
+    .opt-badge.devengo   { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
+    .opt-badge.deduccion { background: #ffebee; background: light-dark(#ffebee, #38162a); color: #c62828; }
 
     .dias-info {
       display: flex; align-items: center; gap: 8px;
-      background: #f0fdfa; border: 1px solid #99f6e4; color: #0f766e;
+      background: #f0fdfa; background: light-dark(#f0fdfa, #143a41); border: 1px solid #99f6e4; border: 1px solid light-dark(#99f6e4, #136964); color: #0f766e; color: light-dark(#0f766e, #9bf2ec);
       border-radius: 10px; padding: 8px 14px; margin: 2px 0 14px;
       font-size: .85rem;
     }
-    .dias-info em { font-style: normal; color: #b45309; }
+    .dias-info em { font-style: normal; color: #b45309; color: light-dark(#b45309, #f7c097); }
     .dias-info mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
     .resumen {
       display: flex; align-items: center; gap: 10px;
-      background: #f8fafc; border: 1px dashed #cbd5e1;
+      background: var(--surface-2); border: 1px dashed var(--border-strong);
       border-radius: 10px; padding: 10px 14px; margin-top: 4px;
-      color: #334155; font-size: .85rem;
+      color: var(--text-2); font-size: .85rem;
     }
-    .resumen mat-icon { color: #0d9488; font-size: 20px; width: 20px; height: 20px; }
+    .resumen mat-icon { color: #0d9488; color: light-dark(#0d9488, #98f6ee); font-size: 20px; width: 20px; height: 20px; }
 
     mat-dialog-actions { padding: 14px 24px !important; gap: 8px; }
     .btn-spinner { display: inline-block; margin-right: 8px; }

@@ -145,8 +145,8 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
       margin-bottom: 2rem;
       border-radius: 16px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
-      border: 1px solid #f1f5f9;
-      background: #ffffff;
+      border: 1px solid var(--border);
+      background: var(--surface);
     }
 
     .filters-content {
@@ -164,12 +164,12 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
       gap: 0.75rem;
     }
 
-    .filters-icon { color: #64748b; }
+    .filters-icon { color: var(--muted); }
 
     .filters-title {
       font-size: 1.125rem;
       font-weight: 600;
-      color: #1e293b;
+      color: var(--text);
     }
 
     .filters-actions {
@@ -187,7 +187,7 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
     .quick-ranges button { border-radius: 8px; }
 
     .active-range {
-      background-color: #eff6ff !important;
+      background-color: #eff6ff !important; background-color: light-dark(#eff6ff, #0f284d) !important;
       border-color: #3b82f6 !important;
       color: #1d4ed8 !important;
       font-weight: 500;
@@ -216,7 +216,7 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
     }
 
     .date-separator {
-      color: #64748b;
+      color: var(--muted);
       font-weight: 500;
       font-size: 0.875rem;
     }
@@ -246,7 +246,7 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
       .responsable-field, .base-field { width: 100%; }
       .date-separator { text-align: center; }
       .apply-btn { width: 100%; }
-      .quick-ranges { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); }
+      .quick-ranges { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(96px, 100%), 1fr)); }
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush

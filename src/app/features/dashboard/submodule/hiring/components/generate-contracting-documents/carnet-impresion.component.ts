@@ -40,6 +40,8 @@ interface OpcionVolteo {
 
 @Component({
   selector: 'app-carnet-impresion',
+  // Documento (se imprime o se captura): se queda en claro aunque la app esté en oscuro.
+  host: { class: 'tema-claro-fijo' },
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, MatIconModule, MatTooltipModule],
@@ -204,7 +206,7 @@ interface OpcionVolteo {
     .ci-nota mat-icon { width: 16px; height: 16px; font-size: 16px; flex: 0 0 auto; margin-top: 1px; }
 
     @media (max-width: 520px) {
-      .ci-opts { grid-template-columns: 1fr; }
+      .ci-opts { grid-template-columns: minmax(0, 1fr); }
     }
   `],
 })

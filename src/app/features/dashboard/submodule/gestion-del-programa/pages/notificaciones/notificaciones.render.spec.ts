@@ -1,11 +1,10 @@
 /**
  * Prueba de RENDER de las dos tablas (con TestBed).
  *
- * Existe por el mismo fallo que cubre la de Correos electrónicos: basta un id en
- * `columnasReglas`/`columnasTipos` sin su `matColumnDef` en el HTML para que
- * MatTable lance "Could not find column with id …" y deje la tabla
- * COMPLETAMENTE vacía, aunque el contador siga diciendo el número correcto.
- * Ninguna prueba de lógica pura detecta eso: hay que montar el componente.
+ * Nació por el mismo fallo que cubría la de Correos electrónicos con MatTable
+ * (un id sin su `matColumnDef` dejaba la tabla COMPLETAMENTE vacía). Hoy las dos
+ * tablas son la tabla estándar, que pinta desde el arreglo de columnas; la
+ * prueba sigue montando el componente para asegurar que las filas llegan al DOM.
  */
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -103,11 +102,16 @@ describe('Notificaciones — render de las tablas', () => {
 
   /**
    * Cada tabla se busca por su clase propia y no por posición: MatTabBody monta
-   * solo la pestaña ACTIVA y desmonta la anterior, así que el índice dentro de
-   * `table.nt-tabla` cambia según qué pestaña esté abierta.
+   * solo la pestaña ACTIVA y desmonta la anterior, así que el índice de las
+   * tablas cambia según qué pestaña esté abierta.
    */
   function tabla(clase: 'reglas' | 'tipos'): HTMLElement | null {
-    return fixture.nativeElement.querySelector(`table.nt-tabla-${clase}`) as HTMLElement | null;
+    return fixture.nativeElement.querySelector(`app-tabla-estandar.nt-tabla-${clase}`) as HTMLElement | null;
+  }
+
+  /** Filas de la tabla estándar: filas de tabla o tarjetas, según el ancho. */
+  function filas(el: HTMLElement): number {
+    return el.querySelectorAll('tr.te-fila').length + el.querySelectorAll('.te-tarjeta').length;
   }
 
   /** La tabla de tipos no existe en el DOM hasta que se abre su pestaña. */
@@ -121,24 +125,21 @@ describe('Notificaciones — render de las tablas', () => {
   }
 
   it('pinta una fila por regla (no una tabla vacía)', () => {
-    expect(tabla('reglas')!.querySelectorAll('tr[mat-row]').length)
-      .withContext('las 3 reglas').toBe(3);
+    expect(filas(tabla('reglas')!)).withContext('las 3 reglas').toBe(3);
   });
 
-  it('cada columna de reglas declarada tiene su definición en el HTML', () => {
-    expect(tabla('reglas')!.querySelectorAll('th[mat-header-cell]').length)
-      .withContext('columnasReglas y los matColumnDef deben cuadrar')
-      .toBe(componente.columnasReglas.length);
+  it('las columnas tienen ids únicos (filtros, orden y plantillas se indexan por id)', () => {
+    for (const cols of [componente.columnasReglas, componente.columnasTipos]) {
+      const ids = cols.map((c) => c.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
   });
 
-  it('pinta una fila por tipo y cuadra sus columnas', async () => {
+  it('pinta una fila por tipo', async () => {
     await abrirPestana(1);
     const tablaTipos = tabla('tipos');
     expect(tablaTipos).withContext('la pestaña de tipos debe montar su tabla').toBeTruthy();
-    expect(tablaTipos!.querySelectorAll('tr[mat-row]').length).toBe(2);
-    expect(tablaTipos!.querySelectorAll('th[mat-header-cell]').length)
-      .withContext('columnasTipos y los matColumnDef deben cuadrar')
-      .toBe(componente.columnasTipos.length);
+    expect(filas(tablaTipos!)).toBe(2);
   });
 
   it('los indicadores cuentan solo lo activo', () => {

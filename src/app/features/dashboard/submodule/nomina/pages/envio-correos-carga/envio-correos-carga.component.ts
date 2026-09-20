@@ -1,6 +1,6 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef,
-  OnInit, computed, inject, signal, viewChild,
+  OnInit, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -13,14 +13,15 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
-import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+} from '../../../../../../shared/components/tabla-estandar';
 import {
   CarpetaResumen, EnvioCorreosService, EstadoItem, ItemCarga,
   LoteCarga, PreviewCarga, TipoRef,
@@ -76,8 +77,8 @@ interface Tanda {
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatCardModule, MatChipsModule,
     MatDialogModule, MatExpansionModule, MatFormFieldModule, MatIconModule,
-    MatInputModule, MatPaginatorModule, MatProgressBarModule, MatSelectModule,
-    MatTableModule, MatTooltipModule,
+    MatInputModule, MatProgressBarModule, MatSelectModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './envio-correos-carga.component.html',
   styleUrl: './envio-correos-carga.component.css',
@@ -111,6 +112,7 @@ export class EnvioCorreosCargaComponent implements OnInit {
   readonly documentos = signal<ItemCarga[]>([]);
   readonly totalDocumentos = signal(0);
   readonly paginaDocumentos = signal(0);
+  readonly tamanoDocumentos = signal(50);
   readonly filtroDocumentos = signal('');
 
   // Cargas anteriores
@@ -153,11 +155,72 @@ export class EnvioCorreosCargaComponent implements OnInit {
   readonly tandasHechas = computed(() =>
     this.tandas().filter((t) => t.estado === 'HECHA' || t.estado === 'CON_ERRORES').length);
 
-  readonly columnasResolver = ['archivo', 'carpeta', 'cedula', 'tipo', 'motivo', 'acciones'];
-  readonly columnasCarpetas = ['ruta', 'archivos', 'tipo'];
-  readonly columnasTandas = ['n', 'carpeta', 'archivos', 'estado', 'resultado', 'tiempo'];
-  readonly columnasDocumentos = ['cedula', 'archivo', 'tipo', 'tamano', 'acciones'];
-  readonly columnasLotes = ['carpeta', 'quincena', 'empresa', 'archivos', 'estado', 'acciones'];
+  // ── Columnas de las tablas estándar ───────────────────────────────────────
+  /** Cédula y tipo traen un control cuando faltan: columnas interactivas. */
+  readonly columnasResolver: ColumnaTabla<ItemCarga>[] = [
+    { id: 'archivo', header: 'Archivo', valor: (i) => i.nombre_archivo, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'carpeta', header: 'Carpeta', valor: (i) => i.ruta_relativa, prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'cedula', header: 'Cédula', valor: (i) => i.cedula ?? '', interactiva: true, tarjeta: 'subtitulo' },
+    { id: 'tipo', header: 'Tipo', valor: (i) => i.type_name ?? '', interactiva: true, tarjeta: 'cuerpo' },
+    { id: 'motivo', header: 'Motivo', tarjeta: 'badge',
+      valor: (i) => [this.etiquetaEstado(i.estado), i.motivo].filter(Boolean).join(' — ') },
+  ];
+
+  readonly columnasCarpetas: ColumnaTabla<CarpetaResumen>[] = [
+    { id: 'ruta', header: 'Carpeta', valor: (c) => c.ruta || '(raíz)', tarjeta: 'titulo', minAncho: '200px' },
+    { id: 'archivos', header: 'Archivos', valor: (c) => c.total_archivos, align: 'right', tarjeta: 'meta' },
+    { id: 'tipo', header: 'Tipo documental', interactiva: true, tarjeta: 'cuerpo',
+      valor: (c) => (c.type_name && !c.ambigua ? c.type_name : 'Por elegir') },
+  ];
+
+  readonly columnasTandas: ColumnaTabla<Tanda>[] = [
+    { id: 'n', header: '#', valor: (t) => t.n, align: 'right', tarjeta: 'subtitulo' },
+    { id: 'carpeta', header: 'Carpeta', valor: (t) => t.carpeta, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'archivos', header: 'Archivos', valor: (t) => t.archivos, align: 'right', tarjeta: 'meta' },
+    { id: 'estado', header: 'Estado', valor: (t) => this.etiquetaTanda(t.estado), tarjeta: 'badge' },
+    { id: 'resultado', header: 'Resultado', tarjeta: 'meta',
+      valor: (t) => (t.estado === 'HECHA' || t.estado === 'CON_ERRORES'
+        ? `${t.cargados} cargados${t.errores > 0 ? ` · ${t.errores} con error` : ''}`
+        : '') },
+    { id: 'tiempo', header: 'Tiempo', valor: (t) => t.segundos, align: 'right', prioridad: 2, tarjeta: 'meta',
+      formato: (t) => (t.segundos !== null ? `${t.segundos} s` : '—') },
+  ];
+
+  /** Documentos ya cargados: modo servidor (el backend pagina; no busca ni ordena). */
+  readonly columnasDocumentos: ColumnaTabla<ItemCarga>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (d) => d.cedula ?? '', ordenable: false, tarjeta: 'subtitulo' },
+    { id: 'archivo', header: 'Archivo', valor: (d) => d.nombre_archivo, ordenable: false, tarjeta: 'titulo',
+      minAncho: '180px' },
+    { id: 'tipo', header: 'Tipo', valor: (d) => d.type_name ?? '', formato: (d) => d.type_name || '—',
+      ordenable: false, prioridad: 2, tarjeta: 'meta' },
+    { id: 'tamano', header: 'Tamaño', valor: (d) => d.tamano_bytes, formato: (d) => this.tamanoLegible(d.tamano_bytes),
+      align: 'right', ordenable: false, prioridad: 2, tarjeta: 'meta' },
+  ];
+
+  readonly columnasLotes: ColumnaTabla<LoteCarga>[] = [
+    { id: 'carpeta', header: 'Carpeta', valor: (l) => l.carpeta_raiz, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'quincena', header: 'Quincena', valor: (l) => l.periodo_etiqueta ?? '',
+      formato: (l) => l.periodo_etiqueta || '—', tarjeta: 'subtitulo' },
+    { id: 'empresa', header: 'Empresa', valor: (l) => this.nombreEmpresa(l.empresa), prioridad: 2, tarjeta: 'meta' },
+    { id: 'archivos', header: 'Archivos', tarjeta: 'cuerpo',
+      valor: (l) => `${l.total_cargados} cargados${l.total_errores > 0 ? ` · ${l.total_errores} error(es)` : ''}` },
+    { id: 'estado', header: 'Estado', valor: (l) => l.estado, prioridad: 2, tarjeta: 'badge' },
+  ];
+
+  readonly idItem = (i: ItemCarga) => i.id;
+  readonly idCarpeta = (c: CarpetaResumen) => c.ruta;
+  readonly idTanda = (t: Tanda) => t.n;
+  readonly idLote = (l: LoteCarga) => l.lote_id;
+
+  /**
+   * La tabla de documentos guarda su página; la de la pantalla manda (p. ej.
+   * al abrir otra carga anterior se vuelve a la primera).
+   */
+  private readonly tablaDocumentos = viewChild<TablaEstandarComponent>('tablaDocumentos');
+
+  constructor() {
+    effect(() => this.tablaDocumentos()?.pagina.set(this.paginaDocumentos()));
+  }
 
   ngOnInit(): void {
     this.titulo.setTitle('Carga por carpeta | Envío de correos (modelo antiguo)');
@@ -475,7 +538,7 @@ export class EnvioCorreosCargaComponent implements OnInit {
     if (!lote) return;
     try {
       const r = await firstValueFrom(
-        this.srv.itemsDeLote(lote.lote_id, 'CARGADO', this.paginaDocumentos(), 50));
+        this.srv.itemsDeLote(lote.lote_id, 'CARGADO', this.paginaDocumentos(), this.tamanoDocumentos()));
       this.documentos.set(r.content);
       this.totalDocumentos.set(r.total_elements);
     } catch {
@@ -483,8 +546,9 @@ export class EnvioCorreosCargaComponent implements OnInit {
     }
   }
 
-  onPaginaDocumentos(e: PageEvent): void {
-    this.paginaDocumentos.set(e.pageIndex);
+  onPaginaDocumentos(e: { pagina: number; porPagina: number }): void {
+    this.paginaDocumentos.set(e.pagina);
+    this.tamanoDocumentos.set(e.porPagina);
     this.cargarDocumentos();
   }
 

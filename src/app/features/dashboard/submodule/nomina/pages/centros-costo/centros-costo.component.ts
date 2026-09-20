@@ -1,12 +1,9 @@
-import { ChangeDetectorRef, Component, OnInit, AfterViewInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { Observable, startWith, map } from 'rxjs';
 
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule, MatTableDataSource } from '@angular/material/table';
-import { MatSortModule, MatSort } from '@angular/material/sort';
-import { MatPaginatorModule, MatPaginator } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -16,11 +13,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
-import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { NominaService, CentroCostoAdmin, Client } from '../../service/nomina/nomina.service';
 import { CentroCostoFormDialogComponent } from './centro-costo-form-dialog.component';
 
@@ -31,7 +27,8 @@ type FiltroEstado = 'activos' | 'inactivos' | 'todos';
  * listar / buscar / filtrar por empresa usuaria y estado / crear / editar /
  * desactivar / reactivar. NO existe eliminación física (no hay botón ni endpoint
  * de borrado). El estado y la empresa usuaria se filtran en el backend; la
- * búsqueda por texto es client-side sobre el resultado ya filtrado.
+ * búsqueda por texto, el orden y los filtros por columna los hace la tabla
+ * estándar sobre el resultado ya filtrado.
  */
 @Component({
   selector: 'app-centros-costo',
@@ -41,9 +38,6 @@ type FiltroEstado = 'activos' | 'inactivos' | 'todos';
     FormsModule,
     ReactiveFormsModule,
     MatCardModule,
-    MatTableModule,
-    MatSortModule,
-    MatPaginatorModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
@@ -53,23 +47,18 @@ type FiltroEstado = 'activos' | 'inactivos' | 'todos';
     MatDialogModule,
     MatTooltipModule,
     MatSnackBarModule,
-    MatChipsModule,
-    MatProgressSpinnerModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './centros-costo.component.html',
   styleUrls: ['./centros-costo.component.css'],
 })
-export class CentrosCostoComponent implements OnInit, AfterViewInit {
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-
-  displayedColumns = ['codigo', 'nombre', 'empresa', 'sede', 'direccion', 'estado', 'contratos', 'acciones'];
-  dataSource = new MatTableDataSource<CentroCostoAdmin>([]);
+export class CentrosCostoComponent implements OnInit {
+  /** Lo que devolvió el backend con los filtros de empresa y estado. */
+  centros: CentroCostoAdmin[] = [];
   isLoading = false;
 
   filterEstado: FiltroEstado = 'activos';      // por defecto: solo activos
   filterEmpresa: number | null = null;         // empresa usuaria (server-side)
-  filterSearch = '';
 
   /** Empresas usuarias ACTIVAS para el selector de filtro. */
   empresas: Client[] = [];
@@ -78,7 +67,24 @@ export class CentrosCostoComponent implements OnInit, AfterViewInit {
   empresaControl = new FormControl<any>('');
   filteredEmpresas$!: Observable<Client[]>;
 
-  private all: CentroCostoAdmin[] = [];
+  readonly columnas: ColumnaTabla<CentroCostoAdmin>[] = [
+    { id: 'codigo', header: 'Código', valor: (c) => c.codigo_interno ?? '', tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (c) => c.nombre, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'empresa', header: 'Empresa usuaria', valor: (c) => c.empresa_usuaria_nombre ?? '',
+      formato: (c) => c.empresa_usuaria_nombre || '—', tarjeta: 'cuerpo' },
+    { id: 'sede', header: 'Sede física', valor: (c) => c.sede_fisica ?? '',
+      formato: (c) => c.sede_fisica || '—', prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'direccion', header: 'Dirección', valor: (c) => c.direccion ?? '',
+      formato: (c) => c.direccion || '—', prioridad: 3, tarjeta: 'cuerpo' },
+    { id: 'estado', header: 'Estado', valor: (c) => (c.active ? 'Activo' : 'Inactivo'), tarjeta: 'badge',
+      badge: (c) => c.active
+        ? { texto: 'Activo', tono: 'ok', icono: 'check_circle' }
+        : { texto: 'Inactivo', tono: 'neutro', icono: 'cancel' } },
+    { id: 'contratos', header: 'Contratos', valor: (c) => c.contratos_count, align: 'right', tarjeta: 'meta' },
+  ];
+
+  readonly idCentro = (c: CentroCostoAdmin) => c.id_ceco;
+  readonly claseFila = (c: CentroCostoAdmin) => (c.active ? '' : 'te-fila--atenuada');
 
   constructor(
     private nominaService: NominaService,
@@ -113,11 +119,6 @@ export class CentrosCostoComponent implements OnInit, AfterViewInit {
       }
       // Mientras es un texto parcial (typing) solo se filtran las opciones; no se recarga.
     });
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
   }
 
   private estadoParam(): boolean | null {
@@ -157,8 +158,7 @@ export class CentrosCostoComponent implements OnInit, AfterViewInit {
       activo: this.estadoParam(),
     }).subscribe({
       next: (data) => {
-        this.all = data ?? [];
-        this.aplicarFiltros();
+        this.centros = data ?? [];
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -170,30 +170,12 @@ export class CentrosCostoComponent implements OnInit, AfterViewInit {
     });
   }
 
-  aplicarFiltros(): void {
-    const q = (this.filterSearch || '').trim().toLowerCase();
-    this.dataSource.data = this.all.filter((c) => {
-      if (!q) return true;
-      const blob = [c.codigo_interno, c.nombre, c.empresa_usuaria_nombre, c.sede_fisica, c.direccion]
-        .filter(Boolean).join(' ').toLowerCase();
-      return blob.includes(q);
-    });
-    if (this.paginator) this.paginator.firstPage();
-    this.cdr.markForCheck();
-  }
-
-  onSearchChange(value: string): void {
-    this.filterSearch = value;
-    this.aplicarFiltros();
-  }
-
   onFiltroServerChange(): void {
     // Empresa usuaria y estado se filtran en el backend → recargamos.
     this.cargar();
   }
 
   limpiarFiltros(): void {
-    this.filterSearch = '';
     this.filterEstado = 'activos';
     this.filterEmpresa = null;
     this.empresaControl.setValue('', { emitEvent: false });

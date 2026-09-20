@@ -53,6 +53,215 @@ export interface PerfilVacante {
   updated_at?: string;
 }
 
+// ── Grupos de pago, fechas de pago y casino (V115) ──────────────────────────
+
+export type TipoCalendarioPago = 'RECURRENTE_MENSUAL' | 'FECHAS_ESPECIFICAS';
+export type EstadoCalendarioPago = 'VIGENTE' | 'VENCIDO';
+export type FormaDescuentoCasino = 'QUINCENAL_NOMINA_Y_LIQUIDACION';
+export type ComidaCasino = 'DESAYUNO' | 'ALMUERZO' | 'CENA';
+/** De dónde salió el casino de una vacante, igual que el origen de la labor. */
+export type OrigenCasino = 'CENTRO_GRUPO' | 'GRUPO' | 'CENTRO';
+
+/**
+ * Cuándo se paga. `texto_documento` y `estado` los calcula el BACKEND: aquí no se arma
+ * ningún texto ni se decide si un calendario venció.
+ */
+export interface CalendarioPago {
+  id?: number;
+  codigo: string;
+  tipo: TipoCalendarioPago;
+  dia_pago_1?: number | null;
+  dia_pago_2?: number | null;
+  /** Solo en FECHAS_ESPECIFICAS; ISO yyyy-MM-dd. */
+  fechas?: string[];
+  ultima_fecha?: string | null;
+  texto_documento?: string;
+  estado?: EstadoCalendarioPago;
+  activo?: boolean;
+  /** Cuántos grupos de centro lo usan: es lo que impide desactivarlo. */
+  centros_asignados?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ComidaPoliticaCasino { comida: ComidaCasino; valor: number; }
+
+/** Qué casino se ofrece y cuánto vale cada comida. El precio es de la política, no del centro. */
+export interface PoliticaCasino {
+  id?: number;
+  codigo: string;
+  ofrece_servicio: boolean;
+  forma_descuento?: FormaDescuentoCasino | null;
+  comidas?: ComidaPoliticaCasino[];
+  texto_documento?: string;
+  activo?: boolean;
+  centros_asignados?: number;
+  /** Números de grupo que la tienen como casino por defecto. */
+  grupos_por_defecto?: number[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Grupo de pago. `politica_casino_id` es su casino por defecto: un centro con este grupo
+ * no puede quedar con otra política (el backend responde CASINO_CONTRADICE_GRUPO).
+ */
+export interface GrupoPago {
+  id?: number;
+  numero: number;
+  nombre: string;
+  descripcion?: string | null;
+  politica_casino_id?: number | null;
+  politica_casino_codigo?: string | null;
+  activo?: boolean;
+  centros_asignados?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** Un grupo del catálogo frente a un centro: `asignada` dice si lo tiene. */
+export interface CentroGrupoPago {
+  grupo_pago_id: number;
+  numero: number;
+  nombre: string;
+  asignada: boolean;
+  calendario_pago_id?: number | null;
+  calendario_codigo?: string | null;
+  calendario_estado?: EstadoCalendarioPago | null;
+  fechas_pago_texto?: string | null;
+  politica_defecto_id?: number | null;
+  politica_defecto_codigo?: string | null;
+}
+
+/** Una fila ACTIVA de casino del centro. `grupo_pago_id` null = todo el centro. */
+export interface CentroCasino {
+  grupo_pago_id: number | null;
+  grupo_numero?: number | null;
+  politica_casino_id: number;
+  politica_codigo?: string | null;
+  texto_documento?: string | null;
+}
+
+export interface ResolucionPagoCasino {
+  centro_costo_id: number;
+  grupo_pago_id: number;
+  grupo_pago_numero: number;
+  grupo_pago_nombre: string;
+  calendario_pago_id: number;
+  calendario_codigo: string;
+  calendario_tipo: TipoCalendarioPago;
+  calendario_estado: EstadoCalendarioPago;
+  fechas_pago_texto: string;
+  politica_casino_id: number;
+  politica_casino_codigo: string;
+  ofrece_servicio: boolean;
+  casino_texto: string;
+  casino_origen: OrigenCasino;
+  /** Hoy solo CALENDARIO_VENCIDO: avisa, no impide publicar. */
+  advertencias: string[];
+}
+
+/** Si Crear Vacante debe exigir grupo de pago en este centro. Lo deciden los datos. */
+export interface PagoModoCentro {
+  centro_costo_id: number;
+  temporal_config_ref: number | null;
+  exige_grupo_pago: boolean;
+}
+
+export interface ResumenGrupoCentro {
+  grupo_pago_id: number;
+  numero: number;
+  nombre: string;
+  calendario_pago_id: number | null;
+  calendario_codigo: string | null;
+  calendario_estado: EstadoCalendarioPago | null;
+  politica_casino_id: number | null;
+  politica_casino_codigo: string | null;
+  casino_origen: OrigenCasino | null;
+  casino_error: string | null;
+}
+
+/** Un centro habilitado en la cadena: rojo si le falta algo, ámbar si su calendario venció. */
+export interface ResumenPagoCentro {
+  centro_costo_id: number;
+  finca: string | null;
+  ccostos: string | null;
+  empresa_usuaria_ref: number | null;
+  empresa_nombre: string | null;
+  temporal_config_ref: number | null;
+  grupos: ResumenGrupoCentro[];
+  casino_centro_codigo: string | null;
+  sin_grupos: boolean;
+  sin_casino: boolean;
+  calendario_vencido: boolean;
+}
+
+export type Periodicidad = 'MENSUAL' | 'QUINCENAL';
+
+/**
+ * Un seguro funerario. Existe por sí mismo, con su nombre y su valor definidos UNA vez;
+ * los centros se le asocian por la tabla intermedia. Cambiar `valor` lo cambia en todos
+ * los centros que lo tengan — por eso `centros_asignados` viene del backend.
+ *
+ * No hay valor por defecto ni herencia: un centro tiene los seguros que diga la relación
+ * y ninguno más.
+ */
+export interface SeguroFunerario {
+  id?: number;
+  nombre: string;
+  valor: number;
+  periodicidad: Periodicidad;
+  /** true = se descuenta por nómina; false = lo asume la empresa. */
+  descuento_nomina?: boolean;
+  descripcion?: string | null;
+  activo?: boolean;
+  /** A cuántos centros alcanza cambiarle el valor. Lo calcula el backend. */
+  centros_asignados?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Salario mínimo y auxilio de transporte de UN año. Los documentos de contratación
+ * imprimen el del año en que se creó el contrato; un año sin fila usa el anterior.
+ */
+export interface SalarioMinimoAnio {
+  id?: number;
+  anio: number;
+  salario_minimo: number;
+  auxilio_transporte: number;
+  observacion?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * Un seguro FRENTE A un centro, marcando si lo tiene. Vienen todos los seguros activos,
+ * no solo los asignados: la pantalla necesita poder marcar los que faltan.
+ *
+ * Un centro puede tener VARIOS: filtrar por `asignada` da la lista real, y leerla como
+ * si fuera un único seguro se come el segundo.
+ */
+export interface CentroSeguro {
+  seguro_funerario_id: number;
+  nombre: string;
+  valor: number;
+  periodicidad: Periodicidad;
+  descuento_nomina?: boolean;
+  asignada: boolean;
+  observaciones?: string | null;
+}
+
+/** Un centro FRENTE A un seguro. La vista simétrica de `CentroSeguro`. */
+export interface SeguroCentro {
+  centro_costo_id: number;
+  centro_nombre: string | null;
+  centro_codigo: string | null;
+  empresa_nombre: string | null;
+  temporal: string | null;
+  asignada: boolean;
+}
+
 export interface EsquemaLabor {
   id?: number;
   codigo: string;
@@ -105,11 +314,19 @@ export interface CargoArea {
   conciliado?: boolean;
   origen?: string;
   activo?: boolean;
+  /** Columna derivada: la tabla compartida pinta propiedades planas. */
+  conciliadoTxt?: string;
 }
 
 export interface ConfiguracionCentroCargo {
   id?: number;
   centro_costo_id: number;
+  /**
+   * Cómo se llama el centro, ya desambiguado por el backend. El id sigue siendo lo que
+   * se guarda, pero no es lo que se le enseña al usuario: «Centro 8149» no identifica
+   * ningún sitio para quien parametriza.
+   */
+  centro_nombre?: string | null;
   cargo_id?: number | null;
   cargo_nombre_origen: string;
   area_id: number;
@@ -132,6 +349,13 @@ export interface ConfiguracionCentroCargo {
  * contratación e históricos; esto es el ALCANCE del módulo de vacantes.
  * `nombre` y `nit` los resuelve el backend contra ms-payroll — aquí no se guarda copia.
  */
+/** Empresa del maestro que todavía NO está en el alcance de vacantes. */
+export interface EmpresaCandidata {
+  empresa_usuaria_ref: number;
+  nombre: string | null;
+  nit: string | null;
+}
+
 export interface EmpresaVacante {
   id: number;
   empresa_usuaria_ref: number;
@@ -147,6 +371,44 @@ export interface EmpresaVacante {
   temporal_config_ref: number | null;
   activo_vacantes: boolean;
   existe_en_maestro: boolean;
+  /**
+   * Datos de contacto. Igual que `nombre` y `nit`, viven en el MAESTRO (ms-payroll) y no
+   * en el alcance: se editan desde esta pantalla pero se guardan alla. null si ms-payroll
+   * no respondio o la referencia quedo huerfana.
+   */
+  representante_legal: string | null;
+  /** Cédula del representante legal. Esta SÍ es del alcance (db_admin), no del maestro. */
+  representante_legal_documento: string | null;
+  direccion: string | null;
+  telefono: string | null;
+  correo: string | null;
+  /**
+   * Ultima modificacion del ALCANCE de esta empresa (temporal, nombre de origen,
+   * conciliacion, alta/baja). No refleja cambios de la razon social ni del NIT: eso
+   * vive en el maestro (ms-payroll) y se edita en Entidades Externas.
+   */
+  updated_at?: string | null;
+}
+
+/** Opción del selector de centro de costo: con qué se guarda y cómo se le llama. */
+export interface CentroOpcion {
+  id: number;
+  etiqueta: string;
+  empresa_usuaria_ref: number | null;
+  habilitado_vacantes: boolean;
+}
+
+/**
+ * Los campos de la empresa que NO son del alcance de vacantes: viven en el maestro de
+ * entidades externas (ms-payroll). ms-auth-admin los reenvia; aqui no se guarda copia.
+ */
+export interface DatosMaestroEmpresa {
+  nombre?: string;
+  nit?: string;
+  representante_legal?: string;
+  direccion?: string;
+  telefono?: string;
+  correo?: string;
 }
 
 /** Centro de costo dentro del dominio VACANTES. */
@@ -161,6 +423,11 @@ export interface CentroVacante {
   centro_de_costo: string | null;
   ciudad: string | null;
   direccion: string | null;
+  /** Contacto del gestor del centro. El teléfono ya se guardaba, pero el backend
+   *  no lo devolvía, así que el formulario lo reabría vacío. */
+  nombre_gestor: string | null;
+  telefono_gestor: string | null;
+  email_gestor: string | null;
   temporal: string | null;
   sublabor: string | null;
   salario: number | null;
@@ -258,6 +525,148 @@ export interface ResolucionLabor {
   dia: number;
 }
 
+// ── Parametrización DOCUMENTAL (documentos de contratación por empresa usuaria) ──
+//
+// Mismo controlador base y mismo contrato que el resto: JSON en snake_case, errores
+// `{error, codigo}`. Los enumerados viajan como texto; aquí se tipan con sus valores.
+
+/** A dónde va un ejemplar del documento. */
+export type DestinoDocumento = 'ARCHIVO_TEMPORAL' | 'ESCANER_USUARIA' | 'TRABAJADOR_FINCA' | 'TRABAJADOR';
+/** DIGITAL no produce papel: no suma a las copias físicas. Solo aplica a ESCANER_USUARIA. */
+export type FormaDocumento = 'ORIGINAL' | 'COPIA' | 'DIGITAL';
+export type NaturalezaDocumento = 'GENERADO' | 'DILIGENCIADO_MANUAL' | 'SOPORTE_CARGADO' | 'CONSULTA';
+export type EtapaDocumento = 'SELECCION' | 'CONTRATACION' | 'AFILIACION' | 'INGRESO';
+export type CondicionDocumento = 'NINGUNA' | 'CARGO_CRITICO' | 'SEGUN_CARGO' | 'OMITIBLE_TEMPORADA';
+/** Interruptor por temporal: OFF = regex de siempre, SOMBRA = compara y registra, ON = solo parametrización. */
+export type ModoDocumentos = 'OFF' | 'SOMBRA' | 'ON';
+
+/** Una fila por empresa del alcance, con su conteo. Alimenta el aviso «sin parametrizar». */
+export interface EmpresaDocumentosResumen {
+  empresa_vacante_id: number;
+  empresa_usuaria_ref: number;
+  temporal_config_ref: number | null;
+  nombre_excel: string | null;
+  activo: boolean | null;
+  documentos: number;
+  sin_parametrizacion: boolean;
+  modo_temporal: ModoDocumentos;
+  /** Columnas derivadas: la tabla compartida pinta propiedades planas. */
+  empresaTxt?: string;
+  estadoTxt?: string;
+}
+
+/** Tipo del catálogo de documentos de contratación. */
+export interface TipoDocumental {
+  id?: number;
+  /** UPPER_SNAKE. No se edita: lo comparten ms-documents y ms-templates. */
+  codigo: string;
+  nombre: string;
+  nombre_listado?: string | null;
+  /** Id del tipo en ms-documents. Se enlaza solo (al crear el tipo y cada 15 min). */
+  tipo_documento_ref?: number | null;
+  naturaleza: NaturalezaDocumento;
+  /** Obligatoria cuando la naturaleza es GENERADO. */
+  plantilla_codigo?: string | null;
+  etapa: EtapaDocumento;
+  vigencia_dias?: number | null;
+  condicion?: CondicionDocumento | null;
+  observacion?: string | null;
+  activo?: boolean;
+  /** Cuántas empresas lo llevan. Con > 0 el backend no deja desactivarlo. */
+  empresas_asignadas?: number;
+}
+
+/** Cuerpo de alta/edición de un tipo. En la edición, null = no tocar y '' = borrar. */
+export type TipoDocumentalRequest = Partial<Omit<TipoDocumental, 'id' | 'empresas_asignadas'>>;
+
+/** Perfil molde (ELITE, ELITE_BLU, DEFAULT…) de una temporal. */
+export interface PerfilDocumental {
+  id: number;
+  codigo: string;
+  nombre: string;
+  temporal_config_ref: number;
+  version_listado: string | null;
+  descripcion: string | null;
+  documentos: number;
+}
+
+export interface ModoDocumentosTemporal {
+  temporal_config_ref: number;
+  modo: ModoDocumentos;
+  observacion: string | null;
+  updated_at: string | null;
+}
+
+export interface DestinoDocumental {
+  destino: DestinoDocumento;
+  forma: FormaDocumento;
+  /** null = el backend guarda 1. */
+  copias: number | null;
+  orden: number | null;
+}
+
+/** Lo que del tipo viaja dentro de cada documento de la empresa. */
+export interface TipoDocumentalResumen {
+  id: number;
+  codigo: string;
+  nombre: string;
+  naturaleza: NaturalezaDocumento;
+  plantilla_codigo: string | null;
+  etapa: EtapaDocumento;
+  vigencia_dias: number | null;
+  condicion: CondicionDocumento | null;
+  observacion: string | null;
+  tipo_documento_ref: number | null;
+}
+
+export interface DocumentoEmpresa {
+  id: number | null;
+  tipo: TipoDocumentalResumen;
+  obligatorio: boolean | null;
+  orden_archivo: number | null;
+  bloque_archivo: number | null;
+  version_listado: string | null;
+  destinos: DestinoDocumental[];
+  copias_fisicas: number;
+  copias_digitales: number;
+  /** EMPRESA | EXCEPCION_CENTRO. */
+  origen: string;
+}
+
+export interface TotalesDocumentos {
+  documentos: number;
+  copias_fisicas: number;
+  copias_digitales: number;
+  fisicas_por_destino: Record<string, number>;
+  digitales_por_destino: Record<string, number>;
+}
+
+export interface EmpresaDocumentos {
+  empresa_vacante_id: number;
+  empresa_usuaria_ref: number;
+  temporal_config_ref: number | null;
+  nombre_excel: string | null;
+  /** Datos que imprimen las plantillas y no están en el maestro de nómina. */
+  codigo_compania: string | null;
+  representante_legal_documento: string | null;
+  /** Canal de protección de datos de la empresa usuaria (Autorización de derechos de imagen). */
+  correo_datos_personales: string | null;
+  telefono_datos_personales: string | null;
+  sin_parametrizacion: boolean;
+  documentos: DocumentoEmpresa[];
+  totales: TotalesDocumentos;
+}
+
+/** Una fila del PUT de reemplazo exacto. */
+export interface DocumentoEmpresaRequest {
+  tipo_documental_id: number;
+  obligatorio: boolean;
+  orden_archivo: number | null;
+  bloque_archivo: number | null;
+  version_listado: string | null;
+  destinos: DestinoDocumental[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ParametrizacionVacantesService {
   private http = inject(HttpClient);
@@ -271,11 +680,46 @@ export class ParametrizacionVacantesService {
   listarEmpresas(activo?: boolean): Observable<EmpresaVacante[]> {
     return this.http.get<EmpresaVacante[]>(`${this.base}/empresas`, { params: this.params({ activo }) });
   }
-  habilitarEmpresa(body: { empresaUsuariaRef: number; nombreExcel?: string; tipoConciliacion?: string; activo?: boolean }): Observable<EmpresaVacante> {
+  /**
+   * Empresas del MAESTRO que aún no están en el alcance: lo que ofrece el
+   * desplegable de «Habilitar empresa». Las que ya están —incluso dadas de
+   * baja— no salen aquí: esas se devuelven con su interruptor en la tabla.
+   */
+  empresasCandidatas(): Observable<EmpresaCandidata[]> {
+    return this.http.get<EmpresaCandidata[]>(`${this.base}/empresas/candidatas`);
+  }
+  /**
+   * Mete una empresa del maestro en el alcance de vacantes.
+   *
+   * Las claves van en SNAKE_CASE porque los microservicios serializan así
+   * (`commons/JacksonConfig` fija `PropertyNamingStrategies.SNAKE_CASE`). Este
+   * método estaba escrito en camelCase y nunca se llegó a llamar desde ninguna
+   * pantalla, así que el fallo no había salido: el backend habría recibido
+   * `empresa_usuaria_ref` nulo y respondido 400.
+   */
+  habilitarEmpresa(body: {
+    empresa_usuaria_ref: number;
+    nombre_excel?: string;
+    tipo_conciliacion?: string;
+    temporal_config_ref?: number;
+    activo?: boolean;
+    representante_legal_documento?: string;
+  } & DatosMaestroEmpresa): Observable<EmpresaVacante> {
     return this.http.post<EmpresaVacante>(`${this.base}/empresas`, body);
   }
-  /** Edita el alcance (temporal, nombre de origen). NO toca el maestro. */
-  actualizarEmpresa(id: number, body: { temporal_config_ref?: number | null; nombre_excel?: string; tipo_conciliacion?: string }): Observable<EmpresaVacante> {
+  /**
+   * Edita la empresa. Mezcla dos origenes en una sola llamada porque para el usuario es un
+   * unico formulario: temporal / nombre de origen / conciliacion son del ALCANCE, y los de
+   * `DatosMaestroEmpresa` los reenvia ms-auth-admin al maestro de ms-payroll. Un campo que
+   * no se manda no se toca.
+   */
+  actualizarEmpresa(id: number, body: {
+    temporal_config_ref?: number | null;
+    nombre_excel?: string;
+    tipo_conciliacion?: string;
+    /** '' = borrarla; ausente = no tocarla. */
+    representante_legal_documento?: string;
+  } & DatosMaestroEmpresa): Observable<EmpresaVacante> {
     return this.http.put<EmpresaVacante>(`${this.base}/empresas/${id}`, body);
   }
   /** Saca la empresa del alcance de vacantes. NO la toca en el maestro. */
@@ -430,7 +874,9 @@ export class ParametrizacionVacantesService {
   }
 
   // ── Cargo ↔ area ──────────────────────────────────────────────────────────
-  listarCargoAreas(f: { esquemaId?: number; cargoNombre?: string } = {}): Observable<CargoArea[]> {
+  listarCargoAreas(
+    f: { esquemaId?: number; cargoNombre?: string; incluirInactivos?: boolean } = {},
+  ): Observable<CargoArea[]> {
     return this.http.get<CargoArea[]>(`${this.base}/cargo-areas`, { params: this.params(f) });
   }
   crearCargoArea(body: Partial<CargoArea>): Observable<CargoArea> {
@@ -443,8 +889,22 @@ export class ParametrizacionVacantesService {
   conciliarCargoArea(id: number): Observable<CargoArea> {
     return this.http.patch<CargoArea>(`${this.base}/cargo-areas/${id}/conciliar`, {});
   }
+  /** Baja lógica del mapeo. Era el único elemento sin forma de retirarse. */
+  estadoCargoArea(id: number, activo: boolean): Observable<CargoArea> {
+    return this.http.patch<CargoArea>(`${this.base}/cargo-areas/${id}/estado`, {},
+      { params: this.params({ activo }) });
+  }
 
   // ── Configuracion centro + cargo ──────────────────────────────────────────
+  /**
+   * Centros para el desplegable: id + etiqueta. Aparte de `listarCentros` porque aquel
+   * exige empresa (es la cascada empresa → centro) y aquí hace falta la lista completa
+   * para elegir el centro por su nombre sin saber antes de qué empresa es.
+   */
+  opcionesCentro(incluirNoHabilitados = false): Observable<CentroOpcion[]> {
+    return this.http.get<CentroOpcion[]>(`${this.base}/centros/opciones`,
+      { params: this.params({ incluirNoHabilitados }) });
+  }
   listarConfiguraciones(f: { centroCostoId?: number; esquemaId?: number; areaId?: number } = {}): Observable<ConfiguracionCentroCargo[]> {
     return this.http.get<ConfiguracionCentroCargo[]>(`${this.base}/configuraciones`, { params: this.params(f) });
   }
@@ -456,6 +916,117 @@ export class ParametrizacionVacantesService {
   }
   estadoConfiguracion(id: number, activo: boolean): Observable<ConfiguracionCentroCargo> {
     return this.http.patch<ConfiguracionCentroCargo>(`${this.base}/configuraciones/${id}/estado`, {}, { params: this.params({ activo }) });
+  }
+
+  // ── Seguros funerarios ───────────────────────────────────────────────────
+  /** `activo` omitido = todos, para administrarlos; `true` = solo los vigentes. */
+  listarSeguros(activo?: boolean): Observable<SeguroFunerario[]> {
+    return this.http.get<SeguroFunerario[]>(`${this.base}/seguros-funerarios`, { params: this.params({ activo }) });
+  }
+  crearSeguro(body: Partial<SeguroFunerario>): Observable<SeguroFunerario> {
+    return this.http.post<SeguroFunerario>(`${this.base}/seguros-funerarios`, body);
+  }
+  /** OJO: cambiar el valor lo cambia en TODOS los centros que tengan este seguro. */
+  actualizarSeguro(id: number, body: Partial<SeguroFunerario>): Observable<SeguroFunerario> {
+    return this.http.put<SeguroFunerario>(`${this.base}/seguros-funerarios/${id}`, body);
+  }
+  estadoSeguro(id: number, activo: boolean): Observable<SeguroFunerario> {
+    return this.http.patch<SeguroFunerario>(`${this.base}/seguros-funerarios/${id}/estado`, {},
+      { params: this.params({ activo }) });
+  }
+
+  // ── Salario mínimo por año ───────────────────────────────────────────────
+  listarSalarioMinimo(): Observable<SalarioMinimoAnio[]> {
+    return this.http.get<SalarioMinimoAnio[]>(`${this.base}/salario-minimo`);
+  }
+  /** Crea o corrige el año. */
+  guardarSalarioMinimo(anio: number, body: Pick<SalarioMinimoAnio, 'salario_minimo' | 'auxilio_transporte' | 'observacion'>): Observable<SalarioMinimoAnio> {
+    return this.http.put<SalarioMinimoAnio>(`${this.base}/salario-minimo/${anio}`, body);
+  }
+
+  /** Centros del alcance frente a un seguro, marcando cuáles lo tienen. */
+  centrosDeSeguro(seguroId: number): Observable<SeguroCentro[]> {
+    return this.http.get<SeguroCentro[]>(`${this.base}/seguros-funerarios/${seguroId}/centros`);
+  }
+  /** Fija EXACTAMENTE los centros del seguro; los que salen se dan de baja lógica. */
+  fijarCentrosDeSeguro(seguroId: number, centroCostoIds: number[]): Observable<SeguroCentro[]> {
+    return this.http.put<SeguroCentro[]>(`${this.base}/seguros-funerarios/${seguroId}/centros`,
+      { centro_costo_ids: centroCostoIds });
+  }
+
+  /** Los seguros de un centro. Devuelve LISTA: un centro puede tener varios. */
+  segurosDeCentro(centroId: number): Observable<CentroSeguro[]> {
+    return this.http.get<CentroSeguro[]>(`${this.base}/centros/${centroId}/seguros-funerarios`);
+  }
+  /** Fija EXACTAMENTE los seguros del centro. */
+  fijarSegurosDeCentro(centroId: number, seguroIds: number[]): Observable<CentroSeguro[]> {
+    return this.http.put<CentroSeguro[]>(`${this.base}/centros/${centroId}/seguros-funerarios`,
+      { seguro_ids: seguroIds });
+  }
+
+  // ── Parametrización documental ───────────────────────────────────────────
+  /** Una fila por empresa del alcance con su conteo. `temporalConfigRef` omitido = todas. */
+  resumenDocumentosEmpresas(temporalConfigRef?: number): Observable<EmpresaDocumentosResumen[]> {
+    return this.http.get<EmpresaDocumentosResumen[]>(`${this.base}/documentos/empresas`,
+      { params: this.params({ temporalConfigRef }) });
+  }
+  /** `activo` omitido = todo el catálogo, para administrarlo. */
+  listarTiposDocumentales(activo?: boolean): Observable<TipoDocumental[]> {
+    return this.http.get<TipoDocumental[]>(`${this.base}/documentos/tipos`, { params: this.params({ activo }) });
+  }
+  crearTipoDocumental(body: TipoDocumentalRequest): Observable<TipoDocumental> {
+    return this.http.post<TipoDocumental>(`${this.base}/documentos/tipos`, body);
+  }
+  /** El código no se edita. En los opcionales, null = no tocar y '' = borrar. */
+  actualizarTipoDocumental(id: number, body: TipoDocumentalRequest): Observable<TipoDocumental> {
+    return this.http.put<TipoDocumental>(`${this.base}/documentos/tipos/${id}`, body);
+  }
+  /** Baja lógica. El backend la rechaza (EN_USO) si alguna empresa lo lleva. */
+  estadoTipoDocumental(id: number, activo: boolean): Observable<TipoDocumental> {
+    return this.http.patch<TipoDocumental>(`${this.base}/documentos/tipos/${id}/estado`, {},
+      { params: this.params({ activo }) });
+  }
+  listarPerfilesDocumentales(temporalConfigRef?: number): Observable<PerfilDocumental[]> {
+    return this.http.get<PerfilDocumental[]>(`${this.base}/documentos/perfiles`,
+      { params: this.params({ temporalConfigRef }) });
+  }
+  listarModosDocumentos(): Observable<ModoDocumentosTemporal[]> {
+    return this.http.get<ModoDocumentosTemporal[]>(`${this.base}/documentos/modos`);
+  }
+  /** Una temporal sin fila responde OFF. */
+  modoDocumentos(temporalConfigRef: number): Observable<ModoDocumentosTemporal> {
+    return this.http.get<ModoDocumentosTemporal>(`${this.base}/documentos/modos/${temporalConfigRef}`);
+  }
+  fijarModoDocumentos(temporalConfigRef: number,
+                      body: { modo: ModoDocumentos; observacion?: string | null }): Observable<ModoDocumentosTemporal> {
+    return this.http.put<ModoDocumentosTemporal>(`${this.base}/documentos/modos/${temporalConfigRef}`, body);
+  }
+
+  /** `empresaVacanteId` es `empresa_usuaria_vacante.id`, igual que el resto de `/empresas/{id}`. */
+  documentosDeEmpresa(empresaVacanteId: number): Observable<EmpresaDocumentos> {
+    return this.http.get<EmpresaDocumentos>(`${this.base}/empresas/${empresaVacanteId}/documentos`);
+  }
+  /** Reemplazo EXACTO y transaccional: lo que no viene se da de baja lógica. */
+  fijarDocumentosDeEmpresa(empresaVacanteId: number, documentos: DocumentoEmpresaRequest[]): Observable<EmpresaDocumentos> {
+    return this.http.put<EmpresaDocumentos>(`${this.base}/empresas/${empresaVacanteId}/documentos`, { documentos });
+  }
+  /** Sustituye por completo los documentos de la empresa por los del perfil de su temporal. */
+  aplicarPerfilDocumental(empresaVacanteId: number, perfil: string): Observable<EmpresaDocumentos> {
+    return this.http.post<EmpresaDocumentos>(`${this.base}/empresas/${empresaVacanteId}/documentos/aplicar-perfil`, { perfil });
+  }
+  /** Sustituye por completo; solo entre empresas de la misma temporal. */
+  copiarDocumentosDesde(empresaVacanteId: number, otraEmpresaVacanteId: number): Observable<EmpresaDocumentos> {
+    return this.http.post<EmpresaDocumentos>(
+      `${this.base}/empresas/${empresaVacanteId}/documentos/copiar-desde/${otraEmpresaVacanteId}`, {});
+  }
+  /** null = no tocar; '' = borrar. */
+  actualizarDatosDocumentales(empresaVacanteId: number, body: {
+    codigo_compania?: string | null;
+    representante_legal_documento?: string | null;
+    correo_datos_personales?: string | null;
+    telefono_datos_personales?: string | null;
+  }): Observable<EmpresaDocumentos> {
+    return this.http.put<EmpresaDocumentos>(`${this.base}/empresas/${empresaVacanteId}/datos-documentales`, body);
   }
 
   // ── Resolucion de labor ───────────────────────────────────────────────────
@@ -474,6 +1045,94 @@ export class ParametrizacionVacantesService {
     fechaIngreso: string; esquemaIdFallback?: number;
   }): Observable<ResolucionLabor> {
     return this.http.get<ResolucionLabor>(`${this.base}/resolver-labor`, { params: this.params(q) });
+  }
+
+  // ── Grupos de pago, fechas de pago y casino (V115) ───────────────────────
+  /** `activo` omitido = todo el catálogo; `true` = solo los vivos. */
+  listarCalendariosPago(activo?: boolean): Observable<CalendarioPago[]> {
+    return this.http.get<CalendarioPago[]>(`${this.base}/calendarios-pago`, { params: this.params({ activo }) });
+  }
+  crearCalendarioPago(body: Partial<CalendarioPago>): Observable<CalendarioPago> {
+    return this.http.post<CalendarioPago>(`${this.base}/calendarios-pago`, body);
+  }
+  /** PUT = reemplazo completo: lo que no venga queda vacío (los días, las fechas). */
+  actualizarCalendarioPago(id: number, body: Partial<CalendarioPago>): Observable<CalendarioPago> {
+    return this.http.put<CalendarioPago>(`${this.base}/calendarios-pago/${id}`, body);
+  }
+  /** El backend rechaza con CALENDARIO_EN_USO si algún grupo de centro lo usa. */
+  estadoCalendarioPago(id: number, activo: boolean): Observable<CalendarioPago> {
+    return this.http.patch<CalendarioPago>(`${this.base}/calendarios-pago/${id}/estado`, {},
+      { params: this.params({ activo }) });
+  }
+  /** Vista previa del texto SIN guardar: el texto lo arma siempre el backend. */
+  vistaPreviaCalendarioPago(body: Partial<CalendarioPago>): Observable<{ texto_documento: string }> {
+    return this.http.post<{ texto_documento: string }>(`${this.base}/calendarios-pago/vista-previa`, body);
+  }
+
+  listarPoliticasCasino(activo?: boolean): Observable<PoliticaCasino[]> {
+    return this.http.get<PoliticaCasino[]>(`${this.base}/politicas-casino`, { params: this.params({ activo }) });
+  }
+  crearPoliticaCasino(body: Partial<PoliticaCasino>): Observable<PoliticaCasino> {
+    return this.http.post<PoliticaCasino>(`${this.base}/politicas-casino`, body);
+  }
+  /** PUT = reemplazo completo, comidas incluidas: las que no vengan se dan de baja. */
+  actualizarPoliticaCasino(id: number, body: Partial<PoliticaCasino>): Observable<PoliticaCasino> {
+    return this.http.put<PoliticaCasino>(`${this.base}/politicas-casino/${id}`, body);
+  }
+  /** Rechazada (POLITICA_EN_USO) si la usa un centro o es el casino por defecto de un grupo. */
+  estadoPoliticaCasino(id: number, activo: boolean): Observable<PoliticaCasino> {
+    return this.http.patch<PoliticaCasino>(`${this.base}/politicas-casino/${id}/estado`, {},
+      { params: this.params({ activo }) });
+  }
+  vistaPreviaPoliticaCasino(body: Partial<PoliticaCasino>): Observable<{ texto_documento: string }> {
+    return this.http.post<{ texto_documento: string }>(`${this.base}/politicas-casino/vista-previa`, body);
+  }
+
+  listarGruposPago(activo?: boolean): Observable<GrupoPago[]> {
+    return this.http.get<GrupoPago[]>(`${this.base}/grupos-pago`, { params: this.params({ activo }) });
+  }
+  crearGrupoPago(body: Partial<GrupoPago>): Observable<GrupoPago> {
+    return this.http.post<GrupoPago>(`${this.base}/grupos-pago`, body);
+  }
+  /** `politica_casino_id: null` quita el casino por defecto del grupo. */
+  actualizarGrupoPago(id: number, body: Partial<GrupoPago>): Observable<GrupoPago> {
+    return this.http.put<GrupoPago>(`${this.base}/grupos-pago/${id}`, body);
+  }
+  estadoGrupoPago(id: number, activo: boolean): Observable<GrupoPago> {
+    return this.http.patch<GrupoPago>(`${this.base}/grupos-pago/${id}/estado`, {},
+      { params: this.params({ activo }) });
+  }
+
+  /** Todos los grupos activos frente al centro, marcando los asignados y su calendario. */
+  gruposPagoDeCentro(centroId: number): Observable<CentroGrupoPago[]> {
+    return this.http.get<CentroGrupoPago[]>(`${this.base}/centros/${centroId}/grupos-pago`);
+  }
+  /** Deja EXACTAMENTE esos grupos; lo que sale o cambia de calendario se da de baja. */
+  fijarGruposPagoDeCentro(centroId: number,
+                          items: { grupo_pago_id: number; calendario_pago_id: number }[]): Observable<CentroGrupoPago[]> {
+    return this.http.put<CentroGrupoPago[]>(`${this.base}/centros/${centroId}/grupos-pago`, items);
+  }
+  /** Solo las filas ACTIVAS: la del centro entero (grupo null) y las de cada grupo. */
+  casinoDeCentro(centroId: number): Observable<CentroCasino[]> {
+    return this.http.get<CentroCasino[]>(`${this.base}/centros/${centroId}/casino`);
+  }
+  fijarCasinoDeCentro(centroId: number,
+                      items: { grupo_pago_id: number | null; politica_casino_id: number }[]): Observable<CentroCasino[]> {
+    return this.http.put<CentroCasino[]>(`${this.base}/centros/${centroId}/casino`, items);
+  }
+  pagoModoDeCentro(centroId: number): Observable<PagoModoCentro> {
+    return this.http.get<PagoModoCentro>(`${this.base}/centros/${centroId}/pago-modo`);
+  }
+  /** La cadena completa: un centro habilitado por fila, con sus grupos y su casino. */
+  resumenPagoCentros(): Observable<ResumenPagoCentro[]> {
+    return this.http.get<ResumenPagoCentro[]>(`${this.base}/pago-casino/resumen-centros`);
+  }
+  /**
+   * Fechas de pago y casino de (centro, grupo). Los nombres de los parámetros van en
+   * camelCase porque así los declara @RequestParam; el snake_case es solo la RESPUESTA.
+   */
+  resolverPagoCasino(q: { centroId: number; grupoPagoId: number }): Observable<ResolucionPagoCasino> {
+    return this.http.get<ResolucionPagoCasino>(`${this.base}/resolver-pago-casino`, { params: this.params(q) });
   }
 
   /** Omite null/undefined/'' para no mandar `?activo=` vacio y romper el binding del backend. */

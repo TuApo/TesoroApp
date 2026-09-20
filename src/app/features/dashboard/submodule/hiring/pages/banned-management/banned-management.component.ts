@@ -1,7 +1,8 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import {  Component, ElementRef, OnInit, ViewChild , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, ElementRef, OnInit, ViewChild , ChangeDetectionStrategy, LOCALE_ID, inject, signal } from '@angular/core';
+import { formatDate } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
-import { MatTableDataSource } from '@angular/material/table';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import { VetadosService } from '../../service/vetados/vetados.service';
 import { AutorizarVetadoComponent } from '../../components/autorizar-vetado/autorizar-vetado.component';
 import Swal from 'sweetalert2';
@@ -11,21 +12,61 @@ import Swal from 'sweetalert2';
   selector: 'app-banned-management',
   imports: [
     SharedModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './banned-management.component.html',
   styleUrl: './banned-management.component.css'
 } )
 export class BannedManagementComponent implements OnInit {
 
-  // Columnas para la primera tabla de reportados
-  displayedColumns: string[] = ['cedula', 'nombre_completo', 'estado', 'fecha', 'observacion', 'centro_costo_carnet', 'reportado_por', 'sede', 'acciones'];
+  private readonly locale = inject(LOCALE_ID);
+
+  // Datos de ambas tablas (señales: la pantalla es OnPush y sin zone.js)
+  reportados = signal<any[]>([]);
+  revisados = signal<any[]>([]);
+
+  /** Fecha como Date para ordenar y filtrar; se pinta igual que `date:'short'`. */
+  private readonly colFecha: ColumnaTabla<any> = {
+    id: 'fecha', header: 'Fecha', prioridad: 2, tarjeta: 'meta',
+    valor: (r) => this.fechaDe(r),
+    formato: (r) => {
+      const d = this.fechaDe(r);
+      return d ? formatDate(d, 'short', this.locale) : String(r.fecha ?? '');
+    },
+  };
+
+  private fechaDe(r: any): Date | null {
+    if (!r?.fecha) return null;
+    const d = new Date(r.fecha);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Columnas para la primera tabla de reportados (las acciones van en tablaAcciones)
+  readonly columnasReportados: ColumnaTabla<any>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (r) => r.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre_completo', header: 'Nombre Completo', valor: (r) => r.nombre_completo, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'estado', header: 'Estado', valor: (r) => r.estado, tarjeta: 'badge' },
+    this.colFecha,
+    { id: 'observacion', header: 'Observación', valor: (r) => r.observacion, prioridad: 2, tarjeta: 'cuerpo', minAncho: '200px' },
+    { id: 'centro_costo_carnet', header: 'Centro de Costo', valor: (r) => r.centro_costo_carnet, prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'reportado_por', header: 'Reportado Por', valor: (r) => r.reportado_por, prioridad: 3, tarjeta: 'meta' },
+    { id: 'sede', header: 'Sede', valor: (r) => r.sede, prioridad: 2, tarjeta: 'meta' },
+  ];
 
   // Columnas para la segunda tabla de todos los vetados
-  todosDisplayedColumns: string[] = ['cedula', 'nombre_completo', 'categoriaid', 'categoria_clasificacion', 'categoria_descripcion', 'estado', 'fecha', 'observacion', 'reportado_por', 'sede', 'autorizado_por'];
-
-  // Fuentes de datos para ambas tablas
-  reportadosDataSource = new MatTableDataSource<any>([]);
-  todosDataSource = new MatTableDataSource<any>([]);
+  readonly columnasRevisados: ColumnaTabla<any>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (r) => r.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre_completo', header: 'Nombre Completo', valor: (r) => r.nombre_completo, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'categoriaid', header: 'Categoría', valor: (r) => r.categoria?.id, tarjeta: 'badge' },
+    { id: 'categoria_clasificacion', header: 'Descripción', valor: (r) => r.categoria?.clasificacion, prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'categoria_descripcion', header: 'Clasificación', valor: (r) => r.categoria?.descripcion, prioridad: 3, tarjeta: 'cuerpo' },
+    { id: 'estado', header: 'Estado', valor: (r) => r.estado, tarjeta: 'meta' },
+    this.colFecha,
+    { id: 'observacion', header: 'Observación', valor: (r) => r.observacion, prioridad: 3, tarjeta: 'cuerpo', minAncho: '200px' },
+    { id: 'reportado_por', header: 'Reportado Por', valor: (r) => r.reportado_por, prioridad: 3, tarjeta: 'meta' },
+    { id: 'sede', header: 'Sede', valor: (r) => r.sede, prioridad: 2, tarjeta: 'meta' },
+    { id: 'autorizado_por', header: 'Autorizado Por', valor: (r) => r.autorizado_por, prioridad: 3, tarjeta: 'meta' },
+  ];
   @ViewChild('file901') file901!: ElementRef<HTMLInputElement>;
 
   constructor(
@@ -51,21 +92,9 @@ export class BannedManagementComponent implements OnInit {
   getVetados() {
     this.vetadosService.listarReportesVetados().subscribe((data: any) => {
       // Separar los datos de reportados y todos los vetados
-      this.reportadosDataSource.data = data.reportados;  // Solo los reportados
-      this.todosDataSource.data = data.revisados;  // Todos los vetados (reportados + revisados)
+      this.reportados.set(data.reportados ?? []);  // Solo los reportados
+      this.revisados.set(data.revisados ?? []);  // Todos los vetados (reportados + revisados)
     });
-  }
-
-  // Aplicar filtro a la tabla de reportados
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.reportadosDataSource.filter = filterValue.trim().toLowerCase();
-  }
-
-  // Aplicar filtro a la tabla de todos los vetados
-  applyFilterTodos(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.todosDataSource.filter = filterValue.trim().toLowerCase();
   }
 
 

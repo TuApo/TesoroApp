@@ -5,7 +5,7 @@
 </ng-template>
 <br />
 
-<div class="seccion" [formGroup]="antecedentes">
+<div class="seccion" [formGroup]="antecedentes" (focusout)="autoAntecedentes.alSalirDeCampo()">
   @for (fld of fields; track $index; let i = $index) {
     <div class="input-container" [attr.data-estado]="estadoTarjeta(fld)">
 
@@ -115,19 +115,25 @@
             <!-- Píldora de cola (Robots) Inline -->
             @if (queueDetailFor(fld); as turno) {
               <div class="queue-badge"
-                [ngStyle]="{'color': turno.finalizado ? '#166534' : (turno.enProgreso ? '#b45309' : '#4b5563')}">
-                <mat-icon [ngStyle]="{'color': turno.finalizado ? '#16a34a' : (turno.enProgreso ? '#d97706' : '#6b7280')}"
+                [ngStyle]="{'color': turno.finalizado ? '#166534' : (turno.bloqueado ? '#9a3412' : (turno.enProgreso ? '#b45309' : '#4b5563'))}">
+                <mat-icon [ngStyle]="{'color': turno.finalizado ? '#16a34a' : (turno.bloqueado ? '#ea580c' : (turno.enProgreso ? '#d97706' : '#6b7280'))}"
                   style="font-size: 14px; width: 14px; height: 14px; line-height: 14px;">
-                  {{ turno.finalizado ? 'check_circle' : (turno.enProgreso ? 'hourglass_top' : 'queue') }}
+                  {{ turno.finalizado ? 'check_circle' : (turno.bloqueado ? 'report_problem' : (turno.enProgreso ? 'hourglass_top' : 'queue')) }}
                 </mat-icon>
                 <span style="font-size: 11.5px; font-weight: 600;">
                   @if (turno.finalizado) {
                     FINALIZADO
                   }
-                  @if (!turno.finalizado && turno.enProgreso) {
+                  @if (!turno.finalizado && turno.bloqueado) {
+                    <!-- El robot ya pasó por aquí y no pudo. Decirlo con todas las
+                         letras: "Sin consultar" mandaba a pulsar Cargar en bucle
+                         esperando algo que no iba a llegar. -->
+                    <span>BLOQUEADO · verificar a mano</span>
+                  }
+                  @if (!turno.finalizado && !turno.bloqueado && turno.enProgreso) {
                     EN PROGRESO...
                   }
-                  @if (!turno.finalizado && !turno.enProgreso) {
+                  @if (!turno.finalizado && !turno.bloqueado && !turno.enProgreso) {
                     <!-- Un "Faltan 13613 antes que tú" no le sirve a nadie: es
                          cierto pero suena a que nunca va a salir. Por encima de
                          200 se dice la espera en palabras. -->
@@ -185,7 +191,8 @@
            donde están todos los datos de residencia y donde ya tiene su
            validación. Acá estaba duplicado. -->
 
-      <button mat-flat-button (click)="imprimirVerificacionesAplicacion()" class="example-full-width">
-        Cargar
-      </button>
+      <!-- Sin botón "Cargar": cada tarjeta se guarda al elegirla y cada PDF al adjuntarlo. -->
+      <app-auto-guardado-estado class="example-full-width"
+        [estado]="autoAntecedentes.estado()" [error]="autoAntecedentes.error()"
+        (reintentar)="autoAntecedentes.ahora()" />
     </div>

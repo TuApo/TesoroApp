@@ -112,7 +112,7 @@ import { AfiliacionesKpiSummary } from '../../models/afiliaciones-dashboard.mode
   styles: [`
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
       gap: 1.25rem;
       margin-bottom: 2rem;
     }
@@ -131,8 +131,8 @@ import { AfiliacionesKpiSummary } from '../../models/afiliaciones-dashboard.mode
       border-radius: 16px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
       transition: all 0.3s ease;
-      background: #ffffff;
-      border: 1px solid #f1f5f9;
+      background: var(--surface);
+      border: 1px solid var(--border);
       overflow: hidden;
     }
 
@@ -156,7 +156,7 @@ import { AfiliacionesKpiSummary } from '../../models/afiliaciones-dashboard.mode
     }
 
     .kpi-label {
-      color: #64748b;
+      color: var(--muted);
       font-size: 0.8rem;
       font-weight: 500;
       text-transform: uppercase;
@@ -172,7 +172,7 @@ import { AfiliacionesKpiSummary } from '../../models/afiliaciones-dashboard.mode
 
     .kpi-subtext {
       font-size: 0.7rem;
-      color: #94a3b8;
+      color: var(--text-faint);
     }
 
     .kpi-icon-bg {
@@ -191,17 +191,17 @@ import { AfiliacionesKpiSummary } from '../../models/afiliaciones-dashboard.mode
     }
 
     .text-blue { color: #3b82f6; }
-    .bg-blue-100 { background-color: #dbeafe; }
-    .text-emerald { color: #10b981; }
-    .bg-emerald-100 { background-color: #d1fae5; }
+    .bg-blue-100 { background-color: var(--surface-4); }
+    .text-emerald { color: #10b981; color: light-dark(#10b981, #98f6d7); }
+    .bg-emerald-100 { background-color: #d1fae5; background-color: light-dark(#d1fae5, #133b38); }
     .text-violet { color: #8b5cf6; }
-    .bg-violet-100 { background-color: #ede9fe; }
-    .text-amber { color: #f59e0b; }
-    .bg-amber-100 { background-color: #fef3c7; }
+    .bg-violet-100 { background-color: #ede9fe; background-color: light-dark(#ede9fe, #18184b); }
+    .text-amber { color: #f59e0b; color: light-dark(#f59e0b, #f7d397); }
+    .bg-amber-100 { background-color: #fef3c7; background-color: light-dark(#fef3c7, #373625); }
     .text-rose { color: #f43f5e; }
-    .bg-rose-100 { background-color: #ffe4e6; }
-    .text-orange { color: #f97316; }
-    .bg-orange-100 { background-color: #ffedd5; }
+    .bg-rose-100 { background-color: #ffe4e6; background-color: light-dark(#ffe4e6, #381627); }
+    .text-orange { color: #f97316; color: light-dark(#f97316, #f7be97); }
+    .bg-orange-100 { background-color: #ffedd5; background-color: light-dark(#ffedd5, #382d24); }
 
     /* Tarjeta compacta en móvil: el icono estorba más de lo que aporta cuando
        el ancho disponible es la mitad de la pantalla. */

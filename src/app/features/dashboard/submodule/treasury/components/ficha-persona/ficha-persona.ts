@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   ConceptoRegla, Ficha, SolicitudHistorica, TesoreriaApiService, VeredictoRegla,
 } from '../../service/tesoreria-api.service';
@@ -34,7 +35,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-ficha-persona',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
   templateUrl: './ficha-persona.html',
   styleUrls: ['../../styles/tesoreria-comun.css', './ficha-persona.css'],
 })
@@ -86,6 +87,26 @@ export class FichaPersona {
 
   readonly solicitudesPendientes = computed(() =>
     (this.ficha()?.solicitudes ?? []).filter(s => s.estado === 'PENDIENTE'));
+
+  // ── Tabla de solicitudes (tabla estándar) ────────────────────────────────
+  // El valor de cada columna es el dato principal (lo que se busca, filtra y
+  // copia); las líneas secundarias (código, cuotas, fechas) van en su plantilla.
+
+  readonly columnasSolicitudes: ColumnaTabla<SolicitudHistorica>[] = [
+    { id: 'estado', header: 'Estado', valor: (s) => s.estado_texto, tarjeta: 'badge' },
+    { id: 'concepto', header: 'Concepto', valor: (s) => s.concepto, tarjeta: 'titulo' },
+    { id: 'monto', header: 'Monto', align: 'right', tarjeta: 'subtitulo',
+      valor: (s) => s.monto_ejecutado ?? s.monto_autorizado,
+      formato: (s) => this.pesos(s.monto_ejecutado ?? s.monto_autorizado),
+      copiaTexto: (s) => String(s.monto_ejecutado ?? s.monto_autorizado ?? '') },
+    { id: 'autorizo', header: 'Autorizó', valor: (s) => s.autorizado_por ?? '', prioridad: 2, tarjeta: 'meta' },
+    { id: 'entrego', header: 'Entregó', prioridad: 2, tarjeta: 'meta',
+      valor: (s) => (s.ejecutado_en ? (s.nombre_quien_entrego || s.ejecutado_por || '') : '') },
+    { id: 'pago', header: 'Pago', valor: (s) => s.forma_pago ?? '', prioridad: 3, tarjeta: 'meta' },
+  ];
+
+  readonly idSolicitud = (s: SolicitudHistorica) => s.id;
+  readonly claseFilaSolicitud = (s: SolicitudHistorica) => (s.estado === 'ANULADA' ? 'te-fila--atenuada' : '');
 
   readonly desgloseDeuda = computed(() => {
     const d = this.ficha()?.deuda?.desglose ?? {};

@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, OnInit, computed, inject, signal,
+  ChangeDetectionStrategy, Component, OnInit, computed, inject, signal, viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -12,14 +12,15 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
-import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+} from '../../../../../../shared/components/tabla-estandar';
 import {
   CargaDisponible, CruceRespuesta, DocumentoCruce, EnvioCorreosService, FilaCruce,
   PeriodoDisponible, Plantilla, TipoRef,
@@ -45,8 +46,9 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatCardModule, MatDialogModule, MatFormFieldModule,
-    MatIconModule, MatInputModule, MatPaginatorModule, MatProgressBarModule,
-    MatCheckboxModule, MatSelectModule, MatTableModule, MatTooltipModule,
+    MatIconModule, MatInputModule, MatProgressBarModule,
+    MatCheckboxModule, MatSelectModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './envio-correos-cruce.component.html',
   styleUrl: './envio-correos-cruce.component.css',
@@ -100,17 +102,37 @@ export class EnvioCorreosCruceComponent implements OnInit {
    * Cartas de retiro, Cesantías, Entrevista): de un vistazo se ve a quién le
    * falta QUÉ, no solo si le falta "algo".
    */
-  readonly columnas = computed<string[]>(() => {
+  readonly columnas = computed<ColumnaTabla<FilaCruce>[]>(() => {
     const tipos = this.tiposPresentes();
+    // Modo servidor: el backend pagina y busca pero no ordena → columnas sin orden.
     return [
-      'cedula', 'nombre', 'finca', 'correo',
+      { id: 'cedula', header: 'Cédula', valor: (f) => f.cedula, ordenable: false, tarjeta: 'subtitulo' },
+      { id: 'nombre', header: 'Nombre', valor: (f) => f.nombre, ordenable: false, tarjeta: 'titulo', minAncho: '180px' },
+      { id: 'finca', header: 'Finca', valor: (f) => f.finca ?? '', formato: (f) => f.finca || '—',
+        ordenable: false, prioridad: 2, tarjeta: 'meta' },
+      { id: 'correo', header: 'Correo', valor: (f) => (f.sin_correo ? 'Sin correo' : f.correo ?? ''),
+        ordenable: false, tarjeta: 'cuerpo' },
       // Con cargas elegidas: una columna por tipo. Sin ellas no hay tipos que
       // desglosar, pero seguir mostrando si la persona tiene documento o no es
       // justo lo que se viene a mirar; si no, la tabla no dice nada.
-      ...(tipos.length ? tipos.map((t) => `tipo:${t}`) : ['archivo']),
-      'enviado',
+      ...(tipos.length
+        ? tipos.map((t): ColumnaTabla<FilaCruce> => ({
+            id: `tipo:${t}`, header: t, ordenable: false, interactiva: true, tarjeta: 'cuerpo',
+            valor: (f) => (this.documentoDeTipo(f, t) ? 'Cargado' : 'Falta'),
+          }))
+        : [{
+            id: 'archivo', header: 'Archivo', ordenable: false, interactiva: true, tarjeta: 'cuerpo',
+            valor: (f: FilaCruce) => (f.estado_archivo === 'SUBIDO' ? f.nombre_archivo ?? 'Cargado' : 'Falta'),
+          } as ColumnaTabla<FilaCruce>]),
+      { id: 'enviado', header: 'Envío', valor: (f) => f.confirmacion_envio ?? '',
+        formato: (f) => f.confirmacion_envio || '—', ordenable: false, prioridad: 2, tarjeta: 'meta' },
     ];
   });
+
+  readonly idFila = (f: FilaCruce) => f.id;
+
+  /** La tabla guarda su página: al cambiar un filtro de negocio se vuelve a la 1. */
+  private readonly tabla = viewChild(TablaEstandarComponent);
 
   async ngOnInit(): Promise<void> {
     this.titulo.setTitle('Cruce por quincena | Envío de correos (modelo antiguo)');
@@ -140,7 +162,10 @@ export class EnvioCorreosCruceComponent implements OnInit {
   async consultar(reiniciarPagina = false): Promise<void> {
     const periodo = this.periodoSel();
     if (!periodo) return;
-    if (reiniciarPagina) this.pagina.set(0);
+    if (reiniciarPagina) {
+      this.pagina.set(0);
+      this.tabla()?.pagina.set(0);
+    }
 
     this.cargando.set(true);
     try {
@@ -161,10 +186,16 @@ export class EnvioCorreosCruceComponent implements OnInit {
     }
   }
 
-  onPagina(e: PageEvent): void {
-    this.pagina.set(e.pageIndex);
-    this.tamanoPagina.set(e.pageSize);
+  onPagina(e: { pagina: number; porPagina: number }): void {
+    this.pagina.set(e.pagina);
+    this.tamanoPagina.set(e.porPagina);
     this.consultar();
+  }
+
+  /** Búsqueda (cédula o nombre) de la tabla estándar: la resuelve el backend. */
+  onBuscar(texto: string): void {
+    this.busqueda.set(texto);
+    this.consultar(true);
   }
 
   /**
@@ -207,15 +238,6 @@ export class EnvioCorreosCruceComponent implements OnInit {
   /** Documento de esa persona para ese tipo, o null si le falta. */
   documentoDeTipo(fila: FilaCruce, tipo: string): DocumentoCruce | null {
     return fila.documentos?.find((d) => d.type_name === tipo) ?? null;
-  }
-
-  /** Nombre del tipo a partir de la clave de columna 'tipo:NOMBRE'. */
-  tipoDeColumna(columna: string): string {
-    return columna.startsWith('tipo:') ? columna.slice(5) : columna;
-  }
-
-  esColumnaTipo(columna: string): boolean {
-    return columna.startsWith('tipo:');
   }
 
   verDocumentoDe(fila: FilaCruce, doc: DocumentoCruce): void {

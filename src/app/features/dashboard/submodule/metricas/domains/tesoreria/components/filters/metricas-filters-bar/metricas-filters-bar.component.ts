@@ -65,18 +65,18 @@ import { MetricasDateRange } from '../../../models/tesoreria-metricas.models';
       display: flex;
       align-items: center;
       gap: 1rem;
-      background: white;
+      background: var(--surface);
       padding: 0.75rem 1.25rem;
       border-radius: 12px;
       box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-      border: 1px solid #e2e8f0;
+      border: 1px solid var(--border);
       flex-wrap: wrap;
     }
     .filter-group {
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      color: #475569;
+      color: var(--text-2);
     }
     .filter-icon {
       font-size: 1.25rem;
@@ -98,6 +98,7 @@ import { MetricasDateRange } from '../../../models/tesoreria-metricas.models';
     }
     .quick-ranges {
       display: flex;
+      flex-wrap: wrap;
       gap: 0.5rem;
     }
     .quick-btn {
@@ -108,14 +109,14 @@ import { MetricasDateRange } from '../../../models/tesoreria-metricas.models';
       padding: 0 16px;
       height: 32px;
       line-height: 32px;
-      background: #f1f5f9;
+      background: var(--surface-3);
     }
     .quick-btn:hover {
-      background: #e2e8f0;
+      background: var(--surface-4);
     }
     .active-btn {
-      background: #dbeafe;
-      color: #1d4ed8;
+      background: var(--surface-4);
+      color: #1d4ed8; color: light-dark(#1d4ed8, #9cb3f2);
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush

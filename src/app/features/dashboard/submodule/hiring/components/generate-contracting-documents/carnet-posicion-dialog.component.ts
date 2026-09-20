@@ -69,6 +69,8 @@ export interface CarnetPosicionResult {
 
 @Component({
   selector: 'app-carnet-posicion-dialog',
+  // Documento (se imprime o se captura): se queda en claro aunque la app esté en oscuro.
+  host: { class: 'tema-claro-fijo' },
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [

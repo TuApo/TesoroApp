@@ -11,6 +11,7 @@
    - Usa 1 sola familia base (Roboto) + fallbacks.
    - Si de verdad necesitas Oswald/Open Sans, vuelve a agregarlas.
 ====================== */
+@import "@fontsource-variable/manrope/index.css";
 @import "@fontsource/roboto/300.css";
 @import "@fontsource/roboto/400.css";
 @import "@fontsource/roboto/500.css";
@@ -20,45 +21,11 @@
 @import "material-symbols/outlined.css";
 
 /* ======================
-   Design tokens
+   Design tokens → src/theme/tokens.css (paleta + semánticos claro/oscuro)
 ====================== */
-:root {
-  /* Typography */
-  --font-sans: "Roboto", "Helvetica Neue", Arial, sans-serif;
-
-  /* Colors */
-  --bg: #f6f7fb;
-  --surface: #ffffff;
-  --text: #111827;
-  --muted: rgba(17, 24, 39, 0.62);
-  --border: #e5e7eb;
-
-  --primary: #3b82f6;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-
-  /* Radius */
-  --r-sm: 10px;
-  --r-md: 14px;
-  --r-lg: 18px;
-
-  /* Shadows */
-  --shadow-sm: 0 6px 14px rgba(17, 24, 39, 0.08);
-  --shadow-md: 0 10px 26px rgba(17, 24, 39, 0.10);
-  --shadow-lg: 0 24px 70px rgba(15, 23, 42, 0.26);
-
-  /* Spacing */
-  --pad: 16px;
-
-  /* Focus ring */
-  --ring: 0 0 0 4px rgba(59, 130, 246, 0.14);
-
-  /* Table */
-  --table-head: #0f172a;
-  --table-row-even: #f3f4f6;
-  --table-row-odd: #ffffff;
-}
+@import "./theme/tokens.css";
+@import "./theme/vendors-dark.css";
+@import "./theme/acciones-pagina.css";
 
 /* ======================
    Reset / normalize
@@ -139,8 +106,12 @@ html:focus-within {
 
 /* ======================
    Layout: dashboard
+   Acotado al shell (app-dashboard): Incapacidades, Robots y el diálogo de
+   escaneo usan los mismos nombres de clase para sus propios contenedores y
+   heredaban el alto de 100vh con overflow oculto (el formulario quedaba
+   cortado sin poder bajar) y el margen del menú lateral.
 ====================== */
-.dashboard-container {
+app-dashboard > .dashboard-container {
   display: flex;
   /* height fija + min-height para que el dashboard nunca crezca más allá del viewport
      y los hijos puedan encadenar `min-height: 0` correctamente. */
@@ -150,7 +121,7 @@ html:focus-within {
   overflow: hidden;
 }
 
-.dashboard-content {
+app-dashboard > .dashboard-container > .dashboard-content {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -158,8 +129,10 @@ html:focus-within {
   overflow: hidden;
   min-width: 0;
   min-height: 0;
-  /* Default sidebar width to prevent overlap */
-  margin-left: 64px;
+  /* Lo que mide el menú lateral: lo publica NavbarComponent (264 px expandido,
+     84 px compacto, 0 en móvil). */
+  margin-left: var(--app-menu-w, 84px);
+  transition: margin-left 0.2s ease;
 }
 
 .dashboard-page-wrapper {
@@ -173,6 +146,33 @@ html:focus-within {
      scroll para llenar exactamente la pantalla. */
   overflow: auto;
   transition: padding 0.3s ease;
+}
+
+/* La pantalla ruteada ocupa el ancho disponible. El wrapper es un flex en
+   columna: una página con `margin: 0 auto` en su :host dejaba de estirarse y
+   se encogía al ancho de su contenido (Inicio salía en una columna de 400 px).
+   Con width:100% + su propio max-width queda centrada y a su tope. */
+.dashboard-page-wrapper > :not(router-outlet) {
+  width: 100%;
+  min-width: 0;
+}
+
+/* El pipeline se sale del padding del wrapper con márgenes negativos para que
+   su cabecera llegue al borde: necesita ancho auto (estirado) o quedaba corrido
+   a la izquierda y con un hueco a la derecha. */
+.dashboard-page-wrapper > app-recruitment-pipeline {
+  width: auto;
+}
+
+/* Gráficas ECharts: el canvas lleva un ancho fijo en px y, sin contención, ese
+   ancho entra en el min-content de la tarjeta o rejilla que la contiene. Al
+   achicar la ventana (o girar el teléfono) el contenedor ya no se encogía, el
+   ResizeObserver de ngx-echarts no se enteraba y la gráfica quedaba al ancho
+   de escritorio, recortada. */
+[echarts] {
+  contain: inline-size;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* ======================
@@ -211,10 +211,24 @@ mat-card {
   box-shadow: var(--shadow-sm);
 }
 
+/* Campos de Material rellenos como los del login: fondo suave que se aclara
+   al enfocar. Las pantallas que fijan su propio fondo siguen mandando. */
+.mat-mdc-form-field-appearance-outline .mat-mdc-text-field-wrapper {
+  background: var(--surface-2);
+  border-radius: 12px;
+  transition: background-color .2s ease;
+}
+.mat-mdc-form-field-appearance-outline.mat-focused .mat-mdc-text-field-wrapper {
+  background: var(--surface);
+}
+.mat-mdc-form-field-appearance-outline.mat-form-field-disabled .mat-mdc-text-field-wrapper {
+  background: var(--surface-3);
+}
+
 /* Stepper backgrounds */
 mat-horizontal-stepper,
 mat-step {
-  background-color: #fff !important;
+  background-color: var(--surface) !important;
 }
 
 /* Material icons variable (ok) */
@@ -297,7 +311,7 @@ mat-step {
   text-align: center !important;
   font-size: 14px !important;
   font-weight: 700 !important;
-  border-bottom: 2px solid #e2e8f0 !important;
+  border-bottom: 2px solid var(--border) !important;
 }
 
 .mat-table th.mat-header-cell,
@@ -444,14 +458,20 @@ mat-card-content p {
    Responsive
 ====================== */
 @media (max-width: 900px) {
-  .dashboard-container {
+  app-dashboard > .dashboard-container {
     flex-direction: column;
   }
 
-  .dashboard-content {
+  app-dashboard > .dashboard-container > .dashboard-content {
     margin-left: 0;
     padding: 1rem 1rem 80px 1rem;
     /* Extra padding bottom for mobile bottom-bar */
+  }
+
+  /* En móvil el contenido ya trae 1rem de margen: el 2rem del wrapper se sumaba
+     y dejaba 48 px por lado, con las páginas empujadas fuera de la pantalla. */
+  .dashboard-page-wrapper {
+    padding: 0.75rem 0;
   }
 
   .nombre {
@@ -459,8 +479,10 @@ mat-card-content p {
     font-size: 12px !important;
   }
 
+  /* Antes `width: 90vw`: sumado al margen del contenido se salía por la derecha. */
   mat-card {
-    width: 90vw;
+    width: auto;
+    max-width: 100%;
     padding: 15px;
   }
 
@@ -513,7 +535,7 @@ mat-card-content p {
   padding: 0 !important;
   border-radius: 18px !important;
   overflow: hidden !important;
-  background: #ffffff !important;
+  background: var(--surface) !important;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26),
     0 10px 26px rgba(15, 23, 42, 0.16) !important;
 }
@@ -535,8 +557,8 @@ mat-card-content p {
   justify-content: space-between;
   gap: 14px;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.08);
+  background: rgb(var(--surface-rgb) / 0.96);
   backdrop-filter: blur(10px);
 }
 
@@ -551,7 +573,7 @@ mat-card-content p {
   font-size: 15px;
   line-height: 1.2;
   font-weight: 900;
-  color: #0f172a;
+  color: var(--text);
   letter-spacing: 0.01em;
   display: inline-flex;
   align-items: center;
@@ -563,7 +585,7 @@ mat-card-content p {
   margin: 0;
   font-size: 12px;
   font-weight: 700;
-  color: rgba(15, 23, 42, 0.62);
+  color: rgb(var(--ink-rgb) / 0.62);
 }
 
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__close {
@@ -574,7 +596,7 @@ mat-card-content p {
 
 
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__close:hover {
-  background: rgba(15, 23, 42, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 
 /* Body con padding + scroll */
@@ -633,7 +655,7 @@ mat-card-content p {
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-dialog__label {
   font-size: 12px;
   font-weight: 900;
-  color: rgba(15, 23, 42, 0.7);
+  color: rgb(var(--ink-rgb) / 0.7);
   height: 18px;
   line-height: 18px;
   margin: 0;
@@ -676,7 +698,7 @@ mat-card-content p {
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-ff input.mat-mdc-input-element {
   font-size: 13px !important;
   font-weight: 700 !important;
-  color: rgba(15, 23, 42, 0.92) !important;
+  color: rgb(var(--ink-rgb) / 0.92) !important;
   line-height: 1.2 !important;
 }
 
@@ -689,7 +711,7 @@ mat-card-content p {
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-ff .mat-mdc-select-value-text {
   font-size: 13px !important;
   font-weight: 700 !important;
-  color: rgba(15, 23, 42, 0.92) !important;
+  color: rgb(var(--ink-rgb) / 0.92) !important;
 }
 
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-ff .mat-date-range-input-container {
@@ -707,7 +729,7 @@ mat-card-content p {
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .mdc-notched-outline__leading,
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .mdc-notched-outline__notch,
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .mdc-notched-outline__trailing {
-  border-color: rgba(15, 23, 42, 0.18) !important;
+  border-color: rgb(var(--ink-rgb) / 0.18) !important;
 }
 
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .mat-mdc-form-field-subscript-wrapper {
@@ -727,8 +749,8 @@ mat-card-content p {
   justify-content: flex-end;
   gap: 10px;
   padding: 12px 16px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
-  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid rgb(var(--ink-rgb) / 0.08);
+  background: rgb(var(--surface-rgb) / 0.96);
   backdrop-filter: blur(10px);
 }
 
@@ -740,7 +762,7 @@ mat-card-content p {
 }
 
 .mat-mdc-dialog-panel.sf-filters-dialog-panel .sf-filters-btn-ghost:hover {
-  background: rgba(15, 23, 42, 0.06) !important;
+  background: rgb(var(--ink-rgb) / 0.06) !important;
 }
 
 /* =========================================================
@@ -764,7 +786,7 @@ mat-card-content p {
   padding: 0 !important;
   border-radius: 18px !important;
   overflow: hidden !important;
-  background: #ffffff !important;
+  background: var(--surface) !important;
   box-shadow:
     0 24px 70px rgba(15, 23, 42, 0.22),
     0 10px 26px rgba(15, 23, 42, 0.12) !important;
@@ -784,7 +806,7 @@ mat-card-content p {
 .mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__leading,
 .mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__notch,
 .mat-mdc-dialog-panel.crud-manager-dialog-panel .mdc-notched-outline__trailing {
-  border-color: rgba(15, 23, 42, 0.16) !important;
+  border-color: rgb(var(--ink-rgb) / 0.16) !important;
 }
 
 @media (max-width: 640px) {
@@ -917,9 +939,22 @@ mat-card-content p {
 /* 🔥 GLOBAL RESPONSIVE RULES (ANGULAR AGENT SKILLS UX)  🔥 */
 /* ========================================================= */
 
+/* 100 % del contenedor, no 100vw: con el `margin: 0 auto` de arriba la tarjeta
+   toma su ancho de contenido y 100vw la dejaba sobresalir el margen de la
+   página (en un teléfono de 390 px medía 390 dentro de un hueco de 358). */
 mat-card {
-  max-width: 100vw;
+  max-width: 100%;
   box-sizing: border-box;
+}
+
+/* Diálogos en el teléfono: Material los topa en 80vw (≈40 px perdidos por
+   lado en 390 px) y los formularios de adentro quedaban apretados. Gana a
+   los max-width en línea del MatDialogConfig; el ancho pedido sigue mandando
+   si es menor. */
+@media (max-width: 600px) {
+  .cdk-overlay-pane.mat-mdc-dialog-panel {
+    max-width: calc(100vw - 16px) !important;
+  }
 }
 
 /* Tablas Fluidas en Mobile */
@@ -955,6 +990,20 @@ body.dark-theme mat-card {
 button {
   min-height: 48px !important;
 }
+
+/* …salvo en la tabla estándar, que tiene controles compactos a propósito
+   (embudo de 22 px, paginador de 32 px, iconos de acción en cada fila): con
+   48 px cada fila medía ~70 px. Va aquí y no en el componente porque los
+   botones de las acciones los proyecta la pantalla. */
+.te-barra button,
+.te-tabla button,
+.te-tarjeta button,
+.te-paginador button,
+.te-vacio button,
+.fc-panel button,
+app-tabla-filtro-columna button {
+  min-height: 0 !important;
+}
 /* Tooltip multilínea: respeta los saltos de línea (\n) del texto.
    Se renderiza en el overlay del CDK, por eso debe ser global. */
 .tooltip-multilinea .mdc-tooltip__surface,
@@ -973,7 +1022,7 @@ button {
   padding: 0 !important;
   border-radius: 18px !important;
   overflow: hidden !important;
-  background: #ffffff !important;
+  background: var(--surface) !important;
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.26),
     0 10px 26px rgba(15, 23, 42, 0.16) !important;
 }
@@ -1081,4 +1130,43 @@ html.swal2-shown.swal2-shown {
   font-size: 12px !important;
   line-height: 1.45 !important;
   text-align: left !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Visor de soportes A LO GRANDE
+   panelClass: docs-viewer-dialog-xl  (Exámenes de ingreso → previsualizar)
+
+   `VerPdfsComponent` se limita a `max-height: 80vh` en su propio CSS, que es
+   lo correcto cuando el diálogo flota. Cuando se abre a pantalla casi
+   completa ese tope dejaba una franja muerta abajo y el PDF seguía
+   pequeño. Aquí se suelta para que el visor ocupe todo el alto pedido.
+   Va en global: los estilos del componente no llegan al panel del CDK.
+   ───────────────────────────────────────────────────────────────────── */
+.mat-mdc-dialog-panel.docs-viewer-dialog-xl .mat-mdc-dialog-surface {
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.mat-mdc-dialog-panel.docs-viewer-dialog-xl .viewer-container {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  width: 100%;
+  border-radius: 12px;
+}
+
+/* Tabla a pantalla completa: los ancestros con transform, filter o contain
+   dejan de hacer de marco mientras dura. Si no, `position: fixed` se mide
+   contra ese ancestro y la tabla ocupa solo su trozo de pantalla (pasaba en
+   Nómina › Empleados). La clase la pone y la quita TablaEstandarComponent, y
+   va aquí porque toca elementos de fuera del componente. */
+.te-sin-marco {
+  transform: none !important;
+  filter: none !important;
+  perspective: none !important;
+  backdrop-filter: none !important;
+  contain: none !important;
+  will-change: auto !important;
 }

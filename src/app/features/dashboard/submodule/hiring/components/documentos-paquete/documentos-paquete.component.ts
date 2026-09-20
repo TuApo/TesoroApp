@@ -19,13 +19,24 @@ import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.serv
 import { procesoDelContrato, procesoVigente } from '../../pages/recruitment-pipeline/contrato.rules';
 import {
   DOCUMENTOS_PAQUETE,
+  SOLO_PLANTILLA_HTML,
   TYPE_ID_POR_TITULO,
   esSoloSubir,
 } from '../../shared/paquete-documental.data';
 import {
-  DocSeccion, SECCION_LABELS, getDocSeccion, isDocumentoVisible,
+  DocSeccion, SECCION_LABELS, getDocSeccion, isDocumentoVisible, resolverPerfil,
 } from '../generate-contracting-documents/documentos-por-empresa.config';
+import {
+  DocumentosParametrizadosService,
+  type ResolucionDocumental,
+  type UsuarioDocumento,
+} from '../../service/documentos-parametrizados/documentos-parametrizados.service';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { MatDialog } from '@angular/material/dialog';
+import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import {
+  PlantillaHtmlDialogComponent, PlantillaHtmlData, PlantillaHtmlResultado,
+} from '../plantilla-html/plantilla-html.dialog';
 
 /** Un documento del paquete y en qué va. */
 export interface ItemPaquete {
@@ -103,6 +114,8 @@ export class DocumentosPaqueteComponent {
   private readonly vacantesSrv = inject(VacantesService);
   private readonly nav = inject(PipelineNavService);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
+  private readonly util = inject(UtilityServiceService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly ventanas = inject(ElectronWindowService);
   /** `file_url` es una ruta protegida, no una URL pintable. Ver el servicio. */
@@ -166,7 +179,11 @@ export class DocumentosPaqueteComponent {
     if (vacanteId) {
       this.vacantesSrv.obtenerVacante(String(vacanteId))
         .pipe(take(1), catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
-        .subscribe((v) => this.vacante.set((v as Record<string, unknown>) ?? null));
+        .subscribe((v) => {
+          const vac = (v as Record<string, unknown>) ?? null;
+          this.vacante.set(vac);
+          this.resolverDocumentosParametrizados(vac);
+        });
     }
 
     this.docsSrv.getDocuments(cedula)
@@ -209,14 +226,18 @@ export class DocumentosPaqueteComponent {
    */
   readonly items = computed<ItemPaquete[]>(() => {
     const v = this.vacante();
+    const r = this.resolucion();
     const ctx = {
       temporal: (v?.['temporal'] as string) ?? null,
       empresaUsuaria: (v?.['empresa_usuaria_solicita'] as string) ?? null,
       finca: (v?.['finca'] as string) ?? null,
     };
     const presentes = this.docPorTipo();
+    const esApoyo = /APOYO/i.test(String(v?.['temporal'] ?? ''));
+    const matriz = this.tiposMatriz();
 
-    return DOCUMENTOS_PAQUETE.map((titulo) => {
+    // Las que solo existen como plantilla HTML de Apoyo no aplican a otra temporal.
+    return DOCUMENTOS_PAQUETE.filter((titulo) => esApoyo || !SOLO_PLANTILLA_HTML.has(titulo)).map((titulo) => {
       const typeId = TYPE_ID_POR_TITULO[titulo] ?? null;
       const doc = typeId !== null ? presentes.get(typeId) ?? null : null;
       return {
@@ -227,13 +248,147 @@ export class DocumentosPaqueteComponent {
         fileUrl: doc?.url || null,
         nombreArchivo: doc?.nombre || null,
         seccion: getDocSeccion(titulo),
-        delPaquete: isDocumentoVisible(titulo, ctx),
+        // Temporal en ON: solo la parametrización (sin filas = no aplica nada y se avisa).
+        // Las plantillas HTML nuevas no están en los perfiles regex: las decide la matriz de la empresa.
+        delPaquete: r?.modo === 'ON'
+          ? DocumentosParametrizadosService.visibleEnParametrizacion(titulo, r)
+          : SOLO_PLANTILLA_HTML.has(titulo)
+            ? typeId !== null && !!matriz?.has(typeId)
+            : isDocumentoVisible(titulo, ctx),
       };
     });
   });
 
   /** Los que le tocan a esta persona: son los que cierran el día. */
   readonly itemsPaquete = computed(() => this.items().filter((i) => i.delPaquete));
+
+  // ── Parametrización documental (interruptor OFF | SOMBRA | ON de la temporal) ──────────
+  private readonly docsParametrizados = inject(DocumentosParametrizadosService);
+  /** Resolución de la vacante: OFF, OK (con documentos y paquetes por destino) o ERROR. */
+  readonly resolucion = signal<ResolucionDocumental | null>(null);
+  /**
+   * Tipos que la matriz documental de la empresa pide (vacantes de Apoyo), aunque la temporal
+   * esté en OFF. Decide si las plantillas HTML sin perfil regex van en el paquete.
+   */
+  private readonly tiposMatriz = signal<ReadonlySet<number> | null>(null);
+  readonly descargando = signal<string | null>(null);
+  /** Plegado por defecto: una sola línea con los totales; se abre para ver destinos y descargas. */
+  readonly paqueteAbierto = signal(false);
+
+  readonly destinosLabel: Record<string, string> = {
+    ARCHIVO_TEMPORAL: 'Archivo de la temporal',
+    ESCANER_USUARIA: 'Escáner empresa usuaria (digital)',
+    TRABAJADOR_FINCA: 'Trabajador (finca)',
+    TRABAJADOR: 'Trabajador',
+  };
+  readonly naturalezaLabel: Record<string, string> = {
+    GENERADO: 'Se genera', DILIGENCIADO_MANUAL: 'Diligenciado a mano', SOPORTE_CARGADO: 'Soporte a cargar', CONSULTA: 'Consulta',
+  };
+  readonly condicionLabel: Record<string, string> = {
+    NINGUNA: '', CARGO_CRITICO: 'Solo cargo crítico', SEGUN_CARGO: 'Según el cargo', OMITIBLE_TEMPORADA: 'Puede omitirse en temporada',
+  };
+
+  /** Mensaje cuando la temporal está en ON y la vacante no resuelve documentos. */
+  readonly errorParametrizado = computed(() => {
+    const r = this.resolucion();
+    return r?.estado === 'ERROR' && r.modo === 'ON' ? r.mensaje : null;
+  });
+
+  /** Paquete parametrizado a la vista: en ON es EL paquete; en SOMBRA, una vista previa. */
+  readonly paqueteParametrizado = computed(() => {
+    const r = this.resolucion();
+    return r?.estado === 'OK' && (r.modo === 'ON' || r.modo === 'SOMBRA') ? r : null;
+  });
+
+  /** Lo que no genera la plataforma: soportes, consultas y formatos a mano, con su estado. */
+  readonly checklistParametrizado = computed(() => {
+    const r = this.paqueteParametrizado();
+    if (!r) return [];
+    const presentes = this.docPorTipo();
+    return r.datos.documentos
+      .filter((d) => d.tipo.naturaleza !== 'GENERADO')
+      .map((d) => ({
+        codigo: d.tipo.codigo,
+        nombre: d.tipo.nombre,
+        naturaleza: this.naturalezaLabel[d.tipo.naturaleza] ?? d.tipo.naturaleza,
+        etapa: d.tipo.etapa,
+        condicion: this.condicionLabel[d.tipo.condicion] ?? d.tipo.condicion,
+        vigenciaDias: d.tipo.vigencia_dias,
+        observacion: d.tipo.observacion,
+        obligatorio: d.obligatorio,
+        cargado: d.tipo.tipo_documento_ref != null && presentes.has(d.tipo.tipo_documento_ref),
+        sinTipo: d.tipo.tipo_documento_ref == null,
+      }));
+  });
+
+  private resolverDocumentosParametrizados(v: Record<string, unknown> | null): void {
+    this.resolucion.set(null);
+    this.tiposMatriz.set(null);
+    if (!v?.['temporal']) return;
+    if (/APOYO/i.test(String(v['temporal']))) {
+      this.docsParametrizados.tiposDeLaMatriz(v)
+        .pipe(take(1), catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
+        .subscribe((tipos) => {
+          if (this.vacante() === v) this.tiposMatriz.set(tipos);
+        });
+    }
+    this.docsParametrizados.resolverVacante(v)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe((r) => {
+        if (this.vacante() !== v) return;
+        this.resolucion.set(r);
+        if (r.modo === 'SOMBRA') {
+          const ctx = {
+            temporal: (v['temporal'] as string) ?? null,
+            empresaUsuaria: (v['empresa_usuaria_solicita'] as string) ?? null,
+            finca: (v['finca'] as string) ?? null,
+          };
+          const titulosRegex = DOCUMENTOS_PAQUETE.filter((t) => isDocumentoVisible(t, ctx));
+          this.docsParametrizados.registrarSombra(v, resolverPerfil(ctx)?.nombre ?? null, titulosRegex, r, 'PAQUETE');
+        }
+      });
+  }
+
+  descargarPaqueteCompleto(): void {
+    const r = this.paqueteParametrizado();
+    const ced = this.cedulaEfectiva();
+    if (!r || !ced) return;
+    this.descargarBlob('ZIP', this.docsParametrizados.descargarPaquete(ced, r.datos.centro_canonico_id),
+      `paquete-ingreso-${ced}.zip`);
+  }
+
+  descargarDestino(destino: string): void {
+    const r = this.paqueteParametrizado();
+    const ced = this.cedulaEfectiva();
+    if (!r || !ced) return;
+    this.descargarBlob(destino, this.docsParametrizados.descargarDestino(ced, r.datos.centro_canonico_id, destino),
+      `paquete-${destino.toLowerCase()}-${ced}.pdf`);
+  }
+
+  private descargarBlob(clave: string, blob$: import('rxjs').Observable<Blob>, nombre: string): void {
+    this.descargando.set(clave);
+    blob$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nombre;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        this.descargando.set(null);
+      },
+      error: async (err) => {
+        this.descargando.set(null);
+        // La respuesta de error llega como Blob (responseType blob): se lee para mostrar el motivo.
+        let motivo = 'No se pudo generar el paquete.';
+        try {
+          const txt = err?.error instanceof Blob ? await err.error.text() : '';
+          motivo = (txt && JSON.parse(txt)?.error) || motivo;
+        } catch { /* se queda el mensaje genérico */ }
+        void Swal.fire({ icon: 'error', title: 'Paquete de ingreso', text: motivo });
+      },
+    });
+  }
 
   /** Los que genera la plataforma. */
   readonly generables = computed(() => this.items().filter((i) => !i.soloSubir));
@@ -365,12 +520,113 @@ export class DocumentosPaqueteComponent {
     this.nav.pedirAsignarVacante();
   }
 
-  irAGenerar(): void {
+  /** `abrir`: documento que el generador abre al llegar (hoy solo la ficha técnica sabe abrirse). */
+  irAGenerar(abrir?: 'ficha-tecnica'): void {
     const cand = this.candidatoSeleccionado();
     const ced = this.cedulaEfectiva();
     if (!ced) return;
     this.router.navigate(['/dashboard/hiring/generate-contracting-documents', ced], {
-      queryParams: { tipo_doc: cand?.tipo_doc || 'CC' },
+      queryParams: { tipo_doc: cand?.tipo_doc || 'CC', ...(abrir ? { abrir } : {}) },
+    });
+  }
+
+  /** Documentos que se abren con clic para generarlos y diligenciar lo que les falta. */
+  esDiligenciable(item: ItemPaquete): boolean {
+    if (!(item.titulo in this.PLANTILLA_HTML)) return false;
+    // Sin equivalente en Tu Alianza: con vacante de otra temporal no se ofrece.
+    const v = this.vacante();
+    return !(this.SOLO_APOYO.has(item.titulo) && v && !/APOYO/i.test(String(v['temporal'] ?? '')));
+  }
+
+  /**
+   * Quien está generando. El nombre es el mismo dato que la ficha PDF usaba como "Persona que
+   * firma"; el documento y la sede los pide el contrato (testigo 1 y municipio de la firma).
+   */
+  private usuarioSesion(): UsuarioDocumento {
+    const u: any = this.util.getUser?.() ?? {};
+    const nombre = `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''}`.trim();
+    return {
+      nombre: nombre ? nombre.toUpperCase() : null,
+      documento: u?.numero_de_documento ? String(u.numero_de_documento) : null,
+      sede: u?.sede?.nombre ?? null,
+    };
+  }
+
+  /**
+   * Plantilla HTML (ms-templates) de cada documento diligenciable de Apoyo Laboral. Con estar
+   * aquí el documento ya se puede abrir con clic desde Documentos (`esDiligenciable`).
+   */
+  private readonly PLANTILLA_HTML: Readonly<Record<string, string>> = {
+    'Ficha Técnica': 'ficha-tecnica-trabajador',
+    'Contrato': 'contrato-obra-labor',
+    'Ficha Social': 'ficha-social-apoyo',
+    'Manejo Imagen': 'acuerdo-uso-imagen',
+    'Carnet': 'carne-trabajador',
+    'Autorización Derechos de Imagen': 'autorizacion-derechos-imagen',
+    'Ficha Afiliación S.S.': 'ficha-afiliacion-ss',
+    'Referenciación Trabajador en Misión': 'referenciacion',
+  };
+
+  /**
+   * Plantillas HTML que solo se ofrecen con vacante de Apoyo Laboral. Tu Alianza no lleva ficha
+   * social ni las plantillas nuevas, y su Manejo Imagen y su Carnet siguen por sus generadores.
+   */
+  private readonly SOLO_APOYO: ReadonlySet<string> = new Set([
+    'Ficha Social', 'Manejo Imagen', 'Carnet', ...SOLO_PLANTILLA_HTML,
+  ]);
+
+  /** Lo que el generador de Tu Alianza abre solo al llegar; el resto se elige allá (p. ej. las variantes del contrato). */
+  private readonly ABRIR_EN_GENERADOR: Readonly<Record<string, 'ficha-tecnica'>> = {
+    'Ficha Técnica': 'ficha-tecnica',
+  };
+
+  /**
+   * Clic sobre un documento diligenciable (ficha técnica, contrato): se pinta su plantilla
+   * HTML con los datos de la persona para completar a mano lo que falta; al guardar,
+   * ms-templates genera el PDF y lo deja en el expediente.
+   *
+   * Las plantillas HTML son las de Apoyo Laboral. Una vacante de Tu Alianza no tiene
+   * plantilla HTML: sigue por el generador de siempre (el contrato, con sus variantes
+   * Básica / TA Completa / Administrativo).
+   */
+  diligenciar(item: ItemPaquete): void {
+    const ced = this.cedulaEfectiva();
+    if (!this.esDiligenciable(item) || !ced) return;
+    const v = this.vacante();
+    if (!v) {
+      Swal.fire('Sin vacante', `Asigna primero la vacante: «${item.titulo}» se llena con su empresa y su centro de costo.`, 'info');
+      return;
+    }
+    const clave = this.PLANTILLA_HTML[item.titulo];
+    if (!clave || !/APOYO/i.test(String(v['temporal'] ?? ''))) {
+      const g = this.generacion();
+      if (!g.puede) {
+        Swal.fire('Todavía no se puede generar', g.motivo || 'Faltan datos del proceso para generar documentos.', 'info');
+        return;
+      }
+      this.irAGenerar(this.ABRIR_EN_GENERADOR[item.titulo]);
+      return;
+    }
+
+    Swal.fire({ title: `Preparando: ${item.titulo}…`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    this.docsParametrizados.centroCanonico(v).pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (centroCostoId) => {
+        Swal.close();
+        this.dialog.open<PlantillaHtmlDialogComponent, PlantillaHtmlData, PlantillaHtmlResultado>(PlantillaHtmlDialogComponent, {
+          maxWidth: '100vw', maxHeight: '100vh', width: '100vw', height: '100vh',
+          panelClass: 'pdf-editor-fullscreen-dialog', disableClose: true, autoFocus: false,
+          data: { clave, titulo: item.titulo, cedula: ced, centroCostoId, usuario: this.usuarioSesion() },
+        }).afterClosed().pipe(take(1)).subscribe((r) => {
+          if (!r?.guardado) return;
+          Swal.fire({ icon: 'success', title: 'Guardado', text: `${item.titulo} quedó en el expediente.`, timer: 2200, showConfirmButton: false });
+          this.recargar();
+        });
+      },
+      error: (e) => {
+        Swal.close();
+        Swal.fire(`No se pudo abrir: ${item.titulo}`,
+          e?.error?.error || 'No se encontró el centro de costo de la vacante en la parametrización documental.', 'error');
+      },
     });
   }
 

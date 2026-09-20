@@ -16,6 +16,8 @@ import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 import { finalize } from 'rxjs/operators';
 import { AdminService } from '../../services/admin.service';
+import { Router } from '@angular/router';
+import { CLAVE_CAMBIO_PENDIENTE } from '../../../../../../core/guards/cambio-password.guard';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -41,7 +43,8 @@ export class CambiarContrasenaComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private adminService: AdminService
+    private adminService: AdminService,
+    private router: Router
   ) {}
 
   ngOnInit(): void {
@@ -73,13 +76,22 @@ export class CambiarContrasenaComponent implements OnInit {
       .pipe(finalize(() => (this.isSubmitting = false)))
       .subscribe({
         next: (res) => {
+          // V86: ya puso una clave suya, así que se levanta la retención del guard. El
+          // backend también apaga su marca; esto es para no obligar a volver a entrar.
+          let retenido = false;
+          try {
+            retenido = localStorage.getItem(CLAVE_CAMBIO_PENDIENTE) === '1';
+            localStorage.removeItem(CLAVE_CAMBIO_PENDIENTE);
+          } catch { /* sin storage: nada que levantar */ }
+
           Swal.fire({
             icon: 'success',
             title: 'Contraseña cambiada',
-            text:
-              res?.message ||
-              'Tu contraseña ha sido cambiada correctamente. La próxima vez que inicies sesión, utiliza tu nueva contraseña.'
-          });
+            text: retenido
+              ? 'Listo, ya es su contraseña. Use esta de ahora en adelante para entrar.'
+              : (res?.message ||
+                 'Tu contraseña ha sido cambiada correctamente. La próxima vez que inicies sesión, utiliza tu nueva contraseña.'),
+          }).then(() => { if (retenido) this.router.navigate(['/dashboard']); });
           this.myForm.reset();
         },
         error: (err) => {

@@ -1,0 +1,232 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>receipt_long</mat-icon> Mis pedidos</h1>
+      <p class="tienda-subtitulo">Lo que ha pedido, cuándo lo recoge y si ya se lo descontaron.</p>
+    </div>
+    <div class="acciones-cabecera">
+      <a class="boton secundario" routerLink="/dashboard/tienda/marketplace">
+        <mat-icon>storefront</mat-icon> Ir a la tienda
+      </a>
+      <button type="button" class="boton secundario" (click)="alternarHistorial()">
+        <mat-icon>history</mat-icon>
+        {{ verHistorial() ? 'Ocultar historial' : 'Ver historial' }}
+      </button>
+    </div>
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  @if (verHistorial()) {
+    <section class="tienda-tarjeta historial">
+      <h2><mat-icon>history</mat-icon> Historial de mercados</h2>
+      <p class="nota">Todo lo que ha comprado, del mostrador y de la tienda virtual.</p>
+      <app-tabla-estandar
+        id="tienda-mis-pedidos-historial"
+        titulo="Historial de mercados"
+        modulo="Tienda"
+        vacio="Todavía no hay nada."
+        [datos]="historial()"
+        [columnas]="columnasHistorial"
+        [filaId]="idMovimiento" />
+    </section>
+  }
+
+  @if (cargando()) {
+    <p class="nota">Cargando sus pedidos…</p>
+  } @else if (pedidos().length === 0) {
+    <div class="tienda-tarjeta tienda-vacio">
+      <mat-icon>shopping_bag</mat-icon>
+      <p>Todavía no ha hecho ningún pedido.</p>
+      <a class="boton principal" routerLink="/dashboard/tienda/marketplace">Ir a la tienda</a>
+    </div>
+  } @else {
+    <div class="lista">
+      @for (d of pedidos(); track d.pedido.id) {
+        <article class="tienda-tarjeta pedido">
+          <div class="cabecera">
+            <div>
+              <strong>{{ d.pedido.numero }}</strong>
+              <span class="insignia" [class]="'insignia ' + claseEstado(d.pedido.estado)">
+                {{ textoEstado(d.pedido.estado) }}
+              </span>
+            </div>
+            <span class="total">{{ d.pedido.total | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+          </div>
+
+          <div class="datos">
+            <span><mat-icon>schedule</mat-icon> {{ d.pedido.creado_en | date:'short' }}</span>
+            <span><mat-icon>local_shipping</mat-icon> {{ d.pedido.tipo_entrega }}</span>
+            @if (d.pedido.programado_en) {
+              <span class="cita-puesta">
+                <mat-icon>event_available</mat-icon>
+                {{ d.pedido.tipo_entrega === 'DOMICILIO' ? 'Se lo llevan' : 'Pasa' }}
+                el {{ d.pedido.programado_en | date:'medium' }}
+              </span>
+            }
+            @if (d.pedido.bajo_pedido && d.pedido.fecha_estimada) {
+              <span class="bajo-pedido">
+                <mat-icon>schedule_send</mat-icon>
+                Hay artículos por encargo · llegan el {{ d.pedido.fecha_estimada | date:'longDate' }}
+              </span>
+            }
+            @if (d.pedido.entregado_en) {
+              <span><mat-icon>check</mat-icon> entregado {{ d.pedido.entregado_en | date:'short' }}</span>
+            }
+          </div>
+
+          <!-- Apartado no es cobrado. Es la confusión más común y por eso se dice entera. -->
+          @if (d.cupo_bloqueado; as c) {
+            <p class="franja cupo" [class.ejecutado]="c.estado === 'EJECUTADO'">
+              <mat-icon>{{ c.estado === 'EJECUTADO' ? 'price_check' : 'lock' }}</mat-icon>
+              <span>
+                {{ c.monto | currency:'COP':'symbol-narrow':'1.0-0' }} ·
+                {{ textoCupo(c.estado) }}
+                @if (c.cuotas > 1) { · en {{ c.cuotas }} cuotas }
+              </span>
+            </p>
+          }
+
+          @if (d.estado_pago_temporal; as p) {
+            <p class="franja temporal" [class]="'franja temporal ' + clasePagoTemporal(p.estado)">
+              <mat-icon>account_balance</mat-icon>
+              <span>
+                <strong>{{ textoPagoTemporal(p.estado) }}</strong>
+                @if (p.empresa) { · {{ p.empresa }} }
+                @if (p.periodo) { · {{ p.periodo }} }
+                @if (p.comentario) { <em>{{ p.comentario }}</em> }
+              </span>
+            </p>
+          }
+
+          @if (d.terceros.length > 0) {
+            <div class="terceros">
+              @for (t of d.terceros; track t.id) {
+                <p class="franja tercero">
+                  <mat-icon>group</mat-icon>
+                  <span>
+                    Lo recoge <strong>{{ t.nombre }}</strong> ({{ t.cedula }})
+                    @if (t.parentesco) { · {{ t.parentesco }} }
+                    <span class="insignia" [class]="'insignia ' + (t.estado === 'APROBADO' ? 'exito' : t.estado === 'RECHAZADO' ? 'peligro' : 'aviso')">
+                      {{ t.estado }}
+                    </span>
+                  </span>
+                  @if (editable(d.pedido) && t.estado !== 'APROBADO') {
+                    <button type="button" class="enlace" (click)="quitarTercero(d.pedido, t.id)">
+                      Quitar
+                    </button>
+                  }
+                </p>
+              }
+            </div>
+          }
+
+          <div class="acciones">
+            <button type="button" class="boton secundario" (click)="verSeguimiento(d.pedido)">
+              {{ seguimiento()[d.pedido.id] ? 'Ocultar seguimiento' : 'Ver seguimiento' }}
+            </button>
+            @if (editable(d.pedido)) {
+              <button type="button" class="boton secundario" (click)="abrirCita(d.pedido)">
+                <mat-icon>event</mat-icon>
+                {{ d.pedido.programado_en ? 'Cambiar la cita' : 'Poner fecha y hora' }}
+              </button>
+              @if (d.terceros.length === 0) {
+                <button type="button" class="boton secundario" (click)="abrirTercero(d.pedido)">
+                  <mat-icon>person_add</mat-icon> Que lo recoja otra persona
+                </button>
+              }
+            }
+            @if (cancelable(d.pedido)) {
+              <button type="button" class="boton peligro" (click)="cancelar(d.pedido)">Cancelar</button>
+            }
+          </div>
+
+          @if (citaDe() === d.pedido.id) {
+            <div class="formulario">
+              <div class="fila">
+                <label class="campo">
+                  <span>{{ d.pedido.tipo_entrega === 'DOMICILIO' ? 'Día de entrega' : 'Día que pasa' }}</span>
+                  <input type="date" [ngModel]="fechaCita()" (ngModelChange)="fechaCita.set($event)" />
+                </label>
+                <label class="campo">
+                  <span>Hora</span>
+                  <input type="time" [ngModel]="horaCita()" (ngModelChange)="horaCita.set($event)" />
+                </label>
+              </div>
+              <button type="button" class="boton principal" (click)="guardarCita(d.pedido)">
+                Guardar la cita
+              </button>
+            </div>
+          }
+
+          @if (terceroDe() === d.pedido.id) {
+            <div class="formulario">
+              <p class="nota">
+                En el punto le van a comparar la cara con la cédula, así que suba las dos
+                caras del documento. Sin el reverso no se la aprueban.
+              </p>
+              <div class="fila">
+                <label class="campo crecer">
+                  <span>Nombre completo</span>
+                  <input type="text" [ngModel]="tNombre()" (ngModelChange)="tNombre.set($event)" />
+                </label>
+                <label class="campo">
+                  <span>Cédula</span>
+                  <input type="text" inputmode="numeric"
+                         [ngModel]="tCedula()" (ngModelChange)="tCedula.set($event)" />
+                </label>
+              </div>
+              <div class="fila">
+                <label class="campo">
+                  <span>Teléfono</span>
+                  <input type="tel" [ngModel]="tTelefono()" (ngModelChange)="tTelefono.set($event)" />
+                </label>
+                <label class="campo">
+                  <span>Parentesco</span>
+                  <input type="text" placeholder="Esposa, hijo…"
+                         [ngModel]="tParentesco()" (ngModelChange)="tParentesco.set($event)" />
+                </label>
+              </div>
+              <div class="fila">
+                <label class="campo">
+                  <span>Foto del rostro</span>
+                  <input type="text" placeholder="Identificador del documento"
+                         [ngModel]="tRostro()" (ngModelChange)="tRostro.set($event)" />
+                </label>
+                <label class="campo">
+                  <span>Cédula · frente</span>
+                  <input type="text" [ngModel]="tFrente()" (ngModelChange)="tFrente.set($event)" />
+                </label>
+                <label class="campo">
+                  <span>Cédula · reverso</span>
+                  <input type="text" [ngModel]="tReverso()" (ngModelChange)="tReverso.set($event)" />
+                </label>
+              </div>
+              <button type="button" class="boton principal" (click)="guardarTercero(d.pedido)">
+                Autorizar a esta persona
+              </button>
+            </div>
+          }
+
+          @if (seguimiento()[d.pedido.id]; as eventos) {
+            <ol class="seguimiento">
+              @for (e of eventos; track $any(e)['id']) {
+                <li>
+                  <strong>{{ textoEstado($any(e)['estado']) }}</strong>
+                  <span>{{ $any(e)['ocurrido_en'] | date:'short' }}</span>
+                  @if ($any(e)['comentario']) { <em>{{ $any(e)['comentario'] }}</em> }
+                </li>
+              }
+            </ol>
+          }
+        </article>
+      }
+    </div>
+  }
+</div>

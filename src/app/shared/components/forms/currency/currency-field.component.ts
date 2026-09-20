@@ -80,7 +80,7 @@ const COP = new Intl.NumberFormat('es-CO', {
       left: 12px;
       top: 50%;
       transform: translateY(-50%);
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       font-weight: 600;
       pointer-events: none;
     }
@@ -88,7 +88,7 @@ const COP = new Intl.NumberFormat('es-CO', {
     .df-currency__hint {
       margin: 0;
       font-size: 0.8rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
     }
   `],
 })

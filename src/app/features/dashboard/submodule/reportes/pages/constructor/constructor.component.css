@@ -7,11 +7,11 @@
    ========================================================================== */
 
 :host {
-  --rp-fondo: #f8fafc;
-  --rp-panel: #ffffff;
-  --rp-borde: #e2e8f0;
-  --rp-texto: #0f172a;
-  --rp-texto-suave: #64748b;
+  --rp-fondo: var(--surface-2);
+  --rp-panel: var(--surface);
+  --rp-borde: var(--border);
+  --rp-texto: var(--text);
+  --rp-texto-suave: var(--muted);
   --rp-acento: #0284c7;
 
   display: block;
@@ -26,7 +26,7 @@
   --rp-panel: #1e293b;
   --rp-borde: #334155;
   --rp-texto: #f1f5f9;
-  --rp-texto-suave: #94a3b8;
+  --rp-texto-suave: var(--text-faint);
 }
 
 .cons { display: flex; flex-direction: column; height: 100%; min-height: 0; }
@@ -53,11 +53,11 @@
 }
 .paso mat-icon { font-size: 13px; width: 13px; height: 13px; }
 .paso em { font-style: normal; }
-.paso--ok { color: #059669; }
+.paso--ok { color: #059669; color: light-dark(#059669, #97f7d9); }
 
 .singuardar {
-  font-size: .7rem; font-weight: 700; color: #b45309;
-  background: #fef3c7; border-radius: 999px; padding: 2px 9px;
+  font-size: .7rem; font-weight: 700; color: #b45309; color: light-dark(#b45309, #f7c097);
+  background: #fef3c7; background: light-dark(#fef3c7, #373625); border-radius: 999px; padding: 2px 9px;
 }
 
 /* ── Zona de trabajo ───────────────────────────────────────────────────── */
@@ -117,14 +117,14 @@ app-explorador-datos { flex: 1; min-height: 0; }
 .aviso {
   display: flex; align-items: flex-start; gap: .4rem;
   padding: .45rem .6rem; border-radius: 10px; font-size: .78rem;
-  background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+  background: #fffbeb; background: light-dark(#fffbeb, #383624); border: 1px solid #fde68a; border: 1px solid light-dark(#fde68a, #6a5d1c); color: #92400e; color: light-dark(#92400e, #f5bc99);
 }
 .aviso mat-icon { font-size: 17px; width: 17px; height: 17px; flex: 0 0 auto; }
 
 .error {
   display: flex; align-items: center; gap: .6rem;
   padding: .7rem .8rem; border-radius: 12px;
-  background: #fef2f2; border: 1px solid #fecaca; color: #991b1b;
+  background: #fef2f2; background: light-dark(#fef2f2, #351927); border: 1px solid #fecaca; border: 1px solid light-dark(#fecaca, #6a121c); color: #991b1b; color: light-dark(#991b1b, #eea0a0);
 }
 .error > mat-icon { font-size: 22px; width: 22px; height: 22px; }
 .error b { font-size: .85rem; }
@@ -183,7 +183,9 @@ app-explorador-datos { flex: 1; min-height: 0; }
   .panel--der { right: 0; }
   .panel--izq.panel--cerrado { transform: translateX(-102%); }
   .panel--der.panel--cerrado { transform: translateX(102%); }
-  .area { position: relative; }
+  /* Los paneles cerrados quedan desplazados fuera del área: sin recortarla, el
+     derecho seguía ocupando sitio y la página scrolleaba 326 px de lado. */
+  .area { position: relative; overflow: hidden; }
 }
 
 @media (max-width: 720px) {

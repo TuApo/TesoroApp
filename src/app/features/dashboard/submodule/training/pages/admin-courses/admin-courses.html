@@ -67,65 +67,43 @@
     </div>
   }
 
-  <div class="barra-busqueda">
-    <mat-icon>search</mat-icon>
-    <input type="text" placeholder="Buscar por nombre o código"
-           [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
-  </div>
-
-  @if (cargando()) {
-    <p class="cargando">Cargando el catálogo…</p>
-  } @else if (error()) {
+  @if (error()) {
     <div class="aviso-error">
       <mat-icon>error_outline</mat-icon>
       <span>{{ error() }}</span>
       <button type="button" class="btn-primario" (click)="cargar()">Reintentar</button>
     </div>
-  } @else if (filtrados().length === 0) {
-    <div class="vacio">
-      <mat-icon>menu_book</mat-icon>
-      <p>{{ busqueda() ? 'Ningún curso coincide con la búsqueda.' : 'Todavía no hay cursos.' }}</p>
-      @if (!busqueda()) {
-        <button type="button" class="btn-primario" (click)="nuevo()">Crear el primero</button>
-      }
-    </div>
   } @else {
-    <table class="tabla">
-      <thead>
-        <tr>
-          <th>Curso</th>
-          <th>Código</th>
-          <th>Modalidad</th>
-          <th>Vigencia</th>
-          <th>Estado</th>
-          <th class="acciones-col">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (c of filtrados(); track c.id) {
-          <tr>
-            <td>
-              <button type="button" class="enlace" (click)="abrir(c)">{{ c.nombre }}</button>
-              @if (c.obligatorio) { <span class="chip chip-obligatorio">Obligatorio</span> }
-            </td>
-            <td class="mono">{{ c.codigo }}</td>
-            <td>{{ c.modalidad_default }}</td>
-            <td>{{ c.vigencia_meses ? c.vigencia_meses + ' meses' : 'No vence' }}</td>
-            <td><span class="chip" [class]="estadoClase(c)">{{ estadoTexto(c) }}</span></td>
-            <td class="acciones-col">
-              <button type="button" class="btn-icono" title="Armar contenido" (click)="abrir(c)">
-                <mat-icon>library_books</mat-icon>
-              </button>
-              <button type="button" class="btn-icono" title="Editar datos" (click)="editar(c)">
-                <mat-icon>edit</mat-icon>
-              </button>
-              <button type="button" class="btn-icono peligro" title="Archivar" (click)="archivar(c)">
-                <mat-icon>inventory_2</mat-icon>
-              </button>
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
+    <!-- «Ver» y el doble clic abren el contenido del curso (antes: el nombre y «Armar contenido»). -->
+    <app-tabla-estandar
+      id="capacitaciones-catalogo-cursos"
+      titulo="Catálogo de cursos"
+      modulo="Capacitaciones"
+      busqueda="Buscar por nombre o código"
+      vacio="Todavía no hay cursos."
+      [datos]="cursos()"
+      [columnas]="columnas"
+      [filaId]="idCurso"
+      [cargando]="cargando()"
+      (filaClick)="abrir($event)">
+
+      <ng-template tablaCelda="curso" let-c>
+        {{ c.nombre }}
+        @if (c.obligatorio) { <span class="chip chip-obligatorio">Obligatorio</span> }
+      </ng-template>
+
+      <ng-template tablaCelda="codigo" let-c>
+        <span class="mono">{{ c.codigo }}</span>
+      </ng-template>
+
+      <ng-template tablaAcciones let-c>
+        <button type="button" class="btn-icono" title="Editar datos" (click)="editar(c)">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button type="button" class="btn-icono peligro" title="Archivar" (click)="archivar(c)">
+          <mat-icon>inventory_2</mat-icon>
+        </button>
+      </ng-template>
+    </app-tabla-estandar>
   }
 </section>

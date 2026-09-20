@@ -90,8 +90,11 @@ describe('DialogoInformeUmbralComponent', () => {
   const peticionInforme = (): TestRequest =>
     httpMock.expectOne((r) => r.url === URL_INFORME);
 
-  const filasPintadas = (): NodeListOf<HTMLTableRowElement> =>
-    (fixture.nativeElement as HTMLElement).querySelectorAll('tbody tr');
+  /** Filas de la tabla estandar (como filas o como tarjetas, segun el ancho). */
+  const filasPintadas = (): NodeListOf<HTMLElement> =>
+    (fixture.nativeElement as HTMLElement).querySelectorAll(
+      'app-tabla-estandar .te-fila, app-tabla-estandar .te-tarjeta',
+    );
 
   beforeEach(async () => {
     refFalso = { close: jasmine.createSpy('close') };
@@ -147,18 +150,18 @@ describe('DialogoInformeUmbralComponent', () => {
     expect(filasDom[2].textContent).toContain('ANA PEREZ'); // 165 dias
   });
 
-  it('mientras el GET esta en vuelo muestra el spinner', () => {
+  it('mientras el GET esta en vuelo la tabla muestra su esqueleto de carga', () => {
     fixture.detectChanges();
     expect(componente.cargando()).toBe(true);
     expect(
-      (fixture.nativeElement as HTMLElement).querySelector('mat-spinner'),
+      (fixture.nativeElement as HTMLElement).querySelector('app-tabla-estandar .te-esqueleto'),
     ).not.toBeNull();
 
     peticionInforme().flush(INFORME);
     fixture.detectChanges();
     expect(componente.cargando()).toBe(false);
     expect(
-      (fixture.nativeElement as HTMLElement).querySelector('mat-spinner'),
+      (fixture.nativeElement as HTMLElement).querySelector('app-tabla-estandar .te-esqueleto'),
     ).toBeNull();
   });
 
@@ -197,52 +200,23 @@ describe('DialogoInformeUmbralComponent', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════
-  // (c) El filtro rapido reduce las filas visibles
+  // (c) Columnas planas: la busqueda y los filtros los hace la tabla estandar
   // ═══════════════════════════════════════════════════════════════════
 
-  it('el filtro rapido por nombre/cedula reduce las filas visibles', () => {
+  it('las columnas exponen valores planos y el tramo sale como chip con tono', () => {
     peticionInforme().flush(INFORME);
     fixture.detectChanges();
-    expect(filasPintadas().length).toBe(3);
 
-    const entrada = (fixture.nativeElement as HTMLElement).querySelector(
-      '.umb-filtro input',
-    ) as HTMLInputElement;
+    const columna = (id: string) => componente.columnas.find((c) => c.id === id)!;
+    expect(columna('cedula').valor(FILA_SUPERA_180)).toBe('52123456');
+    expect(columna('nombre').valor(FILA_SUPERA_180)).toBe('LUIS GOMEZ');
+    expect(columna('dias').valor(FILA_SUPERA_180)).toBe(210);
+    expect(columna('responsable').valor(FILA_SUPERA_180)).toBe('Fondo de pensiones');
+    expect(columna('tramo').badge!(FILA_SUPERA_180)?.tono).toBe('danger');
+    expect(columna('tramo').badge!(FILA_PROXIMO_180)?.tono).toBe('warn');
+    expect(columna('tramo').badge!(FILA_PROXIMO_540)?.tono).toBe('violet');
 
-    // Por nombre (sin distinguir mayusculas).
-    entrada.value = 'ana';
-    entrada.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    let filasDom = filasPintadas();
-    expect(filasDom.length).toBe(1);
-    expect(filasDom[0].textContent).toContain('ANA PEREZ');
-
-    // Por cedula.
-    entrada.value = '52123456';
-    entrada.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    filasDom = filasPintadas();
-    expect(filasDom.length).toBe(1);
-    expect(filasDom[0].textContent).toContain('LUIS GOMEZ');
-
-    // Sin coincidencias: la tabla queda vacia y se avisa.
-    entrada.value = 'zzz';
-    entrada.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    expect(filasPintadas().length).toBe(0);
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Ninguna persona coincide',
-    );
-
-    // Limpiar el filtro devuelve todo. Los contadores NUNCA cambian.
-    entrada.value = '';
-    entrada.dispatchEvent(new Event('input'));
-    fixture.detectChanges();
-
-    expect(filasPintadas().length).toBe(3);
+    // Los contadores salen de TODO el informe, no de lo que filtre la tabla.
     expect(componente.conteoTramo('PROXIMO_180')).toBe(1);
     expect(componente.conteoTramo('SUPERA_540')).toBe(0);
   });

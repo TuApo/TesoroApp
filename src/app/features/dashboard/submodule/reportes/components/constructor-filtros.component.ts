@@ -189,20 +189,20 @@ import { ReportesApiService } from '../services/reportes-api.service';
   styles: [`
     :host { display: block; }
     .grupo {
-      border: 1px dashed var(--rp-borde, #cbd5e1); border-radius: 12px;
-      padding: .5rem; background: var(--rp-fondo-grupo, #fbfdff);
+      border: 1px dashed var(--rp-borde, var(--border-strong)); border-radius: 12px;
+      padding: .5rem; background: var(--rp-fondo-grupo, var(--surface));
     }
     .grupo--raiz { border-style: solid; background: transparent; padding: 0; border: 0; }
     .grupo + .grupo { margin-top: .4rem; }
 
     .grupo__cab { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .4rem; }
-    .grupo__desc { font-size: .72rem; color: #94a3b8; }
+    .grupo__desc { font-size: .72rem; color: var(--text-faint); }
     .grupo__sp { flex: 1; }
 
-    .union { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; }
+    .union { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
     .union button {
       border: 0; background: transparent; padding: .15rem .6rem; cursor: pointer;
-      font-size: .74rem; font-weight: 700; color: #64748b;
+      font-size: .74rem; font-weight: 700; color: var(--muted);
     }
     .union--on { background: #0284c7; color: #fff !important; }
 
@@ -214,17 +214,17 @@ import { ReportesApiService } from '../services/reportes-api.service';
     .cond {
       display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
       padding: .3rem .4rem; border-radius: 10px;
-      background: var(--rp-fondo-cond, #fff); border: 1px solid var(--rp-borde, #e2e8f0);
+      background: var(--rp-fondo-cond, var(--surface)); border: 1px solid var(--rp-borde, var(--border));
     }
     .cond__campo {
       display: inline-flex; align-items: center; gap: .25rem;
-      font-size: .8rem; font-weight: 600; color: #0f172a;
+      font-size: .8rem; font-weight: 600; color: var(--text);
       max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .cond__campo mat-icon { font-size: 15px; width: 15px; height: 15px; color: #94a3b8; }
+    .cond__campo mat-icon { font-size: 15px; width: 15px; height: 15px; color: var(--text-faint); }
     .cond__op { width: 168px; font-size: .8rem; }
     .cond__val { width: 150px; font-size: .8rem; }
-    .cond__y { font-size: .74rem; color: #94a3b8; }
+    .cond__y { font-size: .74rem; color: var(--text-faint); }
     .cond__del { width: 28px; height: 28px; line-height: 28px; margin-left: auto; }
     .cond__del mat-icon { font-size: 16px; width: 16px; height: 16px; }
 
@@ -233,7 +233,7 @@ import { ReportesApiService } from '../services/reportes-api.service';
       border: 0; outline: 0; background: transparent; font-size: .8rem; min-width: 120px; flex: 1;
     }
 
-    .grupo__vacio { margin: .2rem 0; font-size: .78rem; color: #94a3b8; }
+    .grupo__vacio { margin: .2rem 0; font-size: .78rem; color: var(--text-faint); }
 
     :host-context(.dark-theme) {
       --rp-borde: #334155; --rp-fondo-grupo: #16202f; --rp-fondo-cond: #1e293b;

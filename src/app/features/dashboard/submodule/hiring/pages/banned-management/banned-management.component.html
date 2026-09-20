@@ -29,175 +29,35 @@
 
       <!-- input oculto para Excel -->
       <input #file901 type="file" accept=".xlsx,.xls,.csv" (change)="onFileSelected901($event)" hidden>
-      <mat-form-field class="filtro">
-        <mat-label>Filtrar</mat-label>
-        <input matInput (keyup)="applyFilter($event)" placeholder="Filtrar" #input>
-      </mat-form-field>
-      <div class="table-container">
-        <table mat-table [dataSource]="reportadosDataSource" class="mat-elevation-z8">
+      <app-tabla-estandar
+        id="contratacion-vetados-reportados"
+        titulo="Vetados reportados"
+        modulo="Contratación"
+        vacio="No hay datos."
+        [datos]="reportados()"
+        [columnas]="columnasReportados">
 
-          <!-- Columna Cédula -->
-          <ng-container matColumnDef="cedula">
-            <th mat-header-cell *matHeaderCellDef> Cédula </th>
-            <td mat-cell *matCellDef="let element"> {{element.cedula}} </td>
-          </ng-container>
-
-          <!-- Columna Nombre Completo -->
-          <ng-container matColumnDef="nombre_completo">
-            <th mat-header-cell *matHeaderCellDef> Nombre Completo </th>
-            <td mat-cell *matCellDef="let element"> {{element.nombre_completo}} </td>
-          </ng-container>
-
-
-          <!-- Columna Estado -->
-          <ng-container matColumnDef="estado">
-            <th mat-header-cell *matHeaderCellDef> Estado </th>
-            <td mat-cell *matCellDef="let element"> {{element.estado}} </td>
-          </ng-container>
-
-          <!-- Columna Fecha -->
-          <ng-container matColumnDef="fecha">
-            <th mat-header-cell *matHeaderCellDef> Fecha </th>
-            <td mat-cell *matCellDef="let element"> {{element.fecha | date:'short'}} </td>
-          </ng-container>
-
-          <!-- Columna Observación -->
-          <ng-container matColumnDef="observacion">
-            <th mat-header-cell *matHeaderCellDef> Observación </th>
-            <td mat-cell *matCellDef="let element"> {{element.observacion}} </td>
-          </ng-container>
-
-          <!-- centro_costo_carnet -->
-          <ng-container matColumnDef="centro_costo_carnet">
-            <th mat-header-cell *matHeaderCellDef> Centro de Costo </th>
-            <td mat-cell *matCellDef="let element"> {{element.centro_costo_carnet}} </td>
-          </ng-container>
-
-          <!-- Columna Reportado Por -->
-          <ng-container matColumnDef="reportado_por">
-            <th mat-header-cell *matHeaderCellDef> Reportado Por </th>
-            <td mat-cell *matCellDef="let element"> {{element.reportado_por}} </td>
-          </ng-container>
-
-          <!-- Columna Sede -->
-          <ng-container matColumnDef="sede">
-            <th mat-header-cell *matHeaderCellDef> Sede </th>
-            <td mat-cell *matCellDef="let element"> {{element.sede}} </td>
-          </ng-container>
-
-          <!-- Columna de Acciones -->
-          <ng-container matColumnDef="acciones">
-            <th mat-header-cell *matHeaderCellDef> Acciones </th>
-            <td mat-cell *matCellDef="let element">
-              <!-- Botón de Editar -->
-              <mat-icon (click)="verDetalle(element)">edit</mat-icon>
-
-              <!-- Botón de Eliminar -->
-              <mat-icon (click)="eliminar(element)">delete</mat-icon>
-
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="7">No hay datos "{{input.value}}"</td>
-          </tr>
-
-        </table>
-
-      </div>
+        <ng-template tablaAcciones let-element>
+          <button mat-icon-button (click)="verDetalle(element)" matTooltip="Editar">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button (click)="eliminar(element)" matTooltip="Eliminar">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
     </div>
     <!-- Tabla de Todos los Vetados Excepto el ID -->
     <div class="tabla">
       <h1 class="title">901 revisados</h1>
-      <mat-form-field class="filtro">
-        <mat-label>Filtrar</mat-label>
-        <input matInput (keyup)="applyFilter($event)" placeholder="Filtrar" #inputTodos>
-      </mat-form-field>
-      <div class="table-container">
-        <table mat-table [dataSource]="todosDataSource" class="mat-elevation-z8">
-
-          <!-- Columna Cédula -->
-          <ng-container matColumnDef="cedula">
-            <th mat-header-cell *matHeaderCellDef> Cédula </th>
-            <td mat-cell *matCellDef="let element"> {{element.cedula}} </td>
-          </ng-container>
-
-          <!-- Columna Nombre Completo -->
-          <ng-container matColumnDef="nombre_completo">
-            <th mat-header-cell *matHeaderCellDef> Nombre Completo </th>
-            <td mat-cell *matCellDef="let element"> {{element.nombre_completo}} </td>
-          </ng-container>
-
-          <!-- Columna Categoría -->
-          <ng-container matColumnDef="categoriaid">
-            <th mat-header-cell *matHeaderCellDef> Categoría </th>
-            <td mat-cell *matCellDef="let element">
-              <span class="bold-text">{{element.categoria.id}}</span>
-            </td>
-          </ng-container>
-
-          <!-- Clasificación -->
-          <ng-container matColumnDef="categoria_clasificacion">
-            <th mat-header-cell *matHeaderCellDef> Descripción </th>
-            <td mat-cell *matCellDef="let element">
-              <span class="bold-text">{{element.categoria.clasificacion}}</span>
-            </td>
-          </ng-container>
-
-          <!-- Descripción -->
-          <ng-container matColumnDef="categoria_descripcion">
-            <th mat-header-cell *matHeaderCellDef> Clasificación </th>
-            <td mat-cell *matCellDef="let element">
-              <span class="bold-text">{{element.categoria.descripcion}}</span>
-            </td>
-          </ng-container>
-
-
-          <!-- Columna Estado -->
-          <ng-container matColumnDef="estado">
-            <th mat-header-cell *matHeaderCellDef> Estado </th>
-            <td mat-cell *matCellDef="let element"> {{element.estado}} </td>
-          </ng-container>
-
-          <!-- Columna Fecha -->
-          <ng-container matColumnDef="fecha">
-            <th mat-header-cell *matHeaderCellDef> Fecha </th>
-            <td mat-cell *matCellDef="let element"> {{element.fecha | date:'short'}} </td>
-          </ng-container>
-
-          <!-- Columna Observación -->
-          <ng-container matColumnDef="observacion">
-            <th mat-header-cell *matHeaderCellDef> Observación </th>
-            <td mat-cell *matCellDef="let element"> {{element.observacion}} </td>
-          </ng-container>
-
-          <!-- Columna Reportado Por -->
-          <ng-container matColumnDef="reportado_por">
-            <th mat-header-cell *matHeaderCellDef> Reportado Por </th>
-            <td mat-cell *matCellDef="let element"> {{element.reportado_por}} </td>
-          </ng-container>
-
-          <!-- Columna Sede -->
-          <ng-container matColumnDef="sede">
-            <th mat-header-cell *matHeaderCellDef> Sede </th>
-            <td mat-cell *matCellDef="let element"> {{element.sede}} </td>
-          </ng-container>
-
-          <!-- Columna Autorizado Por -->
-          <ng-container matColumnDef="autorizado_por">
-            <th mat-header-cell *matHeaderCellDef> Autorizado Por </th>
-            <td mat-cell *matCellDef="let element"> {{element.autorizado_por}} </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="todosDisplayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: todosDisplayedColumns;"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="8">No hay datos "{{inputTodos.value}}"</td>
-          </tr>
-        </table>
-      </div>
+      <app-tabla-estandar
+        id="contratacion-vetados-revisados"
+        titulo="901 revisados"
+        modulo="Contratación"
+        vacio="No hay datos."
+        [datos]="revisados()"
+        [columnas]="columnasRevisados">
+      </app-tabla-estandar>
     </div>
 
   </mat-card-content>

@@ -1,8 +1,7 @@
 // src/app/features/dashboard/submodule/users/components/meta-config-dialog/meta-config-dialog.component.ts
-import {  Component, Inject, OnInit, signal, inject, ChangeDetectorRef , ChangeDetectionStrategy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import {  Component, Inject, OnInit, signal, computed, inject, ChangeDetectorRef , ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule, formatDate } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -15,6 +14,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
+
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 
 import {
   GestionParametrizacionService,
@@ -40,10 +41,10 @@ export interface MetaConfigDialogData {
   templateUrl: './meta-config-dialog.component.html',
   styleUrls: ['./meta-config-dialog.component.css'],
   imports: [
-    CommonModule, MatDialogModule, MatTableModule, MatButtonModule, MatIconModule,
+    CommonModule, MatDialogModule, MatButtonModule, MatIconModule,
     MatTooltipModule, MatMenuModule, ReactiveFormsModule, MatFormFieldModule,
     MatInputModule, MatCheckboxModule, MatSelectModule, MatSnackBarModule,
-    MatDatepickerModule, MatNativeDateModule
+    MatDatepickerModule, MatNativeDateModule, ...TABLA_ESTANDAR
   ]
 } )
 export class MetaConfigDialogComponent implements OnInit {
@@ -65,7 +66,15 @@ export class MetaConfigDialogComponent implements OnInit {
   valores = signal<MetaValor[]>([]);
   loading = signal<boolean>(false);
 
-  displayedColumnsCampos: string[] = ['campo', 'tipo', 'obligatorio', 'visible', 'orden', 'acciones'];
+  readonly columnasCampos: ColumnaTabla<MetaCampo>[] = [
+    { id: 'campo', header: 'Campo', valor: (r) => r.campo, tarjeta: 'titulo' },
+    { id: 'tipo', header: 'Tipo', valor: (r) => r.tipo, tarjeta: 'subtitulo' },
+    { id: 'obligatorio', header: 'Oblig.', valor: (r) => !!r.obligatorio },
+    { id: 'visible', header: 'Visible', valor: (r) => !!r.visible },
+    { id: 'orden', header: 'Orden', valor: (r) => r.orden, align: 'right' },
+  ];
+  readonly idCampo = (r: MetaCampo) => r.id;
+  readonly idValor = (r: MetaValor) => r.id;
   campoTipos: CampoTipo[] = ['STRING', 'NUMBER', 'BOOLEAN', 'DATE', 'JSON', 'ENUM'];
 
   // forms
@@ -76,10 +85,24 @@ export class MetaConfigDialogComponent implements OnInit {
   editingCampo = signal<MetaCampo | null>(null);
   editingValor = signal<MetaValor | null>(null);
 
-  // columnas dinámicas para valores
-  get displayedColumnsValores(): string[] {
-    return [...this.camposVisiblesOrdenados.map(c => c.campo), 'activo', 'updated_at', 'acciones'];
-  }
+  // columnas dinámicas para valores: una por cada MetaCampo visible + fijas.
+  // El id lleva prefijo para no chocar con las fijas si un campo se llama igual.
+  readonly columnasValores = computed<ColumnaTabla<MetaValor>[]>(() => [
+    ...this.camposVisiblesOrdenados.map((c): ColumnaTabla<MetaValor> => ({
+      id: 'dato:' + c.campo,
+      header: c.campo,
+      valor: (r) => {
+        const v = r.datos?.[c.campo];
+        if (c.tipo === 'BOOLEAN') return !!v;
+        if (c.tipo === 'JSON') return v == null ? '' : JSON.stringify(v);
+        return v;
+      },
+    })),
+    { id: 'activo', header: 'Activo', valor: (r) => !!r.activo },
+    { id: 'updated_at', header: 'Actualizado', prioridad: 2, tarjeta: 'meta',
+      valor: (r) => r.updated_at,
+      formato: (r) => (r.updated_at ? formatDate(r.updated_at, 'yyyy-MM-dd HH:mm', 'en-US') : '') },
+  ]);
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: MetaConfigDialogData,

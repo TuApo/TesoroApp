@@ -199,12 +199,12 @@ export interface PlantillaDialogData {
   styles: [`
     .dialog-content { padding: 0 24px; overflow-y: auto; }
     .version-badge {
-      margin-left: 12px; font-size: .75rem; background: #e0e7ff;
-      color: #3730a3; padding: 2px 8px; border-radius: 12px;
+      margin-left: 12px; font-size: .75rem; background: #e0e7ff; background: light-dark(#e0e7ff, #0f1f4d);
+      color: #3730a3; color: light-dark(#3730a3, #aca8e5); padding: 2px 8px; border-radius: 12px;
     }
     .canvas-badge {
-      margin-left: 8px; font-size: .75rem; background: #dcfce7;
-      color: #166534; padding: 2px 8px; border-radius: 12px;
+      margin-left: 8px; font-size: .75rem; background: #dcfce7; background: light-dark(#dcfce7, #123b33);
+      color: #166534; color: light-dark(#166534, #a3ebbe); padding: 2px 8px; border-radius: 12px;
       display: inline-flex; align-items: center; gap: 3px;
     }
     .tab-body { padding: 20px 0; }
@@ -219,7 +219,7 @@ export interface PlantillaDialogData {
     }
     .canvas-pending {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
-      height: 100%; gap: 12px; color: #64748b; text-align: center;
+      height: 100%; gap: 12px; color: var(--muted); text-align: center;
     }
     .canvas-pending mat-icon { font-size: 3rem !important; color: #cbd5e1; }
     .canvas-pending p { max-width: 300px; font-size: .88rem; }
@@ -229,10 +229,10 @@ export interface PlantillaDialogData {
     .btn-toggle-html { font-size: .78rem; }
     .html-section { margin-top: 10px; }
     .html-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .html-hint { font-size: .82rem; color: #666; }
+    .html-hint { font-size: .82rem; color: var(--muted); }
     .html-editor {
       width: 100%; min-height: 240px; font-family: 'Courier New', monospace; font-size: .8rem;
-      border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;
+      border: 1px solid var(--border); border-radius: 6px; padding: 12px;
       resize: vertical; box-sizing: border-box;
     }
     .html-editor:focus { outline: 2px solid #3b82f6; }
@@ -241,12 +241,12 @@ export interface PlantillaDialogData {
     .placeholders-ref strong { font-size: .82rem; display: block; margin-bottom: 6px; }
     .ph-chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .ph-chip {
-      background: #ede9fe; color: #5b21b6; font-size: .75rem; padding: 3px 10px;
+      background: #ede9fe; background: light-dark(#ede9fe, #18184b); color: #5b21b6; font-size: .75rem; padding: 3px 10px;
       border-radius: 12px; cursor: pointer; font-family: monospace;
       transition: background .15s;
     }
-    .ph-chip:hover { background: #ddd6fe; }
-    .ph-empty { color: #aaa; font-size: .8rem; }
+    .ph-chip:hover { background: #ddd6fe; background: light-dark(#ddd6fe, #17174c); }
+    .ph-empty { color: var(--text-faint); font-size: .8rem; }
 
     h2[mat-dialog-title] { display: flex; align-items: center; flex-wrap: wrap; }
   `],

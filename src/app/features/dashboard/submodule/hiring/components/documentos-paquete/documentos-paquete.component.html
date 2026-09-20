@@ -31,6 +31,80 @@
       <div class="dp-error"><mat-icon>error_outline</mat-icon> {{ error() }}</div>
     }
 
+    @if (errorParametrizado()) {
+      <div class="dp-error" role="alert"><mat-icon>rule_folder</mat-icon> Documentos parametrizados: {{ errorParametrizado() }}</div>
+    }
+
+    <!-- Paquete de ingreso según la parametrización documental de la empresa usuaria.
+         En ON es el paquete; en SOMBRA se enseña como vista previa para validarlo. -->
+    @if (paqueteParametrizado(); as pp) {
+      <section class="dp-param" [class.dp-param-cerrado]="!paqueteAbierto()">
+        <div class="dp-param-head">
+          <button type="button" class="dp-param-toggle" (click)="paqueteAbierto.set(!paqueteAbierto())"
+                  [attr.aria-expanded]="paqueteAbierto()" aria-controls="dp-param-cuerpo">
+            <mat-icon class="dp-param-chevron">{{ paqueteAbierto() ? 'expand_less' : 'expand_more' }}</mat-icon>
+            <span class="dp-param-title">Paquete de ingreso</span>
+            @if (pp.modo === 'SOMBRA') { <span class="dp-param-badge">sombra</span> }
+            <span class="dp-param-tot">{{ pp.datos.totales.copias_fisicas }} físicos · {{ pp.datos.totales.copias_digitales }} digitales</span>
+          </button>
+          @if (paqueteAbierto()) {
+            <button type="button" class="dp-btn" (click)="descargarPaqueteCompleto()" [disabled]="descargando() !== null">
+              <mat-icon>{{ descargando() === 'ZIP' ? 'progress_activity' : 'download' }}</mat-icon> Paquete completo
+            </button>
+          }
+        </div>
+
+        @if (paqueteAbierto()) {
+        <div id="dp-param-cuerpo">
+        <div class="dp-param-destinos">
+          @for (p of pp.datos.paquetes; track p.destino) {
+            <article class="dp-param-destino">
+              <header class="dp-param-destino-head">
+                <strong>{{ destinosLabel[p.destino] || p.destino }}</strong>
+                <span class="dp-param-destino-tot">
+                  @if (p.ejemplares_fisicos) { {{ p.ejemplares_fisicos }} físicos }
+                  @if (p.ejemplares_digitales) { {{ p.ejemplares_digitales }} digitales }
+                </span>
+                <button type="button" class="dp-btn dp-btn-ghost" (click)="descargarDestino(p.destino)"
+                  [disabled]="descargando() !== null" [attr.aria-label]="'Descargar PDF de ' + (destinosLabel[p.destino] || p.destino)">
+                  <mat-icon>{{ descargando() === p.destino ? 'progress_activity' : 'picture_as_pdf' }}</mat-icon>
+                </button>
+              </header>
+              <ol class="dp-param-items">
+                @for (it of p.items; track it.codigo) {
+                  <li>
+                    <span class="dp-param-item-nombre">{{ it.nombre }}</span>
+                    <span class="dp-param-item-meta">{{ it.forma === 'DIGITAL' ? 'digital' : (it.forma | lowercase) }} × {{ it.copias }}</span>
+                  </li>
+                }
+              </ol>
+            </article>
+          }
+        </div>
+
+        @if (checklistParametrizado().length) {
+          <h5 class="dp-param-sub">Soportes, consultas y formatos a diligenciar</h5>
+          <ul class="dp-param-check">
+            @for (c of checklistParametrizado(); track c.codigo) {
+              <li [class.dp-item-listo]="c.cargado">
+                <mat-icon>{{ c.cargado ? 'check_circle' : (c.obligatorio ? 'radio_button_unchecked' : 'remove_circle_outline') }}</mat-icon>
+                <span class="dp-param-item-nombre" [attr.title]="c.observacion || null">{{ c.nombre }}</span>
+                <span class="dp-param-item-meta">
+                  {{ c.naturaleza }}
+                  @if (c.vigenciaDias) { · vigencia {{ c.vigenciaDias }} días }
+                  @if (c.condicion) { · {{ c.condicion }} }
+                  @if (!c.obligatorio) { · opcional }
+                  @if (c.sinTipo) { · sin tipo documental enlazado }
+                </span>
+              </li>
+            }
+          </ul>
+        }
+        </div>
+        }
+      </section>
+    }
+
     <!-- Resumen: cuántos van y cuántos faltan. Es lo que se mira antes de
          cerrar el día, así que va arriba y grande. -->
     <div class="dp-resumen">
@@ -142,7 +216,10 @@
                 {{ d.listo ? 'check_circle' : (d.soloSubir ? 'cloud_upload' : 'auto_fix_high') }}
               </mat-icon>
 
-              <span class="dp-item-cuerpo">
+              <span class="dp-item-cuerpo" [class.dp-item-clic]="esDiligenciable(d)"
+                    [attr.role]="esDiligenciable(d) ? 'button' : null"
+                    [attr.tabindex]="esDiligenciable(d) ? 0 : null"
+                    (click)="diligenciar(d)" (keydown.enter)="diligenciar(d)">
                 <span class="dp-item-txt">{{ d.titulo }}</span>
                 @if (arrastrando() === d.titulo) {
                   <span class="dp-item-estado dp-item-soltar-txt">Suelta el archivo aquí</span>
@@ -152,6 +229,8 @@
                     {{ d.nombreArchivo || 'Subido' }}
                   } @else if (d.soloSubir) {
                     Por subir
+                  } @else if (esDiligenciable(d)) {
+                    Clic para generar y diligenciar
                   } @else {
                     Se genera
                   }
@@ -167,6 +246,12 @@
               } @else if (subiendo() === d.titulo) {
                 <mat-icon class="dp-item-spin">progress_activity</mat-icon>
               } @else {
+                @if (esDiligenciable(d)) {
+                  <button type="button" class="dp-accion" matTooltip="Generar y diligenciar lo que falta"
+                          (click)="diligenciar(d)">
+                    <mat-icon>edit_document</mat-icon>
+                  </button>
+                }
                 @if (d.fileUrl) {
                   <button type="button" class="dp-accion" matTooltip="Previsualizar aquí"
                           (click)="ver(d)">

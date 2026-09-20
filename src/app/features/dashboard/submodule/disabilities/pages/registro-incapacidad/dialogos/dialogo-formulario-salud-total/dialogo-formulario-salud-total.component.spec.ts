@@ -11,6 +11,8 @@
 import {
   PREGUNTAS_SALUD_TOTAL,
   RUTA_PDF_SALUD_TOTAL,
+  fechaAccidenteLegible,
+  huboAccidente,
   llenarFormatoSaludTotal,
 } from './dialogo-formulario-salud-total.component';
 
@@ -31,6 +33,14 @@ describe('llenarFormatoSaludTotal', () => {
     expect(PREGUNTAS_SALUD_TOTAL[5]).toContain('transporte pagado');
   });
 
+  it('reunion 2026-09-07: fecha legible dd/mm/aaaa y fecha/hora exigidas solo con algun SI', () => {
+    expect(fechaAccidenteLegible('2026-09-07')).toBe('07/09/2026');
+    expect(fechaAccidenteLegible('')).toBe('');
+    expect(fechaAccidenteLegible(undefined)).toBe('');
+    expect(huboAccidente(['NO', 'NO', 'NO', 'NO', 'NO', 'NO'])).toBeFalse();
+    expect(huboAccidente(['NO', 'NO', 'SI', 'NO', 'NO', 'NO'])).toBeTrue();
+  });
+
   it('llena los campos reales del formato oficial y marca las casillas SI/NO', async () => {
     const respuesta = await fetch(RUTA_PDF_SALUD_TOTAL);
     if (!respuesta.ok) {
@@ -43,7 +53,7 @@ describe('llenarFormatoSaludTotal', () => {
       base,
       DATOS,
       ['NO', 'NO', 'NO', 'SI', 'NO', 'NO'],
-      { relato: 'Sin evento laboral.' },
+      { relato: 'Sin evento laboral.', fechaAccidente: '07/09/2026', horaAccidente: '14:30' },
     );
     expect(bytes.length).toBeGreaterThan(1000);
 
@@ -58,6 +68,8 @@ describe('llenarFormatoSaludTotal', () => {
     expect(form.getTextField('CARGO').getText()).toBe('OPERARIO');
     expect(form.getTextField('FIRMA RESPONSABLE').getText()).toBe('ANA RUIZ');
     expect(form.getTextField('RELATO DEL ACCIDENTE').getText()).toBe('Sin evento laboral.');
+    expect(form.getTextField('FECHA ACCIDENTE').getText()).toBe('07/09/2026');
+    expect(form.getTextField('HORA ACCIDENTE').getText()).toBe('14:30');
 
     // Pregunta 4 respondida SI; el resto NO. Nunca ambas casillas de un par.
     expect(form.getCheckBox('4SI').isChecked()).toBeTrue();

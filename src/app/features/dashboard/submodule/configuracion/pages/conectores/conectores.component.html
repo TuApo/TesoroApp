@@ -1,0 +1,179 @@
+<section class="conectores">
+  <header class="cabecera">
+    <div>
+      <h2>Conectores</h2>
+      <p class="sub">
+        Servidores de herramientas que la plataforma puede usar. Cada uno describe lo que
+        sabe hacer, y esos parámetros salen solos en pantalla.
+      </p>
+    </div>
+    <button type="button" class="btn primario" (click)="abrirAlta()">
+      <mat-icon>add</mat-icon> Agregar conector
+    </button>
+  </header>
+
+  <!-- ── conectados ──────────────────────────────────────────────────── -->
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <div class="vacio" *ngIf="!cargando() && !hayConectores()">
+    <mat-icon>hub</mat-icon>
+    <p>Todavía no hay ningún conector. Agrega uno de la lista de abajo o escribe su dirección.</p>
+  </div>
+
+  <ul class="lista" *ngIf="hayConectores()">
+    <li *ngFor="let c of conectores(); trackBy: trackConector"
+        class="conector" [class.abierto]="abierto()?.id === c.id">
+      <button type="button" class="fila" (click)="abierto()?.id === c.id ? cerrarDetalle() : abrir(c)">
+        <mat-icon class="icono">hub</mat-icon>
+        <span class="datos">
+          <span class="nombre">{{ c.nombre }}</span>
+          <span class="url">{{ c.url }}</span>
+          <span class="fallo" *ngIf="c.ultimo_error">{{ c.ultimo_error }}</span>
+        </span>
+        <span class="chip" [ngClass]="claseEstado(c.estado)">{{ etiquetaEstado(c.estado) }}</span>
+        <mat-icon class="flecha">{{ abierto()?.id === c.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+      </button>
+
+      <div class="detalle" *ngIf="abierto()?.id === c.id">
+        <div class="acciones">
+          <button type="button" class="btn" (click)="autorizar(c)">
+            <mat-icon>key</mat-icon>
+            {{ c.estado === 'AUTORIZADO' ? 'Volver a autorizar' : 'Autorizar' }}
+          </button>
+          <button type="button" class="btn" (click)="sincronizar(c)">
+            <mat-icon>sync</mat-icon> Sincronizar herramientas
+          </button>
+          <button type="button" class="btn peligro" (click)="desactivar(c)">
+            <mat-icon>delete_outline</mat-icon> Quitar
+          </button>
+        </div>
+
+        <p class="nota" *ngIf="c.estado !== 'AUTORIZADO'">
+          Al autorizar se abre la página del proveedor en otra pestaña. Tiene que ser fuera
+          de la plataforma para que veas a quién le estás dando permiso.
+        </p>
+
+        <p class="cargando" *ngIf="cargandoHerramientas()">Consultando herramientas…</p>
+
+        <p class="nota" *ngIf="!cargandoHerramientas() && herramientas().length === 0">
+          Sin herramientas todavía. Autoriza el conector y pulsa «Sincronizar».
+        </p>
+
+        <!-- Formulario dibujado desde el JSON Schema de la herramienta -->
+        <div class="prueba" id="panel-prueba" *ngIf="probando() as h">
+          <h4>{{ h.titulo || h.nombre }}</h4>
+          <p class="nota" *ngIf="campos().length === 0">
+            Esta herramienta no declara parámetros.
+          </p>
+
+          <div class="campo" *ngFor="let campo of campos(); trackBy: trackCampo">
+            <label [for]="'c-' + campo.clave">
+              {{ campo.etiqueta }}
+              <span class="obligatorio" *ngIf="campo.obligatorio">*</span>
+            </label>
+            <small *ngIf="campo.descripcion">{{ campo.descripcion }}</small>
+
+            <select [id]="'c-' + campo.clave" *ngIf="campo.tipo === 'opcion'"
+                    [(ngModel)]="valores[campo.clave]" [name]="campo.clave">
+              <option [ngValue]="undefined">— sin elegir —</option>
+              <option *ngFor="let o of campo.opciones" [ngValue]="o">{{ o }}</option>
+            </select>
+
+            <textarea [id]="'c-' + campo.clave" *ngIf="campo.tipo === 'texto-largo'"
+                      rows="3" [(ngModel)]="valores[campo.clave]" [name]="campo.clave"></textarea>
+
+            <input [id]="'c-' + campo.clave" *ngIf="campo.tipo === 'texto'" type="text"
+                   [(ngModel)]="valores[campo.clave]" [name]="campo.clave">
+
+            <input [id]="'c-' + campo.clave" *ngIf="campo.tipo === 'numero'" type="number"
+                   [min]="campo.minimo" [max]="campo.maximo"
+                   [(ngModel)]="valores[campo.clave]" [name]="campo.clave">
+
+            <label class="interruptor" *ngIf="campo.tipo === 'booleano'">
+              <input type="checkbox" [(ngModel)]="valores[campo.clave]" [name]="campo.clave">
+              <span>Activado</span>
+            </label>
+          </div>
+
+          <button type="button" class="btn primario" (click)="invocar()" [disabled]="invocando()">
+            {{ invocando() ? 'Ejecutando…' : 'Ejecutar' }}
+          </button>
+
+          <pre class="resultado" *ngIf="ultimoResultado() as r">{{ r }}</pre>
+        </div>
+        <ul class="herramientas" *ngIf="herramientas().length">
+          <li *ngFor="let h of herramientas(); trackBy: trackHerramienta">
+            <div class="h-datos">
+              <span class="h-nombre">{{ h.titulo || h.nombre }}</span>
+              <span class="h-desc" *ngIf="h.descripcion">{{ h.descripcion }}</span>
+            </div>
+            <button type="button" class="btn pequeno" (click)="probar(h)">Probar</button>
+          </li>
+        </ul>
+
+      </div>
+    </li>
+  </ul>
+
+  <!-- ── librería de servidores conocidos ────────────────────────────── -->
+  <div class="directorio" *ngIf="directorio().length">
+    <h3>Listos para conectar</h3>
+    <div class="grupo" *ngFor="let g of categorias()">
+      <span class="categoria">{{ g.categoria }}</span>
+      <ul class="tarjetas">
+        <li *ngFor="let d of g.items; trackBy: trackDirectorio" class="tarjeta">
+          <mat-icon>{{ d.icono || 'extension' }}</mat-icon>
+          <div class="t-datos">
+            <span class="t-nombre">
+              {{ d.nombre }}
+              <mat-icon class="verificado" *ngIf="d.verificado" title="Comprobado por nosotros">verified</mat-icon>
+            </span>
+            <span class="t-desc" *ngIf="d.descripcion">{{ d.descripcion }}</span>
+          </div>
+          <button type="button" class="btn pequeno" [disabled]="yaConectado(d)"
+                  (click)="abrirAlta(d)">
+            {{ yaConectado(d) ? 'Ya está' : 'Conectar' }}
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ── alta ──────────────────────────────────────────────────────────── -->
+<div class="capa" *ngIf="mostrandoAlta()" (click)="cerrarAlta()">
+  <div class="dialogo" (click)="$event.stopPropagation()">
+    <h3>Agregar conector</h3>
+    <p class="sub">
+      Solo el nombre y la dirección. Lo demás —qué autenticación exige y qué herramientas
+      tiene— se lo preguntamos al propio servidor.
+    </p>
+
+    <label for="nombre">Nombre</label>
+    <input id="nombre" type="text" [(ngModel)]="nuevoNombre" name="nombre"
+           placeholder="Se muestra en la lista de conectores">
+
+    <label for="url">Dirección del servidor MCP</label>
+    <input id="url" type="url" [(ngModel)]="nuevaUrl" name="url"
+           placeholder="https://mcp.ejemplo.com/mcp">
+    <small>Tiene que ser https: por ahí viajan credenciales.</small>
+
+    <p class="sondeo" *ngIf="resultadoSondeo() as r">{{ r }}</p>
+
+    <p class="aviso">
+      Conecta solo servidores en los que confíes. No controlamos qué herramientas ponen a
+      disposición ni si cambian.
+    </p>
+
+    <div class="dialogo-acciones">
+      <button type="button" class="btn" (click)="sondear()" [disabled]="sondeando() || !nuevaUrl">
+        {{ sondeando() ? 'Comprobando…' : 'Comprobar' }}
+      </button>
+      <span class="espacio"></span>
+      <button type="button" class="btn" (click)="cerrarAlta()">Cancelar</button>
+      <button type="button" class="btn primario" (click)="crear()" [disabled]="!nuevaUrl">
+        Continuar
+      </button>
+    </div>
+  </div>
+</div>

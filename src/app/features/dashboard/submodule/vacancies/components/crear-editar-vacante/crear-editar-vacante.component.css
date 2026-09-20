@@ -20,7 +20,7 @@
   display: grid;
   gap: 12px 16px;
   align-items: start;
-  grid-template-columns: 1fr; /* móvil */
+  grid-template-columns: minmax(0, 1fr); /* móvil */
 }
 
 @media (min-width:720px)  { .vac-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -54,7 +54,7 @@ mat-form-field,
 /* ================== 3 POR FILA: DISTRIBUCIÓN POR MUNICIPIO ================== */
 [formArrayName="municipiosDistribucion"] {
   display: grid !important;
-  grid-template-columns: 1fr !important;
+  grid-template-columns: minmax(0, 1fr) !important;
   /* móvil */
   gap: 12px 16px !important;
 }
@@ -80,9 +80,9 @@ mat-form-field,
   /* Municipio | Cantidad */
   gap: 12px 12px !important;
   padding: 12px !important;
-  border: 1px solid #eee !important;
+  border: 1px solid var(--border) !important;
   border-radius: 12px !important;
-  background: #fafafa !important;
+  background: var(--surface-2) !important;
 }
 
 .row-muni mat-form-field {
@@ -100,7 +100,7 @@ mat-form-field,
 /* ================== 3 POR FILA: OFICINAS QUE CONTRATAN ================== */
 [formArrayName="oficinasQueContratan"] {
   display: grid !important;
-  grid-template-columns: 1fr !important;
+  grid-template-columns: minmax(0, 1fr) !important;
   /* móvil */
   gap: 12px 16px !important;
 }
@@ -126,9 +126,9 @@ mat-form-field,
   /* nombre | ruta | borrar */
   gap: 12px 12px !important;
   padding: 12px !important;
-  border: 1px solid #eee !important;
+  border: 1px solid var(--border) !important;
   border-radius: 12px !important;
-  background: #fafafa !important;
+  background: var(--surface-2) !important;
   align-items: center !important;
 }
 
@@ -149,9 +149,9 @@ mat-form-field,
 .select-panel .filtro-option input {
   width: 100% !important;
   padding: 6px 8px !important;
-  border: 1px solid #e0e0e0 !important;
+  border: 1px solid var(--border-strong) !important;
   border-radius: 6px !important;
-  background: #fff !important;
+  background: var(--surface) !important;
 }
 
 .no-select {
@@ -168,9 +168,9 @@ mat-form-field,
 [mat-dialog-actions] {
   position: sticky !important;
   bottom: 0 !important;
-  background: #fff !important;
+  background: var(--surface) !important;
   padding: 12px 16px !important;
-  border-top: 1px solid #eee !important;
+  border-top: 1px solid var(--border) !important;
   display: flex !important;
   gap: 8px !important;
   justify-content: flex-end !important;
@@ -189,8 +189,8 @@ mat-form-field,
 .premium-card {
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #f1f5f9;
-  background-color: #ffffff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   overflow: hidden;
   margin-bottom: 24px;
 }
@@ -262,7 +262,7 @@ mat-form-field,
 }
 
 .titulo {
-  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-family: var(--font-sans) !important;
   font-size: 1.4rem !important;
   font-weight: 700 !important;
   color: #ffffff !important;
@@ -271,7 +271,7 @@ mat-form-field,
 }
 
 .subtitulo {
-  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-family: var(--font-sans) !important;
   font-size: 0.85rem !important;
   color: #cbd5e1 !important;
   margin: 0 !important;
@@ -332,7 +332,7 @@ mat-form-field,
   gap: 10px;
   flex-wrap: wrap;
   padding-bottom: 9px;
-  border-bottom: 1px solid #e8edf3;
+  border-bottom: 1px solid #e8edf3; border-bottom: 1px solid light-dark(#e8edf3, #233e63);
 }
 
 .vac-sec-num {
@@ -352,60 +352,15 @@ mat-form-field,
   margin: 0;
   font-size: 15px;
   font-weight: 700;
-  color: #21263C;
+  color: var(--navy-ink);
   letter-spacing: -0.01em;
 }
 
 .vac-sec-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--muted);
 }
 
-/* ── Bloque de datos heredados del centro de costo ────────────────────────
-   Empresa, dirección y temporal no se escriben: los trae el centro de costo.
-   Encerrarlos y etiquetarlos es todo el punto: antes eran tres campos iguales
-   al resto que se rellenaban solos, sin decir de dónde. */
-.vac-heredado {
-  padding: 12px;
-  border: 1px dashed #d8e0ea;
-  border-radius: 12px;
-  background: #f8fafc;
-}
-
-/* Con centro de costo elegido el bloque deja de ser un placeholder: se marca
-   con el filo lima, que en este proyecto significa "esto ya actuó". */
-.vac-heredado-activo {
-  border-style: solid;
-  border-color: #e8edf3;
-  box-shadow: inset 3px 0 0 #8CD50A;
-}
-
-.vac-heredado-tag {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.vac-heredado-tag mat-icon {
-  font-size: 16px;
-  width: 16px;
-  height: 16px;
-  color: #94a3b8;
-}
-
-.vac-heredado-activo .vac-heredado-tag mat-icon { color: #334155; }
-
-.vac-heredado-txt strong { color: #21263C; }
-
-
-
-
-/* Campo heredado que se tocó a mano: ya no coincide con la ficha del centro
-   de costo, y eso conviene verlo ANTES de guardar. */
 
 
 /* ── Resumen del reparto por municipio ── */
@@ -416,15 +371,15 @@ mat-form-field,
   flex-wrap: wrap;
   margin: 4px 0 0;
   font-size: 13px;
-  color: #334155;
+  color: var(--text-2);
 }
 
 .resumen-pendiente {
   padding: 2px 9px;
   border-radius: 999px;
-  background: #fdf4e3;
-  border: 1px solid #f2dcac;
-  color: #925a06;
+  background: #fdf4e3; background: light-dark(#fdf4e3, #353027);
+  border: 1px solid #f2dcac; border: 1px solid light-dark(#f2dcac, #5f4e28);
+  color: #925a06; color: light-dark(#925a06, #f7d097);
   font-weight: 700;
 }
 
@@ -432,13 +387,13 @@ mat-form-field,
   margin: 2px 0 0;
   font-size: 12px;
   font-weight: 700;
-  color: #d32f2f;
+  color: #d32f2f; color: light-dark(#d32f2f, #eba2a2);
 }
 
 .vac-vacio {
   margin: 0;
   font-size: 12.5px;
-  color: #94a3b8;
+  color: var(--text-faint);
   font-style: italic;
 }
 
@@ -448,9 +403,6 @@ mat-form-field,
   .vac-col-2 { grid-column: auto; }
 }
 
-@media (max-width: 600px) {
-  .vac-heredado { padding: 10px; }
-  }
 
 /* Aviso de que la cascada (temporal → empresa → centro → área → cargo) está
    pidiendo datos. Va en la cabecera de la sección, no sobre cada campo: los
@@ -461,7 +413,7 @@ mat-form-field,
   gap: 4px;
   margin-left: 8px;
   font-size: .74rem;
-  color: #64748b;
+  color: var(--muted);
 }
 .vac-sec-cargando mat-icon {
   font-size: 15px;
@@ -487,12 +439,12 @@ mat-form-field,
   /* Campo BLANCO sobre tarjeta blanca, con borde que se ve. Antes el relleno
      gris claro y el borde casi invisible hacían que los campos se leyeran como
      manchas y no como cosas donde se escribe. */
-  background: #ffffff;
-  border: 1px solid #c9d4e2;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   transition: border-color .12s ease, box-shadow .12s ease;
 }
 :host ::ng-deep .vac-form .mat-mdc-form-field:hover .mat-mdc-text-field-wrapper {
-  border-color: #93a3b8;
+  border-color: var(--text-faint);
 }
 :host ::ng-deep .vac-form .mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper {
   border-color: #21263C;
@@ -543,22 +495,12 @@ mat-form-field,
 
 /* El bloque de datos heredados deja el borde discontinuo (muy "formulario de
    los noventa") por una tarjeta con un canto de color que dice de dónde vienen. */
-.vac-heredado {
-  border: 1px solid #e8edf3;
-  border-left: 3px solid #cfd9e6;
-  border-radius: 14px;
-  background: #fbfcfe;
-}
-.vac-heredado.vac-heredado-activo {
-  border-left-color: #8DD603;
-  background: #fafcf6;
-}
 
 /* Icono de los campos de texto. Mismo tamaño, color y separación que el de los
    selectores: es lo que hace que TODAS las etiquetas del formulario arranquen
    a la misma sangría en vez de alternar con y sin margen. */
 :host ::ng-deep .vac-form .vac-icono {
-  color: #8b98ab;
+  color: var(--text-faint);
   font-size: 19px;
   width: 19px;
   height: 19px;
@@ -566,43 +508,20 @@ mat-form-field,
   margin-left: 2px;
 }
 :host ::ng-deep .vac-form .mat-focused .vac-icono {
-  color: #21263C;
+  color: var(--navy-ink);
 }
 
 /* ── Campos que trae la ficha del centro ─────────────────────────────────────
-   Bloqueados, pero NO apagados: el dato tiene que seguir leyéndose igual de
-   bien que el resto. El gris de Material para deshabilitado los dejaba casi
-   ilegibles, que es lo contrario de lo que hace falta aquí — son justamente
-   los datos que hay que revisar antes de publicar. */
-:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-text-field-wrapper {
-  background: #f4f7f0;
-  border-color: #d4e2be;
-  border-style: dashed;
-  box-shadow: none;
-}
-:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-input-element,
-:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-select-value-text,
-:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mdc-floating-label {
-  color: #33403a;
-  -webkit-text-fill-color: #33403a;
-}
-:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .vac-icono,
-:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .ss-icono {
-  color: #7f9c4e;
-}
-/* Sin flecha en un desplegable que no se puede abrir. */
-:host ::ng-deep .vac-heredado .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-select-arrow-wrapper {
-  opacity: .35;
-}
-
-/* El que la ficha NO trae sí se edita: se distingue del bloqueado por el borde
-   sólido de siempre y por su propia nota. */
-:host ::ng-deep .vac-heredado .mat-mdc-form-field:not(.mat-form-field-disabled) .mat-mdc-text-field-wrapper {
-  background: #ffffff;
-}
-
-.vac-heredado-abierto {
-  color: #7a8a99;
+   Hoy queda uno solo en pantalla, Dirección, y sigue bloqueándose cuando la
+   ficha del centro la trae. Bloqueado NO es apagado: el gris de Material para
+   deshabilitado lo dejaba casi ilegible, y es justo el dato que hay que revisar
+   antes de publicar. La regla colgaba de `.vac-heredado`, que ya no existe. */
+:host ::ng-deep .vac-form .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-input-element,
+:host ::ng-deep .vac-form .mat-mdc-form-field.mat-form-field-disabled .mat-mdc-select-value-text,
+:host ::ng-deep .vac-form .mat-mdc-form-field.mat-form-field-disabled .vac-icono {
+  color: var(--navy-ink) !important;
+  -webkit-text-fill-color: var(--navy-ink) !important;
+  opacity: 1 !important;
 }
 
 /* La descripción es ahora un textarea: es donde se redacta la labor y en una sola
@@ -637,7 +556,7 @@ mat-form-field,
   user-select: none;
 }
 .vac-sec-head:hover {
-  background: #f4f7fb;
+  background: var(--surface-2);
 }
 .vac-sec-head:focus-visible {
   outline: 2px solid #21263C;
@@ -650,11 +569,11 @@ mat-form-field,
 
 .vac-sec-chevron {
   flex: none;
-  color: #94a3b8;
+  color: var(--text-faint);
   transition: color .12s ease;
 }
 .vac-sec-head:hover .vac-sec-chevron {
-  color: #21263C;
+  color: var(--navy-ink);
 }
 
 /* Plegada: la cabecera se compacta y el guion lima de debajo del título sobra. */
@@ -677,7 +596,7 @@ mat-form-field,
   width: 92px;
   height: 6px;
   border-radius: 999px;
-  background: #e6ebf2;
+  background: var(--surface-4);
   overflow: hidden;
 }
 
@@ -692,25 +611,25 @@ mat-form-field,
 .vac-avance-pct {
   font-size: .72rem;
   font-weight: 700;
-  color: #64748b;
+  color: var(--muted);
   min-width: 32px;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .vac-avance[data-estado="lista"] .vac-avance-relleno { background: #8DD603; }
-.vac-avance[data-estado="lista"] .vac-avance-pct     { color: #4d7a06; }
+.vac-avance[data-estado="lista"] .vac-avance-pct     { color: #4d7a06; color: light-dark(#4d7a06, #d2f797); }
 .vac-avance[data-estado="aviso"] .vac-avance-relleno { background: #e0a106; }
-.vac-avance[data-estado="aviso"] .vac-avance-pct     { color: #925a06; }
+.vac-avance[data-estado="aviso"] .vac-avance-pct     { color: #925a06; color: light-dark(#925a06, #f7d097); }
 
 .vac-avance-ok {
-  color: #6aa603;
+  color: #6aa603; color: light-dark(#6aa603, #d3f797);
   font-size: 17px;
   width: 17px;
   height: 17px;
 }
 .vac-avance-aviso {
-  color: #e0a106;
+  color: #e0a106; color: light-dark(#e0a106, #f7db97);
   font-size: 17px;
   width: 17px;
   height: 17px;
@@ -802,7 +721,7 @@ mat-form-field,
 
 .vac-global-relleno {
   height: 100%;
-  background: #ffffff;
+  background: var(--surface);
   /* Un avance del 2% tiene que verse; sin esto quedaba en nada. */
   min-width: 8px;
   border-radius: 0 999px 999px 0;
@@ -832,7 +751,181 @@ mat-form-field,
 /* Aviso de labor no resuelta: el centro esta parametrizado pero el backend no pudo
    dar una labor. Es informativo, no un error de validacion del campo. */
 .vac-labor-error {
-  color: #b3261e;
+  color: #b3261e; color: light-dark(#b3261e, #efa39f);
   white-space: normal;
   line-height: 1.35;
+}
+
+/* Aviso de pago/casino sin resolver. Ocupa su propia linea de la rejilla porque
+   el texto explica que hacer, y en el ancho de un campo se partia en cinco. */
+.vac-pago-error {
+  color: #b3261e; color: light-dark(#b3261e, #efa39f);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: -4px 0 4px;
+}
+
+/* Lo que va a PASAR al guardar (se asignará el grupo al centro), no lo que está mal.
+   En rojo se leía como un fallo y hacía dudar de si la vacante se iba a guardar. */
+.vac-pago-aviso {
+  color: #7a5200; color: light-dark(#7a5200, #f7d797);
+  font-size: 12px;
+  line-height: 1.35;
+  margin: -4px 0 4px;
+}
+@media (prefers-color-scheme: dark) {
+  .vac-pago-aviso { color: #e0b252; }
+}
+
+
+/* ================== DETALLE DEL CARGO (desglose del total) ==================
+   Panel encajado en la sección 2, justo debajo de "Personas solicitadas". Se
+   pinta como una tarjeta y no como una fila más de la rejilla porque no es UN
+   campo: es una lista que crece, y sin marco no se distinguía dónde empieza y
+   dónde acaba el desglose. Reusa los tonos del resumen del reparto por
+   municipio (.resumen-pendiente / .error-dist) para que las dos reglas de
+   "tiene que sumar el total" se lean igual en todo el formulario. */
+.det-cargo {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.det-cargo-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.det-cargo-icono {
+  color: var(--muted);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+.det-cargo-titulos {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.det-cargo-titulo {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .01em;
+}
+
+.det-cargo-sub {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.det-cargo-filas {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Detalle | Cantidad | Quitar. La cantidad se queda fija: el contador tiene dos
+   botones dentro del campo y encogerlo dejaba el número sin sitio. */
+.det-cargo-fila {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px 40px;
+  align-items: start;
+  gap: 10px;
+}
+
+.det-cargo-fila mat-form-field {
+  width: 100% !important;
+}
+
+/* El input del contador va centrado entre sus dos botones, y sin las flechas
+   nativas del navegador: duplicaban los botones y en Firefox ni se ven. */
+.det-cargo-numero {
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.det-cargo-numero::-webkit-outer-spin-button,
+.det-cargo-numero::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.det-cargo-paso.mat-mdc-icon-button {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  line-height: 32px;
+  color: var(--muted);
+}
+
+.det-cargo-paso .mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+}
+
+.det-cargo-quitar.mat-mdc-icon-button {
+  margin-top: 6px;
+  color: var(--text-faint);
+}
+
+.det-cargo-quitar.mat-mdc-icon-button:hover:not([disabled]) {
+  color: #d32f2f; color: light-dark(#d32f2f, #eba2a2);
+}
+
+.det-cargo-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.det-cargo-agregar.mat-mdc-outlined-button {
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.det-cargo-resumen {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.det-cargo-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.det-cargo-error .mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+/* En pantalla estrecha la fila se parte: el detalle arriba, y debajo el
+   contador con el botón de quitar a su lado. */
+@media (max-width: 700px) {
+  .det-cargo-fila {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .det-cargo-texto {
+    grid-column: 1 / -1;
+  }
 }

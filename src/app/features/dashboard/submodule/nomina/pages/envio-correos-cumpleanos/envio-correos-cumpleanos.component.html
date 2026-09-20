@@ -183,35 +183,28 @@
                       }
                     </p>
                   } @else {
-                    <table class="tabla">
-                      <thead>
-                        <tr>
-                          <th>Cédula</th><th>Nombre</th><th>Temporal</th>
-                          <th>Finca</th><th>Correo</th><th class="num">Edad</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (p of d.personas; track p.id) {
-                          <tr>
-                            <td>{{ p.cedula }}</td>
-                            <td>{{ p.nombre || '—' }}</td>
-                            <td>
-                              @if (p.empresa) {
-                                <span class="pastilla neutro">{{ p.empresa_nombre }}</span>
-                              } @else {
-                                <span class="pastilla aviso"
-                                      matTooltip="Sin empresa en el padrón: recibirá la plantilla por defecto.">
-                                  sin temporal
-                                </span>
-                              }
-                            </td>
-                            <td>{{ p.finca || '—' }}</td>
-                            <td [class.sin-correo]="!p.correo">{{ p.correo || 'sin correo' }}</td>
-                            <td class="num">{{ p.edad ?? '—' }}</td>
-                          </tr>
+                    <app-tabla-estandar
+                      id="nomina-cumpleanos-dia"
+                      titulo="Cumpleaños del día"
+                      modulo="Nómina"
+                      entidad="cumpleanos_personas"
+                      [datos]="d.personas"
+                      [columnas]="columnasDia"
+                      [filaId]="idPersona">
+                      <ng-template tablaCelda="temporal" let-p>
+                        @if (p.empresa) {
+                          <span class="pastilla neutro">{{ p.empresa_nombre }}</span>
+                        } @else {
+                          <span class="pastilla aviso"
+                                matTooltip="Sin empresa en el padrón: recibirá la plantilla por defecto.">
+                            sin temporal
+                          </span>
                         }
-                      </tbody>
-                    </table>
+                      </ng-template>
+                      <ng-template tablaCelda="correo" let-p>
+                        <span [class.sin-correo]="!p.correo">{{ p.correo || 'sin correo' }}</span>
+                      </ng-template>
+                    </app-tabla-estandar>
                   }
                 }
               </mat-card-content>
@@ -224,23 +217,20 @@
               <mat-card class="tarjeta">
                 <mat-card-content>
                   <h3>Coincidencias en {{ nombreMes() }}</h3>
-                  <table class="tabla">
-                    <thead>
-                      <tr><th>Cumple</th><th>Cédula</th><th>Nombre</th><th>Temporal</th><th>Correo</th><th></th></tr>
-                    </thead>
-                    <tbody>
-                      @for (p of c.coincidencias; track p.id) {
-                        <tr>
-                          <td>{{ p.cumple_dia }}</td>
-                          <td>{{ p.cedula }}</td>
-                          <td>{{ p.nombre || '—' }}</td>
-                          <td>{{ p.empresa_nombre || '—' }}</td>
-                          <td [class.sin-correo]="!p.correo">{{ p.correo || 'sin correo' }}</td>
-                          <td><button mat-button (click)="irAPersona(p)">Ir al día</button></td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
+                  <app-tabla-estandar
+                    id="nomina-cumpleanos-coincidencias"
+                    titulo="Coincidencias del mes"
+                    modulo="Nómina"
+                    entidad="cumpleanos_personas"
+                    textoDetalle="Ir al día"
+                    [datos]="c.coincidencias"
+                    [columnas]="columnasCoincidencias"
+                    [filaId]="idPersona"
+                    (filaClick)="irAPersona($event)">
+                    <ng-template tablaCelda="correo" let-p>
+                      <span [class.sin-correo]="!p.correo">{{ p.correo || 'sin correo' }}</span>
+                    </ng-template>
+                  </app-tabla-estandar>
                 </mat-card-content>
               </mat-card>
             }
@@ -257,25 +247,22 @@
                   </button>
                 </div>
                 @if (det.envio.detalle) { <p class="menudo">{{ det.envio.detalle }}</p> }
-                <table class="tabla">
-                  <thead>
-                    <tr><th></th><th>Cédula</th><th>Nombre</th><th>Correo</th>
-                        <th>Plantilla</th><th>Estado</th><th>Motivo</th></tr>
-                  </thead>
-                  <tbody>
-                    @for (i of det.items; track i.id) {
-                      <tr>
-                        <td><mat-icon class="mini" [class]="claseEstado(i.estado)">{{ iconoEstado(i.estado) }}</mat-icon></td>
-                        <td>{{ i.cedula }}</td>
-                        <td>{{ i.nombre || '—' }}</td>
-                        <td>{{ i.correo || '—' }}</td>
-                        <td>{{ i.plantilla_nombre || '—' }}</td>
-                        <td>{{ i.estado }}</td>
-                        <td class="motivo">{{ i.motivo || '' }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
+                <app-tabla-estandar
+                  id="nomina-cumpleanos-envio-detalle"
+                  titulo="Detalle del envío de cumpleaños"
+                  modulo="Nómina"
+                  entidad="cumpleanos_envio_items"
+                  [datos]="det.items"
+                  [columnas]="columnasDetalle"
+                  [filaId]="idItemEnvio">
+                  <ng-template tablaCelda="estado" let-i>
+                    <span class="estado-icono">
+                      <mat-icon class="mini" [class]="claseEstado(i.estado)">{{ iconoEstado(i.estado) }}</mat-icon>
+                      {{ i.estado }}
+                    </span>
+                  </ng-template>
+                  <ng-template tablaCelda="motivo" let-i><span class="motivo">{{ i.motivo || '' }}</span></ng-template>
+                </app-tabla-estandar>
               </mat-card-content>
             </mat-card>
           }
@@ -284,32 +271,20 @@
           <mat-card class="tarjeta">
             <mat-card-content>
               <h3>Últimos envíos</h3>
-              @if (envios().length === 0) {
-                <p class="vacio">Todavía no se ha enviado ningún saludo.</p>
-              } @else {
-                <table class="tabla">
-                  <thead>
-                    <tr>
-                      <th>Fecha</th><th>Origen</th><th>Estado</th>
-                      <th class="num">Enviados</th><th class="num">Fallidos</th>
-                      <th class="num">Sin enviar</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (e of envios(); track e.id) {
-                      <tr>
-                        <td>{{ e.fecha }}</td>
-                        <td>{{ e.origen === 'AUTOMATICO' ? 'automático' : 'manual' }}</td>
-                        <td><span class="pastilla" [class]="claseEstado(e.estado)">{{ e.estado }}</span></td>
-                        <td class="num">{{ e.total_enviados }}</td>
-                        <td class="num">{{ e.total_fallidos }}</td>
-                        <td class="num">{{ e.total_omitidos }}</td>
-                        <td><button mat-button (click)="verDetalle(e.id)">Ver</button></td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
-              }
+              <app-tabla-estandar
+                id="nomina-cumpleanos-envios"
+                titulo="Últimos envíos de cumpleaños"
+                modulo="Nómina"
+                entidad="cumpleanos_envios"
+                vacio="Todavía no se ha enviado ningún saludo."
+                [datos]="envios()"
+                [columnas]="columnasEnvios"
+                [filaId]="idEnvio"
+                (filaClick)="verDetalle($event.id)">
+                <ng-template tablaCelda="estado" let-e>
+                  <span class="pastilla" [class]="claseEstado(e.estado)">{{ e.estado }}</span>
+                </ng-template>
+              </app-tabla-estandar>
             </mat-card-content>
           </mat-card>
 
@@ -403,60 +378,43 @@
                     <mat-option value="ALIANZA">Tu Alianza</mat-option>
                   </mat-select>
                 </mat-form-field>
-
-                <mat-form-field appearance="outline" class="ancho">
-                  <mat-label>Buscar por cédula, nombre, finca o correo</mat-label>
-                  <input matInput [ngModel]="busquedaPadron()" (ngModelChange)="busquedaPadron.set($event)"
-                         (keyup.enter)="filtrar()" />
-                  <button matSuffix mat-icon-button (click)="filtrar()"><mat-icon>search</mat-icon></button>
-                </mat-form-field>
               </div>
 
               @if (padron(); as p) {
-                <table class="tabla">
-                  <thead>
-                    <tr>
-                      <th>Cédula</th><th>Nombre</th><th>Temporal</th><th>Ingreso</th>
-                      <th>Finca</th><th>Correo</th><th>Nacimiento</th><th>Estado</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (persona of p.content; track persona.id) {
-                      <tr [class.inactiva]="!persona.activo">
-                        <td>{{ persona.cedula }}</td>
-                        <td>{{ persona.nombre || '—' }}</td>
-                        <td>
-                          @if (persona.empresa) {
-                            <span class="pastilla neutro">{{ persona.empresa_nombre }}</span>
-                          } @else {
-                            <span class="pastilla aviso">sin temporal</span>
-                          }
-                        </td>
-                        <td>{{ persona.fecha_ingreso || '—' }}</td>
-                        <td>{{ persona.finca || '—' }}</td>
-                        <td [class.sin-correo]="!persona.correo">{{ persona.correo || 'sin correo' }}</td>
-                        <td [class.sin-correo]="!persona.fecha_nacimiento">
-                          {{ persona.fecha_nacimiento || 'sin fecha' }}
-                        </td>
-                        <td>
-                          <span class="pastilla" [class.ok]="persona.activo" [class.neutro]="!persona.activo">
-                            {{ persona.activo ? 'activa' : 'inactiva' }}
-                          </span>
-                        </td>
-                        <td>
-                          <button mat-button (click)="cambiarActivo(persona, !persona.activo)"
-                                  matTooltip="Cambio manual. La próxima carga del Excel vuelve a mandar.">
-                            {{ persona.activo ? 'Inactivar' : 'Activar' }}
-                          </button>
-                        </td>
-                      </tr>
+                <app-tabla-estandar #tablaPadron
+                  id="nomina-cumpleanos-padron"
+                  titulo="Padrón de cumpleaños"
+                  modulo="Nómina"
+                  entidad="cumpleanos_personas"
+                  busqueda="Buscar por cédula, nombre, finca o correo…"
+                  [datos]="p.content"
+                  [columnas]="columnasPadron"
+                  [filaId]="idPersona"
+                  [filaClase]="claseFilaPadron"
+                  [totalServidor]="p.total"
+                  [filasPorPagina]="tamano()"
+                  (paginaCambio)="paginar($event)"
+                  (busquedaCambio)="buscarPadron($event)">
+                  <ng-template tablaCelda="temporal" let-persona>
+                    @if (persona.empresa) {
+                      <span class="pastilla neutro">{{ persona.empresa_nombre }}</span>
+                    } @else {
+                      <span class="pastilla aviso">sin temporal</span>
                     }
-                  </tbody>
-                </table>
-
-                <mat-paginator [length]="p.total" [pageSize]="p.size" [pageIndex]="p.page"
-                               [pageSizeOptions]="[25, 50, 100, 200]"
-                               (page)="paginar($event)"></mat-paginator>
+                  </ng-template>
+                  <ng-template tablaCelda="correo" let-persona>
+                    <span [class.sin-correo]="!persona.correo">{{ persona.correo || 'sin correo' }}</span>
+                  </ng-template>
+                  <ng-template tablaCelda="nacimiento" let-persona>
+                    <span [class.sin-correo]="!persona.fecha_nacimiento">{{ persona.fecha_nacimiento || 'sin fecha' }}</span>
+                  </ng-template>
+                  <ng-template tablaAcciones let-persona>
+                    <button mat-button (click)="cambiarActivo(persona, !persona.activo)"
+                            matTooltip="Cambio manual. La próxima carga del Excel vuelve a mandar.">
+                      {{ persona.activo ? 'Inactivar' : 'Activar' }}
+                    </button>
+                  </ng-template>
+                </app-tabla-estandar>
               }
             </mat-card-content>
           </mat-card>
@@ -465,28 +423,16 @@
             <mat-card class="tarjeta">
               <mat-card-content>
                 <h3>Cargas anteriores</h3>
-                <table class="tabla">
-                  <thead>
-                    <tr>
-                      <th>Fecha</th><th>Archivo</th><th>Quién</th>
-                      <th class="num">Filas</th><th class="num">Nuevas</th>
-                      <th class="num">Inactivadas</th><th class="num">Sin temporal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    @for (c of cargas(); track c.id) {
-                      <tr>
-                        <td>{{ c.creado_en | date:'dd/MM/yyyy HH:mm' }}</td>
-                        <td>{{ c.nombre_archivo || '—' }}</td>
-                        <td>{{ c.cargado_por || '—' }}</td>
-                        <td class="num">{{ c.total_filas }}</td>
-                        <td class="num">{{ c.nuevos }}</td>
-                        <td class="num">{{ c.inactivados }}</td>
-                        <td class="num">{{ c.sin_empresa }}</td>
-                      </tr>
-                    }
-                  </tbody>
-                </table>
+                <app-tabla-estandar
+                  id="nomina-cumpleanos-cargas"
+                  titulo="Cargas del padrón"
+                  modulo="Nómina"
+                  entidad="cumpleanos_cargas"
+                  [datos]="cargas()"
+                  [columnas]="columnasCargas"
+                  [filaId]="idCarga">
+                  <ng-template tablaCelda="fecha" let-c>{{ c.creado_en | date:'dd/MM/yyyy HH:mm' }}</ng-template>
+                </app-tabla-estandar>
               </mat-card-content>
             </mat-card>
           }

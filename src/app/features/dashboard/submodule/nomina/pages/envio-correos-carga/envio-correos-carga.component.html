@@ -61,41 +61,26 @@
           <h3>Cargas anteriores</h3>
           <p class="ayuda">Abre una para ver sus documentos y previsualizarlos.</p>
 
-          <table mat-table [dataSource]="lotesPrevios()" class="tabla">
-            <ng-container matColumnDef="carpeta">
-              <th mat-header-cell *matHeaderCellDef>Carpeta</th>
-              <td mat-cell *matCellDef="let l"><strong>{{ l.carpeta_raiz }}</strong></td>
-            </ng-container>
-            <ng-container matColumnDef="quincena">
-              <th mat-header-cell *matHeaderCellDef>Quincena</th>
-              <td mat-cell *matCellDef="let l">{{ l.periodo_etiqueta || '—' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="empresa">
-              <th mat-header-cell *matHeaderCellDef>Empresa</th>
-              <td mat-cell *matCellDef="let l" class="tenue">{{ nombreEmpresa(l.empresa) }}</td>
-            </ng-container>
-            <ng-container matColumnDef="archivos">
-              <th mat-header-cell *matHeaderCellDef>Archivos</th>
-              <td mat-cell *matCellDef="let l">
-                <span class="chip chip-ok">{{ l.total_cargados }} cargados</span>
-                @if (l.total_errores > 0) {
-                  <span class="chip chip-alerta">{{ l.total_errores }} error(es)</span>
-                }
-              </td>
-            </ng-container>
-            <ng-container matColumnDef="estado">
-              <th mat-header-cell *matHeaderCellDef>Estado</th>
-              <td mat-cell *matCellDef="let l" class="tenue">{{ l.estado }}</td>
-            </ng-container>
-            <ng-container matColumnDef="acciones">
-              <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let l">
-                <button mat-stroked-button (click)="abrirLotePrevio(l.lote_id)">Ver contenido</button>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="columnasLotes"></tr>
-            <tr mat-row *matRowDef="let row; columns: columnasLotes;"></tr>
-          </table>
+          <app-tabla-estandar
+            id="nomina-envio-correos-carga-lotes"
+            titulo="Cargas anteriores"
+            modulo="Nómina"
+            entidad="lotes_carga"
+            textoDetalle="Ver contenido"
+            [datos]="lotesPrevios()"
+            [columnas]="columnasLotes"
+            [filaId]="idLote"
+            (filaClick)="abrirLotePrevio($event.lote_id)">
+            <ng-template tablaCelda="carpeta" let-l><strong>{{ l.carpeta_raiz }}</strong></ng-template>
+            <ng-template tablaCelda="empresa" let-l><span class="tenue">{{ nombreEmpresa(l.empresa) }}</span></ng-template>
+            <ng-template tablaCelda="archivos" let-l>
+              <span class="chip chip-ok">{{ l.total_cargados }} cargados</span>
+              @if (l.total_errores > 0) {
+                <span class="chip chip-alerta">{{ l.total_errores }} error(es)</span>
+              }
+            </ng-template>
+            <ng-template tablaCelda="estado" let-l><span class="tenue">{{ l.estado }}</span></ng-template>
+          </app-tabla-estandar>
         </mat-card-content>
       </mat-card>
     }
@@ -196,42 +181,34 @@
           elige aquí el tipo y se aplica a todos sus archivos de una vez.
         </p>
 
-        <table mat-table [dataSource]="carpetas()" class="tabla">
-          <ng-container matColumnDef="ruta">
-            <th mat-header-cell *matHeaderCellDef>Carpeta</th>
-            <td mat-cell *matCellDef="let c">
-              <span class="sangria" [style.padding-left.px]="c.profundidad * 16">
-                <mat-icon class="icono-carpeta">folder</mat-icon>{{ c.ruta || '(raíz)' }}
-              </span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="archivos">
-            <th mat-header-cell *matHeaderCellDef>Archivos</th>
-            <td mat-cell *matCellDef="let c">{{ c.total_archivos }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="tipo">
-            <th mat-header-cell *matHeaderCellDef>Tipo documental</th>
-            <td mat-cell *matCellDef="let c">
-              @if (c.type_name && !c.ambigua) {
-                <span class="tipo-ok"><mat-icon>check_circle</mat-icon>{{ c.type_name }}</span>
-              } @else {
-                <mat-form-field appearance="outline" class="compacto">
-                  <mat-select placeholder="Elegir tipo" [disabled]="subiendo()"
-                              (selectionChange)="aplicarTipoACarpeta(c.ruta, $event.value)">
-                    @for (t of tipos(); track t.id) {
-                      <mat-option [value]="t.id">{{ t.name }}</mat-option>
-                    }
-                  </mat-select>
-                </mat-form-field>
-              }
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="columnasCarpetas"></tr>
-          <tr mat-row *matRowDef="let row; columns: columnasCarpetas;"></tr>
-        </table>
+        <app-tabla-estandar
+          id="nomina-envio-correos-carga-carpetas"
+          titulo="Carpetas detectadas"
+          modulo="Nómina"
+          entidad="carpetas_carga"
+          [datos]="carpetas()"
+          [columnas]="columnasCarpetas"
+          [filaId]="idCarpeta">
+          <ng-template tablaCelda="ruta" let-c>
+            <span class="sangria" [style.padding-left.px]="c.profundidad * 16">
+              <mat-icon class="icono-carpeta">folder</mat-icon>{{ c.ruta || '(raíz)' }}
+            </span>
+          </ng-template>
+          <ng-template tablaCelda="tipo" let-c>
+            @if (c.type_name && !c.ambigua) {
+              <span class="tipo-ok"><mat-icon>check_circle</mat-icon>{{ c.type_name }}</span>
+            } @else {
+              <mat-form-field appearance="outline" class="compacto">
+                <mat-select placeholder="Elegir tipo" [disabled]="subiendo()"
+                            (selectionChange)="aplicarTipoACarpeta(c.ruta, $event.value)">
+                  @for (t of tipos(); track t.id) {
+                    <mat-option [value]="t.id">{{ t.name }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            }
+          </ng-template>
+        </app-tabla-estandar>
       </mat-card-content>
     </mat-card>
 
@@ -245,76 +222,57 @@
             se listan para que veas qué se va a omitir, no hace falta tocarlos.
           </p>
 
-          <table mat-table [dataSource]="porResolver()" class="tabla">
-            <ng-container matColumnDef="archivo">
-              <th mat-header-cell *matHeaderCellDef>Archivo</th>
-              <td mat-cell *matCellDef="let i">
-                <div class="nombre-archivo">{{ i.nombre_archivo }}</div>
-                <div class="tamano">{{ tamanoLegible(i.tamano_bytes) }}</div>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="carpeta">
-              <th mat-header-cell *matHeaderCellDef>Carpeta</th>
-              <td mat-cell *matCellDef="let i" class="ruta">{{ i.ruta_relativa }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="cedula">
-              <th mat-header-cell *matHeaderCellDef>Cédula</th>
-              <td mat-cell *matCellDef="let i">
-                @if (i.cedula) {
-                  <strong>{{ i.cedula }}</strong>
-                } @else {
-                  <mat-form-field appearance="outline" class="compacto">
-                    <input matInput placeholder="Cédula" #inputCed
-                           (keyup.enter)="fijarCedulaItem(i, inputCed.value)"
-                           [disabled]="subiendo()" />
-                  </mat-form-field>
-                }
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="tipo">
-              <th mat-header-cell *matHeaderCellDef>Tipo</th>
-              <td mat-cell *matCellDef="let i">
-                @if (i.type_name) {
-                  {{ i.type_name }}
-                } @else {
-                  <mat-form-field appearance="outline" class="compacto">
-                    <mat-select placeholder="Elegir" [disabled]="subiendo()"
-                                (selectionChange)="fijarTipoItem(i, $event.value)">
-                      @for (t of tipos(); track t.id) {
-                        <mat-option [value]="t.id">{{ t.name }}</mat-option>
-                      }
-                    </mat-select>
-                  </mat-form-field>
-                }
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="motivo">
-              <th mat-header-cell *matHeaderCellDef>Motivo</th>
-              <td mat-cell *matCellDef="let i">
-                <span class="chip" [class]="claseEstado(i.estado)">{{ etiquetaEstado(i.estado) }}</span>
-                <div class="motivo">{{ i.motivo }}</div>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="acciones">
-              <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let i">
-                @if (i.estado !== 'OMITIDO' && i.estado !== 'DUPLICADO') {
-                  <button mat-icon-button matTooltip="No subir este archivo"
-                          (click)="omitirItem(i)" [disabled]="subiendo()">
-                    <mat-icon>block</mat-icon>
-                  </button>
-                }
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="columnasResolver"></tr>
-            <tr mat-row *matRowDef="let row; columns: columnasResolver;"></tr>
-          </table>
+          <app-tabla-estandar
+            id="nomina-envio-correos-carga-por-resolver"
+            titulo="Archivos por resolver"
+            modulo="Nómina"
+            entidad="items_carga"
+            [datos]="porResolver()"
+            [columnas]="columnasResolver"
+            [filaId]="idItem">
+            <ng-template tablaCelda="archivo" let-i>
+              <div class="nombre-archivo">{{ i.nombre_archivo }}</div>
+              <div class="tamano">{{ tamanoLegible(i.tamano_bytes) }}</div>
+            </ng-template>
+            <ng-template tablaCelda="carpeta" let-i><span class="ruta">{{ i.ruta_relativa }}</span></ng-template>
+            <ng-template tablaCelda="cedula" let-i>
+              @if (i.cedula) {
+                <strong>{{ i.cedula }}</strong>
+              } @else {
+                <mat-form-field appearance="outline" class="compacto">
+                  <input matInput placeholder="Cédula" #inputCed
+                         (keyup.enter)="fijarCedulaItem(i, inputCed.value)"
+                         [disabled]="subiendo()" />
+                </mat-form-field>
+              }
+            </ng-template>
+            <ng-template tablaCelda="tipo" let-i>
+              @if (i.type_name) {
+                {{ i.type_name }}
+              } @else {
+                <mat-form-field appearance="outline" class="compacto">
+                  <mat-select placeholder="Elegir" [disabled]="subiendo()"
+                              (selectionChange)="fijarTipoItem(i, $event.value)">
+                    @for (t of tipos(); track t.id) {
+                      <mat-option [value]="t.id">{{ t.name }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+              }
+            </ng-template>
+            <ng-template tablaCelda="motivo" let-i>
+              <span class="chip" [class]="claseEstado(i.estado)">{{ etiquetaEstado(i.estado) }}</span>
+              <div class="motivo">{{ i.motivo }}</div>
+            </ng-template>
+            <ng-template tablaAcciones let-i>
+              @if (i.estado !== 'OMITIDO' && i.estado !== 'DUPLICADO') {
+                <button mat-icon-button matTooltip="No subir este archivo"
+                        (click)="omitirItem(i)" [disabled]="subiendo()">
+                  <mat-icon>block</mat-icon>
+                </button>
+              }
+            </ng-template>
+          </app-tabla-estandar>
         </mat-card-content>
       </mat-card>
     }
@@ -352,48 +310,29 @@
             Proceso de carga
             <span class="tenue">— {{ tandas().length }} tanda(s), hasta 3 en paralelo</span>
           </h4>
-          <div class="tabla-scroll">
-            <table mat-table [dataSource]="tandas()" class="tabla">
-              <ng-container matColumnDef="n">
-                <th mat-header-cell *matHeaderCellDef>#</th>
-                <td mat-cell *matCellDef="let t">{{ t.n }}</td>
-              </ng-container>
-              <ng-container matColumnDef="carpeta">
-                <th mat-header-cell *matHeaderCellDef>Carpeta</th>
-                <td mat-cell *matCellDef="let t" class="ruta">{{ t.carpeta }}</td>
-              </ng-container>
-              <ng-container matColumnDef="archivos">
-                <th mat-header-cell *matHeaderCellDef>Archivos</th>
-                <td mat-cell *matCellDef="let t">{{ t.archivos }}</td>
-              </ng-container>
-              <ng-container matColumnDef="estado">
-                <th mat-header-cell *matHeaderCellDef>Estado</th>
-                <td mat-cell *matCellDef="let t">
-                  <span class="chip" [class]="claseTanda(t.estado)">
-                    @if (t.estado === 'SUBIENDO') { <mat-icon class="girando">sync</mat-icon> }
-                    {{ etiquetaTanda(t.estado) }}
-                  </span>
-                </td>
-              </ng-container>
-              <ng-container matColumnDef="resultado">
-                <th mat-header-cell *matHeaderCellDef>Resultado</th>
-                <td mat-cell *matCellDef="let t">
-                  @if (t.estado === 'HECHA' || t.estado === 'CON_ERRORES') {
-                    {{ t.cargados }} cargados
-                    @if (t.errores > 0) { <span class="fallidos">· {{ t.errores }} con error</span> }
-                  } @else { <span class="tenue">—</span> }
-                </td>
-              </ng-container>
-              <ng-container matColumnDef="tiempo">
-                <th mat-header-cell *matHeaderCellDef>Tiempo</th>
-                <td mat-cell *matCellDef="let t" class="tenue">
-                  {{ t.segundos !== null ? t.segundos + ' s' : '—' }}
-                </td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="columnasTandas"></tr>
-              <tr mat-row *matRowDef="let row; columns: columnasTandas;"></tr>
-            </table>
-          </div>
+          <app-tabla-estandar
+            id="nomina-envio-correos-carga-tandas"
+            titulo="Proceso de carga"
+            modulo="Nómina"
+            entidad="tandas_carga"
+            [datos]="tandas()"
+            [columnas]="columnasTandas"
+            [filaId]="idTanda"
+            [filasPorPagina]="25">
+            <ng-template tablaCelda="carpeta" let-t><span class="ruta">{{ t.carpeta }}</span></ng-template>
+            <ng-template tablaCelda="estado" let-t>
+              <span class="chip" [class]="claseTanda(t.estado)">
+                @if (t.estado === 'SUBIENDO') { <mat-icon class="girando">sync</mat-icon> }
+                {{ etiquetaTanda(t.estado) }}
+              </span>
+            </ng-template>
+            <ng-template tablaCelda="resultado" let-t>
+              @if (t.estado === 'HECHA' || t.estado === 'CON_ERRORES') {
+                {{ t.cargados }} cargados
+                @if (t.errores > 0) { <span class="fallidos">· {{ t.errores }} con error</span> }
+              } @else { <span class="tenue">—</span> }
+            </ng-template>
+          </app-tabla-estandar>
         }
 
         @if (erroresSubida().length) {
@@ -427,43 +366,30 @@
           </div>
 
           @if (documentos().length) {
-            <table mat-table [dataSource]="documentos()" class="tabla">
-              <ng-container matColumnDef="cedula">
-                <th mat-header-cell *matHeaderCellDef>Cédula</th>
-                <td mat-cell *matCellDef="let d"><strong>{{ d.cedula }}</strong></td>
-              </ng-container>
-              <ng-container matColumnDef="archivo">
-                <th mat-header-cell *matHeaderCellDef>Archivo</th>
-                <td mat-cell *matCellDef="let d">
-                  <div>{{ d.nombre_archivo }}</div>
-                  <div class="ruta">{{ d.ruta_relativa }}</div>
-                </td>
-              </ng-container>
-              <ng-container matColumnDef="tipo">
-                <th mat-header-cell *matHeaderCellDef>Tipo</th>
-                <td mat-cell *matCellDef="let d" class="tenue">{{ d.type_name || '—' }}</td>
-              </ng-container>
-              <ng-container matColumnDef="tamano">
-                <th mat-header-cell *matHeaderCellDef>Tamaño</th>
-                <td mat-cell *matCellDef="let d" class="tenue">{{ tamanoLegible(d.tamano_bytes) }}</td>
-              </ng-container>
-              <ng-container matColumnDef="acciones">
-                <th mat-header-cell *matHeaderCellDef></th>
-                <td mat-cell *matCellDef="let d">
-                  <button mat-stroked-button class="btn-doc" (click)="verDocumento(d)"
-                          [disabled]="!d.document_id">
-                    <mat-icon>visibility</mat-icon> Ver
-                  </button>
-                </td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="columnasDocumentos"></tr>
-              <tr mat-row *matRowDef="let row; columns: columnasDocumentos;"></tr>
-            </table>
-
-            <mat-paginator [length]="totalDocumentos()" [pageIndex]="paginaDocumentos()"
-                           [pageSize]="50" [hidePageSize]="true"
-                           (page)="onPaginaDocumentos($event)">
-            </mat-paginator>
+            <app-tabla-estandar #tablaDocumentos
+              id="nomina-envio-correos-carga-documentos"
+              titulo="Documentos de la carga"
+              modulo="Nómina"
+              entidad="items_carga"
+              [busqueda]="false"
+              [datos]="documentos()"
+              [columnas]="columnasDocumentos"
+              [filaId]="idItem"
+              [totalServidor]="totalDocumentos()"
+              [filasPorPagina]="tamanoDocumentos()"
+              (paginaCambio)="onPaginaDocumentos($event)">
+              <ng-template tablaCelda="cedula" let-d><strong>{{ d.cedula }}</strong></ng-template>
+              <ng-template tablaCelda="archivo" let-d>
+                <div>{{ d.nombre_archivo }}</div>
+                <div class="ruta">{{ d.ruta_relativa }}</div>
+              </ng-template>
+              <ng-template tablaAcciones let-d>
+                <button mat-stroked-button class="btn-doc" (click)="verDocumento(d)"
+                        [disabled]="!d.document_id">
+                  <mat-icon>visibility</mat-icon> Ver
+                </button>
+              </ng-template>
+            </app-tabla-estandar>
           } @else {
             <button mat-stroked-button (click)="cargarDocumentos()">
               <mat-icon>list</mat-icon> Ver los {{ yaCargados() }} documentos

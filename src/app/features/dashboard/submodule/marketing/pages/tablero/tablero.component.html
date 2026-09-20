@@ -1,0 +1,120 @@
+<section class="tablero">
+
+  <header class="cabecera">
+    <div>
+      <h2>Tablero de referidos</h2>
+      <p class="sub" *ngIf="!cargando()">
+        {{ esGlobal()
+            ? 'Toda la plataforma. Del ' + resumen()?.desde + ' al ' + resumen()?.hasta + '.'
+            : 'Tus números. Del ' + resumen()?.desde + ' al ' + resumen()?.hasta + '.' }}
+      </p>
+    </div>
+    <div class="periodos" role="group" aria-label="Periodo">
+      <button *ngFor="let p of periodos" type="button"
+              [class.activo]="periodo() === p.dias"
+              (click)="cambiarPeriodo(p.dias)">{{ p.etiqueta }}</button>
+    </div>
+  </header>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <ng-container *ngIf="!cargando() && resumen() as r">
+
+    <!-- El embudo primero: es la única pregunta que este tablero existe para responder. -->
+    <div class="embudo">
+      <div class="paso" *ngFor="let p of pasos(); let i = index">
+        <span class="paso__n">{{ p.valor | number }}</span>
+        <span class="paso__t">{{ p.titulo }}</span>
+        <span class="paso__tasa" *ngIf="p.tasa !== null">{{ p.tasa }}% del paso anterior</span>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi">
+        <span class="kpi__v">{{ r.clics | number }}</span>
+        <span class="kpi__l">Aperturas totales</span>
+        <span class="kpi__n">{{ r.clics_unicos | number }} de personas distintas</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__v">{{ r.difusores | number }}</span>
+        <span class="kpi__l">Personas difundiendo</span>
+        <span class="kpi__n">{{ r.enlaces_activos | number }} enlaces con movimiento</span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__v">{{ r.piezas_generadas | number }}</span>
+        <span class="kpi__l">Piezas generadas</span>
+        <span class="kpi__n" [class.alerta]="r.piezas_con_error > 0">
+          {{ r.piezas_con_error > 0 ? r.piezas_con_error + ' con error' : 'todas correctas' }}
+        </span>
+      </div>
+      <div class="kpi">
+        <span class="kpi__v">{{ r.descargas | number }}</span>
+        <span class="kpi__l">Descargas</span>
+        <span class="kpi__n">material que salió a la calle</span>
+      </div>
+    </div>
+
+    <div class="vacio" *ngIf="sinDatos()">
+      <mat-icon>insights</mat-icon>
+      <p><strong>Todavía no hay movimiento en este periodo.</strong></p>
+      <p>Genera las piezas de una vacante y comparte tu enlace: en cuanto alguien lo abra,
+         aparece aquí.</p>
+    </div>
+
+    <ng-container *ngIf="!sinDatos()">
+      <article class="panel">
+        <h3>Día a día</h3>
+        <div echarts class="grafica grafica--alta" [options]="opcionesSerie()"></div>
+      </article>
+
+      <div class="dos">
+        <article class="panel">
+          <h3>Desde qué aparato</h3>
+          <div echarts class="grafica" [options]="opcionesDispositivo()"></div>
+        </article>
+        <article class="panel">
+          <h3>Desde qué aplicación</h3>
+          <div echarts class="grafica" [options]="opcionesNavegador()"></div>
+        </article>
+      </div>
+
+      <article class="panel" *ngIf="esGlobal() && ranking().length">
+        <h3>Quién trae candidatos</h3>
+        <p class="ayuda">Ordenado por contratados. Los clics son contexto, no el resultado.</p>
+        <app-tabla-estandar
+          id="marketing-tablero-ranking"
+          titulo="Quién trae candidatos"
+          modulo="Marketing"
+          [datos]="ranking()"
+          [columnas]="columnasRanking"
+          [filaId]="idRanking">
+          <ng-template tablaCelda="codigo" let-f>
+            <span class="codigo">{{ f.codigo }}</span>
+          </ng-template>
+          <ng-template tablaCelda="contratados" let-f>
+            <strong>{{ f.contratados | number }}</strong>
+          </ng-template>
+        </app-tabla-estandar>
+      </article>
+
+      <article class="panel" *ngIf="esGlobal() && vacantes().length">
+        <h3>Qué vacantes mueven gente</h3>
+        <app-tabla-estandar
+          id="marketing-tablero-vacantes"
+          titulo="Qué vacantes mueven gente"
+          modulo="Marketing"
+          [datos]="vacantes()"
+          [columnas]="columnasVacantes"
+          [filaId]="idVacante">
+          <ng-template tablaCelda="vacante" let-v>
+            <span class="codigo">#{{ v.vacante_id }}</span>
+          </ng-template>
+          <ng-template tablaCelda="preregistros" let-v>
+            <strong>{{ v.preregistros | number }}</strong>
+          </ng-template>
+        </app-tabla-estandar>
+      </article>
+    </ng-container>
+
+  </ng-container>
+</section>

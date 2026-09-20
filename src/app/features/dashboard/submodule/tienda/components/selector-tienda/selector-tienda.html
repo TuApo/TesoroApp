@@ -1,0 +1,50 @@
+@if (ctx.cargando()) {
+  <div class="selector-cargando">
+    <mat-icon>hourglass_empty</mat-icon>
+    <span>Cargando sus tiendas…</span>
+  </div>
+} @else if (ctx.error()) {
+  <div class="tienda-error">
+    <mat-icon>error_outline</mat-icon>
+    <span>{{ ctx.error() }}</span>
+  </div>
+} @else if (ctx.tiendas().length === 0) {
+  <div class="selector-sin-tiendas">
+    <mat-icon>storefront</mat-icon>
+    @if (ctx.esSuperAdmin()) {
+      <span>
+        Todavía no hay tiendas creadas.
+        <strong>Cree la primera en Administración de Tiendas.</strong>
+      </span>
+    } @else {
+      <span>
+        No tiene ninguna tienda asignada.
+        <strong>Pida que le den alcance sobre una tienda o una región.</strong>
+      </span>
+    }
+  </div>
+} @else if (ctx.tiendas().length === 1) {
+  <div class="selector-unica">
+    <mat-icon>storefront</mat-icon>
+    <div>
+      <strong>{{ ctx.tienda()?.nombre }}</strong>
+      @if (ctx.rolEnTienda(); as rol) {
+        <span class="insignia neutra">{{ rol }}</span>
+      }
+    </div>
+  </div>
+} @else {
+  <div class="campo selector-multiple">
+    <label for="selector-tienda">Tienda</label>
+    <select id="selector-tienda" [value]="ctx.tiendaId() ?? ''" (change)="cambiar($event)">
+      @for (t of ctx.tiendas(); track t.id) {
+        <option [value]="t.id">
+          {{ t.nombre }}@if (t.municipio) { · {{ t.municipio }} }
+        </option>
+      }
+    </select>
+    @if (ctx.rolEnTienda(); as rol) {
+      <span class="selector-rol">Su rol aquí: <strong>{{ rol }}</strong></span>
+    }
+  </div>
+}

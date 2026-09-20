@@ -1,0 +1,119 @@
+<button type="button" class="fc-disparador" cdkOverlayOrigin #origen="cdkOverlayOrigin"
+        [class.fc-disparador--activo]="activo() || !!orden()"
+        [attr.aria-label]="'Filtrar y ordenar por ' + titulo()"
+        [title]="'Filtrar y ordenar por ' + titulo()"
+        [attr.aria-expanded]="abierto()"
+        (mousedown)="$event.stopPropagation()"
+        (click)="alternarMenu($event)">
+  <mat-icon fontSet="material-symbols-outlined">
+    {{ orden() === 'asc' ? 'arrow_upward' : orden() === 'desc' ? 'arrow_downward' : 'filter_alt' }}
+  </mat-icon>
+</button>
+
+<ng-template cdkConnectedOverlay
+             [cdkConnectedOverlayOrigin]="origen"
+             [cdkConnectedOverlayOpen]="abierto()"
+             [cdkConnectedOverlayPositions]="posiciones"
+             [cdkConnectedOverlayPush]="true"
+             [cdkConnectedOverlayViewportMargin]="8"
+             (overlayOutsideClick)="cerrar()"
+             (detach)="cerrar()"
+             (overlayKeydown)="onTecla($event)">
+  <div class="fc-panel" role="dialog" [attr.aria-label]="'Filtro de ' + titulo()" (mousedown)="$event.stopPropagation()">
+    <div class="fc-cabecera">
+      <p class="fc-titulo">{{ titulo() }}</p>
+      <button type="button" class="fc-cerrar" (click)="cerrar()" aria-label="Cerrar">
+        <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+      </button>
+    </div>
+
+    @if (ordenable()) {
+      <div class="fc-orden">
+        <button type="button" class="fc-orden__btn" [class.fc-orden__btn--activo]="orden() === 'asc'" (click)="ordenar('asc')">A → Z</button>
+        <button type="button" class="fc-orden__btn" [class.fc-orden__btn--activo]="orden() === 'desc'" (click)="ordenar('desc')">Z → A</button>
+      </div>
+    }
+
+    @if (soloOrden()) {
+      <p class="fc-nota">
+        Esta tabla consulta al servidor: aquí se ordena, y para filtrar están el
+        buscador y los filtros de arriba (miran todos los registros, no solo esta página).
+      </p>
+    }
+
+    @if (!soloOrden() && tipoFecha()) {
+      <div class="fc-bloque fc-fechas">
+        <div class="fc-rango">
+          <label class="fc-rango__campo">
+            <span>Desde</span>
+            <input class="fc-input" [type]="tipoInput()" [value]="filtro().desde || ''"
+                   (change)="cambiarRango('desde', $any($event.target).value)" />
+          </label>
+          <label class="fc-rango__campo">
+            <span>Hasta</span>
+            <input class="fc-input" [type]="tipoInput()" [value]="filtro().hasta || ''"
+                   (change)="cambiarRango('hasta', $any($event.target).value)" />
+          </label>
+        </div>
+        <div class="fc-atajos">
+          <button type="button" class="fc-atajo" (click)="rangoRapido('hoy')">Hoy</button>
+          <button type="button" class="fc-atajo" (click)="rangoRapido('7')">7 días</button>
+          <button type="button" class="fc-atajo" (click)="rangoRapido('30')">30 días</button>
+          <button type="button" class="fc-atajo" (click)="rangoRapido('mes')">Este mes</button>
+          @if (filtro().desde || filtro().hasta) {
+            <button type="button" class="fc-atajo fc-atajo--limpiar" (click)="limpiarRango()">Quitar rango</button>
+          }
+        </div>
+        <label class="fc-formato">
+          <span>Formato</span>
+          <select class="fc-input fc-select" [value]="formatoFecha()"
+                  (change)="formatoFechaCambio.emit($any($event.target).value)">
+            @for (f of formatos; track f.valor) {
+              <option [value]="f.valor">{{ f.etiqueta }}</option>
+            }
+          </select>
+        </label>
+      </div>
+    }
+
+    @if (!soloOrden()) {
+      <div class="fc-bloque">
+        <input class="fc-input" placeholder="Contiene…" [value]="filtro().texto"
+               (input)="cambiarTexto($any($event.target).value)" />
+      </div>
+
+      <div class="fc-bloque fc-bloque--lista">
+        <div class="fc-buscar">
+          <mat-icon fontSet="material-symbols-outlined">search</mat-icon>
+          <input class="fc-input fc-input--icono" placeholder="Buscar valor…" [value]="buscar()"
+                 (input)="buscar.set($any($event.target).value)" />
+        </div>
+        <div class="fc-atajos">
+          <button type="button" class="fc-atajo fc-atajo--marca" (click)="marcarTodos()">Todos</button>
+          <button type="button" class="fc-atajo" (click)="marcarSoloVisibles()">Solo lo visible</button>
+        </div>
+        <div class="fc-lista">
+          @for (v of listado(); track v) {
+            <button type="button" class="fc-valor" (click)="alternar(v)">
+              <span class="fc-check" [class.fc-check--on]="estaMarcado(v)">
+                @if (estaMarcado(v)) { <mat-icon fontSet="material-symbols-outlined">check</mat-icon> }
+              </span>
+              <span class="fc-valor__texto" [class.fc-valor__texto--vacio]="v === VACIO">{{ v }}</span>
+            </button>
+          } @empty {
+            <p class="fc-nota">Sin valores.</p>
+          }
+          @if (totalValores() > TOPE) {
+            <p class="fc-nota">Mostrando {{ TOPE }} de {{ totalValores() }}. Usa el buscador.</p>
+          }
+        </div>
+      </div>
+    }
+
+    @if (activo() || orden()) {
+      <div class="fc-pie">
+        <button type="button" class="fc-limpiar" (click)="limpiar()">Limpiar columna</button>
+      </div>
+    }
+  </div>
+</ng-template>

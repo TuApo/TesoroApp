@@ -7,13 +7,13 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
   --disab-accent: #00bcd4;
-  --disab-bg: #f5f7fb;
-  --disab-surface: #ffffff;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-bg: var(--surface-2);
+  --disab-surface: var(--surface);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-danger: #c62828;
   --disab-radius: 16px;
   --disab-radius-sm: 10px;
@@ -131,8 +131,8 @@
 }
 
 .hero-btn-primario {
-  background: #ffffff !important;
-  color: var(--disab-primary-dark) !important;
+  background: var(--surface) !important;
+  color: var(--disab-primary-dark) !important; color: light-dark(var(--disab-primary-dark), #9ac4f4) !important;
 }
 
 .hero-btn-secundario {
@@ -148,10 +148,10 @@
 /* ── KPI ───────────────────────────────────────────────────── */
 .kpi-fila {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(178px, 100%), 1fr));
   gap: 12px;
   padding: 18px 28px;
-  background: linear-gradient(180deg, #eef4fb 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #eef4fb 0%, var(--surface) 100%); background: linear-gradient(180deg, light-dark(#eef4fb, #172945) 0%, var(--surface) 100%);
   border-bottom: 1px solid var(--disab-border);
 }
 
@@ -160,7 +160,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--disab-border);
   border-radius: 14px;
   box-shadow: var(--disab-shadow-sm);
@@ -212,7 +212,7 @@
 }
 
 .kpi-alerta .kpi-icono {
-  background: #fff3e0;
+  background: #fff3e0; background: light-dark(#fff3e0, #382f24);
   color: #ef6c00;
 }
 
@@ -298,7 +298,7 @@
 
 .btn-plegar {
   margin-left: auto;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .btn-exportar {
@@ -320,9 +320,9 @@
   padding: 10px 14px;
   margin-bottom: 14px;
   border-radius: var(--disab-radius-sm);
-  background: #fff8e1;
+  background: #fff8e1; background: light-dark(#fff8e1, #383524);
   border: 1px solid rgba(178, 106, 0, 0.25);
-  color: #8a5a00;
+  color: #8a5a00; color: light-dark(#8a5a00, #f7d597);
   font-size: 13px;
   line-height: 1.4;
 }
@@ -337,9 +337,21 @@
 /* ── Rejilla de filtros ────────────────────────────────────── */
 .filtros-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 4px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  /* 14 px entre filas: con 4 px, un texto de ayuda de dos líneas se montaba
+     sobre la etiqueta del campo de abajo. */
+  gap: 14px 16px;
   align-items: start;
+}
+
+/* La ayuda ocupa lo que necesite y empuja hacia abajo, sin pisar nada. */
+.filtros-grid .mat-mdc-form-field-subscript-wrapper {
+  position: static;
+}
+
+.filtros-grid mat-hint {
+  display: block;
+  line-height: 1.25;
 }
 
 .filtro-campo {
@@ -367,7 +379,7 @@
 }
 
 .btn-limpiar-campo:hover {
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .btn-limpiar-campo mat-icon {
@@ -401,7 +413,14 @@
 
 .toggle-soportes {
   border-radius: 10px !important;
-  overflow: hidden;
+  /* Si los tres botones no caben en la celda, se desliza dentro de ella en vez
+     de salirse del panel. */
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.filtro-toggle {
+  min-width: 0;
 }
 
 /* ── Chips de filtros activos ──────────────────────────────── */
@@ -413,7 +432,7 @@
   margin-top: 6px;
   padding: 12px 14px;
   border-radius: var(--disab-radius-sm);
-  background: #f8fafc;
+  background: var(--surface-2);
   border: 1px dashed rgba(25, 118, 210, 0.28);
 }
 
@@ -423,7 +442,7 @@
   gap: 6px;
   font-size: 12.5px;
   font-weight: 700;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
   margin-right: 4px;
 }
 
@@ -441,7 +460,7 @@
   border-radius: 999px;
   background: var(--disab-primary-light);
   border: 1px solid rgba(25, 118, 210, 0.24);
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
   font-size: 12.5px;
   max-width: 100%;
 }
@@ -467,7 +486,7 @@
 .disab-chip-x {
   border: 0;
   background: rgba(21, 101, 192, 0.12);
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
   border-radius: 50%;
   width: 20px;
   height: 20px;
@@ -495,7 +514,7 @@
   align-items: center;
   gap: 6px;
   border: 1px solid rgba(198, 40, 40, 0.3);
-  background: #fff;
+  background: var(--surface);
   color: var(--disab-danger);
   border-radius: 999px;
   padding: 6px 14px;
@@ -505,7 +524,7 @@
 }
 
 .btn-limpiar-todo:hover {
-  background: #ffebee;
+  background: #ffebee; background: light-dark(#ffebee, #38162a);
 }
 
 .btn-limpiar-todo mat-icon {
@@ -522,9 +541,9 @@
   padding: 14px 16px;
   margin-bottom: 14px;
   border-radius: var(--disab-radius-sm);
-  background: #ffebee;
+  background: #ffebee; background: light-dark(#ffebee, #38162a);
   border: 1px solid rgba(198, 40, 40, 0.28);
-  color: #8e1c1c;
+  color: #8e1c1c; color: light-dark(#8e1c1c, #eda1a1);
   flex-wrap: wrap;
 }
 
@@ -547,7 +566,7 @@
   border: 1px solid var(--disab-border);
   border-radius: var(--disab-radius);
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--disab-shadow-sm);
 }
 
@@ -562,11 +581,11 @@
 }
 
 .accion-editar {
-  color: #00838f;
+  color: #00838f; color: light-dark(#00838f, #97eff7);
 }
 
 .accion-validar {
-  color: #2e7d32;
+  color: #2e7d32; color: light-dark(#2e7d32, #ade1b0);
 }
 
 .accion-eliminar {
@@ -581,8 +600,8 @@
   border-radius: 999px;
   font-size: 12.5px;
   font-weight: 700;
-  background: #eceff1;
-  color: #546e7a;
+  background: var(--surface-3);
+  color: var(--muted);
 }
 
 .soportes mat-icon {
@@ -592,47 +611,29 @@
 }
 
 .soportes.soportes-ok {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: #e8f5e9; background: light-dark(#e8f5e9, #193430);
+  color: #2e7d32; color: light-dark(#2e7d32, #ade1b0);
 }
 
 .soportes.soportes-falta {
-  background: #fff3e0;
+  background: #fff3e0; background: light-dark(#fff3e0, #382f24);
   color: #ef6c00;
 }
 
-.paginador-servidor {
-  border-top: 1px solid var(--disab-border);
-  background: #fbfdff;
-}
 
 /* ============================================================
-   PIEZAS NEUTRALIZADAS DE app-standard-filter-table
+   PIEZAS DE app-standard-filter-table
    ------------------------------------------------------------
-   El componente compartido trae buscador, filtros por columna,
-   exportador y paginador propios, pero TODOS trabajan unicamente
-   sobre las filas que ya estan en memoria. Como aqui la consulta
-   es de servidor, dejarlos visibles haria creer al usuario que
-   filtra/exporta/pagina sobre el total cuando solo tocaria la
-   pagina actual (ese fue justo el enga~no del modulo viejo).
-   Se ocultan y esta vista pone sus equivalentes de servidor.
-   Lo que SI se conserva del componente: render, columnas sticky,
-   ordenamiento, selector de columnas visibles, conmutador
-   tabla/tarjetas, persistencia y estados vacio/cargando.
+   La tabla va en MODO SERVIDOR: su buscador, su paginador y su
+   ordenamiento consultan al backend sobre las 55.000, no sobre la
+   pagina cargada, asi que se dejan a la vista (antes se ocultaban
+   porque solo miraban lo que habia en memoria y enga~naban).
+   Lo unico que se sigue tapando es el exportador de la tabla, que
+   si se limita a la pagina; esta vista tiene su propia descarga.
    ============================================================ */
-
-/* Buscador local de la barra superior. */
-::ng-deep app-standard-filter-table .sf-search {
-  display: none !important;
-}
 
 /* Boton de exportar (menu PDF/Excel que solo ve la pagina cargada). */
 ::ng-deep app-standard-filter-table .sf-actions-group button[aria-haspopup='menu'] {
-  display: none !important;
-}
-
-/* Paginador interno. */
-::ng-deep app-standard-filter-table .sf-main-layout > mat-paginator {
   display: none !important;
 }
 
@@ -694,7 +695,7 @@
   }
 
   .kpi-fila {
-    grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(148px, 100%), 1fr));
     padding: 14px 16px;
     gap: 10px;
   }
@@ -708,7 +709,7 @@
   }
 
   .filtros-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .disab-section-hint {

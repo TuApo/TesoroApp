@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   TrainingAdminService, PlanAsignacion, PlanRequest, CriterioAudiencia, CriterioRequest,
   EjeAsignacion, ItemPlan, ItemPlanRequest, Disparador, DisparadorRequest, CorridaPlan,
@@ -23,7 +24,7 @@ import {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-assignment-plans',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
   templateUrl: './admin-assignment-plans.html',
   styleUrl: './admin-assignment-plans.css'
 })
@@ -55,6 +56,68 @@ export class AdminAssignmentPlans implements OnInit {
   readonly filtroBitacora = signal<'todos' | 'si' | 'no'>('no');
 
   readonly eventos = ['AL_INGRESO', 'AL_CAMBIAR_CARGO', 'AL_HABILITAR_MODULO', 'PROGRAMADO', 'MANUAL'];
+
+  // ── Tablas (tabla estándar) ─────────────────────────────────────────────────
+
+  /** Listado de planes: «Ver» o doble clic abren el plan. */
+  readonly columnasPlanes: ColumnaTabla<PlanAsignacion>[] = [
+    { id: 'plan', header: 'Plan', valor: (p) => p.nombre, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'audiencia', header: 'Audiencia', tarjeta: 'meta', valor: (p) => p.criterios,
+      formato: (p) => `${p.criterios} ${p.criterios === 1 ? 'criterio' : 'criterios'}` },
+    { id: 'contenido', header: 'Contenido', tarjeta: 'meta', valor: (p) => p.items,
+      formato: (p) => `${p.items} ${p.items === 1 ? 'curso' : 'cursos'}` },
+    { id: 'cuando', header: 'Cuándo', prioridad: 2, tarjeta: 'cuerpo',
+      valor: (p) => (p.disparadores?.length ? p.disparadores.join(', ') : 'Solo manual') },
+    { id: 'ultima', header: 'Última corrida', prioridad: 3, tarjeta: 'cuerpo',
+      valor: (p) => this.fechaCorrida(p.ultima_corrida),
+      formato: (p) => this.textoUltimaCorrida(p), copiaTexto: (p) => this.textoUltimaCorrida(p) },
+    { id: 'estado', header: 'Estado', tarjeta: 'badge', valor: (p) => (p.activo ? 'Activo' : 'Inactivo'),
+      badge: (p) => p.activo ? { texto: 'Activo', tono: 'ok' } : { texto: 'Inactivo', tono: 'neutro' } },
+  ];
+  readonly idPlan = (p: PlanAsignacion) => p.id;
+
+  /** Contenido del plan: qué curso se asigna y con qué plazo. */
+  readonly columnasItems: ColumnaTabla<ItemPlan>[] = [
+    { id: 'orden', header: 'Orden', valor: (i) => i.orden, tarjeta: 'meta' },
+    { id: 'curso', header: 'Curso', tarjeta: 'titulo',
+      valor: (i) => i.curso_nombre || i.programa_nombre || this.nombreCurso(i.course_id) },
+    { id: 'plazo', header: 'Plazo', tarjeta: 'subtitulo',
+      valor: (i) => (i.plazo_dias ? i.plazo_dias + ' días' : 'Sin plazo') },
+  ];
+  readonly idItem = (i: ItemPlan) => i.id;
+
+  readonly columnasDisparadores: ColumnaTabla<Disparador>[] = [
+    { id: 'evento', header: 'Evento', valor: (d) => d.evento, tarjeta: 'titulo' },
+    { id: 'cron', header: 'Cron', valor: (d) => d.cron ?? '', tarjeta: 'subtitulo' },
+    { id: 'codigo', header: 'Código', valor: (d) => d.event_code ?? '', tarjeta: 'meta' },
+  ];
+  readonly idDisparador = (d: Disparador) => d.id;
+
+  /** Corridas: «Ver bitácora» (botón de detalle) o doble clic abren su bitácora. */
+  readonly columnasCorridas: ColumnaTabla<CorridaPlan>[] = [
+    { id: 'cuando', header: 'Cuándo', tarjeta: 'titulo',
+      valor: (c) => this.fechaCorrida(c), formato: (c) => this.fecha(c.terminado_at || c.iniciado_at),
+      copiaTexto: (c) => this.fecha(c.terminado_at || c.iniciado_at) },
+    { id: 'modo', header: 'Modo', tarjeta: 'subtitulo',
+      valor: (c) => (c.modo === 'SIMULACION' ? 'Simulación' : 'Ejecución') },
+    { id: 'estado', header: 'Estado', tarjeta: 'badge', valor: (c) => c.estado },
+    { id: 'evaluadas', header: 'Evaluadas', valor: (c) => c.evaluadas, tarjeta: 'meta' },
+    { id: 'coinciden', header: 'Coinciden', valor: (c) => c.coincidencias, tarjeta: 'meta' },
+    { id: 'matriculas', header: 'Matrículas', valor: (c) => c.matriculas, tarjeta: 'meta' },
+  ];
+  readonly idCorrida = (c: CorridaPlan) => c.id;
+
+  /** Bitácora persona a persona de la corrida elegida (el filtro Sí/No/Todos va al backend). */
+  readonly columnasBitacora: ColumnaTabla<LineaBitacora>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (l) => l.cedula ?? '', tarjeta: 'subtitulo' },
+    { id: 'persona', header: 'Persona', valor: (l) => l.persona_nombre ?? '', formato: (l) => l.persona_nombre || '—',
+      tarjeta: 'titulo' },
+    { id: 'coincide', header: '¿Coincide?', tarjeta: 'badge', valor: (l) => (l.coincide ? 'Sí' : 'No'),
+      badge: (l) => l.coincide ? { texto: 'Sí', tono: 'ok' } : { texto: 'No', tono: 'danger' } },
+    { id: 'motivo', header: 'Motivo', valor: (l) => l.motivo ?? '', formato: (l) => l.motivo || '—',
+      tarjeta: 'cuerpo' },
+  ];
+  readonly idLinea = (l: LineaBitacora) => l.id;
 
   /** Los criterios agrupados como los evalúa el motor: OR dentro del grupo, AND entre grupos. */
   readonly gruposDeAudiencia = computed(() => {
@@ -437,6 +500,22 @@ export class AdminAssignmentPlans implements OnInit {
   nombreCurso(id?: string | null): string {
     if (!id) return '—';
     return this.cursos().find(c => c.id === id)?.nombre ?? id;
+  }
+
+  /** Fecha de una corrida como Date, para que la tabla ordene por fecha y no por texto. */
+  private fechaCorrida(c?: CorridaPlan | null): Date | null {
+    const iso = c?.terminado_at || c?.iniciado_at;
+    if (!iso) return null;
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  /** «Simulación · 3/10 · fecha», lo mismo que pinta la celda (para copiar a Excel). */
+  private textoUltimaCorrida(p: PlanAsignacion): string {
+    const c = p.ultima_corrida;
+    if (!c) return 'Nunca se ha corrido';
+    return `${c.modo === 'SIMULACION' ? 'Simulación' : 'Ejecución'} · ${c.coincidencias}/${c.evaluadas}`
+      + ` · ${this.fecha(c.terminado_at || c.iniciado_at)}`;
   }
 
   fecha(iso?: string | null): string {

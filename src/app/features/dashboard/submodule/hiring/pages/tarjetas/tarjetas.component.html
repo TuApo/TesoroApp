@@ -57,24 +57,14 @@
             @if (importResult.errors && importResult.errors.length > 0) {
               <div class="error-list mt-2">
                 <h3>Errores Detallados:</h3>
-                <div class="error-table-container">
-                  <table class="error-table">
-                    <thead>
-                      <tr>
-                        <th>Fila</th>
-                        <th>Error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (err of importResult.errors; track err) {
-                        <tr>
-                          <td>{{ err.row }}</td>
-                          <td>{{ err.error }}</td>
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
+                <app-tabla-estandar
+                  id="contratacion-tarjetas-errores-importacion"
+                  titulo="Errores de importación de tarjetas"
+                  modulo="Contratación"
+                  [datos]="importResult.errors"
+                  [columnas]="columnasErrores"
+                  [filasPorPagina]="25">
+                </app-tabla-estandar>
               </div>
             }
           </div>

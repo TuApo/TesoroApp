@@ -7,7 +7,7 @@
     @switch (f.type) {
       <!-- TEXT -->
       @case ('text') {
-        <mat-form-field appearance="outline" class="ff">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ff">
           <mat-label>{{ f.label }}</mat-label>
           <input
             matInput
@@ -30,7 +30,7 @@
         }
         <!-- PASSWORD -->
         @case ('password') {
-          <mat-form-field appearance="outline" class="ff">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ff">
             <mat-label>{{ f.label }}</mat-label>
             <input
               matInput
@@ -50,7 +50,7 @@
           }
           <!-- NUMBER (texto + inputmode decimal) -->
           @case ('number') {
-            <mat-form-field appearance="outline" class="ff">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ff">
               <mat-label>{{ f.label }}</mat-label>
               <input
                 matInput
@@ -75,7 +75,7 @@
             }
             <!-- TEXTAREA -->
             @case ('textarea') {
-              <mat-form-field appearance="outline" class="ff">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ff">
                 <mat-label>{{ f.label }}</mat-label>
                 <textarea
                   matInput
@@ -92,16 +92,45 @@
             }
             <!-- SELECT -->
             @case ('select') {
-              <mat-form-field appearance="outline" class="ff">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ff">
                 <mat-label>{{ f.label }}</mat-label>
                 <mat-select
                   [formControlName]="f.name"
                   [placeholder]="f.placeholder ?? ''"
-                  [multiple]="!!f.multiple">
-                  @for (opt of (f.options || []); track opt) {
+                  [multiple]="!!f.multiple"
+                  [panelClass]="tieneBuscador(f) ? 'dfd-panel-buscable' : ''"
+                  (openedChange)="panelCerrado(f, $event)">
+
+                  @if (tieneBuscador(f)) {
+                    <!-- Fijo arriba del panel: con la lista desplazada, perder el buscador
+                         de vista obligaría a cerrar y reabrir. stopPropagation para que
+                         mat-select no lea las teclas como navegación de opciones. -->
+                    <div class="dfd-buscador" (click)="$event.stopPropagation()">
+                      <mat-icon class="dfd-buscador-icono">search</mat-icon>
+                      <input type="text" class="dfd-buscador-input"
+                             [placeholder]="'Buscar entre ' + (f.options || []).length + ' opciones…'"
+                             [value]="busqueda[f.name] || ''"
+                             (input)="buscar(f, $any($event.target).value)"
+                             (keydown)="teclaBuscador($event)">
+                      @if (busqueda[f.name]) {
+                        <button type="button" class="dfd-buscador-limpiar"
+                                (click)="buscar(f, '')" aria-label="Limpiar búsqueda">
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      }
+                    </div>
+                  }
+
+                  @for (opt of opcionesVisibles(f); track opt) {
                     <mat-option [value]="opt.value">
                       {{ opt.label }}
                     </mat-option>
+                  }
+
+                  @if (tieneBuscador(f) && !opcionesVisibles(f).length) {
+                    <div class="dfd-sin-resultados">
+                      Ningún resultado para «{{ busqueda[f.name] }}»
+                    </div>
                   }
                 </mat-select>
                 @if (f.hint) {
@@ -120,7 +149,7 @@
             }
             <!-- DATE -->
             @case ('date') {
-              <mat-form-field appearance="outline" class="ff">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ff">
                 <mat-label>{{ f.label }}</mat-label>
                 <input
                   matInput

@@ -16,7 +16,7 @@ mat-form-field.example-full-width {
 .uploaded-file-name {
   display: block;
   font-size: .825rem;
-  color: #666;
+  color: var(--muted);
   font-style: italic;
   line-height: 1.3;
   word-break: break-word;
@@ -93,7 +93,7 @@ mat-tab-group {
 /* Managerial Grid for forms */
 .grid-managerial {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 16px 24px;
   align-items: start;
 }
@@ -113,7 +113,7 @@ mat-tab-group {
 }
 
 .fingerprint-card h3 {
-  color: #1e293b;
+  color: var(--text);
   font-weight: 700;
   margin-bottom: 20px;
   font-size: 1.1rem;
@@ -132,14 +132,14 @@ button {
 /*─────────────────────  MENSAJE DE ESTADO  ───────────────*/
 .status-message {
   font-size: 14px;
-  color: #1976d2;
+  color: #1976d2; color: light-dark(#1976d2, #9bc7f3);
   display: flex;
   align-items: center;
 }
 
 .status-message mat-icon {
   margin-right: 8px;
-  color: #4caf50;
+  color: #4caf50; color: light-dark(#4caf50, #aee0b0);
 }
 
 /*─────────────────────  IMAGEN DE HUELLAS  ───────────────*/
@@ -148,7 +148,7 @@ button {
   width: 100pt;
   height: auto;
   border-radius: 12px;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   transition: transform 0.2s ease;
 }
@@ -197,8 +197,8 @@ button {
 ::ng-deep .consent-popup .swal2-actions {
   padding: 20px 24px 24px !important;
   margin: 0 !important;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
   width: 100%;
   box-sizing: border-box;
 }
@@ -218,61 +218,61 @@ button {
 }
 
 ::ng-deep .consent-popup .swal2-confirm:disabled {
-  background: #cbd5e1 !important;
+  background: var(--border-strong) !important;
   box-shadow: none !important;
-  color: #64748b !important;
+  color: var(--muted) !important;
 }
 
 ::ng-deep .consent-popup .swal2-cancel {
   border-radius: 10px !important;
   font-weight: 600 !important;
-  background: #ffffff !important;
-  color: #475569 !important;
-  border: 1px solid #cbd5e1 !important;
+  background: var(--surface) !important;
+  color: var(--text-2) !important;
+  border: 1px solid var(--border-strong) !important;
   padding: 12px 28px !important;
   font-size: 0.95rem !important;
   transition: all 0.2s ease !important;
 }
 
 ::ng-deep .consent-popup .swal2-cancel:hover {
-  background: #f1f5f9 !important;
+  background: var(--surface-3) !important;
 }
 
 ::ng-deep .consent-dialog-content {
   text-align: left;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 ::ng-deep .consent-dialog-header {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); background: linear-gradient(135deg, light-dark(#f0fdf4, #143a33) 0%, light-dark(#dcfce7, #123b33) 100%);
   padding: 36px 24px 28px;
   position: relative;
-  border-bottom: 1px solid #bbf7d0;
+  border-bottom: 1px solid #bbf7d0; border-bottom: 1px solid light-dark(#bbf7d0, #156740);
   text-align: center;
 }
 
 ::ng-deep .consent-dialog-icon {
   width: 72px;
   height: 72px;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 20px;
   box-shadow: 0 8px 16px rgba(34, 197, 94, 0.15);
-  border: 1px solid #bbf7d0;
+  border: 1px solid #bbf7d0; border: 1px solid light-dark(#bbf7d0, #156740);
 }
 
 ::ng-deep .consent-dialog-icon svg {
-  color: #166534;
+  color: #166534; color: light-dark(#166534, #a3ebbe);
 }
 
 ::ng-deep .consent-dialog-title {
   margin: 0 0 16px;
   font-size: 1.35rem;
   font-weight: 800;
-  color: #14532d;
+  color: #14532d; color: light-dark(#14532d, #a5e9c0);
   line-height: 1.3;
   letter-spacing: -0.02em;
 }
@@ -296,8 +296,8 @@ button {
 }
 
 ::ng-deep .consent-dialog-badge.light {
-  background: #ffffff;
-  color: #166534;
+  background: var(--surface);
+  color: #166534; color: light-dark(#166534, #a3ebbe);
   border: 1px solid #166534;
 }
 
@@ -307,13 +307,13 @@ button {
 
 ::ng-deep .consent-dialog-text {
   font-size: 0.875rem;
-  color: #334155;
+  color: var(--text-2);
   line-height: 1.6;
   text-align: justify;
-  background: #f8fafc;
+  background: var(--surface-2);
   padding: 20px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   margin-bottom: 24px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
 }
@@ -322,22 +322,22 @@ button {
   display: flex;
   align-items: flex-start;
   gap: 14px;
-  background: #f0fdf4;
+  background: #f0fdf4; background: light-dark(#f0fdf4, #143a33);
   padding: 16px 20px;
   border-radius: 12px;
-  border: 2px solid #bbf7d0;
+  border: 2px solid #bbf7d0; border: 2px solid light-dark(#bbf7d0, #156740);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 ::ng-deep .consent-dialog-check:hover {
   border-color: #4ade80;
-  background: #dcfce7;
+  background: #dcfce7; background: light-dark(#dcfce7, #123b33);
 }
 
 ::ng-deep .consent-dialog-check span {
   font-size: 0.95rem;
-  color: #14532d;
+  color: #14532d; color: light-dark(#14532d, #a5e9c0);
   line-height: 1.4;
   font-weight: 500;
 }
@@ -354,7 +354,7 @@ button {
 ::ng-deep .consent-dialog-version {
   margin: 16px 0 0;
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: var(--text-faint);
   text-align: center;
   font-weight: 500;
 }
@@ -388,7 +388,7 @@ button {
   width: 100%;
   max-width: 1100px;
   max-height: 92vh;
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 20px;
   box-shadow: 0 25px 80px rgba(0, 0, 0, 0.2);
   display: flex;
@@ -411,11 +411,11 @@ button {
 
 .docs-dialog-header {
   padding: 20px 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fafbfc;
+  background: var(--surface-2);
 }
 
 .docs-dialog-title-area {
@@ -428,24 +428,24 @@ button {
   font-size: 28px;
   width: 28px;
   height: 28px;
-  color: #1e293b;
+  color: var(--text);
 }
 
 .docs-dialog-title {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text);
 }
 
 .docs-dialog-subtitle {
   margin: 2px 0 0;
   font-size: 0.8rem;
-  color: #64748b;
+  color: var(--muted);
 }
 
 .docs-dialog-close {
-  color: #64748b !important;
+  color: var(--muted) !important;
 }
 
 .docs-dialog-body {
@@ -459,8 +459,8 @@ button {
 .docs-sidebar {
   width: 220px;
   flex-shrink: 0;
-  border-right: 1px solid #e2e8f0;
-  background: #fafbfc;
+  border-right: 1px solid var(--border);
+  background: var(--surface-2);
   overflow-y: auto;
   padding: 12px 0;
 }
@@ -476,7 +476,7 @@ button {
 }
 
 .docs-sidebar-item:hover {
-  background: #f1f5f9;
+  background: var(--surface-3);
 }
 
 .docs-sidebar-item.active {
@@ -488,31 +488,31 @@ button {
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: #64748b;
+  color: var(--muted);
   flex-shrink: 0;
 }
 
 .docs-sidebar-item.active .doc-item-icon {
-  color: #1e293b;
+  color: var(--text);
 }
 
 .doc-item-label {
   font-size: 0.78rem;
   font-weight: 600;
-  color: #64748b;
+  color: var(--muted);
   flex: 1;
   line-height: 1.3;
 }
 
 .docs-sidebar-item.active .doc-item-label {
-  color: #1e293b;
+  color: var(--text);
 }
 
 .doc-item-check {
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: #3f51b5;
+  color: #3f51b5; color: light-dark(#3f51b5, #acb4e2);
 }
 
 /* Viewer */
@@ -528,15 +528,15 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
 }
 
 .docs-viewer-title {
   margin: 0;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text);
   letter-spacing: 0.03em;
 }
 
@@ -552,7 +552,7 @@ button {
 .docs-viewer-frame {
   flex: 1;
   min-height: 400px;
-  background: #e2e8f0;
+  background: var(--surface-4);
   overflow: hidden;
 }
 
@@ -560,7 +560,7 @@ button {
   width: 100%;
   height: 100%;
   border: none;
-  background: white;
+  background: var(--surface);
 }
 
 .docs-viewer-nav {
@@ -568,29 +568,29 @@ button {
   justify-content: space-between;
   align-items: center;
   padding: 12px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #fafbfc;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
 }
 
 .carousel-btn {
   height: 36px !important;
   border-radius: 18px !important;
-  border-color: #cbd5e1 !important;
-  color: #1e293b !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text) !important;
   font-weight: 600 !important;
   font-size: 0.8rem !important;
-  background: white !important;
+  background: var(--surface) !important;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02) !important;
 }
 
 .carousel-btn:not(:disabled):hover {
-  background: #f8fafc !important;
-  border-color: #94a3b8 !important;
+  background: var(--surface-2) !important;
+  border-color: var(--text-faint) !important;
 }
 
 .carousel-btn:disabled {
   opacity: 0.4;
-  background: #f1f5f9 !important;
+  background: var(--surface-3) !important;
 }
 
 .carousel-btn mat-icon {
@@ -609,7 +609,7 @@ button {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #cbd5e1;
+  background: var(--border-strong);
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -644,7 +644,7 @@ button {
   .docs-sidebar {
     width: 100%;
     border-right: none;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--border);
     max-height: 140px;
     flex-direction: row;
     display: flex;
@@ -678,9 +678,9 @@ button {
   margin: 8px 8px 4px;
   padding: 12px 16px;
   border-radius: 12px;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
-  color: #6d4c00;
+  background: #fff8e1; background: light-dark(#fff8e1, #383524);
+  border: 1px solid #ffe082; border: 1px solid light-dark(#ffe082, #6c591b);
+  color: #6d4c00; color: light-dark(#6d4c00, #f7da97);
   font-size: 13px;
   line-height: 1.35;
 }
@@ -705,16 +705,16 @@ button {
   margin: 4px 0 14px;
   padding: 10px 14px;
   border-radius: 10px;
-  background: #eef4ff;
-  border: 1px solid #d4e3ff;
-  color: #34507a;
+  background: #eef4ff; background: light-dark(#eef4ff, #0f244d);
+  border: 1px solid #d4e3ff; border: 1px solid light-dark(#d4e3ff, #0b327c);
+  color: #34507a; color: light-dark(#34507a, #aec2e0);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .obra-hint mat-icon {
   flex: 0 0 auto;
-  color: #1976d2;
+  color: #1976d2; color: light-dark(#1976d2, #9bc7f3);
 }
 
 .obra-descripcion {
@@ -731,16 +731,16 @@ button {
   margin: -6px 0 10px;
   padding: 10px 14px;
   border-radius: 10px;
-  background: #fff4e5;
-  border: 1px solid #ffd9a8;
-  color: #7a4f14;
+  background: #fff4e5; background: light-dark(#fff4e5, #382d24);
+  border: 1px solid #ffd9a8; border: 1px solid light-dark(#ffd9a8, #6c471b);
+  color: #7a4f14; color: light-dark(#7a4f14, #efcd9f);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .obra-aviso mat-icon {
   flex: 0 0 auto;
-  color: #ed6c02;
+  color: #ed6c02; color: light-dark(#ed6c02, #f7c297);
 }
 
 .obra-actions {
@@ -762,7 +762,7 @@ button {
 }
 
 .visor-caja {
-  background: #fff;
+  background: var(--surface);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, .35);
   width: min(1000px, 100%);
@@ -777,7 +777,7 @@ button {
   align-items: center;
   gap: 8px;
   padding: 6px 8px 6px 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .visor-titulo {
@@ -831,7 +831,7 @@ button {
    ========================================================================== */
 .bio-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -842,14 +842,14 @@ button {
   align-items: flex-start;
   gap: 9px;
   padding: 14px;
-  border: 1px solid #E2E8F0;
+  border: 1px solid var(--border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .bio-lista {
-  border-color: #BBF7D0;
-  background: #F0FDF4;
+  border-color: #BBF7D0; border-color: light-dark(#BBF7D0, #156740);
+  background: #F0FDF4; background: light-dark(#F0FDF4, #143a33);
 }
 
 .bio-icono {
@@ -858,23 +858,23 @@ button {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: #EEF2FF;
+  background: #EEF2FF; background: light-dark(#EEF2FF, #0f1f4d);
   color: #4F46E5;
 }
 
-.bio-lista .bio-icono { background: #DCFCE7; color: #166534; }
+.bio-lista .bio-icono { background: #DCFCE7; background: light-dark(#DCFCE7, #123b33); color: #166534; color: light-dark(#166534, #a3ebbe); }
 
 .bio-icono mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
 .bio-txt { display: flex; flex-direction: column; gap: 1px; }
-.bio-txt strong { font-size: .88rem; color: #171B2E; }
-.bio-txt small { font-size: .72rem; color: #64748B; overflow-wrap: anywhere; }
+.bio-txt strong { font-size: .88rem; color: var(--navy-ink); }
+.bio-txt small { font-size: .72rem; color: var(--muted); overflow-wrap: anywhere; }
 
 /* El estado va aparte del dato: "qa@example.com" y "Sin comprobar" son dos
    cosas distintas y en la misma línea se leían como una. */
 .bio-estado { font-weight: 700; }
-.bio-lista .bio-estado { color: #166534; }
-.bio-lista .bio-txt small { color: #166534; }
+.bio-lista .bio-estado { color: #166534; color: light-dark(#166534, #a3ebbe); }
+.bio-lista .bio-txt small { color: #166534; color: light-dark(#166534, #a3ebbe); }
 
 /* Vista previa de lo capturado: se confirma sin abrir nada. */
 .bio-prev {
@@ -882,11 +882,30 @@ button {
   height: 96px;
   object-fit: cover;
   border-radius: 10px;
-  border: 1px solid #E2E8F0;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .bio-prev-firma { object-fit: contain; padding: 4px; }
+
+/* El documento de identidad es un PDF: en vez de miniatura, un recuadro que
+   abre el visor. Mismo alto que la foto para que las tarjetas no bailen. */
+.bio-prev-doc {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #166534; color: light-dark(#166534, #a3ebbe);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 700;
+  border-style: dashed;
+  border-color: #86EFAC; border-color: light-dark(#86EFAC, #166641);
+}
+.bio-prev-doc:hover { background: #DCFCE7; background: light-dark(#DCFCE7, #123b33); }
+.bio-prev-doc mat-icon { font-size: 26px; width: 26px; height: 26px; }
 
 .bio-btn {
   display: inline-flex;
@@ -922,11 +941,205 @@ button {
   gap: 7px;
   margin: 6px 0 0;
   font-size: .8rem;
-  color: #16a34a;
+  color: #16a34a; color: light-dark(#16a34a, #9cf2bc);
 }
 
 .referencias-nota mat-icon {
   font-size: 17px;
   width: 17px;
   height: 17px;
+}
+
+/* ── Captura de huella: el lector y la salida de emergencia ──────────────
+   Dos botones porque hay dos caminos, y la jerarquía dice cuál es el normal:
+   relleno para el lector, contorno para adjuntar la imagen. Se apilan en
+   pantallas angostas, que es justo donde no hay lector. */
+.fingerprint-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+@media (max-width: 560px) {
+  .fingerprint-acciones { flex-direction: column; align-items: stretch; }
+}
+.fingerprint-forma {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  opacity: .72;
+}
+
+
+/* ── Quitar una huella ─────────────────────────────────────────────────────
+   La X va SOBRE la imagen, no en una fila de botones aparte: pertenece a esa
+   huella concreta y en la pantalla hay dos. Puesta abajo se confundiria con
+   las acciones de la tarjeta y no quedaria claro cual de las dos borra.
+
+   DENTRO del recuadro, no colgando de la esquina: sobresaliendo se recortaba
+   contra el borde de la tarjeta y quedaba a medias. */
+.fingerprint-image-container {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.huella-quitar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  /* Vidrio esmerilado: la X tiene que leerse igual sobre las crestas oscuras
+     de la huella y sobre el fondo blanco del papel. Un circulo plano se pierde
+     en uno de los dos. */
+  background: rgb(var(--surface-rgb) / 0.82);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, .14), 0 0 0 1px rgba(16, 24, 40, .07);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .85;
+  transition: background .18s ease, color .18s ease, opacity .18s ease,
+              box-shadow .18s ease, transform .18s ease;
+}
+.fingerprint-image-container:hover .huella-quitar { opacity: 1; }
+
+.huella-quitar:hover {
+  background: #d92d20;
+  color: #fff;
+  opacity: 1;
+  box-shadow: 0 3px 10px rgba(217, 45, 32, .34);
+  transform: scale(1.06);
+}
+.huella-quitar:active { transform: scale(.96); }
+.huella-quitar:focus-visible {
+  outline: 2px solid #d92d20;
+  outline-offset: 2px;
+  opacity: 1;
+}
+.huella-quitar mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+  line-height: 17px;
+}
+
+/* En pantallas tactiles no hay hover: el boton se ve siempre entero. */
+@media (hover: none) {
+  .huella-quitar { opacity: 1; }
+}
+
+.huella-cargando {
+  width: 120px;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  line-height: 1.3;
+  padding: 8px;
+}
+
+/*─────────────────  COMPLETITUD: CAMPO EN VERDE  ─────────────────
+ * Se pinta el campo cuando el dato ya está bien diligenciado, para poder ver de
+ * un vistazo qué falta. La clase la pone `campoCompleto()` del componente, que
+ * es quien conoce la semántica de cada campo (un NO también está contestado, un
+ * readonly con dato cuenta, un condicional que no aplica no).
+ *
+ * Solo se toca el BORDE y un check al margen: el relleno verde sobre un
+ * `appearance="outline"` de Material tapa el texto flotante de la etiqueta y
+ * baja el contraste del valor, que es justo lo que hay que poder leer.
+ *
+ * PRIORIDAD ERROR > COMPLETO: `campoCompleto()` ya devuelve false para un campo
+ * inválido, así que la clase ni se aplica y el rojo de Material queda intacto.
+ * El `:not(.mat-form-field-invalid)` es el cinturón por si algún flujo marca el
+ * error después de haber pintado.
+ */
+.campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__leading,
+.campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__notch,
+.campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__trailing {
+  border-color: #2e7d32;
+}
+
+/* Marca discreta al lado de la etiqueta. `currentColor` no: la etiqueta se
+   atenúa al perder el foco y el check se iría con ella. */
+.campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-floating-label::after {
+  content: ' ✓';
+  color: #2e7d32; color: light-dark(#2e7d32, #ade1b0);
+  font-weight: 600;
+}
+
+/* Un deshabilitado (salario, auxilio, temporal, cargo) baja la opacidad de todo
+   el campo, incluido el borde verde, y deja de leerse como "resuelto". */
+.campo-completo ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__leading,
+.campo-completo ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__notch,
+.campo-completo ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__trailing {
+  border-width: 2px;
+}
+
+/* Tema oscuro: el verde 800 se apaga sobre fondo oscuro. */
+/* Tema oscuro de la app (ThemeService), no el del sistema operativo. */
+:host-context(html[data-theme='dark']) .campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__leading,
+:host-context(html[data-theme='dark']) .campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__notch,
+:host-context(html[data-theme='dark']) .campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-form-field-flex .mdc-notched-outline__trailing {
+  border-color: #66bb6a;
+}
+:host-context(html[data-theme='dark']) .campo-completo:not(.mat-form-field-invalid) ::ng-deep .mat-mdc-floating-label::after {
+  color: #66bb6a;
+}
+
+
+/*──────────  SECCIONES DE "PAGO Y TRANSPORTE"  ──────────
+ * El tab agrupa tres cosas distintas y antes eran una sola rejilla de 29 casillas
+ * sin jerarquía: los datos de la ficha de contratación, los del centro de costo /
+ * transporte, y los que solo existen porque los imprimen la ficha técnica, el
+ * carnet, el Excel de ARL y el contrato. Separarlos permite encontrar un campo sin
+ * recorrer la lista entera. */
+.hq-seccion {
+  margin: 28px 0 2px;
+  font-size: .95rem;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.hq-seccion:first-child { margin-top: 4px; }
+
+.hq-seccion-nota {
+  margin: 0 0 14px;
+  font-size: .8rem;
+  opacity: .72;
+  max-width: 70ch;
+}
+
+/* Traza de la fecha de ingreso: se muestra solo cuando difiere de la de la vacante,
+   así que conviene que se note más que un hint normal sin llegar a leerse como error. */
+.hq-traza {
+  color: #b26a00; color: light-dark(#b26a00, #f7d097);
+  font-weight: 500;
+}
+/* Tema oscuro de la app (ThemeService), no el del sistema operativo. */
+:host-context(html[data-theme='dark']) .hq-traza { color: #ffb74d; }
+
+
+/* Desplegables con catálogo: que lo que no cabe se pueda desplazar SIEMPRE.
+   Material topa el panel en 275px y con eso la última opción queda cortada a media
+   altura, que se lee como "ya no hay más" en vez de "sigue hacia abajo". Con `vh` el
+   panel aprovecha lo que de verdad queda de pantalla. Va con `::ng-deep` porque el
+   panel se cuelga del overlay, fuera del árbol del componente. */
+::ng-deep .hq-panel-lista.mat-mdc-select-panel {
+  max-height: min(60vh, 420px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
 }

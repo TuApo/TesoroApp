@@ -1,13 +1,12 @@
 import {
-  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, HostListener, inject
+  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, effect, inject, signal, viewChild
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CommonModule } from '@angular/common';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { Observable } from 'rxjs';
 
-import { MatTableModule } from '@angular/material/table';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -16,14 +15,17 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent
+} from '../../../../../../shared/components/tabla-estandar';
 import { AfiliacionesFiltersBarComponent } from '../../components/filters/afiliaciones-filters-bar.component';
+import { SelectionModel } from '@angular/cdk/collections';
 import { PegadoMasivoDialogComponent } from '../../components/pegado-masivo/pegado-masivo-dialog.component';
 import { DatosAfiliacionDialogComponent } from '../../components/datos-afiliacion/datos-afiliacion-dialog.component';
 import { AfiliacionesGestionService, BaseFechaGestion } from '../../services/afiliaciones-gestion.service';
@@ -33,6 +35,25 @@ import {
   ContratacionRow, CasoDetalle, CedulaDoc, MasivoResult, Validador, Canal,
   Expediente, DocumentoExpediente, GrupoDoc
 } from '../../models/afiliaciones-dashboard.models';
+
+/** 'aaaa-mm-dd' (o ISO con hora) → Date local, igual que el DatePipe; así ordena como fecha. */
+function aFecha(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** dd/MM/aaaa, o '-' si no hay fecha. */
+function fechaCorta(v: string | null | undefined): string {
+  const d = aFecha(v);
+  return d ? formatDate(d, 'dd/MM/yyyy', 'en-US') : '-';
+}
+
+/** El backend no ordena por columna: ninguna columna ofrece orden en la tabla. */
+function sinOrden<T>(cols: ColumnaTabla<T>[]): ColumnaTabla<T>[] {
+  return cols.map(c => ({ ...c, ordenable: false }));
+}
 
 /** Cómo se puede pintar un documento en línea. */
 type PreviewKind = 'pdf' | 'imagen' | 'otro';
@@ -62,11 +83,12 @@ interface PreviewDoc {
   standalone: true,
   imports: [
     CommonModule, FormsModule,
-    MatTableModule, MatCheckboxModule, MatButtonModule, MatIconModule, MatChipsModule,
-    MatTooltipModule, MatSelectModule, MatFormFieldModule, MatInputModule, MatPaginatorModule,
+    MatCheckboxModule, MatButtonModule, MatIconModule, MatChipsModule,
+    MatTooltipModule, MatSelectModule, MatFormFieldModule, MatInputModule,
     MatSlideToggleModule, MatButtonToggleModule, MatSnackBarModule, MatProgressBarModule,
     MatDialogModule,
-    AfiliacionesFiltersBarComponent
+    AfiliacionesFiltersBarComponent,
+    ...TABLA_ESTANDAR
   ],
   templateUrl: './confirmacion-ingresos.html',
   styleUrl: './confirmacion-ingresos.css'
@@ -90,6 +112,17 @@ export class ConfirmacionIngresos implements OnDestroy {
 
   // Selección persistente entre páginas (por candidato_id).
   selected = new Set<number>();
+  /**
+   * Selección del estándar (la casilla va pegada al «#», anclada como él).
+   * El `Set` de arriba sigue siendo la memoria: en modo servidor las filas
+   * cambian con cada página y el estándar suelta las que ya no están, así que
+   * al llegar una página nueva se vuelven a marcar las que ya se habían
+   * elegido antes.
+   */
+  readonly sel = new SelectionModel<ContratacionRow>(true, []);
+  /** Cuántas hay marcadas, para la plantilla (el `Set` se muta y no avisa). */
+  readonly marcadas = signal(0);
+  private sincronizando = false;
 
   // Estado de la barra de acciones masivas.
   validadorSel: Validador = 'AFILIACIONES';
@@ -105,41 +138,63 @@ export class ConfirmacionIngresos implements OnDestroy {
   detailNota = '';
   docLoading = false;
 
-  // ── Vista: tabla ancha o tarjetas tipo vCard ───────────────────────
+  // ── Listado en la tabla estándar (modo servidor) ───────────────────
+  //
+  // La vista tabla ⇄ tarjetas (vCard) la da la tabla estándar, recordada por pantalla; arranca
+  // en tarjetas. El backend pagina y filtra, pero no ordena por columna ni busca por texto
+  // desde la tabla (la búsqueda está en la barra de filtros), así que ninguna columna ordena.
 
-  /** Debajo de esto la tabla de 17 columnas es inusable: se fuerzan tarjetas. */
-  private static readonly ANCHO_FORZAR_TARJETAS = 1024;
-  private static readonly LS_VISTA = 'afiliaciones.confirmacion.vista';
+  private readonly tabla = viewChild(TablaEstandarComponent);
+  private readonly paginaServicio = toSignal(this.svc.page$);
 
   /**
-   * Preferencia del operador; en pantallas angostas manda `vistaEfectiva`.
-   * Arranca en tarjetas (es lo pedido); quien prefiera la tabla lo cambia una vez y queda guardado.
+   * En modo servidor la tabla lleva su propio número de página: cuando el servicio vuelve a
+   * la primera (cambio de filtro), se le avisa para que el paginador no se quede atrás.
    */
-  vista: 'tabla' | 'tarjetas' = 'tarjetas';
-  private anchoChico = false;
+  private readonly sincronizarPagina = effect(() => {
+    const p = this.paginaServicio()?.page ?? 0;
+    this.tabla()?.pagina.set(p);
+  });
 
-  /** Lo que realmente se pinta. */
-  get vistaEfectiva(): 'tabla' | 'tarjetas' {
-    return this.anchoChico ? 'tarjetas' : this.vista;
-  }
-  /** El selector se oculta cuando la pantalla no deja elegir. */
-  get puedeElegirVista(): boolean { return !this.anchoChico; }
+  readonly columnas: ColumnaTabla<ContratacionRow>[] = sinOrden<ContratacionRow>([
+    { id: 'numero_documento', header: 'Documento', valor: r => r.numero_documento ?? '',
+      formato: r => r.numero_documento || '-' },
+    { id: 'nombre_completo', header: 'Nombre', valor: r => r.nombre_completo ?? '', minAncho: '180px' },
+    { id: 'empresa', header: 'Empresa', valor: r => r.empresa ?? '' },
+    { id: 'empresa_usuaria', header: 'Empresa usuaria', valor: r => r.empresa_usuaria ?? '', prioridad: 2 },
+    { id: 'oficina', header: 'Oficina', valor: r => r.oficina ?? '' },
+    { id: 'finca', header: 'Finca / CC', valor: r => r.finca || r.centro_costo || '',
+      formato: r => r.finca || r.centro_costo || '-', prioridad: 2 },
+    { id: 'fecha_firma_contrato', header: 'Contratación', valor: r => aFecha(r.fecha_firma_contrato),
+      formato: r => fechaCorta(r.fecha_firma_contrato), prioridad: 2 },
+    { id: 'fecha_ingreso', header: 'Ingreso', valor: r => aFecha(r.fecha_ingreso),
+      formato: r => fechaCorta(r.fecha_ingreso) },
+    { id: 'adres_eps', header: 'EPS (ADRES)', valor: r => r.adres_eps ?? '', formato: r => r.adres_eps || '-', prioridad: 3 },
+    { id: 'adres_estado', header: 'Estado (ADRES)', valor: r => r.adres_estado ?? '', prioridad: 3 },
+    { id: 'traslado', header: 'Traslado EPS', prioridad: 3,
+      valor: r => (r.resumen?.traslado_codigo ? (r.resumen.traslado_estado || 'Sin estado') : '') },
+    { id: 'docs', header: 'Docs', prioridad: 3,
+      valor: r => (r.resumen
+        ? `Cédula ${r.resumen.docs_cedula} · ADRES ${r.resumen.docs_adres} · Traslado ${r.resumen.docs_traslado}`
+        : '') },
+    { id: 'contacto', header: 'Contacto', valor: r => [r.celular, r.correo].filter(Boolean).join(' · '), prioridad: 2 },
+    { id: 'v1', header: 'Afil.', valor: r => !!r.ingreso_confirmado, align: 'center' },
+    { id: 'v2', header: 'Coord.', valor: r => !!r.coord_confirmado, align: 'center' },
+    { id: 'v3', header: 'Nóm.', valor: r => !!r.nomina_confirmado, align: 'center' },
+    { id: 'v4', header: 'Pago seg.', valor: r => !!r.pago_confirmado, align: 'center' },
+  ]);
 
-  setVista(v: 'tabla' | 'tarjetas') {
-    this.vista = v;
-    try { localStorage.setItem(ConfirmacionIngresos.LS_VISTA, v); } catch { /* modo privado */ }
-  }
+  readonly idFila = (r: ContratacionRow) => r.id;
 
-  @HostListener('window:resize')
-  onResize() {
-    const chico = this.esAnchoChico();
-    if (chico !== this.anchoChico) { this.anchoChico = chico; this.cdr.markForCheck(); }
+  /**
+   * Resalta las filas marcadas. La tabla no se entera de cambios dentro del `Set`, así que la
+   * función se recrea al marcar o desmarcar (ver `repintarSeleccion`).
+   */
+  claseFila = this.crearClaseFila();
+  private crearClaseFila() {
+    return (r: ContratacionRow) => (this.isSelected(r) ? 'te-fila--destacada' : '');
   }
-
-  private esAnchoChico(): boolean {
-    return typeof window !== 'undefined'
-      && window.innerWidth < ConfirmacionIngresos.ANCHO_FORZAR_TARJETAS;
-  }
+  private repintarSeleccion() { this.claseFila = this.crearClaseFila(); }
 
   // ── Generación del formato de afiliación (PDF) ─────────────────────
 
@@ -152,15 +207,11 @@ export class ConfirmacionIngresos implements OnDestroy {
   pdfGenerando = false;
 
   constructor() {
-    this.anchoChico = this.esAnchoChico();
-    try {
-      const guardada = localStorage.getItem(ConfirmacionIngresos.LS_VISTA);
-      if (guardada === 'tabla' || guardada === 'tarjetas') this.vista = guardada;
-    } catch { /* modo privado */ }
-
+    this.escucharSeleccion();
     this.tablePage$.pipe(takeUntilDestroyed()).subscribe(p => {
       this.filasEnPantalla = new Map(
         (p.rows || []).filter(r => r.candidato_id != null).map(r => [r.candidato_id!, r]));
+      this.repescarSeleccion(p.rows || []);
     });
   }
 
@@ -276,10 +327,6 @@ export class ConfirmacionIngresos implements OnDestroy {
     return 'adres-neutro';
   }
 
-  displayedColumns = ['select', 'numero_documento', 'nombre_completo', 'empresa',
-    'empresa_usuaria', 'oficina', 'finca', 'fecha_firma_contrato', 'fecha_ingreso',
-    'adres_eps', 'adres_estado', 'traslado', 'docs', 'contacto',
-    'v1', 'v2', 'v3', 'v4', 'acciones'];
   validadores: Validador[] = ['AFILIACIONES', 'COORDINADOR', 'NOMINA', 'PAGO_SEGURIDAD'];
   canales: Canal[] = ['LLAMADA', 'CORREO', 'WHATSAPP'];
   resultados = ['CONTACTADO', 'NO_CONTESTA', 'PENDIENTE', 'RECHAZADO'];
@@ -315,12 +362,12 @@ export class ConfirmacionIngresos implements OnDestroy {
   abrirPegadoMasivo() {
     // En móvil se abre a pantalla completa: con 95vw el diálogo queda con márgenes inútiles
     // y el preview pierde el poco ancho que hay.
-    const movil = this.anchoChico && typeof window !== 'undefined' && window.innerWidth < 768;
+    const movil = typeof window !== 'undefined' && window.innerWidth < 768;
     this.dialog.open(PegadoMasivoDialogComponent, movil
       ? { width: '100vw', maxWidth: '100vw', height: '100dvh', panelClass: 'pm-dialog-movil', autoFocus: false, restoreFocus: true }
       : { width: '1140px', maxWidth: '95vw', autoFocus: false, restoreFocus: true }
     ).afterClosed().subscribe(r => {
-      if (r?.procesados) { this.selected.clear(); this.svc.refresh(); }
+      if (r?.procesados) { this.clearSelection(); this.svc.refresh(); }
     });
   }
 
@@ -349,39 +396,59 @@ export class ConfirmacionIngresos implements OnDestroy {
   }
 
   // ── Filtros ────────────────────────────────────────────────────────
-  onDateRangeChanged(r: { start: Date; end: Date }) { this.svc.updateDateRange(r.start, r.end); this.selected.clear(); }
+  onDateRangeChanged(r: { start: Date; end: Date }) { this.svc.updateDateRange(r.start, r.end); this.clearSelection(); }
   onSearchChanged(t: string) { this.svc.updateSearch(t); }
-  onEmpresaChanged(e: string) { this.svc.updateEmpresa(e); this.selected.clear(); }
-  onEmpresaUsuariaChanged(e: string) { this.svc.updateEmpresaUsuaria(e); this.selected.clear(); }
-  onOficinaChanged(o: string) { this.svc.updateOficina(o); this.selected.clear(); }
-  onResponsableChanged(r: string) { this.svc.updateResponsable(r); this.selected.clear(); }
-  onPageChange(e: PageEvent) { this.svc.setPage(e.pageIndex, e.pageSize); }
-  toggleListos(v: boolean) { this.svc.updateSoloListos(v); this.selected.clear(); }
-  setBase(b: BaseFechaGestion) { this.svc.updateBaseFecha(b); this.selected.clear(); }
+  onEmpresaChanged(e: string) { this.svc.updateEmpresa(e); this.clearSelection(); }
+  onEmpresaUsuariaChanged(e: string) { this.svc.updateEmpresaUsuaria(e); this.clearSelection(); }
+  onOficinaChanged(o: string) { this.svc.updateOficina(o); this.clearSelection(); }
+  onResponsableChanged(r: string) { this.svc.updateResponsable(r); this.clearSelection(); }
+  onPageChange(e: { pagina: number; porPagina: number }) { this.svc.setPage(e.pagina, e.porPagina); }
+  toggleListos(v: boolean) { this.svc.updateSoloListos(v); this.clearSelection(); }
+  setBase(b: BaseFechaGestion) { this.svc.updateBaseFecha(b); this.clearSelection(); }
 
   // ── Selección ──────────────────────────────────────────────────────
   isSelected(row: ContratacionRow): boolean {
     return row.candidato_id != null && this.selected.has(row.candidato_id);
   }
+
+  /** Casilla de la vista de tarjetas: pasa por el mismo selector que la tabla. */
   toggleRow(row: ContratacionRow, checked: boolean) {
     if (row.candidato_id == null) return;
-    if (checked) this.selected.add(row.candidato_id); else this.selected.delete(row.candidato_id);
+    if (checked) this.sel.select(row); else this.sel.deselect(row);
   }
-  private pageIds(rows: ContratacionRow[]): number[] {
-    return rows.map(r => r.candidato_id).filter((x): x is number => x != null);
+
+  /** Lo que marca o desmarca la tabla se apunta en el `Set` por candidato. */
+  private escucharSeleccion(): void {
+    this.sel.changed.subscribe(() => {
+      if (this.sincronizando) return;
+      for (const r of this.sel.selected) if (r.candidato_id != null) this.selected.add(r.candidato_id);
+      for (const r of this.filasPagina) {
+        if (r.candidato_id != null && !this.sel.isSelected(r)) this.selected.delete(r.candidato_id);
+      }
+      this.marcadas.set(this.selected.size);
+      this.repintarSeleccion();
+    });
   }
-  allSelected(rows: ContratacionRow[]): boolean {
-    const ids = this.pageIds(rows);
-    return ids.length > 0 && ids.every(id => this.selected.has(id));
+
+  /** Página nueva: se vuelven a marcar las filas que ya estaban elegidas. */
+  private repescarSeleccion(rows: ContratacionRow[]): void {
+    this.filasPagina = rows;
+    const marcar = rows.filter(r => r.candidato_id != null && this.selected.has(r.candidato_id));
+    this.sincronizando = true;
+    this.sel.select(...marcar);
+    this.sincronizando = false;
   }
-  someSelected(rows: ContratacionRow[]): boolean {
-    const ids = this.pageIds(rows);
-    return ids.some(id => this.selected.has(id)) && !this.allSelected(rows);
+
+  private filasPagina: ContratacionRow[] = [];
+
+  clearSelection() {
+    this.selected.clear();
+    this.marcadas.set(0);
+    this.sincronizando = true;
+    this.sel.clear();
+    this.sincronizando = false;
+    this.repintarSeleccion();
   }
-  toggleAll(rows: ContratacionRow[], checked: boolean) {
-    this.pageIds(rows).forEach(id => { if (checked) this.selected.add(id); else this.selected.delete(id); });
-  }
-  clearSelection() { this.selected.clear(); }
   get selectedIds(): number[] { return Array.from(this.selected); }
 
   // ── Acciones masivas ───────────────────────────────────────────────

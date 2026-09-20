@@ -31,6 +31,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom, of } from 'rxjs';
 import { catchError, take } from 'rxjs/operators';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+
 import {
   CarnetAvisoData,
   CarnetAvisoDialogComponent,
@@ -98,7 +100,7 @@ interface FilaCarnet {
   imports: [
     CommonModule, FormsModule, MatDialogModule, MatButtonModule, MatCheckboxModule,
     MatFormFieldModule, MatIconModule, MatInputModule, MatProgressBarModule, MatTooltipModule,
-    CarnetImpresionComponent,
+    CarnetImpresionComponent, ...TABLA_ESTANDAR,
   ],
   templateUrl: './carnet-masivo-dialog.component.html',
   styleUrl: './carnet-masivo-dialog.component.css',
@@ -183,6 +185,28 @@ export class CarnetMasivoDialogComponent {
   readonly regenerando = computed(() =>
     this.seleccionadas().filter(f => f.yaGenerado).length,
   );
+
+  /**
+   * Columnas de la tabla estándar. La casilla («Generar») es una columna
+   * interactiva propia: marca contra `marcadas` y respeta las filas bloqueadas.
+   */
+  readonly columnas: ColumnaTabla<FilaCarnet>[] = [
+    { id: 'sel', header: 'Generar', interactiva: true, copiable: false, ordenable: false, filtrable: false,
+      align: 'center', ancho: '72px', tarjeta: 'meta',
+      valor: (f) => (this.estaMarcada(f) ? 'Sí' : 'No') },
+    { id: 'documento', header: 'Documento', valor: (f) => f.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (f) => f.nombre ?? '', formato: (f) => f.nombre || '—',
+      tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'temporal', header: 'Temporal', tarjeta: 'badge',
+      valor: (f) => (f.temporal === 'alianza' ? 'Tu Alianza' : 'Apoyo') },
+    { id: 'carnet', header: 'Carnet', tarjeta: 'badge', prioridad: 2,
+      valor: (f) => (f.yaGenerado ? 'Generado' : 'Pendiente') },
+    { id: 'estado', header: 'Estado de los datos', tarjeta: 'cuerpo', minAncho: '200px',
+      valor: (f) => f.error ?? (f.faltantes.length ? `Falta: ${f.faltantes.join(', ')}` : 'Completo') },
+  ];
+  readonly idFila = (f: FilaCarnet) => f.cedula;
+  /** Las filas con datos incompletos se resaltan (antes `.fila-bloqueada`). */
+  readonly claseFila = (f: FilaCarnet) => (this.puedeGenerar(f) ? '' : 'te-fila--alerta');
 
   constructor(
     public dialogRef: MatDialogRef<CarnetMasivoDialogComponent>,

@@ -140,17 +140,17 @@ import { CalculatedSpec, CampoCatalogo, FormatoCampo, FuncionCalculada, TipoCamp
     .tit { display: flex; align-items: center; gap: .4rem; }
     .cuerpo { display: flex; flex-direction: column; padding-top: .5rem !important; min-width: min(620px, 90vw); }
     .w100 { width: 100%; }
-    .lbl { font-size: .74rem; font-weight: 600; color: #64748b; margin-bottom: .2rem; }
+    .lbl { font-size: .74rem; font-weight: 600; color: var(--muted); margin-bottom: .2rem; }
     .formula {
       width: 100%; box-sizing: border-box; resize: vertical;
       font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .84rem; line-height: 1.5;
-      padding: .6rem .7rem; border-radius: 10px; border: 1px solid #cbd5e1;
-      background: #f8fafc; color: #0f172a;
+      padding: .6rem .7rem; border-radius: 10px; border: 1px solid var(--border-strong);
+      background: var(--surface-2); color: var(--text);
     }
     .formula:focus { outline: 2px solid #0284c7; outline-offset: -1px; border-color: transparent; }
     .err {
       display: flex; align-items: flex-start; gap: .3rem; margin: .4rem 0 0;
-      font-size: .78rem; color: #b91c1c;
+      font-size: .78rem; color: #b91c1c; color: light-dark(#b91c1c, #f09e9e);
     }
     .err mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .fila { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin-top: .7rem; }
@@ -158,10 +158,10 @@ import { CalculatedSpec, CampoCatalogo, FormatoCampo, FuncionCalculada, TipoCamp
     .ayuda { margin-top: .5rem; }
     .buscador {
       display: flex; align-items: center; gap: .3rem; padding: .35rem .5rem; margin: .5rem 0 .3rem;
-      border: 1px solid #e2e8f0; border-radius: 8px;
+      border: 1px solid var(--border); border-radius: 8px;
     }
     .buscador input { border: 0; outline: 0; flex: 1; font-size: .82rem; background: transparent; }
-    .buscador mat-icon { font-size: 17px; width: 17px; height: 17px; color: #94a3b8; }
+    .buscador mat-icon { font-size: 17px; width: 17px; height: 17px; color: var(--text-faint); }
 
     .lista { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: .2rem 0; }
     .item {
@@ -169,16 +169,16 @@ import { CalculatedSpec, CampoCatalogo, FormatoCampo, FuncionCalculada, TipoCamp
       padding: .4rem .5rem; border: 0; border-radius: 8px; background: transparent;
       cursor: pointer; width: 100%; color: inherit; font: inherit;
     }
-    .item:hover { background: #f1f5f9; }
-    .item mat-icon { font-size: 17px; width: 17px; height: 17px; color: #94a3b8; margin-top: 2px; }
+    .item:hover { background: var(--surface-3); }
+    .item mat-icon { font-size: 17px; width: 17px; height: 17px; color: var(--text-faint); margin-top: 2px; }
     .item div { display: flex; flex-direction: column; min-width: 0; }
     .item b { font-size: .82rem; font-weight: 600; }
-    .item .desc { font-size: .72rem; color: #64748b; }
+    .item .desc { font-size: .72rem; color: var(--muted); }
     .item code {
-      font-size: .7rem; color: #7c3aed; background: #f5f3ff; border-radius: 4px;
+      font-size: .7rem; color: #7c3aed; background: #f5f3ff; background: light-dark(#f5f3ff, #16164d); border-radius: 4px;
       padding: 0 4px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .sinres { font-size: .78rem; color: #94a3b8; padding: .5rem; }
+    .sinres { font-size: .78rem; color: var(--text-faint); padding: .5rem; }
 
     :host-context(.dark-theme) .formula { background: #0f172a; border-color: #334155; color: #e2e8f0; }
     :host-context(.dark-theme) .item:hover { background: #1e293b; }

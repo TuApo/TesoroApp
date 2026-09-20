@@ -3,9 +3,9 @@
  * componente sin TestBed (el constructor solo asigna dependencias; ngOnInit no
  * se invoca), mismo patrón que la spec de Centros de Costo.
  *
- * Cubre: buscador client-side, mapeo de filtros a parámetros de servidor,
- * indicadores, verificación (éxito y fallo), estados vacíos y de error HTTP, y
- * que no exista ninguna acción de borrado.
+ * Cubre: columnas con valores planos (la búsqueda la hace la tabla estándar),
+ * mapeo de filtros a parámetros de servidor, indicadores, verificación (éxito y
+ * fallo), estados vacíos y de error HTTP, y que no exista ninguna acción de borrado.
  */
 import { of, throwError } from 'rxjs';
 
@@ -60,21 +60,24 @@ function nuevoComponente(svc: any = {}): CorreosElectronicosComponent {
 }
 
 describe('CorreosElectronicos — filtros y listado', () => {
-  it('el buscador filtra por dirección, nombre, propósito, host y usuario', () => {
+  // La búsqueda por texto la hace la tabla estándar sobre `valor` de cada
+  // columna: basta con que cada columna exponga el dato plano correcto.
+  it('las columnas exponen valores planos para buscar, filtrar y copiar', () => {
     const c = nuevoComponente();
-    (c as any).all = [
-      cuenta({ id: '1', direccion: 'nomina@tuapo.co', proposito: 'Nómina' }),
-      cuenta({ id: '2', direccion: 'afiliaciones@tuapo.co', nombre_mostrar: 'Afiliaciones', proposito: 'Afiliaciones' }),
-    ];
+    const valor = (id: string, f: CorreoCuenta) => c.columnas.find((col) => col.id === id)!.valor(f);
+    const f = cuenta({ direccion: 'afiliaciones@tuapo.co', nombre_mostrar: 'Afiliaciones', proposito: 'Afiliaciones' });
+    expect(valor('direccion', f)).toBe('afiliaciones@tuapo.co');
+    expect(valor('nombre_mostrar', f)).toBe('Afiliaciones');
+    expect(valor('proposito', f)).toBe('Afiliaciones');
+    expect(valor('proveedor', f)).toBe('Gmail');
+    expect(valor('disponible_hoy', f)).toBe(450);
+    expect(valor('activo', cuenta({ activo: false }))).toBe('Inactiva');
+  });
 
-    c.onSearchChange('afilia');
-    expect(c.dataSource.data.map((x) => x.id)).toEqual(['2']);
-
-    c.onSearchChange('smtp.gmail.com');
-    expect(c.dataSource.data.length).toBe(2);
-
-    c.onSearchChange('');
-    expect(c.dataSource.data.length).toBe(2);
+  it('las cuentas inactivas se atenúan', () => {
+    const c = nuevoComponente();
+    expect(c.claseFila(cuenta({ activo: false }))).toBe('te-fila--atenuada');
+    expect(c.claseFila(cuenta({ activo: true }))).toBe('');
   });
 
   it('mapea el filtro de estado al parámetro del backend', () => {
@@ -103,20 +106,18 @@ describe('CorreosElectronicos — filtros y listado', () => {
       proveedor: 'YANDEX', activo: false, estadoVerificacion: 'PENDIENTE',
     });
     expect(c.isLoading).toBeFalse();
-    expect(c.dataSource.data.length).toBe(1);
+    expect(c.cuentas.length).toBe(1);
   });
 
   it('limpiarFiltros() vuelve al estado inicial y recarga', () => {
     const svc: any = { listar: () => of([]), resumenCuota: () => of(RESUMEN) };
     const c = nuevoComponente(svc);
-    c.filterSearch = 'algo';
     c.filterProveedor = 'GMAIL';
     c.filterVerificacion = 'ERROR_CONEXION';
     c.filterEstado = 'todas';
 
     c.limpiarFiltros();
 
-    expect(c.filterSearch).toBe('');
     expect(c.filterProveedor).toBe('');
     expect(c.filterVerificacion).toBe('');
     expect(c.filterEstado).toBe('activas');
@@ -126,7 +127,7 @@ describe('CorreosElectronicos — filtros y listado', () => {
     const svc: any = { listar: () => of([]), resumenCuota: () => of(RESUMEN) };
     const c = nuevoComponente(svc);
     c.cargar();
-    expect(c.dataSource.data.length).toBe(0);
+    expect(c.cuentas.length).toBe(0);
     expect(c.cargaFallida).toBeFalse();
   });
 
@@ -139,7 +140,7 @@ describe('CorreosElectronicos — filtros y listado', () => {
     c.cargar();
     expect(c.cargaFallida).toBeTrue();
     expect(c.isLoading).toBeFalse();
-    expect(c.dataSource.data.length).toBe(0);
+    expect(c.cuentas.length).toBe(0);
     expect(c.resumen).toBeNull();
   });
 });
@@ -205,8 +206,9 @@ describe('CorreosElectronicos — consumo real', () => {
 
   it('la tabla muestra consumo y disponible por cuenta', () => {
     const c = nuevoComponente();
-    expect(c.displayedColumns).toContain('enviados_hoy');
-    expect(c.displayedColumns).toContain('disponible_hoy');
+    const ids = c.columnas.map((col) => col.id);
+    expect(ids).toContain('enviados_hoy');
+    expect(ids).toContain('disponible_hoy');
   });
 });
 
@@ -215,7 +217,7 @@ describe('CorreosElectronicos — auto-refresco', () => {
     const svc: any = { listar: () => of([cuenta()]), resumenCuota: () => of(RESUMEN) };
     const c = nuevoComponente(svc);
     c.cargar();
-    expect(c.dataSource.data.length).toBe(1);
+    expect(c.cuentas.length).toBe(1);
 
     // Ahora el backend falla, pero en modo silencioso.
     (c as any).correos = {
@@ -226,7 +228,7 @@ describe('CorreosElectronicos — auto-refresco', () => {
 
     expect(c.isLoading).toBeFalse();
     expect(c.cargaFallida).toBeFalse();
-    expect(c.dataSource.data.length).toBe(1);
+    expect(c.cuentas.length).toBe(1);
     expect(c.resumen).not.toBeNull();
   });
 
@@ -294,7 +296,6 @@ describe('CorreosElectronicos — presentación y borrado lógico', () => {
   it('no expone ninguna acción de eliminar', () => {
     const c = nuevoComponente();
     expect((c as any).eliminar).toBeUndefined();
-    expect(c.displayedColumns).not.toContain('eliminar');
-    expect(c.displayedColumns).toContain('acciones');
+    expect(c.columnas.map((col) => col.id)).not.toContain('eliminar');
   });
 });

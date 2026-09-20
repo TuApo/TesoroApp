@@ -31,6 +31,8 @@ import { CampoDiccionario } from '../../models/plantillas.models';
  */
 @Component({
   selector: 'app-rich-editor',
+  // Documento (se imprime o se captura): se queda en claro aunque la app esté en oscuro.
+  host: { class: 'tema-claro-fijo' },
   standalone: true,
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatIconModule, MatFormFieldModule,

@@ -1,5 +1,9 @@
 import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, computed, signal } from '@angular/core';
 import { centroDeCostosDe } from '../../shared/contrato-campos';
+import { ParametrizacionVacantesService } from '../../../users/services/parametrizacion-vacantes/parametrizacion-vacantes.service';
+import {
+  EstadoCampo, estadoDeControl, esImporteValido, esPorcentajeValido,
+} from '../../shared/completitud.util';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, merge, Observable } from 'rxjs';
@@ -40,7 +44,15 @@ import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.serv
 import { DocumentosPaqueteComponent } from '../documentos-paquete/documentos-paquete.component';
 import { EmpalmeDocumentosComponent } from '../empalme-documentos/empalme-documentos.component';
 import { FirmaDialogComponent } from '../firma/firma.dialog';
+import {
+  VisorDocumentoComponent, VisorDocumentoData,
+} from '../../../nomina/components/visor-documento/visor-documento.component';
 import { avanceDeBanderas, avanceDeForm } from '../../shared/progreso.util';
+import { AutoGuardado } from '../../shared/auto-guardado';
+import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
+import { HuellaCapturaService } from '../../service/huella/huella-captura.service';
+import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
+import { HuellaError, OrigenHuella } from '../../service/huella/huella.model';
 
 type LocalFile = { file: File | string; fileName: string };
 type ServerDocInfo = {
@@ -58,7 +70,8 @@ type ServerDocInfo = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-hiring-questions',
   standalone: true,
-  imports: [SharedModule, MatTabsModule, DocumentosPaqueteComponent, EmpalmeDocumentosComponent],
+  imports: [SharedModule, MatTabsModule, DocumentosPaqueteComponent, EmpalmeDocumentosComponent,
+    AutoGuardadoEstadoComponent],
   templateUrl: './hiring-questions.component.html',
   styleUrls: ['./hiring-questions.component.css'],
 } )
@@ -83,6 +96,8 @@ export class HiringQuestionsComponent implements OnInit {
 
   /** La cédula ya está en el expediente (tipo 29, CEDULA). */
   readonly cedulaSubida = signal<boolean>(false);
+  /** Id del documento vigente en el tipo 29, para previsualizarlo. */
+  readonly cedulaDocumentoId = signal<number | null>(null);
   readonly subiendoCedula = signal<boolean>(false);
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
@@ -180,6 +195,19 @@ export class HiringQuestionsComponent implements OnInit {
   huellaDocsList: { title: string; safeUrl: SafeResourceUrl }[] = [];
   currentDocIndex = 0;
 
+  /**
+   * Cómo llegó la imagen, en el vocabulario del backend. El origen vivía solo
+   * dentro del nombre del archivo, así que no se podía consultar cuántas
+   * huellas se habían adjuntado a mano en lugar de capturarse con lector.
+   */
+  private static readonly ORIGEN_A_CATALOGO: Record<string, string> = {
+    'agente-local': 'AGENTE_LOCAL',
+    'electron': 'ELECTRON',
+    'nativo-android': 'ANDROID',
+    'archivo': 'ARCHIVO',
+    'camara': 'CAMARA',
+  };
+
   // ── Consentimiento Biométrico — Huella (Ley 1581 de 2012) ──
   private static readonly EMPRESAS_HUELLA: Record<string, { nombre: string }> = {
     'apoyo-laboral': { nombre: 'APOYO LABORAL T.S. S.A.S.' },
@@ -221,10 +249,21 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly procesosService = inject(RegistroProcesoContratacion);
   private readonly tarjetasService = inject(TarjetasService);
   private readonly positionsService = inject(PositionsService);
+  // Seguros funerarios por centro de costo. El servicio ya existía para el
+  // parametrizador; aquí solo se LEE (`segurosDeCentro`).
+  private readonly parametrizacion = inject(ParametrizacionVacantesService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizer = inject(DomSanitizer);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
   private readonly utilService = inject(UtilityServiceService);
+  private readonly huellaSvc = inject(HuellaCapturaService);
+  /**
+   * La ruta del archivo biometrico va por el gateway y EXIGE token: un
+   * `<img src>` directo recibe 401 y la tarjeta se queda en blanco, que es
+   * exactamente lo que parecia "no se guardo". Este servicio la descarga con
+   * cabecera y devuelve algo pintable.
+   */
+  private readonly archivos = inject(ArchivosBackendService);
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -245,13 +284,54 @@ export class HiringQuestionsComponent implements OnInit {
     this.vigilarIdentidad();
   }
 
+  /**
+   * "Pago y Transporte" sin botón "Cargar": cada respuesta se guarda sola (ver
+   * `AutoGuardado`). La llave es la persona + el proceso: un guardado pedido para
+   * uno no puede caer en otro.
+   */
+  readonly autoPago = new AutoGuardado(
+    () => this.cargarPagoTransporte({ silencioso: true }),
+    () => `${this.cedulaDocs()}|${this.procesoId() ?? ''}`,
+  );
+
   // ───────── Ciclo de vida ─────────
+  // ── Grupo de pago: lo trae la REQUISICIÓN ─────────────────────────────────
+  // Antes se elegía aquí (y antes de eso era texto libre prellenado con `centros_costos.grupo`,
+  // donde 826 de 1.041 centros dicen "GRUPO 1"). Ahora manda la vacante: de su grupo salen las
+  // fechas de pago y el casino que imprime el contrato, así que este campo solo lo muestra.
+  //
+  // Ya no se pide el catálogo de grupos: sin desplegable no hay nada que llenar con él.
+
+  grupoVacante = '';
+
+  /**
+   * Ayuda bajo el campo: de dónde sale el valor.
+   *
+   * El grupo decide las fechas de pago y el casino que imprime el contrato, y los dos textos
+   * los congela la VACANTE. Por eso aquí no se elige: se muestra.
+   *
+   * Cuando la vacante no trae grupo —las de antes de esta parametrización, y todas mientras
+   * ms-automation no guarde el suyo— se dice, en vez de dejar un hueco sin explicación. Si
+   * hay algo guardado de antes, se conserva y se avisa de que no viene de la requisición.
+   */
+  get ayudaGrupo(): string {
+    const actual = String(this.pagoTransporteForm?.get('grupo')?.value ?? '').trim();
+    if (this.grupoVacante) return `Viene de la requisición (${this.grupoVacante}).`;
+    if (actual) return 'Guardado antes; la requisición todavía no trae grupo.';
+    return 'Lo define la requisición: se llena solo cuando la vacante lleva su grupo.';
+  }
+
   ngOnInit(): void {
     this.initForms();
+    this.autoPago.vigilar(this.pagoTransporteForm, this.destroyRef);
     this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
     this.loadTarjetas();
     // Consentimiento: autocompletar UserAgent
     this.huellaForm.patchValue({ userAgent: navigator.userAgent });
+
+    // Sondea el lector una vez, para que el botón diga qué va a usar en lugar
+    // de fallar al pulsarlo. No bloquea el arranque de la pantalla.
+    void this.refrescarFormaCaptura();
 
     this.filteredTarjetas = this.pagoTransporteForm.get('numeroIdentificacion')!.valueChanges.pipe(
       startWith(''),
@@ -282,6 +362,27 @@ export class HiringQuestionsComponent implements OnInit {
   /** Tipo con el que gestión documental guarda la cédula escaneada. */
   private static readonly TIPO_CEDULA = 29;
 
+  /** Nombre del documento de identidad según `tipo_doc` de la persona. */
+  private static readonly NOMBRE_DOCUMENTO: Readonly<Record<string, string>> = {
+    CC: 'Cédula de ciudadanía',
+    CE: 'Cédula de extranjería',
+    TI: 'Tarjeta de identidad',
+    PEP: 'Permiso especial de permanencia',
+    PPT: 'Permiso por protección temporal',
+    PT: 'Permiso temporal',
+    PA: 'Pasaporte',
+  };
+
+  /**
+   * La tarjeta no se llama "Cédula" para todos: a quien se contrata con PPT o
+   * pasaporte hay que pedirle ESE documento. Sin tipo se asume cédula, que es
+   * lo que hace el resto del pipeline (`tipo_doc || 'CC'`).
+   */
+  readonly nombreDocumento = computed<string>(() => {
+    const tipo = String(this.candidatoSeleccionado()?.tipo_doc || 'CC').trim().toUpperCase();
+    return HiringQuestionsComponent.NOMBRE_DOCUMENTO[tipo] ?? `Documento de identidad (${tipo})`;
+  });
+
   /** Última cédula para la que se miró el expediente, para no repetir. */
   private cedulaRevisada: string | null = null;
 
@@ -305,15 +406,59 @@ export class HiringQuestionsComponent implements OnInit {
       if (!ced || ced === this.cedulaRevisada) return;
       this.cedulaRevisada = ced;
       this.cedulaSubida.set(false);
+      this.cedulaDocumentoId.set(null);
       this.docSvc.getDocuments(ced, HiringQuestionsComponent.TIPO_CEDULA)
         .pipe(take(1), takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (r: any) => {
             const lista = Array.isArray(r) ? r : (r?.results ?? []);
-            this.cedulaSubida.set(lista.length > 0);
+            if (lista.length > 0) this.marcarCedula(lista[0]?.id);
+            // Se pregunta SIEMPRE, no solo con el tipo vacío: si las caras del
+            // formulario son más nuevas que lo que hay, el backend lo rehace; si
+            // no, devuelve el vigente sin tocar nada.
+            this.armarCedulaAmpliada(ced);
           },
           error: () => { /* si falla, se queda en "sin subir": no se inventa */ },
         });
+    });
+  }
+
+  /**
+   * El formulario pudo dejar las dos caras: ms-documents las une en la hoja
+   * ampliada al 150% y la deja en el tipo 29. Cubre a quien llenó el formulario
+   * antes de que se armara sola, o a quien tenía un documento más viejo.
+   */
+  private armarCedulaAmpliada(ced: string): void {
+    this.docSvc.armarCedulaAmpliada(ced)
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (r) => {
+          // Si mientras tanto se abrió otra persona, esta respuesta ya no aplica.
+          if (this.cedulaRevisada !== ced || r?.id == null) return;
+          this.marcarCedula(r.id);
+        },
+        error: () => { /* sin caras o sin archivo: sigue "sin subir" */ },
+      });
+  }
+
+  private marcarCedula(id: unknown): void {
+    const n = Number(id);
+    this.cedulaDocumentoId.set(Number.isFinite(n) && n > 0 ? n : null);
+    this.cedulaSubida.set(true);
+  }
+
+  /** Abre el documento de identidad del expediente sin salir de Contratación. */
+  verDocumentoIdentidad(): void {
+    const id = this.cedulaDocumentoId();
+    if (id == null) return;
+    const ced = this.cedulaDe() ?? '';
+    this.dialog.open<VisorDocumentoComponent, VisorDocumentoData>(VisorDocumentoComponent, {
+      width: '960px', maxWidth: '96vw', autoFocus: false,
+      data: {
+        documentId: id,
+        titulo: ced ? `${this.nombreDocumento()} · ${ced}` : this.nombreDocumento(),
+        nombreArchivo: `documento_identidad_${ced || id}.pdf`,
+      },
     });
   }
 
@@ -371,10 +516,10 @@ export class HiringQuestionsComponent implements OnInit {
         undefined, String(this.candidatoSeleccionado()?.tipo_doc || '').trim() || undefined)
       .pipe(take(1))
       .subscribe({
-        next: () => {
+        next: (r: any) => {
           this.subiendoCedula.set(false);
-          this.cedulaSubida.set(true);
-          this.alert('success', 'Cédula subida', 'Quedó en el expediente.');
+          this.marcarCedula(r?.id);
+          this.alert('success', `${this.nombreDocumento()} subido`, 'Quedó en el expediente.');
           this.guardado.emit();
         },
         error: (e: any) => {
@@ -419,10 +564,9 @@ export class HiringQuestionsComponent implements OnInit {
   /**
    * Cuánto lleva llenado cada sub-paso de Contratación.
    *
-   * Pago, Datos de obra y Referencias se miden solos desde su formulario.
-   * Traslados y Cédula & Huella no: en Traslados las casillas dependen de si
-   * la persona se traslada o no, y la huella no es un campo sino dos capturas
-   * del lector.
+   * Pago y Datos de obra se miden solos desde su formulario. Cédula & Huella no:
+   * no es un campo sino dos capturas del lector, la foto, la firma y que el
+   * correo y el WhatsApp existan.
    */
   private publicarAvances(): void {
     // `vigilarIdentidad` puede dispararlo antes de `initForms()` si algún día
@@ -430,15 +574,9 @@ export class HiringQuestionsComponent implements OnInit {
     if (!this.pagoTransporteForm) return;
     this.nav.publicar('pago', avanceDeForm(this.pagoTransporteForm));
     this.nav.publicar('obra', avanceDeForm(this.datosObraForm));
-    this.nav.publicar('referencias', avanceDeForm(this.referenciasForm));
-
-    const opcion = String(this.trasladosForm.get('opcion_traslado_eps')?.value ?? '').toUpperCase();
-    const traslados: boolean[] = [!!opcion];
-    if (opcion === 'SI') {
-      traslados.push(!!this.trasladosForm.get('eps_a_trasladar')?.value);
-      traslados.push(!!this.uploadedFiles['traslado']);
-    }
-    this.nav.publicar('traslados', avanceDeBanderas(traslados));
+    // Referencias y Traslados ya no son pasos de Contratación (2026-09-02): no
+    // se publican porque nadie los agrega. Sus formularios siguen vivos y se
+    // siguen guardando; lo que se quitó es su peso en el porcentaje del paso.
 
     // Todo lo que identifica a la persona y permite avisarle: las dos huellas,
     // la foto, la firma, la cédula y que el correo y el WhatsApp EXISTAN. Un
@@ -454,6 +592,9 @@ export class HiringQuestionsComponent implements OnInit {
       this.whatsappConfirmado(),
     ]));
   }
+
+  /** Último motivo de "sin código de contrato" ya avisado en el guardado automático. */
+  private avisoSinCodigo = '';
 
   /** True cuando la lista de tarjetas YA respondió (aunque venga vacía). */
   private tarjetasCargadas = false;
@@ -504,6 +645,9 @@ export class HiringQuestionsComponent implements OnInit {
         numeroIdentificacion: ['', []], // Restored field
         contraseniaAsignada: ['', []],
         seguroFunerario: [false, Validators.required],
+        // Cuál de los seguros del centro de costo. Obligatorio SOLO cuando el seguro
+        // es "SI" y el centro tiene más de uno; lo gobierna `setupSeguroFunerario`.
+        seguroFunerarioId: [null],
         Ccostos: ['', Validators.required],
         // Centro de costo que se IMPRIME en el carnet. Puede diferir del
         // Ccostos de nomina (p. ej. la finca donde va a estar la persona),
@@ -512,10 +656,40 @@ export class HiringQuestionsComponent implements OnInit {
         carnetCentroCosto: [null],
         salario: [{ value: null, disabled: true }, Validators.required],
         auxilio_transporte: [{ value: null, disabled: true }, Validators.required],
-        // Editable: se autocompleta desde el cargo de la vacante como sugerencia,
-        // pero el usuario puede modificarlo manualmente si necesita.
-        porcentajeARL: [null, Validators.required],
-        cesantias: [null, Validators.required],
+        // Temporal y cargo son datos CANÓNICOS del proceso: la temporal la resuelve el
+        // maestro de centros de costo (más fiable que la vacante, ver
+        // `prellenarDesdeVacante`) y el cargo es `vacante.cargo`. Se muestran
+        // deshabilitados en vez de capturarse para que no puedan divergir de su fuente;
+        // ya vivían en el componente (`temporalVacante`, `cargoVacante`) pero sin
+        // asomarse a la pantalla. La temporal SÍ se persiste —la columna existe y
+        // nadie la escribía—; el cargo no, para no crear una segunda copia del de la
+        // vacante.
+        temporal: [{ value: null, disabled: true }],
+        cargo: [{ value: null, disabled: true }],
+        // Espejo de SOLO LECTURA de `datosObraForm.empresaUsuaria`. La ficha de
+        // contratación la pide, pero quien la guarda sigue siendo `datosObraPayload()`
+        // (clave `empresa_usuaria`): si este control también la mandara habría dos
+        // escritores para el mismo campo y ganaría el último en el objeto literal.
+        empresaUsuaria: [{ value: null, disabled: true }],
+        // Ruta y recargo (V57). Ninguno obligatorio: hay 89.982 contratos históricos
+        // sin el dato y volverlos obligatorios bloquearía el guardado de todos ellos.
+        usaRuta: [null],
+        valorTransporte: [null],
+        // OJO: NO es `porcentajeARL`. Aquel es riesgo laboral y se sugiere desde el
+        // cargo; este es el recargo pactado de horas extras. Campos y columnas
+        // distintas a propósito.
+        porcentajeHorasExtras: [null],
+        // ── Fuera de la ficha de contratación, pero VIVOS ────────────────────
+        // Estos ocho salieron de la pantalla (2026-09-08) porque no están en la
+        // ficha que se pidió. NO se borran: la ficha técnica, el carnet, el Excel
+        // de ARL y el contrato los imprimen, y casi todos se resuelven solos desde
+        // el maestro de centros de costo o desde el cargo. Al conservar el control:
+        //   - lo guardado vuelve a cargarse y se re-guarda igual (no se pierde nada),
+        //   - el autollenado sigue alimentando los documentos sin pedir nada.
+        // Lo que sí se quita es `Validators.required`: un obligatorio que ya no se
+        // ve deja el formulario inválido para siempre y nadie podría guardar.
+        porcentajeARL: [null],
+        cesantias: [null],
         // Sub centro, grupo y los clasificadores 2/3 salen del maestro del
         // centro de costo; cuando el maestro no los trae hay que poder guardar
         // igual, así que van sin Validators.required (el backend los acepta
@@ -570,6 +744,187 @@ export class HiringQuestionsComponent implements OnInit {
       direccion: [''],
       descripcionObra: [''],
     });
+
+    // La empresa usuaria se captura una sola vez (en Datos de obra) y se refleja en
+    // la ficha de contratación. Un espejo y no una copia editable: dos casillas que
+    // escriben el mismo campo acaban divergiendo.
+    this.datosObraForm.get('empresaUsuaria')!.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(v => this.pagoTransporteForm.get('empresaUsuaria')?.setValue(v ?? null,
+        { emitEvent: false }));
+  }
+
+  // ───────── Seguro funerario ─────────
+  /**
+   * Seguros que aplican al centro de costo actual, ya filtrados por `asignada`.
+   *
+   * `db_admin` los parametriza por centro (`centro_costo_seguro_funerario`): hoy 184
+   * centros tienen uno y 2 tienen los dos, con importes muy distintos (ordinario
+   * $4.750 · especial $13.169). Con uno solo se resuelve solo; con dos NO se puede
+   * elegir por la persona —es plata que se le descuenta— y lo decide quien contrata.
+   */
+  segurosDelCentro: Array<{ id: number; nombre: string; valor: number; periodicidad: string }> = [];
+
+  /** Centro de costo (id numérico) para el que se cargaron los seguros. */
+  private centroCostoIdSeguros: number | null = null;
+
+  /** El centro tiene varios seguros: hay que elegir. */
+  get seguroRequiereEleccion(): boolean {
+    return this.segurosDelCentro.length > 1;
+  }
+
+  /**
+   * Importe guardado en el contrato, si lo hay.
+   *
+   * Manda sobre el del catálogo: el parametrizador puede cambiar el valor de un
+   * seguro y eso afecta a todos los centros, pero lo que se le descuenta a alguien
+   * ya contratado es lo que se firmó, no lo que valga hoy.
+   */
+  private seguroValorGuardado: number | null = null;
+
+  /** Importe a mostrar y a guardar. `null` mientras no haya seguro resuelto. */
+  get valorSeguro(): number | null {
+    const sel = this.seguroSeleccionado;
+    if (sel) return sel.valor;
+    return this.seguroValorGuardado;
+  }
+
+  /** El seguro elegido (o el único que hay). `null` si aún no se resolvió. */
+  get seguroSeleccionado(): { id: number; nombre: string; valor: number; periodicidad: string } | null {
+    if (!this.segurosDelCentro.length) return null;
+    if (this.segurosDelCentro.length === 1) return this.segurosDelCentro[0];
+    const id = this.pagoTransporteForm?.get('seguroFunerarioId')?.value;
+    return this.segurosDelCentro.find(s => s.id === id) ?? null;
+  }
+
+  /** Se muestra el bloque del valor: solo con el seguro en "SI". */
+  get mostrarValorSeguro(): boolean {
+    return this.pagoTransporteForm?.get('seguroFunerario')?.value === true;
+  }
+
+  /**
+   * Carga los seguros del centro de costo y deja el formulario coherente.
+   *
+   * Se llama al resolver el centro (autollenado y prellenado desde la vacante) y al
+   * cambiar el switch del seguro. Es idempotente por `centroCostoId` para no repetir
+   * la consulta en cada ciclo.
+   */
+  private async cargarSegurosDelCentro(centroCostoId: number | null | undefined): Promise<void> {
+    const id = Number(centroCostoId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (this.centroCostoIdSeguros === id) return;
+
+    const ctx = this._loadCtx;
+    try {
+      const filas = await firstValueFrom(this.parametrizacion.segurosDeCentro(id));
+      // Llegó tarde: es el centro de costo de otro candidato.
+      if (ctx !== this._loadCtx) return;
+      // El endpoint devuelve TODOS los seguros activos marcando cuáles tiene el
+      // centro; sin filtrar por `asignada` se ofrecerían seguros que no le aplican.
+      this.segurosDelCentro = (filas || [])
+        .filter((f: any) => f?.asignada === true)
+        .map((f: any) => ({
+          id: Number(f.seguro_funerario_id),
+          nombre: String(f.nombre ?? ''),
+          valor: Number(f.valor ?? 0),
+          periodicidad: String(f.periodicidad ?? ''),
+        }));
+      this.centroCostoIdSeguros = id;
+      this.sincronizarSeguroFunerario();
+    } catch (e) {
+      // Es una ayuda: sin seguros parametrizados el campo queda vacío y se sigue
+      // pudiendo guardar. No se bloquea una contratación por esto.
+      console.warn('[seguro funerario] no se pudieron cargar los del centro', e);
+    }
+  }
+
+  /**
+   * Deja `seguroFunerarioId` coherente con lo que hay disponible.
+   *
+   * Con un único seguro se fija solo (no hay nada que elegir). Con varios se respeta
+   * lo ya guardado y solo se limpia si apunta a uno que este centro no tiene —pasa al
+   * cambiar de finca—, porque si no se guardaría el importe de otro centro de costo.
+   */
+  private sincronizarSeguroFunerario(): void {
+    const ctrl = this.pagoTransporteForm?.get('seguroFunerarioId');
+    if (!ctrl) return;
+
+    if (this.segurosDelCentro.length === 1) {
+      ctrl.setValue(this.segurosDelCentro[0].id, { emitEvent: false });
+    } else if (this.segurosDelCentro.length > 1) {
+      const actual = ctrl.value;
+      if (actual != null && !this.segurosDelCentro.some(s => s.id === actual)) {
+        ctrl.setValue(null, { emitEvent: false });
+      }
+    }
+
+    // Obligatorio solo cuando de verdad hay que elegir. Un obligatorio que no se ve
+    // —seguro en "NO", o centro con un único seguro— dejaría el formulario inválido.
+    const exige = this.mostrarValorSeguro && this.seguroRequiereEleccion;
+    ctrl.setValidators(exige ? [Validators.required] : []);
+    ctrl.updateValueAndValidity({ emitEvent: false });
+  }
+
+  /** El switch SI/NO del seguro cambió. */
+  onSeguroFunerarioChange(): void {
+    this.sincronizarSeguroFunerario();
+  }
+
+  // ───────── Completitud visual (verde) ─────────
+  /**
+   * Cuándo APLICA cada campo condicional. Fuera de aquí todos aplican siempre.
+   *
+   * Un campo que no aplica nunca se pinta —ni verde ni rojo—: no está pendiente,
+   * es que no existe en este estado del formulario. Las condiciones son las mismas
+   * que decide `setupFormaPagoValidation` y las que ocultan el campo en el HTML;
+   * se escriben una sola vez aquí para que no puedan discrepar.
+   */
+  private aplicaCampo(nombre: string): boolean {
+    const forma = String(this.pagoTransporteForm?.get('formaPago')?.value ?? '').trim();
+    switch (nombre) {
+      case 'otraFormaPago':
+        return forma === 'Otra';
+      // Daviplata no pide tarjeta ni contraseña: el HTML los oculta.
+      case 'numeroIdentificacion':
+      case 'contraseniaAsignada':
+        return !!forma && forma !== 'Daviplata';
+      // El valor solo tiene sentido si la persona usa la ruta. Con "NO" o sin
+      // responder no cuenta como pendiente.
+      case 'valorTransporte':
+        return this.pagoTransporteForm?.get('usaRuta')?.value === true;
+      default:
+        return true;
+    }
+  }
+
+  /** Reglas de validez propias del dato, más allá de los `Validators` del control. */
+  private static readonly VALIDEZ_CAMPO: Record<string, (v: unknown) => boolean> = {
+    salario: esImporteValido,
+    valorTransporte: esImporteValido,
+    porcentajeARL: esPorcentajeValido,
+    porcentajeHorasExtras: esPorcentajeValido,
+  };
+
+  /**
+   * Estado de completitud de un campo de "Pago y Transporte".
+   *
+   * Se calcula en cada ciclo de detección de cambios en vez de cachearse: depende
+   * también de `touched`, que cambia en el blur sin tocar el valor, así que un caché
+   * alimentado por `valueChanges` se quedaría desfasado justo al salir del campo.
+   * El cálculo es una comparación por campo y la plantilla ya consulta el formulario
+   * bastante más que eso.
+   */
+  estadoCampo(nombre: string): EstadoCampo {
+    if (!this.pagoTransporteForm) return 'normal';
+    return estadoDeControl(this.pagoTransporteForm.get(nombre), {
+      aplica: this.aplicaCampo(nombre),
+      valido: HiringQuestionsComponent.VALIDEZ_CAMPO[nombre],
+    });
+  }
+
+  /** Atajo para la plantilla: `[class.campo-completo]="campoCompleto('grupo')"`. */
+  campoCompleto(nombre: string): boolean {
+    return this.estadoCampo(nombre) === 'completo';
   }
 
   // === Validador de coincidencia ===
@@ -586,8 +941,6 @@ export class HiringQuestionsComponent implements OnInit {
 
     // Daviplata: solo obligatorio
     const phoneCO = /^3\d{9}$/;
-    // Otros: Tarjeta -> 16 o 18 dígitos
-    const cardPattern = /^\d{16,18}$/;
 
     const apply = () => {
       const forma = formaCtrl.value;
@@ -599,12 +952,16 @@ export class HiringQuestionsComponent implements OnInit {
         // Daviplata => "Número de cuenta"
         numCtrl.setValidators([Validators.required]); // O pattern phoneCO
       } else if (forma) {
-        // Otros => Tarjeta
-        numCtrl.setValidators([Validators.required, Validators.pattern(cardPattern)]);
-        // ID de la tarjeta (si aplica)
-        if (idCtrl) idCtrl.setValidators([Validators.required]);
-        // Contraseña
-        if (passCtrl) passCtrl.setValidators([Validators.required]);
+        // Otros => Tarjeta. Sin `pattern`: el número de cuenta es TEXTO libre.
+        // El patrón de 16-18 dígitos rechazaba cuentas que no son tarjeta (bancos
+        // que no usan ese formato) y era la única razón por la que este campo no
+        // aceptaba texto. La comprobación contra el maestro de tarjetas sigue
+        // viva —`verificarTarjeta`— y es la que de verdad protege el pago.
+        numCtrl.setValidators([Validators.required]);
+        // La identificación de la tarjeta y la contraseña salieron de la pantalla:
+        // exigirlas dejaría el formulario inválido sin casilla donde responder. El
+        // cruce contra el maestro de tarjetas (`verificarTarjeta`) sigue activo para
+        // los contratos que ya las tienen.
       }
 
       numCtrl.updateValueAndValidity({ emitEvent: false });
@@ -724,21 +1081,33 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   // ───────── Acciones principales ─────────
-  async cargarPagoTransporte(): Promise<void> {
-    if (this.bloqueadoPorEspera()) return;
-    if (this.pagoTransporteForm.invalid) {
+  /**
+   * Guarda "Pago y Transporte".
+   *
+   * `silencioso` es el guardado automático (sin botón): no abre avisos, lanza
+   * si falla para que el indicador lo muestre, y con el formulario A MEDIAS
+   * guarda lo respondido sin marcar contratado ni pedir código de contrato.
+   * Eso solo pasa cuando está completo, igual que hacía el antiguo "Cargar".
+   */
+  async cargarPagoTransporte(opts: { silencioso?: boolean } = {}): Promise<void> {
+    const silencioso = !!opts.silencioso;
+    if (silencioso ? this.bloqueado() : this.bloqueadoPorEspera()) return;
+    const completo = this.pagoTransporteForm.valid;
+    if (!completo && !silencioso) {
       this.pagoTransporteForm.markAllAsTouched();
       return this.alert('warning', 'Formulario incompleto', 'Revisa los campos obligatorios.');
     }
 
     const cand = this.candidatoSeleccionado();
     if (!cand?.numero_documento) {
+      if (silencioso) throw new Error('No hay candidato seleccionado.');
       return this.alert('info', 'Sin cédula', 'No hay candidato seleccionado.');
     }
 
     const ent0 = Array.isArray(cand?.entrevistas) ? cand.entrevistas[0] : null;
     const proc = ent0?.proceso || null;
     if (!proc) {
+      if (silencioso) throw new Error('La última entrevista no tiene proceso asociado.');
       return this.alert('info', 'Sin proceso', 'La última entrevista no tiene proceso asociado.');
     }
 
@@ -765,6 +1134,10 @@ export class HiringQuestionsComponent implements OnInit {
         identification_number_tarjeta?: string | null;
         contrasenia_asignada?: string | null;
         seguro_funerario?: boolean | null;
+        /** Cuál de los seguros del centro se eligió. */
+        seguro_funerario_id?: number | null;
+        /** Importe con el que se firmó, copiado del catálogo (V58). */
+        seguro_funerario_valor?: number | null;
         Ccentro_de_costos?: string | null;
         /** Centro de costo que se imprime en el carnet (puede diferir del de nómina). */
         carnet_centro_costo?: string | null;
@@ -780,6 +1153,14 @@ export class HiringQuestionsComponent implements OnInit {
         categoria?: string | null;
         operacion?: string | null;
         horas_extras?: boolean | null;
+        /** Temporal (TA/AL). Columna vieja que hasta ahora nadie escribía desde aquí. */
+        temporal?: string | null;
+        /** Decisión de ESTA persona; el centro de costo solo da el valor por defecto. */
+        usa_ruta?: boolean | null;
+        /** Lo que se reconoce por la ruta. NO es el auxilio legal de transporte. */
+        valor_transporte?: number | null;
+        /** Recargo de horas extras. Independiente de `porcentaje_arl`. */
+        porcentaje_horas_extras?: number | null;
         fecha_ingreso?: string | null;
         fecha_contrato?: string | null;
         /** Datos de obra: van en el mismo guardado, ver más abajo. */
@@ -790,11 +1171,14 @@ export class HiringQuestionsComponent implements OnInit {
       };
     } = {
       numero_documento: String(cand.numero_documento),
-      contratado: true,
-      // Guardar Pago y Transporte SIEMPRE pide código de contrato. El backend
-      // es idempotente: si ya hay código lo devuelve sin tocarlo (incluida la
-      // edición forzada) y solo genera cuando el contrato está sin código.
-      contrato: { sede_abbr: ent0?.oficina || undefined, generar_codigo: true },
+      // Completo: contratado + código de contrato. El backend es idempotente:
+      // si ya hay código lo devuelve sin tocarlo (incluida la edición forzada) y
+      // solo genera cuando el contrato está sin código. A medias (guardado
+      // automático) solo se escriben las respuestas.
+      ...(completo ? {
+        contratado: true,
+        contrato: { sede_abbr: ent0?.oficina || undefined, generar_codigo: true },
+      } : {}),
       contrato_detalle: {
         // "Otra" guarda el TEXTO que escribió el usuario (mismo campo del
         // backend): antes `otraFormaPago` se pedía en pantalla y se descartaba,
@@ -806,6 +1190,10 @@ export class HiringQuestionsComponent implements OnInit {
         identification_number_tarjeta: v.numeroIdentificacion ?? null,
         contrasenia_asignada: v.contraseniaAsignada ?? null,
         seguro_funerario: !!v.seguroFunerario,
+        // Con el seguro en "NO" van los dos en null: dejar el importe de un "SI"
+        // anterior sería seguir descontando algo que ya no aplica.
+        seguro_funerario_id: v.seguroFunerario ? (this.seguroSeleccionado?.id ?? null) : null,
+        seguro_funerario_valor: v.seguroFunerario ? this.valorSeguro : null,
         Ccentro_de_costos: v.Ccostos ?? null,
         carnet_centro_costo: v.carnetCentroCosto ?? null,
         porcentaje_arl: toNum(v.porcentajeARL),
@@ -820,6 +1208,17 @@ export class HiringQuestionsComponent implements OnInit {
         categoria: v.categoria ?? null,
         operacion: v.operacion ?? null,
         horas_extras: !!v.horasExtras,
+        // `getRawValue()` incluye los deshabilitados, así que la temporal resuelta viaja
+        // aunque el campo no se pueda editar. Se manda solo si tiene valor: `applyStr`
+        // del backend ignora los null, pero mandar "" borraría el dato de un contrato
+        // histórico que sí lo tiene.
+        ...(String(v.temporal ?? '').trim() ? { temporal: String(v.temporal).trim() } : {}),
+        // `usa_ruta` viaja SIEMPRE (incluido null) porque el backend mira `containsKey`:
+        // así "no respondido" se puede volver a dejar en blanco. Sin ternario a `false`:
+        // eso afirmaría que no usa ruta cuando lo cierto es que nadie lo preguntó.
+        usa_ruta: v.usaRuta === null || v.usaRuta === undefined || v.usaRuta === '' ? null : !!v.usaRuta,
+        valor_transporte: toNum(v.valorTransporte),
+        porcentaje_horas_extras: toNum(v.porcentajeHorasExtras),
         fecha_ingreso: v.fechaIngreso ? new Date(v.fechaIngreso).toISOString().split('T')[0] : null,
         fecha_contrato: v.fechaContrato ? new Date(v.fechaContrato).toISOString().split('T')[0] : null,
         // Los datos de obra viajan en el MISMO guardado. Antes solo los
@@ -829,6 +1228,30 @@ export class HiringQuestionsComponent implements OnInit {
         ...this.datosObraPayload(),
       },
     };
+
+    if (silencioso) {
+      const resp = await firstValueFrom(
+        this.procesosService.updateProcesoByDocumento(this.conDestino(payload), 'PATCH'),
+      );
+      this.pagoTransporteForm.markAsPristine();
+      const proc0 = (resp as any)?.proceso;
+      const codigoFinal = String(proc0?.contrato_codigo ?? codigoContrato ?? '').trim();
+      const motivo = String(proc0?.contrato_codigo_motivo ?? '').trim();
+      if (completo && !codigoFinal && motivo && this.avisoSinCodigo !== motivo) {
+        // Una vez por motivo: repetirlo en cada campo sería ruido.
+        this.avisoSinCodigo = motivo;
+        void Swal.fire({
+          icon: 'warning', toast: true, position: 'top-end', showConfirmButton: false,
+          timer: 6000, timerProgressBar: true,
+          title: 'Guardado sin código de contrato',
+          text: motivo === 'rango_agotado'
+            ? 'El rango de números de esta oficina se agotó. Avisa a sistemas.'
+            : 'La oficina no tiene rango de numeración. Avisa a sistemas.',
+        });
+      }
+      this.guardado.emit();
+      return;
+    }
 
     try {
       const resp = await firstValueFrom(
@@ -1087,8 +1510,32 @@ export class HiringQuestionsComponent implements OnInit {
       poner('sucursal', centroCosto);
       poner('carnetCentroCosto', centroCosto);
       poner('codigoCompania', resolverCodigoCompania(empresa));
+      // La temporal del maestro, que es la fiable (hay fincas homónimas en dos
+      // temporales: SAN CARLOS está en Apoyo y en Tu Alianza).
+      poner('temporal', temporal);
+      // Valor del transporte de ESTA finca. Es un importe, no texto: `campo()` no
+      // sirve porque devuelve '' y borraría un 0 legítimo.
+      const valorFinca = fila?.['valor_transporte'];
+      const valorCtrl = this.pagoTransporteForm.get('valorTransporte');
+      if (valorCtrl && valorFinca != null) {
+        const actual = String(valorCtrl.value ?? '').trim();
+        if (cambioDeFinca || !actual) valorCtrl.setValue(valorFinca);
+      }
+      // "¿Usa ruta?" arranca en lo que dice el maestro para esa finca, pero es una
+      // decisión por persona: si ya está respondida solo se repropone al cambiar de
+      // finca, porque la ruta de la finca anterior no dice nada de la nueva.
+      const rutaFinca = fila?.['ruta'];
+      const rutaCtrl = this.pagoTransporteForm.get('usaRuta');
+      if (rutaCtrl && typeof rutaFinca === 'boolean') {
+        if (cambioDeFinca || rutaCtrl.value === null) rutaCtrl.setValue(rutaFinca);
+      }
 
       this.ccostosAutollenado = cc.toUpperCase();
+
+      // Los seguros funerarios son del CENTRO, así que se recargan con él. `fila.id`
+      // es el id numérico de `centros_costos`, que es lo que pide la parametrización.
+      if (cambioDeFinca) this.centroCostoIdSeguros = null;   // forzar recarga
+      this.cargarSegurosDelCentro(fila?.['id']).catch(() => { /* ya se avisa dentro */ });
 
       // Cambiar de finca puede cambiar la empresa usuaria Y la temporal, y con
       // ellas el juego de labores (Apoyo, Elite Blu y Tu Alianza tienen hojas
@@ -1240,6 +1687,24 @@ export class HiringQuestionsComponent implements OnInit {
   private ccostosAutollenado = '';
 
   /**
+   * Fecha de ingreso que propone la vacante (ISO). Se guarda para poder mostrar la
+   * traza cuando quien contrata la cambia: la vacante decía una y el contrato quedó
+   * con otra, y las dos tienen que poder verse.
+   */
+  fechaIngresoVacante = '';
+
+  /** La fecha del contrato difiere de la que propuso la vacante. */
+  fechaIngresoEditada(): boolean {
+    const v = this.pagoTransporteForm?.get('fechaIngreso')?.value;
+    if (!v || !this.fechaIngresoVacante) return false;
+    const iso = (x: any) => {
+      const d = new Date(x);
+      return isNaN(d.getTime()) ? String(x).slice(0, 10) : d.toISOString().split('T')[0];
+    };
+    return iso(v) !== iso(this.fechaIngresoVacante);
+  }
+
+  /**
    * Prellena los datos de nómina cruzando la vacante con el maestro de centros
    * de costo. El backend resuelve el cruce (los nombres de finca se escribieron
    * por separado en las dos tablas y casi nunca coinciden literal).
@@ -1275,7 +1740,9 @@ export class HiringQuestionsComponent implements OnInit {
 
     soloSiVacio('Ccostos', comun.ccostos);
     soloSiVacio('subCentroCostos', comun.subcentro);
-    soloSiVacio('grupo', comun.grupo);                  // "GRUPO 1" del maestro
+    // Ultimo recurso: el maestro dice "GRUPO 1" en casi todos los centros, asi que
+    // solo entra cuando la vacante no trae grupo y el contrato aun no tiene ninguno.
+    soloSiVacio('grupo', comun.grupo);
     soloSiVacio('empresaGrupoElite', comun.empresa);
     soloSiVacio('ciudadLabor', comun.ciudad);
     soloSiVacio('sublabor', comun.sublabor);            // clasificador 4
@@ -1290,6 +1757,32 @@ export class HiringQuestionsComponent implements OnInit {
     soloSiVacio('sucursal', comun.centro_de_costo);
     soloSiVacio('carnetCentroCosto', comun.centro_de_costo);
     soloSiVacio('codigoCompania', resolverCodigoCompania(comun.empresa));
+
+    // Ruta y valor del transporte. NO vienen en `comun`: el backend los deja fuera de
+    // `CAMPOS_COMUN` a propósito, así que hay que sacarlos de `opciones` aplicando la
+    // MISMA regla que él —solo si todas las filas que cruzaron coinciden—. Con varios
+    // subcentros discrepando no hay un valor que dar por bueno y se deja en blanco,
+    // igual que se hace con el centro de costo.
+    const unanime = (campo: string): any => {
+      const filas: any[] = Array.isArray(res?.opciones) ? res.opciones : [];
+      if (!filas.length) return undefined;
+      const primero = filas[0]?.[campo];
+      return filas.every(f => f?.[campo] === primero) ? primero : undefined;
+    };
+    // El booleano no puede ir por `soloSiVacio`: compara con '' y `false` no es vacío.
+    const rutaCtrl = this.pagoTransporteForm.get('usaRuta');
+    const rutaMaestro = unanime('ruta');
+    if (rutaCtrl && rutaCtrl.value === null && typeof rutaMaestro === 'boolean') {
+      rutaCtrl.setValue(rutaMaestro, { emitEvent: false });
+    }
+    soloSiVacio('valorTransporte', unanime('valor_transporte'));
+
+    // Seguros del centro que resolvió el backend. Con varias filas (una finca con
+    // varios subcentros) todas comparten centro, así que basta la primera.
+    const primera: any = Array.isArray(res?.opciones) ? res.opciones[0] : null;
+    if (primera?.id != null) {
+      this.cargarSegurosDelCentro(primera.id).catch(() => { /* ya se avisa dentro */ });
+    }
 
     // La temporal del maestro es más confiable que la de la vacante: en la
     // vacante se escoge a mano de una lista de dos opciones.
@@ -1417,10 +1910,11 @@ export class HiringQuestionsComponent implements OnInit {
    * Guardar "Pago y Transporte" ya persiste lo mismo; este botón sigue existiendo
    * para poder corregir la obra sin marcar al candidato como contratado.
    */
-  async guardarDatosObra(): Promise<void> {
-    if (this.bloqueadoPorEspera()) return;
+  async guardarDatosObra(opts: { silencioso?: boolean } = {}): Promise<void> {
+    if (opts.silencioso ? this.bloqueado() : this.bloqueadoPorEspera()) return;
     const cand = this.candidatoSeleccionado();
     if (!cand?.numero_documento) {
+      if (opts.silencioso) return;
       return this.alert('info', 'Sin cédula', 'No hay candidato seleccionado.');
     }
 
@@ -1428,6 +1922,12 @@ export class HiringQuestionsComponent implements OnInit {
       numero_documento: String(cand.numero_documento),
       contrato_detalle: this.datosObraPayload(),
     };
+
+    if (opts.silencioso) {
+      // Sin `guardado.emit()`: la recarga volvería a llamar aquí.
+      await firstValueFrom(this.procesosService.updateProcesoByDocumento(this.conDestino(payload), 'PATCH'));
+      return;
+    }
 
     this.loading('Guardando datos de obra…');
     try {
@@ -1551,6 +2051,152 @@ export class HiringQuestionsComponent implements OnInit {
   async captureFingerprintTuAlianza(): Promise<void> { await this.captureFingerprint('ID', 'tu-alianza'); }
   async captureFingerprintPD(): Promise<void> { await this.captureFingerprint('PD'); }
 
+  /** Adjuntar la imagen a propósito, sin pasar por el lector. */
+  async adjuntarHuella(empresaSlug: 'apoyo-laboral' | 'tu-alianza'): Promise<void> {
+    await this.captureFingerprint('ID', empresaSlug, 'archivo');
+  }
+
+  /** true en Android/iOS: la pantalla pone la cámara por delante del adjunto. */
+  readonly enMovil = this.huellaSvc.esMovil();
+
+  /**
+   * Qué lector se usaría, para que el botón lo diga antes de pulsarlo. Se
+   * resuelve una vez al abrir la pestaña; `null` mientras se sondea.
+   */
+  readonly formaCaptura = signal<string | null>(null);
+
+  /**
+   * Huella ya guardada en el expediente, POR EMPRESA.
+   *
+   * El pipeline solo publica una huella (`nav.biometria().huella`): la última
+   * cargada, sea de la razón social que sea. Con una huella por empresa eso no
+   * basta — cada tarjeta tiene que enseñar la suya, o vuelve el problema de
+   * ver la misma imagen repetida en las dos.
+   */
+  readonly huellasGuardadas = signal<Record<string, string>>({});
+
+  /**
+   * El candidato es un `input()` y el padre lo rellena DESPUES de pedirlo al
+   * servidor. Cargar las huellas solo en ngOnInit dejaba el mapa vacio para
+   * siempre: la pantalla parecia no haber guardado nada.
+   */
+  private readonly recargarHuellas = effect(() => {
+    const cand = this.candidatoSeleccionado();
+    void cand;
+    void this.cargarHuellasGuardadas();
+  });
+
+  /**
+   * Quita la huella de una tarjeta.
+   *
+   * Dos casos distintos bajo el mismo boton: si lo que se ve es una captura
+   * recien hecha y aun sin guardar, basta con limpiarla en pantalla; si ya esta
+   * en el expediente hay que desligarla en el servidor, porque limpiarla aqui
+   * la haria reaparecer en cuanto se recargue la vista.
+   *
+   * Se pregunta siempre: es un dato biometrico y el boton es una X pequena
+   * junto a la imagen, facil de pulsar sin querer.
+   */
+  async borrarHuella(empresaSlug: 'apoyo-laboral' | 'tu-alianza'): Promise<void> {
+    const recienCapturada = empresaSlug === 'apoyo-laboral'
+      ? this.fingerprintImageApoyo : this.fingerprintImageTuAlianza;
+    const guardada = this.huellaGuardadaDe(empresaSlug);
+    if (!recienCapturada && !guardada) return;
+
+    const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug];
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: 'Quitar la huella',
+      html: recienCapturada && !guardada
+        ? `Se descarta la captura de <strong>${cfg.nombre}</strong> sin guardarla.`
+        : `Se quitara la huella de <strong>${cfg.nombre}</strong> del expediente.`
+          + '<br><small>El archivo se conserva en gestion documental por trazabilidad.</small>',
+      showCancelButton: true,
+      confirmButtonText: 'Quitar huella',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#c62828',
+    });
+    if (!isConfirmed) return;
+
+    // Siempre se limpia lo local; el servidor solo si habia algo guardado.
+    if (empresaSlug === 'apoyo-laboral') this.fingerprintImageApoyo = null;
+    else this.fingerprintImageTuAlianza = null;
+    this.publicarAvances();
+
+    if (!guardada) { this.setMensajeHuella(empresaSlug, 'Captura descartada.'); return; }
+
+    const cedula = this.candidatoSeleccionado()?.numero_documento;
+    if (!cedula) return;
+    try {
+      await firstValueFrom(this.procesosService.eliminarHuella(cedula, empresaSlug));
+      await this.cargarHuellasGuardadas();
+      this.nav.pedirRefrescoBiometria();
+      this.setMensajeHuella(empresaSlug, 'Huella quitada. Puedes capturar una nueva.');
+    } catch {
+      this.setMensajeHuella(empresaSlug, 'No se pudo quitar la huella. Intentalo de nuevo.');
+      this.alert('error', 'No se pudo quitar la huella', 'Revisa la conexion y vuelve a intentarlo.');
+      await this.cargarHuellasGuardadas();
+    }
+  }
+
+  /** El mensaje de estado de cada tarjeta vive en una variable distinta. */
+  private setMensajeHuella(empresaSlug: string, texto: string): void {
+    if (empresaSlug === 'apoyo-laboral') this.messageApoyo = texto;
+    else this.messageTuAlianza = texto;
+  }
+
+  huellaGuardadaDe(empresaSlug: string): string | null {
+    const ruta = this.huellasGuardadas()[empresaSlug];
+    if (!ruta) return null;
+    // Devuelve null en la primera llamada y repinta cuando la descarga termina.
+    return this.archivos.visible(ruta);
+  }
+
+  /** ¿Hay huella guardada, aunque su imagen aún se esté descargando? */
+  tieneHuellaGuardada(empresaSlug: string): boolean {
+    return !!this.huellasGuardadas()[empresaSlug];
+  }
+
+  /** Relee del servidor qué huellas hay guardadas para el candidato actual. */
+  private async cargarHuellasGuardadas(): Promise<void> {
+    const cedula = this.candidatoSeleccionado()?.numero_documento;
+    if (!cedula) { this.huellasGuardadas.set({}); return; }
+    try {
+      const bio: any = await firstValueFrom(this.procesosService.getBiometriaPorCedula(cedula));
+      const mapa: Record<string, string> = {};
+      for (const [slug, info] of Object.entries<any>(bio?.huellas ?? {})) {
+        if (info?.file_url) mapa[slug] = info.file_url;
+      }
+      this.huellasGuardadas.set(mapa);
+    } catch {
+      // Que falle la relectura no puede romper la pantalla: como mucho, la
+      // tarjeta se queda sin la previa de lo ya guardado.
+      this.huellasGuardadas.set({});
+    }
+  }
+
+  /** Vuelve a sondear y repinta el texto. Lo usa el botón de reintentar. */
+  async reintentarDeteccionHuella(): Promise<void> {
+    this.formaCaptura.set('Buscando lector…');
+    await this.huellaSvc.refrescar();
+    await this.refrescarFormaCaptura();
+  }
+
+  private async refrescarFormaCaptura(): Promise<void> {
+    const preferida = await this.huellaSvc.preferida();
+    if (preferida) { this.formaCaptura.set(preferida.nombre); return; }
+    // "Sin lector detectado" en un celular es una verdad inútil: ahí nunca va a
+    // haber uno. Se dice lo que SÍ se puede hacer.
+    // El detalle técnico se enseña a propósito. "Sin lector detectado" tapa
+    // tres causas distintas (agente apagado, navegador bloqueando el acceso a
+    // loopback, lector desconectado) y sin el error concreto no hay forma de
+    // saber cuál es sin abrir las herramientas del navegador.
+    const detalle = this.huellaSvc.detalleAgente();
+    this.formaCaptura.set(this.enMovil
+      ? 'Sin lector: adjunta la imagen de la huella'
+      : `Sin lector detectado${detalle ? ' — ' + detalle : ''}`);
+  }
+
   // ── SHA-256 genérico ──
   private async generateHash(data: string): Promise<string> {
     const encoded = new TextEncoder().encode(data);
@@ -1624,7 +2270,12 @@ export class HiringQuestionsComponent implements OnInit {
     return isConfirmed;
   }
 
-  private async captureFingerprint(kind: 'ID' | 'PD', empresaSlug?: string): Promise<void> {
+  private async captureFingerprint(
+    kind: 'ID' | 'PD',
+    empresaSlug?: string,
+    /** Forzar una forma concreta. Sin esto se usa la mejor disponible. */
+    origen?: OrigenHuella,
+  ): Promise<void> {
     // Per-company UI state helpers
     const setMsg = (t: string) => {
       if (empresaSlug === 'apoyo-laboral') this.messageApoyo = t;
@@ -1647,25 +2298,144 @@ export class HiringQuestionsComponent implements OnInit {
       this.huellaForm.patchValue({ consentimientoHuella: true });
     }
 
-    type FingerprintGetResult = { success: boolean; data?: string; error?: string };
-    const electron = (window as any)?.electron as { fingerprint?: { get: () => Promise<FingerprintGetResult> } };
+    // De dónde sale la imagen lo decide HuellaCapturaService: lector por
+    // Electron, lector por agente local, lector del celular o imagen adjunta.
+    // Aquí abajo el flujo es el mismo para las cuatro.
+    /**
+     * El aviso de "pon el dedo" tiene que estar EN LA PANTALLA.
+     *
+     * El agente lo escribe en su ventana de PowerShell, pero quien contrata
+     * está mirando la web, no una consola: sin esto la pantalla se queda muda
+     * entre cinco y treinta segundos, que es justo lo que dura la captura, y
+     * parece colgada. Se abre antes de pedir la huella y se cierra pase lo que
+     * pase.
+     */
+    const conAvisoDeLector = async (fn: () => Promise<any>) => {
+      // DOS FASES, porque el lector no está listo al instante.
+      //
+      // Entre que se pide la captura y que el SDK enciende el sensor pasan
+      // unos segundos (init, enumerar, abrir). Decir "pon el dedo" desde el
+      // primer momento hace que la persona lo apoye antes de tiempo, lo retire
+      // al ver que no pasa nada, y la captura acabe expirando con el dedo
+      // fuera. Aquí se avisa primero de que está preparando, y solo después se
+      // pide el dedo, con la cuenta atrás real de lo que queda.
+      // 2 s: con el shim del agente precompilado, el sensor se enciende en
+      // menos de dos segundos. Con 4 la persona esperaba de mas.
+      const SEGUNDOS_PREPARANDO = 2;
+      const SEGUNDOS_TOTAL = 25;
+      let restantes = SEGUNDOS_TOTAL;
+      let reloj: any = null;
 
-    if (!electron?.fingerprint?.get) {
-      setMsg('Electron o fingerprint no están disponibles.');
+      const pintar = (fase: 'preparando' | 'esperando') => {
+        if (fase === 'preparando') {
+          Swal.update({
+            title: 'Preparando el lector…',
+            html: '<p style="margin:0">Espera a que se encienda. <strong>Todavía no apoyes el dedo.</strong></p>',
+          });
+        } else {
+          Swal.update({
+            title: 'Apoya el índice derecho',
+            html: '<p style="margin:0 0 6px">Apóyalo completo sobre el cristal y no lo muevas.</p>'
+              + `<p style="margin:0;font-size:13px;opacity:.7">Quedan ${restantes} s</p>`,
+          });
+        }
+      };
+
+      Swal.fire({
+        title: 'Preparando el lector…',
+        html: '<p style="margin:0">Espera a que se encienda. <strong>Todavía no apoyes el dedo.</strong></p>',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+          reloj = setInterval(() => {
+            restantes--;
+            pintar(restantes > SEGUNDOS_TOTAL - SEGUNDOS_PREPARANDO ? 'preparando' : 'esperando');
+            if (restantes <= 0 && reloj) { clearInterval(reloj); reloj = null; }
+          }, 1000);
+        },
+      });
+
+      try { return await fn(); }
+      finally { if (reloj) clearInterval(reloj); Swal.close(); }
+    };
+
+    /**
+     * La huella se revisa ANTES de guardarla.
+     *
+     * Antes se subía sola en cuanto el lector devolvía algo, así que una
+     * captura movida o a medias quedaba en el expediente sin que nadie la
+     * hubiera mirado, y para corregirla había que repetir el proceso entero
+     * sin saber si la anterior se había reemplazado. Ahora la decisión de
+     * guardar es explícita, y repetir no cuesta nada.
+     */
+    const revisarAntesDeGuardar = async (dataUrl: string): Promise<'guardar' | 'repetir' | 'cancelar'> => {
+      const { isConfirmed, isDenied } = await Swal.fire({
+        title: '¿Guardamos esta huella?',
+        html: `<img src="${dataUrl}" alt="Huella capturada"
+                 style="max-width:220px;max-height:260px;object-fit:contain;background:#fff;
+                        border:1px solid #dbe3ea;border-radius:8px;padding:6px" />
+               <p style="margin:12px 0 0;font-size:13px;opacity:.75">
+                 Las crestas deben verse separadas y la yema completa.</p>`,
+        showDenyButton: true,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar huella',
+        denyButtonText: 'Repetir captura',
+        cancelButtonText: 'Descartar',
+        reverseButtons: true,
+      });
+      return isConfirmed ? 'guardar' : (isDenied ? 'repetir' : 'cancelar');
+    };
+
+    // Capturar -> revisar -> repetir tantas veces como haga falta. Solo se sale
+    // del bucle guardando o descartando: repetir no debe obligar a volver a
+    // pasar por el consentimiento ni por el botón.
+    let captura;
+    let intento = 0;
+    while (true) {
+      intento++;
+      try {
+        captura = origen
+          ? (origen === 'archivo'
+              ? await this.huellaSvc.capturar(origen)
+              : await conAvisoDeLector(() => this.huellaSvc.capturar(origen)))
+          : (await this.huellaSvc.hayLectorTrasReintento())
+            ? await conAvisoDeLector(() => this.huellaSvc.capturar())
+            : await this.ofrecerAdjuntarHuella(setMsg);
+        if (!captura) return;
+      } catch (e) {
+        const err = e as HuellaError;
+        if (err?.cancelado) { setMsg('Captura cancelada.'); return; }
+        const detalle = err?.message || 'No se pudo capturar la huella.';
+        setMsg(detalle);
+        const { isConfirmed } = await Swal.fire({
+          icon: 'error',
+          title: 'No se pudo capturar la huella',
+          text: detalle,
+          showCancelButton: true,
+          confirmButtonText: 'Reintentar',
+          cancelButtonText: 'Cancelar',
+        });
+        if (isConfirmed) continue;   // fallar no debe costar empezar de cero
+        return;
+      }
+
+      // Un archivo adjuntado ya lo eligió la persona: no se le pide revisarlo.
+      if (captura.origen === 'archivo') break;
+
+      const decision = await revisarAntesDeGuardar(captura.dataUrl);
+      if (decision === 'guardar') break;
+      if (decision === 'repetir') { setMsg(`Repitiendo captura (intento ${intento + 1})…`); continue; }
+      setMsg('Captura descartada.');
       return;
     }
 
     try {
-      const res = await electron.fingerprint.get();
-      if (!res?.success || !res.data) {
-        setMsg(`Error al capturar huella: ${res?.error || 'Desconocido.'}`);
-        return;
-      }
-
-      // base64 crudo -> Data URL para preview
-      const dataUrl = `data:image/png;base64,${res.data}`;
+      const dataUrl = captura.dataUrl;
       setImg(dataUrl);
-      setMsg('Huella capturada exitosamente.');
+      setMsg(captura.origen === 'archivo'
+        ? 'Imagen de huella adjuntada.'
+        : 'Huella capturada exitosamente.');
 
       // Subir automáticamente solo la Índice Derecho
       if (kind === 'ID' && empresaSlug) {
@@ -1680,7 +2450,7 @@ export class HiringQuestionsComponent implements OnInit {
         const textoConsentimiento = this.buildTextoConsentimientoHuella(cfg.nombre);
 
         // DataURL → File
-        const filename = this.buildHuellaFilename('ID');
+        const filename = this.buildHuellaFilename('ID', captura.origen);
         const file = this.dataUrlToFile(dataUrl, filename);
 
         // ── Generar hashes ──
@@ -1712,6 +2482,17 @@ export class HiringQuestionsComponent implements OnInit {
               consentimiento_timestamp: timestampISO,
               user_agent: this.huellaForm.value.userAgent,
               image_hash: imageHash,
+              // Sin `empresa` el backend guarda UNA sola huella por candidato y
+              // la segunda tarjeta pisa a la primera. El origen se persiste
+              // para poder auditar cuantas se adjuntaron a mano en vez de
+              // capturarse con lector.
+              empresa: empresaSlug,
+              dedo: 'INDICE_DERECHO',
+              origen: HiringQuestionsComponent.ORIGEN_A_CATALOGO[captura.origen] ?? 'DESCONOCIDO',
+              dispositivo: captura.dispositivo,
+              width: captura.ancho ? String(captura.ancho) : undefined,
+              height: captura.alto ? String(captura.alto) : undefined,
+              dpi: captura.dpi ? String(captura.dpi) : undefined,
             })
           );
           Swal.close();
@@ -1719,6 +2500,7 @@ export class HiringQuestionsComponent implements OnInit {
           // Igual que la firma: quien lee la biometría del servidor es el
           // pipeline, y hay que decirle que cambió.
           this.nav.pedirRefrescoBiometria();
+          void this.cargarHuellasGuardadas();
           this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
         } catch (e) {
           Swal.close();
@@ -1727,8 +2509,28 @@ export class HiringQuestionsComponent implements OnInit {
         }
       }
     } catch {
-      setMsg('Error de comunicación con Electron.');
+      setMsg('La huella se capturó, pero falló el procesamiento posterior.');
     }
+  }
+
+  /**
+   * No hay lector: se le pregunta a quien contrata antes de aceptar una imagen
+   * suelta. Adjuntar es una excepción trazable (queda como origen `archivo`),
+   * no un respaldo que ocurra solo.
+   */
+  private async ofrecerAdjuntarHuella(setMsg: (t: string) => void) {
+    const motivo = await this.huellaSvc.motivoSinLector();
+
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: 'Sin lector de huella',
+      text: `${motivo} ¿Quieres adjuntar una imagen de la huella?`,
+      showCancelButton: true,
+      confirmButtonText: 'Adjuntar imagen',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!isConfirmed) { setMsg(motivo); return null; }
+    return this.huellaSvc.capturar('archivo');
   }
 
   // Helper: DataURL → File
@@ -1744,11 +2546,17 @@ export class HiringQuestionsComponent implements OnInit {
     return new File([bytes], filename, { type: mime });
   }
 
-  private buildHuellaFilename(kind: 'ID' | 'PD'): string {
+  /**
+   * El origen va en el NOMBRE porque es lo único que llega hasta gestión
+   * documental: el endpoint de biometría solo recibe archivo y documento. Sin
+   * esto no habría forma de saber después cuáles huellas salieron de un lector
+   * y cuáles se adjuntaron a mano.
+   */
+  private buildHuellaFilename(kind: 'ID' | 'PD', origen?: OrigenHuella): string {
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    return `huella_${kind}_${stamp}.png`;
+    return `huella_${kind}_${origen ?? 'lector'}_${stamp}.png`;
   }
 
   // ───────── Utilidades ─────────
@@ -1862,6 +2670,11 @@ export class HiringQuestionsComponent implements OnInit {
       // proceso debe parchear desde cero (ver el sellado más adelante).
       this.ultimaCedulaCargada = null;
       this.ultimaCargaKey = null;
+      // Lo que se parchee ahora es de la persona nueva, no algo que ella editó:
+      // no debe dispararse el guardado automático, y lo pendiente de la
+      // anterior se descarta.
+      this.pagoTransporteForm?.markAsPristine();
+      this.autoPago.cancelar();
       // El "criterio de finca" también es del candidato anterior: sin esto, un
       // blur sobre el Ccostos del nuevo evaluaba cambioDeFinca=true y
       // REEMPLAZABA su nómina con datos de la finca del otro.
@@ -1923,6 +2736,10 @@ export class HiringQuestionsComponent implements OnInit {
       contraseniaAsignada: contr?.contrasenia_asignada ?? null,
       // validacionNumeroCuenta: contr?.numero_para_pagos ?? null, // eliminado
       seguroFunerario: contr?.seguro_funerario ?? false,
+      // Cuál se eligió. El importe NO se parchea a un control: se muestra desde el
+      // catálogo del centro y, si el contrato trae uno guardado distinto (porque el
+      // parametrizador cambió el valor después), manda el guardado —ver `valorSeguro`.
+      seguroFunerarioId: (contr as any)?.seguro_funerario_id ?? null,
       // Se lee con minúscula aunque se guarde con mayúscula: si no, al reabrir
       // la pestaña la casilla salía vacía y se volvía a teclear lo mismo.
       Ccostos: centroDeCostosDe(contr),
@@ -1939,6 +2756,17 @@ export class HiringQuestionsComponent implements OnInit {
       categoria: contr?.categoria ?? null,
       operacion: contr?.operacion ?? null,
       horasExtras: contr?.horas_extras ?? false,
+      // Lo GUARDADO manda; si el contrato aún no tiene temporal, la resuelve la vacante
+      // o el maestro más abajo (`prellenarDesdeVacante` / `autollenarDesdeCentroCosto`).
+      // El backend la guarda como código (AL/TA, VARCHAR(16)); con código se deja vacía
+      // para que la vacante o el maestro pinten el nombre. Vacía no se envía, así que
+      // el código guardado no se pierde.
+      temporal: /^(AL|TA)$/i.test(String((contr as any)?.temporal ?? '').trim()) ? null : ((contr as any)?.temporal ?? null),
+      // Ruta y recargo: null cuando nunca se preguntó, que es distinto de "NO".
+      usaRuta: (contr as any)?.usa_ruta ?? null,
+      valorTransporte: (contr as any)?.valor_transporte != null ? toNum((contr as any).valor_transporte) : null,
+      porcentajeHorasExtras: (contr as any)?.porcentaje_horas_extras != null
+        ? toNum((contr as any).porcentaje_horas_extras) : null,
       salario: proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null,
       // Vacío, NO 'No': el auxilio lo dice la vacante y se parchea abajo. Con
       // 'No' fijo, un proceso sin publicación —o una vacante que no se pudo
@@ -1947,6 +2775,14 @@ export class HiringQuestionsComponent implements OnInit {
       fechaIngreso: contr?.fecha_ingreso ?? null,
       fechaContrato: contr?.fecha_contrato ?? null,
     });
+
+    // Importe del seguro tal como se firmó. Se guarda aparte del catálogo para que
+    // un cambio posterior del parametrizador no reescriba contratos ya hechos.
+    this.seguroValorGuardado = (contr as any)?.seguro_funerario_valor != null
+      ? toNum((contr as any).seguro_funerario_valor) : null;
+    // Al cambiar de candidato hay que releer los seguros: el centro es otro.
+    this.centroCostoIdSeguros = null;
+    this.segurosDelCentro = [];
 
     // Datos de obra/empresa: primero lo que ya esté guardado en el contrato.
     this.datosObraForm.patchValue({
@@ -1979,7 +2815,46 @@ export class HiringQuestionsComponent implements OnInit {
         this.pagoTransporteForm.patchValue({
           salario: salarioFromProc ?? salarioFromVac,
           auxilio_transporte: auxFromVac,
+          // El cargo SIEMPRE manda desde la vacante: es su fuente canónica y aquí solo
+          // se muestra. No se guarda en el contrato para que no puedan divergir.
+          cargo: String(vac?.cargo ?? '').trim() || null,
         });
+
+        // GRUPO DE PAGO: manda la vacante.
+        //
+        // Antes salia del maestro (`centros_costos.grupo`, ver `prellenarDesdeVacante`),
+        // donde 826 de los 1.041 centros dicen "GRUPO 1" sin mas: casi cualquier
+        // contratacion acababa en el grupo 1 tuviera o no que estar ahi. La vacante, en
+        // cambio, lo lleva ELEGIDO en Parametrizacion de vacantes, y de ese mismo grupo
+        // salen las fechas de pago y el casino que imprime el contrato. Si aqui dijera
+        // otro, el documento se contradiria consigo mismo.
+        //
+        // Las vacantes sin grupo —las de antes de esta parametrizacion y las de las
+        // temporales que no la tienen— llegan vacias: entonces no se pisa nada y sigue
+        // valiendo lo guardado, o el maestro como ultimo recurso.
+        this.grupoVacante = String(vac?.grupo_pago_nombre_snapshot ?? '').trim();
+        if (this.grupoVacante) {
+          this.pagoTransporteForm.get('grupo')?.setValue(this.grupoVacante, { emitEvent: false });
+        }
+
+        // Fecha de ingreso PROPUESTA por la vacante. Se guarda en el contrato, que es
+        // una fila distinta: editarla aquí no toca `tabla_publicaciones_vacantes`
+        // —este endpoint solo escribe `contrato_detalle`— así que la vacante conserva
+        // su fecha y queda la traza de las dos. Solo se propone si el contrato no
+        // tiene ya una: lo guardado es la decisión tomada y no la pisa la vacante.
+        this.fechaIngresoVacante = vac?.fechadeIngreso ? String(vac.fechadeIngreso) : '';
+        const fiCtrl = this.pagoTransporteForm.get('fechaIngreso');
+        if (fiCtrl && !fiCtrl.value && this.fechaIngresoVacante) {
+          fiCtrl.setValue(this.fechaIngresoVacante);
+        }
+
+        // La temporal solo se propone si el contrato no traía una guardada: lo que ya
+        // se persistió es la decisión que se tomó y no la pisa la vacante.
+        const temporalCtrl = this.pagoTransporteForm.get('temporal');
+        if (temporalCtrl && !String(temporalCtrl.value ?? '').trim()) {
+          const t = String(vac?.temporal ?? '').trim();
+          if (t) temporalCtrl.setValue(t, { emitEvent: false });
+        }
 
         // Datos de obra/empresa: manda SIEMPRE la vacante (los campos son de
         // solo lectura en la pestaña); lo guardado en el contrato queda solo
@@ -2028,9 +2903,43 @@ export class HiringQuestionsComponent implements OnInit {
       this.cargoVacante = '';
       this.temporalVacante = '';
       this.empresaVacante = '';
+      this.grupoVacante = '';
     }
 
+    if (ctx === this._loadCtx) void this.sincronizarDatosObra(proc, contr);
     this.llenarDocumentos().catch(console.error);
+  }
+
+  /** Datos de obra ya escritos por `sincronizarDatosObra`, por proceso. */
+  private obraSincronizada = '';
+
+  /**
+   * Sin botón "Guardar datos de obra": si lo que sale de la vacante difiere de
+   * lo guardado en el contrato, se guarda solo. Es lo mismo que hacía el botón;
+   * sin esto, cambiar la vacante en Remisión dejaba el contrato con la obra
+   * anterior hasta que alguien tocara "Pago y Transporte".
+   *
+   * Una vez por (proceso, valores): si el backend normaliza distinto, no se
+   * entra en un bucle de guardar y recargar.
+   */
+  private async sincronizarDatosObra(proc: any, contr: any): Promise<void> {
+    if (this.bloqueado()) return;
+    const p = this.datosObraPayload();
+    const txt = (x: unknown) => String(x ?? '').trim();
+    if (!Object.values(p).some(v => txt(v))) return;
+    const igual = txt(p.descripcion_de_obra) === txt(contr?.descripcion_de_obra)
+      && txt(p.centro_costo_obra) === txt(contr?.centro_costo_obra)
+      && txt(p.direccion_empresa) === txt(contr?.direccion_empresa)
+      && txt(p.empresa_usuaria) === txt(contr?.empresa_usuaria);
+    if (igual) return;
+    const firma = `${proc?.id ?? ''}|${JSON.stringify(p)}`;
+    if (firma === this.obraSincronizada) return;
+    this.obraSincronizada = firma;
+    try {
+      await this.guardarDatosObra({ silencioso: true });
+    } catch (e) {
+      console.warn('[datos de obra] no se pudieron guardar solos:', e);
+    }
   }
 
   /**

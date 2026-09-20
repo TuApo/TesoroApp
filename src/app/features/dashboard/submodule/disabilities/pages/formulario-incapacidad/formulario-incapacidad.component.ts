@@ -1,11 +1,10 @@
-import {  Component, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { IncapacidadService } from '../../services/incapacidad/incapacidad.service';
 import { Incapacidad } from '../../models/incapacidad.model';
-import { MatTableDataSource } from '@angular/material/table';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { PagosService } from '../../services/pagos/pagos.service';
-import { MatTableModule } from '@angular/material/table';
+import { ColumnaTabla, TABLA_ESTANDAR, ValorCelda } from '@/app/shared/components/tabla-estandar';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -52,13 +51,40 @@ export const MY_DATE_FORMATS = {
 interface ColumnTitle {
   [key: string]: string;
 }
+
+/** Claves del historial que se ven siempre (el resto, en pantallas anchas). */
+const COLUMNAS_PRINCIPALES_HISTORIAL: readonly string[] = [
+  'Numero_de_documento', 'nombre', 'apellido', 'consecutivoSistema', 'tipo_incapacidad',
+  'F_inicio', 'F_final', 'dias_incapacidad', 'codigo_diagnostico', 'estado_incapacidad',
+];
+
+/** Rol de cada clave en la vista de tarjetas; las demas no salen en la tarjeta. */
+const ROL_TARJETA_HISTORIAL: Readonly<Record<string, RolTarjetaHistorial>> = {
+  tipo_incapacidad: 'titulo',
+  F_inicio: 'subtitulo',
+  F_final: 'meta',
+  dias_incapacidad: 'meta',
+  codigo_diagnostico: 'meta',
+  estado_incapacidad: 'meta',
+  consecutivoSistema: 'meta',
+  nombre_eps: 'meta',
+};
+type RolTarjetaHistorial = NonNullable<ColumnaTabla['tarjeta']>;
+
+/** Dato plano para la tabla estandar: numeros y booleanos tal cual, el resto como texto. */
+function valorPlano(value: unknown): ValorCelda {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  return String(value);
+}
+
 @Component({
   selector: 'app-formulario-incapacidad',
   standalone: true,
   imports: [
     MatSnackBarModule,
     MatDividerModule,
-    MatTableModule,
+    ...TABLA_ESTANDAR,
     MatMenuModule,
     MatMomentDateModule,
     MatFormFieldModule,
@@ -1322,7 +1348,23 @@ export class FormularioIncapacidadComponent implements OnInit {
 
   historialIncapacidades: Incapacidad[] = [];
   mostrarHistorial = false;
-  dataSourceTable1 = new MatTableDataSource<any>();
+  /** Historial de incapacidades del trabajador (tabla estandar). */
+  readonly historialFilas = signal<any[]>([]);
+
+  /**
+   * Columnas del historial: una por cada clave de ColumnsTable1, con el mismo
+   * titulo de antes. Las claves principales se ven siempre y en la tarjeta
+   * (movil); el resto, en la vista tabla desde 1024 px.
+   */
+  readonly columnasHistorial: ColumnaTabla<any>[] = this.ColumnsTable1.map((col): ColumnaTabla<any> => ({
+    id: col,
+    header: this.toTitleCase(col, this.columnTitlesTable1),
+    valor: (fila) => valorPlano(fila?.[col]),
+    prioridad: COLUMNAS_PRINCIPALES_HISTORIAL.includes(col) ? 1 : 3,
+    tarjeta: ROL_TARJETA_HISTORIAL[col] ?? 'oculto',
+  }));
+
+  readonly idHistorial = (fila: any, i: number) => fila?.consecutivoSistema ?? i;
 
   // Función principal para aplicar el filtro por cédula
   applyCedulaFilter(cedula: string): void {
@@ -1332,12 +1374,11 @@ export class FormularioIncapacidadComponent implements OnInit {
       return;
     }
     // Filtra usando la función filterByCedula
-    const filteredData = this.filterByCedula(this.dataSourceTable1.data, cedula);
+    const filteredData = this.filterByCedula(this.historialFilas(), cedula);
     if (filteredData.length === 0) {
       this.showInfo('No se encontraron registros para la cédula ingresada.');
     } else {
-      this.dataSourceTable1.data = filteredData;
-      this.dataSourceTable1._updateChangeSubscription();
+      this.historialFilas.set(filteredData);
     }
   }
 
@@ -1380,7 +1421,7 @@ export class FormularioIncapacidadComponent implements OnInit {
   }
 
   private handleDataSuccess(incapacidades: any[], reporte: any[]): void {
-    this.dataSourceTable1.data = incapacidades;
+    this.historialFilas.set(incapacidades);
   }
 
   private handleError(errorMessage: string): void {

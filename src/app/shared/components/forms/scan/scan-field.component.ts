@@ -180,7 +180,7 @@ interface SubidaEnCurso { name: string; }
       white-space: nowrap;
     }
     .df-chip__size {
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       white-space: nowrap;
     }
     .df-chip__action {
@@ -191,15 +191,15 @@ interface SubidaEnCurso { name: string; }
       border: none;
       border-radius: 50%;
       background: transparent;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       cursor: pointer;
     }
     .df-chip__action .material-symbols-outlined { font-size: 16px; }
     .df-chip__action:hover:not(:disabled) {
-      color: var(--navy, #21263c);
-      background: var(--slate-200, #e2e8f0);
+      color: var(--navy-ink);
+      background: var(--surface-4);
     }
-    .df-chip__action--remove:hover:not(:disabled) { color: #c0392b; }
+    .df-chip__action--remove:hover:not(:disabled) { color: #c0392b; color: light-dark(#c0392b, #eaaaa3); }
     .df-chip__action:disabled { cursor: default; }
     .df-chip__action:focus-visible {
       outline: 2px solid var(--lime, #8cd50a);

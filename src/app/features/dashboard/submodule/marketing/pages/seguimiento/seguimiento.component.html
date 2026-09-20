@@ -1,0 +1,174 @@
+<section class="seg">
+
+  <header class="cabecera">
+    <div>
+      <h2>Seguimiento de vacantes</h2>
+      <p class="sub">Todas las vacantes abiertas y qué material tiene cada una. Las que no
+         tienen nada salen primero.</p>
+    </div>
+    <div class="contador" *ngIf="!cargando() && urgente() > 0">
+      <span class="contador__n">{{ urgente() }}</span>
+      <span class="contador__t">sin material<br>de {{ total() }}</span>
+    </div>
+  </header>
+
+  <div class="barra">
+    <div class="filtros" role="group">
+      <button *ngFor="let e of estados" type="button"
+              [class.activo]="filtro() === e.clave" (click)="filtrar(e.clave)">{{ e.etiqueta }}</button>
+    </div>
+    <input class="buscador" type="search" placeholder="Buscar cargo, empresa o municipio…"
+           [ngModel]="busca()" (ngModelChange)="buscar($event)" />
+  </div>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+  <div class="alerta" *ngIf="aviso()"><mat-icon>error_outline</mat-icon> {{ aviso() }}</div>
+
+  <ul class="lista" *ngIf="!cargando() && lista().length">
+    <li *ngFor="let v of lista()" (click)="abrir(v)" [class.pendiente]="v.piezas === 0">
+      <div class="datos">
+        <div class="titulo">
+          {{ v.cargo }}
+          <span class="etq etq--pendiente" *ngIf="queFalta(v) as f">{{ f }}</span>
+        </div>
+        <div class="meta">
+          #{{ v.vacante_id }}<span *ngIf="v.empresa"> · {{ v.empresa }}</span>
+          <span *ngIf="v.municipios"> · {{ v.municipios }}</span>
+          <span *ngIf="v.cupos"> · {{ v.cupos }} cupos</span>
+        </div>
+      </div>
+      <div class="marcadores">
+        <span class="marca" [class.marca--cero]="v.piezas === 0" title="Piezas gráficas">
+          <mat-icon>image</mat-icon>{{ v.piezas }}
+        </span>
+        <span class="marca" [class.marca--cero]="v.posts === 0" title="Textos">
+          <mat-icon>chat</mat-icon>{{ v.posts }}
+        </span>
+        <span class="marca" [class.marca--cero]="v.adjuntos === 0" title="Adjuntos">
+          <mat-icon>attach_file</mat-icon>{{ v.adjuntos }}
+        </span>
+      </div>
+    </li>
+  </ul>
+
+  <div class="vacio" *ngIf="!cargando() && !lista().length && !aviso()">
+    <mat-icon>search_off</mat-icon>
+    <p>No hay vacantes con ese filtro.</p>
+  </div>
+
+  <!-- ── panel de una vacante ───────────────────────────────────────────── -->
+  <div class="telon" *ngIf="abierta() as v" (click)="cerrar()">
+    <aside class="panel" (click)="$event.stopPropagation()">
+      <header class="panel__cab">
+        <div>
+          <h3>{{ v.cargo }}</h3>
+          <span class="meta">#{{ v.vacante_id }} · {{ v.empresa }} · {{ v.municipios }}</span>
+        </div>
+        <button type="button" class="mini" (click)="cerrar()"><mat-icon>close</mat-icon></button>
+      </header>
+
+      <p class="cargando" *ngIf="cargandoDetalle()">Cargando…</p>
+
+      <ng-container *ngIf="detalle() as d">
+
+        <!-- piezas -->
+        <section class="bloque">
+          <div class="bloque__cab">
+            <h4>Piezas gráficas</h4>
+            <span class="cuenta">{{ d.piezas }}</span>
+          </div>
+          <p class="ayuda" *ngIf="d.piezas === 0">
+            Todavía no hay nada que publicar para esta vacante.
+          </p>
+          <button type="button" class="btn btn--primario" (click)="generarPiezas()"
+                  [disabled]="trabajando() === 'piezas'">
+            <mat-icon>auto_awesome</mat-icon>
+            {{ trabajando() === 'piezas' ? 'Generando…' : (d.piezas ? 'Regenerar' : 'Generar con IA') }}
+          </button>
+        </section>
+
+        <!-- posts por tono -->
+        <section class="bloque">
+          <div class="bloque__cab">
+            <h4>Textos para publicar</h4>
+            <span class="cuenta">{{ d.posts.length }}</span>
+          </div>
+          <p class="ayuda">Elige el tono. El mismo puesto se cuenta distinto según dónde se publique.</p>
+
+          <div class="tonos">
+            <button *ngFor="let t of d.tonos" type="button" class="tono"
+                    (click)="generarPost(t.id, t.nombre)"
+                    [disabled]="trabajando() === 'post-' + t.id"
+                    [title]="t.descripcion || ''">
+              <span class="tono__n">{{ t.nombre }}</span>
+              <span class="tono__c">{{ t.canal_sugerido }} · {{ t.longitud_max }} car.</span>
+              <mat-icon *ngIf="trabajando() === 'post-' + t.id">hourglass_top</mat-icon>
+            </button>
+          </div>
+
+          <article class="post" *ngFor="let p of d.posts" [class.post--descartado]="p.estado === 'DESCARTADO'">
+            <header>
+              <span class="post__tono">{{ p.tono_nombre || 'Sin tono' }} · {{ p.canal }}</span>
+              <span class="etq" [class.etq--ok]="p.estado === 'APROBADO'">{{ p.estado | titlecase }}</span>
+            </header>
+            <p class="post__texto">{{ p.texto }}</p>
+            <footer>
+              <button type="button" class="mini" (click)="copiarPost(p)" title="Copiar">
+                <mat-icon>content_copy</mat-icon></button>
+              <button type="button" class="mini" (click)="editarPost(p)" title="Editar">
+                <mat-icon>edit</mat-icon></button>
+              <button type="button" class="mini" *ngIf="p.estado !== 'APROBADO'"
+                      (click)="cambiarEstadoPost(p, 'APROBADO')" title="Aprobar">
+                <mat-icon>check</mat-icon></button>
+              <button type="button" class="mini" *ngIf="p.estado !== 'DESCARTADO'"
+                      (click)="cambiarEstadoPost(p, 'DESCARTADO')" title="Descartar">
+                <mat-icon>block</mat-icon></button>
+              <span class="post__ia" *ngIf="!p.generado_por_ia">editado a mano</span>
+            </footer>
+          </article>
+        </section>
+
+        <!-- adjuntos -->
+        <section class="bloque">
+          <div class="bloque__cab">
+            <h4>Archivos de esta vacante</h4>
+            <span class="cuenta">{{ d.adjuntos.length }}</span>
+          </div>
+          <p class="ayuda">
+            Clasificarlos no es burocracia: es lo que permite que la IA sepa qué hay
+            sin abrir los archivos.
+          </p>
+
+          <ul class="adjuntos">
+            <li *ngFor="let a of d.adjuntos" [class.bloqueado]="!a.publicable">
+              <div class="mini-lienzo">
+                <img *ngIf="a.es_imagen && urlPrevia(a) as u" [src]="u" [alt]="a.titulo" />
+                <mat-icon *ngIf="!a.es_imagen">description</mat-icon>
+              </div>
+              <div class="adj__datos">
+                <span class="adj__t">{{ a.titulo }}</span>
+                <span class="adj__m">{{ a.tipo_legible }}</span>
+                <span class="adj__aviso" *ngIf="!a.publicable">
+                  <mat-icon>lock</mat-icon> Salen personas y falta la autorización
+                </span>
+              </div>
+              <button type="button" class="mini" *ngIf="a.tiene_personas"
+                      (click)="marcarConsentimiento(a)"
+                      [title]="a.consentimiento_ok ? 'Quitar autorización' : 'Marcar con autorización'">
+                <mat-icon>{{ a.consentimiento_ok ? 'verified_user' : 'gpp_maybe' }}</mat-icon>
+              </button>
+              <button type="button" class="mini mini--peligro" (click)="retirar(a)" title="Retirar">
+                <mat-icon>delete_outline</mat-icon></button>
+            </li>
+          </ul>
+
+          <label class="btn btn--fantasma btn--ancho">
+            <mat-icon>upload</mat-icon>
+            {{ trabajando() === 'adjunto' ? 'Subiendo…' : 'Adjuntar y clasificar' }}
+            <input type="file" hidden (change)="adjuntar($event)" [disabled]="trabajando() === 'adjunto'" />
+          </label>
+        </section>
+      </ng-container>
+    </aside>
+  </div>
+</section>

@@ -109,7 +109,7 @@
             <div class="filtros-grid" [formGroup]="formulario">
 
               <!-- Busqueda libre -->
-              <mat-form-field appearance="outline" class="filtro-campo filtro-ancho">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filtro-campo filtro-ancho">
                 <mat-label>Buscar trabajador</mat-label>
                 <mat-icon matPrefix class="prefijo">search</mat-icon>
                 <input
@@ -237,7 +237,7 @@
               ></app-select-buscador>
 
               <!-- Rango: fecha de inicio de la incapacidad -->
-              <mat-form-field appearance="outline" class="filtro-campo">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filtro-campo">
                 <mat-label>Inicio de la incapacidad</mat-label>
                 <mat-icon matPrefix class="prefijo">event</mat-icon>
                 <mat-date-range-input formGroupName="rangoInicio" [rangePicker]="pickerInicio">
@@ -250,7 +250,7 @@
               </mat-form-field>
 
               <!-- Rango: fecha de registro -->
-              <mat-form-field appearance="outline" class="filtro-campo">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filtro-campo">
                 <mat-label>Fecha de registro</mat-label>
                 <mat-icon matPrefix class="prefijo">history</mat-icon>
                 <mat-date-range-input formGroupName="rangoRegistro" [rangePicker]="pickerRegistro">
@@ -263,13 +263,13 @@
               </mat-form-field>
 
               <!-- ── Radicacion (V44) ── -->
-              <mat-form-field appearance="outline" class="filtro-campo">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filtro-campo">
                 <mat-label>Numero de radicado</mat-label>
                 <mat-icon matPrefix class="prefijo">tag</mat-icon>
                 <input matInput formControlName="numeroRadicado" placeholder="Como lo entrego la EPS" />
               </mat-form-field>
 
-              <mat-form-field appearance="outline" class="filtro-campo">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filtro-campo">
                 <mat-label>Semana de radicacion</mat-label>
                 <mat-icon matPrefix class="prefijo">date_range</mat-icon>
                 <input
@@ -282,7 +282,7 @@
                 <mat-hint>Consecutivo del aplicativo (lunes a sabado)</mat-hint>
               </mat-form-field>
 
-              <mat-form-field appearance="outline" class="filtro-campo">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filtro-campo">
                 <mat-label>Entidad (carpeta)</mat-label>
                 <mat-icon matPrefix class="prefijo">folder_shared</mat-icon>
                 <mat-select formControlName="entidadGrupo">
@@ -293,7 +293,7 @@
               </mat-form-field>
 
               <!-- Rango: fecha de radicado -->
-              <mat-form-field appearance="outline" class="filtro-campo">
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filtro-campo">
                 <mat-label>Fecha de radicado</mat-label>
                 <mat-icon matPrefix class="prefijo">outgoing_mail</mat-icon>
                 <mat-date-range-input formGroupName="rangoRadicado" [rangePicker]="pickerRadicado">
@@ -427,17 +427,25 @@
           }
 
           <div class="tabla-envoltorio">
+            <!-- Modo servidor: la página, el orden y la búsqueda se resuelven
+                 contra el backend (55.000 incapacidades no caben en memoria),
+                 así que la tabla trae un ÚNICO paginador y el buscador filtra
+                 de verdad, no solo la página visible. -->
             <app-standard-filter-table
               [data]="filas()"
               [columnDefinitions]="columnas()"
               [totalCount]="total()"
               [isLoading]="cargando()"
-              [defaultPageSize]="tamanoInternoTabla"
-              [pageSizeOptions]="opcionesTamanoInterno"
+              [serverSide]="true"
+              [defaultPageSize]="tamanoPagina()"
+              [pageSizeOptions]="opcionesTamanoPagina"
               tableTitle="Incapacidades"
               [enableRowClick]="true"
               [storageKey]="claveAlmacenamiento"
               (rowClicked)="alPulsarFila($event)"
+              (pageChange)="alCambiarPaginaTabla($event)"
+              (searchChange)="alBuscarEnTabla($event)"
+              (sortChange)="alOrdenarTabla($event)"
             >
               <!-- Acciones por fila -->
               <ng-template #actionsTemplate let-fila>
@@ -518,20 +526,6 @@
               </ng-template>
             </app-standard-filter-table>
 
-            <!-- Paginador PROPIO: el de la tabla compartida pagina solo lo que ya
-                 esta en memoria, asi que se oculta por CSS y se navega de verdad
-                 contra el servidor desde aqui. -->
-            <mat-paginator
-              class="paginador-servidor"
-              [length]="total()"
-              [pageIndex]="pagina()"
-              [pageSize]="tamanoPagina()"
-              [pageSizeOptions]="opcionesTamanoPagina"
-              [disabled]="cargando()"
-              showFirstLastButtons
-              aria-label="Paginacion de incapacidades"
-              (page)="alCambiarPagina($event)"
-            ></mat-paginator>
           </div>
         </section>
       </mat-card-content>

@@ -127,11 +127,11 @@ export interface RecordHistoryData {
       gap: 8px;
       font-size: 1.1rem;
       font-weight: 700;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
     }
-    .rhd-llave { font-weight: 500; color: var(--muted, #64748b); }
+    .rhd-llave { font-weight: 500; color: var(--muted); }
     .rhd-contenido { padding-top: 8px !important; max-height: 68vh; }
-    .rhd-vacio { color: var(--muted, #64748b); }
+    .rhd-vacio { color: var(--muted); }
 
     /* Línea de tiempo: el hilo vertical hace evidente que es una secuencia y no una lista
        de cosas sueltas — es lo primero que se pregunta al auditar un registro. */
@@ -153,7 +153,7 @@ export interface RecordHistoryData {
       top: 32px;
       bottom: 0;
       width: 2px;
-      background: var(--slate-200, #e2e8f0);
+      background: var(--surface-4);
     }
     .rhd-punto {
       flex: 0 0 auto;
@@ -163,14 +163,14 @@ export interface RecordHistoryData {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: var(--slate-100, #eef2f7);
-      color: var(--slate-700, #475569);
+      background: var(--surface-3);
+      color: var(--text-2);
       z-index: 1;
     }
     .rhd-punto mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .rhd-punto--crear { background: #dcfce7; color: #166534; }
-    .rhd-punto--editar { background: #fef3c7; color: #92400e; }
-    .rhd-punto--estado { background: #e0f2fe; color: #075985; }
+    .rhd-punto--crear { background: #dcfce7; background: light-dark(#dcfce7, #123b33); color: #166534; color: light-dark(#166534, #a3ebbe); }
+    .rhd-punto--editar { background: #fef3c7; background: light-dark(#fef3c7, #373625); color: #92400e; color: light-dark(#92400e, #f5bc99); }
+    .rhd-punto--estado { background: #e0f2fe; background: light-dark(#e0f2fe, #102e4c); color: #075985; color: light-dark(#075985, #97d5f7); }
 
     .rhd-cuerpo { flex: 1 1 auto; min-width: 0; }
     .rhd-cabecera {
@@ -180,20 +180,20 @@ export interface RecordHistoryData {
       flex-wrap: wrap;
     }
     .rhd-grow { flex: 1 1 auto; }
-    .rhd-accion { font-weight: 700; color: var(--navy, #21263c); font-size: 0.9rem; }
+    .rhd-accion { font-weight: 700; color: var(--navy-ink); font-size: 0.9rem; }
     .rhd-chip {
       padding: 2px 8px;
       border-radius: 999px;
-      background: var(--slate-100, #eef2f7);
-      color: var(--slate-700, #475569);
+      background: var(--surface-3);
+      color: var(--text-2);
       font-size: 0.7rem;
       font-weight: 700;
       letter-spacing: 0.02em;
     }
-    .rhd-chip--lote { background: #ede9fe; color: #5b21b6; }
+    .rhd-chip--lote { background: #ede9fe; background: light-dark(#ede9fe, #18184b); color: #5b21b6; }
     .rhd-fecha {
       font-size: 0.78rem;
-      color: var(--muted, #64748b);
+      color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
     .rhd-autor {
@@ -202,7 +202,7 @@ export interface RecordHistoryData {
       gap: 5px;
       margin-top: 2px;
       font-size: 0.78rem;
-      color: var(--muted, #64748b);
+      color: var(--muted);
     }
     .rhd-autor mat-icon { font-size: 15px; width: 15px; height: 15px; }
     .rhd-rev { margin-left: 6px; opacity: 0.75; }
@@ -212,14 +212,14 @@ export interface RecordHistoryData {
       gap: 5px;
       margin: 6px 0 0;
       font-size: 0.82rem;
-      color: var(--slate-700, #334155);
+      color: var(--text-2);
     }
     .rhd-estado mat-icon { font-size: 17px; width: 17px; height: 17px; }
     .rhd-nota {
       margin: 6px 0 0;
       font-size: 0.82rem;
       font-style: italic;
-      color: var(--slate-700, #334155);
+      color: var(--text-2);
     }
 
     .rhd-cambios {
@@ -227,28 +227,28 @@ export interface RecordHistoryData {
       margin-top: 8px;
       border-collapse: collapse;
       font-size: 0.8rem;
-      border: 1px solid var(--slate-200, #e8edf3);
+      border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
     }
     .rhd-cambios th {
       text-align: left;
       padding: 6px 10px;
-      background: var(--slate-50, #f8fafc);
-      color: var(--muted, #64748b);
+      background: var(--surface-2);
+      color: var(--muted);
       font-size: 0.7rem;
       text-transform: uppercase;
       letter-spacing: 0.02em;
     }
     .rhd-cambios td {
       padding: 6px 10px;
-      border-top: 1px solid var(--slate-100, #f1f5f9);
+      border-top: 1px solid var(--border);
       vertical-align: top;
       word-break: break-word;
     }
-    .rhd-campo { font-weight: 600; color: var(--slate-700, #334155); width: 32%; }
-    .rhd-antes { color: #991b1b; text-decoration: line-through; text-decoration-thickness: 1px; }
-    .rhd-despues { color: #166534; font-weight: 600; }
+    .rhd-campo { font-weight: 600; color: var(--text-2); width: 32%; }
+    .rhd-antes { color: #991b1b; color: light-dark(#991b1b, #eea0a0); text-decoration: line-through; text-decoration-thickness: 1px; }
+    .rhd-despues { color: #166534; color: light-dark(#166534, #a3ebbe); font-weight: 600; }
 
     .rhd-error {
       display: flex;
@@ -256,8 +256,8 @@ export interface RecordHistoryData {
       gap: 8px;
       padding: 10px 12px;
       border-radius: 10px;
-      background: #fee2e2;
-      color: #991b1b;
+      background: #fee2e2; background: light-dark(#fee2e2, #371725);
+      color: #991b1b; color: light-dark(#991b1b, #eea0a0);
       font-size: 0.85rem;
     }
   `],

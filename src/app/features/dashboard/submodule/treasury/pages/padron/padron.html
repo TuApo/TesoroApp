@@ -148,16 +148,12 @@
 
       @if (r.errores?.length) {
         <h3 class="grupo-col">Filas que no entraron</h3>
-        <div class="tsr-scroll">
-          <table class="tsr-tabla">
-            <thead><tr><th style="width:90px">Fila</th><th>Motivo</th></tr></thead>
-            <tbody>
-              @for (e of r.errores; track e.row) {
-                <tr><td class="num">{{ e.row }}</td><td>{{ e.error }}</td></tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <app-tabla-estandar
+          id="tesoreria-padron-errores"
+          titulo="Filas que no entraron"
+          modulo="Tesorería"
+          [datos]="r.errores"
+          [columnas]="columnasErrores" />
       }
     </div>
   }
@@ -166,63 +162,55 @@
   <div class="tsr-tarjeta">
     <h2><mat-icon>history</mat-icon> Cargas anteriores</h2>
 
-    @if (cargando()) {
-      <div class="tsr-cargando">Cargando…</div>
-    } @else if (!cargas().length) {
-      <div class="tsr-vacio">
-        <mat-icon class="icono">inventory</mat-icon>
-        <p>Todavía no se ha subido ningún padrón.</p>
-        <p class="sugerencia">Mientras tanto, los topes salen de la regla de antigüedad.</p>
-      </div>
-    } @else {
-      <div class="tsr-scroll">
-        <table class="tsr-tabla">
-          <thead>
-            <tr><th>Estado</th><th>Corte</th><th class="num">Filas</th>
-                <th>Archivo</th><th>Cargó</th><th></th></tr>
-          </thead>
-          <tbody>
-            @for (c of cargas(); track c.id) {
-              <tr [class.apagada]="c.estado === 'ANULADA'">
-                <td>
-                  <span class="tsr-chip" [class]="'tsr-chip ' + claseDeCarga(c)">
-                    {{ textoDeCarga(c) }}
-                  </span>
-                </td>
-                <td>{{ c.fecha_corte }}</td>
-                <td class="num">
-                  {{ c.filas_ok }}
-                  @if (c.filas_error > 0) { <div class="sub error">{{ c.filas_error }} con error</div> }
-                </td>
-                <td>
-                  {{ c.nombre_archivo || '—' }}
-                  @if (c.observacion) { <div class="sub">{{ c.observacion }}</div> }
-                </td>
-                <td>
-                  {{ c.cargado_por || '—' }}
-                  <div class="sub">{{ c.cargado_en | date:'dd/MM/yy HH:mm' }}</div>
-                </td>
-                <td class="acciones-fila">
-                  <button type="button" class="tsr-boton pequeno" (click)="verResumen(c)">
-                    Resumen
-                  </button>
-                  @if (!c.vigente && c.estado !== 'ANULADA') {
-                    <button type="button" class="tsr-boton pequeno principal" (click)="activar(c)">
-                      Activar
-                    </button>
-                  }
-                  @if (c.estado !== 'ANULADA') {
-                    <button type="button" class="tsr-boton pequeno peligro" (click)="anular(c)">
-                      Anular
-                    </button>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    }
+    <app-tabla-estandar
+      id="tesoreria-padron-cargas"
+      titulo="Cargas del padrón"
+      modulo="Tesorería"
+      entidad="cargas_padron"
+      vacio="Todavía no se ha subido ningún padrón. Mientras tanto, los topes salen de la regla de antigüedad."
+      [datos]="cargas()"
+      [columnas]="columnasCargas"
+      [filaId]="idCarga"
+      [filaClase]="claseFilaCarga"
+      [cargando]="cargando()">
+
+      <ng-template tablaCelda="estado" let-c>
+        <span class="tsr-chip" [class]="'tsr-chip ' + claseDeCarga(c)">
+          {{ textoDeCarga(c) }}
+        </span>
+      </ng-template>
+
+      <ng-template tablaCelda="filas" let-c>
+        {{ c.filas_ok }}
+        @if (c.filas_error > 0) { <div class="sub error">{{ c.filas_error }} con error</div> }
+      </ng-template>
+
+      <ng-template tablaCelda="archivo" let-c>
+        {{ c.nombre_archivo || '—' }}
+        @if (c.observacion) { <div class="sub">{{ c.observacion }}</div> }
+      </ng-template>
+
+      <ng-template tablaCelda="cargo" let-c>
+        {{ c.cargado_por || '—' }}
+        <div class="sub">{{ c.cargado_en | date:'dd/MM/yy HH:mm' }}</div>
+      </ng-template>
+
+      <ng-template tablaAcciones let-c>
+        <button type="button" class="tsr-boton pequeno" (click)="verResumen(c)">
+          Resumen
+        </button>
+        @if (!c.vigente && c.estado !== 'ANULADA') {
+          <button type="button" class="tsr-boton pequeno principal" (click)="activar(c)">
+            Activar
+          </button>
+        }
+        @if (c.estado !== 'ANULADA') {
+          <button type="button" class="tsr-boton pequeno peligro" (click)="anular(c)">
+            Anular
+          </button>
+        }
+      </ng-template>
+    </app-tabla-estandar>
   </div>
 
   <!-- ── Resumen de una carga ──────────────────────────────────────────── -->

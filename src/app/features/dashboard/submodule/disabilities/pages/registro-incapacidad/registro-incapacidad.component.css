@@ -15,20 +15,20 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
   --disab-accent: #00bcd4;
   --disab-accent-dark: #00838f;
   --disab-success: #2e7d32;
-  --disab-success-light: #e8f5e9;
+  --disab-success-light: light-dark(#e8f5e9, #193430);
   --disab-danger: #d32f2f;
-  --disab-danger-light: #ffebee;
+  --disab-danger-light: light-dark(#ffebee, #38162a);
   --disab-warn: #f57c00;
-  --disab-warn-light: #fff3e0;
-  --disab-bg: #f5f7fb;
-  --disab-surface: #ffffff;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-warn-light: light-dark(#fff3e0, #382f24);
+  --disab-bg: var(--surface-2);
+  --disab-surface: var(--surface);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-radius: 16px;
   --disab-radius-sm: 10px;
   --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -211,11 +211,11 @@
 }
 
 .reg-grid-2 {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
 }
 
 .reg-grid-3 {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
 }
 
 .reg-grid-soportes {
@@ -261,7 +261,7 @@
   padding: 18px 20px;
   border-radius: 14px;
   border: 1px solid rgba(25, 118, 210, 0.18);
-  background: linear-gradient(135deg, #e3f2fd 0%, #e0f7fa 100%);
+  background: linear-gradient(135deg, #e3f2fd 0%, var(--surface-4) 100%); background: linear-gradient(135deg, light-dark(#e3f2fd, #122d4a) 0%, var(--surface-4) 100%);
   box-shadow: var(--disab-shadow-sm);
 }
 
@@ -302,7 +302,7 @@
   gap: 6px;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .reg-persona-cedula mat-icon {
@@ -360,7 +360,7 @@
 }
 
 .reg-chip-dato {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgb(var(--surface-rgb) / 0.85);
   color: var(--disab-text);
   border: 1px solid rgba(25, 118, 210, 0.16);
   overflow: hidden;
@@ -383,12 +383,12 @@
 
 .reg-chip--ok {
   background: var(--disab-success-light);
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .reg-chip--info {
   background: var(--disab-primary-light);
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .reg-chip--alerta {
@@ -402,18 +402,18 @@
 }
 
 .reg-chip--neutro {
-  background: #eef2f7;
+  background: var(--surface-3);
   color: var(--disab-text-muted);
 }
 
 /* Skeleton -------------------------------------------------- */
 .reg-persona--skeleton {
-  background: #fff;
+  background: var(--surface);
   border-color: var(--disab-border);
 }
 
 .reg-skel {
-  background: linear-gradient(90deg, #eef2f7 25%, #e2e8f0 37%, #eef2f7 63%);
+  background: linear-gradient(90deg, var(--surface-3) 25%, var(--surface-4) 37%, var(--surface-3) 63%);
   background-size: 400% 100%;
   animation: reg-brillo 1.4s ease infinite;
   border-radius: 8px;
@@ -508,7 +508,7 @@
 
 /* Campo autocompletado (solo lectura): fondo suave + candado */
 .reg-campo--auto ::ng-deep .mat-mdc-text-field-wrapper {
-  background: #f3f6fb;
+  background: var(--surface-2);
 }
 
 .reg-campo--auto input,
@@ -552,7 +552,7 @@
 }
 
 .reg-nota-campo {
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .reg-error-suelto {
@@ -572,7 +572,7 @@
 }
 
 .reg-hint-info {
-  color: var(--disab-primary-dark) !important;
+  color: var(--disab-primary-dark) !important; color: light-dark(var(--disab-primary-dark), #9ac4f4) !important;
   font-weight: 700;
 }
 
@@ -584,7 +584,7 @@
   padding: 12px 14px;
   margin-bottom: 22px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #f1f7ff 0%, #eefbfd 100%);
+  background: linear-gradient(135deg, #f1f7ff 0%, #eefbfd 100%); background: linear-gradient(135deg, light-dark(#f1f7ff, #0f274d) 0%, light-dark(#eefbfd, #133649) 100%);
   border: 1px dashed rgba(25, 118, 210, 0.35);
   min-width: 0;
 }
@@ -608,7 +608,7 @@
   font-weight: 700;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .reg-calculado-valor {
@@ -658,7 +658,7 @@
 
 .reg-calculados-fila {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
   gap: 14px;
   margin: 4px 0 18px;
 }
@@ -681,12 +681,12 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #fff;
-  border-bottom: 1px solid var(--disab-border, rgba(15, 23, 42, 0.08));
+  background: var(--surface);
+  border-bottom: 1px solid var(--disab-border, rgb(var(--ink-rgb) / 0.08));
 }
 
 .reg-select-buscador mat-icon {
-  color: var(--disab-primary, #1976d2);
+  color: var(--disab-primary, #1976d2); color: var(--disab-primary, light-dark(#1976d2, #9bc7f3));
   font-size: 19px;
   width: 19px;
   height: 19px;
@@ -699,7 +699,7 @@
   outline: none;
   font: inherit;
   font-size: 14px;
-  color: var(--disab-text, #1a1a2e);
+  color: var(--disab-text, var(--text));
   background: transparent;
   padding: 6px 0;
 }
@@ -707,7 +707,7 @@
 .reg-select-vacio {
   padding: 14px 16px;
   font-size: 13px;
-  color: var(--disab-text-muted, #64748b);
+  color: var(--disab-text-muted, var(--muted));
   font-style: italic;
 }
 
@@ -717,7 +717,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  color: var(--disab-warn, #f57c00);
+  color: var(--disab-warn, #f57c00); color: var(--disab-warn, light-dark(#f57c00, #f7c797));
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -783,7 +783,7 @@
 .reg-bloque {
   border-radius: 12px;
   border: 1px solid var(--disab-border);
-  background: #fbfcfe;
+  background: var(--surface);
   padding: 12px 14px;
 }
 
@@ -821,7 +821,7 @@
 }
 
 .reg-bloque--ok .reg-bloque-titulo {
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .reg-bloque--alerta .reg-bloque-titulo {
@@ -864,7 +864,7 @@
   height: 30px;
   border-radius: 8px;
   overflow: hidden;
-  background: #eef2f7;
+  background: var(--surface-3);
   font-size: 12px;
   font-weight: 800;
   color: #fff;
@@ -948,19 +948,19 @@
 .reg-alerta--info {
   background: var(--disab-primary-light);
   border-left-color: var(--disab-primary);
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .reg-alerta--advertencia {
   background: var(--disab-warn-light);
   border-left-color: var(--disab-warn);
-  color: #a35300;
+  color: #a35300; color: light-dark(#a35300, #f7c897);
 }
 
 .reg-alerta--critica {
   background: var(--disab-danger-light);
   border-left-color: var(--disab-danger);
-  color: #a01d1d;
+  color: #a01d1d; color: light-dark(#a01d1d, #eea0a0);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -972,7 +972,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--disab-border);
   border-radius: 14px;
   box-shadow: var(--disab-shadow-sm);
@@ -1048,11 +1048,11 @@
 
 .reg-badge--obligatorio {
   background: var(--disab-warn-light);
-  color: #a35300;
+  color: #a35300; color: light-dark(#a35300, #f7c897);
 }
 
 .reg-badge--opcional {
-  background: #eef2f7;
+  background: var(--surface-3);
   color: var(--disab-text-muted);
 }
 
@@ -1074,7 +1074,7 @@
   padding: 20px 14px;
   border: 2px dashed rgba(25, 118, 210, 0.35);
   border-radius: 12px;
-  background: #f8fbff;
+  background: var(--surface);
   cursor: pointer;
   text-align: center;
 }
@@ -1099,7 +1099,7 @@
 }
 
 .reg-soltar-enlace {
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
   text-decoration: underline;
   font-weight: 700;
 }
@@ -1152,7 +1152,7 @@
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--disab-border);
-  background: #f3f6fb;
+  background: var(--surface-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1218,11 +1218,11 @@
 }
 
 .reg-estado--subiendo {
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .reg-estado--cargado {
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .reg-estado--error {
@@ -1304,7 +1304,7 @@
   padding: 28px 20px;
   border-radius: 12px;
   border: 1px dashed var(--disab-border);
-  background: #fafbfe;
+  background: var(--surface);
 }
 
 .reg-vacio mat-icon {
@@ -1345,7 +1345,7 @@
 }
 
 .reg-exito mat-icon {
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
   font-size: 26px;
   width: 26px;
   height: 26px;
@@ -1377,7 +1377,7 @@
   flex-wrap: wrap;
   padding: 12px 18px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgb(var(--surface-rgb) / 0.96);
   backdrop-filter: blur(8px);
   border: 1px solid var(--disab-border);
   box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.1);
@@ -1408,7 +1408,7 @@
 }
 
 .reg-acciones-estado--ok {
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
 }
 
 .reg-progreso {
@@ -1421,7 +1421,7 @@
 .reg-progreso-texto {
   font-size: 12px;
   font-weight: 700;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .reg-acciones-botones {
@@ -1449,7 +1449,7 @@
 }
 
 .reg-btn--validar[disabled] {
-  background: #cbd5e1 !important;
+  background: var(--border-strong) !important;
   color: #ffffff !important;
 }
 
@@ -1476,34 +1476,34 @@
   gap: 9px;
   font-size: 17px !important;
   font-weight: 800 !important;
-  color: var(--disab-text, #1a1a2e);
+  color: var(--disab-text, var(--text));
 }
 
 .reg-dialogo-titulo mat-icon {
-  color: var(--disab-danger, #d32f2f);
+  color: var(--disab-danger, #d32f2f); color: var(--disab-danger, light-dark(#d32f2f, #eba2a2));
 }
 
 /* Aviso prominente de NO PAGAR (reunion 2026-08-20). */
 .reg-dialogo-titulo--critico {
-  color: var(--disab-danger, #d32f2f) !important;
+  color: var(--disab-danger, #d32f2f) !important; color: var(--disab-danger, light-dark(#d32f2f, #eba2a2)) !important;
 }
 
 .reg-dialogo-texto {
   margin: 0 0 10px;
   font-size: 13.5px;
   line-height: 1.55;
-  color: var(--disab-text, #1a1a2e);
+  color: var(--disab-text, var(--text));
 }
 
 .reg-dialogo-nota {
   margin: 12px 0 0;
   font-size: 12.5px;
-  color: var(--disab-text-muted, #64748b);
+  color: var(--disab-text-muted, var(--muted));
 }
 
 .reg-lista--dialogo {
   font-size: 13.5px;
-  color: var(--disab-text, #1a1a2e);
+  color: var(--disab-text, var(--text));
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -1513,7 +1513,7 @@
 @media (max-width: 1180px) {
   /* El panel deja de ser lateral y pasa a ser un acordeon arriba. */
   .reg-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .reg-panel {
@@ -1587,7 +1587,7 @@
   .reg-grid-3,
   .reg-grid-soportes,
   .reg-calculados-fila {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .reg-persona {
@@ -1618,7 +1618,7 @@
 @media (prefers-reduced-motion: reduce) {
   .reg-skel {
     animation: none;
-    background: #e9eef5;
+    background: #e9eef5; background: light-dark(#e9eef5, #192943);
   }
 
   .disab-tile {

@@ -54,6 +54,19 @@ export class GestionDocumentalService {
     );
   }
 
+  /**
+   * Une las dos caras que dejó el formulario de vacantes en el documento
+   * ampliado al 150% (tipo 29, CEDULA). Idempotente: si ya hay uno igual o más
+   * nuevo lo devuelve sin tocarlo; sin las dos caras responde SIN_CARAS.
+   */
+  armarCedulaAmpliada(owner_id: string | number): Observable<{ estado: string; id: number | null }> {
+    const clave = String(owner_id ?? '').trim();
+    return this.http
+      .post<{ estado: string; id: number | null }>(
+        `${this.apiUrl}/gestion_documental/cedula-ampliada/${encodeURIComponent(clave)}`, {})
+      .pipe(tap((r) => { if (r?.estado === 'CREADA') this.invalidarDocumentos(clave); }));
+  }
+
   /* ============ Expediente completo por cédula (UNA petición) ============ */
 
   /**
@@ -104,6 +117,19 @@ export class GestionDocumentalService {
     // Un error real no debe quedar cacheado como si fuera la respuesta.
     obs.subscribe({ error: () => this.docsPorCedula.delete(clave) });
     return obs;
+  }
+
+  /**
+   * Retira un documento del expediente (borrado LOGICO en ms-documents).
+   *
+   * Invalida el caché de la cédula: sin eso el documento borrado seguía saliendo
+   * hasta que venciera el TTL de 30 s, y parecía que el borrado no había hecho
+   * nada.
+   */
+  eliminarDocumento(id: number | string, cedula?: string | number): Observable<any> {
+    return this.http
+      .delete(`${this.apiUrl}/gestion_documental/documentos/${id}/`)
+      .pipe(tap(() => this.invalidarDocumentos(cedula)));
   }
 
   /** Olvida el expediente cacheado de una cédula (o todos, sin argumento). */

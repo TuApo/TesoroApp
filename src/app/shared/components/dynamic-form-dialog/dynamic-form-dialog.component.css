@@ -4,7 +4,7 @@
 
 .dlg-content {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   min-width: 360px;
   padding-top: 5pt !important;
@@ -23,4 +23,59 @@
 
 .grow {
   flex: 1 1 auto;
+}
+
+/* ── Buscador dentro del panel de un select ───────────────────────────────── */
+
+/* El panel se pinta en un overlay, fuera del DOM del diálogo, pero su contenido sale de
+   esta plantilla: los estilos de componente sí llegan. Lo que NO sale de aquí es el panel
+   en sí, y por eso ese va con ::ng-deep, acotado a la clase que le ponemos nosotros. */
+::ng-deep .dfd-panel-buscable.mat-mdc-select-panel {
+  padding-top: 0 !important;   /* el buscador va pegado al borde */
+  max-height: 380px;
+}
+
+.dfd-buscador {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--mat-sys-surface-container, var(--surface));
+  border-bottom: 1px solid rgba(127, 127, 127, .22);
+}
+
+.dfd-buscador-icono {
+  font-size: 18px; width: 18px; height: 18px;
+  opacity: .55; flex: 0 0 auto;
+}
+
+.dfd-buscador-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.dfd-buscador-limpiar {
+  flex: 0 0 auto;
+  display: grid; place-items: center;
+  width: 22px; height: 22px;
+  padding: 0; border: 0; border-radius: 50%;
+  background: transparent; cursor: pointer; color: inherit; opacity: .6;
+}
+.dfd-buscador-limpiar:hover { opacity: 1; background: rgba(127, 127, 127, .16); }
+.dfd-buscador-limpiar .mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.dfd-sin-resultados {
+  padding: 16px 12px;
+  font-size: 13px;
+  opacity: .7;
+  text-align: center;
 }

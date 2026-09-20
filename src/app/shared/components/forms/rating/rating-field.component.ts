@@ -102,10 +102,10 @@ import { DynamicField, FieldMode, FieldValue, RatingConfig, validateFieldValue }
       align-items: center;
       justify-content: center;
       padding: 0 8px;
-      border: 1px solid var(--slate-300, #cbd5e1);
+      border: 1px solid var(--border-strong);
       border-radius: var(--r-sm, 10px);
-      background: var(--surface, #fff);
-      color: var(--navy, #21263c);
+      background: var(--surface);
+      color: var(--navy-ink);
       font: inherit;
       font-size: 0.9rem;
       font-weight: 600;
@@ -120,8 +120,8 @@ import { DynamicField, FieldMode, FieldValue, RatingConfig, validateFieldValue }
       border-color: var(--navy, #21263c);
     }
     .df-rating__btn:disabled {
-      background: var(--slate-50, #f8fafc);
-      color: var(--slate-500, #64748b);
+      background: var(--surface-2);
+      color: var(--muted);
       cursor: not-allowed;
     }
     .df-rating__btn--active {
@@ -141,7 +141,7 @@ import { DynamicField, FieldMode, FieldValue, RatingConfig, validateFieldValue }
       margin: 0;
       font-size: 0.85rem;
       font-weight: 600;
-      color: var(--slate-700, #334155);
+      color: var(--text-2);
     }
   `],
 })

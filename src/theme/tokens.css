@@ -1,0 +1,337 @@
+/* =============================================================================
+   TOKENS DE LA PLATAFORMA (claro + oscuro)
+
+   Hay dos capas y conviene no mezclarlas:
+
+   1. PALETA (--navy, --lime, --slate-*, --mt-accent…): colores con nombre. NO
+      cambian con el tema. Sirven para lo que es de marca y debe verse igual
+      siempre: la barra lateral azul marino, un botón lima, un degradado.
+
+   2. SEMÁNTICOS (--bg, --surface, --text, --muted, --border, --ok-*…): dicen
+      PARA QUÉ es el color, no cuál es. Son los que cambian en modo oscuro.
+      Un fondo de tarjeta es `var(--surface)`, nunca `#fff`; un texto
+      secundario es `var(--muted)`, nunca `#64748b`.
+
+   El tema lo decide `html[data-theme]`, que pone ThemeService (y, antes de
+   que arranque Angular, el script en línea de index.html para que no haya
+   parpadeo). Sin atributo = claro.
+
+   Las superficies que se imprimen o se capturan como documento (desprendible,
+   carné, certificados) se mantienen claras con `.tema-claro-fijo`, que
+   devuelve los semánticos a sus valores claros dentro de ese bloque.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* ── Tipografía ─────────────────────────────────────────────────────── */
+  /* Manrope es la letra de la marca (login y plataforma); Roboto queda de
+     respaldo porque Material la trae cargada. */
+  --font-sans: "Manrope Variable", "Manrope", "Roboto", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ── Paleta de marca (fija) ─────────────────────────────────────────── */
+  --navy: #21263C;
+  --navy-deep: #171B2E;
+  --ink: #0F1B2D;
+  --lime: #9BD441;
+  --lime-2: #86C22E;
+  --lime-dark: #5E8F17;
+  --brand-blue: #2B59F0;
+  --brand-blue-strong: #1E44C8;
+  --blue-soft: #EEF2FF;
+
+  --slate-50:  #F8FAFC;
+  --slate-100: #F1F5F9;
+  --slate-200: #E2E8F0;
+  --slate-300: #CBD5E1;
+  --slate-400: #94A3B8;
+  --slate-500: #64748B;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1E293B;
+  --slate-900: #0F172A;
+
+  /* ── Semánticos: superficies ────────────────────────────────────────── */
+  --bg: #F4F6FA;            /* fondo de la página */
+  --surface: #FFFFFF;       /* tarjetas, diálogos, tablas */
+  --surface-2: #F7F9FC;     /* panel suave, campos, cabecera de tabla */
+  --surface-3: #F1F4F9;     /* hover, fila par, chip neutro */
+  --surface-4: #E6EBF2;     /* presionado, separador grueso */
+
+  /* ── Semánticos: texto ──────────────────────────────────────────────── */
+  --text: #0F1B2D;
+  --text-2: #44526A;        /* texto fuerte pero secundario */
+  --muted: #6B778C;         /* etiquetas, ayudas */
+  --text-faint: #79839B;    /* marcadores, deshabilitado */
+  --navy-ink: #0F1B2D;      /* texto en color de marca (títulos) */
+  --lime-ink: #4E8A12;      /* lima legible como texto o icono sobre la superficie */
+  --link: #2B59F0;
+
+  /* ── Semánticos: bordes ─────────────────────────────────────────────── */
+  --border: #E3E8F0;
+  --border-strong: #CFD7E3;
+
+  /* Tinta translúcida: `rgb(var(--ink-rgb) / .06)` oscurece un poco en claro
+     y aclara un poco en oscuro. Para hovers y rayados, no para velos. */
+  --ink-rgb: 15 27 45;
+  /* Superficie translúcida (paneles «vidrio»): rgb(var(--surface-rgb) / .9) */
+  --surface-rgb: 255 255 255;
+  --overlay: rgba(15, 23, 42, 0.45);
+
+  /* ── Estados ────────────────────────────────────────────────────────── */
+  --ok-bg: #DCFCE7;     --ok-border: #BBF7D0;     --ok-fg: #166534;
+  --warn-bg: #FEF3C7;   --warn-border: #FDE68A;   --warn-fg: #92400E;
+  --danger-bg: #FEE2E2; --danger-border: #FECACA; --danger-fg: #B91C1C;
+  --info-bg: #DBEAFE;   --info-border: #BFDBFE;   --info-fg: #1D4ED8;
+  --violet-bg: #EDE9FE; --violet-border: #DDD6FE; --violet-fg: #6D28D9;
+
+  --primary: #2B59F0;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+
+  /* ── Forma ──────────────────────────────────────────────────────────── */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --pad: 16px;
+
+  --shadow-sm: 0 6px 14px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 10px 26px rgba(15, 23, 42, 0.10);
+  --shadow-lg: 0 24px 70px rgba(15, 23, 42, 0.26);
+  --ring: 0 0 0 4px rgba(43, 89, 240, 0.14);
+
+  /* Tabla (heredados de styles.css) */
+  --table-head: #0F1B2D;
+  --table-row-even: var(--surface-3);
+  --table-row-odd: var(--surface);
+
+  /* ── Puntos de corte (referencia; en @media no se pueden usar vars) ────
+     móvil < 640 · tableta 640–1023 · escritorio ≥ 1024 */
+
+  /* ── Matder / Novedades / Parametrización de vacantes ──────────────────
+     Estas pantallas se escribieron contra `--mt-*`, que solo existió en la
+     rama de pruebas (commit 62d4abf) y nunca llegó a main: el navegador
+     descartaba ~330 declaraciones y las pantallas salían sin bordes, sin
+     sombras y con el texto del color heredado. */
+  --mt-navy: #0F172A;
+  --mt-navy-2: #1E293B;
+  --mt-blue: #3B82F6;
+  --mt-blue-strong: #2563EB;
+  --mt-accent: #8CD50A;
+  --mt-accent-2: #64B800;
+  --mt-accent-ink: #365314;
+  --mt-accent-soft: #ECFCCB;
+  --mt-hero: linear-gradient(135deg, #0F172A 0%, #1E293B 48%, #1D4ED8 128%);
+  --mt-hero-ring: radial-gradient(1200px 400px at 85% -20%, rgba(140, 213, 10, .22), transparent 60%);
+  --mt-surface: var(--surface);
+  --mt-surface-2: var(--surface-2);
+  --mt-border: #D6DDE9;
+  --mt-ink: var(--text);
+  --mt-muted: var(--muted);
+  --mt-faint: var(--text-faint);
+  --mt-todo: #64748B;  --mt-todo-soft: var(--surface-3);
+  --mt-prog: #2563EB;  --mt-prog-soft: var(--info-bg);
+  --mt-block: #DC2626; --mt-block-soft: var(--danger-bg);
+  --mt-done: #16A34A;  --mt-done-soft: var(--ok-bg);
+  --mt-shadow: 0 3px 12px rgba(15, 23, 42, .10);
+  --mt-shadow-hover: 0 14px 34px rgba(15, 23, 42, .16);
+  --mt-r: 16px;
+  --mt-r-sm: 12px;
+  --mt-ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+/* Material en claro: el tema precompilado (azure-blue) pone el primario en
+   azul #005cbb, fuera de marca. Se lleva al azul marino de la compañía, igual
+   que ya se hacía en la rama de pruebas. */
+html {
+  --mat-sys-primary: #2B59F0;
+  --mat-sys-on-primary: #FFFFFF;
+  --mat-sys-primary-container: #EEF2FF;
+  --mat-sys-on-primary-container: #1E44C8;
+  --mat-sys-primary-fixed: #EEF2FF;
+  --mat-sys-on-primary-fixed: #1E44C8;
+  --mat-sys-inverse-primary: #A9BCFF;
+  --mat-sys-surface-tint: #2B59F0;
+  --mat-sys-tertiary: #0F1B2D;
+  --mat-sys-on-tertiary: #FFFFFF;
+  --mat-sys-on-surface: #0F1B2D;
+  --mat-sys-on-surface-variant: #44526A;
+  --mat-sys-outline: #A9B3C2;
+  --mat-sys-outline-variant: #E3E8F0;
+  --mat-sys-error: #B42318;
+  --mat-sys-on-error: #FFFFFF;
+}
+
+/* Material con la forma y la letra de la marca (igual en claro y oscuro):
+   botones y campos con esquinas de 12 px como el login, diálogos más
+   redondeados y Manrope en toda la tipografía de Material. */
+html {
+  --mat-sys-body-large-font: var(--font-sans);
+  --mat-sys-body-medium-font: var(--font-sans);
+  --mat-sys-body-small-font: var(--font-sans);
+  --mat-sys-display-large-font: var(--font-sans);
+  --mat-sys-display-medium-font: var(--font-sans);
+  --mat-sys-display-small-font: var(--font-sans);
+  --mat-sys-headline-large-font: var(--font-sans);
+  --mat-sys-headline-medium-font: var(--font-sans);
+  --mat-sys-headline-small-font: var(--font-sans);
+  --mat-sys-label-large-font: var(--font-sans);
+  --mat-sys-label-medium-font: var(--font-sans);
+  --mat-sys-label-small-font: var(--font-sans);
+  --mat-sys-title-large-font: var(--font-sans);
+  --mat-sys-title-medium-font: var(--font-sans);
+  --mat-sys-title-small-font: var(--font-sans);
+
+  --mat-button-filled-container-shape: 12px;
+  --mat-button-outlined-container-shape: 12px;
+  --mat-button-protected-container-shape: 12px;
+  --mat-button-tonal-container-shape: 12px;
+  --mat-button-text-container-shape: 10px;
+  --mat-button-filled-label-text-weight: 700;
+  --mat-button-outlined-label-text-weight: 700;
+  --mat-button-protected-label-text-weight: 700;
+  --mat-button-tonal-label-text-weight: 700;
+  --mat-button-text-label-text-weight: 700;
+
+  --mat-form-field-outlined-container-shape: 12px;
+  --mat-form-field-outlined-outline-color: var(--border-strong);
+  --mat-form-field-outlined-hover-outline-color: var(--muted);
+
+  --mat-dialog-container-shape: 20px;
+  --mat-menu-container-shape: 12px;
+  --mat-select-container-elevation-shadow: 0 16px 40px -12px rgb(var(--ink-rgb) / .25);
+  --mat-autocomplete-container-shape: 12px;
+  --mat-datepicker-calendar-container-shape: 16px;
+  --mat-tooltip-container-shape: 8px;
+  --mat-snack-bar-container-shape: 12px;
+}
+
+/* =============================================================================
+   MODO OSCURO
+   Solo se redefinen los semánticos. La paleta de marca se queda igual: la
+   barra lateral ya es azul marino y un botón lima sigue siendo lima.
+   ========================================================================== */
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #151A26;
+  --surface: #1E2433;
+  --surface-2: #232A3A;
+  --surface-3: #293143;
+  --surface-4: #323B50;
+
+  --text: #E8ECF3;
+  --text-2: #C3CAD7;
+  --muted: #8E99AD;
+  --text-faint: #66728A;
+  --navy-ink: #E8ECF3;
+  --lime-ink: #B4E266;
+  --link: #8FA8FF;
+
+  --border: #2E3649;
+  --border-strong: #3B455C;
+
+  --ink-rgb: 232 236 243;
+  --surface-rgb: 30 36 51;
+  --overlay: rgba(2, 6, 16, 0.62);
+
+  --ok-bg: rgba(34, 197, 94, 0.14);     --ok-border: rgba(34, 197, 94, 0.36);     --ok-fg: #86EFAC;
+  --warn-bg: rgba(245, 158, 11, 0.14);  --warn-border: rgba(245, 158, 11, 0.38);  --warn-fg: #FCD34D;
+  --danger-bg: rgba(239, 68, 68, 0.15); --danger-border: rgba(239, 68, 68, 0.40); --danger-fg: #FCA5A5;
+  --info-bg: rgba(59, 130, 246, 0.16);  --info-border: rgba(59, 130, 246, 0.40);  --info-fg: #93C5FD;
+  --violet-bg: rgba(139, 92, 246, 0.16); --violet-border: rgba(139, 92, 246, 0.40); --violet-fg: #C4B5FD;
+
+  --shadow-sm: 0 6px 14px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 10px 26px rgba(0, 0, 0, 0.40);
+  --shadow-lg: 0 24px 70px rgba(0, 0, 0, 0.55);
+  --ring: 0 0 0 4px rgba(143, 168, 255, 0.24);
+
+  /* La cabecera de .table-container lleva texto blanco fijo: debe seguir oscura. */
+  --table-head: #323B50;
+
+  --mt-border: var(--border);
+  --mt-accent-ink: #D9F99D;
+  --mt-accent-soft: rgba(140, 213, 10, 0.16);
+  --mt-shadow: 0 3px 12px rgba(0, 0, 0, .35);
+  --mt-shadow-hover: 0 14px 34px rgba(0, 0, 0, .45);
+
+  /* ── Angular Material en oscuro ──────────────────────────────────────
+     Los --mat-sys-* claros vienen de material.scss; aquí van los oscuros
+     de marca. Se escriben a mano (no con light-dark()) para no depender de
+     que el WebView de Android sea reciente. */
+  --mat-sys-background: #151A26;
+  --mat-sys-on-background: #E8ECF3;
+  --mat-sys-surface: #1E2433;
+  --mat-sys-surface-bright: #323B50;
+  --mat-sys-surface-dim: #151A26;
+  --mat-sys-surface-container-lowest: #121622;
+  --mat-sys-surface-container-low: #1E2433;
+  --mat-sys-surface-container: #232A3A;
+  --mat-sys-surface-container-high: #293143;
+  --mat-sys-surface-container-highest: #323B50;
+  --mat-sys-surface-variant: #323B50;
+  --mat-sys-surface-tint: #8FA8FF;
+  --mat-sys-on-surface: #E8ECF3;
+  --mat-sys-on-surface-variant: #B7C0CF;
+  --mat-sys-inverse-surface: #E8ECF3;
+  --mat-sys-inverse-on-surface: #232A3A;
+  --mat-sys-outline: #66728A;
+  --mat-sys-outline-variant: #3B455C;
+
+  --mat-sys-primary: #8FA8FF;
+  --mat-sys-on-primary: #0B1A4F;
+  --mat-sys-primary-container: #24377A;
+  --mat-sys-on-primary-container: #DDE5FF;
+  --mat-sys-primary-fixed: #DDE5FF;
+  --mat-sys-primary-fixed-dim: #8FA8FF;
+  --mat-sys-on-primary-fixed: #0B1A4F;
+  --mat-sys-on-primary-fixed-variant: #24377A;
+  --mat-sys-inverse-primary: #2B59F0;
+
+  --mat-sys-secondary: #BCC6DC;
+  --mat-sys-on-secondary: #263047;
+  --mat-sys-secondary-container: #3C4760;
+  --mat-sys-on-secondary-container: #D8E2F9;
+
+  --mat-sys-tertiary: #B4E266;
+  --mat-sys-on-tertiary: #1E3300;
+  --mat-sys-tertiary-container: #33511A;
+  --mat-sys-on-tertiary-container: #DDF5B8;
+
+  --mat-sys-error: #FFB4AB;
+  --mat-sys-on-error: #690005;
+  --mat-sys-error-container: #93000A;
+  --mat-sys-on-error-container: #FFDAD6;
+
+  --mat-sys-scrim: #000000;
+  --mat-sys-shadow: #000000;
+}
+
+/* Bloques que deben seguir en claro aunque la app esté en oscuro: vistas
+   previas de documentos que se imprimen o se capturan como imagen. */
+html[data-theme='dark'] .tema-claro-fijo {
+  color-scheme: light;
+  --bg: #F4F6FA;
+  --surface: #FFFFFF;
+  --surface-2: #F7F9FC;
+  --surface-3: #F1F4F9;
+  --surface-4: #E6EBF2;
+  --text: #0F1B2D;
+  --text-2: #44526A;
+  --muted: #6B778C;
+  --text-faint: #A9B3C2;
+  --navy-ink: #0F1B2D;
+  --lime-ink: #4E8A12;
+  --border: #E3E8F0;
+  --border-strong: #CFD7E3;
+  --ink-rgb: 15 27 45;
+  --surface-rgb: 255 255 255;
+  --ok-bg: #DCFCE7;     --ok-border: #BBF7D0;     --ok-fg: #166534;
+  --warn-bg: #FEF3C7;   --warn-border: #FDE68A;   --warn-fg: #92400E;
+  --danger-bg: #FEE2E2; --danger-border: #FECACA; --danger-fg: #B91C1C;
+  --info-bg: #DBEAFE;   --info-border: #BFDBFE;   --info-fg: #1D4ED8;
+  color: var(--text);
+}

@@ -16,6 +16,8 @@ export interface PerfilEmpresa {
   prioridad: number;
   /** Si está, la temporal de la vacante DEBE coincidir. */
   matchTemporal?: Temporal;
+  /** Si está, el perfil NO aplica a esa temporal (aunque casen empresa o finca). */
+  excluirTemporal?: Temporal;
   /** Si está, alguna regex DEBE matchear `empresa_usuaria_solicita` (normalizada). */
   matchEmpresa?: RegExp[];
   /** Si está, alguna regex DEBE matchear `finca` (normalizada). */
@@ -87,6 +89,10 @@ export const PERFILES_EMPRESA: PerfilEmpresa[] = [
   {
     nombre: 'Administrativos',
     prioridad: 100,
+    // Es un perfil de Tu Alianza (lleva "Entrevista de Ingreso Tu Alianza"). Sin esta
+    // exclusión, el centro de APOYO "ADMINISTRATIVO PETALIA" casaba por finca y recibía
+    // documentos de otra temporal. APOYO resuelve por su parametrización documental.
+    excluirTemporal: 'APOYO LABORAL SAS',
     matchEmpresa: [/ADMINISTRATIV/i],
     matchFinca:   [/ADMINISTRATIV/i],
     documentos: [
@@ -396,6 +402,9 @@ const SECCION_BY_TITLE: Record<string, DocSeccion> = {
   'Contratos Otrosí':                                     'generales',
   'OTRO SI Jornada Laboral':                              'generales',
   'Carnet':                                               'generales',
+  'Autorización Derechos de Imagen':                      'generales',
+  'Ficha Afiliación S.S.':                                'generales',
+  'Referenciación Trabajador en Misión':                  'generales',
   'Auxilio Alimentación':                                 'generales',
   'Autorización Daños Pérdidas':                          'generales',
   // Contrato
@@ -512,6 +521,7 @@ interface FilterCtx {
 
 function perfilMatches(p: PerfilEmpresa, empUsu: string, finca: string, temp: string): boolean {
   if (p.matchTemporal && p.matchTemporal !== temp) return false;
+  if (p.excluirTemporal && p.excluirTemporal === temp) return false;
 
   const wantsEmp = !!p.matchEmpresa?.length;
   const wantsFinca = !!p.matchFinca?.length;

@@ -18,28 +18,26 @@
   --lime: #8CD50A;
 
   /* Neutrales */
-  --surface: #ffffff;
-  --surface-sunken: #f8fafc;
-  --surface-hover: #f1f5f9;
-  --border: #e8edf3;
-  --border-strong: #d8e0ea;
+  --surface-sunken: var(--surface-2);
+  --surface-hover: var(--surface-3);
+  --border: light-dark(#e8edf3, #233e63);
+  --border-strong: var(--border);
 
   /* Texto */
-  --text-strong: #0f172a;
-  --text: #334155;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
+  --text-strong: var(--text);
+  --dm-text: var(--text-2);
+  --text-muted: var(--muted);
 
   /* Semántico */
-  --warn-bg: #fdf4e3;
-  --warn-fg: #925a06;
-  --warn-border: #f2dcac;
-  --ok-bg: #ecfdf5;
-  --ok-fg: #0f766e;
-  --ok-border: #b9e6df;
+  --warn-bg: light-dark(#fdf4e3, #353027);
+  --warn-fg: light-dark(#925a06, #f7d097);
+  --warn-border: light-dark(#f2dcac, #5f4e28);
+  --ok-bg: light-dark(#ecfdf5, #133b39);
+  --ok-fg: light-dark(#0f766e, #9bf2ec);
+  --ok-border: light-dark(#b9e6df, #23595c);
   --danger: #b42318;
-  --danger-bg: #fef3f2;
-  --danger-border: #fbd3ce;
+  --danger-bg: light-dark(#fef3f2, #351c27);
+  --danger-border: light-dark(#fbd3ce, #652122);
 
   /* Material: fuera el azul por defecto */
   --mat-form-field-outlined-focus-outline-color: var(--navy);
@@ -62,7 +60,7 @@
   padding: 28px;
   background: var(--surface);
   border-radius: 30px !important;
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   color: var(--text-strong);
 }
 
@@ -195,7 +193,7 @@
   min-width: 26px;
   border-radius: 7px;
   background: var(--surface-hover);
-  color: var(--navy);
+  color: var(--navy-ink);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -220,7 +218,7 @@
   margin: 0;
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
   letter-spacing: -0.01em;
 }
 
@@ -282,14 +280,14 @@
 }
 
 .dropzone.drag-over .cloud-icon {
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .dz-title {
   margin: 0;
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--dm-text);
 }
 
 .dz-sub {
@@ -299,7 +297,7 @@
 }
 
 .dz-link {
-  color: var(--navy);
+  color: var(--navy-ink);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -354,7 +352,7 @@
   height: 38px !important;
   font-size: 12.5px !important;
   font-weight: 600 !important;
-  color: var(--text) !important;
+  color: var(--dm-text) !important;
   border-color: var(--border-strong) !important;
   display: inline-flex;
   align-items: center;
@@ -365,7 +363,7 @@
 .btn-ghost:hover:not([disabled]) {
   background: var(--surface-hover) !important;
   border-color: var(--navy) !important;
-  color: var(--navy) !important;
+  color: var(--navy-ink) !important;
 }
 
 .btn-ghost mat-icon,
@@ -388,7 +386,7 @@
 }
 
 .btn-danger-ghost:hover:not([disabled]) {
-  color: var(--danger);
+  color: var(--danger); color: light-dark(var(--danger), #f2a29c);
   background: var(--danger-bg);
 }
 
@@ -416,16 +414,16 @@
 
 /* Checkbox de marca (sin azul de Material) */
 .brand-check {
-  --mat-checkbox-selected-icon-color: var(--navy);
-  --mat-checkbox-selected-hover-icon-color: var(--navy);
-  --mat-checkbox-selected-focus-icon-color: var(--navy);
-  --mat-checkbox-selected-pressed-icon-color: var(--navy);
+  --mat-checkbox-selected-icon-color: var(--navy-ink);
+  --mat-checkbox-selected-hover-icon-color: var(--navy-ink);
+  --mat-checkbox-selected-focus-icon-color: var(--navy-ink);
+  --mat-checkbox-selected-pressed-icon-color: var(--navy-ink);
   --mat-checkbox-selected-checkmark-color: var(--lime);
   --mat-checkbox-selected-hover-state-layer-color: var(--navy);
   --mat-checkbox-selected-focus-state-layer-color: var(--navy);
   --mat-checkbox-unselected-icon-color: var(--text-faint);
-  --mat-checkbox-unselected-hover-icon-color: var(--navy);
-  --mat-checkbox-label-text-color: var(--text);
+  --mat-checkbox-unselected-hover-icon-color: var(--navy-ink);
+  --mat-checkbox-label-text-color: var(--dm-text);
   --mat-checkbox-label-text-size: 12.5px;
   --mat-checkbox-label-text-weight: 500;
 }
@@ -461,7 +459,7 @@
   margin: 0;
   font-size: 13.5px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .queue-count {
@@ -500,7 +498,7 @@
 .bulk-count {
   font-size: 12px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
   white-space: nowrap;
 }
 
@@ -585,7 +583,7 @@
   font-size: 19px;
   width: 19px;
   height: 19px;
-  color: var(--danger);
+  color: var(--danger); color: light-dark(var(--danger), #f2a29c);
   opacity: 0.7;
   flex-shrink: 0;
 }
@@ -657,9 +655,9 @@
 }
 
 .state-uploading {
-  color: var(--navy);
-  background: rgba(33, 38, 60, 0.07);
-  border-color: rgba(33, 38, 60, 0.15);
+  color: var(--navy-ink);
+  background: rgb(var(--ink-rgb) / 0.07);
+  border-color: rgb(var(--ink-rgb) / 0.15);
 }
 
 .state-done {
@@ -676,7 +674,7 @@
 }
 
 .state-error {
-  color: var(--danger);
+  color: var(--danger); color: light-dark(var(--danger), #f2a29c);
   background: var(--danger-bg);
   border-color: var(--danger-border);
   cursor: help;
@@ -729,7 +727,7 @@
   margin: 0 0 6px;
   font-size: 15px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .empty-queue p {
@@ -743,7 +741,7 @@
 /* =============== RESPONSIVE =============== */
 @media (max-width: 1100px) {
   .main-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Al apilarse sidebar y cola, el alto fijo dejaría la cola en una rendija:

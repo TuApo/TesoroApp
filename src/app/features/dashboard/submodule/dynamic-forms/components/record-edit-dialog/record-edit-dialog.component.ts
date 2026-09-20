@@ -123,16 +123,16 @@ interface CampoEditable {
       gap: 8px;
       font-size: 1.1rem;
       font-weight: 700;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
     }
-    .red-llave { font-weight: 500; color: var(--muted, #64748b); }
+    .red-llave { font-weight: 500; color: var(--muted); }
     .red-contenido { padding-top: 8px !important; }
     .red-ayuda {
       margin: 0 0 14px;
       font-size: 0.82rem;
-      color: var(--muted, #64748b);
+      color: var(--muted);
     }
-    .red-vacio { color: var(--muted, #64748b); }
+    .red-vacio { color: var(--muted); }
     .red-campos { display: flex; flex-direction: column; gap: 14px; }
     .red-nota { width: 100%; margin-top: 18px; }
     .red-error {
@@ -142,8 +142,8 @@ interface CampoEditable {
       margin-bottom: 12px;
       padding: 10px 12px;
       border-radius: 10px;
-      background: #fee2e2;
-      color: #991b1b;
+      background: #fee2e2; background: light-dark(#fee2e2, #371725);
+      color: #991b1b; color: light-dark(#991b1b, #eea0a0);
       font-size: 0.85rem;
     }
     .red-guardar {

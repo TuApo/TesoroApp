@@ -59,10 +59,10 @@ import { FormDefinition } from '../../models/office-forms.models';
     .ff { padding: 8px 4px 40px; max-width: 620px; }
     .w-full { width: 100%; }
     .ff__head { display: flex; align-items: center; gap: 12px; }
-    .ff__head h1 { font-size: 22px; font-weight: 800; margin: 0; color: #0f172a; }
-    .ff__head p { color: #64748b; margin: 2px 0 0; }
+    .ff__head h1 { font-size: 22px; font-weight: 800; margin: 0; color: var(--text); }
+    .ff__head p { color: var(--muted); margin: 2px 0 0; }
     .ff__loading { display: flex; justify-content: center; padding: 50px 0; }
-    .ff__card { margin-top: 16px; border: 1px solid #e6eaf0; border-radius: 14px; background: #fff; padding: 20px; }
+    .ff__card { margin-top: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 20px; }
     .ff__actions { margin-top: 18px; display: flex; justify-content: flex-end; }
   `],
 })

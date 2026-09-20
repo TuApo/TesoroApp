@@ -157,7 +157,7 @@ import { CampoCatalogo, FieldSpec, FormatoCampo } from '../models/reportes.model
     .col {
       display: flex; align-items: center; gap: .2rem;
       padding: .25rem .3rem; border-radius: 10px;
-      border: 1px solid var(--rp-borde, #e2e8f0); background: var(--rp-fondo, #fff);
+      border: 1px solid var(--rp-borde, var(--border)); background: var(--rp-fondo, var(--surface));
     }
     .col--oculta { opacity: .5; }
     .col__grip { color: #cbd5e1; cursor: grab; font-size: 18px; width: 18px; height: 18px; }
@@ -167,30 +167,30 @@ import { CampoCatalogo, FieldSpec, FormatoCampo } from '../models/reportes.model
     .col__info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .col__alias {
       border: 0; outline: 0; background: transparent; font-size: .84rem; font-weight: 600;
-      color: var(--rp-texto, #0f172a); width: 100%; padding: 0;
+      color: var(--rp-texto, var(--text)); width: 100%; padding: 0;
     }
     .col__alias:focus { border-bottom: 1px solid #0284c7; }
     .col__origen {
-      font-size: .68rem; color: #94a3b8; display: flex; align-items: center; gap: .25rem;
+      font-size: .68rem; color: var(--text-faint); display: flex; align-items: center; gap: .25rem;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .col__calc { font-size: 12px; width: 12px; height: 12px; color: #7c3aed; }
     .agg {
       font-style: normal; font-weight: 700; font-size: .62rem; text-transform: uppercase;
-      background: #ecfdf5; color: #047857; border-radius: 999px; padding: 0 5px;
+      background: #ecfdf5; background: light-dark(#ecfdf5, #133b39); color: #047857; color: light-dark(#047857, #97f7db); border-radius: 999px; padding: 0 5px;
     }
-    .agg--fecha { background: #eff6ff; color: #1d4ed8; }
+    .agg--fecha { background: #eff6ff; background: light-dark(#eff6ff, #0f284d); color: #1d4ed8; }
 
     .cols__vacio {
       display: flex; align-items: center; gap: .4rem; margin: 0;
-      padding: 1rem .6rem; border: 1px dashed #cbd5e1; border-radius: 12px;
-      font-size: .8rem; color: #94a3b8;
+      padding: 1rem .6rem; border: 1px dashed var(--border-strong); border-radius: 12px;
+      font-size: .8rem; color: var(--text-faint);
     }
 
     .nota {
       display: flex; align-items: flex-start; gap: .35rem; margin: .5rem 0 0;
-      font-size: .74rem; color: #0369a1; background: #f0f9ff;
-      border: 1px solid #bae6fd; border-radius: 10px; padding: .4rem .5rem;
+      font-size: .74rem; color: #0369a1; color: light-dark(#0369a1, #97d5f7); background: #f0f9ff; background: light-dark(#f0f9ff, #0f2e4d);
+      border: 1px solid #bae6fd; border: 1px solid light-dark(#bae6fd, #0e4f79); border-radius: 10px; padding: .4rem .5rem;
     }
     .nota mat-icon { font-size: 16px; width: 16px; height: 16px; flex: 0 0 auto; }
 

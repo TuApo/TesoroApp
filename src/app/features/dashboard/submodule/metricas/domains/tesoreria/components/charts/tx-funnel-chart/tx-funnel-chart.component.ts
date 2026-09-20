@@ -1,6 +1,7 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
 
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { ChartDataPoint } from '../../../models/tesoreria-metricas.models';
 import { EmptyStateComponent } from '../../../../../shared/components/empty-state/empty-state.component';
@@ -9,7 +10,7 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
     selector: 'app-tx-funnel-chart',
     standalone: true,
     imports: [NgxEchartsDirective, EmptyStateComponent],
-    providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+    providers: [provideEchartsTema()],
     template: `
     @if (hasData) {
       <div class="chart-container">

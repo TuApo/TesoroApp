@@ -10,11 +10,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subscription } from 'rxjs';
 import * as XLSX from 'xlsx';
 
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../../../shared/components/tabla-estandar';
 import {
   FilaInformeUmbral,
   InformeUmbral,
@@ -48,6 +48,25 @@ export const COLOR_TRAMO: Readonly<Record<TramoUmbral, EstiloChip>> = {
   PROXIMO_540: { color: '#6a1b9a', background: '#f3e5f5' },
   SUPERA_540: { color: '#4527a0', background: '#ede7f6' },
 };
+
+/**
+ * Tono del chip de la tabla estandar por tramo (mismos significados que
+ * COLOR_TRAMO, pero con los tonos de la tabla: se ven bien en claro y oscuro).
+ */
+export const TONO_TRAMO: Readonly<Record<TramoUmbral, TonoBadge>> = {
+  PROXIMO_180: 'warn',
+  SUPERA_180: 'danger',
+  PROXIMO_540: 'violet',
+  SUPERA_540: 'violet',
+};
+
+/** Fecha del backend como Date local (un 'yyyy-MM-dd' con `new Date()` se leeria en UTC). */
+function aFechaLocal(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(v);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 /** Definicion visual de cada contador de la cabecera. */
 export interface DefinicionTramo {
@@ -123,7 +142,8 @@ const ANCHOS_INFORME: { wch: number }[] = [
  *  - 540 dias: el pago vuelve a la EPS.
  *
  * El dialogo abre pidiendo el informe con margen de 30 dias, deja cambiar el
- * margen (15/30/60), filtra en cliente por cedula/nombre y exporta a Excel.
+ * margen (15/30/60) y exporta a Excel. La busqueda (cedula, nombre…), los
+ * filtros por columna y el orden los da la tabla estandar.
  * Es SOLO LECTURA: no modifica ninguna incapacidad.
  */
 @Component({
@@ -134,8 +154,8 @@ const ANCHOS_INFORME: { wch: number }[] = [
     MatIconModule,
     MatButtonModule,
     MatButtonToggleModule,
-    MatProgressSpinnerModule,
     MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './dialogo-informe-umbral.component.html',
   styleUrl: './dialogo-informe-umbral.component.css',
@@ -156,36 +176,23 @@ export class DialogoInformeUmbralComponent implements OnDestroy {
   readonly margen = signal<number>(MARGEN_UMBRAL_POR_DEFECTO);
   readonly cargando = signal(false);
   readonly error = signal('');
-  /** Texto del filtro rapido (cedula o nombre). */
-  readonly filtro = signal('');
   /** Ultimo informe recibido (`null` mientras no ha llegado ninguno). */
   private readonly informe = signal<InformeUmbral | null>(null);
 
   // ── Derivados ─────────────────────────────────────────────────────────
 
-  /** Cuantas personas trae el informe (sin filtro rapido). */
+  /** Cuantas personas trae el informe. */
   readonly totalInforme = computed(() => this.informe()?.filas.length ?? 0);
 
-  /** Filas del informe ordenadas por dias acumulados, de mayor a menor. */
-  readonly filasOrdenadas = computed<readonly FilaInformeUmbral[]>(() => {
+  /** Filas del informe ordenadas por dias acumulados, de mayor a menor (lo que recibe la tabla). */
+  readonly filasOrdenadas = computed<FilaInformeUmbral[]>(() => {
     const filas = this.informe()?.filas ?? [];
     return [...filas].sort(
       (a, b) => (b.diasAcumulados ?? 0) - (a.diasAcumulados ?? 0),
     );
   });
 
-  /** Filas que pasan el filtro rapido por cedula/nombre. */
-  readonly filasVisibles = computed<readonly FilaInformeUmbral[]>(() => {
-    const texto = this.filtro().trim().toLowerCase();
-    if (!texto) return this.filasOrdenadas();
-    return this.filasOrdenadas().filter(
-      (fila) =>
-        (fila.cedula ?? '').toLowerCase().includes(texto) ||
-        (fila.nombreCompleto ?? '').toLowerCase().includes(texto),
-    );
-  });
-
-  /** Conteo por tramo sobre TODO el informe (el filtro rapido no lo altera). */
+  /** Conteo por tramo sobre TODO el informe (los filtros de la tabla no lo alteran). */
   readonly conteosPorTramo = computed<Record<TramoUmbral, number>>(() => {
     const conteos: Record<TramoUmbral, number> = {
       PROXIMO_180: 0,
@@ -208,14 +215,36 @@ export class DialogoInformeUmbralComponent implements OnDestroy {
       this.totalInforme() === 0,
   );
 
-  /** Hay informe pero el filtro rapido no deja ver ninguna fila. */
-  readonly filtroSinResultados = computed(
-    () => this.totalInforme() > 0 && this.filasVisibles().length === 0,
+  readonly puedeExportar = computed(
+    () => !this.cargando() && this.filasOrdenadas().length > 0,
   );
 
-  readonly puedeExportar = computed(
-    () => !this.cargando() && this.filasVisibles().length > 0,
-  );
+  // ── Tabla (estandar) ──────────────────────────────────────────────────
+
+  readonly columnas: ColumnaTabla<FilaInformeUmbral>[] = [
+    { id: 'cedula', header: 'Cedula', valor: (f) => f.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (f) => f.nombreCompleto, tarjeta: 'titulo', minAncho: '150px' },
+    { id: 'empresa', header: 'Empresa', valor: (f) => f.empresa ?? '', formato: (f) => f.empresa || '—', tarjeta: 'cuerpo' },
+    { id: 'eps', header: 'EPS', valor: (f) => f.eps ?? '', formato: (f) => f.eps || '—', prioridad: 2, tarjeta: 'meta' },
+    { id: 'afp', header: 'AFP', valor: (f) => f.afp ?? '', formato: (f) => f.afp || '—', prioridad: 3, tarjeta: 'meta' },
+    { id: 'diagnostico', header: 'Diagnostico', valor: (f) => f.codigoDiagnostico ?? '', prioridad: 2,
+      tarjeta: 'cuerpo', minAncho: '160px' },
+    { id: 'dias', header: 'Dias acum.', valor: (f) => f.diasAcumulados, align: 'right', tarjeta: 'meta' },
+    { id: 'fin', header: 'Fin ultima', valor: (f) => aFechaLocal(f.fechaFinUltima),
+      formato: (f) => this.fecha(f.fechaFinUltima), copiaTexto: (f) => fechaLegible(f.fechaFinUltima),
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'responsable', header: 'Responsable de pago', prioridad: 3, tarjeta: 'meta',
+      valor: (f) => f.responsablePagoEtiqueta || f.responsablePago || '',
+      formato: (f) => f.responsablePagoEtiqueta || f.responsablePago || '—' },
+    { id: 'tramo', header: 'Tramo', valor: (f) => this.etiquetaTramo(f), tarjeta: 'badge',
+      badge: (f) => ({
+        texto: this.etiquetaTramo(f),
+        tono: TONO_TRAMO[f.tramo] ?? 'neutro',
+        icono: this.tramos.find((t) => t.tramo === f.tramo)?.icono,
+      }) },
+  ];
+
+  readonly idFila = (f: FilaInformeUmbral) => f.incapacidadId;
 
   constructor() {
     this.cargar();
@@ -254,10 +283,6 @@ export class DialogoInformeUmbralComponent implements OnDestroy {
     this.cargar();
   }
 
-  cambiarFiltro(valor: string): void {
-    this.filtro.set(valor ?? '');
-  }
-
   cerrar(): void {
     this.peticion?.unsubscribe();
     this.ref.close();
@@ -290,14 +315,15 @@ export class DialogoInformeUmbralComponent implements OnDestroy {
   // ── Exportacion ───────────────────────────────────────────────────────
 
   /**
-   * Genera el .xlsx en el CLIENTE (SheetJS, como el dialogo de exportar).
-   * Exporta lo que se esta viendo: con el filtro rapido activo salen solo
-   * las filas filtradas; sin filtro sale el informe completo.
+   * Genera el .xlsx en el CLIENTE (SheetJS, como el dialogo de exportar) con
+   * el informe completo y el formato de la funcional (AFP, codigo y
+   * descripcion del diagnostico por separado). Para bajar solo lo filtrado
+   * esta el boton «Excel» de la propia tabla.
    */
   exportarExcel(): void {
     if (!this.puedeExportar()) return;
 
-    const datos = this.filasVisibles().map((fila) => ({
+    const datos = this.filasOrdenadas().map((fila) => ({
       Cedula: fila.cedula ?? '',
       Nombre: fila.nombreCompleto ?? '',
       Empresa: fila.empresa ?? '',

@@ -3,12 +3,12 @@ import { TrasladosService } from '../../service/traslados.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
-import { MatTableDataSource } from '@angular/material/table';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { environment } from '@/environments/environment';
@@ -30,14 +30,16 @@ interface RangoFechas {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-transfer-query',
   imports: [
-    SharedModule
+    SharedModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './transfer-query.component.html',
   styleUrl: './transfer-query.component.css'
 })
 export class TransferQueryComponent implements OnInit {
   myForm!: FormGroup;
-  dataSource = new MatTableDataSource<any>([]);
+  /** Traslados de la cédula consultada. */
+  resultados: any[] = [];
   isExporting = false;
   isDeactivating = false;
 
@@ -46,13 +48,21 @@ export class TransferQueryComponent implements OnInit {
 
   @ViewChild('uploadDeactivateInput') uploadDeactivateInput?: ElementRef<HTMLInputElement>;
 
-  displayedColumns: string[] = [
-    'codigo_traslado',
-    'solicitud_traslado',
-    'eps_a_trasladar',
-    'responsable',
-    'estado_del_traslado'
+  readonly columnas: ColumnaTabla<any>[] = [
+    { id: 'codigo_traslado', header: 'Código', valor: (e) => e.codigo_traslado, align: 'center',
+      tarjeta: 'subtitulo' },
+    { id: 'solicitud_traslado', header: 'Solicitud', align: 'center', interactiva: true, tarjeta: 'cuerpo',
+      valor: (e) => (this.resolveSolicitudUrl(e) ? 'Disponible' : 'Sin documento') },
+    { id: 'eps_a_trasladar', header: 'EPS a Trasladar', valor: (e) => e.eps_a_trasladar ?? '',
+      formato: (e) => e.eps_a_trasladar || '—', tarjeta: 'titulo' },
+    { id: 'responsable', header: 'Responsable', valor: (e) => e.responsable ?? '', prioridad: 2,
+      formato: (e) => e.responsable || 'Sin asignar', tarjeta: 'cuerpo' },
+    { id: 'estado_del_traslado', header: 'Estado', align: 'center', tarjeta: 'badge',
+      valor: (e) => e.estado_del_traslado ?? '',
+      badge: (e) => ({ texto: e.estado_del_traslado || '—', tono: this.tonoEstado(e.estado_del_traslado) }) },
   ];
+
+  readonly idTraslado = (e: any) => e.codigo_traslado;
 
   constructor(
     private trasladosService: TrasladosService,
@@ -77,11 +87,6 @@ export class TransferQueryComponent implements OnInit {
       correo === 'tuafiliacion@tsservicios.co';
   }
 
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value.trim().toLowerCase();
-    this.dataSource.filter = filterValue;
-  }
-
   onSubmit(): void {
     if (this.myForm.valid) {
       this.trimField('cedula');
@@ -99,7 +104,7 @@ export class TransferQueryComponent implements OnInit {
       this.trasladosService.buscarAfiliacionPorId(this.myForm.value.cedula).subscribe(
         (data: any) => {
           Swal.close();
-          this.dataSource.data = Array.isArray(data) ? data : (data?.results || data?.data || []);
+          this.resultados = Array.isArray(data) ? data : (data?.results || data?.data || []);
           this.cdr.markForCheck();
         },
         (_error: any) => {
@@ -147,6 +152,14 @@ export class TransferQueryComponent implements OnInit {
   estadoEsRechazado(raw: string | null | undefined): boolean {
     const e = this.normalizarEstado(raw);
     return e === 'rechazado' || e === 'no efectivo' || e === 'devuelto' || e === 'cancelado';
+  }
+
+  /** Tono del chip de estado en la tabla estándar. */
+  private tonoEstado(raw: string | null | undefined): 'ok' | 'warn' | 'danger' | 'neutro' {
+    if (this.estadoEsOk(raw)) return 'ok';
+    if (this.estadoEsPendiente(raw)) return 'warn';
+    if (this.estadoEsRechazado(raw)) return 'danger';
+    return 'neutro';
   }
 
   /**
@@ -598,8 +611,8 @@ export class TransferQueryComponent implements OnInit {
       });
 
       // Refrescar la tabla actual si la cedula consultada esta entre las desactivadas.
-      if (this.dataSource.data.length > 0) {
-        this.dataSource.data = this.dataSource.data.filter(r =>
+      if (this.resultados.length > 0) {
+        this.resultados = this.resultados.filter(r =>
           !resp?.codigos_desactivados?.includes(r.codigo_traslado)
         );
       }

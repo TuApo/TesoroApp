@@ -25,13 +25,16 @@ import { centroDeCostosDe } from '../../shared/contrato-campos';
 export const CAMPOS_PAGO_TRANSPORTE: ReadonlyArray<{ campo: string; etiqueta: string }> = [
   { campo: 'forma_de_pago', etiqueta: 'Forma de pago' },
   { campo: 'numero_para_pagos', etiqueta: 'Número para pagos' },
+  // NO entran `porcentaje_arl` ni `cesantias`, aunque el contrato los siga guardando:
+  // el 2026-09-08 salieron de la ficha de contratación y ya no hay casilla donde
+  // responderlos. Un requisito que no se puede satisfacer no es un requisito, es un
+  // bloqueo permanente: nadie podría volver a generar documentación de un contrato
+  // nuevo. Se siguen imprimiendo con el valor que traigan (histórico o autollenado).
   // OJO: la API responde `ccentro_de_costos` (minúscula) y el guardado acepta
   // `Ccentro_de_costos`. Se comprueba con `centroDeCostosDe`, más abajo; aquí
   // queda la etiqueta para el mensaje.
   { campo: 'Ccentro_de_costos', etiqueta: 'Centro de costos' },
   { campo: 'subcentro_de_costos', etiqueta: 'Subcentro de costos' },
-  { campo: 'porcentaje_arl', etiqueta: 'Porcentaje ARL' },
-  { campo: 'cesantias', etiqueta: 'Cesantías' },
   { campo: 'grupo', etiqueta: 'Grupo' },
   { campo: 'categoria', etiqueta: 'Categoría' },
   { campo: 'operacion', etiqueta: 'Operación' },
@@ -59,12 +62,10 @@ export function faltantesDePagoTransporte(contrato: any): string[] {
       : vacio(contrato[campo]))
     .map(({ etiqueta }) => etiqueta);
 
-  // Daviplata no pide tarjeta (misma regla que setupFormaPagoValidation en
-  // hiring-questions).
-  const formaPago = String(contrato['forma_de_pago'] ?? '').trim();
-  if (formaPago && formaPago !== 'Daviplata' && vacio(contrato['identification_number_tarjeta'])) {
-    faltan.push('Número de tarjeta');
-  }
+  // Ya no se exige `identification_number_tarjeta`: la casilla salió de la ficha
+  // (2026-09-08) y sin dónde responderla bloquearía a todo contrato que no sea
+  // Daviplata. El cruce contra el maestro de tarjetas sigue vivo en el formulario
+  // para los contratos que sí la traen.
 
   return faltan;
 }

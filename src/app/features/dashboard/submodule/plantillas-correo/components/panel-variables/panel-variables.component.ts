@@ -82,9 +82,9 @@ import { Catalogo, GrupoVariables, Variable } from '../../models/plantilla-corre
     .pvar { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
     .pvar__cab { display: flex; align-items: center; gap: 10px; }
     .pvar__titulo { font-weight: 600; font-size: 14px; }
-    .pvar__sub { font-size: 12px; color: var(--mat-sys-on-surface-variant, #5f6368); }
+    .pvar__sub { font-size: 12px; color: var(--mat-sys-on-surface-variant, var(--muted)); }
     .pvar__buscar { width: 100%; }
-    .pvar__vacio { font-size: 12.5px; line-height: 1.5; color: #6b7280; margin: 0; }
+    .pvar__vacio { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin: 0; }
     .pvar__lista { flex: 1 1 auto; overflow: auto; min-height: 0; }
     .pvar__item {
       display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
@@ -92,7 +92,7 @@ import { Catalogo, GrupoVariables, Variable } from '../../models/plantilla-corre
     }
     .pvar__item:hover { background: rgba(15, 118, 110, .08); }
     .pvar__etiqueta { flex: 1 1 auto; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pvar__clave { font-size: 10.5px; color: #0f766e; background: rgba(15,118,110,.1); padding: 1px 5px; border-radius: 3px; }
+    .pvar__clave { font-size: 10.5px; color: #0f766e; color: light-dark(#0f766e, #9bf2ec); background: rgba(15,118,110,.1); padding: 1px 5px; border-radius: 3px; }
     .pvar__add { font-size: 18px; width: 18px; height: 18px; opacity: .45; }
     .pvar__item:hover .pvar__add { opacity: 1; }
   `],

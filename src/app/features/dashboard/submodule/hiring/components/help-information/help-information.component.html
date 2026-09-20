@@ -19,7 +19,8 @@
   [bloqueado]="bloqueado()"
   (fotoSolicitada)="fotoSolicitada.emit()"
   (irAPaso)="irAPaso.emit($event)"
-  (guardado)="guardado.emit()">
+  (guardado)="guardado.emit()"
+  (entrevistaEnviada)="entrevistaEnviada.emit($event)">
 
   <!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador) -->
   @if (bloqueado()) {
@@ -33,14 +34,15 @@
     </div>
   }
 
-  <form [formGroup]="vacantesForm" class="form-tab" [class.bloqueado-espera]="bloqueado()">
+  <form [formGroup]="vacantesForm" class="form-tab" [class.bloqueado-espera]="bloqueado()"
+        (focusout)="autoRemision.alSalirDeCampo()">
 
 
     <!-- ═══ Selector Único: Empresa → Finca → Cargo ═══ -->
     <div class="unified-selector" style="margin-bottom: 20px;">
       <mat-form-field class="example-full-width" appearance="outline" style="width: 100%;">
         <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
-        <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value)"
+        <mat-select [value]="selectedVacanteId()" (selectionChange)="onVacanteIdChange($event.value); autoRemision.programar()"
           [disabled]="bloqueado()" [disableOptionCentering]="true"
           panelClass="custom-select-panel">
 
@@ -48,7 +50,7 @@
             @if (vacanteSeleccionada(); as v) {
               <div class="trigger-wrap">
                 <span class="trigger-title">{{ v.empresa_usuaria_solicita }} - {{ v.finca || 'Sin finca' }} - {{ v.cargo
-                || 'Sin cargo' }}</span>
+                || 'Sin cargo' }} <small style="color:#64748B; font-weight:400">({{ fechaCreacion(v) }})</small></span>
                 <span class="spacer"></span>
                 <div class="badges-row">
                   <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
@@ -73,7 +75,7 @@
             <mat-form-field appearance="outline" style="width: 100%; margin-bottom: -1.25em;">
               <mat-icon matPrefix style="color: #666;">search</mat-icon>
               <input matInput [formControl]="searchVacanteCtrl"
-                     placeholder="Empresa, finca, cargo, código…"
+                     placeholder="Empresa, finca, cargo, código o fecha de creación…"
                      matTooltip="Varias palabras separadas por espacio: salen las que las tengan todas, en cualquier orden">
               @if (searchVacanteCtrl.value) {
                 <button matSuffix mat-icon-button aria-label="Limpiar"
@@ -123,7 +125,7 @@
                         </div>
                       </div>
                       <div class="row-2" style="font-size: 12px; color: gray; margin-left: 24px; margin-top: 4px;">
-                        {{ oficinasResumen(v.oficinas_que_contratan) }} · {{ formatShortDate(v.fecha_publicado) }} · Cod:
+                        <strong>{{ fechaCreacion(v) }}</strong> · {{ oficinasResumen(v.oficinas_que_contratan) }} · Cod:
                         {{ v.codigo_elite || 'N/A' }}
                       </div>
                     </div>
@@ -136,7 +138,7 @@
 
           @if (!vacantesAgrupadas().length) {
             <mat-option disabled>
-              Sin vacantes disponibles
+              Sin vacantes activas con cupos{{ searchVacanteCtrl.value ? ' para esa búsqueda' : '' }}
             </mat-option>
           }
         </mat-select>
@@ -205,16 +207,45 @@
               <mat-label>Hora de prueba</mat-label>
               <input matInput type="time" formControlName="horaPruebaEntrevista">
             </mat-form-field>
+            <!-- Se llena con la dirección de la empresa de la vacante y ofrece
+                 las que se conocen de la misma empresa o finca. Sigue siendo
+                 texto libre: la sugerencia es un punto de partida. -->
             <mat-form-field class="example-full-width" appearance="outline">
               <mat-label>Dirección de la empresa</mat-label>
-              <input matInput formControlName="direccionEmpresa">
+              <input matInput formControlName="direccionEmpresa" [matAutocomplete]="acDireccion">
+              <mat-autocomplete #acDireccion="matAutocomplete">
+                @for (d of direccionesParaMostrar(); track d.direccion) {
+                  <mat-option [value]="d.direccion">
+                    <span class="dir-sugerida">{{ d.direccion }}</span>
+                    <small class="dir-origen">{{ d.origen }}</small>
+                  </mat-option>
+                }
+              </mat-autocomplete>
+              @if (vacanteSeleccionada() && !direccionesEmpresa().length) {
+                <mat-hint>La vacante no trae dirección: escríbela</mat-hint>
+              }
             </mat-form-field>
           }
         </div>
 
-        <!-- ═══ Resultado de la prueba técnica: "No pasó" ═══ -->
+        <!-- ═══ Resultado de la prueba técnica: pasó / no pasó ═══
+             "Pasó" es el que abre el paso de Exámenes de ingreso en el rail;
+             hasta que se registre, ese paso queda bloqueado. -->
         @if (isPrueba()) {
           <div class="no-paso-block">
+            @if (pasoPrueba()) {
+              <div class="paso-banner">
+                <mat-icon>check_circle</mat-icon>
+                <div class="no-paso-info">
+                  <strong>Pasó la prueba técnica.</strong>
+                  @if (pasoPruebaAt()) {
+                    <span class="no-paso-fecha">Fecha: {{ formatShortDate(pasoPruebaAt()) }}</span>
+                  }
+                  <div class="no-paso-motivo">Exámenes de ingreso habilitado.</div>
+                </div>
+              </div>
+            }
+
             @if (noPasoPrueba()) {
               <div class="no-paso-banner">
                 <mat-icon>cancel</mat-icon>
@@ -231,14 +262,24 @@
             }
 
             <div class="no-paso-actions">
+              <button mat-flat-button color="primary" type="button"
+                class="btn-paso-prueba"
+                [disabled]="vacantesForm.disabled || bloqueado() || pasoPrueba()"
+                matTooltip="Registra que aprobó la prueba y habilita Exámenes de ingreso"
+                (click)="marcarPasoPrueba()">
+                <mat-icon>thumb_up</mat-icon>
+                {{ pasoPrueba() ? 'Ya pasó la prueba' : 'Pasó la prueba técnica' }}
+              </button>
+
               <button mat-stroked-button color="warn" type="button"
                 [disabled]="vacantesForm.disabled || bloqueado()"
                 (click)="marcarNoPasoPrueba()">
                 <mat-icon>thumb_down</mat-icon>
                 {{ noPasoPrueba() ? 'Editar motivo (no pasó)' : 'No pasó la prueba técnica' }}
               </button>
-              @if (noPasoPrueba()) {
-                <button mat-button type="button" [disabled]="bloqueado()" (click)="quitarNoPasoPrueba()">
+
+              @if (pasoPrueba() || noPasoPrueba()) {
+                <button mat-button type="button" [disabled]="bloqueado()" (click)="quitarResultadoPrueba()">
                   Quitar marca
                 </button>
               }
@@ -257,11 +298,10 @@
             Remisión
           </button>
 
-          <button mat-flat-button [color]="limpiarVacante() ? 'warn' : 'primary'"
-            [disabled]="vacantesForm.invalid || vacantesForm.disabled || bloqueado()"
-            (click)="guardarVacantes()">
-            {{ limpiarVacante() ? 'Quitar vacante' : 'Guardar' }}
-          </button>
+          <!-- Sin "Guardar" / "Quitar vacante": la remisión se guarda sola. -->
+          <app-auto-guardado-estado
+            [estado]="autoRemision.estado()" [error]="autoRemision.error()"
+            (reintentar)="autoRemision.ahora()" />
         </div>
       </form>
 

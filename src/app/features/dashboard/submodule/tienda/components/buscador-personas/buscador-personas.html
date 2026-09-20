@@ -1,0 +1,175 @@
+@if (aviso()) {
+  <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+}
+@if (error()) {
+  <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+}
+
+@if (!elegida()) {
+  <div class="campo buscador">
+    <label for="buscador-persona">Buscar persona</label>
+    <div class="entrada">
+      <mat-icon>search</mat-icon>
+      <input id="buscador-persona" [value]="texto()"
+             (input)="escribir($any($event.target).value)"
+             placeholder="Nombre o cédula — mínimo 3 letras"
+             autocomplete="off" />
+      @if (buscando()) { <mat-icon class="girando">progress_activity</mat-icon> }
+    </div>
+    <span class="pista">
+      Busca entre las personas <strong>contratadas</strong> y muestra si ya tienen
+      autorización de mercado.
+    </span>
+  </div>
+
+  @if (resultados().length > 0) {
+    <ul class="resultados">
+      @for (p of resultados(); track p.cedula) {
+        <li (click)="elegir(p)">
+          <div class="fila-principal">
+            <strong>{{ p.nombre || p.cedula }}</strong>
+            <span class="insignia" [class]="'insignia ' + estado(p).clase">{{ estado(p).texto }}</span>
+          </div>
+          <div class="fila-datos">
+            <span class="mono">{{ p.cedula }}</span>
+            @if (p.oficina) { <span>{{ p.oficina }}</span> }
+            @if (p.empresa) { <span>{{ p.empresa }}</span> }
+            @if (p.tiene_autorizacion_mercado) {
+              <span class="destacado">
+                {{ p.monto_autorizado | currency:'COP':'symbol-narrow':'1.0-0' }} autorizados
+                ({{ p.autorizaciones_pendientes }})
+              </span>
+            } @else if (p.puede_solicitar_mercado) {
+              <span>hasta {{ p.cupo_mercado_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  } @else if (buscado() && !buscando()) {
+    <p class="sin-resultados">
+      Nadie coincide con «{{ texto() }}». Pruebe con la cédula completa o con el apellido.
+    </p>
+  }
+} @else {
+  <!-- ── Ficha de la persona elegida ──────────────────────────────────── -->
+  <article class="ficha">
+    <div class="ficha-cabecera">
+      @if (elegida()!.foto_url) {
+        <img [src]="elegida()!.foto_url" alt="Foto de contratación" class="foto" />
+      } @else {
+        <div class="foto sin-foto"><mat-icon>no_photography</mat-icon></div>
+      }
+
+      <div class="ficha-datos">
+        <strong>{{ elegida()!.nombre || elegida()!.cedula }}</strong>
+        <span class="mono">{{ elegida()!.cedula }}</span>
+        @if (elegida()!.oficina || elegida()!.empresa) {
+          <span>{{ elegida()!.oficina }}@if (elegida()!.empresa) { · {{ elegida()!.empresa }} }</span>
+        }
+        @if (elegida()!.dias_trabajados) {
+          <span>{{ elegida()!.dias_trabajados }} días trabajados</span>
+        }
+
+        <div class="insignias">
+          @if (!elegida()!.en_tesoreria) {
+            <span class="insignia aviso">sin ficha en tesorería</span>
+          }
+          @if (elegida()!.bloqueado) { <span class="insignia peligro">bloqueada</span> }
+          @if (!elegida()!.activo && elegida()!.en_tesoreria) {
+            <span class="insignia peligro">retirada</span>
+          }
+          @if (elegida()!.tiene_foto === false) {
+            <span class="insignia aviso">sin foto en contratación</span>
+          } @else if (elegida()!.tiene_foto === null) {
+            <span class="insignia aviso">no se pudo consultar la foto</span>
+          }
+        </div>
+      </div>
+
+      <button type="button" class="mini" (click)="limpiar()" title="Buscar otra persona">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    @if (elegida()!.bloqueado && elegida()!.observacion_bloqueo) {
+      <div class="tienda-error">
+        <mat-icon>block</mat-icon><span>{{ elegida()!.observacion_bloqueo }}</span>
+      </div>
+    }
+
+    <div class="cifras">
+      <div><span>Cupo disponible</span>
+        <strong>{{ elegida()!.saldo_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+      <div><span>Ya debe</span>
+        <strong>{{ elegida()!.deuda | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+      <div><span>Tope de mercado</span>
+        <strong>{{ elegida()!.cupo_mercado_limite | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+    </div>
+
+    <!-- ── Autorizaciones de mercado ─────────────────────────────────── -->
+    @if (elegida()!.tiene_autorizacion_mercado) {
+      <div class="bloque-mercado con">
+        <h4><mat-icon>verified</mat-icon> Ya tiene autorización de mercado</h4>
+        <ul class="autorizaciones">
+          @for (a of elegida()!.autorizaciones; track $any(a)['codigo_autorizacion']) {
+            <li>
+              <span class="mono">{{ $any(a)['codigo_autorizacion'] }}</span>
+              <span>{{ $any(a)['autorizacion_monto'] | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              <span class="cuotas">{{ $any(a)['autorizacion_cuotas'] }} cuotas</span>
+              <span class="fecha">{{ $any(a)['autorizado_en'] | date:'shortDate' }}</span>
+            </li>
+          }
+        </ul>
+      </div>
+    } @else {
+      <div class="bloque-mercado sin">
+        <h4><mat-icon>info</mat-icon> No tiene autorización de mercado</h4>
+        @if (elegida()!.puede_solicitar_mercado) {
+          <p>
+            Se le puede autorizar hasta
+            <strong>{{ elegida()!.cupo_mercado_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>.
+          </p>
+          @if (puedeAutorizar) {
+            @if (!pidiendoMercado()) {
+              <button type="button" class="boton" (click)="pidiendoMercado.set(true)">
+                <mat-icon>add_card</mat-icon> Solicitar autorización
+              </button>
+            } @else {
+              <div class="formulario-mercado">
+                <p class="nota">
+                  Compare a la persona con su foto antes de autorizar: esto compromete sus
+                  quincenas.
+                </p>
+                <label class="verificacion">
+                  <input type="checkbox" [checked]="identidadConfirmada()"
+                         (change)="identidadConfirmada.set(!identidadConfirmada())" />
+                  Confirmo que quien está enfrente es esta persona
+                </label>
+                <div class="tienda-barra">
+                  <div class="campo"><label>Monto</label>
+                    <input type="number" [(ngModel)]="solicitud.monto" min="0"
+                           [max]="elegida()!.cupo_mercado_disponible" /></div>
+                  <div class="campo"><label>Cuotas</label>
+                    <input type="number" [(ngModel)]="solicitud.cuotas" min="1" max="4" /></div>
+                  <button type="button" class="boton" (click)="solicitarMercado()"
+                          [disabled]="!identidadConfirmada() || solicitud.monto <= 0">
+                    Autorizar
+                  </button>
+                  <button type="button" class="boton secundario"
+                          (click)="pidiendoMercado.set(false)">Cancelar</button>
+                </div>
+              </div>
+            }
+          } @else {
+            <p class="nota">
+              Su rol no puede autorizar mercado. Pídalo a quien administra la tienda.
+            </p>
+          }
+        } @else {
+          <p class="motivo"><mat-icon>block</mat-icon> {{ elegida()!.motivo_no_puede }}</p>
+        }
+      </div>
+    }
+  </article>
+}

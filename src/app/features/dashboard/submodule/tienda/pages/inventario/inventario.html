@@ -1,0 +1,113 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>inventory_2</mat-icon> Inventario</h1>
+      <p class="tienda-subtitulo">
+        El <strong>disponible</strong> es lo que se puede vender ahora: la cantidad menos
+        lo que está apartado para pedidos.
+      </p>
+    </div>
+    <app-selector-tienda />
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  <nav class="pestanas">
+    <button type="button" [class.activa]="pestana() === 'existencias'"
+            (click)="pestana.set('existencias')">Existencias</button>
+    <button type="button" [class.activa]="pestana() === 'reponer'"
+            (click)="pestana.set('reponer')">
+      Por reponer
+      @if (bajoMinimo().length > 0) { <span class="insignia aviso">{{ bajoMinimo().length }}</span> }
+    </button>
+    <button type="button" [class.activa]="pestana() === 'kardex'"
+            (click)="pestana.set('kardex')">Kardex</button>
+    @if (ctx.puedeMoverInventario()) {
+      <button type="button" class="boton" (click)="formularioAbierto.set(!formularioAbierto())">
+        <mat-icon>add</mat-icon> Registrar movimiento
+      </button>
+    }
+  </nav>
+
+  @if (formularioAbierto()) {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Movimiento manual</h2>
+      <p class="nota">
+        Solo entradas y ajustes. Las ventas y los traslados no se registran a mano: salen
+        de su propio flujo, con su documento detrás. <strong>El motivo es obligatorio</strong>
+        — un inventario que baja sin explicación es lo que después nadie puede reconstruir.
+      </p>
+      <div class="tienda-barra">
+        <div class="campo"><label>Producto</label>
+          <select [(ngModel)]="ajuste.producto_id">
+            <option value="">Elija…</option>
+            @for (p of productos(); track p.id) { <option [value]="p.id">{{ p.nombre }}</option> }
+          </select>
+        </div>
+        <div class="campo"><label>Tipo</label>
+          <select [(ngModel)]="ajuste.tipo">
+            @for (t of tiposAjuste; track t.codigo) { <option [value]="t.codigo">{{ t.nombre }}</option> }
+          </select>
+        </div>
+        <div class="campo"><label>Cantidad</label>
+          <input type="number" [(ngModel)]="ajuste.cantidad" min="0" /></div>
+        <div class="campo"><label>Costo unitario</label>
+          <input type="number" [(ngModel)]="ajuste.costo_unitario" min="0" /></div>
+        <div class="campo campo-ancho"><label>Motivo</label>
+          <input [(ngModel)]="ajuste.motivo" placeholder="Por qué se mueve" /></div>
+        <button type="button" class="boton" (click)="registrarAjuste()"
+                [disabled]="!ajuste.producto_id || ajuste.cantidad <= 0 || !ajuste.motivo">
+          Registrar
+        </button>
+      </div>
+    </section>
+  }
+
+  @if (pestana() === 'existencias') {
+    <app-tabla-estandar
+      id="tienda-inventario-existencias"
+      titulo="Existencias"
+      modulo="Tienda"
+      vacio="Esta tienda no tiene existencias todavía."
+      [datos]="stock()"
+      [columnas]="columnasStock"
+      [filaId]="idStock"
+      [cargando]="cargando()">
+
+      <ng-template tablaCelda="disponible" let-s>
+        <strong>{{ disponible(s) }}</strong>
+      </ng-template>
+    </app-tabla-estandar>
+  }
+
+  @if (pestana() === 'reponer') {
+    <app-tabla-estandar
+      id="tienda-inventario-reponer"
+      titulo="Por reponer"
+      modulo="Tienda"
+      vacio="Nada por debajo del mínimo."
+      [datos]="bajoMinimo()"
+      [columnas]="columnasReponer"
+      [filaId]="idStock" />
+  }
+
+  @if (pestana() === 'kardex') {
+    <p class="nota">
+      El kardex no se edita. Un movimiento equivocado se corrige con otro movimiento,
+      porque es la prueba de que el inventario cuadra.
+    </p>
+    <app-tabla-estandar
+      id="tienda-inventario-kardex"
+      titulo="Kardex"
+      modulo="Tienda"
+      [datos]="kardex()"
+      [columnas]="columnasKardex"
+      [filaId]="idMovimiento" />
+  }
+</div>

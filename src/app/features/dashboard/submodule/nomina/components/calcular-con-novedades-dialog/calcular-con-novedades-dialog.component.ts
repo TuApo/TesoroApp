@@ -10,9 +10,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   NominaService, CalculoConNovedadesResponse, ConceptoSinHomologar, TnlSaldoPendiente,
   TnlImportacionResponse,
@@ -37,7 +37,8 @@ type DialogData = {
   imports: [
     CommonModule, FormsModule,
     MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule,
-    MatChipsModule, MatDividerModule, MatTableModule, MatTooltipModule,
+    MatChipsModule, MatDividerModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   template: `
     <div class="cn-dialog">
@@ -163,38 +164,23 @@ type DialogData = {
               solos en el siguiente periodo con el que la novedad cruce; sólo un cierre
               exitoso los marca como aplicados.
             </p>
-            <table mat-table [dataSource]="saldosTnl()" class="cn-table">
-              <ng-container matColumnDef="documento">
-                <th mat-header-cell *matHeaderCellDef>Documento</th>
-                <td mat-cell *matCellDef="let s">{{ s.documento }}</td>
-              </ng-container>
-              <ng-container matColumnDef="concepto">
-                <th mat-header-cell *matHeaderCellDef>Concepto</th>
-                <td mat-cell *matCellDef="let s">{{ s.codigo_concepto }} · {{ s.descripcion_concepto }}</td>
-              </ng-container>
-              <ng-container matColumnDef="rango">
-                <th mat-header-cell *matHeaderCellDef>Rango</th>
-                <td mat-cell *matCellDef="let s">{{ s.fecha_inicio }} → {{ s.fecha_fin }}</td>
-              </ng-container>
-              <ng-container matColumnDef="ahora">
-                <th mat-header-cell *matHeaderCellDef>Días esta quincena</th>
-                <td mat-cell *matCellDef="let s"><strong>{{ s.dias_en_este_periodo }}</strong></td>
-              </ng-container>
-              <ng-container matColumnDef="pendiente">
-                <th mat-header-cell *matHeaderCellDef>Quedan pendientes</th>
-                <td mat-cell *matCellDef="let s">
-                  <span class="cn-saldo" [class.cn-saldo-on]="s.dias_pendientes_despues > 0">
-                    {{ s.dias_pendientes_despues }}
-                  </span>
-                </td>
-              </ng-container>
-              <ng-container matColumnDef="estado">
-                <th mat-header-cell *matHeaderCellDef>Quedará en</th>
-                <td mat-cell *matCellDef="let s">{{ s.estado_proyectado }}</td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="colsSaldo"></tr>
-              <tr mat-row *matRowDef="let row; columns: colsSaldo"></tr>
-            </table>
+            <app-tabla-estandar
+              class="cn-table"
+              id="nomina-calcular-novedades-saldo-tnl"
+              titulo="Saldo TNL del periodo"
+              modulo="Nómina"
+              entidad="tnl_saldo_pendiente"
+              [datos]="saldosTnl()"
+              [columnas]="columnasSaldo"
+              [filaId]="idSaldo"
+              [filasPorPagina]="25">
+              <ng-template tablaCelda="ahora" let-s><strong>{{ s.dias_en_este_periodo }}</strong></ng-template>
+              <ng-template tablaCelda="pendiente" let-s>
+                <span class="cn-saldo" [class.cn-saldo-on]="s.dias_pendientes_despues > 0">
+                  {{ s.dias_pendientes_despues }}
+                </span>
+              </ng-template>
+            </app-tabla-estandar>
           </ng-container>
 
           <ng-container *ngIf="conceptosSinHomologar().length">
@@ -202,22 +188,15 @@ type DialogData = {
             <p class="cn-hint">Estos códigos no tienen destino en el modelo (HE,
               dominicales, recargos…) y no entran al cálculo. Homológalos en el
               Homologador para incluirlos.</p>
-            <table mat-table [dataSource]="conceptosSinHomologar()" class="cn-table">
-              <ng-container matColumnDef="codigo">
-                <th mat-header-cell *matHeaderCellDef>Código</th>
-                <td mat-cell *matCellDef="let c">{{ c.codigo }}</td>
-              </ng-container>
-              <ng-container matColumnDef="concepto">
-                <th mat-header-cell *matHeaderCellDef>Concepto</th>
-                <td mat-cell *matCellDef="let c">{{ c.concepto }}</td>
-              </ng-container>
-              <ng-container matColumnDef="filas">
-                <th mat-header-cell *matHeaderCellDef>Filas</th>
-                <td mat-cell *matCellDef="let c">{{ c.filas }}</td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="['codigo','concepto','filas']"></tr>
-              <tr mat-row *matRowDef="let row; columns: ['codigo','concepto','filas']"></tr>
-            </table>
+            <app-tabla-estandar
+              class="cn-table"
+              id="nomina-calcular-novedades-sin-homologar"
+              titulo="Conceptos sin homologar"
+              modulo="Nómina"
+              entidad="conceptos_sin_homologar"
+              [datos]="conceptosSinHomologar()"
+              [columnas]="columnasSinHomologar"
+              [filasPorPagina]="25" />
           </ng-container>
 
           <ng-container *ngIf="cedulasNoEncontradas().length">
@@ -267,56 +246,56 @@ type DialogData = {
   styles: [`
     .cn-dialog { display: flex; flex-direction: column; min-width: 720px; max-width: 1100px; }
     .cn-header { display: flex; gap: 12px; padding: 16px 20px; align-items: center; }
-    .cn-header mat-icon { font-size: 32px; width: 32px; height: 32px; color: #1976d2; }
+    .cn-header mat-icon { font-size: 32px; width: 32px; height: 32px; color: #1976d2; color: light-dark(#1976d2, #9bc7f3); }
     .cn-header h2 { margin: 0; font-size: 18px; }
-    .cn-sub { margin: 0; color: #666; font-size: 12px; }
+    .cn-sub { margin: 0; color: var(--muted); font-size: 12px; }
     .cn-body { padding: 20px; max-height: 60vh; overflow: auto; }
     .cn-center { display: flex; flex-direction: column; gap: 12px; align-items: center; padding: 60px 20px; }
-    .cn-desc { color: #555; font-size: 13px; }
-    .cn-desc code { background: #f5f5f5; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
-    .cn-drop { border: 2px dashed #c0c4cc; border-radius: 8px; padding: 40px; text-align: center;
+    .cn-desc { color: var(--text-2); font-size: 13px; }
+    .cn-desc code { background: var(--surface-3); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+    .cn-drop { border: 2px dashed var(--border-strong); border-radius: 8px; padding: 40px; text-align: center;
                cursor: pointer; transition: all .15s; }
-    .cn-drop:hover { border-color: #1976d2; background: #f5faff; }
-    .cn-drop mat-icon { font-size: 48px; width: 48px; height: 48px; color: #999; }
+    .cn-drop:hover { border-color: #1976d2; background: var(--surface-2); }
+    .cn-drop mat-icon { font-size: 48px; width: 48px; height: 48px; color: var(--text-faint); }
     .cn-drop__title { margin: 8px 0 4px; font-weight: 500; }
-    .cn-drop__hint { margin: 0; color: #888; font-size: 12px; }
+    .cn-drop__hint { margin: 0; color: var(--muted); font-size: 12px; }
     .cn-warn, .cn-info { display: flex; gap: 8px; align-items: center;
                           padding: 10px 12px; border-radius: 6px; margin-top: 16px; font-size: 13px; }
-    .cn-warn { background: #fff8e1; color: #6d4c00; }
-    .cn-info { background: #e8f5e9; color: #1b5e20; }
+    .cn-warn { background: #fff8e1; background: light-dark(#fff8e1, #383524); color: #6d4c00; color: light-dark(#6d4c00, #f7da97); }
+    .cn-info { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); color: #1b5e20; color: light-dark(#1b5e20, #a8e6ac); }
     .cn-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-    .cn-stat { background: #f5f7fa; padding: 14px; border-radius: 8px; text-align: center; }
-    .cn-stat strong { display: block; font-size: 22px; color: #1976d2; }
-    .cn-stat span { font-size: 11px; color: #666; text-transform: uppercase; }
-    .cn-stat-accent { background: #e8f5e9; }
-    .cn-stat-accent strong { color: #2e7d32; }
-    .cn-explainer { background: #f5f9ff; padding: 10px 14px; border-radius: 6px;
+    .cn-stat { background: var(--surface-2); padding: 14px; border-radius: 8px; text-align: center; }
+    .cn-stat strong { display: block; font-size: 22px; color: #1976d2; color: light-dark(#1976d2, #9bc7f3); }
+    .cn-stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+    .cn-stat-accent { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); }
+    .cn-stat-accent strong { color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
+    .cn-explainer { background: var(--surface-2); padding: 10px 14px; border-radius: 6px;
                      border-left: 4px solid #1976d2; margin-bottom: 16px; font-size: 13px; line-height: 1.5; }
     .cn-warnings { margin-bottom: 16px; display: flex; flex-direction: column; gap: 8px; }
-    .cn-warn { background: #fff8e1; color: #6d4c00; padding: 10px 12px;
+    .cn-warn { background: #fff8e1; background: light-dark(#fff8e1, #383524); color: #6d4c00; color: light-dark(#6d4c00, #f7da97); padding: 10px 12px;
                 border-radius: 6px; display: flex; gap: 8px; align-items: flex-start;
                 font-size: 13px; border-left: 4px solid #f9a825; }
     .cn-warn mat-icon { color: #f9a825; flex-shrink: 0; }
     .cn-funnel { display: flex; align-items: center; justify-content: center;
-                  gap: 8px; padding: 14px; background: #f5f9ff;
+                  gap: 8px; padding: 14px; background: var(--surface-2);
                   border-radius: 8px; margin-bottom: 18px; flex-wrap: wrap; }
     .cn-funnel-step { display: flex; flex-direction: column; align-items: center;
-                       padding: 6px 14px; background: #fff; border-radius: 6px;
+                       padding: 6px 14px; background: var(--surface); border-radius: 6px;
                        min-width: 100px; }
-    .cn-funnel-num { font-size: 20px; font-weight: 700; color: #1976d2; }
-    .cn-funnel-lbl { font-size: 11px; color: #666; text-align: center; }
-    .cn-funnel mat-icon { color: #999; }
-    .cn-table { width: 100%; margin-bottom: 16px; }
-    .cn-hint { font-size: 12px; color: #777; margin: 4px 0 12px; }
+    .cn-funnel-num { font-size: 20px; font-weight: 700; color: #1976d2; color: light-dark(#1976d2, #9bc7f3); }
+    .cn-funnel-lbl { font-size: 11px; color: var(--muted); text-align: center; }
+    .cn-funnel mat-icon { color: var(--text-faint); }
+    .cn-table { display: block; margin-bottom: 16px; }
+    .cn-hint { font-size: 12px; color: var(--muted); margin: 4px 0 12px; }
     .cn-error { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-    .cn-error mat-icon { font-size: 40px; width: 40px; height: 40px; color: #c62828; }
-    .cn-actions { padding: 12px 20px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid #eee; }
+    .cn-error mat-icon { font-size: 40px; width: 40px; height: 40px; color: #c62828; color: light-dark(#c62828, #eca2a2); }
+    .cn-actions { padding: 12px 20px; display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--border); }
     h4 { margin: 16px 0 6px; font-size: 14px; }
-    .cn-archivo { display: flex; gap: 8px; align-items: center; background: #eef4ff;
+    .cn-archivo { display: flex; gap: 8px; align-items: center; background: #eef4ff; background: light-dark(#eef4ff, #0f244d);
                    border-radius: 6px; padding: 9px 12px; margin-bottom: 14px; font-size: 12.5px; }
-    .cn-archivo mat-icon { color: #1976d2; font-size: 18px; width: 18px; height: 18px; }
-    .cn-saldo { padding: 2px 9px; border-radius: 10px; background: #eceff1; color: #546e7a; font-size: 12px; }
-    .cn-saldo-on { background: #fff3e0; color: #ef6c00; font-weight: 600; }
+    .cn-archivo mat-icon { color: #1976d2; color: light-dark(#1976d2, #9bc7f3); font-size: 18px; width: 18px; height: 18px; }
+    .cn-saldo { padding: 2px 9px; border-radius: 10px; background: var(--surface-3); color: var(--muted); font-size: 12px; }
+    .cn-saldo-on { background: #fff3e0; background: light-dark(#fff3e0, #382f24); color: #ef6c00; font-weight: 600; }
   `],
 })
 export class CalcularConNovedadesDialogComponent {
@@ -326,7 +305,22 @@ export class CalcularConNovedadesDialogComponent {
 
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
-  readonly colsSaldo = ['documento', 'concepto', 'rango', 'ahora', 'pendiente', 'estado'];
+  readonly columnasSaldo: ColumnaTabla<TnlSaldoPendiente>[] = [
+    { id: 'documento', header: 'Documento', valor: (s) => s.documento, tarjeta: 'titulo' },
+    { id: 'concepto', header: 'Concepto', valor: (s) => `${s.codigo_concepto} · ${s.descripcion_concepto}`,
+      tarjeta: 'subtitulo', minAncho: '160px' },
+    { id: 'rango', header: 'Rango', valor: (s) => `${s.fecha_inicio} → ${s.fecha_fin}`, prioridad: 2, tarjeta: 'meta' },
+    { id: 'ahora', header: 'Días esta quincena', valor: (s) => s.dias_en_este_periodo, align: 'right', tarjeta: 'meta' },
+    { id: 'pendiente', header: 'Quedan pendientes', valor: (s) => s.dias_pendientes_despues, align: 'right', tarjeta: 'meta' },
+    { id: 'estado', header: 'Quedará en', valor: (s) => s.estado_proyectado, prioridad: 2, tarjeta: 'badge' },
+  ];
+  readonly idSaldo = (s: TnlSaldoPendiente) => s.id_tnl;
+
+  readonly columnasSinHomologar: ColumnaTabla<ConceptoSinHomologar>[] = [
+    { id: 'codigo', header: 'Código', valor: (c) => c.codigo, tarjeta: 'subtitulo' },
+    { id: 'concepto', header: 'Concepto', valor: (c) => c.concepto, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'filas', header: 'Filas', valor: (c) => c.filas, align: 'right', tarjeta: 'meta' },
+  ];
 
   step = signal<Step>('select');
   fileName = signal('');

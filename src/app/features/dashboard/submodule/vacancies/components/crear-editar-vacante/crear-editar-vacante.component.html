@@ -90,11 +90,18 @@
             (cambio)="onTemporalChange($event)">
           </app-smart-select>
 
-          <!-- 2) EMPRESA — solo si la temporal tiene alcance parametrizado.
-               Sin alcance la empresa la trae el propio centro, como siempre. -->
+          <!-- 2) EMPRESA — FILTRO opcional, no un eslabón obligatorio.
+               Solo aparece si la temporal tiene alcance parametrizado; sin
+               alcance la empresa la trae el propio centro, como siempre.
+
+               Antes había que elegirla para que el desplegable de centros
+               tuviera algo dentro, y eso obligaba a saber de qué empresa era la
+               finca ANTES de poder buscarla. Ahora recorta la lista si se
+               conoce, y si no se deja en «Todas» y se busca el centro por su
+               nombre. -->
           @if (parametrizada) {
             <app-smart-select
-              label="Empresa usuaria" icono="business"
+              label="Empresa usuaria (filtro)" icono="business"
               formControlName="empresa_ref"
               [opciones]="empresas"
               [valor]="valorEmpresa" [etiqueta]="etiquetaEmpresa"
@@ -104,7 +111,8 @@
             </app-smart-select>
           }
 
-          <!-- 3) CENTRO DE COSTO -->
+          <!-- 3) CENTRO DE COSTO — el que de verdad manda: trae empresa,
+               dirección, salario y auxilio, y encadena áreas y cargos. -->
           <app-smart-select
             label="Centro de Costo" icono="agriculture" [requerido]="true"
             formControlName="centro_clave"
@@ -115,78 +123,23 @@
             [ayuda]="ayudaCentro"
             (cambio)="onCentroChange($event)">
           </app-smart-select>
-        </div>
 
-        <!-- Lo que trae el centro de costo NO se edita aquí: es su ficha, y la
-             vacante no es el sitio para cambiarla. Lo que el centro deja en
-             blanco sí queda abierto, para poder completarlo. -->
-        <div class="vac-heredado" [class.vac-heredado-activo]="!!heredadoDe">
-          <div class="vac-heredado-tag">
-            <mat-icon>{{ heredadoDe ? 'lock' : 'link_off' }}</mat-icon>
-            @if (heredadoDe) {
-              <span class="vac-heredado-txt">
-                Datos de <strong>{{ heredadoDe }}</strong> · se toman de su ficha
-                @if (hayHeredadosAbiertos) {
-                  <span class="vac-heredado-abierto">· lo que su ficha no trae sí puedes completarlo</span>
-                }
-              </span>
-            } @else {
-              <span class="vac-heredado-txt">
-                Se completan solos al elegir el centro de costo
-              </span>
-            }
-          </div>
-
-          <div class="vac-grid">
-            <mat-form-field>
-              <mat-label>Empresa</mat-label>
-            <mat-icon matPrefix class="vac-icono">business</mat-icon>
-              <input matInput formControlName="empresa_usuaria_solicita">
-              @if (vacanteForm.get('empresa_usuaria_solicita')?.hasError('required')) {
-                <mat-error>
-                  La empresa usuaria es obligatoria.
-                </mat-error>
-              }
-            </mat-form-field>
-
-            <mat-form-field>
-              <mat-label>Dirección</mat-label>
+          <!-- 4) DIRECCIÓN — sube a la fila de origen porque es el dato del
+               sitio, y es lo que más veces hay que completar a mano: la ficha
+               del centro no siempre la trae. Sigue siendo el MISMO control
+               heredado: si el centro la trae, llega sola y se bloquea. -->
+          <mat-form-field>
+            <mat-label>Dirección</mat-label>
             <mat-icon matPrefix class="vac-icono">location_on</mat-icon>
-              <input matInput formControlName="direccion">
-              @if (vacanteForm.get('direccion')?.hasError('required')) {
-                <mat-error>
-                  La dirección es obligatoria.
-                </mat-error>
-              }
-            </mat-form-field>
-
-            <mat-form-field>
-              <mat-label>Salario</mat-label>
-            <mat-icon matPrefix class="vac-icono">payments</mat-icon>
-              <input matInput type="text" formControlName="salario"
-                     (input)="formatSalary($event)" (blur)="onBlur($event)">
-              @if (vacanteForm.get('salario')?.hasError('required')) {
-                <mat-error>
-                  El salario es obligatorio.
-                </mat-error>
-              }
-              @if (vacanteForm.get('salario')?.hasError('min')) {
-                <mat-error>
-                  Ingrese un valor mayor o igual a 0.
-                </mat-error>
-              }
-            </mat-form-field>
-
-            <app-smart-select
-           
-              label="Auxilio Transporte" [requerido]="true"
-              formControlName="auxilio_transporte"
-              [opciones]="OPC_SI_NO"
-              [valor]="valorOpcion" [etiqueta]="etiquetaOpcion"
-              [ayuda]="ayudaHeredado('auxilio_transporte')">
-            </app-smart-select>
-          </div>
+            <input matInput formControlName="direccion">
+            @if (vacanteForm.get('direccion')?.hasError('required')) {
+              <mat-error>La dirección es obligatoria.</mat-error>
+            } @else if (ayudaDireccion) {
+              <mat-hint>{{ ayudaDireccion }}</mat-hint>
+            }
+          </mat-form-field>
         </div>
+
       }
     </section>
 
@@ -300,10 +253,104 @@
             }
           </mat-form-field>
 
+          <!-- ── Desglose del total por DETALLE DE CARGO ──────────────────────
+               Va pegado al total y solo aparece cuando ya hay uno: el desglose
+               no significa nada sin la cifra que tiene que sumar. La regla es la
+               misma que la del reparto por municipio (sección 4) y por eso se ve
+               igual: resumen con lo desglosado y lo que falta, y el aviso en rojo
+               debajo mientras no cuadre. -->
+          @if (detallesCargo.length) {
+            <div class="vac-col-full det-cargo">
+              <div class="det-cargo-head">
+                <mat-icon class="det-cargo-icono">splitscreen</mat-icon>
+                <div class="det-cargo-titulos">
+                  <span class="det-cargo-titulo">Detalle del cargo</span>
+                  <span class="det-cargo-sub">Reparte las {{ vacanteForm.get('personas_solicitadas')?.value || 0 }} personas solicitadas entre los detalles que apliquen.</span>
+                </div>
+              </div>
+
+              <div formArrayName="detallesCargo" class="det-cargo-filas">
+                @for (fg of detallesCargo.controls; track fg; let i = $index) {
+                  <div [formGroupName]="i" class="det-cargo-fila">
+                    <mat-form-field class="det-cargo-texto">
+                      <mat-label>Detalle del cargo</mat-label>
+                      <mat-icon matPrefix class="vac-icono">badge</mat-icon>
+                      <input matInput formControlName="detalle" placeholder="Ej.: Operario de corte">
+                      @if (fg.get('detalle')?.hasError('required')) {
+                        <mat-error>Escriba el detalle del cargo.</mat-error>
+                      }
+                    </mat-form-field>
+
+                    <!-- Contador: los botones son el camino normal; el teclado sigue
+                         disponible, y al salir del campo se sanea a entero >= 1. -->
+                    <mat-form-field class="det-cargo-cantidad">
+                      <mat-label>Cantidad</mat-label>
+                      <button mat-icon-button matPrefix type="button"
+                              class="det-cargo-paso"
+                              aria-label="Restar uno"
+                              [disabled]="(fg.get('cantidad')?.value || 1) <= 1"
+                              (click)="bajarCantidadDetalle(i)">
+                        <mat-icon>remove</mat-icon>
+                      </button>
+                      <input matInput type="number" formControlName="cantidad" min="1" step="1"
+                             class="det-cargo-numero"
+                             (blur)="normalizarCantidadDetalle(i)">
+                      <button mat-icon-button matSuffix type="button"
+                              class="det-cargo-paso"
+                              aria-label="Sumar uno"
+                              (click)="subirCantidadDetalle(i)">
+                        <mat-icon>add</mat-icon>
+                      </button>
+                      @if (fg.get('cantidad')?.hasError('required') || fg.get('cantidad')?.hasError('min')) {
+                        <mat-error>Mínimo 1.</mat-error>
+                      }
+                    </mat-form-field>
+
+                    <button mat-icon-button type="button" class="det-cargo-quitar"
+                            aria-label="Quitar este detalle"
+                            matTooltip="Quitar este detalle"
+                            [disabled]="detallesCargo.length <= 1"
+                            (click)="quitarDetalleCargo(i)">
+                      <mat-icon>delete_outline</mat-icon>
+                    </button>
+                  </div>
+                }
+              </div>
+
+              <div class="det-cargo-pie">
+                <button mat-stroked-button type="button" color="primary"
+                        class="det-cargo-agregar"
+                        (click)="agregarDetalleCargo()">
+                  <mat-icon>add</mat-icon>
+                  Agregar detalle de cargo
+                </button>
+
+                <span class="det-cargo-resumen">
+                  <span><strong>Desglosado:</strong> {{ totalDetallesCargo }}</span>
+                  <span [class.resumen-pendiente]="restanteDetallesCargo !== 0">
+                    <strong>{{ sobranDetallesCargo ? 'Sobran:' : 'Restante:' }}</strong>
+                    {{ desviacionDetallesCargo }}
+                  </span>
+                </span>
+              </div>
+
+              @if (vacanteForm.hasError('excesoDetallesCargo') || vacanteForm.hasError('faltanDetallesCargo')) {
+                <div class="error-dist det-cargo-error">
+                  <mat-icon>error_outline</mat-icon>
+                  @if (vacanteForm.hasError('excesoDetallesCargo')) {
+                    La suma de los detalles ({{ totalDetallesCargo }}) supera las personas solicitadas ({{ vacanteForm.get('personas_solicitadas')?.value || 0 }}). Ajuste las cantidades para poder guardar.
+                  } @else {
+                    La suma de los detalles ({{ totalDetallesCargo }}) es menor que las personas solicitadas ({{ vacanteForm.get('personas_solicitadas')?.value || 0 }}). Faltan {{ restanteDetallesCargo }} por desglosar para poder guardar.
+                  }
+                </div>
+              }
+            </div>
+          }
+
 
 
           <app-smart-select
-            label="Tipo de Contratación" icono="assignment" [requerido]="true"
+            label="Tipo de contrato" icono="assignment" [requerido]="true"
             formControlName="tipo_contratacion"
             [opciones]="OPC_TIPO_CONTRATACION"
             [ayuda]="rolSoloObraLabor ? 'Tu rol publica por Obra Labor.' : undefined">
@@ -322,32 +369,146 @@
             <input matInput formControlName="codigo_elite">
           </mat-form-field>
 
+          <!-- GRUPO DE PAGO — a qué grupo va a pertenecer la contratación. El catálogo
+               y la asignación por centro salen de Parametrización de vacantes, y de él
+               dependen las fechas de pago y el casino del contrato.
+
+               Va aquí, junto al resto de las condiciones de contratación, y no en el
+               origen: se lee como una condición de la vacante y no como parte de la
+               ficha de la finca. El control sigue siendo el del centro —con un solo
+               grupo se elige solo y el desplegable solo confirma—; lo que cambió es
+               dónde se pregunta. -->
+          @if (eligeGrupoPago) {
+            <app-smart-select
+              label="Grupo de pago" icono="payments" [requerido]="true"
+              formControlName="grupo_pago_ref"
+              [opciones]="gruposPago"
+              [valor]="valorGrupoPago" [etiqueta]="etiquetaGrupoPago"
+              vacio="No hay grupos de pago en el parametrizador."
+              [ayuda]="ayudaGrupoPago"
+              (cambio)="onGrupoPagoChange($event)">
+            </app-smart-select>
+          }
+
+          <!-- GRUPO NUEVO PARA ESTE CENTRO. El grupo se puede elegir del catálogo
+               completo, así que puede no estar configurado todavía en este centro. En
+               ese caso hace falta su calendario —sin él no hay fechas de pago que
+               imprimir, y no se inventan— y al guardar se asigna en el parametrizador.
+               El selector desaparece en cuanto el grupo es del centro. -->
+          @if (grupoPorAsignar) {
+            <app-smart-select
+              label="Calendario de pago del grupo" icono="event_repeat" [requerido]="true"
+              formControlName="calendario_pago_nuevo"
+              [opciones]="calendariosPago"
+              [valor]="valorCalendario" [etiqueta]="etiquetaCalendario" [detalle]="detalleCalendario"
+              vacio="No hay calendarios de pago activos."
+              ayuda="Se guardará en Parametrización de vacantes › Centro + Pago.">
+            </app-smart-select>
+
+            <p class="vac-pago-aviso vac-col-full">
+              Este centro no tenía el grupo
+              <strong>{{ grupoPagoSel?.nombre }}</strong>. Al guardar se le asigna con ese
+              calendario, y desde entonces queda disponible para las demás vacantes del
+              centro.
+            </p>
+          }
+
+          <!-- El centro no tiene NINGÚN grupo configurado. Ya no bloquea el guardado: se
+               elige uno y se le asigna, que es de donde salía la necesidad. -->
+          @if (centroSinGruposPago && !grupoPorAsignar) {
+            <p class="vac-pago-aviso vac-col-full">
+              Este centro todavía no tiene grupos de pago. Elige el que corresponda y su
+              calendario: al guardar quedan configurados.
+            </p>
+          }
+
+          <!-- Lo que resolvió el backend. Solo lectura: es parametrización del
+               centro, no algo que se ajuste vacante a vacante. -->
+          @if (fechasPagoResueltas) {
+            <mat-form-field>
+              <mat-label>Fechas de pago</mat-label>
+              <mat-icon matPrefix class="vac-icono">event_repeat</mat-icon>
+              <input matInput readonly formControlName="fechas_pago_texto_snapshot"
+                     [title]="fechasPagoResueltas">
+              @if (errorPagoCasino === 'CALENDARIO_VENCIDO') {
+                <mat-hint class="vac-labor-error">
+                  El calendario de este grupo ya pasó su última fecha: el contrato imprimiría
+                  fechas vencidas. Pida que se actualice.
+                </mat-hint>
+              }
+            </mat-form-field>
+          }
+          @if (casinoResuelto) {
+            <mat-form-field class="vac-col-full">
+              <mat-label>Casino</mat-label>
+              <mat-icon matPrefix class="vac-icono">restaurant</mat-icon>
+              <input matInput readonly formControlName="casino_texto_snapshot"
+                     [title]="casinoResuelto">
+            </mat-form-field>
+          }
+
+          <!-- El backend no pudo resolver: se dice, no se tapa. -->
+          @if (errorPagoCasino && errorPagoCasino !== 'CALENDARIO_VENCIDO') {
+            <p class="vac-pago-error vac-col-full">
+              @switch (errorPagoCasino) {
+                @case ('GRUPO_PAGO_NO_CONFIGURADO') {
+                  Este centro no tiene configurado ese grupo de pago: no hay fechas de pago
+                  que imprimir. Pida que se configure en Centro + Pago.
+                }
+                @case ('CASINO_NO_PARAMETRIZADO') {
+                  Este centro no tiene casino parametrizado para ese grupo. Pida que se
+                  configure en Centro + Casino.
+                }
+                @case ('CASINO_CONTRADICE_GRUPO') {
+                  Este centro tiene un casino propio para ese grupo distinto del casino por
+                  defecto del grupo, así que no se le puede asignar. Ajústelo en
+                  Centro + Casino.
+                }
+                @case ('SIN_CONEXION') {
+                  No se pudieron consultar las fechas de pago y el casino (sin conexión).
+                  Reintente.
+                }
+                @case ('ERROR_ASIGNACION') {
+                  No se pudo asignar el grupo de pago a este centro. Reintente.
+                }
+                @default {
+                  No se pudieron resolver las fechas de pago y el casino ({{ errorPagoCasino }}).
+                }
+              }
+            </p>
+          }
+
           <!-- Un solo campo de texto libre. "Observación de la vacante" se retiró: decía
-               lo mismo que la descripción y en 151 vacantes acabó con dos textos
-               distintos para la misma idea. Va como textarea porque aquí se redacta la
-               labor, y en una línea no se leía lo que se estaba escribiendo. -->
+               lo mismo y en 151 vacantes acabó con dos textos distintos para la misma
+               idea. Va como textarea porque aquí se redacta a mano, y en una línea no se
+               leía lo que se estaba escribiendo.
+
+               SE ESCRIBE SIEMPRE A MANO (2026-09-03, a petición del usuario): el campo ya
+               no se autocompleta con la labor resuelta, sea cual sea el área y el cargo
+               elegidos. El control sigue llamándose `descripcion` porque es la clave que
+               guarda el backend; lo que cambió es el rótulo. -->
           <mat-form-field class="vac-col-full">
-            <mat-label>Descripción</mat-label>
+            <mat-label>Características del cargo</mat-label>
             <mat-icon matPrefix class="vac-icono">notes</mat-icon>
             <textarea matInput formControlName="descripcion" rows="3"></textarea>
             @if (vacanteForm.get('descripcion')?.hasError('required')) {
               <mat-error>
-                La descripción es obligatoria.
+                Las características del cargo son obligatorias.
               </mat-error>
             }
-            <!-- El centro está parametrizado pero el backend no pudo resolver la labor.
-                 Antes esto se tapaba con la hoja de labores cableada y la vacante salía
-                 con un texto plausible; ahora se dice y la descripción se escribe a mano. -->
+            <!-- El centro está parametrizado pero el backend no pudo resolver su labor.
+                 Ya no afecta a este texto (que se escribe a mano), pero sí deja la vacante
+                 SIN traza de labor, y eso conviene verlo antes de publicar. -->
             @if (errorLabor) {
               <mat-hint class="vac-labor-error">
                 @switch (errorLabor) {
                   @case ('CONFIGURACION_NO_ENCONTRADA') {
-                    Este centro y cargo no están parametrizados todavía: no hay labor
-                    automática. Escriba la descripción o pida que se configure la combinación.
+                    Este centro y cargo no están parametrizados todavía: la vacante se
+                    publicará sin labor asociada. Pida que se configure la combinación.
                   }
                   @case ('REGLA_LABOR_NO_ENCONTRADA') {
-                    No hay labor definida para ese mes y área. Escriba la descripción o pida
-                    que se cargue la regla.
+                    No hay labor definida para ese mes y área: la vacante se publicará sin
+                    labor asociada. Pida que se cargue la regla.
                   }
                   @case ('LABOR_FIJA_NO_CONFIGURADA') {
                     El centro resuelve por labor fija y no la tiene configurada.
@@ -471,6 +632,36 @@
               <mat-label>Ubicación Prueba Técnica</mat-label>
             <mat-icon matPrefix class="vac-icono">pin_drop</mat-icon>
               <input matInput formControlName="ubicacionPruebaTecnica">
+            </mat-form-field>
+          }
+
+          <!-- LABOR RESUELTA — el texto que antes salía en «Descripción».
+               Aparece en cuanto hay fecha de ingreso, porque es ESA fecha la que
+               lo determina: manda el MES DE INGRESO, no el día en que se publica
+               la vacante. Es un dato resuelto por el parametrizador (centro +
+               cargo + mes), así que va en solo lectura: se puede leer y copiar,
+               pero editarlo aquí rompería su traza.
+
+               Va en UNA LÍNEA y a lo ancho de la fila, no en un textarea: es un
+               dato resuelto, no algo que se redacte, y un recuadro de dos líneas
+               lo hacía parecer editable y descuadraba la altura del resto de la
+               rejilla. Lo que no quepa se lee en el tooltip. -->
+          @if (hayFechaIngreso) {
+            <mat-form-field class="vac-col-full">
+              <mat-label>Descripción de la labor</mat-label>
+              <mat-icon matPrefix class="vac-icono">assignment_turned_in</mat-icon>
+              <input matInput readonly
+                     formControlName="labor_descripcion_snapshot"
+                     [title]="laborResuelta"
+                     [placeholder]="avisoLabor ?? ''">
+              @if (avisoLabor) {
+                <mat-hint>{{ avisoLabor }}</mat-hint>
+              } @else {
+                <!-- El mes se nombra a propósito: es la respuesta a «¿de dónde
+                     sale este texto?» y deja ver de un vistazo que sigue a la
+                     fecha de ingreso y no a la de hoy. -->
+                <mat-hint>Labor de {{ mesIngreso }}, por la fecha de ingreso ({{ textoFechaIngreso }}).</mat-hint>
+              }
             </mat-form-field>
           }
         </div>

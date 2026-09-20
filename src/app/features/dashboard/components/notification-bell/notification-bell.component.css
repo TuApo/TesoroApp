@@ -1,0 +1,450 @@
+/* =============================================================================
+   Campana y panel de notificaciones
+
+   Todo el color sale de los tokens semánticos de la plataforma
+   (src/theme/tokens.css), así que el panel cambia con el tema sin una sola
+   regla dedicada al modo oscuro.
+
+   La jerarquía visual sigue una sola idea: PRIMERO lo que hay que atender ya.
+   Por eso el semáforo va arriba (resumen y filtro a la vez), cada aviso lleva
+   un riel de color con su nivel, y el módulo queda en el pie — importa para
+   filtrar, no para decidir qué miras primero.
+   ========================================================================== */
+
+:host {
+  display: inline-flex;
+
+  /* Tinte de fondo de un aviso sin leer, por nivel.
+     Se declara como rgba fijo y NO con color-mix() a propósito: html2canvas
+     1.4.1 —el que usa el reporte de bugs para capturar la pantalla— no sabe
+     parsear las funciones de color modernas y devuelve la captura en blanco.
+     Un 6-7% de tinte funciona igual sobre el tema claro y el oscuro. */
+  --suave-inmediata: rgba(239, 68, 68, .07);
+  --suave-media: rgba(245, 158, 11, .08);
+  --suave-leve: rgba(43, 89, 240, .06);
+}
+
+/* ---------- Campana ---------- */
+
+.campana {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background-color .16s ease, color .16s ease;
+}
+
+.campana:hover { background: var(--surface-3); color: var(--text); }
+.campana:focus-visible { outline: none; box-shadow: var(--ring); }
+.campana mat-icon { font-size: 22px; width: 22px; height: 22px; }
+
+/* Con algo urgente sin leer la campana deja de ser un icono neutro. Es el único
+   sitio del top bar donde se permite llamar la atención. */
+.campana--alerta { color: var(--danger); }
+
+.globo {
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 17px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.globo--alerta { background: var(--danger); }
+
+/* ---------- Panel ---------- */
+
+.panel {
+  width: min(94vw, 420px);
+  max-height: min(78vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+.panel__cabecera {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px 10px;
+}
+
+.panel__titulo h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.panel__titulo p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.enlace {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--link);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.enlace:hover { background: var(--surface-3); }
+.enlace:focus-visible { outline: none; box-shadow: var(--ring); }
+.enlace mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+/* ---------- Semáforo de prioridad ---------- */
+
+.semaforo {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.nivel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 7px 10px;
+  border: 1px solid var(--nivel-borde);
+  border-radius: var(--r-md);
+  background: var(--nivel-fondo);
+  color: var(--nivel-texto);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+
+.nivel[data-nivel="INMEDIATA"] {
+  --nivel-fondo: var(--danger-bg);
+  --nivel-borde: var(--danger-border);
+  --nivel-texto: var(--danger-fg);
+  --nivel-color: var(--danger);
+}
+
+.nivel[data-nivel="MEDIA"] {
+  --nivel-fondo: var(--warn-bg);
+  --nivel-borde: var(--warn-border);
+  --nivel-texto: var(--warn-fg);
+  --nivel-color: var(--warning);
+}
+
+.nivel[data-nivel="LEVE"] {
+  --nivel-fondo: var(--info-bg);
+  --nivel-borde: var(--info-border);
+  --nivel-texto: var(--info-fg);
+  --nivel-color: var(--primary);
+}
+
+/* Un nivel sin nada pierde el color: el panel no debe gritar por cero avisos.
+   Lleva el atributo en el selector a propósito: `.nivel[data-nivel="…"]` es
+   clase + atributo, así que una clase sola nunca le ganaría y los ceros se
+   quedaban pintados de rojo. */
+.nivel[data-nivel].nivel--vacio {
+  --nivel-fondo: var(--surface-2);
+  --nivel-borde: var(--border);
+  --nivel-texto: var(--text-faint);
+}
+
+.nivel:hover:not(.nivel--vacio) { transform: translateY(-1px); }
+.nivel:focus-visible { outline: none; box-shadow: var(--ring); }
+.nivel--activo { box-shadow: 0 0 0 2px var(--nivel-color) inset; }
+
+.nivel__cifra {
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.nivel__nombre {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  opacity: .9;
+}
+
+/* ---------- Chips de módulo ---------- */
+
+.modulos {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.modulos::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: 0 0 auto;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chip:hover { background: var(--surface-3); }
+.chip:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.chip--activo {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+}
+
+/* ---------- Lista ---------- */
+
+.panel__cuerpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.grupo { padding: 4px 0 2px; }
+
+.grupo[data-nivel="INMEDIATA"] { --grupo-color: var(--danger); }
+.grupo[data-nivel="MEDIA"] { --grupo-color: var(--warning); }
+.grupo[data-nivel="LEVE"] { --grupo-color: var(--primary); }
+
+.grupo__titulo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 10px 16px 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.grupo__punto {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--grupo-color);
+}
+
+.grupo__cuenta {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.aviso {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3px 34px 1fr;
+  align-items: start;
+  gap: 0 10px;
+  width: 100%;
+  padding: 10px 26px 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .14s ease;
+}
+
+.aviso[data-nivel="INMEDIATA"] { --aviso-color: var(--danger); --aviso-suave: var(--suave-inmediata); }
+.aviso[data-nivel="MEDIA"] { --aviso-color: var(--warning); --aviso-suave: var(--suave-media); }
+.aviso[data-nivel="LEVE"] { --aviso-color: var(--primary); --aviso-suave: var(--suave-leve); }
+
+.aviso:hover { background: var(--surface-3); }
+.aviso:focus-visible { outline: none; background: var(--surface-3); box-shadow: var(--ring) inset; }
+.aviso--inerte { cursor: default; }
+.aviso--inerte:hover { background: transparent; }
+
+/* El riel es lo que permite barrer la lista con la vista y saber el nivel de
+   cada aviso sin leer una palabra. */
+.aviso__riel {
+  align-self: stretch;
+  background: var(--aviso-color);
+  opacity: .28;
+}
+
+.aviso--nueva { background: var(--aviso-suave); }
+.aviso--nueva .aviso__riel { opacity: 1; }
+
+.aviso__icono {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin-left: 13px;
+  border-radius: 10px;
+}
+
+.aviso__icono mat-icon { font-size: 19px; width: 19px; height: 19px; }
+
+.aviso__texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.aviso__titulo {
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.aviso__mensaje {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.aviso__pie {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.aviso__modulo {
+  font-weight: 650;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aviso__accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--link);
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.aviso__accion mat-icon { font-size: 13px; width: 13px; height: 13px; }
+
+.aviso__nueva {
+  position: absolute;
+  top: 16px;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--aviso-color);
+}
+
+/* ---------- Estados ---------- */
+
+.estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 34px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.estado mat-icon {
+  font-size: 30px;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 8px;
+  color: var(--text-faint);
+}
+
+.estado__titulo {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.estado__texto {
+  margin: 0;
+  max-width: 30ch;
+  line-height: 1.45;
+}
+
+/* ---------- Pie ---------- */
+
+.panel__pie {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+/* ---------- Ajustes ---------- */
+
+@media (max-width: 480px) {
+  .panel { width: 94vw; max-height: 72vh; }
+  .semaforo { gap: 6px; }
+  .nivel { padding: 7px 8px; }
+  .nivel__nombre { font-size: 9.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campana, .nivel, .aviso { transition: none; }
+  .nivel:hover:not(.nivel--vacio) { transform: none; }
+}

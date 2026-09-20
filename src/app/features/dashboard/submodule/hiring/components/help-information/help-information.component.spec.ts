@@ -47,12 +47,20 @@ describe('HelpInformationComponent', () => {
             getCandidatoPorDocumento: () => of(null),
           },
         },
-        { provide: VacantesService, useValue: { obtenerVacantes: () => of([]), listar: () => of([]) } },
+        { provide: VacantesService, useValue: { obtenerVacantes: () => of([]), listar: () => of([]), listarVacantes: () => of([]) } },
         {
           provide: GestionParametrizacionService,
           useValue: { listMetaValoresByTablaCodigo: () => of([]), listDatosByTablaCodigo: () => of([]) },
         },
-        { provide: UtilityServiceService, useValue: { getUser: () => Promise.resolve({}) } },
+        {
+          provide: UtilityServiceService,
+          useValue: {
+            getUser: () => Promise.resolve({}),
+            // Elegir vacante deduce el tipo con esto; mismo criterio que el real.
+            normalizeText: (v: any) => String(v ?? '').normalize('NFD')
+              .replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim().toUpperCase(),
+          },
+        },
         { provide: MatDialog, useValue: dialog },
       ],
     }).compileComponents();
@@ -281,6 +289,109 @@ describe('HelpInformationComponent', () => {
       comp.searchVacanteCtrl.setValue('FA-01');
       expect(cargos()).toEqual(['SUPERVISOR']);
     });
+
+    it('no ofrece las inactivas ni las completas', () => {
+      comp.vacantes.set([
+        V(1, 'JARDINES', 'LA ROSA', 'COSECHA'),
+        { ...V(2, 'JARDINES', 'LA ROSA', 'INACTIVA'), activo: false },
+        { ...V(3, 'JARDINES', 'LA ROSA', 'COMPLETA'), conteo_estados: { contratado: 5 } },
+      ]);
+      comp.searchVacanteCtrl.setValue('');
+      expect(cargos()).toEqual(['COSECHA']);
+    });
+
+    it('ofrece las que no tienen oficina declarada', () => {
+      comp.vacantes.set([{ ...V(1, 'JARDINES', 'LA ROSA', 'SIN OFICINA'), oficinas_que_contratan: [] }]);
+      comp.searchVacanteCtrl.setValue('');
+      expect(cargos()).toEqual(['SIN OFICINA']);
+      expect(comp.oficinasResumen([])).toBe('Sin oficina');
+    });
+
+    it('se busca por la fecha de creación y se muestra', () => {
+      comp.vacantes.set([
+        { ...V(1, 'JARDINES', 'LA ROSA', 'COSECHA'), fecha_publicado: '2026-09-12' },
+        { ...V(2, 'JARDINES', 'LA ROSA', 'POSCOSECHA'), fecha_publicado: '2026-08-01' },
+      ]);
+      comp.searchVacanteCtrl.setValue('2026-09-12');
+      expect(cargos()).toEqual(['COSECHA']);
+      expect(comp.fechaCreacion({ fecha_publicado: '2026-09-12' })).toContain('Creada 2026-09-12');
+    });
   });
 
+
+  // ───────────────────────────────────────────────────────────
+  describe('dirección de la empresa en la remisión', () => {
+    // Las 45 vacantes activas traen `direccion` (la de la empresa/finca), pero
+    // el campo se llenaba con `ubicacionPruebaTecnica`, que casi siempre viene
+    // vacía o dice solo "SUBA". El formato impreso ya usaba `direccion`.
+    const V = (id: number, o: Partial<{ empresa: string; finca: string; direccion: string | null; ubicacion: string | null }> = {}) => ({
+      id,
+      cargo: 'COSECHA',
+      empresa_usuaria_solicita: o.empresa ?? 'FLORES DE LOS ANDES',
+      finca: o.finca ?? 'LA ROSA',
+      direccion: o.direccion === undefined ? 'Km 4 via Suba-Cota' : o.direccion,
+      ubicacionPruebaTecnica: o.ubicacion ?? null,
+      prueba_ocontratacion: 'Prueba',
+      activo: true,
+    }) as any;
+
+    const direccion = () => comp.vacantesForm.get('direccionEmpresa')!.value;
+
+    it('al elegir la vacante se llena con la dirección de la empresa, no con el lugar de la prueba', () => {
+      comp.vacantes.set([V(1, { ubicacion: 'SUBA' })]);
+      comp.onVacanteIdChange(1);
+      expect(direccion()).toBe('Km 4 via Suba-Cota');
+    });
+
+    it('si la vacante no trae dirección, usa el lugar de la prueba técnica', () => {
+      comp.vacantes.set([V(1, { direccion: null, ubicacion: 'Sede MADRID - sala de pruebas' })]);
+      comp.onVacanteIdChange(1);
+      expect(direccion()).toBe('Sede MADRID - sala de pruebas');
+    });
+
+    it('cambiar de vacante reemplaza la dirección que venía de la anterior', () => {
+      comp.vacantes.set([
+        V(1, { direccion: 'Km 4 via Suba-Cota' }),
+        V(2, { empresa: 'FLORES IPANEMA S.A.S', finca: 'GUENSUCA', direccion: 'Km 2 Via El Rosal-Subachoque' }),
+      ]);
+      comp.onVacanteIdChange(1);
+      comp.onVacanteIdChange(2);
+      expect(direccion()).toBe('Km 2 Via El Rosal-Subachoque');
+    });
+
+    it('lo escrito a mano NO se pisa al cambiar de vacante', () => {
+      comp.vacantes.set([
+        V(1),
+        V(2, { empresa: 'FLORES IPANEMA S.A.S', finca: 'GUENSUCA', direccion: 'Km 2 Via El Rosal-Subachoque' }),
+      ]);
+      comp.onVacanteIdChange(1);
+      comp.vacantesForm.get('direccionEmpresa')!.setValue('Portería 2, bloque B');
+      comp.onVacanteIdChange(2);
+      expect(direccion()).toBe('Portería 2, bloque B');
+    });
+
+    it('sugiere la de la vacante, el lugar de prueba y las de la misma empresa o finca, sin repetir', () => {
+      const elegida = V(1, { direccion: 'Km 4 via Suba-Cota', ubicacion: 'SUBA' });
+      comp.vacantes.set([
+        elegida,
+        V(2, { finca: 'LA ROSA', direccion: 'km 4  VÍA suba-cota' }),            // misma, otra escritura
+        V(3, { empresa: 'FLORES DE LOS ANDES', finca: 'MONTEVERDE', direccion: 'Km a via Funza La punta' }),
+        V(4, { empresa: 'OTRA EMPRESA', finca: 'OTRA', direccion: 'Calle 13' }),  // ajena: no sale
+        V(5, { empresa: 'FLORES DE LOS ANDES S.', finca: 'LA ROSA', direccion: 'Vereda Chorrillo' }),
+      ]);
+      comp.vacanteSeleccionada.set(elegida);
+
+      const dirs = comp.direccionesEmpresa().map((d: any) => d.direccion);
+      expect(dirs).toEqual(['Km 4 via Suba-Cota', 'SUBA', 'Vereda Chorrillo', 'Km a via Funza La punta']);
+    });
+
+    it('lo tecleado filtra las sugerencias', () => {
+      const elegida = V(1, { ubicacion: 'SUBA' });
+      comp.vacantes.set([elegida, V(3, { finca: 'MONTEVERDE', direccion: 'Km a via Funza La punta' })]);
+      comp.vacanteSeleccionada.set(elegida);
+
+      comp.vacantesForm.get('direccionEmpresa')!.setValue('funza');
+      expect(comp.direccionesParaMostrar().map((d: any) => d.direccion)).toEqual(['Km a via Funza La punta']);
+    });
+  });
 });

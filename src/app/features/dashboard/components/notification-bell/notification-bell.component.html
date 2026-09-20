@@ -1,0 +1,130 @@
+<!-- Campana del top bar -->
+<button type="button" class="campana" cdkOverlayOrigin #origen="cdkOverlayOrigin"
+        [class.campana--alerta]="conteos().INMEDIATA > 0 && sinLeer() > 0"
+        [attr.aria-expanded]="abierto()" aria-haspopup="dialog"
+        [attr.aria-label]="sinLeer() > 0 ? sinLeer() + ' notificaciones sin leer' : 'Notificaciones'"
+        [matTooltip]="sinLeer() > 0 ? sinLeer() + ' sin leer' : 'Notificaciones'"
+        (click)="alternar()">
+  <mat-icon>notifications</mat-icon>
+  @if (sinLeer() > 0) {
+    <span class="globo" [class.globo--alerta]="conteos().INMEDIATA > 0">
+      {{ sinLeer() > 99 ? '99+' : sinLeer() }}
+    </span>
+  }
+</button>
+
+<ng-template cdkConnectedOverlay
+             [cdkConnectedOverlayOrigin]="origen"
+             [cdkConnectedOverlayOpen]="abierto()"
+             [cdkConnectedOverlayHasBackdrop]="true"
+             cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+             [cdkConnectedOverlayPositions]="[
+               { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 10 },
+               { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -10 }
+             ]"
+             (backdropClick)="cerrar()"
+             (detach)="cerrar()"
+             (overlayKeydown)="$event.key === 'Escape' && cerrar()">
+
+  <section class="panel" role="dialog" aria-label="Centro de notificaciones">
+
+    <header class="panel__cabecera">
+      <div class="panel__titulo">
+        <h2>Notificaciones</h2>
+        <p>{{ sinLeer() > 0 ? sinLeer() + ' sin leer' : 'Todo leído' }}</p>
+      </div>
+      @if (sinLeer() > 0) {
+        <button type="button" class="enlace" (click)="marcarTodas($event)">
+          <mat-icon>done_all</mat-icon> Marcar todas leídas
+        </button>
+      }
+    </header>
+
+    <!-- Semáforo: resumen y filtro a la vez. Es lo primero que se lee porque es
+         lo que decide qué haces con el resto del panel. -->
+    <div class="semaforo" role="group" aria-label="Filtrar por prioridad">
+      @for (n of niveles; track n.clave) {
+        <button type="button" class="nivel" [attr.data-nivel]="n.clave"
+                [class.nivel--activo]="filtroPrioridad() === n.clave"
+                [class.nivel--vacio]="conteos()[n.clave] === 0"
+                [attr.aria-pressed]="filtroPrioridad() === n.clave"
+                [matTooltip]="n.ayuda"
+                (click)="filtrarPrioridad(n.clave)">
+          <span class="nivel__cifra">{{ conteos()[n.clave] }}</span>
+          <span class="nivel__nombre">{{ n.corto }}</span>
+        </button>
+      }
+    </div>
+
+    <!-- Módulos presentes en la bandeja -->
+    @if (modulos().length > 1) {
+      <div class="modulos" role="group" aria-label="Filtrar por módulo">
+        <button type="button" class="chip" [class.chip--activo]="filtroModulo() === null"
+                (click)="filtrarModulo(null)">Todos</button>
+        @for (m of modulos(); track m) {
+          <button type="button" class="chip" [class.chip--activo]="filtroModulo() === m"
+                  (click)="filtrarModulo(m)">{{ m }}</button>
+        }
+      </div>
+    }
+
+    <div class="panel__cuerpo">
+      @if (cargando() && bandejaVacia()) {
+        <p class="estado" aria-live="polite">Cargando tus notificaciones…</p>
+      } @else if (bandejaVacia()) {
+        <div class="estado estado--vacio">
+          <mat-icon>notifications_none</mat-icon>
+          <p class="estado__titulo">Estás al día</p>
+          <p class="estado__texto">Aquí aparecerán los avisos de tus módulos, con lo urgente arriba.</p>
+        </div>
+      } @else if (vacioPorFiltro()) {
+        <div class="estado estado--vacio">
+          <mat-icon>filter_alt_off</mat-icon>
+          <p class="estado__titulo">Nada con ese filtro</p>
+          <button type="button" class="enlace" (click)="limpiarFiltros()">Ver todas las notificaciones</button>
+        </div>
+      } @else {
+        @for (g of grupos(); track g.clave) {
+          <section class="grupo" [attr.data-nivel]="g.clave">
+            <h3 class="grupo__titulo">
+              <span class="grupo__punto"></span>
+              {{ g.largo }}
+              <span class="grupo__cuenta">{{ g.filas.length }}</span>
+            </h3>
+
+            @for (f of g.filas; track f.id) {
+              <button type="button" class="aviso" [attr.data-nivel]="f.prioridad"
+                      [class.aviso--nueva]="!f.leida"
+                      [class.aviso--inerte]="!f.navegable"
+                      (click)="abrirNotificacion(f)">
+                <span class="aviso__riel" aria-hidden="true"></span>
+                <span class="aviso__icono" [style.color]="f.color" [style.background]="f.color + '1f'">
+                  <mat-icon>{{ f.icono }}</mat-icon>
+                </span>
+                <span class="aviso__texto">
+                  <span class="aviso__titulo">{{ f.titulo }}</span>
+                  @if (f.mensaje) { <span class="aviso__mensaje">{{ f.mensaje }}</span> }
+                  <span class="aviso__pie">
+                    <span class="aviso__modulo">{{ f.modulo }}</span>
+                    <span class="aviso__sep" aria-hidden="true">·</span>
+                    <span class="aviso__cuando">{{ f.cuando }}</span>
+                    @if (f.navegable) {
+                      <span class="aviso__accion">{{ accion(f) }} <mat-icon>arrow_forward</mat-icon></span>
+                    }
+                  </span>
+                </span>
+                @if (!f.leida) { <span class="aviso__nueva" aria-label="Sin leer"></span> }
+              </button>
+            }
+          </section>
+        }
+      }
+    </div>
+
+    <footer class="panel__pie">
+      <button type="button" class="enlace" (click)="verTodas()">
+        Ver historial completo <mat-icon>arrow_forward</mat-icon>
+      </button>
+    </footer>
+  </section>
+</ng-template>

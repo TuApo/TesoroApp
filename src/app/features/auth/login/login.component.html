@@ -1,254 +1,314 @@
-<div class="backgraound">
-  <div class="view">
-    <div class="blob-container">
-      <div class="orbit"></div>
+<div class="shell">
+
+  <!-- ═══════════════ ESCENA: mapa 3D de Colombia ═══════════════ -->
+  <section class="stage" aria-hidden="true">
+    <app-login-escena />
+    <div class="topbar">
+      <div class="brand-name">Tu Apo · Gestión de talento</div>
+      <div class="live"><i></i>Red nacional</div>
     </div>
+    <div class="map-area" data-area-mapa></div>
+    <div class="bottom">
+      <div class="pitch">
+        <div class="pitch-main">
+          <div class="eyebrow"><i></i>Plataforma de contratación</div>
+          <h1>Conectamos talento en <span>toda Colombia</span>.</h1>
+        </div>
+        <p>Reclutamiento, selección, contratación y afiliaciones en un solo lugar.</p>
+      </div>
+      <!-- Lo que hace la plataforma, no cifras: antes del login no hay datos reales que mostrar. -->
+      <div class="stats">
+        <div class="stat">
+          <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c1.9.6 3.1 2.3 3.5 5.2"/></svg></div>
+          <div class="stat-txt"><b>Selección</b><span>Vacantes, entrevistas y pruebas</span></div>
+        </div>
+        <div class="stat">
+          <div class="ic g"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 14l2 2 4-4"/></svg></div>
+          <div class="stat-txt"><b>Contratación</b><span>Contratos, afiliaciones y nómina</span></div>
+        </div>
+        <div class="stat">
+          <div class="ic d"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></div>
+          <div class="stat-txt"><b>Todo el país</b><span>Sedes y empresas usuarias</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    <div class="login">
+  <!-- ═══════════════ PANEL DE INGRESO ═══════════════ -->
+  <main class="panel">
+    <div class="form-wrap">
 
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      <!-- Vista 1: LOGIN NORMAL                                             -->
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      @if (vista() === 'login') {
+      @switch (vista()) {
 
-        <!-- ── Acceso rápido guardado en ESTE dispositivo ────────────────── -->
-        @if (accesoRapido(); as qa) {
-          <div class="qa-card">
-            <div class="qa-card-avatar">{{ inicialesAccesoRapido() }}</div>
-            <div class="qa-card-info">
-              <span class="qa-card-hola">Bienvenido de nuevo</span>
-              <span class="qa-card-nombre">{{ qa.etiquetaUsuario }}</span>
-              <span class="qa-card-login">{{ qa.loginEnmascarado }}</span>
+        <!-- ─────────────── LOGIN ─────────────── -->
+        @case ('login') {
+          @let qa = otraCuenta() ? null : accesoRapido();
+
+          <div class="hello">
+            <h2>{{ qa ? 'Bienvenido de nuevo' : 'Bienvenido a Tu Apo' }}</h2>
+            <p>Ingresa para continuar con tus procesos de contratación.</p>
+          </div>
+
+          @if (qa) {
+            <div class="remembered">
+              <div class="avatar">{{ inicialesAccesoRapido() }}</div>
+              <div class="who">
+                <b>{{ qa.etiquetaUsuario }}</b>
+                <span>{{ qa.loginEnmascarado }}</span>
+              </div>
+              <button class="swap" type="button" (click)="usarOtraCuenta()">Cambiar</button>
             </div>
 
-            <button type="button" class="qa-card-btn"
-                    [disabled]="desbloqueando() || loading"
-                    (click)="desbloquearAccesoRapido()">
-              <mat-icon>{{ iconoMetodo(qa.metodo) }}</mat-icon>
-              <span>{{ desbloqueando() ? 'Verificando...' : textoMetodo(qa.metodo) }}</span>
-            </button>
-
-            <button type="button" class="qa-card-link" (click)="olvidarDispositivo()">
-              Usar otra cuenta
-            </button>
-          </div>
-
-          <div class="qa-sep"><span>o entra con tu contraseña</span></div>
-        } @else {
-          <h2>¡Bienvenido a Tu Apo!</h2>
-          <h3>¡Ingresa tus credenciales!</h3>
-        }
-
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="form" autocomplete="off">
-          <mat-form-field class="textbox" appearance="outline">
-            <mat-label>Correo o documento</mat-label>
-            <input matInput type="text" formControlName="login" required />
-            @if (loginForm.get('login')?.hasError('required')) {
-              <mat-error>Este campo es obligatorio</mat-error>
-            }
-            @if (loginForm.get('login')?.hasError('emailOrDoc')) {
-              <mat-error>Ingrese un correo válido o un número de documento</mat-error>
-            }
-          </mat-form-field>
-
-          <mat-form-field class="textbox" appearance="outline">
-            <mat-label>Contraseña</mat-label>
-            <input matInput [type]="hide ? 'password' : 'text'" formControlName="password" required />
-            <button mat-icon-button matSuffix type="button" (click)="hide = !hide"
-                    [attr.aria-label]="'Mostrar/Ocultar contraseña'">
-              <mat-icon>{{ hide ? 'visibility' : 'visibility_off' }}</mat-icon>
-            </button>
-            @if (loginForm.get('password')?.hasError('required')) {
-              <mat-error>La contraseña es obligatoria</mat-error>
-            }
-          </mat-form-field>
-
-          @if (accesoRapidoPosible() && !accesoRapido()) {
-            <mat-checkbox formControlName="recordar" class="qa-recordar">
-              Recordarme en este dispositivo
-              <span class="qa-recordar-nota">
-                Guarda tu acceso cifrado aquí para entrar con huella o PIN
-              </span>
-            </mat-checkbox>
+            <div class="tabs" [class.derecha]="pestana() === 'rapido'" role="tablist">
+              <div class="pill"></div>
+              <button type="button" role="tab" [class.on]="pestana() === 'clave'"
+                      [attr.aria-selected]="pestana() === 'clave'" (click)="cambiarPestana('clave')">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Contraseña
+              </button>
+              <button type="button" role="tab" [class.on]="pestana() === 'rapido'"
+                      [attr.aria-selected]="pestana() === 'rapido'" (click)="cambiarPestana('rapido')">
+                @if (qa.metodo === 'pin') {
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 12h.01M11 12h.01M15 12h.01"/></svg>PIN rápido
+                } @else {
+                  <mat-icon fontSet="material-symbols-outlined">{{ iconoMetodo(qa.metodo) }}</mat-icon>Acceso rápido
+                }
+              </button>
+            </div>
           }
 
-          <button mat-flat-button color="primary" type="submit" [disabled]="loginForm.invalid || loading">
-            {{ loading ? 'Ingresando...' : 'Iniciar sesión' }}
-          </button>
-        </form>
+          <!-- Acceso rápido -->
+          @if (qa && pestana() === 'rapido') {
+            <div class="pane">
+              @if (qa.metodo === 'pin') {
+                <form (ngSubmit)="entrarConPin()" autocomplete="off">
+                  <div class="field">
+                    <label for="pin">Ingresa tu PIN</label>
+                    <div class="control">
+                      <input id="pin" class="pin-input" type="password" inputmode="numeric" maxlength="12"
+                             autocomplete="one-time-code" placeholder="••••" [value]="pinRapido()"
+                             (input)="escribirPin($any($event.target).value)" [attr.aria-invalid]="!!errorPin()" />
+                      <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 12h.01M11 12h.01M15 12h.01"/></svg>
+                    </div>
+                  </div>
+                  @if (errorPin()) { <p class="field-error" role="alert">{{ errorPin() }}</p> }
+                  <p class="pin-hint">
+                    ¿No recuerdas tu PIN?
+                    <button type="button" class="link" (click)="cambiarPestana('clave')">Entra con tu contraseña</button>
+                  </p>
+                  <button class="btn btn-primary" type="submit" [class.loading]="desbloqueando() || loading()"
+                          [disabled]="pinRapido().length < 4 || desbloqueando() || loading()">
+                    <span class="lbl">Entrar</span><span class="spin"></span>
+                  </button>
+                </form>
+              } @else {
+                <p class="pin-hint">
+                  {{ qa.metodo === 'biometria'
+                      ? 'Confirma con la huella o el rostro de este dispositivo.'
+                      : 'Tu acceso está guardado y cifrado en este dispositivo.' }}
+                </p>
+                <button class="btn btn-primary" type="button" [class.loading]="desbloqueando() || loading()"
+                        [disabled]="desbloqueando() || loading()" (click)="desbloquearAccesoRapido()">
+                  <span class="lbl"><mat-icon fontSet="material-symbols-outlined">{{ iconoMetodo(qa.metodo) }}</mat-icon>{{ textoMetodo(qa.metodo) }}</span>
+                  <span class="spin"></span>
+                </button>
+              }
+              <button type="button" class="forget" (click)="olvidarDispositivo()">Quitar el acceso guardado de este dispositivo</button>
+            </div>
+          }
 
-        <button class="link-btn" type="button" (click)="irARecuperarContrasena()">
-          ¿Olvidaste tu contraseña?
-        </button>
-
-        <!-- Descargas -->
-        <div class="downloads-section">
-          <span class="downloads-label">Descargar aplicación</span>
-          <div class="downloads-row">
-            <button class="dl-btn dl-btn--desktop"
-              [disabled]="!desktopRelease()"
-              (click)="descargarEscritorio()"
-              title="Instalar en Windows">
-              <svg class="dl-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M3 12.5L3 19h8v-6.5H3zm0-8L3 11h8V4.5H3zM13 4.5V11h8V4.5h-8zm0 8V19h8v-6.5h-8z"/>
-              </svg>
-              <span class="dl-text">
-                <span class="dl-platform">Windows</span>
-                <span class="dl-version">
-                  @if (desktopRelease()) { v{{ desktopRelease()!.version }} · {{ desktopRelease()!.sizeMB }} MB }
-                  @else { Cargando... }
-                </span>
-              </span>
-            </button>
-
-            <button class="dl-btn dl-btn--mobile"
-              [disabled]="!desktopRelease()?.apkUrl"
-              (click)="descargarAndroid()"
-              [title]="desktopRelease()?.apkUrl ? 'Instalar en Android' : 'Próximamente en Android'">
-              <svg class="dl-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
-              </svg>
-              <span class="dl-text">
-                <span class="dl-platform">Android</span>
-                <span class="dl-version" [class.dl-soon]="!desktopRelease()?.apkUrl">
-                  @if (desktopRelease()?.apkUrl) {
-                    v{{ desktopRelease()!.version }} · {{ desktopRelease()!.apkSizeMB }} MB
-                  } @else {
-                    Próximamente
+          <!-- Contraseña -->
+          @if (!qa || pestana() === 'clave') {
+            <form class="pane" [formGroup]="loginForm" (ngSubmit)="onSubmit()" autocomplete="on">
+              <div class="field">
+                <label for="login">Correo o documento</label>
+                <div class="control">
+                  <input id="login" type="text" formControlName="login" placeholder="nombre@empresa.com o C.C."
+                         autocomplete="username" [attr.aria-invalid]="loginForm.get('login')?.touched && loginForm.get('login')?.invalid" />
+                  <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+                </div>
+                @if (loginForm.get('login')?.touched) {
+                  @if (loginForm.get('login')?.hasError('required')) {
+                    <p class="field-error">Este campo es obligatorio.</p>
+                  } @else if (loginForm.get('login')?.hasError('emailOrDoc')) {
+                    <p class="field-error">Ingresa un correo válido o un número de documento.</p>
                   }
-                </span>
-              </span>
-            </button>
+                }
+              </div>
+
+              <div class="field">
+                <label for="password">Contraseña</label>
+                <div class="control">
+                  <input id="password" [type]="hide ? 'password' : 'text'" formControlName="password"
+                         placeholder="••••••••" autocomplete="current-password" />
+                  <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                  <button class="eye" type="button" (click)="hide = !hide"
+                          [attr.aria-label]="hide ? 'Mostrar contraseña' : 'Ocultar contraseña'">
+                    @if (hide) {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                    } @else {
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l18 18"/><path d="M10.6 5.1A9.8 9.8 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.6 9.6 0 0 0 4.4-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                    }
+                  </button>
+                </div>
+                @if (loginForm.get('password')?.touched && loginForm.get('password')?.hasError('required')) {
+                  <p class="field-error">La contraseña es obligatoria.</p>
+                }
+              </div>
+
+              <div class="row">
+                @if (accesoRapidoPosible() && !accesoRapido()) {
+                  <label class="check" title="Guarda tu acceso cifrado en este dispositivo para entrar con huella o PIN">
+                    <input type="checkbox" formControlName="recordar" /> Recordarme
+                  </label>
+                } @else {
+                  <span></span>
+                }
+                <button type="button" class="link" (click)="irARecuperarContrasena()">¿Olvidaste tu contraseña?</button>
+              </div>
+
+              <button class="btn btn-primary" type="submit" [class.loading]="loading()"
+                      [disabled]="loginForm.invalid || loading()">
+                <span class="lbl">Iniciar sesión</span><span class="spin"></span>
+              </button>
+
+              @if (otraCuenta() && accesoRapido()) {
+                <button type="button" class="forget" (click)="otraCuenta.set(false); cambiarPestana('rapido')">
+                  Volver a {{ accesoRapido()!.etiquetaUsuario }}
+                </button>
+              }
+            </form>
+          }
+
+          <div class="secure">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+            Conexión cifrada · Tratamiento de datos conforme a Ley 1581 de 2012
           </div>
-        </div>
-      }
 
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      <!-- Vista 2: SOLICITAR OTP                                            -->
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      @if (vista() === 'solicitar-otp') {
-        <div class="otp-header">
-          <div class="otp-icon">🔑</div>
-          <h2>Recuperar contraseña</h2>
-          <h3>Ingresa tu correo o número de documento para recibir un código de verificación.</h3>
-        </div>
+          <div class="apps">
+            <h4>Descargar aplicación</h4>
+            <div class="apps-grid">
+              <button type="button" class="app" [class.soon]="!desktopRelease()" [disabled]="!desktopRelease()"
+                      (click)="descargarEscritorio()" title="Instalar en Windows">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#2B59F0"><path d="M3 5.5l7.5-1v7H3zM11.5 4.3L21 3v8.5h-9.5zM3 12.5h7.5v7L3 18.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg>
+                <div>
+                  <b>Windows</b>
+                  <span>
+                    @if (desktopRelease(); as r) { v{{ r.version }} · {{ r.sizeMB }} MB } @else { Cargando… }
+                  </span>
+                </div>
+              </button>
+              <button type="button" class="app" [class.soon]="!desktopRelease()?.apkUrl" [disabled]="!desktopRelease()?.apkUrl"
+                      (click)="descargarAndroid()" [title]="desktopRelease()?.apkUrl ? 'Instalar en Android' : 'Próximamente en Android'">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#86C22E"><path d="M7 9h10v8a1.5 1.5 0 0 1-1.5 1.5H15V21a1 1 0 0 1-2 0v-2.5h-2V21a1 1 0 0 1-2 0v-2.5h-.5A1.5 1.5 0 0 1 7 17zM4.5 9a1 1 0 0 1 1 1v5a1 1 0 0 1-2 0v-5a1 1 0 0 1 1-1zm15 0a1 1 0 0 1 1 1v5a1 1 0 0 1-2 0v-5a1 1 0 0 1 1-1zM8.3 4.2l-.9-1.4.4-.3 1 1.5A6 6 0 0 1 12 3.5c1.1 0 2.2.2 3.2.5l1-1.5.4.3-.9 1.4A5 5 0 0 1 17 8H7a5 5 0 0 1 1.3-3.8zM10 6a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2zm4 0a.6.6 0 1 0 0-1.2.6.6 0 0 0 0 1.2z"/></svg>
+                <div>
+                  <b>Android</b>
+                  <span>
+                    @if (desktopRelease()?.apkUrl) { v{{ desktopRelease()!.version }} · {{ desktopRelease()!.apkSizeMB }} MB } @else { Próximamente }
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+        }
 
-        <form [formGroup]="otpRequestForm" (ngSubmit)="onSolicitarOtp()" class="form" autocomplete="off">
-          <mat-form-field class="textbox" appearance="outline">
-            <mat-label>Correo o documento</mat-label>
-            <input matInput type="text" formControlName="login" />
-            @if (otpRequestForm.get('login')?.touched && otpRequestForm.get('login')?.hasError('required')) {
-              <mat-error>Este campo es obligatorio</mat-error>
-            }
-            @if (otpRequestForm.get('login')?.touched && otpRequestForm.get('login')?.hasError('emailOrDoc')) {
-              <mat-error>Ingrese un correo válido o un número de documento</mat-error>
-            }
-          </mat-form-field>
-
-          <button mat-flat-button color="primary" type="submit"
-                  [disabled]="otpRequestForm.invalid || otpLoading()">
-            {{ otpLoading() ? 'Enviando...' : 'Enviar código' }}
-          </button>
-        </form>
-
-        <button class="link-btn" type="button" (click)="volverAlLogin()">
-          ← Volver al inicio de sesión
-        </button>
-      }
-
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      <!-- Vista 3: VERIFICAR OTP                                            -->
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      @if (vista() === 'verificar-otp') {
-        <div class="otp-header">
-          <div class="otp-icon">📩</div>
-          <h2>Ingresa el código</h2>
-          <h3>
-            Enviamos un código de 6 dígitos a
-            <strong>{{ correoEnmascarado() }}</strong>.
-            Válido por 15 minutos.
-          </h3>
-        </div>
-
-        <form [formGroup]="otpVerifyForm" (ngSubmit)="onVerificarOtp()" class="form" autocomplete="off">
-          <mat-form-field class="textbox" appearance="outline">
-            <mat-label>Código de verificación</mat-label>
-            <input matInput type="text" inputmode="numeric" formControlName="codigo"
-                   maxlength="6" placeholder="123456" class="otp-input" />
-            @if (otpVerifyForm.get('codigo')?.touched && otpVerifyForm.get('codigo')?.hasError('required')) {
-              <mat-error>El código es obligatorio</mat-error>
-            }
-            @if (otpVerifyForm.get('codigo')?.touched && otpVerifyForm.get('codigo')?.hasError('pattern')) {
-              <mat-error>El código debe tener 6 dígitos</mat-error>
-            }
-          </mat-form-field>
-
-          <button mat-flat-button color="primary" type="submit"
-                  [disabled]="otpVerifyForm.invalid || otpLoading()">
-            {{ otpLoading() ? 'Verificando...' : 'Verificar código' }}
-          </button>
-        </form>
-
-        <button class="link-btn" type="button" (click)="reenviarOtp()" [disabled]="otpLoading()">
-          ¿No recibiste el código? Reenviar
-        </button>
-        <button class="link-btn secondary" type="button" (click)="volverAlLogin()">
-          ← Volver al inicio de sesión
-        </button>
-      }
-
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      <!-- Vista 4: NUEVA CONTRASEÑA                                         -->
-      <!-- ══════════════════════════════════════════════════════════════════ -->
-      @if (vista() === 'nueva-contrasena') {
-        <div class="otp-header">
-          <div class="otp-icon">🔒</div>
-          <h2>Nueva contraseña</h2>
-          <h3>Elige una contraseña segura de al menos 12 caracteres con mayúsculas, minúsculas y números.</h3>
-        </div>
-
-        <form [formGroup]="newPasswordForm" (ngSubmit)="onResetContrasena()" class="form" autocomplete="off">
-          <mat-form-field class="textbox" appearance="outline">
-            <mat-label>Nueva contraseña</mat-label>
-            <input matInput [type]="hideNewPwd ? 'password' : 'text'" formControlName="password" />
-            <button mat-icon-button matSuffix type="button" (click)="hideNewPwd = !hideNewPwd">
-              <mat-icon>{{ hideNewPwd ? 'visibility' : 'visibility_off' }}</mat-icon>
+        <!-- ─────────────── RECUPERAR: pedir código ─────────────── -->
+        @case ('solicitar-otp') {
+          <div class="hello">
+            <h2>Recuperar contraseña</h2>
+            <p>Escribe tu correo o documento y te enviaremos un código de verificación.</p>
+          </div>
+          <form class="pane" [formGroup]="otpRequestForm" (ngSubmit)="onSolicitarOtp()" autocomplete="off">
+            <div class="field">
+              <label for="otp-login">Correo o documento</label>
+              <div class="control">
+                <input id="otp-login" type="text" formControlName="login" placeholder="nombre@empresa.com o C.C." />
+                <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+              </div>
+              @if (otpRequestForm.get('login')?.touched && otpRequestForm.get('login')?.invalid) {
+                <p class="field-error">Ingresa un correo válido o un número de documento.</p>
+              }
+            </div>
+            <button class="btn btn-primary" type="submit" [class.loading]="otpLoading()"
+                    [disabled]="otpRequestForm.invalid || otpLoading()">
+              <span class="lbl">Enviar código</span><span class="spin"></span>
             </button>
-            @if (newPasswordForm.get('password')?.touched) {
-              @if (newPasswordForm.get('password')?.hasError('required')) {
-                <mat-error>La contraseña es obligatoria</mat-error>
-              }
-              @if (newPasswordForm.get('password')?.hasError('minLength')) {
-                <mat-error>Mínimo 12 caracteres</mat-error>
-              }
-              @if (newPasswordForm.get('password')?.hasError('passwordStrength')) {
-                <mat-error>Combina al menos 3 de: minúsculas, mayúsculas, números, símbolos</mat-error>
-              }
-            }
-          </mat-form-field>
+          </form>
+          <button type="button" class="back" (click)="volverAlLogin()">← Volver al inicio de sesión</button>
+        }
 
-          <mat-form-field class="textbox" appearance="outline">
-            <mat-label>Confirmar contraseña</mat-label>
-            <input matInput [type]="hideConfirmPwd ? 'password' : 'text'" formControlName="confirmar" />
-            <button mat-icon-button matSuffix type="button" (click)="hideConfirmPwd = !hideConfirmPwd">
-              <mat-icon>{{ hideConfirmPwd ? 'visibility' : 'visibility_off' }}</mat-icon>
+        <!-- ─────────────── RECUPERAR: verificar código ─────────────── -->
+        @case ('verificar-otp') {
+          <div class="hello">
+            <h2>Ingresa el código</h2>
+            <p>Enviamos un código de 6 dígitos a <strong>{{ correoEnmascarado() }}</strong>. Vence en 15 minutos.</p>
+          </div>
+          <form class="pane" [formGroup]="otpVerifyForm" (ngSubmit)="onVerificarOtp()" autocomplete="off">
+            <div class="field">
+              <label for="otp-codigo">Código de verificación</label>
+              <div class="control">
+                <input id="otp-codigo" class="pin-input" type="text" inputmode="numeric" maxlength="6"
+                       formControlName="codigo" placeholder="123456" autocomplete="one-time-code" />
+                <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 7l9 6 9-6"/></svg>
+              </div>
+              @if (otpVerifyForm.get('codigo')?.touched && otpVerifyForm.get('codigo')?.invalid) {
+                <p class="field-error">El código tiene 6 dígitos.</p>
+              }
+            </div>
+            <button class="btn btn-primary" type="submit" [class.loading]="otpLoading()"
+                    [disabled]="otpVerifyForm.invalid || otpLoading()">
+              <span class="lbl">Verificar código</span><span class="spin"></span>
             </button>
-            @if (newPasswordForm.get('confirmar')?.touched && newPasswordForm.hasError('passwordsMismatch')) {
-              <mat-error>Las contraseñas no coinciden</mat-error>
-            }
-          </mat-form-field>
+          </form>
+          <button type="button" class="back" (click)="reenviarOtp()" [disabled]="otpLoading()">¿No te llegó? Reenviar código</button>
+          <button type="button" class="back" (click)="volverAlLogin()">← Volver al inicio de sesión</button>
+        }
 
-          <button mat-flat-button color="primary" type="submit"
-                  [disabled]="newPasswordForm.invalid || otpLoading()">
-            {{ otpLoading() ? 'Guardando...' : 'Guardar contraseña' }}
-          </button>
-        </form>
-
-        <button class="link-btn" type="button" (click)="volverAlLogin()">
-          ← Cancelar y volver al inicio de sesión
-        </button>
+        <!-- ─────────────── RECUPERAR: nueva contraseña ─────────────── -->
+        @case ('nueva-contrasena') {
+          <div class="hello">
+            <h2>Nueva contraseña</h2>
+            <p>Mínimo 12 caracteres, combinando al menos tres de: minúsculas, mayúsculas, números y símbolos.</p>
+          </div>
+          <form class="pane" [formGroup]="newPasswordForm" (ngSubmit)="onResetContrasena()" autocomplete="off">
+            <div class="field">
+              <label for="nueva">Nueva contraseña</label>
+              <div class="control">
+                <input id="nueva" [type]="hideNewPwd ? 'password' : 'text'" formControlName="password" autocomplete="new-password" />
+                <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                <button class="eye" type="button" (click)="hideNewPwd = !hideNewPwd" aria-label="Mostrar u ocultar">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              @if (newPasswordForm.get('password')?.touched) {
+                @if (newPasswordForm.get('password')?.hasError('minLength')) {
+                  <p class="field-error">Mínimo 12 caracteres.</p>
+                } @else if (newPasswordForm.get('password')?.hasError('passwordStrength')) {
+                  <p class="field-error">Combina al menos 3 de: minúsculas, mayúsculas, números, símbolos.</p>
+                }
+              }
+            </div>
+            <div class="field">
+              <label for="confirmar">Confirmar contraseña</label>
+              <div class="control">
+                <input id="confirmar" [type]="hideConfirmPwd ? 'password' : 'text'" formControlName="confirmar" autocomplete="new-password" />
+                <svg class="lead" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                <button class="eye" type="button" (click)="hideConfirmPwd = !hideConfirmPwd" aria-label="Mostrar u ocultar">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+              </div>
+              @if (newPasswordForm.get('confirmar')?.touched && newPasswordForm.hasError('passwordsMismatch')) {
+                <p class="field-error">Las contraseñas no coinciden.</p>
+              }
+            </div>
+            <button class="btn btn-primary" type="submit" [class.loading]="otpLoading()"
+                    [disabled]="newPasswordForm.invalid || otpLoading()">
+              <span class="lbl">Guardar contraseña</span><span class="spin"></span>
+            </button>
+          </form>
+          <button type="button" class="back" (click)="volverAlLogin()">← Cancelar y volver al inicio de sesión</button>
+        }
       }
-
     </div>
-  </div>
+    <div class="foot">© {{ anio }} Tu Apo · Gestión de talento · Todos los derechos reservados</div>
+  </main>
 </div>

@@ -252,6 +252,8 @@ export interface ProcesoUpdateByDocumentRequest {
   motivo_no_se_presento_examen_medico?: string | null;
   autorizado?: boolean;
   vacante_fecha_prueba?: string | null;
+  /** Dirección donde se cita a la persona. Se guarda en el proceso (V55). */
+  vacante_direccion?: string | null;
 
   // ✅ nuevos
   contratado?: boolean;
@@ -1162,6 +1164,13 @@ export class RegistroProcesoContratacion {
       consentimiento_timestamp?: string;
       user_agent?: string;
       image_hash?: string;
+      empresa?: string;
+      dedo?: string;
+      origen?: string;
+      dispositivo?: string;
+      width?: string;
+      height?: string;
+      dpi?: string;
     },
   ) {
     const fd = new FormData();
@@ -1194,10 +1203,36 @@ export class RegistroProcesoContratacion {
       consentimiento_timestamp?: string;
       user_agent?: string;
       image_hash?: string;
+      // A partir de aqui, lo que distingue una huella de otra: sin `empresa`
+      // el backend guarda una sola por candidato y la segunda tarjeta pisa a
+      // la primera, con dos consentimientos firmados y un unico archivo.
+      empresa?: string;
+      dedo?: string;
+      origen?: string;
+      dispositivo?: string;
+      width?: string;
+      height?: string;
+      dpi?: string;
     },
   ) {
     return this.uploadBiometria('huella', numero_documento, file, consent);
   }
+  /**
+   * Desliga la huella de una empresa para poder recapturarla.
+   *
+   * El documento NO se borra de gestion documental: se conserva el rastro de
+   * quien lo subio y con que consentimiento. Lo que se quita es el vinculo.
+   */
+  eliminarHuella(numero_documento: string | number, empresa: string) {
+    // El query va por HttpParams y NO pegado a la ruta: `url()` anade una barra
+    // final, asi que un `?empresa=x` dentro del path acaba como `?empresa=x/`
+    // y el gateway devuelve 404 sin llegar al servicio.
+    return this.http
+      .delete(this.url(`biometria/huella/${encodeURIComponent(String(numero_documento))}`),
+              { params: new HttpParams().set('empresa', empresa) })
+      .pipe(this.handle$());
+  }
+
   uploadFoto(numero_documento: string | number, file: File) {
     return this.uploadBiometria('foto', numero_documento, file);
   }
@@ -1226,6 +1261,7 @@ export class RegistroProcesoContratacion {
       sexo: get('sexo', 'genero'),
       fecha_nacimiento: this.toYYYYMMDD(get('fecha_nacimiento', 'fechaNacimiento')),
       estado_civil: get('estado_civil', 'estadoCivil'),
+      rh: get('rh'),
       nombreReferenciaFamiliar1: get('nombreReferenciaFamiliar1'),
       parentescoReferenciaFamiliar1: get('parentescoReferenciaFamiliar1'),
       nombreReferenciaFamiliar2: get('nombreReferenciaFamiliar2'),
@@ -1287,39 +1323,75 @@ export class RegistroProcesoContratacion {
     });
 
     // ===== Experiencia (resumen) =====
+    // Dos preguntas distintas, dos columnas distintas:
+    //  - "¿cuenta con experiencia laboral?"  -> experiencia_resumen.tiene_experiencia
+    //  - "¿ha trabajado en empresas de flores?" -> entrevistas.cuenta_experiencia_flores
+    // Iban las dos a `tiene_experiencia`, así que quien tenía experiencia sin ser
+    // en flores quedaba marcado como florista (y al revés).
     const experienciaFlores = get('experienciaFlores');
-    const tiene_experiencia = typeof experienciaFlores === 'string'
+    const experienciaLaboral = get('experienciaLaboral');
+    const tiene_flores = typeof experienciaFlores === 'string'
       ? experienciaFlores === 'Sí'
       : !!get('tiene_experiencia');
+    const tiene_experiencia = experienciaLaboral === 'SI' ? true
+      : experienciaLaboral === 'NO' ? false
+      : tiene_flores;
 
+    // El área ya NO recibe el tipo de experiencia en flores: es la lista del
+    // catálogo AREAS_EXPERIENCIA (multi) del formulario de la vacante, y meterle
+    // "CULTIVO" la volvía irrecuperable. El tipo va a su columna de `entrevistas`.
+    const areasSel = get('areaExperiencia');
     let area: string | null =
-      get('area_cultivo_poscosecha') ??
-      get('area_experiencia') ??
-      get('tipoExperienciaFlores') ?? null;
+      (Array.isArray(areasSel) ? areasSel.join(', ') : areasSel) ||
+      get('area_cultivo_poscosecha') ||
+      get('area_experiencia') ||
+      null;
 
-    if (get('tipoExperienciaFlores') === 'OTROS' && get('otroExperiencia')) {
-      area = String(get('otroExperiencia'));
+    // El tipo de experiencia en flores: lo que se guarda en `entrevistas`.
+    let tipoFlores: string | null = get('tipoExperienciaFlores') ?? null;
+    if (tipoFlores === 'OTROS' && get('otroExperiencia')) {
+      tipoFlores = String(get('otroExperiencia'));
     }
 
     const experiencia_resumen = this.nonEmpty({
       tiene_experiencia,
       area_experiencia: area,
-      area_cultivo_poscosecha: area,
+      tiempo_experiencia_texto: get('tiempoExperiencia') || undefined,
     });
 
-    // ===== Formaciones (simple) =====
+    // ===== Formaciones =====
+    // El backend REEMPLAZA la lista, así que mandar solo el nivel BORRABA la
+    // institución, el título, el año y el nivel de educación superior que la
+    // persona había diligenciado en el formulario de la vacante: cada entrevista
+    // guardada dejaba a los de "OTROS" con el grado y nada más.
+    const anioFin = Number(get('anioFinalizacion'));
     const formaciones = get('nivel')
-      ? [{ nivel: get('nivel'), institucion: null, titulo_obtenido: null, anio_finalizacion: null }]
+      ? [{
+        nivel: get('nivel'),
+        institucion: get('institucionEstudio') ?? get('institucion') ?? null,
+        titulo_obtenido: get('tituloObtenido') ?? null,
+        anio_finalizacion: Number.isFinite(anioFin) && anioFin > 0 ? anioFin : null,
+        estudios_extra: get('estudiosExtra') ?? null,
+      }]
       : undefined;
 
     // ===== Experiencias (laborales) =====
     const experienciasSrc = Array.isArray(get('experiencias')) ? get('experiencias') : [];
+    // El backend REEMPLAZA la lista entera, así que lo que no viaje aquí se
+    // pierde: hay que mandar también los campos que la entrevista no edita.
     const experiencias = experienciasSrc
       .map((e: any) => this.clean({
         empresa: e?.empresa,
         tiempo_trabajado: e?.tiempo_trabajado ?? e?.tiempo,
         labores_realizadas: e?.labores_realizadas ?? e?.labores,
         labores_principales: e?.labores_principales,
+        telefonos: e?.telefonos,
+        direccion: e?.direccion,
+        barrio: e?.barrio,
+        nombre_jefe: e?.nombre_jefe,
+        cargo: e?.cargo,
+        fecha_retiro: this.toYYYYMMDD(e?.fecha_retiro),
+        motivo_retiro: e?.motivo_retiro,
       }))
       .filter((e: any) => !!e.empresa);
 
@@ -1330,6 +1402,14 @@ export class RegistroProcesoContratacion {
         this.clean({
           numero_de_documento: h?.numero_de_documento ?? h?.numeroDocumento ?? h?.doc,
           fecha_nac: this.toYYYYMMDD(h?.fecha_nac ?? h?.fechaNacimiento),
+          // Datos del hijo como beneficiario. `clean` descarta lo vacío, así
+          // que un hijo cargado solo con documento y fecha sigue viajando igual.
+          tipo_documento: h?.tipo_documento || undefined,
+          primer_nombre: h?.primer_nombre || undefined,
+          segundo_nombre: h?.segundo_nombre || undefined,
+          primer_apellido: h?.primer_apellido || undefined,
+          segundo_apellido: h?.segundo_apellido || undefined,
+          sexo: h?.sexo || undefined,
         })
       )
       .filter((h: any) => !!h.numero_de_documento && !!h.fecha_nac);
@@ -1348,8 +1428,8 @@ export class RegistroProcesoContratacion {
         nombre_referenciado: get('nombreReferenciado'),
         // opcionales soportados por el modelo
         como_se_proyecta: get('como_se_proyecta', 'proyeccion1Ano'),
-        cuenta_experiencia_flores: tiene_experiencia ? 'SI' : 'NO',
-        tipo_experiencia_flores: area,
+        cuenta_experiencia_flores: tiene_flores ? 'SI' : 'NO',
+        tipo_experiencia_flores: tipoFlores,
       }),
     ]);
 
@@ -1393,6 +1473,87 @@ export class RegistroProcesoContratacion {
       actividades_diarias: get('actividadesDiferentes'),
     });
 
+    // ===== Referencias personales (lista) =====
+    // `by-document-upsert` NO tiene camino plano para las personales —solo para
+    // las familiares—, así que `nombreReferenciaPersonal1/2` viajaba y el
+    // backend lo ignoraba: lo que el seleccionador escribía se perdía sin aviso.
+    // Se manda como lista, que es el contrato que sí lee.
+    const refPersonal = (sfx: '1' | '2') => this.nonEmpty({
+      nombre: get(`nombreReferenciaPersonal${sfx}`),
+      parentesco: get(`parentescoReferenciaPersonal${sfx}`),
+      telefono: get(`telefonoReferenciaPersonal${sfx}`),
+      ocupacion: get(`ocupacionReferenciaPersonal${sfx}`),
+      direccion: get(`direccionReferenciaPersonal${sfx}`),
+    });
+    const referencias_personales = this.compact([refPersonal('1'), refPersonal('2')])
+      .filter((r: any) => !!r?.nombre);
+
+    // ===== Pareja / padres / emergencia (familiares, 1 fila por tipo) =====
+    // `by-document-upsert` los guarda en FamiliarContacto, una fila por tipo, y
+    // solo escribe las claves que llegan: `nonEmpty` descarta la sección entera
+    // cuando el seleccionador no tocó nada, así que reenviar la entrevista no
+    // borra lo que la persona ya había puesto en el formulario de la vacante.
+    const conyuge = this.nonEmpty({
+      nombre: get('nombresConyuge'),
+      apellido: get('apellidosConyuge'),
+      numero_de_documento: get('documentoConyuge'),
+      telefono: get('telefonoConyuge'),
+      ocupacion: get('ocupacionConyuge'),
+      vive_con: get('viveConyuge'),
+      municipio: get('municipioConyuge'),
+      barrio: get('barrioConyuge'),
+      direccion: get('direccionConyuge'),
+    });
+
+    const padre = this.nonEmpty({
+      nombre: get('nombresPadre'),
+      apellido: get('apellidosPadre'),
+      telefono: get('telefonoPadre'),
+      ocupacion: get('ocupacionPadre'),
+      // `vive_con` guarda para padre/madre el estado VIVE / NO VIVE / NO LO
+      // CONOCE; el formulario lo pregunta como Sí/No y así se conserva.
+      vive_con: get('elPadreVive'),
+      municipio: get('municipioPadre'),
+      barrio: get('barrioPadre'),
+      direccion: get('direccionPadre'),
+    });
+
+    const madre = this.nonEmpty({
+      nombre: get('nombresMadre'),
+      apellido: get('apellidosMadre'),
+      telefono: get('telefonoMadre'),
+      ocupacion: get('ocupacionMadre'),
+      vive_con: get('madreVive'),
+      municipio: get('municipioMadre'),
+      barrio: get('barrioMadre'),
+      direccion: get('direccionMadre'),
+    });
+
+    const emergencia = this.nonEmpty({
+      nombre: get('nombresFamiliarEmergencia'),
+      apellido: get('apellidosFamiliarEmergencia'),
+      parentesco: get('parentescoFamiliarEmergencia'),
+      telefono: get('telefonoFamiliarEmergencia'),
+      ocupacion: get('ocupacionFamiliarEmergencia'),
+      municipio: get('municipioFamiliarEmergencia'),
+      barrio: get('barrioFamiliarEmergencia'),
+      direccion: get('direccionFamiliarEmergencia'),
+    });
+
+    // ===== Dotación (tallas) =====
+    // La tabla guarda enteros y su default es 0. Se manda solo lo que tenga
+    // valor real: un 0 escribiría "sin talla" encima de una talla buena.
+    const talla = (v: any) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    };
+    const dotacion = this.nonEmpty({
+      chaqueta: talla(get('tallaChaqueta')),
+      pantalon: talla(get('tallaPantalon')),
+      camisa: talla(get('tallaCamisa')),
+      calzado: talla(get('tallaCalzado')),
+    });
+
     // ===== Payload final =====
     const payload: any = this.clean({
       ...candidatoBase,
@@ -1405,6 +1566,12 @@ export class RegistroProcesoContratacion {
       formaciones,
       experiencias: experiencias.length ? experiencias : undefined,
       hijos: hijos.length ? hijos : undefined,
+      referencias_personales: referencias_personales.length ? referencias_personales : undefined,
+      conyuge,
+      padre,
+      madre,
+      emergencia,
+      dotacion,
       entrevistas,
       evaluacion,
       // solo añadimos 'proceso' si hay algo

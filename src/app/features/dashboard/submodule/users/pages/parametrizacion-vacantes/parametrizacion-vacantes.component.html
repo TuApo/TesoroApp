@@ -1,0 +1,1755 @@
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">rule_settings</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Parametrización de Vacantes</mat-card-title>
+        <mat-card-subtitle class="subtitulo">
+          Áreas operativas, esquemas y reglas de labor. Sustituye a las reglas que estaban
+          cableadas en el código del frontend.
+        </mat-card-subtitle>
+      </div>
+    </div>
+    <span class="grow"></span>
+    <button mat-icon-button (click)="cargarTodo()" matTooltip="Recargar todo" class="btn-refresh">
+      <mat-icon>refresh</mat-icon>
+    </button>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+
+    <!-- Avisos de estado de la parametrización. Se pintan solo si aplican: son las dos
+         cosas que dejan la resolución de labor a medias. -->
+    @if (sinConciliar() > 0) {
+      <div class="aviso aviso-warn">
+        <mat-icon>link_off</mat-icon>
+        <span>
+          <strong>{{ sinConciliar() }}</strong> mapeos cargo → área no están enlazados con el
+          maestro de cargos. Se conservó el nombre original; concílialos desde la pestaña
+          <em>Cargo → Área</em> cuando el cargo exista en Cargos.
+        </span>
+      </div>
+    }
+    @if (esquemasVacios().length) {
+      <div class="aviso aviso-info">
+        <mat-icon>pending_actions</mat-icon>
+        <span>
+          Esquemas declarados sin reglas cargadas:
+          <strong>{{ codigosEsquemasVacios() }}</strong>.
+          Mientras no tengan reglas, el resolutor devuelve <code>REGLA_LABOR_NO_ENCONTRADA</code>
+          en vez de inventar una labor.
+        </span>
+      </div>
+    }
+
+    <mat-tab-group class="param-tabs" #grupoPestanas
+                   animationDuration="150ms" mat-stretch-tabs="false"
+                   [selectedIndex]="tabActivo()" (selectedIndexChange)="cambiarTab($event)">
+
+      <!-- ─────────────── CADENA DE CONFIGURACIÓN ─────────────── -->
+      <mat-tab label="Cadena de configuración">
+        <div class="tab-body">
+          <p class="tab-hint cadena-intro">
+            Los eslabones en el orden en que hay que configurarlos. El orden importa:
+            sin centro de costo no hay configuración de puesto, y sin ésta el sistema no
+            puede resolver la labor de una vacante. <strong>Perfil vacante</strong> es la
+            excepción: es un catálogo aparte —llena el campo «Área» del formulario— y no
+            bloquea nada si está vacío.
+          </p>
+
+          @if (primerPasoVacio(); as paso) {
+            <div class="aviso aviso-warn">
+              <mat-icon>flag</mat-icon>
+              <span>
+                Siguiente paso: <strong>{{ paso.n }}. {{ paso.titulo }}</strong> está vacío.
+              </span>
+            </div>
+          }
+
+          <ol class="cadena">
+            @for (paso of cadena(); track paso.n) {
+              <li class="cadena-paso"
+                  [class.paso-vacio]="paso.conteo === 0"
+                  [class.paso-ok]="paso.conteo !== null && paso.conteo > 0">
+                <div class="paso-num">{{ paso.n }}</div>
+                <div class="paso-texto">
+                  <div class="paso-titulo">
+                    {{ paso.titulo }}
+                    @if (paso.conteo === null) {
+                      <span class="paso-badge badge-nd">sin dato</span>
+                    } @else if (paso.conteo === 0) {
+                      <span class="paso-badge badge-vacio">vacío</span>
+                    } @else {
+                      <span class="paso-badge badge-ok">{{ paso.conteo }}</span>
+                    }
+                  </div>
+                  <div class="paso-detalle">{{ paso.detalle }}</div>
+                </div>
+                <div class="paso-accion">
+                  @if (paso.propio) {
+                    <button mat-stroked-button (click)="irAPaso(paso)">
+                      <mat-icon>edit_note</mat-icon> Administrar aquí
+                    </button>
+                  } @else {
+                    <a mat-stroked-button [routerLink]="paso.ruta">
+                      <mat-icon>open_in_new</mat-icon> Ir a su pantalla
+                    </a>
+                  }
+                </div>
+              </li>
+            }
+          </ol>
+
+          <p class="tab-hint">
+            Los eslabones 2, 3 y 4 se administran en pantallas que ya existen; aquí solo se
+            enlazan. Duplicar su CRUD crearía dos sitios donde editar el mismo maestro.
+          </p>
+
+          <!-- ── PAGO Y CASINO POR CENTRO ──
+               No es un eslabón más de la cadena de la LABOR: es la otra mitad de lo que
+               imprime el documento (cuándo se paga y qué casino hay). Va aquí porque es
+               donde se ve de un vistazo a qué centro le falta algo. -->
+          <section class="pago-resumen-sec">
+            <header class="docs-cab">
+              <mat-icon class="docs-cab-icono">payments</mat-icon>
+              <div class="docs-cab-texto">
+                <div class="docs-cab-titulo">Grupos de pago, fechas de pago y casino</div>
+                <div class="docs-cab-sub">
+                  Un centro habilitado por fila, con sus grupos, el calendario de cada grupo y el
+                  casino que le resulta <strong>con su origen</strong>. En <span class="pago-leyenda pago-leyenda-mal">rojo</span>
+                  los centros sin grupos o sin casino; en <span class="pago-leyenda pago-leyenda-aviso">ámbar</span>
+                  los que tienen un calendario vencido.
+                </div>
+              </div>
+              <span class="grow"></span>
+              @if (cargandoResumenPago()) { <mat-spinner diameter="18"></mat-spinner> }
+            </header>
+
+            <div class="tab-actions">
+              <!-- Filtros ENCADENADOS: la temporal recorta las empresas y la empresa recorta
+                   los centros; elegir un centro rellena hacia arriba los otros dos. Los tres
+                   con buscador por palabras (la caja aparece a partir de 7 opciones). -->
+              <app-smart-select class="filtro-pago"
+                label="Temporal" icono="apartment"
+                [formControl]="filtrosCadena.ctrlTemporal"
+                [opciones]="filtrosCadena.opcionesTemporal()"
+                [valor]="valorTemporalFiltro" [etiqueta]="etiquetaTemporalFiltro"
+                placeholderBuscar="Buscar temporal…"
+                vacio="No hay temporales."
+                (cambio)="filtrarCadena('temporal', $event)">
+              </app-smart-select>
+
+              <app-smart-select class="filtro-pago"
+                label="Empresa usuaria" icono="business"
+                [formControl]="filtrosCadena.ctrlEmpresa"
+                [opciones]="filtrosCadena.opcionesEmpresa()"
+                [valor]="valorEmpresaFiltro" [etiqueta]="etiquetaEmpresaFiltro"
+                placeholderBuscar="Buscar empresa…"
+                vacio="Esta temporal no tiene empresas en el alcance."
+                (cambio)="filtrarCadena('empresa', $event)">
+              </app-smart-select>
+
+              <app-smart-select class="filtro-centro-pago"
+                label="Centro de costo" icono="agriculture"
+                [formControl]="filtrosCadena.ctrlCentro"
+                [opciones]="filtrosCadena.opcionesCentro()"
+                [valor]="valorCentroFiltro" [etiqueta]="etiquetaCentroFiltro" [detalle]="detalleCentroFiltro"
+                placeholderBuscar="Buscar por finca o empresa…"
+                vacio="No hay centros con ese filtro."
+                (cambio)="filtrarCadena('centro', $event)">
+              </app-smart-select>
+
+              @if (filtrosCadena.hayFiltro) {
+                <button mat-button (click)="limpiarFiltrosCadena()">
+                  <mat-icon>filter_alt_off</mat-icon><span>Quitar filtros</span>
+                </button>
+              }
+
+              <span class="grow"></span>
+              <button mat-stroked-button (click)="cargarResumenPago()">
+                <mat-icon>refresh</mat-icon><span>Actualizar</span>
+              </button>
+            </div>
+
+            @if (centrosPagoIncompletos() || centrosPagoVencidos()) {
+              <div class="aviso aviso-warn">
+                <mat-icon>warning</mat-icon>
+                <span>
+                  @if (centrosPagoIncompletos()) {
+                    <strong>{{ centrosPagoIncompletos() }}</strong> centro(s) sin grupos de pago o sin casino.
+                  }
+                  @if (centrosPagoVencidos()) {
+                    <strong>{{ centrosPagoVencidos() }}</strong> con calendario vencido: avisa, no impide publicar.
+                  }
+                </span>
+              </div>
+            }
+
+            @if (!resumenPagoFiltrado().length) {
+              <div class="aviso aviso-info">
+                <mat-icon>info</mat-icon>
+                <span>
+                  @if (resumenPago().length) {
+                    Ningún centro coincide con el filtro.
+                  } @else {
+                    Todavía no hay centros habilitados con pago y casino que resumir.
+                  }
+                </span>
+              </div>
+            } @else {
+              <app-tabla-estandar
+                id="vacantes-parametrizacion-resumen-pago"
+                titulo="Resumen de pago y casino"
+                modulo="Parametrización de vacantes"
+                vacio="Ningún centro coincide con el filtro."
+                [datos]="filasResumenPago()"
+                [columnas]="columnasResumenPago"
+                [filaId]="idFilaResumenPago"
+                [filaClase]="claseFilaResumenPago">
+
+                <ng-template tablaCelda="centro" let-f>
+                  <div class="pago-centro-nombre">
+                    {{ f.c.finca || ('Centro ' + f.c.centro_costo_id) }}
+                    @if (f.c.sin_grupos || f.c.sin_casino) {
+                      <span class="paso-badge badge-vacio">incompleto</span>
+                    }
+                  </div>
+                  <div class="pago-centro-sub">
+                    {{ f.c.empresa_nombre || '—' }} · {{ f.c.ccostos || '' }}
+                    @if (f.c.casino_centro_codigo) {
+                      <br>Casino del centro: <strong>{{ f.c.casino_centro_codigo }}</strong>
+                    }
+                  </div>
+                </ng-template>
+
+                <ng-template tablaCelda="grupo" let-f>
+                  @if (f.g) {
+                    {{ f.g.numero }} · {{ f.g.nombre }}
+                  } @else {
+                    <strong>Sin grupos de pago.</strong> Sin esto no hay fechas de pago que imprimir.
+                  }
+                </ng-template>
+
+                <ng-template tablaCelda="calendario" let-f>
+                  @if (f.g) {
+                    @if (f.g.calendario_codigo) {
+                      <span>{{ f.g.calendario_codigo }}</span>
+                      @if (f.g.calendario_estado === 'VENCIDO') {
+                        <span class="paso-badge badge-vacio">vencido</span>
+                      }
+                    } @else {
+                      <span class="pago-falta">Sin calendario</span>
+                    }
+                  }
+                </ng-template>
+
+                <ng-template tablaCelda="casino" let-f>
+                  @if (f.g) {
+                    @if (f.g.politica_casino_codigo) {
+                      {{ f.g.politica_casino_codigo }}
+                    } @else {
+                      <span class="pago-falta">Sin casino</span>
+                    }
+                    @if (f.g.casino_error) {
+                      <div class="pago-falta">{{ f.g.casino_error }}</div>
+                    }
+                  }
+                </ng-template>
+
+                <ng-template tablaCelda="origen" let-f>
+                  @if (f.g?.casino_origen) {
+                    <span class="doc-chip">{{ $any(origenCasinoTxt)[f.g.casino_origen] }}</span>
+                  } @else {
+                    —
+                  }
+                </ng-template>
+
+                <ng-template tablaAcciones let-f>
+                  <button mat-icon-button (click)="irACentroPago(f.c)"
+                          [matTooltip]="f.g ? 'Grupos y calendario de este centro' : 'Asignarle grupos de pago'">
+                    <mat-icon>edit_calendar</mat-icon>
+                  </button>
+                  @if (f.g) {
+                    <button mat-icon-button (click)="irACentroCasino(f.c)"
+                            matTooltip="Casino de este centro">
+                      <mat-icon>restaurant</mat-icon>
+                    </button>
+                  }
+                </ng-template>
+              </app-tabla-estandar>
+              <p class="tab-hint">
+                El casino se resuelve en el backend por precedencia:
+                <strong>centro + grupo</strong> → <strong>por defecto del grupo</strong> →
+                <strong>todo el centro</strong>. La columna «Origen» dice cuál ganó.
+              </p>
+            }
+          </section>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── TEMPORALES ─────────────── -->
+      <mat-tab label="Temporales">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Quién contrata (Apoyo Laboral, Tu Alianza…). El <strong>nombre para
+              documentos</strong> es el que se imprime en contratos y formularios. La
+              <strong>clave</strong> no se puede cambiar después de crearla.
+              El listado muestra solo las <strong>activas</strong>: es lo que devuelve el
+              endpoint que ya existía, por eso aquí no se ofrece dar de baja.
+            </span>
+            <mat-slide-toggle [checked]="verTemporalesInactivas()"
+                              (change)="alternarTemporalesInactivas($event.checked)">
+              Ver retiradas
+            </mat-slide-toggle>
+            <button mat-flat-button class="btn-managerial" (click)="nuevaTemporal()">
+              <mat-icon>add</mat-icon><span>Nueva temporal</span>
+            </button>
+          </div>
+
+          <app-standard-filter-table
+            [data]="temporales()" [columnDefinitions]="colTemporales"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Temporales"
+            storageKey="param-vacantes-temporales">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarTemporal(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activa !== false"
+                                  (change)="toggleTemporal(row)"
+                                  [matTooltip]="row.activa !== false ? 'Retirar del catálogo' : 'Devolver al catálogo'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── EMPRESAS USUARIAS HABILITADAS ─────────────── -->
+      <mat-tab label="Empresas usuarias">
+        <div class="tab-body">
+          <p class="tab-hint cadena-intro">
+            Las empresas habilitadas para <strong>crear vacantes</strong>. No son todas las
+            del maestro: el maestro global tiene más y las conserva para nómina,
+            contratación e históricos. Excluir una de aquí <strong>no la desactiva</strong>
+            en el resto de la plataforma.
+          </p>
+
+          <div class="tab-actions">
+            <button mat-flat-button class="btn-managerial" (click)="nuevaEmpresa()">
+              <mat-icon>add</mat-icon><span>Habilitar empresa</span>
+            </button>
+          </div>
+
+          <app-standard-filter-table
+            [data]="empresas()" [columnDefinitions]="colEmpresas"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Empresas usuarias"
+            storageKey="param-vacantes-empresas">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarEmpresa(row)" matTooltip="Editar empresa">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo_vacantes"
+                                  (change)="toggleEmpresa(row)" [matTooltip]="row.activo_vacantes ? 'Excluir de vacantes' : 'Habilitar para vacantes'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── CENTROS DE COSTO (cascada empresa → centro) ─────────────── -->
+      <mat-tab label="Centros de costo">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <mat-form-field appearance="outline" class="filtro-empresas">
+              <mat-label>Empresas usuarias</mat-label>
+              <mat-select multiple [value]="empresasSel()"
+                          panelClass="panel-empresas"
+                          (selectionChange)="seleccionarEmpresas($event.value)"
+                          (openedChange)="alAbrirSelector($event)">
+                <!-- El trigger resume la selección: con 19 empresas, la lista de nombres
+                     separada por comas desborda el campo y no se lee nada. -->
+                <mat-select-trigger>{{ resumenSeleccion() }}</mat-select-trigger>
+
+                <!-- Buscador fijo arriba del panel. stopPropagation en click y keydown
+                     para que mat-select no lea las teclas como navegación de opciones
+                     (escribir "a" saltaba a la primera opción con "a") ni cierre el panel. -->
+                <div class="select-buscador" (click)="$event.stopPropagation()">
+                  <div class="buscador-campo">
+                    <mat-icon class="buscador-icono">search</mat-icon>
+                    <input #inputBuscador type="text" class="buscador-input"
+                           placeholder="Buscar por nombre o NIT…"
+                           [value]="buscadorEmpresa()"
+                           (input)="buscadorEmpresa.set($any($event.target).value)"
+                           (keydown)="$event.stopPropagation()">
+                    @if (buscadorEmpresa()) {
+                      <button type="button" class="buscador-limpiar"
+                              (click)="buscadorEmpresa.set('')" matTooltip="Limpiar búsqueda">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    }
+                  </div>
+                  <div class="select-acciones">
+                    <button mat-button type="button" (click)="seleccionarTodas()">
+                      Seleccionar {{ empresasFiltradas().length }}
+                    </button>
+                    <button mat-button type="button" (click)="limpiarSeleccion()"
+                            [disabled]="!empresasSel().length">Limpiar</button>
+                    <span class="grow"></span>
+                    <span class="select-contador">{{ empresasSel().length }} sel.</span>
+                  </div>
+                </div>
+
+                @for (e of empresasFiltradas(); track e.id) {
+                  <mat-option [value]="e.empresa_usuaria_ref" class="opt-empresa">
+                    <span class="opt-nombre">{{ e.nombre ?? e.nombre_excel }}</span>
+                    @if (e.nit) { <span class="opt-nit">{{ e.nit }}</span> }
+                  </mat-option>
+                }
+                @if (!empresasFiltradas().length) {
+                  <div class="select-vacio">
+                    Ninguna empresa coincide con «{{ buscadorEmpresa() }}»
+                  </div>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-slide-toggle [checked]="verNoHabilitados()"
+                              (change)="alternarNoHabilitados($event.checked)">
+              Ver también los no habilitados
+            </mat-slide-toggle>
+
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoCentro()"
+                    [disabled]="empresasSel().length !== 1">
+              <mat-icon>add</mat-icon><span>Nuevo centro</span>
+            </button>
+          </div>
+
+          @if (!empresasSel().length) {
+            <div class="aviso aviso-info">
+              <mat-icon>arrow_upward</mat-icon>
+              <span>
+                Selecciona una o varias empresas usuarias para ver sus centros de costo.
+                Puedes buscar por nombre o NIT dentro del selector. El filtro lo resuelve
+                el backend por la relación, no comparando nombres.
+              </span>
+            </div>
+          } @else if (cargandoCentros()) {
+            <div class="cargando"><mat-spinner diameter="28"></mat-spinner></div>
+          } @else if (!centros().length) {
+            <div class="aviso aviso-warn">
+              <mat-icon>info</mat-icon>
+              <span>
+                <strong>{{ empresaSelNombre() }}</strong> no tiene centros parametrizados.
+                Es un estado válido: la empresa está habilitada para vacantes pero aún no
+                se han cargado sus centros. Créalos con «Nuevo centro» o espera la carga oficial.
+              </span>
+            </div>
+          }
+
+          @if (empresasSel().length && centros().length) {
+            <app-standard-filter-table
+              [data]="centros()" [columnDefinitions]="colCentrosVisibles()"
+              [pageSizeOptions]="pageSizeOptions" [isLoading]="cargandoCentros()"
+              tableTitle="Centros de costo" storageKey="param-vacantes-centros">
+              <ng-template #actionsTemplate let-row>
+                <div class="row-actions">
+                  <button mat-icon-button (click)="editarCentro(row)" matTooltip="Editar">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="areasDeCentro(row)" matTooltip="Áreas permitidas">
+                    <mat-icon>category</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="segurosDeCentro(row)"
+                          matTooltip="Seguros funerarios del centro">
+                    <mat-icon>health_and_safety</mat-icon>
+                  </button>
+                  <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.habilitado_vacantes"
+                                    (change)="toggleCentro(row)" [matTooltip]="row.habilitado_vacantes ? 'Excluir de vacantes' : 'Habilitar para vacantes'">
+                  </mat-slide-toggle>
+                </div>
+              </ng-template>
+            </app-standard-filter-table>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── CARGOS DEL ALCANCE (catálogo) ─────────────── -->
+      <mat-tab label="Cargos">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Catálogo de cargos habilitados para vacantes. Es el <strong>alcance</strong>,
+              no el maestro completo: los demás siguen existiendo para contratación y nómina.
+              Independiente de centros y áreas.
+            </span>
+            <mat-slide-toggle [checked]="verCargosNoHabilitados()"
+                              (change)="alternarCargosNoHabilitados($event.checked)">
+              Ver todo el maestro
+            </mat-slide-toggle>
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoCargo()">
+              <mat-icon>add</mat-icon><span>Nuevo cargo</span>
+            </button>
+          </div>
+
+          @if (cargosSinArl()) {
+            <div class="aviso aviso-warn">
+              <mat-icon>warning</mat-icon>
+              <span>
+                <strong>{{ cargosSinArl() }}</strong> cargos habilitados no tienen porcentaje
+                de ARL. Ese valor se copia al contrato como snapshot, así que una vacante
+                creada con ellos arrastraría <strong>0 %</strong> hasta nómina. Asígnaselo
+                antes de usarlos en producción.
+              </span>
+            </div>
+          }
+
+          <app-standard-filter-table
+            [data]="cargos()" [columnDefinitions]="colCargos"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Cargos"
+            storageKey="param-vacantes-cargos">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarCargo(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.habilitado_vacantes"
+                                  (change)="toggleCargo(row)" [matTooltip]="row.habilitado_vacantes ? 'Excluir de vacantes' : 'Habilitar para vacantes'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── ÁREAS OPERATIVAS ─────────────── -->
+      <mat-tab label="Perfil vacante">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              La línea de flor de la vacante: es lo que llena el desplegable «Área» del
+              formulario de Crear Vacante. Antes era una lista fija dentro del código;
+              desde aquí se añaden y se retiran sin desplegar nada.
+            </span>
+            @if (perfilesVacanteInactivos()) {
+              <mat-slide-toggle [checked]="verPerfilesVacanteInactivos()"
+                                (change)="alternarPerfilesVacanteInactivos($event.checked)">
+                Ver los {{ perfilesVacanteInactivos() }} retirados
+              </mat-slide-toggle>
+            }
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoPerfilVacante()">
+              <mat-icon>add</mat-icon><span>Nuevo perfil</span>
+            </button>
+          </div>
+
+          <div class="aviso aviso-info">
+            <mat-icon>info</mat-icon>
+            <span>
+              La vacante guarda el <strong>texto</strong> del perfil, no una referencia. Por eso
+              <strong>renombrar no cambia las vacantes ya publicadas</strong> —siguen diciendo lo
+              que decían el día que se publicaron— y <strong>retirar uno solo lo saca del
+              desplegable</strong>, sin tocar las que ya lo usan. No confundir con
+              «Áreas operativas»: aquellas resuelven la labor, estas son la línea de producto.
+            </span>
+          </div>
+
+          <app-standard-filter-table
+            [data]="perfilesVacante()" [columnDefinitions]="colPerfilesVacanteVisibles()"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Perfil vacante"
+            storageKey="param-vacantes-perfiles-vacante">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarPerfilVacante(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                  (change)="togglePerfilVacante(row)"
+                                  [matTooltip]="row.activo ? 'Retirar del desplegable' : 'Volver a ofrecerlo'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <mat-tab label="Áreas operativas">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Las áreas del Excel de negocio, con las que se resuelve la labor. No confundir
+              con la «área» de flor del formulario de vacante: son vocabularios distintos.
+            </span>
+            @if (areasRetiradas()) {
+              <mat-slide-toggle [checked]="verAreasRetiradas()"
+                                (change)="alternarAreasRetiradas($event.checked)">
+                Ver las {{ areasRetiradas() }} retiradas
+              </mat-slide-toggle>
+            }
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevaArea()">
+              <mat-icon>add</mat-icon><span>Nueva área</span>
+            </button>
+          </div>
+
+          @if (verAreasRetiradas()) {
+            <div class="aviso aviso-info">
+              <mat-icon>history</mat-icon>
+              <span>
+                Las áreas <strong>inactivas</strong> no están en el Excel y no se pueden usar
+                en configuración nueva. Siguen en la tabla porque las referencian
+                <strong>228 reglas de labor</strong> y <strong>60 mapeos cargo → área</strong>
+                del catálogo legacy (APOYO y BLU): borrarlas rompería esa trazabilidad.
+              </span>
+            </div>
+          }
+
+          <app-standard-filter-table
+            [data]="areas()" [columnDefinitions]="colAreasVisibles()"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Áreas operativas"
+            storageKey="param-vacantes-areas">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarArea(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                  (change)="toggleArea(row)" [matTooltip]="row.activo ? 'Desactivar' : 'Activar'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── ESQUEMAS DE LABOR ─────────────── -->
+      <mat-tab label="Esquemas de labor">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Los esquemas del <strong>Excel actual</strong>. Qué juego de reglas aplica y
+              cómo se resuelve. Reemplaza al <code>JuegoLabores</code> cableado en el frontend.
+            </span>
+            <mat-slide-toggle [checked]="verEsquemasLegacy()"
+                              (change)="alternarEsquemasLegacy($event.checked)">
+              Mostrar legacy
+            </mat-slide-toggle>
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoEsquema()">
+              <mat-icon>add</mat-icon><span>Nuevo esquema</span>
+            </button>
+          </div>
+
+          @if (verEsquemasLegacy()) {
+            <div class="aviso aviso-info">
+              <mat-icon>history</mat-icon>
+              <span>
+                <strong>APOYO</strong> y <strong>BLU</strong> están <strong>fuera del alcance
+                de vacantes</strong>. Siguen activos y conservan sus reglas porque son la
+                línea base para comparar paridad cuando se retire
+                <code>labores-por-mes.data.ts</code>, pero <strong>no se pueden asignar a una
+                configuración nueva</strong>: el backend lo rechaza.
+              </span>
+            </div>
+          }
+
+          @if (esquemasSinConectar().length) {
+            <div class="aviso aviso-warn">
+              <mat-icon>link_off</mat-icon>
+              <span>
+                @for (e of esquemasSinConectar(); track e.id) {
+                  <strong>{{ e.codigo }}</strong>
+                }
+                tiene reglas pero <strong>ninguna configuración</strong> que llegue a ellas.
+                Hasta que existan las filas de <em>Centro + Cargo</em>, el resolutor
+                responde <code>CONFIGURACION_NO_ENCONTRADA</code> para todos sus centros.
+              </span>
+            </div>
+          }
+
+          <app-standard-filter-table
+            [data]="esquemas()" [columnDefinitions]="colEsquemas"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Esquemas de labor"
+            storageKey="param-vacantes-esquemas">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarEsquema(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                  (change)="toggleEsquema(row)" [matTooltip]="row.activo ? 'Desactivar' : 'Activar'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── REGLAS DE LABOR ─────────────── -->
+      <mat-tab label="Reglas de labor">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <mat-form-field appearance="outline" class="filtro-esquema">
+              <mat-label>Filtrar por esquema</mat-label>
+              <mat-select [value]="esquemaFiltro()"
+                          (selectionChange)="filtrarPorEsquema($event.value)">
+                <mat-option [value]="null">Todos</mat-option>
+                @for (e of esquemasTodos(); track e.id) {
+                  <mat-option [value]="e.id">{{ e.codigo }} ({{ e.reglas_activas }})</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevaRegla()">
+              <mat-icon>add</mat-icon><span>Nueva regla</span>
+            </button>
+          </div>
+
+          @if (cargando()) {
+            <div class="cargando"><mat-spinner diameter="28"></mat-spinner></div>
+          }
+
+          <app-standard-filter-table
+            [data]="reglas()" [columnDefinitions]="colReglas"
+            [pageSizeOptions]="pageSizeOptions" [isLoading]="cargando()"
+            tableTitle="Reglas de labor" storageKey="param-vacantes-reglas">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarRegla(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                  (change)="toggleRegla(row)" [matTooltip]="row.activo ? 'Desactivar' : 'Activar'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── CARGO → ÁREA ─────────────── -->
+      <mat-tab label="Cargo → Área">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              El mismo cargo puede tener área distinta según el esquema (por eso no es una
+              columna de Cargos).
+            </span>
+            <mat-slide-toggle [checked]="verCargoAreasInactivos()"
+                              (change)="alternarCargoAreasInactivos($event.checked)">
+              Ver dados de baja
+            </mat-slide-toggle>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoCargoArea()">
+              <mat-icon>add</mat-icon><span>Nuevo mapeo</span>
+            </button>
+          </div>
+
+          <app-standard-filter-table
+            [data]="cargoAreas()" [columnDefinitions]="colCargoAreas"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Cargo → Área"
+            storageKey="param-vacantes-cargoarea">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarCargoArea(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                @if (!row.conciliado) {
+                  <button mat-icon-button (click)="conciliar(row)"
+                          matTooltip="Enlazar con el maestro de cargos">
+                    <mat-icon>link</mat-icon>
+                  </button>
+                }
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                  (change)="toggleCargoArea(row)"
+                                  [matTooltip]="row.activo ? 'Dar de baja el mapeo' : 'Reactivar el mapeo'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── CONFIGURACIÓN CENTRO + CARGO ─────────────── -->
+      <mat-tab label="Centro + Cargo">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Combinaciones <strong>autorizadas</strong> para crear una vacante. Está vacía a
+              propósito: sus datos vienen del Excel de negocio, no del histórico de contratación.
+            </span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevaConfiguracion()">
+              <mat-icon>add</mat-icon><span>Nueva configuración</span>
+            </button>
+          </div>
+
+          @if (!configuraciones().length) {
+            <div class="aviso aviso-info">
+              <mat-icon>info</mat-icon>
+              <span>
+                Todavía no hay combinaciones configuradas. Mientras esté vacía, el resolutor
+                responde <code>CONFIGURACION_NO_ENCONTRADA</code> para cualquier centro + cargo.
+              </span>
+            </div>
+          }
+
+          <app-standard-filter-table
+            [data]="configuraciones()" [columnDefinitions]="colConfig"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Configuración centro + cargo"
+            storageKey="param-vacantes-config">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarConfiguracion(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                  (change)="toggleConfiguracion(row)" [matTooltip]="row.activo ? 'Desactivar' : 'Activar'">
+                </mat-slide-toggle>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── SEGUROS FUNERARIOS ─────────────── -->
+      <mat-tab label="Seguros funerarios">
+        <div class="tab-body">
+          <div class="aviso aviso-info">
+            <mat-icon>info</mat-icon>
+            <span>
+              El seguro <strong>existe por sí mismo</strong>, con su nombre y su valor
+              definidos una sola vez, y los centros de costo se le asocian. La relación es
+              <strong>de muchos a muchos</strong>: un centro puede tener
+              <strong>varios seguros</strong> y un seguro estar en muchos centros.
+              Hoy: <strong>$4.750 quincenal</strong> en los 186 centros de Apoyo y Alianza, y
+              <strong>$13.169 mensual</strong> en Flores de los Andes y Monteverde, que
+              tienen los dos.
+              <br>
+              El valor lo manda el seguro, no el centro. Si un grupo de centros necesita
+              otro precio, se crea <strong>otro seguro</strong> y se les asigna.
+            </span>
+          </div>
+
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Cambiar el valor de un seguro lo cambia de golpe en todos los centros que lo
+              tengan. La columna «Centros asignados» dice a cuántos alcanza.
+            </span>
+            @if (segurosInactivos()) {
+              <mat-slide-toggle [checked]="verSegurosInactivos()"
+                                (change)="alternarSegurosInactivos($event.checked)">
+                Ver los {{ segurosInactivos() }} retirados
+              </mat-slide-toggle>
+            }
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoSeguro()">
+              <mat-icon>add</mat-icon><span>Nuevo seguro</span>
+            </button>
+          </div>
+
+          @if (!seguros().length) {
+            <div class="aviso aviso-warn">
+              <mat-icon>info</mat-icon>
+              <span>No hay seguros funerarios registrados. Créalos con «Nuevo seguro» y
+                    después asígnales centros.</span>
+            </div>
+          } @else {
+            <app-standard-filter-table
+              [data]="seguros()" [columnDefinitions]="colSegurosVisibles()"
+              [pageSizeOptions]="pageSizeOptions" tableTitle="Seguros funerarios"
+              storageKey="param-vacantes-seguros">
+              <ng-template #actionsTemplate let-row>
+                <div class="row-actions">
+                  <button mat-icon-button (click)="editarSeguro(row)" matTooltip="Editar">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="centrosDeSeguro(row)"
+                          matTooltip="Centros que tienen este seguro">
+                    <mat-icon>domain</mat-icon>
+                  </button>
+                  <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                    (change)="toggleSeguro(row)"
+                                    [matTooltip]="row.activo ? 'Retirar el seguro' : 'Volver a ofrecerlo'">
+                  </mat-slide-toggle>
+                </div>
+              </ng-template>
+            </app-standard-filter-table>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── DOCUMENTOS DE CONTRATACIÓN ─────────────── -->
+      <!-- ÚLTIMA pestaña a propósito: `cadena` cablea los índices de las anteriores. -->
+      <mat-tab label="Documentos">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <mat-form-field appearance="outline" class="filtro-temporal-docs">
+              <mat-label>Temporal</mat-label>
+              <mat-select #selTemporalDocs [value]="temporalDocs()"
+                          (selectionChange)="cambiarTemporalDocs($event.value, selTemporalDocs)">
+                @for (t of temporales(); track t.temporal_key) {
+                  @if (t.id != null) {
+                    <mat-option [value]="t.id">{{ t.nombre_display }}</mat-option>
+                  }
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <div class="modo-docs">
+              <span class="modo-docs-label">Modo de documentos parametrizados</span>
+              <mat-button-toggle-group #grupoModoDocs="matButtonToggleGroup"
+                                       [value]="modoDocs()"
+                                       [disabled]="cambiandoModoDocs() || modoDocs() === null"
+                                       (change)="cambiarModoDocs($event.value, grupoModoDocs)"
+                                       aria-label="Modo de documentos parametrizados">
+                <mat-button-toggle value="OFF" [matTooltip]="'OFF: ' + modoDocsTxt.OFF">OFF</mat-button-toggle>
+                <mat-button-toggle value="SOMBRA" [matTooltip]="'SOMBRA: ' + modoDocsTxt.SOMBRA">SOMBRA</mat-button-toggle>
+                <mat-button-toggle value="ON" [matTooltip]="'ON: ' + modoDocsTxt.ON">ON</mat-button-toggle>
+              </mat-button-toggle-group>
+              <!-- Visible además del tooltip: en táctil no hay hover. -->
+              @if (modoDocs(); as m) {
+                <span class="modo-docs-ayuda">Hoy en {{ m }}: {{ modoDocsTxt[m] }}</span>
+              }
+            </div>
+
+          </div>
+
+          @if (empresasDocsSinParametrizar().length) {
+            <div class="aviso aviso-warn">
+              <mat-icon>warning</mat-icon>
+              <div class="aviso-lista">
+                @for (e of empresasDocsSinParametrizar(); track e.empresa_vacante_id) {
+                  <div>
+                    La empresa <strong>{{ e.empresaTxt }}</strong> no tiene documentos parametrizados:
+                    aplica un perfil o copia desde otra empresa.
+                  </div>
+                }
+                @if (modoDocs() === 'ON') {
+                  <div><strong>Con el modo ON, su contratación da error hasta que se parametricen.</strong></div>
+                }
+              </div>
+            </div>
+          }
+
+          <app-standard-filter-table
+            [data]="empresasDocs()" [columnDefinitions]="colEmpresasDocs"
+            [pageSizeOptions]="pageSizeOptions" [isLoading]="cargandoEmpresasDocs()"
+            [enableRowClick]="true" (rowClicked)="seleccionarEmpresaDocs($event)"
+            tableTitle="Documentos por empresa usuaria" storageKey="param-vacantes-docs-empresas">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="seleccionarEmpresaDocs(row)"
+                        [matTooltip]="row.empresa_vacante_id === empresaDocsSel() ? 'Abierta abajo' : 'Ver y editar sus documentos'">
+                  <mat-icon>{{ row.empresa_vacante_id === empresaDocsSel() ? 'task' : 'description' }}</mat-icon>
+                </button>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+
+          @if (empresaDocsSel() !== null) {
+            <section #detalleDocsRef class="docs-detalle">
+              @if (detalleDocs(); as det) {
+                <header class="docs-cab">
+                  <mat-icon class="docs-cab-icono">folder_shared</mat-icon>
+                  <div class="docs-cab-texto">
+                    <div class="docs-cab-titulo">
+                      <span>{{ nombreEmpresaDocs() }}</span>
+                      @if (docsSucio()) {
+                        <span class="paso-badge badge-vacio">Cambios sin guardar</span>
+                      }
+                      @if (cargandoDetalleDocs() || guardandoDocs()) {
+                        <mat-spinner diameter="16"></mat-spinner>
+                      }
+                    </div>
+                    <div class="docs-cab-sub">
+                      Código de compañía: <strong>{{ det.codigo_compania || '—' }}</strong> ·
+                      Documento del representante legal: <strong>{{ det.representante_legal_documento || '—' }}</strong> ·
+                      Datos personales: <strong>{{ det.correo_datos_personales || '—' }}</strong>
+                      / <strong>{{ det.telefono_datos_personales || '—' }}</strong>
+                    </div>
+                  </div>
+                  <span class="grow"></span>
+                  <button mat-icon-button (click)="cerrarDetalleDocs()" matTooltip="Cerrar el detalle">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </header>
+
+                <div class="tab-actions docs-acciones">
+                  <button mat-stroked-button (click)="aplicarPerfilDocs()" [disabled]="guardandoDocs()">
+                    <mat-icon>library_add_check</mat-icon><span>Aplicar perfil</span>
+                  </button>
+                  <button mat-stroked-button (click)="copiarDocsDesde()" [disabled]="guardandoDocs()">
+                    <mat-icon>content_copy</mat-icon><span>Copiar desde otra empresa</span>
+                  </button>
+                  <button mat-stroked-button (click)="datosPlantillasDocs()" [disabled]="guardandoDocs()">
+                    <mat-icon>badge</mat-icon><span>Datos para plantillas</span>
+                  </button>
+                  <button mat-stroked-button (click)="agregarDocumento()" [disabled]="guardandoDocs()">
+                    <mat-icon>note_add</mat-icon><span>Agregar documento</span>
+                  </button>
+                  <span class="grow"></span>
+                  <button mat-button (click)="descartarDocs()" [disabled]="!docsSucio() || guardandoDocs()">
+                    <mat-icon>undo</mat-icon><span>Descartar</span>
+                  </button>
+                  <button mat-flat-button class="btn-managerial" (click)="guardarDocs()"
+                          [disabled]="!docsSucio() || erroresDocs().length > 0 || guardandoDocs()">
+                    <mat-icon>save</mat-icon><span>Guardar cambios</span>
+                  </button>
+                </div>
+
+                <div class="docs-totales">
+                  <div class="docs-total">
+                    <span class="docs-total-num">{{ totalesDocs().documentos }}</span>
+                    <span class="docs-total-lbl">Documentos</span>
+                  </div>
+                  <div class="docs-total">
+                    <span class="docs-total-num">{{ totalesDocs().fisicas }}</span>
+                    <span class="docs-total-lbl">Copias físicas</span>
+                  </div>
+                  <div class="docs-total">
+                    <span class="docs-total-num">{{ totalesDocs().digitales }}</span>
+                    <span class="docs-total-lbl">Copias digitales</span>
+                  </div>
+                  @for (d of destinosFisicos; track d.codigo) {
+                    <div class="docs-total docs-total-sec">
+                      <span class="docs-total-num">{{ totalesDocs().porDestino[d.codigo] }}</span>
+                      <span class="docs-total-lbl">Físicas · {{ d.etiqueta }}</span>
+                    </div>
+                  }
+                </div>
+
+                @if (erroresDocs().length) {
+                  <div class="aviso aviso-warn">
+                    <mat-icon>error_outline</mat-icon>
+                    <div class="aviso-lista">
+                      <div><strong>Corrige esto antes de guardar:</strong></div>
+                      @for (err of erroresDocs(); track $index) {
+                        <div>{{ err.mensaje }}</div>
+                      }
+                    </div>
+                  </div>
+                }
+
+                @if (!filasDocs().length) {
+                  <div class="aviso aviso-info">
+                    <mat-icon>info</mat-icon>
+                    <span>
+                      @if (docsSucio()) {
+                        Quitaste todos los documentos. Al guardar, la empresa queda
+                        <strong>sin documentos parametrizados</strong>.
+                      } @else {
+                        Esta empresa no tiene documentos. Aplica un perfil, copia desde otra
+                        empresa de la misma temporal o agrega documentos uno a uno.
+                      }
+                    </span>
+                  </div>
+                } @else {
+                  <div class="docs-matriz-scroll">
+                    <table class="docs-matriz">
+                      <thead>
+                        <tr>
+                          <th class="col-orden">Orden</th>
+                          <th class="col-bloque">Bloque</th>
+                          <th class="col-doc">Documento</th>
+                          <th class="col-obl">Obligatorio</th>
+                          @for (d of destinosDoc; track d.codigo) {
+                            <th class="col-destino">{{ d.etiqueta }}</th>
+                          }
+                          <th class="col-quitar" aria-label="Quitar"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (fila of filasDocsOrdenadas(); track fila.tipo.id) {
+                          <tr [class.fila-error]="filasDocsConError().has(fila.tipo.id)">
+                            <td class="col-orden">
+                              <input type="number" class="docs-num" min="1" step="1"
+                                     [value]="fila.orden_archivo ?? ''"
+                                     (change)="cambiarNumeroDoc(fila, 'orden_archivo', $any($event.target).value)"
+                                     [attr.aria-label]="'Orden de archivo de ' + fila.tipo.nombre">
+                            </td>
+                            <td class="col-bloque">
+                              <input type="number" class="docs-num" min="1" max="5" step="1"
+                                     [value]="fila.bloque_archivo ?? ''"
+                                     (change)="cambiarNumeroDoc(fila, 'bloque_archivo', $any($event.target).value)"
+                                     [attr.aria-label]="'Bloque de archivo de ' + fila.tipo.nombre">
+                            </td>
+                            <td class="col-doc">
+                              <div class="doc-nombre" [matTooltip]="fila.tipo.observacion ?? ''"
+                                   [matTooltipDisabled]="!fila.tipo.observacion">
+                                {{ fila.tipo.nombre }}
+                                @if (fila.tipo.observacion) {
+                                  <mat-icon class="doc-obs-icono">info</mat-icon>
+                                }
+                              </div>
+                              <div class="doc-meta">
+                                <span class="doc-codigo">{{ fila.tipo.codigo }}</span>
+                                <span class="doc-chip">{{ naturalezaTxt[fila.tipo.naturaleza] || fila.tipo.naturaleza }}</span>
+                                <span class="doc-chip">{{ etapaTxt[fila.tipo.etapa] || fila.tipo.etapa }}</span>
+                                @if (fila.tipo.condicion && fila.tipo.condicion !== 'NINGUNA') {
+                                  <span class="doc-chip doc-chip-warn">{{ condicionTxt[fila.tipo.condicion] || fila.tipo.condicion }}</span>
+                                }
+                              </div>
+                            </td>
+                            <td class="col-obl">
+                              <mat-checkbox [checked]="fila.obligatorio"
+                                            (change)="cambiarObligatorioDoc(fila, $event.checked)"
+                                            [aria-label]="'Obligatorio: ' + fila.tipo.nombre">
+                              </mat-checkbox>
+                            </td>
+                            @for (d of destinosDoc; track d.codigo) {
+                              @let celda = fila.destinos[d.codigo];
+                              <td class="col-destino" [class.destino-on]="celda.incluido">
+                                <mat-checkbox [checked]="celda.incluido"
+                                              (change)="alternarDestinoDoc(fila, d.codigo, $event.checked)">
+                                  Incluido
+                                </mat-checkbox>
+                                @if (celda.incluido) {
+                                  <div class="destino-campos">
+                                    <select class="docs-forma" [ngModel]="celda.forma"
+                                            (ngModelChange)="cambiarFormaDoc(fila, d.codigo, $event)"
+                                            [attr.aria-label]="'Forma en ' + d.etiqueta">
+                                      <option value="ORIGINAL">Original</option>
+                                      <option value="COPIA">Copia</option>
+                                      <!-- DIGITAL solo en el escáner. Se deja visible si ya venía así para
+                                           que el select no quede en blanco y la validación lo señale. -->
+                                      @if (d.admiteDigital || celda.forma === 'DIGITAL') {
+                                        <option value="DIGITAL">Digital</option>
+                                      }
+                                    </select>
+                                    <label class="docs-mini">
+                                      <span>Copias</span>
+                                      <input type="number" class="docs-num" min="0" step="1" placeholder="1"
+                                             [value]="celda.copias ?? ''"
+                                             (change)="cambiarNumeroDestinoDoc(fila, d.codigo, 'copias', $any($event.target).value)">
+                                    </label>
+                                    <label class="docs-mini">
+                                      <span>Orden</span>
+                                      <input type="number" class="docs-num" min="1" step="1" placeholder="—"
+                                             [value]="celda.orden ?? ''"
+                                             (change)="cambiarNumeroDestinoDoc(fila, d.codigo, 'orden', $any($event.target).value)">
+                                    </label>
+                                  </div>
+                                }
+                              </td>
+                            }
+                            <td class="col-quitar">
+                              <button mat-icon-button (click)="quitarDocumento(fila)" matTooltip="Quitar este documento">
+                                <mat-icon>delete_outline</mat-icon>
+                              </button>
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="tab-hint docs-pie">
+                    Los cambios son locales hasta «Guardar cambios», que reemplaza exactamente los
+                    documentos de la empresa. Unas copias vacías cuentan como 1, que es lo que se guarda.
+                  </p>
+                }
+              } @else if (cargandoDetalleDocs()) {
+                <div class="cargando"><mat-spinner diameter="28"></mat-spinner></div>
+              } @else {
+                <div class="aviso aviso-warn">
+                  <mat-icon>error_outline</mat-icon>
+                  <span class="grow">No se pudieron cargar los documentos de {{ nombreEmpresaDocs() }}.</span>
+                  <button mat-button (click)="cargarDetalleDocs()">Reintentar</button>
+                </div>
+              }
+            </section>
+          }
+
+          <!-- Catálogo: sección aparte y plegada; se consulta menos que la matriz. -->
+          <mat-expansion-panel class="docs-catalogo">
+            <mat-expansion-panel-header>
+              <mat-panel-title>Catálogo de tipos documentales</mat-panel-title>
+              <mat-panel-description>
+                {{ tiposDocs().length }} tipos
+                @if (tiposDocsInactivos()) { · {{ tiposDocsInactivos() }} inactivos }
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+            <ng-template matExpansionPanelContent>
+              <div class="tab-actions">
+                <span class="tab-hint">
+                  Los documentos que se pueden asignar a una empresa. El <strong>código</strong> lo
+                  comparten gestión documental y las plantillas: no se cambia después de crearlo.
+                  Un tipo que lleva alguna empresa no se puede desactivar.
+                </span>
+                <span class="grow"></span>
+                <button mat-flat-button class="btn-managerial" (click)="nuevoTipoDoc()">
+                  <mat-icon>add</mat-icon><span>Nuevo tipo</span>
+                </button>
+              </div>
+              <app-standard-filter-table
+                [data]="tiposDocs()" [columnDefinitions]="colTiposDocs"
+                [pageSizeOptions]="pageSizeOptions" tableTitle="Tipos documentales"
+                storageKey="param-vacantes-docs-tipos">
+                <ng-template #actionsTemplate let-row>
+                  <div class="row-actions">
+                    <button mat-icon-button (click)="editarTipoDoc(row)" matTooltip="Editar">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                      (change)="toggleTipoDoc(row)"
+                                      [matTooltip]="row.activo ? 'Desactivar' : 'Activar'">
+                    </mat-slide-toggle>
+                  </div>
+                </ng-template>
+              </app-standard-filter-table>
+            </ng-template>
+          </mat-expansion-panel>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── SALARIO MÍNIMO POR AÑO ─────────────── -->
+      <!-- Después de Documentos: `cadena` cablea los índices de las pestañas anteriores. -->
+      <mat-tab label="Salario mínimo">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Todas las empresas pagan el <strong>mínimo</strong>. Los documentos de contratación
+              imprimen el del <strong>año en que se creó el contrato</strong>: un contrato de 2025
+              reimpreso hoy sigue diciendo el de 2025. Un año sin fila usa el último anterior.
+            </span>
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoSalarioMinimo()">
+              <mat-icon>add</mat-icon><span>Nuevo año</span>
+            </button>
+          </div>
+
+          <app-standard-filter-table
+            [data]="salariosMinimos()" [columnDefinitions]="colSalarioMinimo"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Salario mínimo por año"
+            storageKey="param-vacantes-salario-minimo">
+            <ng-template #actionsTemplate let-row>
+              <div class="row-actions">
+                <button mat-icon-button (click)="editarSalarioMinimo(row)" matTooltip="Editar">
+                  <mat-icon>edit</mat-icon>
+                </button>
+              </div>
+            </ng-template>
+          </app-standard-filter-table>
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── CALENDARIOS DE PAGO ───────────────
+           Las cinco pestañas siguientes van AL FINAL a propósito: `cadena()` guarda el
+           índice de pestaña de cada eslabón y meterlas en medio abriría otra. -->
+      <mat-tab label="Calendarios de pago">
+        <div class="tab-body">
+          <div class="aviso aviso-info">
+            <mat-icon>info</mat-icon>
+            <span>
+              <strong>Cuándo se paga.</strong> Un calendario es
+              <strong>recurrente mensual</strong> (los mismos dos días de cada mes, sin fechas) o
+              de <strong>fechas específicas</strong> (una lista de fechas, que caduca).
+              El <strong>texto del documento</strong> y el estado
+              <strong>VIGENTE / VENCIDO</strong> los calcula el backend: aquí solo se muestran.
+            </span>
+          </div>
+
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Guardar un calendario lo <strong>reemplaza entero</strong>: al cambiar de tipo, los
+              días o las fechas del tipo anterior se pierden.
+            </span>
+            @if (calendariosInactivos()) {
+              <mat-slide-toggle [checked]="verCalendariosInactivos()"
+                                (change)="alternarCalendariosInactivos($event.checked)">
+                Ver los {{ calendariosInactivos() }} retirados
+              </mat-slide-toggle>
+            }
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoCalendarioPago()">
+              <mat-icon>add</mat-icon><span>Nuevo calendario</span>
+            </button>
+          </div>
+
+          @if (!calendarios().length) {
+            <div class="aviso aviso-warn">
+              <mat-icon>info</mat-icon>
+              <span>No hay calendarios de pago. Créalos aquí y después asígnalos a los grupos
+                    de cada centro en «Centro + Pago».</span>
+            </div>
+          } @else {
+            <app-standard-filter-table
+              [data]="calendarios()" [columnDefinitions]="colCalendariosVisibles()"
+              [pageSizeOptions]="pageSizeOptions" tableTitle="Calendarios de pago"
+              storageKey="param-vacantes-calendarios-pago">
+              <ng-template #actionsTemplate let-row>
+                <div class="row-actions">
+                  <button mat-icon-button (click)="editarCalendarioPago(row)" matTooltip="Editar">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                    (change)="toggleCalendarioPago(row)"
+                                    [matTooltip]="row.activo ? 'Retirar el calendario' : 'Volver a ofrecerlo'">
+                  </mat-slide-toggle>
+                </div>
+              </ng-template>
+            </app-standard-filter-table>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── GRUPOS DE PAGO ─────────────── -->
+      <mat-tab label="Grupos de pago">
+        <div class="tab-body">
+          <div class="aviso aviso-info">
+            <mat-icon>info</mat-icon>
+            <span>
+              El grupo agrupa a la gente de un centro que cobra igual. Su
+              <strong>casino por defecto</strong> es opcional, pero si lo tiene manda: un centro
+              con este grupo <strong>no puede quedar con otra política</strong> — el backend
+              responde <code>CASINO_CONTRADICE_GRUPO</code>.
+            </span>
+          </div>
+
+          <div class="tab-actions">
+            <span class="tab-hint">
+              El <strong>número</strong> es la clave. Los grupos se asignan a cada centro desde
+              «Centro + Pago», que es donde se les pone calendario.
+            </span>
+            @if (gruposPagoInactivos()) {
+              <mat-slide-toggle [checked]="verGruposPagoInactivos()"
+                                (change)="alternarGruposPagoInactivos($event.checked)">
+                Ver los {{ gruposPagoInactivos() }} retirados
+              </mat-slide-toggle>
+            }
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevoGrupoPago()">
+              <mat-icon>add</mat-icon><span>Nuevo grupo</span>
+            </button>
+          </div>
+
+          @if (!gruposPago().length) {
+            <div class="aviso aviso-warn">
+              <mat-icon>info</mat-icon>
+              <span>No hay grupos de pago. Sin grupos, un centro no puede tener fechas de pago.</span>
+            </div>
+          } @else {
+            <app-standard-filter-table
+              [data]="gruposPago()" [columnDefinitions]="colGruposPagoVisibles()"
+              [pageSizeOptions]="pageSizeOptions" tableTitle="Grupos de pago"
+              storageKey="param-vacantes-grupos-pago">
+              <ng-template #actionsTemplate let-row>
+                <div class="row-actions">
+                  <button mat-icon-button (click)="editarGrupoPago(row)" matTooltip="Editar">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                    (change)="toggleGrupoPago(row)"
+                                    [matTooltip]="row.activo ? 'Retirar el grupo' : 'Volver a ofrecerlo'">
+                  </mat-slide-toggle>
+                </div>
+              </ng-template>
+            </app-standard-filter-table>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── POLÍTICAS DE CASINO ─────────────── -->
+      <mat-tab label="Políticas de casino">
+        <div class="tab-body">
+          <div class="aviso aviso-info">
+            <mat-icon>info</mat-icon>
+            <span>
+              Qué casino se ofrece y cuánto vale cada comida. El precio es de la
+              <strong>política</strong>, no del centro: si un grupo necesita otro valor, es
+              <strong>otra política</strong>. Una política <strong>sin servicio</strong> no lleva
+              comidas ni forma de descuento — es la de «aquí no hay casino», y también se imprime.
+            </span>
+          </div>
+
+          <div class="tab-actions">
+            <span class="tab-hint">
+              Guardar reemplaza también las <strong>comidas</strong>: las que no queden marcadas
+              se dan de baja. El texto del documento lo arma el backend.
+            </span>
+            @if (politicasInactivas()) {
+              <mat-slide-toggle [checked]="verPoliticasInactivas()"
+                                (change)="alternarPoliticasInactivas($event.checked)">
+                Ver las {{ politicasInactivas() }} retiradas
+              </mat-slide-toggle>
+            }
+            <span class="grow"></span>
+            <button mat-flat-button class="btn-managerial" (click)="nuevaPoliticaCasino()">
+              <mat-icon>add</mat-icon><span>Nueva política</span>
+            </button>
+          </div>
+
+          @if (!politicasCasino().length) {
+            <div class="aviso aviso-warn">
+              <mat-icon>info</mat-icon>
+              <span>No hay políticas de casino. Créalas aquí y asígnalas por centro o por grupo
+                    en «Centro + Casino».</span>
+            </div>
+          } @else {
+            <app-standard-filter-table
+              [data]="politicasCasino()" [columnDefinitions]="colPoliticasVisibles()"
+              [pageSizeOptions]="pageSizeOptions" tableTitle="Políticas de casino"
+              storageKey="param-vacantes-politicas-casino">
+              <ng-template #actionsTemplate let-row>
+                <div class="row-actions">
+                  <button mat-icon-button (click)="editarPoliticaCasino(row)" matTooltip="Editar">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <mat-slide-toggle class="row-toggle" color="primary" [checked]="row.activo"
+                                    (change)="togglePoliticaCasino(row)"
+                                    [matTooltip]="row.activo ? 'Retirar la política' : 'Volver a ofrecerla'">
+                  </mat-slide-toggle>
+                </div>
+              </ng-template>
+            </app-standard-filter-table>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── CENTRO + PAGO ─────────────── -->
+      <mat-tab label="Centro + Pago">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <!-- Temporal y empresa ACOTAN; el centro es la selección de trabajo. Los tres con
+                 buscador por palabras: 177 centros no se recorren a ojo, y el segundo renglón
+                 dice de qué empresa es cada finca, que es lo que distingue a las homónimas. -->
+            <app-smart-select class="filtro-pago"
+              label="Temporal" icono="apartment"
+              [formControl]="filtrosPago.ctrlTemporal"
+              [opciones]="filtrosPago.opcionesTemporal()"
+              [valor]="valorTemporalFiltro" [etiqueta]="etiquetaTemporalFiltro"
+              placeholderBuscar="Buscar temporal…"
+              vacio="No hay temporales."
+              (cambio)="acotarPago('temporal', $event)">
+            </app-smart-select>
+
+            <app-smart-select class="filtro-pago"
+              label="Empresa usuaria" icono="business"
+              [formControl]="filtrosPago.ctrlEmpresa"
+              [opciones]="filtrosPago.opcionesEmpresa()"
+              [valor]="valorEmpresaFiltro" [etiqueta]="etiquetaEmpresaFiltro"
+              placeholderBuscar="Buscar empresa…"
+              vacio="Esta temporal no tiene empresas en el alcance."
+              (cambio)="acotarPago('empresa', $event)">
+            </app-smart-select>
+
+            <app-smart-select class="filtro-centro-pago"
+              label="Centro de costo" icono="agriculture"
+              [formControl]="filtrosPago.ctrlCentro"
+              [opciones]="filtrosPago.opcionesCentro()"
+              [valor]="valorCentroFiltro" [etiqueta]="etiquetaCentroFiltro" [detalle]="detalleCentroFiltro"
+              placeholderBuscar="Buscar por finca o empresa…"
+              vacio="Ningún centro encaja con ese filtro."
+              [ayuda]="'Quedan ' + filtrosPago.centrosVisibles() + ' centros'"
+              (cambio)="cambiarCentroPago($event)">
+            </app-smart-select>
+            <span class="tab-hint">
+              Qué grupos tiene el centro y con qué calendario cobra cada uno. Guardar deja
+              <strong>exactamente</strong> esta lista: lo que salga se da de baja.
+            </span>
+            @if (cargandoCentroPago()) { <mat-spinner diameter="18"></mat-spinner> }
+          </div>
+
+          @if (centroPagoSel() === null) {
+            <div class="aviso aviso-info">
+              <mat-icon>info</mat-icon>
+              <span>Elige un centro de costo para ver y editar sus grupos de pago.</span>
+            </div>
+          } @else {
+            @if (pagoModo(); as modo) {
+              <div class="aviso" [class.aviso-info]="modo.exige_grupo_pago" [class.aviso-warn]="!modo.exige_grupo_pago">
+                <mat-icon>{{ modo.exige_grupo_pago ? 'check_circle' : 'help' }}</mat-icon>
+                <span>
+                  @if (modo.exige_grupo_pago) {
+                    Crear Vacante <strong>exigirá grupo de pago</strong> en este centro.
+                  } @else {
+                    Crear Vacante <strong>no exige</strong> grupo de pago aquí: lo deciden los datos,
+                    y hoy este centro no tiene grupos asignados.
+                  }
+                </span>
+              </div>
+            }
+
+            @if (gruposSinCalendario().length) {
+              <div class="aviso aviso-warn">
+                <mat-icon>warning</mat-icon>
+                <span>
+                  <strong>{{ gruposSinCalendario().length }}</strong> grupo(s) marcados sin calendario.
+                  Un grupo asignado necesita uno: sin él no hay fechas de pago que imprimir.
+                </span>
+              </div>
+            }
+
+            <div class="tab-actions">
+              <span class="tab-hint">
+                {{ centroPagoNombre() }} · <strong>{{ gruposDelCentro() }}</strong> grupo(s) marcados.
+              </span>
+              @if (pagoSucio()) {
+                <span class="paso-badge badge-vacio">Cambios sin guardar</span>
+              }
+              <span class="grow"></span>
+              <button mat-button (click)="descartarCentroPago()"
+                      [disabled]="!pagoSucio() || guardandoCentroPago()">
+                <mat-icon>undo</mat-icon><span>Descartar</span>
+              </button>
+              <button mat-flat-button class="btn-managerial" (click)="guardarCentroPago()"
+                      [disabled]="!pagoSucio() || gruposSinCalendario().length > 0 || guardandoCentroPago()">
+                <mat-icon>save</mat-icon><span>Guardar cambios</span>
+              </button>
+            </div>
+
+            @if (!filasPago().length) {
+              <div class="aviso aviso-warn">
+                <mat-icon>info</mat-icon>
+                <span>No hay grupos de pago activos en el catálogo. Créalos en la pestaña
+                      «Grupos de pago».</span>
+              </div>
+            } @else {
+              <div class="docs-matriz-scroll">
+                <table class="docs-matriz pago-centro">
+                  <thead>
+                    <tr>
+                      <th class="col-asignado">Asignado</th>
+                      <th class="col-grupo">Grupo</th>
+                      <th class="col-calendario">Calendario de pago</th>
+                      <th>Fechas de pago (texto del documento)</th>
+                      <th class="col-defecto">Casino por defecto del grupo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (f of filasPago(); track f.grupo_pago_id) {
+                      @let cal = calendarioPorId(f.calendario_pago_id);
+                      <tr [class.fila-mal]="f.asignada && f.calendario_pago_id == null"
+                          [class.fila-aviso]="f.asignada && cal?.estado === 'VENCIDO'">
+                        <td class="col-asignado">
+                          <mat-checkbox [checked]="f.asignada"
+                                        (change)="alternarGrupoCentro(f, $event.checked)"
+                                        [aria-label]="'Asignar el grupo ' + f.numero">
+                          </mat-checkbox>
+                        </td>
+                        <td class="col-grupo">
+                          <div class="doc-nombre">{{ f.numero }} · {{ f.nombre }}</div>
+                        </td>
+                        <td class="col-calendario">
+                          @if (f.asignada) {
+                            <select class="docs-forma pago-select" [ngModel]="f.calendario_pago_id ?? null"
+                                    (ngModelChange)="cambiarCalendarioDeGrupo(f, $event)"
+                                    [attr.aria-label]="'Calendario del grupo ' + f.numero">
+                              <option [ngValue]="null">— Sin calendario —</option>
+                              @for (c of calendariosActivos(); track c.id) {
+                                <option [ngValue]="c.id">{{ c.codigo }}</option>
+                              }
+                            </select>
+                            <!-- Desde aquí NO se editan las fechas: cambiarlas alcanzaría a todos
+                                 los centros que usen ese calendario. Aquí se ELIGE cuál se usa; las
+                                 fechas se tocan en la pestaña «Calendarios de pago». La copia sigue
+                                 disponible porque no cambia nada existente: crea otro calendario. -->
+                            @if (f.calendario_pago_id != null) {
+                              <button mat-icon-button class="pago-mini" type="button"
+                                      matTooltip="Duplicar el calendario para cambiar solo este centro"
+                                      (click)="duplicarCalendarioDeFila(f)">
+                                <mat-icon>content_copy</mat-icon>
+                              </button>
+                            }
+                          } @else {
+                            <span class="pago-apagado">—</span>
+                          }
+                        </td>
+                        <td>
+                          @if (f.asignada && cal) {
+                            <span>{{ cal.texto_documento || '—' }}</span>
+                            @if (cal.estado === 'VENCIDO') {
+                              <span class="paso-badge badge-vacio">vencido</span>
+                            }
+                          } @else if (f.asignada) {
+                            <span class="pago-falta">Elige un calendario</span>
+                          } @else {
+                            <span class="pago-apagado">—</span>
+                          }
+                        </td>
+                        <td class="col-defecto">
+                          {{ f.politica_defecto_codigo || '—' }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+              <p class="tab-hint">
+                El texto y el estado del calendario vienen del backend; aquí solo se buscan por
+                su código. Un calendario en uso no se puede retirar
+                (<code>CALENDARIO_EN_USO</code>).
+              </p>
+            }
+          }
+        </div>
+      </mat-tab>
+
+      <!-- ─────────────── CENTRO + CASINO ─────────────── -->
+      <mat-tab label="Centro + Casino">
+        <div class="tab-body">
+          <div class="tab-actions">
+            <!-- Mismos tres filtros encadenados que en Centro + Pago. -->
+            <app-smart-select class="filtro-pago"
+              label="Temporal" icono="apartment"
+              [formControl]="filtrosCasino.ctrlTemporal"
+              [opciones]="filtrosCasino.opcionesTemporal()"
+              [valor]="valorTemporalFiltro" [etiqueta]="etiquetaTemporalFiltro"
+              placeholderBuscar="Buscar temporal…"
+              vacio="No hay temporales."
+              (cambio)="acotarCasino('temporal', $event)">
+            </app-smart-select>
+
+            <app-smart-select class="filtro-pago"
+              label="Empresa usuaria" icono="business"
+              [formControl]="filtrosCasino.ctrlEmpresa"
+              [opciones]="filtrosCasino.opcionesEmpresa()"
+              [valor]="valorEmpresaFiltro" [etiqueta]="etiquetaEmpresaFiltro"
+              placeholderBuscar="Buscar empresa…"
+              vacio="Esta temporal no tiene empresas en el alcance."
+              (cambio)="acotarCasino('empresa', $event)">
+            </app-smart-select>
+
+            <app-smart-select class="filtro-centro-pago"
+              label="Centro de costo" icono="agriculture"
+              [formControl]="filtrosCasino.ctrlCentro"
+              [opciones]="filtrosCasino.opcionesCentro()"
+              [valor]="valorCentroFiltro" [etiqueta]="etiquetaCentroFiltro" [detalle]="detalleCentroFiltro"
+              placeholderBuscar="Buscar por finca o empresa…"
+              vacio="Ningún centro encaja con ese filtro."
+              [ayuda]="'Quedan ' + filtrosCasino.centrosVisibles() + ' centros'"
+              (cambio)="cambiarCentroCasino($event)">
+            </app-smart-select>
+            <span class="tab-hint">
+              El casino del <strong>centro entero</strong> o el de uno de sus grupos. Precedencia:
+              <strong>centro + grupo</strong> → <strong>defecto del grupo</strong> →
+              <strong>todo el centro</strong>.
+            </span>
+            @if (cargandoCentroCasino()) { <mat-spinner diameter="18"></mat-spinner> }
+          </div>
+
+          @if (centroCasinoSel() === null) {
+            <div class="aviso aviso-info">
+              <mat-icon>info</mat-icon>
+              <span>Elige un centro de costo para ver y editar su casino.</span>
+            </div>
+          } @else {
+            @if (casinoContradice().length) {
+              <div class="aviso aviso-warn">
+                <mat-icon>warning</mat-icon>
+                <span>
+                  Hay <strong>{{ casinoContradice().length }}</strong> grupo(s) con un casino
+                  distinto del que traen por defecto. El backend lo rechaza con
+                  <code>CASINO_CONTRADICE_GRUPO</code>: déjalos en su política por defecto o
+                  cámbiale el defecto al grupo.
+                </span>
+              </div>
+            }
+
+            <div class="tab-actions">
+              <span class="tab-hint">{{ centroCasinoNombre() }}</span>
+              @if (casinoSucio()) {
+                <span class="paso-badge badge-vacio">Cambios sin guardar</span>
+              }
+              <span class="grow"></span>
+              <button mat-button (click)="descartarCentroCasino()"
+                      [disabled]="!casinoSucio() || guardandoCentroCasino()">
+                <mat-icon>undo</mat-icon><span>Descartar</span>
+              </button>
+              <button mat-flat-button class="btn-managerial" (click)="guardarCentroCasino()"
+                      [disabled]="!casinoSucio() || casinoContradice().length > 0 || guardandoCentroCasino()">
+                <mat-icon>save</mat-icon><span>Guardar cambios</span>
+              </button>
+            </div>
+
+            <div class="docs-matriz-scroll">
+              <table class="docs-matriz pago-centro">
+                <thead>
+                  <tr>
+                    <th class="col-grupo">Alcance</th>
+                    <th class="col-calendario">Política propia (excepción)</th>
+                    <th class="col-aplica">Casino que aplica</th>
+                    <th>Texto del documento</th>
+                    <th class="col-defecto">Casino por defecto del grupo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (f of filasCasino(); track f.etiqueta) {
+                    @let pol = politicaPorId(f.politica_casino_id);
+                    <tr [class.fila-mal]="f.politica_defecto_id != null && f.politica_casino_id != null
+                                          && f.politica_casino_id !== f.politica_defecto_id">
+                      <td class="col-grupo">
+                        <div class="doc-nombre">{{ f.etiqueta }}</div>
+                        @if (f.grupo_pago_id === null) {
+                          <div class="doc-meta">Solo alcanza a los grupos que no tengan el suyo.</div>
+                        }
+                      </td>
+                      <td class="col-calendario">
+                        <select class="docs-forma pago-select" [ngModel]="f.politica_casino_id ?? null"
+                                (ngModelChange)="cambiarPoliticaDeFila(f, $event)"
+                                [attr.aria-label]="'Política de casino de ' + f.etiqueta">
+                          <option [ngValue]="null">— Sin política propia —</option>
+                          @for (p of politicasActivas(); track p.id) {
+                            <option [ngValue]="p.id">{{ p.codigo }}</option>
+                          }
+                        </select>
+                        <!-- Desde aquí NO se edita el valor: cambiarlo alcanzaría a todos los
+                             centros que usen esa política. Aquí se ELIGE cuál se aplica; el valor
+                             se toca en la pestaña «Políticas de casino». La copia sigue disponible
+                             porque no cambia nada existente: crea otra política. -->
+                        @if (f.politica_casino_id != null) {
+                          <button mat-icon-button class="pago-mini" type="button"
+                                  matTooltip="Duplicar la política para cambiar solo este centro"
+                                  (click)="duplicarPoliticaDeFilaCasino(f)">
+                            <mat-icon>content_copy</mat-icon>
+                          </button>
+                        }
+                      </td>
+                      <td class="col-aplica">
+                        @if (f.grupo_pago_id == null) {
+                          <span class="pago-apagado" matTooltip="Esta fila no aplica por sí sola: es el respaldo de los grupos que no tengan política propia.">
+                            respaldo del centro
+                          </span>
+                        } @else if (resueltoDe(f); as r) {
+                          <span class="pago-aplica">{{ r.politica_casino_codigo }}</span>
+                          <span class="pago-origen">{{ origenResueltoDe(f) }}</span>
+                        } @else if (errorResueltoDe(f); as err) {
+                          <span class="pago-leyenda pago-leyenda-mal">{{ err }}</span>
+                        } @else {
+                          <span class="pago-apagado">…</span>
+                        }
+                      </td>
+                      <td>
+                        @if (f.grupo_pago_id != null && resueltoDe(f); as r) {
+                          {{ r.casino_texto || '—' }}
+                        } @else if (pol) {
+                          {{ pol.texto_documento || '—' }}
+                        } @else {
+                          <span class="pago-apagado">—</span>
+                        }
+                      </td>
+                      <td class="col-defecto">{{ f.politica_defecto_codigo || '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="tab-hint">
+              <strong>«Sin política propia» no es «sin casino»</strong>: ese grupo hereda el de su
+              grupo o el de todo el centro, y la columna <em>Casino que aplica</em> dice cuál y de
+              dónde sale. Guardar deja <strong>exactamente</strong> estas filas: las que queden
+              «sin política propia» se dan de baja. Una política en uso no se puede retirar
+              (<code>POLITICA_EN_USO</code>).
+            </p>
+          }
+        </div>
+      </mat-tab>
+
+    </mat-tab-group>
+  </mat-card-content>
+</mat-card>

@@ -13,6 +13,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 
 import { EventEmitter, Output } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import { AntecedenteEstadoFuente, AntecedenteFuente, CandidatoRecienteItem, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { docKey } from '@/app/shared/utils/tipo-doc.util';
@@ -25,7 +26,8 @@ import { docKey } from '@/app/shared/utils/tipo-doc.util';
     SharedModule,
     MatButtonModule,
     MatSlideToggleModule,
-    MatSelectModule
+    MatSelectModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './search-for-candidate.component.html',
   styleUrl: './search-for-candidate.component.css',
@@ -105,6 +107,50 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   /* Lista por orden de llegada (consultados o llenando el formulario) */
   recientes: CandidatoRecienteItem[] = [];
   recientesLoading = false;
+
+  /**
+   * Columnas de la cola en la tabla estándar. El «#» de llegada lo pone la
+   * tabla (numera las filas en el orden del backend); «Atender» va en las
+   * acciones de la fila.
+   */
+  readonly columnasRecientes: ColumnaTabla<CandidatoRecienteItem>[] = [
+    { id: 'documento', header: 'Documento', tarjeta: 'subtitulo',
+      valor: (r) => `${r.tipo_doc ?? ''} ${r.numero_documento ?? ''}`.trim() },
+    { id: 'nombre', header: 'Apellidos Nombres', tarjeta: 'titulo', minAncho: '180px',
+      valor: (r) => r.apellidos_nombres ?? '', formato: (r) => r.apellidos_nombres || '—' },
+    { id: 'hora', header: 'Hora de llegada', tarjeta: 'meta',
+      valor: (r) => this.horaLlegada(r.updated_at) },
+    { id: 'oficina', header: 'Oficina', prioridad: 2, tarjeta: 'meta',
+      valor: (r) => r.oficina ?? '', formato: (r) => r.oficina || '—' },
+    { id: 'barrio', header: 'Barrio', prioridad: 3, tarjeta: 'cuerpo',
+      valor: (r) => r.barrio ?? '', formato: (r) => r.barrio || '—' },
+    { id: 'municipio', header: 'Municipio', prioridad: 3, tarjeta: 'cuerpo',
+      valor: (r) => r.municipio ?? '', formato: (r) => r.municipio || '—' },
+    { id: 'departamento', header: 'Departamento', prioridad: 3, tarjeta: 'cuerpo',
+      valor: (r) => r.departamento ?? '', formato: (r) => r.departamento || '—' },
+    { id: 'edad', header: 'Edad', align: 'right', prioridad: 2, tarjeta: 'meta',
+      valor: (r) => r.edad ?? null, formato: (r) => (r.edad != null ? String(r.edad) : '—') },
+    { id: 'experiencia', header: 'Experiencia', prioridad: 2, tarjeta: 'cuerpo',
+      valor: (r) => (r.tiene_experiencia ? (r.area_experiencia ? `Sí · ${r.area_experiencia}` : 'Sí') : 'No') },
+    { id: 'antecedentes', header: 'Antecedentes', prioridad: 2, tarjeta: 'cuerpo',
+      valor: (r) => this.antecedentesLabel(r) },
+    { id: 'formulario', header: 'Formulario', tarjeta: 'badge',
+      valor: (r) => (r.formulario_completo ? 'Completo' : (r.formulario_paso || 0) >= 1 ? 'Paso 1' : 'Sin iniciar') },
+    { id: 'carnet', header: 'Carnet', prioridad: 2, tarjeta: 'badge',
+      valor: (r) => (r.carnet_generado ? 'Generado' : 'Pendiente') },
+  ];
+  readonly idReciente = (r: CandidatoRecienteItem, i: number) => this.trackByRecienteId(i, r);
+  /** Las ya atendidas hoy van al final y atenuadas (antes `.fila-atendida`). */
+  readonly claseReciente = (r: CandidatoRecienteItem) => (r.atendido_hoy ? 'te-fila--atenuada' : '');
+
+  /** «HH:mm» local de la llegada (lo mismo que pintaba `date:'HH:mm'`); ordena bien como texto. */
+  private horaLlegada(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  }
+
   /**
    * Cada refresco cuesta caro: `/candidatos/recientes/` consulta candidatos,
    * sus entrevistas con proceso y contrato, y el estado de los robots por

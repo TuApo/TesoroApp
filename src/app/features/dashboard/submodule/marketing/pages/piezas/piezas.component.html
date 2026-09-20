@@ -1,0 +1,151 @@
+<section class="piezas">
+  <header class="cabecera">
+    <div>
+      <h2>Piezas</h2>
+      <p class="sub">
+        El material de cada vacante: lo que generó la plataforma y lo que subió el equipo.
+        Descárgalo con su texto y compártelo.
+      </p>
+    </div>
+    <button type="button" class="btn" (click)="mostrandoSubida.set(true)">
+      <mat-icon>upload</mat-icon> Subir pieza
+    </button>
+  </header>
+
+  <div class="barra">
+    <div class="campo-vacante">
+      <label for="vac">Vacante</label>
+      <input id="vac" type="number" inputmode="numeric" [(ngModel)]="vacanteFiltro"
+             name="vac" placeholder="número" (keyup.enter)="buscarVacante()">
+    </div>
+    <button type="button" class="btn" (click)="buscarVacante()">
+      <mat-icon>search</mat-icon> Ver sus piezas
+    </button>
+    <button type="button" class="btn primario" (click)="generar()" [disabled]="generando()">
+      <mat-icon>auto_awesome</mat-icon>
+      {{ generando() ? 'Generando…' : 'Generar piezas' }}
+    </button>
+    <span class="espacio"></span>
+    <button type="button" class="btn plano" (click)="vacanteFiltro=''; cargarGaleria()">
+      Ver todas
+    </button>
+  </div>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <div class="vacio" *ngIf="!cargando() && !hayPiezas()">
+    <mat-icon>image_not_supported</mat-icon>
+    <p>
+      Aquí no hay piezas todavía. Escribe el número de una vacante y pulsa
+      «Generar piezas», o sube una tuya.
+    </p>
+  </div>
+
+  <p class="conteo" *ngIf="hayPiezas()">
+    {{ piezas().length }} piezas · {{ generadas() }} generadas · {{ subidas() }} subidas
+  </p>
+
+  <ul class="rejilla" *ngIf="hayPiezas()">
+    <li *ngFor="let p of piezas(); trackBy: trackPieza" class="tarjeta">
+      <button type="button" class="lienzo" [attr.data-pieza]="p.id" (click)="abrir(p)"
+              [style.aspect-ratio]="(p.ancho_px && p.alto_px) ? p.ancho_px + ' / ' + p.alto_px : '4 / 5'">
+        <img *ngIf="previa(p) as url; else marcador" [src]="url" [alt]="p.titulo || 'Pieza'">
+        <ng-template #marcador>
+          <span class="marcador">
+            <mat-icon>{{ p.tiene_pdf && !p.tiene_imagen ? 'picture_as_pdf' : 'image' }}</mat-icon>
+            <small>{{ p.tiene_imagen ? 'Ver' : 'PDF' }}</small>
+          </span>
+        </ng-template>
+      </button>
+
+      <div class="datos">
+        <span class="formato">{{ etiquetaFormato(p.formato) }}</span>
+        <span class="titulo">{{ p.titulo || '(sin título)' }}</span>
+        <span class="medida" *ngIf="p.ancho_px">{{ p.ancho_px }} × {{ p.alto_px }}</span>
+        <span class="fallo" *ngIf="p.error_detalle">{{ p.error_detalle }}</span>
+      </div>
+
+      <div class="acciones">
+        <button type="button" class="mini" *ngIf="p.tiene_imagen"
+                (click)="descargar(p,'imagen')" title="Descargar imagen">
+          <mat-icon>download</mat-icon>
+        </button>
+        <button type="button" class="mini" *ngIf="p.tiene_pdf"
+                (click)="descargar(p,'pdf')" title="Descargar PDF">
+          <mat-icon>picture_as_pdf</mat-icon>
+        </button>
+        <button type="button" class="mini" *ngIf="p.copy_texto"
+                (click)="copiarTexto(p)" title="Copiar el texto">
+          <mat-icon>content_copy</mat-icon>
+        </button>
+      </div>
+    </li>
+  </ul>
+</section>
+
+<!-- ── pieza abierta ─────────────────────────────────────────────────────── -->
+<div class="capa" *ngIf="abierta() as p" (click)="cerrar()">
+  <div class="visor" (click)="$event.stopPropagation()">
+    <header>
+      <div>
+        <h3>{{ p.titulo || 'Pieza' }}</h3>
+        <span class="sub">{{ etiquetaFormato(p.formato) }}<span *ngIf="p.ancho_px"> · {{ p.ancho_px }} × {{ p.alto_px }}</span></span>
+      </div>
+      <button type="button" class="mini" (click)="cerrar()"><mat-icon>close</mat-icon></button>
+    </header>
+
+    <img *ngIf="previa(p) as url" [src]="url" [alt]="p.titulo || 'Pieza'">
+    <p class="cargando" *ngIf="!previa(p) && p.tiene_imagen">Cargando la vista…</p>
+    <p class="nota" *ngIf="!p.tiene_imagen">Esta pieza es un PDF: descárgala para verla.</p>
+
+    <div class="copy" *ngIf="p.copy_texto">
+      <div class="copy-cab">
+        <span>Texto para acompañarla</span>
+        <button type="button" class="btn pequeno" (click)="copiarTexto(p)">
+          <mat-icon>content_copy</mat-icon> Copiar
+        </button>
+      </div>
+      <pre>{{ p.copy_texto }}</pre>
+    </div>
+
+    <div class="visor-acciones">
+      <button type="button" class="btn" *ngIf="p.tiene_imagen" (click)="descargar(p,'imagen')">
+        <mat-icon>download</mat-icon> Descargar imagen
+      </button>
+      <button type="button" class="btn" *ngIf="p.tiene_pdf" (click)="descargar(p,'pdf')">
+        <mat-icon>picture_as_pdf</mat-icon> Descargar PDF
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── subir pieza ───────────────────────────────────────────────────────── -->
+<div class="capa" *ngIf="mostrandoSubida()" (click)="mostrandoSubida.set(false)">
+  <div class="dialogo" (click)="$event.stopPropagation()">
+    <h3>Subir una pieza</h3>
+    <p class="sub">
+      Para material que hizo alguien del equipo. Puedes vincularla a varias vacantes a la vez.
+    </p>
+
+    <label for="arch">Archivo</label>
+    <input id="arch" type="file" accept="image/*,application/pdf" (change)="elegirArchivo($event)">
+
+    <label for="tit">Título</label>
+    <input id="tit" type="text" [(ngModel)]="tituloNuevo" name="tit"
+           placeholder="Cómo aparecerá en la galería">
+
+    <label for="dest">Vacantes (números separados por coma)</label>
+    <input id="dest" type="text" [(ngModel)]="destinosNuevos" name="dest" placeholder="1760, 1761">
+
+    <label for="cp">Texto para acompañarla (opcional)</label>
+    <textarea id="cp" rows="3" [(ngModel)]="copyNuevo" name="cp"></textarea>
+
+    <div class="dialogo-acciones">
+      <button type="button" class="btn" (click)="mostrandoSubida.set(false)">Cancelar</button>
+      <button type="button" class="btn primario" (click)="subir()"
+              [disabled]="subiendo() || !archivoElegido || !tituloNuevo.trim()">
+        {{ subiendo() ? 'Subiendo…' : 'Subir' }}
+      </button>
+    </div>
+  </div>
+</div>

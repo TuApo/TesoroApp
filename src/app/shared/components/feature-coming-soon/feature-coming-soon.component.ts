@@ -41,11 +41,11 @@ import { MatIconModule } from '@angular/material/icon';
     .page-wrap { display:flex; align-items:flex-start; justify-content:center; padding:32px 16px; }
     .card { max-width: 720px; width: 100%; padding: 24px 28px; border-left: 4px solid #f59e0b; }
     .head { display:flex; align-items:center; gap:12px; margin-bottom: 8px; }
-    .icon { color:#f59e0b; font-size: 32px; height: 32px; width: 32px; }
-    .title { margin: 0; font-size: 22px; font-weight: 600; color:#1f2937; }
-    .lead { margin: 12px 0 6px; color:#374151; font-size: 15px; }
-    .sub  { margin: 0 0 12px; color:#4b5563; font-size: 14px; line-height: 1.55; }
-    .hint { margin: 0; font-size: 13px; color:#6b7280; }
+    .icon { color: #f59e0b; color: light-dark(#f59e0b, #f7d397); font-size: 32px; height: 32px; width: 32px; }
+    .title { margin: 0; font-size: 22px; font-weight: 600; color: var(--text); }
+    .lead { margin: 12px 0 6px; color: var(--text-2); font-size: 15px; }
+    .sub  { margin: 0 0 12px; color: var(--text-2); font-size: 14px; line-height: 1.55; }
+    .hint { margin: 0; font-size: 13px; color: var(--muted); }
   `]
 })
 export class FeatureComingSoonComponent {

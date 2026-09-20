@@ -1,6 +1,7 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
 
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { EmptyStateComponent } from '../../../metricas/shared/components/empty-state/empty-state.component';
 import * as _moment from 'moment';
@@ -26,7 +27,7 @@ export type TimelineDimension = 'oficina' | 'empresa' | 'usuario_responsable';
   selector: 'app-contratacion-timeline-chart',
   standalone: true,
   imports: [NgxEchartsDirective, EmptyStateComponent],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   template: `
     @if (hasData) {
       <div class="chart-container">

@@ -23,7 +23,7 @@
 .sub {
   margin: 0;
   max-width: 78ch;
-  color: rgba(0, 0, 0, .6);
+  color: rgb(var(--ink-rgb) / 0.6);
   font-size: .9rem;
   line-height: 1.45;
 }
@@ -77,7 +77,7 @@
 .campos {
   margin: 4px 0 16px;
   box-shadow: none;
-  border: 1px solid rgba(0, 0, 0, .12);
+  border: 1px solid rgb(var(--ink-rgb) / 0.12);
 }
 
 .lista-campos {
@@ -116,15 +116,15 @@
 /* ── Sobre (vista previa) ─────────────────────────────────────────────── */
 .sobre {
   margin-top: 16px;
-  border: 1px solid rgba(0, 0, 0, .14);
+  border: 1px solid rgb(var(--ink-rgb) / 0.14);
   border-radius: 8px;
   overflow: hidden;
 }
 
 .sobre-cabecera {
   padding: 12px 16px;
-  background: #fafbfc;
-  border-bottom: 1px solid rgba(0, 0, 0, .1);
+  background: var(--surface-2);
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.1);
   font-size: .85rem;
   line-height: 1.7;
 }
@@ -132,7 +132,7 @@
 .etq {
   display: inline-block;
   min-width: 66px;
-  color: rgba(0, 0, 0, .5);
+  color: rgb(var(--ink-rgb) / 0.5);
 }
 
 /* El HTML de correo trae ancho fijo de 600px: se deja desbordar dentro de su
@@ -140,7 +140,7 @@
 .sobre-cuerpo {
   max-height: 560px;
   overflow: auto;
-  background: #fff;
+  background: var(--surface);
 }
 
 .sobre-cuerpo :is(table, td) { max-width: 100%; }
@@ -154,8 +154,8 @@
   padding: 10px 12px;
   border-left: 3px solid #f5a623;
   border-radius: 4px;
-  background: #fff8e8;
-  color: #6b4a00;
+  background: #fff8e8; background: light-dark(#fff8e8, #383224);
+  color: #6b4a00; color: light-dark(#6b4a00, #f7d997);
   font-size: .85rem;
   line-height: 1.5;
 }
@@ -170,7 +170,7 @@
 .advertencia code {
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, .08);
+  background: rgb(var(--ink-rgb) / 0.08);
   font-size: .85em;
 }
 
@@ -184,11 +184,11 @@
   font-weight: 600;
 }
 
-.estrella { color: #f5a623; }
+.estrella { color: #f5a623; color: light-dark(#f5a623, #f7d397); }
 
 .rejilla {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -209,7 +209,7 @@
 }
 
 .tenue {
-  color: rgba(0, 0, 0, .55);
+  color: rgb(var(--ink-rgb) / 0.55);
   font-size: .78rem;
 }
 
@@ -217,7 +217,7 @@
   margin: 8px 0 12px;
   padding: 6px 10px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, .04);
+  background: rgb(var(--ink-rgb) / 0.04);
   font-size: .8rem;
   line-height: 1.4;
   word-break: break-word;
@@ -233,15 +233,15 @@
 .chip-neutro {
   padding: 2px 9px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, .07);
-  color: rgba(0, 0, 0, .68);
+  background: rgb(var(--ink-rgb) / 0.07);
+  color: rgb(var(--ink-rgb) / 0.68);
   font-size: .72rem;
 }
 
 .vacio {
   padding: 40px 0;
   text-align: center;
-  color: rgba(0, 0, 0, .55);
+  color: rgb(var(--ink-rgb) / 0.55);
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
@@ -250,5 +250,5 @@
   .fila-campos mat-form-field,
   .fila-campos .ancho,
   .compacto { width: 100%; }
-  .rejilla { grid-template-columns: 1fr; }
+  .rejilla { grid-template-columns: minmax(0, 1fr); }
 }

@@ -1,81 +1,71 @@
-.pantalla { padding: 24px; max-width: 1150px; margin: 0 auto; color: #12252f; }
+.pantalla { padding: 24px; max-width: 1150px; margin: 0 auto; color: var(--text); }
 
 .cabecera {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; flex-wrap: wrap; margin-bottom: 18px;
 }
-.cabecera h1 { font-size: 1.7rem; font-weight: 700; color: #194262; margin: 0; }
-.subtitulo { color: #55707d; margin: 4px 0 0; font-size: .93rem; max-width: 660px; line-height: 1.4; }
+.cabecera h1 { font-size: 1.7rem; font-weight: 700; color: #194262; color: light-dark(#194262, #a6cbe8); margin: 0; }
+.subtitulo { color: var(--muted); margin: 4px 0 0; font-size: .93rem; max-width: 660px; line-height: 1.4; }
 .titulo-con-volver { display: flex; align-items: flex-start; gap: 8px; }
 .acciones-estado { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ── Pestañas ──────────────────────────────────────────────────────────────── */
 
-.pestanas { display: flex; gap: 4px; border-bottom: 2px solid #e6edf2; margin-bottom: 18px; }
+.pestanas { display: flex; gap: 4px; border-bottom: 2px solid var(--border); margin-bottom: 18px; }
 .pestanas button {
   border: none; background: transparent; cursor: pointer;
-  padding: 12px 18px; font-size: 1rem; font-weight: 600; color: #55707d;
+  padding: 12px 18px; font-size: 1rem; font-weight: 600; color: var(--muted);
   border-bottom: 3px solid transparent; margin-bottom: -2px;
 }
-.pestanas button.activa { color: #194262; border-bottom-color: #194262; }
+.pestanas button.activa { color: #194262; color: light-dark(#194262, #a6cbe8); border-bottom-color: #194262; }
 
 /* ── Panel ─────────────────────────────────────────────────────────────────── */
 
 .panel {
-  background: #fff; border: 1px solid #cfdae2; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 14px;
   padding: 20px; margin-bottom: 18px;
 }
-.panel h2 { font-size: 1.1rem; color: #194262; margin: 0 0 6px; }
+.panel h2 { font-size: 1.1rem; color: #194262; color: light-dark(#194262, #a6cbe8); margin: 0 0 6px; }
 .campos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .panel label { display: flex; flex-direction: column; gap: 6px; font-size: .94rem; }
-.panel label > span { font-weight: 600; color: #33505f; }
-.panel small { color: #6b8794; font-size: .82rem; }
-.ayuda { font-size: .88rem; color: #6b8794; margin: 0 0 12px; line-height: 1.45; }
+.panel label > span { font-weight: 600; color: #33505f; color: light-dark(#33505f, #aecfe0); }
+.panel small { color: var(--muted); font-size: .82rem; }
+.ayuda { font-size: .88rem; color: var(--muted); margin: 0 0 12px; line-height: 1.45; }
 
 .panel input, .panel select, .panel textarea {
-  border: 1px solid #cfdae2; border-radius: 8px; padding: 10px 12px;
-  min-height: 44px; font-size: 1rem; font-family: inherit; background: #fff; color: #12252f;
+  border: 1px solid var(--border-strong); border-radius: 8px; padding: 10px 12px;
+  min-height: 44px; font-size: 1rem; font-family: inherit; background: var(--surface); color: var(--text);
   width: 100%; box-sizing: border-box;
 }
 .panel textarea { min-height: 72px; resize: vertical; font-family: ui-monospace, Menlo, monospace; }
-.panel select:disabled { background: #f2f5f7; color: #8fa3ae; }
+.panel select:disabled { background: var(--surface-3); color: var(--text-faint); }
 
 .fila-fecha { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
 .fila-fecha label { max-width: 220px; }
 
 .acciones-panel { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
-/* ── Tabla ─────────────────────────────────────────────────────────────────── */
+/* ── Celdas propias (plantillas tablaCelda) ─────────────────────────────────── */
 
-.tabla { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
-.tabla th, .tabla td { padding: 12px 14px; text-align: left; border-bottom: 1px solid #e6edf2; }
-.tabla th { background: #f4f8fb; font-size: .82rem; text-transform: uppercase; color: #55707d; }
-.tabla tr:last-child td { border-bottom: none; }
-.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; color: #40606f; }
-
-.enlace {
-  background: none; border: none; padding: 0; font: inherit; font-weight: 600;
-  color: #194262; cursor: pointer; text-decoration: underline; text-align: left;
-}
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; color: #40606f; color: light-dark(#40606f, #aed0e0); }
 
 .chip { font-size: .76rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; margin-left: 6px; }
-.chip-abierto { background: #d6f0dd; color: #14532d; }
-.chip-curso { background: #dfe9f5; color: #12395f; }
-.chip-cerrado { background: #e4e9ec; color: #44585f; }
-.chip-ok { background: #d6f0dd; color: #14532d; }
-.chip-mal { background: #fadada; color: #7a1414; }
+.chip-abierto { background: #d6f0dd; background: light-dark(#d6f0dd, #193434); color: #14532d; color: light-dark(#14532d, #a5e9c0); }
+.chip-curso { background: var(--surface-4); color: #12395f; color: light-dark(#12395f, #a1c7ed); }
+.chip-cerrado { background: var(--surface-4); color: var(--text-2); }
+.chip-mal { background: #fadada; background: light-dark(#fadada, #331b29); color: #7a1414; color: light-dark(#7a1414, #ef9f9f); }
 
 /* ── Marcas de asistencia ──────────────────────────────────────────────────── */
 
 .marcas { display: flex; gap: 6px; flex-wrap: wrap; }
 .marca {
-  border: 2px solid #cfdae2; background: #fff; border-radius: 8px;
+  border: 2px solid var(--border-strong); background: var(--surface); border-radius: 8px;
   padding: 8px 12px; min-height: 42px; cursor: pointer;
-  font-size: .9rem; font-weight: 600; color: #55707d;
+  font-size: .9rem; font-weight: 600; color: var(--muted);
 }
-.marca.elegida.presente { border-color: #2d6a4f; background: #d6f0dd; color: #14532d; }
-.marca.elegida.ausente { border-color: #a33131; background: #fadada; color: #7a1414; }
-.marca.elegida.justificado { border-color: #b47b00; background: #ffe9c7; color: #6b3d00; }
+.marca.elegida.presente { border-color: #2d6a4f; background: #d6f0dd; background: light-dark(#d6f0dd, #193434); color: #14532d; color: light-dark(#14532d, #a5e9c0); }
+.marca.elegida.ausente { border-color: #a33131; background: #fadada; background: light-dark(#fadada, #331b29); color: #7a1414; color: light-dark(#7a1414, #ef9f9f); }
+.marca.elegida.justificado { border-color: #b47b00; background: #ffe9c7; background: light-dark(#ffe9c7, #382f24); color: #6b3d00; color: light-dark(#6b3d00, #f7ce97); }
 
 /* ── Botones y estados ─────────────────────────────────────────────────────── */
 
@@ -86,30 +76,25 @@
 }
 .btn-primario { background: #194262; color: #fff; }
 .btn-primario:disabled { background: #9db4c0; cursor: not-allowed; }
-.btn-secundario { background: #fff; color: #194262; border-color: #194262; }
+.btn-secundario { background: var(--surface); color: #194262; color: light-dark(#194262, #a6cbe8); border-color: #194262; }
 .pequeno { min-height: 38px; padding: 0 12px; font-size: .9rem; }
 
 .btn-icono {
   min-width: 40px; min-height: 40px; border: none; background: transparent;
-  cursor: pointer; color: #33505f; border-radius: 8px;
+  cursor: pointer; color: #33505f; color: light-dark(#33505f, #aecfe0); border-radius: 8px;
 }
-.btn-icono:hover { background: #eef3f7; }
-.btn-icono.peligro { color: #a33131; }
+.btn-icono:hover { background: var(--surface-3); }
+.btn-icono.peligro { color: #a33131; color: light-dark(#a33131, #e5a9a9); }
 
-.cargando { padding: 24px 0; font-size: 1.05rem; }
 .aviso-error {
   display: flex; align-items: center; gap: 10px;
-  background: #fde8e8; color: #7a1414; border: 1px solid #d88a8a;
+  background: #fde8e8; background: light-dark(#fde8e8, #351927); color: #7a1414; color: light-dark(#7a1414, #ef9f9f); border: 1px solid #d88a8a;
   border-radius: 10px; padding: 14px;
 }
-.vacio { text-align: center; padding: 44px 16px; color: #55707d; }
-.vacio mat-icon { font-size: 48px; height: 48px; width: 48px; color: #9db4c0; }
+.vacio { text-align: center; padding: 44px 16px; color: var(--muted); }
+.vacio mat-icon { font-size: 48px; height: 48px; width: 48px; color: var(--text-faint); }
 
 @media (max-width: 900px) {
   .pantalla { padding: 16px; }
-  .campos { grid-template-columns: 1fr; }
-  .tabla thead { display: none; }
-  .tabla tr { display: block; border: 1px solid #e6edf2; border-radius: 10px; margin-bottom: 10px; }
-  .tabla td { display: flex; justify-content: space-between; gap: 12px; border: none; }
-  .marcas { justify-content: flex-end; }
+  .campos { grid-template-columns: minmax(0, 1fr); }
 }

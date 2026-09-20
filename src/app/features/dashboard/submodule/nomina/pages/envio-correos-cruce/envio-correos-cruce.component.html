@@ -66,13 +66,6 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="buscador">
-          <mat-label>Cédula o nombre</mat-label>
-          <input matInput [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
-                 (keyup.enter)="consultar(true)" placeholder="Buscar…" />
-          <mat-icon matSuffix>search</mat-icon>
-        </mat-form-field>
-
         <button mat-flat-button color="primary" (click)="consultar(true)" [disabled]="cargando()">
           <mat-icon>filter_alt</mat-icon> Aplicar
         </button>
@@ -187,103 +180,76 @@
     </mat-card>
   }
 
-  <!-- ── Tabla ──────────────────────────────────────────────────────────── -->
+  <!-- ── Tabla (modo servidor: el backend pagina y busca por cédula o nombre) ── -->
   @if (datos(); as d) {
     <mat-card class="tarjeta">
       <mat-card-content>
-        <table mat-table [dataSource]="filas()" class="tabla">
+        <app-tabla-estandar
+          id="nomina-envio-correos-cruce"
+          titulo="Cruce por quincena"
+          modulo="Nómina"
+          entidad="tabla_desprendibles"
+          busqueda="Cédula o nombre…"
+          vacio="No hay filas para los filtros seleccionados."
+          [datos]="filas()"
+          [columnas]="columnas()"
+          [filaId]="idFila"
+          [cargando]="cargando()"
+          [totalServidor]="d.total_elements"
+          [filasPorPagina]="tamanoPagina()"
+          (paginaCambio)="onPagina($event)"
+          (busquedaCambio)="onBuscar($event)">
 
-          <ng-container matColumnDef="cedula">
-            <th mat-header-cell *matHeaderCellDef>Cédula</th>
-            <td mat-cell *matCellDef="let f"><strong>{{ f.cedula }}</strong></td>
-          </ng-container>
+          <ng-template tablaCelda="cedula" let-f><strong>{{ f.cedula }}</strong></ng-template>
 
-          <ng-container matColumnDef="nombre">
-            <th mat-header-cell *matHeaderCellDef>Nombre</th>
-            <td mat-cell *matCellDef="let f">{{ f.nombre }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="finca">
-            <th mat-header-cell *matHeaderCellDef>Finca</th>
-            <td mat-cell *matCellDef="let f" class="tenue">{{ f.finca || '—' }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="correo">
-            <th mat-header-cell *matHeaderCellDef>Correo</th>
-            <td mat-cell *matCellDef="let f">
-              @if (f.sin_correo) {
-                <span class="pill alerta" matTooltip="Sin correo no se le podrá enviar nada">
-                  <mat-icon>mail_outline</mat-icon> Sin correo
-                </span>
-              } @else {
-                <span class="correo">{{ f.correo }}</span>
-              }
-            </td>
-          </ng-container>
+          <ng-template tablaCelda="correo" let-f>
+            @if (f.sin_correo) {
+              <span class="pill alerta" matTooltip="Sin correo no se le podrá enviar nada">
+                <mat-icon>mail_outline</mat-icon> Sin correo
+              </span>
+            } @else {
+              <span class="correo">{{ f.correo }}</span>
+            }
+          </ng-template>
 
           <!-- Columna de respaldo cuando no hay cargas elegidas: sin tipos que
                desglosar, al menos se ve quién tiene documento y quién no. -->
-          <ng-container matColumnDef="archivo">
-            <th mat-header-cell *matHeaderCellDef>Archivo</th>
-            <td mat-cell *matCellDef="let f">
-              @if (f.estado_archivo === 'SUBIDO') {
-                <button mat-stroked-button class="btn-doc" (click)="verDocumento(f)">
-                  <mat-icon>picture_as_pdf</mat-icon> Ver documento
-                </button>
-                <div class="tenue">{{ f.nombre_archivo }} · {{ tamanoLegible(f.tamano_bytes) }}</div>
-              } @else {
-                <span class="pill alerta"><mat-icon>error_outline</mat-icon> Falta</span>
-                <!-- Respaldo del histórico: las filas viejas solo tienen el
-                     enlace de Drive y no se van a migrar. -->
-                @if (f.link_legacy && f.link_legacy.startsWith('http')) {
-                  <a class="link-legacy" [href]="f.link_legacy" target="_blank" rel="noopener"
-                     matTooltip="Enlace antiguo de Drive (no está en la plataforma)">
-                    <mat-icon>link</mat-icon> Enlace antiguo
-                  </a>
-                }
+          <ng-template tablaCelda="archivo" let-f>
+            @if (f.estado_archivo === 'SUBIDO') {
+              <button mat-stroked-button class="btn-doc" (click)="verDocumento(f)">
+                <mat-icon>picture_as_pdf</mat-icon> Ver documento
+              </button>
+              <div class="tenue">{{ f.nombre_archivo }} · {{ tamanoLegible(f.tamano_bytes) }}</div>
+            } @else {
+              <span class="pill alerta"><mat-icon>error_outline</mat-icon> Falta</span>
+              <!-- Respaldo del histórico: las filas viejas solo tienen el
+                   enlace de Drive y no se van a migrar. -->
+              @if (f.link_legacy && f.link_legacy.startsWith('http')) {
+                <a class="link-legacy" [href]="f.link_legacy" target="_blank" rel="noopener"
+                   matTooltip="Enlace antiguo de Drive (no está en la plataforma)">
+                  <mat-icon>link</mat-icon> Enlace antiguo
+                </a>
               }
-            </td>
-          </ng-container>
+            }
+          </ng-template>
 
           <!-- Una columna por tipo documental presente en las cargas elegidas:
                reproduce la hoja original (Desprendibles, Certificaciones,
                Cartas de retiro...) para ver a quién le falta QUÉ. -->
-          @for (col of columnas(); track col) {
-            @if (esColumnaTipo(col)) {
-              <ng-container [matColumnDef]="col">
-                <th mat-header-cell *matHeaderCellDef>{{ tipoDeColumna(col) }}</th>
-                <td mat-cell *matCellDef="let f">
-                  @if (documentoDeTipo(f, tipoDeColumna(col)); as doc) {
-                    <button mat-stroked-button class="btn-doc"
-                            (click)="verDocumentoDe(f, doc)"
-                            [matTooltip]="doc.carpeta_raiz || ''">
-                      <mat-icon>visibility</mat-icon> Ver
-                    </button>
-                  } @else {
-                    <span class="pill alerta"><mat-icon>remove</mat-icon> Falta</span>
-                  }
-                </td>
-              </ng-container>
-            }
+          @for (tipo of tiposPresentes(); track tipo) {
+            <ng-template [tablaCelda]="'tipo:' + tipo" let-f>
+              @if (documentoDeTipo(f, tipo); as doc) {
+                <button mat-stroked-button class="btn-doc"
+                        (click)="verDocumentoDe(f, doc)"
+                        [matTooltip]="doc.carpeta_raiz || ''">
+                  <mat-icon>visibility</mat-icon> Ver
+                </button>
+              } @else {
+                <span class="pill alerta"><mat-icon>remove</mat-icon> Falta</span>
+              }
+            </ng-template>
           }
-
-          <ng-container matColumnDef="enviado">
-            <th mat-header-cell *matHeaderCellDef>Envío</th>
-            <td mat-cell *matCellDef="let f" class="tenue">{{ f.confirmacion_envio || '—' }}</td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="columnas()"></tr>
-          <tr mat-row *matRowDef="let row; columns: columnas();"></tr>
-        </table>
-
-        @if (!filas().length && !cargando()) {
-          <p class="vacio">No hay filas para los filtros seleccionados.</p>
-        }
-
-        <mat-paginator [length]="d.total_elements" [pageIndex]="d.page"
-                       [pageSize]="tamanoPagina()" [pageSizeOptions]="[25, 50, 100, 200]"
-                       (page)="onPagina($event)">
-        </mat-paginator>
+        </app-tabla-estandar>
       </mat-card-content>
     </mat-card>
   }

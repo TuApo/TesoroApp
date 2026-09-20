@@ -1,0 +1,133 @@
+/* Marketplace del colaborador. Los tokens y las clases `tienda-*` vienen de
+   ../../styles/tienda-comun.css; aquí solo va lo propio de esta pantalla. */
+
+.cupo-caja {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  padding: .6rem 1rem;
+  border-radius: 10px;
+  background: rgba(76, 175, 80, .12);
+  border: 1px solid rgba(76, 175, 80, .35);
+  min-width: 220px;
+}
+.cupo-caja.cupo-corto {
+  background: rgba(244, 67, 54, .12);
+  border-color: rgba(244, 67, 54, .4);
+}
+.cupo-etiqueta { font-size: .78rem; opacity: .8; }
+.cupo-valor { font-size: 1.35rem; line-height: 1.2; }
+.cupo-nota { font-size: .74rem; opacity: .75; }
+
+.tienda-aviso.suave {
+  background: rgba(33, 150, 243, .1);
+  border: 1px solid rgba(33, 150, 243, .3);
+}
+
+.barra-tienda {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+.barra-tienda .crecer { flex: 1 1 260px; }
+
+.tienda-unica {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  margin: 0;
+}
+.tienda-unica span { opacity: .75; font-size: .85rem; }
+
+.marketplace-cuerpo {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.rejilla-productos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: 1rem;
+}
+
+.producto { display: flex; flex-direction: column; gap: .35rem; }
+.producto h3 { margin: 0; font-size: 1rem; line-height: 1.3; }
+.producto .marca { margin: 0; font-size: .78rem; opacity: .7; }
+.producto .precio { margin: .2rem 0; font-size: 1.15rem; font-weight: 600; }
+.producto .boton { margin-top: auto; }
+
+.disponibilidad {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  margin: 0;
+  font-size: .78rem;
+  opacity: .85;
+}
+.disponibilidad mat-icon { font-size: 16px; width: 16px; height: 16px; }
+/* Lo que hay que encargar se marca a propósito: la persona tiene que poder decidir si
+   le sirve esperar antes de agregarlo, no descubrirlo al recoger. */
+.disponibilidad.encargo { color: #e08a1e; color: light-dark(#e08a1e, #f2cc9c); opacity: 1; }
+
+.carrito { position: sticky; top: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.carrito h2 {
+  display: flex; align-items: center; gap: .4rem;
+  margin: 0 0 .4rem; font-size: 1.05rem;
+}
+.carrito hr { width: 100%; border: 0; border-top: 1px solid rgba(128, 128, 128, .25); margin: .3rem 0; }
+
+.lineas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .35rem; }
+.lineas li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: .4rem;
+  align-items: center;
+  font-size: .85rem;
+}
+.lineas .cantidad { opacity: .7; }
+.lineas .subtotal { font-variant-numeric: tabular-nums; }
+.quitar {
+  background: none; border: 0; cursor: pointer; padding: 0;
+  color: inherit; opacity: .5; display: flex;
+}
+.quitar:hover { opacity: 1; }
+.quitar mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.total-linea {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin: .4rem 0 0; font-size: 1.05rem;
+}
+
+.cupo-restante {
+  display: flex; align-items: center; gap: .35rem;
+  margin: 0; font-size: .82rem; opacity: .85;
+}
+.cupo-restante mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.cupo-restante.negativo { color: #d33; color: light-dark(#d33, #ef9f9f); opacity: 1; font-weight: 600; }
+
+.cita { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+
+.nota-cupo {
+  display: flex; align-items: flex-start; gap: .35rem;
+  margin: 0; font-size: .78rem; opacity: .8; line-height: 1.4;
+}
+.nota-cupo mat-icon { font-size: 15px; width: 15px; height: 15px; margin-top: .1rem; }
+
+.boton.ancho { width: 100%; justify-content: center; }
+.tercero-nota { font-size: .78rem; text-align: center; }
+
+@media (max-width: 900px) {
+  .marketplace-cuerpo { grid-template-columns: minmax(0, 1fr); }
+  .carrito { position: static; }
+}
+
+@media (max-width: 600px) {
+  .rejilla-productos { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
+  .cita { grid-template-columns: minmax(0, 1fr); }
+  .cupo-caja { width: 100%; }
+}

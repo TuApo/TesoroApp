@@ -7,12 +7,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 
+import { ColumnaTabla, TABLA_ESTANDAR, ValorCelda } from '../../../../../../shared/components/tabla-estandar';
 import {
   ContabilidadService,
   HojaContabilidad,
@@ -25,6 +23,8 @@ interface HojaTab {
   loading: boolean;
   rows: any[];
   columns: string[];
+  /** Columnas de la tabla estandar (se arman al cargar la hoja). */
+  tabla: ColumnaTabla<any>[];
   total: number;
   page: number;
   pageSize: number;
@@ -48,8 +48,8 @@ const HOJA_ICONS: Record<string, string> = {
   imports: [
     CommonModule, MatCardModule, MatIconModule, MatButtonModule,
     MatProgressSpinnerModule, MatToolbarModule, MatTabsModule,
-    MatTooltipModule, MatFormFieldModule, MatInputModule,
-    MatSelectModule, MatChipsModule, MatPaginatorModule,
+    MatTooltipModule,
+    MatSelectModule, MatChipsModule, ...TABLA_ESTANDAR,
   ],
   templateUrl: './analisis-nomina.component.html',
   styleUrls: ['./analisis-nomina.component.css'],
@@ -62,7 +62,6 @@ export class AnalisisNominaComponent implements OnInit {
   loadingHojas = signal(true);
   tabs = signal<HojaTab[]>([]);
   activeTabIndex = signal(0);
-  private searchTimer: any = null;
 
   hasData = computed(() => this.tabs().length > 0);
 
@@ -83,6 +82,7 @@ export class AnalisisNominaComponent implements OnInit {
         loading: false,
         rows: [],
         columns: [],
+        tabla: [],
         total: h.total_filas,
         page: 1,
         pageSize: 50,
@@ -141,6 +141,7 @@ export class AnalisisNominaComponent implements OnInit {
           }
         }
         tab.columns = Array.from(allKeys);
+        tab.tabla = this.columnasTabla(tab);
       }
     } catch (err) {
       console.error('Error cargando registros:', err);
@@ -161,27 +162,26 @@ export class AnalisisNominaComponent implements OnInit {
     }
   }
 
-  onPageChange(event: PageEvent, tabIndex: number): void {
+  /** Paginacion de la tabla estandar (modo servidor): la pagina se pide al backend. */
+  onPageChange(event: { pagina: number; porPagina: number }, tabIndex: number): void {
     const tabsCopy = [...this.tabs()];
     const tab = { ...tabsCopy[tabIndex] };
-    tab.page = event.pageIndex + 1;
-    tab.pageSize = event.pageSize;
+    tab.page = event.pagina + 1;
+    tab.pageSize = event.porPagina;
     tabsCopy[tabIndex] = tab;
     this.tabs.set(tabsCopy);
     this.cargarDatosHoja(tabIndex);
   }
 
+  /** Busqueda de la tabla estandar: ya llega con debounce y va al backend desde la pagina 1. */
   onBuscar(value: string, tabIndex: number): void {
-    clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => {
-      const tabsCopy = [...this.tabs()];
-      const tab = { ...tabsCopy[tabIndex] };
-      tab.buscar = value;
-      tab.page = 1;
-      tabsCopy[tabIndex] = tab;
-      this.tabs.set(tabsCopy);
-      this.cargarDatosHoja(tabIndex);
-    }, 400);
+    const tabsCopy = [...this.tabs()];
+    const tab = { ...tabsCopy[tabIndex] };
+    tab.buscar = value;
+    tab.page = 1;
+    tabsCopy[tabIndex] = tab;
+    this.tabs.set(tabsCopy);
+    this.cargarDatosHoja(tabIndex);
   }
 
   getIcon(nombre: string): string {
@@ -206,6 +206,35 @@ export class AnalisisNominaComponent implements OnInit {
     return tab.columns.slice(0, 30);
   }
 
-  trackByCol(_: number, col: string): string { return col; }
-  trackByRow(i: number): number { return i; }
+  /**
+   * Columnas de la tabla estandar para una hoja (dinamicas: salen del header
+   * de la hoja y de los datos). La pagina y la busqueda van al backend (modo
+   * servidor) y el endpoint no ordena: por eso ninguna es ordenable. En
+   * tarjetas (movil) se muestran las primeras; el resto en la vista tabla.
+   */
+  private columnasTabla(tab: HojaTab): ColumnaTabla<any>[] {
+    const fila: ColumnaTabla<any> = {
+      id: '_fila', header: 'Fila', valor: (row) => row['_fila'], align: 'right',
+      ordenable: false, tarjeta: 'meta', ancho: '56px',
+    };
+    const datos = this.visibleColumns(tab).map((col, i): ColumnaTabla<any> => ({
+      id: col,
+      header: col,
+      ordenable: false,
+      prioridad: i < 6 ? 1 : i < 12 ? 2 : 3,
+      tarjeta: i === 0 ? 'titulo' : i === 1 ? 'subtitulo' : i < 8 ? 'meta' : 'oculto',
+      valor: (row) => valorPlano(row[col]),
+      formato: (row) => this.formatCell(row[col]),
+    }));
+    return [fila, ...datos];
+  }
+
+  readonly idFila = (row: any, i: number) => row?.['_fila'] ?? i;
+}
+
+/** Dato plano para la tabla estandar: numeros como numeros, el resto como texto. */
+function valorPlano(value: any): ValorCelda {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  return String(value);
 }

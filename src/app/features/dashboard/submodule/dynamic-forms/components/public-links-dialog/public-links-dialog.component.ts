@@ -157,7 +157,7 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
       overflow: hidden;
     }
     .pl-titulo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pl-titulo-icon { color: var(--navy); flex-shrink: 0; }
+    .pl-titulo-icon { color: var(--navy-ink); flex-shrink: 0; }
 
     .pl-contenido {
       display: flex;
@@ -172,9 +172,9 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
       gap: 12px;
       flex-wrap: wrap;
       padding: 12px;
-      border: 1px solid var(--slate-200);
+      border: 1px solid var(--border);
       border-radius: 12px;
-      background: var(--slate-50);
+      background: var(--surface-2);
     }
     .pl-campo { flex: 1 1 160px; min-width: 150px; }
     .pl-btn-crear {
@@ -189,7 +189,7 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
     .pl-error-form {
       margin: 0;
       font-size: 0.8rem;
-      color: var(--danger);
+      color: var(--danger); color: light-dark(var(--danger), #f2a29c);
     }
 
     .pl-lista {
@@ -203,7 +203,7 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
       overflow-y: auto;
     }
     .pl-item {
-      border: 1px solid var(--slate-200);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 10px 12px;
       display: flex;
@@ -211,8 +211,8 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
       gap: 6px;
       min-width: 0;
     }
-    .pl-item-muerto { background: var(--slate-50); }
-    .pl-item-muerto .pl-url { color: var(--slate-400); }
+    .pl-item-muerto { background: var(--surface-2); }
+    .pl-item-muerto .pl-url { color: var(--text-faint); }
 
     .pl-item-url {
       display: flex;
@@ -228,7 +228,7 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
       white-space: nowrap;
       font-family: 'Roboto Mono', monospace;
       font-size: 0.82rem;
-      color: var(--slate-700);
+      color: var(--text-2);
     }
 
     .pl-item-meta {
@@ -237,7 +237,7 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
       gap: 12px;
       flex-wrap: wrap;
       font-size: 0.78rem;
-      color: var(--slate-500);
+      color: var(--muted);
     }
     .pl-meta { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
     .pl-meta-icon { font-size: 16px; line-height: 1; }
@@ -252,13 +252,13 @@ type EstadoLink = 'vigente' | 'expirado' | 'revocado';
     }
     .pl-chip-vigente { background: var(--ok-bg); color: var(--ok-fg); border: 1px solid var(--ok-border); }
     .pl-chip-expirado { background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }
-    .pl-chip-revocado { background: #fdecea; color: var(--danger); border: 1px solid #f5c6c0; }
+    .pl-chip-revocado { background: #fdecea; background: light-dark(#fdecea, #341d28); color: var(--danger); color: light-dark(var(--danger), #f2a29c); border: 1px solid #f5c6c0; border: 1px solid light-dark(#f5c6c0, #5f2528); }
 
     .pl-btn-revocar {
       height: 30px !important;
       font-size: 0.75rem !important;
-      color: var(--danger) !important;
-      border-color: #f5c6c0 !important;
+      color: var(--danger) !important; color: light-dark(var(--danger), #f2a29c) !important;
+      border-color: #f5c6c0 !important; border-color: light-dark(#f5c6c0, #5f2528) !important;
     }
 
     .pl-vacio {

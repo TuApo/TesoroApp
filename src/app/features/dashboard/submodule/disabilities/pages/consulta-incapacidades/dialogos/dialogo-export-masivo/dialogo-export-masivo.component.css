@@ -5,16 +5,16 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-success: #2e7d32;
   --disab-danger: #c62828;
   --disab-radius-sm: 10px;
   --disab-gradient: linear-gradient(135deg, #1976d2 0%, #00acc1 100%);
   display: block;
-  background: #f7f9fc;
+  background: var(--surface-2);
 }
 
 /* ── Cabecera ──────────────────────────────────────────────── */
@@ -89,11 +89,11 @@
 .exm-cuerpo {
   padding: 16px 20px 6px !important;
   max-height: 62vh;
-  background: #f7f9fc;
+  background: var(--surface-2);
 }
 
 .exm-bloque {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--disab-border);
   border-radius: 14px;
   padding: 14px 16px;
@@ -131,7 +131,7 @@
 /* ── Tarjetas de tipo ──────────────────────────────────────── */
 .exm-tarjetas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
 }
 
@@ -145,7 +145,7 @@
   padding: 14px 16px;
   border: 1.5px solid var(--disab-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   font: inherit;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
@@ -153,7 +153,7 @@
 
 .exm-tarjeta:hover {
   border-color: rgba(25, 118, 210, 0.4);
-  background: #f8fbff;
+  background: var(--surface);
 }
 
 .exm-tarjeta-activa,
@@ -220,9 +220,9 @@
   margin: 10px 0 0;
   padding: 9px 12px;
   border-radius: var(--disab-radius-sm);
-  background: #fff8e1;
+  background: #fff8e1; background: light-dark(#fff8e1, #383524);
   border: 1px solid rgba(178, 106, 0, 0.25);
-  color: #8a5a00;
+  color: #8a5a00; color: light-dark(#8a5a00, #f7d597);
   font-size: 12.5px;
   line-height: 1.45;
 }
@@ -241,7 +241,7 @@
   margin: 0 0 10px;
   padding: 9px 12px;
   border-radius: var(--disab-radius-sm);
-  background: #eef4fb;
+  background: #eef4fb; background: light-dark(#eef4fb, #172945);
   border: 1px dashed rgba(25, 118, 210, 0.35);
   color: var(--disab-text-muted);
   font-size: 12.5px;
@@ -284,14 +284,14 @@
   align-items: flex-start;
   gap: 12px;
   border-color: rgba(46, 125, 50, 0.3);
-  background: #f2fbf3;
+  background: var(--surface-2);
 }
 
 .exm-listo-icono {
   font-size: 30px;
   width: 30px;
   height: 30px;
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
   flex-shrink: 0;
 }
 
@@ -306,7 +306,7 @@
   margin: 3px 0 0;
   font-size: 12.5px;
   font-weight: 600;
-  color: var(--disab-success);
+  color: var(--disab-success); color: light-dark(var(--disab-success), #ade1b0);
   word-break: break-all;
 }
 
@@ -323,7 +323,7 @@
   align-items: flex-start;
   gap: 12px;
   border-color: rgba(198, 40, 40, 0.3);
-  background: #fff5f5;
+  background: var(--surface-2);
 }
 
 .exm-fallo-icono {
@@ -344,7 +344,7 @@
 .exm-fallo-detalle {
   margin: 3px 0 0;
   font-size: 12.5px;
-  color: #8e1c1c;
+  color: #8e1c1c; color: light-dark(#8e1c1c, #eda1a1);
   line-height: 1.45;
 }
 
@@ -356,9 +356,9 @@
   margin: 0 0 10px;
   padding: 9px 12px;
   border-radius: var(--disab-radius-sm);
-  background: #ffebee;
+  background: #ffebee; background: light-dark(#ffebee, #38162a);
   border: 1px solid rgba(198, 40, 40, 0.25);
-  color: #8e1c1c;
+  color: #8e1c1c; color: light-dark(#8e1c1c, #eda1a1);
   font-size: 12.5px;
 }
 
@@ -372,7 +372,7 @@
 /* ── Acciones ──────────────────────────────────────────────── */
 .exm-acciones {
   padding: 12px 20px 18px !important;
-  background: #f7f9fc;
+  background: var(--surface-2);
   border-top: 1px solid var(--disab-border);
   gap: 8px;
   flex-wrap: wrap;
@@ -397,7 +397,7 @@
 }
 
 .exm-btn-primario[disabled] {
-  background: #cbd5e1 !important;
+  background: var(--border-strong) !important;
   color: #ffffff !important;
 }
 
@@ -408,7 +408,7 @@
   }
 
   .exm-tarjetas {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .exm-acciones {

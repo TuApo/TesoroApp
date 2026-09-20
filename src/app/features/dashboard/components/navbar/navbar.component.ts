@@ -6,9 +6,11 @@ import {
   Output,
   Inject,
   PLATFORM_ID,
+  AfterViewInit,
   HostListener,
   ChangeDetectionStrategy,
   ChangeDetectorRef,
+  inject,
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, NavigationEnd, RouterModule } from '@angular/router';
@@ -23,8 +25,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '../../../../shared/shared.module';
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
-import { getLocalStorageItem, setLocalStorageItem, clearLocalStorage } from '../../../../core/utils/safe-storage';
-import { QuickAccessService } from '../../../../core/security/quick-access.service';
+import { getLocalStorageItem, setLocalStorageItem } from '../../../../core/utils/safe-storage';
+import { ThemeService } from '../../../../core/services/theme.service';
+import { NavegacionService } from '../../../../core/services/navegacion.service';
+import { SesionService } from '../../../../core/services/sesion.service';
 
 export interface PermNode {
   id: string;
@@ -51,11 +55,23 @@ export interface PermNode {
   templateUrl: './navbar.component.html',
   styleUrls: ['./navbar.component.css'],
 })
-export class NavbarComponent implements OnInit, OnDestroy {
+export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
   @Output() public menuToggle = new EventEmitter<boolean>();
+
+  public readonly theme = inject(ThemeService);
+  private readonly navegacion = inject(NavegacionService);
+  private readonly sesion = inject(SesionService);
 
   public isSidebarHidden = false;
   public isMobile = false;
+  /**
+   * Escritorio: menú expandido (iconos + nombres + grupos desplegables) o
+   * compacto (solo iconos, con el panel lateral de siempre). Es preferencia del
+   * dispositivo: sobrevive al logout (ver safe-storage).
+   */
+  public expandido = true;
+  /** Grupo desplegado en el menú expandido (acordeón: uno a la vez). */
+  public grupoAbierto: string | null = null;
   public pinOpen = false;
   public isMobileCompact = false;
   public currentRoute?: string;
@@ -107,7 +123,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private networkStatus: NetworkStatusService,
     private offlineSync: OfflineSyncService,
     private cdr: ChangeDetectorRef,
-    private quickAccess: QuickAccessService,
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
 
@@ -202,6 +217,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       .subscribe((e) => {
         this.currentRoute = e.urlAfterRedirects;
         this.recomputeActiveRoots();
+        this.abrirGrupoDeLaRuta();
 
         if (!this.pinOpen) this.activeRoot = null;
         if (this.isMobile) this.isSidebarHidden = true;
@@ -211,7 +227,77 @@ export class NavbarComponent implements OnInit, OnDestroy {
       });
   }
 
+  ngAfterViewInit(): void {
+    if (!this.isBrowser) return;
+    const menu = document.getElementById('app-sidebar');
+    if (!menu) return;
+    // El menú cambia al abrir grupos, expandirse o navegar: hay que volver a
+    // medir qué nombres se quedan cortados.
+    this.observadorMenu = new MutationObserver(() => this.programarMarquesinas());
+    this.observadorMenu.observe(menu, { childList: true, subtree: true, characterData: true });
+    this.programarMarquesinas();
+  }
+
+  /** Una medición por cuadro aunque el menú cambie varias veces seguidas. */
+  private programarMarquesinas(): void {
+    if (this.cuadroMarquesina) return;
+    this.cuadroMarquesina = requestAnimationFrame(() => {
+      this.cuadroMarquesina = 0;
+      this.revisarMarquesinas();
+    });
+  }
+
+  /**
+   * Nombres que no caben en el menú: en vez de quedarse en «Correos a empresas …»
+   * se desplazan despacio hasta el final, esperan un par de segundos y vuelven.
+   */
+  private revisarMarquesinas(): void {
+    const menu = document.getElementById('app-sidebar');
+    if (!menu) return;
+    for (const lista of Array.from(menu.querySelectorAll<HTMLElement>('.grupo__hijos'))) {
+      if (lista.dataset['animado']) continue;
+      lista.dataset['animado'] = '1';
+      this.desplegar(lista);
+    }
+    const quieto = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const vivos = new Set<HTMLElement>();
+    if (!quieto) {
+      for (const el of Array.from(menu.querySelectorAll<HTMLElement>('.submodule-text, .grupo__nombre'))) {
+        if (el.scrollWidth - el.clientWidth <= 2) continue;
+        vivos.add(el);
+        if (!this.marquesinas.has(el)) this.marquesinas.set(el, this.animarNombre(el));
+      }
+    }
+    for (const [el, animacion] of Array.from(this.marquesinas)) {
+      if (vivos.has(el) && el.isConnected) continue;
+      animacion.cancel();
+      el.classList.remove('nombre-largo');
+      this.marquesinas.delete(el);
+    }
+  }
+
+  private animarNombre(el: HTMLElement): Animation {
+    el.classList.add('nombre-largo');
+    // Se mide con la clase puesta: sin los puntos suspensivos el texto ocupa algo más.
+    const recorrido = Math.max(0, el.scrollWidth - el.clientWidth) + 4;
+    const viaje = Math.max(1.4, recorrido / 26);   // ~26 px por segundo, se lee sin marear
+    const espera = 2;                              // quieto 2 s en cada extremo
+    const total = (viaje + espera) * 2;
+    const en = (segundos: number) => segundos / total;
+    return el.animate([
+      { textIndent: '0px', offset: 0 },
+      { textIndent: '0px', offset: en(espera) },
+      { textIndent: `${-recorrido}px`, offset: en(espera + viaje) },
+      { textIndent: `${-recorrido}px`, offset: en(espera * 2 + viaje) },
+      { textIndent: '0px', offset: 1 },
+    ], { duration: total * 1000, iterations: Infinity, easing: 'ease-in-out' });
+  }
+
   ngOnDestroy(): void {
+    this.observadorMenu?.disconnect();
+    if (this.cuadroMarquesina) cancelAnimationFrame(this.cuadroMarquesina);
+    for (const animacion of this.marquesinas.values()) animacion.cancel();
+    this.marquesinas.clear();
     this.routerSubscription?.unsubscribe();
     this.cancelClose();
     for (const s of this.offlineSubs) {
@@ -248,14 +334,136 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (!this.isBrowser) return;
     try { setLocalStorageItem(key, val); } catch { /* noop */ }
   }
-  private lsClear(): void {
-    if (!this.isBrowser) return;
-    try { clearLocalStorage(); } catch { /* noop */ }
-  }
 
   private loadUIState(): void {
     this.isSidebarHidden = this.lsGet('sidebarHidden') === 'true';
     this.pinOpen = this.lsGet('sidebarPin') === 'true';
+    this.expandido = this.lsGet(NavbarComponent.CLAVE_MENU) !== 'compacto';
+  }
+
+  static readonly CLAVE_MENU = 'tuapo.ui.menu';
+
+  /** Nombres cortados que se están desplazando, con su animación. */
+  private marquesinas = new Map<HTMLElement, Animation>();
+  private observadorMenu?: MutationObserver;
+  private cuadroMarquesina = 0;
+
+  /** Menú en modo lista: escritorio y expandido. */
+  get modoLista(): boolean {
+    return this.expandido && !this.isMobile;
+  }
+
+  /**
+   * El menú se contrae al pulsar fuera: ya no hay botón de contraer, porque
+   * elegir un módulo lo expande solo (onRootClick → expandirEn).
+   */
+  @HostListener('document:pointerdown', ['$event'])
+  public alPulsarFuera(evento: Event): void {
+    if (!this.expandido || this.isMobile || !this.isBrowser) return;
+    const destino = evento.target as Node | null;
+    if (!destino || !destino.isConnected) return;
+    const menu = document.getElementById('app-sidebar');
+    if (!menu || menu.contains(destino)) return;
+    this.contraer();
+  }
+
+  private contraer(): void {
+    this.expandido = false;
+    this.activeRoot = null;
+    this.lsSet(NavbarComponent.CLAVE_MENU, 'compacto');
+    this.publicarAncho();
+    this.cdr.markForCheck();
+  }
+
+  private expandirEn(root: PermNode): void {
+    this.expandido = true;
+    this.activeRoot = null;
+    this.lsSet(NavbarComponent.CLAVE_MENU, 'expandido');
+    this.publicarAncho();
+    if (this.hasChildren(root)) {
+      this.grupoAbierto = root.id;
+      (root.hijos ?? []).forEach(h => (this.expanded[h.id] = this.expanded[h.id] ?? true));
+    } else {
+      this.onNodeClick(root);
+    }
+    this.cdr.markForCheck();
+  }
+
+  /** El contenido se corre lo que mide el menú: se publica como variable CSS. */
+  private publicarAncho(): void {
+    if (!this.isBrowser) return;
+    const ancho = this.isMobile ? '0px' : this.expandido ? '264px' : '84px';
+    document.documentElement.style.setProperty('--app-menu-w', ancho);
+  }
+
+  /** Grupos del menú expandido: sin hijos navega; con hijos despliega. */
+  public onGrupoClick(root: PermNode): void {
+    if (!this.hasChildren(root)) {
+      this.onNodeClick(root);
+      return;
+    }
+    const abrir = this.grupoAbierto !== root.id;
+    if (!abrir) {
+      // Cerrar: primero se pliega la lista y al terminar se quita del DOM, para
+      // que no desaparezca de golpe.
+      const hijos = this.hijosDelGrupoAbierto();
+      const animacion = hijos && this.plegar(hijos);
+      if (animacion) {
+        animacion.onfinish = () => {
+          this.grupoAbierto = null;
+          this.cdr.markForCheck();
+        };
+        return;
+      }
+    }
+    this.grupoAbierto = abrir ? root.id : null;
+    if (abrir) (root.hijos ?? []).forEach(h => (this.expanded[h.id] = this.expanded[h.id] ?? true));
+  }
+
+  private hijosDelGrupoAbierto(): HTMLElement | null {
+    if (!this.isBrowser) return null;
+    return document.querySelector<HTMLElement>('#app-sidebar .grupo--abierto .grupo__hijos');
+  }
+
+  private get sinMovimiento(): boolean {
+    return !this.isBrowser || !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  }
+
+  /** Pliega la lista de submódulos; devuelve la animación o null si no procede. */
+  private plegar(el: HTMLElement): Animation | null {
+    if (this.sinMovimiento || !el.animate) return null;
+    const alto = el.scrollHeight;
+    el.style.overflow = 'hidden';
+    return el.animate(
+      [{ height: `${alto}px`, opacity: 1 }, { height: '0px', opacity: 0 }],
+      { duration: 190, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'forwards' },
+    );
+  }
+
+  /** Despliega la lista recién puesta en el DOM (la detecta el observador). */
+  private desplegar(el: HTMLElement): void {
+    if (this.sinMovimiento || !el.animate) return;
+    const alto = el.scrollHeight;
+    el.style.overflow = 'hidden';
+    const a = el.animate(
+      [{ height: '0px', opacity: 0 }, { height: `${alto}px`, opacity: 1 }],
+      { duration: 210, easing: 'cubic-bezier(.4, 0, .2, 1)' },
+    );
+    a.onfinish = () => el.style.removeProperty('overflow');
+  }
+
+  public grupoEstaAbierto(root: PermNode): boolean {
+    return this.grupoAbierto === root.id;
+  }
+
+  /** Al navegar, el grupo que contiene la pantalla queda desplegado. */
+  private abrirGrupoDeLaRuta(): void {
+    if (!this.modoLista) return;
+    const activo = this.visibleRoots.find(r => this.isTreeActive(r));
+    if (activo && this.hasChildren(activo)) {
+      this.grupoAbierto = activo.id;
+      (activo.hijos ?? []).forEach(h => (this.expanded[h.id] = this.expanded[h.id] ?? true));
+    }
   }
 
   private saveUIState(): void {
@@ -336,6 +544,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.visibleRoots = this.applyRoleVisibility(withPerms);
     this.purgeStaleExpanded(decorated);
     this.recomputeActiveRoots();
+    this.abrirGrupoDeLaRuta();
     this.cdr.markForCheck();
   }
 
@@ -489,6 +698,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   public onRootClick(root: PermNode | null): void {
+    // Escritorio compacto: en vez del panel flotante, el menú se expande con
+    // ese módulo desplegado (la misma vista del menú expandido).
+    if (root && !this.isMobile && !this.expandido) {
+      this.expandirEn(root);
+      return;
+    }
     if (!root) {
       this.activeRoot = null;
       if (this.isMobile) this.isSidebarHidden = true;
@@ -592,6 +807,62 @@ export class NavbarComponent implements OnInit, OnDestroy {
       if (this.subtreeMatchesRoute(root, current)) next.add(root.id);
     }
     this.activeRootIds = next;
+    this.publicarTitulo(current);
+  }
+
+  /** Nombre de la pantalla actual para la barra superior (el nodo de ruta más larga que coincide). */
+  private publicarTitulo(actual: string): void {
+    this.lecturaTitulo++;
+    const ruta = (actual || '').split('?')[0].split('#')[0].replace(/\/+$/, '');
+    if (!ruta || ruta === '/dashboard') {
+      this.navegacion.publicar('Inicio', null);
+      return;
+    }
+    let mejor: { nodo: PermNode; raiz: PermNode; largo: number } | null = null;
+    const visitar = (n: PermNode, raiz: PermNode) => {
+      const r = (n.__route || '').replace(/\/+$/, '');
+      if (r && r !== '/dashboard' && (ruta === r || ruta.startsWith(r + '/')) && (!mejor || r.length > mejor.largo)) {
+        mejor = { nodo: n, raiz, largo: r.length };
+      }
+      (n.hijos ?? []).forEach(h => visitar(h, raiz));
+    };
+    this.visibleRoots.forEach(r => visitar(r, r));
+    const m = mejor as { nodo: PermNode; raiz: PermNode } | null;
+    if (m) {
+      this.navegacion.publicar(m.nodo.nombre, m.raiz.nombre);
+    } else if (ruta.startsWith('/dashboard/configuracion')) {
+      this.navegacion.publicar('Configuración', null);
+    } else {
+      this.navegacion.publicar('Tu Apo', null);
+      this.tituloDesdeLaPagina();
+    }
+  }
+
+  /** Sube con cada cambio de ruta: una lectura que llega tarde no pisa a la nueva. */
+  private lecturaTitulo = 0;
+
+  /**
+   * Pantallas que no están en el menú (se llega por un botón): el nombre lo
+   * declara la propia pantalla en su cabecera, que ya no se ve porque
+   * theme/acciones-pagina.css la reduce a barra de acciones. Se lee de ahí,
+   * con reintentos cortos porque la pantalla se carga en diferido.
+   */
+  private tituloDesdeLaPagina(): void {
+    if (typeof document === 'undefined') return;
+    const lectura = ++this.lecturaTitulo;
+    const leer = (intentos: number) => {
+      if (lectura !== this.lecturaTitulo) return;
+      const el = document.querySelector(
+        '.dashboard-page-wrapper :is(.card-header-premium, .page-header, header.hero, header.top-bar, .analisis-header, .metricas-header) ' +
+        ':is(.titulo, mat-card-title, h1, h2)');
+      const texto = el?.textContent?.replace(/\s+/g, ' ').trim();
+      if (texto) {
+        this.navegacion.publicar(texto, null);
+      } else if (intentos > 0) {
+        setTimeout(() => leer(intentos - 1), 250);
+      }
+    };
+    setTimeout(() => leer(8), 0);
   }
 
   private subtreeMatchesRoute(node: PermNode, current: string): boolean {
@@ -606,6 +877,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
     if (!this.isBrowser) return;
     this.isMobile = window.innerWidth <= this.MOBILE_BREAKPOINT;
     this.isSidebarHidden = this.isMobile;
+    this.publicarAncho();
     this.saveUIState();
   }
 
@@ -646,64 +918,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===== auth =====
+  /** Salir: la lógica vive en SesionService (también se sale desde el menú del perfil). */
   public async cerrarSesion(): Promise<void> {
-    // Si el usuario tiene mutaciones encoladas sin sincronizar, AVISAR antes
-    // de borrar. Antes el logout silencioso evaporaba 30 PDFs encolados sin
-    // forma de recuperarlos. Ahora la cola sobrevive a logout normal y solo
-    // se borra si el usuario lo confirma.
-    let pendingNow = 0;
-    try { pendingNow = this.pendingCount || 0; } catch { /* noop */ }
-
-    const electronApi = (typeof window !== 'undefined' ? (window as any).electron : null);
-
-    if (pendingNow > 0) {
-      const result = await Swal.fire({
-        icon: 'warning',
-        title: `Tienes ${pendingNow} envío(s) pendiente(s)`,
-        html:
-          'Hay datos / archivos esperando subir cuando vuelvas a tener red.<br><br>' +
-          '<b>Mantener pendientes:</b> se reproducirán cuando vuelvas a entrar con tu usuario.<br>' +
-          '<b>Borrar y salir:</b> se perderán definitivamente.',
-        showDenyButton: true,
-        showCancelButton: true,
-        confirmButtonText: 'Mantener pendientes y salir',
-        denyButtonText: 'Borrar y salir',
-        cancelButtonText: 'Cancelar',
-        reverseButtons: true,
-      });
-
-      if (result.isDismissed) return;
-
-      if (result.isDenied) {
-        this.lsClear();
-        // "Borrar y salir" significa dejar el equipo limpio: eso incluye el
-        // acceso rápido guardado. El logout normal NO lo toca, porque su razón
-        // de ser es sobrevivir al cierre de sesión.
-        await this.quickAccess.olvidar().catch(() => null);
-        const wipePromise: Promise<any> = electronApi?.db?.clearUserData
-          ? electronApi.db.clearUserData().catch(() => null)
-          : Promise.resolve();
-        wipePromise.finally(() => this.router.navigate(['']));
-        return;
-      }
-
-      // result.isConfirmed: mantener cola, borrar SOLO el cache de GETs.
-      this.lsClear();
-      const cachePromise: Promise<any> = electronApi?.db?.clearCache
-        ? electronApi.db.clearCache().catch(() => null)
-        : Promise.resolve();
-      cachePromise.finally(() => this.router.navigate(['']));
-      return;
-    }
-
-    // Sin pendientes: solo borramos cache (la cola está vacía).
-    this.lsClear();
-    const cachePromise: Promise<any> = electronApi?.db?.clearCache
-      ? electronApi.db.clearCache().catch(() => null)
-      : (electronApi?.db?.clearUserData
-          ? electronApi.db.clearUserData().catch(() => null)
-          : Promise.resolve());
-    cachePromise.finally(() => this.router.navigate(['']));
+    await this.sesion.cerrarSesion(this.pendingCount || 0);
   }
 
   public trackByNodeId = (_: number, n: PermNode) => n.id;

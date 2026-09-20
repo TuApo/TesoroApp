@@ -117,15 +117,15 @@ import {
   `,
   styles: [`
     .dialog-header { display: flex; align-items: center; gap: 12px; padding: 20px 24px 12px; }
-    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); }
     h2[mat-dialog-title] { margin: 0; font-size: 18px; }
-    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
     mat-dialog-content { padding: 16px 24px !important; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
     .field-empresa, .field-nombre, .field-direccion, .warn-banner { grid-column: 1 / -1; }
     .warn-banner {
       display: flex; align-items: flex-start; gap: 8px;
-      background: #fff6e5; border: 1px solid #ffe0a3; color: #8a5a00;
+      background: #fff6e5; background: light-dark(#fff6e5, #383124); border: 1px solid #ffe0a3; border: 1px solid light-dark(#ffe0a3, #6c501b); color: #8a5a00; color: light-dark(#8a5a00, #f7d597);
       border-radius: 8px; padding: 10px 12px; font-size: 13px; margin: 2px 0 6px;
     }
     .warn-banner mat-icon { font-size: 18px; width: 18px; height: 18px; margin-top: 1px; }

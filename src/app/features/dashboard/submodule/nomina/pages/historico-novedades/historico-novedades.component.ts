@@ -1,22 +1,19 @@
-import { ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Observable, startWith, map } from 'rxjs';
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import { NominaService, Client, CostCenter, HistoricoNovedadRow } from '../../service/nomina/nomina.service';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
@@ -29,20 +26,17 @@ import Swal from 'sweetalert2';
     SharedModule,
     FormsModule,
     ReactiveFormsModule,
-    MatTableModule,
-    MatPaginatorModule,
-    MatSortModule,
     MatCardModule,
     MatFormFieldModule,
     MatSelectModule,
     MatInputModule,
     MatButtonModule,
     MatIconModule,
-    MatProgressSpinnerModule,
     MatAutocompleteModule,
     MatDividerModule,
     MatCheckboxModule,
     MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './historico-novedades.component.html',
   styleUrls: ['./historico-novedades.component.css'],
@@ -66,17 +60,37 @@ export class HistoricoNovedadesComponent implements OnInit {
   filteredClientes$!: Observable<Client[]>;
   filteredCecos$!: Observable<CostCenter[]>;
 
-  novedadesDataSource = new MatTableDataSource<HistoricoNovedadRow>([]);
-  displayedColumns: string[] = [
-    'identificacion', 'nombre_completo', 'cliente_nombre', 'ceco_nombre',
-    'codigo', 'descripcion', 'naturaleza', 'clasificacion',
-    'cantidad', 'unidad', 'valor_total', 'liquidado_at',
+  /** Resultado de la última búsqueda (filtros de negocio aplicados en el backend). */
+  novedades: HistoricoNovedadRow[] = [];
+
+  readonly columnas: ColumnaTabla<HistoricoNovedadRow>[] = [
+    { id: 'identificacion', header: 'Identificación', valor: (r) => r.identificacion, tarjeta: 'subtitulo' },
+    { id: 'nombre_completo', header: 'Empleado', valor: (r) => r.nombre_completo, tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'cliente_nombre', header: 'Empresa Usuaria', valor: (r) => r.cliente_nombre ?? '', prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'ceco_nombre', header: 'Centro de Costo', valor: (r) => r.ceco_nombre ?? '', prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'codigo', header: 'Código', valor: (r) => r.codigo, tarjeta: 'meta' },
+    { id: 'descripcion', header: 'Descripción', valor: (r) => r.descripcion, minAncho: '160px', tarjeta: 'cuerpo' },
+    { id: 'naturaleza', header: 'Naturaleza', valor: (r) => r.naturaleza, tarjeta: 'badge',
+      badge: (r) => (r.naturaleza ? { texto: r.naturaleza, tono: this.tonoNaturaleza(r.naturaleza) } : null) },
+    { id: 'clasificacion', header: 'Clasificación', valor: (r) => r.clasificacion, prioridad: 3, tarjeta: 'meta' },
+    { id: 'cantidad', header: 'Cantidad', valor: (r) => r.cantidad, align: 'right', prioridad: 2, tarjeta: 'meta' },
+    { id: 'unidad', header: 'Unidad', valor: (r) => r.unidad, prioridad: 3, tarjeta: 'meta' },
+    { id: 'valor_total', header: 'Valor', valor: (r) => r.valor_total, align: 'right', tarjeta: 'meta' },
+    { id: 'liquidado_at', header: 'Fecha', prioridad: 2, tarjeta: 'meta',
+      valor: (r) => (r.liquidado_at ? new Date(r.liquidado_at) : null) },
   ];
 
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+  readonly idNovedad = (r: HistoricoNovedadRow) => r.id_historico;
 
   isLoading = false;
+
+  /** Tono del chip de naturaleza (antes clases .devengo / .deduccion / .otro). */
+  private tonoNaturaleza(naturaleza: string): TonoBadge {
+    const n = naturaleza.toLowerCase();
+    if (n === 'devengo') return 'ok';
+    if (n === 'deduccion') return 'danger';
+    return 'neutro';
+  }
 
   constructor(
     private nominaService: NominaService,
@@ -194,9 +208,7 @@ export class HistoricoNovedadesComponent implements OnInit {
     this.cdr.markForCheck();
     this.nominaService.getHistoricoNovedades(params).subscribe({
       next: data => {
-        this.novedadesDataSource.data = data || [];
-        this.novedadesDataSource.paginator = this.paginator;
-        this.novedadesDataSource.sort = this.sort;
+        this.novedades = data || [];
         this.isLoading = false;
         this.cdr.markForCheck();
       },
@@ -209,12 +221,12 @@ export class HistoricoNovedadesComponent implements OnInit {
   }
 
   exportarExcel(): void {
-    if (this.novedadesDataSource.data.length === 0) return;
+    if (this.novedades.length === 0) return;
 
     const p = this.periodoControl.value;
     const desc = p?.descripcion || 'Todos';
 
-    const dataToExport = this.novedadesDataSource.data.map(item => ({
+    const dataToExport = this.novedades.map(item => ({
       'Identificación': item.identificacion,
       'Empleado': item.nombre_completo,
       'Empresa Usuaria': item.cliente_nombre || '',

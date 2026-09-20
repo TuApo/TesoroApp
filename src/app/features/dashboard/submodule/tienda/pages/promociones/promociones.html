@@ -1,0 +1,131 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>local_offer</mat-icon> Promociones y combos</h1>
+      <p class="tienda-subtitulo">
+        Cuando dos promociones caen sobre la misma línea gana la de <strong>menor
+        prioridad</strong>, y solo se suman si ambas son acumulables. Sin esa regla, dos
+        campañas bien intencionadas terminan regalando el producto.
+      </p>
+    </div>
+    <app-selector-tienda />
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  <div class="tienda-barra">
+    <div class="campo"><label>Negocio</label>
+      <select [(ngModel)]="nueva.negocio_id" (change)="cargarPromociones(nueva.negocio_id)">
+        @for (n of negocios(); track n.id) { <option [value]="n.id">{{ n.nombre }}</option> }
+      </select>
+    </div>
+    <button type="button" class="boton" (click)="formularioAbierto.set(!formularioAbierto())">
+      <mat-icon>add</mat-icon> Nueva promoción
+    </button>
+  </div>
+
+  @if (formularioAbierto()) {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Nueva promoción</h2>
+      <p class="nota">
+        Se publica en <strong>{{ ctx.tienda()?.nombre ?? 'la tienda seleccionada' }}</strong>.
+        Se puede añadir a más tiendas después sin duplicarla.
+      </p>
+      <div class="tienda-barra">
+        <div class="campo"><label>Código</label><input [(ngModel)]="nueva.codigo" /></div>
+        <div class="campo campo-ancho"><label>Nombre</label><input [(ngModel)]="nueva.nombre" /></div>
+        <div class="campo"><label>Tipo</label>
+          <select [(ngModel)]="nueva.tipo">
+            @for (t of tipos; track t.codigo) { <option [value]="t.codigo">{{ t.nombre }}</option> }
+          </select>
+        </div>
+        @if (nueva.tipo === 'NXM') {
+          <div class="campo"><label>Lleve</label>
+            <input type="number" [(ngModel)]="nueva.nxm_lleva" min="2" /></div>
+          <div class="campo"><label>Pague</label>
+            <input type="number" [(ngModel)]="nueva.nxm_paga" min="1" /></div>
+        } @else {
+          <div class="campo"><label>{{ tipoActual().pideValor }}</label>
+            <input type="number" [(ngModel)]="nueva.valor" min="0" /></div>
+        }
+        <div class="campo"><label>Prioridad</label>
+          <input type="number" [(ngModel)]="nueva.prioridad" /></div>
+        <div class="campo"><label>Máx. por persona</label>
+          <input type="number" [(ngModel)]="nueva.max_usos_persona" min="1" /></div>
+        <div class="campo"><label>Vigente hasta</label>
+          <input type="date" [(ngModel)]="nueva.vigente_hasta" /></div>
+        <div class="campo campo-casilla">
+          <label><input type="checkbox" [(ngModel)]="nueva.acumulable" /> Acumulable con otras</label>
+        </div>
+        <button type="button" class="boton" (click)="crear()"
+                [disabled]="!nueva.codigo || !nueva.nombre || !nueva.negocio_id">Crear</button>
+      </div>
+    </section>
+  }
+
+  <section>
+    <h2 class="titulo-seccion">Todas las promociones del negocio</h2>
+    <app-tabla-estandar
+      id="tienda-promociones"
+      titulo="Promociones del negocio"
+      modulo="Tienda"
+      vacio="Todavía no hay promociones."
+      [datos]="promociones()"
+      [columnas]="columnasPromociones"
+      [filaId]="idPromocion">
+
+      <ng-template tablaCelda="promocion" let-p>
+        <strong>{{ $any(p)['nombre'] }}</strong>
+        <div class="codigo">{{ $any(p)['codigo'] }}</div>
+      </ng-template>
+
+      <ng-template tablaCelda="prioridad" let-p>
+        {{ $any(p)['prioridad'] }}
+        @if ($any(p)['acumulable']) { <span class="insignia info">acumulable</span> }
+      </ng-template>
+
+      <ng-template tablaAcciones let-p>
+        @if ($any(p)['activa']) {
+          <button type="button" class="boton secundario"
+                  (click)="cambiarEstado(p, false)">Desactivar</button>
+        } @else {
+          <button type="button" class="boton secundario"
+                  (click)="cambiarEstado(p, true)">Activar</button>
+        }
+      </ng-template>
+    </app-tabla-estandar>
+  </section>
+
+  <section>
+    <h2 class="titulo-seccion">Combos publicados en esta tienda</h2>
+    @if (combos().length === 0) {
+      <div class="tienda-tarjeta tienda-vacio">
+        <mat-icon>inventory</mat-icon>
+        <p>No hay combos publicados aquí.</p>
+      </div>
+    } @else {
+      <div class="tienda-rejilla">
+        @for (c of combos(); track $any($any(c)['combo'])['id']) {
+          <article class="tienda-tarjeta">
+            <strong>{{ $any($any(c)['combo'])['nombre'] }}</strong>
+            <p class="nota">{{ $any($any(c)['combo'])['descripcion'] }}</p>
+            <div class="combo-datos">
+              <span>{{ $any(c)['precio'] | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+              @if ($any(c)['disponible'] > 0) {
+                <span class="insignia exito">{{ $any(c)['disponible'] }} armables</span>
+              } @else {
+                <span class="insignia peligro">sin componentes</span>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+</div>

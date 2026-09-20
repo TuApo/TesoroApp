@@ -2,102 +2,46 @@
   <mat-card-content>
     <div class="tabla">
       <h1 class="title">Tabla de Traslados</h1>
-      <mat-form-field class="filtro">
-        <mat-label>Filtrar</mat-label>
-        <input matInput (keyup)="applyFilterTraslados($event)" placeholder="Filtrar" #input>
-      </mat-form-field>
 
-      @if (descargarExcel) {
-        <img src="icons/cards/excel.png" alt="Exportar a excel" class="exportar" (click)="obtenerTrasladosYGenerarExcel()"
-          />
-      }
+      <app-tabla-estandar
+        id="home-traslados-finalizados"
+        titulo="Traslados"
+        modulo="Home"
+        entidad="traslados"
+        busqueda="Filtrar"
+        vacio="No hay traslados."
+        [datos]="traslados()"
+        [columnas]="columnasTraslados"
+        [cargando]="cargando()">
 
-      <div class="table-container">
-        <table mat-table [dataSource]="dataSourceTraslados" class="mat-elevation-z8">
+        <div tablaAccionesBarra>
+          @if (descargarExcel) {
+            <img src="icons/cards/excel.png" alt="Exportar a excel" class="exportar" (click)="obtenerTrasladosYGenerarExcel()"
+              />
+          }
+        </div>
 
-          <ng-container matColumnDef="cantidad_beneficiarios">
-            <th mat-header-cell *matHeaderCellDef> Cantidad Beneficiarios </th>
-            <td mat-cell *matCellDef="let element"> {{element.cantidad_beneficiarios}} </td>
-          </ng-container>
+        <ng-template tablaCelda="cedulas" let-element>
+          @if (element.cedula_disponible === 1) {
+            <a (click)="imprimirCedula(element.numero_cedula)" style="cursor: pointer; text-decoration: underline;">
+              Ver Cédula
+            </a>
+          } @else {
+            <span>No disponible</span>
+          }
+        </ng-template>
 
-          <ng-container matColumnDef="cedulas">
-            <th mat-header-cell *matHeaderCellDef> Cédulas </th>
-            <td mat-cell *matCellDef="let element">
-              @if (element.cedula_disponible === 1) {
-                <a (click)="imprimirCedula(element.numero_cedula)" style="cursor: pointer; text-decoration: underline;">
-                  Ver Cédula
-                </a>
-              } @else {
-                <span>No disponible</span>
-              }
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="solicitud_traslado">
-            <th mat-header-cell *matHeaderCellDef> Solicitud de Traslado </th>
-            <td mat-cell *matCellDef="let element">
-              @if (element.solicitud_disponible === 1) {
-                <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)"
-                  style="cursor: pointer; text-decoration: underline;">
-                  Ver Solicitud
-                </a>
-              } @else {
-                <span>No disponible</span>
-              }
-            </td>
-          </ng-container>
-
-
-
-          <ng-container matColumnDef="codigo_traslado">
-            <th mat-header-cell *matHeaderCellDef> Código Traslado </th>
-            <td mat-cell *matCellDef="let element"> {{element.codigo_traslado}} </td>
-          </ng-container>
-
-          <ng-container matColumnDef="eps_trasladada">
-            <th mat-header-cell *matHeaderCellDef> EPS Trasladada </th>
-            <td mat-cell *matCellDef="let element"> {{element.eps_trasladada}} </td>
-          </ng-container>
-
-          <ng-container matColumnDef="estado_del_traslado">
-            <th mat-header-cell *matHeaderCellDef> Estado del Traslado </th>
-            <td mat-cell *matCellDef="let element"> {{element.estado_del_traslado}} </td>
-          </ng-container>
-
-          <ng-container matColumnDef="fecha_efectividad">
-            <th mat-header-cell *matHeaderCellDef> Fecha Efectividad </th>
-            <td mat-cell *matCellDef="let element"> {{element.fecha_efectividad}} </td>
-          </ng-container>
-
-          <ng-container matColumnDef="numero_cedula">
-            <th mat-header-cell *matHeaderCellDef> Número Cédula </th>
-            <td mat-cell *matCellDef="let element"> {{element.numero_cedula}} </td>
-          </ng-container>
-
-          <ng-container matColumnDef="numero_radicado">
-            <th mat-header-cell *matHeaderCellDef> Número Radicado </th>
-            <td mat-cell *matCellDef="let element"> {{element.numero_radicado}} </td>
-          </ng-container>
-
-          <ng-container matColumnDef="observacion_estado">
-            <th mat-header-cell *matHeaderCellDef> Observación Estado </th>
-            <td mat-cell *matCellDef="let element"> {{element.observacion_estado}} </td>
-          </ng-container>
-
-          <ng-container matColumnDef="responsable">
-            <th mat-header-cell *matHeaderCellDef> Responsable </th>
-            <td mat-cell *matCellDef="let element"> {{element.responsable}} </td>
-          </ng-container>
-
-
-
-          <tr mat-header-row *matHeaderRowDef="displayedColumnsTraslados"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumnsTraslados;"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell" colspan="16">No hay datos "{{input.value}}"</td>
-          </tr>
-        </table>
-      </div>
+        <ng-template tablaCelda="solicitud_traslado" let-element>
+          @if (element.solicitud_disponible === 1) {
+            <a (click)="imprimirSolicitudTraslado(element.codigo_traslado)"
+              style="cursor: pointer; text-decoration: underline;">
+              Ver Solicitud
+            </a>
+          } @else {
+            <span>No disponible</span>
+          }
+        </ng-template>
+      </app-tabla-estandar>
     </div>
   </mat-card-content>
 </mat-card>

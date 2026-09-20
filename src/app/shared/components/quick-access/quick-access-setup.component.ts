@@ -116,29 +116,29 @@ interface OpcionMetodo {
     .qa-dialog { padding: 4px 4px 0; max-width: 520px; }
     .qa-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; }
     .qa-head-icon {
-      font-size: 32px; width: 32px; height: 32px; color: #1157FB; flex: 0 0 auto; margin-top: 2px;
+      font-size: 32px; width: 32px; height: 32px; color: #1157FB; color: light-dark(#1157FB, #97b4f7); flex: 0 0 auto; margin-top: 2px;
     }
     .qa-head h2 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 700; }
-    .qa-head p { margin: 0; font-size: .88rem; color: #5a6472; line-height: 1.45; }
+    .qa-head p { margin: 0; font-size: .88rem; color: var(--muted); line-height: 1.45; }
 
     .qa-opciones { display: flex; flex-direction: column; gap: 10px; }
     .qa-opcion {
       display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-      padding: 12px 14px; border: 1.5px solid #dfe4ec; border-radius: 12px;
-      background: #fff; cursor: pointer; transition: border-color .15s, background .15s;
+      padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 12px;
+      background: var(--surface); cursor: pointer; transition: border-color .15s, background .15s;
     }
-    .qa-opcion:hover { border-color: #b9c6da; background: #f8fafd; }
-    .qa-opcion--sel { border-color: #1157FB; background: #eef5ff; }
-    .qa-opcion > mat-icon { color: #1157FB; flex: 0 0 auto; }
+    .qa-opcion:hover { border-color: var(--border-strong); background: var(--surface-2); }
+    .qa-opcion--sel { border-color: #1157FB; background: #eef5ff; background: light-dark(#eef5ff, #0f274d); }
+    .qa-opcion > mat-icon { color: #1157FB; color: light-dark(#1157FB, #97b4f7); flex: 0 0 auto; }
     .qa-op-txt { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
     .qa-op-titulo { font-weight: 600; font-size: .95rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .qa-op-detalle { font-size: .8rem; color: #667085; line-height: 1.35; }
+    .qa-op-detalle { font-size: .8rem; color: var(--muted); line-height: 1.35; }
     .qa-badge {
       font-size: .66rem; font-weight: 700; letter-spacing: .3px; text-transform: uppercase;
-      padding: 2px 7px; border-radius: 20px; background: #dcfce7; color: #166534;
+      padding: 2px 7px; border-radius: 20px; background: #dcfce7; background: light-dark(#dcfce7, #123b33); color: #166534; color: light-dark(#166534, #a3ebbe);
     }
-    .qa-badge--medio { background: #fef3c7; color: #92400e; }
-    .qa-check { color: #1157FB; flex: 0 0 auto; }
+    .qa-badge--medio { background: #fef3c7; background: light-dark(#fef3c7, #373625); color: #92400e; color: light-dark(#92400e, #f5bc99); }
+    .qa-check { color: #1157FB; color: light-dark(#1157FB, #97b4f7); flex: 0 0 auto; }
 
     .qa-pin { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
     .qa-campo { flex: 1 1 200px; }
@@ -147,11 +147,11 @@ interface OpcionMetodo {
       display: flex; gap: 10px; align-items: flex-start; margin-top: 14px;
       padding: 10px 12px; border-radius: 10px; font-size: .82rem; line-height: 1.4;
     }
-    .qa-aviso { background: #fffbeb; color: #92400e; }
-    .qa-error { background: #fef2f2; color: #b91c1c; }
+    .qa-aviso { background: #fffbeb; background: light-dark(#fffbeb, #383624); color: #92400e; color: light-dark(#92400e, #f5bc99); }
+    .qa-error { background: #fef2f2; background: light-dark(#fef2f2, #351927); color: #b91c1c; color: light-dark(#b91c1c, #f09e9e); }
     .qa-aviso mat-icon, .qa-error mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
-    .qa-nota { margin: 16px 0 0; font-size: .76rem; color: #8a94a6; line-height: 1.45; }
+    .qa-nota { margin: 16px 0 0; font-size: .76rem; color: var(--text-faint); line-height: 1.45; }
     .qa-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 
     @media (max-width: 520px) {

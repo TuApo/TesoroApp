@@ -3,7 +3,7 @@
  * componente sin TestBed (el constructor solo asigna dependencias; ngOnInit no
  * se invoca). Ejecutar con `ng test` (Karma/Chrome).
  *
- * Cubre: filtro por texto client-side respeta el resultado del backend,
+ * Cubre: columnas con valores planos (la búsqueda la hace la tabla estándar),
  * mapeo de estado→param para el filtro server-side, y que desactivar/reactivar
  * piden confirmación antes de llamar al servicio (no hay borrado físico).
  */
@@ -34,38 +34,23 @@ function nuevoComponente(): CentrosCostoComponent {
 }
 
 describe('CentrosCosto — lógica de filtros (§20)', () => {
-  it('el buscador filtra por nombre/código/empresa/sede/dirección sobre lo cargado', () => {
+  // La búsqueda por texto la hace la tabla estándar sobre `valor` de cada
+  // columna: basta con que cada columna exponga el dato plano correcto.
+  it('las columnas exponen valores planos para buscar, filtrar y copiar', () => {
     const c = nuevoComponente();
-    (c as any).all = [
-      fila({ id_ceco: 1, nombre: 'PLANTA POSTCOSECHA', codigo_interno: 'CC01' }),
-      fila({ id_ceco: 2, nombre: 'OFICINAS', codigo_interno: 'CC02' }),
-    ];
-    c.onSearchChange('postcosecha');
-    expect(c.dataSource.data.map((x) => x.id_ceco)).toEqual([1]);
+    const valor = (id: string, f: CentroCostoAdmin) => c.columnas.find((col) => col.id === id)!.valor(f);
+    const f = fila({ codigo_interno: 'ZC-99', direccion: 'Autopista Norte Km 5', contratos_count: 3 });
+    expect(valor('codigo', f)).toBe('ZC-99');
+    expect(valor('nombre', f)).toBe('PLANTA POSTCOSECHA');
+    expect(valor('direccion', f)).toBe('Autopista Norte Km 5');
+    expect(valor('contratos', f)).toBe(3);
+    expect(valor('estado', fila({ active: false }))).toBe('Inactivo');
   });
 
-  it('el buscador también filtra por dirección', () => {
+  it('las filas inactivas se atenúan', () => {
     const c = nuevoComponente();
-    (c as any).all = [
-      fila({ id_ceco: 1, nombre: 'PLANTA', direccion: 'Autopista Norte Km 5' }),
-      fila({ id_ceco: 2, nombre: 'OFICINAS', direccion: 'Calle 100 # 15-20' }),
-    ];
-    c.onSearchChange('autopista');
-    expect(c.dataSource.data.map((x) => x.id_ceco)).toEqual([1]);
-  });
-
-  it('busca por código interno', () => {
-    const c = nuevoComponente();
-    (c as any).all = [fila({ id_ceco: 1, codigo_interno: 'ZC-99' }), fila({ id_ceco: 2, codigo_interno: 'AB-01' })];
-    c.onSearchChange('zc-99');
-    expect(c.dataSource.data.map((x) => x.id_ceco)).toEqual([1]);
-  });
-
-  it('sin texto de búsqueda muestra todo lo cargado', () => {
-    const c = nuevoComponente();
-    (c as any).all = [fila({ id_ceco: 1 }), fila({ id_ceco: 2 })];
-    c.onSearchChange('');
-    expect(c.dataSource.data.length).toBe(2);
+    expect(c.claseFila(fila({ active: false }))).toBe('te-fila--atenuada');
+    expect(c.claseFila(fila({ active: true }))).toBe('');
   });
 
   it('mapea el filtro de estado a booleano para el backend', () => {
@@ -82,11 +67,9 @@ describe('CentrosCosto — lógica de filtros (§20)', () => {
     const c = nuevoComponente();
     let recargo = false;
     (c as any).cargar = () => { recargo = true; };
-    c.filterSearch = 'x';
     c.filterEstado = 'inactivos';
     c.filterEmpresa = 5;
     c.limpiarFiltros();
-    expect(c.filterSearch).toBe('');
     expect(c.filterEstado).toBe('activos');
     expect(c.filterEmpresa).toBeNull();
     expect(recargo).toBe(true);

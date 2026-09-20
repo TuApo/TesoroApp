@@ -144,14 +144,14 @@ import { ScanFieldComponent } from '../scan/scan-field.component';
   `,
   styles: [`
     .df-group {
-      border: 1px solid var(--slate-200, #e2e8f0);
+      border: 1px solid var(--border);
       border-radius: var(--r-md, 14px);
       padding: 14px;
       margin: 0;
     }
     .df-group__title {
       font-weight: 700;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
       padding: 0 6px;
       font-size: 0.95rem;
     }
@@ -162,15 +162,15 @@ import { ScanFieldComponent } from '../scan/scan-field.component';
     }
     .df-span-2 { grid-column: span 2; }
     @media (max-width: 700px) {
-      .df-group__grid { grid-template-columns: 1fr; }
+      .df-group__grid { grid-template-columns: minmax(0, 1fr); }
       .df-span-2 { grid-column: span 1; }
     }
     .df-field__info {
       padding: 10px 12px;
       border-left: 3px solid var(--navy, #21263c);
-      background: var(--slate-50, #f8fafc);
+      background: var(--surface-2);
       border-radius: 0 var(--r-sm, 10px) var(--r-sm, 10px) 0;
-      color: var(--slate-700, #334155);
+      color: var(--text-2);
       font-size: 0.9rem;
     }
   `],

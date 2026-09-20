@@ -1,13 +1,16 @@
-import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { PermissionsService } from '@/app/core/services/permissions.service';
 
 interface ConfigSection {
   ruta: string;
   titulo: string;
   descripcion: string;
   icono: string;
+  /** Solo para administradores. Sin esto, la seccion la ve todo el mundo. */
+  soloAdmin?: boolean;
 }
 
 /**
@@ -24,7 +27,20 @@ interface ConfigSection {
   styleUrl: './configuracion-shell.component.css',
 })
 export class ConfiguracionShellComponent {
-  readonly sections: ConfigSection[] = [
+  private readonly permisos = inject(PermissionsService);
+
+  /**
+   * Las secciones que este usuario puede ver.
+   *
+   * <p>Esconder una entrada del menu NO es seguridad: quien conozca la URL entra igual.
+   * Lo que de verdad cierra la puerta son los `@PreAuthorize("hasAuthority('ADMIN')")` de
+   * los endpoints, que devuelven 403 sin importar lo que pinte el front. Esto es para que
+   * nadie vea una pantalla que no le sirve.
+   */
+  readonly visibles = computed(() =>
+    this.sections.filter((s) => !s.soloAdmin || this.permisos.isAdmin()));
+
+  private readonly sections: ConfigSection[] = [
     {
       ruta: 'cuenta',
       titulo: 'Cuenta',
@@ -42,6 +58,13 @@ export class ConfiguracionShellComponent {
       titulo: 'Preferencias',
       descripcion: 'Interfaz y datos locales',
       icono: 'tune',
+    },
+    {
+      ruta: 'conectores',
+      titulo: 'Conectores',
+      descripcion: 'Herramientas externas conectadas',
+      icono: 'hub',
+      soloAdmin: true,
     },
     {
       ruta: 'acerca',

@@ -24,6 +24,12 @@ export interface NotificationType {
   color: string;
   urgencia_default: Urgencia;
   modulo_id: string | null;
+  /**
+   * Nombre del módulo, ya resuelto por el backend. Es lo que deja agrupar y
+   * filtrar la bandeja POR MÓDULO sin deducirlo del nombre del tipo. Puede ser
+   * null si el tipo no está atado a ningún módulo.
+   */
+  modulo_nombre: string | null;
   agrupable: boolean;
   activo: boolean;
   orden: number;

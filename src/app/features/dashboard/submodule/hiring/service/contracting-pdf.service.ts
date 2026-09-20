@@ -675,7 +675,10 @@ export class ContractingPdfService {
         const lugarNac = `${cand.info_cc?.mpio_nacimiento || ''} ${cand.info_cc?.depto_nacimiento || ''}`;
         const oficio = vacante.cargo || '';
         const salario = this.formatMoneyCOP(vacante.salario || '0');
-        const fechaIniciacion = this.formatLongDateES(vacante.fechadeIngreso);
+        // Igual que en la ficha técnica: la fecha del CONTRATO manda y la de la
+        // vacante solo es la propuesta. Es la fecha de iniciación que firma la
+        // persona, así que tiene que ser la que se pactó, no la de la publicación.
+        const fechaIniciacion = this.formatLongDateES(contrato?.fecha_ingreso || vacante.fechadeIngreso);
         const ciudadContratacion = entrevista.oficina || 'Cajicá';
         const obraLabor = vacante.empresa_usuaria_solicita || '';
 

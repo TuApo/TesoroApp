@@ -1,0 +1,191 @@
+/* Conectores MCP. Usa los mismos tokens --cfg-* que el resto de Configuracion, con
+   respaldo literal para que la pantalla no dependa de que el shell los declare. */
+:host { display: block; }
+
+.conectores { display: flex; flex-direction: column; gap: 20px; }
+
+.cabecera {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.cabecera h2 { margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--cfg-ink, var(--text)); }
+.sub { margin: 4px 0 0; font-size: 0.83rem; color: var(--cfg-muted, var(--muted)); max-width: 62ch; }
+
+/* ── botones ─────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: inherit; font-size: 0.88rem; font-weight: 600;
+  border-radius: 10px; padding: 10px 16px;
+  border: 1px solid var(--cfg-border, var(--border));
+  background: var(--surface); color: var(--cfg-ink, var(--text));
+  transition: background-color .18s ease, border-color .18s ease, transform .1s ease;
+}
+.btn:hover:not(:disabled) { background: var(--cfg-surface-2, var(--surface-2)); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.btn.primario { background: var(--primary, #3b82f6); border-color: var(--primary, #3b82f6); color: #fff; }
+.btn.primario:hover:not(:disabled) { filter: brightness(.94); }
+.btn.peligro { color: var(--danger, #ef4444); color: light-dark(var(--danger, #ef4444), #f2a29c); border-color: #fecaca; border-color: light-dark(#fecaca, #6a121c); }
+.btn.pequeno { padding: 6px 12px; font-size: 0.82rem; }
+
+/* ── lista de conectores ─────────────────────────────────────────────── */
+.lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.conector {
+  border: 1px solid var(--cfg-border, var(--border));
+  border-radius: var(--cfg-radius, 16px);
+  background: var(--cfg-surface, var(--surface));
+  overflow: hidden;
+}
+.conector.abierto { border-color: var(--primary, #3b82f6); }
+
+.fila {
+  width: 100%; display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px; background: none; border: 0; cursor: pointer; text-align: left;
+  font-family: inherit;
+}
+.fila:hover { background: var(--cfg-surface-2, var(--surface-2)); }
+.fila .icono { color: var(--cfg-muted, var(--muted)); flex: 0 0 auto; }
+.datos { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.nombre { font-weight: 600; font-size: 0.95rem; color: var(--cfg-ink, var(--text)); }
+/* La URL se trunca: hay direcciones largas y el chip de estado no puede desplazarse. */
+.url { font-size: 0.78rem; color: var(--cfg-muted, var(--muted)); overflow: hidden;
+       text-overflow: ellipsis; white-space: nowrap; }
+.fallo { font-size: 0.76rem; color: var(--danger, #ef4444); color: light-dark(var(--danger, #ef4444), #f2a29c); margin-top: 2px; }
+.flecha { color: var(--cfg-muted, var(--text-faint)); flex: 0 0 auto; }
+
+.chip {
+  flex: 0 0 auto; font-size: 0.72rem; font-weight: 700; letter-spacing: .02em;
+  padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+}
+.chip.ok { background: #dcfce7; background: light-dark(#dcfce7, #123b33); color: #166534; color: light-dark(#166534, #a3ebbe); }
+.chip.pendiente { background: #fef3c7; background: light-dark(#fef3c7, #373625); color: #92400e; color: light-dark(#92400e, #f5bc99); }
+.chip.mal { background: #fee2e2; background: light-dark(#fee2e2, #371725); color: #991b1b; color: light-dark(#991b1b, #eea0a0); }
+
+/* ── detalle ─────────────────────────────────────────────────────────── */
+.detalle {
+  padding: 4px 16px 16px; border-top: 1px solid var(--cfg-border, var(--border));
+  display: flex; flex-direction: column; gap: 14px;
+}
+.acciones { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 12px; }
+.nota { margin: 0; font-size: 0.82rem; color: var(--cfg-muted, var(--muted)); max-width: 68ch; }
+.cargando { margin: 0; font-size: 0.85rem; color: var(--cfg-muted, var(--muted)); }
+
+.herramientas {
+  list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column;
+  /* Un servidor puede ofrecer noventa herramientas. Sin tope, la lista empuja todo lo
+     demas fuera de la pantalla y el formulario de prueba queda enterrado al final. */
+  max-height: 420px; overflow-y: auto;
+}
+.herramientas li {
+  display: flex; align-items: center; gap: 12px; padding: 10px 0;
+  border-top: 1px solid var(--cfg-border, var(--border));
+}
+.h-datos { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.h-nombre { font-weight: 600; font-size: 0.88rem; }
+.h-desc { font-size: 0.78rem; color: var(--cfg-muted, var(--muted));
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── formulario dibujado desde el esquema ────────────────────────────── */
+.prueba {
+  border: 1px solid var(--cfg-border, var(--border)); border-radius: 12px;
+  padding: 14px; background: var(--cfg-surface-2, var(--surface-2));
+  display: flex; flex-direction: column; gap: 12px;
+}
+.prueba h4 { margin: 0; font-size: 0.95rem; font-weight: 700; }
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo label { font-size: 0.82rem; font-weight: 600; color: var(--cfg-ink, var(--text)); }
+.campo small { font-size: 0.76rem; color: var(--cfg-muted, var(--muted)); }
+.obligatorio { color: var(--danger, #ef4444); color: light-dark(var(--danger, #ef4444), #f2a29c); }
+.campo input[type="text"], .campo input[type="number"], .campo select, .campo textarea {
+  font-family: inherit; font-size: 0.88rem; padding: 9px 11px;
+  border: 1px solid var(--cfg-border, var(--border)); border-radius: 9px; background: var(--surface);
+  color: var(--cfg-ink, var(--text)); width: 100%;
+}
+.campo textarea { resize: vertical; min-height: 68px; }
+.interruptor { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+.interruptor input { width: auto; }
+
+.resultado {
+  margin: 0; padding: 12px; border-radius: 9px; background: #0f172a; color: #e2e8f0;
+  font-size: 0.78rem; line-height: 1.5; max-height: 320px;
+  /* El resultado puede ser JSON largo: se desplaza dentro de su caja y nunca empuja la
+     pagina hacia los lados. */
+  overflow: auto; white-space: pre-wrap; word-break: break-word;
+}
+
+/* ── vacío ───────────────────────────────────────────────────────────── */
+.vacio {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 32px 16px; text-align: center;
+  border: 1px dashed var(--cfg-border, var(--border-strong)); border-radius: var(--cfg-radius, 16px);
+  color: var(--cfg-muted, var(--muted));
+}
+.vacio .mat-icon { font-size: 32px; width: 32px; height: 32px; }
+.vacio p { margin: 0; font-size: 0.86rem; max-width: 46ch; }
+
+/* ── librería ────────────────────────────────────────────────────────── */
+.directorio { display: flex; flex-direction: column; gap: 12px; }
+.directorio h3 { margin: 0; font-size: 1rem; font-weight: 700; }
+.categoria {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--cfg-muted, var(--text-faint));
+}
+.grupo { display: flex; flex-direction: column; gap: 8px; }
+.tarjetas {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 10px;
+}
+.tarjeta {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+  border: 1px solid var(--cfg-border, var(--border)); border-radius: 12px;
+  background: var(--cfg-surface, var(--surface));
+}
+.tarjeta > .mat-icon { color: var(--primary, #3b82f6); color: light-dark(var(--primary, #3b82f6), var(--text)); flex: 0 0 auto; }
+.t-datos { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.t-nombre { font-weight: 600; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 4px; }
+.verificado { font-size: 15px; width: 15px; height: 15px; color: #16a34a; color: light-dark(#16a34a, #9cf2bc); }
+.t-desc { font-size: 0.78rem; color: var(--cfg-muted, var(--muted));
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── diálogo de alta ─────────────────────────────────────────────────── */
+.capa {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, .5);
+  display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 1200;
+}
+.dialogo {
+  background: var(--surface); border-radius: 16px; padding: 22px; width: min(520px, 100%);
+  max-height: 90vh; overflow: auto; display: flex; flex-direction: column; gap: 8px;
+}
+.dialogo h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+.dialogo label { font-size: 0.82rem; font-weight: 600; margin-top: 8px; }
+.dialogo input {
+  font-family: inherit; font-size: 0.9rem; padding: 10px 12px;
+  border: 1px solid var(--cfg-border, var(--border)); border-radius: 9px; width: 100%;
+}
+.dialogo small { font-size: 0.76rem; color: var(--cfg-muted, var(--muted)); }
+.sondeo {
+  margin: 8px 0 0; padding: 9px 12px; border-radius: 9px;
+  background: var(--cfg-surface-2, var(--surface-3)); font-size: 0.82rem;
+}
+.aviso {
+  margin: 10px 0 0; font-size: 0.78rem; color: var(--cfg-muted, var(--muted));
+  border-left: 3px solid var(--warning, #f59e0b); padding-left: 10px;
+}
+.dialogo-acciones { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+.espacio { flex: 1 1 auto; }
+
+/* ── responsivo: los mismos cortes que el resto de la app ────────────── */
+@media (max-width: 900px) {
+  .tarjetas { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .cabecera { flex-direction: column; align-items: stretch; }
+  .cabecera .btn { justify-content: center; }
+  .acciones .btn { flex: 1 1 auto; justify-content: center; }
+  .dialogo-acciones { flex-wrap: wrap; }
+  .dialogo-acciones .espacio { display: none; }
+  .dialogo-acciones .btn { flex: 1 1 auto; justify-content: center; }
+  /* En movil la URL se parte en dos lineas antes que desaparecer entera. */
+  .url { white-space: normal; word-break: break-all; }
+}

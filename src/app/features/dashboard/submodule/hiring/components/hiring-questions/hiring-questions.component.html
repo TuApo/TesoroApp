@@ -28,9 +28,59 @@
     </ng-template>
     
     <ng-template matTabContent>
-      <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm">
-      <div class="grid-managerial">
-        <mat-form-field appearance="outline" class="example-full-width">
+      <div class="tab-content-scrollable" [formGroup]="pagoTransporteForm"
+           (focusout)="autoPago.alSalirDeCampo()">
+        <h3 class="hq-seccion">Contratación</h3>
+        <p class="hq-seccion-nota">Temporal, empresa usuaria, cargo y salario los decide la vacante y se muestran resueltos.</p>
+        <div class="grid-managerial">
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('temporal')">
+          <mat-label>Temporal</mat-label>
+          <input matInput formControlName="temporal">
+          <mat-hint>Del centro de costo (o de la vacante si aún no se resolvió).</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('empresaUsuaria')">
+          <mat-label>Empresa usuaria</mat-label>
+          <input matInput formControlName="empresaUsuaria">
+          <mat-hint>De la vacante a la que se asoció al aspirante.</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('sucursal')">
+          <mat-label>Sucursal</mat-label>
+          <input matInput formControlName="sucursal">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('cargo')">
+          <mat-label>Cargo</mat-label>
+          <input matInput formControlName="cargo">
+          <mat-hint>Viene de la vacante. Se cambia en la remisión, no aquí.</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('fechaIngreso')">
+          <mat-label>Fecha de Ingreso</mat-label>
+          <input matInput [matDatepicker]="pickerIngreso" formControlName="fechaIngreso">
+          <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
+          <mat-datepicker #pickerIngreso></mat-datepicker>
+          <!-- Traza: al cambiarla, la vacante conserva la suya y aquí se ve cuál era. -->
+          @if (fechaIngresoEditada()) {
+            <mat-hint class="hq-traza">
+              La vacante proponía {{ fechaIngresoVacante | date:'dd/MM/yyyy' }}; el contrato
+              guarda esta. La vacante no se modifica.
+            </mat-hint>
+          } @else {
+            <mat-hint>Se propone desde la vacante. Editarla no cambia la vacante.</mat-hint>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('fechaContrato')">
+          <mat-label>Fecha de Contrato</mat-label>
+          <input matInput [matDatepicker]="pickerContrato" formControlName="fechaContrato">
+          <mat-datepicker-toggle matSuffix [for]="pickerContrato"></mat-datepicker-toggle>
+          <mat-datepicker #pickerContrato></mat-datepicker>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('formaPago')">
           <mat-label>Forma de Pago</mat-label>
           <mat-select formControlName="formaPago">
             <mat-option value="Daviplata">Daviplata</mat-option>
@@ -42,16 +92,15 @@
             <mat-option value="Otra">Otra</mat-option>
           </mat-select>
         </mat-form-field>
-
         @if (pagoTransporteForm.controls['formaPago'].value === 'Otra') {
           <mat-form-field appearance="outline" class="example-full-width"
-            >
+          [class.campo-completo]="campoCompleto('otraFormaPago')">
             <mat-label>Otra Forma de Pago</mat-label>
             <input matInput formControlName="otraFormaPago">
           </mat-form-field>
         }
-
-        <mat-form-field appearance="outline" class="example-full-width">
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('numeroPagos')">
           <mat-label>
             {{ pagoTransporteForm.get('formaPago')?.value === 'Daviplata' ? 'Número de cuenta' : 'Número de tarjeta' }}
           </mat-label>
@@ -59,11 +108,6 @@
           @if (pagoTransporteForm.controls['numeroPagos'].hasError('required')) {
             <mat-error>
               Obligatorio.
-            </mat-error>
-          }
-          @if (pagoTransporteForm.controls['numeroPagos'].hasError('pattern')) {
-            <mat-error>
-              Debe tener 16 o 18 dígitos.
             </mat-error>
           }
           @if (pagoTransporteForm.controls['numeroPagos'].hasError('tarjetaInexistente')) {
@@ -77,171 +121,156 @@
             </mat-error>
           }
         </mat-form-field>
-
-        @if (pagoTransporteForm.get('formaPago')?.value !== 'Daviplata') {
-          <mat-form-field appearance="outline" class="example-full-width"
-            >
-            <mat-label>Número Identificación (Tarjeta)</mat-label>
-            <input type="text" matInput formControlName="numeroIdentificacion" [matAutocomplete]="auto">
-            <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayTarjeta"
-              (optionSelected)="onTarjetaSelected($event.option.value)">
-              @for (t of filteredTarjetas | async; track t) {
-                <mat-option [value]="t">
-                  {{ t.identification_number }} - {{ t.card_number }}
-                </mat-option>
-              }
-            </mat-autocomplete>
-          </mat-form-field>
-        }
-
-        @if (pagoTransporteForm.get('formaPago')?.value !== 'Daviplata') {
-          <mat-form-field appearance="outline" class="example-full-width"
-            >
-            <mat-label>Contraseña asignada</mat-label>
-            <input matInput formControlName="contraseniaAsignada">
-            @if (pagoTransporteForm.controls['contraseniaAsignada']?.hasError('required')) {
-              <mat-error>
-                Obligatorio.
-              </mat-error>
-            }
-          </mat-form-field>
-        }
-
-        <!-- Eliminado validacion de numero de cuenta -->
-
-        <mat-form-field appearance="outline" class="example-full-width">
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('seguroFunerario')">
           <mat-label>Seguro Funerario</mat-label>
 
-          <mat-select formControlName="seguroFunerario">
+          <mat-select formControlName="seguroFunerario" (selectionChange)="onSeguroFunerarioChange()">
             <mat-option [value]="true">SI</mat-option>
             <mat-option [value]="false">NO</mat-option>
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Ccostos</mat-label>
-          <input matInput formControlName="Ccostos" (blur)="autollenarDesdeCentroCosto()">
-          <mat-hint>Al salir del campo se prellenan empresa, ciudad y sublabor.</mat-hint>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Centro de costo carnet</mat-label>
-          <input matInput formControlName="carnetCentroCosto">
-          <mat-hint>Es el que se imprime en el carnet. Si se deja vacío, se usa Ccostos.</mat-hint>
-        </mat-form-field>
-
-        <!-- Datos de nómina: se prellenan desde el centro de costo y quedan editables -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Empresa grupo Elite</mat-label>
-          <input matInput formControlName="empresaGrupoElite">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Código compañía</mat-label>
-          <input matInput formControlName="codigoCompania">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Sucursal</mat-label>
-          <input matInput formControlName="sucursal">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Ciudad de labor</mat-label>
-          <input matInput formControlName="ciudadLabor">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Clasificador 4 · Sublabor</mat-label>
-          <input matInput formControlName="sublabor">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
+        <!-- Valor del seguro. Solo con el seguro en "SI".
+             Los seguros los parametriza el CENTRO DE COSTO: casi todos tienen uno
+             (se resuelve solo y se muestra) y unos pocos tienen dos con importes muy
+             distintos, y ahí hay que elegir: es plata que se le descuenta a la
+             persona y el sistema no puede decidirlo por ella. -->
+        @if (mostrarValorSeguro) {
+          @if (seguroRequiereEleccion) {
+            <mat-form-field appearance="outline" class="example-full-width"
+              [class.campo-completo]="campoCompleto('seguroFunerarioId')">
+              <mat-label>Valor del seguro funerario</mat-label>
+              <mat-select formControlName="seguroFunerarioId">
+                @for (s of segurosDelCentro; track s.id) {
+                  <mat-option [value]="s.id">
+                    {{ s.valor | currency:'COP':'symbol-narrow':'1.0-0' }} — {{ s.nombre }}
+                  </mat-option>
+                }
+              </mat-select>
+              <mat-hint>Este centro de costo tiene {{ segurosDelCentro.length }} seguros: elige cuál aplica.</mat-hint>
+              @if (pagoTransporteForm.controls['seguroFunerarioId'].hasError('required')) {
+                <mat-error>Elige cuál de los seguros aplica.</mat-error>
+              }
+            </mat-form-field>
+          } @else if (valorSeguro !== null) {
+            <mat-form-field appearance="outline" class="example-full-width campo-completo">
+              <mat-label>Valor del seguro funerario</mat-label>
+              <input matInput readonly
+                     [value]="(valorSeguro | currency:'COP':'symbol-narrow':'1.0-0') || ''">
+              <mat-hint>
+                {{ seguroSeleccionado?.nombre || 'Valor con el que se guardó' }}
+                @if (seguroSeleccionado?.periodicidad) { · {{ seguroSeleccionado?.periodicidad }} }
+              </mat-hint>
+            </mat-form-field>
+          } @else {
+            <mat-form-field appearance="outline" class="example-full-width">
+              <mat-label>Valor del seguro funerario</mat-label>
+              <input matInput readonly value="">
+              <mat-hint>El centro de costo aún no tiene seguro parametrizado.</mat-hint>
+            </mat-form-field>
+          }
+        }
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('salario')">
           <mat-label>Salario</mat-label>
           <input matInput formControlName="salario" thousandSeparator>
         </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Auxilio de Transporte</mat-label>
-          <input matInput formControlName="auxilio_transporte" type="text">
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Porcentaje ARL</mat-label>
-          <input matInput formControlName="porcentajeARL" type="text" />
-          <mat-icon matSuffix
-                    matTooltip="Se calcula automáticamente según el cargo. Puede modificarlo si es necesario.">
-            info_outline
-          </mat-icon>
-          <mat-hint>Asignado según el cargo. Puede modificarlo.</mat-hint>
-        </mat-form-field>
-
-        <!-- Cesantías PORVENIR, FONDO NACIONAL DEL AHORRO, PROTECCIÓN, SKANDIA, COLFONDOS -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Cesantías</mat-label>
-          <mat-select formControlName="cesantias">
-            <mat-option value="PORVENIR">PORVENIR</mat-option>
-            <mat-option value="FONDO NACIONAL DEL AHORRO">FONDO NACIONAL DEL
-            AHORRO</mat-option>
-            <mat-option value="PROTECCIÓN">PROTECCIÓN</mat-option>
-            <mat-option value="SKANDIA">SKANDIA</mat-option>
-            <mat-option value="COLFONDOS">COLFONDOS</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <!-- Sub centro -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Sub centro de costos</mat-label>
-          <input matInput formControlName="subCentroCostos">
-        </mat-form-field>
-
-        <!-- GRUPO -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Grupo</mat-label>
-          <input matInput formControlName="grupo">
-        </mat-form-field>
-
-        <!-- CATEGORIA -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Clasificador 2 · Categoría</mat-label>
-          <input matInput formControlName="categoria">
-        </mat-form-field>
-
-        <!-- OPERACION -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Clasificador 3 · Operación</mat-label>
-          <input matInput formControlName="operacion">
-        </mat-form-field>
-
-        <!--horas_extras-->
-        <mat-form-field appearance="outline" class="example-full-width">
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('horasExtras')">
           <mat-label>Horas Extras</mat-label>
           <mat-select formControlName="horasExtras">
             <mat-option [value]="true">SI</mat-option>
             <mat-option [value]="false">NO</mat-option>
           </mat-select>
         </mat-form-field>
+        </div>
 
-        <!-- fecha de ingreso -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Fecha de Ingreso</mat-label>
-          <input matInput [matDatepicker]="pickerIngreso" formControlName="fechaIngreso">
-          <mat-datepicker-toggle matSuffix [for]="pickerIngreso"></mat-datepicker-toggle>
-          <mat-datepicker #pickerIngreso></mat-datepicker>
+        <h3 class="hq-seccion">Centro de costos y transporte</h3>
+        <p class="hq-seccion-nota">Se proponen desde el maestro de centros de costo al digitar el C.Costos.</p>
+        <div class="grid-managerial">
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('Ccostos')">
+          <mat-label>Ccostos</mat-label>
+          <input matInput formControlName="Ccostos" (blur)="autollenarDesdeCentroCosto()">
+          <mat-hint>Al salir del campo se prellenan empresa, ciudad y sublabor.</mat-hint>
         </mat-form-field>
-
-        <!-- fecha de contrato -->
-        <mat-form-field appearance="outline" class="example-full-width">
-          <mat-label>Fecha de Contrato</mat-label>
-          <input matInput [matDatepicker]="pickerContrato" formControlName="fechaContrato">
-          <mat-datepicker-toggle matSuffix [for]="pickerContrato"></mat-datepicker-toggle>
-          <mat-datepicker #pickerContrato></mat-datepicker>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('subCentroCostos')">
+          <mat-label>Sub centro de costos</mat-label>
+          <input matInput formControlName="subCentroCostos">
         </mat-form-field>
-      </div>
+        <!-- Grupo de pago: NO se elige aquí (petición del usuario, 2026-09-17). Lo trae la
+             VACANTE a la que se remitió a la persona, que es donde se decide, y de ese mismo
+             grupo salen las fechas de pago y el casino que imprime el contrato. Elegir otro
+             aquí solo dejaría el documento diciendo dos cosas, así que el campo es de solo
+             lectura. `readonly` y no `disabled`: el valor tiene que seguir viajando en el
+             guardado automático, y `disabled` lo sacaría del formulario. -->
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('grupo')">
+          <mat-label>Grupo</mat-label>
+          <input matInput readonly formControlName="grupo"
+                 [placeholder]="grupoVacante ? '' : 'Lo define la requisición'">
+          @if (ayudaGrupo) {
+            <mat-hint>{{ ayudaGrupo }}</mat-hint>
+          }
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('categoria')">
+          <mat-label>Clasificador 2 · Categoría</mat-label>
+          <input matInput formControlName="categoria">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('operacion')">
+          <mat-label>Clasificador 3 · Operación</mat-label>
+          <input matInput formControlName="operacion">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('sublabor')">
+          <mat-label>Clasificador 4 · Sublabor</mat-label>
+          <input matInput formControlName="sublabor">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('auxilio_transporte')">
+          <mat-label>Auxilio de Transporte</mat-label>
+          <input matInput formControlName="auxilio_transporte" type="text">
+          <mat-hint>Auxilio legal. Lo dice la vacante; no es el valor de la ruta.</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('usaRuta')">
+          <mat-label>¿Usa ruta?</mat-label>
+          <mat-select formControlName="usaRuta">
+            <mat-option [value]="true">SI</mat-option>
+            <mat-option [value]="false">NO</mat-option>
+          </mat-select>
+          <mat-hint>Se propone desde el centro de costo. Es por persona.</mat-hint>
+        </mat-form-field>
+        @if (pagoTransporteForm.get('usaRuta')?.value === true) {
+          <mat-form-field appearance="outline" class="example-full-width"
+            [class.campo-completo]="campoCompleto('valorTransporte')">
+            <mat-label>Valor del transporte</mat-label>
+            <input matInput formControlName="valorTransporte" thousandSeparator>
+            <mat-hint>Valor de la ruta del centro de costo. Ajustable.</mat-hint>
+          </mat-form-field>
+        }
+        <mat-form-field appearance="outline" class="example-full-width"
+          [class.campo-completo]="campoCompleto('porcentajeHorasExtras')">
+          <mat-label>Porcentaje horas extras</mat-label>
+          <input matInput formControlName="porcentajeHorasExtras" type="text">
+          <mat-icon matSuffix
+                    matTooltip="Recargo pactado de horas extras. No tiene relación con el porcentaje de ARL.">
+            info_outline
+          </mat-icon>
+          <mat-hint>Recargo pactado (%). Distinto del porcentaje ARL.</mat-hint>
+        </mat-form-field>
+        </div>
 
-      <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
-        <button mat-flat-button color="primary" (click)="cargarPagoTransporte()">Cargar</button>
-      </div>
+
+      <!-- Sin botón "Cargar": cada respuesta se guarda sola. Completo, además,
+           marca contratado y pide el código de contrato. -->
+      <app-auto-guardado-estado style="margin-top: 24px;"
+        [estado]="autoPago.estado()" [error]="autoPago.error()"
+        (reintentar)="autoPago.ahora()" />
     </div>
     </ng-template>
   </mat-tab>
@@ -291,11 +320,7 @@
           }
         </div>
 
-        <div class="obra-actions">
-          <button mat-flat-button color="primary" (click)="guardarDatosObra()">
-            <mat-icon>save</mat-icon> Guardar datos de obra
-          </button>
-        </div>
+        <!-- Sin botón: estos datos viajan en cada guardado de "Pago y Transporte". -->
       </div>
     </ng-template>
   </mat-tab>
@@ -612,19 +637,29 @@
                                 </button>
                               </div>
 
+                              <!-- Documento de identidad: se nombra según el tipo de la
+                                   persona (CC, CE, PPT…). Si vino del formulario, es la
+                                   hoja con las dos caras ampliadas al 150%. -->
                               <div class="bio-card" [class.bio-lista]="!!cedulaSubida()">
                                 <span class="bio-icono"><mat-icon>badge</mat-icon></span>
                                 <span class="bio-txt">
-                                  <strong>Cédula</strong>
+                                  <strong>{{ nombreDocumento() }}</strong>
                                   <small>{{ cedulaSubida() ? 'En el expediente' : 'Sin subir' }}</small>
                                 </span>
+                                @if (cedulaDocumentoId() !== null) {
+                                  <button type="button" class="bio-prev bio-prev-doc"
+                                          (click)="verDocumentoIdentidad()">
+                                    <mat-icon>visibility</mat-icon>
+                                    <span>Ver documento</span>
+                                  </button>
+                                }
                                 <input type="file" hidden accept="application/pdf,image/*"
                                        #cedulaInput (change)="subirCedula($event)" />
                                 <button type="button" class="bio-btn"
                                         [disabled]="subiendoCedula()"
                                         (click)="cedulaInput.click()">
                                   <mat-icon>{{ subiendoCedula() ? 'hourglass_empty' : 'upload_file' }}</mat-icon>
-                                  {{ cedulaSubida() ? 'Reemplazar' : 'Subir cédula' }}
+                                  {{ cedulaSubida() ? 'Reemplazar' : 'Subir documento' }}
                                 </button>
                               </div>
 
@@ -677,9 +712,26 @@
                             <mat-card class="fingerprint-card">
                               <mat-card-content>
                                 <h3>Huella: Índice Derecho — APOYO LABORAL T.S. S.A.S.</h3>
-                                <button mat-raised-button color="primary" (click)="captureFingerprintApoyo()">
-                                  <mat-icon>camera</mat-icon> Capturar Huella
-                                </button>
+                                <div class="fingerprint-acciones">
+                                  @if (!enMovil) {
+                                    <button mat-raised-button color="primary" (click)="captureFingerprintApoyo()">
+                                      <mat-icon>fingerprint</mat-icon> Capturar Huella
+                                    </button>
+                                  }
+                                  <button mat-stroked-button color="primary"
+                                          (click)="adjuntarHuella('apoyo-laboral')">
+                                    <mat-icon>upload_file</mat-icon> Adjuntar imagen
+                                  </button>
+                                  @if (!enMovil) {
+                                    <button mat-button color="primary" (click)="reintentarDeteccionHuella()"
+                                            title="Vuelve a buscar el lector sin recargar la página">
+                                      <mat-icon>refresh</mat-icon> Reintentar detección
+                                    </button>
+                                  }
+                                </div>
+                                @if (formaCaptura(); as forma) {
+                                  <p class="fingerprint-forma">{{ forma }}</p>
+                                }
                                 @if (messageApoyo) {
                                   <div class="status-message">
                                     <mat-icon>info</mat-icon> {{ messageApoyo }}
@@ -688,7 +740,36 @@
                                 @if (fingerprintImageApoyo) {
                                   <div class="fingerprint-image-container">
                                     <img [src]="fingerprintImageApoyo" alt="Huella índice derecho — Apoyo Laboral">
+                                    <button type="button" class="huella-quitar" (click)="borrarHuella('apoyo-laboral')"
+                                            title="Quitar esta huella y capturar otra"
+                                            aria-label="Quitar la huella capturada">
+                                      <mat-icon>close</mat-icon>
+                                    </button>
                                   </div>
+                                } @else if (tieneHuellaGuardada('apoyo-laboral')) {
+                                  <!-- LA HUELLA YA GUARDADA, al volver a abrir la vista.
+                                       Antes la tarjeta salía vacía aunque el expediente
+                                       tuviera la huella: parecía que no se había guardado
+                                       nada y se recapturaba encima sin necesidad. -->
+                                  <div class="fingerprint-image-container">
+                                    @if (huellaGuardadaDe('apoyo-laboral'); as guardada) {
+                                      <img [src]="guardada" alt="Huella guardada en el expediente">
+                                    } @else {
+                                      <!-- La imagen va por el gateway con token: tarda un
+                                           instante en llegar. Sin este hueco la tarjeta
+                                           parpadeaba de vacía a llena. -->
+                                      <div class="huella-cargando">Cargando huella…</div>
+                                    }
+                                    <button type="button" class="huella-quitar" (click)="borrarHuella('apoyo-laboral')"
+                                            title="Quitar la huella del expediente"
+                                            aria-label="Quitar la huella guardada">
+                                      <mat-icon>close</mat-icon>
+                                    </button>
+                                  </div>
+                                  <p class="fingerprint-forma" style="margin-top:6px">
+                                    <mat-icon style="font-size:16px;width:16px;height:16px;vertical-align:middle">verified</mat-icon>
+                                    Huella guardada en el expediente. Captura de nuevo solo si quieres reemplazarla.
+                                  </p>
                                 }
                                 @if (fingerprintImageApoyo) {
                                   <button mat-stroked-button color="primary" class="view-docs-btn"
@@ -703,9 +784,26 @@
                             <mat-card class="fingerprint-card" style="margin-top: 16px;">
                               <mat-card-content>
                                 <h3>Huella: Índice Derecho — TU ALIANZA SAS</h3>
-                                <button mat-raised-button color="accent" (click)="captureFingerprintTuAlianza()">
-                                  <mat-icon>camera</mat-icon> Capturar Huella
-                                </button>
+                                <div class="fingerprint-acciones">
+                                  @if (!enMovil) {
+                                    <button mat-raised-button color="accent" (click)="captureFingerprintTuAlianza()">
+                                      <mat-icon>fingerprint</mat-icon> Capturar Huella
+                                    </button>
+                                  }
+                                  <button mat-stroked-button color="accent"
+                                          (click)="adjuntarHuella('tu-alianza')">
+                                    <mat-icon>upload_file</mat-icon> Adjuntar imagen
+                                  </button>
+                                  @if (!enMovil) {
+                                    <button mat-button color="accent" (click)="reintentarDeteccionHuella()"
+                                            title="Vuelve a buscar el lector sin recargar la página">
+                                      <mat-icon>refresh</mat-icon> Reintentar detección
+                                    </button>
+                                  }
+                                </div>
+                                @if (formaCaptura(); as forma) {
+                                  <p class="fingerprint-forma">{{ forma }}</p>
+                                }
                                 @if (messageTuAlianza) {
                                   <div class="status-message">
                                     <mat-icon>info</mat-icon> {{ messageTuAlianza }}
@@ -714,7 +812,33 @@
                                 @if (fingerprintImageTuAlianza) {
                                   <div class="fingerprint-image-container">
                                     <img [src]="fingerprintImageTuAlianza" alt="Huella índice derecho — Tu Alianza">
+                                    <button type="button" class="huella-quitar" (click)="borrarHuella('tu-alianza')"
+                                            title="Quitar esta huella y capturar otra"
+                                            aria-label="Quitar la huella capturada">
+                                      <mat-icon>close</mat-icon>
+                                    </button>
                                   </div>
+                                } @else if (tieneHuellaGuardada('tu-alianza')) {
+                                  <!-- LA HUELLA YA GUARDADA, al volver a abrir la vista.
+                                       Antes la tarjeta salía vacía aunque el expediente
+                                       tuviera la huella: parecía que no se había guardado
+                                       nada y se recapturaba encima sin necesidad. -->
+                                  <div class="fingerprint-image-container">
+                                    @if (huellaGuardadaDe('tu-alianza'); as guardada) {
+                                      <img [src]="guardada" alt="Huella guardada en el expediente">
+                                    } @else {
+                                      <div class="huella-cargando">Cargando huella…</div>
+                                    }
+                                    <button type="button" class="huella-quitar" (click)="borrarHuella('tu-alianza')"
+                                            title="Quitar la huella del expediente"
+                                            aria-label="Quitar la huella guardada">
+                                      <mat-icon>close</mat-icon>
+                                    </button>
+                                  </div>
+                                  <p class="fingerprint-forma" style="margin-top:6px">
+                                    <mat-icon style="font-size:16px;width:16px;height:16px;vertical-align:middle">verified</mat-icon>
+                                    Huella guardada en el expediente. Captura de nuevo solo si quieres reemplazarla.
+                                  </p>
                                 }
                                 @if (fingerprintImageTuAlianza) {
                                   <button mat-stroked-button color="accent" class="view-docs-btn"

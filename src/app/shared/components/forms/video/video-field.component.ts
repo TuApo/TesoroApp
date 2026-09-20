@@ -169,7 +169,7 @@ interface EstadoPreview { state: 'loading' | 'ready' | 'error'; url: string | nu
     .df-video {
       width: 420px;
       max-width: 100%;
-      border: 1px solid var(--slate-300, #cbd5e1);
+      border: 1px solid var(--border-strong);
       border-radius: var(--r-sm, 10px);
       background: #000;
     }
@@ -180,12 +180,12 @@ interface EstadoPreview { state: 'loading' | 'ready' | 'error'; url: string | nu
       white-space: nowrap;
     }
     .df-chip__size {
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       white-space: nowrap;
     }
     .df-chip--error {
       border-color: #c0392b;
-      color: #c0392b;
+      color: #c0392b; color: light-dark(#c0392b, #eaaaa3);
     }
     .df-chip__action {
       display: inline-flex;
@@ -195,13 +195,13 @@ interface EstadoPreview { state: 'loading' | 'ready' | 'error'; url: string | nu
       border: none;
       border-radius: 50%;
       background: transparent;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       cursor: pointer;
     }
     .df-chip__action .material-symbols-outlined { font-size: 16px; }
     .df-chip__action--remove:hover {
-      color: #c0392b;
-      background: var(--slate-200, #e2e8f0);
+      color: #c0392b; color: light-dark(#c0392b, #eaaaa3);
+      background: var(--surface-4);
     }
     .df-chip__action:focus-visible {
       outline: 2px solid var(--lime, #8cd50a);

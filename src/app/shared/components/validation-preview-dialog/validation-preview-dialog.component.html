@@ -98,71 +98,37 @@
 
       <!-- LEFT: DATA TABLE -->
       <section class="vp__left-col">
-        <div class="vp__search-bar">
-          <mat-form-field appearance="outline" class="vp__ff-search" density="compact">
-            <mat-icon matPrefix>search</mat-icon>
-            <input matInput [formControl]="filterCtrl" placeholder="Filtrar registros..." autocomplete="off">
-            @if (filterCtrl.value) {
-            <button mat-icon-button matSuffix (click)="clearFilter()">
-              <mat-icon>close</mat-icon>
+        <!-- «Editar» (o doble clic) abre el registro en el panel derecho. -->
+        <app-tabla-estandar
+          id="validacion-previsualizacion"
+          [titulo]="titleText"
+          modulo="Validación"
+          busqueda="Filtrar registros..."
+          vacio="No se encontraron registros."
+          textoDetalle="Editar"
+          [datos]="filas"
+          [columnas]="columnas"
+          [filaId]="idFila"
+          [filaClase]="claseFila"
+          (filaClick)="select($event)">
+
+          <div tablaHerramientas>
+            <button mat-icon-button [color]="showErrorsOnly ? 'warn' : ''" (click)="toggleErrorsOnly()"
+              matTooltip="Mostrar solo errores">
+              <mat-icon>{{ showErrorsOnly ? 'filter_alt_off' : 'filter_alt' }}</mat-icon>
             </button>
-            }
-          </mat-form-field>
-
-          <button mat-icon-button [color]="showErrorsOnly ? 'warn' : ''" (click)="showErrorsOnly = !showErrorsOnly"
-            matTooltip="Mostrar solo errores">
-            <mat-icon>{{ showErrorsOnly ? 'filter_alt_off' : 'filter_alt' }}</mat-icon>
-          </button>
-        </div>
-
-        <div class="vp__table-card">
-          <table mat-table [dataSource]="filteredItems()" class="vp__table" matSort fixedLayout="true">
-
-            <!-- Status Column -->
-            <ng-container matColumnDef="__status">
-              <th mat-header-cell *matHeaderCellDef class="vp__th vp__th-status">Est.</th>
-              <td mat-cell *matCellDef="let row" class="vp__td-status">
-                @if (issueCount(row) > 0) {
-                <div class="vp__status-dot vp__dot--err" matTooltip="Tiene errores"></div>
-                } @else if (warnCount(row) > 0) {
-                <div class="vp__status-dot vp__dot--warn" matTooltip="Tiene advertencias"></div>
-                } @else {
-                <div class="vp__status-dot vp__dot--ok" matTooltip="Correcto"></div>
-                }
-              </td>
-            </ng-container>
-
-            <!-- Dynamic Columns -->
-            @for (col of schema.columns; track col.key) {
-            <ng-container [matColumnDef]="col.key">
-              <th mat-header-cell *matHeaderCellDef class="vp__th">{{ col.header }}</th>
-              <td mat-cell *matCellDef="let row" class="vp__td">
-                <span class="vp__cell-trunc">{{ col.cell(row) }}</span>
-              </td>
-            </ng-container>
-            }
-
-            <!-- Actions Column -->
-            <ng-container matColumnDef="__actions">
-              <th mat-header-cell *matHeaderCellDef class="vp__th vp__th-action"></th>
-              <td mat-cell *matCellDef="let row" class="vp__td-action">
-                <mat-icon class="vp__arrow-icon">chevron_right</mat-icon>
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="displayedColumns(); sticky: true"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns()" class="vp__row"
-              [class.vp__row--active]="schema.itemId(row) === selectedId" (click)="select(row)">
-            </tr>
-          </table>
-
-          @if (filteredCount === 0) {
-          <div class="vp__empty-state">
-            <div class="vp__empty-icon"><mat-icon>filter_list_off</mat-icon></div>
-            <p>No se encontraron registros.</p>
           </div>
-          }
-        </div>
+
+          <ng-template tablaCelda="__status" let-row>
+            @if (issueCount(row) > 0) {
+            <div class="vp__status-dot vp__dot--err" matTooltip="Tiene errores"></div>
+            } @else if (warnCount(row) > 0) {
+            <div class="vp__status-dot vp__dot--warn" matTooltip="Tiene advertencias"></div>
+            } @else {
+            <div class="vp__status-dot vp__dot--ok" matTooltip="Correcto"></div>
+            }
+          </ng-template>
+        </app-tabla-estandar>
       </section>
 
       <!-- RIGHT: EDIT PANEL -->
@@ -268,7 +234,7 @@
           <div class="vp__no-selection">
             <mat-icon>touch_app</mat-icon>
             <h3>Selecciona un registro</h3>
-            <p>Haz clic en una fila de la izquierda para ver detalles.</p>
+            <p>Pulsa «Editar» (o doble clic) en una fila de la izquierda para ver detalles.</p>
           </div>
           }
         </div>

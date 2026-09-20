@@ -1,0 +1,66 @@
+<section class="manual">
+  <header>
+    <h2>Manual de marca</h2>
+    <p class="sub">
+      Lo que ves aquí es lo que usan las piezas: estos mismos valores se inyectan al
+      generarlas. Cambiar el kit cambia las dos cosas a la vez.
+    </p>
+  </header>
+
+  <div class="marcas" *ngIf="marcas().length > 1">
+    <button type="button" *ngFor="let m of marcas()" class="chip-marca"
+            [class.activa]="elegida()?.id === m.id" (click)="elegir(m)">
+      {{ m.nombre }}
+    </button>
+  </div>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <ng-container *ngIf="elegida() as m">
+    <div class="bloque" *ngIf="colores().length">
+      <h3>Paleta</h3>
+      <ul class="colores">
+        <li *ngFor="let t of colores(); trackBy: trackToken">
+          <button type="button" class="muestra" [style.background]="t.valor"
+                  [class.clara]="esClaro(t.valor)" (click)="copiar(t)" [title]="'Copiar ' + t.valor">
+            {{ t.valor }}
+          </button>
+          <span class="etiqueta">{{ t.etiqueta || t.clave }}</span>
+          <span class="nota" *ngIf="t.nota">{{ t.nota }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="bloque" *ngIf="tipografias().length">
+      <h3>Tipografía</h3>
+      <ul class="tipos">
+        <li *ngFor="let t of tipografias(); trackBy: trackToken">
+          <span class="ejemplo" [style.font-family]="t.valor">Operario de poscosecha</span>
+          <span class="etiqueta">{{ t.etiqueta || t.clave }}</span>
+          <span class="nota" *ngIf="t.nota">{{ t.nota }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="bloque" *ngIf="m.tono_de_voz">
+      <h3>Tono de voz</h3>
+      <p class="tono">{{ m.tono_de_voz }}</p>
+    </div>
+
+    <div class="bloque" *ngIf="otros().length">
+      <h3>Otros valores</h3>
+      <ul class="otros">
+        <li *ngFor="let t of otros(); trackBy: trackToken">
+          <code>{{ t.clave }}</code><span class="val">{{ t.valor }}</span>
+          <span class="nota" *ngIf="t.nota">{{ t.nota }}</span>
+        </li>
+      </ul>
+    </div>
+
+    <article class="seccion" *ngFor="let s of secciones(); trackBy: trackSeccion">
+      <h3>{{ s.titulo }}</h3>
+      <p class="resumen" *ngIf="s.resumen">{{ s.resumen }}</p>
+      <div class="cuerpo" [innerHTML]="html(s)"></div>
+    </article>
+  </ng-container>
+</section>

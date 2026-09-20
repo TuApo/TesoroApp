@@ -5,20 +5,20 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
   --disab-accent: #00bcd4;
   --disab-accent-dark: #00838f;
   --disab-success: #2e7d32;
-  --disab-success-light: #e8f5e9;
+  --disab-success-light: light-dark(#e8f5e9, #193430);
   --disab-warn: #f57c00;
-  --disab-warn-light: #fff3e0;
+  --disab-warn-light: light-dark(#fff3e0, #382f24);
   --disab-danger: #c62828;
-  --disab-danger-light: #ffebee;
-  --disab-bg: #f5f7fb;
-  --disab-surface: #ffffff;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-danger-light: light-dark(#ffebee, #38162a);
+  --disab-bg: var(--surface-2);
+  --disab-surface: var(--surface);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-radius: 16px;
   --disab-radius-sm: 10px;
   --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -50,7 +50,7 @@
 .disab-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(245, 247, 251, 0.82);
+  background: rgb(var(--surface-rgb) / 0.82);
   backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
@@ -63,7 +63,7 @@
 .disab-overlay-text {
   font-size: 14px;
   font-weight: 600;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 /* ── Card principal ─────────────────────────────────────────── */
@@ -158,8 +158,8 @@
 }
 
 .disab-hero-btn-solid {
-  background: #fff !important;
-  color: var(--disab-primary-dark) !important;
+  background: var(--surface) !important;
+  color: var(--disab-primary-dark) !important; color: light-dark(var(--disab-primary-dark), #9ac4f4) !important;
   border-radius: 10px !important;
   padding: 0 20px !important;
   height: 44px !important;
@@ -240,10 +240,6 @@
   border-color: var(--disab-border) !important;
 }
 
-.disab-spacer {
-  flex: 1 1 auto;
-}
-
 /* ── Chips ──────────────────────────────────────────────────── */
 .disab-chip {
   display: inline-flex;
@@ -258,51 +254,9 @@
   white-space: nowrap;
 }
 
-.disab-chip-primary {
-  background: var(--disab-primary-light);
-  color: var(--disab-primary-dark);
-}
-
-.disab-chip-accent {
-  background: #e0f7fa;
-  color: var(--disab-accent-dark);
-}
-
 .disab-chip-info {
   background: var(--disab-warn-light);
   color: var(--disab-warn);
-}
-
-/* Chips semánticos por estado de incapacidad (en celdas) */
-.disab-chip-status {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 10px;
-  border-radius: 12px;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.disab-chip-status-ok {
-  background: var(--disab-success-light);
-  color: var(--disab-success);
-}
-.disab-chip-status-pending {
-  background: var(--disab-warn-light);
-  color: var(--disab-warn);
-}
-.disab-chip-status-danger {
-  background: var(--disab-danger-light);
-  color: var(--disab-danger);
-}
-.disab-chip-status-neutral {
-  background: #eef2f7;
-  color: var(--disab-text-muted);
 }
 
 /* ── Panel de filtros ───────────────────────────────────────── */
@@ -310,7 +264,7 @@
   border-radius: 12px !important;
   border: 1px solid var(--disab-border);
   box-shadow: var(--disab-shadow-sm) !important;
-  background: #fff;
+  background: var(--surface);
 }
 
 .disab-filter-panel ::ng-deep .mat-expansion-panel-header {
@@ -346,7 +300,7 @@
 
 .disab-filter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
   padding: 4px 2px;
 }
@@ -374,152 +328,12 @@
   --mdc-circular-progress-active-indicator-color: currentColor;
 }
 
-/* ── Búsqueda rápida inline en cabecera de tablas ───────────── */
-.disab-quick-search {
-  flex: 0 0 auto;
-  width: 320px;
-  max-width: 100%;
-}
-
-:host ::ng-deep .disab-quick-search .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
-:host ::ng-deep .disab-quick-search .mat-mdc-text-field-wrapper {
-  height: 40px !important;
-}
-
-:host ::ng-deep .disab-quick-search .mat-mdc-form-field-infix {
-  min-height: 40px !important;
-  padding-top: 8px !important;
-  padding-bottom: 8px !important;
-}
-
-:host ::ng-deep .disab-quick-search mat-icon[matPrefix] {
-  color: var(--disab-text-muted);
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
-}
-
-/* ── Tablas ─────────────────────────────────────────────────── */
-.disab-table-wrapper {
-  border-radius: 12px;
-  border: 1px solid var(--disab-border);
-  background: #fff;
-  overflow: hidden;
-  position: relative;
-  transition: opacity 0.2s ease;
-}
-
-.disab-table-wrapper.disab-loading {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.disab-table-scroll {
-  overflow-x: auto;
-  max-height: 640px;
-  scrollbar-gutter: stable;
-}
-
-/* Scroll más elegante */
-.disab-table-scroll::-webkit-scrollbar {
-  height: 10px;
-  width: 10px;
-}
-.disab-table-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.disab-table-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 5px;
-}
-.disab-table-scroll::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-.disab-table {
-  width: 100%;
-  min-width: 900px;
-  background: #fff;
-}
-
-:host ::ng-deep .disab-table th.mat-mdc-header-cell {
-  background: var(--disab-gradient) !important;
-  color: #fff !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.4px;
-  font-size: 12.5px;
-  text-transform: uppercase;
-  padding: 10px 14px !important;
-  border-bottom: none !important;
-  vertical-align: middle;
-  user-select: none;
-}
-
-/* Íconos de sort en color blanco para contraste con el gradiente */
-:host ::ng-deep .disab-table th.mat-mdc-header-cell .mat-sort-header-arrow {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-:host ::ng-deep .disab-table th.mat-mdc-header-cell.mat-sort-header-sorted {
-  background: linear-gradient(135deg, #1565c0 0%, #0097a7 100%) !important;
-}
-
-:host ::ng-deep .disab-table th.mat-mdc-header-cell .mat-sort-header-container:hover {
-  cursor: pointer;
-}
-
-:host ::ng-deep .disab-table td.mat-mdc-cell {
-  padding: 10px 14px !important;
-  font-size: 13px;
-  color: var(--disab-text);
-  border-bottom: 1px solid #eef1f5 !important;
-  vertical-align: middle;
-}
-
-:host ::ng-deep .disab-table tr.mat-mdc-row {
-  transition: background 0.12s ease;
-}
-
-:host ::ng-deep .disab-table tr.mat-mdc-row:nth-child(even) {
-  background: #fafbfe;
-}
-
-:host ::ng-deep .disab-table tr.mat-mdc-row:hover {
-  background: #eaf3fd !important;
-}
-
-/* Empty state ─ mejorado */
-.disab-no-data td {
-  text-align: center !important;
-  padding: 48px 16px !important;
-  color: var(--disab-text-muted) !important;
-  font-style: italic;
-  font-size: 14px;
-}
-
-.disab-no-data mat-icon {
-  display: block;
-  margin: 0 auto 10px;
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
-  opacity: 0.4;
-  color: var(--disab-primary);
-}
-
-/* Paginator */
-:host ::ng-deep mat-paginator.mat-mdc-paginator {
-  background: #fafbfe;
-  border-top: 1px solid var(--disab-border);
-}
+/* ── Tablas: son la tabla estandar (sus estilos son propios) ─── */
 
 /* ── Tiles de descarga ──────────────────────────────────────── */
 .disab-download-group {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -529,7 +343,7 @@
   justify-content: space-between;
   gap: 18px;
   padding: 18px 20px;
-  background: linear-gradient(180deg, #f7f9fc 0%, #eef4fb 100%);
+  background: linear-gradient(180deg, var(--surface-2) 0%, #eef4fb 100%); background: linear-gradient(180deg, var(--surface-2) 0%, light-dark(#eef4fb, #172945) 100%);
   border: 1px solid var(--disab-border);
   border-left: 4px solid var(--disab-primary);
   border-radius: 14px;
@@ -544,7 +358,7 @@
 
 .disab-download-tile-accent {
   border-left-color: var(--disab-accent);
-  background: linear-gradient(180deg, #f7f9fc 0%, #e0f7fa 100%);
+  background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-4) 100%);
 }
 
 .disab-download-info {
@@ -560,7 +374,7 @@
   width: 28px;
   height: 28px;
   color: var(--disab-primary);
-  background: #fff;
+  background: var(--surface);
   border-radius: 10px;
   padding: 10px;
   box-sizing: content-box;
@@ -569,7 +383,7 @@
 }
 
 .disab-download-tile-accent .disab-download-icon {
-  color: var(--disab-accent-dark);
+  color: var(--disab-accent-dark); color: light-dark(var(--disab-accent-dark), #97eff7);
 }
 
 .disab-download-title {
@@ -636,9 +450,6 @@
   .disab-download-controls button {
     flex: 1 1 auto;
   }
-  .disab-quick-search {
-    width: 100%;
-  }
 }
 
 @media (max-width: 768px) {
@@ -655,10 +466,10 @@
     font-size: 150px;
   }
   .disab-filter-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .disab-download-group {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .disab-date-inline,
   .disab-date-range {

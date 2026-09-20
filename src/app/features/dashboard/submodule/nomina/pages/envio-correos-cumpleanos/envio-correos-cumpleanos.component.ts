@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, OnInit, computed, inject, signal,
+  ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal, viewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -10,7 +10,6 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -20,8 +19,11 @@ import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+} from '../../../../../../shared/components/tabla-estandar';
+import {
   CalendarioCumpleanos, CargaPadron, ConfiguracionCumpleanos, CumpleanosDelDia,
-  CumpleanosService, DetalleEnvioCumpleanos, EnvioCumpleanos, PadronPage,
+  CumpleanosService, DetalleEnvioCumpleanos, EnvioCumpleanos, ItemEnvioCumpleanos, PadronPage,
   PersonaCumpleanos, PlantillaEmpresa, PreviewCumpleanos,
 } from '../../service/cumpleanos/cumpleanos.service';
 
@@ -62,9 +64,10 @@ interface Celda {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatCardModule, MatChipsModule,
-    MatFormFieldModule, MatIconModule, MatInputModule, MatPaginatorModule,
+    MatFormFieldModule, MatIconModule, MatInputModule,
     MatProgressBarModule, MatSelectModule, MatSlideToggleModule, MatTabsModule,
     MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './envio-correos-cumpleanos.component.html',
   styleUrl: './envio-correos-cumpleanos.component.css',
@@ -106,6 +109,102 @@ export class EnvioCorreosCumpleanosComponent implements OnInit {
   readonly correoPrueba = signal('');
   readonly empresaPrueba = signal<string>('DEFECTO');
   readonly envios = signal<EnvioCumpleanos[]>([]);
+
+  // ── Tablas estándar ─────────────────────────────────────────────────────────
+  /** Personas del día elegido. */
+  readonly columnasDia: ColumnaTabla<PersonaCumpleanos>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (p) => p.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (p) => p.nombre ?? '', formato: (p) => p.nombre || '—',
+      tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'temporal', header: 'Temporal', valor: (p) => (p.empresa ? p.empresa_nombre ?? '' : 'sin temporal'),
+      tarjeta: 'badge' },
+    { id: 'finca', header: 'Finca', valor: (p) => p.finca ?? '', formato: (p) => p.finca || '—',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'correo', header: 'Correo', valor: (p) => p.correo ?? '', tarjeta: 'cuerpo' },
+    { id: 'edad', header: 'Edad', valor: (p) => p.edad, formato: (p) => (p.edad ?? '—').toString(),
+      align: 'right', prioridad: 2, tarjeta: 'meta' },
+  ];
+
+  /** Coincidencias del buscador en todo el mes. */
+  readonly columnasCoincidencias: ColumnaTabla<PersonaCumpleanos>[] = [
+    { id: 'cumple', header: 'Cumple', valor: (p) => p.cumple_dia ?? '', tarjeta: 'badge' },
+    { id: 'cedula', header: 'Cédula', valor: (p) => p.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (p) => p.nombre ?? '', formato: (p) => p.nombre || '—',
+      tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'temporal', header: 'Temporal', valor: (p) => p.empresa_nombre ?? '',
+      formato: (p) => p.empresa_nombre || '—', prioridad: 2, tarjeta: 'meta' },
+    { id: 'correo', header: 'Correo', valor: (p) => p.correo ?? '', tarjeta: 'cuerpo' },
+  ];
+
+  /** Destinatarios de un envío (el icono de estado va dentro de la celda «Estado»). */
+  readonly columnasDetalle: ColumnaTabla<ItemEnvioCumpleanos>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (i) => i.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (i) => i.nombre ?? '', formato: (i) => i.nombre || '—',
+      tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'correo', header: 'Correo', valor: (i) => i.correo ?? '', formato: (i) => i.correo || '—', tarjeta: 'cuerpo' },
+    { id: 'plantilla', header: 'Plantilla', valor: (i) => i.plantilla_nombre ?? '',
+      formato: (i) => i.plantilla_nombre || '—', prioridad: 3, tarjeta: 'meta' },
+    { id: 'estado', header: 'Estado', valor: (i) => i.estado, tarjeta: 'badge' },
+    { id: 'motivo', header: 'Motivo', valor: (i) => i.motivo ?? '', prioridad: 2, tarjeta: 'cuerpo' },
+  ];
+
+  /** Últimos envíos. */
+  readonly columnasEnvios: ColumnaTabla<EnvioCumpleanos>[] = [
+    { id: 'fecha', header: 'Fecha', valor: (e) => e.fecha, tarjeta: 'titulo' },
+    { id: 'origen', header: 'Origen', valor: (e) => (e.origen === 'AUTOMATICO' ? 'automático' : 'manual'),
+      tarjeta: 'subtitulo' },
+    { id: 'estado', header: 'Estado', valor: (e) => e.estado, tarjeta: 'badge' },
+    { id: 'enviados', header: 'Enviados', valor: (e) => e.total_enviados, align: 'right', tarjeta: 'meta' },
+    { id: 'fallidos', header: 'Fallidos', valor: (e) => e.total_fallidos, align: 'right', tarjeta: 'meta' },
+    { id: 'omitidos', header: 'Sin enviar', valor: (e) => e.total_omitidos, align: 'right', prioridad: 2,
+      tarjeta: 'meta' },
+  ];
+
+  /** Padrón: modo servidor (el backend pagina y busca; no ordena). */
+  readonly columnasPadron: ColumnaTabla<PersonaCumpleanos>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (p) => p.cedula, ordenable: false, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (p) => p.nombre ?? '', formato: (p) => p.nombre || '—',
+      ordenable: false, tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'temporal', header: 'Temporal', valor: (p) => (p.empresa ? p.empresa_nombre ?? '' : 'sin temporal'),
+      ordenable: false, tarjeta: 'meta' },
+    { id: 'ingreso', header: 'Ingreso', valor: (p) => p.fecha_ingreso ?? '', formato: (p) => p.fecha_ingreso || '—',
+      ordenable: false, prioridad: 3, tarjeta: 'meta' },
+    { id: 'finca', header: 'Finca', valor: (p) => p.finca ?? '', formato: (p) => p.finca || '—',
+      ordenable: false, prioridad: 2, tarjeta: 'meta' },
+    { id: 'correo', header: 'Correo', valor: (p) => p.correo ?? '', ordenable: false, tarjeta: 'cuerpo' },
+    { id: 'nacimiento', header: 'Nacimiento', valor: (p) => p.fecha_nacimiento ?? '',
+      ordenable: false, prioridad: 2, tarjeta: 'meta' },
+    { id: 'estado', header: 'Estado', valor: (p) => (p.activo ? 'activa' : 'inactiva'), ordenable: false,
+      tarjeta: 'badge',
+      badge: (p) => ({ texto: p.activo ? 'activa' : 'inactiva', tono: p.activo ? 'ok' : 'neutro' }) },
+  ];
+
+  /** Cargas anteriores del padrón. */
+  readonly columnasCargas: ColumnaTabla<CargaPadron>[] = [
+    { id: 'fecha', header: 'Fecha', valor: (c) => (c.creado_en ? new Date(c.creado_en) : null), tarjeta: 'subtitulo' },
+    { id: 'archivo', header: 'Archivo', valor: (c) => c.nombre_archivo ?? '', formato: (c) => c.nombre_archivo || '—',
+      tarjeta: 'titulo' },
+    { id: 'quien', header: 'Quién', valor: (c) => c.cargado_por ?? '', formato: (c) => c.cargado_por || '—',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'filas', header: 'Filas', valor: (c) => c.total_filas, align: 'right', tarjeta: 'meta' },
+    { id: 'nuevas', header: 'Nuevas', valor: (c) => c.nuevos, align: 'right', tarjeta: 'meta' },
+    { id: 'inactivadas', header: 'Inactivadas', valor: (c) => c.inactivados, align: 'right', tarjeta: 'meta' },
+    { id: 'sin_temporal', header: 'Sin temporal', valor: (c) => c.sin_empresa, align: 'right', prioridad: 2,
+      tarjeta: 'meta' },
+  ];
+
+  readonly idPersona = (p: PersonaCumpleanos) => p.id;
+  readonly idItemEnvio = (i: ItemEnvioCumpleanos) => i.id;
+  readonly idEnvio = (e: EnvioCumpleanos) => e.id;
+  readonly idCarga = (c: CargaPadron) => c.id;
+  readonly claseFilaPadron = (p: PersonaCumpleanos) => (p.activo ? '' : 'te-fila--atenuada');
+
+  /** La tabla del padrón guarda su página; la de la pantalla manda (al filtrar vuelve a la 1). */
+  private readonly tablaPadron = viewChild<TablaEstandarComponent>('tablaPadron');
+
+  constructor() {
+    effect(() => this.tablaPadron()?.pagina.set(this.pagina()));
+  }
 
   readonly MESES = [
     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -370,10 +469,16 @@ export class EnvioCorreosCumpleanosComponent implements OnInit {
     await this.recargarPadron();
   }
 
-  async paginar(e: PageEvent): Promise<void> {
-    this.pagina.set(e.pageIndex);
-    this.tamano.set(e.pageSize);
+  async paginar(e: { pagina: number; porPagina: number }): Promise<void> {
+    this.pagina.set(e.pagina);
+    this.tamano.set(e.porPagina);
     await this.recargarPadron();
+  }
+
+  /** Búsqueda del padrón (cédula, nombre, finca o correo): la resuelve el backend. */
+  async buscarPadron(texto: string): Promise<void> {
+    this.busquedaPadron.set(texto);
+    await this.filtrar();
   }
 
   async descargarPadron(): Promise<void> {

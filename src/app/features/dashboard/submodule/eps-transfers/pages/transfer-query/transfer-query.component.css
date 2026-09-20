@@ -16,8 +16,8 @@
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
-  background: var(--slate-50);
-  color: var(--slate-900);
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .tq-page {
@@ -41,8 +41,8 @@
 .premium-card {
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid var(--slate-100);
-  background-color: #ffffff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -111,7 +111,7 @@
 }
 
 .titulo {
-  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-family: var(--font-sans) !important;
   font-size: 1.4rem !important;
   font-weight: 700 !important;
   color: #ffffff !important;
@@ -120,7 +120,7 @@
 }
 
 .subtitulo {
-  font-family: 'Inter', 'Roboto', sans-serif !important;
+  font-family: var(--font-sans) !important;
   font-size: 0.85rem !important;
   color: #cbd5e1 !important;
   margin: 0 !important;
@@ -188,9 +188,9 @@
 }
 
 .btn-managerial:disabled {
-  background: var(--slate-200);
-  border-color: var(--slate-200);
-  color: var(--slate-400);
+  background: var(--surface-4);
+  border-color: var(--border);
+  color: var(--text-faint);
   cursor: not-allowed;
 }
 
@@ -243,20 +243,20 @@
 
 .tq-btn-ghost:hover:not(:disabled) .mat-icon,
 .tq-btn-ghost:focus-visible:not(:disabled) .mat-icon {
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 /* Destructiva: neutra en reposo, rojo SOLO al interactuar. */
 .tq-btn-danger:hover:not(:disabled),
 .tq-btn-danger:focus-visible:not(:disabled) {
-  background: #fef3f2;
-  border-color: #fecdca;
-  color: var(--danger);
+  background: #fef3f2; background: light-dark(#fef3f2, #351c27);
+  border-color: #fecdca; border-color: light-dark(#fecdca, #6a171c);
+  color: var(--danger); color: light-dark(var(--danger), #f2a29c);
 }
 
 .tq-btn-danger:hover:not(:disabled) .mat-icon,
 .tq-btn-danger:focus-visible:not(:disabled) .mat-icon {
-  color: var(--danger);
+  color: var(--danger); color: light-dark(var(--danger), #f2a29c);
 }
 
 .tq-btn-ghost:focus-visible,
@@ -284,8 +284,8 @@
 /* Panel tintado dentro de la tarjeta blanca: sin el tinte, blanco sobre
    blanco lo dejaría flotando sin borde perceptible. */
 .tq-search-card {
-  background: var(--slate-50);
-  border: 1px solid var(--slate-200);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 18px 20px 6px;
   flex-shrink: 0;
@@ -304,12 +304,12 @@
 }
 
 .tq-search-prefix {
-  color: var(--navy);
+  color: var(--navy-ink);
   margin-right: 6px;
 }
 
 .tq-search-clear {
-  color: var(--slate-400);
+  color: var(--text-faint);
 }
 
 .tq-search-button {
@@ -325,8 +325,8 @@
    `overflow: hidden` recorta la cabecera oscura de la tabla contra las
    esquinas redondeadas. */
 .tq-results-card {
-  background: #ffffff;
-  border: 1px solid var(--slate-200);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
   display: flex;
@@ -340,8 +340,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: var(--slate-50);
-  border-bottom: 1px solid var(--slate-200);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -359,7 +359,7 @@
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(33, 38, 60, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
   flex-shrink: 0;
 }
 
@@ -367,110 +367,40 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .tq-results-title {
   margin: 0;
   font-size: 14px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
   letter-spacing: -0.01em;
   min-width: 0;
-}
-
-/* Contador: es un dato, no un éxito. Neutro para no competir con los badges. */
-.tq-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--slate-100);
-  color: var(--slate-700);
-  border: 1px solid var(--slate-200);
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  white-space: nowrap;
 }
 
 /* =====================================================================
    TABLE
 ===================================================================== */
 /* EL scroller de la página. El alto sale de la cadena flex, no de un
-   `calc(100vh - N)` inventado que no sabía nada del header ni del navbar. */
+   `calc(100vh - N)` inventado que no sabía nada del header ni del navbar.
+   Dentro vive la tabla estándar (barra, filtros, paginación y tarjetas). */
 .tq-table-wrapper {
   flex: 1;
   min-height: 0;
   overflow: auto;
-}
-
-.tq-table {
-  width: 100%;
-  min-width: 820px;
-  background: transparent;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.tq-header-row {
-  background: var(--navy);
-}
-
-.tq-th {
-  background: var(--navy) !important;
-  color: #ffffff !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  padding: 12px 16px !important;
-  border-bottom: 2px solid var(--lime) !important;
-  white-space: nowrap;
-
-  /* El StickyStyler del CDK escribe `z-index: 100` INLINE en las celdas
-     sticky. Sin `!important` no hay forma de bajarlo desde CSS, y a 100 la
-     cabecera se pintaría por encima del submenú (50) y del navbar (60)
-     allí donde se solapen. La escala de contenido de página no pasa de 10. */
-  z-index: 3 !important;
-}
-
-.tq-th--center {
-  text-align: center !important;
-}
-
-.tq-row {
-  transition: background 0.15s ease;
-}
-
-.tq-row:hover {
-  background: var(--slate-50);
-}
-
-.tq-td {
-  padding: 12px 16px !important;
-  font-size: 13.5px;
-  color: var(--slate-900);
-  border-bottom: 1px solid var(--slate-200);
-}
-
-.tq-td--center {
-  text-align: center !important;
+  padding: 12px 16px;
 }
 
 .tq-code {
   display: inline-block;
   padding: 2px 8px;
-  background: var(--slate-100);
-  color: var(--navy);
+  background: var(--surface-3);
+  color: var(--navy-ink);
   border-radius: 6px;
   font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
   font-size: 12.5px;
   font-weight: 600;
-}
-
-.tq-eps {
-  font-weight: 500;
 }
 
 .tq-responsable {
@@ -484,12 +414,12 @@
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: var(--slate-400);
+  color: var(--text-faint);
   flex-shrink: 0;
 }
 
 .tq-muted {
-  color: var(--slate-400);
+  color: var(--text-faint);
   font-style: italic;
   font-size: 12.5px;
 }
@@ -501,10 +431,10 @@
   gap: 6px;
   height: 32px;
   padding: 0 12px;
-  border: 1px solid var(--slate-300);
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  background: #ffffff;
-  color: var(--slate-700);
+  background: var(--surface);
+  color: var(--text-2);
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -515,8 +445,8 @@
 
 .tq-doc-btn:hover {
   border-color: var(--lime);
-  background: var(--slate-50);
-  color: var(--navy);
+  background: var(--surface-2);
+  color: var(--navy-ink);
 }
 
 .tq-doc-btn:focus-visible {
@@ -528,18 +458,18 @@
   font-size: 16px;
   width: 16px;
   height: 16px;
-  color: var(--slate-500);
+  color: var(--muted);
 }
 
 .tq-doc-btn:hover .mat-icon {
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .tq-doc-empty {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--slate-400);
+  color: var(--text-faint);
   font-size: 12.5px;
   font-style: italic;
 }
@@ -550,40 +480,6 @@
   height: 16px;
 }
 
-/* Badges de estado: el neutro es el caso normal; solo se pinta lo que
-   pide acción (ámbar), cerró bien (verde) o salió mal (rojo). */
-.tq-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  background: var(--slate-100);
-  color: var(--slate-700);
-  border: 1px solid var(--slate-200);
-  white-space: nowrap;
-}
-
-.tq-badge--ok {
-  background: var(--ok-bg);
-  color: var(--ok-fg);
-  border-color: var(--ok-border);
-}
-
-.tq-badge--warn {
-  background: var(--warn-bg);
-  color: var(--warn-fg);
-  border-color: var(--warn-border);
-}
-
-.tq-badge--err {
-  background: #fef3f2;
-  color: var(--danger);
-  border-color: #fecdca;
-}
-
 /* =====================================================================
    EMPTY STATE
 ===================================================================== */
@@ -592,8 +488,8 @@
    `overflow: auto` cubre las pantallas bajas, donde 56px de padding + el
    texto no caben. */
 .tq-empty-card {
-  background: var(--slate-50);
-  border: 1px dashed var(--slate-300);
+  background: var(--surface-2);
+  border: 1px dashed var(--border-strong);
   border-radius: 12px;
   padding: 56px 24px;
   text-align: center;
@@ -611,7 +507,7 @@
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: rgba(33, 38, 60, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -623,20 +519,20 @@
   font-size: 40px;
   width: 40px;
   height: 40px;
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .tq-empty-title {
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .tq-empty-text {
   margin: 0;
   font-size: 14px;
-  color: var(--slate-500);
+  color: var(--muted);
   max-width: 480px;
   line-height: 1.5;
 }
@@ -647,9 +543,9 @@
   gap: 6px;
   margin: 12px 0 0;
   padding: 8px 16px;
-  background: #ffffff;
-  border: 1px solid var(--slate-200);
-  color: var(--slate-700);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
   border-radius: 8px;
   font-size: 12.5px;
   line-height: 1.4;
@@ -661,7 +557,7 @@
   font-size: 18px;
   width: 18px;
   height: 18px;
-  color: var(--slate-500);
+  color: var(--muted);
   flex-shrink: 0;
 }
 
@@ -772,10 +668,8 @@
     padding: 10px 12px;
   }
 
-  .tq-th,
-  .tq-td {
-    padding: 10px !important;
-    font-size: 12.5px !important;
+  .tq-table-wrapper {
+    padding: 10px 12px;
   }
 
   .tq-empty-card {
@@ -792,8 +686,7 @@
   .btn-managerial,
   .tq-btn-ghost,
   .tq-btn-danger,
-  .tq-doc-btn,
-  .tq-row {
+  .tq-doc-btn {
     transition: none;
   }
 }

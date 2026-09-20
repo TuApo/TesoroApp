@@ -73,16 +73,16 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     </div>
   `,
   styles: [`
-    .etr { border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden; background: #fff; }
+    .etr { border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; background: var(--surface); }
     .etr__barra {
       display: flex; align-items: center; gap: 2px; padding: 2px 4px;
-      background: #f8fafc; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap;
+      background: var(--surface-2); border-bottom: 1px solid var(--border); flex-wrap: wrap;
     }
     .etr__barra button { width: 32px; height: 32px; line-height: 32px; }
     .etr__barra mat-icon { font-size: 18px; width: 18px; height: 18px; }
-    .etr__sep { width: 1px; height: 20px; background: #e5e7eb; margin: 0 4px; }
+    .etr__sep { width: 1px; height: 20px; background: var(--surface-4); margin: 0 4px; }
     .etr__zona { min-height: 90px; padding: 10px 12px; font-size: 14px; line-height: 1.6; outline: none; }
-    .etr__zona:focus { background: #fefefe; }
+    .etr__zona:focus { background: var(--surface); }
     .etr__zona p { margin: 0 0 8px; }
   `],
 })

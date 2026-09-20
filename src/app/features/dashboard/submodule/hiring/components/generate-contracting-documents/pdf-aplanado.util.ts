@@ -191,3 +191,33 @@ export function aplanarFormulario(form: PDFForm): void {
     }
   }
 }
+
+/**
+ * Deja el PDF listo para DILIGENCIAR a mano: dibuja las imágenes pendientes y
+ * quita sus widgets, pero NO aplana los campos de texto, que siguen editables
+ * en el visor (ficha técnica: "completar lo que falta").
+ *
+ * Las imágenes se dibujan igual que en `aplanarFormulario()` sin flatten: el
+ * widget de la imagen se saca de la página para que su fondo no las tape.
+ */
+export function prepararParaDiligenciar(form: PDFForm): void {
+  const cola = pendientes.get(form);
+  if (!cola) return;
+  pendientes.delete(form);
+  for (const p of cola) {
+    try { p.quitarWidget(); } catch { /* la imagen igual se dibuja */ }
+    try { p.dibujar(); } catch (e) {
+      console.error('[pdf-aplanado] no se pudo dibujar una imagen pendiente:', e);
+    }
+  }
+}
+
+/**
+ * Aplana un PDF ya diligenciado en el visor, para guardarlo bloqueado en el
+ * expediente. Lo que escribió la persona queda como contenido de la página.
+ */
+export async function aplanarPdfDiligenciado(bytes: Uint8Array): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.load(bytes);
+  aplanarFormulario(pdfDoc.getForm());
+  return pdfDoc.save();
+}

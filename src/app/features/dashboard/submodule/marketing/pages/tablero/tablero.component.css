@@ -1,0 +1,74 @@
+:host { display: block; padding: 16px; }
+.tablero { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; margin: 0 auto; }
+
+.cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+h2 { margin: 0; font-size: 1.3rem; font-weight: 700; }
+.sub { margin: 4px 0 0; font-size: .85rem; color: var(--muted); }
+.cargando { margin: 0; font-size: .88rem; color: var(--muted); }
+
+.periodos { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.periodos button {
+  border: 0; background: var(--surface); cursor: pointer; font: inherit; font-size: .82rem; font-weight: 600;
+  padding: 8px 14px; color: var(--muted); border-left: 1px solid var(--border);
+}
+.periodos button:first-child { border-left: 0; }
+.periodos button.activo { background: var(--primary, #3b82f6); color: #fff; }
+
+/* ── el embudo ──────────────────────────────────────────────────────────── */
+.embudo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.paso {
+  display: flex; flex-direction: column; gap: 2px; padding: 16px 18px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+  border-left: 4px solid var(--primary, #3b82f6);
+}
+.paso:nth-child(2) { border-left-color: #f58634; }
+.paso:nth-child(3) { border-left-color: #16a34a; }
+.paso__n { font-size: 1.85rem; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.paso__t { font-size: .85rem; font-weight: 600; }
+.paso__tasa { font-size: .76rem; color: var(--muted, var(--text-faint)); }
+
+/* ── indicadores sueltos ────────────────────────────────────────────────── */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi {
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+}
+.kpi__v { font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.kpi__l { font-size: .82rem; font-weight: 600; }
+.kpi__n { font-size: .74rem; color: var(--muted, var(--text-faint)); }
+.kpi__n.alerta { color: #b91c1c; color: light-dark(#b91c1c, #f09e9e); font-weight: 600; }
+
+/* ── paneles ────────────────────────────────────────────────────────────── */
+.panel {
+  padding: 16px 18px; border: 1px solid var(--border);
+  border-radius: 14px; background: var(--surface);
+}
+.panel h3 { margin: 0 0 2px; font-size: .95rem; font-weight: 700; }
+.ayuda { margin: 0 0 10px; font-size: .78rem; color: var(--muted, var(--text-faint)); }
+.grafica { width: 100%; height: 220px; }
+.grafica--alta { height: 280px; }
+.dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+/* ── tablas (tabla estándar; aquí solo sus celdas tablaCelda) ───────────── */
+.panel h3 + app-tabla-estandar { display: block; margin-top: 10px; }
+.codigo { font-family: ui-monospace, monospace; font-weight: 600; }
+
+/* ── vacío ──────────────────────────────────────────────────────────────── */
+.vacio {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 40px 16px; text-align: center; color: var(--muted);
+  border: 1px dashed var(--border); border-radius: 14px; background: var(--surface);
+}
+.vacio p { margin: 0; font-size: .86rem; max-width: 46ch; }
+.vacio .mat-icon { font-size: 34px; width: 34px; height: 34px; color: #cbd5e1; }
+
+@media (max-width: 900px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dos { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .embudo { grid-template-columns: minmax(0, 1fr); }
+  .cabecera { flex-direction: column; }
+  .periodos { width: 100%; }
+  .periodos button { flex: 1 1 0; }
+}

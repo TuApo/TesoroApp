@@ -23,6 +23,15 @@ export const routes: Routes = [
     loadComponent: () =>
       import('./pages/notificaciones/notificaciones.component').then((m) => m.NotificacionesComponent),
   },
+  // Una ruta por pestaña: el menú tiene un submódulo para cada una ("Reglas de
+  // envío" y "Catálogo de tipos"), y sin esto ambos abrirían la pantalla por su
+  // primera pestaña y habría que buscar la otra a mano. El componente lee el
+  // último segmento para posicionarse.
+  {
+    path: 'notificaciones/:pestana',
+    loadComponent: () =>
+      import('./pages/notificaciones/notificaciones.component').then((m) => m.NotificacionesComponent),
+  },
   // Formularios Dinámicos (constructor + llenado + respuestas + analítica).
   // El módulo de menú ya existe en db_admin (Administracion → Formularios dinamicos).
   {

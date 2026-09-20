@@ -1,0 +1,111 @@
+<section class="plt">
+
+  <header class="cabecera">
+    <div>
+      <h2>Plantillas</h2>
+      <p class="sub">El diseño de las piezas. Edita, ensaya con datos difíciles y publica
+         sólo si cabe en todos los formatos.</p>
+    </div>
+  </header>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <ul class="lista" *ngIf="!cargando() && !detalle()">
+    <li *ngFor="let p of lista()" (click)="abrir(p)">
+      <div class="datos">
+        <span class="titulo">{{ p.nombre }}</span>
+        <span class="meta">{{ p.descripcion }}</span>
+      </div>
+      <mat-icon>chevron_right</mat-icon>
+    </li>
+  </ul>
+
+  <!-- ── editor ─────────────────────────────────────────────────────────── -->
+  <ng-container *ngIf="detalle() as d">
+    <header class="editor__cab">
+      <button type="button" class="mini" (click)="cerrar()"><mat-icon>arrow_back</mat-icon></button>
+      <div>
+        <h3>{{ d.nombre }}</h3>
+        <span class="meta">Versión {{ d.version_numero }} · {{ d.formatos.length }} formatos</span>
+      </div>
+      <div class="editor__acciones">
+        <button type="button" class="btn btn--fantasma" (click)="probar()" [disabled]="ensayando()">
+          <mat-icon>play_arrow</mat-icon> {{ ensayando() ? 'Ensayando…' : 'Ensayar' }}
+        </button>
+        <button type="button" class="btn btn--primario" (click)="publicar()"
+                [disabled]="!puedePublicar()">
+          <mat-icon>publish</mat-icon> Publicar
+        </button>
+      </div>
+    </header>
+
+    <p class="pista" *ngIf="!ensayo()">
+      Ensaya antes de publicar. Se renderiza con datos a propósito incómodos —una razón
+      social larguísima, ocho municipios— porque lo corto siempre cabe.
+    </p>
+    <p class="pista pista--alerta" *ngIf="sucio() && ensayo()">
+      Has tocado el código desde el último ensayo. Vuelve a ensayar antes de publicar.
+    </p>
+
+    <div class="paneles">
+      <div class="codigo">
+        <label class="campo">
+          <span>HTML</span>
+          <textarea rows="14" spellcheck="false" [ngModel]="html()"
+                    (ngModelChange)="cambiar('html', $event)"></textarea>
+        </label>
+        <label class="campo">
+          <span>CSS</span>
+          <textarea rows="18" spellcheck="false" [ngModel]="css()"
+                    (ngModelChange)="cambiar('css', $event)"></textarea>
+        </label>
+        <p class="nota">
+          Los colores salen del kit de marca (<code>var(--marca-*)</code>). Escribir un color
+          a mano rompe la marca y la regla de paleta lo bloquea.
+        </p>
+      </div>
+
+      <div class="resultado">
+        <ng-container *ngIf="ensayo() as e">
+          <div class="veredicto" [class.veredicto--mal]="!e.cabe_en_todos">
+            <mat-icon>{{ e.cabe_en_todos ? 'check_circle' : 'error' }}</mat-icon>
+            <span *ngIf="e.cabe_en_todos">Cabe en los {{ e.resultados.length }} formatos.</span>
+            <span *ngIf="!e.cabe_en_todos">No cabe en: {{ e.fallan.join(', ') }}</span>
+          </div>
+
+          <article class="muestra" *ngFor="let r of e.resultados" [class.muestra--mal]="!r.cabe">
+            <header>
+              <strong>{{ r.formato }}</strong>
+              <span>{{ r.ancho_px }}×{{ r.alto_px }}</span>
+            </header>
+            <img *ngIf="r.imagen" [src]="r.imagen" [alt]="r.formato" />
+            <p class="muestra__sin" *ngIf="!r.imagen">Sin vista previa (formato PDF)</p>
+            <p class="muestra__mal" *ngIf="!r.cabe">
+              <mat-icon>warning</mat-icon> {{ problemaLegible(r) }}
+            </p>
+          </article>
+        </ng-container>
+
+        <div class="vacio" *ngIf="!ensayo()">
+          <mat-icon>science</mat-icon>
+          <p>Pulsa <strong>Ensayar</strong> para ver cómo queda en cada formato.</p>
+        </div>
+
+        <section class="historial" *ngIf="d.versiones.length > 1">
+          <h4>Versiones</h4>
+          <ul>
+            <li *ngFor="let v of d.versiones">
+              <span class="v__n">v{{ v.numero }}</span>
+              <span class="v__notas">{{ v.notas || 'Sin notas' }}</span>
+              <button type="button" class="mini" *ngIf="v.numero !== d.version_numero"
+                      (click)="restaurar(v.id, v.numero)" title="Volver a esta versión">
+                <mat-icon>restore</mat-icon>
+              </button>
+              <span class="etq" *ngIf="v.numero === d.version_numero">En uso</span>
+            </li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </ng-container>
+</section>

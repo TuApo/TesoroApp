@@ -2,10 +2,10 @@ import {
   Component, Inject, OnInit, signal, computed, inject, ChangeDetectionStrategy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { SelectionModel } from '@angular/cdk/collections';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
@@ -14,6 +14,7 @@ import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 
 import { swalEnDialogo } from '@/app/shared/utils/swal-en-dialogo';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 
 import {
   CandidatoPorVacanteItem,
@@ -53,10 +54,10 @@ export interface CumplimientoDialogData {
     MatDialogModule,
     MatButtonModule,
     MatIconModule,
-    MatCheckboxModule,
     MatProgressBarModule,
     MatTooltipModule,
     MatMenuModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './cumplimiento-dialog.component.html',
   styleUrl: './cumplimiento-dialog.component.css',
@@ -76,25 +77,51 @@ export class CumplimientoDialogComponent implements OnInit {
   working = signal<boolean>(false);
   candidatos = signal<CandidatoPorVacanteItem[]>([]);
   /**
-   * Procesos seleccionados (clave = `proceso_id`).
+   * Procesos seleccionados: las casillas de la tabla estándar.
    *
-   * Antes la clave era `numero_documento`. Como la misma persona puede
-   * tener varias filas de Candidato —y por tanto varios procesos— marcar
-   * una casilla marcaba TODAS las suyas, y "Quitar vacante" desasignaba
-   * procesos que el usuario nunca marcó. El proceso es lo que de verdad
-   * se está seleccionando.
+   * La clave real es `proceso_id`. Antes era `numero_documento`: como la
+   * misma persona puede tener varias filas de Candidato —y por tanto varios
+   * procesos— marcar una casilla marcaba TODAS las suyas, y "Quitar vacante"
+   * desasignaba procesos que el usuario nunca marcó. La tabla marca objetos,
+   * así que cada vez que llegan filas nuevas `fijarCandidatos()` vuelve a
+   * marcar por `proceso_id` las que siguen presentes.
    */
-  private readonly seleccion = signal<Set<string>>(new Set<string>());
+  readonly seleccion = new SelectionModel<CandidatoPorVacanteItem>(true);
+  /** El SelectionModel no es una señal: se cuenta cada cambio para repintar. */
+  private readonly versionSeleccion = signal(0);
 
-  seleccionCount = computed(() => this.seleccion().size);
+  seleccionCount = computed(() => {
+    this.versionSeleccion();
+    return this.seleccion.selected.length;
+  });
   total = computed(() => this.candidatos().length);
-  allSelected = computed(() => this.total() > 0 && this.seleccionCount() === this.total());
-  someSelected = computed(() => this.seleccionCount() > 0 && !this.allSelected());
+
+  /** Posición de cada proceso en la lista del backend (columna «#»). */
+  private readonly posicion = computed(
+    () => new Map(this.candidatos().map((c, i) => [c.proceso_id, i + 1])),
+  );
+
+  readonly columnas: ColumnaTabla<CandidatoPorVacanteItem>[] = [
+    { id: 'num', header: '#', valor: (c) => this.posicion().get(c.proceso_id), align: 'right',
+      prioridad: 3, tarjeta: 'oculto' },
+    { id: 'candidato', header: 'Candidato', valor: (c) => this.nombreBonito(c), tarjeta: 'titulo',
+      minAncho: '200px' },
+    { id: 'documento', header: 'Documento', valor: (c) => c.numero_documento, tarjeta: 'subtitulo',
+      formato: (c) => `${c.tipo_doc || 'CC'} ${c.numero_documento}` },
+    { id: 'etapa', header: 'Etapa', valor: (c) => c.etapa ?? '', tarjeta: 'badge' },
+    // Los botones registran el resultado; el valor plano dice cuál hay (filtro y Excel).
+    { id: 'resultado', header: 'Resultado', align: 'right', interactiva: true, tarjeta: 'cuerpo',
+      valor: (c) => `Prueba: ${this.etiquetaResultado(c, 'prueba')} · Examen: ${this.etiquetaResultado(c, 'examen')}` },
+  ];
+
+  readonly idProceso = (c: CandidatoPorVacanteItem) => c.proceso_id;
 
   constructor(
     public dialogRef: MatDialogRef<CumplimientoDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: CumplimientoDialogData,
-  ) {}
+  ) {
+    this.seleccion.changed.subscribe(() => this.versionSeleccion.update((v) => v + 1));
+  }
 
   ngOnInit(): void {
     this.cargar();
@@ -111,15 +138,12 @@ export class CumplimientoDialogComponent implements OnInit {
       .pipe(take(1))
       .subscribe({
         next: (rows) => {
-          this.candidatos.set(Array.isArray(rows) ? rows : []);
-          // Mantener sólo selecciones que sigan presentes.
-          const vivas = new Set(this.candidatos().map((c) => String(c.proceso_id)));
-          const sel = new Set([...this.seleccion()].filter((c) => vivas.has(c)));
-          this.seleccion.set(sel);
+          // Mantiene sólo las selecciones que sigan presentes.
+          this.fijarCandidatos(Array.isArray(rows) ? rows : []);
           this.loading.set(false);
         },
         error: () => {
-          if (!silent) this.candidatos.set([]);
+          if (!silent) this.fijarCandidatos([]);
           this.loading.set(false);
           if (!silent) Swal.fire({ ...swalEnDialogo(), title: 'Error', text: 'No se pudieron cargar los candidatos de la vacante.', icon: 'error' });
         },
@@ -127,26 +151,23 @@ export class CumplimientoDialogComponent implements OnInit {
   }
 
   // ───────── Selección ─────────
-  isSelected(c: CandidatoPorVacanteItem): boolean {
-    return this.seleccion().has(String(c.proceso_id));
-  }
-
-  toggle(c: CandidatoPorVacanteItem, checked: boolean): void {
-    const sel = new Set(this.seleccion());
-    const key = String(c.proceso_id);
-    if (checked) sel.add(key); else sel.delete(key);
-    this.seleccion.set(sel);
-  }
-
-  toggleAll(checked: boolean): void {
-    this.seleccion.set(checked ? new Set(this.candidatos().map((c) => String(c.proceso_id))) : new Set());
+  /**
+   * Cambia las filas conservando la selección. La recarga y el cambio
+   * optimista traen objetos nuevos: se vuelven a marcar por `proceso_id` y
+   * se sueltan los procesos que ya no están.
+   */
+  private fijarCandidatos(filas: CandidatoPorVacanteItem[]): void {
+    const marcados = new Set(this.seleccion.selected.map((c) => String(c.proceso_id)));
+    this.candidatos.set(filas);
+    this.seleccion.clear();
+    const vivos = filas.filter((c) => marcados.has(String(c.proceso_id)));
+    if (vivos.length) this.seleccion.select(...vivos);
   }
 
   /** Candidatos sobre los que actúan los botones: seleccionados, o todos si no hay selección. */
   private objetivo(): CandidatoPorVacanteItem[] {
-    const sel = this.seleccion();
-    if (!sel.size) return this.candidatos();
-    return this.candidatos().filter((c) => sel.has(String(c.proceso_id)));
+    if (!this.seleccion.hasValue()) return this.candidatos();
+    return this.candidatos().filter((c) => this.seleccion.isSelected(c));
   }
 
   nombreMostrar(c: CandidatoPorVacanteItem): string {
@@ -292,7 +313,7 @@ export class CumplimientoDialogComponent implements OnInit {
       });
     } catch (err: any) {
       console.error('[registrarResultado]', err);
-      this.candidatos.set(antes);   // revierte lo optimista si el guardado falló
+      this.fijarCandidatos(antes);   // revierte lo optimista si el guardado falló
       Swal.fire({
         ...swalEnDialogo(),
         icon: 'error', title: 'Error',
@@ -329,7 +350,7 @@ export class CumplimientoDialogComponent implements OnInit {
         : resultado === 'no_paso' ? 'No pasó prueba'
           : 'No se presentó';
     }
-    this.candidatos.set(
+    this.fijarCandidatos(
       this.candidatos().map(x => (x.proceso_id === c.proceso_id ? { ...x, ...parche } : x)),
     );
   }
@@ -354,8 +375,7 @@ export class CumplimientoDialogComponent implements OnInit {
 
   /** Sólo las filas seleccionadas (acción destructiva: nunca asume "todas"). */
   private seleccionados(): CandidatoPorVacanteItem[] {
-    const sel = this.seleccion();
-    return this.candidatos().filter((c) => sel.has(String(c.proceso_id)));
+    return this.candidatos().filter((c) => this.seleccion.isSelected(c));
   }
 
   // ───────── Quitar vacante ─────────
@@ -474,11 +494,9 @@ export class CumplimientoDialogComponent implements OnInit {
         this.data.cumpl = req ? Math.min(100, Math.round((this.data.firm / req) * 100)) : 0;
       }
 
-      this.candidatos.set(
+      // Los procesos quitados salen de la lista y, con ella, de la selección.
+      this.fijarCandidatos(
         this.candidatos().filter((c) => !removidosProcesos.has(String(c.proceso_id))),
-      );
-      this.seleccion.set(
-        new Set([...this.seleccion()].filter((id) => !removidosProcesos.has(id))),
       );
       this.cambios = true;
     }

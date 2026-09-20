@@ -1,6 +1,5 @@
 :host {
   --azul: #21263c;
-  --muted: #64748b;
   --ok: #2e7d32;
   --warn: #ef6c00;
   --danger: #c62828;
@@ -20,7 +19,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px 10px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
 }
 
 .cm-head-icon {
@@ -34,7 +33,7 @@
 }
 
 .cm-head-text { flex: 1; min-width: 0; }
-.cm-head-text h2 { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--azul); }
+.cm-head-text h2 { margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--azul); color: light-dark(var(--azul), var(--text)); }
 .cm-head-text p { margin: 2px 0 0; font-size: .78rem; color: var(--muted); }
 
 .cm-progreso {
@@ -81,9 +80,9 @@
   gap: 2px;
   padding: 28px 16px 32px;
   text-align: center;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-strong);
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--surface-2);
 }
 
 .cm-vacio > .mat-icon {
@@ -98,7 +97,7 @@
   margin: 0;
   font-size: .88rem;
   font-weight: 600;
-  color: var(--azul);
+  color: var(--azul); color: light-dark(var(--azul), var(--text));
 }
 
 .cm-vacio-texto {
@@ -115,57 +114,18 @@
   gap: 14px;
   padding: 8px 10px;
   margin-bottom: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--surface-2);
   font-size: .8rem;
   color: var(--muted);
 }
 
-.cm-resumen .cm-ok { color: var(--ok); }
+.cm-resumen .cm-ok { color: var(--ok); color: light-dark(var(--ok), #ade1b0); }
 .cm-resumen .cm-warn { color: var(--warn); }
 .cm-resumen .cm-regen { color: var(--danger); }
 
-/* ── Tabla ── */
-.cm-tabla-wrap {
-  overflow: auto;
-  max-height: 46vh;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.cm-tabla {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: .82rem;
-}
-
-.cm-tabla thead th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  padding: 8px 10px;
-  text-align: left;
-  background: var(--azul);
-  color: #fff;
-  font-weight: 700;
-  font-size: .72rem;
-  text-transform: uppercase;
-  letter-spacing: .3px;
-}
-
-.cm-tabla tbody td {
-  padding: 7px 10px;
-  border-top: 1px solid #eef2f7;
-  vertical-align: middle;
-}
-
-.cm-tabla tbody tr.fila-bloqueada { background: #fff7ed; }
-
-.col-check { width: 42px; }
-.col-doc { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.col-estado { white-space: nowrap; }
-
+/* ── Celdas propias de la tabla estándar (plantillas tablaCelda) ── */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -177,15 +137,13 @@
 }
 
 .chip .mat-icon { width: 15px; height: 15px; font-size: 15px; }
-.chip-generado { background: #e8f5e9; color: var(--ok); }
-.chip-pendiente { background: #fff3e0; color: var(--warn); }
+.chip-generado { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); color: var(--ok); color: light-dark(var(--ok), #ade1b0); }
+.chip-pendiente { background: #fff3e0; background: light-dark(#fff3e0, #382f24); color: var(--warn); }
 
 /* Temporal: cada una con su color para distinguirlas de un vistazo, porque
    deciden el formato del carnet y salen en hojas separadas. */
-.chip-apoyo { background: #fff1e6; color: #b45309; }
-.chip-alianza { background: #e8eefc; color: #1e40af; }
-
-.col-temporal { white-space: nowrap; }
+.chip-apoyo { background: #fff1e6; background: light-dark(#fff1e6, #382824); color: #b45309; color: light-dark(#b45309, #f7c097); }
+.chip-alianza { background: #e8eefc; background: light-dark(#e8eefc, #142448); color: #1e40af; color: light-dark(#1e40af, #9fb2ef); }
 
 .cm-error,
 .cm-completo {
@@ -196,7 +154,7 @@
 }
 
 .cm-error { color: var(--danger); }
-.cm-completo { color: var(--ok); }
+.cm-completo { color: var(--ok); color: light-dark(var(--ok), #ade1b0); }
 .cm-error .mat-icon,
 .cm-completo .mat-icon { width: 16px; height: 16px; font-size: 16px; }
 
@@ -220,8 +178,8 @@
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid #e2e8f0;
-  background: #fbfcfd;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .cm-spacer { flex: 1; }
@@ -231,7 +189,7 @@
   color: var(--muted);
 }
 
-.cm-actions-info b { color: var(--azul); }
+.cm-actions-info b { color: var(--azul); color: light-dark(var(--azul), var(--text)); }
 
 /* Los deshabilitados salían como bloques grises que competían con el botón
    real. Se atenúan para que la acción principal se lea a la primera. */

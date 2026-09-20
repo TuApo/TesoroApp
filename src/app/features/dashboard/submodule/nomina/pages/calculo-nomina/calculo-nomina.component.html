@@ -99,92 +99,46 @@
     <p>Procesando nómina...</p>
   </div>
 
-  <div *ngIf="!loading && contratos.length > 0" class="table-frame mat-elevation-z3">
-    <div class="table-filter-bar">
-      <mat-form-field appearance="outline" class="emp-filter-field">
-        <mat-label>Filtrar empleados</mat-label>
-        <mat-icon matPrefix>filter_alt</mat-icon>
-        <input matInput
-               [(ngModel)]="filtroBusqueda"
-               (ngModelChange)="aplicarFiltroEmpleados()"
-               placeholder="Nombre, documento, contrato o centro de costo"
-               autocomplete="off">
-        <button *ngIf="filtroBusqueda" mat-icon-button matSuffix
-                (click)="limpiarFiltroEmpleados()" matTooltip="Limpiar filtro">
-          <mat-icon>close</mat-icon>
-        </button>
-      </mat-form-field>
-      <span class="filter-counter" *ngIf="filtroBusqueda">
-        Mostrando <strong>{{contratosFiltrados.length}}</strong> de <strong>{{contratos.length}}</strong>
-      </span>
-    </div>
-    <div class="table-scroll-container">
-      <table mat-table [dataSource]="contratosFiltrados">
-        
-        <ng-container matColumnDef="empleado">
-          <th mat-header-cell *matHeaderCellDef> Empleado </th>
-          <td mat-cell *matCellDef="let element"> 
-            <div class="emp-name">{{element.primer_nombre}} {{element.primer_apellido}}</div>
-            <small class="text-subtle">{{element.centro_de_costo}}</small>
-          </td>
-        </ng-container>
+  <div *ngIf="!loading && contratos.length > 0" class="table-frame">
+    <app-tabla-estandar
+      id="nomina-calculo-nomina"
+      titulo="Cálculo de nómina"
+      modulo="Nómina"
+      entidad="calculo_nomina"
+      busqueda="Nombre, documento o centro de costo…"
+      [datos]="contratosFiltrados"
+      [columnas]="columnas"
+      [filaId]="idContrato">
 
-        <ng-container matColumnDef="num_doc">
-          <th mat-header-cell *matHeaderCellDef> Documento </th>
-          <td mat-cell *matCellDef="let element"> {{element.numero_documento}} </td>
-        </ng-container>
+      <ng-template tablaCelda="empleado" let-element>
+        <div class="emp-name">{{element.primer_nombre}} {{element.primer_apellido}}</div>
+        <small class="text-subtle">{{element.centro_de_costo}}</small>
+      </ng-template>
 
-        <ng-container matColumnDef="salario">
-          <th mat-header-cell *matHeaderCellDef> Salario Mes </th>
-          <td mat-cell *matCellDef="let element" class="salary-cell"> 
-            {{element.salario | currency:'$':'symbol':'1.0-0'}}
-          </td>
-        </ng-container>
+      <ng-template tablaCelda="salario" let-element>
+        <span class="salary-cell">{{element.salario | currency:'$':'symbol':'1.0-0'}}</span>
+      </ng-template>
 
-        <ng-container matColumnDef="dias">
-          <th mat-header-cell *matHeaderCellDef class="center-header"> Días </th>
-          <td mat-cell *matCellDef="let element" class="center-cell"
-              [matTooltip]="diasDesglose(element)" matTooltipClass="dias-tooltip">
-            <span class="dias-pill">{{element.dias_laborados}}</span>
-          </td>
-        </ng-container>
+      <ng-template tablaCelda="dias" let-element>
+        <span class="dias-pill" [matTooltip]="diasDesglose(element)" matTooltipClass="dias-tooltip">{{element.dias_laborados}}</span>
+      </ng-template>
 
-        <ng-container matColumnDef="devengado">
-          <th mat-header-cell *matHeaderCellDef> Sueldo Q </th>
-          <td mat-cell *matCellDef="let element"> {{ getDevengadoBasico(element) | currency:'$':'symbol':'1.0-0' }} </td>
-        </ng-container>
+      <ng-template tablaCelda="devengado" let-element>{{ getDevengadoBasico(element) | currency:'$':'symbol':'1.0-0' }}</ng-template>
 
-        <ng-container matColumnDef="aux_trans">
-          <th mat-header-cell *matHeaderCellDef> Aux. Trans </th>
-          <td mat-cell *matCellDef="let element"> {{ getAuxilioTransporte(element) | currency:'$':'symbol':'1.0-0' }} </td>
-        </ng-container>
+      <ng-template tablaCelda="aux_trans" let-element>{{ getAuxilioTransporte(element) | currency:'$':'symbol':'1.0-0' }}</ng-template>
 
-        <ng-container matColumnDef="salud">
-          <th mat-header-cell *matHeaderCellDef> Salud </th>
-          <td mat-cell *matCellDef="let element" class="deduction-val"> -{{ getDeduccionSalud(element) | currency:'$':'symbol':'1.0-0' }} </td>
-        </ng-container>
+      <ng-template tablaCelda="salud" let-element>
+        <span class="deduction-val">-{{ getDeduccionSalud(element) | currency:'$':'symbol':'1.0-0' }}</span>
+      </ng-template>
 
-        <ng-container matColumnDef="pension">
-          <th mat-header-cell *matHeaderCellDef> Pensión </th>
-          <td mat-cell *matCellDef="let element" class="deduction-val"> -{{ getDeduccionPension(element) | currency:'$':'symbol':'1.0-0' }} </td>
-        </ng-container>
+      <ng-template tablaCelda="pension" let-element>
+        <span class="deduction-val">-{{ getDeduccionPension(element) | currency:'$':'symbol':'1.0-0' }}</span>
+      </ng-template>
 
-        <ng-container matColumnDef="neto">
-          <th mat-header-cell *matHeaderCellDef> Neto a Pagar </th>
-          <td mat-cell *matCellDef="let element" class="net-val"> {{ getNetoQuincena(element) | currency:'$':'symbol':'1.0-0' }} </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
-        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-
-        <tr class="mat-row" *matNoDataRow>
-          <td class="filter-empty" [attr.colspan]="displayedColumns.length">
-            <mat-icon>search_off</mat-icon>
-            <span>No hay empleados que coincidan con "{{filtroBusqueda}}".</span>
-          </td>
-        </tr>
-      </table>
-    </div>
+      <ng-template tablaCelda="neto" let-element>
+        <span class="net-val">{{ getNetoQuincena(element) | currency:'$':'symbol':'1.0-0' }}</span>
+      </ng-template>
+    </app-tabla-estandar>
   </div>
 
   <div *ngIf="!loading && contratos.length > 0" class="footer-control mat-elevation-z1">

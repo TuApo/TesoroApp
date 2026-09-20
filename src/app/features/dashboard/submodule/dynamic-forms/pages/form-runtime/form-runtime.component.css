@@ -124,8 +124,8 @@
 
 .runtime-pasos {
   flex-shrink: 0;
-  background: var(--df-surface, #fff);
-  border: 1px solid var(--df-borde, #e8edf3);
+  background: var(--df-surface, var(--surface));
+  border: 1px solid var(--df-borde, #e8edf3); border: 1px solid var(--df-borde, light-dark(#e8edf3, #233e63));
   border-radius: var(--df-radius, 14px);
   padding: 12px 16px;
 }
@@ -156,7 +156,7 @@
   font: inherit;
   font-size: 0.84rem;
   font-weight: 600;
-  color: var(--muted, #64748b);
+  color: var(--muted);
   cursor: pointer;
   max-width: 240px;
 }
@@ -173,8 +173,8 @@
   height: 24px;
   flex: none;
   border-radius: 50%;
-  background: var(--slate-200, #e8edf3);
-  color: var(--slate-700, #334155);
+  background: var(--surface-4);
+  color: var(--text-2);
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -190,9 +190,9 @@
 }
 
 .runtime-paso--actual .runtime-paso__btn {
-  background: var(--df-surface, #fff);
+  background: var(--df-surface, var(--surface));
   border-color: var(--df-primary, #8cd50a);
-  color: var(--df-accent, #21263c);
+  color: var(--df-accent-texto, var(--text));
 }
 
 .runtime-paso--actual .runtime-paso__num {
@@ -201,7 +201,7 @@
 }
 
 .runtime-paso--hecho .runtime-paso__btn {
-  color: var(--df-accent, #21263c);
+  color: var(--df-accent-texto, var(--text));
 }
 
 .runtime-paso--hecho .runtime-paso__num {
@@ -214,7 +214,7 @@
   height: 6px;
   margin-top: 10px;
   border-radius: 999px;
-  background: var(--slate-200, #e8edf3);
+  background: var(--surface-4);
   overflow: hidden;
 }
 
@@ -229,7 +229,7 @@
 .runtime-pasos__contador {
   margin: 6px 0 0;
   font-size: 0.78rem;
-  color: var(--muted, #64748b);
+  color: var(--muted);
 }
 
 /* ── Estados de página (cargando / error) y pantalla de gracias ── */
@@ -241,10 +241,10 @@
   align-items: center;
   gap: 12px;
   padding: 48px 24px;
-  background: var(--df-surface, #fff);
-  border: 1px solid var(--df-borde, #e8edf3);
+  background: var(--df-surface, var(--surface));
+  border: 1px solid var(--df-borde, #e8edf3); border: 1px solid var(--df-borde, light-dark(#e8edf3, #233e63));
   border-radius: var(--df-radius, 14px);
-  color: var(--df-text, #334155);
+  color: var(--df-text, var(--text-2));
   text-align: center;
 }
 
@@ -255,7 +255,7 @@
 
 .runtime-estado__icono {
   font-size: 40px;
-  color: var(--danger, #b42318);
+  color: var(--danger, #b42318); color: light-dark(var(--danger, #b42318), #f2a29c);
 }
 
 .runtime-estado__acciones,
@@ -269,14 +269,14 @@
 
 .runtime-gracias__icono {
   font-size: 56px;
-  color: var(--ok-fg, #0f766e);
+  color: var(--ok-fg, #0f766e); color: var(--ok-fg, light-dark(#0f766e, #9bf2ec));
 }
 
 .runtime-gracias__titulo {
   margin: 0;
   font-size: 1.4rem;
   font-weight: 800;
-  color: var(--df-accent, #21263c);
+  color: var(--df-accent-texto, var(--text));
 }
 
 .runtime-gracias__texto {
@@ -310,8 +310,8 @@
 /* ── Secciones y grilla de campos ── */
 
 .runtime-seccion {
-  background: var(--df-surface, #fff);
-  border: 1px solid var(--df-borde, #e8edf3);
+  background: var(--df-surface, var(--surface));
+  border: 1px solid var(--df-borde, #e8edf3); border: 1px solid var(--df-borde, light-dark(#e8edf3, #233e63));
   border-radius: var(--df-radius, 14px);
   padding: var(--df-pad, 18px 20px);
 }
@@ -319,10 +319,10 @@
 .runtime-seccion__titulo {
   margin: 0 0 14px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--df-borde, #e8edf3);
+  border-bottom: 1px solid var(--df-borde, #e8edf3); border-bottom: 1px solid var(--df-borde, light-dark(#e8edf3, #233e63));
   font-size: 1.05rem;
   font-weight: 700;
-  color: var(--df-accent, #21263c);
+  color: var(--df-accent-texto, var(--text));
 }
 
 .runtime-grid {
@@ -341,7 +341,7 @@
 
 @media (max-width: 700px) {
   .runtime-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -355,8 +355,8 @@
   gap: 12px;
   flex-wrap: wrap;
   padding: 14px 18px;
-  background: var(--df-surface, #fff);
-  border: 1px solid var(--df-borde, #e8edf3);
+  background: var(--df-surface, var(--surface));
+  border: 1px solid var(--df-borde, #e8edf3); border: 1px solid var(--df-borde, light-dark(#e8edf3, #233e63));
   border-radius: var(--df-radius, 14px);
   box-shadow: var(--shadow-sm, 0 6px 14px rgba(17, 24, 39, 0.08));
 }
@@ -366,15 +366,15 @@
   align-items: center;
   gap: 8px;
   margin-right: auto;
-  color: var(--df-text, #334155);
+  color: var(--df-text, var(--text-2));
   font-size: 0.9rem;
 }
 
 .runtime-borrador {
   padding: 4px 10px;
-  border: 1px dashed var(--slate-300, #d8e0ea);
+  border: 1px dashed var(--border-strong);
   border-radius: 999px;
-  color: var(--slate-500, #64748b);
+  color: var(--muted);
   font-size: 0.82rem;
 }
 
@@ -418,9 +418,9 @@
 }
 
 .btn--secundario {
-  background: var(--df-surface, #fff);
-  border-color: var(--slate-300, #d8e0ea);
-  color: var(--df-accent, #21263c);
+  background: var(--df-surface, var(--surface));
+  border-color: var(--border-strong);
+  color: var(--df-accent-texto, var(--text));
 }
 
 .btn--secundario:hover:not(:disabled) {
@@ -442,7 +442,7 @@
 .spinner--grande {
   width: 28px;
   height: 28px;
-  color: var(--df-accent, #21263c);
+  color: var(--df-accent-texto, var(--text));
 }
 
 @keyframes runtime-girar {

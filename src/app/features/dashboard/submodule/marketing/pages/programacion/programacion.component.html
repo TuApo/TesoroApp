@@ -1,0 +1,181 @@
+<section class="prog">
+
+  <header class="cabecera">
+    <div>
+      <h2>Programación</h2>
+      <p class="sub">Qué juego de plantillas se usa y cuándo. Marca un mes y repítelo cada
+         año, o pon un rango de fechas para una campaña puntual.</p>
+    </div>
+    <button type="button" class="btn btn--primario" (click)="nueva()">
+      <mat-icon>add</mat-icon> Nueva programación
+    </button>
+  </header>
+
+  <div class="barra">
+    <label class="campo" *ngIf="marcas().length > 1">
+      <span>Marca</span>
+      <select [ngModel]="marcaId()" (ngModelChange)="cambiarMarca($event)">
+        <option *ngFor="let m of marcas()" [value]="m.id">{{ m.nombre }}</option>
+      </select>
+    </label>
+    <label class="campo">
+      <span>Ver qué rige el día</span>
+      <input type="date" [ngModel]="fecha()" (ngModelChange)="cambiarFecha($event)" />
+    </label>
+  </div>
+
+  <!-- La simulación: lo que de verdad saldría ese día. -->
+  <article class="simulacion" *ngIf="vigente() as v">
+    <ng-container *ngIf="v.hay === false; else siRige">
+      <mat-icon class="simulacion__icono">event_busy</mat-icon>
+      <div>
+        <strong>Ninguna programación rige el {{ v.fecha }}.</strong>
+        <p>Se usaría la plantilla predeterminada, así que igualmente se generan piezas.</p>
+      </div>
+    </ng-container>
+    <ng-template #siRige>
+      <mat-icon class="simulacion__icono simulacion__icono--ok">event_available</mat-icon>
+      <div class="simulacion__cuerpo">
+        <strong>El {{ v.fecha }} manda «{{ v.nombre }}»</strong>
+        <p>{{ v.piezas_por_vacante }} piezas por vacante, sorteadas entre estas:</p>
+        <ul class="chips">
+          <li *ngFor="let p of v.plantillas">
+            {{ p.plantilla_nombre }}
+            <span class="chip__peso" *ngIf="p.peso > 1">×{{ p.peso }}</span>
+            <span class="chip__fija" *ngIf="p.obligatoria">siempre</span>
+          </li>
+        </ul>
+        <p class="simulacion__alcance" *ngIf="v.alcance?.length">
+          Solo para: <span *ngFor="let a of v.alcance">{{ a.tipo | lowercase }} «{{ a.valor }}» </span>
+        </p>
+      </div>
+    </ng-template>
+  </article>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <div class="vacio" *ngIf="!cargando() && !lista().length">
+    <mat-icon>calendar_month</mat-icon>
+    <p><strong>Todavía no hay ninguna programación.</strong></p>
+    <p>Sin ninguna, cada vacante usa la plantilla predeterminada. Crea una para tener varias
+       y que las piezas cambien.</p>
+  </div>
+
+  <ul class="lista" *ngIf="!cargando() && lista().length">
+    <li *ngFor="let p of lista()" [class.manda]="p.gana">
+      <div class="datos">
+        <div class="titulo">
+          {{ p.nombre }}
+          <span class="etq etq--manda" *ngIf="p.gana">manda ese día</span>
+          <span class="etq" *ngIf="p.vigente && !p.gana">también rige</span>
+        </div>
+        <div class="meta">
+          {{ regla(p) }} · {{ p.piezas_por_vacante }} piezas por vacante ·
+          {{ p.plantillas_count }} plantilla{{ p.plantillas_count === 1 ? '' : 's' }} ·
+          prioridad {{ p.prioridad }}
+        </div>
+        <div class="aviso" *ngIf="!p.plantillas_count">
+          <mat-icon>warning</mat-icon> Sin plantillas: aunque rija, el motor la salta.
+        </div>
+      </div>
+      <div class="acciones">
+        <button type="button" class="mini" (click)="editar(p)" title="Editar">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button type="button" class="mini mini--peligro" (click)="desactivar(p)" title="Desactivar">
+          <mat-icon>power_settings_new</mat-icon>
+        </button>
+      </div>
+    </li>
+  </ul>
+
+  <!-- ── formulario ─────────────────────────────────────────────────────── -->
+  <div class="telon" *ngIf="editando() as e" (click)="cerrar()">
+    <form class="hoja" (click)="$event.stopPropagation()" (ngSubmit)="guardar()">
+      <h3>{{ e.id ? 'Editar programación' : 'Nueva programación' }}</h3>
+
+      <label class="campo">
+        <span>Nombre</span>
+        <input type="text" [ngModel]="e.nombre" name="nombre" required maxlength="160"
+               placeholder="Juego de diciembre"
+               (ngModelChange)="campo('nombre', $event)" />
+      </label>
+
+      <label class="campo">
+        <span>Cuándo rige</span>
+        <select [ngModel]="e.tipo" name="tipo" (ngModelChange)="campo('tipo', $event)">
+          <option value="MENSUAL">Un mes concreto</option>
+          <option value="RANGO">Entre dos fechas</option>
+          <option value="PERMANENTE">Todo el año</option>
+        </select>
+      </label>
+
+      <ng-container *ngIf="e.tipo === 'MENSUAL'">
+        <div class="fila">
+          <label class="campo">
+            <span>Mes</span>
+            <select [ngModel]="e.mes" name="mes" (ngModelChange)="campo('mes', +$event)">
+              <option *ngFor="let m of meses; let i = index" [value]="i + 1">{{ m }}</option>
+            </select>
+          </label>
+          <label class="campo campo--check">
+            <input type="checkbox" [ngModel]="e.repetir_anual" name="repetir"
+                   (ngModelChange)="campo('repetir_anual', $event)" />
+            <span>Repetir cada año</span>
+          </label>
+        </div>
+        <label class="campo" *ngIf="!e.repetir_anual">
+          <span>Año</span>
+          <input type="number" [ngModel]="e.anio" name="anio" min="2020" max="2100"
+                 (ngModelChange)="campo('anio', +$event)" />
+          <small>Sin repetición y sin año, esta programación no regiría nunca.</small>
+        </label>
+      </ng-container>
+
+      <div class="fila" *ngIf="e.tipo === 'RANGO'">
+        <label class="campo">
+          <span>Desde</span>
+          <input type="date" [ngModel]="e.desde" name="desde" (ngModelChange)="campo('desde', $event)" />
+        </label>
+        <label class="campo">
+          <span>Hasta</span>
+          <input type="date" [ngModel]="e.hasta" name="hasta" (ngModelChange)="campo('hasta', $event)" />
+        </label>
+      </div>
+
+      <div class="fila">
+        <label class="campo">
+          <span>Piezas por vacante</span>
+          <input type="number" [ngModel]="e.piezas_por_vacante" name="piezas" min="1" max="8"
+                 (ngModelChange)="campo('piezas_por_vacante', +$event)" />
+          <small>Más de cuatro y quien las publica no las usa todas.</small>
+        </label>
+        <label class="campo">
+          <span>Prioridad</span>
+          <input type="number" [ngModel]="e.prioridad" name="prioridad" min="0" max="999"
+                 (ngModelChange)="campo('prioridad', +$event)" />
+          <small>Si dos rigen el mismo día, gana la más alta.</small>
+        </label>
+      </div>
+
+      <fieldset class="plantillas">
+        <legend>Plantillas del juego ({{ seleccion().size }} marcadas)</legend>
+        <p class="ayuda" *ngIf="!seleccion().size">
+          Sin plantillas marcadas, el motor salta esta programación aunque rija.
+        </p>
+        <label class="opcion" *ngFor="let p of plantillas()">
+          <input type="checkbox" [checked]="seleccion().has(p.id)" (change)="alternar(p.id)" />
+          <span>{{ p.nombre }}</span>
+          <small *ngIf="p.categoria">{{ p.categoria }}</small>
+        </label>
+      </fieldset>
+
+      <div class="botones">
+        <button type="button" class="btn btn--fantasma" (click)="cerrar()">Cancelar</button>
+        <button type="submit" class="btn btn--primario" [disabled]="guardando() || !e.nombre">
+          {{ guardando() ? 'Guardando…' : 'Guardar' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</section>

@@ -1,0 +1,150 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>category</mat-icon> Catálogo</h1>
+      <p class="tienda-subtitulo">
+        Productos con <strong>precio y costo</strong>. Sin costo no hay margen, y sin margen
+        el tablero no puede decir qué deja dinero y qué no.
+      </p>
+    </div>
+    <app-selector-tienda />
+  </header>
+
+  @if (aviso()) {
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+  }
+  @if (error()) {
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  <div class="tienda-barra">
+    <div class="campo campo-ancho"><label>Buscar</label>
+      <input [(ngModel)]="busqueda" (keyup.enter)="buscar()" placeholder="Nombre o SKU…" /></div>
+    <button type="button" class="boton secundario" (click)="buscar()">Buscar</button>
+    <button type="button" class="boton secundario" (click)="abrir('categoria')">
+      <mat-icon>folder</mat-icon> Nueva categoría
+    </button>
+    <button type="button" class="boton" (click)="abrir('producto')">
+      <mat-icon>add</mat-icon> Nuevo producto
+    </button>
+  </div>
+
+  @if (formulario() === 'categoria') {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Nueva categoría</h2>
+      <p class="nota">Sin negocio queda GLOBAL: aparece en todos los negocios.</p>
+      <div class="tienda-barra">
+        <div class="campo"><label>Código</label><input [(ngModel)]="nuevaCategoria.codigo" /></div>
+        <div class="campo"><label>Nombre</label><input [(ngModel)]="nuevaCategoria.nombre" /></div>
+        <div class="campo"><label>Negocio</label>
+          <select [(ngModel)]="nuevaCategoria.negocio_id">
+            <option value="">Global (todos)</option>
+            @for (n of negocios(); track n.id) { <option [value]="n.id">{{ n.nombre }}</option> }
+          </select>
+        </div>
+        <button type="button" class="boton" (click)="crearCategoria()"
+                [disabled]="!nuevaCategoria.codigo || !nuevaCategoria.nombre">Crear</button>
+      </div>
+    </section>
+  }
+
+  @if (formulario() === 'producto') {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Nuevo producto</h2>
+      <p class="nota">
+        Sin negocio queda <strong>GLOBAL</strong>: se ofrece en todas las tiendas aunque no
+        lo tengan, y entonces se vende bajo pedido. Es lo que hace útil una tienda de
+        tecnología que complementa a las demás.
+      </p>
+      <div class="tienda-barra">
+        <div class="campo"><label>SKU</label><input [(ngModel)]="nuevoProducto.sku" /></div>
+        <div class="campo campo-ancho"><label>Nombre</label>
+          <input [(ngModel)]="nuevoProducto.nombre" /></div>
+        <div class="campo"><label>Código de barras</label>
+          <input [(ngModel)]="nuevoProducto.codigo_barras" /></div>
+        <div class="campo"><label>Unidad</label><input [(ngModel)]="nuevoProducto.unidad" /></div>
+        <div class="campo"><label>Marca</label><input [(ngModel)]="nuevoProducto.marca" /></div>
+        <div class="campo"><label>Categoría</label>
+          <select [(ngModel)]="nuevoProducto.categoria_id">
+            <option value="">Sin categoría</option>
+            @for (c of categorias(); track $any(c)['id']) {
+              <option [value]="$any(c)['id']">{{ $any(c)['nombre'] }}</option>
+            }
+          </select>
+        </div>
+        <div class="campo"><label>Negocio</label>
+          <select [(ngModel)]="nuevoProducto.negocio_id">
+            <option value="">Global (todas las tiendas)</option>
+            @for (n of negocios(); track n.id) { <option [value]="n.id">{{ n.nombre }}</option> }
+          </select>
+        </div>
+        <button type="button" class="boton" (click)="crearProducto()"
+                [disabled]="!nuevoProducto.sku || !nuevoProducto.nombre">Crear</button>
+      </div>
+    </section>
+  }
+
+  <div class="disposicion-catalogo">
+    <section>
+      <!-- La búsqueda de arriba consulta al servidor: la tabla no trae la suya. -->
+      <app-tabla-estandar
+        id="tienda-catalogo-productos"
+        titulo="Catálogo"
+        modulo="Tienda"
+        vacio="No hay productos. Cree el primero."
+        [busqueda]="false"
+        [datos]="productos()"
+        [columnas]="columnasProductos"
+        [filaId]="idProducto"
+        [filaClase]="claseProducto"
+        [cargando]="cargando()"
+        (filaClick)="seleccionar($event)">
+
+        <ng-template tablaCelda="sku" let-p>
+          <span class="mono">{{ p.sku }}</span>
+        </ng-template>
+      </app-tabla-estandar>
+    </section>
+
+    <section class="tienda-tarjeta">
+      @if (seleccionado(); as p) {
+        <h2 class="titulo-seccion">{{ p.nombre }}</h2>
+        <p class="nota">{{ p.sku }}@if (p.descripcion) { · {{ p.descripcion }} }</p>
+
+        <button type="button" class="boton" (click)="abrir('precio')">
+          <mat-icon>sell</mat-icon> Fijar precio y costo
+        </button>
+
+        @if (formulario() === 'precio') {
+          <div class="formulario">
+            <div class="campo"><label>Precio de venta</label>
+              <input type="number" [(ngModel)]="nuevoPrecio.precio" min="0" /></div>
+            <div class="campo"><label>Costo</label>
+              <input type="number" [(ngModel)]="nuevoPrecio.costo" min="0" /></div>
+            <div class="campo campo-casilla">
+              <label><input type="checkbox" [(ngModel)]="nuevoPrecio.soloEstaTienda" />
+                Solo para {{ ctx.tienda()?.nombre ?? 'esta tienda' }}</label>
+            </div>
+            <button type="button" class="boton" (click)="fijarPrecio()"
+                    [disabled]="nuevoPrecio.precio <= 0">Guardar</button>
+          </div>
+        }
+
+        <h3 class="titulo-seccion pequeno">Histórico de precios</h3>
+        <app-tabla-estandar
+          id="tienda-catalogo-historico-precios"
+          [titulo]="'Histórico de precios · ' + p.nombre"
+          modulo="Tienda"
+          vacio="Este producto todavía no tiene precio. Así no se puede vender."
+          [datos]="historico()"
+          [columnas]="columnasHistorico"
+          [filaId]="idHistorico"
+          [filaClase]="claseHistorico" />
+      } @else {
+        <div class="tienda-vacio"><mat-icon>touch_app</mat-icon>
+          <p>Elija un producto para ver y fijar sus precios.</p></div>
+      }
+    </section>
+  </div>
+</div>

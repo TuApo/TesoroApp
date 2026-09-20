@@ -145,60 +145,60 @@ export interface SupportDownloadsData {
   `,
   styles: [`
     .sdd-titulo { display: flex; align-items: center; gap: 8px; }
-    .sdd-form { color: #64748b; font-weight: 500; font-size: 0.9rem; }
+    .sdd-form { color: var(--muted); font-weight: 500; font-size: 0.9rem; }
     .sdd-contenido { min-width: min(620px, 82vw); max-height: 65vh; }
 
-    .sdd-error { display: flex; align-items: center; gap: 8px; color: #b42318; padding: 12px 0; }
-    .sdd-vacio { color: #64748b; padding: 24px 0; text-align: center; }
+    .sdd-error { display: flex; align-items: center; gap: 8px; color: #b42318; color: light-dark(#b42318, #f2a29c); padding: 12px 0; }
+    .sdd-vacio { color: var(--muted); padding: 24px 0; text-align: center; }
 
     .sdd-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
     .sdd-item {
       display: flex; align-items: flex-start; gap: 12px;
-      padding: 12px; border: 1px solid #e8edf3; border-radius: 12px; background: #ffffff;
+      padding: 12px; border: 1px solid #e8edf3; border: 1px solid light-dark(#e8edf3, #233e63); border-radius: 12px; background: var(--surface);
     }
-    .sdd-item--fallo { border-color: #fecdca; background: #fffbfa; }
+    .sdd-item--fallo { border-color: #fecdca; border-color: light-dark(#fecdca, #6a171c); background: var(--surface); }
 
     .sdd-punto {
       display: inline-flex; align-items: center; justify-content: center;
       width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%;
-      background: #f1f5f9; color: #21263c;
+      background: var(--surface-3); color: var(--navy-ink);
     }
     .sdd-punto--zip { background: #21263c; color: #8cd50a; }
     .sdd-punto mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
     .sdd-cuerpo { flex: 1 1 auto; min-width: 0; }
     .sdd-cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    .sdd-quien { font-weight: 600; color: #1e293b; }
-    .sdd-cuando { color: #64748b; font-size: 0.8rem; margin-left: auto; }
+    .sdd-quien { font-weight: 600; color: var(--text); }
+    .sdd-cuando { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
 
     .sdd-chip {
-      padding: 1px 8px; border-radius: 999px; background: #eef2f7; color: #334155;
+      padding: 1px 8px; border-radius: 999px; background: var(--surface-3); color: var(--text-2);
       font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
     }
     .sdd-chip--suave { text-transform: none; font-weight: 600; margin-left: 6px; }
 
-    .sdd-resumen { margin: 6px 0 0 0; color: #334155; font-size: 0.88rem; }
-    .sdd-peso { color: #64748b; }
+    .sdd-resumen { margin: 6px 0 0 0; color: var(--text-2); font-size: 0.88rem; }
+    .sdd-peso { color: var(--muted); }
     .sdd-archivo {
       margin: 4px 0 0 0; font-family: 'Roboto Mono', monospace; font-size: 0.76rem;
-      color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .sdd-filtros {
       margin: 4px 0 0 0; display: flex; align-items: center; gap: 4px;
-      color: #64748b; font-size: 0.78rem;
+      color: var(--muted); font-size: 0.78rem;
     }
     .sdd-filtros mat-icon { font-size: 15px; width: 15px; height: 15px; }
-    .sdd-fallo { margin: 4px 0 0 0; display: flex; align-items: center; gap: 4px; color: #b42318; font-size: 0.8rem; }
+    .sdd-fallo { margin: 4px 0 0 0; display: flex; align-items: center; gap: 4px; color: #b42318; color: light-dark(#b42318, #f2a29c); font-size: 0.8rem; }
     .sdd-fallo mat-icon { font-size: 16px; width: 16px; height: 16px; }
 
     .sdd-toggle { padding: 0 !important; min-width: 0 !important; font-size: 0.78rem; }
     .sdd-archivos { list-style: none; margin: 4px 0 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
     .sdd-archivos li { display: flex; flex-direction: column; }
-    .sdd-archivos code { font-size: 0.75rem; color: #1e293b; }
-    .sdd-detalle { font-size: 0.72rem; color: #64748b; }
-    .sdd-mas { margin: 4px 0 0 0; font-size: 0.75rem; color: #64748b; font-style: italic; }
+    .sdd-archivos code { font-size: 0.75rem; color: var(--text); }
+    .sdd-detalle { font-size: 0.72rem; color: var(--muted); }
+    .sdd-mas { margin: 4px 0 0 0; font-size: 0.75rem; color: var(--muted); font-style: italic; }
 
-    .sdd-ip { font-size: 0.72rem; color: #94a3b8; font-family: 'Roboto Mono', monospace; }
+    .sdd-ip { font-size: 0.72rem; color: var(--text-faint); font-family: 'Roboto Mono', monospace; }
   `],
 })
 export class SupportDownloadsDialogComponent {

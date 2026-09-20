@@ -79,18 +79,18 @@ import { ColumnaResultado } from '../models/reportes.models';
     .aviso {
       display: flex; align-items: flex-start; gap: .4rem; margin: 0 0 .6rem;
       padding: .5rem .6rem; border-radius: 10px; font-size: .78rem;
-      background: #fffbeb; border: 1px solid #fde68a; color: #92400e;
+      background: #fffbeb; background: light-dark(#fffbeb, #383624); border: 1px solid #fde68a; border: 1px solid light-dark(#fde68a, #6a5d1c); color: #92400e; color: light-dark(#92400e, #f5bc99);
     }
     .aviso mat-icon { font-size: 17px; width: 17px; height: 17px; flex: 0 0 auto; }
     .cambio { display: flex; align-items: center; gap: .6rem; margin-bottom: .6rem; }
     .cambio__lado { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-    .cambio__lbl { font-size: .68rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .04em; }
+    .cambio__lbl { font-size: .68rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
     .cambio__val {
       font-size: .9rem; padding: .55rem .6rem; border-radius: 8px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .cambio__val--antes { background: #fee2e2; color: #7f1d1d; text-decoration: line-through; }
-    .cambio__flecha { color: #94a3b8; }
+    .cambio__val--antes { background: #fee2e2; background: light-dark(#fee2e2, #371725); color: #7f1d1d; color: light-dark(#7f1d1d, #eaa4a4); text-decoration: line-through; }
+    .cambio__flecha { color: var(--text-faint); }
   `],
 })
 export class EditarCeldaDialogComponent {

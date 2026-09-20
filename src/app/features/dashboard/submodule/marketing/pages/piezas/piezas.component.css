@@ -1,0 +1,141 @@
+:host { display: block; padding: 16px; }
+
+.piezas { display: flex; flex-direction: column; gap: 16px; max-width: 1400px; margin: 0 auto; }
+
+.cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.cabecera h2 { margin: 0; font-size: 1.3rem; font-weight: 700; color: var(--text); }
+.sub { margin: 4px 0 0; font-size: .85rem; color: var(--muted); max-width: 64ch; }
+
+/* ── botones ─────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  font-family: inherit; font-size: .88rem; font-weight: 600;
+  border-radius: 10px; padding: 9px 15px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  transition: background-color .18s ease, transform .1s ease;
+}
+.btn:hover:not(:disabled) { background: var(--surface-2); }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.btn.primario { background: var(--primary, #3b82f6); border-color: var(--primary, #3b82f6); color: #fff; }
+.btn.primario:hover:not(:disabled) { filter: brightness(.94); }
+.btn.plano { border-color: transparent; background: transparent; color: var(--muted); }
+.btn.pequeno { padding: 5px 11px; font-size: .8rem; }
+
+.mini {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+.mini:hover { background: var(--surface-2); }
+.mini .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+/* ── barra de filtro ─────────────────────────────────────────────────── */
+.barra {
+  display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap;
+  padding: 12px; border: 1px solid var(--border);
+  border-radius: 14px; background: var(--surface);
+}
+.campo-vacante { display: flex; flex-direction: column; gap: 4px; }
+.campo-vacante label { font-size: .78rem; font-weight: 600; color: var(--muted); }
+.campo-vacante input {
+  font-family: inherit; font-size: .9rem; padding: 8px 11px; width: 130px;
+  border: 1px solid var(--border); border-radius: 9px;
+}
+.espacio { flex: 1 1 auto; }
+.conteo { margin: 0; font-size: .82rem; color: var(--muted); }
+.cargando { margin: 0; font-size: .88rem; color: var(--muted); }
+
+/* ── rejilla ─────────────────────────────────────────────────────────── */
+.rejilla {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap: 14px;
+}
+.tarjeta {
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface);
+}
+.lienzo {
+  width: 100%; border: 0; padding: 0; cursor: pointer; background: var(--surface-3);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+/* object-fit contain y no cover: una pieza recortada engana sobre como se vera de verdad. */
+.lienzo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.marcador {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  color: var(--muted, var(--text-faint)); font-size: .78rem;
+}
+.marcador .mat-icon { font-size: 30px; width: 30px; height: 30px; }
+
+.datos { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-width: 0; }
+.formato { font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+           color: var(--primary, #3b82f6); color: light-dark(var(--primary, #3b82f6), var(--text)); }
+.titulo { font-size: .86rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis;
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.medida { font-size: .74rem; color: var(--muted, var(--text-faint)); font-variant-numeric: tabular-nums; }
+.fallo { font-size: .74rem; color: var(--danger, #ef4444); color: light-dark(var(--danger, #ef4444), #f2a29c); }
+
+.acciones { display: flex; gap: 6px; padding: 0 12px 12px; }
+
+/* ── vacío ───────────────────────────────────────────────────────────── */
+.vacio {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 40px 16px; text-align: center; color: var(--muted);
+  border: 1px dashed var(--border, var(--border-strong)); border-radius: 14px;
+}
+.vacio .mat-icon { font-size: 34px; width: 34px; height: 34px; }
+.vacio p { margin: 0; font-size: .87rem; max-width: 44ch; }
+
+/* ── visor y diálogo ─────────────────────────────────────────────────── */
+.capa {
+  position: fixed; inset: 0; background: rgba(15,23,42,.6); z-index: 1200;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.visor, .dialogo {
+  background: var(--surface); border-radius: 16px; padding: 18px;
+  width: min(560px, 100%); max-height: 92vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.visor header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.visor h3, .dialogo h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+.visor img { width: 100%; border-radius: 10px; border: 1px solid var(--border); }
+.visor-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.nota { margin: 0; font-size: .85rem; color: var(--muted); }
+
+.copy { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.copy-cab {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px; background: var(--surface-2); font-size: .78rem; font-weight: 600;
+  color: var(--muted);
+}
+/* El texto se copia tal cual para pegarlo en WhatsApp: se respetan sus saltos de linea. */
+.copy pre {
+  margin: 0; padding: 10px; font-family: inherit; font-size: .85rem; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.dialogo label { font-size: .8rem; font-weight: 600; margin-top: 6px; }
+.dialogo input[type="text"], .dialogo input[type="file"], .dialogo textarea {
+  font-family: inherit; font-size: .88rem; padding: 9px 11px; width: 100%;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+}
+.dialogo textarea { resize: vertical; }
+.dialogo-acciones { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* ── responsivo: los cortes de siempre ───────────────────────────────── */
+@media (max-width: 900px) {
+  .rejilla { grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 10px; }
+}
+@media (max-width: 600px) {
+  :host { padding: 12px; }
+  .cabecera { flex-direction: column; align-items: stretch; }
+  .cabecera .btn { justify-content: center; }
+  .barra { flex-direction: column; align-items: stretch; }
+  .campo-vacante input { width: 100%; }
+  .barra .btn { justify-content: center; }
+  .espacio { display: none; }
+  .rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dialogo-acciones .btn { flex: 1 1 auto; justify-content: center; }
+}

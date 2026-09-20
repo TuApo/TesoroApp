@@ -184,17 +184,17 @@ export interface TipoFormDialogData {
   `,
   styles: [`
     .dialog-header { display: flex; align-items: center; gap: 12px; padding: 20px 24px 12px; }
-    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); }
     h2[mat-dialog-title] { margin: 0; font-size: 18px; }
-    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
     mat-dialog-content { padding: 16px 24px !important; }
     mat-dialog-actions { padding: 12px 24px 16px !important; }
     mat-dialog-actions mat-spinner { margin-right: 8px; }
 
     .preview {
       display: flex; align-items: center; gap: 12px;
-      border: 1px solid #e3e5ee; border-radius: 10px; padding: 12px 14px;
-      background: #fafbfe; margin-bottom: 16px;
+      border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+      background: var(--surface); margin-bottom: 16px;
     }
     .preview-avatar {
       display: inline-flex; align-items: center; justify-content: center;
@@ -202,32 +202,32 @@ export interface TipoFormDialogData {
     }
     .preview-avatar mat-icon { font-size: 22px; width: 22px; height: 22px; }
     .preview-texto { display: flex; flex-direction: column; line-height: 1.25; }
-    .preview-titulo { font-size: 14px; font-weight: 600; color: #23262f; }
-    .preview-sub { font-size: 12px; color: #8a8fa3; }
+    .preview-titulo { font-size: 14px; font-weight: 600; color: var(--text); }
+    .preview-sub { font-size: 12px; color: var(--text-faint); }
 
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
     .col-2 { grid-column: 1 / -1; }
 
     .paleta { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; }
-    .paleta-label { font-size: 12px; color: #6b6f80; }
+    .paleta-label { font-size: 12px; color: var(--muted); }
     .paleta-items { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip-icono {
       display: inline-flex; align-items: center; justify-content: center;
       width: 34px; height: 34px; border-radius: 8px; cursor: pointer;
-      border: 1px solid #e3e5ee; background: #fff; color: #5a5f73;
+      border: 1px solid var(--border); background: var(--surface); color: var(--muted);
     }
     .chip-icono mat-icon { font-size: 19px; width: 19px; height: 19px; }
-    .chip-icono.sel { border-color: #3f51b5; background: #eef1fb; color: #3f51b5; }
+    .chip-icono.sel { border-color: #3f51b5; background: #eef1fb; background: light-dark(#eef1fb, #172345); color: #3f51b5; }
     .chip-color {
       width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
-      border: 2px solid transparent; outline: 1px solid #e3e5ee;
+      border: 2px solid transparent; outline: 1px solid var(--border);
     }
     .chip-color.sel { border-color: #23262f; }
 
     .toggle-campo { display: flex; flex-direction: column; gap: 4px; padding: 8px 0 16px; }
-    .toggle-ayuda { font-size: 12px; color: #6b6f80; line-height: 1.4; }
+    .toggle-ayuda { font-size: 12px; color: var(--muted); line-height: 1.4; }
 
-    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
   `],
 })
 export class TipoFormDialogComponent implements OnInit {

@@ -191,6 +191,25 @@
             </button>
           }
 
+          <!-- Historial laboral. No es un módulo del proceso: es una consulta de
+               SOLO LECTURA sobre todos los procesos y contratos de la persona,
+               así que va fuera del @for y sin porcentaje. Tampoco lo apaga el
+               bloqueo por contrato activo — es justo lo que hay que mirar para
+               saber de qué contrato se trata. Antes se abría solo al elegir
+               candidato y, una vez cerrado, no había forma de volver a él. -->
+          <button type="button" class="capa capa-accion"
+                  [disabled]="!candidatoSeleccionado()?.numero_documento"
+                  [matTooltip]="candidatoSeleccionado()?.numero_documento
+                    ? 'Ver todos los procesos y contratos de esta persona'
+                    : 'Selecciona primero un candidato'"
+                  matTooltipPosition="right"
+                  (click)="mostrarTabla()">
+            <span class="capa-anillo" [style.background]="fondoAnillo(null)">
+              <span class="capa-anillo-centro"><mat-icon>work_history</mat-icon></span>
+            </span>
+            <span class="capa-txt">Historial laboral</span>
+          </button>
+
           <!-- Cerrar el día. Va abajo del todo y separado de los módulos: no es
                un sitio al que ir, es la acción con la que se termina. Siempre
                habilitada, también con contrato activo. -->
@@ -218,14 +237,19 @@
           }
 
           @if (capaActiva() === 'seleccion') {
-            @for (s of subSeleccion; track s.id) {
+            <!-- Remisión y Exámenes solo aparecen si el evaluador marcó APLICA:
+                 antes estaban siempre, deshabilitados, y un botón apagado
+                 invita a pulsarlo para averiguar por qué no deja. -->
+            @for (s of subSeleccionVisible(); track s.id) {
               @let pctS = pctSub(s.clave);
               <button type="button" class="sub" role="tab"
                       [class.sub-activo]="subSeleccionActivo() === s.id"
                       [class.sub-completo]="pctS === 100"
                       [attr.aria-selected]="subSeleccionActivo() === s.id"
-                      [disabled]="bloqueoContratoTabs()"
-                      [matTooltip]="bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleAvance(s.label, s.clave)"
+                      [disabled]="bloqueoContratoTabs() || subBloqueadoPorPrueba(s)"
+                      [matTooltip]="bloqueoContratoTabs()
+                        ? MOTIVO_BLOQUEO
+                        : (subBloqueadoPorPrueba(s) ? MOTIVO_PRUEBA_PENDIENTE : detalleAvance(s.label, s.clave))"
                       matTooltipPosition="right"
                       (click)="abrirSubSeleccion(s)">
                 <!-- El mismo anillo de los módulos principales, en pequeño: lleva
@@ -345,6 +369,21 @@
                     [class.punto-ok]="candidatoSeleccionado()?.contacto?.whatsapp_confirmado"></span>
             </button>
 
+            <!-- Forzar antecedentes: re-abre las 8 fuentes y espera a los robots.
+                 Va aquí y no solo en la pestaña Antecedentes porque se pide
+                 desde cualquier punto del proceso, no solo con la ficha de
+                 antecedentes abierta. El punto verde = las 6 bloqueantes ya
+                 consultadas. -->
+            <button type="button" class="acceso"
+                    [matTooltip]="tooltipForzarAntecedentes()"
+                    matTooltipPosition="right"
+                    [disabled]="!candidatoSeleccionado()?.numero_documento || forzandoAntecedentes()"
+                    (click)="forzarAntecedentesRapido()">
+              <mat-icon>{{ forzandoAntecedentes() ? 'hourglass_empty' : 'smart_toy' }}</mat-icon>
+              <span class="acceso-txt">Forzar antecedentes</span>
+              <span class="acceso-punto" [class.punto-ok]="antecedentesCompletosUI()"></span>
+            </button>
+
             <button type="button" class="acceso"
                     [matTooltip]="candidatoSeleccionado()?.numero_documento ? 'Generar carnet (PDF)' : 'Selecciona primero un candidato'"
                     matTooltipPosition="right"
@@ -409,11 +448,12 @@
             </button>
 
             <button type="button" class="acceso"
-                    matTooltip="Ver tabla de registros" matTooltipPosition="right"
+                    matTooltip="Ver todos los procesos y contratos de esta persona"
+                    matTooltipPosition="right"
                     [disabled]="!candidatoSeleccionado()?.numero_documento"
                     (click)="mostrarTabla()">
-              <mat-icon>table_chart</mat-icon>
-              <span class="acceso-txt">Tabla de registros</span>
+              <mat-icon>work_history</mat-icon>
+              <span class="acceso-txt">Historial laboral</span>
             </button>
 
             <button type="button" class="acceso" matTooltip="Ver huella"
@@ -532,15 +572,18 @@
             [fotoUrl]="avatarPhotoUrl()"
             (fotoSolicitada)="openCamera()"
             (irAPaso)="irAPaso($event)"
-            (guardado)="recargarCandidato()">
+            (guardado)="recargarCandidato()"
+            (entrevistaEnviada)="trasEnviarEntrevista($event)">
           </app-help-information>
         </div>
       </mat-tab>
 
       <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
-      <mat-tab [disabled]="bloqueoContratoTabs()">
+      <mat-tab [disabled]="bloqueoContratoTabs() || examenesBloqueadosPorPrueba()">
         <ng-template mat-tab-label>
-          <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
+          <div class="tab" [matTooltip]="bloqueoContratoTabs()
+                 ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar'
+                 : (examenesBloqueadosPorPrueba() ? MOTIVO_PRUEBA_PENDIENTE : null)">
             @if (examenesYaCargados()) {
               <mat-icon style="color:#2E7D32">check_circle</mat-icon>
             } @else {
@@ -562,7 +605,23 @@
           </div>
         }
 
-        <div class="tab-content-scrollable" [formGroup]="formGroup3" [class.bloqueado-espera]="bloqueado()">
+        <!-- Bloqueo: la vacante es de prueba técnica y todavía no está aprobada.
+             Se llega aquí por el índice guardado del tab, no por el rail. -->
+        @if (examenesBloqueadosPorPrueba()) {
+          <div class="bloqueo-espera-banner">
+            <mat-icon>assignment_ind</mat-icon>
+            <div>
+              <strong>Prueba técnica pendiente.</strong>
+              No se pueden registrar exámenes de ingreso hasta que se marque que
+              <em>pasó la prueba técnica</em> (pestaña <em>Selección → Remisión</em>),
+              o desde el estado de la ficha.
+            </div>
+          </div>
+        }
+
+        <div class="tab-content-scrollable" [formGroup]="formGroup3"
+             (focusout)="autoSalud.alSalirDeCampo()"
+             [class.bloqueado-espera]="bloqueado() || examenesBloqueadosPorPrueba()">
           <!-- Header del tab -->
           <header class="med-header">
             <div class="med-header-icon">
@@ -589,44 +648,27 @@
               <span class="med-section-hint">IPS responsable de los exámenes</span>
             </div>
             <div class="med-grid-2">
-              <mat-form-field appearance="outline">
-                <mat-label>IPS principal *</mat-label>
-                <mat-select formControlName="ips" required>
-                  <mat-option value="JAVAP">JAVAP</mat-option>
-                  <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
-                  <mat-option value="HELSEN">HELSEN</mat-option>
-                  <mat-option value="ASISTIR">ASISTIR</mat-option>
-                  <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
-                  <mat-option value="PORSALUD">PORSALUD</mat-option>
-                  <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
-                  <mat-option value="ACR VITAL">ACR VITAL</mat-option>
-                  <mat-option value="SANILAB">SANILAB</mat-option>
-                  <mat-option value="KAREN SOTELO">KAREN SOTELO</mat-option>
-                  <mat-option value="JOHON VLADIMIR CRISTANCHO">JOHON VLADIMIR CRISTANCHO</mat-option>
-                </mat-select>
-                @if (formGroup3.get('ips')?.hasError('required') && formGroup3.get('ips')?.touched) {
-                  <mat-error>Selecciona la IPS principal</mat-error>
-                }
-              </mat-form-field>
+              <!-- Con buscador: son once IPS con nombres que nadie recuerda
+                   enteros, y un `mat-select` normal solo salta por la primera
+                   letra. Es el mismo componente que usa Vacantes. -->
+              <app-smart-select
+                label="IPS principal"
+                formControlName="ips"
+                [opciones]="IPS_OPCIONES"
+                [requerido]="true"
+                icono="local_hospital"
+                placeholderBuscar="Buscar IPS…"
+                vacio="Sin IPS">
+              </app-smart-select>
 
-              <mat-form-field appearance="outline">
-                <mat-label>Laboratorio (IPSLAB)</mat-label>
-                <mat-select formControlName="ipsLab">
-                  <mat-option value="">— Sin laboratorio —</mat-option>
-                  <mat-option value="JAVAP">JAVAP</mat-option>
-                  <mat-option value="ESTRATEGO">ESTRATEGO</mat-option>
-                  <mat-option value="HELSEN">HELSEN</mat-option>
-                  <mat-option value="ASISTIR">ASISTIR</mat-option>
-                  <mat-option value="SIGMEDICAL">SIGMEDICAL</mat-option>
-                  <mat-option value="PORSALUD">PORSALUD</mat-option>
-                  <mat-option value="ASTON MEDICAL">ASTON MEDICAL</mat-option>
-                  <mat-option value="ACR VITAL">ACR VITAL</mat-option>
-                  <mat-option value="SANILAB">SANILAB</mat-option>
-                  <mat-option value="NO APLICA">NO APLICA</mat-option>
-                  <mat-option value="KAREN SOTELO">KAREN SOTELO</mat-option>
-                  <mat-option value="JOHON VLADIMIR CRISTANCHO">JOHON VLADIMIR CRISTANCHO</mat-option>
-                </mat-select>
-              </mat-form-field>
+              <app-smart-select
+                label="Laboratorio (IPSLAB)"
+                formControlName="ipsLab"
+                [opciones]="IPSLAB_OPCIONES"
+                icono="science"
+                placeholderBuscar="Buscar laboratorio…"
+                vacio="Sin laboratorios">
+              </app-smart-select>
             </div>
           </section>
 
@@ -637,17 +679,104 @@
               <h4 class="med-section-title">Exámenes practicados</h4>
               <span class="med-section-hint">Selecciona uno o más</span>
             </div>
-            <mat-form-field appearance="outline" class="med-full-width">
-              <mat-label>Lista de exámenes *</mat-label>
-              <mat-select formControlName="selectedExams" multiple required>
-                @for (exam of filteredExamOptions; track exam) {
-                  <mat-option [value]="exam">{{ exam }}</mat-option>
-                }
-              </mat-select>
-              @if (formGroup3.get('selectedExams')?.hasError('required') && formGroup3.get('selectedExams')?.touched) {
-                <mat-error>Selecciona al menos un examen</mat-error>
+            <!-- Veinticuatro exámenes, varios con nombres larguísimos
+                 ("Trabajo en alturas (Incluye test…)"): sin buscador había que
+                 recorrer la lista entera con la persona esperando. -->
+            <app-smart-select
+              class="med-full-width"
+              label="Lista de exámenes"
+              formControlName="selectedExams"
+              [opciones]="filteredExamOptions"
+              [multiple]="true"
+              [requerido]="true"
+              icono="checklist"
+              placeholderBuscar="Buscar examen…"
+              vacio="Sin exámenes">
+            </app-smart-select>
+          </section>
+
+          <!-- ───── Resultados YA CARGADOS ─────
+               La pantalla solo dejaba SUBIR. Para saber si los exámenes de esta
+               contratación se hicieron había que irse a Documentos o al acceso
+               rápido "Ver examen médico", que además abre uno solo. Aquí están
+               todos, en tarjetas, y se pueden previsualizar sin salir del paso. -->
+          <section class="med-section">
+            <div class="med-section-head">
+              <span class="med-step-number">0</span>
+              <h4 class="med-section-title">Resultados ya cargados</h4>
+              <span class="med-section-hint">Soportes de examen médico de esta persona</span>
+              @if (examenDocs().length > 1) {
+                <button type="button" class="med-docs-todos"
+                        matTooltip="Abrir el visor con todos los soportes"
+                        (click)="previsualizarExamenes()">
+                  <mat-icon>collections_bookmark</mat-icon>
+                  Ver todos ({{ examenDocs().length }})
+                </button>
               }
-            </mat-form-field>
+            </div>
+
+            @if (examenDocs().length) {
+              <div class="med-docs">
+                @for (d of examenDocs(); track d.id) {
+                  <!-- La tarjeta entera abre el visor: es lo que se quiere hacer
+                       nueve de cada diez veces. Los botones son para lo demás. -->
+                  <article class="med-doc" role="button" tabindex="0"
+                           [matTooltip]="'Previsualizar ' + nombreDoc(d)"
+                           (click)="previsualizarExamenes(d)"
+                           (keydown.enter)="previsualizarExamenes(d)"
+                           (keydown.space)="$event.preventDefault(); previsualizarExamenes(d)">
+                    <div class="med-doc-tipo" [class.med-doc-tipo-img]="esImagenDoc(d)">
+                      <mat-icon>{{ iconoDoc(d) }}</mat-icon>
+                      <span class="med-doc-ext">{{ extensionDoc(d) }}</span>
+                    </div>
+
+                    <div class="med-doc-datos">
+                      <h5 class="med-doc-nombre" [title]="nombreDoc(d)">{{ nombreDoc(d) }}</h5>
+                      <div class="med-doc-meta">
+                        @if (d.uploaded_at || d.created_at) {
+                          <span class="med-doc-chip">
+                            <mat-icon>schedule</mat-icon>
+                            {{ (d.uploaded_at || d.created_at) | date:'dd/MM/yyyy HH:mm' }}
+                          </span>
+                        }
+                        <!-- El contrato es lo que dice si el soporte es de ESTA
+                             contratación o de una anterior de la misma persona. -->
+                        @if (d.contract_number) {
+                          <span class="med-doc-chip">
+                            <mat-icon>badge</mat-icon> {{ d.contract_number }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+
+                    <div class="med-doc-acciones" (click)="$event.stopPropagation()">
+                      <button type="button" class="med-doc-btn med-doc-btn-primario"
+                              matTooltip="Previsualizar" (click)="previsualizarExamenes(d)">
+                        <mat-icon>visibility</mat-icon>
+                      </button>
+                      <button type="button" class="med-doc-btn"
+                              matTooltip="Descargar" (click)="descargarDocumento(d)">
+                        <mat-icon>download</mat-icon>
+                      </button>
+                      <button type="button" class="med-doc-btn"
+                              matTooltip="Abrir en otra pestaña" (click)="verDocumento(d)">
+                        <mat-icon>open_in_new</mat-icon>
+                      </button>
+                      <button type="button" class="med-doc-btn med-doc-btn-quitar"
+                              matTooltip="Quitar del expediente"
+                              (click)="eliminarExamenCargado(d)">
+                        <mat-icon>delete_outline</mat-icon>
+                      </button>
+                    </div>
+                  </article>
+                }
+              </div>
+            } @else {
+              <p class="med-docs-vacio">
+                <mat-icon>info</mat-icon>
+                No hay soportes de examen médico cargados para esta persona.
+              </p>
+            }
           </section>
 
           <!-- ───── Sección 3: Resultados por examen ───── -->
@@ -731,15 +860,12 @@
             </section>
           }
 
-          <!-- Botón Guardar -->
+          <!-- Sin botón "Guardar": IPS, exámenes y resultados se guardan al
+               cambiar, y cada PDF adjuntado se une y se sube solo. -->
           <div class="med-actions">
-            <button mat-flat-button color="primary"
-                    (click)="imprimirSaludOcupacional()"
-                    [disabled]="isSavingMedical() || bloqueado()"
-                    class="med-save-button">
-              <mat-icon>{{ isSavingMedical() ? 'hourglass_empty' : 'save' }}</mat-icon>
-              {{ isSavingMedical() ? 'Guardando...' : 'Guardar Salud Ocupacional' }}
-            </button>
+            <app-auto-guardado-estado
+              [estado]="autoSalud.estado()" [error]="autoSalud.error()"
+              (reintentar)="autoSalud.ahora()" />
           </div>
         </div>
       </mat-tab>

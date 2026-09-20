@@ -98,8 +98,8 @@ export interface DatosUnlockAcceso {
       font-size: 1.35rem; font-weight: 700; letter-spacing: .5px;
     }
     h2 { margin: 0; font-size: 1.1rem; font-weight: 700; }
-    .qu-sub { margin: 2px 0 0; font-size: .82rem; color: #8a94a6; }
-    .qu-instr { margin: 14px 0 10px; font-size: .88rem; color: #5a6472; }
+    .qu-sub { margin: 2px 0 0; font-size: .82rem; color: var(--text-faint); }
+    .qu-instr { margin: 14px 0 10px; font-size: .88rem; color: var(--muted); }
 
     .qu-campo { position: relative; padding: 8px 0; margin-bottom: 4px; cursor: text; }
     /* Invisible y encima de los puntos: captura el teclado sin taparlos. */
@@ -111,28 +111,28 @@ export interface DatosUnlockAcceso {
     }
     .qu-puntos { display: flex; justify-content: center; gap: 10px; min-height: 16px; }
     .qu-punto {
-      width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #c3cbd8;
+      width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--border-strong);
       transition: background .12s, border-color .12s, transform .12s;
     }
     .qu-punto--on { background: #1157FB; border-color: #1157FB; transform: scale(1.08); }
     .qu-puntos--error .qu-punto { border-color: #ef4444; }
 
-    .qu-error { font-size: .78rem; color: #b91c1c; line-height: 1.4; min-height: 34px; padding: 0 4px; }
-    .qu-hint { font-size: .74rem; color: #a0aab8; min-height: 34px; }
+    .qu-error { font-size: .78rem; color: #b91c1c; color: light-dark(#b91c1c, #f09e9e); line-height: 1.4; min-height: 34px; padding: 0 4px; }
+    .qu-hint { font-size: .74rem; color: var(--text-faint); min-height: 34px; }
 
     .qu-teclado {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
       margin: 4px auto 16px; max-width: 260px;
     }
     .qu-tecla {
-      height: 56px; border: none; border-radius: 14px; background: #f1f4f9;
-      font-size: 1.3rem; font-weight: 600; color: #22303f; cursor: pointer;
+      height: 56px; border: none; border-radius: 14px; background: var(--surface-3);
+      font-size: 1.3rem; font-weight: 600; color: var(--text); cursor: pointer;
       transition: background .12s, transform .08s;
     }
-    .qu-tecla:hover:not(:disabled) { background: #e2e8f2; }
+    .qu-tecla:hover:not(:disabled) { background: var(--surface-4); }
     .qu-tecla:active:not(:disabled) { transform: scale(.95); }
     .qu-tecla:disabled { opacity: .5; cursor: default; }
-    .qu-tecla--acc { background: transparent; color: #5a6472; }
+    .qu-tecla--acc { background: transparent; color: var(--muted); }
     .qu-tecla--vacia { background: transparent; }
 
     .qu-entrar { width: 100%; }

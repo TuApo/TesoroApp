@@ -9,7 +9,7 @@
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
   transition: transform 0.3s ease;
-  background: white;
+  background: var(--surface);
 }
 
 .header-card {
@@ -20,7 +20,7 @@
 }
 
 .header-icon {
-  background: #e8f0fe;
+  background: #e8f0fe; background: light-dark(#e8f0fe, #11254b);
   color: #1a73e8;
   display: flex;
   align-items: center;
@@ -41,7 +41,7 @@
   justify-content: flex-end;
   gap: 12px;
   padding-top: 8px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
 }
 
 .btn-search {
@@ -72,17 +72,17 @@
 .select-search-header {
   position: sticky;
   top: 0;
-  background: white;
+  background: var(--surface);
   z-index: 10;
   display: flex;
   align-items: center;
   padding: 8px 16px;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--border);
 }
 
 .select-search-header mat-icon {
   margin-right: 8px;
-  color: #94a3b8;
+  color: var(--text-faint);
   font-size: 18px;
 }
 
@@ -111,7 +111,7 @@
 }
 
 .dashboard-header > mat-icon {
-  color: #1a73e8;
+  color: #1a73e8; color: light-dark(#1a73e8, #99c1f5);
 }
 
 .dashboard-title {
@@ -122,12 +122,12 @@
 
 .dashboard-title strong {
   font-size: 1rem;
-  color: #202124;
+  color: var(--text);
 }
 
 .dashboard-sub {
   font-size: 0.8rem;
-  color: #5f6368;
+  color: var(--muted);
 }
 
 .dashboard-spinner {
@@ -149,7 +149,7 @@
   justify-content: center;
   text-align: center;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
-  border-left: 5px solid #cbd5e1;
+  border-left: 5px solid var(--border-strong);
 }
 
 .dash-card mat-icon {
@@ -172,20 +172,20 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #5f6368;
+  color: var(--muted);
 }
 
 .dash-card.total       { border-left-color: #1a73e8; }
-.dash-card.total mat-icon,   .dash-card.total .dash-value       { color: #1a73e8; }
+.dash-card.total mat-icon,   .dash-card.total .dash-value       { color: #1a73e8; color: light-dark(#1a73e8, #99c1f5); }
 
 .dash-card.pendiente   { border-left-color: #ef6c00; }
-.dash-card.pendiente mat-icon, .dash-card.pendiente .dash-value { color: #ef6c00; }
+.dash-card.pendiente mat-icon, .dash-card.pendiente .dash-value { color: #ef6c00; color: light-dark(#ef6c00, #f7c297); }
 
 .dash-card.aprobada    { border-left-color: #1565c0; }
-.dash-card.aprobada mat-icon,  .dash-card.aprobada .dash-value  { color: #1565c0; }
+.dash-card.aprobada mat-icon,  .dash-card.aprobada .dash-value  { color: #1565c0; color: light-dark(#1565c0, #9ac4f4); }
 
 .dash-card.pagada      { border-left-color: #2e7d32; }
-.dash-card.pagada mat-icon,    .dash-card.pagada .dash-value    { color: #2e7d32; }
+.dash-card.pagada mat-icon,    .dash-card.pagada .dash-value    { color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
 
 @media (max-width: 720px) {
   .dashboard-cards {
@@ -193,100 +193,18 @@
   }
 }
 
-.table-container {
-  position: relative;
-  border-radius: 16px;
-  overflow: auto;
-  background: white;
-  min-height: 400px;
-  max-height: 60vh;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-  z-index: 1; /* Bajo para no interferir con menús */
-}
-
-.loading-shade {
-  position: absolute;
-  top: 0; left: 0; bottom: 56px; right: 0;
-  background: rgba(255, 255, 255, 0.7);
-  z-index: 200; /* Mayor que el z-index 100 del sticky header de Material */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-table {
-  width: 100%;
-}
-
-.mat-mdc-header-row {
-  background: #f8f9fa !important;
-}
-
-.mat-mdc-header-cell {
-  background: #f8f9fa !important;
-  color: #475569 !important;
-  font-weight: 700 !important;
-  border-bottom: 2px solid #e2e8f0 !important;
-}
-
-.name-cell {
-  display: flex;
-  flex-direction: column;
-}
-
+/* Celdas propias (plantillas tablaCelda) */
 .chip-ceco {
-  background: #e3f2fd;
+  background: #e3f2fd; background: light-dark(#e3f2fd, #122d4a);
   color: #1976d2;
   padding: 2px 8px;
   border-radius: 12px;
   font-size: 0.75rem;
   font-weight: 600;
-  border: 1px solid #bbdefb;
+  border: 1px solid #bbdefb; border: 1px solid light-dark(#bbdefb, #114576);
 }
 
 .neto-cell {
-  color: #1e8e3e;
+  color: #1e8e3e; color: light-dark(#1e8e3e, #a2ebb7);
   font-weight: bold;
-}
-
-.badge {
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.badge.pagado { background: #e8f5e9; color: #2e7d32; }
-.badge.pendiente { background: #fff3e0; color: #ef6c00; }
-.badge.calculado { background: #e6ffed; color: #1e8e3e; }
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  color: #999;
-}
-
-.empty-state mat-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 8px;
-  opacity: 0.5;
-}
-
-.mat-mdc-row:hover {
-  background-color: #f1f3f4;
-}
-
-/* Clic en cualquier celda de la fila abre el desprendible (excepto en la
-   columna del checkbox, que detiene la propagación). */
-.clickable-row {
-  cursor: pointer;
-}
-.clickable-row:active {
-  background-color: #e8eaed;
 }

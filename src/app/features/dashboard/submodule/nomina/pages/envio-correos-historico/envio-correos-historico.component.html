@@ -40,65 +40,37 @@
           </mat-form-field>
         </div>
 
-        @if (hayLotes()) {
-          <table mat-table [dataSource]="lotes()" class="tabla">
-            <ng-container matColumnDef="fecha">
-              <th mat-header-cell *matHeaderCellDef>Fecha</th>
-              <td mat-cell *matCellDef="let l">{{ l.creado_en | date:'dd/MM/yyyy HH:mm' }}</td>
-            </ng-container>
+        <app-tabla-estandar #tablaLotes
+          id="nomina-envio-correos-historico-lotes"
+          titulo="Histórico de envíos"
+          modulo="Nómina"
+          entidad="envio_lotes"
+          textoDetalle="Ver detalle"
+          vacio="Todavía no hay envíos registrados."
+          [busqueda]="false"
+          [datos]="lotes()"
+          [columnas]="columnasLotes"
+          [filaId]="idLote"
+          [cargando]="cargando()"
+          [totalServidor]="totalLotes()"
+          [filasPorPagina]="tamanoLotes()"
+          (paginaCambio)="onPaginaLotes($event)"
+          (filaClick)="abrir($event)">
 
-            <ng-container matColumnDef="quincena">
-              <th mat-header-cell *matHeaderCellDef>Quincena</th>
-              <td mat-cell *matCellDef="let l"><strong>{{ l.periodo_etiqueta }}</strong></td>
-            </ng-container>
+          <ng-template tablaCelda="fecha" let-l>{{ l.creado_en | date:'dd/MM/yyyy HH:mm' }}</ng-template>
 
-            <ng-container matColumnDef="empresa">
-              <th mat-header-cell *matHeaderCellDef>Empresa</th>
-              <td mat-cell *matCellDef="let l">{{ nombreEmpresa(l.empresa) }}</td>
-            </ng-container>
+          <ng-template tablaCelda="quincena" let-l><strong>{{ l.periodo_etiqueta }}</strong></ng-template>
 
-            <ng-container matColumnDef="plantilla">
-              <th mat-header-cell *matHeaderCellDef>Plantilla</th>
-              <td mat-cell *matCellDef="let l" class="tenue">{{ l.plantilla_nombre || '—' }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="totales">
-              <th mat-header-cell *matHeaderCellDef>Resultado</th>
-              <td mat-cell *matCellDef="let l">
-                <span class="chip chip-ok">{{ l.total_enviados }} enviados</span>
-                @if (l.total_fallidos > 0) {
-                  <span class="chip chip-alerta">{{ l.total_fallidos }} fallidos</span>
-                }
-                @if (l.total_omitidos > 0) {
-                  <span class="chip chip-neutro">{{ l.total_omitidos }} sin enviar</span>
-                }
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="estado">
-              <th mat-header-cell *matHeaderCellDef>Estado</th>
-              <td mat-cell *matCellDef="let l">
-                <span class="chip" [class]="claseEstado(l.estado)">{{ etiquetaEstado(l.estado) }}</span>
-              </td>
-            </ng-container>
-
-            <ng-container matColumnDef="acciones">
-              <th mat-header-cell *matHeaderCellDef></th>
-              <td mat-cell *matCellDef="let l">
-                <button mat-stroked-button (click)="abrir(l)">Ver detalle</button>
-              </td>
-            </ng-container>
-
-            <tr mat-header-row *matHeaderRowDef="columnasLotes"></tr>
-            <tr mat-row *matRowDef="let row; columns: columnasLotes;"></tr>
-          </table>
-
-          <mat-paginator [length]="totalLotes()" [pageIndex]="pagina()" [pageSize]="20"
-                         [hidePageSize]="true" (page)="onPaginaLotes($event)">
-          </mat-paginator>
-        } @else if (!cargando()) {
-          <p class="vacio">Todavía no hay envíos registrados.</p>
-        }
+          <ng-template tablaCelda="totales" let-l>
+            <span class="chip chip-ok">{{ l.total_enviados }} enviados</span>
+            @if (l.total_fallidos > 0) {
+              <span class="chip chip-alerta">{{ l.total_fallidos }} fallidos</span>
+            }
+            @if (l.total_omitidos > 0) {
+              <span class="chip chip-neutro">{{ l.total_omitidos }} sin enviar</span>
+            }
+          </ng-template>
+        </app-tabla-estandar>
       </mat-card-content>
     </mat-card>
   }
@@ -135,70 +107,53 @@
           </mat-select>
         </mat-form-field>
 
-        <table mat-table [dataSource]="items()" class="tabla">
-          <ng-container matColumnDef="cedula">
-            <th mat-header-cell *matHeaderCellDef>Cédula</th>
-            <td mat-cell *matCellDef="let i"><strong>{{ i.cedula }}</strong></td>
-          </ng-container>
+        <app-tabla-estandar #tablaItems
+          id="nomina-envio-correos-historico-items"
+          titulo="Detalle del envío"
+          modulo="Nómina"
+          entidad="envio_items"
+          vacio="No hay destinatarios con ese estado."
+          [busqueda]="false"
+          [datos]="items()"
+          [columnas]="columnasItems"
+          [filaId]="idItem"
+          [cargando]="cargando()"
+          [totalServidor]="totalItems()"
+          [filasPorPagina]="tamanoItems()"
+          (paginaCambio)="onPaginaItems($event)">
 
-          <ng-container matColumnDef="nombre">
-            <th mat-header-cell *matHeaderCellDef>Nombre</th>
-            <td mat-cell *matCellDef="let i">{{ i.nombre }}</td>
-          </ng-container>
+          <ng-template tablaCelda="cedula" let-i><strong>{{ i.cedula }}</strong></ng-template>
 
-          <ng-container matColumnDef="correo">
-            <th mat-header-cell *matHeaderCellDef>Correo</th>
-            <td mat-cell *matCellDef="let i">
-              {{ i.correo || '—' }}
-              <!-- Saber si se usó el correo de la hoja o el corregido es lo
-                   primero que hace falta cuando alguien reclama. -->
-              @if (i.correo_origen === 'OVERRIDE') {
-                <span class="marca" matTooltip="Correo corregido con la plantilla de Excel">
-                  corregido
-                </span>
-              }
-            </td>
-          </ng-container>
+          <ng-template tablaCelda="correo" let-i>
+            {{ i.correo || '—' }}
+            <!-- Saber si se usó el correo de la hoja o el corregido es lo
+                 primero que hace falta cuando alguien reclama. -->
+            @if (i.correo_origen === 'OVERRIDE') {
+              <span class="marca" matTooltip="Correo corregido con la plantilla de Excel">
+                corregido
+              </span>
+            }
+          </ng-template>
 
-          <ng-container matColumnDef="documento">
-            <th mat-header-cell *matHeaderCellDef>Documento</th>
-            <td mat-cell *matCellDef="let i">
-              @if (i.document_id) {
-                <button mat-stroked-button class="btn-doc" (click)="verDocumento(i)">
-                  <mat-icon>picture_as_pdf</mat-icon> Ver
-                </button>
-              } @else {
-                <span class="tenue">—</span>
-              }
-            </td>
-          </ng-container>
+          <ng-template tablaCelda="documento" let-i>
+            @if (i.document_id) {
+              <button mat-stroked-button class="btn-doc" (click)="verDocumento(i)">
+                <mat-icon>picture_as_pdf</mat-icon> Ver
+              </button>
+            } @else {
+              <span class="tenue">—</span>
+            }
+          </ng-template>
 
-          <ng-container matColumnDef="estado">
-            <th mat-header-cell *matHeaderCellDef>Estado</th>
-            <td mat-cell *matCellDef="let i">
-              <span class="chip" [class]="claseEstado(i.estado)">{{ etiquetaEstado(i.estado) }}</span>
-              @if (i.motivo) { <div class="tenue">{{ i.motivo }}</div> }
-            </td>
-          </ng-container>
+          <ng-template tablaCelda="estado" let-i>
+            <span class="chip" [class]="claseEstado(i.estado)">{{ etiquetaEstado(i.estado) }}</span>
+            @if (i.motivo) { <div class="tenue">{{ i.motivo }}</div> }
+          </ng-template>
 
-          <ng-container matColumnDef="enviado">
-            <th mat-header-cell *matHeaderCellDef>Enviado</th>
-            <td mat-cell *matCellDef="let i" class="tenue">
-              {{ i.enviado_en ? (i.enviado_en | date:'dd/MM/yyyy HH:mm') : '—' }}
-            </td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="columnasItems"></tr>
-          <tr mat-row *matRowDef="let row; columns: columnasItems;"></tr>
-        </table>
-
-        @if (!items().length && !cargando()) {
-          <p class="vacio">No hay destinatarios con ese estado.</p>
-        }
-
-        <mat-paginator [length]="totalItems()" [pageIndex]="paginaItems()" [pageSize]="50"
-                       [hidePageSize]="true" (page)="onPaginaItems($event)">
-        </mat-paginator>
+          <ng-template tablaCelda="enviado" let-i>
+            <span class="tenue">{{ i.enviado_en ? (i.enviado_en | date:'dd/MM/yyyy HH:mm') : '—' }}</span>
+          </ng-template>
+        </app-tabla-estandar>
       </mat-card-content>
     </mat-card>
   }

@@ -1,8 +1,8 @@
 /* ===== WRAPPER ===== */
 .inventory-wrapper {
-    background: white;
+    background: var(--surface);
     border-radius: 18px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border);
     padding: 28px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
 }
@@ -14,7 +14,7 @@
     align-items: center;
     margin-bottom: 24px;
     padding-bottom: 16px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--border);
 }
 
 .inv-header-left {
@@ -34,23 +34,23 @@
     margin: 0;
     font-size: 20px;
     font-weight: 800;
-    color: #0f172a;
+    color: var(--text);
     letter-spacing: -0.3px;
 }
 
 .inv-subtitle {
     margin: 2px 0 0;
     font-size: 13px;
-    color: #94a3b8;
+    color: var(--text-faint);
 }
 
 .refresh-btn {
     width: 40px;
     height: 40px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border);
     border-radius: 12px;
-    background: #f8fafc;
-    color: #64748b;
+    background: var(--surface-2);
+    color: var(--muted);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -59,9 +59,9 @@
 }
 
 .refresh-btn:hover {
-    background: #eef2ff;
+    background: #eef2ff; background: light-dark(#eef2ff, #0f1f4d);
     color: #6366f1;
-    border-color: #c7d2fe;
+    border-color: #c7d2fe; border-color: light-dark(#c7d2fe, #0d257a);
     transform: rotate(90deg);
 }
 
@@ -69,18 +69,6 @@
     opacity: 0.4;
     cursor: not-allowed;
     transform: none;
-}
-
-/* ===== LOADING ===== */
-.loading-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    padding: 60px 0;
-    color: #94a3b8;
-    font-size: 14px;
-    font-weight: 500;
 }
 
 /* ===== METRICS ===== */
@@ -97,13 +85,13 @@
     gap: 12px;
     padding: 16px 18px;
     border-radius: 14px;
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    border: 1px solid #e2e8f0;
+    background: linear-gradient(135deg, var(--surface-2) 0%, var(--surface-3) 100%);
+    border: 1px solid var(--border);
     transition: all 0.2s;
 }
 
 .metric-card:hover {
-    border-color: #cbd5e1;
+    border-color: var(--border-strong);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
@@ -112,14 +100,14 @@
     width: 24px;
     height: 24px;
     color: #6366f1;
-    background: white;
+    background: var(--surface);
     padding: 8px;
     border-radius: 10px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
 .metric-card.accent mat-icon {
-    color: #059669;
+    color: #059669; color: light-dark(#059669, #97f7d9);
 }
 
 .metric-info {
@@ -130,23 +118,17 @@
 .metric-value {
     font-size: 20px;
     font-weight: 800;
-    color: #0f172a;
+    color: var(--text);
     letter-spacing: -0.3px;
     line-height: 1.1;
 }
 
 .metric-label {
     font-size: 11px;
-    color: #94a3b8;
+    color: var(--text-faint);
     text-transform: uppercase;
     letter-spacing: 0.4px;
     margin-top: 2px;
-}
-
-/* ===== FILTER ===== */
-.filter-field {
-    width: 100%;
-    margin-bottom: 20px;
 }
 
 /* ===== TABLE SECTIONS ===== */
@@ -160,7 +142,7 @@
     gap: 8px;
     font-size: 15px;
     font-weight: 700;
-    color: #334155;
+    color: var(--text-2);
     margin: 0 0 14px;
     padding-left: 2px;
 }
@@ -172,76 +154,12 @@
     color: #6366f1;
 }
 
-.table-container {
-    overflow-x: auto;
-    border-radius: 12px;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-}
-
-/* ===== TABLE STYLING ===== */
-.premium-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-/* Header row - Uses global styles from styles.css */
-
-/* Data cells - Inherits from globals */
-
-/* Row hover - Inherits from globals */
-
-/* Zebra striping - Inherits from globals */
-
-/* Last row no border */
-.premium-table tr.mat-mdc-row:last-child td {
-    border-bottom: none !important;
-}
-
-/* ===== CHIPS ===== */
-.stock-chip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-    padding: 3px 12px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
-    background: #d1fae5;
-    color: #065f46;
-    letter-spacing: 0.2px;
-    transition: all 0.2s;
-}
-
-.stock-chip.low {
-    background: #fef3c7;
-    color: #92400e;
-    animation: pulse-warn 2s ease-in-out infinite;
-}
-
-.stock-chip.empty {
-    background: #fee2e2;
-    color: #991b1b;
-}
-
-@keyframes pulse-warn {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.7;
-    }
-}
-
+/* ===== CELDAS PROPIAS (plantillas tablaCelda) ===== */
 .code-chip {
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
     font-size: 12px;
     font-weight: 600;
-    background: #eef2ff;
+    background: #eef2ff; background: light-dark(#eef2ff, #0f1f4d);
     color: #4f46e5;
     padding: 3px 10px;
     border-radius: 8px;
@@ -250,7 +168,7 @@
 
 .amount-cell {
     font-weight: 800 !important;
-    color: #0f172a !important;
+    color: var(--text) !important;
     font-size: 14px !important;
     letter-spacing: -0.2px;
 }
@@ -262,7 +180,7 @@
     align-items: center;
     gap: 10px;
     padding: 60px 0;
-    color: #94a3b8;
+    color: var(--text-faint);
 }
 
 .empty-state mat-icon {
@@ -285,7 +203,7 @@
     }
 
     .metrics-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .inv-title {

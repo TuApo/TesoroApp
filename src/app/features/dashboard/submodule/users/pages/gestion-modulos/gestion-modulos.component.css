@@ -12,7 +12,7 @@
   min-height: 0;
   overflow: hidden;
   box-sizing: border-box;
-  background: #f5f7fb;
+  background: var(--surface-2);
 }
 
 /* ══════════════════════════════════════
@@ -21,8 +21,8 @@
 .premium-card {
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #e8edf5;
-  background-color: #ffffff;
+  border: 1px solid #e8edf5; border: 1px solid light-dark(#e8edf5, #233b63);
+  background-color: var(--surface);
   overflow: hidden;
   margin: 0;
   flex: 1 1 auto;
@@ -110,7 +110,7 @@
 }
 
 .titulo {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.2rem !important;
   font-weight: 700 !important;
   color: #ffffff;
@@ -119,7 +119,7 @@
 }
 
 .subtitulo {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.8rem !important;
   color: #cbd5e1 !important;
   margin: 0 !important;
@@ -163,8 +163,8 @@
   align-items: center;
   gap: 16px;
   padding: 14px 24px;
-  background: #fafbfc;
-  border-bottom: 1px solid #eef1f6;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -179,15 +179,15 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #ffffff;
-  border: 1px solid #e8edf5;
+  background: var(--surface);
+  border: 1px solid #e8edf5; border: 1px solid light-dark(#e8edf5, #233b63);
   border-radius: 10px;
   padding: 8px 14px;
   min-width: 110px;
 }
 
 .stat-icon {
-  color: var(--navy);
+  color: var(--navy-ink);
   font-size: 22px;
   width: 22px;
   height: 22px;
@@ -202,13 +202,13 @@
 .stat-value {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text);
 }
 
 .stat-label {
   font-size: 0.7rem;
   font-weight: 500;
-  color: #64748b;
+  color: var(--muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -218,8 +218,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0 6px 0 12px;
   height: 40px;
@@ -235,7 +235,7 @@
 }
 
 .search-icon {
-  color: #94a3b8;
+  color: var(--text-faint);
   font-size: 20px;
   width: 20px;
   height: 20px;
@@ -248,18 +248,18 @@
   height: 100%;
   background: transparent;
   font-size: 0.9rem;
-  color: #0f172a;
+  color: var(--text);
   padding: 0 8px;
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-faint);
 }
 
 .search-clear {
   width: 28px !important;
   height: 28px !important;
-  color: #94a3b8 !important;
+  color: var(--text-faint) !important;
 }
 
 .search-clear mat-icon {
@@ -276,7 +276,7 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .tree-wrapper.loading {
@@ -336,7 +336,7 @@
 }
 
 .tree-scroll::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: var(--border-strong);
   border-radius: 4px;
 }
 
@@ -365,11 +365,11 @@ mat-tree-node,
 
 /* Hover neutro (slate) como en la tabla estándar; el lima queda para la acción. */
 mat-tree-node:hover {
-  background-color: var(--slate-50);
+  background-color: var(--surface-2);
 }
 
 mat-tree-node:focus-within {
-  background-color: var(--slate-100);
+  background-color: var(--surface-3);
 }
 
 /* Highlight de creación / edición */
@@ -396,7 +396,7 @@ button[matTreeNodeToggle],
 .leaf-spacer {
   width: 32px !important;
   height: 32px !important;
-  color: #475569;
+  color: var(--text-2);
   background: transparent;
 }
 
@@ -425,13 +425,13 @@ button[matTreeNodeToggle],
 
 /* Jerarquía por peso, no por color: el padre lleva el navy; la hoja, gris. */
 .parent-icon {
-  background: rgba(33, 38, 60, 0.08);
-  color: var(--navy);
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--navy-ink);
 }
 
 .leaf-icon {
-  background: var(--slate-100);
-  color: var(--slate-500);
+  background: var(--surface-3);
+  color: var(--muted);
 }
 
 .node-icon mat-icon {
@@ -460,7 +460,7 @@ button[matTreeNodeToggle],
 .node-title {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #20253c;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -490,13 +490,13 @@ button[matTreeNodeToggle],
 
 /* Metadato, no estado: ambos badges van en gris para no competir con la marca. */
 .badge-children {
-  background: var(--slate-100);
-  color: var(--slate-700);
+  background: var(--surface-3);
+  color: var(--text-2);
 }
 
 .badge-route {
-  background: var(--slate-100);
-  color: var(--slate-700);
+  background: var(--surface-3);
+  color: var(--text-2);
   max-width: 200px;
 }
 
@@ -546,7 +546,7 @@ mat-tree-node:focus-within .node-actions {
 .action-btn {
   width: 34px !important;
   height: 34px !important;
-  color: var(--slate-500);
+  color: var(--muted);
   transition: all 0.2s;
 }
 
@@ -559,8 +559,8 @@ mat-tree-node:focus-within .node-actions {
 
 /* Destructivo: neutro en reposo, rojo sólo al apuntarlo. */
 .action-btn.btn-delete:hover {
-  background-color: #fef3f2;
-  color: var(--danger);
+  background-color: #fef3f2; background-color: light-dark(#fef3f2, #351c27);
+  color: var(--danger); color: light-dark(var(--danger), #f2a29c);
 }
 
 .action-btn mat-icon {
@@ -590,8 +590,8 @@ mat-tree-node:focus-within .node-actions {
   width: 84px;
   height: 84px;
   border-radius: 50%;
-  background: rgba(33, 38, 60, 0.06);
-  color: var(--navy);
+  background: rgb(var(--ink-rgb) / 0.06);
+  color: var(--navy-ink);
   margin-bottom: 4px;
 }
 
@@ -602,26 +602,26 @@ mat-tree-node:focus-within .node-actions {
 }
 
 .empty-search .empty-illustration {
-  background: var(--slate-100);
-  color: var(--slate-500);
+  background: var(--surface-3);
+  color: var(--muted);
 }
 
 .empty-title {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--text);
   margin: 0;
 }
 
 .empty-text {
   font-size: 0.88rem;
-  color: #64748b;
+  color: var(--muted);
   margin: 0;
   max-width: 360px;
 }
 
 .empty-text strong {
-  color: #0f172a;
+  color: var(--text);
 }
 
 /* ══════════════════════════════════════
@@ -645,7 +645,7 @@ mat-tree-node:focus-within .node-actions {
   /* El flash sigue marcando el nodo tocado, pero sin animarlo. */
   .node-content.flash {
     animation: none;
-    background: var(--slate-100);
+    background: var(--surface-3);
   }
 
   .node-actions {
@@ -738,7 +738,7 @@ mat-tree-node:focus-within .node-actions {
     opacity: 1;
     transform: none;
     width: auto;
-    background: rgba(255, 255, 255, 0.95);
+    background: rgb(var(--surface-rgb) / 0.95);
     border-radius: 20px;
     padding: 0 4px;
   }

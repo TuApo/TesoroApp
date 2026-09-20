@@ -1,9 +1,8 @@
-import { Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, ViewChild, AfterViewInit, ElementRef } from '@angular/core';
+import { Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, ViewChild, ElementRef, LOCALE_ID, inject } from '@angular/core';
+import { formatDate } from '@angular/common';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { TicketsService, BugTicket, TicketComentario } from '../../services/tickets.service';
-import { MatTableDataSource } from '@angular/material/table';
-import { MatSort } from '@angular/material/sort';
-import { MatPaginator } from '@angular/material/paginator';
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import Swal from 'sweetalert2';
@@ -12,24 +11,38 @@ import Swal from 'sweetalert2';
   selector: 'app-tickets-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SharedModule],
+  imports: [SharedModule, ...TABLA_ESTANDAR],
   templateUrl: './tickets-list.component.html',
   styleUrl: './tickets-list.component.css',
 })
-export class TicketsListComponent implements OnInit, AfterViewInit {
-  displayedColumns = ['titulo', 'prioridad', 'estado', 'usuario', 'fecha_reporte', 'acciones'];
-  dataSource = new MatTableDataSource<any>([]);
+export class TicketsListComponent implements OnInit {
+  private readonly locale = inject(LOCALE_ID);
+
+  /** Tickets que devolvió el backend con los filtros de estado y prioridad. */
+  tickets: any[] = [];
   loading = true;
+
+  /**
+   * Tabla estándar: búsqueda, orden, filtros por columna y paginación son de la
+   * tabla; estado y prioridad se siguen filtrando en el backend.
+   */
+  readonly columnas: ColumnaTabla<any>[] = [
+    { id: 'titulo', header: 'Ticket', valor: (t) => t.titulo, tarjeta: 'titulo', minAncho: '220px' },
+    { id: 'prioridad', header: 'Prioridad', valor: (t) => t.prioridad, tarjeta: 'badge' },
+    { id: 'estado', header: 'Estado', valor: (t) => t.estado, tarjeta: 'badge' },
+    { id: 'usuario', header: 'Reportado por', valor: (t) => t.usuario ?? '', prioridad: 2, tarjeta: 'subtitulo' },
+    { id: 'fecha_reporte', header: 'Fecha', prioridad: 2, tarjeta: 'meta',
+      valor: (t) => (t.fecha_reporte ? new Date(t.fecha_reporte) : null),
+      formato: (t) => this.fechaHora(t.fecha_reporte), copiaTexto: (t) => this.fechaHora(t.fecha_reporte) },
+  ];
+  readonly idTicket = (t: any) => t.id;
 
   filtroEstado = new FormControl('');
   filtroPrioridad = new FormControl('');
-  filtroBusqueda = new FormControl('');
 
   estados = ['Abierto', 'En Progreso', 'Resuelto', 'Cerrado'];
   prioridades = ['Baja', 'Media', 'Alta', 'Critica'];
 
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
   @ViewChild('chatContainer') chatContainer!: ElementRef;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
 
@@ -62,15 +75,6 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
       if (params['prioridad']) this.filtroPrioridad.setValue(params['prioridad']);
       this.cargarTickets();
     });
-
-    this.filtroBusqueda.valueChanges.subscribe((val) => {
-      this.dataSource.filter = (val || '').trim().toLowerCase();
-    });
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
   }
 
   cargarTickets(): void {
@@ -82,12 +86,12 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
     this.ticketsService.listarTickets(params).subscribe({
       next: (data: any) => {
         const lista = Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
-        this.dataSource.data = lista;
+        this.tickets = lista;
         this.loading = false;
         this.cdr.markForCheck();
       },
       error: () => {
-        this.dataSource.data = [];
+        this.tickets = [];
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -101,7 +105,6 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
   limpiarFiltros(): void {
     this.filtroEstado.reset();
     this.filtroPrioridad.reset();
-    this.filtroBusqueda.reset();
     this.cargarTickets();
   }
 
@@ -331,6 +334,10 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
   }
 
   // ===== Helpers =====
+  private fechaHora(fecha: string | null | undefined): string {
+    return fecha ? formatDate(fecha, 'dd/MM/yy HH:mm', this.locale) : '';
+  }
+
   getPrioridadClass(prioridad: string): string {
     return 'prioridad-' + (prioridad || 'media').toLowerCase();
   }
@@ -375,7 +382,7 @@ export class TicketsListComponent implements OnInit, AfterViewInit {
   }
 
   getConteoEstado(estado: string): number {
-    return this.dataSource.data.filter((t: any) => t.estado === estado).length;
+    return this.tickets.filter((t: any) => t.estado === estado).length;
   }
 
   toggleAiAnalisis(): void {

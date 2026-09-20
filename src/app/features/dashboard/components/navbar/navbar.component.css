@@ -3,29 +3,46 @@
   --app-sidebar-radius: 0px;
 
   --app-left-w: 84px;
+  --app-list-w: 264px;
   --app-right-w: 260px;
 
-  --app-sidebar-left-bg: #21263C;
-  --app-sidebar-left-border: transparent;
-  --app-sidebar-left-icon-color: rgba(255, 255, 255, 0.65);
-  --app-sidebar-left-icon-hover-color: #ffffff;
+  /* Escritorio: el menú sigue al tema (blanco en claro, gris azulado en
+     oscuro), como el resto de superficies. El móvil tiene su propia paleta
+     oscura más abajo. */
+  --app-sidebar-left-bg: var(--surface);
+  --app-sidebar-left-border: var(--border);
+  --app-sidebar-left-icon-color: var(--muted);
+  --app-sidebar-left-icon-hover-color: var(--text);
 
-  --app-sidebar-right-bg: #21263C;
-  --app-sidebar-right-border: rgba(255, 255, 255, 0.1);
-  --app-sidebar-right-text: rgba(255, 255, 255, 0.75);
-  --app-sidebar-right-title: #ffffff;
-  --app-sidebar-right-muted: rgba(255, 255, 255, 0.5);
-  --app-sidebar-right-hover-bg: rgba(255, 255, 255, 0.08);
+  --app-sidebar-right-bg: var(--surface);
+  --app-sidebar-right-border: var(--border);
+  --app-sidebar-right-text: var(--text-2);
+  --app-sidebar-right-title: var(--text);
+  --app-sidebar-right-muted: var(--muted);
+  --app-sidebar-right-hover-bg: var(--surface-3);
 
-  --app-brand-text-color: rgba(255, 255, 255, 0.6);
+  --app-brand-text-color: var(--muted);
 
-  --app-sidebar-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
-  --app-active-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --app-sidebar-shadow: 1px 0 0 var(--border), 6px 0 24px rgb(var(--ink-rgb) / .05);
 
-  --app-active-bg: rgba(59, 130, 246, 0.2);
-  /* Soft blue background for active */
-  --app-active-text: #60a5fa;
-  /* Clear contrast blue text for active */
+  /* Dónde estoy: en claro, el verde del logo en su tono fuerte (el bloque del
+     módulo abierto usa el lima claro, así la pantalla actual resalta sobre él).
+     En oscuro manda el azul de marca, que es el que contrasta ahí. */
+  --app-active-shadow: 0 10px 20px -12px rgba(94, 143, 23, .7);
+  --app-active-bg: var(--lime-dark);
+  --app-active-text: #ffffff;
+
+  /* Selección de submódulos: en claro, el verde del logo; en oscuro se queda
+     el azul de marca, que es el que contrasta sobre fondo oscuro. */
+  --app-sub-bg: var(--lime);
+  --app-sub-sombra: 0 10px 20px -12px rgba(155, 212, 65, .75);
+  --app-sub-text: #0f1b2d;
+  --app-sub-text-suave: rgba(15, 27, 45, .72);
+  --app-sub-linea: rgba(15, 27, 45, .18);
+  --app-sub-hover: rgba(15, 27, 45, .1);
+  --app-sub-activo: var(--lime-dark);
+  --app-sub-activo-text: #ffffff;
+  --app-sub-titulo: var(--lime-dark);
 
   --app-ease: cubic-bezier(.2, .8, .2, 1);
   --app-dur: 180ms;
@@ -34,6 +51,27 @@
   --mobile-bottombar-bg: #21263C;
 
   display: block;
+}
+
+:host-context(html[data-theme='dark']) {
+  --app-active-shadow: 0 10px 20px -10px rgba(43, 89, 240, .7);
+  --app-active-bg: var(--brand-blue);
+  --app-active-text: #ffffff;
+  --app-sub-bg: var(--brand-blue);
+  --app-sub-sombra: var(--app-active-shadow);
+  --app-sub-text: #ffffff;
+  --app-sub-text-suave: rgba(255, 255, 255, .78);
+  --app-sub-linea: rgba(255, 255, 255, .2);
+  --app-sub-hover: rgba(255, 255, 255, .12);
+  --app-sub-activo: rgba(255, 255, 255, .22);
+  --app-sub-activo-text: #ffffff;
+  --app-sub-titulo: var(--link);
+}
+
+/* Nombre que no cabe y se está desplazando: sin los puntos suspensivos, que
+   taparían la última palabra al llegar al final. */
+.nombre-largo {
+  text-overflow: clip;
 }
 
 /* =========================
@@ -177,7 +215,7 @@
 }
 
 .sidebar-logo-btn:hover {
-  background-color: rgba(15, 23, 42, 0.06);
+  background-color: rgb(var(--ink-rgb) / 0.06);
   color: var(--app-sidebar-left-icon-hover-color);
   transform: translateY(-1px);
 }
@@ -199,7 +237,7 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  scrollbar-color: rgb(var(--ink-rgb) / 0.18) transparent;
 }
 
 .module-buttons::-webkit-scrollbar {
@@ -207,7 +245,7 @@
 }
 
 .module-buttons::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.18);
+  background-color: rgb(var(--ink-rgb) / 0.18);
   border-radius: 999px;
 }
 
@@ -243,7 +281,7 @@
 }
 
 .module-buttons>button:not(.active-module-button):hover {
-  background-color: rgba(15, 23, 42, 0.06);
+  background-color: rgb(var(--ink-rgb) / 0.06);
   color: var(--app-sidebar-left-icon-hover-color);
   transform: translateY(-1px);
 }
@@ -291,14 +329,14 @@
 }
 
 .bottom-buttons button:hover {
-  background-color: rgba(15, 23, 42, 0.06);
+  background-color: rgb(var(--ink-rgb) / 0.06);
   color: var(--app-sidebar-left-icon-hover-color);
   transform: translateY(-1px);
 }
 
 .logout-button:hover {
-  color: #b91c1c !important;
-  background-color: rgba(185, 28, 28, 0.08);
+  color: var(--danger-fg) !important;
+  background-color: var(--danger-bg);
 }
 
 /* Config es un sub-módulo aquí abajo: comparte el lenguaje del logout pero con
@@ -399,6 +437,35 @@
   min-width: 0;
 }
 
+/* La regla global `button { min-height: 48px !important }` deformaba estos
+   botones compactos (salían más altos que anchos). */
+.header-expandir,
+.header-pin-button,
+.grupo__cabeza,
+.module-list > .home-button {
+  min-height: 0 !important;
+}
+
+/* Volver al menú expandido desde la cabecera del panel (modo compacto). */
+.header-expandir {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--app-sidebar-right-hover-bg);
+  color: var(--app-sidebar-right-title);
+  cursor: pointer;
+  transition: background-color var(--app-dur) var(--app-ease), color var(--app-dur) var(--app-ease);
+}
+.header-expandir:hover {
+  background: var(--brand-blue);
+  color: #fff;
+}
+.header-expandir .mat-icon { font-size: 20px; width: 20px; height: 20px; }
+
 .header-texts {
   display: flex;
   flex-direction: column;
@@ -445,7 +512,7 @@
 }
 
 .header-pin-button:hover {
-  background-color: rgba(15, 23, 42, 0.06);
+  background-color: rgb(var(--ink-rgb) / 0.06);
   color: var(--app-sidebar-right-title);
   transform: translateY(-1px);
 }
@@ -575,9 +642,19 @@
 
     /* Paleta mobile */
     --mobile-bottombar-bg: linear-gradient(180deg, #1d2538 0%, #161e30 100%);
-    --m-accent: #8CD50A;
-    --m-accent-soft: rgba(141, 214, 3, 0.14);
-    --m-accent-strong: #a4ec19;
+    /* La barra inferior sigue oscura en ambos temas: se reponen los colores
+       claros sobre oscuro que el escritorio ya no usa. */
+    --app-sidebar-left-icon-color: rgba(255, 255, 255, 0.65);
+    --app-sidebar-left-icon-hover-color: #ffffff;
+    --app-sidebar-right-text: rgba(255, 255, 255, 0.75);
+    --app-sidebar-right-title: #ffffff;
+    --app-sidebar-right-muted: rgba(255, 255, 255, 0.5);
+    --app-sidebar-right-hover-bg: rgba(255, 255, 255, 0.08);
+    --app-sidebar-right-border: rgba(255, 255, 255, 0.1);
+    --app-brand-text-color: rgba(255, 255, 255, 0.6);
+    --m-accent: #9BD441;
+    --m-accent-soft: rgba(155, 212, 65, 0.16);
+    --m-accent-strong: #B4E266;
     --m-text: rgba(255, 255, 255, 0.72);
     --m-text-strong: rgba(255, 255, 255, 0.96);
     --m-divider: rgba(255, 255, 255, 0.06);
@@ -1160,4 +1237,179 @@
 @keyframes spin-sync {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+/* =============================================================================
+   MENÚ EXPANDIDO (escritorio)
+   Iconos + nombres + grupos desplegables; el grupo abierto se pinta como un
+   bloque azul con sus submódulos dentro. El compacto (solo iconos + panel
+   lateral) y el móvil siguen con las reglas de arriba.
+   ========================================================================== */
+.brand-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  font: 800 18px var(--font-sans);
+  letter-spacing: -.3px;
+  line-height: 1.1;
+  color: var(--text);
+  white-space: nowrap;
+}
+.brand-text small {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Móvil: la barra inferior es horizontal; el bloque de marca no ocupa sitio
+   (con width:100% se comía el espacio de los módulos). */
+@media (max-width: 900px) {
+  .brand-row { display: none; }
+}
+
+@media (min-width: 901px) {
+  .sidebar.expandido .left {
+    width: var(--app-list-w);
+    min-width: var(--app-list-w);
+    max-width: var(--app-list-w);
+    align-items: stretch;
+    padding: 0 14px 14px;
+    gap: 6px;
+  }
+
+  .sidebar.expandido .brand-row {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: 8px;
+    height: 72px;
+    padding: 0 2px 0 6px;
+  }
+  .sidebar.expandido .sidebar-brand {
+    justify-content: flex-start;
+    gap: 10px;
+    width: auto;
+    height: 72px;
+    margin: 0;
+    text-decoration: none;
+  }
+
+  .module-buttons.module-list {
+    align-items: stretch;
+    gap: 4px;
+    padding-right: 2px;
+  }
+
+  .module-list > .home-button,
+  .grupo__cabeza {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-2);
+    font: 700 14px var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+    transform: none !important;
+    transition: background-color var(--app-dur) var(--app-ease), color var(--app-dur) var(--app-ease);
+  }
+  .module-list > .home-button .m-btn-label { display: inline; }
+  .module-list > .home-button .mat-icon,
+  .grupo__cabeza .mat-icon {
+    flex: none;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    color: var(--muted);
+  }
+  .module-list > .home-button:not(.active-module-button):hover,
+  .grupo__cabeza:hover {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+  .module-list > .home-button.active-module-button,
+  .module-list > .home-button.active-module-button .mat-icon {
+    color: #fff !important;
+  }
+
+  .grupo__nombre {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .grupo__flecha { transition: transform var(--app-dur) var(--app-ease); }
+
+  /* Módulo que contiene la pantalla actual, aunque esté plegado. */
+  .grupo--activo > .grupo__cabeza,
+  .grupo--activo > .grupo__cabeza .mat-icon { color: var(--app-sub-titulo); }
+
+  /* Grupo desplegado: bloque azul con sus submódulos (como la referencia). */
+  .grupo--abierto {
+    border-radius: 14px;
+    background: var(--app-sub-bg);
+    box-shadow: var(--app-sub-sombra);
+    padding-bottom: 6px;
+  }
+  .grupo--abierto > .grupo__cabeza,
+  .grupo--abierto > .grupo__cabeza .mat-icon { color: var(--app-sub-text) !important; }
+  .grupo--abierto > .grupo__cabeza { border-radius: 14px 14px 0 0; }
+  .grupo--abierto > .grupo__cabeza:hover { background: var(--app-sub-hover); }
+  .grupo--abierto .grupo__flecha { transform: rotate(180deg); }
+
+  .grupo__hijos {
+    margin: 0 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--app-sub-linea);
+  }
+  .grupo__hijos .submodule-button {
+    margin-bottom: 2px;
+    padding: 7px 10px;
+    color: var(--app-sub-text-suave);
+    font-weight: 600;
+  }
+  .grupo__hijos .submodule-button .mat-icon { color: var(--app-sub-text-suave); font-size: 17px; }
+  .grupo__hijos .submodule-button:not(.active-submodule):hover {
+    background: var(--app-sub-hover);
+    color: var(--app-sub-text);
+  }
+  .grupo__hijos .submodule-button:not(.active-submodule):hover .mat-icon { color: var(--app-sub-text); }
+  .grupo__hijos .submodule-button.active-submodule {
+    background: var(--app-sub-activo) !important;
+    color: var(--app-sub-activo-text) !important;
+    font-weight: 800;
+    box-shadow: none;
+  }
+  .grupo__hijos .submodule-button.active-submodule .mat-icon { color: var(--app-sub-activo-text) !important; }
+
+  .sidebar.expandido .bottom-buttons {
+    align-items: stretch;
+    gap: 2px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+  .sidebar.expandido .bottom-buttons button {
+    justify-content: flex-start;
+    gap: 12px;
+    width: 100%;
+    height: 42px;
+    padding: 0 12px;
+    border-radius: 12px;
+    font: 700 13.5px var(--font-sans);
+  }
+  .sidebar.expandido .bottom-buttons .m-btn-label { display: inline; }
 }

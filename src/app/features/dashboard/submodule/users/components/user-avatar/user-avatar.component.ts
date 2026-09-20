@@ -29,12 +29,12 @@ import { AdminService } from '../../services/admin.service';
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      background: #f1f5f9;
-      border: 1px solid #e2e8f0;
+      background: var(--surface-3);
+      border: 1px solid var(--border);
       flex: 0 0 36px;
     }
     .ua-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .ua-iniciales { font-size: 12px; font-weight: 600; color: #64748b; letter-spacing: .5px; }
+    .ua-iniciales { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .5px; }
   `],
 })
 export class UserAvatarComponent implements OnInit {

@@ -64,9 +64,9 @@ describe('faltantesDePagoTransporte', () => {
     expect(faltan).toEqual(['Centro de costos', 'Grupo', 'Fecha de ingreso']);
   });
 
-  it('acepta 0 como porcentaje ARL válido', () => {
+  it('acepta 0 en un numérico exigido sin tratarlo como vacío', () => {
     // Con un chequeo por falsy, un 0 legítimo bloquearía la generación.
-    expect(faltantesDePagoTransporte(contratoCompleto({ porcentaje_arl: 0 }))).toEqual([]);
+    expect(faltantesDePagoTransporte(contratoCompleto({ grupo: 0 }))).toEqual([]);
   });
 
   it('trata los espacios en blanco como vacío', () => {
@@ -79,10 +79,18 @@ describe('faltantesDePagoTransporte', () => {
     expect(faltantesDePagoTransporte(contrato)).toEqual([]);
   });
 
-  it('exige número de tarjeta con cualquier otra forma de pago', () => {
+  it('ya NO exige número de tarjeta: la casilla salió de la ficha', () => {
+    // Exigir lo que no se puede responder = bloqueo permanente de la documentación
+    // para todo contrato que no sea Daviplata.
     const contrato = contratoCompleto({ forma_de_pago: 'Bancolombia', identification_number_tarjeta: '' });
 
-    expect(faltantesDePagoTransporte(contrato)).toEqual(['Número de tarjeta']);
+    expect(faltantesDePagoTransporte(contrato)).toEqual([]);
+  });
+
+  it('tampoco exige cesantías ni porcentaje ARL, que salieron de la pantalla', () => {
+    const contrato = contratoCompleto({ porcentaje_arl: null, cesantias: null });
+
+    expect(faltantesDePagoTransporte(contrato)).toEqual([]);
   });
 
   it('no exige tarjeta si aún no se eligió forma de pago (ya se reporta esa)', () => {
@@ -101,5 +109,42 @@ describe('faltantesDePagoTransporte', () => {
     const faltan = faltantesDePagoTransporte({ codigo_contrato: 'ABC-1' });
 
     expect(faltan).toEqual(CAMPOS_PAGO_TRANSPORTE.map((c) => c.etiqueta));
+  });
+
+  // ── Ruta y recargo de HE (V57) ────────────────────────────────────────────
+  // Se añadieron al tab pero NO a esta regla, y es deliberado: hay 89.982
+  // contratos históricos sin esos datos y ninguno de los tres entra en la ficha
+  // técnica, el carnet ni el contrato. Exigirlos dejaría sin documentación a
+  // todo el histórico para pintar tres casillas que los documentos no leen.
+  it('no bloquea la documentación por los campos de ruta y recargo', () => {
+    const contrato = contratoCompleto({
+      usa_ruta: null,
+      valor_transporte: null,
+      porcentaje_horas_extras: null,
+    });
+
+    expect(faltantesDePagoTransporte(contrato)).toEqual([]);
+  });
+
+  it('un contrato histórico sin las columnas nuevas sigue siendo completo', () => {
+    // Tal como llega de la BD antes de que nadie reabra el tab: las claves ni
+    // existen en la respuesta.
+    const contrato = contratoCompleto();
+    delete (contrato as any).usa_ruta;
+
+    expect(faltantesDePagoTransporte(contrato)).toEqual([]);
+  });
+
+  it('tampoco exige la temporal, que se resuelve sola desde el maestro', () => {
+    expect(faltantesDePagoTransporte(contratoCompleto({ temporal: null }))).toEqual([]);
+  });
+
+  it('el porcentaje ARL y el de horas extras siguen siendo campos distintos', () => {
+    // Ninguno bloquea ya, pero no pueden confundirse: son claves separadas y el
+    // contrato guarda las dos por su lado.
+    const contrato: any = contratoCompleto({ porcentaje_arl: 0.522, porcentaje_horas_extras: 25 });
+
+    expect(String(contrato.porcentaje_arl) === String(contrato.porcentaje_horas_extras)).toBeFalse();
+    expect(faltantesDePagoTransporte(contrato)).toEqual([]);
   });
 });

@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   AjusteRegla, CambioDeRegla, CatalogoReglas, ConceptoRegla, ParametroTesoreria,
   Regla, SeveridadRegla, TesoreriaApiService, TipoDeRegla, TramoRegla,
@@ -31,7 +32,7 @@ import {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-tesoreria-reglas',
   standalone: true,
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
   templateUrl: './reglas.html',
   styleUrls: ['../../styles/tesoreria-comun.css', './reglas.css'],
 })
@@ -104,6 +105,31 @@ export class ReglasTesoreria implements OnInit {
       apagadas: todas.filter(r => !r.activa).length,
     };
   });
+
+  // ── Tablas (tabla estándar) ───────────────────────────────────────────────
+  // El valor de cada columna es el dato principal (búsqueda, filtros, copiado);
+  // código, descripción y tipo van como líneas secundarias en su plantilla.
+
+  readonly columnasReglas: ColumnaTabla<Regla>[] = [
+    { id: 'estado', header: 'Estado', valor: (r) => this.estadoDe(r).texto, tarjeta: 'badge' },
+    { id: 'regla', header: 'Regla', valor: (r) => r.nombre, tarjeta: 'titulo', minAncho: '220px' },
+    { id: 'concepto', header: 'Aplica a', valor: (r) => this.textoDeConcepto(r), tarjeta: 'meta' },
+    { id: 'resumen', header: 'Qué hace', valor: (r) => this.resumenDe(r), prioridad: 2, tarjeta: 'cuerpo',
+      minAncho: '200px' },
+    { id: 'severidad', header: 'Severidad', valor: (r) => this.textoDeSeveridad(r.severidad), tarjeta: 'meta' },
+    { id: 'vigencia', header: 'Vigencia', valor: (r) => this.vigenciaDe(r), prioridad: 3, tarjeta: 'meta' },
+  ];
+
+  readonly idRegla = (r: Regla) => r.codigo;
+  readonly claseFilaRegla = (r: Regla) => (r.activa ? '' : 'te-fila--atenuada');
+
+  readonly columnasParametros: ColumnaTabla<ParametroTesoreria>[] = [
+    { id: 'parametro', header: 'Parámetro', valor: (p) => p.nombre, tarjeta: 'titulo', minAncho: '220px' },
+    { id: 'valor', header: 'Valor', valor: (p) => p.valor, tarjeta: 'subtitulo' },
+    { id: 'cambio', header: 'Último cambio', valor: (p) => p.actualizado_por ?? '', prioridad: 2, tarjeta: 'meta' },
+  ];
+
+  readonly idParametro = (p: ParametroTesoreria) => p.codigo;
 
   tipoDe(codigo: string): TipoDeRegla | undefined {
     return this.catalogo()?.tipos.find(t => t.tipo === codigo);
@@ -371,6 +397,10 @@ export class ReglasTesoreria implements OnInit {
     return s === 'BLOQUEA' ? 'rojo' : s === 'ADVIERTE' ? 'ambar' : 'azul';
   }
 
+  textoDeConcepto(r: Regla): string {
+    return r.concepto === 'TODOS' ? 'Ambos' : (r.concepto === 'MERCADO' ? 'Mercado' : 'Préstamo');
+  }
+
   textoDeSeveridad(s: SeveridadRegla): string {
     return s === 'BLOQUEA' ? 'Bloquea' : s === 'ADVIERTE' ? 'Advierte' : 'Informa';
   }
@@ -456,6 +486,4 @@ export class ReglasTesoreria implements OnInit {
       return [];
     }
   }
-
-  trackRegla = (_: number, r: Regla) => r.codigo;
 }

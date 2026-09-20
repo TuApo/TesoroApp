@@ -5,14 +5,14 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
   --disab-accent: #00bcd4;
   --disab-warn: #f57c00;
-  --disab-bg: #f5f7fb;
-  --disab-surface: #ffffff;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-bg: var(--surface-2);
+  --disab-surface: var(--surface);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-radius: 16px;
   --disab-radius-sm: 10px;
   --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -36,7 +36,7 @@
 .disab-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(245, 247, 251, 0.85);
+  background: rgb(var(--surface-rgb) / 0.85);
   backdrop-filter: blur(4px);
   z-index: 1000;
   display: flex;
@@ -49,7 +49,7 @@
 .disab-overlay-text {
   font-size: 15px;
   font-weight: 600;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 /* ── Card principal ─────────────────────────────────────────── */
@@ -149,7 +149,7 @@
 }
 
 :host ::ng-deep .disab-search-field .mat-mdc-text-field-wrapper {
-  background: rgba(255, 255, 255, 0.95) !important;
+  background: rgb(var(--surface-rgb) / 0.95) !important;
   border-radius: 10px !important;
 }
 
@@ -172,8 +172,8 @@
 }
 
 .disab-btn-hero {
-  background: #fff !important;
-  color: var(--disab-primary-dark) !important;
+  background: var(--surface) !important;
+  color: var(--disab-primary-dark) !important; color: light-dark(var(--disab-primary-dark), #9ac4f4) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
 }
@@ -188,7 +188,7 @@
   border-radius: 12px !important;
   border: 1px solid var(--disab-border);
   box-shadow: var(--disab-shadow-sm) !important;
-  background: #fff;
+  background: var(--surface);
 }
 
 .disab-filter-panel ::ng-deep .mat-expansion-panel-header {
@@ -219,7 +219,7 @@
 
 .disab-filter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
   gap: 14px;
   padding: 8px 2px 4px;
 }
@@ -234,8 +234,8 @@
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
+  background: #fff8e1; background: light-dark(#fff8e1, #383524);
+  border: 1px solid #ffe082; border: 1px solid light-dark(#ffe082, #6c591b);
   border-left: 4px solid var(--disab-warn);
   border-radius: 10px;
   margin-bottom: 14px;
@@ -266,7 +266,7 @@
 
 .disab-chip-primary {
   background: var(--disab-primary-light);
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .disab-tab-chip {
@@ -288,7 +288,7 @@
 }
 
 :host ::ng-deep .disab-tabs .mdc-tab--active .mdc-tab__text-label {
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .disab-tab-icon {
@@ -304,90 +304,13 @@
   padding: 16px 4px 8px;
 }
 
-/* ── Tablas ─────────────────────────────────────────────────── */
-.disab-table-wrapper {
-  border-radius: 12px;
-  border: 1px solid var(--disab-border);
-  background: #fff;
-  overflow: hidden;
-}
-
-.disab-table-scroll {
-  overflow-x: auto;
-  max-height: 640px;
-}
-
-.disab-table {
-  width: 100%;
-  min-width: 900px;
-  background: #fff;
-}
-
-:host ::ng-deep .disab-table th.mat-mdc-header-cell {
-  background: var(--disab-gradient) !important;
-  color: #fff !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.4px;
-  font-size: 12.5px;
-  text-transform: uppercase;
-  padding: 10px 14px !important;
-  border-bottom: none !important;
-  vertical-align: middle;
-}
-
-:host ::ng-deep .disab-table td.mat-mdc-cell {
-  padding: 11px 14px !important;
-  font-size: 13.5px;
-  color: var(--disab-text);
-  border-bottom: 1px solid #eef1f5 !important;
-}
-
-:host ::ng-deep .disab-table tr.mat-mdc-row:nth-child(even) {
-  background: #fafbfe;
-}
-
-:host ::ng-deep .disab-table tr.mat-mdc-row:hover {
-  background: #eaf3fd !important;
-}
-
-/* Filtros en encabezado */
-.disab-th-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.disab-th-label {
-  line-height: 1.3;
-}
-
-:host ::ng-deep .disab-th-filter {
-  width: 100%;
-  margin-top: 2px;
-}
-
-:host ::ng-deep .disab-th-filter .mat-mdc-text-field-wrapper {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-radius: 8px !important;
-  min-height: 32px;
-}
-
-:host ::ng-deep .disab-th-filter .mdc-notched-outline__leading,
-:host ::ng-deep .disab-th-filter .mdc-notched-outline__notch,
-:host ::ng-deep .disab-th-filter .mdc-notched-outline__trailing {
-  border-color: transparent !important;
-}
-
-:host ::ng-deep .disab-th-filter .mat-mdc-form-field-subscript-wrapper {
-  display: none;
-}
-
+/* ── Tablas: son la tabla estandar; aqui solo las celdas propias (plantillas tablaCelda) ── */
 /* Enlaces de descarga en celdas */
 .disab-download-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
   text-decoration: none;
   font-weight: 600;
   padding: 4px 12px;
@@ -408,43 +331,20 @@
 
 /* Input editable en celda */
 .disab-editable {
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 6px 8px;
   font-size: 13px;
   width: 140px;
   min-width: 140px;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
-  background: #fff;
+  background: var(--surface);
 }
 
 .disab-editable:focus {
   outline: none;
   border-color: var(--disab-primary);
   box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.15);
-}
-
-/* Empty state */
-.disab-no-data td {
-  text-align: center !important;
-  padding: 36px 16px !important;
-  color: var(--disab-text-muted) !important;
-  font-style: italic;
-}
-
-.disab-no-data mat-icon {
-  display: block;
-  margin: 0 auto 6px;
-  font-size: 36px;
-  width: 36px;
-  height: 36px;
-  opacity: 0.5;
-}
-
-/* Paginator */
-:host ::ng-deep mat-paginator.mat-mdc-paginator {
-  background: #fafbfe;
-  border-top: 1px solid var(--disab-border);
 }
 
 /* ── Responsive ─────────────────────────────────────────────── */
@@ -471,7 +371,7 @@
     font-size: 150px;
   }
   .disab-filter-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .disab-hero-search {
     flex-direction: column;

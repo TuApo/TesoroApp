@@ -1,6 +1,10 @@
 /* ── Layout ── */
 :host {
     display: block;
+    /* Es hijo de un contenedor flex en columna: con margin auto deja de
+       estirarse y se encogía al ancho del contenido (~400 px). */
+    width: 100%;
+    box-sizing: border-box;
     padding: 24px 28px 40px;
     max-width: 1200px;
     margin: 0 auto;
@@ -19,8 +23,9 @@
     flex-wrap: wrap;
     padding: 28px 32px;
     border-radius: 18px;
-    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
-    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.2);
+    /* Tinta de la marca con un toque del azul primario. */
+    background: linear-gradient(135deg, #0F1B2D 0%, #1B2A4A 55%, #2B59F0 140%);
+    box-shadow: 0 14px 32px -14px rgba(15, 27, 45, 0.45);
     position: relative;
     overflow: hidden;
 }
@@ -95,9 +100,9 @@
     /* Item de grid: min-width:auto por defecto -> no encogía y estiraba el track */
     min-width: 0;
     padding: 18px 20px;
-    border: 1px solid #e2e8f0;
+    border: 1px solid var(--border);
     border-radius: 14px;
-    background: white;
+    background: var(--surface);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
     cursor: pointer;
     transition: all 0.25s ease;
@@ -109,7 +114,7 @@
 .category-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-    border-color: #cbd5e1;
+    border-color: var(--border-strong);
 }
 
 .category-card:active {
@@ -128,22 +133,22 @@
 }
 
 .cat-icon.robots {
-    background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+    background: linear-gradient(135deg, var(--surface-4), #bfdbfe); background: linear-gradient(135deg, var(--surface-4), light-dark(#bfdbfe, #10284c));
     color: #2563eb;
 }
 
 .cat-icon.reportes {
-    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+    background: linear-gradient(135deg, #fce7f3, #fbcfe8); background: linear-gradient(135deg, light-dark(#fce7f3, #331a3b), light-dark(#fbcfe8, #35193b));
     color: #db2777;
 }
 
 .cat-icon.contratacion {
-    background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+    background: linear-gradient(135deg, #d1fae5, #a7f3d0); background: linear-gradient(135deg, light-dark(#d1fae5, #133b38), #a7f3d0);
     color: #059669;
 }
 
 .cat-icon.migracion {
-    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    background: linear-gradient(135deg, #fef3c7, #fde68a); background: linear-gradient(135deg, light-dark(#fef3c7, #373625), #fde68a);
     color: #b45309;
 }
 
@@ -165,12 +170,12 @@
 .cat-title {
     font-size: 15px;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--text);
 }
 
 .cat-desc {
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--text-faint);
     margin-top: 2px;
 }
 
@@ -182,7 +187,7 @@
 
 .category-card:hover .cat-arrow {
     transform: translateX(4px);
-    color: #64748b;
+    color: var(--muted);
 }
 
 /* ── Panel Backdrop ── */
@@ -210,7 +215,7 @@
     width: 400px;
     max-width: 90vw;
     height: 100vh;
-    background: #ffffff;
+    background: var(--surface);
     box-shadow: -8px 0 32px rgba(0, 0, 0, 0.15);
     z-index: 1000;
     transform: translateX(100%);
@@ -235,8 +240,8 @@
     align-items: center;
     gap: 12px;
     padding: 20px 22px 16px;
-    border-bottom: 1px solid #e2e8f0;
-    background: #fafbfc;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
 }
 
 .panel-back {
@@ -247,21 +252,21 @@
     height: 38px;
     border: none;
     border-radius: 10px;
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--surface-3);
+    color: var(--text-2);
     cursor: pointer;
     transition: all 0.15s ease;
 }
 
 .panel-back:hover {
-    background: #e2e8f0;
-    color: #1976d2;
+    background: var(--surface-4);
+    color: #1976d2; color: light-dark(#1976d2, #9bc7f3);
 }
 
 .panel-title {
     font-size: 18px;
     font-weight: 700;
-    color: #0f172a;
+    color: var(--text);
     margin: 0;
 }
 
@@ -310,7 +315,7 @@
     }
 
     .category-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         gap: 10px;
     }
 

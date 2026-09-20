@@ -7,14 +7,14 @@
   --brand-light: var(--slate-500);
   --accent: var(--lime);
 
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-disabled: #94a3b8;
+  --text-primary: var(--text);
+  --text-secondary: var(--muted);
+  --text-disabled: var(--text-faint);
   --text-white: #ffffff;
 
-  --border-color: #e2e8f0;
-  --surface-color: #ffffff;
-  --bg-app: #f8fafc;
+  --border-color: var(--border);
+  --surface-color: var(--surface);
+  --bg-app: var(--surface-2);
 
   --danger: #ef4444;
 
@@ -29,7 +29,7 @@
 
   background: var(--surface-color);
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* --- LAYOUT STRUCTURE --- */
@@ -169,7 +169,7 @@ th.mat-header-cell {
 }
 
 .row-group td {
-  background: #f1f5f9;
+  background: var(--surface-3);
   border-bottom: 1px solid var(--border-color);
   padding: 0;
 }
@@ -180,7 +180,7 @@ th.mat-header-cell {
   gap: 8px;
   padding: 12px 24px;
   font-weight: 700;
-  color: var(--brand);
+  color: var(--brand); color: light-dark(var(--brand), var(--text));
   letter-spacing: 0.02em;
 }
 
@@ -201,7 +201,7 @@ th.mat-header-cell {
 }
 
 .row-data:hover td {
-  background: #f8fafc;
+  background: var(--surface-2);
 }
 
 .module-info {
@@ -327,7 +327,7 @@ th.mat-header-cell {
 
   /* Mobile Card Refinement */
   .mobile-card {
-    background: #ffffff;
+    background: var(--surface);
     border: none;
     /* Removed border */
     border-radius: 16px;
@@ -349,7 +349,7 @@ th.mat-header-cell {
     align-items: center;
     margin-bottom: 16px;
     padding-bottom: 12px;
-    border-bottom: 1px solid #f1f5f9;
+    border-bottom: 1px solid var(--border);
   }
 
   .card-title-wrap {
@@ -360,7 +360,7 @@ th.mat-header-cell {
 
   .card-title {
     font-weight: 600;
-    color: var(--brand);
+    color: var(--brand); color: light-dark(var(--brand), var(--text));
     /* Brand color for title */
     font-size: 1.05rem;
     white-space: nowrap;
@@ -381,7 +381,7 @@ th.mat-header-cell {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #f8fafc;
+    background: var(--surface-2);
     padding: 10px 14px;
     border-radius: 12px;
     border: 1px solid transparent;
@@ -407,7 +407,7 @@ th.mat-header-cell {
     color: var(--text-disabled);
     font-size: 0.8rem;
     padding: 8px;
-    background: #f1f5f9;
+    background: var(--surface-3);
     border-radius: 8px;
     /* Slightly darker bg for disabled */
   }
@@ -430,7 +430,7 @@ th.mat-header-cell {
 }
 
 .footer-summary strong {
-  color: var(--brand);
+  color: var(--brand); color: light-dark(var(--brand), var(--text));
 }
 
 .footer-actions {
@@ -501,14 +501,14 @@ th.mat-header-cell {
 }
 
 ::ng-deep .mat-mdc-slide-toggle.mat-primary.mat-mdc-slide-toggle-checked .mdc-switch__handle::after {
-  background-color: #ffffff !important;
+  background-color: var(--surface) !important;
   /* WHITE THUMB ("Chulo") */
   /* Optional: Add a shadow or border if needed, but white is standard premium */
 }
 
 /* Unchecked Thumb - Default is white/greyish, ensure clean look */
 ::ng-deep .mat-mdc-slide-toggle.mat-primary .mdc-switch__handle::after {
-  background-color: #ffffff !important;
+  background-color: var(--surface) !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
@@ -529,8 +529,8 @@ th.mat-header-cell {
 }
 
 .btn-danger:hover {
-  color: #b42318;
-  background-color: #fef3f2;
+  color: #b42318; color: light-dark(#b42318, #f2a29c);
+  background-color: #fef3f2; background-color: light-dark(#fef3f2, #351c27);
 }
 
 @media (prefers-reduced-motion: reduce) {

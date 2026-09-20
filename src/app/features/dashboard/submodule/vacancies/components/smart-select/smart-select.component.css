@@ -1,0 +1,234 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECTOR CON BÚSQUEDA
+   ───────────────────────────────────────────────────────────────────────────
+   Los colores no se inventan: son los de la compañía —navy #21263C y verde
+   lima #8DD603— con la escala de grises que ya usa el resto del formulario.
+   El lima se gasta en UN solo sitio, el resaltado de lo que casó y el rail de
+   la fila elegida, para que signifique algo cuando aparezca.
+
+   El campo deja de ser una caja de un píxel: superficie suave, esquinas de
+   12px y un aro de foco de 2px. Es lo que quita la sensación de cuadrícula sin
+   que el formulario pierda densidad.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.ss-field {
+  width: 100%;
+  min-width: 0;
+}
+
+.ss-icono {
+  color: var(--text-faint);
+  font-size: 19px;
+  width: 19px;
+  height: 19px;
+  margin-right: 10px;
+  margin-left: 2px;
+}
+:host ::ng-deep .ss-field.mat-focused .ss-icono {
+  color: var(--navy-ink);
+}
+
+/* La superficie del campo.
+   BLANCA sobre tarjeta blanca, con un borde que se ve: el relleno gris claro y
+   el borde de bajo contraste que había antes hacían que los campos se leyeran
+   como manchas y no como cosas donde se elige algo. */
+:host ::ng-deep .ss-field .mat-mdc-text-field-wrapper {
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+:host ::ng-deep .ss-field:hover .mat-mdc-text-field-wrapper {
+  border-color: var(--text-faint);
+}
+
+:host ::ng-deep .ss-field.mat-focused .mat-mdc-text-field-wrapper {
+  border-color: #21263C;
+  box-shadow: 0 0 0 3px rgba(33, 38, 60, .12);
+}
+
+/* Fuera la línea inferior de `fill`: es la que hacía de reja. */
+:host ::ng-deep .ss-field .mdc-line-ripple {
+  display: none;
+}
+
+/* El rojo aparece SOLO cuando el campo se tocó y quedó vacío. Que un formulario
+   recién abierto muestre media docena de marcas rojas no avisa de nada. */
+:host ::ng-deep .ss-field.mat-form-field-invalid .mat-mdc-text-field-wrapper {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, .10);
+}
+
+/* Misma altura que el resto de campos del formulario: es lo que alinea las
+   filas de la rejilla. */
+:host ::ng-deep .ss-field .mat-mdc-form-field-infix {
+  min-height: 48px;
+}
+
+/* El valor se recorta a UNA línea. Un centro de costo largo partido en dos
+   renglones levantaba su fila y descuadraba la parrilla entera; el nombre
+   completo sigue disponible en el `title` y en el panel. */
+:host ::ng-deep .ss-field .mat-mdc-select-value {
+  max-width: 100%;
+}
+:host ::ng-deep .ss-field .mat-mdc-select-value-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El asterisco lo pone el componente: `mat-form-field` no puede deducirlo
+   porque el control lo tiene el envoltorio, no el `mat-select` de dentro. Sin
+   esto, unos campos obligatorios se marcaban y otros no. */
+.ss-ast {
+  color: #dc2626; color: light-dark(#dc2626, #ef9e9e);
+  margin-left: 2px;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EL PANEL
+   ───────────────────────────────────────────────────────────────────────────
+   Va SIN `:host` a propósito: el panel de un mat-select se pinta en un overlay
+   del CDK, fuera de este componente, así que una regla encapsulada no lo
+   alcanzaría. La clase `.ss-panel` es única, de modo que estas reglas globales
+   no tocan ningún otro desplegable de la aplicación.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+::ng-deep .ss-panel.mat-mdc-select-panel {
+  border-radius: 14px !important;
+  padding: 0 !important;
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 40px -12px rgba(15, 23, 42, .22), 0 4px 10px -4px rgba(15, 23, 42, .10) !important;
+
+  /* Que SIEMPRE se pueda desplazar lo que no cabe. Material trae un tope de 275px que en
+     pantallas bajas deja la ultima opcion partida a media altura y parece que no hay mas;
+     con `vh` el panel usa lo que de verdad queda de pantalla. `overflow-y: auto` sin
+     `!important` lo pisaba la regla de Material en algunos temas. */
+  max-height: min(60vh, 420px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+/* Buscador pegado arriba: la lista llega a cientos de opciones y hay que poder
+   seguir tecleando sin perderlo de vista al desplazarse. */
+::ng-deep .ss-panel .ss-buscar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+::ng-deep .ss-panel .ss-buscar > mat-icon {
+  flex: none;
+  color: var(--text-faint);
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+::ng-deep .ss-panel .ss-buscar input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+}
+::ng-deep .ss-panel .ss-buscar input::placeholder {
+  color: var(--text-faint);
+}
+::ng-deep .ss-panel .ss-buscar-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+::ng-deep .ss-panel .ss-buscar-x:hover { background: var(--surface-4); }
+::ng-deep .ss-panel .ss-buscar-x mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+/* Fila de opción: nombre arriba, el dato que la distingue debajo. */
+::ng-deep .ss-panel .mat-mdc-option.ss-op {
+  min-height: 0;
+  padding: 9px 14px;
+  border-left: 3px solid transparent;
+}
+::ng-deep .ss-panel .mat-mdc-option.ss-op .mdc-list-item__primary-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+}
+::ng-deep .ss-panel .ss-op-nombre {
+  font-size: 13.5px;
+  line-height: 1.3;
+  color: var(--text);
+}
+::ng-deep .ss-panel .ss-op-detalle {
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: var(--text-faint);
+}
+
+/* El rail lima marca la elegida. Es el único sitio, junto al resaltado, donde
+   aparece el color de marca dentro del panel. */
+::ng-deep .ss-panel .mat-mdc-option.mdc-list-item--selected {
+  background: #f4f8ec !important; background: light-dark(#f4f8ec, #27342e) !important;
+  border-left-color: #8DD603;
+}
+::ng-deep .ss-panel .mat-mdc-option.mdc-list-item--selected .ss-op-nombre {
+  font-weight: 600;
+  color: var(--navy-ink);
+}
+::ng-deep .ss-panel .mat-mdc-option:hover:not(.mdc-list-item--disabled) {
+  background: var(--surface-2);
+}
+
+/* Lo que casó con la búsqueda. Subrayado grueso en vez de fondo: sobre una fila
+   ya resaltada por estar elegida, un segundo fondo se volvía ilegible. */
+::ng-deep .ss-panel .ss-hit {
+  color: var(--navy-ink);
+  font-weight: 700;
+  box-shadow: inset 0 -0.42em 0 rgba(141, 214, 3, .42);
+  border-radius: 2px;
+}
+
+::ng-deep .ss-panel .ss-op-vacia .mdc-list-item__primary-text {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::ng-deep .ss-panel,
+  ::ng-deep .ss-panel * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

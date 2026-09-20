@@ -1,0 +1,48 @@
+<div class="ph-dlg">
+  <header class="ph-head">
+    <mat-icon class="ph-icono">edit_document</mat-icon>
+    <div class="ph-titulos">
+      <h2>{{ data.titulo }}</h2>
+      <p>
+        Con los datos de la persona. Los recuadros <span class="ph-leyenda ph-leyenda-vacio">amarillos</span>
+        no tienen dato: haz clic y escribe (las casillas se marcan con un clic). Lo que cambies queda
+        <span class="ph-leyenda ph-leyenda-editado">en verde</span>.
+      </p>
+    </div>
+    <span class="ph-spacer"></span>
+    @if (!cargando() && !error()) {
+      <span class="ph-conteo">{{ vacios() }} sin dato · {{ editados() }} completados</span>
+    }
+    <button mat-stroked-button type="button" (click)="cancelar()" [disabled]="guardando()">
+      <mat-icon>close</mat-icon> Cancelar
+    </button>
+    <button mat-flat-button color="primary" type="button" (click)="guardar()"
+            [disabled]="guardando() || cargando() || faltanTemporal().length > 0 || (!!error() && !campos())"
+            [attr.title]="faltanTemporal().length ? 'Faltan datos de la temporal: ' + faltanTemporalTexto() : null">
+      <mat-icon>{{ guardando() ? 'hourglass_empty' : 'cloud_upload' }}</mat-icon>
+      {{ guardando() ? 'Generando PDF…' : 'Guardar en el expediente' }}
+    </button>
+  </header>
+
+  @if (!cargando() && faltanTemporal().length) {
+    <div class="ph-aviso" role="alert">
+      <mat-icon>domain_disabled</mat-icon>
+      <span>
+        No se puede guardar todavía: a la temporal le falta <strong>{{ faltanTemporalTexto() }}</strong>.
+        Cárgalo en <strong>Parametrización de vacantes › Temporales</strong> y vuelve a abrir el documento.
+      </span>
+    </div>
+  }
+
+  @if (error(); as e) {
+    <div class="ph-error"><mat-icon>error_outline</mat-icon> {{ e }}</div>
+  }
+
+  @if (cargando()) {
+    <div class="ph-cargando"><mat-icon class="ph-spin">progress_activity</mat-icon> Llenando la plantilla con los datos de la persona…</div>
+  }
+
+  @if (isBrowser) {
+    <iframe #marco class="ph-marco" [class.ph-oculto]="cargando()" title="{{ data.titulo }}"></iframe>
+  }
+</div>

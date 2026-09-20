@@ -57,6 +57,10 @@ export const DOCUMENTOS_PAQUETE: readonly string[] = [
   'OTRO SI Sagaro Fumigador',
   'OTRO SI Jornada Laboral',
   'Carnet',
+  // Plantillas HTML de Apoyo sin generador propio: se diligencian desde Documentos
+  'Autorización Derechos de Imagen',
+  'Ficha Afiliación S.S.',
+  'Referenciación Trabajador en Misión',
   // Subir manual: identidad / vinculación
   'Cédula',
   'ARL',
@@ -105,6 +109,11 @@ export const TYPE_ID_POR_TITULO: Readonly<Record<string, number>> = {
   // que en el módulo Documentos salía como "sin tipo" y no se podía ni ver ni
   // resubir, aunque el tipo llevaba tiempo creado.
   'Carnet': 102,
+  // Tipos creados por ms-documents V19 para las plantillas HTML de Apoyo (códigos
+  // AUTORIZACION_DERECHOS_IMAGEN, FICHA_AFILIACION_SS, REFERENCIACION).
+  'Autorización Derechos de Imagen': 245,
+  'Ficha Afiliación S.S.': 246,
+  'Referenciación Trabajador en Misión': 243,
   // Existentes
   'Contrato': 25,
   'Autorización de Datos': 26,
@@ -205,6 +214,17 @@ export const DOCUMENTOS_SOLO_SUBIR: readonly string[] = [
 ];
 
 const SOLO_SUBIR = new Set<string>(DOCUMENTOS_SOLO_SUBIR);
+
+/**
+ * Documentos que SOLO existen como plantilla HTML de Apoyo (ms-templates): se generan y
+ * diligencian desde el módulo Documentos del pipeline. El generador PDF no sabe hacerlos,
+ * así que no los lista; y no aplican a vacantes de otra temporal.
+ */
+export const SOLO_PLANTILLA_HTML: ReadonlySet<string> = new Set([
+  'Autorización Derechos de Imagen',
+  'Ficha Afiliación S.S.',
+  'Referenciación Trabajador en Misión',
+]);
 
 /** ¿Este documento hay que subirlo a mano? */
 export function esSoloSubir(titulo: string): boolean {

@@ -86,16 +86,16 @@ export interface SubirDocumentoResult {
     .file-zone {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 8px; padding: 24px 16px; margin-top: 8px;
-      border: 2px dashed #bbb; border-radius: 8px; cursor: pointer;
+      border: 2px dashed var(--text-faint); border-radius: 8px; cursor: pointer;
       transition: border-color .2s, background .2s;
       text-align: center;
     }
-    .file-zone:hover   { border-color: #1976d2; background: #e3f2fd; }
-    .file-zone.has-file { border-color: #2e7d32; background: #e8f5e9; }
-    .zone-icon { font-size: 36px; width: 36px; height: 36px; color: #888; }
-    .file-zone.has-file .zone-icon { color: #2e7d32; }
-    .zone-text { font-size: 14px; color: #555; word-break: break-all; }
-    .zone-size { font-size: 12px; color: #888; }
+    .file-zone:hover   { border-color: #1976d2; background: #e3f2fd; background: light-dark(#e3f2fd, #122d4a); }
+    .file-zone.has-file { border-color: #2e7d32; background: #e8f5e9; background: light-dark(#e8f5e9, #193430); }
+    .zone-icon { font-size: 36px; width: 36px; height: 36px; color: var(--muted); }
+    .file-zone.has-file .zone-icon { color: #2e7d32; color: light-dark(#2e7d32, #ade1b0); }
+    .zone-text { font-size: 14px; color: var(--text-2); word-break: break-all; }
+    .zone-size { font-size: 12px; color: var(--muted); }
   `]
 })
 export class SubirDocumentoDialogComponent implements OnInit {

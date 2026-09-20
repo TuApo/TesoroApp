@@ -1,0 +1,338 @@
+<!-- ── Barra de herramientas ─────────────────────────────────────────────── -->
+<div class="te-barra">
+  <div class="te-barra__izq">
+    @if (busqueda() !== false) {
+      <label class="te-buscar">
+        <mat-icon fontSet="material-symbols-outlined">search</mat-icon>
+        <input type="search" [placeholder]="placeholderBusqueda()" [value]="q()"
+               (input)="buscar($any($event.target).value)" [attr.aria-label]="placeholderBusqueda()" />
+      </label>
+    }
+    <span class="te-cuenta">
+      @if (modoServidor()) {
+        {{ totalFiltradas() }} registros
+      } @else {
+        {{ totalFiltradas() }} de {{ filas().length }}
+      }
+    </span>
+    @if (filtrosActivos().length) {
+      <div class="te-filtros" role="group" aria-label="Filtros puestos">
+        @for (f of filtrosActivos(); track f.id) {
+          <button type="button" class="te-filtro" (click)="quitarFiltro(f.id)"
+                  [title]="'Quitar el filtro de ' + f.etiqueta">
+            <span class="te-filtro__col">{{ f.etiqueta }}</span>
+            <span class="te-filtro__val">{{ f.valor }}</span>
+            <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+          </button>
+        }
+        <button type="button" class="te-btn te-btn--aviso" (click)="limpiarTodo()"
+                title="Quitar todos los filtros y la búsqueda">
+          <mat-icon fontSet="material-symbols-outlined">filter_alt_off</mat-icon> Limpiar todo
+        </button>
+      </div>
+    }
+    <ng-content select="[tablaHerramientas]" />
+  </div>
+
+  <div class="te-barra__der">
+    @if (aviso()) {
+      <span class="te-aviso" role="status">
+        <mat-icon fontSet="material-symbols-outlined">task_alt</mat-icon> {{ aviso() }}
+      </span>
+    }
+    <ng-content select="[tablaAccionesBarra]" />
+    @if (copiable()) {
+      <button type="button" class="te-btn" (click)="copiar(sel() ? 'seleccion' : 'todo')"
+              title="Copiar al portapapeles en formato Excel (Ctrl+C con una selección)">
+        <mat-icon fontSet="material-symbols-outlined">content_copy</mat-icon>
+        <span class="te-btn__texto">{{ sel() ? 'Copiar selección' : 'Copiar tabla' }}</span>
+      </button>
+    }
+    @if (descargable()) {
+      <button type="button" class="te-btn te-btn--excel" (click)="descargar()" [disabled]="descargando()"
+              title="Descargar lo filtrado como Excel (.xlsx)">
+        <mat-icon fontSet="material-symbols-outlined">download</mat-icon>
+        <span class="te-btn__texto">{{ descargando() ? 'Generando…' : 'Excel' }}</span>
+      </button>
+    }
+    <button type="button" class="te-btn" [class.te-btn--activo]="pantallaCompleta()"
+            (click)="alternarPantallaCompleta()"
+            [title]="pantallaCompleta() ? 'Salir de pantalla completa (Esc)' : 'Ver la tabla en pantalla completa'"
+            [attr.aria-pressed]="pantallaCompleta()">
+      <mat-icon fontSet="material-symbols-outlined">{{ pantallaCompleta() ? 'close_fullscreen' : 'open_in_full' }}</mat-icon>
+      <span class="te-btn__texto">{{ pantallaCompleta() ? 'Salir' : 'Pantalla completa' }}</span>
+    </button>
+    <div class="te-vistas" role="group" aria-label="Vista">
+      <button type="button" class="te-vista" [class.te-vista--activa]="vista() === 'tabla'"
+              [attr.aria-pressed]="vista() === 'tabla'" (click)="cambiarVista('tabla')" title="Ver como tabla">
+        <mat-icon fontSet="material-symbols-outlined">table_rows</mat-icon><span>Tabla</span>
+      </button>
+      <button type="button" class="te-vista" [class.te-vista--activa]="vista() === 'tarjetas'"
+              [attr.aria-pressed]="vista() === 'tarjetas'" (click)="cambiarVista('tarjetas')" title="Ver como tarjetas">
+        <mat-icon fontSet="material-symbols-outlined">grid_view</mat-icon><span>Tarjetas</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Acciones sobre lo marcado ──────────────────────────────────────────
+     Aparece sola cuando hay filas marcadas: contador, lo que cuelgue la
+     pantalla con [tablaAccionesSeleccion] y el botón de soltar la selección.
+     Así el cambio masivo de cada pantalla vive dentro del estándar. -->
+@if (marcadas() > 0) {
+  <div class="te-masivas" role="group" aria-label="Acciones sobre lo marcado">
+    <span class="te-masivas__cuenta">
+      <mat-icon fontSet="material-symbols-outlined">checklist</mat-icon>
+      <strong>{{ marcadas() }}</strong> marcada(s)
+    </span>
+    <ng-content select="[tablaAccionesSeleccion]" />
+    <button type="button" class="te-btn te-masivas__soltar" (click)="soltarSeleccion()">
+      <mat-icon fontSet="material-symbols-outlined">close</mat-icon> Quitar selección
+    </button>
+  </div>
+}
+
+<!-- ── Botón «Ver» (compartido por tabla y tarjeta) ──────────────────────── -->
+<ng-template #botonDetalle let-fila>
+  @if (conDetalle()) {
+    <button type="button" class="te-ver" (click)="abrirDetalle(fila, $event)" title="Abrir el detalle">
+      <mat-icon fontSet="material-symbols-outlined">visibility</mat-icon> {{ textoDetalle() }}
+    </button>
+  }
+</ng-template>
+
+<!-- ── Contenido de una celda: plantilla > chip > formato > valor ────────── -->
+<ng-template #contenidoCelda let-col="col" let-fila="fila" let-i="i">
+  @if (plantillaCelda().get(col.id); as tpl) {
+    <ng-container [ngTemplateOutlet]="tpl" [ngTemplateOutletContext]="contexto(fila, i)" />
+  } @else if (badgeDe(col, fila); as b) {
+    <span class="te-chip" [attr.data-tono]="b.tono || 'neutro'"
+          [style.color]="b.color || null" [style.background]="b.fondo || null">
+      @if (b.icono) { <mat-icon fontSet="material-symbols-outlined">{{ b.icono }}</mat-icon> }
+      {{ b.texto }}
+    </span>
+  } @else {
+    {{ textoCelda(col, fila) }}
+  }
+</ng-template>
+
+@if (cargando() && !filasPagina().length) {
+  <div class="te-esqueleto" aria-busy="true" aria-label="Cargando">
+    @for (_ of [1, 2, 3, 4, 5, 6]; track $index) { <div class="te-esqueleto__fila"></div> }
+  </div>
+} @else if (!filasPagina().length) {
+  <div class="te-vacio">
+    @if (vacioTpl(); as v) {
+      <ng-container [ngTemplateOutlet]="v.tpl" />
+    } @else {
+      <mat-icon fontSet="material-symbols-outlined">{{ hayFiltros() ? 'filter_alt_off' : 'inbox' }}</mat-icon>
+      <p>{{ hayFiltros() ? 'Nada coincide con los filtros.' : (vacio() || 'Aún no hay información.') }}</p>
+      @if (hayFiltros()) {
+        <button type="button" class="te-btn" (click)="limpiarTodo()">Limpiar filtros</button>
+      }
+    }
+  </div>
+} @else if (vista() === 'tarjetas') {
+  <!-- ── Tarjetas ─────────────────────────────────────────────────────────── -->
+  <div class="te-tarjetas" [style.--te-min-tarjeta]="minAnchoTarjeta()" [class.te-tarjetas--cargando]="cargando()">
+    @for (fila of filasPagina(); track track($index, fila); let i = $index) {
+      @if (tarjetaSinMarco() && tarjetaTpl()) {
+        <ng-container [ngTemplateOutlet]="tarjetaTpl()!.tpl" [ngTemplateOutletContext]="contexto(fila, i)" />
+      } @else {
+        <article class="te-tarjeta" [class]="claseFila(fila)" [class.te-tarjeta--clic]="conDetalle()"
+                 [class.te-tarjeta--marcada]="estaMarcada(fila)" (click)="abrirDetalle(fila)">
+          @if (seleccion()) {
+            <label class="te-tarjeta__marca" (click)="detener($event)">
+              <input type="checkbox" class="te-casilla" [checked]="estaMarcada(fila)" (change)="alternarFila(fila)" />
+              <span>Marcar</span>
+            </label>
+          }
+          @if (tarjetaTpl(); as t) {
+            <ng-container [ngTemplateOutlet]="t.tpl" [ngTemplateOutletContext]="contexto(fila, i)" />
+          } @else {
+            <div class="te-tarjeta__cabeza">
+              <div class="te-tarjeta__titulos">
+                @for (c of roles().titulo; track c.id) {
+                  <div class="te-tarjeta__titulo">
+                    <ng-container [ngTemplateOutlet]="contenidoCelda" [ngTemplateOutletContext]="{ col: c, fila: fila, i: i }" />
+                  </div>
+                }
+                @for (c of roles().subtitulo; track c.id) {
+                  <div class="te-tarjeta__subtitulo">
+                    <ng-container [ngTemplateOutlet]="contenidoCelda" [ngTemplateOutletContext]="{ col: c, fila: fila, i: i }" />
+                  </div>
+                }
+              </div>
+              @if (roles().badge.length) {
+                <div class="te-tarjeta__badges">
+                  @for (c of roles().badge; track c.id) {
+                    <div><ng-container [ngTemplateOutlet]="contenidoCelda" [ngTemplateOutletContext]="{ col: c, fila: fila, i: i }" /></div>
+                  }
+                </div>
+              }
+            </div>
+            @if (conValor(roles().cuerpo, fila); as cuerpo) {
+              @if (cuerpo.length) {
+                <div class="te-tarjeta__cuerpo">
+                  @for (c of cuerpo; track c.id) {
+                    <div class="te-tarjeta__linea">
+                      <span class="te-tarjeta__etiqueta">{{ c.header }}:</span>
+                      <ng-container [ngTemplateOutlet]="contenidoCelda" [ngTemplateOutletContext]="{ col: c, fila: fila, i: i }" />
+                    </div>
+                  }
+                </div>
+              }
+            }
+            @if (conValor(roles().meta, fila); as metas) {
+              @if (metas.length) {
+                <div class="te-tarjeta__meta">
+                  @for (c of metas; track c.id) {
+                    <span class="te-tarjeta__dato">
+                      <span class="te-tarjeta__etiqueta">{{ c.header }}:</span>
+                      <ng-container [ngTemplateOutlet]="contenidoCelda" [ngTemplateOutletContext]="{ col: c, fila: fila, i: i }" />
+                    </span>
+                  }
+                </div>
+              }
+            }
+            @if (hayAcciones()) {
+              <div class="te-tarjeta__acciones" (click)="detener($event)">
+                <ng-container [ngTemplateOutlet]="botonDetalle" [ngTemplateOutletContext]="{ $implicit: fila }" />
+                @if (accionesTpl(); as a) {
+                  <ng-container [ngTemplateOutlet]="a.tpl" [ngTemplateOutletContext]="contexto(fila, i)" />
+                }
+              </div>
+            }
+          }
+        </article>
+      }
+    }
+  </div>
+} @else {
+  <!-- ── Tabla ────────────────────────────────────────────────────────────── -->
+  <div #contenedor class="te-contenedor" tabindex="0" [class.te-contenedor--cargando]="cargando()"
+       (keydown)="onTecla($event)" (copy)="onCopy($event)">
+    <table class="te-tabla">
+      <thead>
+        <tr>
+          <th class="te-num te-num--esquina" (click)="seleccionarTodo()" title="Seleccionar toda la página (Ctrl+A)">#</th>
+          @if (seleccion()) {
+            <th class="te-marca">
+              <input type="checkbox" class="te-casilla" aria-label="Marcar todas las filas filtradas"
+                     [checked]="estadoMarcaTodas() === 'todas'" [indeterminate]="estadoMarcaTodas() === 'algunas'"
+                     (change)="alternarTodas()" />
+            </th>
+          }
+          @if (hayAcciones()) {
+            <th class="te-th te-th--acciones" [style.width]="anchoAcciones()">Acciones</th>
+          }
+          @for (c of columnasVisibles(); track c.id; let ci = $index) {
+            <th class="te-th" [class]="c.claseEncabezado || ''" [attr.data-align]="c.align || 'left'"
+                [style.width]="c.ancho || null" [style.min-width]="c.minAncho || null">
+              <div class="te-th__contenido">
+                <button type="button" class="te-th__titulo" (click)="seleccionarColumna(ci)"
+                        [title]="'Seleccionar la columna ' + c.header">{{ c.header }}</button>
+                @if (plantillaEncabezado().get(c.id); as he) {
+                  <ng-container [ngTemplateOutlet]="he" />
+                }
+                <!-- En modo servidor el embudo solo ordena: los valores de una
+                     página sueltan una lista engañosa. -->
+                @if ((c.filtrable !== false && !modoServidor()) || c.ordenable !== false) {
+                  <app-tabla-filtro-columna
+                    [titulo]="c.header"
+                    [obtenerValores]="obtenedores().get(c.id)!"
+                    [filtro]="filtroDe(c.id)"
+                    [orden]="ordenDe(c.id)"
+                    [ordenable]="c.ordenable !== false"
+                    [soloOrden]="modoServidor() || c.filtrable === false"
+                    [tipoFecha]="tipoFechaDe(c.id)"
+                    [formatoFecha]="formatoFecha()"
+                    (ordenCambio)="cambiarOrden(c.id, $event)"
+                    (filtroCambio)="cambiarFiltro(c.id, $event)"
+                    (formatoFechaCambio)="cambiarFormatoFecha($event)" />
+                }
+              </div>
+            </th>
+          }
+        </tr>
+      </thead>
+      <tbody>
+        @for (fila of filasPagina(); track track($index, fila); let ri = $index) {
+          <tr class="te-fila" [class]="claseFila(fila)" [class.te-fila--clic]="conDetalle()"
+              [class.te-fila--marcada]="estaMarcada(fila)"
+              (dblclick)="abrirDetalle(fila)">
+            <td class="te-num" (click)="seleccionarFila(ri)" title="Seleccionar la fila">{{ desdeFila() + ri + 1 }}</td>
+            @if (seleccion()) {
+              <td class="te-marca" (mousedown)="detener($event)" (dblclick)="detener($event)">
+                <input type="checkbox" class="te-casilla" [checked]="estaMarcada(fila)"
+                       (change)="alternarFila(fila)" aria-label="Marcar fila" />
+              </td>
+            }
+            @if (hayAcciones()) {
+              <td class="te-td te-td--acciones" (mousedown)="detener($event)" (dblclick)="detener($event)">
+                <div class="te-acciones">
+                  <ng-container [ngTemplateOutlet]="botonDetalle" [ngTemplateOutletContext]="{ $implicit: fila }" />
+                  @if (accionesTpl(); as a) {
+                    <ng-container [ngTemplateOutlet]="a.tpl" [ngTemplateOutletContext]="contexto(fila, ri)" />
+                  }
+                </div>
+              </td>
+            }
+            @for (c of columnasVisibles(); track c.id; let ci = $index) {
+              <td class="te-td" [class]="claseCelda(c, fila)" [attr.data-align]="c.align || 'left'"
+                  [attr.data-celda]="ri + ':' + ci" [attr.data-interactiva]="c.interactiva ? '1' : null"
+                  [class.te-td--interactiva]="c.interactiva" [class.te-td--sel]="enSeleccion(ri, ci)"
+                  (mousedown)="onCeldaMouseDown($event, ri, ci, c)" (mouseenter)="onCeldaMouseEnter(ri, ci, c)">
+                <ng-container [ngTemplateOutlet]="contenidoCelda" [ngTemplateOutletContext]="{ col: c, fila: fila, i: ri }" />
+              </td>
+            }
+          </tr>
+        }
+      </tbody>
+      @if (pieValores(); as pv) {
+        <tfoot>
+          <tr>
+            <td class="te-num"></td>
+            @if (seleccion()) { <td class="te-marca"></td> }
+            @if (hayAcciones()) { <td class="te-td"></td> }
+            @for (c of columnasVisibles(); track c.id) {
+              <td class="te-td" [attr.data-align]="c.align || 'left'">{{ pv[c.id] ?? '' }}</td>
+            }
+          </tr>
+        </tfoot>
+      }
+    </table>
+  </div>
+
+  @if (ayuda() && tamano() !== 'xs') {
+    <p class="te-ayuda">
+      Clic para seleccionar · arrastra o Shift+clic para un rango · clic en el título de la columna para toda la
+      columna · Ctrl+C para pegar en Excel@if (conDetalle()) { · «{{ textoDetalle() }}» o doble clic para abrir el detalle}
+    </p>
+  }
+}
+
+<!-- ── Paginador ─────────────────────────────────────────────────────────── -->
+@if (mostrarPaginador() && filasPagina().length) {
+  <div class="te-paginador">
+    <label class="te-paginador__tam">
+      <span>Filas por página</span>
+      <select [value]="porPagina()" (change)="cambiarPorPagina(+$any($event.target).value)">
+        @for (n of opcionesPagina(); track n) {
+          <option [value]="n" [selected]="n === porPagina()">{{ n === 0 ? 'Todas' : n }}</option>
+        }
+      </select>
+    </label>
+    <div class="te-paginador__nav">
+      <button type="button" class="te-paginador__btn" [disabled]="paginaActual() === 0"
+              (click)="irAPagina(paginaActual() - 1)" aria-label="Página anterior">
+        <mat-icon fontSet="material-symbols-outlined">chevron_left</mat-icon>
+      </button>
+      <span>{{ paginaActual() + 1 }} / {{ totalPaginas() }}</span>
+      <button type="button" class="te-paginador__btn" [disabled]="paginaActual() >= totalPaginas() - 1"
+              (click)="irAPagina(paginaActual() + 1)" aria-label="Página siguiente">
+        <mat-icon fontSet="material-symbols-outlined">chevron_right</mat-icon>
+      </button>
+    </div>
+  </div>
+}

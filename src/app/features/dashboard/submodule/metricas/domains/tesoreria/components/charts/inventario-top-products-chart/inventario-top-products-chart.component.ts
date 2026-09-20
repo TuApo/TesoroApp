@@ -1,6 +1,7 @@
 import { Component, Input, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
-import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { NgxEchartsDirective} from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { EmptyStateComponent } from '../../../../../shared/components/empty-state/empty-state.component';
 
@@ -8,7 +9,7 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
     selector: 'app-inventario-top-products-chart',
     standalone: true,
     imports: [NgxEchartsDirective, EmptyStateComponent],
-    providers: [provideEchartsCore({ echarts: () => import('echarts') }), CurrencyPipe],
+    providers: [provideEchartsTema(), CurrencyPipe],
     template: `
     @if (hasData) {
       <div class="chart-container">

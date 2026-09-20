@@ -130,153 +130,42 @@
 
         <mat-divider class="disab-divider"></mat-divider>
 
-        <!-- ── Tabla 1: Incapacidades ────────────────────────── -->
+        <!-- ── Tabla 1: Incapacidades (tabla estandar) ────────── -->
         <section class="disab-section">
           <header class="disab-section-header">
             <mat-icon class="disab-section-icon">list_alt</mat-icon>
             <h2 class="disab-section-title">Lista de incapacidades</h2>
-            <span class="disab-chip disab-chip-primary">
-              {{ dataSourceTable1.filteredData.length }} / {{ dataSourceTable1.data.length }}
-            </span>
-            <span class="disab-spacer"></span>
-
-            <!-- Búsqueda rápida inline -->
-            <mat-form-field appearance="outline" class="disab-quick-search">
-              <mat-label>Buscar en tabla…</mat-label>
-              <mat-icon matPrefix>search</mat-icon>
-              <input
-                matInput
-                [ngModel]="quickFilterT1"
-                (ngModelChange)="applyQuickFilterT1($event)"
-                placeholder="Nombre, cédula, EPS…"
-                autocomplete="off"
-              />
-              @if (quickFilterT1) {
-                <button
-                  matSuffix
-                  mat-icon-button
-                  type="button"
-                  aria-label="Limpiar búsqueda"
-                  (click)="clearQuickFilterT1()"
-                >
-                  <mat-icon>close</mat-icon>
-                </button>
-              }
-            </mat-form-field>
           </header>
 
-          <div class="disab-table-wrapper mat-elevation-z1" [class.disab-loading]="isLoading">
-            <div class="disab-table-scroll">
-              <table
-                mat-table
-                [dataSource]="dataSourceTable1"
-                [trackBy]="trackByConsecutivo"
-                matSort
-                #sortT1="matSort"
-                aria-label="Tabla de incapacidades"
-                class="disab-table"
-              >
-                @for (column of ColumnsTable1; track $index) {
-                  <ng-container [matColumnDef]="column">
-                    <th mat-header-cell *matHeaderCellDef mat-sort-header>
-                      {{ toTitleCase(column, columnTitlesTable1) }}
-                    </th>
-                    <td mat-cell *matCellDef="let element">
-                      @if (column === 'estado_incapacidad') {
-                        <span [class]="estadoClass(element[column])" [matTooltip]="element[column] || ''">
-                          {{ fmt(element[column]) }}
-                        </span>
-                      } @else {
-                        {{ fmt(element[column]) }}
-                      }
-                    </td>
-                  </ng-container>
-                }
-                <tr mat-header-row *matHeaderRowDef="ColumnsTable1; sticky: true"></tr>
-                <tr mat-row *matRowDef="let row; columns: ColumnsTable1;"></tr>
-                <tr class="mat-row disab-no-data" *matNoDataRow>
-                  <td class="mat-cell" [attr.colspan]="ColumnsTable1.length">
-                    <mat-icon>inbox</mat-icon>
-                    <span>{{ quickFilterT1 ? 'Sin resultados para "' + quickFilterT1 + '"' : 'No hay datos disponibles' }}</span>
-                  </td>
-                </tr>
-              </table>
-            </div>
-            <mat-paginator
-              #pagT1
-              [pageSizeOptions]="[10, 25, 50, 100]"
-              [pageSize]="25"
-              showFirstLastButtons
-              aria-label="Paginación de incapacidades"
-            ></mat-paginator>
-          </div>
+          <app-tabla-estandar
+            id="incapacidades-vista-total-incapacidades"
+            titulo="Lista de incapacidades"
+            modulo="Incapacidades"
+            busqueda="Nombre, cédula, EPS…"
+            vacio="No hay datos disponibles"
+            [datos]="filasTabla1()"
+            [columnas]="columnasTabla1"
+            [filaId]="idFila"
+            [cargando]="isLoading" />
         </section>
 
-        <!-- ── Tabla 2: Reportes ─────────────────────────────── -->
+        <!-- ── Tabla 2: Reportes (tabla estandar) ────────────── -->
         <section class="disab-section">
           <header class="disab-section-header">
             <mat-icon class="disab-section-icon">summarize</mat-icon>
             <h2 class="disab-section-title">Información de reportes</h2>
-            <span class="disab-chip disab-chip-accent">
-              {{ dataSourceTable4.filteredData.length }} / {{ dataSourceTable4.data.length }}
-            </span>
-            <span class="disab-spacer"></span>
-
-            <mat-form-field appearance="outline" class="disab-quick-search">
-              <mat-label>Buscar en tabla…</mat-label>
-              <mat-icon matPrefix>search</mat-icon>
-              <input
-                matInput
-                [ngModel]="quickFilterT4"
-                (ngModelChange)="applyQuickFilterT4($event)"
-                placeholder="Consecutivo, estado…"
-                autocomplete="off"
-              />
-              @if (quickFilterT4) {
-                <button matSuffix mat-icon-button type="button" aria-label="Limpiar búsqueda" (click)="clearQuickFilterT4()">
-                  <mat-icon>close</mat-icon>
-                </button>
-              }
-            </mat-form-field>
           </header>
 
-          <div class="disab-table-wrapper mat-elevation-z1" [class.disab-loading]="isLoading">
-            <div class="disab-table-scroll">
-              <table
-                mat-table
-                [dataSource]="dataSourceTable4"
-                [trackBy]="trackByConsecutivo"
-                matSort
-                #sortT4="matSort"
-                aria-label="Tabla de reportes"
-                class="disab-table"
-              >
-                @for (column of displayedColumnsTable4; track $index) {
-                  <ng-container [matColumnDef]="column">
-                    <th mat-header-cell *matHeaderCellDef mat-sort-header>
-                      {{ toTitleCase(column, columnTitlesTable4) }}
-                    </th>
-                    <td mat-cell *matCellDef="let element">{{ fmt(element[column]) }}</td>
-                  </ng-container>
-                }
-                <tr mat-header-row *matHeaderRowDef="displayedColumnsTable4; sticky: true"></tr>
-                <tr mat-row *matRowDef="let row; columns: displayedColumnsTable4;"></tr>
-                <tr class="mat-row disab-no-data" *matNoDataRow>
-                  <td class="mat-cell" [attr.colspan]="displayedColumnsTable4.length">
-                    <mat-icon>inbox</mat-icon>
-                    <span>{{ quickFilterT4 ? 'Sin resultados para "' + quickFilterT4 + '"' : 'No hay datos disponibles' }}</span>
-                  </td>
-                </tr>
-              </table>
-            </div>
-            <mat-paginator
-              #pagT4
-              [pageSizeOptions]="[10, 25, 50, 100]"
-              [pageSize]="25"
-              showFirstLastButtons
-              aria-label="Paginación de reportes"
-            ></mat-paginator>
-          </div>
+          <app-tabla-estandar
+            id="incapacidades-vista-total-reportes"
+            titulo="Información de reportes"
+            modulo="Incapacidades"
+            busqueda="Consecutivo, estado…"
+            vacio="No hay datos disponibles"
+            [datos]="filasTabla4()"
+            [columnas]="columnasTabla4"
+            [filaId]="idFila"
+            [cargando]="isLoading" />
         </section>
 
         <mat-divider class="disab-divider"></mat-divider>

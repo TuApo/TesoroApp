@@ -5,16 +5,16 @@
 :host {
   --disab-primary: #1976d2;
   --disab-primary-dark: #1565c0;
-  --disab-primary-light: #e3f2fd;
+  --disab-primary-light: light-dark(#e3f2fd, #122d4a);
   --disab-accent: #00bcd4;
   --disab-success: #2e7d32;
   --disab-danger: #d32f2f;
   --disab-warn: #f57c00;
-  --disab-bg: #f5f7fb;
-  --disab-surface: #ffffff;
-  --disab-border: rgba(15, 23, 42, 0.08);
-  --disab-text: #1a1a2e;
-  --disab-text-muted: #64748b;
+  --disab-bg: var(--surface-2);
+  --disab-surface: var(--surface);
+  --disab-border: rgb(var(--ink-rgb) / 0.08);
+  --disab-text: var(--text);
+  --disab-text-muted: var(--muted);
   --disab-radius: 16px;
   --disab-radius-sm: 10px;
   --disab-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
@@ -115,7 +115,7 @@
 }
 
 :host ::ng-deep .search-container .cedula .mat-mdc-text-field-wrapper {
-  background: rgba(255, 255, 255, 0.95) !important;
+  background: rgb(var(--surface-rgb) / 0.95) !important;
   border-radius: 10px;
 }
 
@@ -123,8 +123,8 @@
   height: 48px;
   min-width: 130px;
   padding: 0 26px;
-  background: #fff !important;
-  color: var(--disab-primary-dark) !important;
+  background: var(--surface) !important;
+  color: var(--disab-primary-dark) !important; color: light-dark(var(--disab-primary-dark), #9ac4f4) !important;
   font-weight: 700 !important;
   border-radius: 10px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -168,7 +168,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: var(--surface);
   border-radius: 8px;
   box-shadow: var(--disab-shadow-sm);
 }
@@ -199,7 +199,7 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
  */
 .form-row {
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
   gap: 6px 14px;
   align-items: start;
   width: 100%;
@@ -228,7 +228,7 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
 
 .flex {
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr));
   gap: 6px 14px;
   align-items: start;
   width: 100%;
@@ -255,11 +255,11 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
 
 :host ::ng-deep .mat-mdc-form-field .mdc-text-field--filled {
   border-radius: 10px 10px 0 0;
-  background: #f8fafc !important;
+  background: var(--surface-2) !important;
 }
 
 :host ::ng-deep .mat-mdc-form-field .mdc-text-field--filled:hover {
-  background: #eef4fb !important;
+  background: #eef4fb !important; background: light-dark(#eef4fb, #172945) !important;
 }
 
 /* Reduce espacio muerto debajo de cada mat-form-field (hint/error line) */
@@ -273,76 +273,14 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
   height: 4px;
 }
 
-/* ── Tabla de historial ─────────────────────────────────────── */
-.table-container {
-  overflow-x: auto;
+/* ── Tabla de historial (tabla estandar) ─────────────────────── */
+.historial-tabla {
   margin: 14px 0 28px;
-  border-radius: 12px;
-  border: 1px solid var(--disab-border);
-  background: #fff;
-  box-shadow: var(--disab-shadow-sm);
-}
-
-:host ::ng-deep .table-container table.mat-mdc-table,
-:host ::ng-deep .table-container table[mat-table] {
-  width: 100%;
-  min-width: 900px;
-  background: #fff;
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-:host ::ng-deep .table-container th.mat-mdc-header-cell {
-  background: var(--disab-gradient) !important;
-  color: #fff !important;
-  font-weight: 700 !important;
-  letter-spacing: 0.4px;
-  font-size: 13px;
-  text-transform: uppercase;
-  padding: 12px 14px !important;
-  border-bottom: none !important;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-}
-
-:host ::ng-deep .table-container td.mat-mdc-cell {
-  padding: 11px 14px !important;
-  font-size: 13.5px;
-  color: var(--disab-text);
-  border-bottom: 1px solid #eef1f5 !important;
-}
-
-:host ::ng-deep .table-container tr.mat-mdc-row:nth-child(even) {
-  background: #fafbfe;
-}
-
-:host ::ng-deep .table-container tr.mat-mdc-row:hover {
-  background: #eaf3fd !important;
-}
-
-:host ::ng-deep .table-container td.total,
-:host ::ng-deep .table-container th.total {
-  background: #fff4e5 !important;
-  font-weight: 700;
-  color: var(--disab-warn);
-}
-
-:host ::ng-deep .table-container .bold {
-  font-weight: 700;
-  color: var(--disab-primary-dark);
-}
-
-:host ::ng-deep .table-container .mat-mdc-no-data-row td {
-  text-align: center;
-  padding: 24px !important;
-  color: var(--disab-text-muted);
-  font-style: italic;
 }
 
 /* ── Bloque de historial encontrado ─────────────────────────── */
 :host ::ng-deep mat-card[color="primary"].mb-3 {
-  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%) !important;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%) !important; background: linear-gradient(135deg, light-dark(#e8f5e9, #193430) 0%, #c8e6c9 100%) !important;
   border: 1px solid #81c784;
   border-left: 5px solid var(--disab-success);
   border-radius: 12px !important;
@@ -351,7 +289,7 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
 }
 
 :host ::ng-deep mat-card[color="primary"].mb-3 mat-card-title {
-  color: var(--disab-success) !important;
+  color: var(--disab-success) !important; color: light-dark(var(--disab-success), #ade1b0) !important;
   font-weight: 700 !important;
   font-size: 16px !important;
   display: flex;
@@ -381,14 +319,14 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
   gap: 18px;
   width: 100%;
   padding: 12px 14px;
-  background: #fafbfe;
-  border: 1px dashed #cbd5e1;
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
   border-radius: var(--disab-radius-sm);
   transition: background 0.18s ease, border-color 0.18s ease;
 }
 
 .button-field:hover {
-  background: #f0f6fd;
+  background: #f0f6fd; background: light-dark(#f0f6fd, #142948);
   border-color: var(--disab-primary);
 }
 
@@ -412,8 +350,8 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
 }
 
 .button-field > button.aumentar[disabled] {
-  background: #cfd8dc !important;
-  color: #78909c !important;
+  background: var(--border-strong) !important;
+  color: var(--muted) !important;
   box-shadow: none;
 }
 
@@ -434,7 +372,7 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
   overflow: visible !important;
   height: auto !important;
   white-space: normal !important;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--disab-border);
   border-left: 3px solid var(--disab-accent);
   border-radius: 8px;
@@ -452,7 +390,7 @@ form > mat-card-title.titulo:nth-of-type(6)::before { content: 'stethoscope'; }
 
 .file-item span[mat-line]:first-child {
   font-weight: 600;
-  color: var(--disab-primary-dark);
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
 }
 
 .file-item button {
@@ -481,8 +419,8 @@ button.aumentar[color="accent"]:hover:not([disabled]) {
 }
 
 button.aumentar[color="accent"][disabled] {
-  background: #cfd8dc !important;
-  color: #78909c !important;
+  background: var(--border-strong) !important;
+  color: var(--muted) !important;
   box-shadow: none;
 }
 
@@ -553,7 +491,7 @@ button.aumentar[color="accent"][disabled] {
   }
   .form-row,
   .flex {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
     gap: 4px 10px;
   }
   .button-field {
@@ -562,10 +500,6 @@ button.aumentar[color="accent"][disabled] {
   .button-field > button.aumentar {
     width: 100% !important;
     min-width: 0 !important;
-  }
-  :host ::ng-deep .table-container table.mat-mdc-table,
-  :host ::ng-deep .table-container table[mat-table] {
-    min-width: 650px;
   }
   .titulo {
     font-size: 16px !important;
@@ -576,6 +510,6 @@ button.aumentar[color="accent"][disabled] {
   /* En monitores grandes, permitir más densidad (columnas más angostas) */
   .form-row,
   .flex {
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
   }
 }

@@ -1,0 +1,281 @@
+<section class="cfg">
+
+  <header class="cabecera">
+    <div>
+      <h2>Configuración IA de marcas</h2>
+      <p class="sub">Cómo habla cada marca y qué tiene configurado. Lo obligatorio va aparte
+         de lo ampliado: sin lo primero el módulo produce material incorrecto sin avisar.</p>
+    </div>
+  </header>
+
+  <p class="cargando" *ngIf="cargando()">Cargando…</p>
+
+  <div class="marcas" *ngIf="!cargando()">
+    <button *ngFor="let m of marcas()" type="button" class="marca"
+            [class.activa]="detalle()?.id === m.id" (click)="abrir(m)">
+      <span class="marca__n">{{ m.nombre }}</span>
+      <span class="marca__e" [class.marca__e--mal]="!m.lista_para_usar">
+        <mat-icon>{{ m.lista_para_usar ? 'check_circle' : 'error' }}</mat-icon>
+        {{ m.lista_para_usar ? 'Lista' : m.obligatorio_falta + ' sin resolver' }}
+      </span>
+    </button>
+  </div>
+
+  <ng-container *ngIf="detalle() as d">
+    <nav class="pestanas">
+      <button type="button" [class.activa]="pestana() === 'estado'" (click)="pestana.set('estado')">
+        Qué falta</button>
+      <button type="button" [class.activa]="pestana() === 'tonos'" (click)="pestana.set('tonos')">
+        Tonos <span class="pill">{{ d.tonos.length }}</span></button>
+      <button type="button" [class.activa]="pestana() === 'paleta'" (click)="pestana.set('paleta')">
+        Paleta y tipografía</button>
+      <button type="button" [class.activa]="pestana() === 'logos'" (click)="pestana.set('logos')">
+        Logos y archivos</button>
+      <button type="button" [class.activa]="pestana() === 'identidad'" (click)="pestana.set('identidad')">
+        Identidad</button>
+    </nav>
+
+    <!-- ── qué falta ──────────────────────────────────────────────────── -->
+    <ng-container *ngIf="pestana() === 'estado'">
+      <div class="veredicto" [class.veredicto--mal]="!d.resumen.lista_para_usar">
+        <mat-icon>{{ d.resumen.lista_para_usar ? 'verified' : 'gpp_maybe' }}</mat-icon>
+        <div>
+          <strong *ngIf="d.resumen.lista_para_usar">
+            {{ d.nombre }} está lista para generar material.</strong>
+          <strong *ngIf="!d.resumen.lista_para_usar">
+            Faltan {{ d.resumen.obligatorio_falta }} cosas obligatorias.</strong>
+          <p>Lo ampliado va {{ d.resumen.ampliado_ok }} de {{ d.resumen.ampliado_total }}
+             ({{ d.resumen.porcentaje_ampliado }}%).</p>
+        </div>
+      </div>
+
+      <article class="panel">
+        <h3>Mínimo obligatorio</h3>
+        <p class="ayuda">Sin esto, el material sale mal y nada lo avisa.</p>
+        <ul class="puntos">
+          <li *ngFor="let p of d.obligatorio" [class.falla]="!p.cumple">
+            <mat-icon>{{ p.cumple ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+            <div>
+              <span class="p__t">{{ p.titulo }}</span>
+              <span class="p__d">{{ p.detalle }}</span>
+              <span class="p__porque">{{ p.porque }}</span>
+              <span class="p__como" *ngIf="!p.cumple">→ {{ p.como_resolver }}</span>
+            </div>
+          </li>
+        </ul>
+      </article>
+
+      <article class="panel">
+        <h3>Ampliado</h3>
+        <p class="ayuda">No rompe nada si falta, pero acerca el material a la marca.</p>
+        <ul class="puntos">
+          <li *ngFor="let p of d.ampliado" [class.pendiente]="!p.cumple">
+            <mat-icon>{{ p.cumple ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+            <div>
+              <span class="p__t">{{ p.titulo }}</span>
+              <span class="p__d">{{ p.detalle }}</span>
+              <span class="p__porque">{{ p.porque }}</span>
+              <span class="p__como" *ngIf="!p.cumple">→ {{ p.como_resolver }}</span>
+            </div>
+          </li>
+        </ul>
+      </article>
+    </ng-container>
+
+    <!-- ── tonos ──────────────────────────────────────────────────────── -->
+    <ng-container *ngIf="pestana() === 'tonos'">
+      <article class="panel">
+        <div class="panel__cab">
+          <div>
+            <h3>Perfiles de tono</h3>
+            <p class="ayuda">La instrucción es lo único que el modelo lee para saber cómo
+               escribir. El ejemplo le sirve de muestra y a ti para saber qué va a salir.</p>
+          </div>
+          <button type="button" class="btn btn--primario" (click)="nuevoTono()">
+            <mat-icon>add</mat-icon> Nuevo tono</button>
+        </div>
+
+        <ul class="tonos">
+          <li *ngFor="let t of d.tonos" [class.inactivo]="!t.activo">
+            <div class="t__datos">
+              <div class="t__cab">
+                <span class="t__n">{{ t.nombre }}</span>
+                <span class="etq etq--ok" *ngIf="t.predeterminado">Predeterminado</span>
+                <span class="etq" *ngIf="!t.activo">Inactivo</span>
+              </div>
+              <span class="t__m">
+                {{ t.canal_sugerido }} · formalidad {{ t.formalidad }}/5 ·
+                {{ t.longitud_max }} caracteres{{ t.usa_emojis ? ' · con emojis' : '' }}
+              </span>
+              <span class="t__d" *ngIf="t.descripcion">{{ t.descripcion }}</span>
+              <blockquote class="t__ej" *ngIf="t.ejemplo">{{ t.ejemplo }}</blockquote>
+            </div>
+            <div class="t__acciones">
+              <button type="button" class="mini" (click)="editarTono(t)" title="Editar">
+                <mat-icon>edit</mat-icon></button>
+              <button type="button" class="mini" *ngIf="!t.predeterminado && t.activo"
+                      (click)="hacerPredeterminado(t)" title="Hacer predeterminado">
+                <mat-icon>star_outline</mat-icon></button>
+              <button type="button" class="mini mini--peligro" *ngIf="t.activo && !t.predeterminado"
+                      (click)="desactivarTono(t)" title="Desactivar">
+                <mat-icon>power_settings_new</mat-icon></button>
+            </div>
+          </li>
+        </ul>
+      </article>
+    </ng-container>
+
+    <!-- ── paleta ─────────────────────────────────────────────────────── -->
+    <ng-container *ngIf="pestana() === 'paleta'">
+      <article class="panel">
+        <h3>Paleta</h3>
+        <p class="ayuda">Estos mismos valores se inyectan al generar. Cambiar uno repinta
+           todas las piezas nuevas.</p>
+        <div class="colores">
+          <button *ngFor="let t of tokensDe('COLOR')" type="button" class="color"
+                  [style.background]="t.valor" [style.color]="contraste(t.valor)"
+                  (click)="editarToken(t.clave, t.valor, t.etiqueta || t.clave)">
+            <span class="color__v">{{ t.valor }}</span>
+            <span class="color__n">{{ t.etiqueta || t.clave }}</span>
+          </button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h3>Tipografía</h3>
+        <ul class="tokens">
+          <li *ngFor="let t of tokensDe('TIPOGRAFIA')"
+              (click)="editarToken(t.clave, t.valor, t.etiqueta || t.clave)">
+            <code>{{ t.clave }}</code>
+            <span class="tk__v" [style.font-family]="t.valor">{{ t.valor }}</span>
+            <mat-icon>edit</mat-icon>
+          </li>
+        </ul>
+      </article>
+    </ng-container>
+
+    <!-- ── logos ──────────────────────────────────────────────────────── -->
+    <ng-container *ngIf="pestana() === 'logos'">
+      <article class="panel">
+        <h3>Logos y archivos de marca</h3>
+        <p class="ayuda">Cada uno tiene su sitio. El principal es obligatorio; los demás
+           evitan que alguien estire el logo o lo ponga sobre un fondo donde no se ve.</p>
+
+        <div class="activos">
+          <div class="activo" *ngFor="let t of tiposActivo"
+               [class.activo--cargado]="activoDe(t.clave)">
+            <div class="activo__cab">
+              <span class="activo__n">{{ t.etiqueta }}</span>
+              <mat-icon *ngIf="activoDe(t.clave)" class="activo__ok">check_circle</mat-icon>
+            </div>
+            <span class="activo__a">{{ t.ayuda }}</span>
+            <label class="btn btn--fantasma btn--peq">
+              <mat-icon>upload</mat-icon>
+              {{ activoDe(t.clave) ? 'Reemplazar' : 'Subir' }}
+              <input type="file" hidden [disabled]="subiendo()"
+                     [accept]="t.clave === 'FUENTE_WOFF2' ? '.woff2,font/woff2' : 'image/*'"
+                     (change)="subirActivo($event, t.clave, t.etiqueta)" />
+            </label>
+          </div>
+        </div>
+      </article>
+    </ng-container>
+
+    <!-- ── identidad ──────────────────────────────────────────────────── -->
+    <ng-container *ngIf="pestana() === 'identidad'">
+      <article class="panel">
+        <h3>Identidad</h3>
+        <ul class="campos">
+          <li (click)="editarIdentidad('nombre', 'Nombre de la marca', d.nombre)">
+            <span class="c__e">Nombre</span><span class="c__v">{{ d.nombre }}</span>
+            <mat-icon>edit</mat-icon>
+          </li>
+          <li (click)="editarIdentidad('descripcion', 'Descripción', d.descripcion || '')">
+            <span class="c__e">Descripción</span>
+            <span class="c__v">{{ d.descripcion || 'Sin definir' }}</span>
+            <mat-icon>edit</mat-icon>
+          </li>
+          <li (click)="editarIdentidad('tono_de_voz', 'Voz general de la marca', d.tono_de_voz || '')">
+            <span class="c__e">Voz general</span>
+            <span class="c__v">{{ d.tono_de_voz || 'Sin definir' }}</span>
+            <mat-icon>edit</mat-icon>
+          </li>
+        </ul>
+        <p class="ayuda">La voz general acompaña a todos los tonos: es lo que siempre es
+           cierto de cómo habla la marca, pase lo que pase con el canal.</p>
+      </article>
+    </ng-container>
+  </ng-container>
+
+  <!-- ── formulario de tono ─────────────────────────────────────────────── -->
+  <div class="telon" *ngIf="editandoTono() as t" (click)="cerrarTono()">
+    <form class="hoja" (click)="$event.stopPropagation()" (ngSubmit)="guardarTono()">
+      <h3>{{ t.id ? 'Editar tono' : 'Nuevo tono' }}</h3>
+
+      <label class="campo">
+        <span>Nombre</span>
+        <input type="text" [ngModel]="t.nombre" name="nombre" required maxlength="120"
+               placeholder="De vecino a vecino" (ngModelChange)="campoTono('nombre', $event)" />
+      </label>
+
+      <label class="campo">
+        <span>Para qué sirve</span>
+        <input type="text" [ngModel]="t.descripcion" name="desc" maxlength="400"
+               placeholder="Para grupos de WhatsApp de barrio"
+               (ngModelChange)="campoTono('descripcion', $event)" />
+      </label>
+
+      <label class="campo">
+        <span>Instrucción para la IA</span>
+        <textarea rows="5" [ngModel]="t.instruccion" name="instr" required
+                  placeholder="Escribe como quien le cuenta a un vecino que hay trabajo. Frases muy cortas…"
+                  (ngModelChange)="campoTono('instruccion', $event)"></textarea>
+        <small>Es lo único que el modelo lee para saber cómo escribir. Sé concreto.</small>
+      </label>
+
+      <label class="campo">
+        <span>Ejemplo de cómo suena</span>
+        <textarea rows="3" [ngModel]="t.ejemplo" name="ej"
+                  placeholder="Vecinos de Funza: hay trabajo en flores…"
+                  (ngModelChange)="campoTono('ejemplo', $event)"></textarea>
+        <small>No pongas enlaces reales aquí: el modelo los copia tal cual.</small>
+      </label>
+
+      <div class="fila">
+        <label class="campo">
+          <span>Canal</span>
+          <select [ngModel]="t.canal_sugerido" name="canal"
+                  (ngModelChange)="campoTono('canal_sugerido', $event)">
+            <option *ngFor="let c of canales" [value]="c">{{ c }}</option>
+          </select>
+        </label>
+        <label class="campo">
+          <span>Formalidad (1 vecino · 5 comunicado)</span>
+          <input type="number" min="1" max="5" [ngModel]="t.formalidad" name="form"
+                 (ngModelChange)="campoTono('formalidad', +$event)" />
+        </label>
+      </div>
+
+      <div class="fila">
+        <label class="campo">
+          <span>Máximo de caracteres</span>
+          <input type="number" min="80" max="3000" [ngModel]="t.longitud_max" name="largo"
+                 (ngModelChange)="campoTono('longitud_max', +$event)" />
+        </label>
+        <label class="campo campo--check">
+          <input type="checkbox" [ngModel]="t.usa_emojis" name="emo"
+                 (ngModelChange)="campoTono('usa_emojis', $event)" />
+          <span>Puede usar emojis</span>
+        </label>
+      </div>
+
+      <div class="botones">
+        <button type="button" class="btn btn--fantasma" (click)="cerrarTono()">Cancelar</button>
+        <button type="submit" class="btn btn--primario"
+                [disabled]="guardando() || !t.nombre || !t.instruccion">
+          {{ guardando() ? 'Guardando…' : 'Guardar' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</section>

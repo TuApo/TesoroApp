@@ -1,11 +1,10 @@
 import { isPlatformBrowser } from '@angular/common';
-import {  Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, ElementRef, OnInit, ViewChild, Inject, PLATFORM_ID , ChangeDetectionStrategy, signal } from '@angular/core';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SharedModule } from '@/app/shared/shared.module';
 import { FormsModule } from '@angular/forms';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
-import { MatSort, MatSortModule } from '@angular/material/sort';
 import { SelectionModel } from '@angular/cdk/collections';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 import { HiringService } from '../../service/hiring.service';
 import Swal from 'sweetalert2';
 import * as XLSX from 'xlsx';
@@ -27,29 +26,41 @@ import { generarPdfAusentismo } from './pdf-generator';
     MatCheckboxModule,
     MatIconModule,
     MatTooltipModule,
-    MatSortModule,
-    MatTableModule
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './absences-new.html',
   styleUrl: './absences-new.css'
 } )
 export class AbsencesNew implements OnInit {
-  displayedColumns: string[] = [
-    'select',
-    'fecha_diligenciamiento',
-    'codigo_empleado',
-    'cedula',
-    'nombre_completo',
-    'numero_contacto',
-    'correo',
-    'fecha_inicio',
-    'total_dias',
-    'items',
-    'estado_actual',
-    'acciones'
-  ];
-  dataSource = new MatTableDataSource<any>();
+  /** Ausentismos cargados (señal: la pantalla es OnPush y sin zone.js). */
+  filas = signal<any[]>([]);
+  /** Casillas de la tabla estándar para las acciones masivas. */
   selection = new SelectionModel<any>(true, []);
+
+  /**
+   * Columnas de la tabla estándar (búsqueda, filtros, orden y vista en
+   * tarjetas los pone la tabla; la tarjeta propia va en `tablaTarjeta`).
+   */
+  readonly columnas: ColumnaTabla<any>[] = [
+    { id: 'fecha_diligenciamiento', header: 'Fecha', valor: (r) => r.fecha_diligenciamiento, prioridad: 2 },
+    { id: 'codigo_empleado', header: 'Código', valor: (r) => r.codigo_empleado, prioridad: 2 },
+    { id: 'cedula', header: 'Cédula', valor: (r) => r.cedula },
+    { id: 'nombre_completo', header: 'Nombre Completo', valor: (r) => r.nombre_completo, minAncho: '180px' },
+    { id: 'numero_contacto', header: 'Celular', valor: (r) => r.numero_contacto, interactiva: true, prioridad: 2 },
+    { id: 'correo', header: 'Correo', valor: (r) => r.correo, prioridad: 3 },
+    { id: 'fecha_inicio', header: 'Fecha Inicial', valor: (r) => r.fecha_inicio },
+    { id: 'total_dias', header: 'Días Ausencia', valor: (r) => this.numeroODato(r.total_dias) },
+    { id: 'items', header: 'Motivo', valor: (r) => r.items || 'NO ASIGNADO', prioridad: 2 },
+    { id: 'estado_actual', header: 'Estado Actual', valor: (r) => r.estado_actual?.replace('_', ' ') || 'Sin Asignar', prioridad: 2 },
+  ];
+
+  /** Días como número (ordena bien); si no es numérico se deja el dato tal cual. */
+  private numeroODato(v: any): number | string | null {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return isNaN(n) ? String(v) : n;
+  }
+
   correo: string | null = null;
   nombreUsuario: string = '';
 
@@ -58,10 +69,7 @@ export class AbsencesNew implements OnInit {
   gestionados = 0;
   sinAsignar = 0;
 
-  vistaActual: 'tabla' | 'tarjetas' = 'tabla';
-
   @ViewChild('fileInput', { static: false }) private fileInputRef!: ElementRef<HTMLInputElement>;
-  @ViewChild(MatSort) sort!: MatSort;
 
   constructor(
     private hiringService: HiringService,
@@ -78,10 +86,6 @@ export class AbsencesNew implements OnInit {
     if (isPlatformBrowser(this.platformId)) {
       this.cargarDatos();
     }
-  }
-
-  ngAfterViewInit() {
-    this.dataSource.sort = this.sort;
   }
 
   calcularKPIs(data: any[]): void {
@@ -101,14 +105,8 @@ export class AbsencesNew implements OnInit {
 
     this.hiringService.obtenerAusentismosNuevos().subscribe({
       next: (data) => {
-        this.dataSource.data = data;
-        
-        // Generalized search across all fields of the object
-        this.dataSource.filterPredicate = (dataRow: any, filter: string) => {
-          const dataStr = Object.values(dataRow).join(' ').toLowerCase();
-          return dataStr.includes(filter);
-        };
-        
+        // Arreglo nuevo a la tabla estándar (búsqueda y filtros van en la tabla).
+        this.filas.set(data ?? []);
         this.selection.clear();
         this.calcularKPIs(data);
         if (isPlatformBrowser(this.platformId)) Swal.close();
@@ -120,19 +118,14 @@ export class AbsencesNew implements OnInit {
     });
   }
 
-  applyFilter(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSource.filter = filterValue.trim().toLowerCase();
-  }
-
   exportarExcel(): void {
-    if (this.dataSource.data.length === 0) {
+    if (this.filas().length === 0) {
       Swal.fire('Atención', 'No hay datos para exportar.', 'warning');
       return;
     }
 
     // Sheet 1: Current Statuses
-    const dataActual = this.dataSource.data.map((item: any) => ({
+    const dataActual = this.filas().map((item: any) => ({
       'Fecha': item.fecha_diligenciamiento || '',
       'Código Empleado': item.codigo_empleado || '',
       'Cédula': item.cedula || '',
@@ -151,7 +144,7 @@ export class AbsencesNew implements OnInit {
 
     // Sheet 2: Full History
     const dataHistorial: any[] = [];
-    this.dataSource.data.forEach((item: any) => {
+    this.filas().forEach((item: any) => {
       if (item.comentarios && item.comentarios.length > 0) {
         item.comentarios.forEach((c: any) => {
           dataHistorial.push({
@@ -191,19 +184,6 @@ export class AbsencesNew implements OnInit {
 
     const fileName = `Reporte_Nuevos_Ausentismos_${new Date().toISOString().slice(0,10)}.xlsx`;
     XLSX.writeFile(wb, fileName);
-  }
-
-  // Checkboxes
-  isAllSelected() {
-    const numSelected = this.selection.selected.length;
-    const numRows = this.dataSource.data.length;
-    return numSelected === numRows;
-  }
-
-  masterToggle() {
-    this.isAllSelected() ?
-        this.selection.clear() :
-        this.dataSource.data.forEach(row => this.selection.select(row));
   }
 
   // Notificación Masiva

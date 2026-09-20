@@ -18,23 +18,21 @@
   --lime: #8CD50A;
 
   /* Neutrales */
-  --surface: #ffffff;
-  --surface-sunken: #f8fafc;
-  --surface-hover: #f1f5f9;
-  --border: #e8edf3;
-  --border-strong: #d8e0ea;
+  --surface-sunken: var(--surface-2);
+  --surface-hover: var(--surface-3);
+  --border: light-dark(#e8edf3, #233e63);
+  --border-strong: var(--border);
   --guide: #dde5ee;
 
   /* Texto */
-  --text-strong: #0f172a;
-  --text: #334155;
-  --text-muted: #64748b;
-  --text-faint: #94a3b8;
+  --text-strong: var(--text);
+  --dm-text: var(--text-2);
+  --text-muted: var(--muted);
 
   /* Semántico (excepción) */
-  --warn-bg: #fdf4e3;
-  --warn-fg: #925a06;
-  --warn-border: #f2dcac;
+  --warn-bg: light-dark(#fdf4e3, #353027);
+  --warn-fg: light-dark(#925a06, #f7d097);
+  --warn-border: light-dark(#f2dcac, #5f4e28);
 
   /* El wrapper (.dashboard-page-wrapper) ya da el alto exacto: lo tomamos al
      100% y ahogamos aquí el scroll para que scrollee el árbol, no la página. */
@@ -47,7 +45,7 @@
   background-color: var(--surface);
   padding: 28px;
   border-radius: 30px !important;
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .explorer-container {
@@ -173,7 +171,7 @@
 .stat-value {
   font-size: 22px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
   line-height: 1.1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -274,13 +272,13 @@
 }
 
 .crumb.active .crumb-text {
-  color: var(--navy);
+  color: var(--navy-ink);
   font-weight: 700;
 }
 
 .root-label {
   font-weight: 600;
-  color: var(--navy);
+  color: var(--navy-ink);
   padding: 0 8px;
 }
 
@@ -315,7 +313,7 @@
   background: transparent;
   flex: 1;
   font-size: 13.5px;
-  color: var(--text);
+  color: var(--dm-text);
   outline: none;
   font-family: inherit;
 }
@@ -365,7 +363,7 @@
   height: 36px !important;
   font-size: 12.5px !important;
   font-weight: 600 !important;
-  color: var(--text) !important;
+  color: var(--dm-text) !important;
   border-color: var(--border-strong) !important;
   display: inline-flex;
   align-items: center;
@@ -375,7 +373,7 @@
 .btn-ghost:hover {
   background: var(--surface-hover) !important;
   border-color: var(--navy) !important;
-  color: var(--navy) !important;
+  color: var(--navy-ink) !important;
 }
 
 .btn-ghost mat-icon {
@@ -560,7 +558,7 @@ mat-tree,
 }
 
 .tree-row:hover .toggle-btn {
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .toggle-btn mat-icon {
@@ -597,7 +595,7 @@ mat-tree,
 
 /* Contraste de icono padre vs hoja: el contenedor pesa, el documento no */
 .branch .row-icon {
-  color: var(--navy);
+  color: var(--navy-ink);
   opacity: 0.7;
 }
 
@@ -625,14 +623,14 @@ mat-tree,
 .tree-row[data-level="0"] .row-name {
   font-size: 14px;
   font-weight: 700;
-  color: var(--navy);
+  color: var(--navy-ink);
   letter-spacing: -0.01em;
 }
 
 .tree-row[data-level="1"] .row-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--dm-text);
 }
 
 /* --- Columnas alineadas con la cabecera --- */
@@ -674,7 +672,7 @@ mat-tree,
 }
 
 .row-action:hover {
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 /* Fila inactiva: se atenúa y se marca con el chip. Sin tachado a propósito:
@@ -697,7 +695,7 @@ mat-tree,
 /* =============== VISTA EXPLORADOR (tarjetas) =============== */
 .content-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
   gap: 14px;
   overflow-y: auto;
   padding-bottom: 16px;
@@ -869,7 +867,7 @@ mat-tree,
   font-size: 16px;
   font-weight: 700;
   margin: 0 0 6px 0;
-  color: var(--navy);
+  color: var(--navy-ink);
 }
 
 .empty-state p {
@@ -910,10 +908,10 @@ mat-tree,
 
   .nav-toolbar, .tree-toolbar { flex-direction: column; align-items: stretch; }
   .search-box { width: 100%; }
-  .tree-controls { justify-content: stretch; }
+  .tree-controls { justify-content: stretch; flex-wrap: wrap; }
   .tree-controls .btn-ghost { flex: 1; }
 
-  .content-grid { grid-template-columns: 1fr; }
+  .content-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Respeta la preferencia del sistema de reducir movimiento */

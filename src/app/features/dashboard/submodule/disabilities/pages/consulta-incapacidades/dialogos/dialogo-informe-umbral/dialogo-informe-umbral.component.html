@@ -24,7 +24,7 @@
 
 <mat-dialog-content class="umb-cuerpo">
 
-  <!-- ════════ Margen + filtro rapido ════════ -->
+  <!-- ════════ Margen de anticipacion ════════ -->
   <section class="umb-controles">
     <div class="umb-margen">
       <span class="umb-margen-etiqueta">
@@ -44,29 +44,6 @@
         }
       </mat-button-toggle-group>
     </div>
-
-    <label class="umb-filtro">
-      <mat-icon>search</mat-icon>
-      <input
-        #entradaFiltro
-        type="text"
-        placeholder="Filtrar por cedula o nombre"
-        aria-label="Filtrar por cedula o nombre"
-        [value]="filtro()"
-        (input)="cambiarFiltro(entradaFiltro.value)"
-      />
-      @if (filtro()) {
-        <button
-          type="button"
-          class="umb-filtro-limpiar"
-          aria-label="Limpiar filtro"
-          matTooltip="Limpiar filtro"
-          (click)="entradaFiltro.value = ''; cambiarFiltro('')"
-        >
-          <mat-icon>close</mat-icon>
-        </button>
-      }
-    </label>
   </section>
 
   <!-- ════════ Contadores por tramo ════════ -->
@@ -87,12 +64,7 @@
   </section>
 
   <!-- ════════ Estados / tabla ════════ -->
-  @if (cargando()) {
-    <div class="umb-estado" aria-live="polite">
-      <mat-spinner diameter="42"></mat-spinner>
-      <p>Cargando el informe...</p>
-    </div>
-  } @else if (error()) {
+  @if (error()) {
     <div class="umb-estado umb-estado-error" role="alert">
       <mat-icon>error_outline</mat-icon>
       <p>{{ error() }}</p>
@@ -106,73 +78,38 @@
       <mat-icon>task_alt</mat-icon>
       <p>Nadie esta proximo a los umbrales con este margen.</p>
     </div>
-  } @else if (totalInforme() > 0) {
-    <div class="umb-tabla-contenedor">
-      <table class="umb-tabla">
-        <thead>
-          <tr>
-            <th>Cedula</th>
-            <th>Nombre</th>
-            <th>Empresa</th>
-            <th>EPS</th>
-            <th>AFP</th>
-            <th>Diagnostico</th>
-            <th class="umb-th-dias">Dias acum.</th>
-            <th>Fin ultima</th>
-            <th>Responsable de pago</th>
-            <th>Tramo</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (fila of filasVisibles(); track fila.incapacidadId) {
-            <tr>
-              <td class="umb-cedula">{{ fila.cedula }}</td>
-              <td class="umb-nombre">{{ fila.nombreCompleto }}</td>
-              <td>{{ fila.empresa || '—' }}</td>
-              <td>{{ fila.eps || '—' }}</td>
-              <td>{{ fila.afp || '—' }}</td>
-              <td class="umb-diagnostico">
-                <span class="umb-diagnostico-codigo">{{ fila.codigoDiagnostico || '—' }}</span>
-                @if (fila.descripcionDiagnostico) {
-                  <span
-                    class="umb-diagnostico-texto"
-                    [matTooltip]="fila.descripcionDiagnostico"
-                  >
-                    {{ fila.descripcionDiagnostico }}
-                  </span>
-                }
-              </td>
-              <td class="umb-dias">{{ fila.diasAcumulados }}</td>
-              <td class="umb-fecha">{{ fecha(fila.fechaFinUltima) }}</td>
-              <td>{{ fila.responsablePagoEtiqueta || fila.responsablePago || '—' }}</td>
-              <td>
-                <span
-                  class="umb-chip"
-                  [style.color]="estiloTramo(fila.tramo).color"
-                  [style.background]="estiloTramo(fila.tramo).background"
-                >
-                  {{ etiquetaTramo(fila) }}
-                </span>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
+  } @else {
+    <!-- Ordenado por dias acumulados (mayor primero); busqueda, filtros y orden los da la tabla. -->
+    <app-tabla-estandar
+      id="incapacidades-informe-umbral"
+      titulo="Informe umbrales 180 - 540"
+      modulo="Incapacidades"
+      busqueda="Cedula, nombre, empresa…"
+      [datos]="filasOrdenadas()"
+      [columnas]="columnas"
+      [filaId]="idFila"
+      [cargando]="cargando()">
 
-      @if (filtroSinResultados()) {
-        <p class="umb-filtro-vacio">
-          <mat-icon>search_off</mat-icon>
-          Ninguna persona coincide con "{{ filtro() }}".
-        </p>
-      }
-    </div>
+      <ng-template tablaCelda="diagnostico" let-fila>
+        <span class="umb-diagnostico-codigo">{{ fila.codigoDiagnostico || '—' }}</span>
+        @if (fila.descripcionDiagnostico) {
+          <span class="umb-diagnostico-texto" [matTooltip]="fila.descripcionDiagnostico">
+            {{ fila.descripcionDiagnostico }}
+          </span>
+        }
+      </ng-template>
+
+      <ng-template tablaCelda="dias" let-fila>
+        <span class="umb-dias">{{ fila.diasAcumulados }}</span>
+      </ng-template>
+    </app-tabla-estandar>
   }
 </mat-dialog-content>
 
 <mat-dialog-actions class="umb-acciones">
   <span class="umb-resumen">
     <mat-icon>groups</mat-icon>
-    {{ filasVisibles().length }} de {{ totalInforme() }} personas · margen {{ margen() }} dias
+    {{ totalInforme() }} personas · margen {{ margen() }} dias
   </span>
 
   <span class="umb-espaciador"></span>

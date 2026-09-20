@@ -18,104 +18,56 @@
       <mat-card-subtitle>Seleccione los productos, ajuste cantidades y confirme</mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
-      <mat-form-field appearance="outline" class="full-width filtro-field">
-        <mat-label>Filtrar productos</mat-label>
-        <mat-icon matPrefix>search</mat-icon>
-        <input matInput (keyup)="applyFilterInventario($event)" placeholder="Buscar..." #inputInventario />
-      </mat-form-field>
+      <form [formGroup]="cantidadForm">
+        <app-tabla-estandar
+          class="tabla-envios"
+          id="mercancia-recibir-envio"
+          titulo="Envíos pendientes de recepción"
+          modulo="Mercancía"
+          busqueda="Buscar envío…"
+          vacio="No hay envíos pendientes."
+          [datos]="productos"
+          [columnas]="columnasInventario"
+          [filaId]="idEnvio"
+          [filaClase]="claseEnvio"
+          [cargando]="cargando">
 
-      @if (cargando) {
-        <div class="estado-msg">
-          <mat-spinner diameter="36"></mat-spinner>
-          <p>Cargando envíos pendientes...</p>
-        </div>
-      } @else {
-        <form [formGroup]="cantidadForm">
-          <div class="table-container">
-            <table mat-table [dataSource]="dataSourceInventario">
-              <!-- Checkbox -->
-              <ng-container matColumnDef="select">
-                <th mat-header-cell *matHeaderCellDef>Sel.</th>
-                <td mat-cell *matCellDef="let element">
-                  <mat-checkbox [checked]="seleccionados[element.codigo]"
-                    (change)="toggleSelection($event, element.codigo)"></mat-checkbox>
-                </td>
-              </ng-container>
-              <!-- Código -->
-              <ng-container matColumnDef="codigo">
-                <th mat-header-cell *matHeaderCellDef>Código</th>
-                <td mat-cell *matCellDef="let element">
-                  <span class="badge-code">{{ element.codigo }}</span>
-                </td>
-              </ng-container>
-              <!-- Concepto -->
-              <ng-container matColumnDef="concepto">
-                <th mat-header-cell *matHeaderCellDef>Concepto</th>
-                <td mat-cell *matCellDef="let element">{{ element.concepto }}</td>
-              </ng-container>
-              <!-- Cantidad Enviada -->
-              <ng-container matColumnDef="cantidadEnvio">
-                <th mat-header-cell *matHeaderCellDef>Enviada</th>
-                <td mat-cell *matCellDef="let element">
-                  <span class="badge-enviada">{{ element.cantidadEnvio }}</span>
-                </td>
-              </ng-container>
-              <!-- Cantidad Recibida -->
-              <ng-container matColumnDef="cantidadRecibida">
-                <th mat-header-cell *matHeaderCellDef>Cant. Recibida</th>
-                <td mat-cell *matCellDef="let element">
-                  <div class="cantidad-container">
-                    <button mat-icon-button type="button" class="btn-step" aria-label="Restar una unidad"
-                      (click)="decrementarCantidad(element.codigo)" [disabled]="!seleccionados[element.codigo]">
-                      <mat-icon>remove</mat-icon>
-                    </button>
-                    <span class="cantidad" [class.cantidad-parcial]="seleccionados[element.codigo] &&
-                      cantidadForm.get(element.codigo)?.value !== element.cantidadEnvio">
-                      {{ seleccionados[element.codigo] ? (cantidadForm.get(element.codigo)?.value ??
-                      element.cantidadEnvio) : 0 }}
-                    </span>
-                    <button mat-icon-button type="button" class="btn-step" aria-label="Sumar una unidad"
-                      (click)="incrementarCantidad(element.codigo)" [disabled]="!seleccionados[element.codigo]">
-                      <mat-icon>add</mat-icon>
-                    </button>
-                  </div>
-                </td>
-              </ng-container>
-              <!-- Valor Unidad -->
-              <ng-container matColumnDef="valorUnidad">
-                <th mat-header-cell *matHeaderCellDef>Valor Und.</th>
-                <td mat-cell *matCellDef="let element" class="col-numerica">
-                  {{ element.valorUnidad | currency:'COP':'symbol-narrow':'1.0-0' }}
-                </td>
-              </ng-container>
-              <!-- Persona Envía -->
-              <!-- Destino: solo aparece cuando el usuario recibe en varias oficinas. -->
-              <ng-container matColumnDef="destino">
-                <th mat-header-cell *matHeaderCellDef>Destino</th>
-                <td mat-cell *matCellDef="let element">{{ element.destino || '—' }}</td>
-              </ng-container>
-              <ng-container matColumnDef="PersonaEnvia">
-                <th mat-header-cell *matHeaderCellDef>Envía</th>
-                <td mat-cell *matCellDef="let element">{{ element.PersonaEnvia }}</td>
-              </ng-container>
-              <!-- Comentarios -->
-              <ng-container matColumnDef="comentariosEnvio">
-                <th mat-header-cell *matHeaderCellDef>Comentarios</th>
-                <td mat-cell *matCellDef="let element" class="col-comentario">{{ element.comentariosEnvio }}</td>
-              </ng-container>
+          <ng-template tablaCelda="select" let-element>
+            <mat-checkbox [checked]="seleccionados[element.codigo]"
+              (change)="toggleSelection($event, element.codigo)"></mat-checkbox>
+          </ng-template>
 
-              <tr mat-header-row *matHeaderRowDef="displayedColumnsInventario"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumnsInventario"
-                [class.row-selected]="seleccionados[row.codigo]"></tr>
-              <tr class="mat-row" *matNoDataRow>
-                <td class="mat-cell celda-vacia" [attr.colspan]="displayedColumnsInventario.length">
-                  No hay envíos pendientes{{ inputInventario.value ? ' para "' + inputInventario.value + '"' : '' }}
-                </td>
-              </tr>
-            </table>
-          </div>
-        </form>
-      }
+          <ng-template tablaCelda="codigo" let-element>
+            <span class="badge-code">{{ element.codigo }}</span>
+          </ng-template>
+
+          <ng-template tablaCelda="cantidadEnvio" let-element>
+            <span class="badge-enviada">{{ element.cantidadEnvio }}</span>
+          </ng-template>
+
+          <ng-template tablaCelda="cantidadRecibida" let-element>
+            <div class="cantidad-container">
+              <button mat-icon-button type="button" class="btn-step" aria-label="Restar una unidad"
+                (click)="decrementarCantidad(element.codigo)" [disabled]="!seleccionados[element.codigo]">
+                <mat-icon>remove</mat-icon>
+              </button>
+              <span class="cantidad" [class.cantidad-parcial]="seleccionados[element.codigo] &&
+                cantidadForm.get(element.codigo)?.value !== element.cantidadEnvio">
+                {{ seleccionados[element.codigo] ? (cantidadForm.get(element.codigo)?.value ??
+                element.cantidadEnvio) : 0 }}
+              </span>
+              <button mat-icon-button type="button" class="btn-step" aria-label="Sumar una unidad"
+                (click)="incrementarCantidad(element.codigo)" [disabled]="!seleccionados[element.codigo]">
+                <mat-icon>add</mat-icon>
+              </button>
+            </div>
+          </ng-template>
+
+          <ng-template tablaCelda="comentariosEnvio" let-element>
+            <span class="col-comentario">{{ element.comentariosEnvio }}</span>
+          </ng-template>
+        </app-tabla-estandar>
+      </form>
     </mat-card-content>
     <mat-card-actions class="acciones-pie">
       <span class="resumen-seleccion">

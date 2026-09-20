@@ -56,16 +56,16 @@ import { HistorialService } from '../../../../history/service/historial/historia
     }
     .dialog-footer {
       padding: 12px 24px;
-      border-top: 1px solid var(--slate-200);
+      border-top: 1px solid var(--border);
       display: flex;
       justify-content: flex-end;
       flex-shrink: 0;
-      background: var(--slate-50);
+      background: var(--surface-2);
     }
     .state-block {
       text-align: center;
       padding: 48px 16px;
-      color: var(--slate-500);
+      color: var(--muted);
     }
     .state-block p {
       margin-top: 12px;

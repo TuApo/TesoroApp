@@ -1,10 +1,8 @@
 import {
-  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, inject, DestroyRef
+  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, inject, DestroyRef, TemplateRef, viewChild
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
@@ -12,16 +10,28 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCardModule } from '@angular/material/card';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { BreakpointObserver } from '@angular/cdk/layout';
+
+import {
+  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+} from '../../../../../../shared/components/tabla-estandar';
 
 import { AuditLogsService } from '../../services/audit-logs.service';
 import { ChangeLogEntry, ACTION_LABELS, ACTION_COLORS } from '../../models/audit-logs.models';
 
 const ACCIONES = ['CREATE', 'UPDATE', 'DELETE', 'VIEW'];
+
+/** occurred_at llega en segundos (o milisegundos, o ISO): Date para ordenar/copiar. */
+function aFechaEpoch(epoch: number | string): Date | null {
+  if (epoch == null) return null;
+  const d = typeof epoch === 'string'
+    ? new Date(epoch)
+    : new Date(epoch > 3e10 ? epoch : epoch * 1000);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 const MODULOS = [
   'CONTRATACION', 'AFILIACIONES', 'DOCUMENTOS', 'TESORERIA',
@@ -34,9 +44,10 @@ const MODULOS = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule, FormsModule, ReactiveFormsModule,
-    MatTableModule, MatPaginatorModule, MatButtonModule, MatIconModule,
+    MatButtonModule, MatIconModule,
     MatSelectModule, MatFormFieldModule, MatInputModule, MatTooltipModule,
-    MatChipsModule, MatProgressSpinnerModule, MatCardModule
+    MatChipsModule, MatCardModule, MatDialogModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './cambios.component.html',
   styleUrl: './cambios.component.css'
@@ -45,9 +56,8 @@ export class CambiosComponent implements OnInit {
   private svc = inject(AuditLogsService);
   private cdr = inject(ChangeDetectorRef);
   private destroyRef = inject(DestroyRef);
-  private bp = inject(BreakpointObserver);
+  private dialog = inject(MatDialog);
 
-  isMobile = false;
   cambios: ChangeLogEntry[] = [];
   totalElements = 0;
   cargando = false;
@@ -64,25 +74,44 @@ export class CambiosComponent implements OnInit {
   filtroEntidad = new FormControl('');
   filtroEntidadId = new FormControl('');
 
-  readonly displayedColumns = ['occurredAt', 'actor', 'modulo', 'entidad', 'accion', 'campo', 'descripcion', 'detalle'];
+  // Tabla estándar en modo servidor: el backend pagina y filtra, pero no
+  // ordena ni busca texto libre (por eso columnas sin orden y sin buscador).
+  readonly columnas: ColumnaTabla<ChangeLogEntry>[] = [
+    { id: 'occurredAt', header: 'Fecha', valor: (c) => aFechaEpoch(c.occurred_at),
+      formato: (c) => this.formatDate(c.occurred_at), copiaTexto: (c) => this.formatDate(c.occurred_at),
+      ordenable: false, tarjeta: 'meta', minAncho: '140px' },
+    { id: 'actor', header: 'Actor', valor: (c) => c.actor_email ?? '', ordenable: false, tarjeta: 'titulo' },
+    { id: 'modulo', header: 'Módulo', valor: (c) => c.modulo, ordenable: false, tarjeta: 'meta' },
+    { id: 'entidad', header: 'Entidad', ordenable: false, tarjeta: 'subtitulo',
+      valor: (c) => (c.entidad_id ? `${c.entidad} · ${c.entidad_id}` : c.entidad) },
+    { id: 'accion', header: 'Acción', valor: (c) => this.labelAccion(c.accion), ordenable: false, tarjeta: 'badge',
+      badge: (c) => ({ texto: this.labelAccion(c.accion), color: this.colorAccion(c.accion),
+        fondo: this.colorAccion(c.accion) + '22' }) },
+    { id: 'campo', header: 'Campo', valor: (c) => c.campo ?? '', ordenable: false, prioridad: 2, tarjeta: 'meta' },
+    { id: 'descripcion', header: 'Descripción', valor: (c) => c.descripcion ?? '',
+      formato: (c) => c.descripcion ?? '—', ordenable: false, prioridad: 2, tarjeta: 'cuerpo', minAncho: '200px' },
+  ];
 
-  expandedRow: ChangeLogEntry | null = null;
+  readonly idCambio = (c: ChangeLogEntry) => c.id;
+
+  /** La tabla estándar recuerda su página: se le reinicia cuando un filtro vuelve a la 1. */
+  private readonly tabla = viewChild(TablaEstandarComponent);
+  /** Antes/después de un cambio: antes era una fila expandible, ahora un diálogo. */
+  private readonly detalleTpl = viewChild<TemplateRef<unknown>>('detalleTpl');
 
   ngOnInit() {
-    this.bp.observe('(max-width: 768px)').pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(r => { this.isMobile = r.matches; this.cdr.markForCheck(); });
-
     this.cargar();
-    this.filtroAccion.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => { this.pageIndex = 0; this.cargar(); });
-    this.filtroModulo.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => { this.pageIndex = 0; this.cargar(); });
+    this.filtroAccion.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => { this.irAPrimeraPagina(); this.cargar(); });
+    this.filtroModulo.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => { this.irAPrimeraPagina(); this.cargar(); });
     this.filtroEntidad.valueChanges.pipe(debounceTime(500), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => { this.pageIndex = 0; this.cargar(); });
+      .subscribe(() => { this.irAPrimeraPagina(); this.cargar(); });
     this.filtroEntidadId.valueChanges.pipe(debounceTime(500), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => { this.pageIndex = 0; this.cargar(); });
+      .subscribe(() => { this.irAPrimeraPagina(); this.cargar(); });
   }
 
   cargar() {
     this.cargando = true;
+    this.cdr.markForCheck();
     this.svc.getCambios({
       accion: this.filtroAccion.value ?? undefined,
       modulo: this.filtroModulo.value ?? undefined,
@@ -101,9 +130,9 @@ export class CambiosComponent implements OnInit {
     });
   }
 
-  onPage(e: PageEvent) {
-    this.pageIndex = e.pageIndex;
-    this.pageSize = e.pageSize;
+  onPage(e: { pagina: number; porPagina: number }) {
+    this.pageIndex = e.pagina;
+    this.pageSize = e.porPagina;
     this.cargar();
   }
 
@@ -112,12 +141,19 @@ export class CambiosComponent implements OnInit {
     this.filtroModulo.setValue(null);
     this.filtroEntidad.setValue('');
     this.filtroEntidadId.setValue('');
-    this.pageIndex = 0;
+    this.irAPrimeraPagina();
     this.cargar();
   }
 
-  toggleDetalle(row: ChangeLogEntry) {
-    this.expandedRow = this.expandedRow === row ? null : row;
+  private irAPrimeraPagina() {
+    this.pageIndex = 0;
+    this.tabla()?.pagina.set(0);
+  }
+
+  verDetalle(row: ChangeLogEntry) {
+    const tpl = this.detalleTpl();
+    if (!tpl) return;
+    this.dialog.open(tpl, { data: row, width: '900px', maxWidth: '96vw' });
   }
 
   labelAccion(a: string) { return this.actionLabels[a] ?? a; }

@@ -1,5 +1,6 @@
 <div class="contenedor">
-  <form class="formulario" [formGroup]="formVacante" autocomplete="off" (ngSubmit)="onSubmit()">
+  <form class="formulario" [formGroup]="formVacante" autocomplete="off"
+        (ngSubmit)="autoEntrevista.ahora()" (focusout)="autoEntrevista.alSalirDeCampo()">
 
     <div class="ficha-layout">
 
@@ -47,24 +48,38 @@
                    vacante—, así que rehacerla después de contestar la afina.
                    Cinco puntos por lado: es lo que se alcanza a mirar con la
                    persona esperando enfrente. -->
-              <div class="sug-card">
+              <div class="sug-card" [class.plegada]="plegado('ia')">
                 <div class="sug-head">
-                  <span class="section-icon-wrap section-icon-indigo">
-                    <mat-icon inline="true" aria-hidden="true">auto_awesome</mat-icon>
-                  </span>
-                  <div class="sug-head-txt">
-                    <h4 class="sug-title">Cargo sugerido por la IA</h4>
-                    <p class="sug-sub">A partir del registro y de lo que acaba de responder.</p>
-                  </div>
-                  <span class="sug-spacer"></span>
-                  <button type="button" class="ia-btn ia-btn-ghost"
-                          [disabled]="analizando()"
-                          (click)="pedirAnalisis(true)">
-                    <mat-icon>{{ analisis() ? 'refresh' : 'auto_awesome' }}</mat-icon>
-                    {{ analisis() ? 'Rehacer' : 'Sugerir cargo' }}
+                  <!-- La cabecera entera pliega y despliega: es el gesto que ya
+                       espera cualquiera que vea el chevrón, y no obliga a
+                       apuntar a un icono de 20px. -->
+                  <button type="button" class="sug-toggle"
+                          [attr.aria-expanded]="!plegado('ia')"
+                          [matTooltip]="plegado('ia') ? 'Mostrar la sugerencia de la IA' : 'Ocultar la sugerencia de la IA'"
+                          (click)="alternarPliegue('ia')">
+                    <mat-icon class="sug-chevron">{{ plegado('ia') ? 'expand_more' : 'expand_less' }}</mat-icon>
+                    <span class="section-icon-wrap section-icon-indigo">
+                      <mat-icon inline="true" aria-hidden="true">auto_awesome</mat-icon>
+                    </span>
+                    <span class="sug-head-txt">
+                      <span class="sug-title">Cargo sugerido por la IA</span>
+                      @if (!plegado('ia')) {
+                        <span class="sug-sub">A partir del registro y de lo que acaba de responder.</span>
+                      }
+                    </span>
                   </button>
+                  <span class="sug-spacer"></span>
+                  @if (!plegado('ia')) {
+                    <button type="button" class="ia-btn ia-btn-ghost"
+                            [disabled]="analizando()"
+                            (click)="pedirAnalisis(true)">
+                      <mat-icon>{{ analisis() ? 'refresh' : 'auto_awesome' }}</mat-icon>
+                      {{ analisis() ? 'Rehacer' : 'Sugerir cargo' }}
+                    </button>
+                  }
                 </div>
 
+                @if (!plegado('ia')) {
                 <!-- Sin persona no hay nada que analizar. Se dice en gris y no
                      con el bloque rojo del panel de IA: esto ahora encabeza un
                      formulario que se está llenando, y un error en rojo arriba
@@ -134,28 +149,385 @@
                     un cargo con cinco puntos a favor y cinco en contra.
                   </p>
                 }
+                }
               </div>
 
-              <div class="grid-managerial-entrevista">
-                <!-- ¿Cómo se enteró? -->
-                <mat-form-field appearance="outline">
-                  <mat-label>¿Cómo se enteró de la vacante?*</mat-label>
-                  <mat-select formControlName="comoSeEntero" required>
-                    @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
-                      <mat-option [value]="op['codigo']">
-                        {{ op['descripcion'] || op['codigo'] }}
-                      </mat-option>
-                    }
-                  </mat-select>
-                  <mat-hint>Seleccione la opción que aplique.</mat-hint>
-                  @let cse = formVacante.get('comoSeEntero');
-                  @if (cse?.hasError('required') && (cse?.touched || cse?.dirty)) {
-                    <mat-error>Requerido.</mat-error>
-                  }
-                </mat-form-field>
+              <!-- ═══ Datos del candidato, EN LÍNEA ═══
+                   Va después de la sugerencia de la IA —que es lo primero que
+                   se mira al sentarse— y antes de las preguntas, que es el
+                   orden real: se lee el cargo propuesto, se coteja la cédula y
+                   luego se pregunta.
 
+                   Sin modal a propósito: entrevistar es ir bajando por la ficha
+                   con el documento en la mano, y un diálogo obliga a abrir,
+                   corregir y cerrar una sección cada vez. Los accesos de abajo
+                   no abren nada: saltan a la sección dentro de este mismo
+                   scroll. Se guarda con el "Enviar" del formulario, igual que
+                   el resto de la entrevista. -->
+              <!-- Solo la tira de accesos: el título y el subtítulo ocupaban
+                   dos renglones para decir lo que los propios accesos ya dicen. -->
+              <div class="val-card">
+                <div class="val-chips">
+                  @for (sec of SECCIONES_FICHA; track sec.id) {
+                    <button type="button" class="val-chip"
+                            [matTooltip]="'Ir a ' + sec.label"
+                            (click)="irASeccion(sec.id)">
+                      <mat-icon>{{ sec.icon }}</mat-icon>
+                      {{ sec.label }}
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <!-- ═══ Cómo llegó ═══
+                   Primera pregunta de la hoja de entrevista, y por eso va
+                   primero: es lo que se registra antes de abrir la cédula. -->
+              <section class="fe-bloque" id="ficha-sec-origen">
+                <header class="fe-bloque-head">
+                  <span class="fe-dot fe-dot-pink"></span>
+                  <h3>Cómo llegó</h3>
+                </header>
+
+                <div class="fe-grid">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                    <mat-label>¿Cómo se enteró de la vacante? *</mat-label>
+                    <mat-select formControlName="comoSeEntero" required>
+                      @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
+                        <mat-option [value]="op['codigo']">
+                          {{ op['descripcion'] || op['codigo'] }}
+                        </mat-option>
+                      }
+                    </mat-select>
+                    @let cse = formVacante.get('comoSeEntero');
+                    @if (cse?.hasError('required') && (cse?.touched || cse?.dirty)) {
+                      <mat-error>Requerido.</mat-error>
+                    }
+                  </mat-form-field>
+                </div>
+              </section>
+
+              <app-ficha-campos
+                [secciones]="seccionesDatos()"
+                [hijos]="hijosResumen()"
+                [ciudades]="allCities"
+                [tipoDoc$]="tipoDocOpciones$"
+                [conQuienVive$]="conQuienViveOpciones$"
+                [estadoCivil$]="estadoCivilOpciones$"
+                [parentescos$]="parentescosOpciones$"
+                [ocupaciones$]="ocupacionesOpciones$">
+              </app-ficha-campos>
+
+              <!-- ═══ Formación ═══ -->
+              <section class="fe-bloque" id="ficha-sec-formacion">
+                <header class="fe-bloque-head">
+                  <span class="fe-dot fe-dot-cyan"></span>
+                  <h3>Formación</h3>
+                </header>
+
+                <div class="fe-grid">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Grado de escolaridad *</mat-label>
+                    <mat-select formControlName="nivel">
+                      @for (e of (escolaridadOpciones$ | async) ?? []; track e['codigo']) {
+                        <mat-option [value]="e['codigo']">{{ e['descripcion'] || e['codigo'] }}</mat-option>
+                      }
+                    </mat-select>
+                    @let escE = formVacante.get('nivel');
+                    @if (escE?.hasError('required') && (escE?.touched || escE?.dirty)) {
+                      <mat-error>Requerido.</mat-error>
+                    }
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Estudia actualmente? *</mat-label>
+                    <mat-select formControlName="estudiaActualmente">
+                      <mat-option [value]="true">Sí</mat-option>
+                      <mat-option [value]="false">No</mat-option>
+                    </mat-select>
+                    @let estE = formVacante.get('estudiaActualmente');
+                    @if (estE?.hasError('required') && (estE?.touched || estE?.dirty)) {
+                      <mat-error>Requerido.</mat-error>
+                    }
+                  </mat-form-field>
+
+                  <!-- "Otros" en el grado de escolaridad significa que estudió
+                       DESPUÉS del colegio: ahí el grado por sí solo no dice
+                       nada y hace falta el nivel alcanzado, qué estudió, dónde
+                       y cuándo. Con un grado de colegio estas cuatro sobran, y
+                       por eso solo aparecen con "Otros". -->
+                  @if (formVacante.get('nivel')?.value === 'OTROS') {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                      <mat-label>Nivel de educación superior</mat-label>
+                      <mat-select formControlName="estudiosExtra">
+                        <mat-option [value]="''">— Sin dato —</mat-option>
+                        @for (n of NIVELES_SUPERIORES; track n.valor) {
+                          <mat-option [value]="n.valor">{{ n.etiqueta }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+
+                    <!-- Los rótulos son LOS MISMOS del formulario de la vacante
+                         (paso "Estudios"): el evaluador está cotejando contra lo
+                         que la persona vio en pantalla, y llamar "Institución" a
+                         lo que allá dice "Nombre del colegio o institución"
+                         obliga a traducir en la cabeza.
+
+                         Las tres van a las MISMAS columnas en la base y cambian
+                         de rótulo según siga estudiando o ya haya terminado: es
+                         la misma pregunta en dos tiempos. -->
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                      <mat-label>
+                        {{ formVacante.get('estudiaActualmente')?.value === true
+                            ? '¿Qué está estudiando?' : 'Título obtenido' }}
+                      </mat-label>
+                      <input matInput maxlength="255" formControlName="tituloObtenido" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                      <mat-label>
+                        {{ formVacante.get('estudiaActualmente')?.value === true
+                            ? '¿En qué colegio o institución?'
+                            : 'Nombre del colegio o institución' }}
+                      </mat-label>
+                      <input matInput maxlength="255" formControlName="institucionEstudio" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                      <mat-label>
+                        {{ formVacante.get('estudiaActualmente')?.value === true
+                            ? '¿En qué año termina?' : 'Año en que terminó' }}
+                      </mat-label>
+                      <input matInput type="number" inputmode="numeric"
+                             min="1950" max="2100" formControlName="anioFinalizacion" />
+                    </mat-form-field>
+                  }
+                </div>
+              </section>
+
+              <!-- ═══ Experiencia laboral ═══
+                   Las dos primeras preguntas son distintas y hasta ahora
+                   compartían una sola casilla: tener experiencia laboral no es
+                   tenerla en flores. -->
+              <section class="fe-bloque" id="ficha-sec-experiencia">
+                <header class="fe-bloque-head">
+                  <span class="fe-dot fe-dot-amber"></span>
+                  <h3>Experiencia laboral</h3>
+                </header>
+
+                <div class="fe-grid">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Usted cuenta con experiencia laboral?</mat-label>
+                    <mat-select formControlName="experienciaLaboral">
+                      <mat-option value="SI">Sí</mat-option>
+                      <mat-option value="NO">No</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Ha trabajado en empresas de flores? *</mat-label>
+                    <mat-select formControlName="experienciaFlores">
+                      <mat-option value="Sí">Sí</mat-option>
+                      <mat-option value="No">No</mat-option>
+                    </mat-select>
+                    @let efE = formVacante.get('experienciaFlores');
+                    @if (efE?.hasError('required') && (efE?.touched || efE?.dirty)) {
+                      <mat-error>Requerido.</mat-error>
+                    }
+                  </mat-form-field>
+
+                  @if (formVacante.get('experienciaFlores')?.value === 'Sí') {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                      <mat-label>Tipo de experiencia *</mat-label>
+                      <mat-select formControlName="tipoExperienciaFlores">
+                        <mat-option value="CULTIVO">CULTIVO</mat-option>
+                        <mat-option value="POSCOSECHA">POSCOSECHA</mat-option>
+                        <mat-option value="AMBAS">AMBAS</mat-option>
+                        <mat-option value="OTROS">OTROS</mat-option>
+                      </mat-select>
+                      @let tefE = formVacante.get('tipoExperienciaFlores');
+                      @if (tefE?.hasError('required') && (tefE?.touched || tefE?.dirty)) {
+                        <mat-error>Requerido.</mat-error>
+                      }
+                    </mat-form-field>
+                  }
+
+                  @if (formVacante.get('tipoExperienciaFlores')?.value === 'OTROS') {
+                    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                      <mat-label>¿Cuál?</mat-label>
+                      <input matInput formControlName="otroExperiencia" maxlength="64" />
+                      @let oeE = formVacante.get('otroExperiencia');
+                      @if (oeE?.hasError('required') && (oeE?.touched || oeE?.dirty)) {
+                        <mat-error>Requerido.</mat-error>
+                      }
+                    </mat-form-field>
+                  }
+
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                    <mat-label>Áreas</mat-label>
+                    <mat-select formControlName="areaExperiencia" multiple>
+                      @for (a of (areasExperienciaOpciones$ | async) ?? []; track a['codigo']) {
+                        <mat-option [value]="a['codigo']">{{ a['descripcion'] || a['codigo'] }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Tiempo de experiencia</mat-label>
+                    <mat-select formControlName="tiempoExperiencia">
+                      <mat-option [value]="''">— Sin dato —</mat-option>
+                      @for (t of (tiempoExperienciaOpciones$ | async) ?? []; track t['codigo']) {
+                        <mat-option [value]="t['codigo']">{{ t['descripcion'] || t['codigo'] }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                </div>
+              </section>
+
+              <!-- ═══ Historial laboral ═══ -->
+              <section class="fe-bloque" id="ficha-sec-laboral">
+                <header class="fe-bloque-head">
+                  <span class="fe-dot fe-dot-amber"></span>
+                  <h3>Empresas donde ha laborado</h3>
+                  <span class="spacer"></span>
+                  <button type="button" mat-flat-button (click)="addExperiencia()">
+                    <mat-icon>add</mat-icon>&nbsp;Agregar experiencia
+                  </button>
+                </header>
+
+                <div formArrayName="experiencias" class="cards-stack">
+                  @for (exp of experienciasFA.controls; track $index; let i = $index) {
+                    <div class="card" [formGroupName]="i">
+                      <div class="card-title">
+                        <span>Experiencia {{ i + 1 }}</span>
+                        <span class="spacer"></span>
+                        <button type="button" mat-icon-button color="warn" (click)="removeExperiencia(i)">
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      </div>
+
+                      <div class="fe-grid">
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Empresa</mat-label>
+                          <input matInput formControlName="empresa" />
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Teléfono</mat-label>
+                          <input matInput inputmode="numeric" maxlength="15" formControlName="telefonos" />
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                          <mat-label>Dirección</mat-label>
+                          <input matInput formControlName="direccion" />
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Barrio</mat-label>
+                          <input matInput formControlName="barrio" />
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Jefe inmediato</mat-label>
+                          <input matInput formControlName="nombre_jefe" />
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Cargo</mat-label>
+                          <input matInput maxlength="64" formControlName="cargo" />
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                          <mat-label>Fecha de retiro</mat-label>
+                          <input matInput [matDatepicker]="pRet" formControlName="fecha_retiro" readonly
+                                 (focus)="pRet.open()" (click)="pRet.open()" />
+                          <mat-datepicker-toggle matSuffix [for]="pRet"></mat-datepicker-toggle>
+                          <mat-datepicker #pRet></mat-datepicker>
+                        </mat-form-field>
+
+                        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                          <mat-label>Motivo de retiro</mat-label>
+                          <mat-select formControlName="motivo_retiro">
+                            <mat-option [value]="''">— Sin dato —</mat-option>
+                            @for (m of (motivosRetiroOpciones$ | async) ?? []; track m['codigo']) {
+                              <mat-option [value]="m['codigo']">{{ m['descripcion'] || m['codigo'] }}</mat-option>
+                            }
+                          </mat-select>
+                        </mat-form-field>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </section>
+
+              <div class="optional-evaluation-container">
+                <div class="optional-evaluation-header">
+                  <mat-icon>psychology</mat-icon>
+                  <h4>Evaluación (Opcional)</h4>
+                </div>
+
+                <div class="optional-grid">
+                  <!-- ¿Cómo considera su desempeño laboral? -->
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Cómo considera su desempeño laboral?</mat-label>
+                    <input matInput formControlName="desempenoLaboral" />
+                  </mat-form-field>
+
+                  <!-- ¿Ha recibido un reconocimiento o felicitación por el rendimiento? -->
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Reconocimiento/felicitación por rendimiento?</mat-label>
+                    <input matInput formControlName="felicitaciones" />
+                  </mat-form-field>
+
+                  <!-- ¿Ha tenido usted alguna situación conflictiva? -->
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Ha tenido situación conflictiva?</mat-label>
+                    <input matInput formControlName="situacionConflictiva" />
+                  </mat-form-field>
+
+                  <!-- Está dispuesto a realizar actividades diferentes al cargo? -->
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Dispuesto a realizar actividades diferentes?</mat-label>
+                    <mat-select formControlName="actividadesDiferentes">
+                      <mat-option value=""></mat-option>
+                      <mat-option value="SI">Sí</mat-option>
+                      <mat-option value="NO">No</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                </div>
+              </div>
+
+              <!-- ═══ Referencias ═══
+                   Van aquí, después de la experiencia, que es el orden de la
+                   hoja. Es la MISMA ficha en línea, pintando solo su bloque. -->
+              <app-ficha-campos
+                [secciones]="['referencias']"
+                [ciudades]="allCities"
+                [parentescos$]="parentescosOpciones$"
+                [ocupaciones$]="ocupacionesOpciones$">
+              </app-ficha-campos>
+
+              <!-- ═══ Entrevista · ÚLTIMA sección ═══
+                   El veredicto es lo último del recorrido: primero se coteja la
+                   ficha con el documento, se repasa la experiencia y las
+                   referencias, y solo entonces se registra si viene referenciado
+                   y si aplica. Va en una sección con ancla como las demás para
+                   que el chip llegue aquí, y las dos son OBLIGATORIAS: sin ellas
+                   no se guarda. -->
+              <section class="fe-bloque" id="ficha-sec-entrevista">
+                <header class="fe-bloque-head">
+                  <span class="fe-dot fe-dot-pink"></span>
+                  <h3>Entrevista</h3>
+                </header>
+                <p class="fe-nota">Las dos respuestas son obligatorias.</p>
+
+              <!-- Las preguntas obligatorias van en fila; lo que depende de una
+                   respuesta baja debajo y ocupa el ancho entero. Antes la rejilla
+                   era un flex que metía el campo condicional como uno más de la
+                   fila y empujaba la observación del evaluador a un renglón nuevo
+                   cada vez que aparecía. -->
+              <div class="grid-managerial-entrevista">
                 <!-- Referenciado -->
-                <mat-form-field appearance="outline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>Referenciado*</mat-label>
                   <mat-select formControlName="referenciado">
                     <mat-option value="SI">Sí</mat-option>
@@ -163,9 +535,28 @@
                   </mat-select>
                 </mat-form-field>
 
-                <!-- Nombre del referenciado -->
+                <!-- ¿Observación del evaluador? -->
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿Observación del evaluador?*</mat-label>
+                  <mat-select formControlName="aplicaObservacion" required>
+                    @for (e of ESTADOS_OBSERVACION; track e.valor) {
+                      <mat-option [value]="e.valor">{{ e.label }}</mat-option>
+                    }
+                  </mat-select>
+                  @if (
+                    formVacante.get('aplicaObservacion')?.hasError('required') &&
+                    (formVacante.get('aplicaObservacion')?.touched ||
+                    formVacante.get('aplicaObservacion')?.dirty)
+                    ) {
+                    <mat-error>
+                      Este campo es requerido.
+                    </mat-error>
+                  }
+                </mat-form-field>
+
+                <!-- Nombre del referenciado · depende de "Referenciado = Sí" -->
                 @if (formVacante.get('referenciado')?.value === 'SI') {
-                  <mat-form-field appearance="outline">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="gme-ancho">
                     <mat-label>Nombre del referenciado*</mat-label>
                     <input matInput formControlName="nombreReferenciado" />
                     @if (
@@ -189,31 +580,19 @@
                   </mat-form-field>
                 }
 
-                <!-- ¿Observación del evaluador? -->
-                <mat-form-field appearance="outline">
-                  <mat-label>¿Observación del evaluador?*</mat-label>
-                  <mat-select formControlName="aplicaObservacion" required>
-                    <mat-option value="APLICA">APLICA</mat-option>
-                    <mat-option value="NO_APLICA">NO APLICA</mat-option>
-                    <mat-option value="EN_ESPERA">EN ESPERA</mat-option>
-                  </mat-select>
-                  @if (
-                    formVacante.get('aplicaObservacion')?.hasError('required') &&
-                    (formVacante.get('aplicaObservacion')?.touched ||
-                    formVacante.get('aplicaObservacion')?.dirty)
-                    ) {
-                    <mat-error>
-                      Este campo es requerido.
-                    </mat-error>
-                  }
-                </mat-form-field>
-
-                <!-- ¿Por qué está en espera? -->
+                <!-- ¿Por qué está en espera? · depende de EN_ESPERA -->
                 @if (formVacante.get('aplicaObservacion')?.value === 'EN_ESPERA') {
-                  <mat-form-field appearance="outline">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="gme-ancho">
                     <mat-label>¿Por qué está en espera?*</mat-label>
-                    <input matInput formControlName="motivoEspera" />
-                    <mat-hint align="start">Máx. 300 caracteres.</mat-hint>
+                    <!-- Textarea y no input: aquí se explica por qué la persona
+                         SÍ sirve pero no para las vacantes de ahora, y eso no
+                         cabe en una línea. Tres filas de arranque, crece hasta
+                         seis y con el contador a la vista. -->
+                    <textarea matInput formControlName="motivoEspera"
+                              cdkTextareaAutosize cdkAutosizeMinRows="3" cdkAutosizeMaxRows="6"
+                              maxlength="300"></textarea>
+                    <mat-hint align="start">Explique por qué aplica en general pero no para las vacantes actuales.</mat-hint>
+                    <mat-hint align="end">{{ (formVacante.get('motivoEspera')?.value || '').length }}/300</mat-hint>
                     @if (
                       formVacante.get('motivoEspera')?.hasError('required') &&
                       (formVacante.get('motivoEspera')?.touched ||
@@ -223,23 +602,20 @@
                         Este campo es obligatorio.
                       </mat-error>
                     }
-                    @if (
-                      formVacante.get('motivoEspera')?.hasError('maxlength') &&
-                      (formVacante.get('motivoEspera')?.touched ||
-                      formVacante.get('motivoEspera')?.dirty)
-                      ) {
-                      <mat-error>
-                        Máximo 300 caracteres.
-                      </mat-error>
-                    }
                   </mat-form-field>
                 }
 
-                <!-- Motivo (NO_APLICA) -->
+                <!-- Motivo · depende de NO_APLICA -->
                 @if (formVacante.get('aplicaObservacion')?.value === 'NO_APLICA') {
-                  <mat-form-field appearance="outline">
-                    <mat-label>Motivo (obligatorio)*</mat-label>
-                    <input matInput formControlName="motivoNoAplica" />
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="gme-ancho">
+                    <mat-label>Motivo por el que no puede ser contratado*</mat-label>
+                    <!-- Mismo criterio que el motivo de espera: es el registro de
+                         por qué esta persona no se puede contratar y queda en su
+                         historial laboral, así que tiene que caber entero. -->
+                    <textarea matInput formControlName="motivoNoAplica"
+                              cdkTextareaAutosize cdkAutosizeMinRows="3" cdkAutosizeMaxRows="6"
+                              maxlength="300"></textarea>
+                    <mat-hint align="end">{{ (formVacante.get('motivoNoAplica')?.value || '').length }}/300</mat-hint>
                     @if (
                       formVacante.get('motivoNoAplica')?.hasError('required') &&
                       (formVacante.get('motivoNoAplica')?.touched ||
@@ -253,54 +629,7 @@
                 }
               </div>
 
-              <div class="optional-evaluation-container">
-                <div class="optional-evaluation-header">
-                  <mat-icon>psychology</mat-icon>
-                  <h4>Evaluación (Opcional)</h4>
-                </div>
-
-                <div class="optional-grid">
-                  <!-- ¿Cómo es su relación familiar? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Cómo es su relación familiar?</mat-label>
-                    <input matInput formControlName="relacionFamiliar" />
-                  </mat-form-field>
-
-                  <!-- ¿Cómo considera su desempeño laboral? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Cómo considera su desempeño laboral?</mat-label>
-                    <input matInput formControlName="desempenoLaboral" />
-                  </mat-form-field>
-
-                  <!-- ¿Ha recibido un reconocimiento o felicitación por el rendimiento? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Reconocimiento/felicitación por rendimiento?</mat-label>
-                    <input matInput formControlName="felicitaciones" />
-                  </mat-form-field>
-
-                  <!-- ¿Ha tenido usted alguna situación conflictiva? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Ha tenido situación conflictiva?</mat-label>
-                    <input matInput formControlName="situacionConflictiva" />
-                  </mat-form-field>
-
-                  <!-- Está dispuesto a realizar actividades diferentes al cargo? -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>¿Dispuesto a realizar actividades diferentes?</mat-label>
-                    <mat-select formControlName="actividadesDiferentes">
-                      <mat-option value=""></mat-option>
-                      <mat-option value="SI">Sí</mat-option>
-                      <mat-option value="NO">No</mat-option>
-                    </mat-select>
-                  </mat-form-field>
-
-                  <!-- Firma Entrevistador -->
-                  <mat-form-field appearance="outline">
-                    <mat-label>Nombre Entrevistador / Evaluador</mat-label>
-                    <input matInput [value]="firma" readonly disabled />
-                  </mat-form-field>
-                </div>
-              </div>
+              </section>
 
             </section>
           }
@@ -318,7 +647,7 @@
 
               <div class="datos">
                 <!-- Escolaridad -->
-                <mat-form-field appearance="outline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>Escolaridad</mat-label>
                   <mat-select formControlName="nivel" required>
                     @for (e of (escolaridadOpciones$ | async) ?? []; track e['codigo']) {
@@ -334,7 +663,7 @@
                 </mat-form-field>
 
                 <!-- ¿Estudia actualmente? -->
-                <mat-form-field appearance="outline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>¿Estudia actualmente?</mat-label>
                   <mat-select formControlName="estudiaActualmente" required>
                     <mat-option [value]="true">Sí</mat-option>
@@ -347,7 +676,7 @@
                 </mat-form-field>
 
                 <!-- Proyección 1 año -->
-                <mat-form-field appearance="outline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>¿Cómo se proyecta en 1 año?</mat-label>
                   <input matInput rows="3" formControlName="proyeccion1Ano" />
                   @let p1 = formVacante.get('proyeccion1Ano');
@@ -357,7 +686,7 @@
                 </mat-form-field>
 
                 <!-- Experiencia en flores -->
-                <mat-form-field appearance="outline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
                   <mat-label>¿Cuenta con experiencia en flores?</mat-label>
                   <mat-select formControlName="experienciaFlores" required>
                     <mat-option value="Sí">Sí</mat-option>
@@ -370,7 +699,7 @@
                 </mat-form-field>
 
                 @if (formVacante.get('experienciaFlores')?.value === 'Sí') {
-                  <mat-form-field appearance="outline">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <mat-label>Tipo de experiencia en flores</mat-label>
                     <mat-select formControlName="tipoExperienciaFlores" required>
                       <mat-option value="CULTIVO">CULTIVO</mat-option>
@@ -386,7 +715,7 @@
                 }
 
                 @if (formVacante.get('tipoExperienciaFlores')?.value === 'OTROS') {
-                  <mat-form-field appearance="outline">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <mat-label>¿Cuál?</mat-label>
                     <input matInput formControlName="otroExperiencia" maxlength="64"
                       placeholder="Especifique otro tipo de experiencia" />
@@ -428,26 +757,34 @@
                     </div>
 
                     <div class="grid-2">
-                      <mat-form-field appearance="outline">
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <mat-label>Nombre de la empresa</mat-label>
                         <input matInput formControlName="empresa" />
                       </mat-form-field>
 
-                      <mat-form-field appearance="outline">
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <mat-label>Tiempo (meses/años)</mat-label>
                         <input matInput formControlName="tiempo_trabajado" />
                       </mat-form-field>
                     </div>
 
                     <div class="grid-1">
-                      <mat-form-field appearance="outline">
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <mat-label>Labores realizadas</mat-label>
                         <input matInput rows="2" formControlName="labores_realizadas" />
                       </mat-form-field>
 
-                      <mat-form-field appearance="outline">
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic">
                         <mat-label>Motivo retiro</mat-label>
-                        <input matInput rows="2" formControlName="labores_principales" />
+                        <!-- Estaba enlazado a labores_principales: lo escrito se guardaba en
+                             otra columna y el motivo guardado nunca se veía. Es la misma lista
+                             que usa la ficha (catálogo de motivos de retiro). -->
+                        <mat-select formControlName="motivo_retiro">
+                          <mat-option [value]="''">— Sin dato —</mat-option>
+                          @for (m of (motivosRetiroOpciones$ | async) ?? []; track m['codigo']) {
+                            <mat-option [value]="m['codigo']">{{ m['descripcion'] || m['codigo'] }}</mat-option>
+                          }
+                        </mat-select>
                       </mat-form-field>
                     </div>
                   </div>
@@ -609,20 +946,21 @@
 
     </div>
 
-    <!-- Barra de Enviar (siempre visible, fuera del scroll).
+    <!-- Estado del guardado, flotando sobre el panel (siempre visible, fuera del scroll).
+         Antes era el botón "Enviar".
+         Era una franja de ancho completo con una frase al lado; se comía una
+         fila y media de campos en todo momento para enseñar un botón. La frase
+         pasó al tooltip.
+
          En el chat no aparece: ahí no hay formulario que enviar —enviar es el
          botón del propio chat— y tener dos "Enviar" en pantalla, uno de los
          cuales manda la entrevista entera, es una trampa. -->
     <div class="sticky-actions-bar" [class.oculta]="panel() === 'iaChat' || panel() === 'ia'">
-      <span class="sticky-actions-hint">
-        <mat-icon>info</mat-icon>
-        Revisa la información antes de enviar
-      </span>
-      <button type="submit" mat-flat-button color="primary" class="submit-button-sticky"
-              [disabled]="isSubmitting">
-        <mat-icon>{{ isSubmitting ? 'hourglass_empty' : 'send' }}</mat-icon>
-        {{ isSubmitting ? 'Enviando...' : 'Enviar' }}
-      </button>
+      <!-- Sin "Enviar": cada respuesta se guarda sola; completa, la entrevista
+           queda además marcada como realizada. -->
+      <app-auto-guardado-estado
+        [estado]="autoEntrevista.estado()" [error]="autoEntrevista.error()"
+        (reintentar)="autoEntrevista.ahora()" />
     </div>
   </form>
 </div>

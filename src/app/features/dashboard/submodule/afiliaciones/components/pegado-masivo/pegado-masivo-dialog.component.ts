@@ -1,5 +1,5 @@
 import { ChangeDetectorRef, Component, OnDestroy, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -14,6 +14,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
+import { BadgeCelda, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   AfiliacionesPegadoService, PegadoItem, ValidadorPegado, CanalPegado, AvanceLote
 } from '../../services/afiliaciones-pegado.service';
@@ -24,6 +25,24 @@ import { AfiliacionPdfService } from '../../services/afiliacion-pdf.service';
 interface FilaPreview {
   item: PegadoItem;
   incluida: boolean;
+}
+
+type Efecto = 'cambia' | 'sin-cambio' | 'no-encontrada' | 'excluida';
+
+/** Chip de la columna «Resultado» para cada efecto. */
+const CHIP_EFECTO: Record<Efecto, BadgeCelda> = {
+  'cambia':        { texto: 'Confirmar', tono: 'ok', icono: 'arrow_forward' },
+  'sin-cambio':    { texto: 'Ya confirmada', tono: 'neutro' },
+  'excluida':      { texto: 'Excluida', tono: 'neutro' },
+  'no-encontrada': { texto: 'No encontrada', tono: 'danger' },
+};
+
+/** 'aaaa-mm-dd' (o ISO con hora) → Date local, igual que el DatePipe; así ordena como fecha. */
+function aFecha(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 /**
@@ -48,7 +67,8 @@ interface FilaPreview {
     CommonModule, FormsModule,
     MatDialogModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatCheckboxModule, MatTooltipModule, MatProgressBarModule,
-    MatSlideToggleModule, MatSnackBarModule
+    MatSlideToggleModule, MatSnackBarModule,
+    ...TABLA_ESTANDAR
   ],
   templateUrl: './pegado-masivo-dialog.component.html',
   styleUrl: './pegado-masivo-dialog.component.css'
@@ -65,9 +85,6 @@ export class PegadoMasivoDialogComponent implements OnDestroy {
   /** Una cédula es dígitos, con prefijo 'X' opcional (extranjería). */
   private static readonly RE_CEDULA = /^X?\d{4,15}$/;
 
-  /** Filas del preview que se pintan de entrada; el resto queda tras "mostrar todas". */
-  private static readonly TOPE_RENDER = 300;
-
   paso: 'pegar' | 'preview' = 'pegar';
 
   // ── Paso 1: pegar ──────────────────────────────────────────────────
@@ -78,9 +95,33 @@ export class PegadoMasivoDialogComponent implements OnDestroy {
   cargando = false;
 
   // ── Paso 2: preview ────────────────────────────────────────────────
+  /**
+   * Filas del preview. La tabla estándar recibe el arreglo como señal: todo cambio (incluir,
+   * excluir, cambiar la validación) se hace con un arreglo nuevo para que se entere.
+   */
   filas: FilaPreview[] = [];
-  mostrarTodas = false;
   guardando = false;
+
+  readonly columnas: ColumnaTabla<FilaPreview>[] = [
+    { id: 'incluir', header: 'Incluir', valor: (f) => f.incluida, interactiva: true, copiable: false,
+      ordenable: false, ancho: '44px', tarjeta: 'meta' },
+    { id: 'cedula', header: 'Cédula', valor: (f) => f.item.cedula || f.item.entrada, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (f) => f.item.nombreCompleto ?? '',
+      formato: (f) => f.item.nombreCompleto || '—', tarjeta: 'titulo' },
+    { id: 'oficina', header: 'Oficina / Finca', prioridad: 2, tarjeta: 'cuerpo',
+      valor: (f) => (f.item.oficina || '') + (f.item.finca ? ' · ' + f.item.finca : '') },
+    { id: 'ingreso', header: 'Ingreso', prioridad: 2, tarjeta: 'meta',
+      valor: (f) => aFecha(f.item.fechaIngreso),
+      formato: (f) => { const d = aFecha(f.item.fechaIngreso); return d ? formatDate(d, 'dd/MM/yyyy', 'en-US') : '—'; } },
+    // Las 4 banderas actuales como texto (A C N P = las que ya están confirmadas).
+    { id: 'estado', header: 'Estado actual', tarjeta: 'cuerpo', valor: (f) => this.textoBanderas(f.item) },
+    { id: 'resultado', header: 'Resultado', tarjeta: 'badge',
+      valor: (f) => CHIP_EFECTO[this.efecto(f)].texto, badge: (f) => CHIP_EFECTO[this.efecto(f)] },
+  ];
+
+  readonly idFila = (f: FilaPreview) => f.item.entrada;
+  readonly claseFila = (f: FilaPreview) =>
+    (!f.item.encontrado ? 'te-fila--peligro' : !f.incluida ? 'te-fila--atenuada' : '');
 
   // ── Avance de la operación en curso ────────────────────────────────
   /**
@@ -250,7 +291,6 @@ export class PegadoMasivoDialogComponent implements OnDestroy {
         this.cargando = false;
         this.pararAvance();
         this.filas = (a.resultado.items || []).map(item => ({ item, incluida: true }));
-        this.mostrarTodas = false;
         this.paso = 'preview';
       },
       error: () => {
@@ -274,7 +314,7 @@ export class PegadoMasivoDialogComponent implements OnDestroy {
   }
 
   /** Qué le va a pasar a la fila con la configuración actual. */
-  efecto(fila: FilaPreview): 'cambia' | 'sin-cambio' | 'no-encontrada' | 'excluida' {
+  efecto(fila: FilaPreview): Efecto {
     if (!fila.item.encontrado) return 'no-encontrada';
     if (!fila.incluida) return 'excluida';
     if (this.yaConfirmado(fila.item)) return this.reconfirmar ? 'cambia' : 'sin-cambio';
@@ -292,15 +332,29 @@ export class PegadoMasivoDialogComponent implements OnDestroy {
   /** Aviso: gente con el contrato inactivo dentro de lo que se va a confirmar. */
   get totalInactivos(): number { return this.aplicables.filter(f => f.item.activo === false).length; }
 
-  get filasVisibles(): FilaPreview[] {
-    return this.mostrarTodas ? this.filas : this.filas.slice(0, PegadoMasivoDialogComponent.TOPE_RENDER);
-  }
-  get hayOcultas(): boolean {
-    return !this.mostrarTodas && this.filas.length > PegadoMasivoDialogComponent.TOPE_RENDER;
+  incluirTodas(v: boolean): void {
+    this.filas = this.filas.map(f => (f.item.encontrado ? { ...f, incluida: v } : f));
   }
 
-  incluirTodas(v: boolean): void {
-    this.filas.forEach(f => { if (f.item.encontrado) f.incluida = v; });
+  /** Incluye o excluye una fila (con un arreglo nuevo, para que la tabla repinte). */
+  alternarFila(fila: FilaPreview, v: boolean): void {
+    if (!fila.item.encontrado) return;
+    this.filas = this.filas.map(f => (f === fila ? { ...f, incluida: v } : f));
+  }
+
+  /** Cambiar la validación o «re-confirmar» cambia el resultado de cada fila: se repinta. */
+  refrescarPreview(): void {
+    this.filas = [...this.filas];
+  }
+
+  /** Las banderas ya confirmadas, como texto para buscar, filtrar y copiar. */
+  private textoBanderas(item: PegadoItem): string {
+    if (!item.encontrado) return '—';
+    const on = [
+      item.ingresoConfirmado ? 'A' : '', item.coordConfirmado ? 'C' : '',
+      item.nominaConfirmado ? 'N' : '', item.pagoConfirmado ? 'P' : '',
+    ].filter(Boolean).join(' ');
+    return (on || 'Ninguna') + (item.activo === false ? ' · contrato inactivo' : '');
   }
 
   /** Pasa las cédulas que no existen al portapapeles, para corregirlas en el Excel de origen. */

@@ -13,11 +13,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
-import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import {
   CampoPlantilla, EnvioCorreosService, EnvioItem, EstadoEnvioItem, LoteDetalle,
   PeriodoDisponible, Plantilla, PreviewCorreo, TipoRef,
@@ -49,7 +49,8 @@ const TAMANO_TANDA = 20;
   imports: [
     CommonModule, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule,
     MatExpansionModule, MatFormFieldModule, MatIconModule, MatInputModule,
-    MatProgressBarModule, MatSelectModule, MatTableModule, MatTooltipModule,
+    MatProgressBarModule, MatSelectModule, MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './envio-correos-envio.component.html',
   styleUrl: './envio-correos-envio.component.css',
@@ -111,7 +112,17 @@ export class EnvioCorreosEnvioComponent implements OnInit {
   readonly previewHtml = computed<SafeHtml>(() =>
     this.sanitizer.bypassSecurityTrustHtml(this.preview()?.cuerpo_html ?? ''));
 
-  readonly columnasProblemas = ['cedula', 'nombre', 'correo', 'estado', 'motivo'];
+  /** Casos que no se van a enviar (tabla estándar dentro del panel «problemas»). */
+  readonly columnasProblemas: ColumnaTabla<EnvioItem>[] = [
+    { id: 'cedula', header: 'Cédula', valor: (i) => i.cedula, tarjeta: 'subtitulo' },
+    { id: 'nombre', header: 'Nombre', valor: (i) => i.nombre ?? '', tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'correo', header: 'Correo', valor: (i) => i.correo ?? '', formato: (i) => i.correo || '—',
+      prioridad: 2, tarjeta: 'cuerpo' },
+    { id: 'estado', header: 'Estado', valor: (i) => this.etiquetaEstado(i.estado), tarjeta: 'badge',
+      badge: (i) => ({ texto: this.etiquetaEstado(i.estado), tono: this.tonoEstado(i.estado) }) },
+    { id: 'motivo', header: 'Motivo', valor: (i) => i.motivo ?? '', minAncho: '200px', tarjeta: 'cuerpo' },
+  ];
+  readonly idItem = (i: EnvioItem) => i.id;
 
   async ngOnInit(): Promise<void> {
     this.titulo.setTitle('Enviar correos | Envío de correos (modelo antiguo)');
@@ -341,6 +352,13 @@ export class EnvioCorreosEnvioComponent implements OnInit {
     if (estado === 'ENVIADO' || estado === 'PENDIENTE') return 'chip-ok';
     if (estado === 'OMITIDO') return 'chip-neutro';
     return 'chip-alerta';
+  }
+
+  /** Mismo criterio que {@link claseEstado}, con los tonos de la tabla estándar. */
+  tonoEstado(estado: EstadoEnvioItem): TonoBadge {
+    if (estado === 'ENVIADO' || estado === 'PENDIENTE') return 'ok';
+    if (estado === 'OMITIDO') return 'neutro';
+    return 'danger';
   }
 
   private error(mensaje: string): void {

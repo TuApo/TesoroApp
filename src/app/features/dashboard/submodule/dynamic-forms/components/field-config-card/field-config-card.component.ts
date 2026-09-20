@@ -468,11 +468,11 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
   `,
   styles: [`
     .fc-card {
-      background: var(--surface, #fff);
-      border: 1px solid var(--slate-200, #e8edf3);
+      background: var(--surface);
+      border: 1px solid var(--border);
       border-radius: var(--r-sm, 10px);
     }
-    .fc-card--nested { background: var(--slate-50, #f8fafc); }
+    .fc-card--nested { background: var(--surface-2); }
     .fc-head {
       display: flex;
       align-items: center;
@@ -482,8 +482,8 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
     }
     .fc-icon {
       font-size: 20px;
-      color: var(--navy, #21263c);
-      background: var(--slate-100, #f1f5f9);
+      color: var(--navy-ink);
+      background: var(--surface-3);
       border-radius: 8px;
       padding: 5px;
     }
@@ -501,17 +501,17 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       background: transparent;
       font: inherit;
       font-weight: 600;
-      color: var(--navy-deep, #0f172a);
+      color: var(--navy-ink);
       padding: 2px 0;
     }
-    .fc-label:hover { border-bottom-color: var(--slate-300, #d8e0ea); }
+    .fc-label:hover { border-bottom-color: var(--border-strong); }
     .fc-label:focus-visible {
       outline: none;
       border-bottom: 1px solid var(--lime, #8cd50a);
     }
     .fc-tipo {
       font-size: 0.72rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       text-transform: none;
     }
     .fc-req {
@@ -519,7 +519,7 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       align-items: center;
       gap: 5px;
       font-size: 0.78rem;
-      color: var(--slate-700, #334155);
+      color: var(--text-2);
       cursor: pointer;
       white-space: nowrap;
     }
@@ -533,17 +533,17 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       border: none;
       border-radius: 8px;
       background: transparent;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       cursor: pointer;
       padding: 0;
     }
     .fc-btn .material-symbols-outlined { font-size: 19px; }
-    .fc-btn:hover:not(:disabled) { background: var(--slate-100, #f1f5f9); color: var(--navy, #21263c); }
+    .fc-btn:hover:not(:disabled) { background: var(--surface-3); color: var(--navy-ink); }
     .fc-btn:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 1px; }
     .fc-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .fc-btn--danger:hover:not(:disabled) { color: var(--danger, #b42318); background: #fdecea; }
+    .fc-btn--danger:hover:not(:disabled) { color: var(--danger, #b42318); color: light-dark(var(--danger, #b42318), #f2a29c); background: #fdecea; background: light-dark(#fdecea, #341d28); }
     .fc-body {
-      border-top: 1px solid var(--slate-200, #e8edf3);
+      border-top: 1px solid var(--border);
       padding: 12px;
       display: flex;
       flex-direction: column;
@@ -557,18 +557,18 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       align-items: end;
     }
     .fc-fila--doble > div { display: flex; flex-direction: column; gap: 4px; }
-    .fc-body label { font-size: 0.8rem; font-weight: 600; color: var(--navy, #21263c); }
+    .fc-body label { font-size: 0.8rem; font-weight: 600; color: var(--navy-ink); }
     .fc-body input[type=text], .fc-body input[type=number], .fc-body input[type=date],
     .fc-body input[type=time], .fc-body textarea, .fc-body select {
       width: 100%;
       box-sizing: border-box;
       padding: 7px 10px;
-      border: 1px solid var(--slate-300, #d8e0ea);
+      border: 1px solid var(--border-strong);
       border-radius: var(--r-sm, 10px);
       font: inherit;
       font-size: 0.86rem;
-      background: var(--surface, #fff);
-      color: var(--navy-deep, #0f172a);
+      background: var(--surface);
+      color: var(--navy-ink);
     }
     .fc-body input:focus-visible, .fc-body textarea:focus-visible, .fc-body select:focus-visible {
       outline: 2px solid var(--lime, #8cd50a);
@@ -579,16 +579,16 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       align-items: center;
       gap: 6px;
       font-size: 0.82rem;
-      color: var(--slate-700, #334155);
+      color: var(--text-2);
       cursor: pointer;
     }
     .fc-check input { accent-color: var(--navy, #21263c); }
     .fc-sub {
       font-size: 0.8rem;
       font-weight: 700;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
     }
-    .fc-req-mark { color: #c0392b; }
+    .fc-req-mark { color: #c0392b; color: light-dark(#c0392b, #eaaaa3); }
     .fc-opciones { display: flex; flex-direction: column; gap: 6px; }
     .fc-ruta { display: flex; flex-direction: column; gap: 6px; }
     .fc-ruta .fc-sub { display: flex; align-items: center; gap: 6px; }
@@ -601,12 +601,12 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: 0.85rem;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
     }
-    .fc-ruta__flecha { font-size: 16px; color: var(--slate-500, #64748b); flex-shrink: 0; }
+    .fc-ruta__flecha { font-size: 16px; color: var(--muted); flex-shrink: 0; }
     .fc-ruta__fila select { flex: 1 1 auto; min-width: 0; }
     .fc-origen { display: flex; flex-direction: column; gap: 6px; }
-    .fc-hint { margin: 0; font-size: 0.78rem; color: var(--slate-500, #64748b); }
+    .fc-hint { margin: 0; font-size: 0.78rem; color: var(--muted); }
     .fc-opcion {
       display: flex;
       align-items: center;
@@ -615,8 +615,8 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
     .fc-opcion__value {
       font-family: monospace;
       font-size: 0.72rem;
-      color: var(--slate-500, #64748b);
-      background: var(--slate-100, #f1f5f9);
+      color: var(--muted);
+      background: var(--surface-3);
       border-radius: 6px;
       padding: 4px 6px;
       white-space: nowrap;
@@ -627,17 +627,17 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       align-items: center;
       gap: 4px;
       align-self: flex-start;
-      border: 1px dashed var(--slate-300, #d8e0ea);
+      border: 1px dashed var(--border-strong);
       border-radius: var(--r-sm, 10px);
       background: transparent;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
       font: inherit;
       font-size: 0.82rem;
       font-weight: 600;
       padding: 6px 12px;
       cursor: pointer;
     }
-    .fc-agregar:hover { border-color: var(--navy, #21263c); background: var(--slate-50, #f8fafc); }
+    .fc-agregar:hover { border-color: var(--navy, #21263c); background: var(--surface-2); }
     .fc-agregar:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 1px; }
     .fc-agregar .material-symbols-outlined { font-size: 17px; }
     .fc-etiquetas { display: flex; flex-direction: column; gap: 6px; }
@@ -647,8 +647,8 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       text-align: center;
       font-weight: 700;
       font-size: 0.82rem;
-      color: var(--navy, #21263c);
-      background: var(--slate-100, #f1f5f9);
+      color: var(--navy-ink);
+      background: var(--surface-3);
       border-radius: 6px;
       padding: 4px 0;
     }
@@ -659,30 +659,30 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
       align-items: center;
       gap: 6px;
       padding: 6px;
-      border: 1px solid var(--slate-300, #d8e0ea);
+      border: 1px solid var(--border-strong);
       border-radius: var(--r-sm, 10px);
-      background: var(--surface, #fff);
+      background: var(--surface);
     }
     .fc-chip {
       display: inline-flex;
       align-items: center;
       gap: 3px;
-      background: var(--slate-100, #f1f5f9);
+      background: var(--surface-3);
       border-radius: 999px;
       padding: 3px 6px 3px 10px;
       font-size: 0.8rem;
-      color: var(--navy-deep, #0f172a);
+      color: var(--navy-ink);
     }
     .fc-chip button {
       display: inline-flex;
       border: none;
       background: transparent;
       cursor: pointer;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       padding: 0;
     }
     .fc-chip button .material-symbols-outlined { font-size: 15px; }
-    .fc-chip button:hover { color: var(--danger, #b42318); }
+    .fc-chip button:hover { color: var(--danger, #b42318); color: light-dark(var(--danger, #b42318), #f2a29c); }
     .fc-chips__input {
       flex: 1;
       min-width: 110px;
@@ -694,7 +694,7 @@ export function clonarCampoParaDuplicar(f: DynamicField): DynamicField {
     .fc-vacio {
       margin: 0;
       font-size: 0.82rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       font-style: italic;
     }
     .fc-agregar-hijo {

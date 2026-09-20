@@ -12,8 +12,8 @@
 .premium-card {
   border-radius: 16px !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
-  border: 1px solid #f1f5f9;
-  background-color: #ffffff;
+  border: 1px solid var(--border);
+  background-color: var(--surface);
   overflow: hidden;
   margin-bottom: 24px;
 }
@@ -76,7 +76,7 @@
 .header-text { display: flex; flex-direction: column; min-width: 0; }
 
 .titulo {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.4rem !important;
   font-weight: 700 !important;
   color: #ffffff;
@@ -85,7 +85,7 @@
 }
 
 .subtitulo {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.85rem !important;
   color: #cbd5e1 !important;
   margin: 0 !important;
@@ -120,9 +120,9 @@
 .filtro { width: 260px; max-width: 100%; }
 .filtro--buscar { width: 320px; }
 .filtro--agrupar { width: 210px; }
-.filtro--buscar .material-symbols-outlined { font-size: 20px; margin-right: 6px; color: var(--muted, #64748b); }
+.filtro--buscar .material-symbols-outlined { font-size: 20px; margin-right: 6px; color: var(--muted); }
 
-.opt-conteo { color: var(--muted, #64748b); font-size: 0.8em; }
+.opt-conteo { color: var(--muted); font-size: 0.8em; }
 
 .btn-limpiar {
   border-radius: 8px !important;
@@ -140,9 +140,9 @@
   gap: 12px;
   padding: 10px 14px;
   margin: 4px 0 8px 0;
-  border: 1px solid var(--slate-200, #e8edf3);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--slate-50, #f8fafc);
+  background: var(--surface-2);
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
@@ -150,7 +150,7 @@
    «Descargar selección» hace algo, y tiene que notarse sin leer el botón. */
 .barra-descarga--activa {
   border-color: var(--navy, #21263c);
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
 }
 
@@ -160,7 +160,7 @@
   gap: 2px;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--slate-700, #334155);
+  color: var(--text-2);
 }
 
 .btn-limpiar-sel {
@@ -191,8 +191,8 @@
   margin: 8px 0 0 0;
   padding: 8px 12px;
   border-radius: 10px;
-  background: #fffbeb;
-  color: #92400e;
+  background: #fffbeb; background: light-dark(#fffbeb, #383624);
+  color: #92400e; color: light-dark(#92400e, #f5bc99);
   font-size: 0.82rem;
 }
 .aviso-parcial .material-symbols-outlined { font-size: 18px; }
@@ -205,20 +205,20 @@
   align-items: center;
   gap: 8px;
   padding: 48px 16px;
-  color: var(--muted, #64748b);
+  color: var(--muted);
   text-align: center;
 }
 
 .estado .material-symbols-outlined { font-size: 44px; opacity: 0.7; }
-.estado p { margin: 0; font-weight: 600; color: var(--slate-700, #334155); }
+.estado p { margin: 0; font-weight: 600; color: var(--text-2); }
 .estado-sub { font-size: 0.85rem; }
-.estado--error p { color: var(--danger, #b42318); }
+.estado--error p { color: var(--danger, #b42318); color: light-dark(var(--danger, #b42318), #f2a29c); }
 
 /* ── Grilla de tarjetas ──────────────────────────────────────────────── */
 
 .grid-soportes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(230px, 100%), 1fr));
   gap: 16px;
   margin-top: 12px;
 }
@@ -226,16 +226,16 @@
 .soporte-card {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--slate-200, #e8edf3);
+  border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--surface);
   transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 }
 
 .soporte-card:hover {
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
-  border-color: var(--slate-300, #cbd5e1);
+  border-color: var(--border-strong);
   transform: translateY(-2px);
 }
 
@@ -250,7 +250,7 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgb(var(--surface-rgb) / 0.92);
   border-radius: 8px;
 }
 
@@ -261,8 +261,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--slate-50, #f8fafc);
-  border-bottom: 1px solid var(--slate-100, #f1f5f9);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
 }
 
 .soporte-thumb {
@@ -273,13 +273,13 @@
 
 .soporte-icono {
   font-size: 56px;
-  color: var(--navy, #21263c);
+  color: var(--navy-ink);
   opacity: 0.85;
 }
 
-.soporte-card[data-tipo='pdf'] .soporte-icono { color: #b42318; }
-.soporte-card[data-tipo='excel'] .soporte-icono { color: #0f766e; }
-.soporte-card[data-tipo='word'] .soporte-icono { color: #1d4ed8; }
+.soporte-card[data-tipo='pdf'] .soporte-icono { color: #b42318; color: light-dark(#b42318, #f2a29c); }
+.soporte-card[data-tipo='excel'] .soporte-icono { color: #0f766e; color: light-dark(#0f766e, #9bf2ec); }
+.soporte-card[data-tipo='word'] .soporte-icono { color: #1d4ed8; color: light-dark(#1d4ed8, #9cb3f2); }
 
 .soporte-badge {
   position: absolute;
@@ -309,7 +309,7 @@
   margin: 0;
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--slate-800, #1e293b);
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -342,19 +342,19 @@
 
 .etq--llave {
   background: rgba(140, 213, 10, 0.16);
-  color: #3f6212;
+  color: #3f6212; color: light-dark(#3f6212, #cceea0);
   font-family: 'Roboto Mono', monospace;
 }
 
 .etq--pregunta {
-  background: var(--slate-100, #f1f5f9);
-  color: var(--slate-700, #334155);
+  background: var(--surface-3);
+  color: var(--text-2);
   cursor: pointer;
   font-family: inherit;
 }
 .etq--pregunta:hover {
-  background: var(--slate-200, #e2e8f0);
-  border-color: var(--slate-300, #cbd5e1);
+  background: var(--surface-4);
+  border-color: var(--border-strong);
 }
 
 .soporte-meta {
@@ -371,10 +371,10 @@
   font-size: 0.78rem;
 }
 
-.meta-fila dt { color: var(--muted, #64748b); }
+.meta-fila dt { color: var(--muted); }
 .meta-fila dd {
   margin: 0;
-  color: var(--slate-700, #334155);
+  color: var(--text-2);
   font-weight: 500;
   text-align: right;
   overflow: hidden;
@@ -386,7 +386,7 @@
 .meta-campo { font-family: 'Roboto Mono', monospace; }
 
 .meta-link {
-  color: var(--navy, #21263c);
+  color: var(--navy-ink);
   font-weight: 600;
   text-decoration: none;
 }

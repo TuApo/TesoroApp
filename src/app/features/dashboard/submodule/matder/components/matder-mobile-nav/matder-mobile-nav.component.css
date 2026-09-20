@@ -4,8 +4,8 @@
   position: fixed;
   bottom: 0; left: 0; right: 0;
   z-index: 900;
-  background: rgba(255,255,255,.96);
-  border-top: 1px solid #e2e8f0;
+  background: rgb(var(--surface-rgb) / 0.96);
+  border-top: 1px solid var(--border);
   backdrop-filter: blur(12px);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   box-shadow: 0 -4px 24px rgba(15,23,42,.10);
@@ -23,7 +23,7 @@
   border: none;
   cursor: pointer;
   border-radius: 0;
-  color: #94a3b8;
+  color: var(--text-faint);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: .02em;
@@ -40,7 +40,7 @@
 }
 
 .nav-item.active {
-  color: #1d4ed8;
+  color: #1d4ed8; color: light-dark(#1d4ed8, #9cb3f2);
 }
 
 .nav-item.active mat-icon {
@@ -63,12 +63,12 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .mobile-nav {
-    background: rgba(15,23,42,.95);
-    border-top-color: #1e293b;
-  }
-  .nav-item { color: #64748b; }
-  .nav-item.active { color: #60a5fa; }
-  .nav-item.active::after { background: #60a5fa; }
+/* Tema oscuro de la app (ThemeService), no el del sistema operativo. */
+:host-context(html[data-theme='dark']) .mobile-nav {
+  background: rgba(15,23,42,.95);
+  border-top-color: #1e293b;
 }
+:host-context(html[data-theme='dark']) .nav-item { color: var(--muted); }
+:host-context(html[data-theme='dark']) .nav-item.active { color: #60a5fa; }
+:host-context(html[data-theme='dark']) .nav-item.active::after { background: #60a5fa; }
+

@@ -59,12 +59,12 @@ const ICONOS: Record<AvisoIcono, { nombre: string; clase: string }> = {
     :host { display: block; }
     .cd-wrap { padding: 22px 24px 16px; text-align: center; max-width: 420px; }
     .cd-icon { width: 56px; height: 56px; font-size: 56px; margin-bottom: 8px; }
-    .ic-info, .ic-question { color: #64748b; }
-    .ic-success { color: #16a34a; }
-    .ic-warning { color: #d97706; }
-    .ic-error { color: #dc2626; }
-    .cd-titulo { margin: 0 0 8px; font-size: 1.15rem; font-weight: 700; color: #111827; }
-    .cd-html { font-size: .88rem; color: #374151; line-height: 1.45; }
+    .ic-info, .ic-question { color: var(--muted); }
+    .ic-success { color: #16a34a; color: light-dark(#16a34a, #9cf2bc); }
+    .ic-warning { color: #d97706; color: light-dark(#d97706, #f7ca97); }
+    .ic-error { color: #dc2626; color: light-dark(#dc2626, #ef9e9e); }
+    .cd-titulo { margin: 0 0 8px; font-size: 1.15rem; font-weight: 700; color: var(--text); }
+    .cd-html { font-size: .88rem; color: var(--text-2); line-height: 1.45; }
     .cd-acciones { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
     .cd-ok { background: #111827; color: #fff; }
   `],
@@ -102,8 +102,8 @@ export class AvisoDialogComponent {
     :host { display: block; }
     .cp-wrap { padding: 26px 28px; text-align: center; min-width: 280px; }
     mat-spinner { margin: 0 auto 14px; }
-    .cp-titulo { margin: 0 0 6px; font-size: 1.05rem; font-weight: 700; color: #111827; }
-    .cp-msg { margin: 0; font-size: .84rem; color: #6b7280; }
+    .cp-titulo { margin: 0 0 6px; font-size: 1.05rem; font-weight: 700; color: var(--text); }
+    .cp-msg { margin: 0; font-size: .84rem; color: var(--muted); }
   `],
 })
 export class ProgresoDialogComponent {

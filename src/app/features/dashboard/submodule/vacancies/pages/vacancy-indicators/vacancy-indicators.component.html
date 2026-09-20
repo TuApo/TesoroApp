@@ -1,0 +1,32 @@
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">insights</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Indicadores de Vacantes</mat-card-title>
+        <mat-card-subtitle class="subtitulo">Cobertura, demora y embudo de las vacantes filtradas.</mat-card-subtitle>
+      </div>
+    </div>
+    <span class="spacer grow" style="flex: 1 1 auto;"></span>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+
+    <!-- Los MISMOS filtros del listado: comparten estado, así que los KPIs
+         describen exactamente el universo que la tabla está mostrando. -->
+    <app-vacancy-filters-panel
+      [resultado]="visibleRows().length"
+      [opciones]="opcionesFiltro()"
+      (recargar)="onRecargarConjunto()">
+    </app-vacancy-filters-panel>
+
+    <app-vacantes-dashboard
+      [vacantes]="visibleRows()"
+      [oficina]="oficina()"
+      [loading]="loading()"
+      (verVacante)="abrirCumplimiento($event)">
+    </app-vacantes-dashboard>
+  </mat-card-content>
+</mat-card>

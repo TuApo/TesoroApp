@@ -151,13 +151,12 @@ const TEXTOS: Record<EtapaConResultado, {
       --ok: #2e7d32;
       --mal: #c62828;
       --noshow: #ef6c00;
-      --linea: #e8edf3;
-      --muted: #64748b;
+      --linea: light-dark(#e8edf3, #233e63);
       --tinta: #0f172a;
       display: block;
     }
 
-    .re-wrap { width: min(500px, 92vw); background: #fff; }
+    .re-wrap { width: min(500px, 92vw); background: var(--surface); }
 
     /* ── Encabezado ── */
     .re-head {
@@ -230,7 +229,7 @@ const TEXTOS: Record<EtapaConResultado, {
     .re-obligatorio {
       padding: 1px 7px;
       border-radius: 999px;
-      background: #fef2f2;
+      background: #fef2f2; background: light-dark(#fef2f2, #351927);
       color: var(--mal);
       font-size: .62rem;
       letter-spacing: .3px;
@@ -247,7 +246,7 @@ const TEXTOS: Record<EtapaConResultado, {
       padding: 12px 14px 12px 17px;
       border: 1.5px solid var(--linea);
       border-radius: 13px;
-      background: #fff;
+      background: var(--surface);
       cursor: pointer;
       text-align: left;
       font: inherit;
@@ -256,8 +255,8 @@ const TEXTOS: Record<EtapaConResultado, {
     }
 
     .re-op:hover {
-      border-color: #cbd5e1;
-      background: #fafbfd;
+      border-color: var(--border-strong);
+      background: var(--surface);
       transform: translateY(-1px);
       box-shadow: 0 3px 10px rgba(16, 24, 40, .06);
     }
@@ -279,8 +278,8 @@ const TEXTOS: Record<EtapaConResultado, {
       width: 38px;
       height: 38px;
       border-radius: 11px;
-      background: #f1f5f9;
-      color: #94a3b8;
+      background: var(--surface-3);
+      color: var(--text-faint);
       flex: 0 0 auto;
       transition: background .16s ease, color .16s ease;
     }
@@ -288,23 +287,23 @@ const TEXTOS: Record<EtapaConResultado, {
     .re-op-ic .mat-icon { width: 20px; height: 20px; font-size: 20px; }
 
     .re-op-txt { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-    .re-op-tit { font-size: .95rem; font-weight: 700; color: var(--tinta); line-height: 1.25; }
+    .re-op-tit { font-size: .95rem; font-weight: 700; color: var(--tinta); color: light-dark(var(--tinta), var(--text)); line-height: 1.25; }
     .re-op-sub { font-size: .755rem; color: var(--muted); margin-top: 2px; }
     .re-op-check { color: #dbe3ec; flex: 0 0 auto; transition: color .16s ease; }
 
     .re-op.activa { box-shadow: 0 4px 14px rgba(16, 24, 40, .08); transform: none; }
 
-    .re-op-ok.activa { border-color: var(--ok); background: #f3faf4; }
+    .re-op-ok.activa { border-color: var(--ok); background: var(--surface-2); }
     .re-op-ok.activa .re-op-barra { background: var(--ok); }
     .re-op-ok.activa .re-op-ic { background: var(--ok); color: #fff; }
-    .re-op-ok.activa .re-op-check { color: var(--ok); }
+    .re-op-ok.activa .re-op-check { color: var(--ok); color: light-dark(var(--ok), #ade1b0); }
 
-    .re-op-mal.activa { border-color: var(--mal); background: #fdf4f4; }
+    .re-op-mal.activa { border-color: var(--mal); background: var(--surface-2); }
     .re-op-mal.activa .re-op-barra { background: var(--mal); }
     .re-op-mal.activa .re-op-ic { background: var(--mal); color: #fff; }
     .re-op-mal.activa .re-op-check { color: var(--mal); }
 
-    .re-op-noshow.activa { border-color: var(--noshow); background: #fff8f1; }
+    .re-op-noshow.activa { border-color: var(--noshow); background: #fff8f1; background: light-dark(#fff8f1, #382a24); }
     .re-op-noshow.activa .re-op-barra { background: var(--noshow); }
     .re-op-noshow.activa .re-op-ic { background: var(--noshow); color: #fff; }
     .re-op-noshow.activa .re-op-check { color: var(--noshow); }
@@ -341,7 +340,7 @@ const TEXTOS: Record<EtapaConResultado, {
       gap: 10px;
       padding: 14px 22px 18px !important;
       border-top: 1px solid var(--linea);
-      background: #fcfdfe;
+      background: var(--surface);
     }
 
     .re-cancelar { color: var(--muted); font-weight: 600; border-radius: 999px; }

@@ -1,26 +1,170 @@
 import { SharedModule } from '@/app/shared/shared.module';
-import {  Component, ViewChild , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, ChangeDetectionStrategy, signal } from '@angular/core';
 import Swal from 'sweetalert2';
 import { HiringService } from '../../service/hiring.service';
-import { MatSort } from '@angular/material/sort';
-import { MatTableDataSource } from '@angular/material/table';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
+import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
+
+/**
+ * Columnas con dato de la tabla, en el mismo orden que `displayedColumns`
+ * (sin las columnas vacías, que solo sirven para «Copiar Tabla» a la
+ * plantilla de Excel): [id, encabezado, campo si difiere del id].
+ */
+const COLUMNAS_ANTES_DE_HIJOS: ReadonlyArray<readonly [string, string, string?]> = [
+  ['numerodeceduladepersona', 'Número de Cédula'],
+  ['primer_apellido', 'Primer Apellido'],
+  ['segundo_apellido', 'Segundo Apellido'],
+  ['primer_nombre', 'Primer Nombre'],
+  ['segundo_nombre', 'Segundo Nombre'],
+  ['fecha_nacimiento', 'Fecha de Nacimiento'],
+  ['genero', 'Género'],
+  ['estado_civil', 'Estado Civil'],
+  ['direccion_residencia', 'Dirección de Residencia'],
+  ['barrio', 'Barrio'],
+  ['celular', 'Celular'],
+  ['primercorreoelectronico', 'Primer Correo Electrónico'],
+  ['municipio', 'Municipio'],
+  ['fecha_expedicion_cc', 'Fecha de Expedición Cédula'],
+  ['municipio_expedicion_cc', 'Municipio Expedición Cédula'],
+  ['departamento_expedicion_cc', 'Departamento Expedición Cédula'],
+  ['lugar_nacimiento_municipio', 'Municipio de Nacimiento'],
+  ['lugar_nacimiento_departamento', 'Departamento de Nacimiento'],
+  ['rh', 'RH'],
+  ['zurdo_diestro', 'Zurdo/Diestro'],
+  ['escolaridad', 'Escolaridad'],
+  ['nombre_institucion', 'Nombre de la Institución'],
+  ['ano_finalizacion', 'Año de Finalización'],
+  ['titulo_obtenido', 'Título Obtenido'],
+  ['chaqueta', 'Talla Chaqueta'],
+  ['pantalon', 'Talla Pantalón'],
+  ['camisa', 'Talla Camisa'],
+  ['calzado', 'Talla Calzado'],
+  ['familiar_emergencia', 'Familiar de Emergencia'],
+  ['parentesco_familiar_emergencia', 'Parentesco Familiar de Emergencia'],
+  ['direccion_familiar_emergencia', 'Dirección Familiar de Emergencia'],
+  ['barrio_familiar_emergencia', 'Barrio Familiar de Emergencia'],
+  ['telefono_familiar_emergencia', 'Teléfono Familiar de Emergencia'],
+  ['ocupacion_familiar_emergencia', 'Ocupación Familiar de Emergencia'],
+  ['nombre_conyugue', 'Nombre del Cónyuge'],
+  ['vive_con_el_conyugue', 'Vive con el Cónyuge'],
+  ['ocupacion_conyugue', 'Ocupación del Cónyuge'],
+  ['direccion_laboral_conyugue', 'Dirección Laboral del Cónyuge'],
+  ['telefono_conyugue', 'Teléfono del Cónyuge'],
+  ['barrio_municipio_conyugue', 'Barrio/Municipio del Cónyuge'],
+  ['num_hijos_dependen_economicamente', 'N° Hijos Dependientes'],
+];
+const COLUMNAS_DESPUES_DE_HIJOS: ReadonlyArray<readonly [string, string, string?]> = [
+  ['nombre_padre', 'Nombre del Padre'],
+  ['vive_padre', 'Vive el Padre'],
+  ['ocupacion_padre', 'Ocupación del Padre'],
+  ['direccion_padre', 'Dirección del Padre'],
+  ['telefono_padre', 'Teléfono del Padre'],
+  ['barrio_padre', 'Barrio del Padre'],
+  ['nombre_madre', 'Nombre de la Madre'],
+  ['vive_madre', 'Vive la Madre'],
+  ['ocupacion_madre', 'Ocupación de la Madre'],
+  ['direccion_madre', 'Dirección de la Madre'],
+  ['telefono_madre', 'Teléfono de la Madre'],
+  ['barrio_madre', 'Barrio de la Madre'],
+  ['nombre_referencia_personal1', 'Nombre Referencia Personal 1'],
+  ['telefono_referencia_personal1', 'Teléfono Referencia Personal 1'],
+  ['ocupacion_referencia_personal1', 'Ocupación Referencia Personal 1'],
+  ['nombre_referencia_personal2', 'Nombre Referencia Personal 2'],
+  ['telefono_referencia_personal2', 'Teléfono Referencia Personal 2'],
+  ['ocupacion_referencia_personal2', 'Ocupación Referencia Personal 2'],
+  ['nombre_referencia_familiar1', 'Nombre Referencia Familiar 1'],
+  ['telefono_referencia_familiar1', 'Teléfono Referencia Familiar 1'],
+  ['ocupacion_referencia_familiar1', 'Ocupación Referencia Familiar 1'],
+  ['nombre_referencia_familiar2', 'Nombre Referencia Familiar 2'],
+  ['telefono_referencia_familiar2', 'Teléfono Referencia Familiar 2'],
+  ['ocupacion_referencia_familiar2', 'Ocupación Referencia Familiar 2'],
+  ['nombre_expe_laboral1_empresa', 'Nombre Empresa'],
+  ['direccion_empresa1', 'Dirección Empresa'],
+  ['telefonos_empresa1', 'Teléfonos Empresa'],
+  ['nombre_jefe_empresa1', 'Nombre Jefe'],
+  ['cargo_empresa1', 'Cargo Jefe'],
+  ['fecha_retiro_empresa1', 'Fecha de Retiro'],
+  ['motivo_retiro_empresa1', 'Motivo Retiro'],
+  ['como_se_entero', '¿Cómo se Enteró?'],
+  ['tiene_experiencia_laboral', '¿Tiene Experiencia Laboral?'],
+  ['empresas_laborado', 'Empresas de flores que ha trabajado (Separarlas con ,)'],
+  ['area_experiencia', '¿En que area?'],
+  ['labores_realizadas', 'Labores Realizadas'],
+  ['rendimiento', 'Rendimiento'],
+  ['porqueRendimiento', '¿Por qué ese Rendimiento?'],
+  ['hacecuantoviveenlazona', '¿Hace Cuánto Vive en la Zona?'],
+  ['tipo_vivienda', 'Tipo de Vivienda'],
+  ['personas_con_quien_convive', 'Personas con Quien Convive'],
+  ['estudia_actualmente', '¿Estudia Actualmente?'],
+  ['personas_a_cargo', 'Personas a Cargo'],
+  ['num_hijos_dependen_economicamente2', 'N° Hijos Dependientes', 'num_hijos_dependen_economicamente'],
+  ['quien_los_cuida', '¿Quién los Cuida?'],
+  ['como_es_su_relacion_familiar', '¿Cómo es su Relación Familiar?'],
+  ['porqueLofelicitarian', '¿Por qué lo Felicitarían?'],
+  ['malentendido', 'Malentendido'],
+  ['actividadesDi', 'Actividades Diarias'],
+  ['experienciaSignificativa', 'Experiencia Significativa'],
+  ['expectativas_de_vida', 'Expectativas de Vida'],
+  ['tipo_vivienda_2p', 'Tipo de Vivienda (2P)'],
+  ['motivacion', 'Motivación'],
+  ['marcaTemporal', 'Marca Temporal'],
+];
+/** Estas se ven también en el celular; el resto solo desde 1024 px. */
+const COLUMNAS_PRINCIPALES = new Set(['numerodeceduladepersona', 'primer_apellido', 'primer_nombre']);
+
+function columnaCampo([id, header, campo]: readonly [string, string, string?]): ColumnaTabla<any> {
+  const c = campo ?? id;
+  return {
+    id, header,
+    valor: (r) => r?.[c] ?? '',
+    prioridad: COLUMNAS_PRINCIPALES.has(id) ? 1 : 3,
+    tarjeta: id === 'primer_apellido' ? 'titulo' : id === 'numerodeceduladepersona' ? 'subtitulo' : 'cuerpo',
+  };
+}
+
+/** Columnas de los 5 hijos (antes generadas en la plantilla): «N/A» si no hay dato. */
+function columnasHijos(): ColumnaTabla<any>[] {
+  const campos: ReadonlyArray<readonly [string, string, string]> = [
+    ['nombre_hijo', 'Nombre del Hijo', 'nombre'],
+    ['sexo_hijo', 'Sexo del Hijo', 'sexo'],
+    ['fecha_nacimiento_hijo', 'Fecha de Nacimiento del Hijo', 'fecha_nacimiento'],
+    ['no_documento_hijo', 'N° Documento del Hijo', 'no_documento'],
+    ['estudia_o_trabaja_hijo', 'Estudia o Trabaja Hijo', 'estudia_o_trabaja'],
+    ['curso_hijo', 'Curso del Hijo', 'curso'],
+  ];
+  const cols: ColumnaTabla<any>[] = [];
+  for (let index = 0; index < 5; index++) {
+    for (const [id, header, campo] of campos) {
+      cols.push({
+        id: `${id}_${index + 1}`, header: `${header} ${index + 1}`, prioridad: 3, tarjeta: 'cuerpo',
+        valor: (r) => r?.hijos?.[index]?.[campo] ?? '',
+        formato: (r) => r?.hijos?.[index]?.[campo] || 'N/A',
+      });
+    }
+  }
+  return cols;
+}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-query-form',
   imports: [
     SharedModule,
-    MatPaginatorModule
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './query-form.component.html',
   styleUrl: './query-form.component.css'
 } )
 export class QueryFormComponent {
   cedula: string = '';
-  dataSource = new MatTableDataSource<any>([]); // MatTableDataSource
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-  @ViewChild(MatSort) sort!: MatSort;
+  /** Registros encontrados (señal: la pantalla es OnPush y sin zone.js). */
+  filas = signal<any[]>([]);
+
+  /** Columnas de la tabla estándar (la tabla pagina, busca, ordena y copia). */
+  readonly columnas: ColumnaTabla<any>[] = [
+    ...COLUMNAS_ANTES_DE_HIJOS.map(columnaCampo),
+    ...columnasHijos(),
+    ...COLUMNAS_DESPUES_DE_HIJOS.map(columnaCampo),
+  ];
 
   displayedColumns: string[] = [
     'numerodeceduladepersona', 'primer_apellido', 'segundo_apellido', 'primer_nombre', 'segundo_nombre',
@@ -107,9 +251,7 @@ export class QueryFormComponent {
       // Obtención de datos desde el servicio
       this.hiringService.buscarEncontratacion(this.cedula).subscribe(
         (data) => {
-          this.dataSource.data = data.data;  // Asigna los datos a la fuente de la tabla
-          this.dataSource.paginator = this.paginator;  // Vincula el paginador
-          this.dataSource.sort = this.sort;  // Vincula la ordenación
+          this.filas.set(data.data ?? []);  // Asigna los datos a la tabla estándar
         },
         (error) => {
           // "No se encontraron datos para la cédula ingresada: 78"
@@ -135,8 +277,8 @@ export class QueryFormComponent {
         // Otros mapeos necesarios
       };
 
-      // Itera sobre los datos filtrados y genera las filas
-      this.dataSource.filteredData.forEach(row => {
+      // Itera sobre los datos consultados y genera las filas
+      this.filas().forEach(row => {
         const rowData = this.displayedColumns.map(column => {
           // Manejo de columnas dinámicas relacionadas con hijos
           if (column.startsWith('nombre_hijo') || column.startsWith('sexo_hijo') ||

@@ -1,8 +1,8 @@
-import {  Component, OnInit , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, OnInit , ChangeDetectionStrategy, signal } from '@angular/core';
 import { SharedModule } from '../../../../../../shared/shared.module';
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
-import { MatTableDataSource } from '@angular/material/table';
 import { HomeService } from '../../service/home.service';
 import { MatDialog } from '@angular/material/dialog';
 import { catchError } from 'rxjs/operators';
@@ -21,19 +21,36 @@ interface Traslado {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-terminated-transfers',
   imports: [
-    SharedModule
+    SharedModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './terminated-transfers.component.html',
   styleUrl: './terminated-transfers.component.css'
 } )
 export class TerminatedTransfersComponent implements OnInit {
   user: any;
-  dataSourceTraslados = new MatTableDataSource<any>();
-  displayedColumnsTraslados: string[] = [
-    'cedulas', 'solicitud_traslado', 'codigo_traslado',
-    'eps_trasladada', 'cantidad_beneficiarios', 'estado_del_traslado', 'fecha_efectividad',
-    'numero_cedula', 'numero_radicado',
-    'observacion_estado', 'responsable'
+  /** Señales: la pantalla es OnPush y la respuesta llega fuera de un evento. */
+  traslados = signal<any[]>([]);
+  cargando = signal(true);
+
+  /** Mismas columnas (y orden) que la tabla anterior. Cédula y solicitud son enlaces: no se copian. */
+  readonly columnasTraslados: ColumnaTabla<any>[] = [
+    { id: 'cedulas', header: 'Cédulas', valor: (t) => (t.cedula_disponible === 1 ? 'Ver Cédula' : 'No disponible'),
+      copiable: false, interactiva: true, prioridad: 2, tarjeta: 'meta' },
+    { id: 'solicitud_traslado', header: 'Solicitud de Traslado',
+      valor: (t) => (t.solicitud_disponible === 1 ? 'Ver Solicitud' : 'No disponible'),
+      copiable: false, interactiva: true, prioridad: 2, tarjeta: 'meta' },
+    { id: 'codigo_traslado', header: 'Código Traslado', valor: (t) => t.codigo_traslado, tarjeta: 'subtitulo' },
+    { id: 'eps_trasladada', header: 'EPS Trasladada', valor: (t) => t.eps_trasladada, tarjeta: 'meta' },
+    { id: 'cantidad_beneficiarios', header: 'Cantidad Beneficiarios', valor: (t) => t.cantidad_beneficiarios,
+      align: 'right', prioridad: 3, tarjeta: 'meta' },
+    { id: 'estado_del_traslado', header: 'Estado del Traslado', valor: (t) => t.estado_del_traslado, tarjeta: 'badge' },
+    { id: 'fecha_efectividad', header: 'Fecha Efectividad', valor: (t) => t.fecha_efectividad, prioridad: 2, tarjeta: 'meta' },
+    { id: 'numero_cedula', header: 'Número Cédula', valor: (t) => t.numero_cedula, tarjeta: 'titulo' },
+    { id: 'numero_radicado', header: 'Número Radicado', valor: (t) => t.numero_radicado, prioridad: 3, tarjeta: 'meta' },
+    { id: 'observacion_estado', header: 'Observación Estado', valor: (t) => t.observacion_estado, prioridad: 3,
+      tarjeta: 'cuerpo' },
+    { id: 'responsable', header: 'Responsable', valor: (t) => t.responsable, prioridad: 3, tarjeta: 'meta' },
   ];
   descargarExcel = false;
 
@@ -49,6 +66,7 @@ export class TerminatedTransfersComponent implements OnInit {
     this.descargarExcel = this.user.rol.nombre === 'ADMIN' || this.user.correo_electronico === 'tuafiliacion@tsservicios.co';
 
     if (!this.user) {
+      this.cargando.set(false);
       return;
     }
 
@@ -58,14 +76,15 @@ export class TerminatedTransfersComponent implements OnInit {
         return of({ traslados: [] }); // Devuelve un array vacío en caso de error
       })
     ).subscribe((data: any) => {
+      this.cargando.set(false);
       try {
         if (!data || !Array.isArray(data.traslados)) {
-          this.dataSourceTraslados.data = [];
+          this.traslados.set([]);
           return;
         }
-        this.dataSourceTraslados.data = data.traslados;
+        this.traslados.set(data.traslados);
       } catch (error) {
-        this.dataSourceTraslados.data = [];
+        this.traslados.set([]);
       }
     });
   }
@@ -85,11 +104,6 @@ export class TerminatedTransfersComponent implements OnInit {
   openBase64PDF(base64: string) {
     if (!base64) return;
     this.electronWindow.openPdfFromBase64(base64, { title: 'Traslado finalizado' });
-  }
-
-  applyFilterTraslados(event: Event) {
-    const filterValue = (event.target as HTMLInputElement).value;
-    this.dataSourceTraslados.filter = filterValue.trim().toLowerCase();
   }
 
   async obtenerTrasladosYGenerarExcel(): Promise<void> {

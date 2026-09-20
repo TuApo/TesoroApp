@@ -1,0 +1,154 @@
+/* Heredado del diálogo que estas secciones sustituyen: el mismo aspecto,
+   sin la cáscara del modal (título, cuerpo con scroll propio y acciones). */
+@import "../../shared/tokens.css";
+
+:host { display: block; }
+
+
+
+
+/* Cada bloque es una tarjeta, igual que las secciones que el panel de
+   Entrevista pinta por su cuenta (cómo llegó, formación, experiencia, empresas,
+   veredicto). Antes eran separadores con una línea y un rótulo en versalitas:
+   al ir intercalados con las otras, la hoja se leía como dos pantallas
+   distintas pegadas. Los estilos se repiten porque están encapsulados por
+   componente.
+
+   Poco relleno a propósito: la hoja es larga y el aire entre bloques es scroll
+   que hay que recorrer para llegar a los campos. */
+.fe-bloque {
+  padding: 10px 12px 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  margin-bottom: 8px;
+}
+
+.fe-bloque-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.fe-bloque-head h3 {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.fe-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Mismos colores que los puntos de la ficha: se reconoce qué bloque se abrió. */
+.fe-dot-blue   { background: #3b82f6; }
+.fe-dot-indigo { background: #6366f1; }
+.fe-dot-cyan   { background: #06b6d4; }
+.fe-dot-purple { background: #a855f7; }
+
+.fe-sub {
+  margin: 2px 0 6px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Columnas más estrechas: en un monitor ancho entran cuatro o cinco campos por
+   fila en vez de tres, que es de donde salen las pantallas de datos que caben
+   sin scroll. `subscriptSizing="dynamic"` quita el renglón que Material reserva
+   bajo cada campo para el error, así que la separación vertical la pone esta
+   rejilla y no el hueco vacío. */
+.fe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(205px, 100%), 1fr));
+  gap: 10px 12px;
+}
+
+.fe-ancho { grid-column: 1 / -1; }
+
+/* Aclaración corta bajo el título de una sección: dónde se edita un dato que
+   vive en otro bloque, o en qué formato se guarda. */
+.fe-nota {
+  margin: -4px 0 8px;
+  font-size: .76rem;
+  color: var(--muted);
+}
+
+
+
+
+
+@media (max-width: 600px) {
+  .fe-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+/* La lista de hijos: una línea por hijo con el nombre y la edad. No son campos
+   —el detalle se diligencia en el formulario de la vacante— así que van como
+   texto y no como una rejilla de inputs vacíos. */
+.fe-hijos {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 10px;
+  padding: 0;
+}
+
+.fe-hijo-fila {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: .78rem;
+}
+
+.fe-hijo-fila mat-icon {
+  flex: none;
+  color: #f59e0b; color: light-dark(#f59e0b, #f7d397);
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.fe-hijo-nombre {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* La edad se separa del nombre con un punto medio, para leerse de un vistazo. */
+.fe-hijo-edad {
+  color: var(--text-2);
+}
+
+.fe-hijo-edad::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--text-faint);
+}
+
+/* Una tarjeta por hijo: sin el marco, ocho campos por hijo se leen como una
+   lista plana y no se sabe dónde acaba uno y empieza el siguiente. */
+.fe-hijo {
+  margin: 6px 0 12px;
+  padding: 10px 12px 2px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.fe-dot-amber { background: #f59e0b; }
+
+/* En línea, el bloque no necesita separarse tanto como dentro del modal: aquí
+   compite con el resto del panel de Entrevista, no con un fondo vacío. */
+.fc-form { display: block; }

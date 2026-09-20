@@ -45,6 +45,8 @@ interface CampoColocado {
  */
 @Component({
   selector: 'app-overlay-editor',
+  // Documento (se imprime o se captura): se queda en claro aunque la app esté en oscuro.
+  host: { class: 'tema-claro-fijo' },
   standalone: true,
   imports: [
     CommonModule, FormsModule, DragDropModule, MatButtonModule, MatIconModule,

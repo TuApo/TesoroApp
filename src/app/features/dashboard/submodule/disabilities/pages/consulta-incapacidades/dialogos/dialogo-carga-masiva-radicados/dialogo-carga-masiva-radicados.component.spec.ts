@@ -124,11 +124,16 @@ describe('DialogoCargaMasivaRadicadosComponent', () => {
     expect(contadores[1].textContent?.trim()).toBe('2'); // exitosos
     expect(contadores[2].textContent?.trim()).toBe('1'); // fallidos
 
-    // La tabla pinta las 3 filas del detalle.
+    // La tabla estandar pinta las 3 filas del detalle (como filas o como
+    // tarjetas, segun el ancho de la ventana del navegador de pruebas).
     const filas = (fixture.nativeElement as HTMLElement).querySelectorAll(
-      '.cmr-tabla tbody tr',
+      'app-tabla-estandar .te-fila, app-tabla-estandar .te-tarjeta',
     );
     expect(filas.length).toBe(3);
+
+    // La fila que no se radico se resalta con la clase de la tabla.
+    expect(componente.claseResultado(RESULTADO.filas[2])).toBe('te-fila--peligro');
+    expect(componente.claseResultado(RESULTADO.filas[0])).toBe('');
   });
 
   it('al cerrar tras un procesamiento con exitosos devuelve { recargar: true }', () => {

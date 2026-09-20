@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  computed,
   DestroyRef,
   effect,
   inject,
@@ -9,6 +10,7 @@ import {
   NgZone,
   OnInit,
   output,
+  PLATFORM_ID,
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
@@ -31,7 +33,23 @@ import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
 
 import colombia from '../../../../../../data/colombia.json';
+import { TextFieldModule } from '@angular/cdk/text-field';
+import {
+  campoMotivoContrario,
+  campoMotivoDe,
+  ESTADOS_OBSERVACION,
+  MAX_MOTIVO,
+  observacionCompleta,
+} from './observacion-evaluador.rules';
+import { isPlatformBrowser } from '@angular/common';
 import { SharedModule } from '@/app/shared/shared.module';
+import {
+  anclaSeccion,
+  FichaCamposComponent,
+  SECCIONES_FICHA,
+  SECCIONES_FICHA_EXTRA,
+  SeccionFicha,
+} from '../ficha-campos/ficha-campos.component';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { docParaEnviar } from '@/app/shared/utils/tipo-doc.util';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
@@ -44,16 +62,18 @@ import {
 } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 import { Avance, avanceDeForm } from '../../shared/progreso.util';
-import {
-  BloqueFicha,
-  FichaEditarDialogComponent,
-} from '../ficha-editar/ficha-editar.dialog';
+import { AutoGuardado, GuardadoIncompleto } from '../../shared/auto-guardado';
+import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
 import { AsistenteIaComponent } from '../../../herramientas-ia/pages/asistente-ia/asistente-ia.component';
 
 @Component({
   selector: 'app-form-entrevista',
   standalone: true,
-  imports: [MatIconModule, SharedModule, AsistenteIaComponent],
+  imports: [
+    MatIconModule, SharedModule, AsistenteIaComponent, FichaCamposComponent, AutoGuardadoEstadoComponent,
+    // `cdkTextareaAutosize` de los motivos de NO APLICA / EN ESPERA.
+    TextFieldModule,
+  ],
   templateUrl: './form-entrevista.component.html',
   styleUrls: ['./form-entrevista.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -61,6 +81,19 @@ import { AsistenteIaComponent } from '../../../herramientas-ia/pages/asistente-i
 export class FormEntrevistaComponent implements OnInit {
   /** Último titular (tipo|número) rellenado desde el servidor (effect del constructor). */
   private cedulaRellenada: string | null = null;
+
+  /**
+   * Entrevista y datos de la persona sin botón "Enviar": cada respuesta se
+   * guarda sola. Mientras falten obligatorios se guarda lo respondido; cuando
+   * está completa se marca además la entrevista como realizada.
+   */
+  readonly autoEntrevista = new AutoGuardado(
+    () => this.onSubmit({ silencioso: true }),
+    () => {
+      const c = this.candidatoSeleccionado();
+      return c?.numero_documento ? `${c.tipo_doc || 'CC'}|${c.numero_documento}` : '';
+    },
+  );
 
   // ====== Inputs / Outputs / Servicios ======
   candidatoSeleccionado = input<any | null>(null);
@@ -90,6 +123,16 @@ export class FormEntrevistaComponent implements OnInit {
    *  el candidato (y aparezca el proceso nuevo sin re-buscar). */
   guardado = output<void>();
 
+  /**
+   * La entrevista se envió y quedó guardada, con el veredicto que llevara.
+   *
+   * Va aparte de `guardado` a propósito: ese lo emiten también la remisión y los
+   * demás tabs, y colgar de él el salto a Remisión haría saltar la pantalla cada
+   * vez que se guarda cualquier otra cosa. Este solo sale de "Enviar" de la
+   * entrevista, y el pipeline decide a dónde llevar según el veredicto.
+   */
+  entrevistaEnviada = output<'APLICA' | 'NO_APLICA' | 'EN_ESPERA' | null>();
+
   private readonly fb = inject(FormBuilder);
   private readonly dateAdapter = inject<DateAdapter<Date>>(
     DateAdapter as any
@@ -98,6 +141,8 @@ export class FormEntrevistaComponent implements OnInit {
   private readonly util = inject(UtilityServiceService);
   private readonly candidateService = inject(RegistroProcesoContratacion);
   private readonly catalogos = inject(GestionParametrizacionService);
+  /** SSR no tiene DOM: el salto de scroll solo corre en el navegador. */
+  private readonly platformId = inject(PLATFORM_ID);
   private readonly seleccionEstado = inject(SeleccionEstadoService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly ngZone = inject(NgZone);
@@ -149,6 +194,22 @@ export class FormEntrevistaComponent implements OnInit {
   dominioCorreoOpciones$: Observable<CatalogValue[]> = this.safeCatalog('DOMINIOS', 'Dominios de Correo');
   comoSeEnteroOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CATALOGO_MARKETING', '¿Cómo se enteró?');
   parentescosOpciones$: Observable<CatalogValue[]> = this.safeCatalog('PARENTESCOS_FAMILIARES', 'Parentescos');
+  /**
+   * Ocupaciones. Es el mismo catálogo que usa el formulario de la vacante en
+   * los pasos de pareja, padres y contacto de emergencia; sin él, el
+   * seleccionador tendría que teclear a mano lo que la persona eligió de una
+   * lista, y los dos valores no volverían a coincidir.
+   */
+  ocupacionesOpciones$: Observable<CatalogValue[]> = this.safeCatalog('OCUPACIONES', 'Ocupaciones');
+  /**
+   * Los tres catálogos del bloque de experiencia laboral de la hoja de
+   * entrevista. Son LOS MISMOS que usa el formulario de la vacante: si aquí se
+   * teclearan a mano, el valor que eligió la persona y el que registra el
+   * evaluador dejarían de coincidir.
+   */
+  areasExperienciaOpciones$: Observable<CatalogValue[]> = this.safeCatalog('AREAS_EXPERIENCIA', 'Áreas de experiencia');
+  tiempoExperienciaOpciones$: Observable<CatalogValue[]> = this.safeCatalog('TIEMPO_EXPERIENCIA', 'Tiempo de experiencia');
+  motivosRetiroOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CATALOGO_MOTIVOS_RETIRO', 'Motivos de retiro');
 
   // ====== Form / estado ======
   formVacante!: FormGroup;
@@ -246,8 +307,16 @@ export class FormEntrevistaComponent implements OnInit {
    */
   readonly filaEnEdicion = signal<string | null>(null);
 
-  /** Bloques de la ficha plegados por el usuario. */
-  private readonly plegados = signal<ReadonlySet<string>>(new Set<string>());
+  /**
+   * Tarjetas accesorias del panel que están plegadas.
+   *
+   * La entrevista es una hoja larga y lo que se quiere en pantalla son los
+   * CAMPOS: la sugerencia de la IA vale cuando se consulta y estorba el resto
+   * del tiempo, así que arranca plegada. La elección se recuerda en el
+   * navegador (`restaurarPlegados`) para no tener que plegarla en cada
+   * candidato.
+   */
+  private readonly plegados = signal<ReadonlySet<string>>(new Set(['ia']));
 
   /** Foto del candidato, resuelta por el pipeline (doc subido o biometría). */
   fotoUrl = input<string | null>(null);
@@ -487,15 +556,81 @@ export class FormEntrevistaComponent implements OnInit {
     }
   }
 
-  // ── Plegado de bloques ───────────────────────────────────────────────────
+  // ── Hijos: nombre y edad ─────────────────────────────────────────────────
+  /**
+   * Nombre y edad de cada hijo, para la ficha.
+   *
+   * Es una SEÑAL y no un getter porque la ficha (`app-ficha-campos`) es OnPush y
+   * los datos entran por `patchValue(..., { emitEvent: false })`: sin un binding
+   * que cambie, la lista se quedaría pintada con lo del candidato anterior.
+   * Publicarla como señal y bajarla por `@Input` marca la ficha para revisión.
+   */
+  readonly hijosResumen = signal<ReadonlyArray<{ nombre: string; edad: string }>>([]);
+
+  /**
+   * La edad tal como se dice en la entrevista.
+   *
+   * Por debajo del año se cuentan MESES —y se dice "meses"—: con un bebé,
+   * "0 años" no es una respuesta, y es justo la edad que decide si la persona
+   * necesita quién lo cuide.
+   */
+  private edadDeHijo(valor: any): string {
+    const f = valor instanceof Date ? valor : (valor ? new Date(valor) : null);
+    if (!f || isNaN(f.getTime())) return 'sin fecha de nacimiento';
+
+    const hoy = new Date();
+    let meses = (hoy.getFullYear() - f.getFullYear()) * 12 + (hoy.getMonth() - f.getMonth());
+    if (hoy.getDate() < f.getDate()) meses--;
+    if (meses < 0) return 'sin fecha de nacimiento';   // fecha futura: dato malo
+    if (meses === 0) return 'menos de un mes';
+    if (meses < 12) return meses === 1 ? '1 mes' : `${meses} meses`;
+
+    const anios = Math.floor(meses / 12);
+    return anios === 1 ? '1 año' : `${anios} años`;
+  }
+
+  /** Relee el FormArray de hijos y publica la lista. */
+  private refrescarHijosResumen(): void {
+    const fa = this.formVacante?.get('hijos') as FormArray | null;
+    const filas = (fa?.controls ?? []).map((c, i) => {
+      const h = c.value ?? {};
+      const nombre =
+        [h.primer_nombre, h.segundo_nombre, h.primer_apellido, h.segundo_apellido]
+          .filter(Boolean).join(' ').trim() ||
+        (h.numero_de_documento ? `Doc. ${h.numero_de_documento}` : `Hijo ${i + 1}`);
+      return { nombre, edad: this.edadDeHijo(h.fecha_nac) };
+    });
+    this.hijosResumen.set(filas);
+  }
+
+  // ── Plegado de las tarjetas accesorias ───────────────────────────────────
+  private static readonly LS_PLEGADOS = 'entrevista.plegados';
+
+  /** Se llama desde `ngOnInit`: en SSR no hay `localStorage`. */
+  private restaurarPlegados(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    try {
+      const crudo = localStorage.getItem(FormEntrevistaComponent.LS_PLEGADOS);
+      if (crudo) this.plegados.set(new Set(JSON.parse(crudo) as string[]));
+    } catch {
+      // Un valor corrupto no puede impedir abrir la entrevista: se ignora.
+    }
+  }
+
   plegado(bloque: string): boolean {
     return this.plegados().has(bloque);
   }
 
-  alternarBloque(bloque: string): void {
+  alternarPliegue(bloque: string): void {
     const s = new Set(this.plegados());
-    s.has(bloque) ? s.delete(bloque) : s.add(bloque);
+    if (s.has(bloque)) s.delete(bloque); else s.add(bloque);
     this.plegados.set(s);
+    if (!isPlatformBrowser(this.platformId)) return;
+    try {
+      localStorage.setItem(FormEntrevistaComponent.LS_PLEGADOS, JSON.stringify([...s]));
+    } catch {
+      // Modo privado o cuota llena: se pierde la preferencia, no la pantalla.
+    }
   }
 
   // ── Lectura de valores para la ficha ─────────────────────────────────────
@@ -630,9 +765,8 @@ export class FormEntrevistaComponent implements OnInit {
    * intentar resaltarlo.
    */
   private static readonly UBICACION: ReadonlyArray<
-    readonly [string, 'identificacion' | 'personales' | 'contacto' | 'familia', string]
+    readonly [string, 'identificacion' | 'personales' | 'contacto' | 'hijos' | 'referencias', string]
   > = [
-    ['oficina', 'identificacion', 'oficina'],
     ['tipo_doc', 'identificacion', 'documento'],
     ['numero_documento', 'identificacion', 'documento'],
     ['fecha_expedicion', 'identificacion', 'expedicion'],
@@ -646,36 +780,39 @@ export class FormEntrevistaComponent implements OnInit {
     ['sexo', 'personales', 'sexo'],
     ['estado_civil', 'personales', 'estado_civil'],
     ['correo_electronico', 'contacto', 'correo'],
-    ['password', 'contacto', 'correo'],
     ['celular', 'contacto', 'telefonos'],
     ['whatsapp', 'contacto', 'telefonos'],
     ['direccion_de_residencia', 'contacto', 'direccion'],
     ['barrio', 'contacto', 'direccion'],
-    ['personas_con_quien_convive', 'contacto', 'convivencia'],
-    ['hace_cuanto_vive', 'contacto', 'convivencia'],
-    ['tieneHijos', 'familia', 'hijos'],
-    ['numeroHijos', 'familia', 'hijos'],
-    ['cuidadorHijos', 'familia', 'hijos'],
-    ['hijos', 'familia', 'hijos'],
-    ['nombreReferenciaFamiliar1', 'familia', 'ref-familiares'],
-    ['parentescoReferenciaFamiliar1', 'familia', 'ref-familiares'],
-    ['nombreReferenciaFamiliar2', 'familia', 'ref-familiares'],
-    ['parentescoReferenciaFamiliar2', 'familia', 'ref-familiares'],
-    ['nombreReferenciaPersonal1', 'familia', 'ref-personales'],
-    ['parentescoReferenciaPersonal1', 'familia', 'ref-personales'],
-    ['nombreReferenciaPersonal2', 'familia', 'ref-personales'],
-    ['parentescoReferenciaPersonal2', 'familia', 'ref-personales'],
+    ['hace_cuanto_vive', 'contacto', 'direccion'],
+    ['personas_con_quien_convive', 'contacto', 'convive'],
+    ['relacionFamiliar', 'hijos', 'familia'],
+    ['tieneHijos', 'hijos', 'hijos'],
+    ['numeroHijos', 'hijos', 'hijos'],
+    ['cuidadorHijos', 'hijos', 'hijos'],
+    ['nombreReferenciaFamiliar1', 'referencias', 'ref-familiares'],
+    ['parentescoReferenciaFamiliar1', 'referencias', 'ref-familiares'],
+    ['nombreReferenciaPersonal1', 'referencias', 'ref-personales'],
+    ['parentescoReferenciaPersonal1', 'referencias', 'ref-personales'],
   ];
 
   /** Controles que se editan en el área de trabajo, y en qué pestaña. */
   private static readonly UBICACION_PANEL: ReadonlyArray<readonly [string, 'formacion' | 'entrevista']> = [
-    ['nivel', 'formacion'],
-    ['estudiaActualmente', 'formacion'],
     ['proyeccion1Ano', 'formacion'],
-    ['experienciaFlores', 'formacion'],
-    ['tipoExperienciaFlores', 'formacion'],
-    ['otroExperiencia', 'formacion'],
-    ['experiencias', 'formacion'],
+    // Escolaridad, experiencia e historial laboral se preguntan en la
+    // ENTREVISTA (la hoja los lleva) y se siguen pudiendo editar en Formación.
+    // El destino es Entrevista porque es donde se contestan de corrido.
+    ['nivel', 'entrevista'],
+    ['estudiosExtra', 'entrevista'],
+    ['tituloObtenido', 'entrevista'],
+    ['institucionEstudio', 'entrevista'],
+    ['anioFinalizacion', 'entrevista'],
+    ['estudiaActualmente', 'entrevista'],
+    ['experienciaLaboral', 'entrevista'],
+    ['experienciaFlores', 'entrevista'],
+    ['tipoExperienciaFlores', 'entrevista'],
+    ['otroExperiencia', 'entrevista'],
+    ['experiencias', 'entrevista'],
     ['comoSeEntero', 'entrevista'],
     ['referenciado', 'entrevista'],
     ['nombreReferenciado', 'entrevista'],
@@ -695,23 +832,25 @@ export class FormEntrevistaComponent implements OnInit {
   private revelarPrimerInvalido(): boolean {
     if (!this.formVacante) return false;
 
-    // Los campos de la ficha ya no se editan en sitio —la ficha del pipeline es
-    // de lectura—, así que "revelar" es abrir el diálogo en el bloque donde
-    // está el hueco. Antes esto desplegaba filas de una ficha que este
-    // componente dejó de pintar, y el aviso señalaba un rojo invisible.
+    // La ficha del pipeline es de lectura: los campos se editan aquí, en línea.
+    // "Revelar" es desplazarse a la sección donde está el hueco; antes abría un
+    // diálogo, y antes de eso desplegaba filas de una ficha que este componente
+    // dejó de pintar y el aviso señalaba un rojo invisible.
     for (const [campo, bloque] of FormEntrevistaComponent.UBICACION) {
       if (!this.formVacante.get(campo)?.invalid) continue;
-      this.abrirEdicionFicha(bloque);
+      this.irASeccion(bloque);
       return true;
     }
 
     for (const [campo, destino] of FormEntrevistaComponent.UBICACION_PANEL) {
       if (!this.formVacante.get(campo)?.invalid) continue;
-      if (this.panel() !== destino) {
-        this.panel.set(destino);
-        return true;
-      }
-      return false;
+      const cambiaPanel = this.panel() !== destino;
+      if (cambiaPanel) this.panel.set(destino);
+      // El panel de Entrevista ahora es largo —nueve secciones de datos antes
+      // de las preguntas—, así que estar en la pestaña correcta ya no basta:
+      // hay que bajar hasta la sección o el rojo queda fuera de pantalla.
+      if (destino === 'entrevista') this.irASeccion('entrevista');
+      return cambiaPanel;
     }
 
     return false;
@@ -770,10 +909,12 @@ export class FormEntrevistaComponent implements OnInit {
     // =======================
     this.formVacante = this.fb.group({
       // Identificación / documento
-      // La oficina la preasigna el flujo (URL/candidato) pero es editable:
-      // el valor que llega no siempre es el correcto y hay que poder
-      // corregirlo desde la UI. Sigue acotada a la lista `oficinas`.
-      oficina: ['', Validators.required],
+      // La oficina la preasigna el flujo (URL/candidato). Ya no se pinta en la
+      // entrevista —no es algo que se le pregunte a la persona— y por eso deja
+      // de ser obligatoria: un campo requerido que no está en pantalla bloquea
+      // el guardado sin enseñar dónde está el hueco. El valor sigue cargándose
+      // y guardándose igual.
+      oficina: [''],
       tipo_doc: ['', Validators.required],
       numero_documento: [
         '',
@@ -811,6 +952,10 @@ export class FormEntrevistaComponent implements OnInit {
       mpio_nacimiento: ['', Validators.required],
       sexo: ['', Validators.required],
       estado_civil: ['', Validators.required],
+      // RH: lo pide el formulario de la vacante y lo exigen la afiliación y la
+      // ficha de emergencia. No lleva `required` porque la base ya registrada
+      // no lo tiene y bloquearía el guardado de toda esa gente.
+      rh: [''],
 
       // Contacto / domicilio
       correo_electronico: [
@@ -839,10 +984,11 @@ export class FormEntrevistaComponent implements OnInit {
           Validators.maxLength(10),
         ],
       ],
-      personas_con_quien_convive: [
-        [],
-        [Validators.required, this.minLengthArray(1)],
-      ],
+      // Del paso "Su hogar" del formulario de la vacante: perfil socioeconómico,
+      // no dato de contratación. Se conserva el control —lo llena el formulario
+      // público y se sigue guardando— pero SIN `required`: salió de la ficha, y
+      // exigirlo dejaría la entrevista sin poder guardarse y sin dónde llenarlo.
+      personas_con_quien_convive: [[]],
       hace_cuanto_vive: ['', Validators.required],
 
       // Información familiar
@@ -858,14 +1004,54 @@ export class FormEntrevistaComponent implements OnInit {
       parentescoReferenciaPersonal1: ['', [Validators.maxLength(70)]],
       nombreReferenciaPersonal2: [''],
       parentescoReferenciaPersonal2: ['', [Validators.maxLength(70)]],
+      // Con el nombre y el parentesco solos no se puede VERIFICAR una
+      // referencia, que es para lo que existe antes de contratar. El teléfono,
+      // la ocupación y la dirección ya viajan en el payload y el backend los
+      // guarda; lo único que faltaba era dónde escribirlos.
+      telefonoReferenciaFamiliar1: [''],
+      ocupacionReferenciaFamiliar1: [''],
+      direccionReferenciaFamiliar1: [''],
+      telefonoReferenciaFamiliar2: [''],
+      ocupacionReferenciaFamiliar2: [''],
+      direccionReferenciaFamiliar2: [''],
+      telefonoReferenciaPersonal1: [''],
+      ocupacionReferenciaPersonal1: [''],
+      direccionReferenciaPersonal1: [''],
+      telefonoReferenciaPersonal2: [''],
+      ocupacionReferenciaPersonal2: [''],
+      direccionReferenciaPersonal2: [''],
 
       // Formación / experiencia
       nivel: [null, Validators.required],
+      /**
+       * El detalle de la escolaridad. Vive en `formaciones[0]` y la entrevista
+       * lo leía a medias: solo `nivel`. Como el guardado REEMPLAZA la lista, la
+       * institución, el título y el año se borraban en cada entrevista guardada
+       * —de ahí que a los candidatos con "OTROS" no les quedara nada del
+       * estudio superior que sí habían diligenciado—.
+       *
+       * Ninguno lleva `required`: los registros ya guardados no los tienen y
+       * exigirlos dejaría sin poder guardar justo a quien hay que corregirle.
+       */
+      estudiosExtra: [''],
+      tituloObtenido: ['', [Validators.maxLength(255)]],
+      institucionEstudio: ['', [Validators.maxLength(255)]],
+      anioFinalizacion: [null],
       estudiaActualmente: [null, Validators.required],
       proyeccion1Ano: ['', Validators.required],
+      /**
+       * "¿Usted cuenta con experiencia laboral?" — la pregunta GENERAL, la que
+       * abre el bloque de historial laboral. Va aparte de la de flores: hasta
+       * ahora las dos compartían `experiencia_resumen.tiene_experiencia` y no
+       * había forma de decir que alguien tiene experiencia pero no en flores.
+       */
+      experienciaLaboral: [''],
       experienciaFlores: ['', Validators.required],
       tipoExperienciaFlores: [''],
       otroExperiencia: this.otroExperienciaControl,
+      /** Áreas y tiempo total: son del resumen, no de una empresa concreta. */
+      areaExperiencia: [[]],
+      tiempoExperiencia: [''],
 
       // Historial laboral
       experiencias: this.fb.array([]),
@@ -877,6 +1063,58 @@ export class FormEntrevistaComponent implements OnInit {
       aplicaObservacion: ['', Validators.required], // 'APLICA' | 'NO_APLICA' | 'EN_ESPERA'
       motivoEspera: [''],
       motivoNoAplica: [''],
+
+      // ── Pareja · paso "Estado civil" del formulario de la vacante ──────
+      // NINGUNO de los campos de abajo lleva `required`: son datos que el
+      // formulario público pide condicionados (solo si vive en pareja, solo si
+      // conoce al papá…) y el guardado de la entrevista valida el formulario
+      // ENTERO. Marcarlos obligatorios dejaría sin poder guardar a toda la base
+      // ya registrada, que es justo a quien hay que poder corregirle la ficha.
+      viveConyuge: [''],
+      nombresConyuge: [''],
+      apellidosConyuge: [''],
+      documentoConyuge: [''],
+      telefonoConyuge: [''],
+      ocupacionConyuge: [''],
+      municipioConyuge: [''],
+      barrioConyuge: [''],
+      direccionConyuge: [''],
+
+      // ── Padres · paso "Datos de sus padres" ────────────────────────────
+      elPadreVive: [''],
+      nombresPadre: [''],
+      apellidosPadre: [''],
+      telefonoPadre: [''],
+      ocupacionPadre: [''],
+      municipioPadre: [''],
+      barrioPadre: [''],
+      direccionPadre: [''],
+      madreVive: [''],
+      nombresMadre: [''],
+      apellidosMadre: [''],
+      telefonoMadre: [''],
+      ocupacionMadre: [''],
+      municipioMadre: [''],
+      barrioMadre: [''],
+      direccionMadre: [''],
+
+      // ── Emergencia · paso "A quién llamamos en una emergencia" ─────────
+      nombresFamiliarEmergencia: [''],
+      apellidosFamiliarEmergencia: [''],
+      parentescoFamiliarEmergencia: [''],
+      telefonoFamiliarEmergencia: [''],
+      ocupacionFamiliarEmergencia: [''],
+      municipioFamiliarEmergencia: [''],
+      barrioFamiliarEmergencia: [''],
+      direccionFamiliarEmergencia: [''],
+
+      // ── Dotación · paso "Tallas de dotación" ───────────────────────────
+      // La tabla guarda enteros (34, 16, 40…), no tallas en letra: se piden
+      // como número para no escribir "M" donde el resto del sistema lee cifras.
+      tallaChaqueta: [null],
+      tallaPantalon: [null],
+      tallaCamisa: [null],
+      tallaCalzado: [null],
 
       // Aux
       brigadaDe: [''],
@@ -891,6 +1129,10 @@ export class FormEntrevistaComponent implements OnInit {
       // Firma
       firmaEvaluador: [{ value: '', disabled: true }],
     });
+
+    // Sin botón "Enviar": cada cambio del usuario se guarda solo. Faltaba este
+    // enganche y la pestaña no guardaba nada (2026-09-16).
+    this.autoEntrevista.vigilar(this.formVacante, this.destroyRef);
 
     // =======================
     // Reacciones dinámicas
@@ -959,6 +1201,13 @@ export class FormEntrevistaComponent implements OnInit {
         : null;
       if (clave !== null && clave === this.cedulaRellenada) return;
       this.cedulaRellenada = clave;
+      // Lo pendiente era de la persona anterior, y lo que se rellene ahora no es
+      // algo que alguien editó: no debe dispararse el guardado automático.
+      this.autoEntrevista.cancelar();
+      this.formVacante.markAsPristine();
+      // Persona nueva: las secciones que se abrieron a mano para la anterior
+      // no tienen por qué seguir abiertas.
+      this.seccionesExtra.set([]);
       this.rellenarForm(cand);
     });
 
@@ -977,11 +1226,25 @@ export class FormEntrevistaComponent implements OnInit {
 
     // El lápiz de la ficha pide editar; el formulario con esos campos es este,
     // así que el diálogo se abre desde aquí.
+    //
+    // Pareja, padres, emergencia y tallas ya no se pintan de entrada —no se
+    // preguntan en la entrevista—, pero el lápiz de la ficha sigue siendo la
+    // única forma de corregirlos: si piden uno de esos bloques, se añade a lo
+    // visible ANTES de bajar hasta él. Si no, el lápiz llevaría a una sección
+    // que no está en el DOM y no pasaría nada.
     effect(() => {
       const bloque = this.nav.edicionFicha();
       if (!bloque) return;
       this.nav.edicionFicha.set(null);
-      this.abrirEdicionFicha(bloque);
+      if (SECCIONES_FICHA_EXTRA.includes(bloque as SeccionFicha)) {
+        this.seccionesExtra.update((s) => (s.includes(bloque as SeccionFicha) ? s : [...s, bloque as SeccionFicha]));
+      }
+      // El lápiz se pulsa desde la tarjeta del pipeline, que está a la vista en
+      // todos los pasos: si el panel abierto no es el de Entrevista, la sección
+      // ni siquiera está en el DOM y el salto no llevaría a ninguna parte.
+      if (this.panel() !== 'entrevista') this.panel.set('entrevista');
+      this.cdr.markForCheck();
+      this.irASeccion(bloque);
     });
 
     // Avance de Entrevista y Formación para los dos railes. Se escucha también
@@ -1002,41 +1265,105 @@ export class FormEntrevistaComponent implements OnInit {
    * Trabaja sobre ESTE formulario, así que al aceptar se guarda por el camino
    * de siempre (`onSubmit`) y no hay una segunda ruta de guardado.
    */
-  abrirEdicionFicha(bloque: string): void {
-    const TODOS: readonly BloqueFicha[] = ['identificacion', 'personales', 'contacto', 'familia'];
-    const ROTULO: Record<BloqueFicha, string> = {
-      identificacion: 'Identificación y documento',
-      personales: 'Datos personales',
-      contacto: 'Contacto y domicilio',
-      familia: 'Familia y referencias',
-    };
+  /**
+   * Las secciones de datos de la persona, para el acceso directo del panel de
+   * Entrevista.
+   *
+   * El lápiz vive en la ficha de la izquierda, bloque por bloque, y quien está
+   * entrevistando mira la columna de la derecha: no encontraba dónde corregir
+   * lo que la persona le estaba diciendo. Esta barra abre EL MISMO diálogo, sin
+   * una segunda ruta de guardado.
+   */
+  /**
+   * Los accesos directos de la barra.
+   *
+   * Las nueve primeras son los datos de la persona y las pinta `ficha-campos`;
+   * la décima —Entrevista— vive en ESTA plantilla porque sus preguntas tienen
+   * reglas propias (el motivo aparece o no según la observación) y son las
+   * únicas obligatorias del recorrido. Va la última: se coteja la ficha con el
+   * documento y solo entonces se registra la entrevista.
+   */
+  /** Los tres estados del veredicto. Los define la regla, no la plantilla. */
+  readonly ESTADOS_OBSERVACION = ESTADOS_OBSERVACION;
 
-    const uno = TODOS.find((b) => b === bloque);
-    const bloques = uno ? [uno] : TODOS;
+  /**
+   * Niveles de educación superior. Lista cerrada, LA MISMA que el formulario de
+   * la vacante (`NIVELES_SUPERIORES`): si aquí se tecleara a mano, el valor que
+   * eligió la persona y el que registra el evaluador dejarían de coincidir.
+   *
+   * El valor va SIN TILDES a propósito. El formulario público guarda
+   * "TECNÓLOGO" con tilde, pero el guardado de la entrevista pasa el payload
+   * entero por mayúsculas-sin-tildes: guardaba "TECNOLOGO" y al releer no
+   * casaba con ninguna opción, así que el select salía vacío y el dato se
+   * perdía en el guardado siguiente. `nivelSuperiorNormalizado` iguala las dos
+   * escrituras al cargar.
+   */
+  readonly NIVELES_SUPERIORES: ReadonlyArray<{ valor: string; etiqueta: string }> = [
+    { valor: 'TECNICO', etiqueta: 'Técnico' },
+    { valor: 'TECNOLOGO', etiqueta: 'Tecnólogo' },
+    { valor: 'PROFESIONAL', etiqueta: 'Profesional' },
+    { valor: 'ESPECIALIZACION', etiqueta: 'Especialización' },
+    { valor: 'MAESTRIA', etiqueta: 'Maestría' },
+    { valor: 'DOCTORADO', etiqueta: 'Doctorado' },
+    { valor: 'CURSO / DIPLOMADO', etiqueta: 'Curso / Diplomado' },
+    { valor: 'CERTIFICACION', etiqueta: 'Certificación' },
+    { valor: 'OTRO', etiqueta: 'Otro' },
+  ];
 
-    this.dialog
-      .open(FichaEditarDialogComponent, {
-        width: uno ? '760px' : '980px',
-        maxWidth: '95vw',
-        autoFocus: false,
-        restoreFocus: false,
-        data: {
-          form: this.formVacante,
-          bloques,
-          titulo: uno ? ROTULO[uno] : 'Datos del candidato',
-          oficinas: this.oficinas,
-          ciudades: this.allCities,
-          tipoDoc$: this.tipoDocOpciones$,
-          estadoCivil$: this.estadoCivilOpciones$,
-          conQuienVive$: this.conQuienViveOpciones$,
-          parentescos$: this.parentescosOpciones$,
-        },
-      })
-      .afterClosed()
-      .subscribe((r) => {
-        this.cdr.markForCheck();
-        if (r === 'guardar') this.onSubmit();
-      });
+  /** Lo que venga del servidor, llevado a la opción de la lista que le toca. */
+  private nivelSuperiorNormalizado(v: any): string {
+    const n = this.normalizeText(v);
+    return this.NIVELES_SUPERIORES.find((x) => x.valor === n)?.valor ?? '';
+  }
+
+
+  /**
+   * Los accesos rápidos del panel, en el orden en que se baja por la hoja.
+   *
+   * Las cinco primeras las pinta `app-ficha-campos`; las cuatro últimas viven
+   * en esta plantilla. Referencias va después de la experiencia, que es el
+   * orden de la hoja de entrevista, así que se recoloca aquí a mano.
+   */
+  readonly SECCIONES_FICHA: ReadonlyArray<{ id: string; label: string; icon: string }> = [
+    ...SECCIONES_FICHA.filter((s) => s.id !== 'referencias'),
+    { id: 'formacion', label: 'Formación', icon: 'school' },
+    { id: 'experiencia', label: 'Experiencia', icon: 'work_history' },
+    { id: 'laboral', label: 'Empresas', icon: 'apartment' },
+    ...SECCIONES_FICHA.filter((s) => s.id === 'referencias'),
+    { id: 'entrevista', label: 'Entrevista', icon: 'rate_review' },
+  ];
+
+  /**
+   * Secciones de la ficha que no se pintan de entrada y alguien pidió abrir
+   * (el lápiz de la ficha del pipeline). Empiezan vacías en cada persona.
+   */
+  private readonly seccionesExtra = signal<readonly SeccionFicha[]>([]);
+
+  /** Lo que se le pasa a la ficha en línea: los datos de la hoja + lo pedido. */
+  readonly seccionesDatos = computed<readonly SeccionFicha[]>(() => [
+    ...SECCIONES_FICHA.map((s) => s.id).filter((id) => id !== 'referencias'),
+    ...this.seccionesExtra(),
+  ]);
+
+  /**
+   * Lleva a una sección de los datos de la persona.
+   *
+   * Antes esto abría un diálogo. Se quitó porque entrevistar es ir bajando por
+   * la ficha con el documento en la mano, y un modal obliga a abrir, corregir y
+   * cerrar una sección cada vez. Ahora los campos están en línea y esto solo
+   * desplaza hasta ellos; `'todos'` va al principio del bloque.
+   *
+   * `block: 'start'` con el scroll suave del navegador: la sección queda arriba
+   * del área visible, no centrada, que es donde se sigue leyendo hacia abajo.
+   */
+  irASeccion(seccion: string): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const id = anclaSeccion(seccion === 'todos' ? 'identificacion' : seccion);
+    // Un ciclo de render de margen: la sección puede acabar de aparecer (el
+    // panel de Entrevista se monta al entrar) y aún no estar en el DOM.
+    setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
   }
 
   /** Campos que se miran para el % de cada pestaña del área de trabajo. */
@@ -1044,11 +1371,13 @@ export class FormEntrevistaComponent implements OnInit {
     'comoSeEntero', 'referenciado', 'nombreReferenciado', 'aplicaObservacion',
     'motivoEspera', 'motivoNoAplica', 'relacionFamiliar', 'desempenoLaboral',
     'felicitaciones', 'situacionConflictiva', 'actividadesDiferentes',
+    'experienciaLaboral', 'areaExperiencia', 'tiempoExperiencia',
   ] as const;
 
   private static readonly CAMPOS_FORMACION = [
     'nivel', 'estudiaActualmente', 'proyeccion1Ano', 'experienciaFlores',
     'tipoExperienciaFlores', 'otroExperiencia',
+    'estudiosExtra', 'tituloObtenido', 'institucionEstudio', 'anioFinalizacion',
   ] as const;
 
   private publicarAvances(): void {
@@ -1156,6 +1485,7 @@ export class FormEntrevistaComponent implements OnInit {
   // Ciclo de vida
   // =======================
   ngOnInit(): void {
+    this.restaurarPlegados();
 
     // Vinculamos controles de la sección de contacto/domicilio para refrescar validación
     this.linkStepToControls(this.step3Ctrl, this.step3Fields);
@@ -1212,21 +1542,11 @@ export class FormEntrevistaComponent implements OnInit {
       const nombreReferenciadoOk =
         referenciado === 'SI' ? !!val('nombreReferenciado') : true;
 
-      // Observación evaluador
-      const aplica = val('aplicaObservacion');
-      let aplicaOk = false;
-
-      if (aplica === 'EN_ESPERA') {
-        const m = val('motivoEspera');
-        aplicaOk = !!m && m.length <= 300;
-      } else if (aplica === 'NO_APLICA') {
-        const m = val('motivoNoAplica');
-        aplicaOk = !!m && m.length <= 300;
-      } else if (aplica === 'APLICA') {
-        aplicaOk = true;
-      } else {
-        aplicaOk = false;
-      }
+      // Observación del evaluador: la MISMA regla que pone los validadores.
+      const aplicaOk = observacionCompleta(this.ctrl('aplicaObservacion').value, {
+        motivoEspera: val('motivoEspera'),
+        motivoNoAplica: val('motivoNoAplica'),
+      });
 
       const ok = comoSeEnteroOk && nombreReferenciadoOk && aplicaOk;
       return ok ? null : { stepInvalid: true };
@@ -1302,20 +1622,31 @@ export class FormEntrevistaComponent implements OnInit {
 
   private buildHijoGroup(): FormGroup {
     return this.fb.group({
-      // Requerido: el backend lo exige (Hijo.numero_de_documento sin blank) y
-      // el servicio filtra las filas sin documento antes de enviar — sin este
-      // required, un hijo con solo fecha pasaba la validación, se descartaba
-      // en silencio y el Swal decía "guardado".
+      // SIN `required`: de los hijos, la entrevista solo pregunta cuántos son y
+      // quién los cuida, así que el detalle de cada uno ya no se pinta. Un
+      // obligatorio que no está en pantalla bloquea el guardado y el aviso
+      // "revise los campos en rojo" señala un rojo que nadie puede ver. Las
+      // filas incompletas las descarta el servicio antes de enviar, y el
+      // backend deja intactos los hijos ya guardados cuando la lista llega
+      // vacía: el detalle que traiga el registro no se pierde.
       numero_de_documento: [
         '',
         [
-          Validators.required,
           Validators.pattern(/^\d+$/),
           Validators.minLength(6),
           Validators.maxLength(15),
         ],
       ],
-      fecha_nac: [null, [Validators.required]],
+      fecha_nac: [null],
+      // Datos del hijo como BENEFICIARIO. Opcionales a propósito: los hijos ya
+      // cargados solo tienen documento y fecha, y exigir el resto dejaría sin
+      // guardar la entrevista de todos ellos.
+      tipo_documento: ['RC'],
+      primer_nombre: [''],
+      segundo_nombre: [''],
+      primer_apellido: [''],
+      segundo_apellido: [''],
+      sexo: [''],
     });
   }
 
@@ -1329,6 +1660,7 @@ export class FormEntrevistaComponent implements OnInit {
     const fa = this.hijosFA;
     while (fa.length < objetivo) fa.push(this.buildHijoGroup());
     while (fa.length > objetivo) fa.removeAt(fa.length - 1);
+    this.refrescarHijosResumen();
     this.refreshSteps();
   }
 
@@ -1366,10 +1698,29 @@ export class FormEntrevistaComponent implements OnInit {
   }
 
   removeExperiencia(i: number): void {
-    if (i >= this.SEED_EXP_COUNT) this.experienciasFA.removeAt(i);
+    if (i >= this.SEED_EXP_COUNT) {
+      this.experienciasFA.removeAt(i);
+      // Quitar una fila es una edición: sin marcarla, el guardado automático no
+      // se enteraba y la empresa borrada volvía al recargar.
+      this.formVacante.markAsDirty();
+      this.autoEntrevista.programar();
+    }
     this.refreshSteps();
   }
 
+  /**
+   * Una empresa del historial laboral.
+   *
+   * Los campos de contacto de la empresa (teléfono, dirección, barrio), el jefe
+   * inmediato, el cargo, la fecha y el motivo de retiro EXISTEN en la tabla
+   * desde siempre —el formulario de la vacante los llena y la ficha técnica los
+   * imprime—, pero la entrevista solo manejaba cuatro. Como el guardado
+   * REEMPLAZA la lista entera, cada entrevista guardada los estaba borrando.
+   * Ahora viajan de ida y de vuelta.
+   *
+   * `labores_realizadas` y `labores_principales` no se pintan; se conservan en
+   * el grupo para que sigan cargándose y guardándose.
+   */
   private buildExperienciaGroup(required = true): FormGroup {
     const req = required
       ? [Validators.required, Validators.maxLength(255)]
@@ -1377,7 +1728,14 @@ export class FormEntrevistaComponent implements OnInit {
 
     return this.fb.group({
       empresa: ['', req],
+      telefonos: ['', [Validators.maxLength(15)]],
+      direccion: ['', [Validators.maxLength(255)]],
+      barrio: ['', [Validators.maxLength(255)]],
+      nombre_jefe: ['', [Validators.maxLength(255)]],
+      cargo: ['', [Validators.maxLength(64)]],
+      fecha_retiro: [null],
       tiempo_trabajado: ['', [Validators.maxLength(50)]],
+      motivo_retiro: ['', [Validators.maxLength(255)]],
       labores_realizadas: ['', [Validators.maxLength(255)]],
       labores_principales: ['', [Validators.maxLength(255)]],
     });
@@ -1545,37 +1903,24 @@ export class FormEntrevistaComponent implements OnInit {
     // candidato queda EN ESPERA de vacante.
     this.seleccionEstado.setAplicaObservacion(v);
 
-    const motEsp = this.ctrl('motivoEspera');
-    const motNoAp = this.ctrl('motivoNoAplica');
+    // El reparto estado → motivo lo decide `observacion-evaluador.rules`, que es
+    // el mismo que usa el cálculo de avance. Antes estaba escrito aquí y allá.
+    const propio = campoMotivoDe(v);
+    const contrario = campoMotivoContrario(v);
 
-    if (v === 'EN_ESPERA') {
-      motEsp.setValidators([
-        Validators.required,
-        Validators.maxLength(300),
-      ]);
-      motNoAp.clearValidators();
-      motNoAp.setValue('', { emitEvent: false });
-    } else if (v === 'NO_APLICA') {
-      motNoAp.setValidators([
-        Validators.required,
-        Validators.maxLength(300),
-      ]);
-      motEsp.clearValidators();
-      motEsp.setValue('', { emitEvent: false });
-    } else if (v === 'APLICA') {
-      motEsp.clearValidators();
-      motEsp.setValue('', { emitEvent: false });
-      motNoAp.clearValidators();
-      motNoAp.setValue('', { emitEvent: false });
-    } else {
-      motEsp.clearValidators();
-      motEsp.setValue('', { emitEvent: false });
-      motNoAp.clearValidators();
-      motNoAp.setValue('', { emitEvent: false });
+    for (const nombre of ['motivoEspera', 'motivoNoAplica'] as const) {
+      const c = this.ctrl(nombre);
+      if (nombre === propio) {
+        c.setValidators([Validators.required, Validators.maxLength(MAX_MOTIVO)]);
+      } else {
+        c.clearValidators();
+        // Se limpia el del estado contrario: si no, cambiar de "no aplica" a
+        // "en espera" dejaba vivo el motivo del rechazo y la ficha decía las
+        // dos cosas a la vez.
+        if (nombre === contrario || propio === null) c.setValue('', { emitEvent: false });
+      }
+      c.updateValueAndValidity({ emitEvent: false });
     }
-
-    motEsp.updateValueAndValidity({ emitEvent: false });
-    motNoAp.updateValueAndValidity({ emitEvent: false });
     this.step7Ctrl.updateValueAndValidity({ emitEvent: false });
   }
 
@@ -1785,12 +2130,35 @@ export class FormEntrevistaComponent implements OnInit {
       ['VI', 'UL', 'SO', 'SE', 'CA'].includes(estadoCivilNorm) ? estadoCivilNorm : '';
 
     // El select de "tipo de experiencia en flores" solo acepta CULTIVO/POSCOSECHA/AMBAS/OTROS.
-    // area_experiencia puede venir como multi-valor general ("A, B") desde la web: si no
-    // matchea una opción válida, dejamos '' para que el evaluador lo elija (no metemos basura).
+    // Su sitio es `entrevistas.tipo_experiencia_flores`, que es donde lo escribe el guardado.
+    // Los registros anteriores lo dejaban además dentro de `area_experiencia` —que es la
+    // lista de áreas del formulario de la vacante, multi-valor ("A, B")— así que se sigue
+    // leyendo de ahí como respaldo; si no matchea una opción válida, se deja '' para que el
+    // evaluador lo elija (no metemos basura).
     const VALID_TIPO_FLORES = ['CULTIVO', 'POSCOSECHA', 'AMBAS', 'OTROS'];
+    const tipoFloresGuardado = normalizeText(entrevistas?.[0]?.tipo_experiencia_flores);
     const areaExpNorm = normalizeText(cand?.experiencia_resumen?.area_experiencia);
     const tipoExperienciaFloresVal =
-      VALID_TIPO_FLORES.find((t) => areaExpNorm.includes(t)) || '';
+      VALID_TIPO_FLORES.find((t) => tipoFloresGuardado.includes(t)) ||
+      VALID_TIPO_FLORES.find((t) => areaExpNorm.includes(t)) ||
+      '';
+
+    // "¿Ha trabajado en empresas de flores?" vive en `entrevistas`. Antes se leía de
+    // `experiencia_resumen.tiene_experiencia`, que es la pregunta GENERAL de experiencia
+    // laboral: quien tenía experiencia sin ser en flores salía marcado como florista.
+    const floresGuardado = String(entrevistas?.[0]?.cuenta_experiencia_flores ?? '').trim().toUpperCase();
+    const experienciaFloresVal =
+      floresGuardado === 'SI' || floresGuardado === 'SÍ' ? 'Sí'
+      : floresGuardado === 'NO' ? 'No'
+      : cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No';
+
+    // Áreas: multi-selección del catálogo AREAS_EXPERIENCIA, guardada como lista separada
+    // por comas. Los códigos de tipo de experiencia en flores que los guardados viejos
+    // dejaron ahí no son áreas y se descartan.
+    const areasGuardadas = String(cand?.experiencia_resumen?.area_experiencia ?? '')
+      .split(',')
+      .map((x: string) => x.trim())
+      .filter((x: string) => !!x && !VALID_TIPO_FLORES.includes(x.toUpperCase()));
 
     // 1) patchValue sin emitir eventos
     this.formVacante.patchValue(
@@ -1811,6 +2179,7 @@ export class FormEntrevistaComponent implements OnInit {
         fecha_nacimiento: fechaNac,
         mpio_nacimiento: info_cc?.mpio_nacimiento || '',
         sexo: cand?.sexo || '',
+        rh: cand?.rh || '',
         estado_civil: estadoCivilQuick || '',
         correo_electronico: contacto?.email || contacto?.correo_electronico || '',
         direccion_de_residencia: residencia?.direccion || residencia?.direccion_de_residencia || '',
@@ -1820,10 +2189,18 @@ export class FormEntrevistaComponent implements OnInit {
         hace_cuanto_vive: haceCuantoVive || '',
 
         nivel: cand?.formaciones?.[0]?.nivel || '',
+        estudiosExtra: this.nivelSuperiorNormalizado(cand?.formaciones?.[0]?.estudios_extra),
+        tituloObtenido: cand?.formaciones?.[0]?.titulo_obtenido || '',
+        institucionEstudio: cand?.formaciones?.[0]?.institucion || '',
+        anioFinalizacion: cand?.formaciones?.[0]?.anio_finalizacion ?? null,
         proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || evalAux?.motivacion || '',
         estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
-        experienciaFlores: cand?.experiencia_resumen?.tiene_experiencia ? 'Sí' : 'No',
+        experienciaLaboral: cand?.experiencia_resumen?.tiene_experiencia === true ? 'SI'
+          : cand?.experiencia_resumen?.tiene_experiencia === false ? 'NO' : '',
+        experienciaFlores: experienciaFloresVal,
         tipoExperienciaFlores: tipoExperienciaFloresVal,
+        areaExperiencia: areasGuardadas,
+        tiempoExperiencia: cand?.experiencia_resumen?.tiempo_experiencia_texto || '',
 
         comoSeEntero: entrevistas?.[0]?.como_se_entero || '',
         // Backend guarda 'SI' | 'NO' (CharField). El bug previo trataba el valor
@@ -1939,8 +2316,92 @@ export class FormEntrevistaComponent implements OnInit {
         parentescoReferenciaPersonal1: per1?.parentesco || '',
         nombreReferenciaPersonal2: per2?.nombre || '',
         parentescoReferenciaPersonal2: per2?.parentesco || '',
+        telefonoReferenciaFamiliar1: fam1?.telefono || '',
+        ocupacionReferenciaFamiliar1: fam1?.ocupacion || '',
+        direccionReferenciaFamiliar1: fam1?.direccion || '',
+        telefonoReferenciaFamiliar2: fam2?.telefono || '',
+        ocupacionReferenciaFamiliar2: fam2?.ocupacion || '',
+        direccionReferenciaFamiliar2: fam2?.direccion || '',
+        telefonoReferenciaPersonal1: per1?.telefono || '',
+        ocupacionReferenciaPersonal1: per1?.ocupacion || '',
+        direccionReferenciaPersonal1: per1?.direccion || '',
+        telefonoReferenciaPersonal2: per2?.telefono || '',
+        ocupacionReferenciaPersonal2: per2?.ocupacion || '',
+        direccionReferenciaPersonal2: per2?.direccion || '',
       },
       { emitEvent: false }
+    );
+
+    // 5.b) Pareja, padres, emergencia y tallas.
+    //
+    // Los cuatro viven en `familiares`, UNA fila por tipo (así los guarda
+    // CandidatoFormUpsertService). Se leen aquí para que el diálogo de la ficha
+    // los muestre llenos: sin esto el seleccionador vería en blanco datos que la
+    // persona sí diligenció en el formulario de la vacante, y al guardar los
+    // borraría.
+    const familiares = Array.isArray(cand?.familiares) ? cand.familiares : [];
+    const familiarDe = (tipo: string) =>
+      familiares.find((x: any) => String(x?.tipo ?? '').trim().toUpperCase() === tipo) ?? null;
+    const conyuge = familiarDe('CONYUGUE');
+    const padre = familiarDe('PADRE');
+    const madre = familiarDe('MADRE');
+    const emergencia = familiarDe('EMERGENCIA');
+    // El contacto de emergencia tiene nombres estructurados (RF-033) y, en los
+    // registros viejos, solo el nombre completo. Se prefiere lo estructurado y
+    // se cae a lo legacy.
+    const nombreDe = (f: any) =>
+      [f?.primer_nombre, f?.segundo_nombre].filter(Boolean).join(' ').trim() || (f?.nombre ?? '');
+    const apellidoDe = (f: any) =>
+      [f?.primer_apellido, f?.segundo_apellido].filter(Boolean).join(' ').trim() || (f?.apellido ?? '');
+    const dot = cand?.dotacion ?? null;
+
+    this.formVacante.patchValue(
+      {
+        viveConyuge: conyuge?.vive_con || '',
+        nombresConyuge: nombreDe(conyuge),
+        apellidosConyuge: apellidoDe(conyuge),
+        documentoConyuge: conyuge?.numero_de_documento || '',
+        telefonoConyuge: conyuge?.telefono || '',
+        ocupacionConyuge: conyuge?.ocupacion || '',
+        municipioConyuge: conyuge?.municipio || '',
+        barrioConyuge: conyuge?.barrio || '',
+        direccionConyuge: conyuge?.direccion || '',
+
+        elPadreVive: padre?.vive_con || '',
+        nombresPadre: nombreDe(padre),
+        apellidosPadre: apellidoDe(padre),
+        telefonoPadre: padre?.telefono || '',
+        ocupacionPadre: padre?.ocupacion || '',
+        municipioPadre: padre?.municipio || '',
+        barrioPadre: padre?.barrio || '',
+        direccionPadre: padre?.direccion || '',
+
+        madreVive: madre?.vive_con || '',
+        nombresMadre: nombreDe(madre),
+        apellidosMadre: apellidoDe(madre),
+        telefonoMadre: madre?.telefono || '',
+        ocupacionMadre: madre?.ocupacion || '',
+        municipioMadre: madre?.municipio || '',
+        barrioMadre: madre?.barrio || '',
+        direccionMadre: madre?.direccion || '',
+
+        nombresFamiliarEmergencia: nombreDe(emergencia),
+        apellidosFamiliarEmergencia: apellidoDe(emergencia),
+        parentescoFamiliarEmergencia: emergencia?.parentesco || '',
+        telefonoFamiliarEmergencia: emergencia?.telefono || '',
+        ocupacionFamiliarEmergencia: emergencia?.ocupacion || '',
+        municipioFamiliarEmergencia: emergencia?.municipio || '',
+        barrioFamiliarEmergencia: emergencia?.barrio || '',
+        direccionFamiliarEmergencia: emergencia?.direccion || '',
+
+        // 0 es el valor por defecto de la tabla y significa "sin talla": se
+        // pinta vacío para que no parezca una talla real.
+        tallaChaqueta: dot?.chaqueta || null,
+        tallaPantalon: dot?.pantalon || null,
+        tallaCamisa: dot?.camisa || null,
+        tallaCalzado: dot?.calzado || null,
+      },
+      { emitEvent: false },
     );
 
     this.setHijosCount(hijosArr.length);
@@ -1951,6 +2412,12 @@ export class FormEntrevistaComponent implements OnInit {
         {
           numero_de_documento: onlyDigits(h?.numero_de_documento),
           fecha_nac: toDate(h?.fecha_nac),
+          tipo_documento: h?.tipo_documento || 'RC',
+          primer_nombre: h?.primer_nombre || '',
+          segundo_nombre: h?.segundo_nombre || '',
+          primer_apellido: h?.primer_apellido || '',
+          segundo_apellido: h?.segundo_apellido || '',
+          sexo: h?.sexo || '',
         },
         { emitEvent: false }
       );
@@ -1967,13 +2434,25 @@ export class FormEntrevistaComponent implements OnInit {
       this.experienciasFA.removeAt(this.experienciasFA.length - 1);
     }
 
+    const txt = (v: any) => (v ?? '').toString();
     exps.forEach((e: any, i: number) => {
       (this.experienciasFA.at(i) as FormGroup)?.patchValue(
         {
-          empresa: (e?.empresa ?? '').toString(),
-          tiempo_trabajado: (e?.tiempo_trabajado ?? '').toString(),
-          labores_realizadas: (e?.labores_realizadas ?? '').toString(),
-          labores_principales: (e?.labores_principales ?? '').toString(),
+          empresa: txt(e?.empresa),
+          telefonos: txt(e?.telefonos),
+          direccion: txt(e?.direccion),
+          barrio: txt(e?.barrio),
+          // El registro viejo trae el jefe en una sola columna y el nuevo
+          // partido en nombre y apellido (RF-043): se prefiere lo que tenga.
+          nombre_jefe:
+            txt(e?.nombre_jefe) ||
+            [e?.jefe_primer_nombre, e?.jefe_primer_apellido].filter(Boolean).join(' '),
+          cargo: txt(e?.cargo),
+          fecha_retiro: e?.fecha_retiro ? new Date(`${String(e.fecha_retiro).slice(0, 10)}T00:00:00`) : null,
+          tiempo_trabajado: txt(e?.tiempo_trabajado),
+          motivo_retiro: txt(e?.motivo_retiro),
+          labores_realizadas: txt(e?.labores_realizadas),
+          labores_principales: txt(e?.labores_principales),
         },
         { emitEvent: false }
       );
@@ -1982,10 +2461,9 @@ export class FormEntrevistaComponent implements OnInit {
     for (let i = exps.length; i < totalCards; i++) {
       (this.experienciasFA.at(i) as FormGroup)?.patchValue(
         {
-          empresa: '',
-          tiempo_trabajado: '',
-          labores_realizadas: '',
-          labores_principales: '',
+          empresa: '', telefonos: '', direccion: '', barrio: '', nombre_jefe: '',
+          cargo: '', fecha_retiro: null, tiempo_trabajado: '', motivo_retiro: '',
+          labores_realizadas: '', labores_principales: '',
         },
         { emitEvent: false }
       );
@@ -2007,6 +2485,7 @@ export class FormEntrevistaComponent implements OnInit {
 
     // 9) Recalcular el formulario completo
     this.formVacante.updateValueAndValidity({ emitEvent: false });
+    this.refrescarHijosResumen();
     this.refreshSteps();
   }
 
@@ -2037,6 +2516,45 @@ export class FormEntrevistaComponent implements OnInit {
    * existía. Era la fábrica activa de duplicados: cada entrevista guardada así
    * sumaba una fila. Se canoniza antes de comparar.
    */
+  /** Guardado automático de la entrevista (ver `onSubmit`). */
+  private async guardarEntrevistaSola(): Promise<void> {
+    const raw = this.formVacante.getRawValue();
+    if (!String(raw?.numero_documento ?? '').trim() || !raw?.tipo_doc) return;
+    const completa = this.formVacante.valid;
+
+    const payload = {
+      ...raw,
+      numero_documento: this.normalizeDocForSubmit(raw.tipo_doc, raw.numero_documento),
+      fecha_expedicion: this.toYMD(raw.fecha_expedicion),
+      fecha_nacimiento: this.toYMD(raw.fecha_nacimiento),
+      hijos: Array.isArray(raw.hijos)
+        ? raw.hijos.map((h: any) => ({ ...h, fecha_nac: this.toYMD(h?.fecha_nac) }))
+        : [],
+      experiencias: Array.isArray(raw.experiencias)
+        ? raw.experiencias.map((e: any) => ({ ...e, fecha_retiro: this.toYMD(e?.fecha_retiro) }))
+        : [],
+      brigadaDe: raw.brigadaDe ?? '',
+    };
+
+    const resp: any = await firstValueFrom(
+      this.candidateService.upsertCandidatoByDocumentoFromForm(
+        payload,
+        // "Entrevistado" solo con la entrevista completa, igual que el antiguo "Enviar".
+        completa ? { entrevistado: true } : undefined,
+        this.modificacionForzada()
+          ? { modificacion_forzada: true, modificado_por: this.modificadoPor() || null }
+          : undefined,
+      ),
+    );
+    if (resp?.offline === true) {
+      throw new GuardadoIncompleto('Sin conexión: se enviará al volver la conexión');
+    }
+    this.formVacante.markAsPristine();
+    // El padre recarga: si el proceso anterior era terminal, el backend abrió uno
+    // nuevo y las píldoras / Historial tienen que verlo.
+    this.guardado.emit();
+  }
+
   private normalizeDocForSubmit(tipo: string, raw: any): string {
     return docParaEnviar(tipo, raw);
   }
@@ -2044,7 +2562,16 @@ export class FormEntrevistaComponent implements OnInit {
   // =======================
   // Submit
   // =======================
-  async onSubmit() {
+  /**
+   * Guarda la entrevista. `silencioso` es el guardado automático: sin avisos,
+   * lanza si falla, y con obligatorios pendientes guarda lo respondido SIN
+   * marcar la entrevista como realizada.
+   */
+  async onSubmit(opts: { silencioso?: boolean } = {}) {
+    if (opts.silencioso) {
+      await this.guardarEntrevistaSola();
+      return;
+    }
     if (this.isSubmitting) return;
 
     if (this.formVacante.invalid) {
@@ -2128,6 +2655,14 @@ export class FormEntrevistaComponent implements OnInit {
           }))
           : [],
 
+        // Historial laboral: la fecha de retiro sale del datepicker como Date.
+        experiencias: Array.isArray(raw.experiencias)
+          ? raw.experiencias.map((e: any) => ({
+            ...e,
+            fecha_retiro: this.toYMD(e?.fecha_retiro),
+          }))
+          : [],
+
         // Por si el backend espera string plano, no Date
         brigadaDe: raw.brigadaDe ?? '',
       };
@@ -2158,11 +2693,18 @@ export class FormEntrevistaComponent implements OnInit {
       // debe reflejarse en las píldoras / Historial sin tener que re-buscar.
       this.guardado.emit();
 
+      const veredicto = this.ctrl('aplicaObservacion').value;
       await Swal.fire({
         icon: 'success',
         title: 'Listo',
-        text: 'Datos guardados y entrevista marcada.',
+        text: veredicto === 'APLICA'
+          ? 'Entrevista guardada. Continúe con la remisión a una vacante.'
+          : 'Datos guardados y entrevista marcada.',
       });
+
+      // Se avisa DESPUÉS del aviso: si se salta antes, el operador ve cambiar la
+      // pantalla debajo del modal y no sabe qué pasó.
+      this.entrevistaEnviada.emit(veredicto ?? null);
     } catch (e: any) {
       console.error('[form-entrevista] Error al guardar:', e);
 

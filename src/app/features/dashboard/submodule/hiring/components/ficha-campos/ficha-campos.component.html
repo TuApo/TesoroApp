@@ -1,0 +1,590 @@
+<!-- Los datos de la persona, en línea y en el orden del formulario de la
+     vacante. Vivían en un diálogo; se sacaron porque entrevistar es ir bajando
+     por la ficha con la cédula en la mano, y un modal obliga a abrir, corregir
+     y cerrar una sección a la vez. Cada `section` lleva ancla para que los
+     accesos directos salten aquí en vez de abrir nada. -->
+<div class="fc-form">
+
+  @if (tiene('identificacion')) {
+    <section class="fe-bloque" [id]="ancla('identificacion')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-blue"></span>
+        <h3>Identificación y documento</h3>
+      </header>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Tipo de documento *</mat-label>
+          <mat-select formControlName="tipo_doc">
+            @for (op of (tipoDoc$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+          @if (form.get('tipo_doc')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Número de documento *</mat-label>
+          <input matInput formControlName="numero_documento" />
+          @if (form.get('numero_documento')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          @if (form.get('numero_documento')?.hasError('pattern')) {
+            <mat-error>Solo dígitos, o una X delante para los que no son cédula.</mat-error>
+          }
+          @if (form.get('numero_documento')?.hasError('minlength')
+            || form.get('numero_documento')?.hasError('maxlength')) {
+            <mat-error>Entre 6 y 15 caracteres.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Fecha de expedición *</mat-label>
+          <input matInput [matDatepicker]="pExp" formControlName="fecha_expedicion" readonly
+                 (focus)="pExp.open()" (click)="pExp.open()" />
+          <mat-datepicker-toggle matSuffix [for]="pExp"></mat-datepicker-toggle>
+          <mat-datepicker #pExp></mat-datepicker>
+          @if (form.get('fecha_expedicion')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Municipio de expedición *</mat-label>
+          <input matInput formControlName="mpio_expedicion" [matAutocomplete]="acExp"
+                 (input)="filtrarCiudades('mpio_expedicion')" />
+          <mat-autocomplete #acExp="matAutocomplete">
+            @for (c of ciudadesExpedicion(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+          </mat-autocomplete>
+          @if (form.get('mpio_expedicion')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  @if (tiene('personales')) {
+    <section class="fe-bloque" [id]="ancla('personales')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-indigo"></span>
+        <h3>Datos personales</h3>
+      </header>
+
+      <!-- El orden es el de la hoja de entrevista: apellidos, nombres, fecha y
+           edad, lugar de nacimiento, sexo y estado civil. El RH salió: es dato
+           de afiliación, no se pregunta en la entrevista. -->
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Primer apellido *</mat-label>
+          <input matInput formControlName="primer_apellido" />
+          @if (form.get('primer_apellido')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Segundo apellido</mat-label>
+          <input matInput formControlName="segundo_apellido" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Primer nombre *</mat-label>
+          <input matInput formControlName="primer_nombre" />
+          @if (form.get('primer_nombre')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Segundo nombre</mat-label>
+          <input matInput formControlName="segundo_nombre" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Fecha de nacimiento *</mat-label>
+          <input matInput [matDatepicker]="pNac" formControlName="fecha_nacimiento" readonly
+                 (focus)="pNac.open()" (click)="pNac.open()" />
+          <mat-datepicker-toggle matSuffix [for]="pNac"></mat-datepicker-toggle>
+          <mat-datepicker #pNac></mat-datepicker>
+          @if (form.get('fecha_nacimiento')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <!-- La edad la calcula el formulario a partir de la fecha: el control
+             está deshabilitado, aquí solo se lee. -->
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Edad</mat-label>
+          <input matInput formControlName="edad" readonly />
+          <span matTextSuffix>&nbsp;años</span>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Lugar de nacimiento *</mat-label>
+          <input matInput formControlName="mpio_nacimiento" [matAutocomplete]="acNac"
+                 (input)="filtrarCiudades('mpio_nacimiento')" />
+          <mat-autocomplete #acNac="matAutocomplete">
+            @for (c of ciudadesNacimiento(); track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+          </mat-autocomplete>
+          @if (form.get('mpio_nacimiento')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Sexo *</mat-label>
+          <mat-select formControlName="sexo">
+            <mat-option value="F">Femenino</mat-option>
+            <mat-option value="M">Masculino</mat-option>
+          </mat-select>
+          @if (form.get('sexo')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Estado civil *</mat-label>
+          <mat-select formControlName="estado_civil">
+            @for (op of (estadoCivil$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+          @if (form.get('estado_civil')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  @if (tiene('contacto')) {
+    <section class="fe-bloque" [id]="ancla('contacto')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-cyan"></span>
+        <h3>Contacto y domicilio</h3>
+      </header>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Correo electrónico *</mat-label>
+          <input matInput type="email" formControlName="correo_electronico" />
+          @if (form.get('correo_electronico')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          @if (form.get('correo_electronico')?.hasError('email')) { <mat-error>Correo no válido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+          <mat-label>Dirección de residencia *</mat-label>
+          <input matInput formControlName="direccion_de_residencia" />
+          @if (form.get('direccion_de_residencia')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Barrio *</mat-label>
+          <input matInput formControlName="barrio" />
+          @if (form.get('barrio')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Celular *</mat-label>
+          <input matInput formControlName="celular" inputmode="numeric" />
+          @if (form.get('celular')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+          @if (form.get('celular')?.hasError('pattern')) {
+            <mat-error>Debe empezar por 3 y tener 10 dígitos.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>WhatsApp</mat-label>
+          <input matInput formControlName="whatsapp" inputmode="numeric" />
+          @if (form.get('whatsapp')?.hasError('pattern')) {
+            <mat-error>Debe empezar por 3 y tener 10 dígitos.</mat-error>
+          }
+        </mat-form-field>
+
+        <!-- "Con quién vive" lo pide la hoja de entrevista y hasta ahora solo se
+             podía leer en la tarjeta del pipeline: el control ya existía en el
+             formulario (lo llena el formulario público) pero no tenía dónde
+             corregirse. Es multi-selección, como en el formulario de la vacante. -->
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+          <mat-label>¿Con quién vive?</mat-label>
+          <mat-select formControlName="personas_con_quien_convive" multiple>
+            @for (op of (conQuienVive$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Hace cuánto vive en la zona *</mat-label>
+          <input matInput formControlName="hace_cuanto_vive" />
+          @if (form.get('hace_cuanto_vive')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  @if (tiene('pareja')) {
+    <section class="fe-bloque" [id]="ancla('pareja')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-purple"></span>
+        <h3>Estado civil y pareja</h3>
+      </header>
+      <p class="fe-nota">El estado civil se edita en «Datos personales».</p>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿Vive con su pareja?</mat-label>
+          <mat-select formControlName="viveConyuge">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            <mat-option value="SI">Sí</mat-option>
+            <mat-option value="NO">No</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombres de la pareja</mat-label>
+          <input matInput formControlName="nombresConyuge" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Apellidos de la pareja</mat-label>
+          <input matInput formControlName="apellidosConyuge" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Documento de la pareja</mat-label>
+          <input matInput formControlName="documentoConyuge" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Teléfono de la pareja</mat-label>
+          <input matInput formControlName="telefonoConyuge" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿A qué se dedica?</mat-label>
+          <mat-select formControlName="ocupacionConyuge">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (ocupaciones$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Municipio de la pareja</mat-label>
+          <input matInput formControlName="municipioConyuge" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Barrio o vereda</mat-label>
+          <input matInput formControlName="barrioConyuge" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+          <mat-label>Dirección de residencia de la pareja</mat-label>
+          <input matInput formControlName="direccionConyuge" />
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  @if (tiene('padres')) {
+    <section class="fe-bloque" [id]="ancla('padres')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-indigo"></span>
+        <h3>Datos de sus padres</h3>
+      </header>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿Conoce o vive su papá?</mat-label>
+          <mat-select formControlName="elPadreVive">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            <mat-option value="SI">Sí</mat-option>
+            <mat-option value="NO">No</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombres del papá</mat-label>
+          <input matInput formControlName="nombresPadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Apellidos del papá</mat-label>
+          <input matInput formControlName="apellidosPadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Teléfono del papá</mat-label>
+          <input matInput formControlName="telefonoPadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿A qué se dedica?</mat-label>
+          <mat-select formControlName="ocupacionPadre">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (ocupaciones$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Municipio del papá</mat-label>
+          <input matInput formControlName="municipioPadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Barrio o vereda</mat-label>
+          <input matInput formControlName="barrioPadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+          <mat-label>Dirección de residencia del papá</mat-label>
+          <input matInput formControlName="direccionPadre" />
+        </mat-form-field>
+      </div>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿Conoce o vive su mamá?</mat-label>
+          <mat-select formControlName="madreVive">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            <mat-option value="SI">Sí</mat-option>
+            <mat-option value="NO">No</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombres de la mamá</mat-label>
+          <input matInput formControlName="nombresMadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Apellidos de la mamá</mat-label>
+          <input matInput formControlName="apellidosMadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Teléfono de la mamá</mat-label>
+          <input matInput formControlName="telefonoMadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿A qué se dedica?</mat-label>
+          <mat-select formControlName="ocupacionMadre">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (ocupaciones$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Municipio de la mamá</mat-label>
+          <input matInput formControlName="municipioMadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Barrio o vereda</mat-label>
+          <input matInput formControlName="barrioMadre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+          <mat-label>Dirección de residencia de la mamá</mat-label>
+          <input matInput formControlName="direccionMadre" />
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  @if (tiene('hijos')) {
+    <section class="fe-bloque" [id]="ancla('hijos')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-amber"></span>
+        <h3>Familia e hijos</h3>
+      </header>
+      <p class="fe-nota">
+        De los hijos se registran la cantidad y quién los cuida. El nombre y la
+        edad salen del registro; los demás datos de cada hijo como beneficiario
+        se recogen en el formulario de la vacante y se conservan.
+      </p>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+          <mat-label>¿Cómo es su relación familiar?</mat-label>
+          <input matInput formControlName="relacionFamiliar" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿Tiene hijos? *</mat-label>
+          <mat-select formControlName="tieneHijos">
+            <mat-option [value]="true">Sí</mat-option>
+            <mat-option [value]="false">No</mat-option>
+          </mat-select>
+          @if (form.get('tieneHijos')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Cuántos hijos</mat-label>
+          <input matInput type="number" min="0" max="15" formControlName="numeroHijos" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Quién los cuida</mat-label>
+          <input matInput formControlName="cuidadorHijos" />
+        </mat-form-field>
+      </div>
+
+      <!-- Uno, dos o los que sean: nombre y edad de cada hijo. La edad se dice
+           en meses por debajo del año, que es la que decide si hace falta quién
+           lo cuide. Es lectura: el detalle de cada hijo se diligencia en el
+           formulario de la vacante. -->
+      @if (hijos.length) {
+        <ul class="fe-hijos">
+          @for (h of hijos; track $index) {
+            <li class="fe-hijo-fila">
+              <mat-icon>child_care</mat-icon>
+              <span class="fe-hijo-nombre">{{ h.nombre }}</span>
+              <span class="fe-hijo-edad">{{ h.edad }}</span>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+
+  @if (tiene('referencias')) {
+    <section class="fe-bloque" [id]="ancla('referencias')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-purple"></span>
+        <h3>Referencias</h3>
+      </header>
+      <p class="fe-nota">
+        Dos personales y dos familiares, con el nombre y el parentesco. El
+        teléfono, la ocupación y la dirección que traiga el registro se
+        conservan aunque no se pidan aquí.
+      </p>
+
+      <p class="fe-sub">Referencias personales</p>
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombre · personal 1</mat-label>
+          <input matInput formControlName="nombreReferenciaPersonal1" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Parentesco · personal 1</mat-label>
+          <mat-select formControlName="parentescoReferenciaPersonal1">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (parentescos$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombre · personal 2</mat-label>
+          <input matInput formControlName="nombreReferenciaPersonal2" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Parentesco · personal 2</mat-label>
+          <mat-select formControlName="parentescoReferenciaPersonal2">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (parentescos$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <p class="fe-sub">Referencias familiares</p>
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombre · familiar 1</mat-label>
+          <input matInput formControlName="nombreReferenciaFamiliar1" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Parentesco · familiar 1</mat-label>
+          <mat-select formControlName="parentescoReferenciaFamiliar1">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (parentescos$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombre · familiar 2</mat-label>
+          <input matInput formControlName="nombreReferenciaFamiliar2" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Parentesco · familiar 2</mat-label>
+          <mat-select formControlName="parentescoReferenciaFamiliar2">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (parentescos$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  <!-- ══ Secciones que reproducen el formulario de la vacante ══════════
+       Estos datos los pide el formulario público (pasos "Estado civil",
+       "Datos de sus padres", "A quién llamamos en una emergencia" y "Tallas
+       de dotación") y hasta ahora no tenían dónde corregirse: la ficha los
+       mostraba sin más, o ni eso. Ninguno es obligatorio aquí —el formulario
+       los condiciona a otras respuestas y este diálogo valida el formulario
+       entero—, así que exigirlos dejaría sin guardar a la base ya registrada.
+       ══════════════════════════════════════════════════════════════════ -->
+
+  @if (tiene('emergencia')) {
+    <section class="fe-bloque" [id]="ancla('emergencia')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-cyan"></span>
+        <h3>Contacto de emergencia</h3>
+      </header>
+      <p class="fe-nota">Debe ser otra persona, no el propio candidato.</p>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombres del contacto</mat-label>
+          <input matInput formControlName="nombresFamiliarEmergencia" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Apellidos del contacto</mat-label>
+          <input matInput formControlName="apellidosFamiliarEmergencia" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿Qué es suyo?</mat-label>
+          <mat-select formControlName="parentescoFamiliarEmergencia">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (parentescos$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Teléfono</mat-label>
+          <input matInput formControlName="telefonoFamiliarEmergencia" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>¿A qué se dedica?</mat-label>
+          <mat-select formControlName="ocupacionFamiliarEmergencia">
+            <mat-option [value]="''">— Sin dato —</mat-option>
+            @for (op of (ocupaciones$ | async) ?? []; track op['codigo']) {
+              <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Municipio donde vive el contacto</mat-label>
+          <input matInput formControlName="municipioFamiliarEmergencia" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Barrio o vereda del contacto</mat-label>
+          <input matInput formControlName="barrioFamiliarEmergencia" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+          <mat-label>Dirección de residencia del contacto</mat-label>
+          <input matInput formControlName="direccionFamiliarEmergencia" />
+        </mat-form-field>
+      </div>
+    </section>
+  }
+
+  @if (tiene('dotacion')) {
+    <section class="fe-bloque" [id]="ancla('dotacion')">
+      <header class="fe-bloque-head">
+        <span class="fe-dot fe-dot-blue"></span>
+        <h3>Tallas de dotación</h3>
+      </header>
+      <p class="fe-nota">Se guardan como número (34, 16, 40…), igual que en la base.</p>
+
+      <div class="fe-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Talla de chaqueta</mat-label>
+          <input matInput type="number" inputmode="numeric" formControlName="tallaChaqueta" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Talla de pantalón</mat-label>
+          <input matInput type="number" inputmode="numeric" formControlName="tallaPantalon" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Talla de camisa</mat-label>
+          <input matInput type="number" inputmode="numeric" formControlName="tallaCamisa" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Talla de calzado</mat-label>
+          <input matInput type="number" inputmode="numeric" formControlName="tallaCalzado" />
+        </mat-form-field>
+      </div>
+    </section>
+  }
+</div>

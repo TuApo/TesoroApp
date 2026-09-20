@@ -22,6 +22,13 @@
             <span class="dot-separator">•</span>
             <span>Finca:</span> <span class="badge">{{ vacante?.finca || '—' }}</span>
           </p>
+          @if (errorDocumentosParametrizados) {
+            <p class="subtitulo" role="alert" style="color:#b3261e;font-weight:600">
+              Documentos parametrizados: {{ errorDocumentosParametrizados }}
+            </p>
+          } @else if (documentosParametrizadosActivos) {
+            <p class="subtitulo" style="color:#1b5e20">Documentos según la parametrización de la empresa usuaria.</p>
+          }
 
 
           
@@ -252,6 +259,13 @@
                         <mat-icon>menu_book</mat-icon>
                         <span>TA Completa</span>
                       </button>
+                      @if (doc.titulo === 'Ficha Técnica') {
+                        <!-- Genera con los campos abiertos para completar a mano lo que falta. -->
+                        <button mat-menu-item (click)="diligenciarFichaTecnica('basica')">
+                          <mat-icon>edit_document</mat-icon>
+                          <span>Diligenciar lo que falta</span>
+                        </button>
+                      }
                       @if (doc.titulo === 'Contrato' && esGerencia) {
                         <button mat-menu-item (click)="generarPDFVariant(doc.titulo, 'administrativo')">
                           <mat-icon>badge</mat-icon>

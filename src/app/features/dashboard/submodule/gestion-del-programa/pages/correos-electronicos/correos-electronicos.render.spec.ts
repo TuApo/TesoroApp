@@ -2,11 +2,11 @@
  * Prueba de RENDER de la tabla (con TestBed, a diferencia del resto de specs del
  * submódulo, que son de lógica pura).
  *
- * Existe por un fallo real en producción: se renombraron columnas en el HTML
- * pero quedó un id huérfano en `displayedColumns`. MatTable lanza
- * "Could not find column with id ..." y deja la tabla COMPLETAMENTE vacía,
- * aunque el contador siga diciendo "4 cuenta(s)". Ninguna prueba sin TestBed
- * puede detectar eso: hay que montar el componente.
+ * Nació por un fallo real en producción con MatTable (un id huérfano en
+ * `displayedColumns` dejaba la tabla COMPLETAMENTE vacía). Hoy la pantalla usa
+ * la tabla estándar, que pinta desde el arreglo de columnas; la prueba sigue
+ * montando el componente para asegurar que las filas y las celdas propias
+ * (plantillas `tablaCelda`) llegan al DOM.
  */
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -85,16 +85,19 @@ describe('CorreosElectronicos — render de la tabla', () => {
 
   afterEach(() => componente.ngOnDestroy());
 
+  /** Filas de la tabla estándar: filas de tabla o tarjetas, según el ancho. */
+  function filasPintadas(): number {
+    const el = fixture.nativeElement as HTMLElement;
+    return el.querySelectorAll('tr.te-fila').length + el.querySelectorAll('.te-tarjeta').length;
+  }
+
   it('pinta una fila por cuenta (no una tabla vacía)', () => {
-    const filasDom = fixture.nativeElement.querySelectorAll('tr[mat-row]');
-    expect(filasDom.length).withContext('la tabla debe pintar las 4 cuentas').toBe(4);
+    expect(filasPintadas()).withContext('la tabla debe pintar las 4 cuentas').toBe(4);
   });
 
-  it('cada columna declarada tiene su definición en el HTML', () => {
-    const encabezados = fixture.nativeElement.querySelectorAll('th[mat-header-cell]');
-    expect(encabezados.length)
-      .withContext('displayedColumns y los matColumnDef del HTML deben cuadrar')
-      .toBe(componente.displayedColumns.length);
+  it('las columnas tienen ids únicos (filtros, orden y plantillas se indexan por id)', () => {
+    const ids = componente.columnas.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it('muestra el consumo real y el disponible restante', () => {

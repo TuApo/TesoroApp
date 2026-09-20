@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -13,12 +13,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
+import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { PlantillasCorreoService } from '../../services/plantillas-correo.service';
 import { OrigenDatos, TipoVariable, Variable } from '../../models/plantilla-correo.model';
 
@@ -45,7 +45,7 @@ import { OrigenDatos, TipoVariable, Variable } from '../../models/plantilla-corr
     CommonModule, FormsModule, RouterLink,
     MatButtonModule, MatCardModule, MatChipsModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatProgressBarModule, MatSelectModule, MatSnackBarModule,
-    MatTableModule, MatTooltipModule,
+    MatTooltipModule, ...TABLA_ESTANDAR,
   ],
   templateUrl: './variables-catalogo.component.html',
   styleUrl: './variables-catalogo.component.css',
@@ -55,7 +55,18 @@ export class VariablesCatalogoComponent implements OnInit {
   private snack = inject(MatSnackBar);
   private titulo = inject(Title);
 
-  readonly columnas = ['clave', 'etiqueta', 'grupo', 'tipo', 'ejemplo', 'acciones'];
+  readonly columnas: ColumnaTabla<Variable>[] = [
+    // El valor es el marcador tal como se escribe en la plantilla: así se copia listo para pegar.
+    { id: 'clave', header: 'Clave', valor: (v) => this.marcador(v.clave), tarjeta: 'titulo' },
+    { id: 'etiqueta', header: 'Etiqueta', valor: (v) => v.etiqueta, tarjeta: 'subtitulo', minAncho: '160px' },
+    { id: 'grupo', header: 'Grupo', valor: (v) => v.grupo, tarjeta: 'badge' },
+    { id: 'tipo', header: 'Tipo', valor: (v) => v.tipo, prioridad: 2, tarjeta: 'meta' },
+    { id: 'ejemplo', header: 'Ejemplo', valor: (v) => v.ejemplo ?? '', prioridad: 3, tarjeta: 'cuerpo' },
+  ];
+
+  readonly idVariable = (v: Variable) => v.id;
+  readonly claseFila = (v: Variable) => (v.activo ? '' : 'te-fila--atenuada');
+
   readonly tipos: TipoVariable[] = [
     'TEXTO', 'NUMERO', 'FECHA', 'FECHA_HORA', 'MONEDA', 'BOOLEANO',
     'CORREO', 'TELEFONO', 'ENLACE', 'IMAGEN', 'HTML',
@@ -65,15 +76,6 @@ export class VariablesCatalogoComponent implements OnInit {
   readonly origenes = signal<OrigenDatos[]>([]);
   readonly origenSel = signal<OrigenDatos | null>(null);
   readonly variables = signal<Variable[]>([]);
-  readonly filtro = signal('');
-
-  readonly filtradas = computed(() => {
-    const q = this.filtro().trim().toLowerCase();
-    if (!q) return this.variables();
-    return this.variables().filter(
-      (v) => v.clave.toLowerCase().includes(q) || v.etiqueta.toLowerCase().includes(q)
-          || v.grupo.toLowerCase().includes(q));
-  });
 
   /** Ver el comentario del mismo método en PanelVariablesComponent: las llaves
    *  escapadas en el HTML se convierten en una interpolación real. */

@@ -81,7 +81,7 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
       flex-direction: column;
       width: min(520px, 100%);
       max-height: min(72vh, 640px);
-      background: var(--surface, #fff);
+      background: var(--surface);
       border-radius: var(--r-md, 14px);
       box-shadow: var(--shadow-lg, 0 24px 70px rgba(15, 23, 42, 0.26));
       overflow: hidden;
@@ -97,12 +97,12 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
       margin: 0;
       font-size: 1.05rem;
       font-weight: 700;
-      color: var(--navy, #21263c);
+      color: var(--navy-ink);
     }
     .ftp-sub {
       margin: 2px 0 0;
       font-size: 0.8rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
     }
     .ftp-cerrar {
       display: inline-flex;
@@ -113,11 +113,11 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
       flex: none;
       border: none;
       border-radius: 10px;
-      background: var(--slate-100, #f1f5f9);
-      color: var(--slate-700, #334155);
+      background: var(--surface-3);
+      color: var(--text-2);
       cursor: pointer;
     }
-    .ftp-cerrar:hover { background: var(--slate-200, #e8edf3); }
+    .ftp-cerrar:hover { background: var(--surface-4); }
     .ftp-cerrar:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 2px; }
 
     .ftp-buscar {
@@ -126,10 +126,10 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
       gap: 8px;
       margin: 0 16px 10px;
       padding: 8px 12px;
-      border: 1px solid var(--slate-300, #d8e0ea);
+      border: 1px solid var(--border-strong);
       border-radius: var(--r-sm, 10px);
-      background: var(--slate-50, #f8fafc);
-      color: var(--slate-500, #64748b);
+      background: var(--surface-2);
+      color: var(--muted);
     }
     .ftp-buscar input {
       flex: 1;
@@ -138,7 +138,7 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
       background: none;
       font: inherit;
       font-size: 0.9rem;
-      color: var(--navy-deep, #0f172a);
+      color: var(--navy-ink);
       outline: none;
     }
     .ftp-buscar:focus-within {
@@ -160,31 +160,31 @@ import { FieldTypeInfo } from '../../models/dynamic-forms.models';
       gap: 12px;
       width: 100%;
       padding: 11px 12px;
-      border: 1px solid var(--slate-200, #e8edf3);
+      border: 1px solid var(--border);
       border-radius: var(--r-sm, 10px);
-      background: var(--surface, #fff);
-      color: var(--navy-deep, #0f172a);
+      background: var(--surface);
+      color: var(--navy-ink);
       font: inherit;
       text-align: left;
       cursor: pointer;
     }
-    .ftp-item:hover { border-color: var(--navy, #21263c); background: var(--slate-50, #f8fafc); }
+    .ftp-item:hover { border-color: var(--navy, #21263c); background: var(--surface-2); }
     .ftp-item:focus-visible { outline: 2px solid var(--lime, #8cd50a); outline-offset: 1px; }
-    .ftp-item__icon { font-size: 22px; color: var(--navy, #21263c); flex: none; }
+    .ftp-item__icon { font-size: 22px; color: var(--navy-ink); flex: none; }
     .ftp-item__texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
     .ftp-item__name { font-size: 0.92rem; font-weight: 600; }
     .ftp-item__desc {
       font-size: 0.76rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .ftp-item__plus { font-size: 20px; color: var(--slate-400, #94a3b8); flex: none; }
+    .ftp-item__plus { font-size: 20px; color: var(--text-faint); flex: none; }
     .ftp-vacio {
       margin: 6px 0;
       font-size: 0.85rem;
-      color: var(--slate-500, #64748b);
+      color: var(--muted);
       text-align: center;
     }
 

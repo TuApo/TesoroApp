@@ -74,25 +74,9 @@
 
     <!-- Barra de acciones -->
     <div class="actions-container">
-      <mat-form-field appearance="outline" class="filtro">
-        <mat-label>Buscar Ausentismo...</mat-label>
-        <input matInput (keyup)="applyFilter($event)" placeholder="Ej. Juan Perez" #input>
-        <mat-icon matSuffix>search</mat-icon>
-      </mat-form-field>
-
       <div class="grow"></div>
 
       <div class="actions-right">
-        <!-- Toggles View -->
-        <div class="view-toggles">
-          <button mat-icon-button [color]="vistaActual === 'tabla' ? 'primary' : ''" (click)="vistaActual = 'tabla'" matTooltip="Vista Tabla">
-            <mat-icon>table_chart</mat-icon>
-          </button>
-          <button mat-icon-button [color]="vistaActual === 'tarjetas' ? 'primary' : ''" (click)="vistaActual = 'tarjetas'" matTooltip="Vista Tarjetas">
-            <mat-icon>view_module</mat-icon>
-          </button>
-        </div>
-
         <button mat-raised-button class="action-btn export-btn" (click)="exportarExcel()">
           <mat-icon>file_download</mat-icon>
           <span class="btn-label">Exportar</span>
@@ -114,191 +98,121 @@
       </div>
     </div>
 
-    <!-- TABLA VISTA -->
-    @if (vistaActual === 'tabla') {
-      <div class="table-container">
-        <table mat-table [dataSource]="dataSource" matSort class="mat-elevation-z8 styled-table">
-          <!-- Checkbox Column -->
-          <ng-container matColumnDef="select">
-            <th mat-header-cell *matHeaderCellDef>
-              <mat-checkbox (change)="$event ? masterToggle() : null"
-                [checked]="selection.hasValue() && isAllSelected()"
-                [indeterminate]="selection.hasValue() && !isAllSelected()"
-                color="primary">
-              </mat-checkbox>
-            </th>
-            <td mat-cell *matCellDef="let row">
-              <mat-checkbox (click)="$event.stopPropagation()"
-                (change)="$event ? selection.toggle(row) : null"
-                [checked]="selection.isSelected(row)"
-                color="primary">
-              </mat-checkbox>
-            </td>
-          </ng-container>
-          <!-- Fecha Comp Column -->
-          <ng-container matColumnDef="fecha_diligenciamiento">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header> Fecha </th>
-            <td mat-cell *matCellDef="let element"> {{element.fecha_diligenciamiento}} </td>
-          </ng-container>
-          <!-- Codigo Column -->
-          <ng-container matColumnDef="codigo_empleado">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header> Código </th>
-            <td mat-cell *matCellDef="let element"> {{element.codigo_empleado}} </td>
-          </ng-container>
-          <!-- Cedula Column -->
-          <ng-container matColumnDef="cedula">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header> Cédula </th>
-            <td mat-cell *matCellDef="let element"> {{element.cedula}} </td>
-          </ng-container>
-          <!-- Nombre Column -->
-          <ng-container matColumnDef="nombre_completo">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header> Nombre Completo </th>
-            <td mat-cell *matCellDef="let element"> <strong>{{element.nombre_completo}}</strong> </td>
-          </ng-container>
-          <!-- Contacto Column -->
-          <ng-container matColumnDef="numero_contacto">
-            <th mat-header-cell *matHeaderCellDef> Celular </th>
-            <td mat-cell *matCellDef="let element">
-              <div class="contact-cell">
-                <span>{{element.numero_contacto}}</span>
-                @if (element.numero_contacto) {
-                  <div class="contact-actions">
-                    <a href="javascript:void(0)" class="contact-btn wa-btn" matTooltip="Enviar mensaje por WhatsApp" (click)="abrirMenuWhatsapp(element, $event)">
-                      <mat-icon>chat</mat-icon>
-                    </a>
-                    <a [href]="'tel:' + element.numero_contacto" class="contact-btn call-btn" matTooltip="Llamar" (click)="$event.stopPropagation()">
-                      <mat-icon>call</mat-icon>
-                    </a>
-                  </div>
-                }
-              </div>
-            </td>
-          </ng-container>
-          <!-- Correo Column -->
-          <ng-container matColumnDef="correo">
-            <th mat-header-cell *matHeaderCellDef> Correo </th>
-            <td mat-cell *matCellDef="let element"> {{element.correo}} </td>
-          </ng-container>
-          <!-- F Inicio Column -->
-          <ng-container matColumnDef="fecha_inicio">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header> Fecha Inicial </th>
-            <td mat-cell *matCellDef="let element">
-              <span class="badge-date">{{element.fecha_inicio}}</span>
-            </td>
-          </ng-container>
-          <!-- Dias Column -->
-          <ng-container matColumnDef="total_dias">
-            <th mat-header-cell *matHeaderCellDef mat-sort-header>  Días Ausencia </th>
-            <td mat-cell *matCellDef="let element">
-              <span class="badge-days">{{element.total_dias}}</span>
-            </td>
-          </ng-container>
-          <!-- Item Column -->
-          <ng-container matColumnDef="items">
-            <th mat-header-cell *matHeaderCellDef> Motivo </th>
-            <td mat-cell *matCellDef="let element">
-              <span class="badge-item">{{element.items || 'NO ASIGNADO'}}</span>
-            </td>
-          </ng-container>
-          <!-- Estado Actual Column -->
-          <ng-container matColumnDef="estado_actual">
-            <th mat-header-cell *matHeaderCellDef> Estado Actual </th>
-            <td mat-cell *matCellDef="let element">
-              <span>{{element.estado_actual?.replace('_', ' ') || 'Sin Asignar'}}</span>
-            </td>
-          </ng-container>
-          <!-- Acciones Column -->
-          <ng-container matColumnDef="acciones">
-            <th mat-header-cell *matHeaderCellDef class="text-center"> Acciones </th>
-            <td mat-cell *matCellDef="let element" class="text-center">
-              <button mat-icon-button color="primary" (click)="abrirModalGestion(element)" matTooltip="Ver historial y Modificar">
-                <mat-icon>manage_history</mat-icon>
-              </button>
-              <button mat-icon-button style="color: #d97706;" (click)="abrirModalGenerarDocumento(element)" matTooltip="Generar Documento Legal">
-                <mat-icon>description</mat-icon>
-              </button>
-            </td>
-          </ng-container>
-          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: displayedColumns;" [class.selected-row]="selection.isSelected(row)"></tr>
-          <tr class="mat-row" *matNoDataRow>
-            <td class="mat-cell empty-table" colspan="11">
-              <mat-icon>search_off</mat-icon>
-              <p>No se encontraron datos que coincidan con "{{input.value}}"</p>
-            </td>
-          </tr>
-        </table>
-      </div>
-    }
+    <!-- Tabla estándar: búsqueda, filtros, orden, casillas y vista Tabla ⇄ Tarjetas
+         (la tarjeta propia del ausentismo va en tablaTarjeta, con su casilla). -->
+    <app-tabla-estandar
+      id="contratacion-ausentismos-nuevos"
+      titulo="Ausentismos nuevos"
+      modulo="Contratación"
+      busqueda="Buscar ausentismo… (ej. Juan Perez)"
+      vacio="No hay ausentismos registrados."
+      [datos]="filas()"
+      [columnas]="columnas"
+      [seleccion]="selection"
+      [tarjetaSinMarco]="true"
+      minAnchoTarjeta="300px"
+      anchoAcciones="110px">
 
-    <!-- TARJETAS VISTA -->
-    @if (vistaActual === 'tarjetas') {
-      <div class="cards-grid">
-        @for (element of dataSource.filteredData; track element) {
-          <div class="absence-card" [class.selected-card]="selection.isSelected(element)">
-            <!-- Header: Checkbox, Name, Setup -->
-            <div class="card-header-bar">
-              <mat-checkbox (click)="$event.stopPropagation()"
-                (change)="$event ? selection.toggle(element) : null"
-                [checked]="selection.isSelected(element)"
-                color="primary">
-              </mat-checkbox>
-              <div class="card-title-group">
-                <span class="card-name">{{element.nombre_completo}}</span>
-                <span class="card-cedula">CC. {{element.cedula}} ({{element.codigo_empleado}})</span>
-              </div>
-              <button mat-icon-button color="primary" class="edit-btn" (click)="abrirModalGestion(element)" matTooltip="Gestionar / Ver historial">
-                <mat-icon>manage_history</mat-icon>
-              </button>
-              <button mat-icon-button style="color: #d97706;" (click)="abrirModalGenerarDocumento(element)" matTooltip="Generar Documento Legal">
-                <mat-icon>description</mat-icon>
-              </button>
+      <ng-template tablaCelda="nombre_completo" let-element>
+        <strong>{{element.nombre_completo}}</strong>
+      </ng-template>
+
+      <ng-template tablaCelda="numero_contacto" let-element>
+        <div class="contact-cell">
+          <span>{{element.numero_contacto}}</span>
+          @if (element.numero_contacto) {
+            <div class="contact-actions">
+              <a href="javascript:void(0)" class="contact-btn wa-btn" matTooltip="Enviar mensaje por WhatsApp" (click)="abrirMenuWhatsapp(element, $event)">
+                <mat-icon>chat</mat-icon>
+              </a>
+              <a [href]="'tel:' + element.numero_contacto" class="contact-btn call-btn" matTooltip="Llamar" (click)="$event.stopPropagation()">
+                <mat-icon>call</mat-icon>
+              </a>
             </div>
-            <!-- Body: Information Grid -->
-            <div class="card-info-grid">
-              <div class="info-item">
-                <span class="info-label">Fechas</span>
-                <span class="badge-date">{{element.fecha_inicio}} <span style="color:#94a3b8; margin: 0 4px;">a</span> {{element.fecha_fin}}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Días <mat-icon style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#94a3b8;">event</mat-icon></span>
-                <span class="badge-days">{{element.total_dias}}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Motivo</span>
-                <span class="badge-item">{{element.items || 'NO ASIGNADO'}}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Estado Actual</span>
-                <span class="card-status-text" [ngClass]="{'has-status': element.estado_actual}">
-                  {{element.estado_actual?.replace('_', ' ') || 'Sin Asignar'}}
-                </span>
-              </div>
+          }
+        </div>
+      </ng-template>
+
+      <ng-template tablaCelda="fecha_inicio" let-element>
+        <span class="badge-date">{{element.fecha_inicio}}</span>
+      </ng-template>
+
+      <ng-template tablaCelda="total_dias" let-element>
+        <span class="badge-days">{{element.total_dias}}</span>
+      </ng-template>
+
+      <ng-template tablaCelda="items" let-element>
+        <span class="badge-item">{{element.items || 'NO ASIGNADO'}}</span>
+      </ng-template>
+
+      <ng-template tablaAcciones let-element>
+        <button mat-icon-button color="primary" (click)="abrirModalGestion(element)" matTooltip="Ver historial y Modificar">
+          <mat-icon>manage_history</mat-icon>
+        </button>
+        <button mat-icon-button style="color: #d97706;" (click)="abrirModalGenerarDocumento(element)" matTooltip="Generar Documento Legal">
+          <mat-icon>description</mat-icon>
+        </button>
+      </ng-template>
+
+      <!-- TARJETAS VISTA -->
+      <ng-template tablaTarjeta let-element>
+        <div class="absence-card" [class.selected-card]="selection.isSelected(element)">
+          <!-- Header: Checkbox, Name, Setup -->
+          <div class="card-header-bar">
+            <mat-checkbox (click)="$event.stopPropagation()"
+              (change)="$event ? selection.toggle(element) : null"
+              [checked]="selection.isSelected(element)"
+              color="primary">
+            </mat-checkbox>
+            <div class="card-title-group">
+              <span class="card-name">{{element.nombre_completo}}</span>
+              <span class="card-cedula">CC. {{element.cedula}} ({{element.codigo_empleado}})</span>
             </div>
-            <!-- Footer: Contact Icons -->
-            <div class="card-footer-bar">
-              <span class="card-finca"><mat-icon inline>agriculture</mat-icon> {{element.finca}}</span>
-              <div class="card-contact-actions">
-                <a href="javascript:void(0)" class="contact-btn wa-btn" matTooltip="WhatsApp" (click)="abrirMenuWhatsapp(element, $event)">
-                  <svg style="width:16px;height:16px;" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.573-.187-.988-.365-1.739-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.099.824z"/></svg>
-                </a>
-                <a [href]="'mailto:' + element.correo" class="contact-btn email-btn" matTooltip="Enviar Correo" (click)="$event.stopPropagation()">
-                  <mat-icon>mail</mat-icon>
-                </a>
-                <a [href]="'tel:' + element.numero_contacto" class="contact-btn call-btn" matTooltip="Llamar" (click)="$event.stopPropagation()">
-                  <mat-icon>call</mat-icon>
-                </a>
-              </div>
+            <button mat-icon-button color="primary" class="edit-btn" (click)="abrirModalGestion(element)" matTooltip="Gestionar / Ver historial">
+              <mat-icon>manage_history</mat-icon>
+            </button>
+            <button mat-icon-button style="color: #d97706;" (click)="abrirModalGenerarDocumento(element)" matTooltip="Generar Documento Legal">
+              <mat-icon>description</mat-icon>
+            </button>
+          </div>
+          <!-- Body: Information Grid -->
+          <div class="card-info-grid">
+            <div class="info-item">
+              <span class="info-label">Fechas</span>
+              <span class="badge-date">{{element.fecha_inicio}} <span style="color:#94a3b8; margin: 0 4px;">a</span> {{element.fecha_fin}}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Días <mat-icon style="font-size:14px; width:14px; height:14px; vertical-align:middle; color:#94a3b8;">event</mat-icon></span>
+              <span class="badge-days">{{element.total_dias}}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Motivo</span>
+              <span class="badge-item">{{element.items || 'NO ASIGNADO'}}</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Estado Actual</span>
+              <span class="card-status-text" [ngClass]="{'has-status': element.estado_actual}">
+                {{element.estado_actual?.replace('_', ' ') || 'Sin Asignar'}}
+              </span>
             </div>
           </div>
-        }
-        @if (dataSource.filteredData.length === 0) {
-          <div class="empty-cards">
-            <mat-icon>search_off</mat-icon>
-            <p>No hay datos que coincidan con "{{input.value}}"</p>
+          <!-- Footer: Contact Icons -->
+          <div class="card-footer-bar">
+            <span class="card-finca"><mat-icon inline>agriculture</mat-icon> {{element.finca}}</span>
+            <div class="card-contact-actions">
+              <a href="javascript:void(0)" class="contact-btn wa-btn" matTooltip="WhatsApp" (click)="abrirMenuWhatsapp(element, $event)">
+                <svg style="width:16px;height:16px;" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.573-.187-.988-.365-1.739-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.099.824z"/></svg>
+              </a>
+              <a [href]="'mailto:' + element.correo" class="contact-btn email-btn" matTooltip="Enviar Correo" (click)="$event.stopPropagation()">
+                <mat-icon>mail</mat-icon>
+              </a>
+              <a [href]="'tel:' + element.numero_contacto" class="contact-btn call-btn" matTooltip="Llamar" (click)="$event.stopPropagation()">
+                <mat-icon>call</mat-icon>
+              </a>
+            </div>
           </div>
-        }
-      </div>
-    }
+        </div>
+      </ng-template>
+    </app-tabla-estandar>
   </mat-card-content>
 </mat-card>

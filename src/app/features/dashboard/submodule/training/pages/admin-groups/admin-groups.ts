@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import {
   TrainingAdminService, Grupo, GrupoRequest, Matricula, Asistencia, Curso, Version
 } from '../../service/training-admin.service';
@@ -17,7 +18,7 @@ import {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-groups',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
   templateUrl: './admin-groups.html',
   styleUrl: './admin-groups.css'
 })
@@ -41,6 +42,37 @@ export class AdminGroups implements OnInit {
   readonly cedulasPegadas = signal('');
   readonly fechaLista = signal(new Date().toISOString().slice(0, 10));
   readonly marcas = signal<Record<string, string>>({});
+
+  /** Listado de grupos: «Gestionar» (botón de detalle) o doble clic abren el grupo. */
+  readonly columnasGrupos: ColumnaTabla<Grupo>[] = [
+    { id: 'grupo', header: 'Grupo', valor: (g) => g.nombre, tarjeta: 'titulo' },
+    { id: 'curso', header: 'Curso', valor: (g) => g.curso_nombre, tarjeta: 'subtitulo' },
+    { id: 'fechas', header: 'Fechas', prioridad: 2, tarjeta: 'meta',
+      valor: (g) => (g.fecha_inicio || '—') + (g.fecha_fin ? ` → ${g.fecha_fin}` : '') },
+    { id: 'ocupacion', header: 'Ocupación', tarjeta: 'meta', valor: (g) => g.matriculados,
+      formato: (g) => `${g.matriculados}${g.cupo ? ` / ${g.cupo}` : ''}` },
+    { id: 'estado', header: 'Estado', tarjeta: 'badge', valor: (g) => g.estado,
+      badge: (g) => ({ texto: g.estado, tono: this.tonoGrupo(g.estado) }) },
+  ];
+  readonly idGrupo = (g: Grupo) => g.id;
+
+  /** Personas matriculadas en el grupo abierto. */
+  readonly columnasMatriculados: ColumnaTabla<Matricula>[] = [
+    { id: 'persona', header: 'Persona', valor: (m) => m.persona_nombre || '(sin nombre)', tarjeta: 'titulo' },
+    { id: 'cedula', header: 'Cédula', valor: (m) => m.cedula, tarjeta: 'subtitulo' },
+    { id: 'avance', header: 'Avance', valor: (m) => m.porcentaje, formato: (m) => `${m.porcentaje}%`, tarjeta: 'meta' },
+    { id: 'estado', header: 'Estado', tarjeta: 'badge', valor: (m) => m.estado,
+      badge: (m) => ({ texto: m.estado, tono: this.tonoMatricula(m.estado) }) },
+  ];
+
+  /** Pasar lista: la columna de asistencia es de control (botones), no se copia. */
+  readonly columnasAsistencia: ColumnaTabla<Matricula>[] = [
+    { id: 'persona', header: 'Persona', valor: (m) => m.persona_nombre || '(sin nombre)', tarjeta: 'titulo' },
+    { id: 'cedula', header: 'Cédula', valor: (m) => m.cedula, tarjeta: 'subtitulo' },
+    { id: 'asistencia', header: 'Asistencia', valor: (m) => this.marcaDe(m.id), interactiva: true,
+      copiable: false, ordenable: false, tarjeta: 'cuerpo' },
+  ];
+  readonly idMatricula = (m: Matricula) => m.id;
 
   readonly versionesDelCursoElegido = computed(() => {
     const cid = this.nuevoGrupo()?.courseId;
@@ -252,12 +284,21 @@ export class AdminGroups implements OnInit {
     }
   }
 
-  claseMatricula(estado: string): string {
+  /** Los mismos colores que `claseEstado`, en los tonos de la tabla estándar. */
+  tonoGrupo(estado: string): TonoBadge {
     switch (estado) {
-      case 'APROBADO': return 'chip-ok';
-      case 'REPROBADO': return 'chip-mal';
-      case 'ANULADO': return 'chip-cerrado';
-      default: return 'chip-curso';
+      case 'ABIERTO': return 'ok';
+      case 'EN_CURSO': return 'info';
+      default: return 'neutro';
+    }
+  }
+
+  tonoMatricula(estado: string): TonoBadge {
+    switch (estado) {
+      case 'APROBADO': return 'ok';
+      case 'REPROBADO': return 'danger';
+      case 'ANULADO': return 'neutro';
+      default: return 'info';
     }
   }
 }

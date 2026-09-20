@@ -54,15 +54,9 @@
     </div>
   </div>
 
-  <!-- Filtros -->
+  <!-- Filtros de negocio (van al backend). La búsqueda por texto, el orden y
+       los filtros por columna los da la tabla estándar. -->
   <div class="ce-filtros">
-    <mat-form-field appearance="outline" class="f-search">
-      <mat-label>Buscar</mat-label>
-      <input matInput [ngModel]="filterSearch" (ngModelChange)="onSearchChange($event)"
-             placeholder="Correo, nombre, propósito o host">
-      <mat-icon matSuffix>search</mat-icon>
-    </mat-form-field>
-
     <mat-form-field appearance="outline" class="f-sel">
       <mat-label>Proveedor</mat-label>
       <mat-select [(ngModel)]="filterProveedor" (selectionChange)="onServerFilterChange()">
@@ -93,8 +87,6 @@
       Limpiar
     </button>
 
-    <span class="ce-count" *ngIf="!isLoading">{{ dataSource.data.length }} cuenta(s)</span>
-
     <!-- Estado del auto-refresco -->
     <span class="ce-frescura" [class.pausado]="!autoRefresco">
       <span class="pulso" *ngIf="autoRefresco"></span>
@@ -110,11 +102,6 @@
     </button>
   </div>
 
-  <!-- Cargando -->
-  <div class="ce-loading" *ngIf="isLoading">
-    <mat-spinner diameter="40"></mat-spinner>
-  </div>
-
   <!-- Error de carga -->
   <div class="ce-error" *ngIf="!isLoading && cargaFallida">
     <mat-icon>cloud_off</mat-icon>
@@ -126,148 +113,99 @@
   </div>
 
   <!-- Tabla -->
-  <div class="ce-table-wrap" *ngIf="!isLoading && !cargaFallida">
-    <table mat-table [dataSource]="dataSource" matSort class="ce-table">
+  <app-tabla-estandar *ngIf="!cargaFallida"
+    id="programa-correos-electronicos"
+    titulo="Correos electrónicos"
+    modulo="Gestión del programa"
+    entidad="correo_cuentas"
+    busqueda="Correo, remitente, proveedor o propósito…"
+    vacio="No hay cuentas de correo que coincidan con el filtro."
+    [datos]="cuentas"
+    [columnas]="columnas"
+    [filaId]="idCuenta"
+    [filaClase]="claseFila"
+    [cargando]="isLoading"
+    [filasPorPagina]="25">
 
-      <ng-container matColumnDef="direccion">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Dirección</th>
-        <td mat-cell *matCellDef="let c">
-          <div class="cell-direccion">
-            <span class="dir">{{ c.direccion }}</span>
-            <span class="cred" *ngIf="c.credencial_configurada" matTooltip="Credencial SMTP configurada (cifrada)">
-              <mat-icon>lock</mat-icon> Credencial configurada
-            </span>
-            <span class="cred sin" *ngIf="!c.credencial_configurada">
-              <mat-icon>lock_open</mat-icon> Sin credencial
-            </span>
-          </div>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="direccion" let-c>
+      <div class="cell-direccion">
+        <span class="dir">{{ c.direccion }}</span>
+        <span class="cred" *ngIf="c.credencial_configurada" matTooltip="Credencial SMTP configurada (cifrada)">
+          <mat-icon>lock</mat-icon> Credencial configurada
+        </span>
+        <span class="cred sin" *ngIf="!c.credencial_configurada">
+          <mat-icon>lock_open</mat-icon> Sin credencial
+        </span>
+      </div>
+    </ng-template>
 
-      <ng-container matColumnDef="nombre_mostrar">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Remitente</th>
-        <td mat-cell *matCellDef="let c">{{ c.nombre_mostrar || '—' }}</td>
-      </ng-container>
+    <ng-template tablaCelda="proveedor" let-c>
+      <span class="prov-chip" [attr.data-prov]="c.proveedor">{{ proveedorLabel(c.proveedor) }}</span>
+    </ng-template>
 
-      <ng-container matColumnDef="proveedor">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Proveedor</th>
-        <td mat-cell *matCellDef="let c">
-          <span class="prov-chip" [attr.data-prov]="c.proveedor">{{ proveedorLabel(c.proveedor) }}</span>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="enviados_hoy" let-c>
+      <span class="num-badge" matTooltip="Correos realmente enviados por esta cuenta hoy">
+        {{ c.enviados_hoy | number }}
+      </span>
+    </ng-template>
 
-      <ng-container matColumnDef="proposito">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Propósito</th>
-        <td mat-cell *matCellDef="let c">{{ c.proposito || '—' }}</td>
-      </ng-container>
+    <ng-template tablaCelda="disponible_hoy" let-c>
+      <div class="cell-disponible">
+        <span class="num-badge" [class.aporta]="c.disponible_hoy > 0"
+              [class.agotado]="c.aporta_cuota && c.disponible_hoy === 0"
+              [matTooltip]="'Le quedan ' + (c.disponible_hoy | number) + ' de ' + (c.limite_efectivo | number)">
+          {{ c.disponible_hoy | number }}
+        </span>
+        <span class="barra" *ngIf="c.limite_efectivo > 0">
+          <span class="relleno" [style.width.%]="porcentajeUso(c)"></span>
+        </span>
+      </div>
+    </ng-template>
 
-      <ng-container matColumnDef="enviados_hoy">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Enviados hoy</th>
-        <td mat-cell *matCellDef="let c">
-          <span class="num-badge" matTooltip="Correos realmente enviados por esta cuenta hoy">
-            {{ c.enviados_hoy | number }}
-          </span>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="limite_efectivo" let-c>
+      <span class="num-badge"
+            [matTooltip]="'Tope del día: ' + c.umbral_corte_pct + '% de ' + (c.cuota_diaria | number)">
+        {{ c.limite_efectivo | number }}
+      </span>
+    </ng-template>
 
-      <ng-container matColumnDef="disponible_hoy">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Disponible</th>
-        <td mat-cell *matCellDef="let c">
-          <div class="cell-disponible">
-            <span class="num-badge" [class.aporta]="c.disponible_hoy > 0"
-                  [class.agotado]="c.aporta_cuota && c.disponible_hoy === 0"
-                  [matTooltip]="'Le quedan ' + (c.disponible_hoy | number) + ' de ' + (c.limite_efectivo | number)">
-              {{ c.disponible_hoy | number }}
-            </span>
-            <span class="barra" *ngIf="c.limite_efectivo > 0">
-              <span class="relleno" [style.width.%]="porcentajeUso(c)"></span>
-            </span>
-          </div>
-        </td>
-      </ng-container>
+    <ng-template tablaCelda="estado_verificacion" let-c>
+      <span class="estado-chip" [ngClass]="estadoMeta(c.estado_verificacion).clase"
+            [matTooltip]="c.mensaje_ultima_verificacion || ''">
+        <mat-icon>{{ estadoMeta(c.estado_verificacion).icon }}</mat-icon>
+        {{ estadoMeta(c.estado_verificacion).label }}
+      </span>
+      <div class="sub-fecha" *ngIf="c.ultima_verificacion">
+        {{ c.ultima_verificacion | date:'dd/MM/yyyy HH:mm' }}
+      </div>
+    </ng-template>
 
-      <ng-container matColumnDef="limite_efectivo">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Corte automático</th>
-        <td mat-cell *matCellDef="let c">
-          <span class="num-badge"
-                [matTooltip]="'Tope del día: ' + c.umbral_corte_pct + '% de ' + (c.cuota_diaria | number)">
-            {{ c.limite_efectivo | number }}
-          </span>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="estado_verificacion">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Verificación</th>
-        <td mat-cell *matCellDef="let c">
-          <span class="estado-chip" [ngClass]="estadoMeta(c.estado_verificacion).clase"
-                [matTooltip]="c.mensaje_ultima_verificacion || ''">
-            <mat-icon>{{ estadoMeta(c.estado_verificacion).icon }}</mat-icon>
-            {{ estadoMeta(c.estado_verificacion).label }}
-          </span>
-          <div class="sub-fecha" *ngIf="c.ultima_verificacion">
-            {{ c.ultima_verificacion | date:'dd/MM/yyyy HH:mm' }}
-          </div>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="activo">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Estado</th>
-        <td mat-cell *matCellDef="let c">
-          <span class="estado-chip" [class.activa]="c.activo" [class.inactiva]="!c.activo">
-            <mat-icon>{{ c.activo ? 'check_circle' : 'cancel' }}</mat-icon>
-            {{ c.activo ? 'Activa' : 'Inactiva' }}
-          </span>
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="actualizado_en">
-        <th mat-header-cell *matHeaderCellDef mat-sort-header>Actualizada</th>
-        <td mat-cell *matCellDef="let c">
-          {{ (c.actualizado_en || c.creado_en) ? ((c.actualizado_en || c.creado_en) | date:'dd/MM/yyyy HH:mm') : '—' }}
-        </td>
-      </ng-container>
-
-      <ng-container matColumnDef="acciones">
-        <th mat-header-cell *matHeaderCellDef>Acciones</th>
-        <td mat-cell *matCellDef="let c">
-          <div class="acciones-grid">
-          <button mat-icon-button color="primary" (click)="abrirDialogoEditar(c)" matTooltip="Ver / editar">
-            <mat-icon>edit</mat-icon>
-          </button>
-          <button mat-icon-button class="btn-enviar" *ngIf="c.aporta_cuota && c.disponible_hoy > 0"
-                  (click)="enviarPrueba(c)" [disabled]="enviandoId === c.id"
-                  matTooltip="Enviar un correo de prueba (consume cuota)">
-            <mat-spinner *ngIf="enviandoId === c.id" diameter="16"></mat-spinner>
-            <mat-icon *ngIf="enviandoId !== c.id">send</mat-icon>
-          </button>
-          <button mat-icon-button class="btn-verificar" *ngIf="c.activo"
-                  (click)="verificar(c)" [disabled]="verificandoId === c.id"
-                  matTooltip="Verificar conexión SMTP">
-            <mat-spinner *ngIf="verificandoId === c.id" diameter="16"></mat-spinner>
-            <mat-icon *ngIf="verificandoId !== c.id">wifi_tethering</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" *ngIf="c.activo"
-                  (click)="desactivar(c)" matTooltip="Desactivar">
-            <mat-icon>block</mat-icon>
-          </button>
-          <button mat-icon-button *ngIf="!c.activo" class="btn-reactivar"
-                  (click)="reactivar(c)" matTooltip="Reactivar">
-            <mat-icon>restart_alt</mat-icon>
-          </button>
-          </div>
-        </td>
-      </ng-container>
-
-      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-      <tr mat-row *matRowDef="let row; columns: displayedColumns;"
-          [class.fila-inactiva]="!row.activo"></tr>
-    </table>
-
-    <div class="ce-empty" *ngIf="dataSource.data.length === 0">
-      <mat-icon>mark_email_unread</mat-icon>
-      <p>No hay cuentas de correo que coincidan con el filtro.</p>
-    </div>
-
-    <mat-paginator [pageSizeOptions]="[10, 25, 50, 100]" [pageSize]="25" showFirstLastButtons></mat-paginator>
-  </div>
+    <ng-template tablaAcciones let-c>
+      <div class="acciones-grid">
+      <button mat-icon-button color="primary" (click)="abrirDialogoEditar(c)" matTooltip="Ver / editar">
+        <mat-icon>edit</mat-icon>
+      </button>
+      <button mat-icon-button class="btn-enviar" *ngIf="c.aporta_cuota && c.disponible_hoy > 0"
+              (click)="enviarPrueba(c)" [disabled]="enviandoId === c.id"
+              matTooltip="Enviar un correo de prueba (consume cuota)">
+        <mat-spinner *ngIf="enviandoId === c.id" diameter="16"></mat-spinner>
+        <mat-icon *ngIf="enviandoId !== c.id">send</mat-icon>
+      </button>
+      <button mat-icon-button class="btn-verificar" *ngIf="c.activo"
+              (click)="verificar(c)" [disabled]="verificandoId === c.id"
+              matTooltip="Verificar conexión SMTP">
+        <mat-spinner *ngIf="verificandoId === c.id" diameter="16"></mat-spinner>
+        <mat-icon *ngIf="verificandoId !== c.id">wifi_tethering</mat-icon>
+      </button>
+      <button mat-icon-button color="warn" *ngIf="c.activo"
+              (click)="desactivar(c)" matTooltip="Desactivar">
+        <mat-icon>block</mat-icon>
+      </button>
+      <button mat-icon-button *ngIf="!c.activo" class="btn-reactivar"
+              (click)="reactivar(c)" matTooltip="Reactivar">
+        <mat-icon>restart_alt</mat-icon>
+      </button>
+      </div>
+    </ng-template>
+  </app-tabla-estandar>
 </mat-card>

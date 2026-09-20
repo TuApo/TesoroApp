@@ -72,8 +72,8 @@ import { MetricasContratacionDateRange } from '../../../models/contratacion-metr
       margin-bottom: 2rem;
       border-radius: 16px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05) !important;
-      border: 1px solid #f1f5f9;
-      background: #ffffff;
+      border: 1px solid var(--border);
+      background: var(--surface);
     }
 
     .filters-content {
@@ -92,13 +92,13 @@ import { MetricasContratacionDateRange } from '../../../models/contratacion-metr
     }
 
     .filters-icon {
-      color: #64748b;
+      color: var(--muted);
     }
 
     .filters-title {
       font-size: 1.125rem;
       font-weight: 600;
-      color: #1e293b;
+      color: var(--text);
     }
 
     .filters-actions {
@@ -118,7 +118,7 @@ import { MetricasContratacionDateRange } from '../../../models/contratacion-metr
     }
 
     .active-range {
-      background-color: #eff6ff !important;
+      background-color: #eff6ff !important; background-color: light-dark(#eff6ff, #0f284d) !important;
       border-color: #3b82f6 !important;
       color: #1d4ed8 !important;
       font-weight: 500;
@@ -143,7 +143,7 @@ import { MetricasContratacionDateRange } from '../../../models/contratacion-metr
     }
 
     .date-separator {
-      color: #64748b;
+      color: var(--muted);
       font-weight: 500;
       font-size: 0.875rem;
     }

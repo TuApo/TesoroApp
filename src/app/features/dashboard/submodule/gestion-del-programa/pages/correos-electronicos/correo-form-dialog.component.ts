@@ -173,9 +173,9 @@ import {
   `,
   styles: [`
     .dialog-header { display: flex; align-items: center; gap: 12px; padding: 20px 24px 12px; }
-    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; }
+    .dialog-icon { font-size: 36px; width: 36px; height: 36px; color: #3f51b5; color: light-dark(#3f51b5, #acb4e2); }
     h2[mat-dialog-title] { margin: 0; font-size: 18px; }
-    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: #666; }
+    .dialog-subtitle { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
     mat-dialog-content { padding: 16px 24px !important; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
     .col-2 { grid-column: 1 / -1; }
@@ -184,10 +184,10 @@ import {
       border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px; line-height: 1.35;
     }
     .aviso mat-icon { font-size: 18px; width: 18px; height: 18px; margin-top: 1px; }
-    .aviso-warn { background: #fff4e5; color: #8a5300; border: 1px solid #ffd8a8; }
-    .aviso-info { background: #eef2ff; color: #33408a; border: 1px solid #c7d2fe; margin: 12px 0 0; }
+    .aviso-warn { background: #fff4e5; background: light-dark(#fff4e5, #382d24); color: #8a5300; color: light-dark(#8a5300, #f7d197); border: 1px solid #ffd8a8; border: 1px solid light-dark(#ffd8a8, #6c461b); }
+    .aviso-info { background: #eef2ff; background: light-dark(#eef2ff, #0f1f4d); color: #33408a; color: light-dark(#33408a, #adb5e1); border: 1px solid #c7d2fe; border: 1px solid light-dark(#c7d2fe, #0d257a); margin: 12px 0 0; }
     mat-dialog-actions { padding: 12px 24px 16px !important; }
-    @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
   `],
 })
 export class CorreoFormDialogComponent implements OnInit {

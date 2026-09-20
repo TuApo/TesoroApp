@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { NgxEchartsDirective, provideEchartsCore } from 'ngx-echarts';
+import { provideEchartsTema } from '../../../../../shared/utils/echarts-tema';
 import type { EChartsOption } from 'echarts';
 import { ConfigVisualizacion, ResultadoConsulta } from '../models/reportes.models';
 
@@ -20,7 +21,7 @@ import { ConfigVisualizacion, ResultadoConsulta } from '../models/reportes.model
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, MatIconModule, NgxEchartsDirective],
-  providers: [provideEchartsCore({ echarts: () => import('echarts') })],
+  providers: [provideEchartsTema()],
   template: `
   @if (hayDatos()) {
     <div echarts [options]="opciones()" [merge]="opciones()" class="gr" [style.height.px]="alto()"></div>
@@ -34,7 +35,7 @@ import { ConfigVisualizacion, ResultadoConsulta } from '../models/reportes.model
   styles: [`
     :host { display: block; width: 100%; min-width: 0; }
     .gr { width: 100%; min-height: 240px; }
-    .vacio { text-align: center; padding: 2.5rem 1rem; color: #94a3b8; }
+    .vacio { text-align: center; padding: 2.5rem 1rem; color: var(--text-faint); }
     .vacio mat-icon { font-size: 40px; width: 40px; height: 40px; opacity: .5; }
     .vacio p { font-size: .82rem; margin: .5rem auto 0; max-width: 380px; line-height: 1.4; }
   `],

@@ -77,96 +77,44 @@
             </mat-select>
           </mat-form-field>
 
-          <mat-form-field appearance="outline" class="filtro-field">
-            <mat-label>Buscar usuario o página</mat-label>
-            <mat-icon matPrefix>search</mat-icon>
-            <input matInput [formControl]="filtroBusqueda" placeholder="email o nombre...">
-          </mat-form-field>
-
           <button mat-stroked-button (click)="limpiarNav()" matTooltip="Limpiar">
             <mat-icon>filter_alt_off</mat-icon>
           </button>
         </div>
 
-        <div class="loading-overlay" *ngIf="navLoading"><mat-spinner diameter="36"></mat-spinner></div>
+        <app-tabla-estandar #tablaNav
+          id="auditoria-actividad-navegacion"
+          titulo="Navegación por módulos"
+          modulo="Auditoría"
+          busqueda="Buscar usuario o página…"
+          vacio="Aún no hay datos de navegación."
+          [datos]="navegacion"
+          [columnas]="columnasNav"
+          [filaId]="idRegistro"
+          [cargando]="navLoading"
+          [totalServidor]="navTotal"
+          [filasPorPagina]="navSize"
+          (paginaCambio)="onNavPage($event)"
+          (busquedaCambio)="buscarNav($event)">
 
-        @if (!navLoading) {
-          <!-- Tabla desktop -->
-          @if (!isMobile) {
-            <div class="tabla-wrapper">
-              <table mat-table [dataSource]="navegacion" class="tabla-activity mat-elevation-z1">
-                <ng-container matColumnDef="occurredAt">
-                  <th mat-header-cell *matHeaderCellDef>Fecha y hora</th>
-                  <td mat-cell *matCellDef="let c" class="td-fecha">{{ formatDate(c.occurred_at) }}</td>
-                </ng-container>
-                <ng-container matColumnDef="actor">
-                  <th mat-header-cell *matHeaderCellDef>Usuario</th>
-                  <td mat-cell *matCellDef="let c">
-                    <div class="actor-cell">
-                      <mat-icon class="actor-avatar">account_circle</mat-icon>
-                      <div>
-                        <div class="actor-nombre">{{ c.actor_nombre || c.actor_email || '—' }}</div>
-                        <div class="actor-rol" *ngIf="c.actor_rol">{{ c.actor_rol }}</div>
-                      </div>
-                    </div>
-                  </td>
-                </ng-container>
-                <ng-container matColumnDef="modulo">
-                  <th mat-header-cell *matHeaderCellDef>Módulo</th>
-                  <td mat-cell *matCellDef="let c"><span class="modulo-chip">{{ c.modulo }}</span></td>
-                </ng-container>
-                <ng-container matColumnDef="pagina">
-                  <th mat-header-cell *matHeaderCellDef>Página visitada</th>
-                  <td mat-cell *matCellDef="let c"><span class="pagina-label">{{ paginaDesdeDesc(c.descripcion) }}</span></td>
-                </ng-container>
-                <ng-container matColumnDef="ip">
-                  <th mat-header-cell *matHeaderCellDef>IP</th>
-                  <td mat-cell *matCellDef="let c" class="td-mono">{{ c.ip ?? '—' }}</td>
-                </ng-container>
-                <tr mat-header-row *matHeaderRowDef="navCols; sticky: true"></tr>
-                <tr mat-row *matRowDef="let row; columns: navCols;" class="fila-nav"></tr>
-              </table>
-              <div class="empty-state" *ngIf="navegacion.length === 0">
-                <mat-icon>travel_explore</mat-icon>
-                <p>Aún no hay datos de navegación.</p>
+          <ng-template tablaCelda="actor" let-c>
+            <div class="actor-cell">
+              <mat-icon class="actor-avatar">account_circle</mat-icon>
+              <div>
+                <div class="actor-nombre">{{ c.actor_nombre || c.actor_email || '—' }}</div>
+                @if (c.actor_rol) { <div class="actor-rol">{{ c.actor_rol }}</div> }
               </div>
             </div>
-          }
+          </ng-template>
 
-          <!-- Tarjetas mobile -->
-          @if (isMobile) {
-            <div class="mobile-cards">
-              @for (c of navegacion; track c.id) {
-                <div class="act-card">
-                  <div class="card-top-row">
-                    <span class="modulo-chip">{{ c.modulo }}</span>
-                    <span class="card-date">{{ formatDate(c.occurred_at) }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">Página</span>
-                    <span class="card-val">{{ paginaDesdeDesc(c.descripcion) }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">Usuario</span>
-                    <span class="card-val">{{ c.actor_nombre || c.actor_email || '—' }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">IP</span>
-                    <span class="card-val card-mono">{{ c.ip ?? '—' }}</span>
-                  </div>
-                </div>
-              }
-              @if (navegacion.length === 0) {
-                <div class="empty-state"><mat-icon>travel_explore</mat-icon><p>Sin registros.</p></div>
-              }
-            </div>
-          }
-        }
+          <ng-template tablaCelda="modulo" let-c>
+            <span class="modulo-chip">{{ c.modulo }}</span>
+          </ng-template>
 
-        <mat-paginator *ngIf="!navLoading && navTotal > 0"
-          [length]="navTotal" [pageSize]="navSize" [pageSizeOptions]="[25,50,100]"
-          [pageIndex]="navPage" (page)="onNavPage($event)">
-        </mat-paginator>
+          <ng-template tablaCelda="ip" let-c>
+            <span class="td-mono">{{ c.ip ?? '—' }}</span>
+          </ng-template>
+        </app-tabla-estandar>
       </div>
     </mat-tab>
 
@@ -201,97 +149,39 @@
           </button>
         </div>
 
-        <div class="loading-overlay" *ngIf="accionLoading"><mat-spinner diameter="36"></mat-spinner></div>
+        <app-tabla-estandar #tablaAcc
+          id="auditoria-actividad-acciones"
+          titulo="Acciones sobre datos"
+          modulo="Auditoría"
+          [busqueda]="false"
+          vacio="No hay acciones registradas."
+          [datos]="acciones"
+          [columnas]="columnasAcciones"
+          [filaId]="idRegistro"
+          [cargando]="accionLoading"
+          [totalServidor]="accionTotal"
+          [filasPorPagina]="accionSize"
+          (paginaCambio)="onAccionPage($event)">
 
-        @if (!accionLoading) {
-          @if (!isMobile) {
-            <div class="tabla-wrapper">
-              <table mat-table [dataSource]="acciones" class="tabla-activity mat-elevation-z1">
-                <ng-container matColumnDef="occurredAt">
-                  <th mat-header-cell *matHeaderCellDef>Fecha y hora</th>
-                  <td mat-cell *matCellDef="let c" class="td-fecha">{{ formatDate(c.occurred_at) }}</td>
-                </ng-container>
-                <ng-container matColumnDef="actor">
-                  <th mat-header-cell *matHeaderCellDef>Usuario</th>
-                  <td mat-cell *matCellDef="let c">
-                    <div class="actor-cell">
-                      <mat-icon class="actor-avatar">account_circle</mat-icon>
-                      <div>
-                        <div class="actor-nombre">{{ c.actor_nombre || c.actor_email || '—' }}</div>
-                        <div class="actor-rol" *ngIf="c.actor_rol">{{ c.actor_rol }}</div>
-                      </div>
-                    </div>
-                  </td>
-                </ng-container>
-                <ng-container matColumnDef="modulo">
-                  <th mat-header-cell *matHeaderCellDef>Módulo</th>
-                  <td mat-cell *matCellDef="let c"><span class="modulo-chip">{{ c.modulo }}</span></td>
-                </ng-container>
-                <ng-container matColumnDef="entidad">
-                  <th mat-header-cell *matHeaderCellDef>Entidad</th>
-                  <td mat-cell *matCellDef="let c">
-                    <span class="entidad-text">{{ c.entidad }}</span>
-                    <span class="entidad-id" *ngIf="c.entidad_id">· {{ c.entidad_id | slice:0:16 }}</span>
-                  </td>
-                </ng-container>
-                <ng-container matColumnDef="accion">
-                  <th mat-header-cell *matHeaderCellDef>Acción</th>
-                  <td mat-cell *matCellDef="let c">
-                    <span class="action-chip" [style.background]="colorAccion(c.accion)+'22'" [style.color]="colorAccion(c.accion)">{{ labelAccion(c.accion) }}</span>
-                  </td>
-                </ng-container>
-                <ng-container matColumnDef="descripcion">
-                  <th mat-header-cell *matHeaderCellDef>Descripción</th>
-                  <td mat-cell *matCellDef="let c" class="td-desc">{{ c.descripcion ?? '—' }}</td>
-                </ng-container>
-                <tr mat-header-row *matHeaderRowDef="accionCols; sticky: true"></tr>
-                <tr mat-row *matRowDef="let row; columns: accionCols;" class="fila-nav"></tr>
-              </table>
-              <div class="empty-state" *ngIf="acciones.length === 0">
-                <mat-icon>edit_note</mat-icon><p>No hay acciones registradas.</p>
+          <ng-template tablaCelda="actor" let-c>
+            <div class="actor-cell">
+              <mat-icon class="actor-avatar">account_circle</mat-icon>
+              <div>
+                <div class="actor-nombre">{{ c.actor_nombre || c.actor_email || '—' }}</div>
+                @if (c.actor_rol) { <div class="actor-rol">{{ c.actor_rol }}</div> }
               </div>
             </div>
-          }
+          </ng-template>
 
-          @if (isMobile) {
-            <div class="mobile-cards">
-              @for (c of acciones; track c.id) {
-                <div class="act-card">
-                  <div class="card-top-row">
-                    <span class="action-chip" [style.background]="colorAccion(c.accion)+'22'" [style.color]="colorAccion(c.accion)">{{ labelAccion(c.accion) }}</span>
-                    <span class="modulo-chip">{{ c.modulo }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">Fecha</span>
-                    <span class="card-val">{{ formatDate(c.occurred_at) }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">Usuario</span>
-                    <span class="card-val">{{ c.actor_nombre || c.actor_email || '—' }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">Entidad</span>
-                    <span class="card-val">{{ c.entidad }}{{ c.entidad_id ? ' · ' + (c.entidad_id | slice:0:12) : '' }}</span>
-                  </div>
-                  @if (c.descripcion) {
-                    <div class="card-field">
-                      <span class="card-label">Descripción</span>
-                      <span class="card-val card-desc">{{ c.descripcion }}</span>
-                    </div>
-                  }
-                </div>
-              }
-              @if (acciones.length === 0) {
-                <div class="empty-state"><mat-icon>edit_note</mat-icon><p>Sin acciones.</p></div>
-              }
-            </div>
-          }
-        }
+          <ng-template tablaCelda="modulo" let-c>
+            <span class="modulo-chip">{{ c.modulo }}</span>
+          </ng-template>
 
-        <mat-paginator *ngIf="!accionLoading && accionTotal > 0"
-          [length]="accionTotal" [pageSize]="accionSize" [pageSizeOptions]="[25,50,100]"
-          [pageIndex]="accionPage" (page)="onAccionPage($event)">
-        </mat-paginator>
+          <ng-template tablaCelda="entidad" let-c>
+            <span class="entidad-text">{{ c.entidad }}</span>
+            @if (c.entidad_id) { <span class="entidad-id">· {{ c.entidad_id | slice:0:16 }}</span> }
+          </ng-template>
+        </app-tabla-estandar>
       </div>
     </mat-tab>
 
@@ -303,80 +193,31 @@
       </ng-template>
 
       <div class="tab-content">
-        <div class="loading-overlay" *ngIf="authLoading"><mat-spinner diameter="36"></mat-spinner></div>
+        <app-tabla-estandar
+          id="auditoria-actividad-autenticacion"
+          titulo="Autenticación"
+          modulo="Auditoría"
+          [busqueda]="false"
+          vacio="No hay registros de autenticación."
+          [datos]="auth"
+          [columnas]="columnasAuth"
+          [filaId]="idRegistro"
+          [filaClase]="claseFilaAuth"
+          [cargando]="authLoading"
+          [totalServidor]="authTotal"
+          [filasPorPagina]="authSize"
+          (paginaCambio)="onAuthPage($event)">
 
-        @if (!authLoading) {
-          @if (!isMobile) {
-            <div class="tabla-wrapper">
-              <table mat-table [dataSource]="auth" class="tabla-activity mat-elevation-z1">
-                <ng-container matColumnDef="occurredAt">
-                  <th mat-header-cell *matHeaderCellDef>Fecha y hora</th>
-                  <td mat-cell *matCellDef="let e" class="td-fecha">{{ formatDate(e.occurred_at) }}</td>
-                </ng-container>
-                <ng-container matColumnDef="actorEmail">
-                  <th mat-header-cell *matHeaderCellDef>Usuario</th>
-                  <td mat-cell *matCellDef="let e">{{ e.actor_email ?? '—' }}</td>
-                </ng-container>
-                <ng-container matColumnDef="action">
-                  <th mat-header-cell *matHeaderCellDef>Evento</th>
-                  <td mat-cell *matCellDef="let e">
-                    <span class="action-chip" [style.background]="colorAccion(e.action)+'22'" [style.color]="colorAccion(e.action)">{{ labelAccion(e.action) }}</span>
-                  </td>
-                </ng-container>
-                <ng-container matColumnDef="ip">
-                  <th mat-header-cell *matHeaderCellDef>IP</th>
-                  <td mat-cell *matCellDef="let e" class="td-mono">{{ e.ip ?? '—' }}</td>
-                </ng-container>
-                <ng-container matColumnDef="success">
-                  <th mat-header-cell *matHeaderCellDef>Estado</th>
-                  <td mat-cell *matCellDef="let e">
-                    <mat-icon [class.icon-ok]="e.success" [class.icon-fail]="!e.success" [matTooltip]="e.success ? 'Exitoso' : 'Fallido'">
-                      {{ e.success ? 'check_circle' : 'cancel' }}
-                    </mat-icon>
-                  </td>
-                </ng-container>
-                <tr mat-header-row *matHeaderRowDef="authCols; sticky: true"></tr>
-                <tr mat-row *matRowDef="let row; columns: authCols;" [class.fila-fail]="!row.success"></tr>
-              </table>
-              <div class="empty-state" *ngIf="auth.length === 0">
-                <mat-icon>key_off</mat-icon><p>No hay registros de autenticación.</p>
-              </div>
-            </div>
-          }
+          <ng-template tablaCelda="ip" let-e>
+            <span class="td-mono">{{ e.ip ?? '—' }}</span>
+          </ng-template>
 
-          @if (isMobile) {
-            <div class="mobile-cards">
-              @for (e of auth; track e.id) {
-                <div class="act-card" [class.card-fail]="!e.success">
-                  <div class="card-top-row">
-                    <span class="action-chip" [style.background]="colorAccion(e.action)+'22'" [style.color]="colorAccion(e.action)">{{ labelAccion(e.action) }}</span>
-                    <mat-icon [class.icon-ok]="e.success" [class.icon-fail]="!e.success">{{ e.success ? 'check_circle' : 'cancel' }}</mat-icon>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">Fecha y hora</span>
-                    <span class="card-val">{{ formatDate(e.occurred_at) }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">Usuario</span>
-                    <span class="card-val">{{ e.actor_email ?? '—' }}</span>
-                  </div>
-                  <div class="card-field">
-                    <span class="card-label">IP</span>
-                    <span class="card-val card-mono">{{ e.ip ?? '—' }}</span>
-                  </div>
-                </div>
-              }
-              @if (auth.length === 0) {
-                <div class="empty-state"><mat-icon>key_off</mat-icon><p>Sin registros.</p></div>
-              }
-            </div>
-          }
-        }
-
-        <mat-paginator *ngIf="!authLoading && authTotal > 0"
-          [length]="authTotal" [pageSize]="authSize" [pageSizeOptions]="[25,50,100]"
-          [pageIndex]="authPage" (page)="onAuthPage($event)">
-        </mat-paginator>
+          <ng-template tablaCelda="success" let-e>
+            <mat-icon [class.icon-ok]="e.success" [class.icon-fail]="!e.success" [matTooltip]="e.success ? 'Exitoso' : 'Fallido'">
+              {{ e.success ? 'check_circle' : 'cancel' }}
+            </mat-icon>
+          </ng-template>
+        </app-tabla-estandar>
       </div>
     </mat-tab>
 

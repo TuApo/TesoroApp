@@ -146,64 +146,50 @@
       </p>
     }
 
-    <div class="blk-tabla-scroll">
-      <table class="blk-tabla">
-        <thead>
-          <tr>
-            <th scope="col">Fila</th>
-            <th scope="col">Resultado</th>
-            <th scope="col">Registro</th>
-            <th scope="col">Detalle</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (f of filasVisibles(); track f.row_number) {
-            <tr [class.blk-fila--error]="f.outcome === 'ERROR'">
-              <td class="blk-num">{{ f.row_number }}</td>
-              <td>
-                <span class="blk-chip" [class]="claseResultado(f.outcome)">
-                  {{ etiquetaResultado(f.outcome) }}
-                </span>
-              </td>
-              <td class="blk-registro">
-                @if (f.submission_id) {
-                  <span class="blk-id">#{{ f.submission_id }}</span>
-                  <span class="blk-match">por {{ f.matched_by }}</span>
-                } @else if (f.record_key) {
-                  <span class="blk-llave">{{ f.record_key }}</span>
-                  <span class="blk-match">nuevo</span>
-                } @else {
-                  <span class="blk-sin-dato">—</span>
-                }
-              </td>
-              <td class="blk-detalle">
-                @if (f.errors.length) {
-                  <ul class="blk-errores">
-                    @for (e of f.errors; track e) { <li>{{ e }}</li> }
-                  </ul>
-                } @else if (f.changes.length) {
-                  <span class="blk-cambios">{{ resumenCambios(f) }}</span>
-                } @else {
-                  <span class="blk-sin-dato">Nada que cambiar</span>
-                }
-                @if (f.ignored_columns.length) {
-                  <span class="blk-ignoradas">
-                    <mat-icon aria-hidden="true">block</mat-icon>
-                    Sin permiso para escribir: {{ f.ignored_columns.join(', ') }}
-                  </span>
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
+    <app-tabla-estandar
+      id="formularios-carga-masiva-revision"
+      titulo="Revisión de la carga masiva"
+      modulo="Formularios dinámicos"
+      vacio="El archivo no trae filas para revisar."
+      [datos]="p.rows"
+      [columnas]="columnasRevision"
+      [filaId]="idFila"
+      [filaClase]="claseFila">
 
-    @if (hayMas() && !mostrarTodas()) {
-      <button mat-button class="blk-mas" (click)="mostrarTodas.set(true)">
-        Mostrar las {{ p.rows.length }} filas revisadas
-      </button>
-    }
+      <ng-template tablaCelda="registro" let-f>
+        <span class="blk-registro">
+          @if (f.submission_id) {
+            <span class="blk-id">#{{ f.submission_id }}</span>
+            <span class="blk-match">por {{ f.matched_by }}</span>
+          } @else if (f.record_key) {
+            <span class="blk-llave">{{ f.record_key }}</span>
+            <span class="blk-match">nuevo</span>
+          } @else {
+            <span class="blk-sin-dato">—</span>
+          }
+        </span>
+      </ng-template>
+
+      <ng-template tablaCelda="detalle" let-f>
+        <span class="blk-detalle">
+          @if (f.errors.length) {
+            <ul class="blk-errores">
+              @for (e of f.errors; track e) { <li>{{ e }}</li> }
+            </ul>
+          } @else if (f.changes.length) {
+            <span class="blk-cambios">{{ resumenCambios(f) }}</span>
+          } @else {
+            <span class="blk-sin-dato">Nada que cambiar</span>
+          }
+          @if (f.ignored_columns.length) {
+            <span class="blk-ignoradas">
+              <mat-icon aria-hidden="true">block</mat-icon>
+              Sin permiso para escribir: {{ f.ignored_columns.join(', ') }}
+            </span>
+          }
+        </span>
+      </ng-template>
+    </app-tabla-estandar>
   }
 
   <!-- ══════════ Paso 3: resultado ══════════ -->
@@ -225,25 +211,21 @@
       </p>
 
       @if (fallidas().length) {
-        <div class="blk-tabla-scroll blk-tabla-fallidas">
-          <table class="blk-tabla">
-            <thead>
-              <tr><th scope="col">Fila</th><th scope="col">Motivo</th></tr>
-            </thead>
-            <tbody>
-              @for (f of fallidas(); track f.row_number) {
-                <tr>
-                  <td class="blk-num">{{ f.row_number }}</td>
-                  <td>
-                    <ul class="blk-errores">
-                      @for (e of f.errors; track e) { <li>{{ e }}</li> }
-                    </ul>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <app-tabla-estandar
+          class="blk-fallidas"
+          id="formularios-carga-masiva-fallidas"
+          titulo="Filas con error de la carga masiva"
+          modulo="Formularios dinámicos"
+          [datos]="fallidas()"
+          [columnas]="columnasFallidas"
+          [filaId]="idFila">
+
+          <ng-template tablaCelda="motivo" let-f>
+            <ul class="blk-errores">
+              @for (e of f.errors; track e) { <li>{{ e }}</li> }
+            </ul>
+          </ng-template>
+        </app-tabla-estandar>
       }
     </div>
   }

@@ -1,0 +1,72 @@
+<mat-form-field class="ss-field" [subscriptSizing]="compacto ? 'dynamic' : 'fixed'" [title]="textoSeleccion">
+  <mat-label>{{ label }}@if (requerido) {<span class="ss-ast" aria-hidden="true">*</span>}</mat-label>
+
+  <mat-select
+    [value]="seleccion"
+    [multiple]="multiple"
+    [disabled]="deshabilitado"
+    panelClass="ss-panel"
+    (selectionChange)="onSelection($event.value)"
+    (openedChange)="onOpen($event)">
+
+    <!-- El texto del campo se arma aquí y no de la opción. `mat-select` compone
+         el suyo con TODO el contenido de la opción elegida, y como cada fila
+         lleva dos líneas —nombre y el dato que la distingue— salían pegadas:
+         "BOUQUETS MIXTOSBOUQUETS MIXTOS S.A.S C.I.". Aquí sale solo el nombre. -->
+    <mat-select-trigger>{{ textoSeleccion }}</mat-select-trigger>
+
+    <!-- Buscador dentro del panel. Solo aparece cuando la lista es larga: sobre
+         cuatro opciones estorba. `stopPropagation` evita que el select se quede
+         con las teclas para su propio salto por letra. -->
+    @if (mostrarBuscador) {
+      <div class="ss-buscar" (click)="$event.stopPropagation()">
+        <mat-icon>search</mat-icon>
+        <input
+          type="text"
+          [placeholder]="placeholderBuscar"
+          [(ngModel)]="consulta"
+          [ngModelOptions]="{ standalone: true }"
+          (keydown)="$event.stopPropagation()">
+        @if (consulta) {
+          <button type="button" class="ss-buscar-x" (click)="consulta = ''" aria-label="Limpiar búsqueda">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </div>
+    }
+
+    @for (o of filtradas; track claveDe($index, o)) {
+      <mat-option [value]="valor(o)" class="ss-op">
+        <span class="ss-op-nombre">
+          @for (seg of resaltar(etiqueta(o)); track $index) {
+            <span [class.ss-hit]="seg.m">{{ seg.t }}</span>
+          }
+        </span>
+        <!-- Segunda línea: lo que distingue esta opción de su homónima. -->
+        @if (detalleDe(o)) {
+          <span class="ss-op-detalle">
+            @for (seg of resaltar(detalleDe(o)); track $index) {
+              <span [class.ss-hit]="seg.m">{{ seg.t }}</span>
+            }
+          </span>
+        }
+      </mat-option>
+    } @empty {
+      <mat-option [disabled]="true" class="ss-op ss-op-vacia">
+        {{ consulta ? 'Nada coincide con «' + consulta + '»' : vacio }}
+      </mat-option>
+    }
+  </mat-select>
+
+  <!-- El icono va a la IZQUIERDA. A la derecha chocaba con la flecha del
+       desplegable: dos glifos pegados que se leían como un solo adorno. -->
+  @if (icono) {
+    <mat-icon matPrefix class="ss-icono">{{ icono }}</mat-icon>
+  }
+
+  @if (invalido && mensajeError) {
+    <mat-error>{{ mensajeError }}</mat-error>
+  } @else if (ayuda) {
+    <mat-hint>{{ ayuda }}</mat-hint>
+  }
+</mat-form-field>

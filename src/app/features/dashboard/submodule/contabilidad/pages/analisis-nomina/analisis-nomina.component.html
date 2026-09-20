@@ -45,78 +45,36 @@
             </ng-template>
 
             <div class="tab-content">
-              <!-- Barra de herramientas -->
+              <!-- Encabezado de la hoja -->
               <div class="toolbar">
                 <div class="toolbar-info">
                   <mat-icon [style.color]="'#1565c0'">{{ getIcon(tab.hoja.nombre_hoja) }}</mat-icon>
                   <span class="toolbar-title">{{ tab.hoja.nombre_hoja }}</span>
-                  <span class="toolbar-meta">
-                    {{ tab.total | number }} registros &middot; {{ tab.hoja.total_columnas }} columnas
-                  </span>
+                  <span class="toolbar-meta">{{ tab.hoja.total_columnas }} columnas</span>
                 </div>
-                <mat-form-field appearance="outline" class="search-field">
-                  <mat-icon matPrefix>search</mat-icon>
-                  <input matInput
-                    placeholder="Buscar por cédula, nombre, empresa..."
-                    (input)="onBuscar($any($event.target).value, i)" />
-                </mat-form-field>
               </div>
 
-              <!-- Loading spinner -->
-              @if (tab.loading) {
-                <div class="table-loading">
-                  <mat-spinner diameter="32"></mat-spinner>
-                  <span>Cargando datos...</span>
-                </div>
-              }
+              <!-- Tabla estandar en modo servidor: la pagina y la busqueda van al backend -->
+              <app-tabla-estandar
+                class="hoja-tabla"
+                [id]="'contabilidad-analisis-nomina'"
+                [titulo]="tab.hoja.nombre_hoja"
+                modulo="Contabilidad"
+                busqueda="Buscar por cédula, nombre, empresa..."
+                vacio="No se encontraron registros"
+                [datos]="tab.rows"
+                [columnas]="tab.tabla"
+                [filaId]="idFila"
+                [cargando]="tab.loading"
+                [totalServidor]="tab.total"
+                [filasPorPagina]="tab.pageSize"
+                (paginaCambio)="onPageChange($event, i)"
+                (busquedaCambio)="onBuscar($event, i)" />
 
-              <!-- Tabla de datos -->
-              @if (tab.loaded && tab.rows.length > 0) {
-                <div class="table-wrapper">
-                  <table class="data-table">
-                    <thead>
-                      <tr>
-                        <th class="th-fila">#</th>
-                        @for (col of visibleColumns(tab); track trackByCol($index, col)) {
-                          <th [matTooltip]="col">{{ col }}</th>
-                        }
-                      </tr>
-                    </thead>
-                    <tbody>
-                      @for (row of tab.rows; track trackByRow($index)) {
-                        <tr>
-                          <td class="td-fila">{{ row['_fila'] }}</td>
-                          @for (col of visibleColumns(tab); track trackByCol($index, col)) {
-                            <td [title]="formatCell(row[col])">{{ formatCell(row[col]) }}</td>
-                          }
-                        </tr>
-                      }
-                    </tbody>
-                  </table>
-                </div>
-
-                @if (visibleColumns(tab).length < tab.columns.length) {
-                  <div class="cols-warning">
-                    <mat-icon>info</mat-icon>
-                    Mostrando {{ visibleColumns(tab).length }} de {{ tab.columns.length }} columnas
-                  </div>
-                }
-
-                <!-- Paginador -->
-                <mat-paginator
-                  [length]="tab.total"
-                  [pageSize]="tab.pageSize"
-                  [pageIndex]="tab.page - 1"
-                  [pageSizeOptions]="[25, 50, 100, 200]"
-                  (page)="onPageChange($event, i)"
-                  showFirstLastButtons>
-                </mat-paginator>
-              }
-
-              @if (tab.loaded && tab.rows.length === 0) {
-                <div class="empty-table">
-                  <mat-icon>search_off</mat-icon>
-                  <span>No se encontraron registros</span>
+              @if (tab.loaded && visibleColumns(tab).length < tab.columns.length) {
+                <div class="cols-warning">
+                  <mat-icon>info</mat-icon>
+                  Mostrando {{ visibleColumns(tab).length }} de {{ tab.columns.length }} columnas
                 </div>
               }
             </div>

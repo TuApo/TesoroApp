@@ -49,7 +49,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
       border-radius: 16px;
       box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
       border: 1px solid rgba(226, 232, 240, 0.8);
-      background: #ffffff;
+      background: var(--surface);
       overflow: hidden;
       transition: box-shadow 0.3s ease, transform 0.3s ease;
     }
@@ -76,13 +76,13 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     .card-title {
       font-size: 1.125rem;
       font-weight: 700;
-      color: #1e293b;
+      color: var(--text);
       margin-bottom: 0.25rem;
       letter-spacing: -0.015em;
     }
     .card-subtitle {
       font-size: 0.85rem;
-      color: #64748b;
+      color: var(--muted);
       font-weight: 400;
     }
     .header-actions {
@@ -101,7 +101,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
     .loading-overlay {
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(255, 255, 255, 0.6);
+      background: rgb(var(--surface-rgb) / 0.6);
       backdrop-filter: blur(4px);
       z-index: 10;
       display: flex;

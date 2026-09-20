@@ -59,10 +59,29 @@ export function removeLocalStorageItem(key: string): void {
   } catch { /* noop */ }
 }
 
+/**
+ * Preferencias del DISPOSITIVO, no de la sesión: sobreviven al logout. El
+ * cierre de sesión borra todo el localStorage, y sin esta lista el tema
+ * elegido (claro/oscuro) volvía a claro cada vez que alguien salía y entraba.
+ * Solo van aquí ajustes de apariencia, nunca datos del usuario ni tokens.
+ */
+const CLAVES_DE_DISPOSITIVO = ['tuapo.ui.tema', 'tuapo.ui.menu', 'tuapo.ui.acciones'];
+/** Prefijos de lo mismo: la vista tabla/tarjetas que eligió cada quien por pantalla. */
+const PREFIJOS_DE_DISPOSITIVO = ['tabla:'];
+
 export function clearLocalStorage(): void {
   if (!hasLocalStorage()) return;
   try {
-    window.localStorage.clear();
+    const ls = window.localStorage;
+    const conservadas: (readonly [string, string | null])[] = [];
+    for (let i = 0; i < ls.length; i++) {
+      const k = ls.key(i);
+      if (k && (CLAVES_DE_DISPOSITIVO.includes(k) || PREFIJOS_DE_DISPOSITIVO.some((p) => k.startsWith(p)))) {
+        conservadas.push([k, ls.getItem(k)]);
+      }
+    }
+    ls.clear();
+    for (const [k, v] of conservadas) if (v !== null) ls.setItem(k, v);
   } catch { /* noop */ }
 }
 

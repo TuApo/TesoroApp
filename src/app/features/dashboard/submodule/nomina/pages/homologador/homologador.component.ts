@@ -1,4 +1,4 @@
-import { AfterViewInit, ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { Observable } from 'rxjs';
@@ -13,15 +13,12 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatPaginator, MatPaginatorModule } from '@angular/material/paginator';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatSort, MatSortModule } from '@angular/material/sort';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
+import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import {
   Client,
   ConceptoNomina,
@@ -61,33 +58,18 @@ interface HomologadorCatalogRow extends HomologadorExterno {
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
-    MatPaginatorModule,
-    MatProgressSpinnerModule,
     MatSelectModule,
     MatSnackBarModule,
-    MatSortModule,
     MatSlideToggleModule,
-    MatTableModule,
     MatTooltipModule,
+    ...TABLA_ESTANDAR,
   ],
   templateUrl: './homologador.component.html',
   styleUrls: ['./homologador.component.css'],
 })
-export class HomologadorComponent implements OnInit, AfterViewInit {
-  @ViewChild(MatSort) sort!: MatSort;
-  @ViewChild(MatPaginator) paginator!: MatPaginator;
-
-  displayedColumns = [
-    'concepto_codigo',
-    'concepto_descripcion',
-    'codigo_externo',
-    'concepto_externo',
-    'clasificacion_externa',
-    'estado_homologacion',
-    'activo',
-    'acciones',
-  ];
-  dataSource = new MatTableDataSource<HomologadorCatalogRow>([]);
+export class HomologadorComponent implements OnInit {
+  /** Filas visibles: catálogo de la empresa con los filtros de concepto / estado / activo. */
+  filas: HomologadorCatalogRow[] = [];
   isLoading = false;
 
   clientes: Client[] = [];
@@ -103,9 +85,9 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
   homologacionesEmpresa: HomologadorExterno[] = [];
   catalogoConceptos: HomologadorCatalogRow[] = [];
 
+  // La búsqueda por texto, el orden y los filtros por columna los da la tabla estándar.
   filterEstado = '';
   filterActivo = '';
-  filterSearch = '';
 
   readonly ESTADO_LABELS: Record<string, { label: string; color: string; icon: string }> = {
     HOMOLOGADO: { label: 'Homologado', color: 'estado-ok', icon: 'check_circle' },
@@ -113,6 +95,47 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
     REVISAR: { label: 'Revisar', color: 'estado-review', icon: 'rate_review' },
     SIN_HOMOLOGACION: { label: 'Sin homologacion', color: 'estado-none', icon: 'help_outline' },
   };
+
+  /** Tono del chip de estado en la tabla estándar (mismo significado que estado-ok/warn/review/none). */
+  private readonly TONO_ESTADO: Record<string, TonoBadge> = {
+    HOMOLOGADO: 'ok',
+    HOMOLOGADO_CON_OBSERVACION: 'warn',
+    REVISAR: 'info',
+    SIN_HOMOLOGACION: 'neutro',
+  };
+
+  /**
+   * Código y concepto externos llevan en el valor TODOS los mapeos del concepto
+   * (no solo el principal): así la búsqueda encuentra también lo que está en el
+   * panel colapsable, como hacía el buscador anterior, y el Excel los incluye.
+   */
+  readonly columnas: ColumnaTabla<HomologadorCatalogRow>[] = [
+    { id: 'concepto_codigo', header: 'Cod. Tu Alianza', valor: (r) => r.concepto_codigo, tarjeta: 'subtitulo' },
+    { id: 'concepto_descripcion', header: 'Concepto Tu Alianza', valor: (r) => r.concepto_descripcion,
+      tarjeta: 'titulo', minAncho: '200px' },
+    { id: 'codigo_externo', header: 'Cod. Externo', valor: (r) => this.unirMapeos(r, 'codigo_externo'), tarjeta: 'meta' },
+    { id: 'concepto_externo', header: 'Concepto Externo', valor: (r) => this.unirMapeos(r, 'concepto_externo'),
+      interactiva: true, tarjeta: 'cuerpo', minAncho: '220px' },
+    { id: 'clasificacion_externa', header: 'Clasificacion', valor: (r) => r.clasificacion_externa ?? '',
+      prioridad: 2, tarjeta: 'meta' },
+    { id: 'estado_homologacion', header: 'Estado', tarjeta: 'badge',
+      valor: (r) => this.ESTADO_LABELS[r.estado_homologacion]?.label ?? r.estado_homologacion,
+      badge: (r) => ({
+        texto: this.ESTADO_LABELS[r.estado_homologacion]?.label ?? r.estado_homologacion,
+        tono: this.TONO_ESTADO[r.estado_homologacion] ?? 'neutro',
+        icono: this.ESTADO_LABELS[r.estado_homologacion]?.icon ?? 'help',
+      }) },
+    { id: 'activo', header: 'Estado', align: 'center', interactiva: true, copiable: false, tarjeta: 'meta',
+      valor: (r) => (r.activo ? 'Activo' : 'Inactivo') },
+  ];
+
+  readonly idFila = (r: HomologadorCatalogRow) => r.clave;
+  readonly claseFila = (r: HomologadorCatalogRow) => (r.activo ? '' : 'te-fila--atenuada');
+
+  private unirMapeos(r: HomologadorCatalogRow, campo: 'codigo_externo' | 'concepto_externo'): string {
+    const valores = (r.mapeos ?? []).map((m) => m[campo]).filter((v): v is string => !!v);
+    return valores.length ? valores.join(' | ') : (r[campo] ?? '');
+  }
 
   constructor(
     private nominaService: NominaService,
@@ -136,11 +159,6 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
       map((value) => typeof value === 'string' ? value : (value ? `[${value.codigo}] ${value.descripcion}` : '')),
       map((term) => term ? this._filterConceptos(term) : this.conceptos.slice()),
     );
-  }
-
-  ngAfterViewInit(): void {
-    this.dataSource.sort = this.sort;
-    this.dataSource.paginator = this.paginator;
   }
 
   cargarClientes(): void {
@@ -207,7 +225,7 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
     this.clienteControl.setValue('');
     this.homologacionesEmpresa = [];
     this.catalogoConceptos = [];
-    this.dataSource.data = [];
+    this.filas = [];
   }
 
   onConceptoSelected(concepto: ConceptoNomina): void {
@@ -223,7 +241,7 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
 
   cargarHomologaciones(): void {
     if (!this.selectedCliente) {
-      this.dataSource.data = [];
+      this.filas = [];
       return;
     }
 
@@ -289,6 +307,8 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
     this.nominaService.actualizarHomologacion(item.id_homologacion, { activo: nuevoEstado }).subscribe({
       next: () => {
         item.activo = nuevoEstado;
+        // Arreglo nuevo: la tabla estándar solo recalcula cuando cambia la referencia.
+        this.filas = [...this.filas];
         this.snackBar.open(
           `Homologacion ${nuevoEstado ? 'activada' : 'desactivada'}`,
           'Cerrar',
@@ -306,7 +326,6 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
   limpiarFiltros(): void {
     this.filterEstado = '';
     this.filterActivo = '';
-    this.filterSearch = '';
     this.selectedConcepto = null;
     this.conceptoControl.setValue('');
     this.aplicarFiltros();
@@ -337,7 +356,7 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
   private reconstruirCatalogo(): void {
     if (!this.selectedCliente) {
       this.catalogoConceptos = [];
-      this.dataSource.data = [];
+      this.filas = [];
       return;
     }
 
@@ -504,37 +523,19 @@ export class HomologadorComponent implements OnInit, AfterViewInit {
 
   aplicarFiltros(): void {
     if (!this.selectedCliente) {
-      this.dataSource.data = [];
+      this.filas = [];
       return;
     }
 
-    const search = this.filterSearch.trim().toLowerCase();
     const conceptoId = this.selectedConcepto?.id_concepto;
 
-    this.dataSource.data = this.catalogoConceptos.filter((item) => {
+    this.filas = this.catalogoConceptos.filter((item) => {
       if (conceptoId && item.concepto !== conceptoId) return false;
       if (this.filterEstado && item.estado_homologacion !== this.filterEstado) return false;
       if (this.filterActivo !== '' && String(item.activo) !== this.filterActivo) return false;
-      if (!search) return true;
-
-      const camposFila = [
-        item.concepto_codigo,
-        item.concepto_descripcion,
-        item.concepto_naturaleza,
-        item.concepto_unidad,
-      ];
-      // Incluye TODOS los mapeos (no solo el principal) para que buscar un codigo o
-      // concepto externo escondido en el panel colapsable encuentre igual la fila.
-      const camposMapeos = (item.mapeos ?? []).flatMap((m) => [
-        m.codigo_externo,
-        m.concepto_externo,
-        m.clasificacion_externa,
-        m.observacion,
-      ]);
-      return [...camposFila, ...camposMapeos].some((value) => (value ?? '').toLowerCase().includes(search));
+      return true;
     });
-
-    this.paginator?.firstPage();
+    this.cdr.markForCheck();
   }
 
   private toHomologacion(item: HomologadorCatalogRow): HomologadorExterno {
