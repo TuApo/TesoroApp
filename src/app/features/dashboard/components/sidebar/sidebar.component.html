@@ -1,6 +1,13 @@
 <div class="cajaHeader">
   <div class="cajontitulo">
     <img class="header-brand" src="logos/logo_alianza.svg" alt="Tu Apo" />
+    <!-- Título de la pantalla actual (lo publica el menú lateral). -->
+    <div class="page-title">
+      @if (navegacion.modulo(); as modulo) {
+        <span class="page-title__modulo">{{ modulo }}</span>
+      }
+      <h1 class="page-title__nombre">{{ navegacion.titulo() }}</h1>
+    </div>
   </div>
   <!-- Menú inteligente: entra a cualquier módulo escribiendo su nombre, o manda
        la pregunta al asistente de IA. -->
@@ -52,66 +59,12 @@
         </button>
       </div>
 
-      <!-- CAMPANA DE NOTIFICACIONES (desplegable estilo Facebook) -->
+      <!-- CAMPANA DE NOTIFICACIONES
+           El panel vive en su propio componente: como mat-menu, se renderizaba
+           en un overlay fuera del sidebar y el CSS encapsulado de este archivo
+           no le llegaba, asi que el desplegable salia sin estilos. -->
       <div class="botonNotif">
-        <button mat-icon-button class="icono notif-bell" aria-label="Notificaciones"
-          [matMenuTriggerFor]="notifMenu" (menuOpened)="loadNotifs()"
-          [matTooltip]="unreadCount > 0 ? unreadCount + ' sin leer' : 'Notificaciones'">
-          <mat-icon>notifications</mat-icon>
-          @if (unreadCount > 0) {
-            <span class="notif-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-          }
-        </button>
-
-        <mat-menu #notifMenu="matMenu" class="notif-menu-panel" xPosition="before">
-          <div class="notif-head" (click)="$event.stopPropagation()">
-            <div class="notif-head-left">
-              <span class="notif-head-title">Notificaciones</span>
-              @if (unreadCount > 0) {
-                <span class="notif-head-count">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
-              }
-            </div>
-            @if (unreadCount > 0) {
-              <button type="button" class="notif-head-action" (click)="markAllNotifs($event)">
-                <mat-icon>done_all</mat-icon> Marcar leídas
-              </button>
-            }
-          </div>
-
-          @if (loadingNotifs) {
-            <div class="notif-empty">
-              <mat-icon class="spin">autorenew</mat-icon>
-              <span>Cargando…</span>
-            </div>
-          } @else if (notifications.length === 0) {
-            <div class="notif-empty">
-              <mat-icon>notifications_none</mat-icon>
-              <span>Estás al día</span>
-              <small>No tienes notificaciones nuevas</small>
-            </div>
-          } @else {
-            <div class="notif-list">
-              @for (n of notifications; track n.id) {
-                <button mat-menu-item class="notif-item"
-                  [class.is-unread]="!n.leida" [class.is-urgent]="notifDestacada(n)"
-                  (click)="onNotifClick(n)">
-                  <span class="notif-avatar" [style.background]="n.color">
-                    <mat-icon>{{ n.icono }}</mat-icon>
-                  </span>
-                  <span class="notif-body">
-                    <span class="notif-title">{{ n.titulo }}</span>
-                    @if (n.mensaje) { <span class="notif-msg">{{ n.mensaje }}</span> }
-                    <span class="notif-time">{{ notifTimeAgo(n.creada_en) }}</span>
-                  </span>
-                  @if (!n.leida) { <span class="notif-unread-dot"></span> }
-                </button>
-              }
-            </div>
-            <button mat-menu-item class="notif-seeall" (click)="goToNotifications()">
-              <mat-icon>open_in_new</mat-icon> Ver todas
-            </button>
-          }
-        </mat-menu>
+        <app-notification-bell />
       </div>
 
       <!-- MENÚ DE PERFIL (avatar arriba a la derecha) -->
@@ -159,6 +112,32 @@
           </button>
           <button mat-menu-item (click)="irACambiarContrasena()">
             <mat-icon>vpn_key</mat-icon> Cambiar contraseña
+          </button>
+
+          <div class="perfil-menu-sep"></div>
+
+          <!-- El menú no se cierra al cambiar el tema: así se ve el cambio al instante. -->
+          <button mat-menu-item class="perfil-menu-tema" role="menuitemcheckbox"
+            [attr.aria-checked]="theme.esOscuro()"
+            (click)="$event.stopPropagation(); theme.alternar()">
+            <mat-icon>{{ theme.esOscuro() ? 'dark_mode' : 'light_mode' }}</mat-icon>
+            <span class="perfil-menu-tema__texto">Modo oscuro</span>
+            <span class="perfil-menu-switch" [class.perfil-menu-switch--on]="theme.esOscuro()" aria-hidden="true"></span>
+          </button>
+
+          <div class="perfil-menu-sep"></div>
+
+          <!-- Descarga de la app: antes vivía dentro de Parametrización (una pantalla de
+               administración), así que quien la necesitaba en su equipo o su teléfono no
+               tenía dónde encontrarla. Aquí la ve cualquier usuario. -->
+          <button mat-menu-item class="perfil-menu-descargar" (click)="abrirDescargas()">
+            <mat-icon>download</mat-icon> Descargar aplicación
+          </button>
+
+          <div class="perfil-menu-sep"></div>
+
+          <button mat-menu-item class="perfil-menu-salir" (click)="cerrarSesion()">
+            <mat-icon>logout</mat-icon> Cerrar sesión
           </button>
         </mat-menu>
       </div>

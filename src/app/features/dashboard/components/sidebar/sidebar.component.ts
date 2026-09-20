@@ -1,4 +1,4 @@
-import {  Component, Inject, OnDestroy, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import {  Component, Inject, OnDestroy, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { SharedModule } from '../../../../shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
 import { Router } from '@angular/router';
@@ -8,15 +8,16 @@ import { ConsoleLoggerService } from '../../../../shared/services/console-logger
 import { NetworkStatusService } from '../../../../core/services/network-status.service';
 import { OfflineSyncService } from '../../../../core/services/offline-sync.service';
 import { AppInfoService, PlatformInfo } from '../../../../core/services/app-info.service';
-import { NotificationCenterService, NotificationItem } from '../../../../core/services/notification-center.service';
-import { NotificationTargetService } from '../../../../core/services/notification-target.service';
-import { Subscription, timer, of } from 'rxjs';
-import { switchMap, catchError } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 import { BugReportService } from '../../../../shared/services/bug-report/bug-report.service';
 import { ProfilePhotoService } from '../../../../shared/services/profile-photo/profile-photo.service';
 import { getLocalStorageItem } from '../../../../core/utils/safe-storage';
 import { SmartMenuComponent } from '../smart-menu/smart-menu.component';
+import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
 import { LoadingOrbComponent } from '../../../../core/components/loading-orb/loading-orb.component';
+import { NavegacionService } from '../../../../core/services/navegacion.service';
+import { ThemeService } from '../../../../core/services/theme.service';
+import { SesionService } from '../../../../core/services/sesion.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,12 +25,18 @@ import { LoadingOrbComponent } from '../../../../core/components/loading-orb/loa
   imports: [
     SharedModule,
     SmartMenuComponent,
-    LoadingOrbComponent
+    LoadingOrbComponent,
+    NotificationBellComponent
   ],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.css'
 } )
 export class SidebarComponent implements OnDestroy {
+  /** Título de la pantalla actual (lo publica el menú lateral). */
+  readonly navegacion = inject(NavegacionService);
+  /** Tema y salida viven en este menú del perfil (antes, abajo en la barra lateral). */
+  readonly theme = inject(ThemeService);
+  private readonly sesion = inject(SesionService);
   role: string = '';
   username: string = '';
   documento: string = '';
@@ -62,10 +69,6 @@ export class SidebarComponent implements OnDestroy {
   pendingCount = 0;
   syncProgress: { current: number; total: number; phase: string } | null = null;
 
-  /** Centro de notificaciones (campana del top bar). */
-  notifications: NotificationItem[] = [];
-  unreadCount = 0;
-  loadingNotifs = false;
 
   private netSubs: Subscription[] = [];
 
@@ -78,8 +81,6 @@ export class SidebarComponent implements OnDestroy {
     private networkStatus: NetworkStatusService,
     private offlineSync: OfflineSyncService,
     private appInfo: AppInfoService,
-    private notifCenter: NotificationCenterService,
-    private notifTarget: NotificationTargetService,
     private cdr: ChangeDetectorRef,
     private bugReportService: BugReportService,
     private profilePhotos: ProfilePhotoService,
@@ -109,78 +110,8 @@ export class SidebarComponent implements OnDestroy {
           this.syncProgress = progress;
           this.cdr.markForCheck();
         }),
-        // Campana: polling del contador de no-leídas cada 45s. Tolerante a fallos
-        // (un error de red conserva el último valor y no detiene el timer).
-        timer(0, 45000).pipe(
-          switchMap(() => this.notifCenter.unreadCount().pipe(
-            catchError(() => of({ count: this.unreadCount })))),
-        ).subscribe(r => { this.unreadCount = r?.count ?? 0; this.cdr.markForCheck(); }),
       );
     }
-  }
-
-  // ===== Notificaciones (campana) =====
-  /** Carga las notificaciones recientes al abrir el desplegable. */
-  loadNotifs(): void {
-    this.loadingNotifs = true;
-    this.cdr.markForCheck();
-    this.notifCenter.list().pipe(catchError(() => of([] as NotificationItem[]))).subscribe(list => {
-      this.notifications = (list || []).slice(0, 12);
-      this.loadingNotifs = false;
-      this.cdr.markForCheck();
-    });
-  }
-
-  /**
-   * Clic en una notificación: la marca leída y abre su destino.
-   *
-   * El destino ya no se construye aquí. Antes esto hacía
-   * `navigate('/dashboard/matder/' + n.link)`, que ataba la campana a Matder:
-   * una notificación de nómina o jurídico habría navegado a una ruta inexistente.
-   * Ahora el backend guarda un destino tipado y lo resuelve NotificationTargetService.
-   */
-  onNotifClick(n: NotificationItem): void {
-    if (!n.leida) {
-      this.notifCenter.markRead(n.id).subscribe({ next: () => {}, error: () => {} });
-      n.leida = true;
-      this.unreadCount = Math.max(0, this.unreadCount - 1);
-    }
-    this.notifTarget.abrir(n.destino_tipo, n.destino_valor);
-    this.cdr.markForCheck();
-  }
-
-  markAllNotifs(ev: Event): void {
-    ev.stopPropagation();
-    this.notifCenter.markAllRead().subscribe({ next: () => {}, error: () => {} });
-    this.notifications = this.notifications.map(n => ({ ...n, leida: true }));
-    this.unreadCount = 0;
-    this.cdr.markForCheck();
-  }
-
-  goToNotifications(): void { this.router.navigate(['/dashboard/novedades']); }
-
-  /**
-   * Icono y color ya NO se calculan aquí. Venían de dos mapas hardcodeados que
-   * duplicaban (mal) el catálogo del backend: agregar un tipo obligaba a tocar
-   * este archivo, la página de notificaciones y el Java del productor. Ahora
-   * cada mensaje trae los suyos desde `notif_tipo` y el fallback es del backend.
-   */
-
-  /** Realce de las urgentes: la campana debe distinguirlas de un vistazo. */
-  notifDestacada(n: NotificationItem): boolean {
-    return n.urgencia === 'URGENTE' || n.urgencia === 'CRITICA';
-  }
-
-  notifTimeAgo(iso: string): string {
-    if (!iso) return '';
-    const then = new Date(iso).getTime();
-    if (isNaN(then)) return '';
-    const s = Math.floor((Date.now() - then) / 1000);
-    if (s < 60) return 'hace un momento';
-    const m = Math.floor(s / 60); if (m < 60) return `hace ${m} min`;
-    const h = Math.floor(m / 60); if (h < 24) return `hace ${h} h`;
-    const d = Math.floor(h / 24); if (d < 7) return `hace ${d} d`;
-    return new Date(iso).toLocaleDateString();
   }
 
   ngOnDestroy(): void {
@@ -285,6 +216,10 @@ export class SidebarComponent implements OnDestroy {
   }
 
   /** Acciones del menú de perfil. */
+  cerrarSesion(): void {
+    void this.sesion.cerrarSesion(this.pendingCount || 0);
+  }
+
   irAConfiguracion(): void {
     this.router.navigate(['/dashboard/configuracion/cuenta']);
   }
@@ -304,6 +239,18 @@ export class SidebarComponent implements OnDestroy {
 
   irAIdentificar(): void {
     this.router.navigate(['/dashboard/carnet/identificar']);
+  }
+
+  /** Instaladores (.exe / APK) e instrucciones para iPhone, sin salir de la pantalla. */
+  abrirDescargas(): void {
+    import('../../../../shared/components/app-download-dialog/app-download-dialog.component').then(m => {
+      this.dialog.open(m.AppDownloadDialogComponent, {
+        width: '560px',
+        maxWidth: '95vw',
+        maxHeight: '90vh',
+        autoFocus: false,
+      });
+    });
   }
 
   irACambiarContrasena(): void {

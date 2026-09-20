@@ -1,0 +1,213 @@
+:host {
+  display: block;
+  font-family: var(--font-sans);
+}
+
+/* === TÍTULO === */
+.dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dialog-title .title-icon {
+  color: var(--link);
+}
+
+/* === CONTENIDO === */
+.dialog-content {
+  min-width: 460px;
+  max-width: 560px;
+  max-height: 72vh;
+}
+
+.intro {
+  margin: 0 0 14px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.nota-actual {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ok-border);
+  border-radius: var(--r-sm);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.nota-actual mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+/* === OPCIÓN (una por destino) === */
+.opcion {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.opcion + .opcion {
+  margin-top: 10px;
+}
+
+/* El destino que coincide con el equipo desde el que se abre el menú. */
+.opcion.destacada {
+  border-color: var(--link);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.opcion-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+}
+
+.opcion-icono--win {
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
+
+.opcion-icono--android {
+  background: var(--mt-accent-soft);
+  color: var(--mt-accent-ink);
+}
+
+.opcion-icono--ios {
+  background: var(--surface-4);
+  color: var(--text-2);
+}
+
+.opcion-texto {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+}
+
+.opcion-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.chip-sugerido {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--info-bg);
+  color: var(--info-fg);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.opcion-detalle {
+  font-size: 0.78rem;
+  color: var(--text-2);
+}
+
+.opcion-nota {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.pasos-ios {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.pasos-ios b {
+  color: var(--text-2);
+  word-break: break-word;
+}
+
+/* === ACCIÓN === */
+.opcion-accion {
+  flex-shrink: 0;
+  gap: 6px;
+  border-radius: var(--r-sm) !important;
+  font-weight: 600 !important;
+}
+
+.opcion-accion:not(.opcion-accion--secundaria):not(:disabled) {
+  background: var(--link) !important;
+  color: #fff !important;
+}
+
+.opcion-accion mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
+  padding: 8px 24px 16px;
+}
+
+/* === MÓVIL: la tarjeta se apila y el botón ocupa el ancho === */
+@media (max-width: 600px) {
+  .dialog-content {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .opcion {
+    flex-wrap: wrap;
+  }
+
+  .opcion-accion {
+    width: 100%;
+  }
+}
+
+/* Aviso de versión nueva: ámbar, no verde — pide una acción. */
+.nota-actual--nueva {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.opcion-icono--pwa {
+  background: var(--violet-bg);
+  color: var(--violet-fg);
+}
+
+.opcion-icono--huella {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+/* Extras (agente de huella): separados del bloque de plataformas. */
+.opcion--extra {
+  margin-top: 16px;
+  border-style: dashed;
+}

@@ -1,5 +1,36 @@
 <div class="cfg-card">
   <div class="cfg-card__head">
+    <h2 class="cfg-card__title">Apariencia</h2>
+    <p class="cfg-card__hint">El tema se recuerda en este dispositivo, también después de cerrar sesión.</p>
+  </div>
+
+  <div class="tema-grid" role="radiogroup" aria-label="Tema de la aplicación">
+    @for (op of opcionesTema; track op.valor) {
+      <button type="button" class="tema-op" role="radio"
+              [class.tema-op--activa]="theme.preferencia() === op.valor"
+              [attr.aria-checked]="theme.preferencia() === op.valor"
+              (click)="theme.establecer(op.valor)">
+        <span class="tema-muestra" [attr.data-muestra]="op.valor" aria-hidden="true">
+          <span class="tema-muestra__barra"></span>
+          <span class="tema-muestra__cuerpo">
+            <span class="tema-muestra__linea"></span>
+            <span class="tema-muestra__linea tema-muestra__linea--corta"></span>
+          </span>
+        </span>
+        <span class="tema-op__pie">
+          <mat-icon fontSet="material-symbols-outlined">{{ op.icono }}</mat-icon>
+          <span class="tema-op__textos">
+            <span class="tema-op__titulo">{{ op.titulo }}</span>
+            <span class="tema-op__desc">{{ op.desc }}</span>
+          </span>
+        </span>
+      </button>
+    }
+  </div>
+</div>
+
+<div class="cfg-card">
+  <div class="cfg-card__head">
     <h2 class="cfg-card__title">Almacenamiento local</h2>
     <p class="cfg-card__hint">Datos que la app guarda en este dispositivo para funcionar más rápido y sin conexión.</p>
   </div>

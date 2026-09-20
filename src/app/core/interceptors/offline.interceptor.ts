@@ -12,6 +12,7 @@ import { catchError, tap } from 'rxjs/operators';
 import { NetworkStatusService } from '../services/network-status.service';
 import { getLocalStorageItem } from '../utils/safe-storage';
 import { toCacheKey } from '../utils/cache-key';
+import { puenteOffline } from '../offline/puente-offline';
 
 /**
  * Construye un HttpErrorResponse "fabricado" para que los callers offline
@@ -116,7 +117,10 @@ export const offlineInterceptor: HttpInterceptorFn = (
   next: HttpHandlerFn
 ): Observable<HttpEvent<unknown>> => {
   const networkStatus = inject(NetworkStatusService);
-  const electron = (window as any).electron;
+  // El almacén offline de este entorno: SQLite dentro de Electron, IndexedDB en
+  // el navegador y en el APK. Misma forma en los tres, así que aquí no cambia
+  // nada más. Devuelve null cuando no hay ninguno (SSR) y el código ya lo trata.
+  const electron = puenteOffline();
 
   // Las peticiones de sync replay NO deben re-encolarse si fallan
   if (req.headers.has('X-Offline-Sync')) {

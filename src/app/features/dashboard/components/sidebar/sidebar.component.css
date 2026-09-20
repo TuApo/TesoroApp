@@ -16,7 +16,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #ffffff;
+  background: var(--surface);
 
   height: 64px;
   /* Force rigid height matching the navbar */
@@ -27,7 +27,7 @@
   border-radius: 0;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   /* Consider maintaining shadow, or change to border-bottom for 100% sync */
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border);
   /* Adding matching border to sync with the navbar's right panel divider exactly */
   transition: all 0.3s ease;
   margin: 0;
@@ -53,12 +53,40 @@
 }
 
 .cajontitulo .titulo {
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.5rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text);
   margin: 0;
   letter-spacing: -0.025em;
+}
+
+/* Título de la pantalla (escritorio). En móvil se ve el logo en su lugar. */
+.page-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.page-title__modulo {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.page-title__nombre {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.4px;
+  line-height: 1.2;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 34vw;
 }
 
 /* === PERFIL (Derecha) === */
@@ -85,7 +113,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.25;
 }
 
@@ -106,37 +134,37 @@
 .separador-vertical {
   width: 1px;
   height: 28px;
-  background-color: #e2e8f0;
+  background-color: var(--surface-4);
 }
 
 .columna-info .titulo {
   font-size: 0.95rem !important;
   font-weight: 500;
-  color: #64748b;
+  color: var(--muted);
   margin: 0 0 2px 0;
 }
 
 .username {
-  color: #0f172a;
+  color: var(--text);
   font-weight: 700;
   font-size: 1.05rem;
 }
 
 .detalle {
   font-size: 0.8rem;
-  color: #64748b;
+  color: var(--muted);
   margin: 0;
   white-space: nowrap;
 }
 
 .detalle span {
   font-weight: 500;
-  color: #475569;
+  color: var(--text-2);
 }
 
 .role-sede {
   font-weight: 600;
-  color: #475569;
+  color: var(--text-2);
 }
 
 /* === CHIP DE VERSIÓN + PLATAFORMA ===
@@ -147,15 +175,15 @@
   gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   white-space: nowrap;
   user-select: none;
-  background: #eff6ff;
+  background: #eff6ff; background: light-dark(#eff6ff, #0f284d);
   color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #bfdbfe; border: 1px solid light-dark(#bfdbfe, #0d3b7a);
 }
 
 .version-chip__icon {
@@ -173,25 +201,25 @@
 }
 
 .version-chip[data-key="android"] {
-  background: #ecfdf5;
-  color: #047857;
-  border-color: #a7f3d0;
+  background: #ecfdf5; background: light-dark(#ecfdf5, #133b39);
+  color: #047857; color: light-dark(#047857, #97f7db);
+  border-color: #a7f3d0; border-color: light-dark(#a7f3d0, #17654e);
 }
 .version-chip[data-key="android"] .version-chip__platform { border-left-color: rgba(4, 120, 87, 0.28); }
 
 .version-chip[data-key="electron"] {
-  background: #f5f3ff;
+  background: #f5f3ff; background: light-dark(#f5f3ff, #16164d);
   color: #6d28d9;
-  border-color: #ddd6fe;
+  border-color: #ddd6fe; border-color: light-dark(#ddd6fe, #1e1279);
 }
 .version-chip[data-key="electron"] .version-chip__platform { border-left-color: rgba(109, 40, 217, 0.28); }
 
 .version-chip[data-key="ios"] {
-  background: #f1f5f9;
-  color: #334155;
-  border-color: #cbd5e1;
+  background: var(--surface-3);
+  color: var(--text-2);
+  border-color: var(--border-strong);
 }
-.version-chip[data-key="ios"] .version-chip__platform { border-left-color: rgba(51, 65, 85, 0.28); }
+.version-chip[data-key="ios"] .version-chip__platform { border-left-color: rgb(var(--ink-rgb) / 0.28); }
 
 /* === CHIP ESTADO DE RED (online / offline / sync) === */
 .net-status-chip {
@@ -200,7 +228,7 @@
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  font-family: 'Inter', 'Roboto', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -233,20 +261,20 @@
 }
 
 .net-status-chip.is-online {
-  background: #dcfce7;
-  color: #166534;
-  border-color: #86efac;
+  background: #dcfce7; background: light-dark(#dcfce7, #123b33);
+  color: #166534; color: light-dark(#166534, #a3ebbe);
+  border-color: #86efac; border-color: light-dark(#86efac, #166641);
 }
 
 .net-status-chip.is-offline {
-  background: #fee2e2;
-  color: #991b1b;
-  border-color: #fca5a5;
+  background: #fee2e2; background: light-dark(#fee2e2, #371725);
+  color: #991b1b; color: light-dark(#991b1b, #eea0a0);
+  border-color: #fca5a5; border-color: light-dark(#fca5a5, #69131e);
 }
 
 .net-status-chip.is-syncing {
-  background: #fef3c7;
-  color: #92400e;
+  background: #fef3c7; background: light-dark(#fef3c7, #373625);
+  color: #92400e; color: light-dark(#92400e, #f5bc99);
   border-color: #fcd34d;
 }
 
@@ -287,7 +315,26 @@
 }
 
 .botonBug button.mat-icon-button:hover {
-  background: #fee2e2;
+  background: #fee2e2; background: light-dark(#fee2e2, #371725);
+  color: #dc2626;
+}
+
+/* === CAMPANA DE NOTIFICACIONES ===
+   Solo queda el hueco: el botón, el globo del contador y el panel viven en
+   app-notification-bell, con sus estilos encapsulados junto a su plantilla. */
+.botonNotif {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+button.mat-icon-button {
+  color: #ef4444;
+}
+
+.botonBug button.mat-icon-button:hover {
+  background: #fee2e2; background: light-dark(#fee2e2, #371725);
   color: #dc2626;
 }
 
@@ -322,8 +369,8 @@
 }
 
 button.mat-icon-button {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--surface-3);
+  color: var(--text-2);
   height: 40px;
   width: 40px;
   border-radius: 12px;
@@ -332,8 +379,8 @@ button.mat-icon-button {
 }
 
 button.mat-icon-button:hover {
-  background: #e2e8f0;
-  color: #0f172a;
+  background: var(--surface-4);
+  color: var(--text);
   transform: translateY(-1px);
 }
 
@@ -349,8 +396,8 @@ button.mat-icon-button:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   transition: box-shadow .15s ease, transform .1s ease;
 }
 .perfil-avatar-btn:hover { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
@@ -384,27 +431,66 @@ button.mat-icon-button:hover {
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--border);
 }
 /* La foto ya no se repite dentro del menú (el propio botón que lo abre es la foto),
    así que la cabecera es sólo nombre + rol. */
 .perfil-menu-id { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.perfil-menu-name { font-weight: 700; color: #0f172a; font-size: 0.95rem; }
+.perfil-menu-name { font-weight: 700; color: var(--text); font-size: 0.95rem; }
 .perfil-menu-role {
   align-self: flex-start; font-size: 0.66rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .03em; color: #3730a3; background: #e0e7ff; padding: 2px 8px; border-radius: 999px;
+  letter-spacing: .03em; color: #3730a3; color: light-dark(#3730a3, #aca8e5); background: #e0e7ff; background: light-dark(#e0e7ff, #0f1f4d); padding: 2px 8px; border-radius: 999px;
 }
 .perfil-menu-meta {
-  padding: 10px 16px; border-bottom: 1px solid #eef2f7; display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px;
 }
 /* El carné es la acción que más se usa de este menú: se destaca sin sacarla de la lista. */
 .perfil-menu-carnet { font-weight: 700; }
-.perfil-menu-carnet .mat-icon { color: #1d5aa8; }
+
+.perfil-menu-sep { height: 1px; margin: 4px 0; background: var(--border); }
+
+/* Interruptor de tema dentro del menú. */
+::ng-deep .perfil-menu-panel .perfil-menu-tema .mat-mdc-menu-item-text {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+}
+.perfil-menu-tema__texto { flex: 1; }
+.perfil-menu-switch {
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--surface-4);
+  transition: background-color .2s ease;
+}
+.perfil-menu-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(var(--ink-rgb) / .3);
+  transition: transform .2s ease;
+}
+.perfil-menu-switch--on { background: var(--brand-blue); }
+.perfil-menu-switch--on::after { transform: translateX(14px); }
+
+.perfil-menu-salir,
+.perfil-menu-salir .mat-icon { color: var(--danger-fg) !important; }
+.perfil-menu-salir { font-weight: 700; }
+.perfil-menu-carnet .mat-icon { color: #1d5aa8; color: light-dark(#1d5aa8, #9fc2ee); }
+.perfil-menu-descargar .mat-icon { color: #4E8A12; color: light-dark(#4E8A12, #a7d95e); }
 .perfil-menu-meta p {
-  margin: 0; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #475569;
+  margin: 0; display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-2);
 }
 .perfil-menu-meta .mat-icon {
-  font-size: 17px; width: 17px; height: 17px; color: #94a3b8;
+  font-size: 17px; width: 17px; height: 17px; color: var(--text-faint);
 }
 
 /* === MENÚ === */
@@ -425,7 +511,7 @@ button.mat-icon-button:hover {
 .spanAux {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #334155;
+  color: var(--text-2);
 }
 
 /* === RESPONSIVE ===
@@ -435,6 +521,10 @@ button.mat-icon-button:hover {
 @media (max-width: 900px) {
   :host {
     margin-bottom: 16px;
+  }
+
+  .page-title {
+    display: none;
   }
 
   .cajaHeader {

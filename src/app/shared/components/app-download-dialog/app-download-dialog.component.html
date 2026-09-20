@@ -1,0 +1,166 @@
+<h2 mat-dialog-title class="dialog-title">
+  <mat-icon class="title-icon">download</mat-icon>
+  Descargar aplicación
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <p class="intro">
+    Instala Tu&nbsp;Apo en tu computador o en tu teléfono. Es la misma cuenta: entras con
+    el mismo usuario y contraseña.
+  </p>
+
+  @if (hayActualizacion) {
+    <div class="nota-actual nota-actual--nueva">
+      <mat-icon>system_update_alt</mat-icon>
+      <span>
+        Tienes la v{{ versionInstalada() }} y ya está publicada la
+        <b>v{{ release()!.version }}</b>. Descárgala e instálala encima: no se
+        pierde nada de lo que tengas guardado.
+      </span>
+    </div>
+  } @else if (plataforma === 'electron' || plataforma === 'android') {
+    <div class="nota-actual">
+      <mat-icon>check_circle</mat-icon>
+      <span>
+        Ya estás usando la app
+        {{ plataforma === 'electron' ? 'de Escritorio' : 'de Android' }}
+        @if (versionInstalada()) { (v{{ versionInstalada() }}) }
+        y está al día. Descarga de nuevo sólo si quieres instalarla en otro equipo.
+      </span>
+    </div>
+  }
+
+  <!-- === INSTALAR LA WEB COMO APP (PWA) === -->
+  @if (instalacion.yaInstalada()) {
+    <div class="nota-actual">
+      <mat-icon>check_circle</mat-icon>
+      <span>Ya tienes Tu Apo instalada en este dispositivo.</span>
+    </div>
+  } @else if (instalacion.disponible()) {
+    <div class="opcion destacada">
+      <span class="opcion-icono opcion-icono--pwa"><mat-icon>install_desktop</mat-icon></span>
+      <div class="opcion-texto">
+        <span class="opcion-titulo">
+          Instalar aquí mismo
+          <span class="chip-sugerido">Lo más rápido</span>
+        </span>
+        <span class="opcion-detalle">
+          Se instala esta misma versión como aplicación, con su icono y su ventana propia.
+        </span>
+        <span class="opcion-nota">No ocupa casi nada y se actualiza sola.</span>
+      </div>
+      <button mat-flat-button class="opcion-accion" (click)="instalarAqui()">
+        <mat-icon>add_to_home_screen</mat-icon>
+        <span>Instalar</span>
+      </button>
+    </div>
+  }
+
+  <!-- === ESCRITORIO (Windows) === -->
+  <div class="opcion" [class.destacada]="sugerido() === 'windows'">
+    <span class="opcion-icono opcion-icono--win"><mat-icon>desktop_windows</mat-icon></span>
+    <div class="opcion-texto">
+      <span class="opcion-titulo">
+        Escritorio · Windows
+        @if (sugerido() === 'windows') { <span class="chip-sugerido">Tu equipo</span> }
+      </span>
+      <span class="opcion-detalle">
+        @if (cargando()) {
+          Buscando la última versión…
+        } @else if (hayExe) {
+          v{{ release()!.version }} · {{ release()!.sizeMB }} MB · {{ release()!.releaseDate }}
+        } @else {
+          Todavía no hay instalador publicado.
+        }
+      </span>
+      <span class="opcion-nota">Incluye el lector de huella (no funciona en navegador).</span>
+    </div>
+    <button mat-flat-button class="opcion-accion" [disabled]="!hayExe" (click)="descargarWindows()">
+      <mat-icon>download</mat-icon>
+      <span>Descargar .exe</span>
+    </button>
+  </div>
+
+  <!-- === ANDROID === -->
+  <div class="opcion" [class.destacada]="sugerido() === 'android'">
+    <span class="opcion-icono opcion-icono--android"><mat-icon>android</mat-icon></span>
+    <div class="opcion-texto">
+      <span class="opcion-titulo">
+        Android
+        @if (sugerido() === 'android') { <span class="chip-sugerido">Tu teléfono</span> }
+      </span>
+      <span class="opcion-detalle">
+        @if (cargando()) {
+          Buscando la última versión…
+        } @else if (hayApk) {
+          v{{ release()!.version }} · {{ release()!.apkSizeMB }} MB · {{ release()!.releaseDate }}
+        } @else {
+          Todavía no hay APK publicado.
+        }
+      </span>
+      <span class="opcion-nota">Al abrir el archivo, permite instalar de «orígenes desconocidos».</span>
+    </div>
+    <button mat-flat-button class="opcion-accion" [disabled]="!hayApk" (click)="descargarAndroid()">
+      <mat-icon>download</mat-icon>
+      <span>Descargar APK</span>
+    </button>
+  </div>
+
+  <!-- === iPHONE / iPAD === -->
+  <div class="opcion" [class.destacada]="sugerido() === 'ios'">
+    <span class="opcion-icono opcion-icono--ios"><mat-icon>phone_iphone</mat-icon></span>
+    <div class="opcion-texto">
+      <span class="opcion-titulo">
+        iPhone / iPad
+        @if (sugerido() === 'ios') { <span class="chip-sugerido">Tu dispositivo</span> }
+      </span>
+      @if (hayIos) {
+        <span class="opcion-detalle">Instalación desde el enlace oficial de Apple.</span>
+      } @else {
+        <span class="opcion-detalle">Se instala desde Safari, sin App Store:</span>
+        <ol class="pasos-ios">
+          <li>Abre <b>{{ enlaceWeb }}</b> en Safari.</li>
+          <li>Toca <b>Compartir</b> (el cuadro con la flecha).</li>
+          <li>Elige <b>Añadir a pantalla de inicio</b>.</li>
+        </ol>
+      }
+    </div>
+    @if (hayIos) {
+      <button mat-flat-button class="opcion-accion" (click)="abrirIos()">
+        <mat-icon>open_in_new</mat-icon>
+        <span>Abrir enlace</span>
+      </button>
+    } @else {
+      <button mat-stroked-button class="opcion-accion opcion-accion--secundaria" (click)="copiarEnlace()">
+        <mat-icon>{{ copiado() ? 'check' : 'content_copy' }}</mat-icon>
+        <span>{{ copiado() ? 'Copiado' : 'Copiar enlace' }}</span>
+      </button>
+    }
+  </div>
+
+  <!-- === AGENTE DE HUELLA (sólo navegador en Windows) === -->
+  @if (hayAgente) {
+    <div class="opcion opcion--extra">
+      <span class="opcion-icono opcion-icono--huella"><mat-icon>fingerprint</mat-icon></span>
+      <div class="opcion-texto">
+        <span class="opcion-titulo">Lector de huella en el navegador</span>
+        <span class="opcion-detalle">
+          Sólo si usas Tu Apo en el navegador de un computador con lector U.are.U.
+          @if (release()!.agenteSizeMB) { · {{ release()!.agenteSizeMB }} MB }
+        </span>
+        <span class="opcion-nota">
+          Descomprime y ejecuta <b>INSTALAR.cmd</b>. Necesita el lector y su driver ya
+          instalados; la app de Escritorio no lo necesita.
+        </span>
+      </div>
+      <button mat-stroked-button class="opcion-accion opcion-accion--secundaria" (click)="descargarAgente()">
+        <mat-icon>download</mat-icon>
+        <span>Descargar</span>
+      </button>
+    </div>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="dialog-actions">
+  <button mat-button (click)="cerrar()">Cerrar</button>
+</mat-dialog-actions>

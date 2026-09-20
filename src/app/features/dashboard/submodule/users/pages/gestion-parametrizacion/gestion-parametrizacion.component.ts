@@ -1,6 +1,5 @@
 // src/app/features/parametrizacion/components/gestion-parametrizacion/gestion-parametrizacion.component.ts
 import {  Component, OnInit, inject, signal , ChangeDetectionStrategy } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -15,14 +14,6 @@ import { DynamicFormDialogComponent, FieldConfig } from '@/app/shared/components
 import { MetaConfigDialogComponent } from '../../components/meta-config-dialog/meta-config-dialog.component';
 import { GestionParametrizacionService, MetaTabla } from '../../services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
-
-interface AppRelease {
-  version: string;
-  filename: string;
-  url: string;
-  releaseDate: string;
-  sizeMB: number;
-}
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -44,13 +35,10 @@ interface AppRelease {
 
 export class GestionParametrizacionComponent implements OnInit {
   private svc = inject(GestionParametrizacionService);
-  private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
 
   data = signal<MetaTabla[]>([]);
-  appRelease = signal<AppRelease | null>(null);
-  cargandoVersion = signal(true);
 
   // Columnas (incluye 'actions' para botones Campos/Valores)
   columns: ColumnDefinition[] = [
@@ -75,23 +63,6 @@ export class GestionParametrizacionComponent implements OnInit {
 
   ngOnInit(): void {
     this.cargarTablas();
-    this.cargarVersionApp();
-  }
-
-  cargarVersionApp(): void {
-    this.http.get<AppRelease>('/downloads/latest.json').subscribe({
-      next: release => { this.appRelease.set(release); this.cargandoVersion.set(false); },
-      error: () => this.cargandoVersion.set(false),
-    });
-  }
-
-  descargarAppEscritorio(): void {
-    const release = this.appRelease();
-    if (!release) return;
-    const a = document.createElement('a');
-    a.href = release.url;
-    a.download = release.filename;
-    a.click();
   }
 
   cargarTablas(): void {

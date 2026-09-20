@@ -5,6 +5,7 @@ import { PermissionsService } from './permissions.service';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { getLocalStorageItem } from '../utils/safe-storage';
 import { entryHostMatchesCurrent, fromCacheKey } from '../utils/cache-key';
+import { puenteOffline } from '../offline/puente-offline';
 
 interface SyncQueueItem {
   id: number;
@@ -40,7 +41,8 @@ export class OfflineSyncService {
   public syncProgress$ = new BehaviorSubject<{ current: number; total: number; phase: string } | null>(null);
 
   private get electron(): any {
-    return (window as any).electron;
+    // SQLite en Electron, IndexedDB en navegador y APK: misma interfaz.
+    return puenteOffline();
   }
 
   private readonly http = inject(HttpClient);

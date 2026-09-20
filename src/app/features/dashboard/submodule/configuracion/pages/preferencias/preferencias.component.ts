@@ -1,14 +1,17 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnInit, PLATFORM_ID } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Inject, OnInit, PLATFORM_ID, inject } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
+import { PreferenciaTema, ThemeService } from '../../../../../../core/services/theme.service';
+import { puenteOffline } from '@/app/core/offline/puente-offline';
+
 const CACHE_KEYS = ['sidebar.sedes.cache.v1'];
-const UI_STATE_KEYS = ['sidebarHidden', 'sidebarPin'];
+const UI_STATE_KEYS = ['sidebarHidden', 'sidebarPin', 'tuapo.ui.menu', 'tuapo.ui.acciones'];
 
 /**
- * Página "Preferencias": gestión de datos locales y mantenimiento de la app en
- * este dispositivo. Todo lo que hace es real y auto-contenido (no hay toggles
+ * Página "Preferencias": apariencia (tema claro/oscuro), gestión de datos
+ * locales y mantenimiento de la app en este dispositivo. Todo lo que hace es real y auto-contenido (no hay toggles
  * decorativos): mide el almacenamiento local, limpia el caché de datos y
  * restablece el estado de la interfaz.
  */
@@ -21,6 +24,13 @@ const UI_STATE_KEYS = ['sidebarHidden', 'sidebarPin'];
   styleUrl: './preferencias.component.css',
 })
 export class PreferenciasConfigComponent implements OnInit {
+  readonly theme = inject(ThemeService);
+  readonly opcionesTema: { valor: PreferenciaTema; titulo: string; desc: string; icono: string }[] = [
+    { valor: 'claro', titulo: 'Claro', desc: 'El de siempre', icono: 'light_mode' },
+    { valor: 'oscuro', titulo: 'Oscuro', desc: 'Descansa la vista', icono: 'dark_mode' },
+    { valor: 'sistema', titulo: 'Automático', desc: 'Igual que el dispositivo', icono: 'contrast' },
+  ];
+
   private readonly isBrowser: boolean;
   itemsCount = 0;
   sizeLabel = '—';
@@ -66,7 +76,8 @@ export class PreferenciasConfigComponent implements OnInit {
 
   private get electronDb(): any {
     if (!this.isBrowser) return null;
-    return (window as any).electron?.db ?? null;
+    // El mismo puente que la cola offline: en navegador y APK es IndexedDB.
+    return puenteOffline()?.db ?? null;
   }
 
   async limpiarCache(): Promise<void> {

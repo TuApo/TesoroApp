@@ -11,6 +11,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- CSP -->
+  <!-- El puerto 52181 de loopback es el agente local del huellero (ver
+       service/huella/estrategias.ts). La CSP casa host Y PUERTO: sin el puerto
+       exacto en connect-src, el navegador rechaza la conexión antes de
+       intentarla y lo que ve el código es un `TypeError: Failed to fetch`
+       idéntico al de un agente apagado. Costó encontrarlo. -->
   <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         base-uri 'self';
@@ -18,7 +23,7 @@
         script-src 'self' 'unsafe-inline' 'unsafe-eval';
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com;
-        connect-src 'self' https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
+        connect-src 'self' https://tesoro.tuapo.co https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545 http://127.0.0.1:52181 http://localhost:52181;
         frame-src 'self' blob: data: https://api.tuapo.co https://formulario.tsservicios.co;
         img-src 'self' data: blob: https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
         media-src 'self' data: blob: https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
@@ -34,7 +39,38 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=3">
   <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png?v=3">
   <link rel="icon" type="image/x-icon" href="favicon.ico?v=3">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=4">
+
+  <!-- App instalable. El manifiesto manda en Android/Windows; iOS sigue leyendo
+       las `apple-*`, y sin `apple-mobile-web-app-capable` el icono de la pantalla
+       de inicio abre Safari con su barra en vez de la app a pantalla completa.
+       El apple-touch-icon va con fondo opaco a propósito: iOS pinta NEGRO detrás
+       de un PNG con transparencia. -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tu Apo">
+  <meta name="application-name" content="Tu Apo">
+
+  <meta name="theme-color" content="#21263C">
+
+  <!-- Tema claro/oscuro ANTES de que arranque Angular: sin esto quien eligió
+       oscuro ve un fotograma en claro y luego el salto. Misma clave y misma
+       regla que ThemeService (core/services/theme.service.ts). -->
+  <script>
+    (function () {
+      try {
+        var p = localStorage.getItem('tuapo.ui.tema');
+        var oscuro = p === 'oscuro' ||
+          (p === 'sistema' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (oscuro) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+          document.documentElement.classList.add('dark-theme');
+        }
+      } catch (e) { /* modo privado o storage bloqueado: queda en claro */ }
+    })();
+  </script>
 
 </head>
 
