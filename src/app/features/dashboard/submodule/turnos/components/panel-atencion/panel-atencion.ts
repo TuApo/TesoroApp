@@ -427,11 +427,14 @@ export class PanelAtencion implements OnInit {
     const datos = this.vista.datosDeLaVista();
     const foto = this.vista.esVistaDeTrabajo() ? this.vista.capturar() : null;
     // El nombre de la pestaña resume lo que había en la pantalla (título, persona o lo
-    // buscado, fechas, filtros). Si hay persona, el servidor arma el suyo con cédula y nombre.
+    // buscado, fechas, filtros). Si hay persona, el servidor arma el suyo con cédula y nombre;
+    // y si la pantalla sabe describirse (su resumen va en el motivo) el nombre queda
+    // automático, para que siga a la persona y al paso cuando cambien.
     const conPersona = !!(datos.documento || datos.persona_nombre);
+    const seDescribe = !!foto?.resumen;
     const cuerpo = {
       turno_id: t?.id ?? null, oficina_id: this.ctx.oficinaId(),
-      nombre: conPersona || !foto ? null : this.vista.resumenDeLaVista(),
+      nombre: conPersona || seDescribe || !foto ? null : this.vista.resumenDeLaVista(),
       documento: datos.documento, persona_nombre: datos.persona_nombre, telefono: datos.telefono, correo: datos.correo,
       motivo: datos.motivo, activar: true,
     };

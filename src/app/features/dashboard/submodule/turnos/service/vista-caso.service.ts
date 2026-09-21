@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, firstValueFrom, take, timeout } from 'rxjs';
 import { NavegacionService } from '../../../../../core/services/navegacion.service';
+import { AdaptadorVistaCaso, PersonaEnVista, RegistroVistaCaso } from '../../../../../core/services/vista-caso.registro';
 
 /**
  * Lo que un caso recuerda de la pantalla donde se estaba trabajando.
@@ -24,6 +25,16 @@ export interface VistaCaso {
   material?: Record<string, string>;
   /** Desplazamiento vertical del contenedor de página. */
   scroll?: number;
+  /**
+   * Estado propio de la pantalla, cuando ella lo describe (ver `AdaptadorVistaCaso`): la
+   * persona buscada y el paso abierto, por ejemplo. Al volver, la pantalla lo repone por
+   * sus propios caminos en vez de rellenarse a mano.
+   */
+  estado?: unknown;
+  /** La persona y el motivo que la pantalla dice tener al frente. */
+  persona?: PersonaEnVista;
+  /** Resumen corto del estado ("Selección · Entrevista"). */
+  resumen?: string;
   /** Cuándo se tomó la foto. */
   guardado_en?: string;
 }
@@ -44,6 +55,7 @@ const SELECTOR_PAGINA = '.dashboard-page-wrapper';
 export class VistaCasoService {
   private router = inject(Router);
   private navegacion = inject(NavegacionService);
+  private registro = inject(RegistroVistaCaso);
 
   /** Avance de la restauración en curso (0–100) o null si no hay ninguna. Lo pinta el panel. */
   readonly progreso = signal<number | null>(null);
@@ -65,6 +77,25 @@ export class VistaCasoService {
       modulo: this.navegacion.modulo() || undefined,
       guardado_en: new Date().toISOString(),
     };
+    // Una pantalla con adaptador guarda SU estado (persona, paso) y decide si sus campos
+    // se fotografían: los que se cargan del servidor no.
+    const a = this.registro.adaptador();
+    if (a) {
+      try {
+        v.ruta = a.ruta?.() ?? v.ruta;
+        const estado = a.capturar();
+        if (estado !== null && estado !== undefined) v.estado = estado;
+        const persona = a.persona?.();
+        if (persona) v.persona = persona;
+        const resumen = a.resumen?.();
+        if (resumen) v.resumen = resumen;
+      } catch { /* la pantalla no pudo describirse: se guarda como cualquier otra */ }
+      if (a.camposDom === false) {
+        const pagina = this.pagina;
+        if (pagina?.scrollTop) v.scroll = pagina.scrollTop;
+        return v;
+      }
+    }
     const pagina = this.pagina;
     if (!pagina) return v;
     const campos: Record<string, string | boolean> = {};
@@ -94,6 +125,13 @@ export class VistaCasoService {
     if (datos.documento || datos.persona_nombre) {
       partes.push([datos.persona_nombre, datos.documento].filter(Boolean).join(' '));
     }
+    // La pantalla que sabe describirse lo hace mejor que cualquier lectura de campos.
+    const a = this.registro.adaptador();
+    if (a) {
+      const r = a.resumen?.();
+      if (r) partes.push(r);
+      return recortar([titulo, ...partes].join(' · '));
+    }
     const pagina = this.pagina;
     if (pagina && partes.length < 2) {
       const textos: string[] = [];
@@ -112,8 +150,7 @@ export class VistaCasoService {
       const filtros = Object.values(material).filter(t => t && !/^(todas|todos|ninguno|ninguna|—|-)$/i.test(t)).slice(0, 2);
       if (filtros.length && partes.length < 3) partes.push(filtros.join(', '));
     }
-    const nombre = [titulo, ...partes].join(' · ');
-    return nombre.length > 90 ? nombre.slice(0, 89) + '…' : nombre;
+    return recortar([titulo, ...partes].join(' · '));
   }
 
   /** mat-select y grupos de botones de Material: clave → texto que se ve elegido. */
@@ -162,12 +199,25 @@ export class VistaCasoService {
         } catch { /* la navegación no terminó a tiempo; se intenta igual */ }
         await navegado.catch(() => false);
       }
-      this.progreso.set(40);
-      const hayCampos = !!v.campos && Object.keys(v.campos).length > 0;
-      const hayMaterial = !!v.material && Object.keys(v.material).length > 0;
+      this.avanzar(40);
+      // Pantalla que sabe reponerse (la persona, el paso): lo hace ella. Puede tardar en
+      // existir (es un trozo que se carga aparte), así que con estado guardado se la espera.
+      const conEstado = v.estado !== undefined && v.estado !== null;
+      const a = conEstado ? await this.esperarAdaptador(v.ruta, 10_000) : this.adaptadorDe(v.ruta);
+      if (a && conEstado) {
+        try {
+          await a.restaurar(v.estado, p => this.avanzar(40 + Math.round(Math.max(0, Math.min(1, p)) * 50)));
+        } catch { /* la pantalla no pudo: se sigue con lo demás */ }
+        this.avanzar(90);
+      }
+      // Una pantalla que carga sus campos del servidor no acepta que se le escriban encima
+      // (ni los de una foto vieja, tomada antes de que supiera describirse).
+      const sinCampos = a?.camposDom === false;
+      const hayCampos = !sinCampos && !!v.campos && Object.keys(v.campos).length > 0;
+      const hayMaterial = !sinCampos && !!v.material && Object.keys(v.material).length > 0;
       if (!hayCampos && !hayMaterial) {
         if (v.scroll) this.esperarYDesplazar(v.scroll);
-        this.progreso.set(100);
+        this.avanzar(100);
         return true;
       }
       // La pantalla puede tardar en pintar sus campos (datos que llegan por HTTP): se
@@ -175,27 +225,49 @@ export class VistaCasoService {
       const claves = new Set(Object.keys(v.campos ?? {}));
       const clavesMat = new Set(Object.keys(v.material ?? {}));
       for (let intento = 0; intento < 24; intento++) {
-        this.progreso.set(Math.min(85, 40 + intento * 2));
+        this.avanzar(Math.min(85, 40 + intento * 2));
         const pagina = this.pagina;
         const presentes = pagina ? this.camposDe(pagina).filter(c => claves.has(c.clave)) : [];
         const presentesMat = pagina ? Object.keys(this.materialDe(pagina)).filter(k => clavesMat.has(k)) : [];
         if (presentes.length || presentesMat.length) {
           await new Promise(r => setTimeout(r, 150));
-          this.progreso.set(88);
+          this.avanzar(88);
           if (hayMaterial) await this.aplicarMaterial(v.material!);
-          this.progreso.set(95);
+          this.avanzar(95);
           if (hayCampos) this.aplicar(v.campos!, this.camposDe(this.pagina!));
           if (v.scroll) this.esperarYDesplazar(v.scroll);
-          this.progreso.set(100);
+          this.avanzar(100);
           return true;
         }
         await new Promise(r => setTimeout(r, 250));
       }
-      this.progreso.set(100);
+      this.avanzar(100);
       return true;
     } finally {
       // Se deja ver el 100 % un instante y se apaga.
       setTimeout(() => this.progreso.set(null), 700);
+    }
+  }
+
+  /** La barra solo avanza: los tramos de la pantalla y los de los campos no se pisan. */
+  private avanzar(hasta: number): void {
+    this.progreso.update(p => Math.max(p ?? 0, hasta));
+  }
+
+  /** El adaptador registrado, si es el de la pantalla de esa ruta. */
+  private adaptadorDe(ruta: string): AdaptadorVistaCaso | null {
+    const a = this.registro.adaptador();
+    return a && mismaPantalla(a.ruta?.() ?? this.router.url, ruta) ? a : null;
+  }
+
+  /** Espera al adaptador de la pantalla de la ruta pedida (la pantalla puede estar cargándose). */
+  private async esperarAdaptador(ruta: string, ms: number): Promise<AdaptadorVistaCaso | null> {
+    const inicio = Date.now();
+    for (;;) {
+      const a = this.adaptadorDe(ruta);
+      if (a) return a;
+      if (Date.now() - inicio > ms) return null;
+      await new Promise(r => setTimeout(r, 100));
     }
   }
 
@@ -243,6 +315,16 @@ export class VistaCasoService {
    */
   datosDeLaVista(): DatosDeLaVista {
     const out: DatosDeLaVista = { documento: null, persona_nombre: null, telefono: null, correo: null, motivo: null };
+    // La pantalla que sabe quién tiene al frente lo dice ella; no se adivina en los campos.
+    const persona = this.registro.adaptador()?.persona?.();
+    if (persona) {
+      out.documento = persona.documento ?? null;
+      out.persona_nombre = persona.persona_nombre ?? null;
+      out.telefono = persona.telefono ?? null;
+      out.correo = persona.correo ?? null;
+      out.motivo = persona.motivo ?? this.motivoDeLaRuta();
+      return out;
+    }
     const pagina = this.pagina;
     const valor = (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) => (el.value ?? '').toString().trim();
     if (pagina) {
@@ -274,10 +356,15 @@ export class VistaCasoService {
         if (seg) out.documento = seg;
       }
     } catch { /* sin URL válida */ }
+    out.motivo = this.motivoDeLaRuta();
+    return out;
+  }
+
+  /** "Módulo · Pantalla" como motivo por defecto de un caso. */
+  private motivoDeLaRuta(): string | null {
     const titulo = this.navegacion.titulo();
     const modulo = this.navegacion.modulo();
-    out.motivo = titulo ? (modulo && modulo !== titulo ? `${modulo} · ${titulo}` : titulo) : null;
-    return out;
+    return titulo ? (modulo && modulo !== titulo ? `${modulo} · ${titulo}` : titulo) : null;
   }
 
   /** El enlace para abrir el caso en otra pestaña del navegador (misma sesión). */
@@ -325,6 +412,17 @@ export class VistaCasoService {
   private esperarYDesplazar(scroll: number): void {
     setTimeout(() => { const p = this.pagina; if (p) p.scrollTop = scroll; }, 200);
   }
+}
+
+/** ¿Dos URL son la misma pantalla? Se compara la ruta sin query ni fragmento. */
+export function mismaPantalla(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const ruta = (u: string) => u.split(/[?#]/)[0].replace(/\/+$/, '');
+  return ruta(a) === ruta(b);
+}
+
+function recortar(nombre: string): string {
+  return nombre.length > 90 ? nombre.slice(0, 89) + '…' : nombre;
 }
 
 function normalizar(s: string): string {

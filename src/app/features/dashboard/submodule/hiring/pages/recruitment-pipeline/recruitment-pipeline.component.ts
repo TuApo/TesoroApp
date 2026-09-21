@@ -11,9 +11,14 @@ import {
   ChangeDetectionStrategy,
   AfterViewInit,
   ViewChild,
+  ElementRef,
+  untracked,
 } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
+import { RegistroVistaCaso } from '@/app/core/services/vista-caso.registro';
+import { AdaptadorPipelineCaso } from './pipeline-caso.adaptador';
+import { AccionPaso } from './pipeline-caso.rules';
 
 import { DateAdapter, MAT_DATE_FORMATS, MAT_DATE_LOCALE, MatDateFormats } from '@angular/material/core';
 import { MomentDateAdapter, MatMomentDateModule } from '@angular/material-moment-adapter';
@@ -438,6 +443,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private destroyRef = inject(DestroyRef);
+  private readonly registroVista = inject(RegistroVistaCaso);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly docSvc = inject(GestionDocumentalService);
 
   private util = inject(UtilityServiceService);
@@ -1335,6 +1342,36 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     this.tabIndex.set(sub.tab);
   }
 
+  /** Id del paso abierto dentro de la capa activa, tal como lo guarda un caso. */
+  private pasoAbiertoId(): string | null {
+    switch (this.capaActiva()) {
+      case 'seleccion':
+      case 'ia':
+        return this.subSeleccionActivo();
+      case 'contratacion':
+        return this.subContratacion.find((s) => s.idx === this.nav.subContratacion())?.id ?? null;
+      case 'documentos':
+        return this.subDocumentos.find((s) => s.idx === this.nav.subContratacion())?.id ?? null;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Abre el paso que pide un caso al volver, por los mismos métodos del rail: se
+   * respetan el bloqueo por contrato activo y el de exámenes por prueba técnica.
+   */
+  private abrirPasoDeCaso(a: AccionPaso): void {
+    if (a.tipo === 'capa') { this.abrirCapa(a.id); return; }
+    if (a.tipo === 'seleccion') {
+      const sub = [...this.subSeleccion, ...this.subIa].find((s) => s.id === a.id);
+      if (sub) this.abrirSubSeleccion(sub); else this.abrirCapa('seleccion');
+      return;
+    }
+    const sub = [...this.subContratacion, ...this.subDocumentos].find((s) => s.id === a.id);
+    if (sub) this.abrirSubContratacion(sub); else this.abrirCapa('contratacion');
+  }
+
   /** Vacante remitida, tal como la publica `help-information`. */
   readonly vacanteAsignada = this.nav.vacanteAsignada;
 
@@ -1416,6 +1453,12 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   /** Documento tal como se tecleó, para contrastarlo con el que está en base. */
   readonly documentoBuscado = signal<string | null>(null);
 
+  /** La vista ya se inicializó (existe el buscador): lo espera la restauración de un caso. */
+  readonly vistaLista = signal(false);
+
+  /** true entre pedir una búsqueda por documento y recibir su respuesta (con o sin persona). */
+  readonly buscando = signal(false);
+
   /** Turnos (0) siempre entra; el resto respeta el bloqueo por contrato activo. */
   pasoBloqueado(idx: number): boolean {
     return idx > 0 && this.bloqueoContratoTabs();
@@ -1440,6 +1483,8 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   private promptMostrado = false;
 
   ngAfterViewInit(): void {
+    // Ya existe el buscador: un caso que se esté restaurando puede pedir su búsqueda.
+    this.vistaLista.set(true);
     // Sin candidato no hay nada que hacer en Selección, así que se pregunta de
     // una. Con candidato ya cargado (se volvió de otra pantalla) no se molesta.
     if (this.candidatoSeleccionado()?.numero_documento) return;
@@ -1449,18 +1494,42 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     // busca directo por el mismo camino del prompt, sin preguntar.
     const cedulaUrl = String(this.router.parseUrl(this.router.url).queryParams['cedula'] ?? '').trim();
     if (cedulaUrl) {
-      setTimeout(() => {
-        const b = this.buscador;
-        if (!b) return;
-        this.documentoBuscado.set(cedulaUrl);
-        b.cedula = cedulaUrl;
-        b.buscarCandidato();
-      });
+      this.buscarPorDocumento(cedulaUrl);
       return;
     }
     // Fuera del ciclo de render actual: abrir un diálogo dentro de
     // ngAfterViewInit dispara ExpressionChangedAfterItHasBeenChecked.
     setTimeout(() => this.abrirPromptDocumento());
+  }
+
+  /**
+   * Busca a una persona por documento por el camino del buscador (vetados, robot y
+   * cola incluidos). Lo usan la llegada con `?cedula=` y la vuelta a un caso.
+   *
+   * `buscando` queda en true hasta que el buscador responde (`onCandidatoSeleccionado`,
+   * con persona o con null): es lo que la restauración de un caso espera antes de
+   * abrir el paso. Se dispara fuera del ciclo de render y con un reintento corto
+   * porque el buscador es un `ViewChild` y puede no existir aún.
+   */
+  buscarPorDocumento(numero: string, tipoDoc?: string | null): void {
+    const doc = String(numero ?? '').trim();
+    if (!doc) return;
+    this.documentoBuscado.set(doc);
+    this.buscando.set(true);
+    const intentar = (n: number) => {
+      const b = this.buscador;
+      if (!b) {
+        if (n < 30) setTimeout(() => intentar(n + 1), 100);
+        else this.buscando.set(false);
+        return;
+      }
+      if (tipoDoc) b.tipoDocSeleccionado = tipoDoc;
+      b.cedula = doc;
+      b.buscarCandidato();
+    };
+    setTimeout(() => intentar(0));
+    // Un error de red no emite nada: no se deja a nadie esperando para siempre.
+    setTimeout(() => { if (this.documentoBuscado() === doc) this.buscando.set(false); }, 25_000);
   }
 
   /**
@@ -1641,6 +1710,36 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     };
 
     this.isBrowser.set(isPlatformBrowser(this.platformId));
+
+    // Un CASO (módulo de turnos) guarda de esta pantalla su estado real —la persona y
+    // el paso abierto— y al volver la repone por sus propios caminos (buscar, abrir el
+    // paso). Sin esto el caso fotografiaba los campos y los volvía a escribir: la ficha
+    // salía llena con "Sin candidato" arriba y nada se guardaba donde tocaba.
+    this.destroyRef.onDestroy(this.registroVista.registrar(new AdaptadorPipelineCaso({
+      documentoEnPantalla: () => this.candidatoSeleccionado()?.numero_documento ?? null,
+      tipoDocEnPantalla: () => this.candidatoSeleccionado()?.tipo_doc ?? null,
+      nombreEnPantalla: () => this.nombreCandidato || null,
+      capaAbierta: () => this.capaActiva(),
+      pasoAbierto: () => this.pasoAbiertoId(),
+      catalogo: () => ({
+        seleccion: this.subSeleccionVisible(), ia: this.subIa,
+        contratacion: this.subContratacion, documentos: this.subDocumentos,
+      }),
+      capas: () => this.capas,
+      vistaLista: () => this.vistaLista(),
+      buscando: () => this.buscando(),
+      documentoBuscado: () => this.documentoBuscado(),
+      buscarPorDocumento: (d, t) => this.buscarPorDocumento(d, t),
+      abrirPaso: (a) => this.abrirPasoDeCaso(a),
+      raiz: () => this.host.nativeElement,
+    })));
+    // Cambiar de paso o de persona no pasa por ningún campo: se avisa para que el
+    // caso activo lo recuerde igual que recuerda lo escrito.
+    effect(() => {
+      this.tabIndex(); this.nav.panelSeleccion(); this.nav.subContratacion();
+      this.accesosAbiertos(); this.candidatoSeleccionado();
+      untracked(() => this.registroVista.notificarCambio());
+    });
 
     // 1) Mantener MISMA instancia de FormArray → clear() + push()
     this.selectedExamsCtrl.valueChanges
@@ -1918,6 +2017,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
 
   // ───────── API UI ────────
   onCandidatoSeleccionado(candidato: any | null): void {
+    this.buscando.set(false);
     // El override es por candidato: al cambiar de persona vuelve a exigir "Dar de baja".
     this.modificacionForzada.set(false);
     const proc = candidato?.entrevistas?.[0]?.proceso;

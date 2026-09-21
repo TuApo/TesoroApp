@@ -3,9 +3,10 @@ import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { Caso, Cola, EstadoAtencion, Oficina, Preferencia, TurnosService, Turno } from './turnos.service';
+import { Caso, CasoPatch, Cola, EstadoAtencion, Oficina, Preferencia, TurnosService, Turno } from './turnos.service';
 import { conectarSse, ConexionSse, tokenActual } from './sse.util';
-import { VistaCaso, VistaCasoService } from './vista-caso.service';
+import { VistaCaso, VistaCasoService, mismaPantalla } from './vista-caso.service';
+import { RegistroVistaCaso } from '../../../../../core/services/vista-caso.registro';
 import { getLocalStorageItem, setLocalStorageItem } from '../../../../../core/utils/safe-storage';
 
 export type Semaforo = 'neutro' | 'verde' | 'amarillo' | 'rojo';
@@ -37,6 +38,7 @@ const ROJO_LLAMADO_SIN_LLEGAR_SEG = 90;
 export class ContextoTurnosService {
   private api = inject(TurnosService);
   private vista = inject(VistaCasoService);
+  private registro = inject(RegistroVistaCaso);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
@@ -117,6 +119,12 @@ export class ContextoTurnosService {
     // guardados solo se conservan si sigue siendo la misma pantalla.
     this.router.events.pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed())
       .subscribe(e => this.alNavegar(e.urlAfterRedirects));
+
+    // La pantalla avisa de cambios que no pasan por un campo (otra persona, otro paso).
+    effect(() => {
+      this.registro.cambios();
+      untracked(() => this.programarAutoguardado());
+    });
 
     // Escribir en cualquier campo de la pantalla: foto de la vista (con espera corta).
     if (typeof document !== 'undefined') {
@@ -249,16 +257,28 @@ export class ContextoTurnosService {
     const caso = this.casoActivo();
     if (!caso || this.restaurando() || !this.vista.esVistaDeTrabajo()) return;
     const guardada = leerVista(caso.contexto_json);
-    if (guardada.ruta && guardada.ruta !== this.router.url) return;
+    if (guardada.ruta && !mismaPantalla(guardada.ruta, this.router.url)) return;
     this.guardarVista(caso, this.vista.capturar());
   }
 
   private guardarVista(caso: Caso, v: VistaCaso): void {
     const json = JSON.stringify(v);
-    if (json === caso.contexto_json) return;
+    const cambio: CasoPatch = {};
+    if (json !== caso.contexto_json) cambio.contexto_json = json;
+    // La persona y el paso que la pantalla dice tener al frente mandan sobre los datos del
+    // caso: si en la pestaña se cambió de persona o de paso, el nombre automático la sigue.
+    const p = v.persona;
+    if (p) {
+      if (p.documento && p.documento !== caso.documento) cambio.documento = p.documento;
+      if (p.persona_nombre && p.persona_nombre !== caso.persona_nombre) cambio.persona_nombre = p.persona_nombre;
+      if (p.telefono && p.telefono !== caso.telefono) cambio.telefono = p.telefono;
+      if (p.correo && p.correo !== caso.correo) cambio.correo = p.correo;
+      if (p.motivo && p.motivo !== caso.motivo) cambio.motivo = p.motivo;
+    }
+    if (!Object.keys(cambio).length) return;
     // Se refleja de inmediato en memoria (la pestaña muestra "Estaba en…") y se persiste.
-    this.aplicarCaso({ ...caso, contexto_json: json });
-    this.api.actualizarCaso(caso.id, { contexto_json: json }).subscribe({ next: c => this.aplicarCaso(c), error: () => {} });
+    this.aplicarCaso({ ...caso, ...cambio, contexto_json: cambio.contexto_json ?? caso.contexto_json } as Caso);
+    this.api.actualizarCaso(caso.id, cambio).subscribe({ next: c => this.aplicarCaso(c), error: () => {} });
   }
 
   // ── Canales en vivo ──

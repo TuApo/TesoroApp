@@ -291,7 +291,7 @@
       @for (c of casos(); track c.id) {
         <div class="pestana pestana--caso" [class.pestana--activa]="casoActivo()?.id === c.id" [class.pestana--pausada]="c.estado === 'PAUSADO'" [class.pestana--restaurando]="casoRestaurando() === c.id" [style.--c]="colorCaso(c)"
              role="tab" tabindex="0" [attr.aria-selected]="casoActivo()?.id === c.id" (click)="irACaso(c)" (keydown.enter)="irACaso(c)"
-             [title]="c.nombre + (tienePantalla(c) ? ' · ' + (vistaDe(c).titulo || vistaDe(c).ruta) : '')">
+             [title]="c.nombre + (tienePantalla(c) ? ' · ' + (vistaDe(c).titulo || vistaDe(c).ruta) + (vistaDe(c).resumen ? ' · ' + vistaDe(c).resumen : '') : '')">
           <span class="pestana__punto"></span>
           @if (tienePantalla(c)) { <mat-icon class="pestana__web" title="Guarda la pantalla y lo que llevaba">web</mat-icon> }
           <span class="pestana__nombre">{{ c.nombre }}</span>
