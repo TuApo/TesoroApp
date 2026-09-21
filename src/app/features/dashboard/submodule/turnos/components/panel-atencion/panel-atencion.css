@@ -61,6 +61,13 @@
 .pestana--mas:disabled { opacity: .45; cursor: not-allowed; }
 .pestana--mas mat-icon { font-size: 18px; width: 18px; height: 18px; }
 
+/* ── Progreso de la restauración (0→100 %) ─────────────────────────── */
+.progreso { position: relative; height: 18px; margin: 0 14px; border-radius: 0 0 9px 9px; background: var(--surface-3); overflow: hidden; }
+.progreso__barra { height: 100%; background: linear-gradient(90deg, var(--brand-blue), var(--lime-2)); transition: width .25s ease; }
+.progreso__texto { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; color: var(--text); }
+.pestana--restaurando { animation: tn-latido .8s ease-in-out infinite; }
+@keyframes tn-latido { 0%, 100% { box-shadow: inset 0 -3px 0 var(--c); } 50% { box-shadow: inset 0 -3px 0 var(--c), 0 0 0 4px color-mix(in srgb, var(--c) 25%, transparent); } }
+
 /* ── Menú flotante de un caso ──────────────────────────────────────── */
 .menu-caso {
   --c: var(--brand-blue);

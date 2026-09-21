@@ -3,7 +3,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { Observable } from 'rxjs';
 
@@ -123,7 +125,13 @@ export class PanelAtencion implements OnInit {
   readonly puedoLlamar = computed(() => this.ctx.puestoAbierto() && !this.turno() && !this.ocupado());
   readonly puntoActualInfo = computed<Punto | null>(() => this.puntos().find(p => p.id === this.atencion()?.punto_id) ?? null);
   miId(): string { return obtenerUsuarioActual().id; }
-  readonly enVistaDeTrabajo = computed(() => { this.ahora(); return this.vista.esVistaDeTrabajo(this.router.url); });
+  /** La ruta actual como señal: el "+" y "Guardar esta pantalla" reaccionan al instante. */
+  readonly urlActual = signal(this.router.url);
+  readonly enVistaDeTrabajo = computed(() => this.vista.esVistaDeTrabajo(this.urlActual()));
+  /** Avance 0–100 de la restauración de un caso (barra bajo las pestañas). */
+  readonly progresoRestaurar = this.vista.progreso;
+  /** Caso que se está restaurando ahora mismo (para marcar su pestaña). */
+  readonly casoRestaurando = signal<string | null>(null);
 
   /** Texto corto de la pestaña plegada. */
   readonly resumen = computed(() => {
@@ -145,6 +153,8 @@ export class PanelAtencion implements OnInit {
   private arrastre: { y0: number; alto0: number } | null = null;
 
   constructor() {
+    this.router.events.pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed())
+      .subscribe(e => this.urlActual.set(e.urlAfterRedirects));
     effect(() => {
       const p = this.ctx.preferencia();
       if (!p) return;
@@ -470,9 +480,14 @@ export class PanelAtencion implements OnInit {
 
   volverAlCaso(c: Caso): void {
     const v = leerVista(c.contexto_json);
-    if (!v.ruta) return;
+    if (!v.ruta) {
+      this.aviso.set('Este caso aún no tiene pantalla guardada: navegue a una y la recordará');
+      setTimeout(() => this.aviso.set(null), 3500);
+      return;
+    }
     this.ctx.restaurando.set(true);
-    this.vista.restaurar(v).finally(() => setTimeout(() => this.ctx.restaurando.set(false), 600));
+    this.casoRestaurando.set(c.id);
+    this.vista.restaurar(v).finally(() => setTimeout(() => { this.ctx.restaurando.set(false); this.casoRestaurando.set(null); }, 700));
   }
 
   abrirEnPestanaNueva(c: Caso): void {

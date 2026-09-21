@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, firstValueFrom, take, timeout } from 'rxjs';
 import { NavegacionService } from '../../../../../core/services/navegacion.service';
@@ -44,6 +44,9 @@ const SELECTOR_PAGINA = '.dashboard-page-wrapper';
 export class VistaCasoService {
   private router = inject(Router);
   private navegacion = inject(NavegacionService);
+
+  /** Avance de la restauración en curso (0–100) o null si no hay ninguna. Lo pinta el panel. */
+  readonly progreso = signal<number | null>(null);
 
   private get pagina(): HTMLElement | null {
     return typeof document === 'undefined' ? null : document.querySelector<HTMLElement>(SELECTOR_PAGINA);
@@ -148,38 +151,52 @@ export class VistaCasoService {
    */
   async restaurar(v: VistaCaso | null | undefined): Promise<boolean> {
     if (!v?.ruta) return false;
-    if (this.router.url !== v.ruta) {
-      const navegado = this.router.navigateByUrl(v.ruta);
-      try {
-        await firstValueFrom(this.router.events.pipe(
-          filter(e => e instanceof NavigationEnd), take(1), timeout(8000)));
-      } catch { /* la navegación no terminó a tiempo; se intenta igual */ }
-      await navegado.catch(() => false);
-    }
-    const hayCampos = !!v.campos && Object.keys(v.campos).length > 0;
-    const hayMaterial = !!v.material && Object.keys(v.material).length > 0;
-    if (!hayCampos && !hayMaterial) {
-      if (v.scroll) this.esperarYDesplazar(v.scroll);
-      return true;
-    }
-    // La pantalla puede tardar en pintar sus campos (datos que llegan por HTTP): se
-    // reintenta durante unos segundos hasta que aparezca alguno de los guardados.
-    const claves = new Set(Object.keys(v.campos ?? {}));
-    const clavesMat = new Set(Object.keys(v.material ?? {}));
-    for (let intento = 0; intento < 20; intento++) {
-      const pagina = this.pagina;
-      const presentes = pagina ? this.camposDe(pagina).filter(c => claves.has(c.clave)) : [];
-      const presentesMat = pagina ? Object.keys(this.materialDe(pagina)).filter(k => clavesMat.has(k)) : [];
-      if (presentes.length || presentesMat.length) {
-        await new Promise(r => setTimeout(r, 150));
-        if (hayMaterial) await this.aplicarMaterial(v.material!);
-        if (hayCampos) this.aplicar(v.campos!, this.camposDe(this.pagina!));
+    this.progreso.set(5);
+    try {
+      if (this.router.url !== v.ruta) {
+        this.progreso.set(15);
+        const navegado = this.router.navigateByUrl(v.ruta);
+        try {
+          await firstValueFrom(this.router.events.pipe(
+            filter(e => e instanceof NavigationEnd), take(1), timeout(8000)));
+        } catch { /* la navegación no terminó a tiempo; se intenta igual */ }
+        await navegado.catch(() => false);
+      }
+      this.progreso.set(40);
+      const hayCampos = !!v.campos && Object.keys(v.campos).length > 0;
+      const hayMaterial = !!v.material && Object.keys(v.material).length > 0;
+      if (!hayCampos && !hayMaterial) {
         if (v.scroll) this.esperarYDesplazar(v.scroll);
+        this.progreso.set(100);
         return true;
       }
-      await new Promise(r => setTimeout(r, 250));
+      // La pantalla puede tardar en pintar sus campos (datos que llegan por HTTP): se
+      // reintenta durante unos segundos hasta que aparezca alguno de los guardados.
+      const claves = new Set(Object.keys(v.campos ?? {}));
+      const clavesMat = new Set(Object.keys(v.material ?? {}));
+      for (let intento = 0; intento < 24; intento++) {
+        this.progreso.set(Math.min(85, 40 + intento * 2));
+        const pagina = this.pagina;
+        const presentes = pagina ? this.camposDe(pagina).filter(c => claves.has(c.clave)) : [];
+        const presentesMat = pagina ? Object.keys(this.materialDe(pagina)).filter(k => clavesMat.has(k)) : [];
+        if (presentes.length || presentesMat.length) {
+          await new Promise(r => setTimeout(r, 150));
+          this.progreso.set(88);
+          if (hayMaterial) await this.aplicarMaterial(v.material!);
+          this.progreso.set(95);
+          if (hayCampos) this.aplicar(v.campos!, this.camposDe(this.pagina!));
+          if (v.scroll) this.esperarYDesplazar(v.scroll);
+          this.progreso.set(100);
+          return true;
+        }
+        await new Promise(r => setTimeout(r, 250));
+      }
+      this.progreso.set(100);
+      return true;
+    } finally {
+      // Se deja ver el 100 % un instante y se apaga.
+      setTimeout(() => this.progreso.set(null), 700);
     }
-    return true;
   }
 
   /**

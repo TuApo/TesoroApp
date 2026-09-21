@@ -267,6 +267,12 @@
 
   <!-- Fila de pestañas: viaja con el cuerpo (abajo cuando está abierto) -->
   <div class="pestanas-marco">
+  @if (progresoRestaurar() !== null) {
+    <div class="progreso" role="progressbar" [attr.aria-valuenow]="progresoRestaurar()" aria-valuemin="0" aria-valuemax="100">
+      <div class="progreso__barra" [style.width.%]="progresoRestaurar()"></div>
+      <span class="progreso__texto">Restaurando la pantalla… {{ progresoRestaurar() }} %</span>
+    </div>
+  }
   <!-- Fila de pestañas: Turnos (con semáforo) · casos · + -->
   <div class="pestanas">
     @if (modo() === 'colapsador') {
@@ -283,7 +289,7 @@
     }
     <div class="pestanas__casos">
       @for (c of casos(); track c.id) {
-        <div class="pestana pestana--caso" [class.pestana--activa]="casoActivo()?.id === c.id" [class.pestana--pausada]="c.estado === 'PAUSADO'" [style.--c]="colorCaso(c)"
+        <div class="pestana pestana--caso" [class.pestana--activa]="casoActivo()?.id === c.id" [class.pestana--pausada]="c.estado === 'PAUSADO'" [class.pestana--restaurando]="casoRestaurando() === c.id" [style.--c]="colorCaso(c)"
              role="tab" tabindex="0" [attr.aria-selected]="casoActivo()?.id === c.id" (click)="irACaso(c)" (keydown.enter)="irACaso(c)"
              [title]="c.nombre + (tienePantalla(c) ? ' · ' + (vistaDe(c).titulo || vistaDe(c).ruta) : '')">
           <span class="pestana__punto"></span>

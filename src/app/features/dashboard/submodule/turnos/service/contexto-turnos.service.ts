@@ -221,11 +221,16 @@ export class ContextoTurnosService {
 
   // ── Autoguardado de la vista del caso activo ──
 
+  /**
+   * Una pestaña es una FOTO FIJA de una pantalla: no sigue al usuario cuando navega a otra.
+   * (Antes sí lo hacía, y volver a la pestaña "no hacía nada" porque ya apuntaba a la
+   * pantalla actual.) Solo un caso sin pantalla adopta la primera de trabajo a la que se llega.
+   */
   private alNavegar(url: string): void {
     const caso = this.casoActivo();
     if (!caso || this.restaurando() || !this.vista.esVistaDeTrabajo(url)) return;
     const guardada = leerVista(caso.contexto_json);
-    if (guardada.ruta === url) return;
+    if (guardada.ruta) return;
     const nueva: VistaCaso = { ...this.vista.capturar(), campos: undefined, scroll: undefined };
     this.guardarVista(caso, nueva);
   }
@@ -236,10 +241,15 @@ export class ContextoTurnosService {
     this.autoguardado = setTimeout(() => this.guardarVistaDelCasoActivo(), 1500);
   }
 
-  /** Foto completa de la pantalla actual en el caso activo (ruta + campos + scroll). */
+  /**
+   * Foto completa de la pantalla actual en el caso activo, SOLO si se está en la pantalla
+   * del caso (o el caso aún no tiene ninguna). Escribir en otra pantalla no la pisa.
+   */
   guardarVistaDelCasoActivo(): void {
     const caso = this.casoActivo();
     if (!caso || this.restaurando() || !this.vista.esVistaDeTrabajo()) return;
+    const guardada = leerVista(caso.contexto_json);
+    if (guardada.ruta && guardada.ruta !== this.router.url) return;
     this.guardarVista(caso, this.vista.capturar());
   }
 
