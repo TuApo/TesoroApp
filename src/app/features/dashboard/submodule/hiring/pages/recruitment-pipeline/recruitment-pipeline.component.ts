@@ -1445,6 +1445,19 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     if (this.candidatoSeleccionado()?.numero_documento) return;
     if (this.promptMostrado) return;
     this.promptMostrado = true;
+    // Llegada con la cédula en la URL (recepción de turnos, un caso guardado): se
+    // busca directo por el mismo camino del prompt, sin preguntar.
+    const cedulaUrl = String(this.router.parseUrl(this.router.url).queryParams['cedula'] ?? '').trim();
+    if (cedulaUrl) {
+      setTimeout(() => {
+        const b = this.buscador;
+        if (!b) return;
+        this.documentoBuscado.set(cedulaUrl);
+        b.cedula = cedulaUrl;
+        b.buscarCandidato();
+      });
+      return;
+    }
     // Fuera del ciclo de render actual: abrir un diálogo dentro de
     // ngAfterViewInit dispara ExpressionChangedAfterItHasBeenChecked.
     setTimeout(() => this.abrirPromptDocumento());

@@ -104,8 +104,94 @@
     @if (error()) { <div class="tn-aviso tn-aviso--error flotante"><mat-icon>error</mat-icon> {{ error() }}</div> }
     @if (aviso()) { <div class="tn-aviso tn-aviso--ok flotante"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
 
-    <!-- ══════════ IZQUIERDA: mi puesto y mi turno ══════════ -->
+    <!-- ══════════ IZQUIERDA: mi puesto / recepción ══════════ -->
     <div class="mitad mitad--turno">
+      @if (puedeRecepcion()) {
+        <div class="modos" role="tablist">
+          <button type="button" class="modos__btn" role="tab" [class.modos__btn--on]="mostrador() === 'atender'" (click)="cambiarModo('atender')"><mat-icon>desk</mat-icon> Atender</button>
+          <button type="button" class="modos__btn" role="tab" [class.modos__btn--on]="mostrador() === 'recepcion'" (click)="cambiarModo('recepcion')"><mat-icon>person_search</mat-icon> Recepción</button>
+        </div>
+      }
+
+      @if (mostrador() === 'recepcion' && puedeRecepcion()) {
+        <!-- ── Recepción: buscar a la persona, lo mínimo si no existe, a qué va y quién la atiende ── -->
+        <div class="recepcion">
+          <div class="recepcion__buscar">
+            <mat-icon>search</mat-icon>
+            <input type="search" [ngModel]="busqueda()" (ngModelChange)="alEscribirBusqueda($event)" (keydown.enter)="buscarPersona()"
+                   placeholder="Cédula, nombre, correo o celular… (como en contratación)" autocomplete="off" aria-label="Buscar persona">
+            @if (buscando()) { <mat-icon class="girando">sync</mat-icon> }
+            @if (busqueda() || personaElegida()) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="limpiarRecepcion()" title="Limpiar"><mat-icon>close</mat-icon></button> }
+          </div>
+
+          @if (resultados().length) {
+            <ul class="resultados">
+              @for (p of resultados(); track p.id) {
+                <li class="resultado" (click)="elegirPersona(p)" tabindex="0" (keydown.enter)="elegirPersona(p)">
+                  <span class="resultado__nombre">{{ nombreDe(p) }}</span>
+                  <span class="resultado__meta"><span class="tn-codigo">{{ p.numero_documento }}</span>{{ p.celular ? ' · ' + p.celular : '' }}{{ p.oficina ? ' · ' + p.oficina : '' }}</span>
+                  <span class="tn-chip" [class.tn-chip--ok]="p.contrato_activo" [class.tn-chip--info]="!p.contrato_activo && p.proceso_id">{{ estadoPersona(p) }}</span>
+                </li>
+              }
+              <li class="resultado resultado--nueva" (click)="registrarNueva()" tabindex="0" (keydown.enter)="registrarNueva()"><mat-icon>person_add</mat-icon> No es ninguna: registrar con datos mínimos</li>
+            </ul>
+          } @else if (sinResultados()) {
+            <div class="tn-aviso"><mat-icon>person_off</mat-icon> No está registrada en contratación.
+              <button type="button" class="tn-boton" (click)="registrarNueva()"><mat-icon>person_add</mat-icon> Registrar con datos mínimos</button></div>
+          }
+
+          @if (personaElegida(); as p) {
+            <div class="persona">
+              <mat-icon class="persona__icono">{{ p.contrato_activo ? 'badge' : 'person' }}</mat-icon>
+              <div class="persona__texto">
+                <strong>{{ nombreDe(p) }}</strong>
+                <span class="muted">CC {{ p.numero_documento }}{{ p.celular ? ' · ' + p.celular : '' }}{{ p.email ? ' · ' + p.email : '' }}</span>
+                <span class="muted">{{ estadoPersona(p) }}{{ p.vacante_cargo ? ' · ' + p.vacante_cargo : '' }}{{ p.vacante_empresa ? ' · ' + p.vacante_empresa : '' }}{{ p.vacante_finca ? ' · ' + p.vacante_finca : '' }}</span>
+              </div>
+              <button type="button" class="tn-boton tn-boton--fantasma" (click)="abrirFicha(p.numero_documento)" title="Abrir su registro en contratación"><mat-icon>open_in_new</mat-icon> Ficha</button>
+            </div>
+          }
+
+          <form class="recepcion__form" (ngSubmit)="emitirDesdeRecepcion()">
+            <div class="recepcion__fila">
+              <label>Cédula{{ servicioElegido()?.requiere_documento ? ' *' : '' }}<input type="text" name="rdoc" [(ngModel)]="recepcion.documento" inputmode="numeric" autocomplete="off"></label>
+              <label>Nombre<input type="text" name="rnombre" [(ngModel)]="recepcion.nombre" autocomplete="off"></label>
+            </div>
+            <div class="recepcion__fila">
+              <label>Celular<input type="tel" name="rtel" [(ngModel)]="recepcion.telefono" autocomplete="off"></label>
+              <label>Empresa usuaria<input type="text" name="remp" [(ngModel)]="recepcion.empresa_usuaria_nombre" autocomplete="off"></label>
+            </div>
+            <div class="recepcion__fila">
+              <label>¿Para qué proceso viene?
+                <select name="rsrv" [(ngModel)]="recepcion.servicio_id" required>
+                  @if (!servicios().length) { <option value="">Sin servicios en esta oficina</option> }
+                  @for (s of servicios(); track s.id) { <option [value]="s.id">{{ s.prefijo }} · {{ s.nombre }}{{ s.area_nombre ? ' → ' + s.area_nombre : '' }} ({{ s.en_espera }} esperando)</option> }
+                </select>
+              </label>
+              <label>Prioridad
+                <select name="rprio" [(ngModel)]="recepcion.prioridad"><option value="NORMAL">Normal</option><option value="PREFERENCIAL">Preferencial</option><option value="CITA">Con cita</option></select>
+              </label>
+            </div>
+            <label>¿Quién la atiende?
+              <select name="rasig" [(ngModel)]="recepcion.asignado_punto_id">
+                <option value="">Cola general: el primer puesto libre que llame</option>
+                @for (p of puntosAsignables(); track p.id) {
+                  <option [value]="p.id">{{ p.usuario_nombre ? p.usuario_nombre + ' · ' : '' }}{{ p.nombre }}{{ p.usuario_ref ? '' : ' (sin nadie ahora)' }}</option>
+                }
+              </select>
+            </label>
+            <label>Observación<input type="text" name="robs" [(ngModel)]="recepcion.observaciones" placeholder="Opcional: trae documentos incompletos, viene por segunda vez…" autocomplete="off"></label>
+            <div class="recepcion__acciones">
+              <button type="submit" class="tn-boton tn-boton--primario tn-boton--grande" [disabled]="ocupado() || !recepcion.servicio_id"><mat-icon>confirmation_number</mat-icon> Dar turno</button>
+              @if (tiquete(); as t) {
+                <span class="tiquete-mini" [title]="t.mensaje">
+                  <span class="tn-codigo">{{ t.turno.codigo }}</span> {{ t.servicio_nombre }}{{ t.turno.asignado_usuario_nombre ? ' · ' + t.turno.asignado_usuario_nombre : (t.turno.asignado_punto_nombre ? ' · ' + t.turno.asignado_punto_nombre : '') }}
+                </span>
+              }
+            </div>
+          </form>
+        </div>
+      } @else {
       <!-- Oficina y puesto en una sola línea -->
       @if (!atencion()?.punto_id) {
         <div class="puesto-barra">
@@ -205,6 +291,7 @@
           </div>
         }
       }
+      }
     </div>
 
     <!-- ══════════ DERECHA: personas por atender ══════════ -->
@@ -231,6 +318,9 @@
                 <span class="fila__persona">{{ t.nombre || 'Sin nombre' }}@if (t.documento) { <span class="muted"> · {{ t.documento }}</span> }@if (t.empresa_usuaria_nombre) { <span class="muted"> · {{ t.empresa_usuaria_nombre }}</span> }</span>
               </span>
               <span class="fila__marcas">
+                @if (t.asignado_punto_id || t.asignado_usuario_ref) {
+                  <span class="tn-chip" [class.tn-chip--ok]="asignadoAMi(t)" [class.tn-chip--info]="!asignadoAMi(t)" [title]="'Reservado para ' + etiquetaAsignado(t)"><mat-icon>person_pin</mat-icon> {{ asignadoAMi(t) ? 'para mí' : etiquetaAsignado(t) }}</span>
+                }
                 @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad === 'CITA' ? 'Cita' : 'Preferencial' }}</span> }
                 @if (t.llamadas > 0) { <span class="tn-chip tn-chip--warn" title="Ya fue llamado y volvió a la cola">↩ {{ t.llamadas }}</span> }
                 <mat-icon class="fila__canal" [title]="'Canal: ' + t.canal">{{ iconoCanal(t.canal) }}</mat-icon>
@@ -238,6 +328,15 @@
               <span class="fila__espera" [attr.data-nivel]="nivelEspera(t)" title="Tiempo esperando"><mat-icon>schedule</mat-icon> {{ esperaTexto(t) }}</span>
               @if (puedoLlamar() && paraMi(t)) {
                 <button type="button" class="fila__llamar" (click)="llamarEste(t)" title="Llamar a mi puesto"><mat-icon>campaign</mat-icon></button>
+              } @else if (puedeRecepcion()) {
+                @if (reasignando() === t.id) {
+                  <select class="fila__asignar" (change)="reasignar(t, $any($event.target).value)" (blur)="reasignando.set(null)" aria-label="Quién la atiende">
+                    <option value="">Cola general</option>
+                    @for (p of puntosAsignables(); track p.id) { <option [value]="p.id" [selected]="p.id === t.asignado_punto_id">{{ p.usuario_nombre ? p.usuario_nombre + ' · ' : '' }}{{ p.nombre }}</option> }
+                  </select>
+                } @else {
+                  <button type="button" class="fila__llamar fila__llamar--asignar" (click)="reasignando.set(t.id)" title="Decir quién la atiende"><mat-icon>person_pin</mat-icon></button>
+                }
               }
             </li>
           }

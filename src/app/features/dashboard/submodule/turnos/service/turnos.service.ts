@@ -157,6 +157,11 @@ export interface Turno {
   documento: string | null; nombre: string | null; telefono: string | null; correo: string | null;
   empresa_usuaria_ref: number | null; empresa_usuaria_nombre: string | null;
   punto_id: string | null; punto_nombre: string | null; punto_tipo: 'FIJO' | 'MOVIL' | null;
+  /** Reserva de recepción: puesto y persona a quien se le guardó el turno. */
+  asignado_punto_id: string | null; asignado_punto_nombre: string | null;
+  asignado_usuario_ref: string | null; asignado_usuario_nombre: string | null;
+  /** Enlace al registro de la persona en contratación. */
+  persona_ref: string | null; persona_origen: string | null;
   atendido_por: string | null; atendido_por_nombre: string | null;
   area_id: string | null; area_nombre: string | null; area_referencia: string | null;
   creado_en: string; llamado_en: string | null; iniciado_en: string | null; finalizado_en: string | null;
@@ -169,6 +174,17 @@ export interface TomarTurnoIn {
   servicio_id: string; prioridad?: string; canal?: string;
   documento?: string | null; nombre?: string | null; telefono?: string | null; correo?: string | null;
   empresa_usuaria_ref?: number | null; empresa_usuaria_nombre?: string | null; observaciones?: string | null;
+  /** Recepción: reservar para un puesto (quién lo atiende) y enlazar la persona encontrada. */
+  asignado_punto_id?: string | null; persona_ref?: string | null; persona_origen?: string | null;
+}
+
+/** Una persona encontrada en contratación (mismo buscador que el pipeline). */
+export interface PersonaContratacion {
+  id: number; numero_documento: string; nombre: string | null;
+  primer_nombre: string | null; segundo_nombre: string | null; primer_apellido: string | null; segundo_apellido: string | null;
+  email: string | null; celular: string | null; whatsapp: string | null; oficina: string | null;
+  proceso_id: number | null; contratado: number | null; vacante_cargo: string | null; vacante_empresa: string | null;
+  vacante_finca: string | null; codigo_contrato: string | null; contrato_activo: number | null; documentos: number;
 }
 
 export interface Tiquete {
@@ -472,6 +488,13 @@ export class TurnosService {
   eventosDeTurno(id: string): Observable<EventoTurno[]> { return this.http.get<EventoTurno[]>(`${this.base}/turnos/${id}/eventos`); }
   emitirTurno(oficinaId: string, in_: TomarTurnoIn): Observable<Tiquete> { return this.http.post<Tiquete>(`${this.base}/oficinas/${oficinaId}/turnos`, in_); }
   cancelarEnEspera(turnoId: string, motivo?: string): Observable<Turno> { return this.http.post<Turno>(`${this.base}/turnos/${turnoId}/cancelar`, { motivo: motivo ?? null }); }
+  /** Reservar un turno en espera para un puesto (null = cola general). */
+  asignarTurno(turnoId: string, puntoId: string | null): Observable<Turno> { return this.http.post<Turno>(`${this.base}/turnos/${turnoId}/asignar`, { punto_id: puntoId }); }
+
+  /** Búsqueda amplia de personas en contratación: documento, nombre, correo o teléfono (mín. 3 caracteres). */
+  buscarPersonas(q: string): Observable<PersonaContratacion[]> {
+    return this.http.get<PersonaContratacion[]>(`${environment.apiUrl}/gestion_contratacion/documento/buscar`, { params: { q } });
+  }
 
   // ── Atención (en nombre de quien llama) ──
   estadoAtencion(): Observable<EstadoAtencion> { return this.http.get<EstadoAtencion>(`${this.base}/atencion/estado`); }

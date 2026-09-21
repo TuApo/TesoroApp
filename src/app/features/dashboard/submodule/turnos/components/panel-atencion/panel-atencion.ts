@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { Observable } from 'rxjs';
 
 import { ContextoTurnosService, leerVista } from '../../service/contexto-turnos.service';
-import { Caso, Punto, Servicio, Turno, TurnosService } from '../../service/turnos.service';
+import { Caso, PersonaContratacion, Punto, Servicio, Tiquete, Turno, TurnosService } from '../../service/turnos.service';
 import { VistaCaso, VistaCasoService } from '../../service/vista-caso.service';
 import { PermissionsService } from '../../../../../../core/services/permissions.service';
 import { obtenerUsuarioActual } from '../../../../../../core/utils/usuario-actual';
@@ -70,6 +70,20 @@ export class PanelAtencion implements OnInit {
 
   /** Pestaña de caso con el menú desplegado. */
   readonly menuCaso = signal<string | null>(null);
+
+  // ── Recepción: registrar a la persona que llega y decir quién la atiende ──
+  /** Qué muestra la mitad izquierda: mi puesto o el mostrador de recepción. */
+  readonly mostrador = signal<'atender' | 'recepcion'>('atender');
+  readonly puedeRecepcion = signal(false);
+  readonly busqueda = signal('');
+  readonly buscando = signal(false);
+  readonly resultados = signal<PersonaContratacion[]>([]);
+  readonly sinResultados = signal(false);
+  readonly personaElegida = signal<PersonaContratacion | null>(null);
+  readonly tiquete = signal<Tiquete | null>(null);
+  readonly reasignando = signal<string | null>(null);
+  recepcion = { documento: '', nombre: '', telefono: '', correo: '', empresa_usuaria_nombre: '', servicio_id: '', prioridad: 'NORMAL', asignado_punto_id: '', observaciones: '' };
+  private temporizadorBusqueda: ReturnType<typeof setTimeout> | null = null;
 
   readonly ahora = this.ctx.ahora;
   readonly cola = this.ctx.cola;
@@ -140,7 +154,124 @@ export class PanelAtencion implements OnInit {
 
   ngOnInit(): void {
     this.permitido.set(this.modo() === 'pagina' || this.permisos.canReadRoute('/dashboard/turnos/atencion'));
+    // Recepción = quien puede ver la cola: registra a la gente que llega y dice quién la atiende.
+    this.puedeRecepcion.set(this.permisos.canReadRoute('/dashboard/turnos/cola'));
     if (this.permitido()) this.ctx.cargar();
+  }
+
+  /** Puestos que se pueden asignar (del plano y manuales), con quien los ocupa. */
+  readonly puntosAsignables = computed(() => this.puntos().filter(p => p.activo));
+  readonly servicioElegido = computed(() => this.servicios().find(s => s.id === this.recepcion.servicio_id) ?? null);
+
+  cambiarModo(m: 'atender' | 'recepcion'): void {
+    this.mostrador.set(m);
+    if (m === 'recepcion' && !this.recepcion.servicio_id && this.servicios().length) this.recepcion.servicio_id = this.servicios()[0].id;
+  }
+
+  /** Búsqueda amplia en contratación (documento, nombre, correo o teléfono), con espera corta. */
+  alEscribirBusqueda(q: string): void {
+    this.busqueda.set(q);
+    this.sinResultados.set(false);
+    if (this.temporizadorBusqueda) clearTimeout(this.temporizadorBusqueda);
+    const texto = q.trim();
+    if (texto.length < 3) { this.resultados.set([]); return; }
+    this.temporizadorBusqueda = setTimeout(() => this.buscarPersona(texto), 350);
+  }
+
+  buscarPersona(q = this.busqueda().trim()): void {
+    if (q.length < 3) return;
+    this.buscando.set(true);
+    this.api.buscarPersonas(q).subscribe({
+      next: lista => { this.resultados.set(lista.slice(0, 8)); this.sinResultados.set(!lista.length); this.buscando.set(false); },
+      error: () => { this.resultados.set([]); this.sinResultados.set(true); this.buscando.set(false); },
+    });
+  }
+
+  elegirPersona(p: PersonaContratacion): void {
+    this.personaElegida.set(p);
+    this.resultados.set([]);
+    this.recepcion.documento = p.numero_documento ?? '';
+    this.recepcion.nombre = this.nombreDe(p);
+    this.recepcion.telefono = p.celular || p.whatsapp || '';
+    this.recepcion.correo = p.email || '';
+    this.recepcion.empresa_usuaria_nombre = p.vacante_empresa || '';
+    this.busqueda.set(this.recepcion.nombre || this.recepcion.documento);
+  }
+
+  /** No está registrada: se registra con lo mínimo; lo escrito en la búsqueda sirve de arranque. */
+  registrarNueva(): void {
+    this.personaElegida.set(null);
+    this.resultados.set([]);
+    this.sinResultados.set(false);
+    const q = this.busqueda().trim();
+    if (/^[\dxX][\d.]{4,}$/.test(q)) this.recepcion.documento = q.replace(/\./g, '');
+    else if (q) this.recepcion.nombre = q;
+  }
+
+  limpiarRecepcion(): void {
+    this.personaElegida.set(null);
+    this.resultados.set([]);
+    this.sinResultados.set(false);
+    this.busqueda.set('');
+    this.tiquete.set(null);
+    this.recepcion = { ...this.recepcion, documento: '', nombre: '', telefono: '', correo: '', empresa_usuaria_nombre: '', prioridad: 'NORMAL', observaciones: '' };
+  }
+
+  estadoPersona(p: PersonaContratacion): string {
+    if (p.contrato_activo) return 'Contrato activo' + (p.codigo_contrato ? ' · ' + p.codigo_contrato : '');
+    if (p.contratado) return 'Contratado';
+    if (p.proceso_id) return 'En proceso de contratación';
+    return 'Registrado';
+  }
+
+  nombreDe(p: PersonaContratacion): string {
+    return (p.nombre || [p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido].filter(Boolean).join(' ')).trim() || 'Sin nombre';
+  }
+
+  /** Emite el turno desde el mostrador: persona + trámite + quién la atiende. */
+  emitirDesdeRecepcion(): void {
+    const of = this.ctx.oficinaId();
+    const f = this.recepcion;
+    if (!of || !f.servicio_id) return;
+    const srv = this.servicioElegido();
+    if (srv?.requiere_documento && !f.documento.trim()) { this.error.set('Este trámite exige la cédula'); setTimeout(() => this.error.set(null), 3000); return; }
+    const p = this.personaElegida();
+    this.correr(this.api.emitirTurno(of, {
+      servicio_id: f.servicio_id, prioridad: f.prioridad, canal: 'RECEPCION',
+      documento: f.documento.trim() || null, nombre: f.nombre.trim() || null, telefono: f.telefono.trim() || null,
+      correo: f.correo.trim() || null, empresa_usuaria_nombre: f.empresa_usuaria_nombre.trim() || null,
+      observaciones: f.observaciones.trim() || null,
+      asignado_punto_id: f.asignado_punto_id || null,
+      persona_ref: p ? String(p.id) : null, persona_origen: p ? (p.contrato_activo ? 'TRABAJADOR' : 'CANDIDATO') : null,
+    }), t => {
+      this.tiquete.set(t);
+      this.ctx.recargarCola();
+      this.ctx.refrescarEstado();
+      const asignado = this.puntosAsignables().find(x => x.id === f.asignado_punto_id);
+      this.aviso.set(`Turno ${t.turno.codigo} emitido${asignado ? ' · lo atiende ' + (asignado.usuario_nombre || asignado.nombre) : ''}`);
+      this.recepcion = { ...this.recepcion, documento: '', nombre: '', telefono: '', correo: '', empresa_usuaria_nombre: '', prioridad: 'NORMAL', observaciones: '', asignado_punto_id: '' };
+      this.personaElegida.set(null);
+      this.busqueda.set('');
+    });
+  }
+
+  /** Cambiar desde la lista quién atiende a alguien que ya está en espera. */
+  reasignar(t: Turno, puntoId: string): void {
+    this.reasignando.set(null);
+    this.correr(this.api.asignarTurno(t.id, puntoId || null), () => this.ctx.recargarCola());
+  }
+
+  asignadoAMi(t: Turno): boolean {
+    const yo = this.miId();
+    return (!!t.asignado_usuario_ref && t.asignado_usuario_ref === yo) || (!!t.asignado_punto_id && t.asignado_punto_id === this.atencion()?.punto_id);
+  }
+  asignadoAOtro(t: Turno): boolean { return !!(t.asignado_punto_id || t.asignado_usuario_ref) && !this.asignadoAMi(t); }
+  etiquetaAsignado(t: Turno): string { return t.asignado_usuario_nombre || t.asignado_punto_nombre || 'reservado'; }
+
+  /** Abre el registro de la persona en contratación (el pipeline) con su cédula. */
+  abrirFicha(documento: string | null): void {
+    if (!documento) return;
+    this.router.navigate(['/dashboard/hiring/recruitment-pipeline'], { queryParams: { cedula: documento } });
   }
 
   // ── Pestaña ───────────────────────────────────────────────────────────
@@ -444,7 +575,12 @@ export class PanelAtencion implements OnInit {
     const m = this.minutosEspera(t);
     return m >= 15 ? 'danger' : m >= 5 ? 'warn' : 'ok';
   }
-  paraMi(t: Turno): boolean { const s = this.misServicios(); return s.size === 0 || s.has(t.servicio_id); }
+  paraMi(t: Turno): boolean {
+    if (this.asignadoAMi(t)) return true;
+    if (this.asignadoAOtro(t)) return false;
+    const s = this.misServicios();
+    return s.size === 0 || s.has(t.servicio_id);
+  }
   iconoCanal(canal: string): string {
     return ({ QR: 'qr_code_2', KIOSCO: 'touch_app', RECEPCION: 'support_agent', WEB: 'language', AGENDADO: 'event' } as Record<string, string>)[canal] ?? 'confirmation_number';
   }
