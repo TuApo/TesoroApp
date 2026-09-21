@@ -1,0 +1,189 @@
+<div class="ev">
+  <!-- Paleta -->
+  <aside class="ev__paleta">
+    <h4>Añadir bloque</h4>
+    @for (t of TIPOS; track t) {
+      <button type="button" class="ev__tipo" (click)="agregar(t)" [title]="NOMBRE[t]"><mat-icon>{{ ICONO[t] }}</mat-icon><span>{{ NOMBRE[t] }}</span></button>
+    }
+    <div class="ev__ayuda">Arrastre para mover, tire de las esquinas para cambiar el tamaño. Flechas para ajustar, Supr para quitar.</div>
+  </aside>
+
+  <!-- Lienzo -->
+  <div class="ev__centro">
+    <div class="ev__lienzo" #lienzo tabindex="0" [style.aspect-ratio]="relacion()" [class.ev__lienzo--vertical]="vista().orientacion === 'VERTICAL'"
+         (keydown)="teclado($event)" (pointerdown)="seleccion.set(null)" (pointermove)="mover($event)" (pointerup)="terminar()" (pointercancel)="terminar()">
+      <app-vista-render class="ev__render" [vista]="vista()" [datos]="datos()" />
+      @if (rejilla()) { <div class="ev__rejilla"></div> }
+      @for (b of vista().bloques; track b.id) {
+        <div class="ev__caja" [class.ev__caja--sel]="b.id === seleccion()"
+             [style.left.%]="b.x" [style.top.%]="b.y" [style.width.%]="b.w" [style.height.%]="b.h" [style.z-index]="100 + (b.z ?? 0)"
+             (pointerdown)="iniciar($event, b, 'mover')">
+          <span class="ev__eti"><mat-icon>{{ ICONO[b.tipo] }}</mat-icon> {{ NOMBRE[b.tipo] }}</span>
+          @if (b.id === seleccion()) {
+            @for (a of ASAS; track a) { <span class="ev__asa" [attr.data-asa]="a" (pointerdown)="iniciar($event, b, a)"></span> }
+          }
+        </div>
+      }
+    </div>
+    <div class="ev__pie">
+      <label class="tn-check"><input type="checkbox" [ngModel]="rejilla()" (ngModelChange)="rejilla.set($event)"> Rejilla (ajusta a medio punto)</label>
+      <span class="ev__pie-info">{{ vista().bloques.length }} bloques · {{ vista().orientacion === 'VERTICAL' ? 'vertical 9:16' : 'horizontal 16:9' }}</span>
+    </div>
+  </div>
+
+  <!-- Propiedades -->
+  <aside class="ev__props">
+    @if (bloque(); as b) {
+      <div class="ev__props-cab">
+        <h4><mat-icon>{{ ICONO[b.tipo] }}</mat-icon> {{ NOMBRE[b.tipo] }}</h4>
+        <div class="ev__props-acc">
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Traer al frente" (click)="alFrente(b.id)"><mat-icon>flip_to_front</mat-icon></button>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Enviar al fondo" (click)="alFondo(b.id)"><mat-icon>flip_to_back</mat-icon></button>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Duplicar" (click)="duplicar(b.id)"><mat-icon>content_copy</mat-icon></button>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono ev__peligro" title="Quitar" (click)="eliminar(b.id)"><mat-icon>delete</mat-icon></button>
+        </div>
+      </div>
+
+      <div class="ev__grupo">
+        <span class="ev__grupo-titulo">Posición y tamaño (%)</span>
+        <div class="ev__fila4">
+          <label><span>X</span><input type="number" step="0.5" [ngModel]="b.x" (ngModelChange)="numero(b, 'x', $event)"></label>
+          <label><span>Y</span><input type="number" step="0.5" [ngModel]="b.y" (ngModelChange)="numero(b, 'y', $event)"></label>
+          <label><span>Ancho</span><input type="number" step="0.5" [ngModel]="b.w" (ngModelChange)="numero(b, 'w', $event)"></label>
+          <label><span>Alto</span><input type="number" step="0.5" [ngModel]="b.h" (ngModelChange)="numero(b, 'h', $event)"></label>
+        </div>
+      </div>
+
+      <!-- Propiedades por tipo -->
+      @switch (b.tipo) {
+        @case ('TURNO_LLAMADO') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Contenido</span>
+            <label class="ev__campo"><span>Etiqueta</span><input [ngModel]="prop(b, 'etiqueta', 'Turno')" (ngModelChange)="propSet('etiqueta', $event)"></label>
+            <label class="ev__campo"><span>Texto sin turnos</span><input [ngModel]="prop(b, 'vacio', '')" (ngModelChange)="propSet('vacio', $event)"></label>
+            <label class="tn-check"><input type="checkbox" [ngModel]="prop(b, 'mostrar_nombre', true)" (ngModelChange)="propSet('mostrar_nombre', $event)"> Mostrar el nombre de la persona</label>
+            <label class="tn-check"><input type="checkbox" [ngModel]="prop(b, 'mostrar_area', true)" (ngModelChange)="propSet('mostrar_area', $event)"> Mostrar el área</label>
+          </div>
+        }
+        @case ('LISTA_ATENCION') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Contenido</span>
+            <label class="ev__campo"><span>Título</span><input [ngModel]="prop(b, 'titulo', 'En atención')" (ngModelChange)="propSet('titulo', $event)"></label>
+            <label class="ev__campo"><span>Máximo de filas</span><input type="number" min="1" max="20" [ngModel]="prop(b, 'max', 6)" (ngModelChange)="propSet('max', +$event)"></label>
+          </div>
+        }
+        @case ('LISTA_ESPERA') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Contenido</span>
+            <label class="ev__campo"><span>Título</span><input [ngModel]="prop(b, 'titulo', 'Siguientes')" (ngModelChange)="propSet('titulo', $event)"></label>
+            <label class="ev__campo"><span>Máximo de filas</span><input type="number" min="1" max="20" [ngModel]="prop(b, 'max', 6)" (ngModelChange)="propSet('max', +$event)"></label>
+            <label class="tn-check"><input type="checkbox" [ngModel]="prop(b, 'mostrar_servicio', true)" (ngModelChange)="propSet('mostrar_servicio', $event)"> Mostrar el servicio</label>
+          </div>
+        }
+        @case ('PUBLICIDAD') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Qué reproduce</span>
+            <label class="ev__campo"><span>Lista de reproducción</span>
+              <select [ngModel]="prop(b, 'playlist_id', null)" (ngModelChange)="propSet('playlist_id', $event || null)">
+                <option [ngValue]="null">Lo que tenga la pantalla (sus listas o todo lo vigente)</option>
+                @for (p of playlists(); track p.id) { <option [ngValue]="p.id">{{ p.nombre }} ({{ p.items.length }})</option> }
+              </select>
+            </label>
+            <label class="ev__campo"><span>Ajuste de las piezas</span>
+              <select [ngModel]="prop(b, 'ajuste', 'CONTENER')" (ngModelChange)="propSet('ajuste', $event)"><option value="CONTENER">Contener</option><option value="CUBRIR">Cubrir</option></select>
+            </label>
+          </div>
+        }
+        @case ('RELOJ') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Contenido</span>
+            <label class="tn-check"><input type="checkbox" [ngModel]="prop(b, 'mostrar_fecha', true)" (ngModelChange)="propSet('mostrar_fecha', $event)"> Mostrar la fecha</label>
+            <label class="ev__campo"><span>Formato</span>
+              <select [ngModel]="prop(b, 'formato', '24h')" (ngModelChange)="propSet('formato', $event)"><option value="24h">24 horas</option><option value="12h">12 horas</option></select>
+            </label>
+          </div>
+        }
+        @case ('TEXTO') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Contenido</span>
+            <label class="ev__campo"><span>Texto</span><textarea rows="4" [ngModel]="prop(b, 'texto', '')" (ngModelChange)="propSet('texto', $event)"></textarea></label>
+            <label class="tn-check"><input type="checkbox" [ngModel]="prop(b, 'marquesina', false)" (ngModelChange)="propSet('marquesina', $event)"> Marquesina (se desplaza)</label>
+            @if (prop(b, 'marquesina', false)) { <label class="ev__campo"><span>Velocidad</span><input type="range" min="1" max="55" [ngModel]="prop(b, 'velocidad', 20)" (ngModelChange)="propSet('velocidad', +$event)"></label> }
+          </div>
+        }
+        @case ('IMAGEN') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Imagen</span>
+            <label class="ev__campo"><span>URL</span><input [ngModel]="prop(b, 'url', '')" (ngModelChange)="propSet('url', $event)" placeholder="https://… o una pieza de abajo"></label>
+            @if (imagenes().length) {
+              <div class="ev__galeria">@for (m of imagenes(); track m.id) { <button type="button" class="ev__miniatura" [title]="m.titulo" (click)="propSet('url', urlDe(m))"><img [src]="urlDe(m)" alt=""></button> }</div>
+            }
+            <label class="ev__campo"><span>Ajuste</span>
+              <select [ngModel]="prop(b, 'ajuste', 'CONTENER')" (ngModelChange)="propSet('ajuste', $event)"><option value="CONTENER">Contener</option><option value="CUBRIR">Cubrir</option><option value="ESTIRAR">Estirar</option></select>
+            </label>
+          </div>
+        }
+        @case ('LOGO') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Logo</span>
+            <label class="ev__campo"><span>Archivo</span>
+              <select [ngModel]="prop(b, 'url', 'logos/logo_alianza.svg')" (ngModelChange)="propSet('url', $event)">
+                <option value="logos/logo_alianza.svg">Alianza (svg)</option><option value="logos/logo_alianza.png">Alianza (png)</option>
+                <option value="logos/logo_apoyo.png">Apoyo</option><option value="logos/Logo_TA.png">TA</option><option value="logos/Logo_AL.png">AL</option>
+              </select>
+            </label>
+          </div>
+        }
+        @case ('QR') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Código QR</span>
+            <label class="ev__campo"><span>Enlace (vacío = tomar turno en esta oficina)</span><input [ngModel]="prop(b, 'url', '')" (ngModelChange)="propSet('url', $event)"></label>
+            <label class="ev__campo"><span>Etiqueta</span><input [ngModel]="prop(b, 'etiqueta', 'Escanee para tomar su turno')" (ngModelChange)="propSet('etiqueta', $event)"></label>
+          </div>
+        }
+        @case ('OFICINA') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Contenido</span>
+            <label class="ev__campo"><span>Texto (vacío = nombre de la oficina)</span><input [ngModel]="prop(b, 'texto', '')" (ngModelChange)="propSet('texto', $event)"></label>
+          </div>
+        }
+        @case ('CROQUIS') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Mini-mapa</span><p class="ev__nota">Muestra el croquis publicado de la oficina y resalta el área del turno que se está cantando.</p></div>
+        }
+      }
+
+      <!-- Estilo común -->
+      <div class="ev__grupo">
+        <span class="ev__grupo-titulo">Estilo</span>
+        <div class="ev__fila2">
+          <label class="ev__color"><span>Fondo</span><input type="color" [ngModel]="b.estilo?.fondo || '#000000'" (ngModelChange)="estiloSet('fondo', $event)"><button type="button" class="ev__quitar" title="Sin fondo" (click)="estiloSet('fondo', null)"><mat-icon>format_color_reset</mat-icon></button></label>
+          <label class="ev__color"><span>Texto</span><input type="color" [ngModel]="b.estilo?.color || '#ffffff'" (ngModelChange)="estiloSet('color', $event)"></label>
+        </div>
+        <div class="ev__fila2">
+          <label class="ev__campo"><span>Tamaño de letra</span><input type="number" step="0.2" min="0" [ngModel]="b.estilo?.tamano ?? ''" (ngModelChange)="estiloSet('tamano', $event === '' ? undefined : +$event)" placeholder="auto"></label>
+          <label class="ev__campo"><span>Alinear</span>
+            <select [ngModel]="b.estilo?.alinear || ''" (ngModelChange)="estiloSet('alinear', $event || undefined)"><option value="">Por defecto</option><option value="izquierda">Izquierda</option><option value="centro">Centro</option><option value="derecha">Derecha</option></select>
+          </label>
+        </div>
+        <div class="ev__fila2">
+          <label class="ev__campo"><span>Esquinas</span><input type="number" step="0.2" min="0" [ngModel]="b.estilo?.radio ?? 0" (ngModelChange)="estiloSet('radio', +$event)"></label>
+          <label class="ev__campo"><span>Relleno</span><input type="number" step="0.2" min="0" [ngModel]="b.estilo?.relleno ?? 0" (ngModelChange)="estiloSet('relleno', +$event)"></label>
+        </div>
+        <div class="ev__fila2">
+          <label class="ev__campo"><span>Opacidad</span><input type="range" min="0.1" max="1" step="0.05" [ngModel]="b.estilo?.opacidad ?? 1" (ngModelChange)="estiloSet('opacidad', +$event)"></label>
+          <label class="ev__color"><span>Borde</span><input type="color" [ngModel]="b.estilo?.borde || '#ffffff'" (ngModelChange)="estiloSet('borde', $event)"><button type="button" class="ev__quitar" title="Sin borde" (click)="estiloSet('borde', null)"><mat-icon>format_color_reset</mat-icon></button></label>
+        </div>
+        <label class="tn-check"><input type="checkbox" [ngModel]="b.estilo?.sombra ?? false" (ngModelChange)="estiloSet('sombra', $event)"> Sombra</label>
+        <label class="tn-check"><input type="checkbox" [ngModel]="b.estilo?.negrita ?? true" (ngModelChange)="estiloSet('negrita', $event)"> Negrita</label>
+      </div>
+    } @else {
+      <div class="ev__props-cab"><h4><mat-icon>wallpaper</mat-icon> Fondo de la vista</h4></div>
+      <div class="ev__grupo">
+        <label class="ev__campo"><span>Tipo</span>
+          <select [ngModel]="fondo().tipo" (ngModelChange)="fondoSet({ tipo: $event })"><option value="COLOR">Color</option><option value="DEGRADADO">Degradado</option><option value="IMAGEN">Imagen</option></select>
+        </label>
+        <div class="ev__fila2">
+          <label class="ev__color"><span>Color</span><input type="color" [ngModel]="fondo().color || '#0B1020'" (ngModelChange)="fondoSet({ color: $event })"></label>
+          @if (fondo().tipo === 'DEGRADADO') { <label class="ev__color"><span>Color 2</span><input type="color" [ngModel]="fondo().color2 || '#1E293B'" (ngModelChange)="fondoSet({ color2: $event })"></label> }
+        </div>
+        @if (fondo().tipo === 'DEGRADADO') { <label class="ev__campo"><span>Ángulo</span><input type="range" min="0" max="360" [ngModel]="fondo().angulo ?? 135" (ngModelChange)="fondoSet({ angulo: +$event })"></label> }
+        @if (fondo().tipo === 'IMAGEN') {
+          <label class="ev__campo"><span>URL de la imagen</span><input [ngModel]="fondo().url || ''" (ngModelChange)="fondoSet({ url: $event })"></label>
+          @if (imagenes().length) { <div class="ev__galeria">@for (m of imagenes(); track m.id) { <button type="button" class="ev__miniatura" [title]="m.titulo" (click)="fondoSet({ url: urlDe(m) })"><img [src]="urlDe(m)" alt=""></button> }</div> }
+          <label class="ev__campo"><span>Ajuste</span><select [ngModel]="fondo().ajuste || 'CUBRIR'" (ngModelChange)="fondoSet({ ajuste: $event })"><option value="CUBRIR">Cubrir</option><option value="CONTENER">Contener</option></select></label>
+        }
+        <p class="ev__nota">Elija un bloque en el lienzo para ver sus propiedades.</p>
+      </div>
+    }
+  </aside>
+</div>

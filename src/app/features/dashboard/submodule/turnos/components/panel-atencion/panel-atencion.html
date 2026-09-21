@@ -51,12 +51,19 @@
               </select>
             </label>
             <label class="tn-campo">
-              <span>Punto de atención</span>
+              <span>¿Dónde va a atender?</span>
               <select [ngModel]="puntoElegido()" (ngModelChange)="puntoElegido.set($event)">
-                @for (p of puntos(); track p.id) {
-                  <option [value]="p.id" [disabled]="!!p.usuario_ref">{{ p.nombre }}{{ p.usuario_ref ? ' · ocupado por ' + p.usuario_nombre : '' }}</option>
+                @for (g of gruposDePuntos(); track g.nombre) {
+                  <optgroup [label]="g.nombre">
+                    @for (p of g.puntos; track p.id) {
+                      <option [value]="p.id" [disabled]="!!p.usuario_ref && p.usuario_ref !== miId()">{{ p.tipo === 'MOVIL' ? '🚶 ' : '' }}{{ p.nombre }}{{ p.usuario_ref ? (p.usuario_ref === miId() ? ' · el mío' : ' · ocupado por ' + p.usuario_nombre) : ' · libre' }}</option>
+                    }
+                  </optgroup>
                 }
               </select>
+              @if (puntoElegidoInfo(); as pi) {
+                <span class="ayuda">{{ pi.tipo === 'MOVIL' ? 'Apoyo móvil: usted va hacia la persona; la pantalla dirá "lo atenderán en ' + (pi.area_nombre || 'la sala') + '".' : (pi.area_tipo === 'OFICINA' ? 'Oficina privada.' : pi.area_tipo === 'AREA_ATENCION' ? 'Área compartida: varios asesores atienden aquí.' : 'La pantalla dirá "diríjase a ' + pi.nombre + '".') }}</span>
+              }
             </label>
             <button type="button" class="tn-boton tn-boton--primario" (click)="abrirPuesto()" [disabled]="!puntoElegido() || ocupado()">
               <mat-icon>play_arrow</mat-icon> Abrir puesto
@@ -71,7 +78,7 @@
           <div class="puesto__cabecera">
             <div>
               <span class="puesto__oficina">{{ atencion()!.oficina_nombre }}</span>
-              <span class="puesto__punto"><mat-icon>desk</mat-icon> {{ atencion()!.punto_nombre }}</span>
+              <span class="puesto__punto"><mat-icon>{{ puntoActualInfo()?.tipo === 'MOVIL' ? 'directions_walk' : 'desk' }}</mat-icon> {{ atencion()!.punto_nombre }}</span>
             </div>
             <div class="puesto__stats">
               <span class="tn-chip" [class.tn-chip--warn]="semaforo() === 'amarillo'" [class.tn-chip--danger]="semaforo() === 'rojo'" [class.tn-chip--ok]="semaforo() === 'verde'" [title]="esperaMaxima() ? 'La persona que más lleva: ' + esperaMaxima() : ''">

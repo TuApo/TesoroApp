@@ -1,0 +1,21 @@
+:host { display: block; position: relative; width: 100%; height: 100%; overflow: hidden; background: #000; }
+.capa { position: absolute; inset: 0; will-change: transform, opacity; }
+.capa--nada { background: #0B1020; }
+
+/* La transición del paso que ENTRA se aplica también a la capa que sale. */
+.capa[data-t="FUNDIDO"]:not(.capa--sale) { animation: rg-in-fundido var(--ms) ease both; }
+.capa--sale[data-t="FUNDIDO"] { animation: rg-out-fundido var(--ms) ease both; }
+.capa[data-t="DESLIZAR_IZQUIERDA"]:not(.capa--sale) { animation: rg-in-izq var(--ms) cubic-bezier(.2,.7,.2,1) both; }
+.capa--sale[data-t="DESLIZAR_IZQUIERDA"] { animation: rg-out-izq var(--ms) cubic-bezier(.2,.7,.2,1) both; }
+.capa[data-t="DESLIZAR_ARRIBA"]:not(.capa--sale) { animation: rg-in-arriba var(--ms) cubic-bezier(.2,.7,.2,1) both; }
+.capa--sale[data-t="DESLIZAR_ARRIBA"] { animation: rg-out-arriba var(--ms) cubic-bezier(.2,.7,.2,1) both; }
+.capa[data-t="ZOOM"]:not(.capa--sale) { animation: rg-in-zoom var(--ms) ease both; }
+.capa--sale[data-t="ZOOM"] { animation: rg-out-fundido var(--ms) ease both; }
+
+@keyframes rg-in-fundido { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rg-out-fundido { from { opacity: 1; } to { opacity: 0; } }
+@keyframes rg-in-izq { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes rg-out-izq { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+@keyframes rg-in-arriba { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes rg-out-arriba { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+@keyframes rg-in-zoom { from { transform: scale(1.08); opacity: 0; } to { transform: scale(1); opacity: 1; } }

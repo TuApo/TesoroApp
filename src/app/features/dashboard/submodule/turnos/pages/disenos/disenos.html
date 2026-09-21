@@ -1,0 +1,229 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>dashboard_customize</mat-icon> Diseño de pantallas</h1>
+      <p class="tn-subtitulo">Arme las vistas del televisor bloque a bloque y encadénelas en un guion con transiciones. Lo que se guarda aquí se ve al instante en las pantallas de sala.</p>
+    </div>
+    <div class="tn-acciones">
+      <app-selector-oficina />
+      @if (ctx.esAdmin()) {
+        <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaVista('clasica')" [disabled]="!ctx.oficinaId()"><mat-icon>add_photo_alternate</mat-icon> Nueva vista</button>
+        <button type="button" class="tn-boton" (click)="nuevaVista('clasica', true)" [disabled]="!ctx.oficinaId()" title="Televisor en vertical"><mat-icon>stay_current_portrait</mat-icon> Vertical</button>
+        <button type="button" class="tn-boton" (click)="nuevaVista('blanco')" [disabled]="!ctx.oficinaId()"><mat-icon>crop_free</mat-icon> En blanco</button>
+        <button type="button" class="tn-boton tn-boton--exito" (click)="nuevoGuion()" [disabled]="!ctx.oficinaId() || !vistas().length"><mat-icon>route</mat-icon> Nuevo guion</button>
+      }
+      <a class="tn-boton tn-boton--fantasma" routerLink="/dashboard/turnos/pantallas"><mat-icon>tv</mat-icon> Pantallas</a>
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }} <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="error.set(null)"><mat-icon>close</mat-icon></button></div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <nav class="pestanas">
+    <button type="button" class="pestana" [class.pestana--activa]="pestana() === 'vistas'" (click)="pestana.set('vistas')"><mat-icon>view_quilt</mat-icon> Vistas <span class="tn-chip">{{ vistas().length }}</span></button>
+    <button type="button" class="pestana" [class.pestana--activa]="pestana() === 'guiones'" (click)="pestana.set('guiones')"><mat-icon>route</mat-icon> Guiones y transiciones <span class="tn-chip">{{ guionesActivos().length }}</span></button>
+  </nav>
+
+  <!-- ═══════════ VISTAS ═══════════ -->
+  @if (pestana() === 'vistas') {
+    <div class="dos">
+      <div class="lista">
+        <div class="lista__cab"><h3>Vistas de la oficina</h3></div>
+        @if (!vistas().length && !vistaEdit()) {
+          <div class="tn-tarjeta tn-vacio"><mat-icon>view_quilt</mat-icon><span>Aún no hay vistas. Cree una: arranca con el diseño clásico de turnos y publicidad, y desde ahí mueva, quite o añada bloques.</span></div>
+        }
+        @for (v of vistas(); track v.id) {
+          <article class="tn-tarjeta tarjeta-vista" [class.tarjeta-vista--activa]="vistaEdit()?.id === v.id" (click)="editarVista(v)">
+            <div class="mini" [style.aspect-ratio]="relacion(v)"><app-vista-render [vista]="v" [datos]="muestra()" [animar]="false" /></div>
+            <div class="tarjeta-vista__pie">
+              <span class="tarjeta-vista__nombre">{{ v.nombre }}</span>
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Ver en grande" (click)="$event.stopPropagation(); probarVista(v)"><mat-icon>play_circle</mat-icon></button>
+            </div>
+            <div class="tarjeta-vista__meta">
+              <span class="tn-chip">{{ v.bloques.length }} bloques</span>
+              @if (!v.oficina_id) { <span class="tn-chip tn-chip--info">Compartida</span> }
+              @if (v.orientacion === 'VERTICAL') { <span class="tn-chip">Vertical</span> }
+              @if (v.usada_por?.length) { <span class="tn-chip tn-chip--ok">En {{ v.usada_por.length }} guion{{ v.usada_por.length === 1 ? '' : 'es' }}</span> }
+            </div>
+          </article>
+        }
+      </div>
+
+      <div>
+        @if (vistaEdit(); as v) {
+          <div class="tn-tarjeta">
+            <div class="editor-cab">
+              <label class="tn-campo"><span>Nombre de la vista</span><input [ngModel]="v.nombre" (ngModelChange)="vistaCampo('nombre', $event)" placeholder="Turnos y publicidad" [disabled]="!ctx.esAdmin()"></label>
+              <label class="tn-campo tn-campo--corto"><span>Orientación</span>
+                <select [ngModel]="v.orientacion" (ngModelChange)="vistaCampo('orientacion', $event)" [disabled]="!ctx.esAdmin()"><option value="HORIZONTAL">Horizontal</option><option value="VERTICAL">Vertical</option></select>
+              </label>
+              @if (!v.id) {
+                <label class="tn-check" title="Una vista compartida la pueden usar los guiones de cualquier oficina"><input type="checkbox" [ngModel]="!v.oficina_id" (ngModelChange)="vistaCampo('oficina_id', $event ? null : ctx.oficinaId())"> Compartida con todas las oficinas</label>
+              } @else if (!v.oficina_id) { <span class="tn-chip tn-chip--info">Compartida</span> }
+              @if (sucio()) { <span class="sucio">● Sin guardar</span> }
+              <div class="tn-acciones">
+                <button type="button" class="tn-boton" (click)="probarVista(v)"><mat-icon>play_circle</mat-icon> Vista previa</button>
+                @if (ctx.esAdmin()) {
+                  <button type="button" class="tn-boton tn-boton--primario" (click)="guardarVista()" [disabled]="ocupado() || !v.nombre"><mat-icon>save</mat-icon> Guardar</button>
+                  @if (v.id) {
+                    <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Duplicar" (click)="duplicarVista(v)"><mat-icon>content_copy</mat-icon></button>
+                    <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Eliminar" (click)="eliminarVista(v)"><mat-icon>delete</mat-icon></button>
+                  }
+                }
+                <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Cerrar" (click)="cerrarEditor()"><mat-icon>close</mat-icon></button>
+              </div>
+            </div>
+            <app-editor-vista [vista]="v" (vistaChange)="vistaCambio($event)" [datos]="muestra()" [playlists]="playlists()" [imagenes]="imagenes()" />
+          </div>
+        } @else {
+          <div class="tn-tarjeta tn-vacio"><mat-icon>touch_app</mat-icon><span>Elija una vista de la izquierda para editarla, o cree una nueva. El lienzo muestra datos de ejemplo: turno A-014 en Módulo 2, cola y la publicidad vigente.</span></div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ═══════════ GUIONES ═══════════ -->
+  @if (pestana() === 'guiones') {
+    <div class="tn-tarjeta">
+      <h3><mat-icon>tv</mat-icon> Qué muestra cada pantalla hoy</h3>
+      @if (!pantallasDeOficina().length) { <p class="tn-subtitulo">Esta oficina no tiene pantallas activas. <a routerLink="/dashboard/turnos/pantallas">Crear una</a>.</p> }
+      @else {
+        <table class="resumen">
+          <thead><tr><th>Pantalla</th><th>Diseño</th><th>Origen</th><th>Estado</th></tr></thead>
+          <tbody>
+            @for (p of pantallasDeOficina(); track p.id) {
+              <tr>
+                <td>{{ p.nombre }}</td>
+                <td>{{ p.diseno_nombre || ('Plantilla fija: ' + p.layout) }}</td>
+                <td>{{ origenNombre(p.diseno_origen) }}</td>
+                <td>@if (p.en_linea) { <span class="tn-chip tn-chip--ok">En línea</span> } @else { <span class="tn-chip tn-chip--warn">Sin señal</span> }</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+      <p class="tn-subtitulo" style="margin-top:8px">Una pantalla toma el guion más específico que esté activo: uno asignado a ella gana a uno de toda la oficina, que gana a uno de todas las oficinas. Sin guion, sigue con su plantilla fija.</p>
+    </div>
+
+    <div class="dos dos--ancho">
+      <div class="lista">
+        <div class="lista__cab"><h3>Guiones</h3></div>
+        @if (!guiones().length && !guionEdit()) {
+          <div class="tn-tarjeta tn-vacio"><mat-icon>route</mat-icon><span>Un guion encadena vistas: 30 s de turnos y publicidad, 10 s de un aviso, vuelta al inicio. Cree el primero.</span></div>
+        }
+        @for (g of guiones(); track g.id) {
+          <article class="tn-tarjeta guion" [class.guion--activo]="guionEdit()?.id === g.id" [class.guion--inactivo]="!g.activo" (click)="editarGuion(g)">
+            <div class="guion__cab">
+              <h4>{{ g.nombre }}</h4>
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Probar" (click)="$event.stopPropagation(); probarGuion(g)"><mat-icon>play_circle</mat-icon></button>
+            </div>
+            <div class="guion__meta">{{ g.pasos.length }} paso{{ g.pasos.length === 1 ? '' : 's' }} · {{ duracion(g) }} s por vuelta</div>
+            <div class="tarjeta-vista__meta">
+              <span class="tn-chip" [class.tn-chip--info]="g.alcance !== 'PANTALLAS'">{{ alcanceNombre(g.alcance) }}</span>
+              @if (g.alcance === 'PANTALLAS') { @for (id of g.pantallas; track id) { <span class="tn-chip">{{ nombrePantalla(id) }}</span> } }
+              @if (g.al_llamar_vista_id) { <span class="tn-chip tn-chip--ok">Salta al llamar</span> }
+              @if (!g.activo) { <span class="tn-chip tn-chip--danger">Inactivo</span> }
+            </div>
+          </article>
+        }
+      </div>
+
+      <div>
+        @if (guionEdit(); as g) {
+          <div class="tn-tarjeta">
+            <div class="editor-cab">
+              <label class="tn-campo"><span>Nombre del guion</span><input [ngModel]="g.nombre" (ngModelChange)="guionCampo('nombre', $event)" [disabled]="!ctx.esAdmin()"></label>
+              <label class="tn-campo"><span>Descripción</span><input [ngModel]="g.descripcion || ''" (ngModelChange)="guionCampo('descripcion', $event || null)" [disabled]="!ctx.esAdmin()"></label>
+              <div class="tn-acciones">
+                <button type="button" class="tn-boton" (click)="probarGuion(g)" [disabled]="!g.pasos.length"><mat-icon>play_circle</mat-icon> Probar</button>
+                @if (ctx.esAdmin()) {
+                  <button type="button" class="tn-boton tn-boton--primario" (click)="guardarGuion()" [disabled]="ocupado() || !g.nombre"><mat-icon>save</mat-icon> Guardar</button>
+                  @if (g.id) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Eliminar" (click)="eliminarGuion(g)"><mat-icon>delete</mat-icon></button> }
+                }
+                <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Cerrar" (click)="guionEdit.set(null)"><mat-icon>close</mat-icon></button>
+              </div>
+            </div>
+
+            <div class="tn-form">
+              <div class="tn-campo tn-campo--ancho">
+                <span>A qué pantallas aplica</span>
+                <div class="alcance">
+                  <label><input type="radio" name="alcance" value="PANTALLAS" [ngModel]="g.alcance" (ngModelChange)="guionCampo('alcance', $event)"> <mat-icon>tv</mat-icon> Pantallas elegidas</label>
+                  <label><input type="radio" name="alcance" value="OFICINA" [ngModel]="g.alcance" (ngModelChange)="guionCampo('alcance', $event)"> <mat-icon>store</mat-icon> Toda esta oficina</label>
+                  <label><input type="radio" name="alcance" value="GLOBAL" [ngModel]="g.alcance" (ngModelChange)="guionCampo('alcance', $event)"> <mat-icon>public</mat-icon> Todas las oficinas</label>
+                </div>
+                @if (g.alcance === 'PANTALLAS') {
+                  <div class="chips" style="margin-top:6px">
+                    @for (p of pantallasDeOficina(); track p.id) { <button type="button" class="tn-chip chip-btn" [class.tn-chip--info]="g.pantallas.includes(p.id)" (click)="alternarPantalla(p.id)">{{ p.nombre }}</button> }
+                    @if (!pantallasDeOficina().length) { <span class="tn-subtitulo">La oficina no tiene pantallas activas.</span> }
+                  </div>
+                }
+                @if (g.alcance === 'GLOBAL') { <span class="tn-subtitulo">Solo puede usar vistas compartidas (las que no son de una oficina).</span> }
+              </div>
+            </div>
+
+            <h3 style="margin-top:14px"><mat-icon>route</mat-icon> Secuencia y transiciones</h3>
+            <div class="cadena">
+              @for (p of g.pasos; track $index; let i = $index) {
+                @if (i > 0) {
+                  <div class="flecha"><mat-icon>arrow_forward</mat-icon><span>{{ nombreTransicion(p.transicion) }}</span></div>
+                }
+                <div class="paso">
+                  @if (vistaPorId(p.vista_id); as v) { <div class="paso__mini" [style.aspect-ratio]="relacion(v)"><app-vista-render [vista]="v" [datos]="muestra()" [animar]="false" /></div> }
+                  <span class="paso__nombre">{{ i + 1 }}. {{ nombreVista(p.vista_id) }}</span>
+                  <div class="paso__campos">
+                    <label><span>Duración (s)</span><input type="number" min="3" max="3600" [ngModel]="p.duracion_seg" (ngModelChange)="pasoSet(i, { duracion_seg: +$event })"></label>
+                    <label><span>Entra con</span>
+                      <select [ngModel]="p.transicion" (ngModelChange)="pasoSet(i, { transicion: $event })">@for (t of TRANSICIONES; track t.valor) { <option [value]="t.valor">{{ t.nombre }}</option> }</select>
+                    </label>
+                    @if (p.transicion !== 'NINGUNA') { <label><span>Transición (ms)</span><input type="number" min="100" max="5000" step="100" [ngModel]="p.transicion_ms" (ngModelChange)="pasoSet(i, { transicion_ms: +$event })"></label> }
+                  </div>
+                  <div class="paso__acc">
+                    <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Mover antes" (click)="moverPaso(i, -1)" [disabled]="i === 0"><mat-icon>chevron_left</mat-icon></button>
+                    <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Quitar" (click)="quitarPaso(i)"><mat-icon>close</mat-icon></button>
+                    <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Mover después" (click)="moverPaso(i, 1)" [disabled]="i === g.pasos.length - 1"><mat-icon>chevron_right</mat-icon></button>
+                  </div>
+                </div>
+              }
+              @if (g.pasos.length) { <div class="flecha"><mat-icon>replay</mat-icon><span>vuelve al 1</span></div> }
+              <div class="agregar-paso">
+                <span class="tn-subtitulo">Añadir vista al final</span>
+                <select #sel (change)="agregarPaso(sel.value); sel.value = ''">
+                  <option value="">Elegir vista…</option>
+                  @for (v of vistas(); track v.id) { @if (g.alcance !== 'GLOBAL' || !v.oficina_id) { <option [value]="v.id">{{ v.nombre }}</option> } }
+                </select>
+              </div>
+            </div>
+
+            <div class="tn-form" style="margin-top:14px">
+              <label class="tn-campo"><span>Al cantar un turno, saltar a</span>
+                <select [ngModel]="g.al_llamar_vista_id" (ngModelChange)="guionCampo('al_llamar_vista_id', $event || null)">
+                  <option [ngValue]="null">No saltar (la vista en curso debe tener el bloque de turno llamado)</option>
+                  @for (v of vistas(); track v.id) { @if (g.alcance !== 'GLOBAL' || !v.oficina_id) { <option [ngValue]="v.id">{{ v.nombre }}</option> } }
+                </select>
+              </label>
+              @if (g.al_llamar_vista_id) { <label class="tn-campo tn-campo--corto"><span>Durante (s)</span><input type="number" min="3" max="120" [ngModel]="g.al_llamar_seg" (ngModelChange)="guionCampo('al_llamar_seg', +$event)"></label> }
+              @if (g.id) { <label class="tn-check"><input type="checkbox" [ngModel]="g.activo" (ngModelChange)="guionCampo('activo', $event)"> Activo</label> }
+            </div>
+          </div>
+        } @else {
+          <div class="tn-tarjeta tn-vacio"><mat-icon>touch_app</mat-icon><span>Elija un guion de la izquierda o cree uno nuevo. El guion decide el orden de las vistas, cuánto dura cada una, con qué transición entra y en qué pantallas se reproduce.</span></div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ═══════════ VISTA PREVIA ═══════════ -->
+  @if (prueba(); as p) {
+    <div class="velo">
+      <div class="velo__tv" [class.velo__tv--vertical]="p.vistas[0]?.orientacion === 'VERTICAL'" [style.aspect-ratio]="p.vistas[0]?.orientacion === 'VERTICAL' ? '9 / 16' : '16 / 9'">
+        <app-reproductor-guion [diseno]="p" [datos]="muestra()" />
+      </div>
+      <div class="velo__barra">
+        <span>{{ p.guion?.nombre }} · {{ p.guion?.pasos?.length }} paso{{ p.guion?.pasos?.length === 1 ? '' : 's' }}</span>
+        <button type="button" class="tn-boton" (click)="simularLlamado()"><mat-icon>campaign</mat-icon> Simular un llamado</button>
+        <button type="button" class="tn-boton tn-boton--primario" (click)="cerrarPrueba()"><mat-icon>close</mat-icon> Cerrar</button>
+      </div>
+    </div>
+  }
+</div>

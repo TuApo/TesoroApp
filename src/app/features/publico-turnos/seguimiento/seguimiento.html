@@ -21,8 +21,12 @@
         <div class="estado estado--llamado">
           <mat-icon>campaign</mat-icon>
           <strong>¡Lo están llamando!</strong>
-          <span class="punto">Diríjase a <b>{{ t.punto_nombre }}</b></span>
-          @if (t.area_nombre) { <span>{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+          @if (t.punto_tipo === 'MOVIL') {
+            <span class="punto">Un asesor lo atenderá en <b>{{ t.area_nombre || 'la sala' }}</b></span>
+          } @else {
+            <span class="punto">Diríjase a <b>{{ t.punto_nombre }}</b></span>
+            @if (t.area_nombre) { <span>{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+          }
         </div>
       }
       @if (enAtencion()) {

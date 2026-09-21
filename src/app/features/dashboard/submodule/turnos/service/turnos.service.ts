@@ -30,8 +30,8 @@ export interface OficinaIn {
   activa?: boolean; ui_json?: string | null;
 }
 
-export type TipoArea = 'RECEPCION' | 'MODULO' | 'VENTANILLA' | 'SALA_ESPERA' | 'OFICINA' | 'BANO'
-  | 'SALIDA' | 'ENTRADA' | 'ESCALERA' | 'ASCENSOR' | 'OTRO';
+export type TipoArea = 'RECEPCION' | 'MODULO' | 'VENTANILLA' | 'PUESTO' | 'OFICINA' | 'AREA_ATENCION' | 'SALA_ESPERA'
+  | 'PASILLO' | 'BANO' | 'SALIDA' | 'ENTRADA' | 'ESCALERA' | 'ASCENSOR' | 'OTRO';
 export type FormaArea = 'RECTANGULO' | 'REDONDEADO' | 'CIRCULO' | 'POLIGONO';
 
 export interface Area {
@@ -42,17 +42,36 @@ export interface Area {
   color: string | null; icono: string | null;
   referencia: string | null; piso: string | null; descripcion: string | null;
   orden: number; activa: boolean;
+  /** Personas que atienden aquí (0 = no es puesto) y si la atención es móvil (apoyo). */
+  capacidad: number; movil: boolean;
   /** Servicios que se atienden aquí (solo lectura). */
   servicios?: string[];
+  /** Puestos que nacieron de esta área (solo lectura). */
+  puestos?: PuestoDeArea[];
 }
 
-/** Elemento decorativo del croquis (pared, puerta, texto, flecha…); vive en elementos_json. */
+export interface PuestoDeArea {
+  id: string; nombre: string; tipo: 'FIJO' | 'MOVIL'; indice: number; activo: boolean;
+  usuario_ref: string | null; usuario_nombre: string | null;
+}
+
+/** Elemento decorativo del croquis (pared, puerta, sillas, texto, flecha…); vive en elementos_json. */
 export interface ElementoCroquis {
   id: string;
-  tipo: 'PARED' | 'PUERTA' | 'TEXTO' | 'FLECHA' | 'ICONO' | 'MESA' | 'PLANTA';
+  tipo: 'PARED' | 'PUERTA' | 'VENTANA' | 'SILLA' | 'TEXTO' | 'FLECHA' | 'ICONO' | 'MESA' | 'PLANTA' | 'MOSTRADOR';
   x: number; y: number; ancho: number; alto: number; rotacion: number;
   texto?: string; color?: string; grosor?: number; icono?: string; tamano?: number;
+  /** Sillas: cuántas van pegadas en el módulo (1 a 4). */
+  cantidad?: number;
 }
+
+/** Un piso del croquis: su propio lienzo y sus propios elementos. Las áreas llevan `piso`. */
+export interface PisoCroquis {
+  id: string; nombre: string; ancho: number; alto: number; elementos: ElementoCroquis[];
+}
+
+/** Formato v2 de elementos_json. Un array plano (v1) equivale a un solo piso. */
+export interface ElementosJson { v: 2; pisos: PisoCroquis[]; }
 
 export interface Croquis {
   id: string; oficina_id: string; nombre: string; version: number;
@@ -70,13 +89,16 @@ export interface CroquisIn {
 
 export interface Punto {
   id: string; oficina_id: string; area_id: string | null; area_nombre: string | null;
+  area_tipo: TipoArea | null; area_piso: string | null;
   nombre: string; codigo: string | null; orden: number; activo: boolean;
+  /** FIJO|MOVIL · posición en el área · CROQUIS (lo administra el plano) | MANUAL */
+  tipo: 'FIJO' | 'MOVIL'; indice: number; origen: 'CROQUIS' | 'MANUAL';
   usuario_ref: string | null; usuario_nombre: string | null; ocupado_desde: string | null;
   servicios: string[];
 }
 
 export interface PuntoIn {
-  nombre: string; codigo?: string | null; area_id?: string | null; orden?: number; activo?: boolean;
+  nombre: string; codigo?: string | null; tipo?: 'FIJO' | 'MOVIL'; area_id?: string | null; orden?: number; activo?: boolean;
   servicios?: string[] | null;
 }
 
@@ -134,7 +156,7 @@ export interface Turno {
   prioridad: 'NORMAL' | 'PREFERENCIAL' | 'CITA'; canal: string;
   documento: string | null; nombre: string | null; telefono: string | null; correo: string | null;
   empresa_usuaria_ref: number | null; empresa_usuaria_nombre: string | null;
-  punto_id: string | null; punto_nombre: string | null;
+  punto_id: string | null; punto_nombre: string | null; punto_tipo: 'FIJO' | 'MOVIL' | null;
   atendido_por: string | null; atendido_por_nombre: string | null;
   area_id: string | null; area_nombre: string | null; area_referencia: string | null;
   creado_en: string; llamado_en: string | null; iniciado_en: string | null; finalizado_en: string | null;
@@ -238,6 +260,8 @@ export interface Pantalla {
   tema: 'OSCURO' | 'CLARO' | 'CORPORATIVO'; estilo_json: string | null; servicios: string[]; activa: boolean;
   ultima_conexion: string | null; en_linea: boolean; creado_en: string; playlists: string[];
   url: string; qr_data_uri: string | null;
+  /** Guion que le toca hoy y de dónde sale (PANTALLA|OFICINA|GLOBAL|NINGUNO). */
+  diseno_nombre: string | null; diseno_origen: OrigenDiseno;
 }
 
 export interface PantallaIn {
@@ -251,7 +275,53 @@ export interface VistaPantalla {
   tema: Pantalla['tema']; estilo_json: string | null; mostrar_reloj: boolean; mostrar_croquis: boolean;
   sonido: boolean; voz: boolean; voz_plantilla: string; turnos_visibles: number;
   oficina_id: string; oficina_nombre: string;
-  en_curso: Turno[]; en_espera: Turno[]; piezas: Media[]; croquis: Croquis | null; generado_en: string;
+  en_curso: Turno[]; en_espera: Turno[]; piezas: Media[]; croquis: Croquis | null;
+  diseno: DisenoResuelto | null; generado_en: string;
+}
+
+// ── Diseñador de pantallas: vistas y guiones ───────────────────────────────────
+
+export type TipoBloque = 'TURNO_LLAMADO' | 'LISTA_ATENCION' | 'LISTA_ESPERA' | 'PUBLICIDAD' | 'RELOJ'
+  | 'TEXTO' | 'IMAGEN' | 'CROQUIS' | 'QR' | 'OFICINA' | 'LOGO';
+export type Transicion = 'NINGUNA' | 'FUNDIDO' | 'DESLIZAR_IZQUIERDA' | 'DESLIZAR_ARRIBA' | 'ZOOM';
+export type AlcanceGuion = 'PANTALLAS' | 'OFICINA' | 'GLOBAL';
+export type OrigenDiseno = 'PANTALLA' | 'OFICINA' | 'GLOBAL' | 'NINGUNO';
+
+/** Estilo común a todo bloque; los tamaños van en % de la altura del televisor. */
+export interface EstiloBloque {
+  fondo?: string | null; color?: string | null; radio?: number; relleno?: number; opacidad?: number;
+  tamano?: number; alinear?: 'izquierda' | 'centro' | 'derecha'; sombra?: boolean; borde?: string | null; negrita?: boolean;
+}
+export interface Bloque {
+  id: string; tipo: TipoBloque; x: number; y: number; w: number; h: number; z?: number;
+  estilo?: EstiloBloque; props?: Record<string, unknown>;
+}
+export interface FondoVista {
+  tipo: 'COLOR' | 'DEGRADADO' | 'IMAGEN'; color?: string; color2?: string; angulo?: number; url?: string | null; ajuste?: 'CUBRIR' | 'CONTENER';
+}
+export interface Vista {
+  id: string; oficina_id: string | null; nombre: string; descripcion: string | null;
+  orientacion: 'HORIZONTAL' | 'VERTICAL'; fondo: FondoVista | null; bloques: Bloque[]; activa: boolean;
+  creado_en: string; actualizado_en: string; usada_por: string[];
+}
+export interface VistaIn {
+  nombre: string; descripcion?: string | null; oficina_id?: string | null; orientacion?: string;
+  fondo?: FondoVista | null; bloques: Bloque[]; activa?: boolean;
+}
+export interface Paso { vista_id: string; duracion_seg: number; transicion: Transicion; transicion_ms: number; }
+export interface Guion {
+  id: string; oficina_id: string | null; nombre: string; descripcion: string | null; alcance: AlcanceGuion;
+  pasos: Paso[]; al_llamar_vista_id: string | null; al_llamar_seg: number; activo: boolean;
+  pantallas: string[]; duracion_total_seg: number; creado_en: string; actualizado_en: string;
+}
+export interface GuionIn {
+  nombre: string; descripcion?: string | null; oficina_id?: string | null; alcance: AlcanceGuion;
+  pasos: Paso[]; al_llamar_vista_id?: string | null; al_llamar_seg?: number; activo?: boolean; pantallas?: string[] | null;
+}
+/** El diseño ya resuelto para una pantalla: guion, vistas y piezas de las listas que piden sus bloques. */
+export interface DisenoResuelto {
+  origen: OrigenDiseno; guion: Guion | null; vistas: Vista[]; playlists: Record<string, Media[]>;
+  url_turno: string | null; firma: string;
 }
 
 export interface ReporteEmision { media_id: string; titulo: string; tipo: string; emisiones: number; segundos: number; }
@@ -445,7 +515,26 @@ export class TurnosService {
   agregarNota(casoId: string, texto: string): Observable<Nota> { return this.http.post<Nota>(`${this.base}/casos/${casoId}/notas`, { texto }); }
 
   // ── Superficie pública (sin sesión) ──
+  // ── Diseñador: vistas y guiones ──
+  vistas(oficinaId?: string | null): Observable<Vista[]> {
+    const params = oficinaId ? new HttpParams().set('oficinaId', oficinaId) : undefined;
+    return this.http.get<Vista[]>(`${this.base}/vistas`, { params });
+  }
+  crearVista(in_: VistaIn): Observable<Vista> { return this.http.post<Vista>(`${this.base}/vistas`, in_); }
+  actualizarVista(id: string, in_: VistaIn): Observable<Vista> { return this.http.put<Vista>(`${this.base}/vistas/${id}`, in_); }
+  duplicarVista(id: string): Observable<Vista> { return this.http.post<Vista>(`${this.base}/vistas/${id}/duplicar`, {}); }
+  desactivarVista(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/vistas/${id}`); }
+  guiones(oficinaId?: string | null): Observable<Guion[]> {
+    const params = oficinaId ? new HttpParams().set('oficinaId', oficinaId) : undefined;
+    return this.http.get<Guion[]>(`${this.base}/guiones`, { params });
+  }
+  crearGuion(in_: GuionIn): Observable<Guion> { return this.http.post<Guion>(`${this.base}/guiones`, in_); }
+  actualizarGuion(id: string, in_: GuionIn): Observable<Guion> { return this.http.put<Guion>(`${this.base}/guiones/${id}`, in_); }
+  desactivarGuion(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/guiones/${id}`); }
+  disenoDePantalla(pantallaId: string): Observable<DisenoResuelto> { return this.http.get<DisenoResuelto>(`${this.base}/pantallas/${pantallaId}/diseno`); }
+
   publicoVistaPantalla(codigo: string): Observable<VistaPantalla> { return this.http.get<VistaPantalla>(`${this.basePublica}/pantalla/${codigo}`); }
+  publicoDiseno(codigo: string): Observable<DisenoResuelto> { return this.http.get<DisenoResuelto>(`${this.basePublica}/pantalla/${codigo}/diseno`); }
   publicoPiezas(codigo: string): Observable<Media[]> { return this.http.get<Media[]>(`${this.basePublica}/pantalla/${codigo}/piezas`); }
   publicoLatido(codigo: string): Observable<unknown> { return this.http.post(`${this.basePublica}/pantalla/${codigo}/latido`, {}); }
   publicoEmision(codigo: string, mediaId: string, segundos: number): Observable<unknown> {

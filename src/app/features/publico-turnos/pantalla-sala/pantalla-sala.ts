@@ -3,9 +3,11 @@ import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MatIconModule } from '@angular/material/icon';
 
-import { Media, Turno, TurnosService, VistaPantalla } from '../../dashboard/submodule/turnos/service/turnos.service';
+import { DisenoResuelto, Media, Turno, TurnosService, VistaPantalla } from '../../dashboard/submodule/turnos/service/turnos.service';
+import { ReproductorGuion } from '../../dashboard/submodule/turnos/components/reproductor-guion/reproductor-guion';
+import { DatosVista, EmisionPieza } from '../../dashboard/submodule/turnos/components/vista-render/vista-render';
 import { conectarSse, ConexionSse } from '../../dashboard/submodule/turnos/service/sse.util';
-import { CroquisSvg } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
+import { CroquisSvg, leerPisos } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
 import { idYoutube } from '../../dashboard/submodule/turnos/pages/publicidad/publicidad';
 
 /**
@@ -22,7 +24,7 @@ import { idYoutube } from '../../dashboard/submodule/turnos/pages/publicidad/pub
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-pantalla-sala',
-  imports: [CommonModule, MatIconModule, CroquisSvg],
+  imports: [CommonModule, MatIconModule, CroquisSvg, ReproductorGuion],
   templateUrl: './pantalla-sala.html',
   styleUrl: './pantalla-sala.css',
 })
@@ -43,6 +45,20 @@ export class PantallaSala implements OnInit {
   readonly indice = signal(0);
   readonly llamado = signal<Turno | null>(null);
   readonly audioDesbloqueado = signal(false);
+  /** El diseño (guion + vistas) que le toca a esta pantalla; sin él se usa la plantilla fija. */
+  readonly diseno = signal<DisenoResuelto | null>(null);
+  readonly conDiseno = computed(() => (this.diseno()?.guion?.pasos?.length ?? 0) > 0 && (this.diseno()?.vistas?.length ?? 0) > 0);
+  readonly datosVista = computed<DatosVista>(() => ({
+    oficina_nombre: this.vista()?.oficina_nombre ?? '',
+    ahora: this.ahora(),
+    llamado: this.llamado(),
+    en_curso: this.enCurso(),
+    en_espera: this.enEspera(),
+    piezas: this.piezas(),
+    playlists: this.diseno()?.playlists ?? {},
+    croquis: this.vista()?.croquis ?? null,
+    url_turno: this.diseno()?.url_turno ?? null,
+  }));
 
   readonly pieza = computed<Media | null>(() => this.piezas()[this.indice()] ?? null);
   readonly urlPieza = computed<string | null>(() => { const p = this.pieza(); return p ? this.api.urlMedia(p) : null; });
@@ -66,6 +82,14 @@ export class PantallaSala implements OnInit {
     return `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=8&data=${encodeURIComponent(p.curso_url)}`;
   });
   readonly areaResaltada = computed(() => this.llamado()?.area_id ?? this.enCurso()[0]?.area_id ?? null);
+  /** El mini-mapa muestra el piso del área que se está cantando (o el primero). */
+  readonly pisoResaltado = computed<string | null>(() => {
+    const c = this.vista()?.croquis;
+    if (!c) return null;
+    const area = c.areas?.find(a => a.id === this.areaResaltada());
+    const pisos = leerPisos(c);
+    return area?.piso && pisos.some(p => p.id === area.piso) ? area.piso : pisos[0]?.id ?? null;
+  });
   readonly mostrarMedia = computed(() => { const v = this.vista(); return !!v && v.layout !== 'SOLO_TURNOS' && this.piezas().length > 0; });
   readonly mostrarTurnos = computed(() => { const v = this.vista(); return !!v && v.layout !== 'SOLO_MEDIA'; });
 
@@ -88,7 +112,9 @@ export class PantallaSala implements OnInit {
     const reloj = setInterval(() => this.ahora.set(new Date()), 1000);
     const latido = setInterval(() => this.api.publicoLatido(this.codigo()).subscribe({ error: () => {} }), 60_000);
     const refresco = setInterval(() => this.api.publicoPiezas(this.codigo()).subscribe({ next: p => this.piezas.set(p), error: () => {} }), 5 * 60_000);
-    this.destroyRef.onDestroy(() => { clearInterval(reloj); clearInterval(latido); clearInterval(refresco); this.conexion?.cerrar(); if (this.temporizadorPieza) clearTimeout(this.temporizadorPieza); });
+    // Por si se perdió el aviso SSE de un diseño nuevo: se comprueba la firma cada dos minutos.
+    const refrescoDiseno = setInterval(() => this.refrescarDiseno(), 2 * 60_000);
+    this.destroyRef.onDestroy(() => { clearInterval(reloj); clearInterval(latido); clearInterval(refresco); clearInterval(refrescoDiseno); this.conexion?.cerrar(); if (this.temporizadorPieza) clearTimeout(this.temporizadorPieza); });
   }
 
   private cargar(): void {
@@ -98,6 +124,7 @@ export class PantallaSala implements OnInit {
         this.enCurso.set(v.en_curso);
         this.enEspera.set(v.en_espera);
         this.piezas.set(v.piezas);
+        this.aplicarDiseno(v.diseno ?? null);
         this.error.set(null);
         this.conectar(v);
       },
@@ -120,7 +147,24 @@ export class PantallaSala implements OnInit {
     });
   }
 
+  /** Solo se rearma el televisor si la firma cambió: un guardado sin cambios no parpadea. */
+  private aplicarDiseno(d: DisenoResuelto | null): void {
+    if (!d || !d.guion || !d.guion.pasos?.length) { this.diseno.set(null); return; }
+    if (this.diseno()?.firma === d.firma) return;
+    this.diseno.set(d);
+  }
+
+  private refrescarDiseno(): void {
+    this.api.publicoDiseno(this.codigo()).subscribe({ next: d => this.aplicarDiseno(d), error: () => {} });
+  }
+
+  /** Emisiones de las piezas que reproducen los bloques de publicidad del diseño. */
+  emisionDesdeDiseno(e: EmisionPieza): void {
+    this.api.publicoEmision(this.codigo(), e.media_id, e.segundos).subscribe({ error: () => {} });
+  }
+
   private evento(nombre: string, t: Turno, v: VistaPantalla): void {
+    if (nombre === 'diseno-cambiado') { this.refrescarDiseno(); return; }
     if (!nombre.startsWith('turno-')) return;
     switch (nombre) {
       case 'turno-creado':
@@ -177,9 +221,13 @@ export class PantallaSala implements OnInit {
     if (this.hablando || !this.colaVoz.length || typeof speechSynthesis === 'undefined') return;
     const t = this.colaVoz.shift()!;
     const v = this.vista()!;
-    const frase = (v.voz_plantilla || 'Turno {codigo}, diríjase a {punto}')
+    // Un puesto móvil (apoyo en pasillo o sala) no tiene a dónde "dirigirse": el asesor va.
+    const plantilla = t.punto_tipo === 'MOVIL'
+      ? 'Turno {codigo}, un asesor lo atenderá en {area}'
+      : (v.voz_plantilla || 'Turno {codigo}, diríjase a {punto}');
+    const frase = plantilla
       .replace('{codigo}', deletrear(t.codigo)).replace('{punto}', t.punto_nombre ?? '')
-      .replace('{servicio}', t.servicio_nombre ?? '').replace('{area}', t.area_nombre ?? '').replace('{nombre}', t.nombre ?? '');
+      .replace('{servicio}', t.servicio_nombre ?? '').replace('{area}', t.area_nombre ?? t.punto_nombre?.replace(/^Apoyo /, '') ?? 'la sala').replace('{nombre}', t.nombre ?? '');
     const u = new SpeechSynthesisUtterance(frase);
     u.lang = 'es-CO'; u.rate = 0.92;
     const voz = speechSynthesis.getVoices().find(x => x.lang.startsWith('es-CO')) ?? speechSynthesis.getVoices().find(x => x.lang.startsWith('es'));

@@ -37,7 +37,11 @@
       </div>
       @if (h.croquis) {
         <button type="button" class="enlace" (click)="verMapa.set(!verMapa())"><mat-icon>map</mat-icon> {{ verMapa() ? 'Ocultar el mapa' : 'Ver el mapa de la oficina' }}</button>
-        @if (verMapa()) { <div class="mapa"><app-croquis-svg [croquis]="h.croquis" /></div> }
+        @if (verMapa()) {
+          @for (p of pisosDe(h.croquis); track p.id) {
+            <div class="mapa">@if (pisosDe(h.croquis).length > 1) { <small class="mapa__piso">{{ p.nombre }}</small> }<app-croquis-svg [croquis]="h.croquis" [piso]="p.id" [mostrarPuestos]="false" [resaltar]="areaDelElegido()" /></div>
+          }
+        }
       }
     </section>
   }

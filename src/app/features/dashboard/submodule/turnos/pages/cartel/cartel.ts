@@ -4,9 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 
 import { SelectorOficina } from '../../components/selector-oficina/selector-oficina';
-import { CroquisSvg } from '../../components/croquis-svg/croquis-svg';
+import { CroquisSvg, leerPisos } from '../../components/croquis-svg/croquis-svg';
 import { ContextoTurnosService } from '../../service/contexto-turnos.service';
-import { Cartel, CartelImprimible, CartelIn, PlantillaCartel, TurnosService } from '../../service/turnos.service';
+import { Cartel, CartelImprimible, CartelIn, Croquis, PisoCroquis, PlantillaCartel, TurnosService } from '../../service/turnos.service';
 
 /**
  * El cartel estándar de la oficina: croquis, código, trámites y QR, en una hoja lista para
@@ -65,6 +65,8 @@ export class CartelImprimiblePage implements OnInit {
     this.api.marcarImpreso(c.id).subscribe({ next: () => {}, error: () => {} });
     setTimeout(() => window.print(), 150);
   }
+
+  pisosDe(c: Croquis): PisoCroquis[] { return leerPisos(c); }
 
   verVersion(c: Cartel): void {
     this.api.cartelImprimible(c.id).subscribe({ next: h => { this.hoja.set(h); this.vigente.set(c); }, error: () => {} });

@@ -4,8 +4,8 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 
-import { CartelImprimible, Servicio, TurnosService } from '../../dashboard/submodule/turnos/service/turnos.service';
-import { CroquisSvg } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
+import { CartelImprimible, Croquis, PisoCroquis, Servicio, TurnosService } from '../../dashboard/submodule/turnos/service/turnos.service';
+import { CroquisSvg, leerPisos } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
 
 /**
  * Tomar turno desde el celular, después de escanear el QR del cartel (o escribiendo el
@@ -64,6 +64,8 @@ export class TomarTurno implements OnInit {
       error: e => { this.cargando.set(false); this.error.set(e?.status === 404 ? 'Ese código no corresponde a ninguna oficina. Revise el cartel.' : 'No se pudo conectar. Intente de nuevo.'); },
     });
   }
+
+  pisosDe(c: Croquis): PisoCroquis[] { return leerPisos(c); }
 
   elegir(s: Servicio): void { this.elegido.set(s); this.paso.set('datos'); }
 

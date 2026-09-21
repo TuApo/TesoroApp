@@ -43,7 +43,7 @@ export class Oficinas implements OnInit {
   readonly visibles = computed(() => this.oficinas().filter(o => this.mostrarInactivas() || o.activa));
 
   formOficina: OficinaIn & { dias: boolean[] } = this.oficinaVacia();
-  formPunto: PuntoIn & { servicios: string[] } = { nombre: '', codigo: '', area_id: null, orden: 0, activo: true, servicios: [] };
+  formPunto: PuntoIn & { servicios: string[] } = { nombre: '', codigo: '', tipo: 'FIJO', area_id: null, orden: 0, activo: true, servicios: [] };
   readonly DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
   constructor() {
@@ -132,13 +132,13 @@ export class Oficinas implements OnInit {
 
   // ── Puntos ──
   nuevoPunto(): void {
-    this.formPunto = { nombre: '', codigo: '', area_id: null, orden: this.puntos().length + 1, activo: true, servicios: [] };
+    this.formPunto = { nombre: '', codigo: '', tipo: 'FIJO', area_id: null, orden: this.puntos().length + 1, activo: true, servicios: [] };
     this.editando.set(null);
     this.formAbierto.set('punto');
   }
 
   editarPunto(p: Punto): void {
-    this.formPunto = { nombre: p.nombre, codigo: p.codigo ?? '', area_id: p.area_id, orden: p.orden, activo: p.activo, servicios: [...p.servicios] };
+    this.formPunto = { nombre: p.nombre, codigo: p.codigo ?? '', tipo: p.tipo, area_id: p.area_id, orden: p.orden, activo: p.activo, servicios: [...p.servicios] };
     this.editando.set(p.id);
     this.formAbierto.set('punto');
   }
@@ -152,7 +152,7 @@ export class Oficinas implements OnInit {
     const of = this.seleccionada();
     if (!of) return;
     const f = this.formPunto;
-    const cuerpo: PuntoIn = { nombre: f.nombre.trim(), codigo: f.codigo || null, area_id: f.area_id || null, orden: f.orden, activo: f.activo, servicios: f.servicios };
+    const cuerpo: PuntoIn = { nombre: f.nombre.trim(), codigo: f.codigo || null, tipo: f.tipo, area_id: f.area_id || null, orden: f.orden, activo: f.activo, servicios: f.servicios };
     const id = this.editando();
     this.correr(id ? this.api.actualizarPunto(id, cuerpo) : this.api.crearPunto(of.id, cuerpo), () => {
       this.formAbierto.set('');

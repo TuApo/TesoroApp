@@ -72,9 +72,12 @@
           </header>
 
           @if (h.cartel.mostrar_croquis && h.croquis) {
-            <section class="hoja__croquis">
-              <app-croquis-svg [croquis]="h.croquis" />
-            </section>
+            @for (p of pisosDe(h.croquis); track p.id) {
+              <section class="hoja__croquis">
+                @if (pisosDe(h.croquis).length > 1) { <span class="hoja__piso">{{ p.nombre }}</span> }
+                <app-croquis-svg [croquis]="h.croquis" [piso]="p.id" [mostrarPuestos]="false" />
+              </section>
+            }
           }
 
           <section class="hoja__medio">

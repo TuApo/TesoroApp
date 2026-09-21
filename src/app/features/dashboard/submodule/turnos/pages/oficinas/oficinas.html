@@ -99,13 +99,16 @@
             <h3><mat-icon>desk</mat-icon> Puntos de atención <span class="n">{{ puntos().length }}</span></h3>
             @if (ctx.esAdmin()) { <button type="button" class="tn-boton" (click)="nuevoPunto()"><mat-icon>add</mat-icon> Nuevo punto</button> }
           </div>
-          <p class="tn-subtitulo">Lo que la pantalla canta: "Turno A-014, <strong>Módulo 3</strong>". Un punto sin servicios asignados atiende todos.</p>
+          <p class="tn-subtitulo">Lo que la pantalla canta: "Turno A-014, <strong>Módulo 3</strong>". Los puestos <span class="tn-chip tn-chip--info">del plano</span> nacen de las áreas con capacidad en el croquis; aquí se agregan los que no están dibujados. Un punto sin servicios asignados atiende todos.</p>
 
           @if (formAbierto() === 'punto') {
             <form class="subform" (ngSubmit)="guardarPunto()">
               <div class="tn-form">
                 <label class="tn-campo"><span>Nombre</span><input name="pnombre" [(ngModel)]="formPunto.nombre" required placeholder="Módulo 3"></label>
                 <label class="tn-campo"><span>Código</span><input name="pcodigo" [(ngModel)]="formPunto.codigo" maxlength="16" placeholder="M3"></label>
+                <label class="tn-campo"><span>Tipo</span>
+                  <select name="ptipo" [(ngModel)]="formPunto.tipo"><option value="FIJO">Fijo (escritorio, ventanilla)</option><option value="MOVIL">Apoyo móvil (recorredor)</option></select>
+                </label>
                 <label class="tn-campo"><span>Área del croquis</span>
                   <select name="parea" [(ngModel)]="formPunto.area_id">
                     <option [ngValue]="null">Sin área</option>
@@ -134,19 +137,20 @@
           } @else {
             <div class="tn-tabla-marco">
               <table class="tn-tabla">
-                <thead><tr><th>Punto</th><th>Área</th><th>Servicios</th><th>Ocupado por</th><th>Estado</th><th class="acciones"></th></tr></thead>
+                <thead><tr><th>Punto</th><th>Área</th><th>Tipo</th><th>Servicios</th><th>Ocupado por</th><th>Estado</th><th class="acciones"></th></tr></thead>
                 <tbody>
                   @for (p of puntos(); track p.id) {
                     <tr>
                       <td><strong>{{ p.nombre }}</strong> @if (p.codigo) { <span class="tn-codigo">{{ p.codigo }}</span> }</td>
-                      <td>{{ p.area_nombre || '—' }}</td>
+                      <td>{{ p.area_nombre || '—' }}{{ p.area_piso ? ' · ' + p.area_piso : '' }}</td>
+                      <td>@if (p.tipo === 'MOVIL') { <span class="tn-chip tn-chip--violet">Apoyo móvil</span> } @else { <span class="tn-chip">Fijo</span> } @if (p.origen === 'CROQUIS') { <span class="tn-chip tn-chip--info">del plano</span> }</td>
                       <td>@if (!p.servicios.length) { <span class="tn-chip">Todos</span> } @else { @for (s of p.servicios; track s) { <span class="tn-chip">{{ nombreServicio(s) }}</span> } }</td>
                       <td>{{ p.usuario_nombre || '—' }}</td>
                       <td>@if (p.activo) { <span class="tn-chip tn-chip--ok">Activo</span> } @else { <span class="tn-chip tn-chip--danger">Inactivo</span> }</td>
                       <td class="acciones">
                         @if (ctx.esAdmin()) {
                           <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarPunto(p)" title="Editar"><mat-icon>edit</mat-icon></button>
-                          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="eliminarPunto(p)" title="Eliminar" [disabled]="!!p.usuario_ref"><mat-icon>delete</mat-icon></button>
+                          @if (p.origen !== 'CROQUIS') { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="eliminarPunto(p)" title="Eliminar" [disabled]="!!p.usuario_ref"><mat-icon>delete</mat-icon></button> }
                         }
                       </td>
                     </tr>

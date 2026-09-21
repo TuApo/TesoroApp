@@ -1,0 +1,122 @@
+<div class="vr" [ngStyle]="fondo()">
+  @for (b of bloques(); track b.id) {
+    <div class="bq" [class]="'bq bq--' + b.tipo" [ngStyle]="estilo(b)">
+      @switch (b.tipo) {
+
+        @case ('OFICINA') {
+          <div class="bq__linea" [style.font-size]="tam(b, 2.6)">{{ prop(b, 'texto', '') || datos().oficina_nombre }}</div>
+        }
+
+        @case ('RELOJ') {
+          <div class="reloj">
+            <span class="reloj__hora" [style.font-size]="tam(b, 4.2)">{{ prop(b, 'formato', '24h') === '12h' ? hora12() : hora() }}</span>
+            @if (prop(b, 'mostrar_fecha', true)) { <span class="reloj__fecha" [style.font-size]="'calc(' + tam(b, 4.2) + ' * .45)'">{{ datos().ahora | date:'EEEE d MMMM':'':'es' }}</span> }
+          </div>
+        }
+
+        @case ('TURNO_LLAMADO') {
+          @if (turnoGrande(); as t) {
+            <div class="llamado" [class.llamado--pulso]="!!datos().llamado">
+              <span class="llamado__eti" [style.font-size]="'calc(' + tam(b, 15) + ' * .16)'">{{ datos().llamado ? prop(b, 'etiqueta', 'Turno') : 'Atendiendo' }}</span>
+              <span class="llamado__codigo" [style.font-size]="tam(b, 15)">{{ t.codigo }}</span>
+              <span class="llamado__punto" [style.font-size]="'calc(' + tam(b, 15) + ' * .34)'"><mat-icon>arrow_forward</mat-icon> {{ t.punto_nombre || t.area_nombre || '' }}</span>
+              @if (prop(b, 'mostrar_area', true) && t.area_nombre && t.punto_nombre) { <span class="llamado__sub" [style.font-size]="'calc(' + tam(b, 15) + ' * .18)'">{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+              @if (prop(b, 'mostrar_nombre', true) && t.nombre) { <span class="llamado__sub llamado__nombre" [style.font-size]="'calc(' + tam(b, 15) + ' * .18)'">{{ t.nombre }}</span> }
+            </div>
+          } @else {
+            <div class="llamado llamado--vacio">
+              <mat-icon [style.font-size]="'calc(' + tam(b, 15) + ' * .6)'" [style.width]="'calc(' + tam(b, 15) + ' * .6)'" [style.height]="'calc(' + tam(b, 15) + ' * .6)'">confirmation_number</mat-icon>
+              <span class="llamado__eti" [style.font-size]="'calc(' + tam(b, 15) + ' * .16)'">{{ prop(b, 'vacio', 'Tome su turno y espere a ser llamado') }}</span>
+            </div>
+          }
+        }
+
+        @case ('LISTA_ATENCION') {
+          <h3 class="lista__titulo" [style.font-size]="'calc(' + tam(b, 3.6) + ' * .55)'">{{ prop(b, 'titulo', 'En atención') }}</h3>
+          <div class="lista">
+            @for (t of filas(b, datos().en_curso); track t.id) {
+              <div class="fila" [class.fila--llamado]="t.estado === 'LLAMADO'" [style.font-size]="tam(b, 3.6)">
+                <span class="fila__codigo">{{ t.codigo }}</span>
+                <span class="fila__punto">{{ t.punto_nombre }}</span>
+              </div>
+            }
+            @if (!datos().en_curso.length) { <div class="fila fila--nada" [style.font-size]="'calc(' + tam(b, 3.6) + ' * .55)'">—</div> }
+          </div>
+        }
+
+        @case ('LISTA_ESPERA') {
+          <h3 class="lista__titulo" [style.font-size]="'calc(' + tam(b, 3.6) + ' * .55)'">{{ prop(b, 'titulo', 'Siguientes') }}</h3>
+          <div class="lista">
+            @for (t of filas(b, datos().en_espera); track t.id) {
+              <div class="fila" [style.font-size]="tam(b, 3.6)">
+                <span class="fila__codigo">{{ t.codigo }}</span>
+                @if (prop(b, 'mostrar_servicio', true)) { <span class="fila__srv">{{ t.servicio_nombre }}</span> }
+              </div>
+            }
+            @if (!datos().en_espera.length) { <div class="fila fila--nada" [style.font-size]="'calc(' + tam(b, 3.6) + ' * .55)'">Nadie en espera</div> }
+          </div>
+        }
+
+        @case ('PUBLICIDAD') {
+          <div class="media">
+            @if (pieza(b); as p) {
+              @switch (p.tipo) {
+                @case ('IMAGEN') { <img class="media__img" [src]="urlPieza(p)" [alt]="p.titulo" [style.object-fit]="ajuste(p)"> }
+                @case ('VIDEO') { <video class="media__img" [src]="urlPieza(p)" autoplay [muted]="p.silenciado" playsinline (ended)="videoTermino(b)" (error)="videoTermino(b)" [style.object-fit]="ajuste(p)"></video> }
+                @case ('YOUTUBE') { @if (urlEmbebida(p); as u) { <iframe class="media__frame" [src]="u" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe> } }
+                @case ('VIMEO') { @if (urlEmbebida(p); as u) { <iframe class="media__frame" [src]="u" allow="autoplay"></iframe> } }
+                @case ('HTML') { @if (urlEmbebida(p); as u) { <iframe class="media__frame" [src]="u" sandbox="allow-scripts allow-same-origin"></iframe> } }
+                @case ('CURSO') {
+                  <div class="curso">
+                    <mat-icon>school</mat-icon>
+                    <span class="curso__eti">Curso de inducción</span>
+                    <h2>{{ p.titulo }}</h2>
+                    @if (p.descripcion) { <p>{{ p.descripcion }}</p> }
+                    @if (p.curso_url) { <img class="curso__qr" [src]="qr(p.curso_url)" alt="QR del curso"> <span class="curso__ayuda">Escanee para hacerlo desde su celular</span> }
+                  </div>
+                }
+                @case ('TEXTO') { <div class="aviso"><h2>{{ p.titulo }}</h2><p>{{ p.descripcion }}</p></div> }
+              }
+              @if (piezasDe(b).length > 1) {
+                <div class="media__puntos">@for (x of piezasDe(b); track x.id; let i = $index) { <span [class.on]="i === (indices()[b.id] ?? 0) % piezasDe(b).length"></span> }</div>
+              }
+            } @else {
+              <div class="media__vacia"><mat-icon>slideshow</mat-icon><span>Publicidad</span></div>
+            }
+          </div>
+        }
+
+        @case ('TEXTO') {
+          @if (prop(b, 'marquesina', false) && animar()) {
+            <div class="marquesina" [style.font-size]="tam(b, 3.2)"><span [style.animation-duration]="marquesinaSeg(b)">{{ prop(b, 'texto', '') }}</span></div>
+          } @else {
+            <div class="bq__texto" [style.font-size]="tam(b, 3.2)">{{ prop(b, 'texto', '') }}</div>
+          }
+        }
+
+        @case ('IMAGEN') {
+          @if (prop(b, 'url', '')) { <img class="imagen" [src]="prop(b, 'url', '')" alt="" [style.object-fit]="ajuste(b)"> }
+          @else { <div class="media__vacia"><mat-icon>image</mat-icon><span>Imagen</span></div> }
+        }
+
+        @case ('LOGO') {
+          <img class="imagen" [src]="prop(b, 'url', 'logos/logo_alianza.svg')" alt="Logo" [style.object-fit]="ajuste(b)">
+        }
+
+        @case ('CROQUIS') {
+          @if (datos().croquis; as c) { <app-croquis-svg class="croquis" [croquis]="c" [resaltar]="areaResaltada()" /> }
+          @else { <div class="media__vacia"><mat-icon>map</mat-icon><span>Croquis publicado de la oficina</span></div> }
+        }
+
+        @case ('QR') {
+          @if (qr(prop(b, 'url', '') || datos().url_turno); as u) {
+            <div class="qr">
+              <img [src]="u" alt="QR">
+              <span class="qr__eti" [style.font-size]="tam(b, 2)">{{ prop(b, 'etiqueta', 'Escanee para tomar su turno') }}</span>
+            </div>
+          } @else { <div class="media__vacia"><mat-icon>qr_code_2</mat-icon><span>QR (la oficina necesita un cartel)</span></div> }
+        }
+      }
+    </div>
+  }
+</div>

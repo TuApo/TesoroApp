@@ -11,6 +11,7 @@ import { ContextoTurnosService, leerVista } from '../../service/contexto-turnos.
 import { Caso, Punto, Servicio, Turno, TurnosService } from '../../service/turnos.service';
 import { VistaCaso, VistaCasoService } from '../../service/vista-caso.service';
 import { PermissionsService } from '../../../../../../core/services/permissions.service';
+import { obtenerUsuarioActual } from '../../../../../../core/utils/usuario-actual';
 
 /**
  * La pestaña de atención: cuelga de la barra superior en cualquier pantalla.
@@ -76,6 +77,21 @@ export class PanelAtencion implements OnInit {
   readonly semaforo = this.ctx.semaforo;
 
   readonly puedeAbrirMas = computed(() => this.casos().length < this.ctx.maxCasos());
+
+  /** Los puntos agrupados por área del plano: "Contratación" → sus 4 puestos; manuales aparte. */
+  readonly gruposDePuntos = computed(() => {
+    const grupos = new Map<string, { nombre: string; puntos: Punto[] }>();
+    for (const p of this.puntos()) {
+      const clave = p.area_id ?? (p.origen === 'MANUAL' ? '_manual' : '_sin');
+      const nombre = p.area_nombre ? `${p.area_nombre}${p.area_piso ? ' · ' + p.area_piso : ''}` : (p.origen === 'MANUAL' ? 'Otros puestos' : 'Sin área');
+      if (!grupos.has(clave)) grupos.set(clave, { nombre, puntos: [] });
+      grupos.get(clave)!.puntos.push(p);
+    }
+    return [...grupos.values()];
+  });
+  readonly puntoElegidoInfo = computed<Punto | null>(() => this.puntos().find(p => p.id === this.puntoElegido()) ?? null);
+  readonly puntoActualInfo = computed<Punto | null>(() => this.puntos().find(p => p.id === this.atencion()?.punto_id) ?? null);
+  miId(): string { return obtenerUsuarioActual().id; }
   readonly enVistaDeTrabajo = computed(() => { this.ahora(); return this.vista.esVistaDeTrabajo(this.router.url); });
 
   /** Texto corto de la pestaña plegada. */

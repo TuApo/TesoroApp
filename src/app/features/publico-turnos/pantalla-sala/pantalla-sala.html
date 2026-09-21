@@ -1,6 +1,16 @@
 @if (error() && !vista()) {
   <div class="tv tv--error"><mat-icon>tv_off</mat-icon><p>{{ error() }}</p></div>
 } @else if (vista(); as v) {
+  @if (conDiseno() && diseno(); as d) {
+    <!-- Diseño propio (Diseño de pantallas): el guion decide qué se ve y cuándo. -->
+    <div class="tv tv--diseno" [attr.data-orientacion]="v.orientacion" (click)="desbloquearAudio()">
+      <app-reproductor-guion [diseno]="d" [datos]="datosVista()" [reportar]="true" (emision)="emisionDesdeDiseno($event)" />
+      <span class="tv__canal tv__canal--flotante" [class.tv__canal--ok]="canal() === 'conectado'"></span>
+      @if (!audioDesbloqueado() && (v.sonido || v.voz)) {
+        <div class="tv__toque"><mat-icon>touch_app</mat-icon> Toque la pantalla una vez para activar el sonido y la pantalla completa</div>
+      }
+    </div>
+  } @else {
   <div class="tv" [attr.data-tema]="v.tema" [attr.data-layout]="v.layout" [attr.data-orientacion]="v.orientacion" (click)="desbloquearAudio()">
     <header class="tv__cab">
       <span class="tv__oficina">{{ v.oficina_nombre }}</span>
@@ -15,8 +25,12 @@
             <div class="llamado">
               <span class="llamado__eti">Turno</span>
               <span class="llamado__codigo">{{ t.codigo }}</span>
-              <span class="llamado__punto"><mat-icon>arrow_forward</mat-icon> {{ t.punto_nombre }}</span>
-              @if (t.area_nombre) { <span class="llamado__area">{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+              @if (t.punto_tipo === 'MOVIL') {
+                <span class="llamado__punto"><mat-icon>directions_walk</mat-icon> Lo atenderán en {{ t.area_nombre || 'la sala' }}</span>
+              } @else {
+                <span class="llamado__punto"><mat-icon>arrow_forward</mat-icon> {{ t.punto_nombre }}</span>
+                @if (t.area_nombre) { <span class="llamado__area">{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+              }
               @if (t.nombre) { <span class="llamado__nombre">{{ t.nombre }}</span> }
             </div>
           } @else if (enCurso().length) {
@@ -56,7 +70,7 @@
           </div>
 
           @if (v.mostrar_croquis && v.croquis) {
-            <div class="mapa"><app-croquis-svg [croquis]="v.croquis" [resaltar]="areaResaltada()" /></div>
+            <div class="mapa"><app-croquis-svg [croquis]="v.croquis" [piso]="pisoResaltado()" [resaltar]="areaResaltada()" [mostrarPuestos]="false" /></div>
           }
         </section>
       }
@@ -98,4 +112,5 @@
       <div class="tv__toque"><mat-icon>touch_app</mat-icon> Toque la pantalla una vez para activar el sonido y la pantalla completa</div>
     }
   </div>
+  }
 }
