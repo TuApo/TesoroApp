@@ -68,7 +68,13 @@ export class PanelAtencion implements OnInit {
   readonly cerrandoCaso = signal<string | null>(null);
   resultadoCaso = '';
 
+  /** Pestaña de caso con el menú desplegado. */
+  readonly menuCaso = signal<string | null>(null);
+
   readonly ahora = this.ctx.ahora;
+  readonly cola = this.ctx.cola;
+  readonly enEspera = computed<Turno[]>(() => this.cola()?.en_espera ?? []);
+  readonly enCurso = computed<Turno[]>(() => this.cola()?.en_curso ?? []);
   readonly turno = this.ctx.turnoActual;
   readonly siguiente = this.ctx.siguiente;
   readonly atencion = this.ctx.atencion;
@@ -90,6 +96,9 @@ export class PanelAtencion implements OnInit {
     return [...grupos.values()];
   });
   readonly puntoElegidoInfo = computed<Punto | null>(() => this.puntos().find(p => p.id === this.puntoElegido()) ?? null);
+  /** Servicios que atiende mi puesto (vacío = todos): marca en la lista quién es "para mí". */
+  readonly misServicios = computed<Set<string>>(() => new Set(this.puntoActualInfo()?.servicios ?? []));
+  readonly puedoLlamar = computed(() => this.ctx.puestoAbierto() && !this.turno() && !this.ocupado());
   readonly puntoActualInfo = computed<Punto | null>(() => this.puntos().find(p => p.id === this.atencion()?.punto_id) ?? null);
   miId(): string { return obtenerUsuarioActual().id; }
   readonly enVistaDeTrabajo = computed(() => { this.ahora(); return this.vista.esVistaDeTrabajo(this.router.url); });
@@ -276,7 +285,6 @@ export class PanelAtencion implements OnInit {
         this.api.actualizarCaso(c.id, { contexto_json: JSON.stringify(foto) }).subscribe({ next: r => this.ctx.aplicarCaso(r), error: () => {} });
       }
       this.aviso.set(foto ? `Caso guardado con la pantalla "${foto.titulo ?? ''}"` : 'Caso abierto');
-      this.abierto.set(true);
     });
   }
 
@@ -300,6 +308,7 @@ export class PanelAtencion implements OnInit {
 
   /** Clic en una pestaña: activa el caso y vuelve a la pantalla donde se iba, con sus datos. */
   irACaso(c: Caso): void {
+    this.menuCaso.set(null);
     if (this.casoActivo()?.id === c.id) { this.volverAlCaso(c); return; }
     // Antes de soltar el caso actual se le guarda su foto: es lo que se va a restaurar después.
     this.ctx.guardarVistaDelCasoActivo();
@@ -422,6 +431,40 @@ export class PanelAtencion implements OnInit {
   }
 
   colorCaso(c: Caso): string { return c.color || '#2B59F0'; }
+
+  // ── Lista de personas por atender ─────────────────────────────────────
+
+  minutosEspera(t: Turno): number { return Math.max(0, Math.floor((this.ahora() - new Date(t.creado_en).getTime()) / 60000)); }
+  esperaTexto(t: Turno): string {
+    const m = this.minutosEspera(t);
+    return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60}`;
+  }
+  /** Verde hasta 5 min, ámbar hasta 15, rojo después. */
+  nivelEspera(t: Turno): 'ok' | 'warn' | 'danger' {
+    const m = this.minutosEspera(t);
+    return m >= 15 ? 'danger' : m >= 5 ? 'warn' : 'ok';
+  }
+  paraMi(t: Turno): boolean { const s = this.misServicios(); return s.size === 0 || s.has(t.servicio_id); }
+  iconoCanal(canal: string): string {
+    return ({ QR: 'qr_code_2', KIOSCO: 'touch_app', RECEPCION: 'support_agent', WEB: 'language', AGENDADO: 'event' } as Record<string, string>)[canal] ?? 'confirmation_number';
+  }
+  llamarEste(t: Turno): void { if (this.puedoLlamar()) this.llamar(t.id); }
+
+  // ── Menú de una pestaña de caso ───────────────────────────────────────
+
+  alternarMenuCaso(c: Caso, e: Event): void {
+    e.stopPropagation();
+    this.menuCaso.set(this.menuCaso() === c.id ? null : c.id);
+  }
+  cerrarMenuCaso(): void { this.menuCaso.set(null); }
+  casoDelMenu(): Caso | null { const id = this.menuCaso(); return this.casos().find(c => c.id === id) ?? null; }
+
+  /** El "+" de la fila de pestañas: guarda la pantalla actual, o abre el caso a mano si no hay pantalla de trabajo. */
+  nuevoCasoDesdeMas(): void {
+    if (!this.puedeAbrirMas()) return;
+    if (this.enVistaDeTrabajo() || this.turno()) this.guardarVistaComoCaso();
+    else this.nuevoCasoAbierto.set(true);
+  }
 
   private correr<T>(obs: Observable<T>, ok: (v: T) => void): void {
     this.ocupado.set(true);

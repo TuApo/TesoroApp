@@ -3,7 +3,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { Caso, EstadoAtencion, Oficina, Preferencia, TurnosService, Turno } from './turnos.service';
+import { Caso, Cola, EstadoAtencion, Oficina, Preferencia, TurnosService, Turno } from './turnos.service';
 import { conectarSse, ConexionSse, tokenActual } from './sse.util';
 import { VistaCaso, VistaCasoService } from './vista-caso.service';
 import { getLocalStorageItem, setLocalStorageItem } from '../../../../../core/utils/safe-storage';
@@ -49,6 +49,8 @@ export class ContextoTurnosService {
 
   readonly preferencia = signal<Preferencia | null>(null);
   readonly atencion = signal<EstadoAtencion | null>(null);
+  /** La cola de la oficina elegida (en espera y en atención), en vivo por SSE. */
+  readonly cola = signal<Cola | null>(null);
   readonly casos = signal<Caso[]>([]);
   readonly maxCasos = signal(8);
   readonly estadoCanal = signal<'conectando' | 'conectado' | 'reconectando' | 'cerrado'>('cerrado');
@@ -95,12 +97,13 @@ export class ContextoTurnosService {
   private canalOficina: ConexionSse | null = null;
   private oficinaDelCanal: string | null = null;
   private refrescoEstado: ReturnType<typeof setTimeout> | null = null;
+  private refrescoCola: ReturnType<typeof setTimeout> | null = null;
   private autoguardado: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     const reloj = setInterval(() => this.ahora.set(Date.now()), 5000);
     // Sin puesto no llegan eventos "míos": cada minuto se repregunta el estado.
-    const sondeo = setInterval(() => { if (this.cargado()) this.refrescarEstado(); }, 60_000);
+    const sondeo = setInterval(() => { if (this.cargado()) { this.refrescarEstado(); this.recargarCola(); } }, 60_000);
     this.destroyRef.onDestroy(() => { clearInterval(reloj); clearInterval(sondeo); this.cerrarCanales(); });
 
     // El canal de la oficina sigue a la oficina elegida.
@@ -165,6 +168,7 @@ export class ContextoTurnosService {
           this.seleccionarOficina(p.preferencia.oficina_id);
         }
         this.abrirCanalMio();
+        this.recargarCola();
       },
       error: () => { /* sin permisos o sin sesión: el panel no se pinta */ },
     });
@@ -172,6 +176,13 @@ export class ContextoTurnosService {
 
   refrescarEstado(): void {
     this.api.estadoAtencion().subscribe({ next: e => this.atencion.set(e), error: () => {} });
+  }
+
+  /** La cola completa de la oficina: es lo que pinta la lista de personas por atender. */
+  recargarCola(): void {
+    const id = this.oficinaId();
+    if (!id) { this.cola.set(null); return; }
+    this.api.cola(id).subscribe({ next: c => this.cola.set(c), error: () => {} });
   }
 
   seleccionarOficina(id: string | null): void {
@@ -184,6 +195,7 @@ export class ContextoTurnosService {
       });
     }
     this.abrirCanalOficina(id);
+    this.recargarCola();
   }
 
   // ── Escrituras que refrescan el estado compartido ──
@@ -280,6 +292,8 @@ export class ContextoTurnosService {
   private programarRefresco(): void {
     if (this.refrescoEstado) clearTimeout(this.refrescoEstado);
     this.refrescoEstado = setTimeout(() => this.refrescarEstado(), 300);
+    if (this.refrescoCola) clearTimeout(this.refrescoCola);
+    this.refrescoCola = setTimeout(() => this.recargarCola(), 350);
   }
 
   cerrarCanales(): void {
