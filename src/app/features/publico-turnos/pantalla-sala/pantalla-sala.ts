@@ -8,7 +8,7 @@ import { ReproductorGuion } from '../../dashboard/submodule/turnos/components/re
 import { DatosVista, EmisionPieza } from '../../dashboard/submodule/turnos/components/vista-render/vista-render';
 import { conectarSse, ConexionSse } from '../../dashboard/submodule/turnos/service/sse.util';
 import { CroquisSvg, leerPisos } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
-import { idYoutube } from '../../dashboard/submodule/turnos/pages/publicidad/publicidad';
+import { idYoutube } from '../../dashboard/submodule/turnos/service/media.util';
 
 /**
  * El televisor de la sala de espera.

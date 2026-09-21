@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { Bloque, Croquis, Media, Turno, TurnosService, Vista } from '../../service/turnos.service';
 import { CroquisSvg } from '../croquis-svg/croquis-svg';
-import { idYoutube } from '../../pages/publicidad/publicidad';
+import { idYoutube } from '../../service/media.util';
 
 /** Lo que una vista necesita del mundo para pintarse: cola, piezas, croquis y hora. */
 export interface DatosVista {

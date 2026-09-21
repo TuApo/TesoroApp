@@ -8,6 +8,9 @@ import { ContextoTurnosService } from '../../service/contexto-turnos.service';
 import { Alcance, Media, MediaIn, Playlist, PlaylistIn, ReporteEmision, TipoAlcance, TipoMedia, TurnosService, Vista, VozAudio, VozDisponible } from '../../service/turnos.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { DatosVista, VistaRender } from '../../components/vista-render/vista-render';
+import { idYoutube } from '../../service/media.util';
+
+export { idYoutube };
 
 interface Sede { id: string; nombre: string; }
 type ModoAlcance = 'TODAS' | 'OFICINA' | 'AVANZADO';
@@ -413,10 +416,4 @@ export class Publicidad implements OnInit {
   private listaVacia(): Omit<PlaylistIn, 'items'> & { items: { media_id: string; duracion_seg: number | null }[] } {
     return { nombre: '', descripcion: '', oficina_id: null, modo: 'SECUENCIAL', activa: true, items: [] };
   }
-}
-
-export function idYoutube(url: string | null): string | null {
-  if (!url) return null;
-  const m = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/.exec(url);
-  return m ? m[1] : null;
 }
