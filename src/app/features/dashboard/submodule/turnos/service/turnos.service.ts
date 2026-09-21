@@ -181,6 +181,10 @@ export interface EstadoAtencion {
   punto_id: string | null; punto_nombre: string | null;
   turno_actual: Turno | null; siguiente: Turno | null;
   en_espera: number; atendidos_hoy: number; atencion_prom_seg: number | null;
+  /** Segundos que lleva esperando quien más lleva; alimenta el semáforo. */
+  espera_max_seg: number | null;
+  /** true si no hay puesto abierto y los datos son de la oficina preferida. */
+  sin_puesto: boolean;
 }
 
 export interface EventoTurno {

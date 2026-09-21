@@ -22,4 +22,7 @@ export const routes: Routes = [
   { path: 'publicidad', loadComponent: () => import('./pages/publicidad/publicidad').then(m => m.Publicidad) },
   { path: 'tablero', loadComponent: () => import('./pages/tablero/tablero').then(m => m.TableroTurnos) },
   { path: 'casos', loadComponent: () => import('./pages/casos/casos').then(m => m.MisCasos) },
+  // Abrir un caso por enlace (otra pestaña del navegador, otro equipo): activa el caso y
+  // restaura la pantalla donde se iba. Cuelga del nodo 'casos' del árbol de permisos.
+  { path: 'caso/:id', loadComponent: () => import('./pages/abrir-caso/abrir-caso').then(m => m.AbrirCaso) },
 ];

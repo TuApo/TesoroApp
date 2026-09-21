@@ -1,27 +1,28 @@
 @if (permitido()) {
-<section class="panel" [class.panel--pagina]="modo() === 'pagina'" [class.panel--abierto]="abierto() || modo() === 'pagina'">
+<section class="panel" [class.panel--pagina]="modo() === 'pagina'" [class.panel--abierto]="abierto() || modo() === 'pagina'" [attr.data-semaforo]="semaforo()">
 
-  <!-- Barra plegable: siempre visible, pegada a la barra superior -->
+  <!-- La pestaña pequeña: cuelga de la barra superior, con semáforo. Pulsarla abre todo. -->
   @if (modo() === 'colapsador') {
-    <button type="button" class="barra" (click)="alternar()" [attr.aria-expanded]="abierto()" aria-controls="tn-panel-cuerpo">
-      <mat-icon class="barra__icono">confirmation_number</mat-icon>
-      <span class="barra__titulo">Turnos</span>
-      <span class="barra__resumen">{{ resumenColapsado() }}</span>
-      @if (turno(); as t) {
-        <span class="tn-chip" [class.tn-chip--warn]="t.estado === 'LLAMADO'" [class.tn-chip--ok]="t.estado === 'EN_ATENCION'">
-          <span class="tn-codigo">{{ t.codigo }}</span> · {{ tiempoTurno(t) }}
-        </span>
+    <div class="pestanas">
+      <button type="button" class="pestana" (click)="alternar()" [attr.aria-expanded]="abierto()" aria-controls="tn-panel-cuerpo" [title]="tituloSemaforo()">
+        <span class="pestana__luz" aria-hidden="true"></span>
+        <mat-icon class="pestana__icono">confirmation_number</mat-icon>
+        <span class="pestana__titulo">Turnos</span>
+        <span class="pestana__resumen">{{ resumen() }}</span>
+        @if (turno(); as t) { <span class="pestana__chip pestana__chip--turno"><span class="tn-codigo">{{ t.codigo }}</span> {{ tiempoTurno(t) }}</span> }
+        @if (casos().length) { <span class="pestana__chip"><mat-icon>folder_shared</mat-icon>{{ casos().length }}</span> }
+        @if (ctx.estadoCanal() === 'reconectando') { <mat-icon class="pestana__red" title="Reconectando">sync_problem</mat-icon> }
+        <mat-icon class="pestana__chevron">{{ abierto() ? 'expand_less' : 'expand_more' }}</mat-icon>
+      </button>
+      <!-- Plegada, la pestaña del caso activo también se ve: es donde se está trabajando. -->
+      @if (!abierto() && casoActivo(); as c) {
+        <button type="button" class="pestana pestana--caso" [style.--c]="colorCaso(c)" (click)="alternar()" [title]="'Caso activo: ' + c.nombre">
+          <span class="pestana__punto"></span>
+          <span class="pestana__titulo pestana__titulo--caso">{{ c.nombre }}</span>
+          <span class="pestana__chip">{{ tiempoCaso(c) }}</span>
+        </button>
       }
-      @if (casos().length) {
-        <span class="tn-chip tn-chip--info" [title]="casoActivo()?.nombre || 'Casos abiertos'">
-          <mat-icon>folder_shared</mat-icon> {{ casos().length }}
-          @if (casoActivo(); as c) { <span class="barra__caso">· {{ c.nombre }}</span> }
-        </span>
-      }
-      <span class="barra__espacio"></span>
-      @if (ctx.estadoCanal() === 'reconectando') { <mat-icon class="barra__red" title="Reconectando con el servidor">sync_problem</mat-icon> }
-      <mat-icon class="barra__chevron">{{ abierto() ? 'expand_less' : 'expand_more' }}</mat-icon>
-    </button>
+    </div>
   }
 
   @if (abierto() || modo() === 'pagina') {
@@ -36,6 +37,12 @@
         <div class="abrir-puesto">
           <h3><mat-icon>login</mat-icon> Abrir puesto de atención</h3>
           <p class="tn-subtitulo">Elija la oficina y el módulo desde el que va a atender. Un puesto sin ocupante no recibe turnos.</p>
+          @if (atencion()?.en_espera) {
+            <div class="tn-aviso" [class.tn-aviso--error]="semaforo() === 'rojo'"><mat-icon>groups</mat-icon>
+              {{ atencion()!.en_espera }} {{ atencion()!.en_espera === 1 ? 'persona espera' : 'personas esperan' }} en {{ atencion()!.oficina_nombre }}
+              @if (esperaMaxima()) { · la que más lleva: {{ esperaMaxima() }} }
+            </div>
+          }
           <div class="abrir-puesto__fila">
             <label class="tn-campo">
               <span>Oficina</span>
@@ -67,8 +74,9 @@
               <span class="puesto__punto"><mat-icon>desk</mat-icon> {{ atencion()!.punto_nombre }}</span>
             </div>
             <div class="puesto__stats">
-              <span class="tn-chip"><mat-icon>groups</mat-icon> {{ atencion()!.en_espera }} en espera</span>
-              <span class="tn-chip tn-chip--ok"><mat-icon>task_alt</mat-icon> {{ atencion()!.atendidos_hoy }} hoy</span>
+              <span class="tn-chip" [class.tn-chip--warn]="semaforo() === 'amarillo'" [class.tn-chip--danger]="semaforo() === 'rojo'" [class.tn-chip--ok]="semaforo() === 'verde'" [title]="esperaMaxima() ? 'La persona que más lleva: ' + esperaMaxima() : ''">
+                <mat-icon>groups</mat-icon> {{ atencion()!.en_espera }} en espera</span>
+              <span class="tn-chip"><mat-icon>task_alt</mat-icon> {{ atencion()!.atendidos_hoy }} hoy</span>
               <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cerrarPuesto()" title="Cerrar puesto" [disabled]="!!turno()">
                 <mat-icon>logout</mat-icon>
               </button>
@@ -119,7 +127,7 @@
                     <button type="button" class="tn-boton tn-boton--peligro" (click)="pedirCierre('NO_SE_PRESENTO')" [disabled]="ocupado()"><mat-icon>person_off</mat-icon> No se presentó</button>
                   } @else {
                     <button type="button" class="tn-boton tn-boton--exito tn-boton--grande" (click)="pedirCierre('ATENDIDO')" [disabled]="ocupado()"><mat-icon>task_alt</mat-icon> Finalizar atención</button>
-                    <button type="button" class="tn-boton" (click)="abrirCasoDelTurno()" [disabled]="ocupado() || !puedeAbrirMas()"><mat-icon>create_new_folder</mat-icon> Abrir caso</button>
+                    <button type="button" class="tn-boton" (click)="abrirCasoDelTurno()" [disabled]="ocupado() || !puedeAbrirMas()" title="Guarda esta persona como pestaña de caso"><mat-icon>create_new_folder</mat-icon> Abrir caso</button>
                   }
                   <button type="button" class="tn-boton" (click)="transfiriendo.set(true)" [disabled]="ocupado()"><mat-icon>swap_horiz</mat-icon> Transferir</button>
                   <button type="button" class="tn-boton tn-boton--fantasma" (click)="aplazar()" [disabled]="ocupado()" title="Devolverlo a la cola con prioridad"><mat-icon>schedule</mat-icon> Aplazar</button>
@@ -150,17 +158,42 @@
       }
     </div>
 
-    <!-- ══════════ DERECHA: casos ══════════ -->
+    <!-- ══════════ DERECHA: casos como pestañas ══════════ -->
     <div class="mitad mitad--casos">
       <div class="casos__cabecera">
-        <h3><mat-icon>folder_shared</mat-icon> Casos <span class="casos__n">{{ casos().length }}/{{ ctx.maxCasos() }}</span></h3>
-        <button type="button" class="tn-boton tn-boton--icono" (click)="nuevoCasoAbierto.set(!nuevoCasoAbierto())" [disabled]="!puedeAbrirMas()" title="Nuevo caso (alguien sin turno)">
+        <h3><mat-icon>tab</mat-icon> Casos <span class="casos__n">{{ casos().length }}/{{ ctx.maxCasos() }}</span></h3>
+        <span class="casos__ayuda">Cada caso guarda la pantalla donde iba y lo que llevaba escrito.</span>
+      </div>
+
+      <!-- Fila de pestañas -->
+      <div class="tabs" role="tablist">
+        @for (c of casos(); track c.id) {
+          <div class="tab" role="tab" tabindex="0" [class.tab--activa]="casoActivo()?.id === c.id" [class.tab--pausada]="c.estado === 'PAUSADO'" [style.--c]="colorCaso(c)"
+               [attr.aria-selected]="casoActivo()?.id === c.id" (click)="irACaso(c)" (keydown.enter)="irACaso(c)" (dblclick)="empezarRenombrar(c)"
+               [title]="c.nombre + (tienePantalla(c) ? ' · ' + (vistaDe(c).titulo || vistaDe(c).ruta) : '')">
+            <span class="tab__punto"></span>
+            @if (renombrando() === c.id) {
+              <input class="tab__renombrar" type="text" [(ngModel)]="nombreTemporal" (blur)="guardarNombre(c)" (keydown.enter)="guardarNombre(c)" (keydown.escape)="renombrando.set(null)" (click)="$event.stopPropagation()" autofocus>
+            } @else {
+              <span class="tab__nombre">{{ c.nombre }}</span>
+            }
+            <span class="tab__tiempo">{{ tiempoCaso(c) }}</span>
+            @if (c.fijado) { <mat-icon class="tab__fijado">push_pin</mat-icon> }
+            <button type="button" class="tab__cerrar" (click)="$event.stopPropagation(); pedirCerrarCaso(c)" title="Cerrar caso"><mat-icon>close</mat-icon></button>
+          </div>
+        }
+        <button type="button" class="tab tab--nueva" (click)="guardarVistaComoCaso()" [disabled]="!puedeAbrirMas() || ocupado()"
+                [title]="enVistaDeTrabajo() ? 'Guardar la pantalla actual como un caso nuevo' : 'Abrir un caso nuevo'">
           <mat-icon>add</mat-icon>
+          <span>{{ enVistaDeTrabajo() ? 'Guardar esta pantalla' : 'Nuevo' }}</span>
+        </button>
+        <button type="button" class="tab tab--nueva tab--icono" (click)="nuevoCasoAbierto.set(!nuevoCasoAbierto())" [disabled]="!puedeAbrirMas()" title="Caso a mano (alguien sin pantalla ni turno)">
+          <mat-icon>person_add</mat-icon>
         </button>
       </div>
 
       @if (nuevoCasoAbierto()) {
-        <form class="nuevo-caso" (ngSubmit)="crearCaso()">
+        <form class="nuevo-caso" (ngSubmit)="crearCasoManual()">
           <input type="text" name="nombre" [(ngModel)]="nuevoCaso.nombre" placeholder="Nombre del caso (o déjelo vacío y se arma solo)">
           <div class="nuevo-caso__fila">
             <input type="text" name="documento" [(ngModel)]="nuevoCaso.documento" placeholder="Cédula">
@@ -174,67 +207,60 @@
         </form>
       }
 
-      @if (!casos().length && !nuevoCasoAbierto()) {
-        <div class="tn-vacio casos__vacio">
-          <mat-icon>folder_open</mat-icon>
-          <span>Sin casos abiertos. Abra uno desde el turno en curso o con el botón +, y salte entre varios sin perder dónde iba.</span>
+      @if (cerrandoCaso(); as id) {
+        <div class="cerrar-caso">
+          <input type="text" [(ngModel)]="resultadoCaso" placeholder="Resultado (opcional): certificado entregado, contrato firmado…" (keydown.enter)="cerrarCasoPorId(id)">
+          <button type="button" class="tn-boton tn-boton--primario" (click)="cerrarCasoPorId(id)">Cerrar caso</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="cerrandoCaso.set(null)">Volver</button>
         </div>
       }
 
-      <div class="casos__lista">
-        @for (c of casos(); track c.id) {
-          <div class="caso" [class.caso--activo]="casoActivo()?.id === c.id" [class.caso--pausado]="c.estado === 'PAUSADO'" [style.--c]="colorCaso(c)"
-               (click)="activarCaso(c)" (dblclick)="empezarRenombrar(c)" role="button" tabindex="0" (keydown.enter)="activarCaso(c)">
-            <span class="caso__punto"></span>
-            <div class="caso__texto">
-              @if (renombrando() === c.id) {
-                <input class="caso__renombrar" type="text" [(ngModel)]="nombreTemporal" (blur)="guardarNombre(c)" (keydown.enter)="guardarNombre(c)" (keydown.escape)="renombrando.set(null)" (click)="$event.stopPropagation()" autofocus>
-              } @else {
-                <span class="caso__nombre" [title]="c.nombre">{{ c.nombre }}</span>
-              }
-              <span class="caso__meta">
-                {{ c.estado === 'ABIERTO' ? 'Activo' : 'Pausado' }} · {{ tiempoCaso(c) }}
-                @if (c.turno_codigo) { · <span class="tn-codigo">{{ c.turno_codigo }}</span> }
-                @if (c.notas) { · {{ c.notas }} nota{{ c.notas === 1 ? '' : 's' }} }
-              </span>
-            </div>
-            <div class="caso__botones" (click)="$event.stopPropagation()">
-              @if (c.fijado) { <mat-icon class="caso__fijado" title="Fijado">push_pin</mat-icon> }
-              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="empezarRenombrar(c)" title="Renombrar"><mat-icon>edit</mat-icon></button>
-              @if (c.estado === 'ABIERTO') {
-                <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="pausarCaso(c)" title="Pausar"><mat-icon>pause</mat-icon></button>
-              }
-              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="pedirCerrarCaso(c)" title="Cerrar caso"><mat-icon>check_circle</mat-icon></button>
-            </div>
-          </div>
-          @if (cerrandoCaso() === c.id) {
-            <div class="cerrar-caso" (click)="$event.stopPropagation()">
-              <input type="text" [(ngModel)]="resultadoCaso" placeholder="Resultado (opcional): certificado entregado, contrato firmado…" (keydown.enter)="cerrarCaso(c)">
-              <button type="button" class="tn-boton tn-boton--primario" (click)="cerrarCaso(c)">Cerrar</button>
-              <button type="button" class="tn-boton tn-boton--fantasma" (click)="cerrandoCaso.set(null)">Volver</button>
-            </div>
-          }
-        }
-      </div>
-
+      <!-- Contenido de la pestaña activa -->
       @if (casoActivo(); as c) {
-        <div class="caso-detalle">
-          <div class="caso-detalle__datos">
+        <div class="tab-contenido" [style.--c]="colorCaso(c)">
+          <div class="tab-contenido__vista">
+            @if (tienePantalla(c)) {
+              <mat-icon>web</mat-icon>
+              <span class="tab-contenido__ruta">
+                <strong>{{ vistaDe(c).titulo || 'Pantalla guardada' }}</strong>
+                @if (vistaDe(c).modulo) { <span class="muted"> · {{ vistaDe(c).modulo }}</span> }
+                @if (camposGuardados(c)) { <span class="muted"> · {{ camposGuardados(c) }} campo{{ camposGuardados(c) === 1 ? '' : 's' }} en curso</span> }
+              </span>
+              <button type="button" class="tn-boton" (click)="volverAlCaso(c)" [disabled]="ctx.restaurando()" title="Volver a esa pantalla con los datos que llevaba"><mat-icon>undo</mat-icon> Volver</button>
+            } @else {
+              <mat-icon>web_asset_off</mat-icon>
+              <span class="tab-contenido__ruta muted">Sin pantalla guardada: navegue a la ficha o el formulario y este caso la recordará.</span>
+            }
+            <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="abrirEnPestanaNueva(c)" title="Abrir este caso en otra pestaña del navegador"><mat-icon>open_in_new</mat-icon></button>
+            <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="copiarEnlace(c)" title="Copiar el enlace del caso"><mat-icon>link</mat-icon></button>
+          </div>
+          <div class="tab-contenido__datos">
             @if (c.persona_nombre) { <span><mat-icon>person</mat-icon> {{ c.persona_nombre }}</span> }
             @if (c.documento) { <span><mat-icon>badge</mat-icon> {{ c.documento }}</span> }
             @if (c.telefono) { <span><mat-icon>call</mat-icon> {{ c.telefono }}</span> }
             @if (c.motivo) { <span><mat-icon>label</mat-icon> {{ c.motivo }}</span> }
-            @if (c.nombre_manual) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="nombreAutomatico(c)" title="Volver al nombre automático"><mat-icon>auto_fix_high</mat-icon></button> }
-            <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="fijarCaso(c)" [title]="c.fijado ? 'Quitar de fijados' : 'Fijar arriba'"><mat-icon>{{ c.fijado ? 'push_pin' : 'push_pin' }}</mat-icon></button>
-            @if (volverPosible(c)) {
-              <button type="button" class="tn-boton" (click)="volverAlCaso(c)" title="Ir a la pantalla donde iba con este caso"><mat-icon>undo</mat-icon> Volver donde iba</button>
-            }
+            @if (c.turno_codigo) { <span><mat-icon>confirmation_number</mat-icon> <span class="tn-codigo">{{ c.turno_codigo }}</span></span> }
+            @if (c.notas) { <span><mat-icon>sticky_note_2</mat-icon> {{ c.notas }} nota{{ c.notas === 1 ? '' : 's' }}</span> }
+            <span class="tab-contenido__botones">
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="releerDatos(c)" title="Completar los datos leyendo esta pantalla"><mat-icon>auto_fix_high</mat-icon></button>
+              @if (c.nombre_manual) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="nombreAutomatico(c)" title="Volver al nombre automático"><mat-icon>restart_alt</mat-icon></button> }
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="empezarRenombrar(c)" title="Renombrar"><mat-icon>edit</mat-icon></button>
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="fijarCaso(c)" [title]="c.fijado ? 'Quitar de fijados' : 'Fijar primero'"><mat-icon>push_pin</mat-icon></button>
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="pausarCaso(c)" title="Pausar (detiene el reloj)"><mat-icon>pause</mat-icon></button>
+            </span>
           </div>
           <form class="nota" (ngSubmit)="agregarNota()">
             <input type="text" name="nota" [ngModel]="notaTexto()" (ngModelChange)="notaTexto.set($event)" placeholder="Nota rápida sobre este caso…">
             <button type="submit" class="tn-boton tn-boton--icono" [disabled]="!notaTexto().trim() || ocupado()" title="Guardar nota"><mat-icon>send</mat-icon></button>
           </form>
         </div>
+      } @else if (!casos().length && !nuevoCasoAbierto()) {
+        <div class="tn-vacio casos__vacio">
+          <mat-icon>tab_unselected</mat-icon>
+          <span>Sin casos. Cuando esté atendiendo a alguien en una pantalla, pulse <strong>Guardar esta pantalla</strong>: el caso se nombra solo con la cédula y el nombre que vea, y guarda lo que lleve escrito para volver después o abrirlo en otra pestaña.</span>
+        </div>
+      } @else if (casos().length) {
+        <div class="tn-vacio casos__vacio"><mat-icon>touch_app</mat-icon><span>Pulse una pestaña para volver a ese caso.</span></div>
       }
     </div>
 

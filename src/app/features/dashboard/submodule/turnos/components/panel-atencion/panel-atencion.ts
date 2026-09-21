@@ -1,32 +1,32 @@
 import {
-  ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, effect, inject, input, signal, untracked,
+  ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, input, signal, untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { NavigationEnd, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Observable, filter } from 'rxjs';
+import { Observable } from 'rxjs';
 
-import { ContextoTurnosService } from '../../service/contexto-turnos.service';
+import { ContextoTurnosService, leerVista } from '../../service/contexto-turnos.service';
 import { Caso, Punto, Servicio, Turno, TurnosService } from '../../service/turnos.service';
+import { VistaCaso, VistaCasoService } from '../../service/vista-caso.service';
 import { PermissionsService } from '../../../../../../core/services/permissions.service';
 
 /**
- * El panel plegable de atención: vive entre la barra superior y la pantalla.
+ * La pestaña de atención: cuelga de la barra superior en cualquier pantalla.
  *
- * <p>Dos mitades. La IZQUIERDA es el control del turno: el puesto abierto, a quién se está
- * atendiendo, quién sigue, y los botones de llamar, iniciar, finalizar, transferir y
- * aplazar. La DERECHA son los CASOS: cada persona que se está atendiendo es una pestaña
- * con nombre (automático o puesto a mano), con su reloj y sus notas, para poder saltar
- * entre varias sin perder dónde se iba.
+ * <p>Plegada es una PESTAÑA PEQUEÑA con un semáforo (verde/amarillo/rojo según cómo va
+ * la sala) y lo mínimo: el puesto, el turno en curso y cuántos casos hay. Al pulsarla se
+ * abre todo.
  *
- * <p>Vive en el shell y no en una página porque el turno sigue abierto mientras la persona
- * navega por contratación, tesorería o documentos. Se pinta solo si el usuario puede leer
- * el panel de atención (árbol de permisos); el resto de la plataforma no ve nada.
+ * <p>Abierta tiene dos mitades. La IZQUIERDA es el control del turno: el puesto, a quién
+ * se atiende, quién sigue, y los botones de llamar, iniciar, finalizar, transferir y
+ * aplazar. La DERECHA son los CASOS como pestañas de navegador: cada persona que se está
+ * atendiendo es una pestaña que guarda la pantalla donde se iba y lo que se llevaba escrito;
+ * volver a ella restaura esa vista, y se puede abrir en otra pestaña del navegador con la
+ * misma sesión. Los datos del caso se leen solos de la pantalla (cédula, nombre, trámite).
  *
- * <p>`modo="pagina"` es la misma cosa a pantalla completa (la ruta /turnos/atencion), sin
- * el colapsador y sin límite de alto.
+ * <p>`modo="pagina"` es la misma cosa a pantalla completa (ruta /turnos/atencion).
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -40,14 +40,13 @@ export class PanelAtencion implements OnInit {
 
   readonly ctx = inject(ContextoTurnosService);
   private api = inject(TurnosService);
+  private vista = inject(VistaCasoService);
   private router = inject(Router);
   private permisos = inject(PermissionsService);
-  private destroyRef = inject(DestroyRef);
 
-  /** Solo se pinta para quien puede entrar al panel de atención. */
   readonly permitido = signal(false);
   readonly abierto = signal(false);
-  readonly alto = signal(260);
+  readonly alto = signal(280);
   readonly ocupado = signal(false);
   readonly error = signal<string | null>(null);
   readonly aviso = signal<string | null>(null);
@@ -60,7 +59,6 @@ export class PanelAtencion implements OnInit {
   readonly cerrandoCon = signal<'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
   readonly motivoCierre = signal('');
 
-  /** Formulario de caso nuevo (a mano). */
   readonly nuevoCasoAbierto = signal(false);
   nuevoCaso = { nombre: '', documento: '', persona_nombre: '', motivo: '' };
   readonly renombrando = signal<string | null>(null);
@@ -69,70 +67,58 @@ export class PanelAtencion implements OnInit {
   readonly cerrandoCaso = signal<string | null>(null);
   resultadoCaso = '';
 
-  /** Reloj de un segundo para pintar los tiempos que corren. */
-  readonly ahora = signal(Date.now());
-
+  readonly ahora = this.ctx.ahora;
   readonly turno = this.ctx.turnoActual;
   readonly siguiente = this.ctx.siguiente;
   readonly atencion = this.ctx.atencion;
   readonly casos = this.ctx.casosVivos;
   readonly casoActivo = this.ctx.casoActivo;
+  readonly semaforo = this.ctx.semaforo;
 
   readonly puedeAbrirMas = computed(() => this.casos().length < this.ctx.maxCasos());
+  readonly enVistaDeTrabajo = computed(() => { this.ahora(); return this.vista.esVistaDeTrabajo(this.router.url); });
 
-  readonly resumenColapsado = computed(() => {
+  /** Texto corto de la pestaña plegada. */
+  readonly resumen = computed(() => {
     const a = this.atencion();
     const t = this.turno();
-    if (!a?.punto_id) return 'Sin puesto abierto';
-    const partes = [a.punto_nombre ?? 'Puesto'];
-    if (t) partes.push(`${t.codigo} · ${etiquetaEstado(t.estado)}`);
-    else partes.push(`${a.en_espera} en espera`);
-    return partes.join(' · ');
+    if (!a?.punto_id) return a?.en_espera ? `Sin puesto · ${a.en_espera} esperando` : 'Sin puesto abierto';
+    if (t) return `${a.punto_nombre} · ${t.codigo} ${etiquetaEstado(t.estado).toLowerCase()}`;
+    return `${a.punto_nombre} · ${a.en_espera} en espera`;
   });
+
+  readonly tituloSemaforo = computed(() => ({
+    verde: 'Todo al día: nadie esperando',
+    amarillo: 'Hay personas esperando o un turno llamado',
+    rojo: 'La sala se desborda: muchos esperando o alguien lleva demasiado',
+    neutro: 'Sin puesto abierto',
+  } as Record<string, string>)[this.semaforo()]);
 
   private guardadoPref: ReturnType<typeof setTimeout> | null = null;
   private arrastre: { y0: number; alto0: number } | null = null;
 
   constructor() {
-    // Las preferencias del servidor mandan al montar: abierto y alto.
     effect(() => {
       const p = this.ctx.preferencia();
       if (!p) return;
       untracked(() => {
         this.abierto.set(!!p.panel_abierto);
-        this.alto.set(Math.max(160, Math.min(720, p.panel_alto || 260)));
+        this.alto.set(Math.max(180, Math.min(720, p.panel_alto || 280)));
       });
     });
-    // Al abrir un puesto o cambiar de oficina, se cargan puntos y servicios de esa oficina.
     effect(() => {
       const oficinaId = this.ctx.oficinaId();
       if (!oficinaId) { this.puntos.set([]); this.servicios.set([]); return; }
       untracked(() => this.cargarCatalogos(oficinaId));
     });
-    // Recordar por dónde iba la persona para cada caso activo: al cambiar de ruta se
-    // anota en el caso, y "volver" lo lleva justo ahí. Es lo que hace que saltar entre
-    // casos no sea "¿en qué pantalla estaba con esta señora?".
-    this.router.events.pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed())
-      .subscribe(e => {
-        const caso = this.casoActivo();
-        if (!caso || e.urlAfterRedirects.startsWith('/dashboard/turnos')) return;
-        const ctx = leerContexto(caso.contexto_json);
-        if (ctx.ruta === e.urlAfterRedirects) return;
-        this.api.actualizarCaso(caso.id, { contexto_json: JSON.stringify({ ...ctx, ruta: e.urlAfterRedirects }) })
-          .subscribe({ next: c => this.ctx.aplicarCaso(c), error: () => {} });
-      });
-
-    const reloj = setInterval(() => this.ahora.set(Date.now()), 1000);
-    this.destroyRef.onDestroy(() => clearInterval(reloj));
   }
 
   ngOnInit(): void {
-    // ADMIN ve todo aunque el módulo no esté sembrado; el resto por el árbol de permisos.
     this.permitido.set(this.modo() === 'pagina' || this.permisos.canReadRoute('/dashboard/turnos/atencion'));
     if (this.permitido()) this.ctx.cargar();
   }
 
-  // ── Colapsador ────────────────────────────────────────────────────────
+  // ── Pestaña ───────────────────────────────────────────────────────────
 
   alternar(): void {
     this.abierto.update(v => !v);
@@ -145,7 +131,7 @@ export class PanelAtencion implements OnInit {
   }
   moverArrastre(e: PointerEvent): void {
     if (!this.arrastre) return;
-    this.alto.set(Math.max(160, Math.min(720, this.arrastre.alto0 + (e.clientY - this.arrastre.y0))));
+    this.alto.set(Math.max(180, Math.min(720, this.arrastre.alto0 + (e.clientY - this.arrastre.y0))));
   }
   terminarArrastre(): void {
     if (!this.arrastre) return;
@@ -196,24 +182,20 @@ export class PanelAtencion implements OnInit {
     if (!a?.punto_id) return;
     this.correr(this.api.llamar(a.punto_id, turnoId ?? null), t => {
       this.ctx.aplicarTurno(t);
-      this.refrescarEstado();
+      this.ctx.refrescarEstado();
       this.sonar();
     });
   }
 
-  rellamar(): void {
-    const t = this.turno();
-    if (t) this.llamar(t.id);
-  }
+  rellamar(): void { const t = this.turno(); if (t) this.llamar(t.id); }
 
   iniciar(): void {
     const t = this.turno();
     if (!t) return;
-    this.correr(this.api.iniciar(t.id), r => { this.ctx.aplicarTurno(r); this.refrescarEstado(); });
+    this.correr(this.api.iniciar(t.id), r => { this.ctx.aplicarTurno(r); this.ctx.refrescarEstado(); });
   }
 
   pedirCierre(resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO'): void {
-    // Finalizar como atendido no pide motivo: es el camino feliz y se pulsa cien veces al día.
     if (resultado === 'ATENDIDO') { this.cerrar(resultado); return; }
     this.cerrandoCon.set(resultado);
     this.motivoCierre.set('');
@@ -225,7 +207,7 @@ export class PanelAtencion implements OnInit {
     this.correr(this.api.cerrarTurno(t.id, resultado, this.motivoCierre() || null), r => {
       this.ctx.aplicarTurno(r);
       this.cerrandoCon.set(null);
-      this.refrescarEstado();
+      this.ctx.refrescarEstado();
       if (this.ctx.preferencia()?.auto_llamar && resultado === 'ATENDIDO') setTimeout(() => this.llamar(), 400);
     });
   }
@@ -237,7 +219,7 @@ export class PanelAtencion implements OnInit {
     this.correr(this.api.transferir(t.id, destino, null, true), () => {
       this.transfiriendo.set(false);
       this.servicioDestino.set('');
-      this.refrescarEstado();
+      this.ctx.refrescarEstado();
       this.aviso.set('Turno transferido; nace con prioridad en el otro servicio');
     });
   }
@@ -245,7 +227,7 @@ export class PanelAtencion implements OnInit {
   aplazar(): void {
     const t = this.turno();
     if (!t) return;
-    this.correr(this.api.aplazar(t.id, 'La persona pidió un momento'), () => this.refrescarEstado());
+    this.correr(this.api.aplazar(t.id, 'La persona pidió un momento'), () => this.ctx.refrescarEstado());
   }
 
   alternarAutoLlamar(): void {
@@ -254,23 +236,37 @@ export class PanelAtencion implements OnInit {
     this.ctx.preferencia.update(p => (p ? { ...p, auto_llamar: v } : p));
   }
 
-  refrescarEstado(): void {
-    this.api.estadoAtencion().subscribe({ next: e => this.ctx.aplicarAtencion(e), error: () => {} });
-  }
+  // ── Casos (pestañas) ──────────────────────────────────────────────────
 
-  // ── Casos ─────────────────────────────────────────────────────────────
-
-  abrirCasoDelTurno(): void {
+  /**
+   * "+" : guarda la VISTA ACTUAL como un caso nuevo. Los datos se leen solos de la
+   * pantalla (cédula, nombre, trámite); si no hay nada que leer, el caso se llama como
+   * la pantalla. Si hay un turno en curso, el caso nace de él.
+   */
+  guardarVistaComoCaso(): void {
     const t = this.turno();
-    if (!t) return;
-    this.correr(this.api.abrirCaso({ turno_id: t.id, oficina_id: t.oficina_id, activar: true }), c => {
+    const datos = this.vista.datosDeLaVista();
+    const foto = this.vista.esVistaDeTrabajo() ? this.vista.capturar() : null;
+    const cuerpo = {
+      turno_id: t?.id ?? null, oficina_id: this.ctx.oficinaId(),
+      documento: datos.documento, persona_nombre: datos.persona_nombre, telefono: datos.telefono, correo: datos.correo,
+      motivo: datos.motivo, activar: true,
+    };
+    this.correr(this.api.abrirCaso(cuerpo), c => {
       this.ctx.aplicarCaso(c);
       this.ctx.preferencia.update(p => (p ? { ...p, caso_activo_id: c.id } : p));
+      this.pausarOtros(c.id);
+      if (foto) {
+        this.api.actualizarCaso(c.id, { contexto_json: JSON.stringify(foto) }).subscribe({ next: r => this.ctx.aplicarCaso(r), error: () => {} });
+      }
+      this.aviso.set(foto ? `Caso guardado con la pantalla "${foto.titulo ?? ''}"` : 'Caso abierto');
       this.abierto.set(true);
     });
   }
 
-  crearCaso(): void {
+  abrirCasoDelTurno(): void { this.guardarVistaComoCaso(); }
+
+  crearCasoManual(): void {
     const f = this.nuevoCaso;
     if (!f.nombre.trim() && !f.documento.trim() && !f.persona_nombre.trim()) return;
     this.correr(this.api.abrirCaso({
@@ -280,27 +276,43 @@ export class PanelAtencion implements OnInit {
     }), c => {
       this.ctx.aplicarCaso(c);
       this.ctx.preferencia.update(p => (p ? { ...p, caso_activo_id: c.id } : p));
+      this.pausarOtros(c.id);
       this.nuevoCaso = { nombre: '', documento: '', persona_nombre: '', motivo: '' };
       this.nuevoCasoAbierto.set(false);
     });
   }
 
-  activarCaso(c: Caso): void {
-    if (this.casoActivo()?.id === c.id) return;
+  /** Clic en una pestaña: activa el caso y vuelve a la pantalla donde se iba, con sus datos. */
+  irACaso(c: Caso): void {
+    if (this.casoActivo()?.id === c.id) { this.volverAlCaso(c); return; }
+    // Antes de soltar el caso actual se le guarda su foto: es lo que se va a restaurar después.
+    this.ctx.guardarVistaDelCasoActivo();
     this.correr(this.api.activarCaso(c.id), r => {
       this.ctx.aplicarCaso(r);
       this.ctx.preferencia.update(p => (p ? { ...p, caso_activo_id: r.id } : p));
-      // Los demás pasan a pausados en el servidor; se reflejan al recargar.
-      this.api.casos().subscribe({ next: l => this.ctx.casos.set(l), error: () => {} });
+      this.pausarOtros(r.id);
+      this.volverAlCaso(r);
     });
   }
 
   volverAlCaso(c: Caso): void {
-    const ruta = leerContexto(c.contexto_json).ruta;
-    if (ruta) this.router.navigateByUrl(ruta);
+    const v = leerVista(c.contexto_json);
+    if (!v.ruta) return;
+    this.ctx.restaurando.set(true);
+    this.vista.restaurar(v).finally(() => setTimeout(() => this.ctx.restaurando.set(false), 600));
+  }
+
+  abrirEnPestanaNueva(c: Caso): void {
+    this.ctx.guardarVistaDelCasoActivo();
+    window.open(this.vista.enlaceDeCaso(c.id), '_blank', 'noopener');
+  }
+
+  copiarEnlace(c: Caso): void {
+    navigator.clipboard?.writeText(this.vista.enlaceDeCaso(c.id)).then(() => { this.aviso.set('Enlace del caso copiado'); setTimeout(() => this.aviso.set(null), 2000); });
   }
 
   pausarCaso(c: Caso): void {
+    if (this.casoActivo()?.id === c.id) this.ctx.guardarVistaDelCasoActivo();
     this.correr(this.api.pausarCaso(c.id), r => this.ctx.aplicarCaso(r));
   }
 
@@ -308,10 +320,7 @@ export class PanelAtencion implements OnInit {
     this.correr(this.api.actualizarCaso(c.id, { fijado: !c.fijado }), r => this.ctx.aplicarCaso(r));
   }
 
-  empezarRenombrar(c: Caso): void {
-    this.renombrando.set(c.id);
-    this.nombreTemporal = c.nombre;
-  }
+  empezarRenombrar(c: Caso): void { this.renombrando.set(c.id); this.nombreTemporal = c.nombre; }
 
   guardarNombre(c: Caso): void {
     const nombre = this.nombreTemporal.trim();
@@ -324,9 +333,24 @@ export class PanelAtencion implements OnInit {
     this.correr(this.api.actualizarCaso(c.id, { nombre_automatico: true }), r => this.ctx.aplicarCaso(r));
   }
 
-  pedirCerrarCaso(c: Caso): void {
-    this.cerrandoCaso.set(c.id);
-    this.resultadoCaso = '';
+  /** Vuelve a leer la pantalla actual y completa los datos vacíos del caso. */
+  releerDatos(c: Caso): void {
+    const d = this.vista.datosDeLaVista();
+    const cambio: Record<string, string | null> = {};
+    if (!c.documento && d.documento) cambio['documento'] = d.documento;
+    if (!c.persona_nombre && d.persona_nombre) cambio['persona_nombre'] = d.persona_nombre;
+    if (!c.telefono && d.telefono) cambio['telefono'] = d.telefono;
+    if (!c.correo && d.correo) cambio['correo'] = d.correo;
+    if (!c.motivo && d.motivo) cambio['motivo'] = d.motivo;
+    if (!Object.keys(cambio).length) { this.aviso.set('No encontré datos nuevos en esta pantalla'); setTimeout(() => this.aviso.set(null), 2500); return; }
+    this.correr(this.api.actualizarCaso(c.id, cambio), r => { this.ctx.aplicarCaso(r); this.ctx.guardarVistaDelCasoActivo(); });
+  }
+
+  pedirCerrarCaso(c: Caso): void { this.cerrandoCaso.set(c.id); this.resultadoCaso = ''; }
+
+  cerrarCasoPorId(id: string): void {
+    const c = this.casos().find(x => x.id === id);
+    if (c) this.cerrarCaso(c);
   }
 
   cerrarCaso(c: Caso): void {
@@ -350,14 +374,19 @@ export class PanelAtencion implements OnInit {
     });
   }
 
+  private pausarOtros(activoId: string): void {
+    this.ctx.casos.update(l => l.map(x => (x.id !== activoId && x.estado === 'ABIERTO' ? { ...x, estado: 'PAUSADO' as const, activado_en: null } : x)));
+  }
+
   // ── Presentación ──────────────────────────────────────────────────────
 
   estado(t: Turno): string { return etiquetaEstado(t.estado); }
+  vistaDe(c: Caso): VistaCaso { return leerVista(c.contexto_json); }
+  tienePantalla(c: Caso): boolean { return !!leerVista(c.contexto_json).ruta; }
+  camposGuardados(c: Caso): number { return Object.keys(leerVista(c.contexto_json).campos ?? {}).length; }
 
   tiempoCaso(c: Caso): string {
     let seg = c.segundos_activo ?? 0;
-    // El backend ya incluye el tramo activo hasta el momento de la respuesta; aquí se le
-    // suma lo que ha pasado desde entonces para que el reloj corra sin pedir de nuevo.
     if (c.estado === 'ABIERTO' && c.activado_en) {
       const desde = new Date(c.actualizado_en ?? c.activado_en).getTime();
       seg += Math.max(0, Math.floor((this.ahora() - desde) / 1000));
@@ -371,12 +400,12 @@ export class PanelAtencion implements OnInit {
     return formatearDuracion(Math.max(0, Math.floor((this.ahora() - new Date(inicio).getTime()) / 1000)));
   }
 
-  colorCaso(c: Caso): string { return c.color || '#2B59F0'; }
-
-  volverPosible(c: Caso): boolean {
-    const ruta = leerContexto(c.contexto_json).ruta;
-    return !!ruta && ruta !== this.router.url;
+  esperaMaxima(): string {
+    const s = this.atencion()?.espera_max_seg;
+    return s ? formatearDuracion(s) : '';
   }
+
+  colorCaso(c: Caso): string { return c.color || '#2B59F0'; }
 
   private correr<T>(obs: Observable<T>, ok: (v: T) => void): void {
     this.ocupado.set(true);
@@ -422,7 +451,5 @@ export function formatearDuracion(seg: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-export function leerContexto(json: string | null): { ruta?: string; [k: string]: unknown } {
-  if (!json) return {};
-  try { const v = JSON.parse(json); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
-}
+/** Compatibilidad con quien importaba el lector del contexto desde aquí. */
+export const leerContexto = leerVista;
