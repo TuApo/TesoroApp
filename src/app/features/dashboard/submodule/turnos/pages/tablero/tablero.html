@@ -1,0 +1,85 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>insights</mat-icon> Tablero de turnos</h1>
+      <p class="tn-subtitulo">Cuánto espera la gente, quién atiende cuánto y a qué hora se llena la sala.</p>
+    </div>
+    <div class="tn-acciones">
+      <app-selector-oficina />
+      <input type="date" [(ngModel)]="desde" class="fecha"> <input type="date" [(ngModel)]="hasta" class="fecha">
+      <button type="button" class="tn-boton" (click)="cargar(ctx.oficinaId())"><mat-icon>refresh</mat-icon></button>
+      <button type="button" class="tn-boton tn-boton--fantasma" (click)="rango(1)">Hoy</button>
+      <button type="button" class="tn-boton tn-boton--fantasma" (click)="rango(7)">7 días</button>
+      <button type="button" class="tn-boton tn-boton--fantasma" (click)="rango(30)">30 días</button>
+    </div>
+  </header>
+
+  @if (tablero(); as t) {
+    <section class="tn-rejilla">
+      <article class="tn-tarjeta tn-kpi"><span class="etiqueta">Emitidos</span><span class="valor">{{ totales().emitidos }}</span><span class="ayuda">{{ totales().atendidos }} atendidos · {{ totales().ausentes }} no se presentaron</span></article>
+      <article class="tn-tarjeta tn-kpi"><span class="etiqueta">Espera promedio</span><span class="valor">{{ totales().espera === null ? '—' : totales().espera + ' min' }}</span><span class="ayuda">Máxima: {{ totales().maxEspera }} min</span></article>
+      <article class="tn-tarjeta tn-kpi"><span class="etiqueta">Atendieron</span><span class="valor">{{ t.por_asesor.length }}</span><span class="ayuda">asesores en el rango</span></article>
+      <article class="tn-tarjeta tn-kpi"><span class="etiqueta">Ausentismo</span><span class="valor">{{ totales().emitidos ? (totales().ausentes / totales().emitidos * 100 | number:'1.0-0') + '%' : '—' }}</span><span class="ayuda">Llamados que no llegaron</span></article>
+    </section>
+
+    <div class="dos">
+      <div class="tn-tarjeta">
+        <h3><mat-icon>schedule</mat-icon> Turnos por hora</h3>
+        <div class="barras">
+          @for (h of horas(); track h.hora) {
+            <div class="barra" [title]="h.hora + ':00 · ' + h.emitidos + ' turnos' + (h.espera_prom_seg ? ' · espera ' + min(h.espera_prom_seg) : '')">
+              <div class="barra__rel" [style.height.%]="h.emitidos / maxHora() * 100"></div>
+              <span class="barra__eti">{{ h.hora }}</span>
+            </div>
+          }
+        </div>
+      </div>
+      <div class="tn-tarjeta">
+        <h3><mat-icon>person</mat-icon> Por asesor</h3>
+        @if (!t.por_asesor.length) { <div class="tn-vacio"><span>Sin atenciones en el rango.</span></div> }
+        <div class="asesores">
+          @for (a of t.por_asesor; track a.usuario_ref) {
+            <div class="asesor">
+              <span class="asesor__nombre">{{ a.usuario }}</span>
+              <div class="asesor__barra"><div [style.width.%]="a.atendidos / maxAsesor() * 100"></div></div>
+              <span class="asesor__n">{{ a.atendidos }} · {{ min(a.atencion_prom_seg) }}/atención</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="tn-tarjeta">
+      <h3><mat-icon>list_alt</mat-icon> Por servicio</h3>
+      <div class="tn-tabla-marco"><table class="tn-tabla">
+        <thead><tr><th>Servicio</th><th class="numero">Emitidos</th><th class="numero">Atendidos</th><th class="numero">Ausentes</th><th class="numero">Cancelados</th><th class="numero">Espera prom.</th><th class="numero">Espera máx.</th><th class="numero">Atención prom.</th></tr></thead>
+        <tbody>@for (r of t.por_servicio; track r.servicio_id) {
+          <tr><td><span class="tn-codigo">{{ r.prefijo }}</span> · {{ r.servicio }}</td><td class="numero">{{ r.emitidos }}</td><td class="numero">{{ r.atendidos }}</td><td class="numero">{{ r.ausentes }}</td><td class="numero">{{ r.cancelados }}</td><td class="numero">{{ min(r.espera_prom_seg) }}</td><td class="numero">{{ min(r.espera_max_seg) }}</td><td class="numero">{{ min(r.atencion_prom_seg) }}</td></tr>
+        }</tbody>
+      </table></div>
+    </div>
+  }
+
+  @if (historial(); as h) {
+    <div class="tn-tarjeta">
+      <h3><mat-icon>history</mat-icon> Historial <span class="n">{{ h.total_elements }}</span>
+        <span class="paginador"><button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="irPagina(-1)" [disabled]="pagina() === 0"><mat-icon>chevron_left</mat-icon></button>{{ pagina() + 1 }} / {{ h.total_pages || 1 }}<button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="irPagina(1)" [disabled]="pagina() + 1 >= h.total_pages"><mat-icon>chevron_right</mat-icon></button></span></h3>
+      <div class="tn-tabla-marco"><table class="tn-tabla">
+        <thead><tr><th>Turno</th><th>Fecha</th><th>Servicio</th><th>Persona</th><th>Canal</th><th>Estado</th><th>Punto · Asesor</th><th class="numero">Espera</th><th class="numero">Atención</th></tr></thead>
+        <tbody>@for (t of h.content; track t.id) {
+          <tr>
+            <td><span class="tn-codigo">{{ t.codigo }}</span></td>
+            <td>{{ t.creado_en | date:'dd/MM HH:mm' }}</td>
+            <td>{{ t.servicio_nombre }}</td>
+            <td>{{ t.nombre || '—' }}@if (t.documento) { <span class="muted"> · {{ t.documento }}</span> }</td>
+            <td><span class="tn-chip">{{ t.canal }}</span></td>
+            <td><span class="tn-chip" [ngClass]="claseEstado(t.estado)">{{ estado(t) }}</span></td>
+            <td>{{ t.punto_nombre || '—' }}{{ t.atendido_por_nombre ? ' · ' + t.atendido_por_nombre : '' }}</td>
+            <td class="numero">{{ min(t.espera_seg) }}</td>
+            <td class="numero">{{ min(t.atencion_seg) }}</td>
+          </tr>
+        }</tbody>
+      </table></div>
+    </div>
+  }
+</div>

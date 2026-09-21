@@ -1,0 +1,127 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado no-imprimir">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>groups</mat-icon> Cola y recepción</h1>
+      <p class="tn-subtitulo">La sala ahora mismo. Emita un turno a mano para quien no usó el QR del cartel.</p>
+    </div>
+    <app-selector-oficina />
+  </header>
+
+  <div class="dos-columnas">
+    <!-- Emitir -->
+    <div class="tn-tarjeta no-imprimir">
+      <h3><mat-icon>add_circle</mat-icon> Emitir turno</h3>
+      @if (!servicios().length) {
+        <div class="tn-aviso"><mat-icon>info</mat-icon> Esta oficina no tiene servicios activos. Créelos en Servicios.</div>
+      } @else {
+        <form class="tn-form" (ngSubmit)="emitir()">
+          <label class="tn-campo tn-campo--ancho">
+            <span>Servicio</span>
+            <select name="servicio" [(ngModel)]="form.servicio_id" required>
+              @for (s of servicios(); track s.id) { <option [value]="s.id">{{ s.prefijo }} · {{ s.nombre }} ({{ s.en_espera }} esperando)</option> }
+            </select>
+          </label>
+          <label class="tn-campo">
+            <span>Prioridad</span>
+            <select name="prioridad" [(ngModel)]="form.prioridad">
+              <option value="NORMAL">Normal</option>
+              <option value="PREFERENCIAL">Preferencial (embarazo, discapacidad, adulto mayor)</option>
+              <option value="CITA">Con cita</option>
+            </select>
+          </label>
+          <label class="tn-campo">
+            <span>Cédula {{ requiereDocumento() ? '(obligatoria)' : '' }}</span>
+            <input name="documento" [(ngModel)]="form.documento" inputmode="numeric" [required]="requiereDocumento()">
+          </label>
+          <label class="tn-campo">
+            <span>Nombre</span>
+            <input name="nombre" [(ngModel)]="form.nombre" placeholder="Opcional">
+          </label>
+          <label class="tn-campo">
+            <span>Celular</span>
+            <input name="telefono" [(ngModel)]="form.telefono" inputmode="tel" placeholder="Opcional">
+          </label>
+          <label class="tn-campo">
+            <span>Empresa usuaria</span>
+            <input name="empresa" [(ngModel)]="form.empresa_usuaria_nombre" placeholder="Opcional">
+          </label>
+          <label class="tn-campo tn-campo--ancho">
+            <span>Observaciones</span>
+            <input name="obs" [(ngModel)]="form.observaciones" placeholder="Opcional">
+          </label>
+          @if (error()) { <div class="tn-aviso tn-aviso--error tn-campo--ancho"><mat-icon>error</mat-icon> {{ error() }}</div> }
+          <div class="tn-acciones tn-campo--ancho">
+            <button type="submit" class="tn-boton tn-boton--primario tn-boton--grande" [disabled]="ocupado() || !form.servicio_id"><mat-icon>confirmation_number</mat-icon> Emitir turno</button>
+          </div>
+        </form>
+      }
+    </div>
+
+    <!-- Tiquete -->
+    <div class="tn-tarjeta tiquete" [class.tiquete--vacio]="!tiquete()">
+      @if (tiquete(); as t) {
+        <div class="tiquete__hoja">
+          <span class="tiquete__oficina">{{ t.oficina_nombre }}</span>
+          <span class="tiquete__codigo tn-codigo">{{ t.turno.codigo }}</span>
+          <span class="tiquete__servicio">{{ t.servicio_nombre }}</span>
+          @if (t.area_nombre) { <span class="tiquete__area">{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+          <span class="tiquete__msg">{{ t.mensaje }}</span>
+          @if (t.turno.espera_estimada_min) { <span class="tiquete__msg">Espera estimada: {{ t.turno.espera_estimada_min }} min</span> }
+          <span class="tiquete__hora">{{ t.turno.creado_en | date:'dd/MM/yyyy HH:mm' }}</span>
+        </div>
+        <div class="tn-acciones no-imprimir">
+          <button type="button" class="tn-boton" (click)="imprimirTiquete()"><mat-icon>print</mat-icon> Imprimir</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="tiquete.set(null)">Cerrar</button>
+        </div>
+      } @else {
+        <div class="tn-vacio"><mat-icon>receipt_long</mat-icon><span>El último tiquete emitido aparece aquí, listo para leer o imprimir.</span></div>
+      }
+    </div>
+  </div>
+
+  @if (cola(); as c) {
+    <div class="tn-tarjeta no-imprimir">
+      <h3><mat-icon>hourglass_top</mat-icon> En espera <span class="n">{{ c.en_espera.length }}</span>
+        <span class="tn-chip" style="margin-left:auto">{{ c.puestos_abiertos }} puestos abiertos</span>
+        <span class="estado-canal" [class.ok]="canal() === 'conectado'">{{ canal() === 'conectado' ? 'en vivo' : canal() }}</span></h3>
+      @if (!c.en_espera.length) {
+        <div class="tn-vacio"><mat-icon>hourglass_empty</mat-icon><span>Nadie esperando.</span></div>
+      } @else {
+        <div class="tn-tabla-marco">
+          <table class="tn-tabla">
+            <thead><tr><th>Turno</th><th>Servicio</th><th>Persona</th><th>Prioridad</th><th>Canal</th><th>Llegó</th><th>Espera</th><th class="acciones"></th></tr></thead>
+            <tbody>
+              @for (t of c.en_espera; track t.id) {
+                <tr>
+                  <td><span class="tn-codigo grande">{{ t.codigo }}</span></td>
+                  <td><span class="punto-color" [style.background]="t.servicio_color || 'var(--brand-blue)'"></span>{{ t.servicio_nombre }}</td>
+                  <td>{{ t.nombre || '—' }} @if (t.documento) { <span class="doc">· {{ t.documento }}</span> }</td>
+                  <td>@if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad }}</span> } @else { — }</td>
+                  <td><span class="tn-chip">{{ t.canal }}</span></td>
+                  <td>{{ t.creado_en | date:'HH:mm' }}</td>
+                  <td>{{ espera(t) }}</td>
+                  <td class="acciones"><button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cancelar(t)" title="Cancelar (la persona se fue)"><mat-icon>person_remove</mat-icon></button></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    @if (c.en_curso.length) {
+      <div class="tn-tarjeta no-imprimir">
+        <h3><mat-icon>desk</mat-icon> Siendo atendidos</h3>
+        <div class="en-curso">
+          @for (t of c.en_curso; track t.id) {
+            <div class="en-curso__item">
+              <span class="tn-codigo grande">{{ t.codigo }}</span>
+              <span class="tn-chip" [class.tn-chip--warn]="t.estado === 'LLAMADO'" [class.tn-chip--ok]="t.estado === 'EN_ATENCION'">{{ estado(t) }}</span>
+              <span class="muted">{{ t.punto_nombre }} · {{ t.atendido_por_nombre }}</span>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

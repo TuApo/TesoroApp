@@ -1,0 +1,76 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>confirmation_number</mat-icon> Turnos y control de turnos</h1>
+      <p class="tn-subtitulo">Cómo va la sala hoy y a dónde ir. La oficina elegida aquí manda en todo el módulo.</p>
+    </div>
+    <app-selector-oficina />
+  </header>
+
+  @if (!ctx.oficinas().length && ctx.cargado()) {
+    <div class="tn-tarjeta tn-vacio">
+      <mat-icon>map</mat-icon>
+      <p><strong>Todavía no hay oficinas.</strong> El primer paso es crear una y dibujar su croquis.</p>
+      @if (ctx.esAdmin()) {
+        <button type="button" class="tn-boton tn-boton--primario" (click)="ir('oficinas')"><mat-icon>add_business</mat-icon> Crear la primera oficina</button>
+      }
+    </div>
+  } @else if (cola(); as c) {
+    <section class="tn-rejilla">
+      <article class="tn-tarjeta tn-kpi">
+        <span class="etiqueta">En espera ahora</span>
+        <span class="valor">{{ c.en_espera.length }}</span>
+        <span class="ayuda">{{ c.en_curso.length }} siendo atendidos · {{ c.puestos_abiertos }} puestos abiertos</span>
+      </article>
+      <article class="tn-tarjeta tn-kpi">
+        <span class="etiqueta">Emitidos hoy</span>
+        <span class="valor">{{ totalEmitidos() }}</span>
+        <span class="ayuda">{{ totalAtendidos() }} atendidos</span>
+      </article>
+      <article class="tn-tarjeta tn-kpi">
+        <span class="etiqueta">Espera promedio</span>
+        <span class="valor">{{ esperaProm() === null ? '—' : esperaProm() + ' min' }}</span>
+        <span class="ayuda">De creado a iniciado, hoy</span>
+      </article>
+      <article class="tn-tarjeta tn-kpi">
+        <span class="etiqueta">Oficina</span>
+        <span class="valor valor--texto">{{ c.oficina_nombre }}</span>
+        <span class="ayuda">{{ ctx.oficina()?.servicios ?? 0 }} servicios · {{ ctx.oficina()?.puntos ?? 0 }} puntos · {{ ctx.oficina()?.pantallas ?? 0 }} pantallas</span>
+      </article>
+    </section>
+
+    @if (c.por_servicio.length) {
+      <div class="tn-tarjeta">
+        <h3><mat-icon>list_alt</mat-icon> Por servicio, hoy</h3>
+        <div class="tn-tabla-marco">
+          <table class="tn-tabla">
+            <thead><tr><th>Servicio</th><th class="numero">En espera</th><th class="numero">Emitidos</th><th class="numero">Atendidos</th><th class="numero">Ausentes</th><th class="numero">Espera prom.</th><th class="numero">Atención prom.</th></tr></thead>
+            <tbody>
+              @for (r of c.por_servicio; track r.servicio_id) {
+                <tr>
+                  <td><span class="tn-codigo">{{ r.prefijo }}</span> · {{ r.servicio }}</td>
+                  <td class="numero">{{ r.en_espera }}</td>
+                  <td class="numero">{{ r.emitidos }}</td>
+                  <td class="numero">{{ r.atendidos }}</td>
+                  <td class="numero">{{ r.ausentes }}</td>
+                  <td class="numero">{{ r.espera_prom_seg ? (r.espera_prom_seg / 60 | number:'1.0-0') + ' min' : '—' }}</td>
+                  <td class="numero">{{ r.atencion_prom_seg ? (r.atencion_prom_seg / 60 | number:'1.0-0') + ' min' : '—' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+  <section class="atajos">
+    @for (a of atajosVisibles(); track a.ruta) {
+      <button type="button" class="atajo" (click)="ir(a.ruta)">
+        <mat-icon>{{ a.icono }}</mat-icon>
+        <span class="atajo-titulo">{{ a.titulo }}</span>
+        <span class="atajo-ayuda">{{ a.ayuda }}</span>
+      </button>
+    }
+  </section>
+</div>

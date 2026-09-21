@@ -4,6 +4,7 @@ import { SidebarComponent } from "../../components/sidebar/sidebar.component";
 import { RouterOutlet } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { AiTutor } from "../../components/ai-tutor/ai-tutor";
+import { PanelAtencion } from "../../submodule/turnos/components/panel-atencion/panel-atencion";
 import { AccionesPaginaService } from '../../../../core/services/acciones-pagina.service';
 import { NavegacionService } from '../../../../core/services/navegacion.service';
 
@@ -15,7 +16,8 @@ import { NavegacionService } from '../../../../core/services/navegacion.service'
     SidebarComponent,
     RouterOutlet,
     MatIconModule,
-    AiTutor
+    AiTutor,
+    PanelAtencion
   ],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.css'

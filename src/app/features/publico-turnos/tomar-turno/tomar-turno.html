@@ -1,0 +1,62 @@
+<div class="movil">
+  <header class="movil__cab">
+    <img src="logos/logo_alianza.svg" alt="Tu Apo" class="movil__logo">
+    @if (cartel(); as h) { <span class="movil__oficina">{{ h.oficina.nombre }}</span> }
+  </header>
+
+  @if (error()) { <div class="aviso aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  @if (paso() === 'codigo') {
+    <section class="tarjeta">
+      <h1>Tome su turno</h1>
+      <p>Escriba el código que aparece en el cartel de la oficina, debajo del QR.</p>
+      <form (ngSubmit)="buscar()">
+        <input class="codigo" type="text" [(ngModel)]="codigoManual" name="codigo" placeholder="FACA1-K7M2PQ" autocapitalize="characters" autocomplete="off">
+        <button type="submit" class="boton" [disabled]="cargando()"><mat-icon>search</mat-icon> Buscar oficina</button>
+      </form>
+    </section>
+  }
+
+  @if (paso() === 'servicio' && cartel(); as h) {
+    <section class="tarjeta">
+      <h1>¿Qué trámite viene a hacer?</h1>
+      @if (h.cartel.subtitulo) { <p>{{ h.cartel.subtitulo }}</p> }
+      <div class="servicios">
+        @for (s of servicios(); track s.id) {
+          <button type="button" class="servicio" (click)="elegir(s)">
+            <span class="servicio__prefijo" [style.background]="s.color || '#2B59F0'"><mat-icon>{{ s.icono || 'description' }}</mat-icon></span>
+            <span class="servicio__texto">
+              <strong>{{ s.nombre }}</strong>
+              @if (s.descripcion) { <span>{{ s.descripcion }}</span> }
+              <small>{{ s.en_espera }} en espera · aprox. {{ s.espera_estimada_min }} min</small>
+            </span>
+            <mat-icon class="servicio__ir">chevron_right</mat-icon>
+          </button>
+        }
+        @if (!servicios().length) { <p>No hay trámites disponibles en este momento.</p> }
+      </div>
+      @if (h.croquis) {
+        <button type="button" class="enlace" (click)="verMapa.set(!verMapa())"><mat-icon>map</mat-icon> {{ verMapa() ? 'Ocultar el mapa' : 'Ver el mapa de la oficina' }}</button>
+        @if (verMapa()) { <div class="mapa"><app-croquis-svg [croquis]="h.croquis" /></div> }
+      }
+    </section>
+  }
+
+  @if (paso() === 'datos' && elegido(); as s) {
+    <section class="tarjeta">
+      <button type="button" class="enlace" (click)="paso.set('servicio')"><mat-icon>arrow_back</mat-icon> Cambiar de trámite</button>
+      <h1>{{ s.nombre }}</h1>
+      @if (s.area_nombre) { <p><mat-icon class="inline">place</mat-icon> Se atiende en <strong>{{ s.area_nombre }}</strong>{{ s.area_referencia ? ', ' + s.area_referencia : '' }}</p> }
+      <form (ngSubmit)="tomar()">
+        <label>Cédula {{ s.requiere_documento ? '(obligatoria)' : '(opcional)' }}<input type="text" name="documento" [(ngModel)]="form.documento" inputmode="numeric" autocomplete="off"></label>
+        <label>Nombre (opcional)<input type="text" name="nombre" [(ngModel)]="form.nombre" autocomplete="name"></label>
+        <label>Celular (opcional)<input type="tel" name="telefono" [(ngModel)]="form.telefono" autocomplete="tel"></label>
+        <p class="nota">Su nombre solo se muestra abreviado en la pantalla de la sala.</p>
+        <button type="submit" class="boton boton--grande" [disabled]="enviando()"><mat-icon>confirmation_number</mat-icon> {{ enviando() ? 'Tomando turno…' : 'Tomar turno' }}</button>
+      </form>
+    </section>
+  }
+
+  @if (cargando()) { <div class="cargando"><mat-icon>hourglass_top</mat-icon> Cargando…</div> }
+  <footer class="movil__pie">TuApo · Turnos</footer>
+</div>

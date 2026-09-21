@@ -1,0 +1,101 @@
+@if (error() && !vista()) {
+  <div class="tv tv--error"><mat-icon>tv_off</mat-icon><p>{{ error() }}</p></div>
+} @else if (vista(); as v) {
+  <div class="tv" [attr.data-tema]="v.tema" [attr.data-layout]="v.layout" [attr.data-orientacion]="v.orientacion" (click)="desbloquearAudio()">
+    <header class="tv__cab">
+      <span class="tv__oficina">{{ v.oficina_nombre }}</span>
+      @if (v.mostrar_reloj) { <span class="tv__reloj">{{ ahora() | date:'HH:mm' }}<small>{{ ahora() | date:'EEEE d MMMM':'':'es' }}</small></span> }
+      <span class="tv__canal" [class.tv__canal--ok]="canal() === 'conectado'"></span>
+    </header>
+
+    <main class="tv__cuerpo">
+      @if (mostrarTurnos()) {
+        <section class="turnos">
+          @if (llamado(); as t) {
+            <div class="llamado">
+              <span class="llamado__eti">Turno</span>
+              <span class="llamado__codigo">{{ t.codigo }}</span>
+              <span class="llamado__punto"><mat-icon>arrow_forward</mat-icon> {{ t.punto_nombre }}</span>
+              @if (t.area_nombre) { <span class="llamado__area">{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+              @if (t.nombre) { <span class="llamado__nombre">{{ t.nombre }}</span> }
+            </div>
+          } @else if (enCurso().length) {
+            <div class="llamado llamado--quieto">
+              <span class="llamado__eti">Atendiendo</span>
+              <span class="llamado__codigo">{{ enCurso()[0].codigo }}</span>
+              <span class="llamado__punto"><mat-icon>arrow_forward</mat-icon> {{ enCurso()[0].punto_nombre }}</span>
+            </div>
+          } @else {
+            <div class="llamado llamado--vacio">
+              <mat-icon>confirmation_number</mat-icon>
+              <span class="llamado__eti">Tome su turno y espere a ser llamado</span>
+            </div>
+          }
+
+          <div class="listas">
+            <div class="lista">
+              <h3>En atención</h3>
+              @for (t of enCurso(); track t.id) {
+                <div class="fila" [class.fila--llamado]="t.estado === 'LLAMADO'">
+                  <span class="fila__codigo">{{ t.codigo }}</span>
+                  <span class="fila__punto">{{ t.punto_nombre }}</span>
+                </div>
+              }
+              @if (!enCurso().length) { <div class="fila fila--nada">—</div> }
+            </div>
+            <div class="lista">
+              <h3>Siguientes</h3>
+              @for (t of enEspera(); track t.id) {
+                <div class="fila">
+                  <span class="fila__codigo">{{ t.codigo }}</span>
+                  <span class="fila__punto fila__srv">{{ t.servicio_nombre }}</span>
+                </div>
+              }
+              @if (!enEspera().length) { <div class="fila fila--nada">Nadie en espera</div> }
+            </div>
+          </div>
+
+          @if (v.mostrar_croquis && v.croquis) {
+            <div class="mapa"><app-croquis-svg [croquis]="v.croquis" [resaltar]="areaResaltada()" /></div>
+          }
+        </section>
+      }
+
+      @if (mostrarMedia()) {
+        <section class="media">
+          @if (pieza(); as p) {
+            @switch (p.tipo) {
+              @case ('IMAGEN') { <img class="media__img" [src]="urlPieza()" [alt]="p.titulo" [style.object-fit]="p.ajuste === 'CUBRIR' ? 'cover' : p.ajuste === 'ESTIRAR' ? 'fill' : 'contain'"> }
+              @case ('VIDEO') { <video class="media__img" [src]="urlPieza()" autoplay [muted]="p.silenciado" playsinline (ended)="videoTermino()" (error)="videoFallo()" [style.object-fit]="p.ajuste === 'CUBRIR' ? 'cover' : p.ajuste === 'ESTIRAR' ? 'fill' : 'contain'"></video> }
+              @case ('YOUTUBE') { @if (urlEmbebida()) { <iframe class="media__frame" [src]="urlEmbebida()" allow="autoplay; encrypted-media" referrerpolicy="strict-origin-when-cross-origin"></iframe> } }
+              @case ('VIMEO') { @if (urlEmbebida()) { <iframe class="media__frame" [src]="urlEmbebida()" allow="autoplay"></iframe> } }
+              @case ('HTML') { @if (urlEmbebida()) { <iframe class="media__frame" [src]="urlEmbebida()" sandbox="allow-scripts allow-same-origin"></iframe> } }
+              @case ('CURSO') {
+                <div class="curso">
+                  <mat-icon>school</mat-icon>
+                  <span class="curso__eti">Curso de inducción</span>
+                  <h2>{{ p.titulo }}</h2>
+                  @if (p.descripcion) { <p>{{ p.descripcion }}</p> }
+                  @if (qrCurso()) { <img class="curso__qr" [src]="qrCurso()" alt="QR del curso"> <span class="curso__ayuda">Escanee para hacerlo desde su celular</span> }
+                </div>
+              }
+              @case ('TEXTO') {
+                <div class="aviso">
+                  <h2>{{ p.titulo }}</h2>
+                  <p>{{ p.descripcion }}</p>
+                </div>
+              }
+            }
+            @if (piezas().length > 1) {
+              <div class="media__puntos">@for (x of piezas(); track x.id; let i = $index) { <span [class.on]="i === indice()"></span> }</div>
+            }
+          }
+        </section>
+      }
+    </main>
+
+    @if (!audioDesbloqueado() && (v.sonido || v.voz)) {
+      <div class="tv__toque"><mat-icon>touch_app</mat-icon> Toque la pantalla una vez para activar el sonido y la pantalla completa</div>
+    }
+  </div>
+}

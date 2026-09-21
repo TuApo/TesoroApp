@@ -41,6 +41,9 @@ export const routes: Routes = [
       // permisosLecturaGuard devolvería al usuario al home desde su propia pantalla.
       { path: 'tienda', loadChildren: () => import('./submodule/tienda/tienda.routes').then(m => m.routes) },
       { path: 'money-loan', loadChildren: () => import('./submodule/money-loan/money-loan.routes').then(m => m.routes) },
+      // Turnos y control de turnos: oficinas/croquis, cola, pantallas de sala y casos.
+      // La ruta coincide con db_admin.modulo (ms-auth-admin V119).
+      { path: 'turnos', loadChildren: () => import('./submodule/turnos/turnos.routes').then(m => m.routes) },
       { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
       { path: 'reuniones', loadChildren: () => import('./submodule/reuniones/reuniones.routes').then(m => m.routes) },
       // Capacitaciones del colaborador (learning-ms). Vive aquí y no solo en Tu-Apo-Web:

@@ -1,0 +1,41 @@
+<div class="movil">
+  <header class="movil__cab"><img src="logos/logo_alianza.svg" alt="Tu Apo" class="movil__logo"></header>
+  @if (error()) { <div class="aviso aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (turno(); as t) {
+    <section class="tarjeta" [class.tarjeta--llamado]="llamado()" [class.tarjeta--atencion]="enAtencion()">
+      <span class="eti">Su turno</span>
+      <span class="codigo">{{ t.codigo }}</span>
+      <span class="servicio">{{ t.servicio_nombre }}</span>
+
+      @if (esperando()) {
+        <div class="estado">
+          <mat-icon>hourglass_top</mat-icon>
+          @if (t.delante === 0) { <strong>Es usted el siguiente</strong> }
+          @else { <strong>{{ t.delante }} {{ t.delante === 1 ? 'persona' : 'personas' }} antes que usted</strong> }
+          @if (t.espera_estimada_min) { <span>Espera aproximada: {{ t.espera_estimada_min }} min</span> }
+          <span class="ayuda">Puede guardar el celular: esta página vibra y suena cuando lo llamen. Mantenga la pantalla abierta.</span>
+        </div>
+        <button type="button" class="enlace" (click)="cancelar()"><mat-icon>close</mat-icon> Cancelar mi turno</button>
+      }
+      @if (llamado()) {
+        <div class="estado estado--llamado">
+          <mat-icon>campaign</mat-icon>
+          <strong>¡Lo están llamando!</strong>
+          <span class="punto">Diríjase a <b>{{ t.punto_nombre }}</b></span>
+          @if (t.area_nombre) { <span>{{ t.area_nombre }}{{ t.area_referencia ? ' · ' + t.area_referencia : '' }}</span> }
+        </div>
+      }
+      @if (enAtencion()) {
+        <div class="estado"><mat-icon>person_check</mat-icon><strong>Lo están atendiendo</strong><span>{{ t.punto_nombre }}</span></div>
+      }
+      @if (terminado()) {
+        <div class="estado">
+          <mat-icon>{{ t.estado === 'ATENDIDO' ? 'task_alt' : 'info' }}</mat-icon>
+          <strong>{{ t.estado === 'ATENDIDO' ? 'Atención finalizada' : t.estado === 'NO_SE_PRESENTO' ? 'El turno se cerró por no presentarse' : t.estado === 'TRANSFERIDO' ? 'Su turno fue transferido a otro servicio' : 'Turno cancelado' }}</strong>
+          <span class="ayuda">Gracias por su visita.</span>
+        </div>
+      }
+    </section>
+  }
+  <footer class="movil__pie">TuApo · Turnos</footer>
+</div>

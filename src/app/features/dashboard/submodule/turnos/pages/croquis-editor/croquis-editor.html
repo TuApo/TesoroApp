@@ -1,0 +1,141 @@
+<div class="editor" (keydown)="teclado($event)" tabindex="0">
+  <header class="editor__barra">
+    <button type="button" class="tn-boton tn-boton--fantasma" (click)="volver()"><mat-icon>arrow_back</mat-icon></button>
+    <div class="editor__titulo">
+      <span class="editor__oficina">{{ oficina()?.nombre }} · {{ oficina()?.codigo }}</span>
+      <input class="editor__nombre" type="text" [ngModel]="nombre()" (ngModelChange)="nombre.set($event); sucio.set(true)" aria-label="Nombre del croquis">
+    </div>
+    @if (croquis(); as c) {
+      <span class="tn-chip" [class.tn-chip--ok]="c.publicado">v{{ c.version }} · {{ c.publicado ? 'Publicado' : 'Borrador' }}</span>
+    }
+    @if (versiones().length > 1) {
+      <select class="editor__versiones" (change)="cargarVersion($any($event.target).value)" aria-label="Versiones">
+        @for (v of versiones(); track v.id) { <option [value]="v.id" [selected]="v.id === croquis()?.id">v{{ v.version }}{{ v.publicado ? ' (publicada)' : '' }} · {{ v.actualizado_en | date:'dd/MM HH:mm' }}</option> }
+      </select>
+    }
+    <span class="editor__espacio"></span>
+    @if (error()) { <span class="tn-chip tn-chip--danger">{{ error() }}</span> }
+    @if (aviso()) { <span class="tn-chip tn-chip--ok">{{ aviso() }}</span> }
+    <button type="button" class="tn-boton" (click)="guardar(true)" [disabled]="ocupado()" title="Guardar como versión nueva sin tocar la actual"><mat-icon>save_as</mat-icon> Nueva versión</button>
+    <button type="button" class="tn-boton tn-boton--primario" (click)="guardar()" [disabled]="ocupado() || !sucio()"><mat-icon>save</mat-icon> Guardar</button>
+    <button type="button" class="tn-boton tn-boton--exito" (click)="publicar()" [disabled]="ocupado() || !croquis() || croquis()!.publicado || sucio()"><mat-icon>publish</mat-icon> Publicar</button>
+    <button type="button" class="tn-boton" (click)="irAlCartel()" [disabled]="!croquis()?.publicado"><mat-icon>print</mat-icon> Cartel</button>
+  </header>
+
+  <div class="editor__cuerpo">
+    <!-- Paleta -->
+    <aside class="paleta">
+      <h4>Áreas</h4>
+      <p class="paleta__ayuda">Clic en una y luego en el plano.</p>
+      <div class="paleta__lista">
+        <button type="button" class="paleta__item" [class.paleta__item--on]="herramienta() === 'seleccionar'" (click)="herramienta.set('seleccionar')"><mat-icon>near_me</mat-icon> Seleccionar</button>
+        @for (t of TIPOS_AREA; track t.tipo) {
+          <button type="button" class="paleta__item" [class.paleta__item--on]="herramienta() === t.tipo" (click)="herramienta.set(t.tipo)"><mat-icon>{{ t.icono }}</mat-icon> {{ t.nombre }}</button>
+        }
+      </div>
+      <h4>Elementos</h4>
+      <div class="paleta__lista">
+        @for (t of TIPOS_ELEMENTO; track t.tipo) {
+          <button type="button" class="paleta__item" [class.paleta__item--on]="herramienta() === t.tipo" (click)="herramienta.set(t.tipo)"><mat-icon>{{ t.icono }}</mat-icon> {{ t.nombre }}</button>
+        }
+      </div>
+      <h4>Lienzo</h4>
+      <div class="paleta__campos">
+        <label>Ancho <input type="number" min="400" max="4000" step="50" [ngModel]="ancho()" (ngModelChange)="ancho.set(+$event || 1200); sucio.set(true)"></label>
+        <label>Alto <input type="number" min="300" max="4000" step="50" [ngModel]="alto()" (ngModelChange)="alto.set(+$event || 800); sucio.set(true)"></label>
+        <label>Fondo <input type="color" [ngModel]="fondoColor()" (ngModelChange)="fondoColor.set($event); sucio.set(true)"></label>
+        <label>cm por px <input type="number" min="0" step="0.1" [ngModel]="escala()" (ngModelChange)="escala.set($event === '' ? null : +$event); sucio.set(true)" placeholder="opcional"></label>
+        <label class="tn-check"><input type="checkbox" [checked]="cuadricula()" (change)="cuadricula.set(!cuadricula())"> Cuadrícula</label>
+        <label class="tn-check"><input type="checkbox" [checked]="ajustar()" (change)="ajustar.set(!ajustar())"> Ajustar a 10 px</label>
+        <label>Zoom <input type="range" min="0.4" max="2" step="0.1" [ngModel]="zoom()" (ngModelChange)="zoom.set(+$event)"></label>
+      </div>
+    </aside>
+
+    <!-- Lienzo -->
+    <div class="lienzo-marco" [class.lienzo-marco--creando]="herramienta() !== 'seleccionar'">
+      <div #lienzo class="lienzo" [style.width.%]="zoom() * 100" (pointerdown)="clicLienzo($event)" (pointermove)="mover($event)" (pointerup)="soltar()" (pointercancel)="soltar()" (pointerleave)="soltar()">
+        <app-croquis-svg [croquis]="croquisVista()" [areasEntrada]="areas()" [elementosEntrada]="elementos()" [interactivo]="true"
+                         [mostrarCuadricula]="cuadricula()" [seleccionId]="seleccion()?.id ?? null" (elegir)="elegir($event)" />
+      </div>
+    </div>
+
+    <!-- Propiedades -->
+    <aside class="props">
+      @if (areaSel(); as a) {
+        <h4><mat-icon>crop_square</mat-icon> Área</h4>
+        <label>Nombre <input type="text" [ngModel]="a.nombre" (ngModelChange)="actualizarArea({ nombre: $event })"></label>
+        <label>Código (rótulo) <input type="text" maxlength="16" [ngModel]="a.codigo" (ngModelChange)="actualizarArea({ codigo: $event || null })" placeholder="M3"></label>
+        <label>Tipo
+          <select [ngModel]="a.tipo" (ngModelChange)="actualizarArea({ tipo: $event })">
+            @for (t of TIPOS_AREA; track t.tipo) { <option [value]="t.tipo">{{ t.nombre }}</option> }
+          </select>
+        </label>
+        <label>Forma
+          <select [ngModel]="a.forma" (ngModelChange)="actualizarArea({ forma: $event })">
+            @for (f of FORMAS; track f) { <option [value]="f">{{ f }}</option> }
+          </select>
+        </label>
+        <label>Referencia hablada <input type="text" [ngModel]="a.referencia" (ngModelChange)="actualizarArea({ referencia: $event || null })" placeholder="al fondo a la derecha"></label>
+        <label>Piso <input type="text" [ngModel]="a.piso" (ngModelChange)="actualizarArea({ piso: $event || null })" placeholder="2"></label>
+        <label>Descripción <textarea [ngModel]="a.descripcion" (ngModelChange)="actualizarArea({ descripcion: $event || null })" rows="2"></textarea></label>
+        <div class="props__fila">
+          <label>X <input type="number" [ngModel]="a.x" (ngModelChange)="actualizarArea({ x: +$event })"></label>
+          <label>Y <input type="number" [ngModel]="a.y" (ngModelChange)="actualizarArea({ y: +$event })"></label>
+          <label>Ancho <input type="number" [ngModel]="a.ancho" (ngModelChange)="actualizarArea({ ancho: +$event })"></label>
+          <label>Alto <input type="number" [ngModel]="a.alto" (ngModelChange)="actualizarArea({ alto: +$event })"></label>
+        </div>
+        <label>Rotación <input type="range" min="-180" max="180" [ngModel]="a.rotacion" (ngModelChange)="actualizarArea({ rotacion: +$event })"> {{ a.rotacion }}°</label>
+        <div class="props__fila">
+          <label>Color <input type="color" [ngModel]="a.color || colorPorDefecto(a)" (ngModelChange)="actualizarArea({ color: $event })"></label>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="actualizarArea({ color: null })" title="Color del tipo">Auto</button>
+        </div>
+        <label>Icono
+          <select [ngModel]="a.icono || ''" (ngModelChange)="actualizarArea({ icono: $event || null })">
+            <option value="">Ninguno</option>
+            @for (i of ICONOS; track i) { <option [value]="i">{{ i }}</option> }
+          </select>
+        </label>
+        @if (a.servicios?.length) { <p class="props__nota"><mat-icon>list_alt</mat-icon> Aquí se atiende: {{ a.servicios!.join(', ') }}</p> }
+      } @else if (elementoSel(); as e) {
+        <h4><mat-icon>category</mat-icon> {{ e.tipo }}</h4>
+        @if (e.tipo === 'TEXTO') {
+          <label>Texto <input type="text" [ngModel]="e.texto" (ngModelChange)="actualizarElemento({ texto: $event })"></label>
+          <label>Tamaño <input type="number" min="8" max="72" [ngModel]="e.tamano || 16" (ngModelChange)="actualizarElemento({ tamano: +$event })"></label>
+        }
+        @if (e.tipo === 'ICONO') {
+          <label>Icono
+            <select [ngModel]="e.icono || 'place'" (ngModelChange)="actualizarElemento({ icono: $event })">
+              @for (i of ICONOS; track i) { <option [value]="i">{{ i }}</option> }
+            </select>
+          </label>
+          <label>Tamaño <input type="number" min="12" max="96" [ngModel]="e.tamano || 28" (ngModelChange)="actualizarElemento({ tamano: +$event })"></label>
+        }
+        @if (e.tipo === 'FLECHA') { <label>Grosor <input type="number" min="1" max="20" [ngModel]="e.grosor || 4" (ngModelChange)="actualizarElemento({ grosor: +$event })"></label> }
+        <div class="props__fila">
+          <label>X <input type="number" [ngModel]="e.x" (ngModelChange)="actualizarElemento({ x: +$event })"></label>
+          <label>Y <input type="number" [ngModel]="e.y" (ngModelChange)="actualizarElemento({ y: +$event })"></label>
+          <label>Ancho <input type="number" [ngModel]="e.ancho" (ngModelChange)="actualizarElemento({ ancho: +$event })"></label>
+          <label>Alto <input type="number" [ngModel]="e.alto" (ngModelChange)="actualizarElemento({ alto: +$event })"></label>
+        </div>
+        <label>Rotación <input type="range" min="-180" max="180" [ngModel]="e.rotacion" (ngModelChange)="actualizarElemento({ rotacion: +$event })"> {{ e.rotacion }}°</label>
+        <label>Color <input type="color" [ngModel]="e.color || '#334155'" (ngModelChange)="actualizarElemento({ color: $event })"></label>
+      } @else {
+        <h4><mat-icon>touch_app</mat-icon> Nada seleccionado</h4>
+        <p class="props__nota">Elija un área o elemento del plano para editarlo. Flechas del teclado: mover (Shift = 10 px). Supr: eliminar.</p>
+        <h4>Áreas del plano ({{ areas().length }})</h4>
+        <ul class="props__areas">
+          @for (a of areas(); track a.id) {
+            <li><button type="button" (click)="seleccion.set({ tipo: 'area', id: a.id })"><span class="punto" [style.background]="a.color || colorPorDefecto(a)"></span>{{ a.nombre }}@if (a.codigo) { <span class="tn-codigo"> {{ a.codigo }}</span> }</button></li>
+          }
+        </ul>
+      }
+      @if (seleccion()) {
+        <div class="props__acciones">
+          <button type="button" class="tn-boton" (click)="duplicarSeleccion()"><mat-icon>content_copy</mat-icon> Duplicar</button>
+          <button type="button" class="tn-boton" (click)="traerAlFrente()"><mat-icon>flip_to_front</mat-icon> Al frente</button>
+          <button type="button" class="tn-boton tn-boton--peligro" (click)="eliminarSeleccion()"><mat-icon>delete</mat-icon> Eliminar</button>
+        </div>
+      }
+    </aside>
+  </div>
+</div>

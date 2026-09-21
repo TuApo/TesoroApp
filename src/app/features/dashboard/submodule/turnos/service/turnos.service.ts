@@ -1,0 +1,461 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { environment } from '../../../../../../environments/environment';
+
+/**
+ * Cliente de ms-turnos.
+ *
+ * <p>El servidor sirve snake_case (`tuapo.json.snake-case: true`), así que las interfaces lo
+ * respetan tal cual. Renombrar a camelCase aquí obligaría a un mapeo por pantalla y, en
+ * cuanto uno se olvide, el campo llega `undefined` sin que nada falle a la vista.
+ */
+
+// ── Oficinas y croquis ────────────────────────────────────────────────────────
+
+export interface Oficina {
+  id: string; sede_ref: string | null; sede_nombre: string | null;
+  nombre: string; codigo: string; direccion: string | null; ciudad: string | null; telefono: string | null;
+  hora_apertura: string | null; hora_cierre: string | null; dias_habiles: string;
+  activa: boolean; ui_json: string | null;
+  creado_en: string; actualizado_en: string;
+  servicios: number; puntos: number; pantallas: number;
+  tiene_croquis: boolean; cartel_codigo: string | null;
+}
+
+export interface OficinaIn {
+  nombre: string; codigo: string; sede_ref?: string | null; sede_nombre?: string | null;
+  direccion?: string | null; ciudad?: string | null; telefono?: string | null;
+  hora_apertura?: string | null; hora_cierre?: string | null; dias_habiles?: string;
+  activa?: boolean; ui_json?: string | null;
+}
+
+export type TipoArea = 'RECEPCION' | 'MODULO' | 'VENTANILLA' | 'SALA_ESPERA' | 'OFICINA' | 'BANO'
+  | 'SALIDA' | 'ENTRADA' | 'ESCALERA' | 'ASCENSOR' | 'OTRO';
+export type FormaArea = 'RECTANGULO' | 'REDONDEADO' | 'CIRCULO' | 'POLIGONO';
+
+export interface Area {
+  id: string; oficina_id?: string; croquis_id?: string | null;
+  nombre: string; codigo: string | null; tipo: TipoArea;
+  x: number; y: number; ancho: number; alto: number; rotacion: number;
+  forma: FormaArea; puntos_json: string | null;
+  color: string | null; icono: string | null;
+  referencia: string | null; piso: string | null; descripcion: string | null;
+  orden: number; activa: boolean;
+  /** Servicios que se atienden aquí (solo lectura). */
+  servicios?: string[];
+}
+
+/** Elemento decorativo del croquis (pared, puerta, texto, flecha…); vive en elementos_json. */
+export interface ElementoCroquis {
+  id: string;
+  tipo: 'PARED' | 'PUERTA' | 'TEXTO' | 'FLECHA' | 'ICONO' | 'MESA' | 'PLANTA';
+  x: number; y: number; ancho: number; alto: number; rotacion: number;
+  texto?: string; color?: string; grosor?: number; icono?: string; tamano?: number;
+}
+
+export interface Croquis {
+  id: string; oficina_id: string; nombre: string; version: number;
+  ancho: number; alto: number; escala_cm_px: number | null;
+  fondo_color: string | null; fondo_imagen_url: string | null; elementos_json: string | null;
+  publicado: boolean; publicado_en: string | null; creado_en: string; actualizado_en: string;
+  areas: Area[];
+}
+
+export interface CroquisIn {
+  nombre?: string; ancho?: number; alto?: number; escala_cm_px?: number | null;
+  fondo_color?: string | null; fondo_imagen_url?: string | null; elementos_json?: string | null;
+  areas?: Partial<Area>[]; nueva_version?: boolean;
+}
+
+export interface Punto {
+  id: string; oficina_id: string; area_id: string | null; area_nombre: string | null;
+  nombre: string; codigo: string | null; orden: number; activo: boolean;
+  usuario_ref: string | null; usuario_nombre: string | null; ocupado_desde: string | null;
+  servicios: string[];
+}
+
+export interface PuntoIn {
+  nombre: string; codigo?: string | null; area_id?: string | null; orden?: number; activo?: boolean;
+  servicios?: string[] | null;
+}
+
+export type PlantillaCartel = 'A4_VERTICAL' | 'A4_HORIZONTAL' | 'CARTA_VERTICAL' | 'MEDIA_CARTA' | 'ADHESIVO_10X15';
+
+export interface Cartel {
+  id: string; oficina_id: string; croquis_id: string | null;
+  titulo: string; subtitulo: string | null; codigo_publico: string; plantilla: PlantillaCartel;
+  mostrar_croquis: boolean; mostrar_qr: boolean; mostrar_servicios: boolean;
+  instrucciones: string | null; pie: string | null; estilo_json: string | null;
+  version: number; vigente: boolean; impreso_en: string | null; creado_en: string;
+  url_qr: string; qr_data_uri: string | null;
+}
+
+export interface CartelIn {
+  titulo?: string; subtitulo?: string | null; plantilla?: PlantillaCartel;
+  mostrar_croquis?: boolean; mostrar_qr?: boolean; mostrar_servicios?: boolean;
+  instrucciones?: string | null; pie?: string | null; estilo_json?: string | null; croquis_id?: string | null;
+}
+
+export interface ServicioEnCartel {
+  nombre: string; prefijo: string; color: string | null; icono: string | null;
+  area: string | null; referencia: string | null; piso: string | null; descripcion: string | null;
+}
+
+export interface CartelImprimible {
+  cartel: Cartel; oficina: Oficina; croquis: Croquis | null; servicios: ServicioEnCartel[];
+}
+
+// ── Servicios y turnos ────────────────────────────────────────────────────────
+
+export interface Servicio {
+  id: string; oficina_id: string; area_id: string | null; area_nombre: string | null; area_referencia: string | null;
+  nombre: string; descripcion: string | null; prefijo: string; color: string | null; icono: string | null;
+  prioridad: number; tiempo_estimado_min: number; requiere_documento: boolean; requiere_cita: boolean;
+  cupo_diario: number; hora_apertura: string | null; hora_cierre: string | null; dias_habiles: string | null;
+  publico: boolean; orden: number; activo: boolean;
+  en_espera: number; espera_estimada_min: number;
+}
+
+export interface ServicioIn {
+  nombre: string; descripcion?: string | null; prefijo: string; area_id?: string | null;
+  color?: string | null; icono?: string | null; prioridad?: number; tiempo_estimado_min?: number;
+  requiere_documento?: boolean; requiere_cita?: boolean; cupo_diario?: number;
+  hora_apertura?: string | null; hora_cierre?: string | null; dias_habiles?: string | null;
+  publico?: boolean; orden?: number; activo?: boolean;
+}
+
+export type EstadoTurno = 'EN_ESPERA' | 'LLAMADO' | 'EN_ATENCION' | 'ATENDIDO' | 'NO_SE_PRESENTO'
+  | 'CANCELADO' | 'TRANSFERIDO' | 'APLAZADO';
+
+export interface Turno {
+  id: string; oficina_id: string; servicio_id: string; servicio_nombre: string | null; servicio_color: string | null;
+  fecha: string; numero: number; codigo: string; estado: EstadoTurno;
+  prioridad: 'NORMAL' | 'PREFERENCIAL' | 'CITA'; canal: string;
+  documento: string | null; nombre: string | null; telefono: string | null; correo: string | null;
+  empresa_usuaria_ref: number | null; empresa_usuaria_nombre: string | null;
+  punto_id: string | null; punto_nombre: string | null;
+  atendido_por: string | null; atendido_por_nombre: string | null;
+  area_id: string | null; area_nombre: string | null; area_referencia: string | null;
+  creado_en: string; llamado_en: string | null; iniciado_en: string | null; finalizado_en: string | null;
+  espera_seg: number | null; atencion_seg: number | null; llamadas: number;
+  motivo: string | null; observaciones: string | null;
+  delante: number | null; espera_estimada_min: number | null;
+}
+
+export interface TomarTurnoIn {
+  servicio_id: string; prioridad?: string; canal?: string;
+  documento?: string | null; nombre?: string | null; telefono?: string | null; correo?: string | null;
+  empresa_usuaria_ref?: number | null; empresa_usuaria_nombre?: string | null; observaciones?: string | null;
+}
+
+export interface Tiquete {
+  turno: Turno; oficina_nombre: string; oficina_codigo: string; servicio_nombre: string;
+  area_nombre: string | null; area_referencia: string | null; mensaje: string; url_seguimiento: string;
+}
+
+export interface ResumenServicio {
+  servicio_id: string; servicio: string; prefijo: string;
+  emitidos: number; atendidos: number; ausentes: number; cancelados: number; en_espera: number;
+  espera_prom_seg: number | null; atencion_prom_seg: number | null; espera_max_seg: number | null;
+}
+
+export interface Cola {
+  oficina_id: string; oficina_nombre: string; fecha: string;
+  en_espera: Turno[]; en_curso: Turno[]; por_servicio: ResumenServicio[];
+  puestos_abiertos: number; generado_en: string;
+}
+
+export interface ResumenAsesor {
+  usuario_ref: string; usuario: string; atendidos: number; atencion_prom_seg: number | null; atencion_total_seg: number;
+}
+export interface ResumenHora { hora: number; emitidos: number; espera_prom_seg: number | null; }
+
+export interface Tablero {
+  oficina_id: string; desde: string; hasta: string;
+  por_servicio: ResumenServicio[]; por_asesor: ResumenAsesor[]; por_hora: ResumenHora[];
+}
+
+export interface EstadoAtencion {
+  oficina_id: string | null; oficina_nombre: string | null;
+  punto_id: string | null; punto_nombre: string | null;
+  turno_actual: Turno | null; siguiente: Turno | null;
+  en_espera: number; atendidos_hoy: number; atencion_prom_seg: number | null;
+}
+
+export interface EventoTurno {
+  id: number; tipo: string; de_estado: string | null; a_estado: string | null;
+  usuario_nombre: string | null; punto_id: string | null; detalle: string | null; creado_en: string;
+}
+
+// ── Pantallas y piezas ────────────────────────────────────────────────────────
+
+export type TipoMedia = 'IMAGEN' | 'VIDEO' | 'YOUTUBE' | 'VIMEO' | 'HTML' | 'CURSO' | 'TEXTO';
+export type TipoAlcance = 'GLOBAL' | 'OFICINA' | 'SEDE' | 'EMPRESA' | 'EMPRESA_USUARIA' | 'CIUDAD';
+
+export interface Alcance { id?: number; tipo: TipoAlcance; valor_ref: string | null; valor_nombre: string | null; }
+
+export interface Media {
+  id: string; tipo: TipoMedia; titulo: string; descripcion: string | null;
+  url: string | null; archivo_nombre: string | null; mime: string | null; bytes: number | null;
+  ancho: number | null; alto: number | null; duracion_seg: number; ajuste: 'CONTENER' | 'CUBRIR' | 'ESTIRAR';
+  silenciado: boolean; curso_ref: string | null; curso_url: string | null;
+  vigente_desde: string | null; vigente_hasta: string | null; activo: boolean; etiquetas: string | null;
+  creado_en: string; creado_por_nombre: string | null; alcances: Alcance[];
+  vigente: boolean; emisiones: number | null;
+}
+
+export interface MediaIn {
+  tipo?: TipoMedia; titulo: string; descripcion?: string | null; url?: string | null;
+  duracion_seg?: number; ajuste?: string; silenciado?: boolean;
+  curso_ref?: string | null; curso_url?: string | null;
+  vigente_desde?: string | null; vigente_hasta?: string | null; activo?: boolean; etiquetas?: string | null;
+  alcances?: Alcance[] | null;
+}
+
+export interface PlaylistItem { id: number; media_id: string; orden: number; duracion_seg: number | null; media: Media; }
+
+export interface Playlist {
+  id: string; nombre: string; descripcion: string | null; oficina_id: string | null;
+  modo: 'SECUENCIAL' | 'ALEATORIO'; activa: boolean; creado_en: string;
+  items: PlaylistItem[]; duracion_total_seg: number;
+}
+
+export interface PlaylistIn {
+  nombre: string; descripcion?: string | null; oficina_id?: string | null; modo?: string; activa?: boolean;
+  items?: { media_id: string; orden?: number; duracion_seg?: number | null }[] | null;
+}
+
+export interface Pantalla {
+  id: string; oficina_id: string; oficina_nombre: string | null;
+  nombre: string; codigo_publico: string; layout: 'TURNOS_MEDIA' | 'SOLO_TURNOS' | 'SOLO_MEDIA' | 'MEDIA_DESTACADO';
+  orientacion: 'HORIZONTAL' | 'VERTICAL'; turnos_visibles: number;
+  mostrar_reloj: boolean; mostrar_croquis: boolean; sonido: boolean; voz: boolean; voz_plantilla: string;
+  tema: 'OSCURO' | 'CLARO' | 'CORPORATIVO'; estilo_json: string | null; servicios: string[]; activa: boolean;
+  ultima_conexion: string | null; en_linea: boolean; creado_en: string; playlists: string[];
+  url: string; qr_data_uri: string | null;
+}
+
+export interface PantallaIn {
+  nombre: string; layout?: string; orientacion?: string; turnos_visibles?: number;
+  mostrar_reloj?: boolean; mostrar_croquis?: boolean; sonido?: boolean; voz?: boolean; voz_plantilla?: string;
+  tema?: string; estilo_json?: string | null; servicios?: string[] | null; activa?: boolean; playlists?: string[] | null;
+}
+
+export interface VistaPantalla {
+  pantalla_id: string; nombre: string; layout: Pantalla['layout']; orientacion: Pantalla['orientacion'];
+  tema: Pantalla['tema']; estilo_json: string | null; mostrar_reloj: boolean; mostrar_croquis: boolean;
+  sonido: boolean; voz: boolean; voz_plantilla: string; turnos_visibles: number;
+  oficina_id: string; oficina_nombre: string;
+  en_curso: Turno[]; en_espera: Turno[]; piezas: Media[]; croquis: Croquis | null; generado_en: string;
+}
+
+export interface ReporteEmision { media_id: string; titulo: string; tipo: string; emisiones: number; segundos: number; }
+
+// ── Casos y panel ─────────────────────────────────────────────────────────────
+
+export interface Caso {
+  id: string; usuario_ref: string; oficina_id: string | null; turno_id: string | null;
+  turno_codigo: string | null; turno_estado: EstadoTurno | null;
+  nombre: string; nombre_manual: boolean;
+  documento: string | null; persona_nombre: string | null; telefono: string | null; correo: string | null;
+  empresa_usuaria_ref: number | null; empresa_usuaria_nombre: string | null; motivo: string | null;
+  estado: 'ABIERTO' | 'PAUSADO' | 'CERRADO'; color: string | null; fijado: boolean; orden: number;
+  contexto_json: string | null; segundos_activo: number; activado_en: string | null;
+  creado_en: string; actualizado_en: string; cerrado_en: string | null; resultado: string | null; notas: number;
+}
+
+export interface CasoIn {
+  turno_id?: string | null; oficina_id?: string | null; nombre?: string | null;
+  documento?: string | null; persona_nombre?: string | null; telefono?: string | null; correo?: string | null;
+  empresa_usuaria_ref?: number | null; empresa_usuaria_nombre?: string | null; motivo?: string | null;
+  color?: string | null; activar?: boolean;
+}
+
+export interface CasoPatch {
+  nombre?: string | null; nombre_automatico?: boolean;
+  documento?: string | null; persona_nombre?: string | null; telefono?: string | null; correo?: string | null;
+  empresa_usuaria_ref?: number | null; empresa_usuaria_nombre?: string | null; motivo?: string | null;
+  color?: string | null; fijado?: boolean; orden?: number; contexto_json?: string | null;
+}
+
+export interface Nota { id: number; texto: string; usuario_ref: string | null; usuario_nombre: string | null; creado_en: string; }
+export interface CasoDetalle { caso: Caso; turno: Turno | null; notas: Nota[]; }
+
+export interface Preferencia {
+  usuario_ref: string; oficina_id: string | null; punto_id: string | null;
+  panel_abierto: boolean; panel_alto: number; caso_activo_id: string | null; auto_llamar: boolean; sonido: boolean;
+}
+
+export interface Panel { preferencia: Preferencia; atencion: EstadoAtencion; casos: Caso[]; max_casos_abiertos: number; }
+
+export interface Pagina<T> { content: T[]; total_elements: number; total_pages: number; number: number; size: number; }
+
+@Injectable({ providedIn: 'root' })
+export class TurnosService {
+  private http = inject(HttpClient);
+  readonly base = `${environment.apiUrl}/api/v1/turnos`;
+  readonly basePublica = `${environment.apiUrl}/api/v1/public/turnos`;
+
+  // ── Oficinas ──
+  oficinas(soloActivas = true): Observable<Oficina[]> {
+    return this.http.get<Oficina[]>(`${this.base}/oficinas`, { params: { soloActivas } });
+  }
+  oficina(id: string): Observable<Oficina> { return this.http.get<Oficina>(`${this.base}/oficinas/${id}`); }
+  crearOficina(in_: OficinaIn): Observable<Oficina> { return this.http.post<Oficina>(`${this.base}/oficinas`, in_); }
+  actualizarOficina(id: string, in_: OficinaIn): Observable<Oficina> { return this.http.put<Oficina>(`${this.base}/oficinas/${id}`, in_); }
+  desactivarOficina(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/oficinas/${id}`); }
+  soyAdmin(): Observable<{ admin: boolean }> { return this.http.get<{ admin: boolean }>(`${this.base}/soy-admin`); }
+
+  // ── Puntos ──
+  puntos(oficinaId: string): Observable<Punto[]> { return this.http.get<Punto[]>(`${this.base}/oficinas/${oficinaId}/puntos`); }
+  crearPunto(oficinaId: string, in_: PuntoIn): Observable<Punto> { return this.http.post<Punto>(`${this.base}/oficinas/${oficinaId}/puntos`, in_); }
+  actualizarPunto(id: string, in_: PuntoIn): Observable<Punto> { return this.http.put<Punto>(`${this.base}/puntos/${id}`, in_); }
+  eliminarPunto(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/puntos/${id}`); }
+
+  // ── Croquis ──
+  croquis(oficinaId: string, borrador = false): Observable<Croquis | null> {
+    return this.http.get<Croquis | null>(`${this.base}/oficinas/${oficinaId}/croquis`, { params: { borrador } });
+  }
+  versionesCroquis(oficinaId: string): Observable<Croquis[]> { return this.http.get<Croquis[]>(`${this.base}/oficinas/${oficinaId}/croquis/versiones`); }
+  croquisPorId(id: string): Observable<Croquis> { return this.http.get<Croquis>(`${this.base}/croquis/${id}`); }
+  guardarCroquis(oficinaId: string, in_: CroquisIn): Observable<Croquis> { return this.http.put<Croquis>(`${this.base}/oficinas/${oficinaId}/croquis`, in_); }
+  publicarCroquis(id: string): Observable<Croquis> { return this.http.post<Croquis>(`${this.base}/croquis/${id}/publicar`, {}); }
+
+  // ── Cartel ──
+  carteles(oficinaId: string): Observable<Cartel[]> { return this.http.get<Cartel[]>(`${this.base}/oficinas/${oficinaId}/carteles`); }
+  guardarCartel(oficinaId: string, in_: CartelIn): Observable<Cartel> { return this.http.put<Cartel>(`${this.base}/oficinas/${oficinaId}/cartel`, in_); }
+  cartelImprimible(id: string): Observable<CartelImprimible> { return this.http.get<CartelImprimible>(`${this.base}/carteles/${id}/imprimible`); }
+  marcarImpreso(id: string): Observable<Cartel> { return this.http.post<Cartel>(`${this.base}/carteles/${id}/impreso`, {}); }
+
+  // ── Servicios ──
+  servicios(oficinaId: string, soloPublicos = false): Observable<Servicio[]> {
+    return this.http.get<Servicio[]>(`${this.base}/oficinas/${oficinaId}/servicios`, { params: { soloPublicos } });
+  }
+  crearServicio(oficinaId: string, in_: ServicioIn): Observable<Servicio> { return this.http.post<Servicio>(`${this.base}/oficinas/${oficinaId}/servicios`, in_); }
+  actualizarServicio(id: string, in_: ServicioIn): Observable<Servicio> { return this.http.put<Servicio>(`${this.base}/servicios/${id}`, in_); }
+  desactivarServicio(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/servicios/${id}`); }
+
+  // ── Cola / tablero ──
+  cola(oficinaId: string, fecha?: string): Observable<Cola> {
+    let params = new HttpParams();
+    if (fecha) params = params.set('fecha', fecha);
+    return this.http.get<Cola>(`${this.base}/oficinas/${oficinaId}/cola`, { params });
+  }
+  tablero(oficinaId: string, desde?: string, hasta?: string): Observable<Tablero> {
+    let params = new HttpParams();
+    if (desde) params = params.set('desde', desde);
+    if (hasta) params = params.set('hasta', hasta);
+    return this.http.get<Tablero>(`${this.base}/oficinas/${oficinaId}/tablero`, { params });
+  }
+  historial(oficinaId: string, desde?: string, hasta?: string, page = 0, size = 50): Observable<Pagina<Turno>> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (desde) params = params.set('desde', desde);
+    if (hasta) params = params.set('hasta', hasta);
+    return this.http.get<Pagina<Turno>>(`${this.base}/oficinas/${oficinaId}/historial`, { params });
+  }
+  turno(id: string): Observable<Turno> { return this.http.get<Turno>(`${this.base}/turnos/${id}`); }
+  eventosDeTurno(id: string): Observable<EventoTurno[]> { return this.http.get<EventoTurno[]>(`${this.base}/turnos/${id}/eventos`); }
+  emitirTurno(oficinaId: string, in_: TomarTurnoIn): Observable<Tiquete> { return this.http.post<Tiquete>(`${this.base}/oficinas/${oficinaId}/turnos`, in_); }
+  cancelarEnEspera(turnoId: string, motivo?: string): Observable<Turno> { return this.http.post<Turno>(`${this.base}/turnos/${turnoId}/cancelar`, { motivo: motivo ?? null }); }
+
+  // ── Atención (en nombre de quien llama) ──
+  estadoAtencion(): Observable<EstadoAtencion> { return this.http.get<EstadoAtencion>(`${this.base}/atencion/estado`); }
+  abrirPuesto(puntoId: string, servicios?: string[] | null): Observable<EstadoAtencion> {
+    return this.http.post<EstadoAtencion>(`${this.base}/atencion/abrir`, { punto_id: puntoId, servicios: servicios ?? null });
+  }
+  cerrarPuesto(): Observable<EstadoAtencion> { return this.http.post<EstadoAtencion>(`${this.base}/atencion/cerrar-puesto`, {}); }
+  llamar(puntoId: string, turnoId?: string | null): Observable<Turno> {
+    return this.http.post<Turno>(`${this.base}/atencion/llamar`, { punto_id: puntoId, turno_id: turnoId ?? null });
+  }
+  iniciar(turnoId: string): Observable<Turno> { return this.http.post<Turno>(`${this.base}/atencion/iniciar/${turnoId}`, {}); }
+  cerrarTurno(turnoId: string, resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO', motivo?: string | null, observaciones?: string | null): Observable<Turno> {
+    return this.http.post<Turno>(`${this.base}/atencion/cerrar`, { turno_id: turnoId, resultado, motivo: motivo ?? null, observaciones: observaciones ?? null });
+  }
+  transferir(turnoId: string, servicioDestinoId: string, motivo?: string | null, mantenerPrioridad = true): Observable<Turno> {
+    return this.http.post<Turno>(`${this.base}/atencion/transferir`, { turno_id: turnoId, servicio_destino_id: servicioDestinoId, motivo: motivo ?? null, mantener_prioridad: mantenerPrioridad });
+  }
+  aplazar(turnoId: string, motivo?: string | null): Observable<Turno> { return this.http.post<Turno>(`${this.base}/atencion/aplazar/${turnoId}`, { motivo: motivo ?? null }); }
+
+  // ── Pantallas ──
+  pantallas(oficinaId: string): Observable<Pantalla[]> { return this.http.get<Pantalla[]>(`${this.base}/oficinas/${oficinaId}/pantallas`); }
+  crearPantalla(oficinaId: string, in_: PantallaIn): Observable<Pantalla> { return this.http.post<Pantalla>(`${this.base}/oficinas/${oficinaId}/pantallas`, in_); }
+  actualizarPantalla(id: string, in_: PantallaIn): Observable<Pantalla> { return this.http.put<Pantalla>(`${this.base}/pantallas/${id}`, in_); }
+  rotarCodigoPantalla(id: string): Observable<Pantalla> { return this.http.post<Pantalla>(`${this.base}/pantallas/${id}/rotar-codigo`, {}); }
+  desactivarPantalla(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/pantallas/${id}`); }
+
+  // ── Piezas ──
+  buscarMedia(q?: string, tipo?: string, activo?: boolean | null, page = 0, size = 30): Observable<Pagina<Media>> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (q) params = params.set('q', q);
+    if (tipo) params = params.set('tipo', tipo);
+    if (activo !== null && activo !== undefined) params = params.set('activo', activo);
+    return this.http.get<Pagina<Media>>(`${this.base}/media`, { params });
+  }
+  media(id: string): Observable<Media> { return this.http.get<Media>(`${this.base}/media/${id}`); }
+  crearMedia(in_: MediaIn): Observable<Media> { return this.http.post<Media>(`${this.base}/media`, in_); }
+  actualizarMedia(id: string, in_: MediaIn): Observable<Media> { return this.http.put<Media>(`${this.base}/media/${id}`, in_); }
+  subirArchivoMedia(id: string, archivo: File): Observable<Media> {
+    const form = new FormData();
+    form.append('archivo', archivo, archivo.name);
+    return this.http.post<Media>(`${this.base}/media/${id}/archivo`, form);
+  }
+  desactivarMedia(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/media/${id}`); }
+  reporteEmisiones(desde: string, hasta: string, oficinaId?: string | null): Observable<ReporteEmision[]> {
+    let params = new HttpParams().set('desde', desde).set('hasta', hasta);
+    if (oficinaId) params = params.set('oficinaId', oficinaId);
+    return this.http.get<ReporteEmision[]>(`${this.base}/media/reporte`, { params });
+  }
+  /** URL absoluta de una pieza (las rutas propias vienen relativas a la API). */
+  urlMedia(m: Pick<Media, 'url'>): string | null {
+    if (!m.url) return null;
+    return m.url.startsWith('http') ? m.url : `${environment.apiUrl}${m.url}`;
+  }
+
+  // ── Listas ──
+  playlists(oficinaId?: string | null): Observable<Playlist[]> {
+    let params = new HttpParams();
+    if (oficinaId) params = params.set('oficinaId', oficinaId);
+    return this.http.get<Playlist[]>(`${this.base}/playlists`, { params });
+  }
+  crearPlaylist(in_: PlaylistIn): Observable<Playlist> { return this.http.post<Playlist>(`${this.base}/playlists`, in_); }
+  actualizarPlaylist(id: string, in_: PlaylistIn): Observable<Playlist> { return this.http.put<Playlist>(`${this.base}/playlists/${id}`, in_); }
+  desactivarPlaylist(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/playlists/${id}`); }
+
+  // ── Casos y panel ──
+  panel(): Observable<Panel> { return this.http.get<Panel>(`${this.base}/panel`); }
+  preferencias(): Observable<Preferencia> { return this.http.get<Preferencia>(`${this.base}/preferencias`); }
+  guardarPreferencias(in_: Partial<Preferencia>): Observable<Preferencia> { return this.http.put<Preferencia>(`${this.base}/preferencias`, in_); }
+  casos(): Observable<Caso[]> { return this.http.get<Caso[]>(`${this.base}/casos`); }
+  historialCasos(page = 0, size = 30): Observable<Pagina<Caso>> {
+    return this.http.get<Pagina<Caso>>(`${this.base}/casos/historial`, { params: { page, size } });
+  }
+  caso(id: string): Observable<CasoDetalle> { return this.http.get<CasoDetalle>(`${this.base}/casos/${id}`); }
+  abrirCaso(in_: CasoIn): Observable<Caso> { return this.http.post<Caso>(`${this.base}/casos`, in_); }
+  actualizarCaso(id: string, in_: CasoPatch): Observable<Caso> { return this.http.patch<Caso>(`${this.base}/casos/${id}`, in_); }
+  activarCaso(id: string): Observable<Caso> { return this.http.post<Caso>(`${this.base}/casos/${id}/activar`, {}); }
+  pausarCaso(id: string): Observable<Caso> { return this.http.post<Caso>(`${this.base}/casos/${id}/pausar`, {}); }
+  cerrarCaso(id: string, resultado?: string | null): Observable<Caso> { return this.http.post<Caso>(`${this.base}/casos/${id}/cerrar`, { resultado: resultado ?? null }); }
+  reabrirCaso(id: string): Observable<Caso> { return this.http.post<Caso>(`${this.base}/casos/${id}/reabrir`, {}); }
+  reordenarCasos(ids: string[]): Observable<Caso[]> { return this.http.put<Caso[]>(`${this.base}/casos/orden`, ids); }
+  agregarNota(casoId: string, texto: string): Observable<Nota> { return this.http.post<Nota>(`${this.base}/casos/${casoId}/notas`, { texto }); }
+
+  // ── Superficie pública (sin sesión) ──
+  publicoVistaPantalla(codigo: string): Observable<VistaPantalla> { return this.http.get<VistaPantalla>(`${this.basePublica}/pantalla/${codigo}`); }
+  publicoPiezas(codigo: string): Observable<Media[]> { return this.http.get<Media[]>(`${this.basePublica}/pantalla/${codigo}/piezas`); }
+  publicoLatido(codigo: string): Observable<unknown> { return this.http.post(`${this.basePublica}/pantalla/${codigo}/latido`, {}); }
+  publicoEmision(codigo: string, mediaId: string, segundos: number): Observable<unknown> {
+    return this.http.post(`${this.basePublica}/pantalla/${codigo}/emision`, { media_id: mediaId, segundos });
+  }
+  publicoCartel(codigo: string): Observable<CartelImprimible> { return this.http.get<CartelImprimible>(`${this.basePublica}/cartel/${codigo}`); }
+  publicoServicios(codigo: string): Observable<Servicio[]> { return this.http.get<Servicio[]>(`${this.basePublica}/cartel/${codigo}/servicios`); }
+  publicoTomarTurno(codigo: string, in_: TomarTurnoIn): Observable<Tiquete> { return this.http.post<Tiquete>(`${this.basePublica}/cartel/${codigo}/turno`, in_); }
+  publicoSeguimiento(turnoId: string): Observable<Turno> { return this.http.get<Turno>(`${this.basePublica}/turno/${turnoId}`); }
+  publicoCancelar(turnoId: string): Observable<Turno> { return this.http.post<Turno>(`${this.basePublica}/turno/${turnoId}/cancelar`, {}); }
+
+  /** URL del canal SSE de una oficina (con sesión) y de una pantalla (sin sesión). */
+  urlEventosOficina(oficinaId: string): string { return `${this.base}/eventos/oficina/${oficinaId}`; }
+  urlEventosMios(): string { return `${this.base}/eventos/mios`; }
+  urlEventosPantalla(codigo: string): string { return `${this.basePublica}/pantalla/${codigo}/eventos`; }
+  urlEventosTurno(turnoId: string): string { return `${this.basePublica}/turno/${turnoId}/eventos`; }
+}

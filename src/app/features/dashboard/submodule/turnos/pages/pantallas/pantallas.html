@@ -1,0 +1,106 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>tv</mat-icon> Pantallas de sala</h1>
+      <p class="tn-subtitulo">Cada televisor abre su enlace sin iniciar sesión: canta el turno, muestra la cola y circula publicidad y cursos.</p>
+    </div>
+    <div class="tn-acciones">
+      <app-selector-oficina />
+      @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nueva()" [disabled]="!ctx.oficinaId()"><mat-icon>add_to_queue</mat-icon> Nueva pantalla</button> }
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (formAbierto()) {
+    <form class="tn-tarjeta" (ngSubmit)="guardar()">
+      <h3><mat-icon>{{ editando() ? 'edit' : 'add_to_queue' }}</mat-icon> {{ editando() ? 'Editar pantalla' : 'Nueva pantalla' }}</h3>
+      <div class="tn-form">
+        <label class="tn-campo"><span>Nombre</span><input name="nombre" [(ngModel)]="form.nombre" required placeholder="TV sala principal"></label>
+        <label class="tn-campo"><span>Diseño</span>
+          <select name="layout" [(ngModel)]="form.layout">
+            <option value="TURNOS_MEDIA">Turnos + publicidad</option>
+            <option value="SOLO_TURNOS">Solo turnos</option>
+            <option value="SOLO_MEDIA">Solo publicidad</option>
+            <option value="MEDIA_DESTACADO">Publicidad grande, turnos abajo</option>
+          </select>
+        </label>
+        <label class="tn-campo"><span>Orientación</span>
+          <select name="orientacion" [(ngModel)]="form.orientacion"><option value="HORIZONTAL">Horizontal</option><option value="VERTICAL">Vertical</option></select>
+        </label>
+        <label class="tn-campo"><span>Tema</span>
+          <select name="tema" [(ngModel)]="form.tema"><option value="OSCURO">Oscuro</option><option value="CLARO">Claro</option><option value="CORPORATIVO">Corporativo</option></select>
+        </label>
+        <label class="tn-campo"><span>Turnos en cola visibles</span><input name="tv" type="number" min="0" max="20" [(ngModel)]="form.turnos_visibles"></label>
+        <label class="tn-campo tn-campo--ancho"><span>Frase de voz</span><input name="voz" [(ngModel)]="form.voz_plantilla"><span class="ayuda">Variables: {{ '{' }}codigo{{ '}' }}, {{ '{' }}punto{{ '}' }}, {{ '{' }}servicio{{ '}' }}, {{ '{' }}area{{ '}' }}, {{ '{' }}nombre{{ '}' }}.</span></label>
+        <div class="tn-campo">
+          <span class="eti">Comportamiento</span>
+          <label class="tn-check"><input type="checkbox" name="reloj" [(ngModel)]="form.mostrar_reloj"> Reloj</label>
+          <label class="tn-check"><input type="checkbox" name="croq" [(ngModel)]="form.mostrar_croquis"> Mini-mapa con el área resaltada al llamar</label>
+          <label class="tn-check"><input type="checkbox" name="son" [(ngModel)]="form.sonido"> Campanilla</label>
+          <label class="tn-check"><input type="checkbox" name="vz" [(ngModel)]="form.voz"> Voz</label>
+          @if (editando()) { <label class="tn-check"><input type="checkbox" name="act" [(ngModel)]="form.activa"> Activa</label> }
+        </div>
+        <div class="tn-campo"><span class="eti">Servicios que muestra (vacío = todos)</span>
+          <div class="chips">@for (s of servicios(); track s.id) { <button type="button" class="tn-chip chip-btn" [class.tn-chip--info]="form.servicios.includes(s.id)" (click)="alternar('servicios', s.id)">{{ s.prefijo }} · {{ s.nombre }}</button> }</div>
+        </div>
+        <div class="tn-campo tn-campo--ancho"><span class="eti">Listas de reproducción (vacío = todo lo vigente que aplique a esta oficina)</span>
+          <div class="chips">@for (p of playlists(); track p.id) { <button type="button" class="tn-chip chip-btn" [class.tn-chip--info]="form.playlists.includes(p.id)" (click)="alternar('playlists', p.id)">{{ p.nombre }} ({{ p.items.length }})</button> }
+            @if (!playlists().length) { <span class="tn-subtitulo">Aún no hay listas. Créelas en Publicidad y cursos.</span> }</div>
+        </div>
+      </div>
+      <div class="tn-acciones" style="margin-top:12px">
+        <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !form.nombre"><mat-icon>save</mat-icon> Guardar</button>
+        <button type="button" class="tn-boton tn-boton--fantasma" (click)="formAbierto.set(false)">Cancelar</button>
+      </div>
+    </form>
+  }
+
+  @if (!pantallas().length) {
+    <div class="tn-tarjeta tn-vacio"><mat-icon>tv_off</mat-icon><span>Esta oficina no tiene pantallas. Cree una y abra su enlace en el televisor (navegador en pantalla completa).</span></div>
+  } @else {
+    <div class="tn-rejilla">
+      @for (p of pantallas(); track p.id) {
+        <article class="tn-tarjeta pantalla" [class.pantalla--inactiva]="!p.activa">
+          <div class="pantalla__cab">
+            <h3><mat-icon>tv</mat-icon> {{ p.nombre }}</h3>
+            @if (!p.activa) { <span class="tn-chip tn-chip--danger">Inactiva</span> }
+            @else if (p.en_linea) { <span class="tn-chip tn-chip--ok"><mat-icon>wifi</mat-icon> En línea</span> }
+            @else { <span class="tn-chip tn-chip--warn"><mat-icon>wifi_off</mat-icon> {{ p.ultima_conexion ? 'Sin señal desde ' + (p.ultima_conexion | date:'dd/MM HH:mm') : 'Nunca conectada' }}</span> }
+          </div>
+          <div class="pantalla__cuerpo">
+            <button type="button" class="pantalla__qr" (click)="qrGrande.set(p)" title="Ver grande"><img [src]="p.qr_data_uri" alt="QR de la pantalla"></button>
+            <div class="pantalla__datos">
+              <span class="tn-chip">{{ p.layout }}</span> <span class="tn-chip">{{ p.orientacion }}</span> <span class="tn-chip">{{ p.tema }}</span>
+              <div class="pantalla__meta">{{ p.voz ? 'Voz' : 'Sin voz' }} · {{ p.sonido ? 'campanilla' : 'silencio' }} · {{ p.turnos_visibles }} en cola</div>
+              <div class="pantalla__meta">Listas: {{ p.playlists.length ? '' : 'todo lo vigente' }}@for (l of p.playlists; track l) { <span class="tn-chip">{{ nombrePlaylist(l) }}</span> }</div>
+              <div class="pantalla__url"><span class="tn-codigo">{{ p.codigo_publico }}</span></div>
+            </div>
+          </div>
+          <div class="tn-acciones">
+            <button type="button" class="tn-boton tn-boton--primario" (click)="abrir(p)"><mat-icon>open_in_new</mat-icon> Abrir</button>
+            <button type="button" class="tn-boton" (click)="copiar(p)"><mat-icon>link</mat-icon> Copiar enlace</button>
+            @if (ctx.esAdmin()) {
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editar(p)" title="Editar"><mat-icon>edit</mat-icon></button>
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="rotar(p)" title="Rotar código"><mat-icon>key</mat-icon></button>
+              @if (p.activa) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivar(p)" title="Desactivar"><mat-icon>block</mat-icon></button> }
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
+
+  @if (qrGrande(); as p) {
+    <div class="velo" (click)="qrGrande.set(null)">
+      <div class="velo__caja" (click)="$event.stopPropagation()">
+        <h3>{{ p.nombre }}</h3>
+        <img [src]="p.qr_data_uri" alt="QR">
+        <p class="tn-subtitulo">Escanee desde el televisor (Android TV, Chromecast con navegador) o escriba el enlace.</p>
+        <code>{{ p.url }}</code>
+        <button type="button" class="tn-boton" (click)="qrGrande.set(null)">Cerrar</button>
+      </div>
+    </div>
+  }
+</div>

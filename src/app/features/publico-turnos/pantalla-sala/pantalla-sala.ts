@@ -1,0 +1,238 @@
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { MatIconModule } from '@angular/material/icon';
+
+import { Media, Turno, TurnosService, VistaPantalla } from '../../dashboard/submodule/turnos/service/turnos.service';
+import { conectarSse, ConexionSse } from '../../dashboard/submodule/turnos/service/sse.util';
+import { CroquisSvg } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
+import { idYoutube } from '../../dashboard/submodule/turnos/pages/publicidad/publicidad';
+
+/**
+ * El televisor de la sala de espera.
+ *
+ * <p>Se abre sin sesión con el código de la pantalla. Recibe la cola por SSE y, al llamar
+ * un turno, lo canta (campanilla + voz del navegador), lo muestra grande unos segundos y
+ * resalta el área en el mini-mapa. Mientras tanto circula la publicidad: imágenes,
+ * videos propios, YouTube, avisos y fichas de cursos con QR.
+ *
+ * <p>Reporta cada pieza emitida y un latido por minuto: es lo que permite saber desde
+ * administración que un televisor lleva tres días apagado.
+ */
+@Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  selector: 'app-pantalla-sala',
+  imports: [CommonModule, MatIconModule, CroquisSvg],
+  templateUrl: './pantalla-sala.html',
+  styleUrl: './pantalla-sala.css',
+})
+export class PantallaSala implements OnInit {
+  readonly codigo = input.required<string>();
+
+  private api = inject(TurnosService);
+  private sanitizer = inject(DomSanitizer);
+  private destroyRef = inject(DestroyRef);
+
+  readonly vista = signal<VistaPantalla | null>(null);
+  readonly error = signal<string | null>(null);
+  readonly canal = signal('cerrado');
+  readonly ahora = signal(new Date());
+  readonly enCurso = signal<Turno[]>([]);
+  readonly enEspera = signal<Turno[]>([]);
+  readonly piezas = signal<Media[]>([]);
+  readonly indice = signal(0);
+  readonly llamado = signal<Turno | null>(null);
+  readonly audioDesbloqueado = signal(false);
+
+  readonly pieza = computed<Media | null>(() => this.piezas()[this.indice()] ?? null);
+  readonly urlPieza = computed<string | null>(() => { const p = this.pieza(); return p ? this.api.urlMedia(p) : null; });
+  readonly urlEmbebida = computed<SafeResourceUrl | null>(() => {
+    const p = this.pieza();
+    if (!p) return null;
+    if (p.tipo === 'YOUTUBE') {
+      const id = idYoutube(p.url);
+      return id ? this.sanitizer.bypassSecurityTrustResourceUrl(`https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=${p.silenciado ? 1 : 0}&controls=0&loop=1&playlist=${id}&rel=0`) : null;
+    }
+    if (p.tipo === 'VIMEO') {
+      const m = /vimeo\.com\/(\d+)/.exec(p.url ?? '');
+      return m ? this.sanitizer.bypassSecurityTrustResourceUrl(`https://player.vimeo.com/video/${m[1]}?autoplay=1&muted=${p.silenciado ? 1 : 0}&controls=0&loop=1`) : null;
+    }
+    if (p.tipo === 'HTML' && p.url) return this.sanitizer.bypassSecurityTrustResourceUrl(p.url);
+    return null;
+  });
+  readonly qrCurso = computed<string | null>(() => {
+    const p = this.pieza();
+    if (!p || p.tipo !== 'CURSO' || !p.curso_url) return null;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=360x360&margin=8&data=${encodeURIComponent(p.curso_url)}`;
+  });
+  readonly areaResaltada = computed(() => this.llamado()?.area_id ?? this.enCurso()[0]?.area_id ?? null);
+  readonly mostrarMedia = computed(() => { const v = this.vista(); return !!v && v.layout !== 'SOLO_TURNOS' && this.piezas().length > 0; });
+  readonly mostrarTurnos = computed(() => { const v = this.vista(); return !!v && v.layout !== 'SOLO_MEDIA'; });
+
+  private conexion: ConexionSse | null = null;
+  private temporizadorPieza: ReturnType<typeof setTimeout> | null = null;
+  private inicioPieza = Date.now();
+  private temporizadorLlamado: ReturnType<typeof setTimeout> | null = null;
+  private colaVoz: Turno[] = [];
+  private hablando = false;
+
+  constructor() {
+    effect(() => {
+      const p = this.pieza();
+      untracked(() => this.programarSiguiente(p));
+    });
+  }
+
+  ngOnInit(): void {
+    this.cargar();
+    const reloj = setInterval(() => this.ahora.set(new Date()), 1000);
+    const latido = setInterval(() => this.api.publicoLatido(this.codigo()).subscribe({ error: () => {} }), 60_000);
+    const refresco = setInterval(() => this.api.publicoPiezas(this.codigo()).subscribe({ next: p => this.piezas.set(p), error: () => {} }), 5 * 60_000);
+    this.destroyRef.onDestroy(() => { clearInterval(reloj); clearInterval(latido); clearInterval(refresco); this.conexion?.cerrar(); if (this.temporizadorPieza) clearTimeout(this.temporizadorPieza); });
+  }
+
+  private cargar(): void {
+    this.api.publicoVistaPantalla(this.codigo()).subscribe({
+      next: v => {
+        this.vista.set(v);
+        this.enCurso.set(v.en_curso);
+        this.enEspera.set(v.en_espera);
+        this.piezas.set(v.piezas);
+        this.error.set(null);
+        this.conectar(v);
+      },
+      error: e => this.error.set(e?.status === 404 ? 'Pantalla no encontrada o desactivada. Revise el enlace.' : 'No se pudo conectar. Reintentando…'),
+    });
+    // Sin vista aún (red caída al arrancar): se reintenta hasta que responda.
+    setTimeout(() => { if (!this.vista()) this.cargar(); }, 15_000);
+  }
+
+  private conectar(v: VistaPantalla): void {
+    if (this.conexion) return;
+    this.conexion = conectarSse(this.api.urlEventosPantalla(this.codigo()), {
+      token: null,
+      onEstado: e => {
+        this.canal.set(e);
+        // Al reconectar se pide la cola completa: algo pudo pasar mientras no había canal.
+        if (e === 'conectado') this.api.publicoVistaPantalla(this.codigo()).subscribe({ next: nv => { this.vista.set(nv); this.enCurso.set(nv.en_curso); this.enEspera.set(nv.en_espera); }, error: () => {} });
+      },
+      onEvento: (nombre, datos) => this.evento(nombre, datos as Turno, v),
+    });
+  }
+
+  private evento(nombre: string, t: Turno, v: VistaPantalla): void {
+    if (!nombre.startsWith('turno-')) return;
+    switch (nombre) {
+      case 'turno-creado':
+      case 'turno-aplazado':
+        this.enEspera.update(l => [...l.filter(x => x.id !== t.id), t].slice(0, v.turnos_visibles));
+        this.enCurso.update(l => l.filter(x => x.id !== t.id));
+        break;
+      case 'turno-llamado':
+        this.enEspera.update(l => l.filter(x => x.id !== t.id));
+        this.enCurso.update(l => [t, ...l.filter(x => x.id !== t.id)]);
+        this.cantar(t);
+        break;
+      case 'turno-iniciado':
+        this.enCurso.update(l => l.map(x => (x.id === t.id ? t : x)));
+        break;
+      case 'turno-cerrado':
+        this.enCurso.update(l => l.filter(x => x.id !== t.id));
+        this.enEspera.update(l => l.filter(x => x.id !== t.id));
+        break;
+    }
+    // La lista de espera visible puede haberse quedado corta: se completa desde el servidor.
+    if (nombre === 'turno-llamado' || nombre === 'turno-cerrado') {
+      this.api.publicoVistaPantalla(this.codigo()).subscribe({ next: nv => this.enEspera.set(nv.en_espera), error: () => {} });
+    }
+  }
+
+  // ── Cantar el turno ────────────────────────────────────────────────────
+
+  private cantar(t: Turno): void {
+    this.llamado.set(t);
+    if (this.temporizadorLlamado) clearTimeout(this.temporizadorLlamado);
+    this.temporizadorLlamado = setTimeout(() => this.llamado.set(null), 12_000);
+    const v = this.vista();
+    if (v?.sonido) this.campanilla();
+    if (v?.voz) { this.colaVoz.push(t); this.hablar(); }
+  }
+
+  private campanilla(): void {
+    try {
+      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      [880, 1175].forEach((f, i) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'sine'; o.frequency.value = f; g.gain.value = 0.001;
+        o.connect(g).connect(ctx.destination);
+        const t0 = ctx.currentTime + i * 0.22;
+        g.gain.setValueAtTime(0.001, t0); g.gain.exponentialRampToValueAtTime(0.2, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+        o.start(t0); o.stop(t0 + 0.55);
+      });
+      this.audioDesbloqueado.set(true);
+    } catch { /* sin audio */ }
+  }
+
+  private hablar(): void {
+    if (this.hablando || !this.colaVoz.length || typeof speechSynthesis === 'undefined') return;
+    const t = this.colaVoz.shift()!;
+    const v = this.vista()!;
+    const frase = (v.voz_plantilla || 'Turno {codigo}, diríjase a {punto}')
+      .replace('{codigo}', deletrear(t.codigo)).replace('{punto}', t.punto_nombre ?? '')
+      .replace('{servicio}', t.servicio_nombre ?? '').replace('{area}', t.area_nombre ?? '').replace('{nombre}', t.nombre ?? '');
+    const u = new SpeechSynthesisUtterance(frase);
+    u.lang = 'es-CO'; u.rate = 0.92;
+    const voz = speechSynthesis.getVoices().find(x => x.lang.startsWith('es-CO')) ?? speechSynthesis.getVoices().find(x => x.lang.startsWith('es'));
+    if (voz) u.voice = voz;
+    this.hablando = true;
+    u.onend = u.onerror = () => { this.hablando = false; setTimeout(() => this.hablar(), 300); };
+    speechSynthesis.speak(u);
+  }
+
+  /** Un clic en cualquier parte desbloquea el audio (los navegadores lo exigen). */
+  desbloquearAudio(): void {
+    this.campanilla();
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.getVoices();
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  }
+
+  // ── Rotación de piezas ─────────────────────────────────────────────────
+
+  private programarSiguiente(p: Media | null): void {
+    if (this.temporizadorPieza) clearTimeout(this.temporizadorPieza);
+    if (!p) return;
+    this.inicioPieza = Date.now();
+    // Un video propio avisa al terminar (videoTermino); lo demás va por duración.
+    if (p.tipo === 'VIDEO' && this.urlPieza()) {
+      this.temporizadorPieza = setTimeout(() => this.siguientePieza(), Math.max(5, p.duracion_seg) * 1000 + 15_000);
+      return;
+    }
+    this.temporizadorPieza = setTimeout(() => this.siguientePieza(), Math.max(3, p.duracion_seg) * 1000);
+  }
+
+  videoTermino(): void { this.siguientePieza(); }
+  videoFallo(): void { this.siguientePieza(); }
+
+  private siguientePieza(): void {
+    const p = this.pieza();
+    if (p) {
+      const seg = Math.round((Date.now() - this.inicioPieza) / 1000);
+      this.api.publicoEmision(this.codigo(), p.id, seg).subscribe({ error: () => {} });
+    }
+    const n = this.piezas().length;
+    if (!n) return;
+    this.indice.update(i => (i + 1) % n);
+    if (this.indice() === 0 && n === 1) this.programarSiguiente(this.pieza());
+  }
+
+  nombreCorto(t: Turno): string { return t.nombre ?? ''; }
+}
+
+/** "A-014" → "A, cero catorce": la voz lee mejor los dígitos separados de la letra. */
+export function deletrear(codigo: string): string {
+  const m = /^([A-Z]+)-?(\d+)$/i.exec(codigo);
+  if (!m) return codigo;
+  const letras = m[1].toUpperCase().split('').join(' ');
+  const n = parseInt(m[2], 10);
+  return `${letras}, ${n}`;
+}

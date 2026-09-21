@@ -1,0 +1,85 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>list_alt</mat-icon> Servicios de turnos</h1>
+      <p class="tn-subtitulo">Cada trámite que reparte turnos: su letra (A-014), en qué área se atiende, prioridad y horario.</p>
+    </div>
+    <div class="tn-acciones">
+      <app-selector-oficina />
+      @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nuevo()" [disabled]="!ctx.oficinaId()"><mat-icon>add</mat-icon> Nuevo servicio</button> }
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (formAbierto()) {
+    <form class="tn-tarjeta" (ngSubmit)="guardar()">
+      <h3><mat-icon>{{ editando() ? 'edit' : 'add' }}</mat-icon> {{ editando() ? 'Editar servicio' : 'Nuevo servicio' }}</h3>
+      <div class="tn-form">
+        <label class="tn-campo"><span>Nombre</span><input name="nombre" [(ngModel)]="form.nombre" required placeholder="Contratación"></label>
+        <label class="tn-campo"><span>Prefijo (letra del turno)</span><input name="prefijo" [(ngModel)]="form.prefijo" required maxlength="4" placeholder="A" style="text-transform:uppercase"><span class="ayuda">Único en la oficina: A-001, A-002…</span></label>
+        <label class="tn-campo"><span>Área donde se atiende</span>
+          <select name="area" [(ngModel)]="form.area_id">
+            <option [ngValue]="null">Sin área (aún)</option>
+            @for (a of areas(); track a.id) { <option [ngValue]="a.id">{{ a.nombre }}{{ a.referencia ? ' · ' + a.referencia : '' }}</option> }
+          </select>
+          <span class="ayuda">El cartel y la pantalla dicen "diríjase a {{ '{' }}área{{ '}' }}".</span>
+        </label>
+        <label class="tn-campo tn-campo--ancho"><span>Descripción (sale en el cartel y el QR)</span><input name="descripcion" [(ngModel)]="form.descripcion" placeholder="Firma de contrato, entrega de documentos"></label>
+        <label class="tn-campo"><span>Prioridad (0 = primero)</span><input name="prioridad" type="number" min="0" max="99" [(ngModel)]="form.prioridad"></label>
+        <label class="tn-campo"><span>Duración estimada (min)</span><input name="tiempo" type="number" min="1" [(ngModel)]="form.tiempo_estimado_min"></label>
+        <label class="tn-campo"><span>Cupo diario (0 = sin tope)</span><input name="cupo" type="number" min="0" [(ngModel)]="form.cupo_diario"></label>
+        <label class="tn-campo"><span>Orden en el kiosco</span><input name="orden" type="number" [(ngModel)]="form.orden"></label>
+        <label class="tn-campo"><span>Abre (opcional)</span><input name="abre" type="time" [(ngModel)]="form.hora_apertura"></label>
+        <label class="tn-campo"><span>Cierra (opcional)</span><input name="cierra" type="time" [(ngModel)]="form.hora_cierre"></label>
+        <div class="tn-campo"><span class="eti">Color</span>
+          <div class="colores">@for (c of COLORES; track c) { <button type="button" class="color" [style.background]="c" [class.color--on]="form.color === c" (click)="form.color = c" [attr.aria-label]="c"></button> }</div>
+        </div>
+        <div class="tn-campo"><span class="eti">Icono</span>
+          <div class="iconos">@for (i of ICONOS; track i) { <button type="button" class="icono" [class.icono--on]="form.icono === i" (click)="form.icono = i"><mat-icon>{{ i }}</mat-icon></button> }</div>
+        </div>
+        <label class="tn-check"><input type="checkbox" name="doc" [(ngModel)]="form.requiere_documento"> Exige cédula al tomar turno</label>
+        <label class="tn-check"><input type="checkbox" name="cita" [(ngModel)]="form.requiere_cita"> Solo con cita</label>
+        <label class="tn-check"><input type="checkbox" name="publico" [(ngModel)]="form.publico"> Visible en el QR y el kiosco</label>
+        @if (editando()) { <label class="tn-check"><input type="checkbox" name="activo" [(ngModel)]="form.activo"> Activo</label> }
+      </div>
+      <div class="tn-acciones" style="margin-top:12px">
+        <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !form.nombre || !form.prefijo"><mat-icon>save</mat-icon> Guardar</button>
+        <button type="button" class="tn-boton tn-boton--fantasma" (click)="formAbierto.set(false)">Cancelar</button>
+      </div>
+    </form>
+  }
+
+  <div class="tn-tarjeta">
+    @if (!servicios().length) {
+      <div class="tn-vacio"><mat-icon>list_alt</mat-icon><span>Esta oficina no tiene servicios. Sin servicios no hay turnos que repartir.</span></div>
+    } @else {
+      <div class="tn-tabla-marco">
+        <table class="tn-tabla">
+          <thead><tr><th>Prefijo</th><th>Servicio</th><th>Área</th><th class="numero">Prioridad</th><th class="numero">Dura</th><th class="numero">En espera</th><th>Visible</th><th>Estado</th><th class="acciones"></th></tr></thead>
+          <tbody>
+            @for (s of servicios(); track s.id) {
+              <tr [class.inactivo]="!s.activo">
+                <td><span class="prefijo tn-codigo" [style.background]="s.color || '#2B59F0'"><mat-icon>{{ s.icono || 'description' }}</mat-icon>{{ s.prefijo }}</span></td>
+                <td><strong>{{ s.nombre }}</strong>@if (s.descripcion) { <div class="desc">{{ s.descripcion }}</div> }</td>
+                <td>{{ s.area_nombre || '—' }}@if (s.area_referencia) { <div class="desc">{{ s.area_referencia }}</div> }</td>
+                <td class="numero">{{ s.prioridad }}</td>
+                <td class="numero">{{ s.tiempo_estimado_min }} min</td>
+                <td class="numero">{{ s.en_espera }}</td>
+                <td>@if (s.publico) { <span class="tn-chip tn-chip--info">QR/kiosco</span> } @else { <span class="tn-chip">Interno</span> }</td>
+                <td>@if (s.activo) { <span class="tn-chip tn-chip--ok">Activo</span> } @else { <span class="tn-chip tn-chip--danger">Inactivo</span> }</td>
+                <td class="acciones">
+                  @if (ctx.esAdmin()) {
+                    <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editar(s)" title="Editar"><mat-icon>edit</mat-icon></button>
+                    @if (s.activo) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivar(s)" title="Desactivar"><mat-icon>block</mat-icon></button> }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>

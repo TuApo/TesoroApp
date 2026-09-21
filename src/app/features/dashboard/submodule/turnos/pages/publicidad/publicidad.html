@@ -1,0 +1,212 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>campaign</mat-icon> Publicidad y cursos</h1>
+      <p class="tn-subtitulo">Piezas que circulan en los televisores de sala: imágenes y videos de cualquier formato, YouTube, avisos y cursos de inducción; clasificadas por oficina, sede, ciudad o empresa usuaria.</p>
+    </div>
+    <div class="pestanas">
+      <button type="button" class="pestana" [class.pestana--on]="pestana() === 'piezas'" (click)="pestana.set('piezas')"><mat-icon>perm_media</mat-icon> Piezas</button>
+      <button type="button" class="pestana" [class.pestana--on]="pestana() === 'listas'" (click)="pestana.set('listas')"><mat-icon>playlist_play</mat-icon> Listas</button>
+      <button type="button" class="pestana" [class.pestana--on]="pestana() === 'reporte'" (click)="pestana.set('reporte'); cargarReporte()"><mat-icon>bar_chart</mat-icon> Emisiones</button>
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <!-- ═══════ PIEZAS ═══════ -->
+  @if (pestana() === 'piezas') {
+    <div class="filtros">
+      <input class="buscar" type="search" placeholder="Buscar por título o etiqueta…" [ngModel]="q()" (ngModelChange)="q.set($event); pagina.set(0); cargarPiezas()">
+      <select [ngModel]="filtroTipo()" (ngModelChange)="filtroTipo.set($event); pagina.set(0); cargarPiezas()">
+        <option value="">Todos los tipos</option>
+        @for (t of TIPOS; track t.v) { <option [value]="t.v">{{ t.n }}</option> }
+      </select>
+      <span class="tn-subtitulo">{{ totalPiezas() }} piezas</span>
+      @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaPieza()"><mat-icon>add</mat-icon> Nueva pieza</button> }
+    </div>
+
+    @if (formPieza()) {
+      <form class="tn-tarjeta" (ngSubmit)="guardarPieza()">
+        <h3><mat-icon>{{ editandoPieza() ? 'edit' : 'add' }}</mat-icon> {{ editandoPieza() ? 'Editar pieza' : 'Nueva pieza' }}</h3>
+        <div class="tn-form">
+          <label class="tn-campo"><span>Tipo</span>
+            <select name="tipo" [(ngModel)]="pieza.tipo">@for (t of TIPOS; track t.v) { <option [value]="t.v">{{ t.n }}</option> }</select>
+          </label>
+          <label class="tn-campo tn-campo--ancho"><span>Título</span><input name="titulo" [(ngModel)]="pieza.titulo" required></label>
+          @if (pieza.tipo === 'IMAGEN' || pieza.tipo === 'VIDEO') {
+            <label class="tn-campo tn-campo--ancho"><span>Archivo (jpg, png, webp, gif, svg, mp4, webm, mov · hasta 200 MB)</span>
+              <input type="file" name="archivo" accept="image/*,video/mp4,video/webm,video/quicktime" (change)="seleccionarArchivo($event)">
+              <span class="ayuda">Entra de todo: vertical de celular, cuadrado de Instagram, 16:9 de TV. Abajo se elige cómo encaja en la pantalla.</span>
+            </label>
+          }
+          @if (pieza.tipo === 'YOUTUBE' || pieza.tipo === 'VIMEO' || pieza.tipo === 'HTML') {
+            <label class="tn-campo tn-campo--ancho"><span>{{ pieza.tipo === 'HTML' ? 'URL de la página' : 'Enlace del video' }}</span><input name="url" [(ngModel)]="pieza.url" placeholder="https://…"></label>
+          }
+          @if (pieza.tipo === 'TEXTO') {
+            <label class="tn-campo tn-campo--ancho"><span>Texto del aviso</span><textarea name="desc" [(ngModel)]="pieza.descripcion" rows="3"></textarea></label>
+          } @else {
+            <label class="tn-campo tn-campo--ancho"><span>Descripción</span><input name="desc" [(ngModel)]="pieza.descripcion"></label>
+          }
+          @if (pieza.tipo === 'CURSO') {
+            <label class="tn-campo tn-campo--ancho"><span>Enlace del curso (lo que abre el QR en el celular)</span><input name="cursourl" [(ngModel)]="pieza.curso_url" placeholder="https://tuapo.co/…"></label>
+          }
+          <label class="tn-campo"><span>Segundos en pantalla</span><input name="dur" type="number" min="1" [(ngModel)]="pieza.duracion_seg"><span class="ayuda">Para video, lo que dure el video si es menor.</span></label>
+          <label class="tn-campo"><span>Cómo encaja</span>
+            <select name="ajuste" [(ngModel)]="pieza.ajuste"><option value="CONTENER">Contener (entera, con bandas)</option><option value="CUBRIR">Cubrir (llena y recorta)</option><option value="ESTIRAR">Estirar</option></select>
+          </label>
+          <label class="tn-campo"><span>Vigente desde</span><input name="desde" type="datetime-local" [(ngModel)]="pieza.vigente_desde"></label>
+          <label class="tn-campo"><span>Vigente hasta</span><input name="hasta" type="datetime-local" [(ngModel)]="pieza.vigente_hasta"></label>
+          <label class="tn-campo tn-campo--ancho"><span>Etiquetas (separadas por coma)</span><input name="etq" [(ngModel)]="pieza.etiquetas" placeholder="campaña, seguridad, inducción"></label>
+          <label class="tn-check"><input type="checkbox" name="mudo" [(ngModel)]="pieza.silenciado"> Sin audio (recomendado en sala)</label>
+          @if (editandoPieza()) { <label class="tn-check"><input type="checkbox" name="act" [(ngModel)]="pieza.activo"> Activa</label> }
+
+          <div class="tn-campo tn-campo--ancho">
+            <span class="eti">Dónde sale (sin filas = en todas las pantallas)</span>
+            @for (a of pieza.alcances; track $index) {
+              <div class="alcance">
+                <select [name]="'at' + $index" [(ngModel)]="a.tipo" (ngModelChange)="a.valor_ref = null; a.valor_nombre = null">@for (t of ALCANCES; track t.v) { <option [value]="t.v">{{ t.n }}</option> }</select>
+                @if (a.tipo === 'OFICINA') {
+                  <select [name]="'av' + $index" [(ngModel)]="a.valor_ref" (ngModelChange)="alcanceValorCambiado(a)"><option [ngValue]="null">Elija…</option>@for (o of ctx.oficinas(); track o.id) { <option [value]="o.id">{{ o.nombre }}</option> }</select>
+                } @else if (a.tipo === 'SEDE') {
+                  <select [name]="'av' + $index" [(ngModel)]="a.valor_ref" (ngModelChange)="alcanceValorCambiado(a)"><option [ngValue]="null">Elija…</option>@for (s of sedes(); track s.id) { <option [value]="s.id">{{ s.nombre }}</option> }</select>
+                } @else {
+                  <input [name]="'av' + $index" [(ngModel)]="a.valor_ref" (ngModelChange)="alcanceValorCambiado(a)" [placeholder]="a.tipo === 'CIUDAD' ? 'Facatativá' : 'Nombre o id de la empresa usuaria'">
+                }
+                <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="quitarAlcance($index)"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            <button type="button" class="tn-boton" (click)="agregarAlcance()"><mat-icon>add</mat-icon> Agregar alcance</button>
+          </div>
+        </div>
+        <div class="tn-acciones" style="margin-top:12px">
+          <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !pieza.titulo"><mat-icon>{{ subiendo() ? 'cloud_upload' : 'save' }}</mat-icon> {{ subiendo() ? 'Subiendo archivo…' : 'Guardar' }}</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="formPieza.set(false)">Cancelar</button>
+        </div>
+      </form>
+    }
+
+    @if (!piezas().length) {
+      <div class="tn-tarjeta tn-vacio"><mat-icon>perm_media</mat-icon><span>Sin piezas. Suba la primera imagen o video, o pegue un enlace de YouTube.</span></div>
+    } @else {
+      <div class="galeria">
+        @for (m of piezas(); track m.id) {
+          <article class="pieza" [class.pieza--inactiva]="!m.activo" [class.pieza--caducada]="m.activo && !m.vigente">
+            <div class="pieza__vista">
+              @if (m.tipo === 'IMAGEN' && urlPieza(m)) { <img [src]="urlPieza(m)" [alt]="m.titulo" loading="lazy"> }
+              @else if (m.tipo === 'VIDEO' && urlPieza(m)) { <video [src]="urlPieza(m)" muted preload="metadata"></video> }
+              @else if (m.tipo === 'YOUTUBE' && miniaturaYoutube(m)) { <img [src]="miniaturaYoutube(m)" [alt]="m.titulo" loading="lazy"> }
+              @else { <div class="pieza__icono"><mat-icon>{{ iconoTipo(m.tipo) }}</mat-icon>@if (m.tipo === 'TEXTO') { <p>{{ m.descripcion }}</p> }</div> }
+              <span class="pieza__tipo"><mat-icon>{{ iconoTipo(m.tipo) }}</mat-icon> {{ m.tipo }}</span>
+            </div>
+            <div class="pieza__cuerpo">
+              <strong class="pieza__titulo" [title]="m.titulo">{{ m.titulo }}</strong>
+              <span class="pieza__meta">{{ m.duracion_seg }} s · {{ m.ajuste }}{{ m.bytes ? ' · ' + (m.bytes / 1048576 | number:'1.0-1') + ' MB' : '' }}</span>
+              <div class="pieza__alcances">
+                @if (!m.alcances.length) { <span class="tn-chip tn-chip--info">Todas las pantallas</span> }
+                @for (a of m.alcances; track a.id) { <span class="tn-chip" [title]="a.tipo">{{ a.valor_nombre || a.valor_ref }}</span> }
+              </div>
+              @if (!m.activo) { <span class="tn-chip tn-chip--danger">Retirada</span> }
+              @else if (!m.vigente) { <span class="tn-chip tn-chip--warn">Fuera de vigencia</span> }
+            </div>
+            @if (ctx.esAdmin()) {
+              <div class="pieza__acciones">
+                <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarPieza(m)" title="Editar"><mat-icon>edit</mat-icon></button>
+                @if (m.activo) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivarPieza(m)" title="Retirar"><mat-icon>block</mat-icon></button> }
+              </div>
+            }
+          </article>
+        }
+      </div>
+    }
+  }
+
+  <!-- ═══════ LISTAS ═══════ -->
+  @if (pestana() === 'listas') {
+    <div class="filtros">
+      <span class="tn-subtitulo">El orden en que circulan las piezas en cada pantalla. Una lista sin oficina la pueden usar todas.</span>
+      @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaLista()"><mat-icon>playlist_add</mat-icon> Nueva lista</button> }
+    </div>
+
+    @if (formLista()) {
+      <form class="tn-tarjeta" (ngSubmit)="guardarLista()">
+        <h3><mat-icon>playlist_play</mat-icon> {{ editandoLista() ? 'Editar lista' : 'Nueva lista' }}</h3>
+        <div class="tn-form">
+          <label class="tn-campo"><span>Nombre</span><input name="lnombre" [(ngModel)]="lista.nombre" required></label>
+          <label class="tn-campo"><span>Oficina (vacío = compartida)</span>
+            <select name="lof" [(ngModel)]="lista.oficina_id"><option [ngValue]="null">Compartida</option>@for (o of ctx.oficinas(); track o.id) { <option [value]="o.id">{{ o.nombre }}</option> }</select>
+          </label>
+          <label class="tn-campo"><span>Modo</span><select name="lmodo" [(ngModel)]="lista.modo"><option value="SECUENCIAL">Secuencial</option><option value="ALEATORIO">Aleatorio</option></select></label>
+          <label class="tn-campo tn-campo--ancho"><span>Descripción</span><input name="ldesc" [(ngModel)]="lista.descripcion"></label>
+        </div>
+        <div class="lista-editor">
+          <div>
+            <h4>Piezas disponibles</h4>
+            <input class="buscar" type="search" placeholder="Filtrar…" [ngModel]="buscadorLista()" (ngModelChange)="buscadorLista.set($event)">
+            <ul class="lista-piezas">
+              @for (m of piezasParaLista(); track m.id) {
+                <li><label class="tn-check"><input type="checkbox" [checked]="enLista(m.id)" (change)="alternarEnLista(m)"><mat-icon>{{ iconoTipo(m.tipo) }}</mat-icon> {{ m.titulo }} <span class="muted">{{ m.duracion_seg }} s</span></label></li>
+              }
+            </ul>
+          </div>
+          <div>
+            <h4>En esta lista ({{ lista.items.length }})</h4>
+            <ol class="lista-orden">
+              @for (i of lista.items; track i.media_id; let k = $index) {
+                <li>
+                  <span class="lista-orden__titulo">{{ tituloPieza(i.media_id) }}</span>
+                  <input type="number" min="1" [(ngModel)]="i.duracion_seg" [name]="'dur' + k" placeholder="s" title="Duración solo en esta lista">
+                  <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="moverItem(k, -1)"><mat-icon>arrow_upward</mat-icon></button>
+                  <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="moverItem(k, 1)"><mat-icon>arrow_downward</mat-icon></button>
+                </li>
+              }
+            </ol>
+          </div>
+        </div>
+        <div class="tn-acciones" style="margin-top:12px">
+          <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !lista.nombre"><mat-icon>save</mat-icon> Guardar lista</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="formLista.set(false)">Cancelar</button>
+        </div>
+      </form>
+    }
+
+    @if (!listas().length) {
+      <div class="tn-tarjeta tn-vacio"><mat-icon>playlist_play</mat-icon><span>Sin listas. Sin ellas, cada pantalla muestra todo lo vigente que le aplique por alcance.</span></div>
+    } @else {
+      <div class="tn-rejilla">
+        @for (p of listas(); track p.id) {
+          <article class="tn-tarjeta">
+            <h3><mat-icon>playlist_play</mat-icon> {{ p.nombre }} @if (!p.activa) { <span class="tn-chip tn-chip--danger">Retirada</span> }</h3>
+            <p class="tn-subtitulo">{{ p.oficina_id ? 'De una oficina' : 'Compartida' }} · {{ p.modo }} · {{ p.items.length }} piezas · {{ p.duracion_total_seg }} s por vuelta</p>
+            <ol class="mini">@for (i of p.items; track i.id) { <li>{{ i.media.titulo }}</li> }</ol>
+            @if (ctx.esAdmin()) {
+              <div class="tn-acciones">
+                <button type="button" class="tn-boton" (click)="editarLista(p)"><mat-icon>edit</mat-icon> Editar</button>
+                @if (p.activa) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivarLista(p)" title="Retirar"><mat-icon>block</mat-icon></button> }
+              </div>
+            }
+          </article>
+        }
+      </div>
+    }
+  }
+
+  <!-- ═══════ REPORTE ═══════ -->
+  @if (pestana() === 'reporte') {
+    <div class="filtros">
+      <label class="tn-campo"><span>Desde</span><input type="date" [(ngModel)]="reporteDesde"></label>
+      <label class="tn-campo"><span>Hasta</span><input type="date" [(ngModel)]="reporteHasta"></label>
+      <button type="button" class="tn-boton" (click)="cargarReporte()"><mat-icon>refresh</mat-icon> Consultar</button>
+      <span class="tn-subtitulo">Oficina: {{ ctx.oficina()?.nombre || 'todas' }}. Es lo que permite responderle a una empresa usuaria cuántas veces salió su pieza.</span>
+    </div>
+    <div class="tn-tarjeta">
+      @if (!reporte().length) { <div class="tn-vacio"><mat-icon>bar_chart</mat-icon><span>Sin emisiones en el rango.</span></div> }
+      @else {
+        <div class="tn-tabla-marco"><table class="tn-tabla">
+          <thead><tr><th>Pieza</th><th>Tipo</th><th class="numero">Emisiones</th><th class="numero">Minutos en pantalla</th></tr></thead>
+          <tbody>@for (r of reporte(); track r.media_id) { <tr><td>{{ r.titulo }}</td><td><span class="tn-chip">{{ r.tipo }}</span></td><td class="numero">{{ r.emisiones }}</td><td class="numero">{{ r.segundos / 60 | number:'1.0-0' }}</td></tr> }</tbody>
+        </table></div>
+      }
+    </div>
+  }
+</div>

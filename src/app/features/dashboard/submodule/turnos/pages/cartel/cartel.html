@@ -1,0 +1,123 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado no-imprimir">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>print</mat-icon> Cartel imprimible</h1>
+      <p class="tn-subtitulo">La hoja estándar que se pega en cada oficina: croquis, código, trámites y QR para tomar turno desde el celular.</p>
+    </div>
+    <div class="tn-acciones">
+      <app-selector-oficina />
+      <button type="button" class="tn-boton tn-boton--primario" (click)="imprimir()" [disabled]="!hoja()"><mat-icon>print</mat-icon> Imprimir</button>
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error no-imprimir"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok no-imprimir"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <div class="dos-columnas">
+    <div class="columna no-imprimir">
+      @if (ctx.esAdmin()) {
+        <form class="tn-tarjeta" (ngSubmit)="guardar()">
+          <h3><mat-icon>tune</mat-icon> Diseño del cartel</h3>
+          @if (vigente()?.impreso_en) { <div class="tn-aviso"><mat-icon>info</mat-icon> Este cartel ya se imprimió: cualquier cambio nace como versión nueva con otro código.</div> }
+          <div class="tn-form">
+            <label class="tn-campo tn-campo--ancho"><span>Título</span><input name="titulo" [(ngModel)]="form.titulo"></label>
+            <label class="tn-campo tn-campo--ancho"><span>Subtítulo</span><input name="subtitulo" [(ngModel)]="form.subtitulo"></label>
+            <label class="tn-campo"><span>Plantilla</span>
+              <select name="plantilla" [(ngModel)]="form.plantilla">@for (p of PLANTILLAS; track p.v) { <option [value]="p.v">{{ p.n }}</option> }</select>
+            </label>
+            <div class="tn-campo"><span class="eti">Contenido</span>
+              <label class="tn-check"><input type="checkbox" name="mc" [(ngModel)]="form.mostrar_croquis"> Croquis</label>
+              <label class="tn-check"><input type="checkbox" name="mq" [(ngModel)]="form.mostrar_qr"> QR</label>
+              <label class="tn-check"><input type="checkbox" name="ms" [(ngModel)]="form.mostrar_servicios"> Lista de trámites</label>
+            </div>
+            <label class="tn-campo tn-campo--ancho"><span>Instrucciones (una por línea)</span><textarea name="instr" [(ngModel)]="form.instrucciones" rows="4"></textarea></label>
+            <label class="tn-campo tn-campo--ancho"><span>Pie</span><input name="pie" [(ngModel)]="form.pie"></label>
+          </div>
+          <div class="tn-acciones" style="margin-top:12px">
+            <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !ctx.oficinaId()"><mat-icon>save</mat-icon> Guardar y generar</button>
+          </div>
+        </form>
+      }
+
+      @if (carteles().length) {
+        <div class="tn-tarjeta">
+          <h3><mat-icon>history</mat-icon> Versiones</h3>
+          <div class="versiones">
+            @for (c of carteles(); track c.id) {
+              <button type="button" class="version" [class.version--on]="vigente()?.id === c.id" (click)="verVersion(c)">
+                <span class="tn-codigo">{{ c.codigo_publico }}</span>
+                <span class="version__meta">v{{ c.version }} · {{ c.vigente ? 'vigente' : 'retirado' }}{{ c.impreso_en ? ' · impreso ' + (c.impreso_en | date:'dd/MM/yy') : '' }}</span>
+              </button>
+            }
+          </div>
+          <p class="tn-subtitulo">Un código retirado no se recicla nunca: un cartel viejo que siga pegado no puede mandar gente al sitio equivocado.</p>
+        </div>
+      }
+    </div>
+
+    <!-- Vista previa = hoja impresa -->
+    <div class="columna columna--hoja">
+      @if (hoja(); as h) {
+        <article class="hoja" [attr.data-plantilla]="h.cartel.plantilla">
+          <header class="hoja__cabecera">
+            <div>
+              <h1 class="hoja__titulo">{{ h.cartel.titulo }}</h1>
+              @if (h.cartel.subtitulo) { <p class="hoja__subtitulo">{{ h.cartel.subtitulo }}</p> }
+            </div>
+            <div class="hoja__oficina">
+              <span class="hoja__oficina-nombre">{{ h.oficina.nombre }}</span>
+              <span class="hoja__oficina-codigo">{{ h.oficina.codigo }}</span>
+              @if (h.oficina.direccion) { <span class="hoja__oficina-dir">{{ h.oficina.direccion }}{{ h.oficina.ciudad ? ' · ' + h.oficina.ciudad : '' }}</span> }
+            </div>
+          </header>
+
+          @if (h.cartel.mostrar_croquis && h.croquis) {
+            <section class="hoja__croquis">
+              <app-croquis-svg [croquis]="h.croquis" />
+            </section>
+          }
+
+          <section class="hoja__medio">
+            @if (h.cartel.mostrar_servicios && h.servicios.length) {
+              <div class="hoja__servicios">
+                <h2>¿Qué trámite viene a hacer?</h2>
+                <ul>
+                  @for (s of h.servicios; track s.prefijo) {
+                    <li>
+                      <span class="hoja__prefijo" [style.background]="s.color || '#2B59F0'">{{ s.prefijo }}</span>
+                      <span class="hoja__srv">
+                        <strong>{{ s.nombre }}</strong>
+                        @if (s.area) { <span>→ {{ s.area }}{{ s.referencia ? ', ' + s.referencia : '' }}{{ s.piso ? ' (piso ' + s.piso + ')' : '' }}</span> }
+                        @if (s.descripcion) { <em>{{ s.descripcion }}</em> }
+                      </span>
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+            @if (h.cartel.mostrar_qr && h.cartel.qr_data_uri) {
+              <div class="hoja__qr">
+                <img [src]="h.cartel.qr_data_uri" alt="QR para tomar turno">
+                <span class="hoja__qr-codigo">{{ h.cartel.codigo_publico }}</span>
+                <span class="hoja__qr-ayuda">Escanee o escriba el código en<br>{{ h.cartel.url_qr.replace('https://', '').split('/t/')[0] }}/t</span>
+              </div>
+            }
+          </section>
+
+          @if (h.cartel.instrucciones) {
+            <section class="hoja__instrucciones">
+              @for (linea of h.cartel.instrucciones.split('\n'); track $index) { @if (linea.trim()) { <p>{{ linea }}</p> } }
+            </section>
+          }
+          @if (h.cartel.pie) { <footer class="hoja__pie">{{ h.cartel.pie }}</footer> }
+        </article>
+      } @else {
+        <div class="tn-tarjeta tn-vacio">
+          <mat-icon>print</mat-icon>
+          <span>Esta oficina no tiene cartel. {{ ctx.esAdmin() ? 'Ajuste el diseño y pulse "Guardar y generar".' : 'Pida a un administrador que lo genere.' }}</span>
+          @if (!ctx.oficina()?.tiene_croquis) { <span class="tn-subtitulo">Consejo: dibuje y publique el croquis primero para que salga en la hoja.</span> }
+        </div>
+      }
+    </div>
+  </div>
+</div>

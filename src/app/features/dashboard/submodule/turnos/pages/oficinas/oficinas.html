@@ -1,0 +1,162 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>map</mat-icon> Oficinas y croquis</h1>
+      <p class="tn-subtitulo">Cada oficina física que reparte turnos, con su mapa (croquis), sus áreas y sus puntos de atención.</p>
+    </div>
+    <div class="tn-acciones">
+      <label class="tn-check"><input type="checkbox" [checked]="mostrarInactivas()" (change)="mostrarInactivas.set(!mostrarInactivas())"> Ver inactivas</label>
+      @if (ctx.esAdmin()) {
+        <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaOficina()"><mat-icon>add_business</mat-icon> Nueva oficina</button>
+      }
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (formAbierto() === 'oficina') {
+    <form class="tn-tarjeta" (ngSubmit)="guardarOficina()">
+      <h3><mat-icon>{{ editando() ? 'edit' : 'add_business' }}</mat-icon> {{ editando() ? 'Editar oficina' : 'Nueva oficina' }}</h3>
+      <div class="tn-form">
+        <label class="tn-campo"><span>Nombre</span><input name="nombre" [(ngModel)]="formOficina.nombre" required placeholder="Oficina Facatativá"></label>
+        <label class="tn-campo"><span>Código (sale impreso)</span><input name="codigo" [(ngModel)]="formOficina.codigo" required maxlength="16" placeholder="FACA1" style="text-transform:uppercase"><span class="ayuda">Corto y único: va en el cartel y en el código del QR.</span></label>
+        <label class="tn-campo"><span>Sede</span>
+          <select name="sede" [(ngModel)]="formOficina.sede_ref">
+            <option [ngValue]="null">Sin sede</option>
+            @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+          </select>
+        </label>
+        <label class="tn-campo"><span>Ciudad</span><input name="ciudad" [(ngModel)]="formOficina.ciudad"></label>
+        <label class="tn-campo tn-campo--ancho"><span>Dirección</span><input name="direccion" [(ngModel)]="formOficina.direccion"></label>
+        <label class="tn-campo"><span>Teléfono</span><input name="telefono" [(ngModel)]="formOficina.telefono"></label>
+        <label class="tn-campo"><span>Abre</span><input name="abre" type="time" [(ngModel)]="formOficina.hora_apertura"></label>
+        <label class="tn-campo"><span>Cierra</span><input name="cierra" type="time" [(ngModel)]="formOficina.hora_cierre"></label>
+        <div class="tn-campo"><span class="eti">Días hábiles</span>
+          <div class="dias">
+            @for (d of DIAS; track $index) {
+              <label class="dia" [class.dia--on]="formOficina.dias[$index]"><input type="checkbox" [name]="'d' + $index" [(ngModel)]="formOficina.dias[$index]">{{ d }}</label>
+            }
+          </div>
+        </div>
+        @if (editando()) { <label class="tn-check"><input type="checkbox" name="activa" [(ngModel)]="formOficina.activa"> Activa</label> }
+      </div>
+      <div class="tn-acciones" style="margin-top:12px">
+        <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !formOficina.nombre || !formOficina.codigo"><mat-icon>save</mat-icon> Guardar</button>
+        <button type="button" class="tn-boton tn-boton--fantasma" (click)="formAbierto.set('')">Cancelar</button>
+      </div>
+    </form>
+  }
+
+  <div class="dos-columnas">
+    <!-- Lista -->
+    <div class="tn-tarjeta lista">
+      <h3><mat-icon>storefront</mat-icon> Oficinas <span class="n">{{ visibles().length }}</span></h3>
+      @if (!visibles().length) {
+        <div class="tn-vacio"><mat-icon>map</mat-icon><span>Sin oficinas todavía.</span></div>
+      }
+      @for (o of visibles(); track o.id) {
+        <button type="button" class="oficina" [class.oficina--activa]="seleccionada()?.id === o.id" [class.oficina--inactiva]="!o.activa" (click)="seleccionar(o)">
+          <span class="oficina__codigo tn-codigo">{{ o.codigo }}</span>
+          <span class="oficina__texto">
+            <span class="oficina__nombre">{{ o.nombre }}</span>
+            <span class="oficina__meta">{{ o.ciudad || o.sede_nombre || '—' }} · {{ o.servicios }} serv. · {{ o.puntos }} puntos · {{ o.pantallas }} pant.</span>
+          </span>
+          <span class="oficina__estado">
+            @if (!o.activa) { <span class="tn-chip tn-chip--danger">Inactiva</span> }
+            @else if (o.tiene_croquis) { <mat-icon class="ok" title="Tiene croquis">map</mat-icon> }
+            @else { <mat-icon class="falta" title="Sin croquis">map</mat-icon> }
+          </span>
+        </button>
+      }
+    </div>
+
+    <!-- Detalle -->
+    @if (seleccionada(); as o) {
+      <div class="detalle">
+        <div class="tn-tarjeta">
+          <div class="detalle__cabecera">
+            <div>
+              <h2 class="detalle__titulo">{{ o.nombre }} <span class="tn-codigo">{{ o.codigo }}</span></h2>
+              <p class="tn-subtitulo">{{ o.direccion || 'Sin dirección' }}{{ o.ciudad ? ' · ' + o.ciudad : '' }}{{ o.telefono ? ' · ' + o.telefono : '' }}
+                @if (o.hora_apertura) { · {{ o.hora_apertura.slice(0,5) }}–{{ o.hora_cierre?.slice(0,5) }} }</p>
+            </div>
+            @if (ctx.esAdmin()) {
+              <div class="tn-acciones">
+                <button type="button" class="tn-boton tn-boton--primario" (click)="irAlCroquis(o)"><mat-icon>architecture</mat-icon> {{ o.tiene_croquis ? 'Editar croquis' : 'Dibujar croquis' }}</button>
+                <button type="button" class="tn-boton" (click)="irAlCartel(o)"><mat-icon>print</mat-icon> Cartel</button>
+                <button type="button" class="tn-boton" (click)="editarOficina(o)"><mat-icon>edit</mat-icon> Editar</button>
+                @if (o.activa) { <button type="button" class="tn-boton tn-boton--fantasma" (click)="desactivarOficina(o)" title="Desactivar"><mat-icon>block</mat-icon></button> }
+              </div>
+            }
+          </div>
+          @if (o.cartel_codigo) { <div class="tn-aviso"><mat-icon>qr_code_2</mat-icon> Código del cartel vigente: <strong class="tn-codigo">{{ o.cartel_codigo }}</strong></div> }
+          @else { <div class="tn-aviso"><mat-icon>info</mat-icon> Esta oficina aún no tiene cartel impreso. Dibuje el croquis y luego genere el cartel.</div> }
+        </div>
+
+        <div class="tn-tarjeta">
+          <div class="detalle__cabecera">
+            <h3><mat-icon>desk</mat-icon> Puntos de atención <span class="n">{{ puntos().length }}</span></h3>
+            @if (ctx.esAdmin()) { <button type="button" class="tn-boton" (click)="nuevoPunto()"><mat-icon>add</mat-icon> Nuevo punto</button> }
+          </div>
+          <p class="tn-subtitulo">Lo que la pantalla canta: "Turno A-014, <strong>Módulo 3</strong>". Un punto sin servicios asignados atiende todos.</p>
+
+          @if (formAbierto() === 'punto') {
+            <form class="subform" (ngSubmit)="guardarPunto()">
+              <div class="tn-form">
+                <label class="tn-campo"><span>Nombre</span><input name="pnombre" [(ngModel)]="formPunto.nombre" required placeholder="Módulo 3"></label>
+                <label class="tn-campo"><span>Código</span><input name="pcodigo" [(ngModel)]="formPunto.codigo" maxlength="16" placeholder="M3"></label>
+                <label class="tn-campo"><span>Área del croquis</span>
+                  <select name="parea" [(ngModel)]="formPunto.area_id">
+                    <option [ngValue]="null">Sin área</option>
+                    @for (a of areas(); track a.id) { <option [ngValue]="a.id">{{ a.nombre }}</option> }
+                  </select>
+                </label>
+                <label class="tn-campo"><span>Orden</span><input name="porden" type="number" [(ngModel)]="formPunto.orden"></label>
+                <div class="tn-campo tn-campo--ancho"><span class="eti">Servicios que atiende (vacío = todos)</span>
+                  <div class="chips">
+                    @for (s of servicios(); track s.id) {
+                      <button type="button" class="tn-chip chip-btn" [class.tn-chip--info]="formPunto.servicios.includes(s.id)" (click)="alternarServicioPunto(s.id)">{{ s.prefijo }} · {{ s.nombre }}</button>
+                    }
+                  </div>
+                </div>
+                @if (editando()) { <label class="tn-check"><input type="checkbox" name="pactivo" [(ngModel)]="formPunto.activo"> Activo</label> }
+              </div>
+              <div class="tn-acciones" style="margin-top:10px">
+                <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !formPunto.nombre"><mat-icon>save</mat-icon> Guardar</button>
+                <button type="button" class="tn-boton tn-boton--fantasma" (click)="formAbierto.set('')">Cancelar</button>
+              </div>
+            </form>
+          }
+
+          @if (!puntos().length) {
+            <div class="tn-vacio"><mat-icon>desk</mat-icon><span>Sin puntos de atención. Sin ellos nadie puede abrir puesto.</span></div>
+          } @else {
+            <div class="tn-tabla-marco">
+              <table class="tn-tabla">
+                <thead><tr><th>Punto</th><th>Área</th><th>Servicios</th><th>Ocupado por</th><th>Estado</th><th class="acciones"></th></tr></thead>
+                <tbody>
+                  @for (p of puntos(); track p.id) {
+                    <tr>
+                      <td><strong>{{ p.nombre }}</strong> @if (p.codigo) { <span class="tn-codigo">{{ p.codigo }}</span> }</td>
+                      <td>{{ p.area_nombre || '—' }}</td>
+                      <td>@if (!p.servicios.length) { <span class="tn-chip">Todos</span> } @else { @for (s of p.servicios; track s) { <span class="tn-chip">{{ nombreServicio(s) }}</span> } }</td>
+                      <td>{{ p.usuario_nombre || '—' }}</td>
+                      <td>@if (p.activo) { <span class="tn-chip tn-chip--ok">Activo</span> } @else { <span class="tn-chip tn-chip--danger">Inactivo</span> }</td>
+                      <td class="acciones">
+                        @if (ctx.esAdmin()) {
+                          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarPunto(p)" title="Editar"><mat-icon>edit</mat-icon></button>
+                          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="eliminarPunto(p)" title="Eliminar" [disabled]="!!p.usuario_ref"><mat-icon>delete</mat-icon></button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </div>
+      </div>
+    }
+  </div>
+</div>
