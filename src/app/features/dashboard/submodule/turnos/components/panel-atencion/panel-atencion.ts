@@ -72,6 +72,8 @@ export class PanelAtencion implements OnInit {
   readonly menuCaso = signal<string | null>(null);
   /** Nombre y descripción que se editan en el menú de la pestaña. */
   edicionCaso = { nombre: '', motivo: '' };
+  /** El menú muestra solo lo esencial (nombre e ir a la pantalla); esto abre el resto. */
+  readonly menuMas = signal(false);
   /** El cuerpo ya se pintó una vez: se deja en el DOM para que plegar/desplegar anime. */
   readonly montado = signal(false);
   /** Mientras se arrastra el asa no se anima la altura (iría a saltos). */
@@ -414,8 +416,12 @@ export class PanelAtencion implements OnInit {
     const t = this.turno();
     const datos = this.vista.datosDeLaVista();
     const foto = this.vista.esVistaDeTrabajo() ? this.vista.capturar() : null;
+    // El nombre de la pestaña resume lo que había en la pantalla (título, persona o lo
+    // buscado, fechas, filtros). Si hay persona, el servidor arma el suyo con cédula y nombre.
+    const conPersona = !!(datos.documento || datos.persona_nombre);
     const cuerpo = {
       turno_id: t?.id ?? null, oficina_id: this.ctx.oficinaId(),
+      nombre: conPersona || !foto ? null : this.vista.resumenDeLaVista(),
       documento: datos.documento, persona_nombre: datos.persona_nombre, telefono: datos.telefono, correo: datos.correo,
       motivo: datos.motivo, activar: true,
     };
@@ -603,6 +609,7 @@ export class PanelAtencion implements OnInit {
     e.stopPropagation();
     const abrir = this.menuCaso() !== c.id;
     this.menuCaso.set(abrir ? c.id : null);
+    this.menuMas.set(false);
     if (abrir) this.edicionCaso = { nombre: c.nombre, motivo: c.motivo ?? '' };
   }
 

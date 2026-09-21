@@ -20,6 +20,8 @@ export interface VistaCaso {
   modulo?: string;
   /** Valores de los campos de la pantalla, por clave estable (name/formControlName/id). */
   campos?: Record<string, string | boolean>;
+  /** Controles de Material que no son campos nativos: mat-select y grupos de botones, por clave → texto elegido. */
+  material?: Record<string, string>;
   /** Desplazamiento vertical del contenedor de página. */
   scroll?: number;
   /** Cuándo se tomó la foto. */
@@ -71,8 +73,71 @@ export class VistaCasoService {
       }
     });
     if (Object.keys(campos).length) v.campos = campos;
+    const material = this.materialDe(pagina);
+    if (Object.keys(material).length) v.material = material;
     if (pagina.scrollTop) v.scroll = pagina.scrollTop;
     return v;
+  }
+
+  /**
+   * Un nombre que resuma lo que hay en la pantalla: el título y lo más distintivo de lo
+   * que se estaba viendo (la persona si la hay; si no, lo buscado, el rango de fechas y
+   * los filtros elegidos). Es el nombre de la pestaña del caso; se puede cambiar a mano.
+   */
+  resumenDeLaVista(): string {
+    const titulo = this.navegacion.titulo() || 'Pantalla';
+    const partes: string[] = [];
+    const datos = this.datosDeLaVista();
+    if (datos.documento || datos.persona_nombre) {
+      partes.push([datos.persona_nombre, datos.documento].filter(Boolean).join(' '));
+    }
+    const pagina = this.pagina;
+    if (pagina && partes.length < 2) {
+      const textos: string[] = [];
+      const fechas: string[] = [];
+      for (const { clave, el } of this.camposDe(pagina)) {
+        const v = (el.value ?? '').toString().trim();
+        if (!v || el instanceof HTMLSelectElement) continue;
+        if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio' || el.type === 'hidden')) continue;
+        const k = normalizar(clave + ' ' + (el.getAttribute('placeholder') ?? ''));
+        if (el instanceof HTMLInputElement && (el.type === 'date' || /fecha|date|desde|hasta|inicio|fin/.test(k))) { fechas.push(v); continue; }
+        if (v.length >= 3 && !/^\d{1,3}$/.test(v)) textos.push(v);
+      }
+      if (textos.length) partes.push(textos.slice(0, 2).join(', '));
+      if (fechas.length) partes.push(fechas.length >= 2 ? `${fechas[0]} – ${fechas[1]}` : fechas[0]);
+      const material = this.materialDe(pagina);
+      const filtros = Object.values(material).filter(t => t && !/^(todas|todos|ninguno|ninguna|—|-)$/i.test(t)).slice(0, 2);
+      if (filtros.length && partes.length < 3) partes.push(filtros.join(', '));
+    }
+    const nombre = [titulo, ...partes].join(' · ');
+    return nombre.length > 90 ? nombre.slice(0, 89) + '…' : nombre;
+  }
+
+  /** mat-select y grupos de botones de Material: clave → texto que se ve elegido. */
+  private materialDe(pagina: HTMLElement): Record<string, string> {
+    const out: Record<string, string> = {};
+    const vistos = new Map<string, number>();
+    const clave = (el: Element, base: string, i: number) => {
+      let k = el.getAttribute('formcontrolname') || el.getAttribute('name') || el.getAttribute('aria-label') || el.id || `${base}#${i}`;
+      if (/^mat-/.test(k) && el.getAttribute('aria-labelledby')) {
+        const lbl = pagina.querySelector('#' + el.getAttribute('aria-labelledby')!.split(' ')[0]);
+        if (lbl?.textContent?.trim()) k = base + ':' + lbl.textContent.trim();
+      }
+      const n = vistos.get(k) ?? 0; vistos.set(k, n + 1);
+      return n ? `${k}@${n}` : k;
+    };
+    pagina.querySelectorAll<HTMLElement>('mat-select').forEach((el, i) => {
+      if (el.closest('app-panel-atencion')) return;
+      const texto = el.querySelector('.mat-mdc-select-value-text, .mat-select-value-text')?.textContent?.trim() ?? '';
+      if (texto) out['sel:' + clave(el, 'select', i)] = texto;
+    });
+    pagina.querySelectorAll<HTMLElement>('mat-button-toggle-group').forEach((el, i) => {
+      if (el.closest('app-panel-atencion')) return;
+      const on = el.querySelector('mat-button-toggle.mat-button-toggle-checked, [aria-pressed="true"], [aria-checked="true"]');
+      const texto = on?.textContent?.trim() ?? '';
+      if (texto) out['tog:' + clave(el, 'toggle', i)] = texto;
+    });
+    return out;
   }
 
   /**
@@ -91,25 +156,67 @@ export class VistaCasoService {
       } catch { /* la navegación no terminó a tiempo; se intenta igual */ }
       await navegado.catch(() => false);
     }
-    if (!v.campos || !Object.keys(v.campos).length) {
+    const hayCampos = !!v.campos && Object.keys(v.campos).length > 0;
+    const hayMaterial = !!v.material && Object.keys(v.material).length > 0;
+    if (!hayCampos && !hayMaterial) {
       if (v.scroll) this.esperarYDesplazar(v.scroll);
       return true;
     }
     // La pantalla puede tardar en pintar sus campos (datos que llegan por HTTP): se
     // reintenta durante unos segundos hasta que aparezca alguno de los guardados.
-    const claves = new Set(Object.keys(v.campos));
+    const claves = new Set(Object.keys(v.campos ?? {}));
+    const clavesMat = new Set(Object.keys(v.material ?? {}));
     for (let intento = 0; intento < 20; intento++) {
       const pagina = this.pagina;
       const presentes = pagina ? this.camposDe(pagina).filter(c => claves.has(c.clave)) : [];
-      if (presentes.length) {
+      const presentesMat = pagina ? Object.keys(this.materialDe(pagina)).filter(k => clavesMat.has(k)) : [];
+      if (presentes.length || presentesMat.length) {
         await new Promise(r => setTimeout(r, 150));
-        this.aplicar(v.campos, this.camposDe(this.pagina!));
+        if (hayMaterial) await this.aplicarMaterial(v.material!);
+        if (hayCampos) this.aplicar(v.campos!, this.camposDe(this.pagina!));
         if (v.scroll) this.esperarYDesplazar(v.scroll);
         return true;
       }
       await new Promise(r => setTimeout(r, 250));
     }
     return true;
+  }
+
+  /**
+   * Repone mat-select y grupos de botones: se abre el selector y se pulsa la opción cuyo
+   * texto coincide con el guardado. Es lo que Material entiende; escribirle el valor por
+   * dentro no dispararía sus eventos.
+   */
+  private async aplicarMaterial(material: Record<string, string>): Promise<void> {
+    const pagina = this.pagina;
+    if (!pagina || typeof document === 'undefined') return;
+    const actual = this.materialDe(pagina);
+    // Se empareja por orden de aparición: es el mismo recorrido de la captura.
+    const selects = Array.from(pagina.querySelectorAll<HTMLElement>('mat-select')).filter(el => !el.closest('app-panel-atencion'));
+    const clavesSel = Object.keys(actual).filter(k => k.startsWith('sel:'));
+    for (let n = 0; n < selects.length && n < clavesSel.length; n++) {
+      const k = clavesSel[n];
+      const deseado = material[k];
+      if (!deseado || actual[k] === deseado) continue;
+      const el = selects[n];
+      try {
+        el.click();
+        await new Promise(r => setTimeout(r, 220));
+        const opciones = Array.from(document.querySelectorAll<HTMLElement>('.cdk-overlay-container mat-option'));
+        const opcion = opciones.find(o => o.textContent?.trim() === deseado);
+        if (opcion) opcion.click();
+        else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        await new Promise(r => setTimeout(r, 120));
+      } catch { /* selector desmontado */ }
+    }
+    const grupos = Array.from(pagina.querySelectorAll<HTMLElement>('mat-button-toggle-group')).filter(el => !el.closest('app-panel-atencion'));
+    const clavesTog = Object.keys(actual).filter(k => k.startsWith('tog:'));
+    for (let n = 0; n < grupos.length && n < clavesTog.length; n++) {
+      const deseado = material[clavesTog[n]];
+      if (!deseado || actual[clavesTog[n]] === deseado) continue;
+      const boton = Array.from(grupos[n].querySelectorAll<HTMLElement>('mat-button-toggle button, mat-button-toggle')).find(b => b.textContent?.trim() === deseado);
+      try { boton?.click(); } catch { /* nada */ }
+    }
   }
 
   /**
