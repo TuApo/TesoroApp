@@ -77,6 +77,8 @@ export class VistaRender implements OnInit {
   readonly reportar = input(false);
   /** Rotar la publicidad y correr marquesinas (las miniaturas lo apagan). */
   readonly animar = input(true);
+  /** Reproducir el sonido de las piezas de audio (el editor y las miniaturas lo apagan). */
+  readonly sonido = input(true);
   readonly emision = output<EmisionPieza>();
 
   private api = inject(TurnosService);
@@ -119,11 +121,19 @@ export class VistaRender implements OnInit {
 
   // ── Publicidad: una rotación por bloque ────────────────────────────────
 
+  /** Las piezas que rotan en el bloque: sin camas musicales ni perifoneos (esos suenan aparte). */
   piezasDe(b: Bloque): Media[] {
     const pid = b.props?.['playlist_id'] as string | null | undefined;
-    if (pid) return this.datos().playlists?.[pid] ?? [];
-    return this.datos().piezas ?? [];
+    const l = pid ? (this.datos().playlists?.[pid] ?? []) : (this.datos().piezas ?? []);
+    return l.filter(p => !p.es_cama && !p.intervalo_min);
   }
+
+  /** URL absoluta de la cama musical de una pieza de audio. */
+  urlCama(p: Media): string | null {
+    return p.cama_media_id ? this.api.urlMedia({ url: `/api/v1/public/turnos/media/${p.cama_media_id}/archivo` }) : null;
+  }
+
+  volumenCama(p: Media): number { return Math.max(0, Math.min(1, (p.cama_volumen ?? 25) / 100)); }
 
   pieza(b: Bloque): Media | null {
     const l = this.piezasDe(b);
@@ -156,6 +166,7 @@ export class VistaRender implements OnInit {
   /** Un video propio avisa al terminar; lo demás va por duración. */
   private duracion(p: Media): number {
     if (p.tipo === 'VIDEO' && this.api.urlMedia(p)) return (Math.max(5, p.duracion_seg) + 15) * 1000;
+    if (p.tipo === 'AUDIO' && this.sonido() && this.api.urlMedia(p)) return (Math.max(3, p.duracion_seg) + 10) * 1000;
     return Math.max(3, p.duracion_seg) * 1000;
   }
 
@@ -245,6 +256,9 @@ export class VistaRender implements OnInit {
     const v = Number(this.prop(b, 'velocidad', 20));
     return `${Math.max(4, 60 - Math.min(55, v))}s`;
   }
+
+  /** '24h' | '12h' (tipado como string para poder compararlo en la plantilla). */
+  formato(b: Bloque): string { return String(this.prop(b, 'formato', '24h')); }
 
   hora(): string {
     const d = this.datos().ahora;

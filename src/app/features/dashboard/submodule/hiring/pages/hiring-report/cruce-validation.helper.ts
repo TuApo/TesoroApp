@@ -493,11 +493,25 @@ export class CruceValidationHelper {
         return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
     }
 
+    /**
+     * Año de finalización (Col 44). El legacy guarda ese campo como texto
+     * libre y hay filas con un ISO completo ("2021-12-10T05:00:00.000Z");
+     * además la limpieza previa del libro borra los ":" y dejaba
+     * "2021-12-10T050000.000Z", que no matcheaba nada y trababa el cierre.
+     */
     static parseYear(y: string): number | null {
-        if (!y) return null;
-        if (y.length === 4 && !isNaN(Number(y))) return Number(y);
-        if (this.isValidDate(y)) return this.parseDate(y)?.getFullYear() || null;
-        return null;
+        const v = (y || '').trim();
+        if (!v) return null;
+        if (/^\d{4}$/.test(v)) return Number(v);
+        if (this.isValidDate(v)) return this.parseDate(v)?.getFullYear() || null;
+
+        // ISO / "YYYY-MM-DD..." con o sin hora, con o sin los ":".
+        const iso = /^(\d{4})[-/]\d{1,2}[-/]\d{1,2}/.exec(v);
+        if (iso) return Number(iso[1]);
+
+        // Último recurso: primer año plausible dentro del texto.
+        const suelto = /(19\d{2}|20\d{2})/.exec(v);
+        return suelto ? Number(suelto[1]) : null;
     }
 
     static calculateAge(dateStr: string): number {

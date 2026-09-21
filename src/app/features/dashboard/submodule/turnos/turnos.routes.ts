@@ -21,6 +21,8 @@ export const routes: Routes = [
   { path: 'pantallas', loadComponent: () => import('./pages/pantallas/pantallas').then(m => m.Pantallas) },
   // Diseño de pantallas: vistas (bloques) y guiones (secuencia con transiciones) de los televisores.
   { path: 'disenos', loadComponent: () => import('./pages/disenos/disenos').then(m => m.Disenos) },
+  // Voz y locución: voz de marca (ElevenLabs), frases de llamado, probador, biblioteca y camas musicales.
+  { path: 'voz', loadComponent: () => import('./pages/voz/voz').then(m => m.VozLocucion) },
   { path: 'publicidad', loadComponent: () => import('./pages/publicidad/publicidad').then(m => m.Publicidad) },
   { path: 'tablero', loadComponent: () => import('./pages/tablero/tablero').then(m => m.TableroTurnos) },
   { path: 'casos', loadComponent: () => import('./pages/casos/casos').then(m => m.MisCasos) },

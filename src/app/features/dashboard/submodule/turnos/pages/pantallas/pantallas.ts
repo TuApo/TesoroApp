@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, effect, inject, signal, unt
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
 
 import { SelectorOficina } from '../../components/selector-oficina/selector-oficina';
 import { ContextoTurnosService } from '../../service/contexto-turnos.service';
@@ -11,7 +12,7 @@ import { Pantalla, PantallaIn, Playlist, Servicio, TurnosService } from '../../s
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-turnos-pantallas',
-  imports: [CommonModule, FormsModule, MatIconModule, SelectorOficina],
+  imports: [CommonModule, FormsModule, MatIconModule, RouterLink, SelectorOficina],
   templateUrl: './pantallas.html',
   styleUrls: ['../../styles/turnos-comun.css', './pantallas.css'],
 })
@@ -84,6 +85,11 @@ export class Pantallas implements OnInit {
   }
 
   nombrePlaylist(id: string): string { return this.playlists().find(p => p.id === id)?.nombre ?? id; }
+
+  /** De dónde sale el diseño que reproduce la pantalla (ver Diseño de pantallas). */
+  origenDiseno(o: string | null | undefined): string {
+    return o === 'PANTALLA' ? 'asignado a esta pantalla' : o === 'OFICINA' ? 'guion de la oficina' : o === 'GLOBAL' ? 'guion global' : '';
+  }
 
   private cargar(id: string | null): void {
     if (!id) { this.pantallas.set([]); return; }

@@ -2,7 +2,7 @@
   <header class="tn-encabezado">
     <div>
       <h1 class="tn-titulo"><mat-icon>campaign</mat-icon> Publicidad y cursos</h1>
-      <p class="tn-subtitulo">Piezas que circulan en los televisores de sala: imágenes y videos de cualquier formato, YouTube, avisos y cursos de inducción; clasificadas por oficina, sede, ciudad o empresa usuaria.</p>
+      <p class="tn-subtitulo">Lo que circula en los televisores: imágenes, videos, YouTube, avisos, audios y cursos. Suelte el archivo y el tipo se reconoce solo; la vista previa es la misma que verá la sala. Los avisos hablados usan la <a routerLink="/dashboard/turnos/voz">voz de marca</a>.</p>
     </div>
     <div class="pestanas">
       <button type="button" class="pestana" [class.pestana--on]="pestana() === 'piezas'" (click)="pestana.set('piezas')"><mat-icon>perm_media</mat-icon> Piezas</button>
@@ -11,7 +11,7 @@
     </div>
   </header>
 
-  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }} <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="error.set(null)"><mat-icon>close</mat-icon></button></div> }
   @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
 
   <!-- ═══════ PIEZAS ═══════ -->
@@ -23,98 +23,200 @@
         @for (t of TIPOS; track t.v) { <option [value]="t.v">{{ t.n }}</option> }
       </select>
       <span class="tn-subtitulo">{{ totalPiezas() }} piezas</span>
-      @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaPieza()"><mat-icon>add</mat-icon> Nueva pieza</button> }
+      @if (ctx.esAdmin()) {
+        <div class="nuevas">
+          <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaPieza()"><mat-icon>add</mat-icon> Nueva pieza</button>
+          <button type="button" class="tn-boton" (click)="nuevaPieza('AUDIO')" title="Un texto que la voz de marca locuta"><mat-icon>record_voice_over</mat-icon> Aviso hablado</button>
+          <button type="button" class="tn-boton" (click)="nuevaPieza('TEXTO')"><mat-icon>text_fields</mat-icon> Aviso de texto</button>
+          <button type="button" class="tn-boton" (click)="nuevaPieza('CURSO')"><mat-icon>school</mat-icon> Curso</button>
+        </div>
+      }
     </div>
 
     @if (formPieza()) {
-      <form class="tn-tarjeta" (ngSubmit)="guardarPieza()">
-        <h3><mat-icon>{{ editandoPieza() ? 'edit' : 'add' }}</mat-icon> {{ editandoPieza() ? 'Editar pieza' : 'Nueva pieza' }}</h3>
-        <div class="tn-form">
-          <label class="tn-campo"><span>Tipo</span>
-            <select name="tipo" [(ngModel)]="pieza.tipo">@for (t of TIPOS; track t.v) { <option [value]="t.v">{{ t.n }}</option> }</select>
-          </label>
-          <label class="tn-campo tn-campo--ancho"><span>Título</span><input name="titulo" [(ngModel)]="pieza.titulo" required></label>
-          @if (pieza.tipo === 'IMAGEN' || pieza.tipo === 'VIDEO') {
-            <label class="tn-campo tn-campo--ancho"><span>Archivo (jpg, png, webp, gif, svg, mp4, webm, mov · hasta 200 MB)</span>
-              <input type="file" name="archivo" accept="image/*,video/mp4,video/webm,video/quicktime" (change)="seleccionarArchivo($event)">
-              <span class="ayuda">Entra de todo: vertical de celular, cuadrado de Instagram, 16:9 de TV. Abajo se elige cómo encaja en la pantalla.</span>
-            </label>
-          }
-          @if (pieza.tipo === 'YOUTUBE' || pieza.tipo === 'VIMEO' || pieza.tipo === 'HTML') {
-            <label class="tn-campo tn-campo--ancho"><span>{{ pieza.tipo === 'HTML' ? 'URL de la página' : 'Enlace del video' }}</span><input name="url" [(ngModel)]="pieza.url" placeholder="https://…"></label>
-          }
-          @if (pieza.tipo === 'TEXTO') {
-            <label class="tn-campo tn-campo--ancho"><span>Texto del aviso</span><textarea name="desc" [(ngModel)]="pieza.descripcion" rows="3"></textarea></label>
-          } @else {
-            <label class="tn-campo tn-campo--ancho"><span>Descripción</span><input name="desc" [(ngModel)]="pieza.descripcion"></label>
-          }
-          @if (pieza.tipo === 'CURSO') {
-            <label class="tn-campo tn-campo--ancho"><span>Enlace del curso (lo que abre el QR en el celular)</span><input name="cursourl" [(ngModel)]="pieza.curso_url" placeholder="https://tuapo.co/…"></label>
-          }
-          <label class="tn-campo"><span>Segundos en pantalla</span><input name="dur" type="number" min="1" [(ngModel)]="pieza.duracion_seg"><span class="ayuda">Para video, lo que dure el video si es menor.</span></label>
-          <label class="tn-campo"><span>Cómo encaja</span>
-            <select name="ajuste" [(ngModel)]="pieza.ajuste"><option value="CONTENER">Contener (entera, con bandas)</option><option value="CUBRIR">Cubrir (llena y recorta)</option><option value="ESTIRAR">Estirar</option></select>
-          </label>
-          <label class="tn-campo"><span>Vigente desde</span><input name="desde" type="datetime-local" [(ngModel)]="pieza.vigente_desde"></label>
-          <label class="tn-campo"><span>Vigente hasta</span><input name="hasta" type="datetime-local" [(ngModel)]="pieza.vigente_hasta"></label>
-          <label class="tn-campo tn-campo--ancho"><span>Etiquetas (separadas por coma)</span><input name="etq" [(ngModel)]="pieza.etiquetas" placeholder="campaña, seguridad, inducción"></label>
-          <label class="tn-check"><input type="checkbox" name="mudo" [(ngModel)]="pieza.silenciado"> Sin audio (recomendado en sala)</label>
-          @if (editandoPieza()) { <label class="tn-check"><input type="checkbox" name="act" [(ngModel)]="pieza.activo"> Activa</label> }
+      <div class="tn-tarjeta editor">
+        <div class="editor__cab">
+          <h3><mat-icon>{{ editandoPieza() ? 'edit' : 'add' }}</mat-icon> {{ editandoPieza() ? 'Editar pieza' : 'Nueva pieza' }} <span class="tn-chip tn-chip--info"><mat-icon>{{ iconoTipo(pieza().tipo) }}</mat-icon> {{ nombreTipo(pieza().tipo) }}</span></h3>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cerrarForm()"><mat-icon>close</mat-icon></button>
+        </div>
 
-          <div class="tn-campo tn-campo--ancho">
-            <span class="eti">Dónde sale (sin filas = en todas las pantallas)</span>
-            @for (a of pieza.alcances; track $index) {
-              <div class="alcance">
-                <select [name]="'at' + $index" [(ngModel)]="a.tipo" (ngModelChange)="a.valor_ref = null; a.valor_nombre = null">@for (t of ALCANCES; track t.v) { <option [value]="t.v">{{ t.n }}</option> }</select>
-                @if (a.tipo === 'OFICINA') {
-                  <select [name]="'av' + $index" [(ngModel)]="a.valor_ref" (ngModelChange)="alcanceValorCambiado(a)"><option [ngValue]="null">Elija…</option>@for (o of ctx.oficinas(); track o.id) { <option [value]="o.id">{{ o.nombre }}</option> }</select>
-                } @else if (a.tipo === 'SEDE') {
-                  <select [name]="'av' + $index" [(ngModel)]="a.valor_ref" (ngModelChange)="alcanceValorCambiado(a)"><option [ngValue]="null">Elija…</option>@for (s of sedes(); track s.id) { <option [value]="s.id">{{ s.nombre }}</option> }</select>
+        <div class="editor__cuerpo">
+          <!-- Columna izquierda: qué es -->
+          <div class="editor__form">
+            <!-- Zona de carga: el tipo sale de lo que se suelta -->
+            <div class="zona" [class.zona--activa]="arrastrando()" (dragover)="arrastrar($event, true)" (dragleave)="arrastrar($event, false)" (drop)="soltar($event)">
+              @if (archivo(); as f) {
+                <mat-icon>{{ iconoTipo(pieza().tipo) }}</mat-icon>
+                <div class="zona__texto"><strong>{{ f.name }}</strong><span>{{ (f.size / 1048576) | number:'1.0-1' }} MB · {{ nombreTipo(pieza().tipo) }}</span></div>
+                <button type="button" class="tn-boton tn-boton--fantasma" (click)="quitarArchivo()"><mat-icon>close</mat-icon> Quitar</button>
+              } @else {
+                <mat-icon>cloud_upload</mat-icon>
+                <div class="zona__texto"><strong>Suelte aquí una imagen, un video o un audio</strong><span>jpg, png, webp, gif, svg · mp4, webm, mov · mp3, wav, ogg · hasta 200 MB. El tipo se reconoce solo.</span></div>
+                <label class="tn-boton">Elegir archivo <input type="file" hidden accept="image/*,video/mp4,video/webm,video/quicktime,audio/*" (change)="archivoElegido($event)"></label>
+              }
+            </div>
+            <div class="enlace">
+              <mat-icon>link</mat-icon>
+              <input #enlace placeholder="…o pegue un enlace: YouTube, Vimeo, imagen, video o página" [value]="conArchivo() ? '' : pieza().url" (change)="recibirEnlace(enlace.value)" (paste)="null">
+              <div class="atajos">
+                <button type="button" class="tn-chip chip-btn" [class.tn-chip--info]="pieza().tipo === 'TEXTO'" (click)="set('tipo', 'TEXTO')">Aviso de texto</button>
+                <button type="button" class="tn-chip chip-btn" [class.tn-chip--info]="pieza().tipo === 'AUDIO' && !archivo()" (click)="set('tipo', 'AUDIO'); quitarArchivo()">Aviso hablado</button>
+                <button type="button" class="tn-chip chip-btn" [class.tn-chip--info]="pieza().tipo === 'CURSO'" (click)="set('tipo', 'CURSO')">Curso</button>
+              </div>
+            </div>
+
+            <label class="tn-campo"><span>Título</span><input [ngModel]="pieza().titulo" (ngModelChange)="set('titulo', $event)" placeholder="Campaña de seguridad, Bienvenida, Promoción…"></label>
+
+            @if (pieza().tipo === 'TEXTO') {
+              <label class="tn-campo"><span>Texto del aviso</span><textarea rows="3" [ngModel]="pieza().descripcion" (ngModelChange)="set('descripcion', $event)"></textarea></label>
+            }
+            @if (pieza().tipo === 'CURSO') {
+              <label class="tn-campo"><span>Enlace del curso (lo que abre el QR)</span><input [ngModel]="pieza().curso_url" (ngModelChange)="set('curso_url', $event)" placeholder="https://tuapo.co/…"></label>
+              <label class="tn-campo"><span>Descripción corta</span><input [ngModel]="pieza().descripcion" (ngModelChange)="set('descripcion', $event)"></label>
+            }
+
+            <!-- Aviso hablado / audio -->
+            @if (pieza().tipo === 'AUDIO') {
+              <div class="bloque">
+                @if (esLocucion()) {
+                  <label class="tn-campo"><span>Texto que se locuta con la voz de marca</span><textarea rows="3" [ngModel]="pieza().voz_texto" (ngModelChange)="set('voz_texto', $event)" placeholder="Recuerde tener a la mano su cédula y el certificado de la EPS. Gracias por su espera."></textarea></label>
+                  <div class="tn-form">
+                    <label class="tn-campo"><span>Voz (vacío = la de marca)</span>
+                      <select [ngModel]="pieza().voz_id" (ngModelChange)="set('voz_id', $event)"><option value="">Voz de marca</option>@for (v of vocesEspanol(); track v.voz_id) { <option [value]="v.voz_id">{{ v.nombre }}</option> }</select>
+                    </label>
+                    <div class="tn-campo"><span>&nbsp;</span>
+                      <button type="button" class="tn-boton" (click)="generarVoz()" [disabled]="generandoVoz() || !pieza().voz_texto.trim()"><mat-icon>{{ generandoVoz() ? 'hourglass_top' : 'hearing' }}</mat-icon> {{ generandoVoz() ? 'Generando…' : 'Generar y escuchar' }}</button>
+                    </div>
+                  </div>
+                  @if (audioVoz(); as a) { <span class="tn-chip tn-chip--ok"><mat-icon>check</mat-icon> Locución lista{{ a.de_cache ? ' (de caché)' : '' }}</span> }
                 } @else {
-                  <input [name]="'av' + $index" [(ngModel)]="a.valor_ref" (ngModelChange)="alcanceValorCambiado(a)" [placeholder]="a.tipo === 'CIUDAD' ? 'Facatativá' : 'Nombre o id de la empresa usuaria'">
+                  <span class="tn-subtitulo">Audio subido. Para locutar un texto con la voz de marca, quite el archivo y elija "Aviso hablado".</span>
                 }
-                <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="quitarAlcance($index)"><mat-icon>close</mat-icon></button>
+                <label class="tn-campo"><span>Descripción (sale en pantalla mientras suena)</span><input [ngModel]="pieza().descripcion" (ngModelChange)="set('descripcion', $event)"></label>
+                <div class="tn-form">
+                  <label class="tn-campo"><span>Cama musical de fondo</span>
+                    <select [ngModel]="pieza().cama_media_id" (ngModelChange)="set('cama_media_id', $event || null)"><option [ngValue]="null">Sin música</option>@for (c of camas(); track c.id) { <option [ngValue]="c.id">{{ c.titulo }}</option> }</select>
+                    @if (!camas().length) { <span class="ayuda">Cree una en <a routerLink="/dashboard/turnos/voz">Voz y locución</a> (música con IA) o suba un mp3 y márquelo como cama.</span> }
+                  </label>
+                  @if (pieza().cama_media_id) { <label class="tn-campo"><span>Volumen de la cama <em>{{ pieza().cama_volumen }}%</em></span><input type="range" min="0" max="100" [ngModel]="pieza().cama_volumen" (ngModelChange)="set('cama_volumen', +$event)"></label> }
+                </div>
+                <label class="tn-check"><input type="checkbox" [ngModel]="pieza().es_cama" (ngModelChange)="set('es_cama', $event)"> Es una cama musical (no circula sola; acompaña a los avisos hablados)</label>
+                @if (!pieza().es_cama) {
+                  <div class="perifoneo">
+                    <label class="tn-check"><input type="checkbox" [ngModel]="!!pieza().intervalo_min" (ngModelChange)="set('intervalo_min', $event ? 30 : null)"> <strong>Perifoneo</strong>: repetir cada cierto tiempo sin cortar la rotación visual</label>
+                    @if (pieza().intervalo_min) {
+                      <div class="perifoneo__fila">
+                        <label>Cada <input type="number" min="1" max="1440" [ngModel]="pieza().intervalo_min" (ngModelChange)="set('intervalo_min', +$event)"> min</label>
+                        <div class="dias">@for (d of DIAS; track d.n) { <button type="button" class="dia" [class.dia--on]="pieza().dias.includes(d.n)" (click)="alternarDia(d.n)">{{ d.l }}</button> }</div>
+                        <label>de <input type="time" [ngModel]="pieza().desde" (ngModelChange)="set('desde', $event)"> a <input type="time" [ngModel]="pieza().hasta" (ngModelChange)="set('hasta', $event)"></label>
+                      </div>
+                    }
+                  </div>
+                }
               </div>
             }
-            <button type="button" class="tn-boton" (click)="agregarAlcance()"><mat-icon>add</mat-icon> Agregar alcance</button>
+
+            <!-- Dónde sale -->
+            <div class="bloque">
+              <span class="eti">Dónde sale</span>
+              <div class="alcance-modo">
+                <label [class.on]="modoAlcance() === 'TODAS'"><input type="radio" name="alc" value="TODAS" [ngModel]="modoAlcance()" (ngModelChange)="modoAlcance.set($event)"> <mat-icon>public</mat-icon> Todas las oficinas</label>
+                <label [class.on]="modoAlcance() === 'OFICINA'"><input type="radio" name="alc" value="OFICINA" [ngModel]="modoAlcance()" (ngModelChange)="modoAlcance.set($event)"> <mat-icon>store</mat-icon> Una sola oficina</label>
+                <label [class.on]="modoAlcance() === 'AVANZADO'"><input type="radio" name="alc" value="AVANZADO" [ngModel]="modoAlcance()" (ngModelChange)="modoAlcance.set($event)"> <mat-icon>tune</mat-icon> Sede, ciudad o empresa</label>
+              </div>
+              @if (modoAlcance() === 'OFICINA') {
+                <select class="oficina" [ngModel]="oficinaAlcance()" (ngModelChange)="oficinaAlcance.set($event)"><option [ngValue]="null">Elija la oficina…</option>@for (o of ctx.oficinas(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}</option> }</select>
+              }
+              @if (modoAlcance() === 'AVANZADO') {
+                @for (a of pieza().alcances; track $index; let i = $index) {
+                  <div class="alcance">
+                    <select [ngModel]="a.tipo" (ngModelChange)="alcanceSet(i, { tipo: $event })">@for (t of ALCANCES; track t.v) { <option [value]="t.v">{{ t.n }}</option> }</select>
+                    @if (a.tipo === 'OFICINA') { <select [ngModel]="a.valor_ref" (ngModelChange)="alcanceSet(i, { valor_ref: $event })"><option [ngValue]="null">Elija…</option>@for (o of ctx.oficinas(); track o.id) { <option [value]="o.id">{{ o.nombre }}</option> }</select> }
+                    @else if (a.tipo === 'SEDE') { <select [ngModel]="a.valor_ref" (ngModelChange)="alcanceSet(i, { valor_ref: $event })"><option [ngValue]="null">Elija…</option>@for (s of sedes(); track s.id) { <option [value]="s.id">{{ s.nombre }}</option> }</select> }
+                    @else { <input [ngModel]="a.valor_ref" (ngModelChange)="alcanceSet(i, { valor_ref: $event })" [placeholder]="a.tipo === 'CIUDAD' ? 'Facatativá' : 'Nombre o id de la empresa usuaria'"> }
+                    <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="quitarAlcance(i)"><mat-icon>close</mat-icon></button>
+                  </div>
+                }
+                <button type="button" class="tn-boton" (click)="agregarAlcance()"><mat-icon>add</mat-icon> Agregar</button>
+                <span class="ayuda">Varias filas se suman: la pieza sale donde encaje cualquiera.</span>
+              }
+            </div>
+
+            <!-- Más opciones -->
+            <button type="button" class="mas" (click)="masOpciones.set(!masOpciones())"><mat-icon>{{ masOpciones() ? 'expand_less' : 'expand_more' }}</mat-icon> Más opciones (duración, vigencia, etiquetas, ajuste)</button>
+            @if (masOpciones()) {
+              <div class="tn-form">
+                @if (pieza().tipo !== 'TEXTO' && pieza().tipo !== 'CURSO' && pieza().tipo !== 'AUDIO') { <label class="tn-campo"><span>Descripción</span><input [ngModel]="pieza().descripcion" (ngModelChange)="set('descripcion', $event)"></label> }
+                <label class="tn-campo"><span>Segundos en pantalla</span><input type="number" min="1" [ngModel]="pieza().duracion_seg" (ngModelChange)="set('duracion_seg', +$event)"><span class="ayuda">Video y audio: lo que duren, si es menor.</span></label>
+                @if (pieza().tipo === 'IMAGEN' || pieza().tipo === 'VIDEO') {
+                  <label class="tn-campo"><span>Cómo encaja</span><select [ngModel]="pieza().ajuste" (ngModelChange)="set('ajuste', $event)"><option value="CONTENER">Contener (entera, con bandas)</option><option value="CUBRIR">Cubrir (llena y recorta)</option><option value="ESTIRAR">Estirar</option></select></label>
+                }
+                @if (pieza().tipo === 'VIDEO' || pieza().tipo === 'YOUTUBE' || pieza().tipo === 'VIMEO') { <label class="tn-check"><input type="checkbox" [ngModel]="pieza().silenciado" (ngModelChange)="set('silenciado', $event)"> Sin audio (recomendado en sala)</label> }
+                <label class="tn-campo"><span>Vigente desde</span><input type="datetime-local" [ngModel]="pieza().vigente_desde" (ngModelChange)="set('vigente_desde', $event)"></label>
+                <label class="tn-campo"><span>Vigente hasta</span><input type="datetime-local" [ngModel]="pieza().vigente_hasta" (ngModelChange)="set('vigente_hasta', $event)"></label>
+                <label class="tn-campo tn-campo--ancho"><span>Etiquetas (separadas por coma)</span><input [ngModel]="pieza().etiquetas" (ngModelChange)="set('etiquetas', $event)" placeholder="campaña, seguridad, inducción"></label>
+                @if (editandoPieza()) { <label class="tn-check"><input type="checkbox" [ngModel]="pieza().activo" (ngModelChange)="set('activo', $event)"> Activa</label> }
+              </div>
+            }
+
+            <div class="tn-acciones" style="margin-top:12px">
+              <button type="button" class="tn-boton tn-boton--primario" (click)="guardarPieza()" [disabled]="ocupado() || !pieza().titulo"><mat-icon>{{ subiendo() ? 'cloud_upload' : 'save' }}</mat-icon> {{ subiendo() ? 'Subiendo archivo…' : 'Guardar' }}</button>
+              <button type="button" class="tn-boton tn-boton--fantasma" (click)="cerrarForm()">Cancelar</button>
+            </div>
+          </div>
+
+          <!-- Columna derecha: así se ve -->
+          <div class="editor__previa">
+            <span class="eti">Así se ve en el televisor</span>
+            <div class="tv"><app-vista-render [vista]="vistaPreviaForm()" [datos]="datosPreviaForm()" [sonido]="false" /></div>
+            @if (pieza().tipo === 'AUDIO') {
+              <div class="previa__audio">
+                @if (audioVoz(); as a) { <button type="button" class="tn-boton" (click)="escuchar(api.urlAudio(a.url), 'voz-borrador')"><mat-icon>{{ reproduciendo() === 'voz-borrador' ? 'stop' : 'play_arrow' }}</mat-icon> Escuchar la locución</button> }
+                @if (archivoUrlLocal() && pieza().tipo === 'AUDIO') { <button type="button" class="tn-boton" (click)="escuchar(archivoUrlLocal(), 'local')"><mat-icon>{{ reproduciendo() === 'local' ? 'stop' : 'play_arrow' }}</mat-icon> Escuchar el archivo</button> }
+                @if (pieza().cama_media_id) { <span class="tn-chip"><mat-icon>music_note</mat-icon> {{ nombreCama(pieza().cama_media_id) }} al {{ pieza().cama_volumen }}%</span> }
+              </div>
+            }
+            <p class="tn-subtitulo">Mismo renderizador que la pantalla de sala. La vista completa de la sala se arma en <a routerLink="/dashboard/turnos/disenos">Diseño de pantallas</a>.</p>
           </div>
         </div>
-        <div class="tn-acciones" style="margin-top:12px">
-          <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !pieza.titulo"><mat-icon>{{ subiendo() ? 'cloud_upload' : 'save' }}</mat-icon> {{ subiendo() ? 'Subiendo archivo…' : 'Guardar' }}</button>
-          <button type="button" class="tn-boton tn-boton--fantasma" (click)="formPieza.set(false)">Cancelar</button>
-        </div>
-      </form>
+      </div>
     }
 
     @if (!piezas().length) {
-      <div class="tn-tarjeta tn-vacio"><mat-icon>perm_media</mat-icon><span>Sin piezas. Suba la primera imagen o video, o pegue un enlace de YouTube.</span></div>
+      <div class="tn-tarjeta tn-vacio"><mat-icon>perm_media</mat-icon><span>Sin piezas. Suelte la primera imagen, video o audio, pegue un enlace de YouTube o escriba un aviso hablado.</span></div>
     } @else {
       <div class="galeria">
         @for (m of piezas(); track m.id) {
           <article class="pieza" [class.pieza--inactiva]="!m.activo" [class.pieza--caducada]="m.activo && !m.vigente">
-            <div class="pieza__vista">
+            <div class="pieza__vista" (click)="verEnPantalla(m)" title="Ver como en el televisor">
               @if (m.tipo === 'IMAGEN' && urlPieza(m)) { <img [src]="urlPieza(m)" [alt]="m.titulo" loading="lazy"> }
               @else if (m.tipo === 'VIDEO' && urlPieza(m)) { <video [src]="urlPieza(m)" muted preload="metadata"></video> }
               @else if (m.tipo === 'YOUTUBE' && miniaturaYoutube(m)) { <img [src]="miniaturaYoutube(m)" [alt]="m.titulo" loading="lazy"> }
+              @else if (m.tipo === 'AUDIO') { <div class="pieza__icono pieza__icono--audio"><mat-icon>{{ m.es_cama ? 'music_note' : m.voz_texto ? 'record_voice_over' : 'graphic_eq' }}</mat-icon>@if (m.voz_texto) { <p>{{ m.voz_texto }}</p> }</div> }
               @else { <div class="pieza__icono"><mat-icon>{{ iconoTipo(m.tipo) }}</mat-icon>@if (m.tipo === 'TEXTO') { <p>{{ m.descripcion }}</p> }</div> }
               <span class="pieza__tipo"><mat-icon>{{ iconoTipo(m.tipo) }}</mat-icon> {{ m.tipo }}</span>
+              <span class="pieza__ver"><mat-icon>tv</mat-icon></span>
             </div>
             <div class="pieza__cuerpo">
               <strong class="pieza__titulo" [title]="m.titulo">{{ m.titulo }}</strong>
-              <span class="pieza__meta">{{ m.duracion_seg }} s · {{ m.ajuste }}{{ m.bytes ? ' · ' + (m.bytes / 1048576 | number:'1.0-1') + ' MB' : '' }}</span>
+              <span class="pieza__meta">{{ m.duracion_seg }} s{{ m.bytes ? ' · ' + (m.bytes / 1048576 | number:'1.0-1') + ' MB' : '' }}{{ m.tipo === 'IMAGEN' || m.tipo === 'VIDEO' ? ' · ' + m.ajuste : '' }}</span>
               <div class="pieza__alcances">
-                @if (!m.alcances.length) { <span class="tn-chip tn-chip--info">Todas las pantallas</span> }
+                @if (!m.alcances.length) { <span class="tn-chip tn-chip--info">Todas las oficinas</span> }
                 @for (a of m.alcances; track a.id) { <span class="tn-chip" [title]="a.tipo">{{ a.valor_nombre || a.valor_ref }}</span> }
+                @if (m.es_cama) { <span class="tn-chip"><mat-icon>music_note</mat-icon> Cama musical</span> }
+                @if (m.intervalo_min) { <span class="tn-chip tn-chip--ok" [title]="horarioTexto(m)"><mat-icon>campaign</mat-icon> Cada {{ m.intervalo_min }} min</span> }
+                @if (!m.activo) { <span class="tn-chip tn-chip--danger">Retirada</span> }
+                @else if (!m.vigente) { <span class="tn-chip tn-chip--warn">Fuera de vigencia</span> }
               </div>
-              @if (!m.activo) { <span class="tn-chip tn-chip--danger">Retirada</span> }
-              @else if (!m.vigente) { <span class="tn-chip tn-chip--warn">Fuera de vigencia</span> }
             </div>
-            @if (ctx.esAdmin()) {
-              <div class="pieza__acciones">
+            <div class="pieza__acciones">
+              @if (m.tipo === 'AUDIO' && urlPieza(m)) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="escuchar(urlPieza(m), m.id)" [title]="reproduciendo() === m.id ? 'Detener' : 'Escuchar'"><mat-icon>{{ reproduciendo() === m.id ? 'stop' : 'play_arrow' }}</mat-icon></button> }
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="verEnPantalla(m)" title="Ver en pantalla"><mat-icon>tv</mat-icon></button>
+              @if (ctx.esAdmin()) {
                 <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarPieza(m)" title="Editar"><mat-icon>edit</mat-icon></button>
                 @if (m.activo) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivarPieza(m)" title="Retirar"><mat-icon>block</mat-icon></button> }
-              </div>
-            }
+              }
+            </div>
           </article>
         }
       </div>
@@ -124,7 +226,7 @@
   <!-- ═══════ LISTAS ═══════ -->
   @if (pestana() === 'listas') {
     <div class="filtros">
-      <span class="tn-subtitulo">El orden en que circulan las piezas en cada pantalla. Una lista sin oficina la pueden usar todas.</span>
+      <span class="tn-subtitulo">El orden en que circulan las piezas en cada pantalla. Una lista sin oficina la pueden usar todas. Las camas musicales y los perifoneos no van en listas: acompañan o se repiten solos.</span>
       @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaLista()"><mat-icon>playlist_add</mat-icon> Nueva lista</button> }
     </div>
 
@@ -207,6 +309,14 @@
           <tbody>@for (r of reporte(); track r.media_id) { <tr><td>{{ r.titulo }}</td><td><span class="tn-chip">{{ r.tipo }}</span></td><td class="numero">{{ r.emisiones }}</td><td class="numero">{{ r.segundos / 60 | number:'1.0-0' }}</td></tr> }</tbody>
         </table></div>
       }
+    </div>
+  }
+
+  <!-- Ver en pantalla -->
+  @if (vistaPrevia(); as m) {
+    <div class="velo" (click)="vistaPrevia.set(null)">
+      <div class="velo__tv" (click)="$event.stopPropagation()"><app-vista-render [vista]="vistaDeUnaPieza(m.ajuste)" [datos]="datosDe(m)" [sonido]="true" /></div>
+      <div class="velo__barra"><span>{{ m.titulo }} · {{ nombreTipo(m.tipo) }}</span><button type="button" class="tn-boton tn-boton--primario" (click)="vistaPrevia.set(null)"><mat-icon>close</mat-icon> Cerrar</button></div>
     </div>
   }
 </div>

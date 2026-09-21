@@ -9,7 +9,7 @@
 
         @case ('RELOJ') {
           <div class="reloj">
-            <span class="reloj__hora" [style.font-size]="tam(b, 4.2)">{{ prop(b, 'formato', '24h') === '12h' ? hora12() : hora() }}</span>
+            <span class="reloj__hora" [style.font-size]="tam(b, 4.2)">{{ formato(b) === '12h' ? hora12() : hora() }}</span>
             @if (prop(b, 'mostrar_fecha', true)) { <span class="reloj__fecha" [style.font-size]="'calc(' + tam(b, 4.2) + ' * .45)'">{{ datos().ahora | date:'EEEE d MMMM':'':'es' }}</span> }
           </div>
         }
@@ -76,6 +76,19 @@
                   </div>
                 }
                 @case ('TEXTO') { <div class="aviso"><h2>{{ p.titulo }}</h2><p>{{ p.descripcion }}</p></div> }
+                @case ('AUDIO') {
+                  <div class="audio">
+                    <mat-icon>{{ p.voz_texto ? 'record_voice_over' : 'graphic_eq' }}</mat-icon>
+                    <span class="audio__eti">{{ p.voz_texto ? 'Aviso' : 'Audio' }}</span>
+                    <h2>{{ p.titulo }}</h2>
+                    @if (p.descripcion || p.voz_texto) { <p>{{ p.descripcion || p.voz_texto }}</p> }
+                    <div class="ondas" [class.ondas--quietas]="!sonido()"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                    @if (sonido() && urlPieza(p)) {
+                      <audio [src]="urlPieza(p)" autoplay (ended)="videoTermino(b)" (error)="videoTermino(b)"></audio>
+                      @if (urlCama(p); as cama) { <audio [src]="cama" autoplay loop [volume]="volumenCama(p)"></audio> }
+                    }
+                  </div>
+                }
               }
               @if (piezasDe(b).length > 1) {
                 <div class="media__puntos">@for (x of piezasDe(b); track x.id; let i = $index) { <span [class.on]="i === (indices()[b.id] ?? 0) % piezasDe(b).length"></span> }</div>

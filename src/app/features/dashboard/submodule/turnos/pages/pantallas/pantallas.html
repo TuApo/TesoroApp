@@ -2,7 +2,7 @@
   <header class="tn-encabezado">
     <div>
       <h1 class="tn-titulo"><mat-icon>tv</mat-icon> Pantallas de sala</h1>
-      <p class="tn-subtitulo">Cada televisor abre su enlace sin iniciar sesión: canta el turno, muestra la cola y circula publicidad y cursos.</p>
+      <p class="tn-subtitulo">Cada televisor abre su enlace sin iniciar sesión: canta el turno, muestra la cola y circula publicidad y cursos. Lo que se ve se arma en <a routerLink="/dashboard/turnos/disenos">Diseño de pantallas</a>.</p>
     </div>
     <div class="tn-acciones">
       <app-selector-oficina />
@@ -75,6 +75,11 @@
               <span class="tn-chip">{{ p.layout }}</span> <span class="tn-chip">{{ p.orientacion }}</span> <span class="tn-chip">{{ p.tema }}</span>
               <div class="pantalla__meta">{{ p.voz ? 'Voz' : 'Sin voz' }} · {{ p.sonido ? 'campanilla' : 'silencio' }} · {{ p.turnos_visibles }} en cola</div>
               <div class="pantalla__meta">Listas: {{ p.playlists.length ? '' : 'todo lo vigente' }}@for (l of p.playlists; track l) { <span class="tn-chip">{{ nombrePlaylist(l) }}</span> }</div>
+              <div class="pantalla__meta">Diseño:
+                @if (p.diseno_nombre) { <span class="tn-chip tn-chip--ok">{{ p.diseno_nombre }}</span> <span>{{ origenDiseno(p.diseno_origen) }}</span> }
+                @else { <span>plantilla fija ({{ p.layout }})</span> }
+                <a routerLink="/dashboard/turnos/disenos" class="pantalla__enlace"><mat-icon>dashboard_customize</mat-icon> Diseñar</a>
+              </div>
               <div class="pantalla__url"><span class="tn-codigo">{{ p.codigo_publico }}</span></div>
             </div>
           </div>

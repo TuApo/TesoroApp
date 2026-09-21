@@ -216,7 +216,9 @@ export interface EventoTurno {
 
 // ── Pantallas y piezas ────────────────────────────────────────────────────────
 
-export type TipoMedia = 'IMAGEN' | 'VIDEO' | 'YOUTUBE' | 'VIMEO' | 'HTML' | 'CURSO' | 'TEXTO';
+export type TipoMedia = 'IMAGEN' | 'VIDEO' | 'YOUTUBE' | 'VIMEO' | 'HTML' | 'CURSO' | 'TEXTO' | 'AUDIO';
+/** Perifoneo: días ISO (1 = lunes … 7 = domingo) y franja horaria. */
+export interface HorarioPieza { dias: number[]; desde: string; hasta: string; }
 export type TipoAlcance = 'GLOBAL' | 'OFICINA' | 'SEDE' | 'EMPRESA' | 'EMPRESA_USUARIA' | 'CIUDAD';
 
 export interface Alcance { id?: number; tipo: TipoAlcance; valor_ref: string | null; valor_nombre: string | null; }
@@ -229,6 +231,10 @@ export interface Media {
   vigente_desde: string | null; vigente_hasta: string | null; activo: boolean; etiquetas: string | null;
   creado_en: string; creado_por_nombre: string | null; alcances: Alcance[];
   vigente: boolean; emisiones: number | null;
+  /** AUDIO con voz: texto locutado, voz y audio generado; cama musical; perifoneo. */
+  voz_texto: string | null; voz_id: string | null; voz_audio_id: string | null;
+  cama_media_id: string | null; cama_volumen: number; es_cama: boolean;
+  intervalo_min: number | null; horario_json: string | null;
 }
 
 export interface MediaIn {
@@ -237,7 +243,41 @@ export interface MediaIn {
   curso_ref?: string | null; curso_url?: string | null;
   vigente_desde?: string | null; vigente_hasta?: string | null; activo?: boolean; etiquetas?: string | null;
   alcances?: Alcance[] | null;
+  voz_texto?: string | null; voz_id?: string | null; cama_media_id?: string | null; cama_volumen?: number;
+  es_cama?: boolean; intervalo_min?: number | null; horario_json?: string | null;
 }
+
+// ── Voz y locución (ElevenLabs) ────────────────────────────────────────────────
+
+export interface VozDisponible {
+  voz_id: string; nombre: string; categoria: string | null; idioma: string | null; acento: string | null;
+  genero: string | null; edad: string | null; uso: string | null; descripcion: string | null; preview_url: string | null;
+}
+export interface VozSuscripcion {
+  plan: string | null; estado: string | null; caracteres_usados: number; caracteres_limite: number;
+  proximo_reinicio_unix: number; voces_limite: number; voces_usadas: number; puede_clonar: boolean;
+}
+export interface VozEstado {
+  habilitada: boolean; suscripcion: VozSuscripcion | null; error_cuenta: string | null;
+  audios_en_cache: number; caracteres_sintetizados: number; reutilizaciones: number; bytes_en_disco: number;
+}
+export interface VozAjustes {
+  id: string | null; oficina_id: string | null; origen: 'PROPIO' | 'GLOBAL' | 'DEFECTO';
+  voz_id: string | null; voz_nombre: string | null; modelo_llamado: string; modelo_locucion: string;
+  estabilidad: number; similitud: number; estilo: number; velocidad: number;
+  plantilla_llamado: string; plantilla_llamado_movil: string; cantar_con_voz: boolean; actualizado_en: string | null;
+}
+export interface VozAjustesIn {
+  oficina_id?: string | null; voz_id?: string | null; voz_nombre?: string | null; modelo_llamado?: string; modelo_locucion?: string;
+  estabilidad?: number; similitud?: number; estilo?: number; velocidad?: number;
+  plantilla_llamado?: string; plantilla_llamado_movil?: string; cantar_con_voz?: boolean;
+}
+export interface VozAudio {
+  id: string; texto: string; voz_id: string; voz_nombre: string | null; modelo: string; uso: 'LLAMADO' | 'LOCUCION' | 'PRUEBA';
+  bytes: number; duracion_ms: number | null; caracteres: number; veces: number; creado_en: string; ultimo_uso: string | null;
+  url: string; de_cache: boolean;
+}
+export interface VozModelo { id: string; nombre: string; para: string; }
 
 export interface PlaylistItem { id: number; media_id: string; orden: number; duracion_seg: number | null; media: Media; }
 
@@ -515,6 +555,44 @@ export class TurnosService {
   agregarNota(casoId: string, texto: string): Observable<Nota> { return this.http.post<Nota>(`${this.base}/casos/${casoId}/notas`, { texto }); }
 
   // ── Superficie pública (sin sesión) ──
+  // ── Voz y locución ──
+  vozEstado(): Observable<VozEstado> { return this.http.get<VozEstado>(`${this.base}/voz/estado`); }
+  vozVoces(refrescar = false): Observable<VozDisponible[]> { return this.http.get<VozDisponible[]>(`${this.base}/voz/voces`, { params: new HttpParams().set('refrescar', refrescar) }); }
+  vozModelos(): Observable<VozModelo[]> { return this.http.get<VozModelo[]>(`${this.base}/voz/modelos`); }
+  vozAjustes(oficinaId?: string | null): Observable<VozAjustes> {
+    const params = oficinaId ? new HttpParams().set('oficinaId', oficinaId) : undefined;
+    return this.http.get<VozAjustes>(`${this.base}/voz/ajustes`, { params });
+  }
+  guardarVozAjustes(in_: VozAjustesIn): Observable<VozAjustes> { return this.http.put<VozAjustes>(`${this.base}/voz/ajustes`, in_); }
+  quitarVozAjustes(oficinaId: string): Observable<void> { return this.http.delete<void>(`${this.base}/voz/ajustes/${oficinaId}`); }
+  vozProbar(texto: string, vozId?: string | null, modelo?: string | null, oficinaId?: string | null): Observable<VozAudio> {
+    return this.http.post<VozAudio>(`${this.base}/voz/probar`, { texto, voz_id: vozId ?? null, modelo: modelo ?? null, oficina_id: oficinaId ?? null });
+  }
+  vozProbarLlamado(in_: { oficina_id?: string | null; codigo?: string; punto?: string; area?: string | null; nombre?: string | null; tipo_punto?: 'FIJO' | 'MOVIL' }): Observable<VozAudio> {
+    return this.http.post<VozAudio>(`${this.base}/voz/probar-llamado`, in_);
+  }
+  vozBiblioteca(uso?: string | null, q?: string | null, page = 0, size = 40): Observable<Pagina<VozAudio>> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (uso) params = params.set('uso', uso);
+    if (q) params = params.set('q', q);
+    return this.http.get<Pagina<VozAudio>>(`${this.base}/voz/biblioteca`, { params });
+  }
+  vozBorrarAudio(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/voz/biblioteca/${id}`); }
+  vozClonar(nombre: string, descripcion: string | null, archivos: File[]): Observable<{ voz_id: string; nombre: string }> {
+    const form = new FormData();
+    form.append('nombre', nombre);
+    if (descripcion) form.append('descripcion', descripcion);
+    for (const a of archivos) form.append('archivos', a);
+    return this.http.post<{ voz_id: string; nombre: string }>(`${this.base}/voz/clonar`, form);
+  }
+  vozMusica(prompt: string, segundos: number, titulo?: string | null): Observable<Media> {
+    return this.http.post<Media>(`${this.base}/voz/musica`, { prompt, segundos, titulo: titulo ?? null });
+  }
+  /** URL absoluta de un audio generado o de un archivo (el televisor no comparte origen con el API). */
+  urlAudio(ruta: string | null): string | null { return this.urlMedia({ url: ruta }); }
+  urlAudioLlamado(codigoPantalla: string, turnoId: string): string { return `${this.basePublica}/voz/pantalla/${codigoPantalla}/llamado/${turnoId}`; }
+  urlArchivoMedia(mediaId: string): string { return `${this.basePublica}/media/${mediaId}/archivo`; }
+
   // ── Diseñador: vistas y guiones ──
   vistas(oficinaId?: string | null): Observable<Vista[]> {
     const params = oficinaId ? new HttpParams().set('oficinaId', oficinaId) : undefined;

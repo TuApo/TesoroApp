@@ -47,6 +47,11 @@ export class PantallaSala implements OnInit {
   readonly audioDesbloqueado = signal(false);
   /** El diseño (guion + vistas) que le toca a esta pantalla; sin él se usa la plantilla fija. */
   readonly diseno = signal<DisenoResuelto | null>(null);
+  /** Aviso de perifoneo sonando ahora (para el rótulo en pantalla). */
+  readonly perifoneo = signal<Media | null>(null);
+  private ultimoPerifoneo = new Map<string, number>();
+  private audioPerifoneo: HTMLAudioElement | null = null;
+  private camaPerifoneo: HTMLAudioElement | null = null;
   readonly conDiseno = computed(() => (this.diseno()?.guion?.pasos?.length ?? 0) > 0 && (this.diseno()?.vistas?.length ?? 0) > 0);
   readonly datosVista = computed<DatosVista>(() => ({
     oficina_nombre: this.vista()?.oficina_nombre ?? '',
@@ -114,6 +119,8 @@ export class PantallaSala implements OnInit {
     const refresco = setInterval(() => this.api.publicoPiezas(this.codigo()).subscribe({ next: p => this.piezas.set(p), error: () => {} }), 5 * 60_000);
     // Por si se perdió el aviso SSE de un diseño nuevo: se comprueba la firma cada dos minutos.
     const refrescoDiseno = setInterval(() => this.refrescarDiseno(), 2 * 60_000);
+    const perifoneo = setInterval(() => this.revisarPerifoneo(), 20_000);
+    this.destroyRef.onDestroy(() => { clearInterval(perifoneo); this.audioPerifoneo?.pause(); this.camaPerifoneo?.pause(); });
     this.destroyRef.onDestroy(() => { clearInterval(reloj); clearInterval(latido); clearInterval(refresco); clearInterval(refrescoDiseno); this.conexion?.cerrar(); if (this.temporizadorPieza) clearTimeout(this.temporizadorPieza); });
   }
 
@@ -217,9 +224,30 @@ export class PantallaSala implements OnInit {
     } catch { /* sin audio */ }
   }
 
+  /**
+   * Canta el siguiente turno de la cola de voz. Primero con la voz de marca del
+   * servidor (mp3 ya sintetizado o generado al momento); si no hay voz del
+   * servidor, falla la red o el navegador bloquea el audio, con la voz del
+   * navegador, como siempre. Cantar el turno nunca depende de un tercero.
+   */
   private hablar(): void {
-    if (this.hablando || !this.colaVoz.length || typeof speechSynthesis === 'undefined') return;
+    if (this.hablando || !this.colaVoz.length) return;
     const t = this.colaVoz.shift()!;
+    this.hablando = true;
+    const fin = () => { this.hablando = false; setTimeout(() => this.hablar(), 300); };
+    let cayo = false;
+    const caer = () => { if (cayo) return; cayo = true; this.hablarNavegador(t, fin); };
+    try {
+      const a = new Audio(this.api.urlAudioLlamado(this.codigo(), t.id));
+      a.preload = 'auto';
+      a.onended = fin;
+      a.onerror = caer;
+      a.play().catch(caer);
+    } catch { caer(); }
+  }
+
+  private hablarNavegador(t: Turno, fin: () => void): void {
+    if (typeof speechSynthesis === 'undefined') { fin(); return; }
     const v = this.vista()!;
     // Un puesto móvil (apoyo en pasillo o sala) no tiene a dónde "dirigirse": el asesor va.
     const plantilla = t.punto_tipo === 'MOVIL'
@@ -232,9 +260,62 @@ export class PantallaSala implements OnInit {
     u.lang = 'es-CO'; u.rate = 0.92;
     const voz = speechSynthesis.getVoices().find(x => x.lang.startsWith('es-CO')) ?? speechSynthesis.getVoices().find(x => x.lang.startsWith('es'));
     if (voz) u.voice = voz;
-    this.hablando = true;
-    u.onend = u.onerror = () => { this.hablando = false; setTimeout(() => this.hablar(), 300); };
+    u.onend = u.onerror = fin;
     speechSynthesis.speak(u);
+  }
+
+  // ── Perifoneo ──────────────────────────────────────────────────────────
+
+  /** Cada 20 s: si a alguna pieza con intervalo le toca y está en su horario, suena por encima de todo. */
+  private revisarPerifoneo(): void {
+    if (this.perifoneo() || !this.audioDesbloqueado()) return;
+    const ahora = Date.now();
+    const candidatas = [...this.piezas(), ...Object.values(this.diseno()?.playlists ?? {}).flat()]
+      .filter(p => p.tipo === 'AUDIO' && p.intervalo_min && p.activo && this.api.urlMedia(p));
+    for (const p of candidatas) {
+      if (!this.ultimoPerifoneo.has(p.id)) { this.ultimoPerifoneo.set(p.id, ahora); continue; }
+      if (!this.enHorario(p)) continue;
+      if (ahora - (this.ultimoPerifoneo.get(p.id) ?? 0) < (p.intervalo_min ?? 0) * 60_000) continue;
+      this.ultimoPerifoneo.set(p.id, ahora);
+      this.perifonear(p);
+      return;
+    }
+  }
+
+  private enHorario(p: Media): boolean {
+    if (!p.horario_json) return true;
+    try {
+      const h = JSON.parse(p.horario_json) as { dias?: number[]; desde?: string; hasta?: string };
+      const d = new Date();
+      const dia = d.getDay() === 0 ? 7 : d.getDay();
+      if (h.dias?.length && !h.dias.includes(dia)) return false;
+      const hhmm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      if (h.desde && hhmm < h.desde) return false;
+      if (h.hasta && hhmm > h.hasta) return false;
+      return true;
+    } catch { return true; }
+  }
+
+  private perifonear(p: Media): void {
+    const url = this.api.urlMedia(p);
+    if (!url) return;
+    this.perifoneo.set(p);
+    const inicio = Date.now();
+    const terminar = () => {
+      this.camaPerifoneo?.pause(); this.camaPerifoneo = null; this.audioPerifoneo = null;
+      this.perifoneo.set(null);
+      this.api.publicoEmision(this.codigo(), p.id, Math.round((Date.now() - inicio) / 1000)).subscribe({ error: () => {} });
+    };
+    if (p.cama_media_id) {
+      this.camaPerifoneo = new Audio(this.api.urlMedia({ url: `/api/v1/public/turnos/media/${p.cama_media_id}/archivo` }) ?? '');
+      this.camaPerifoneo.loop = true;
+      this.camaPerifoneo.volume = Math.max(0, Math.min(1, (p.cama_volumen ?? 25) / 100));
+      this.camaPerifoneo.play().catch(() => {});
+    }
+    this.audioPerifoneo = new Audio(url);
+    this.audioPerifoneo.onended = terminar;
+    this.audioPerifoneo.onerror = terminar;
+    this.audioPerifoneo.play().catch(terminar);
   }
 
   /** Un clic en cualquier parte desbloquea el audio (los navegadores lo exigen). */
@@ -274,6 +355,11 @@ export class PantallaSala implements OnInit {
   }
 
   nombreCorto(t: Turno): string { return t.nombre ?? ''; }
+
+  /** Cama musical de una pieza de audio (otra pieza AUDIO marcada como cama). */
+  urlCama(p: Media): string | null {
+    return p.cama_media_id ? this.api.urlMedia({ url: `/api/v1/public/turnos/media/${p.cama_media_id}/archivo` }) : null;
+  }
 }
 
 /** "A-014" → "A, cero catorce": la voz lee mejor los dígitos separados de la letra. */

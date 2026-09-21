@@ -6,12 +6,14 @@
     <div class="tv tv--diseno" [attr.data-orientacion]="v.orientacion" (click)="desbloquearAudio()">
       <app-reproductor-guion [diseno]="d" [datos]="datosVista()" [reportar]="true" (emision)="emisionDesdeDiseno($event)" />
       <span class="tv__canal tv__canal--flotante" [class.tv__canal--ok]="canal() === 'conectado'"></span>
+      @if (perifoneo(); as p) { <div class="tv__perifoneo"><mat-icon>campaign</mat-icon> {{ p.titulo }}</div> }
       @if (!audioDesbloqueado() && (v.sonido || v.voz)) {
         <div class="tv__toque"><mat-icon>touch_app</mat-icon> Toque la pantalla una vez para activar el sonido y la pantalla completa</div>
       }
     </div>
   } @else {
   <div class="tv" [attr.data-tema]="v.tema" [attr.data-layout]="v.layout" [attr.data-orientacion]="v.orientacion" (click)="desbloquearAudio()">
+    @if (perifoneo(); as p) { <div class="tv__perifoneo"><mat-icon>campaign</mat-icon> {{ p.titulo }}</div> }
     <header class="tv__cab">
       <span class="tv__oficina">{{ v.oficina_nombre }}</span>
       @if (v.mostrar_reloj) { <span class="tv__reloj">{{ ahora() | date:'HH:mm' }}<small>{{ ahora() | date:'EEEE d MMMM':'':'es' }}</small></span> }
@@ -97,6 +99,15 @@
                 <div class="aviso">
                   <h2>{{ p.titulo }}</h2>
                   <p>{{ p.descripcion }}</p>
+                </div>
+              }
+              @case ('AUDIO') {
+                <div class="aviso aviso--audio">
+                  <mat-icon>{{ p.voz_texto ? 'record_voice_over' : 'graphic_eq' }}</mat-icon>
+                  <h2>{{ p.titulo }}</h2>
+                  <p>{{ p.descripcion || p.voz_texto }}</p>
+                  @if (urlPieza()) { <audio [src]="urlPieza()" autoplay (ended)="videoTermino()" (error)="videoFallo()"></audio> }
+                  @if (p.cama_media_id) { <audio [src]="urlCama(p)" autoplay loop [volume]="(p.cama_volumen ?? 25) / 100"></audio> }
                 </div>
               }
             }

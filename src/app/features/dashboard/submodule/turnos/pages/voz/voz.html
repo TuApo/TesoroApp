@@ -1,0 +1,194 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>record_voice_over</mat-icon> Voz y locución</h1>
+      <p class="tn-subtitulo">Una sola voz de marca para cantar turnos, locutar avisos y armar jingles. Cada frase se sintetiza una vez y se reutiliza: el televisor nunca depende de la voz del navegador.</p>
+    </div>
+    <div class="tn-acciones">
+      <app-selector-oficina />
+      <a class="tn-boton tn-boton--fantasma" routerLink="/dashboard/turnos/publicidad"><mat-icon>campaign</mat-icon> Publicidad y avisos</a>
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }} <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="error.set(null)"><mat-icon>close</mat-icon></button></div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <!-- Estado de la cuenta -->
+  <section class="tn-tarjeta estado">
+    @if (estado(); as e) {
+      @if (!e.habilitada) {
+        <div class="estado__fila"><mat-icon class="warn">voice_over_off</mat-icon><div><strong>Voz del servidor desactivada.</strong> Falta la llave de ElevenLabs en el entorno (TURNOS_ELEVENLABS_API_KEY). Los televisores usan la voz del navegador.</div></div>
+      } @else if (e.error_cuenta) {
+        <div class="estado__fila"><mat-icon class="warn">cloud_off</mat-icon><div><strong>ElevenLabs no responde:</strong> {{ e.error_cuenta }}</div></div>
+      } @else if (cuota(); as c) {
+        <div class="estado__fila">
+          <mat-icon class="ok">graphic_eq</mat-icon>
+          <div class="estado__cuota">
+            <div><strong>Cuenta activa</strong> · plan {{ e.suscripcion?.plan }} · {{ c.usado | number }} de {{ c.limite | number }} caracteres este mes @if (c.reinicio) { · se renueva el {{ c.reinicio | date:'d MMM' }} }</div>
+            <div class="barra"><span [style.width.%]="c.pct" [class.barra--alto]="c.pct > 85"></span></div>
+          </div>
+        </div>
+      }
+      <div class="estado__kpis">
+        <span class="tn-chip"><mat-icon>library_music</mat-icon> {{ e.audios_en_cache }} audios en caché</span>
+        <span class="tn-chip"><mat-icon>replay</mat-icon> {{ e.reutilizaciones }} reutilizaciones (no cobradas)</span>
+        <span class="tn-chip"><mat-icon>text_fields</mat-icon> {{ e.caracteres_sintetizados | number }} caracteres sintetizados</span>
+        <span class="tn-chip"><mat-icon>save</mat-icon> {{ kb(e.bytes_en_disco) }} en disco</span>
+      </div>
+    } @else { <span class="tn-subtitulo">Consultando la cuenta…</span> }
+  </section>
+
+  <div class="dos">
+    <!-- Voz de marca -->
+    <section class="tn-tarjeta">
+      <h3><mat-icon>verified</mat-icon> Voz de marca <span class="tn-chip" [class.tn-chip--info]="ajustes()?.origen === 'GLOBAL'" [class.tn-chip--ok]="ajustes()?.origen === 'PROPIO'">{{ origenNombre(ajustes()?.origen) }}</span></h3>
+
+      <div class="elegida">
+        @if (vozElegida(); as v) {
+          <button type="button" class="play" [class.play--on]="reproduciendo() === 'elegida'" (click)="escuchar(v.preview_url, 'elegida')"><mat-icon>{{ reproduciendo() === 'elegida' ? 'stop' : 'play_arrow' }}</mat-icon></button>
+          <div><strong>{{ v.nombre }}</strong><div class="tn-subtitulo">{{ etiquetaVoz(v) }}</div></div>
+        } @else if (form.voz_id) {
+          <mat-icon>record_voice_over</mat-icon><div><strong>{{ form.voz_nombre || form.voz_id }}</strong><div class="tn-subtitulo">Voz configurada</div></div>
+        } @else {
+          <mat-icon>help_outline</mat-icon><div><strong>Sin voz elegida</strong><div class="tn-subtitulo">Elija una de la lista de abajo.</div></div>
+        }
+      </div>
+
+      <div class="voces__filtros">
+        <input class="buscar" type="search" placeholder="Buscar voz…" [ngModel]="filtroVoz()" (ngModelChange)="filtroVoz.set($event)">
+        <label class="tn-check"><input type="checkbox" [ngModel]="soloEspanol()" (ngModelChange)="soloEspanol.set($event)"> Solo español</label>
+        <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Actualizar desde ElevenLabs" (click)="cargarVoces(true)" [disabled]="cargandoVoces()"><mat-icon>refresh</mat-icon></button>
+      </div>
+      <div class="voces">
+        @for (v of vocesFiltradas(); track v.voz_id) {
+          <div class="voz" [class.voz--on]="v.voz_id === form.voz_id">
+            <button type="button" class="play" [class.play--on]="reproduciendo() === v.voz_id" (click)="escuchar(v.preview_url, v.voz_id)" [disabled]="!v.preview_url"><mat-icon>{{ reproduciendo() === v.voz_id ? 'stop' : 'play_arrow' }}</mat-icon></button>
+            <div class="voz__datos" (click)="elegirVoz(v)">
+              <strong>{{ v.nombre }}</strong>
+              <span class="tn-subtitulo">{{ etiquetaVoz(v) }}</span>
+            </div>
+            <button type="button" class="tn-boton" [class.tn-boton--primario]="v.voz_id !== form.voz_id" (click)="elegirVoz(v)">{{ v.voz_id === form.voz_id ? 'Elegida' : 'Elegir' }}</button>
+          </div>
+        }
+        @if (!vocesFiltradas().length) { <div class="tn-vacio"><mat-icon>search_off</mat-icon><span>{{ voces().length ? 'Ninguna voz coincide.' : 'No hay voces (revise la llave).' }}</span></div> }
+      </div>
+
+      <div class="tn-form" style="margin-top:12px">
+        <label class="tn-campo"><span>Modelo para cantar turnos</span>
+          <select [(ngModel)]="form.modelo_llamado">@for (m of modelos(); track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }</select>
+        </label>
+        <label class="tn-campo"><span>Modelo para avisos y jingles</span>
+          <select [(ngModel)]="form.modelo_locucion">@for (m of modelos(); track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }</select>
+        </label>
+        <label class="tn-campo"><span>Estabilidad <em>{{ form.estabilidad | number:'1.2-2' }}</em></span><input type="range" min="0" max="1" step="0.05" [(ngModel)]="form.estabilidad"><span class="ayuda">Baja = más expresiva; alta = más pareja.</span></label>
+        <label class="tn-campo"><span>Similitud <em>{{ form.similitud | number:'1.2-2' }}</em></span><input type="range" min="0" max="1" step="0.05" [(ngModel)]="form.similitud"></label>
+        <label class="tn-campo"><span>Estilo <em>{{ form.estilo | number:'1.2-2' }}</em></span><input type="range" min="0" max="1" step="0.05" [(ngModel)]="form.estilo"><span class="ayuda">Exagera la intención; 0 es lo más natural.</span></label>
+        <label class="tn-campo"><span>Velocidad <em>{{ form.velocidad | number:'1.2-2' }}</em></span><input type="range" min="0.7" max="1.2" step="0.05" [(ngModel)]="form.velocidad"></label>
+        <label class="tn-check tn-campo--ancho"><input type="checkbox" [(ngModel)]="form.cantar_con_voz"> Cantar los turnos con esta voz (si se apaga, el televisor usa la voz del navegador)</label>
+      </div>
+
+      <h4 class="sub"><mat-icon>campaign</mat-icon> Frases de llamado</h4>
+      <div class="tn-form">
+        <label class="tn-campo tn-campo--ancho"><span>Puesto fijo</span><input [(ngModel)]="form.plantilla_llamado">
+          <span class="chips">@for (v of VARIABLES; track v) { <button type="button" class="tn-chip chip-btn" (click)="insertar('plantilla_llamado', v)">{{ v }}</button> }</span>
+        </label>
+        <label class="tn-campo tn-campo--ancho"><span>Puesto móvil (apoyo en sala)</span><input [(ngModel)]="form.plantilla_llamado_movil">
+          <span class="chips">@for (v of VARIABLES; track v) { <button type="button" class="tn-chip chip-btn" (click)="insertar('plantilla_llamado_movil', v)">{{ v }}</button> }</span>
+        </label>
+      </div>
+      <div class="prueba-llamado">
+        <input [(ngModel)]="llamadoPrueba.codigo" placeholder="A-014" title="Código">
+        <input [(ngModel)]="llamadoPrueba.punto" placeholder="Módulo 2" title="Puesto">
+        <select [(ngModel)]="llamadoPrueba.tipo_punto"><option value="FIJO">Fijo</option><option value="MOVIL">Móvil</option></select>
+        <button type="button" class="tn-boton" (click)="probarLlamado()" [disabled]="ocupado()"><mat-icon>hearing</mat-icon> Escuchar el llamado (con lo guardado)</button>
+      </div>
+
+      @if (ctx.esAdmin()) {
+        <div class="tn-acciones" style="margin-top:12px">
+          <button type="button" class="tn-boton tn-boton--primario" (click)="guardar('GLOBAL')" [disabled]="ocupado() || !form.voz_id"><mat-icon>public</mat-icon> Guardar para todas las oficinas</button>
+          <button type="button" class="tn-boton" (click)="guardar('OFICINA')" [disabled]="ocupado() || !form.voz_id || !ctx.oficinaId()"><mat-icon>store</mat-icon> Guardar solo para {{ ctx.oficina()?.nombre || 'esta oficina' }}</button>
+          @if (ajustes()?.origen === 'PROPIO') { <button type="button" class="tn-boton tn-boton--fantasma" (click)="volverAGlobal()"><mat-icon>undo</mat-icon> Volver a la voz global</button> }
+        </div>
+      }
+    </section>
+
+    <div class="columna">
+      <!-- Probador -->
+      <section class="tn-tarjeta">
+        <h3><mat-icon>mic</mat-icon> Probar un texto</h3>
+        <textarea rows="3" [(ngModel)]="prueba.texto" placeholder="Escriba lo que quiere oír…"></textarea>
+        <div class="tn-form" style="margin-top:8px">
+          <label class="tn-campo"><span>Voz (vacío = la de marca)</span>
+            <select [(ngModel)]="prueba.voz_id"><option value="">Voz de marca</option>@for (v of vocesFiltradas(); track v.voz_id) { <option [value]="v.voz_id">{{ v.nombre }}</option> }</select>
+          </label>
+          <label class="tn-campo"><span>Modelo</span>
+            <select [(ngModel)]="prueba.modelo"><option value="">El de avisos</option>@for (m of modelos(); track m.id) { <option [value]="m.id">{{ m.nombre }}</option> }</select>
+          </label>
+        </div>
+        <div class="tn-acciones" style="margin-top:8px">
+          <button type="button" class="tn-boton tn-boton--primario" (click)="probarTexto()" [disabled]="ocupado() || !prueba.texto.trim()"><mat-icon>{{ ocupado() ? 'hourglass_top' : 'volume_up' }}</mat-icon> {{ ocupado() ? 'Generando…' : 'Escuchar' }}</button>
+          @if (ultimoAudio(); as a) {
+            <span class="tn-chip" [class.tn-chip--ok]="a.de_cache">{{ a.de_cache ? 'De caché, sin costo' : a.caracteres + ' caracteres cobrados' }}</span>
+            <a class="tn-boton tn-boton--fantasma" [href]="api.urlAudio(a.url)" download><mat-icon>download</mat-icon> mp3</a>
+          }
+        </div>
+        <p class="tn-subtitulo" style="margin-top:8px">Cada texto se sintetiza una sola vez: repetirlo no cuesta. Cambiar una letra, la voz o el modelo genera otro audio.</p>
+      </section>
+
+      <!-- Cama musical -->
+      <section class="tn-tarjeta">
+        <h3><mat-icon>music_note</mat-icon> Cama musical con IA</h3>
+        <p class="tn-subtitulo">Música de fondo para avisos hablados y jingles de perifoneo. Se guarda como pieza de audio marcada como cama.</p>
+        <textarea rows="2" [(ngModel)]="musica.prompt"></textarea>
+        <div class="tn-form" style="margin-top:8px">
+          <label class="tn-campo"><span>Duración (s)</span><input type="number" min="5" max="120" [(ngModel)]="musica.segundos"></label>
+          <label class="tn-campo"><span>Título</span><input [(ngModel)]="musica.titulo" placeholder="Cama corporativa"></label>
+        </div>
+        @if (ctx.esAdmin()) { <button type="button" class="tn-boton" style="margin-top:8px" (click)="generarMusica()" [disabled]="ocupado()"><mat-icon>auto_awesome</mat-icon> Generar cama</button> }
+        @if (camas().length) {
+          <ul class="camas">@for (c of camas(); track c.id) { <li><button type="button" class="play play--mini" [class.play--on]="reproduciendo() === 'cama-' + c.id" (click)="escuchar(api.urlMedia(c), 'cama-' + c.id)"><mat-icon>{{ reproduciendo() === 'cama-' + c.id ? 'stop' : 'play_arrow' }}</mat-icon></button> {{ c.titulo }} <span class="tn-subtitulo">{{ c.duracion_seg }} s</span></li> }</ul>
+        }
+      </section>
+
+      <!-- Clonar -->
+      <section class="tn-tarjeta">
+        <h3><mat-icon>person_add</mat-icon> Clonar una voz propia</h3>
+        <p class="tn-subtitulo">Suba 1 a 3 minutos de audio limpio de un locutor de la empresa (con su consentimiento escrito). @if (estado()?.suscripcion && !estado()?.suscripcion?.puede_clonar) { <strong>El plan actual no incluye clonación instantánea;</strong> ElevenLabs la habilita desde el plan Starter. }</p>
+        <div class="tn-form">
+          <label class="tn-campo"><span>Nombre</span><input [(ngModel)]="clon.nombre" placeholder="Voz Tu Apo"></label>
+          <label class="tn-campo"><span>Descripción</span><input [(ngModel)]="clon.descripcion" placeholder="Locutora institucional"></label>
+          <label class="tn-campo tn-campo--ancho"><span>Muestras (mp3/wav)</span><input type="file" accept="audio/*" multiple (change)="muestrasElegidas($event)"></label>
+        </div>
+        @if (ctx.esAdmin()) { <button type="button" class="tn-boton" style="margin-top:8px" (click)="clonar()" [disabled]="ocupado() || !clon.nombre || !clon.archivos.length"><mat-icon>upload</mat-icon> Clonar</button> }
+      </section>
+    </div>
+  </div>
+
+  <!-- Biblioteca -->
+  <section class="tn-tarjeta">
+    <h3><mat-icon>library_music</mat-icon> Biblioteca de audios generados <span class="tn-chip">{{ totalBiblioteca() }}</span></h3>
+    <div class="voces__filtros">
+      <select [ngModel]="filtroUso()" (ngModelChange)="filtroUso.set($event); cargarBiblioteca()"><option value="">Todos los usos</option><option value="LLAMADO">Llamados de turno</option><option value="LOCUCION">Avisos y jingles</option><option value="PRUEBA">Pruebas</option></select>
+    </div>
+    @if (!biblioteca().length) { <div class="tn-vacio"><mat-icon>library_music</mat-icon><span>Aún no hay audios. El primer turno que se cante o el primer aviso que se genere aparecerán aquí.</span></div> }
+    @else {
+      <div class="tn-tabla-marco"><table class="tn-tabla">
+        <thead><tr><th></th><th>Texto</th><th>Voz</th><th>Uso</th><th class="numero">Veces</th><th class="numero">Duración</th><th>Creado</th><th></th></tr></thead>
+        <tbody>
+          @for (a of biblioteca(); track a.id) {
+            <tr>
+              <td><button type="button" class="play play--mini" [class.play--on]="reproduciendo() === a.id" (click)="escuchar(api.urlAudio(a.url), a.id)"><mat-icon>{{ reproduciendo() === a.id ? 'stop' : 'play_arrow' }}</mat-icon></button></td>
+              <td class="texto" [title]="a.texto">{{ a.texto }}</td>
+              <td>{{ a.voz_nombre || a.voz_id }}</td>
+              <td><span class="tn-chip" [class.tn-chip--info]="a.uso === 'LLAMADO'" [class.tn-chip--ok]="a.uso === 'LOCUCION'">{{ a.uso }}</span></td>
+              <td class="numero">{{ a.veces }}</td>
+              <td class="numero">{{ duracion(a.duracion_ms) }}</td>
+              <td>{{ a.creado_en | date:'dd/MM HH:mm' }}</td>
+              <td class="acciones"><a class="tn-boton tn-boton--fantasma tn-boton--icono" [href]="api.urlAudio(a.url)" download title="Descargar"><mat-icon>download</mat-icon></a>@if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Borrar" (click)="borrarAudio(a)"><mat-icon>delete</mat-icon></button> }</td>
+            </tr>
+          }
+        </tbody>
+      </table></div>
+    }
+  </section>
+</div>

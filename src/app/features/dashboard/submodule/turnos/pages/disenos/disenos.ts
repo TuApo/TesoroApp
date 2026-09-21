@@ -48,6 +48,7 @@ const PIEZA_MUESTRA: Media = {
   url: null, archivo_nombre: null, mime: null, bytes: null, ancho: null, alto: null, duracion_seg: 8, ajuste: 'CONTENER', silenciado: true,
   curso_ref: null, curso_url: null, vigente_desde: null, vigente_hasta: null, activo: true, etiquetas: null, creado_en: '', creado_por_nombre: null,
   alcances: [], vigente: true, emisiones: null,
+  voz_texto: null, voz_id: null, voz_audio_id: null, cama_media_id: null, cama_volumen: 25, es_cama: false, intervalo_min: null, horario_json: null,
 };
 
 /** Bloques del diseño clásico "turnos + publicidad", como punto de partida. */
