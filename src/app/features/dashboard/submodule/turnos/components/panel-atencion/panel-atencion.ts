@@ -70,6 +70,12 @@ export class PanelAtencion implements OnInit {
 
   /** Pestaña de caso con el menú desplegado. */
   readonly menuCaso = signal<string | null>(null);
+  /** Nombre y descripción que se editan en el menú de la pestaña. */
+  edicionCaso = { nombre: '', motivo: '' };
+  /** El cuerpo ya se pintó una vez: se deja en el DOM para que plegar/desplegar anime. */
+  readonly montado = signal(false);
+  /** Mientras se arrastra el asa no se anima la altura (iría a saltos). */
+  readonly arrastrando = signal(false);
 
   // ── Recepción: registrar a la persona que llega y decir quién la atiende ──
   /** Qué muestra la mitad izquierda: mi puesto o el mostrador de recepción. */
@@ -142,6 +148,7 @@ export class PanelAtencion implements OnInit {
       if (!p) return;
       untracked(() => {
         this.abierto.set(!!p.panel_abierto);
+        if (p.panel_abierto) this.montado.set(true);
         this.alto.set(Math.max(180, Math.min(720, p.panel_alto || 280)));
       });
     });
@@ -278,11 +285,14 @@ export class PanelAtencion implements OnInit {
 
   alternar(): void {
     this.abierto.update(v => !v);
+    if (this.abierto()) this.montado.set(true);
+    this.menuCaso.set(null);
     this.guardarPref({ panel_abierto: this.abierto() });
   }
 
   iniciarArrastre(e: PointerEvent): void {
     this.arrastre = { y0: e.clientY, alto0: this.alto() };
+    this.arrastrando.set(true);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
   moverArrastre(e: PointerEvent): void {
@@ -290,6 +300,7 @@ export class PanelAtencion implements OnInit {
     this.alto.set(Math.max(180, Math.min(720, this.arrastre.alto0 + (e.clientY - this.arrastre.y0))));
   }
   terminarArrastre(): void {
+    this.arrastrando.set(false);
     if (!this.arrastre) return;
     this.arrastre = null;
     this.guardarPref({ panel_alto: this.alto() });
@@ -590,7 +601,20 @@ export class PanelAtencion implements OnInit {
 
   alternarMenuCaso(c: Caso, e: Event): void {
     e.stopPropagation();
-    this.menuCaso.set(this.menuCaso() === c.id ? null : c.id);
+    const abrir = this.menuCaso() !== c.id;
+    this.menuCaso.set(abrir ? c.id : null);
+    if (abrir) this.edicionCaso = { nombre: c.nombre, motivo: c.motivo ?? '' };
+  }
+
+  /** Guarda nombre y descripción desde el menú de la pestaña. */
+  guardarDatosCaso(c: Caso): void {
+    const nombre = this.edicionCaso.nombre.trim();
+    const motivo = this.edicionCaso.motivo.trim();
+    const cambio: { nombre?: string; motivo?: string | null } = {};
+    if (nombre && nombre !== c.nombre) cambio.nombre = nombre;
+    if (motivo !== (c.motivo ?? '')) cambio.motivo = motivo || null;
+    if (!Object.keys(cambio).length) { this.menuCaso.set(null); return; }
+    this.correr(this.api.actualizarCaso(c.id, cambio), r => { this.ctx.aplicarCaso(r); this.menuCaso.set(null); this.aviso.set('Caso actualizado'); });
   }
   cerrarMenuCaso(): void { this.menuCaso.set(null); }
   casoDelMenu(): Caso | null { const id = this.menuCaso(); return this.casos().find(c => c.id === id) ?? null; }
