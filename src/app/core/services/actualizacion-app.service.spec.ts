@@ -6,12 +6,15 @@ import { Subject } from 'rxjs';
 import { ActualizacionAppService } from './actualizacion-app.service';
 
 describe('ActualizacionAppService', () => {
-  const eventos = new Subject<unknown>();
+  // Un Subject por prueba: si se compartiera, las instancias del servicio de pruebas
+  // anteriores seguirían suscritas y se llevarían el evento (y la marca de sessionStorage).
+  let eventos: Subject<unknown>;
   let servicio: ActualizacionAppService;
   let recargas: string[];
 
   beforeEach(() => {
     recargas = [];
+    eventos = new Subject<unknown>();
     TestBed.configureTestingModule({
       providers: [
         { provide: Router, useValue: { events: eventos.asObservable(), url: '/dashboard' } },
@@ -20,6 +23,8 @@ describe('ActualizacionAppService', () => {
     });
     servicio = TestBed.inject(ActualizacionAppService);
     spyOn(servicio as unknown as { activarYRecargar: (u: string) => Promise<void> }, 'activarYRecargar').and.callFake(async (u: string) => { recargas.push(u); });
+    // Por si algún camino llega a la recarga real: nunca recargar la página de Karma.
+    spyOn(servicio as unknown as { recargar: () => void }, 'recargar').and.stub();
     try { sessionStorage.clear(); } catch { /* sin storage */ }
     servicio.iniciar();
   });
@@ -38,5 +43,13 @@ describe('ActualizacionAppService', () => {
   it('otros errores de navegación no recargan', () => {
     eventos.next(new NavigationError(1, '/dashboard/x', new Error('Cannot match any routes')));
     expect(recargas).toEqual([]);
+  });
+
+  it('la recarga real pasa por la costura recargar()', () => {
+    const svc = servicio as unknown as { recargar: () => void; activarYRecargar: (u: string) => Promise<void> };
+    (svc.activarYRecargar as jasmine.Spy).and.callThrough();
+    return svc.activarYRecargar('/dashboard/turnos/voz').then(() => {
+      expect(svc.recargar).toHaveBeenCalledTimes(1);
+    });
   });
 });

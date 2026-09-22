@@ -73,7 +73,7 @@ export class ActualizacionAppService {
       this.snack
         .open('La aplicación necesita recargarse para continuar.', 'Recargar', { duration: 0 })
         .onAction()
-        .subscribe(() => document.location.reload());
+        .subscribe(() => this.recargar());
     });
 
     // Al navegar: si ya hay versión lista, se estrena en la ruta destino; si no,
@@ -121,6 +121,11 @@ export class ActualizacionAppService {
       // La app enruta por hash: cambiar el hash no recarga, así que se fija y luego se recarga.
       if (url && url.startsWith('/')) window.location.hash = url;
     } catch { /* sin location: la recarga basta */ }
+    this.recargar();
+  }
+
+  /** Única costura hacia la recarga real: los specs la reemplazan y nunca recargan la página de Karma. */
+  protected recargar(): void {
     document.location.reload();
   }
 
