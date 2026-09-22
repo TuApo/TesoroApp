@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { RouterLink } from '@angular/router';
 
 import { ContextoTurnosService } from '../../service/contexto-turnos.service';
-import { Alcance, Media, MediaIn, Playlist, PlaylistIn, ReporteEmision, TipoAlcance, TipoMedia, TurnosService, Vista, VozAudio, VozDisponible } from '../../service/turnos.service';
+import { Alcance, Aviso, AvisoIn, Media, MediaIn, ModoAviso, Playlist, PlaylistIn, ReporteEmision, TipoAlcance, TipoMedia, TurnosService, Vista, VozAudio, VozDisponible } from '../../service/turnos.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 import { DatosVista, VistaRender } from '../../components/vista-render/vista-render';
 import { idYoutube } from '../../service/media.util';
@@ -24,6 +24,13 @@ interface Borrador {
 }
 
 const TIPOS_CON_ARCHIVO: TipoMedia[] = ['IMAGEN', 'VIDEO', 'AUDIO'];
+
+/** Borrador de un aviso en pantalla. */
+interface BorradorAviso {
+  titulo: string; texto: string; modo: ModoAviso; duracion_seg: number; color: string; icono: string; con_voz: boolean;
+  orden: number; intervalo_min: number | null; vigente_desde: string | null; vigente_hasta: string | null; activo: boolean; oficina_id: string | null;
+}
+export const ICONOS_AVISO = ['campaign', 'info', 'warning', 'badge', 'schedule', 'event', 'local_hospital', 'school', 'celebration', 'construction', 'wifi_off', 'volume_up'];
 
 /**
  * Piezas de publicidad, avisos y cursos, con su alcance y las listas que las
@@ -49,7 +56,14 @@ export class Publicidad implements OnInit {
   private utilidades = inject(UtilityServiceService);
   private destroyRef = inject(DestroyRef);
 
-  readonly pestana = signal<'piezas' | 'listas' | 'reporte'>('piezas');
+  readonly pestana = signal<'piezas' | 'listas' | 'avisos' | 'reporte'>('piezas');
+  // ── Avisos en pantalla ──
+  readonly avisosLista = signal<Aviso[]>([]);
+  readonly formAviso = signal(false);
+  readonly editandoAviso = signal<string | null>(null);
+  readonly avisoBorrador = signal<BorradorAviso>(this.avisoVacio());
+  readonly emitiendo = signal<string | null>(null);
+  readonly ICONOS_AVISO = ICONOS_AVISO;
   readonly piezas = signal<Media[]>([]);
   readonly totalPiezas = signal(0);
   readonly pagina = signal(0);
@@ -221,7 +235,7 @@ export class Publicidad implements OnInit {
     });
     this.archivo.set(null);
     this.piezaOriginal.set(m);
-    this.audioVoz.set(m.voz_audio_id ? { id: m.voz_audio_id, url: m.url ?? '', texto: m.voz_texto ?? '', voz_id: m.voz_id ?? '', voz_nombre: null, modelo: '', uso: 'LOCUCION', bytes: 0, duracion_ms: null, caracteres: 0, veces: 0, creado_en: '', ultimo_uso: null, de_cache: true } : null);
+    this.audioVoz.set(m.voz_audio_id ? { id: m.voz_audio_id, url: m.url ?? '', texto: m.voz_texto ?? '', voz_id: m.voz_id ?? '', voz_nombre: null, modelo: '', uso: 'LOCUCION', bytes: 0, duracion_ms: null, caracteres: 0, veces: 0, creado_en: '', ultimo_uso: null, de_cache: true, clave: null } : null);
     const soloOficina = m.alcances.length === 1 && m.alcances[0].tipo === 'OFICINA';
     this.modoAlcance.set(!m.alcances.length ? 'TODAS' : soloOficina ? 'OFICINA' : 'AVANZADO');
     this.oficinaAlcance.set(soloOficina ? m.alcances[0].valor_ref : this.ctx.oficinaId());
@@ -366,6 +380,49 @@ export class Publicidad implements OnInit {
     catch { return ''; }
   }
   nombreCama(id: string | null): string { return this.camas().find(c => c.id === id)?.titulo ?? ''; }
+
+  // ── Avisos en pantalla ─────────────────────────────────────────────────
+  cargarAvisos(): void {
+    this.api.avisos(this.ctx.oficinaId()).subscribe({ next: a => this.avisosLista.set(a), error: () => this.avisosLista.set([]) });
+  }
+  setAviso<K extends keyof BorradorAviso>(campo: K, valor: BorradorAviso[K]): void { this.avisoBorrador.update(a => ({ ...a, [campo]: valor })); }
+  nuevoAviso(modo: ModoAviso = 'BLOQUE'): void { this.avisoBorrador.set({ ...this.avisoVacio(), modo, oficina_id: this.ctx.oficinaId() }); this.editandoAviso.set(null); this.formAviso.set(true); }
+  editarAviso(a: Aviso): void {
+    this.avisoBorrador.set({ titulo: a.titulo, texto: a.texto ?? '', modo: a.modo, duracion_seg: a.duracion_seg, color: a.color ?? '#9BD441', icono: a.icono ?? 'campaign',
+      con_voz: a.con_voz, orden: a.orden, intervalo_min: a.intervalo_min, vigente_desde: a.vigente_desde?.slice(0, 16) ?? null, vigente_hasta: a.vigente_hasta?.slice(0, 16) ?? null,
+      activo: a.activo, oficina_id: a.oficina_id });
+    this.editandoAviso.set(a.id);
+    this.formAviso.set(true);
+  }
+  guardarAviso(): void {
+    const a = this.avisoBorrador();
+    if (!a.titulo.trim()) return;
+    const cuerpo: AvisoIn = { oficina_id: a.oficina_id, titulo: a.titulo.trim(), texto: a.texto || null, modo: a.modo, duracion_seg: a.duracion_seg, color: a.color || null,
+      icono: a.icono || null, con_voz: a.con_voz, orden: a.orden, intervalo_min: a.modo === 'PANTALLA_COMPLETA' ? (a.intervalo_min || null) : null,
+      vigente_desde: a.vigente_desde || null, vigente_hasta: a.vigente_hasta || null, activo: a.activo };
+    const id = this.editandoAviso();
+    this.ocupado.set(true);
+    this.error.set(null);
+    (id ? this.api.actualizarAviso(id, cuerpo) : this.api.crearAviso(cuerpo)).subscribe({
+      next: () => { this.ocupado.set(false); this.formAviso.set(false); this.avisar(id ? 'Aviso actualizado; las pantallas ya lo tienen.' : 'Aviso creado'); this.cargarAvisos(); },
+      error: e => { this.ocupado.set(false); this.error.set(e?.error?.message || 'No se pudo guardar el aviso'); },
+    });
+  }
+  emitirAviso(a: Aviso): void {
+    this.emitiendo.set(a.id);
+    this.api.emitirAviso(a.id).subscribe({
+      next: () => { this.emitiendo.set(null); this.avisar(a.modo === 'PANTALLA_COMPLETA' ? 'Aviso emitido: está tomando las pantallas ahora.' : 'Aviso emitido a las pantallas.'); },
+      error: e => { this.emitiendo.set(null); this.error.set(e?.error?.message || 'No se pudo emitir'); },
+    });
+  }
+  desactivarAviso(a: Aviso): void {
+    if (!confirm(`¿Retirar el aviso "${a.titulo}"?`)) return;
+    this.api.desactivarAviso(a.id).subscribe({ next: () => this.cargarAvisos(), error: () => {} });
+  }
+  private avisoVacio(): BorradorAviso {
+    return { titulo: '', texto: '', modo: 'BLOQUE', duracion_seg: 10, color: '#9BD441', icono: 'campaign', con_voz: false, orden: 0, intervalo_min: null,
+      vigente_desde: null, vigente_hasta: null, activo: true, oficina_id: null };
+  }
 
   // ── Listas ─────────────────────────────────────────────────────────────
   cargarListas(): void { this.api.playlists(null).subscribe({ next: l => this.listas.set(l), error: () => {} }); }

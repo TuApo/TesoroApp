@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MatIconModule } from '@angular/material/icon';
 
-import { Bloque, Croquis, Media, Turno, TurnosService, Vista } from '../../service/turnos.service';
+import { Aviso, Bloque, Croquis, Media, Turno, TurnosService, Vista } from '../../service/turnos.service';
 import { CroquisSvg } from '../croquis-svg/croquis-svg';
 import { idYoutube } from '../../service/media.util';
 
@@ -20,6 +20,8 @@ export interface DatosVista {
   playlists: Record<string, Media[]>;
   croquis: Croquis | null;
   url_turno: string | null;
+  /** Avisos en modo BLOQUE, en orden; el bloque NOTIFICACIONES los rota. */
+  avisos?: Aviso[];
 }
 
 export interface EmisionPieza { media_id: string; segundos: number; }
@@ -40,6 +42,7 @@ export function bloqueNuevo(tipo: Bloque['tipo'], vertical = false): Bloque {
     case 'CROQUIS': return { ...base, y: 64, w: 40, h: 32, estilo: { fondo: '#121A33', radio: 2, relleno: 1 }, props: {} };
     case 'QR': return { ...base, x: 80, y: 66, w: 16, h: 30, estilo: { fondo: '#FFFFFF', color: '#0B1020', radio: 1.5, relleno: 1 }, props: { url: '', etiqueta: 'Escanee para tomar su turno' } };
     case 'OFICINA': return { ...base, x: 4, y: 2, w: 50, h: 8, estilo: { color: '#94A3B8', tamano: 2.6, negrita: true }, props: { texto: '' } };
+    case 'NOTIFICACIONES': return { ...base, x: 46, y: 78, w: 50, h: 18, estilo: { fondo: '#121A33', color: '#F8FAFC', radio: 2, relleno: 1.4, tamano: 2.8 }, props: { titulo: 'Avisos', vacio: 'Sin avisos por ahora' } };
   }
   return vertical ? { ...base, w: 60 } : base;
 }
@@ -47,10 +50,12 @@ export function bloqueNuevo(tipo: Bloque['tipo'], vertical = false): Bloque {
 export const NOMBRE_BLOQUE: Record<Bloque['tipo'], string> = {
   TURNO_LLAMADO: 'Turno llamado', LISTA_ATENCION: 'En atención', LISTA_ESPERA: 'Siguientes', PUBLICIDAD: 'Publicidad',
   RELOJ: 'Reloj y fecha', TEXTO: 'Texto / aviso', IMAGEN: 'Imagen', LOGO: 'Logo', CROQUIS: 'Mini-mapa', QR: 'Código QR', OFICINA: 'Nombre de la oficina',
+  NOTIFICACIONES: 'Avisos (notificaciones)',
 };
 export const ICONO_BLOQUE: Record<Bloque['tipo'], string> = {
   TURNO_LLAMADO: 'campaign', LISTA_ATENCION: 'support_agent', LISTA_ESPERA: 'groups', PUBLICIDAD: 'slideshow',
   RELOJ: 'schedule', TEXTO: 'title', IMAGEN: 'image', LOGO: 'workspace_premium', CROQUIS: 'map', QR: 'qr_code_2', OFICINA: 'store',
+  NOTIFICACIONES: 'notifications_active',
 };
 
 /**
@@ -135,6 +140,16 @@ export class VistaRender implements OnInit {
 
   volumenCama(p: Media): number { return Math.max(0, Math.min(1, (p.cama_volumen ?? 25) / 100)); }
 
+  /** Avisos en bloque para el bloque de notificaciones, en el orden que traen. */
+  avisosDe(): Aviso[] { return (this.datos().avisos ?? []).filter(a => a.modo === 'BLOQUE'); }
+
+  /** El aviso que toca mostrar en un bloque: rota por su duración, igual que la publicidad. */
+  aviso(b: Bloque): Aviso | null {
+    const l = this.avisosDe();
+    if (!l.length) return null;
+    return l[(this.indices()[b.id] ?? 0) % l.length];
+  }
+
   pieza(b: Bloque): Media | null {
     const l = this.piezasDe(b);
     if (!l.length) return null;
@@ -147,6 +162,18 @@ export class VistaRender implements OnInit {
     let cambio = false;
     const idx = { ...this.indices() };
     for (const b of this.bloques()) {
+      if (b.tipo === 'NOTIFICACIONES') {
+        const l = this.avisosDe();
+        if (l.length < 2) continue;
+        const i = (idx[b.id] ?? 0) % l.length;
+        let st = this.estado.get(b.id);
+        if (!st) { st = { inicio: ahora, espera: Math.max(3, l[i].duracion_seg) * 1000 }; this.estado.set(b.id, st); }
+        if (ahora - st.inicio < st.espera) continue;
+        idx[b.id] = (i + 1) % l.length;
+        this.estado.set(b.id, { inicio: ahora, espera: Math.max(3, l[idx[b.id]].duracion_seg) * 1000 });
+        cambio = true;
+        continue;
+      }
       if (b.tipo !== 'PUBLICIDAD') continue;
       const l = this.piezasDe(b);
       if (l.length === 0) continue;
@@ -195,7 +222,7 @@ export class VistaRender implements OnInit {
     let url: string | null = null;
     if (p.tipo === 'YOUTUBE') {
       const id = idYoutube(p.url);
-      url = id ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=${p.silenciado ? 1 : 0}&controls=0&loop=1&playlist=${id}&rel=0` : null;
+      url = id ? `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=${p.silenciado ? 1 : 0}&controls=0&loop=1&playlist=${id}&rel=0&enablejsapi=1` : null;
     } else if (p.tipo === 'VIMEO') {
       const m = /vimeo\.com\/(\d+)/.exec(p.url ?? '');
       url = m ? `https://player.vimeo.com/video/${m[1]}?autoplay=1&muted=${p.silenciado ? 1 : 0}&controls=0&loop=1` : null;

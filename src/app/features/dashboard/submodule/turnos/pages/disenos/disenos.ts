@@ -51,6 +51,11 @@ const PIEZA_MUESTRA: Media = {
   voz_texto: null, voz_id: null, voz_audio_id: null, cama_media_id: null, cama_volumen: 25, es_cama: false, intervalo_min: null, horario_json: null,
 };
 
+const AVISOS_MUESTRA = [
+  { id: 'av1', oficina_id: null, titulo: 'Recuerde traer su cédula', texto: 'Y el certificado de la EPS para afiliaciones.', modo: 'BLOQUE', duracion_seg: 8, color: '#9BD441', icono: 'badge', con_voz: false, voz_audio_id: null, audio_url: null, orden: 1, intervalo_min: null, vigente_desde: null, vigente_hasta: null, activo: true, vigente: true, creado_en: '', actualizado_en: '' },
+  { id: 'av2', oficina_id: null, titulo: 'Horario de hoy', texto: 'Atendemos hasta las 5:00 p. m.', modo: 'BLOQUE', duracion_seg: 8, color: '#38BDF8', icono: 'schedule', con_voz: false, voz_audio_id: null, audio_url: null, orden: 2, intervalo_min: null, vigente_desde: null, vigente_hasta: null, activo: true, vigente: true, creado_en: '', actualizado_en: '' },
+] as import('../../service/turnos.service').Aviso[];
+
 /** Bloques del diseño clásico "turnos + publicidad", como punto de partida. */
 function plantillaClasica(vertical: boolean): Bloque[] {
   const pon = (b: Bloque, x: number, y: number, w: number, h: number, z: number) => ({ ...b, x, y, w, h, z });
@@ -125,6 +130,7 @@ export class Disenos implements OnInit {
       playlists: mapa,
       croquis: this.croquis(),
       url_turno: codigo ? `${location.origin}/t/${codigo}` : null,
+      avisos: AVISOS_MUESTRA,
     };
   });
 

@@ -121,6 +121,22 @@
           @else { <div class="media__vacia"><mat-icon>map</mat-icon><span>Croquis publicado de la oficina</span></div> }
         }
 
+        @case ('NOTIFICACIONES') {
+          @if (prop(b, 'titulo', '')) { <h3 class="lista__titulo" [style.font-size]="'calc(' + tam(b, 2.8) + ' * .7)'">{{ prop(b, 'titulo', 'Avisos') }}</h3> }
+          @if (aviso(b); as a) {
+            <div class="aviso-bloque" [style.border-color]="a.color || '#9BD441'">
+              <mat-icon [style.color]="a.color || '#9BD441'">{{ a.icono || 'campaign' }}</mat-icon>
+              <div class="aviso-bloque__texto">
+                <strong [style.font-size]="tam(b, 2.8)">{{ a.titulo }}</strong>
+                @if (a.texto) { <span [style.font-size]="'calc(' + tam(b, 2.8) + ' * .78)'">{{ a.texto }}</span> }
+              </div>
+              @if (avisosDe().length > 1) { <div class="media__puntos media__puntos--fijo">@for (x of avisosDe(); track x.id; let i = $index) { <span [class.on]="i === (indices()[b.id] ?? 0) % avisosDe().length"></span> }</div> }
+            </div>
+          } @else {
+            <div class="aviso-bloque aviso-bloque--vacio"><mat-icon>notifications_none</mat-icon><span [style.font-size]="'calc(' + tam(b, 2.8) + ' * .75)'">{{ prop(b, 'vacio', 'Sin avisos por ahora') }}</span></div>
+          }
+        }
+
         @case ('QR') {
           @if (qr(prop(b, 'url', '') || datos().url_turno); as u) {
             <div class="qr">

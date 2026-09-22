@@ -281,15 +281,24 @@ export interface VozAjustes {
   id: string | null; oficina_id: string | null; origen: 'PROPIO' | 'GLOBAL' | 'DEFECTO';
   voz_id: string | null; voz_nombre: string | null; modelo_llamado: string; modelo_locucion: string;
   estabilidad: number; similitud: number; estilo: number; velocidad: number;
-  plantilla_llamado: string; plantilla_llamado_movil: string; cantar_con_voz: boolean; actualizado_en: string | null;
+  plantilla_llamado: string; plantilla_llamado_movil: string; cantar_con_voz: boolean;
+  usar_nombre: boolean; musica_fondo_media_id: string | null; musica_fondo_titulo: string | null; musica_fondo_volumen: number; atenuar_volumen: number;
+  actualizado_en: string | null;
+}
+export interface VozPublica { cantar_con_voz: boolean; usar_nombre: boolean; atenuar_volumen: number; musica_fondo_url: string | null; musica_fondo_volumen: number; }
+/** Una frase del catálogo del turnero con su texto vigente y el audio (si existe) para la voz consultada. */
+export interface VozFrase {
+  clave: string; nombre: string; cuando: string; con_variables: boolean; rapida: boolean;
+  texto: string; origen: 'PROPIO' | 'GLOBAL' | 'DEFECTO'; texto_defecto: string; ejemplo: string; audio: VozAudio | null;
 }
 export interface VozAjustesIn {
   oficina_id?: string | null; voz_id?: string | null; voz_nombre?: string | null; modelo_llamado?: string; modelo_locucion?: string;
   estabilidad?: number; similitud?: number; estilo?: number; velocidad?: number;
   plantilla_llamado?: string; plantilla_llamado_movil?: string; cantar_con_voz?: boolean;
+  usar_nombre?: boolean; musica_fondo_media_id?: string | null; musica_fondo_volumen?: number; atenuar_volumen?: number;
 }
 export interface VozAudio {
-  id: string; texto: string; voz_id: string; voz_nombre: string | null; modelo: string; uso: 'LLAMADO' | 'LOCUCION' | 'PRUEBA';
+  id: string; texto: string; voz_id: string; voz_nombre: string | null; modelo: string; uso: 'LLAMADO' | 'LOCUCION' | 'PRUEBA' | 'BIBLIOTECA'; clave: string | null;
   bytes: number; duracion_ms: number | null; caracteres: number; veces: number; creado_en: string; ultimo_uso: string | null;
   url: string; de_cache: boolean;
 }
@@ -332,13 +341,33 @@ export interface VistaPantalla {
   sonido: boolean; voz: boolean; voz_plantilla: string; turnos_visibles: number;
   oficina_id: string; oficina_nombre: string;
   en_curso: Turno[]; en_espera: Turno[]; piezas: Media[]; croquis: Croquis | null;
-  diseno: DisenoResuelto | null; generado_en: string;
+  diseno: DisenoResuelto | null;
+  /** Cómo canta la voz en esta oficina: atenuación de publicidad y música de fondo. */
+  voz_marca: VozPublica | null;
+  /** Avisos vigentes para la pantalla, en orden (bloque y pantalla completa). */
+  avisos: Aviso[];
+  generado_en: string;
+}
+
+// ── Avisos en pantalla ─────────────────────────────────────────────────────────
+
+export type ModoAviso = 'BLOQUE' | 'PANTALLA_COMPLETA';
+export interface Aviso {
+  id: string; oficina_id: string | null; titulo: string; texto: string | null; modo: ModoAviso; duracion_seg: number;
+  color: string | null; icono: string | null; con_voz: boolean; voz_audio_id: string | null; audio_url: string | null;
+  orden: number; intervalo_min: number | null; vigente_desde: string | null; vigente_hasta: string | null;
+  activo: boolean; vigente: boolean; creado_en: string; actualizado_en: string;
+}
+export interface AvisoIn {
+  oficina_id?: string | null; titulo: string; texto?: string | null; modo: ModoAviso; duracion_seg?: number;
+  color?: string | null; icono?: string | null; con_voz?: boolean; orden?: number; intervalo_min?: number | null;
+  vigente_desde?: string | null; vigente_hasta?: string | null; activo?: boolean;
 }
 
 // ── Diseñador de pantallas: vistas y guiones ───────────────────────────────────
 
 export type TipoBloque = 'TURNO_LLAMADO' | 'LISTA_ATENCION' | 'LISTA_ESPERA' | 'PUBLICIDAD' | 'RELOJ'
-  | 'TEXTO' | 'IMAGEN' | 'CROQUIS' | 'QR' | 'OFICINA' | 'LOGO';
+  | 'TEXTO' | 'IMAGEN' | 'CROQUIS' | 'QR' | 'OFICINA' | 'LOGO' | 'NOTIFICACIONES';
 export type Transicion = 'NINGUNA' | 'FUNDIDO' | 'DESLIZAR_IZQUIERDA' | 'DESLIZAR_ARRIBA' | 'ZOOM';
 export type AlcanceGuion = 'PANTALLAS' | 'OFICINA' | 'GLOBAL';
 export type OrigenDiseno = 'PANTALLA' | 'OFICINA' | 'GLOBAL' | 'NINGUNO';
@@ -601,6 +630,36 @@ export class TurnosService {
     return this.http.get<Pagina<VozAudio>>(`${this.base}/voz/biblioteca`, { params });
   }
   vozBorrarAudio(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/voz/biblioteca/${id}`); }
+  vozFrases(oficinaId?: string | null, vozId?: string | null): Observable<VozFrase[]> {
+    let params = new HttpParams();
+    if (oficinaId) params = params.set('oficinaId', oficinaId);
+    if (vozId) params = params.set('vozId', vozId);
+    return this.http.get<VozFrase[]>(`${this.base}/voz/frases`, { params });
+  }
+  guardarVozFrase(clave: string, oficinaId: string | null, texto: string): Observable<VozFrase> { return this.http.put<VozFrase>(`${this.base}/voz/frases/${clave}`, { oficina_id: oficinaId, texto }); }
+  quitarVozFrase(clave: string, oficinaId: string | null): Observable<void> {
+    const params = oficinaId ? new HttpParams().set('oficinaId', oficinaId) : undefined;
+    return this.http.delete<void>(`${this.base}/voz/frases/${clave}`, { params });
+  }
+  escucharVozFrase(clave: string, oficinaId: string | null, vozId: string | null): Observable<VozAudio> {
+    let params = new HttpParams();
+    if (oficinaId) params = params.set('oficinaId', oficinaId);
+    if (vozId) params = params.set('vozId', vozId);
+    return this.http.post<VozAudio>(`${this.base}/voz/frases/${clave}/escuchar`, {}, { params });
+  }
+  generarBiblioteca(oficinaId: string | null, vozId: string | null, claves?: string[]): Observable<VozAudio[]> {
+    return this.http.post<VozAudio[]>(`${this.base}/voz/biblioteca/generar`, { oficina_id: oficinaId, voz_id: vozId, claves: claves ?? null });
+  }
+  // ── Avisos en pantalla ──
+  avisos(oficinaId?: string | null): Observable<Aviso[]> {
+    const params = oficinaId ? new HttpParams().set('oficinaId', oficinaId) : undefined;
+    return this.http.get<Aviso[]>(`${this.base}/avisos`, { params });
+  }
+  crearAviso(in_: AvisoIn): Observable<Aviso> { return this.http.post<Aviso>(`${this.base}/avisos`, in_); }
+  actualizarAviso(id: string, in_: AvisoIn): Observable<Aviso> { return this.http.put<Aviso>(`${this.base}/avisos/${id}`, in_); }
+  desactivarAviso(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/avisos/${id}`); }
+  emitirAviso(id: string): Observable<Aviso> { return this.http.post<Aviso>(`${this.base}/avisos/${id}/emitir`, {}); }
+  publicoAvisos(codigo: string): Observable<Aviso[]> { return this.http.get<Aviso[]>(`${this.basePublica}/pantalla/${codigo}/avisos`); }
   vozClonar(nombre: string, descripcion: string | null, archivos: File[]): Observable<{ voz_id: string; nombre: string }> {
     const form = new FormData();
     form.append('nombre', nombre);

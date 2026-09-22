@@ -7,6 +7,13 @@
       <app-reproductor-guion [diseno]="d" [datos]="datosVista()" [reportar]="true" (emision)="emisionDesdeDiseno($event)" />
       <span class="tv__canal tv__canal--flotante" [class.tv__canal--ok]="canal() === 'conectado'"></span>
       @if (perifoneo(); as p) { <div class="tv__perifoneo"><mat-icon>campaign</mat-icon> {{ p.titulo }}</div> }
+      @if (avisoPantalla(); as a) {
+        <div class="tv__aviso" [style.--color]="a.color || '#9BD441'">
+          <mat-icon>{{ a.icono || 'campaign' }}</mat-icon>
+          <h1>{{ a.titulo }}</h1>
+          @if (a.texto) { <p>{{ a.texto }}</p> }
+        </div>
+      }
       @if (!audioDesbloqueado() && (v.sonido || v.voz)) {
         <div class="tv__toque"><mat-icon>touch_app</mat-icon> Toque la pantalla una vez para activar el sonido y la pantalla completa</div>
       }
@@ -14,6 +21,16 @@
   } @else {
   <div class="tv" [attr.data-tema]="v.tema" [attr.data-layout]="v.layout" [attr.data-orientacion]="v.orientacion" (click)="desbloquearAudio()">
     @if (perifoneo(); as p) { <div class="tv__perifoneo"><mat-icon>campaign</mat-icon> {{ p.titulo }}</div> }
+    @if (avisoPantalla(); as a) {
+      <div class="tv__aviso" [style.--color]="a.color || '#9BD441'">
+        <mat-icon>{{ a.icono || 'campaign' }}</mat-icon>
+        <h1>{{ a.titulo }}</h1>
+        @if (a.texto) { <p>{{ a.texto }}</p> }
+      </div>
+    }
+    @if (avisoBloqueLegado(); as a) {
+      <div class="tv__banda" [style.border-color]="a.color || '#9BD441'"><mat-icon [style.color]="a.color || '#9BD441'">{{ a.icono || 'campaign' }}</mat-icon> <strong>{{ a.titulo }}</strong>@if (a.texto) { <span> · {{ a.texto }}</span> }</div>
+    }
     <header class="tv__cab">
       <span class="tv__oficina">{{ v.oficina_nombre }}</span>
       @if (v.mostrar_reloj) { <span class="tv__reloj">{{ ahora() | date:'HH:mm' }}<small>{{ ahora() | date:'EEEE d MMMM':'':'es' }}</small></span> }

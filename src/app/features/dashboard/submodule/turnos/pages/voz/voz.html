@@ -85,16 +85,49 @@
         <label class="tn-campo"><span>Estilo <em>{{ form.estilo | number:'1.2-2' }}</em></span><input type="range" min="0" max="1" step="0.05" [(ngModel)]="form.estilo"><span class="ayuda">Exagera la intención; 0 es lo más natural.</span></label>
         <label class="tn-campo"><span>Velocidad <em>{{ form.velocidad | number:'1.2-2' }}</em></span><input type="range" min="0.7" max="1.2" step="0.05" [(ngModel)]="form.velocidad"></label>
         <label class="tn-check tn-campo--ancho"><input type="checkbox" [(ngModel)]="form.cantar_con_voz"> Cantar los turnos con esta voz (si se apaga, el televisor usa la voz del navegador)</label>
+        <label class="tn-check tn-campo--ancho"><input type="checkbox" [(ngModel)]="form.usar_nombre"> Llamar por el nombre cuando la persona lo registró ("Camilo, turno A, 14…")</label>
+        <label class="tn-campo"><span>Música de fondo de la sala</span>
+          <select [(ngModel)]="form.musica_fondo_media_id"><option [ngValue]="null">Sin música</option>@for (c of camas(); track c.id) { <option [ngValue]="c.id">{{ c.titulo }}</option> }</select>
+          <span class="ayuda">Una cama musical (abajo se crean con IA o se suben como audio marcado "cama"). Suena en bucle y se atenúa cuando habla la voz.</span>
+        </label>
+        <label class="tn-campo"><span>Volumen de la música <em>{{ form.musica_fondo_volumen }}%</em></span><input type="range" min="0" max="100" [(ngModel)]="form.musica_fondo_volumen"></label>
+        <label class="tn-campo tn-campo--ancho"><span>Publicidad y música mientras habla la voz <em>{{ form.atenuar_volumen }}% del volumen</em></span><input type="range" min="0" max="100" [(ngModel)]="form.atenuar_volumen"><span class="ayuda">0 = se silencian del todo; 100 = no se atenúan. Aplica al llamar turnos, perifoneos y avisos con voz.</span></label>
       </div>
 
-      <h4 class="sub"><mat-icon>campaign</mat-icon> Frases de llamado</h4>
-      <div class="tn-form">
-        <label class="tn-campo tn-campo--ancho"><span>Puesto fijo</span><input [(ngModel)]="form.plantilla_llamado">
-          <span class="chips">@for (v of VARIABLES; track v) { <button type="button" class="tn-chip chip-btn" (click)="insertar('plantilla_llamado', v)">{{ v }}</button> }</span>
-        </label>
-        <label class="tn-campo tn-campo--ancho"><span>Puesto móvil (apoyo en sala)</span><input [(ngModel)]="form.plantilla_llamado_movil">
-          <span class="chips">@for (v of VARIABLES; track v) { <button type="button" class="tn-chip chip-btn" (click)="insertar('plantilla_llamado_movil', v)">{{ v }}</button> }</span>
-        </label>
+      <h4 class="sub"><mat-icon>library_books</mat-icon> Biblioteca de frases del turnero</h4>
+      <p class="tn-subtitulo">Todo lo que la voz puede decir: llamados (fijo, móvil, con nombre, segundo llamado), ausente, bienvenida, siguiente, pausa, cierre… Cada frase se graba una vez con la voz elegida y queda lista para el televisor y para descargar. Variables: @for (v of VARIABLES; track v) { <code>{{ v }}</code> }.</p>
+      <div class="biblio__barra">
+        <div class="alcance">
+          <label [class.on]="alcanceFrases() === 'GLOBAL'"><input type="radio" name="alcF" value="GLOBAL" [ngModel]="alcanceFrases()" (ngModelChange)="alcanceFrases.set($event)"> <mat-icon>public</mat-icon> Editar para todas las oficinas</label>
+          <label [class.on]="alcanceFrases() === 'OFICINA'"><input type="radio" name="alcF" value="OFICINA" [ngModel]="alcanceFrases()" (ngModelChange)="alcanceFrases.set($event)" [disabled]="!ctx.oficinaId()"> <mat-icon>store</mat-icon> Solo {{ ctx.oficina()?.nombre || 'esta oficina' }}</label>
+        </div>
+        @if (ctx.esAdmin()) {
+          <button type="button" class="tn-boton tn-boton--primario" (click)="generarBiblioteca()" [disabled]="generandoBiblioteca() || !form.voz_id || !pendientesBiblioteca().length">
+            <mat-icon>{{ generandoBiblioteca() ? 'hourglass_top' : 'auto_awesome' }}</mat-icon>
+            {{ generandoBiblioteca() ? 'Grabando…' : pendientesBiblioteca().length ? 'Grabar ' + pendientesBiblioteca().length + ' frases con ' + (vozElegida()?.nombre || 'la voz elegida') : 'Biblioteca completa para esta voz' }}
+          </button>
+        }
+      </div>
+      <div class="biblio">
+        @for (f of frases(); track f.clave) {
+          <div class="frase" [class.frase--grabada]="!!f.audio">
+            <button type="button" class="play" [class.play--on]="reproduciendo() === f.clave" (click)="escucharFrase(f)" [disabled]="fraseOcupada() === f.clave || !form.voz_id" [title]="f.audio ? 'Escuchar' : 'Grabar y escuchar'"><mat-icon>{{ fraseOcupada() === f.clave ? 'hourglass_top' : reproduciendo() === f.clave ? 'stop' : f.audio ? 'play_arrow' : 'mic' }}</mat-icon></button>
+            <div class="frase__cuerpo">
+              <div class="frase__cab"><strong>{{ f.nombre }}</strong><span class="tn-subtitulo">{{ f.cuando }}</span>
+                <span class="tn-chip" [class.tn-chip--ok]="f.origen === 'PROPIO'" [class.tn-chip--info]="f.origen === 'GLOBAL'">{{ origenFrase(f.origen) }}</span>
+                @if (f.audio) { <span class="tn-chip tn-chip--ok"><mat-icon>graphic_eq</mat-icon> grabada</span> } @else { <span class="tn-chip">sin grabar</span> }
+              </div>
+              <input [ngModel]="textosFrase()[f.clave] ?? f.texto" (ngModelChange)="setTextoFrase(f.clave, $event)" [disabled]="!ctx.esAdmin()">
+              @if (f.con_variables) { <span class="ayuda">Se escucha como: "{{ f.ejemplo }}"</span> }
+            </div>
+            <div class="frase__acc">
+              @if (ctx.esAdmin() && textoCambiado(f)) { <button type="button" class="tn-boton tn-boton--primario" (click)="guardarFrase(f)" [disabled]="fraseOcupada() === f.clave"><mat-icon>save</mat-icon></button> }
+              @if (f.audio) { <a class="tn-boton tn-boton--fantasma tn-boton--icono" [href]="api.urlAudio(f.audio.url)" download title="Descargar mp3"><mat-icon>download</mat-icon></a> }
+              @if (ctx.esAdmin() && f.origen !== 'DEFECTO') { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" title="Restablecer" (click)="restablecerFrase(f)"><mat-icon>restart_alt</mat-icon></button> }
+            </div>
+          </div>
+        }
+        @if (!frases().length) { <div class="tn-vacio"><mat-icon>library_books</mat-icon><span>Elija una voz para ver la biblioteca.</span></div> }
       </div>
       <div class="prueba-llamado">
         <input [(ngModel)]="llamadoPrueba.codigo" placeholder="A-014" title="Código">

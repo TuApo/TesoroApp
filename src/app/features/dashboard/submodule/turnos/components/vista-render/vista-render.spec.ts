@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { DatosVista, NOMBRE_BLOQUE, VistaRender, bloqueNuevo } from './vista-render';
-import { Media, Vista } from '../../service/turnos.service';
+import { Aviso, Media, Vista } from '../../service/turnos.service';
 
 function pieza(p: Partial<Media>): Media {
   return { id: 'p', tipo: 'TEXTO', titulo: 'Pieza', descripcion: null, url: null, archivo_nombre: null, mime: null, bytes: null, ancho: null, alto: null,
@@ -20,6 +20,7 @@ const VISTA: Vista = {
     { ...bloqueNuevo('TURNO_LLAMADO'), id: 'tl' },
     { ...bloqueNuevo('PUBLICIDAD'), id: 'pb' },
     { ...bloqueNuevo('TEXTO'), id: 'tx', props: { texto: 'Hola sala' } },
+    { ...bloqueNuevo('NOTIFICACIONES'), id: 'nt' },
   ],
   activa: true, creado_en: '', actualizado_en: '', usada_por: [],
 };
@@ -59,7 +60,7 @@ describe('VistaRender', () => {
   it('pinta todos los bloques en su posición y el fondo degradado', () => {
     const f = crear();
     const cajas = f.nativeElement.querySelectorAll('.bq');
-    expect(cajas.length).toBe(5);
+    expect(cajas.length).toBe(6);
     const oficina = f.nativeElement.querySelector('.bq--OFICINA') as HTMLElement;
     expect(oficina.textContent).toContain('Suba');
     expect(oficina.style.left).toBe('4%');
@@ -103,5 +104,17 @@ describe('VistaRender', () => {
     expect(bloque.querySelector('.audio h2').textContent).toContain('Aviso');
     expect(bloque.querySelector('.audio p').textContent).toContain('Recuerde su cédula');
     expect(bloque.querySelector('audio')).toBeNull();
+  });
+
+  it('el bloque de avisos muestra el primero en orden y solo los de modo bloque', () => {
+    const aviso = (p: Partial<Aviso>): Aviso => ({ id: 'a', oficina_id: null, titulo: 'Aviso', texto: null, modo: 'BLOQUE', duracion_seg: 5, color: '#38BDF8', icono: 'info', con_voz: false,
+      voz_audio_id: null, audio_url: null, orden: 0, intervalo_min: null, vigente_desde: null, vigente_hasta: null, activo: true, vigente: true, creado_en: '', actualizado_en: '', ...p });
+    const vacio = crear();
+    expect(vacio.nativeElement.querySelector('.bq--NOTIFICACIONES .aviso-bloque--vacio')).toBeTruthy();
+    const f = crear(VISTA, datos({ avisos: [aviso({ id: 'x', titulo: 'Toma la pantalla', modo: 'PANTALLA_COMPLETA' }), aviso({ id: 'y', titulo: 'Traiga su cédula', texto: 'Y la EPS' })] }));
+    const bloque = f.nativeElement.querySelector('.bq--NOTIFICACIONES');
+    expect(bloque.querySelector('.aviso-bloque strong').textContent).toContain('Traiga su cédula');
+    expect(bloque.querySelector('.aviso-bloque span').textContent).toContain('Y la EPS');
+    expect(f.componentInstance.avisosDe().map(a => a.id)).toEqual(['y']);
   });
 });

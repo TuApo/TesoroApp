@@ -6,7 +6,7 @@ import { RouterLink } from '@angular/router';
 
 import { SelectorOficina } from '../../components/selector-oficina/selector-oficina';
 import { ContextoTurnosService } from '../../service/contexto-turnos.service';
-import { Media, TurnosService, VozAjustes, VozAjustesIn, VozAudio, VozDisponible, VozEstado, VozModelo } from '../../service/turnos.service';
+import { Media, TurnosService, VozAjustes, VozAjustesIn, VozAudio, VozDisponible, VozEstado, VozFrase, VozModelo } from '../../service/turnos.service';
 
 /**
  * Voz y locución: la voz de marca con la que los televisores cantan los turnos
@@ -43,8 +43,14 @@ export class VozLocucion implements OnInit {
   readonly filtroVoz = signal('');
   readonly filtroUso = signal('');
   readonly cargandoVoces = signal(false);
+  /** Biblioteca de frases del turnero para la voz elegida en el formulario. */
+  readonly frases = signal<VozFrase[]>([]);
+  readonly textosFrase = signal<Record<string, string>>({});
+  readonly alcanceFrases = signal<'GLOBAL' | 'OFICINA'>('GLOBAL');
+  readonly generandoBiblioteca = signal(false);
+  readonly fraseOcupada = signal<string | null>(null);
 
-  readonly VARIABLES = ['{codigo}', '{punto}', '{area}', '{servicio}', '{nombre}'];
+  readonly VARIABLES = ['{codigo}', '{punto}', '{area}', '{servicio}', '{nombre}', '{minutos}'];
 
   /** Formulario de la voz de marca (copia editable de los ajustes resueltos). */
   form: VozAjustesIn & { voz_id: string | null; voz_nombre: string | null } = this.formVacio();
@@ -61,6 +67,9 @@ export class VozLocucion implements OnInit {
       && (!q || v.nombre.toLowerCase().includes(q) || (v.descripcion ?? '').toLowerCase().includes(q)));
   });
   readonly vozElegida = computed(() => this.voces().find(v => v.voz_id === this.form.voz_id) ?? null);
+  /** Frases sin audio para la voz elegida y cuántos caracteres costaría generarlas. */
+  readonly pendientesBiblioteca = computed(() => this.frases().filter(f => !f.audio));
+  readonly caracteresPendientes = computed(() => this.pendientesBiblioteca().reduce((s, f) => s + f.ejemplo.length, 0));
   readonly cuota = computed(() => {
     const s = this.estado()?.suscripcion;
     if (!s || !s.caracteres_limite) return null;
@@ -98,8 +107,63 @@ export class VozLocucion implements OnInit {
 
   private cargarAjustes(oficinaId: string | null): void {
     this.api.vozAjustes(oficinaId).subscribe({
-      next: a => { this.ajustes.set(a); this.form = { ...this.formVacio(), ...a, oficina_id: oficinaId }; },
+      next: a => { this.ajustes.set(a); this.form = { ...this.formVacio(), ...a, oficina_id: oficinaId }; this.cargarFrases(); },
       error: () => {},
+    });
+  }
+
+  // ── Biblioteca de frases ───────────────────────────────────────────────
+
+  cargarFrases(): void {
+    this.api.vozFrases(this.ctx.oficinaId(), this.form.voz_id).subscribe({
+      next: f => { this.frases.set(f); this.textosFrase.set(Object.fromEntries(f.map(x => [x.clave, x.texto]))); },
+      error: () => this.frases.set([]),
+    });
+  }
+
+  setTextoFrase(clave: string, texto: string): void { this.textosFrase.update(t => ({ ...t, [clave]: texto })); }
+  textoCambiado(f: VozFrase): boolean { return (this.textosFrase()[f.clave] ?? f.texto) !== f.texto; }
+
+  private oficinaFrases(): string | null { return this.alcanceFrases() === 'OFICINA' ? this.ctx.oficinaId() : null; }
+
+  guardarFrase(f: VozFrase): void {
+    const texto = (this.textosFrase()[f.clave] ?? '').trim();
+    if (!texto) return;
+    this.fraseOcupada.set(f.clave);
+    this.api.guardarVozFrase(f.clave, this.oficinaFrases(), texto).subscribe({
+      next: () => { this.fraseOcupada.set(null); this.avisar(`"${f.nombre}" guardada ${this.alcanceFrases() === 'OFICINA' ? 'para esta oficina' : 'para todas las oficinas'}`); this.cargarFrases(); },
+      error: e => { this.fraseOcupada.set(null); this.error.set(e?.error?.message || 'No se pudo guardar la frase'); },
+    });
+  }
+
+  restablecerFrase(f: VozFrase): void {
+    if (f.origen === 'DEFECTO') return;
+    const of = f.origen === 'PROPIO' ? this.ctx.oficinaId() : null;
+    if (!confirm(`¿Volver "${f.nombre}" al texto ${f.origen === 'PROPIO' ? 'global' : 'del catálogo'}?`)) return;
+    this.api.quitarVozFrase(f.clave, of).subscribe({ next: () => this.cargarFrases(), error: e => this.error.set(e?.error?.message || 'No se pudo restablecer') });
+  }
+
+  /** Genera (o recupera de caché) el audio de la frase con la voz elegida y lo reproduce. */
+  escucharFrase(f: VozFrase): void {
+    if (f.audio && this.reproduciendo() !== f.clave) { this.escuchar(this.api.urlAudio(f.audio.url), f.clave); return; }
+    if (f.audio) { this.detener(); return; }
+    this.fraseOcupada.set(f.clave);
+    this.api.escucharVozFrase(f.clave, this.ctx.oficinaId(), this.form.voz_id).subscribe({
+      next: a => { this.fraseOcupada.set(null); this.escuchar(this.api.urlAudio(a.url), f.clave); this.cargarFrases(); this.cargarEstado(); },
+      error: e => { this.fraseOcupada.set(null); this.error.set(e?.error?.message || 'No se pudo generar la frase'); },
+    });
+  }
+
+  /** Toda la biblioteca con la voz elegida: lo que ya existe no se vuelve a cobrar. */
+  generarBiblioteca(): void {
+    const n = this.pendientesBiblioteca().length;
+    if (!n) { this.avisar('La biblioteca ya está completa para esta voz'); return; }
+    if (!confirm(`Se van a generar ${n} grabaciones con la voz "${this.vozElegida()?.nombre || this.form.voz_id}" (unos ${this.caracteresPendientes()} caracteres de la cuota). ¿Continuar?`)) return;
+    this.generandoBiblioteca.set(true);
+    this.error.set(null);
+    this.api.generarBiblioteca(this.ctx.oficinaId(), this.form.voz_id, this.pendientesBiblioteca().map(f => f.clave)).subscribe({
+      next: l => { this.generandoBiblioteca.set(false); this.avisar(`${l.length} grabaciones listas`); this.cargarFrases(); this.cargarBiblioteca(); this.cargarEstado(); },
+      error: e => { this.generandoBiblioteca.set(false); this.error.set(e?.error?.message || 'No se pudo generar la biblioteca'); this.cargarFrases(); },
     });
   }
 
@@ -128,7 +192,7 @@ export class VozLocucion implements OnInit {
 
   // ── Voz de marca ───────────────────────────────────────────────────────
 
-  elegirVoz(v: VozDisponible): void { this.form = { ...this.form, voz_id: v.voz_id, voz_nombre: v.nombre }; }
+  elegirVoz(v: VozDisponible): void { this.form = { ...this.form, voz_id: v.voz_id, voz_nombre: v.nombre }; this.cargarFrases(); }
 
   insertar(campo: 'plantilla_llamado' | 'plantilla_llamado_movil', variable: string): void {
     this.form = { ...this.form, [campo]: `${(this.form[campo] ?? '').replace(/\s+$/, '')} ${variable}`.trim() };
@@ -139,7 +203,15 @@ export class VozLocucion implements OnInit {
     if (alcance === 'OFICINA' && !of) return;
     this.ocupado.set(true);
     this.error.set(null);
-    this.api.guardarVozAjustes({ ...this.form, oficina_id: alcance === 'OFICINA' ? of : null }).subscribe({
+    const f = this.form;
+    const cuerpo: VozAjustesIn = {
+      oficina_id: alcance === 'OFICINA' ? of : null, voz_id: f.voz_id, voz_nombre: f.voz_nombre,
+      modelo_llamado: f.modelo_llamado, modelo_locucion: f.modelo_locucion,
+      estabilidad: f.estabilidad, similitud: f.similitud, estilo: f.estilo, velocidad: f.velocidad,
+      cantar_con_voz: f.cantar_con_voz, usar_nombre: f.usar_nombre,
+      musica_fondo_media_id: f.musica_fondo_media_id || null, musica_fondo_volumen: f.musica_fondo_volumen, atenuar_volumen: f.atenuar_volumen,
+    };
+    this.api.guardarVozAjustes(cuerpo).subscribe({
       next: a => { this.ocupado.set(false); this.ajustes.set(a); this.form = { ...this.formVacio(), ...a, oficina_id: of }; this.avisar(alcance === 'OFICINA' ? 'Voz guardada para esta oficina' : 'Voz de marca guardada para todas las oficinas'); },
       error: e => { this.ocupado.set(false); this.error.set(e?.error?.message || 'No se pudo guardar'); },
     });
@@ -212,10 +284,12 @@ export class VozLocucion implements OnInit {
   duracion(ms: number | null): string { return ms ? `${(ms / 1000).toFixed(1)} s` : '—'; }
   kb(b: number): string { return b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`; }
   origenNombre(o: string | undefined): string { return o === 'PROPIO' ? 'Voz propia de esta oficina' : o === 'GLOBAL' ? 'Voz de marca (todas las oficinas)' : 'Sin configurar: usa la voz inicial'; }
+  origenFrase(o: string): string { return o === 'PROPIO' ? 'propia de la oficina' : o === 'GLOBAL' ? 'global' : 'del catálogo'; }
 
   private formVacio(): VozAjustesIn & { voz_id: string | null; voz_nombre: string | null } {
     return { oficina_id: null, voz_id: null, voz_nombre: null, modelo_llamado: 'eleven_flash_v2_5', modelo_locucion: 'eleven_multilingual_v2',
       estabilidad: 0.5, similitud: 0.8, estilo: 0, velocidad: 1, plantilla_llamado: 'Turno {codigo}. Diríjase a {punto}.',
-      plantilla_llamado_movil: 'Turno {codigo}. Un asesor lo atenderá en {area}.', cantar_con_voz: true };
+      plantilla_llamado_movil: 'Turno {codigo}. Un asesor lo atenderá en {area}.', cantar_con_voz: true,
+      usar_nombre: false, musica_fondo_media_id: null, musica_fondo_volumen: 15, atenuar_volumen: 20 };
   }
 }

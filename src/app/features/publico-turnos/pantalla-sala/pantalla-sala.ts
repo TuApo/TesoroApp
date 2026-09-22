@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MatIconModule } from '@angular/material/icon';
 
-import { DisenoResuelto, Media, Turno, TurnosService, VistaPantalla } from '../../dashboard/submodule/turnos/service/turnos.service';
+import { Aviso, DisenoResuelto, Media, Turno, TurnosService, VistaPantalla } from '../../dashboard/submodule/turnos/service/turnos.service';
+import { AudioAtenuador } from '../../dashboard/submodule/turnos/service/audio-atenuador';
 import { ReproductorGuion } from '../../dashboard/submodule/turnos/components/reproductor-guion/reproductor-guion';
 import { DatosVista, EmisionPieza } from '../../dashboard/submodule/turnos/components/vista-render/vista-render';
 import { conectarSse, ConexionSse } from '../../dashboard/submodule/turnos/service/sse.util';
@@ -49,6 +50,15 @@ export class PantallaSala implements OnInit {
   readonly diseno = signal<DisenoResuelto | null>(null);
   /** Aviso de perifoneo sonando ahora (para el rótulo en pantalla). */
   readonly perifoneo = signal<Media | null>(null);
+  /** Avisos vigentes (bloque y pantalla completa) y el que está tomando la pantalla ahora. */
+  readonly avisos = signal<Aviso[]>([]);
+  readonly avisoPantalla = signal<Aviso | null>(null);
+  private ultimoAviso = new Map<string, number>();
+  private audioAviso: HTMLAudioElement | null = null;
+  private temporizadorAviso: ReturnType<typeof setTimeout> | null = null;
+  /** Baja la publicidad y la música mientras habla la voz; vuelve al terminar. */
+  private atenuador = new AudioAtenuador();
+  private musicaFondo: HTMLAudioElement | null = null;
   private ultimoPerifoneo = new Map<string, number>();
   private audioPerifoneo: HTMLAudioElement | null = null;
   private camaPerifoneo: HTMLAudioElement | null = null;
@@ -63,7 +73,9 @@ export class PantallaSala implements OnInit {
     playlists: this.diseno()?.playlists ?? {},
     croquis: this.vista()?.croquis ?? null,
     url_turno: this.diseno()?.url_turno ?? null,
+    avisos: this.avisos(),
   }));
+  readonly avisoBloqueLegado = computed(() => this.avisos().find(a => a.modo === 'BLOQUE') ?? null);
 
   readonly pieza = computed<Media | null>(() => this.piezas()[this.indice()] ?? null);
   readonly urlPieza = computed<string | null>(() => { const p = this.pieza(); return p ? this.api.urlMedia(p) : null; });
@@ -119,8 +131,8 @@ export class PantallaSala implements OnInit {
     const refresco = setInterval(() => this.api.publicoPiezas(this.codigo()).subscribe({ next: p => this.piezas.set(p), error: () => {} }), 5 * 60_000);
     // Por si se perdió el aviso SSE de un diseño nuevo: se comprueba la firma cada dos minutos.
     const refrescoDiseno = setInterval(() => this.refrescarDiseno(), 2 * 60_000);
-    const perifoneo = setInterval(() => this.revisarPerifoneo(), 20_000);
-    this.destroyRef.onDestroy(() => { clearInterval(perifoneo); this.audioPerifoneo?.pause(); this.camaPerifoneo?.pause(); });
+    const perifoneo = setInterval(() => { this.revisarPerifoneo(); this.revisarAvisos(); }, 20_000);
+    this.destroyRef.onDestroy(() => { clearInterval(perifoneo); this.audioPerifoneo?.pause(); this.camaPerifoneo?.pause(); this.audioAviso?.pause(); this.pararMusicaFondo(); });
     this.destroyRef.onDestroy(() => { clearInterval(reloj); clearInterval(latido); clearInterval(refresco); clearInterval(refrescoDiseno); this.conexion?.cerrar(); if (this.temporizadorPieza) clearTimeout(this.temporizadorPieza); });
   }
 
@@ -132,8 +144,10 @@ export class PantallaSala implements OnInit {
         this.enEspera.set(v.en_espera);
         this.piezas.set(v.piezas);
         this.aplicarDiseno(v.diseno ?? null);
+        this.avisos.set(v.avisos ?? []);
         this.error.set(null);
         this.conectar(v);
+        this.arrancarMusicaFondo();
       },
       error: e => this.error.set(e?.status === 404 ? 'Pantalla no encontrada o desactivada. Revise el enlace.' : 'No se pudo conectar. Reintentando…'),
     });
@@ -172,6 +186,8 @@ export class PantallaSala implements OnInit {
 
   private evento(nombre: string, t: Turno, v: VistaPantalla): void {
     if (nombre === 'diseno-cambiado') { this.refrescarDiseno(); return; }
+    if (nombre === 'avisos-cambiados') { this.refrescarAvisos(); return; }
+    if (nombre === 'aviso') { this.recibirAviso(t as unknown as Aviso); return; }
     if (!nombre.startsWith('turno-')) return;
     switch (nombre) {
       case 'turno-creado':
@@ -234,9 +250,11 @@ export class PantallaSala implements OnInit {
     if (this.hablando || !this.colaVoz.length) return;
     const t = this.colaVoz.shift()!;
     this.hablando = true;
-    const fin = () => { this.hablando = false; setTimeout(() => this.hablar(), 300); };
+    this.atenuador.bajar(this.vista()?.voz_marca?.atenuar_volumen ?? 20);
+    const fin = () => { this.atenuador.subir(); this.hablando = false; setTimeout(() => this.hablar(), 300); };
     let cayo = false;
     const caer = () => { if (cayo) return; cayo = true; this.hablarNavegador(t, fin); };
+    if (this.vista()?.voz_marca && !this.vista()!.voz_marca!.cantar_con_voz) { caer(); return; }
     try {
       const a = new Audio(this.api.urlAudioLlamado(this.codigo(), t.id));
       a.preload = 'auto';
@@ -244,6 +262,74 @@ export class PantallaSala implements OnInit {
       a.onerror = caer;
       a.play().catch(caer);
     } catch { caer(); }
+  }
+
+  // ── Música de fondo ────────────────────────────────────────────────────
+
+  /** Suena en bucle a bajo volumen cuando la sala ya desbloqueó el audio; la voz la atenúa. */
+  private arrancarMusicaFondo(): void {
+    const vm = this.vista()?.voz_marca;
+    const url = vm?.musica_fondo_url ? this.api.urlMedia({ url: vm.musica_fondo_url }) : null;
+    if (!url) { this.pararMusicaFondo(); return; }
+    if (this.musicaFondo && this.musicaFondo.src === url) return;
+    this.pararMusicaFondo();
+    const a = new Audio(url);
+    a.loop = true;
+    a.volume = Math.max(0, Math.min(1, (vm?.musica_fondo_volumen ?? 15) / 100));
+    this.musicaFondo = a;
+    this.atenuador.registrar(a);
+    if (this.audioDesbloqueado()) a.play().catch(() => {});
+  }
+
+  private pararMusicaFondo(): void {
+    if (!this.musicaFondo) return;
+    this.musicaFondo.pause();
+    this.atenuador.olvidar(this.musicaFondo);
+    this.musicaFondo = null;
+  }
+
+  // ── Avisos ─────────────────────────────────────────────────────────────
+
+  private refrescarAvisos(): void {
+    this.api.publicoAvisos(this.codigo()).subscribe({ next: a => this.avisos.set(a), error: () => {} });
+  }
+
+  /** Un aviso emitido desde administración: el de pantalla completa toma el televisor ya. */
+  private recibirAviso(a: Aviso): void {
+    if (!a || !a.id) return;
+    this.avisos.update(l => [a, ...l.filter(x => x.id !== a.id)].sort((x, y) => x.orden - y.orden));
+    if (a.modo === 'PANTALLA_COMPLETA') { this.ultimoAviso.set(a.id, Date.now()); this.mostrarAviso(a); }
+  }
+
+  /** Cada 20 s: un aviso de pantalla completa con intervalo al que le toque. */
+  private revisarAvisos(): void {
+    if (this.avisoPantalla()) return;
+    const ahora = Date.now();
+    for (const a of this.avisos().filter(x => x.modo === 'PANTALLA_COMPLETA' && x.intervalo_min)) {
+      if (!this.ultimoAviso.has(a.id)) { this.ultimoAviso.set(a.id, ahora); continue; }
+      if (ahora - (this.ultimoAviso.get(a.id) ?? 0) < (a.intervalo_min ?? 0) * 60_000) continue;
+      this.ultimoAviso.set(a.id, ahora);
+      this.mostrarAviso(a);
+      return;
+    }
+  }
+
+  private mostrarAviso(a: Aviso): void {
+    if (this.temporizadorAviso) clearTimeout(this.temporizadorAviso);
+    this.audioAviso?.pause();
+    this.avisoPantalla.set(a);
+    const cerrar = () => { this.avisoPantalla.set(null); this.audioAviso = null; };
+    this.temporizadorAviso = setTimeout(cerrar, Math.max(3, a.duracion_seg) * 1000);
+    const url = a.audio_url ? this.api.urlAudio(a.audio_url) : null;
+    if (url && this.audioDesbloqueado()) {
+      this.atenuador.bajar(this.vista()?.voz_marca?.atenuar_volumen ?? 20);
+      const audio = new Audio(url);
+      this.audioAviso = audio;
+      const fin = () => this.atenuador.subir();
+      audio.onended = fin;
+      audio.onerror = fin;
+      audio.play().catch(fin);
+    }
   }
 
   private hablarNavegador(t: Turno, fin: () => void): void {
@@ -301,7 +387,9 @@ export class PantallaSala implements OnInit {
     if (!url) return;
     this.perifoneo.set(p);
     const inicio = Date.now();
+    this.atenuador.bajar(this.vista()?.voz_marca?.atenuar_volumen ?? 20);
     const terminar = () => {
+      this.atenuador.subir();
       this.camaPerifoneo?.pause(); this.camaPerifoneo = null; this.audioPerifoneo = null;
       this.perifoneo.set(null);
       this.api.publicoEmision(this.codigo(), p.id, Math.round((Date.now() - inicio) / 1000)).subscribe({ error: () => {} });
@@ -321,6 +409,7 @@ export class PantallaSala implements OnInit {
   /** Un clic en cualquier parte desbloquea el audio (los navegadores lo exigen). */
   desbloquearAudio(): void {
     this.campanilla();
+    if (this.musicaFondo && this.musicaFondo.paused) this.musicaFondo.play().catch(() => {});
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.getVoices();
     document.documentElement.requestFullscreen?.().catch(() => {});
   }

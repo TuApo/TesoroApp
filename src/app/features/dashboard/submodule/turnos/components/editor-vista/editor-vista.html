@@ -137,6 +137,13 @@
             <label class="ev__campo"><span>Texto (vacío = nombre de la oficina)</span><input [ngModel]="prop(b, 'texto', '')" (ngModelChange)="propSet('texto', $event)"></label>
           </div>
         }
+        @case ('NOTIFICACIONES') {
+          <div class="ev__grupo"><span class="ev__grupo-titulo">Avisos</span>
+            <p class="ev__nota">Rota los avisos en modo "bloque" creados en Publicidad → Avisos, en su orden y con la duración de cada uno. Los de pantalla completa no pasan por aquí: toman todo el televisor.</p>
+            <label class="ev__campo"><span>Título del bloque (vacío = sin título)</span><input [ngModel]="prop(b, 'titulo', 'Avisos')" (ngModelChange)="propSet('titulo', $event)"></label>
+            <label class="ev__campo"><span>Texto cuando no hay avisos</span><input [ngModel]="prop(b, 'vacio', 'Sin avisos por ahora')" (ngModelChange)="propSet('vacio', $event)"></label>
+          </div>
+        }
         @case ('CROQUIS') {
           <div class="ev__grupo"><span class="ev__grupo-titulo">Mini-mapa</span><p class="ev__nota">Muestra el croquis publicado de la oficina y resalta el área del turno que se está cantando.</p></div>
         }

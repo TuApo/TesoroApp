@@ -7,6 +7,7 @@
     <div class="pestanas">
       <button type="button" class="pestana" [class.pestana--on]="pestana() === 'piezas'" (click)="pestana.set('piezas')"><mat-icon>perm_media</mat-icon> Piezas</button>
       <button type="button" class="pestana" [class.pestana--on]="pestana() === 'listas'" (click)="pestana.set('listas')"><mat-icon>playlist_play</mat-icon> Listas</button>
+      <button type="button" class="pestana" [class.pestana--on]="pestana() === 'avisos'" (click)="pestana.set('avisos'); cargarAvisos()"><mat-icon>notifications_active</mat-icon> Avisos</button>
       <button type="button" class="pestana" [class.pestana--on]="pestana() === 'reporte'" (click)="pestana.set('reporte'); cargarReporte()"><mat-icon>bar_chart</mat-icon> Emisiones</button>
     </div>
   </header>
@@ -287,6 +288,85 @@
                 @if (p.activa) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivarLista(p)" title="Retirar"><mat-icon>block</mat-icon></button> }
               </div>
             }
+          </article>
+        }
+      </div>
+    }
+  }
+
+  <!-- ═══════ AVISOS ═══════ -->
+  @if (pestana() === 'avisos') {
+    <div class="filtros">
+      <span class="tn-subtitulo">Avisos para los televisores: en <strong>bloque</strong> rotan en el espacio "Avisos" del diseño de la pantalla, en el orden que se les dé; a <strong>pantalla completa</strong> toman el televisor unos segundos al emitirlos (o cada cierto tiempo). Con voz, la voz de marca los lee atenuando la publicidad.</span>
+      @if (ctx.esAdmin()) {
+        <div class="nuevas">
+          <button type="button" class="tn-boton tn-boton--primario" (click)="nuevoAviso('BLOQUE')"><mat-icon>view_agenda</mat-icon> Aviso en bloque</button>
+          <button type="button" class="tn-boton" (click)="nuevoAviso('PANTALLA_COMPLETA')"><mat-icon>fullscreen</mat-icon> Pantalla completa</button>
+        </div>
+      }
+    </div>
+
+    @if (formAviso()) {
+      <div class="tn-tarjeta">
+        <h3><mat-icon>{{ editandoAviso() ? 'edit' : 'add' }}</mat-icon> {{ editandoAviso() ? 'Editar aviso' : 'Nuevo aviso' }}</h3>
+        <div class="editor__form">
+          <div class="alcance-modo">
+            <label [class.on]="avisoBorrador().modo === 'BLOQUE'"><input type="radio" name="modoAv" value="BLOQUE" [ngModel]="avisoBorrador().modo" (ngModelChange)="setAviso('modo', $event)"> <mat-icon>view_agenda</mat-icon> En bloque (rota en el espacio de avisos)</label>
+            <label [class.on]="avisoBorrador().modo === 'PANTALLA_COMPLETA'"><input type="radio" name="modoAv" value="PANTALLA_COMPLETA" [ngModel]="avisoBorrador().modo" (ngModelChange)="setAviso('modo', $event)"> <mat-icon>fullscreen</mat-icon> Pantalla completa (toma el televisor)</label>
+          </div>
+          <label class="tn-campo"><span>Título</span><input [ngModel]="avisoBorrador().titulo" (ngModelChange)="setAviso('titulo', $event)" placeholder="Recuerde traer su cédula"></label>
+          <label class="tn-campo"><span>Texto</span><textarea rows="2" [ngModel]="avisoBorrador().texto" (ngModelChange)="setAviso('texto', $event)" placeholder="Y el certificado de la EPS para afiliaciones."></textarea></label>
+          <div class="tn-form">
+            <label class="tn-campo"><span>Segundos en pantalla</span><input type="number" min="3" max="600" [ngModel]="avisoBorrador().duracion_seg" (ngModelChange)="setAviso('duracion_seg', +$event)"></label>
+            <label class="tn-campo"><span>Orden (menor = primero)</span><input type="number" [ngModel]="avisoBorrador().orden" (ngModelChange)="setAviso('orden', +$event)"></label>
+            <label class="tn-campo"><span>Icono</span><select [ngModel]="avisoBorrador().icono" (ngModelChange)="setAviso('icono', $event)">@for (i of ICONOS_AVISO; track i) { <option [value]="i">{{ i }}</option> }</select></label>
+            <label class="tn-campo"><span>Color</span><input type="color" [ngModel]="avisoBorrador().color" (ngModelChange)="setAviso('color', $event)" style="height:38px;padding:2px"></label>
+            @if (avisoBorrador().modo === 'PANTALLA_COMPLETA') { <label class="tn-campo"><span>Repetir cada N minutos (vacío = solo al emitir)</span><input type="number" min="1" max="1440" [ngModel]="avisoBorrador().intervalo_min" (ngModelChange)="setAviso('intervalo_min', $event ? +$event : null)"></label> }
+            <label class="tn-campo"><span>Vigente desde</span><input type="datetime-local" [ngModel]="avisoBorrador().vigente_desde" (ngModelChange)="setAviso('vigente_desde', $event)"></label>
+            <label class="tn-campo"><span>Vigente hasta</span><input type="datetime-local" [ngModel]="avisoBorrador().vigente_hasta" (ngModelChange)="setAviso('vigente_hasta', $event)"></label>
+          </div>
+          <label class="tn-check"><input type="checkbox" [ngModel]="avisoBorrador().con_voz" (ngModelChange)="setAviso('con_voz', $event)"> Leerlo con la voz de marca (se graba al guardar; la publicidad baja de volumen mientras suena)</label>
+          <div class="bloque">
+            <span class="eti">Dónde sale</span>
+            <div class="alcance-modo">
+              <label [class.on]="!avisoBorrador().oficina_id"><input type="radio" name="alcAv" [value]="true" [checked]="!avisoBorrador().oficina_id" (change)="setAviso('oficina_id', null)"> <mat-icon>public</mat-icon> Todas las oficinas</label>
+              <label [class.on]="!!avisoBorrador().oficina_id"><input type="radio" name="alcAv" [value]="false" [checked]="!!avisoBorrador().oficina_id" (change)="setAviso('oficina_id', ctx.oficinaId())"> <mat-icon>store</mat-icon> Una sola oficina</label>
+            </div>
+            @if (avisoBorrador().oficina_id) { <select class="oficina" [ngModel]="avisoBorrador().oficina_id" (ngModelChange)="setAviso('oficina_id', $event)">@for (o of ctx.oficinas(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}</option> }</select> }
+          </div>
+          @if (editandoAviso()) { <label class="tn-check"><input type="checkbox" [ngModel]="avisoBorrador().activo" (ngModelChange)="setAviso('activo', $event)"> Activo</label> }
+          <div class="tn-acciones">
+            <button type="button" class="tn-boton tn-boton--primario" (click)="guardarAviso()" [disabled]="ocupado() || !avisoBorrador().titulo"><mat-icon>save</mat-icon> Guardar</button>
+            <button type="button" class="tn-boton tn-boton--fantasma" (click)="formAviso.set(false)">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (!avisosLista().length) {
+      <div class="tn-tarjeta tn-vacio"><mat-icon>notifications_none</mat-icon><span>Sin avisos. Cree uno en bloque para el espacio de avisos de la pantalla, o a pantalla completa para tomar el televisor al emitirlo.</span></div>
+    } @else {
+      <div class="tn-rejilla">
+        @for (a of avisosLista(); track a.id) {
+          <article class="tn-tarjeta aviso-card" [class.pieza--inactiva]="!a.activo" [style.border-left-color]="a.color || '#9BD441'">
+            <h3><mat-icon [style.color]="a.color || '#9BD441'">{{ a.icono || 'campaign' }}</mat-icon> {{ a.titulo }}</h3>
+            @if (a.texto) { <p class="tn-subtitulo">{{ a.texto }}</p> }
+            <div class="pieza__alcances">
+              <span class="tn-chip" [class.tn-chip--info]="a.modo === 'PANTALLA_COMPLETA'">{{ a.modo === 'PANTALLA_COMPLETA' ? 'Pantalla completa' : 'En bloque' }}</span>
+              <span class="tn-chip">{{ a.duracion_seg }} s · orden {{ a.orden }}</span>
+              <span class="tn-chip">{{ a.oficina_id ? 'Una oficina' : 'Todas las oficinas' }}</span>
+              @if (a.intervalo_min) { <span class="tn-chip tn-chip--ok">Cada {{ a.intervalo_min }} min</span> }
+              @if (a.con_voz) { <span class="tn-chip tn-chip--ok"><mat-icon>record_voice_over</mat-icon> Con voz</span> }
+              @if (!a.activo) { <span class="tn-chip tn-chip--danger">Retirado</span> } @else if (!a.vigente) { <span class="tn-chip tn-chip--warn">Fuera de vigencia</span> }
+            </div>
+            <div class="tn-acciones">
+              @if (a.audio_url) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="escuchar(api.urlAudio(a.audio_url), a.id)" title="Escuchar"><mat-icon>{{ reproduciendo() === a.id ? 'stop' : 'play_arrow' }}</mat-icon></button> }
+              @if (ctx.esAdmin()) {
+                @if (a.activo) { <button type="button" class="tn-boton tn-boton--primario" (click)="emitirAviso(a)" [disabled]="emitiendo() === a.id"><mat-icon>send</mat-icon> Emitir ahora</button> }
+                <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarAviso(a)" title="Editar"><mat-icon>edit</mat-icon></button>
+                @if (a.activo) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivarAviso(a)" title="Retirar"><mat-icon>block</mat-icon></button> }
+              }
+            </div>
           </article>
         }
       </div>
