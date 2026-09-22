@@ -16,7 +16,11 @@ const API_BASE = environment.apiUrl;
 const API_ORIGIN = new URL(API_BASE).host;
 
 // 🔓 RUTAS PÚBLICAS (¡con "/" inicial!)
-const PUBLIC_PATHS = ['/gestion_admin/auth/login/'];
+// Rutas del API que se llaman SIN sesión: el login y todo lo que cuelga de /api/v1/public/
+// (televisor de sala, tomar turno por QR y seguimiento desde el celular). Sin esto, el
+// interceptor descartaba la petición y mandaba al login: la pantalla pública solo servía
+// en un navegador con sesión iniciada.
+const PUBLIC_PATHS = ['/gestion_admin/auth/login/', '/api/v1/public/'];
 
 // Prefijo del header Authorization. Si tu backend requiere otro esquema,
 // cambia a 'Token' o deja '' si NO usa prefijo.
