@@ -102,7 +102,7 @@ export class Oficinas implements OnInit {
       direccion: o.direccion, ciudad: o.ciudad, telefono: o.telefono,
       hora_apertura: o.hora_apertura?.slice(0, 5) ?? null, hora_cierre: o.hora_cierre?.slice(0, 5) ?? null,
       dias_habiles: o.dias_habiles, activa: o.activa, ui_json: o.ui_json, dias,
-      jefe_usuario_ref: o.jefe_usuario_ref, jefe_usuario_nombre: o.jefe_usuario_nombre,
+      jefe_usuario_ref: o.jefe_usuario_ref, jefe_usuario_nombre: o.jefe_usuario_nombre, acepta_remoto: o.acepta_remoto ?? true,
     };
     this.editando.set(o.id);
     this.formAbierto.set('oficina');
@@ -118,6 +118,7 @@ export class Oficinas implements OnInit {
       hora_apertura: f.hora_apertura || null, hora_cierre: f.hora_cierre || null,
       dias_habiles: f.dias.map(d => (d ? '1' : '0')).join(''), activa: f.activa ?? true,
       jefe_usuario_ref: f.jefe_usuario_ref || null, jefe_usuario_nombre: f.jefe_usuario_ref ? (f.jefe_usuario_nombre || null) : null,
+      acepta_remoto: f.acepta_remoto ?? true,
     };
     const id = this.editando();
     this.correr(id ? this.api.actualizarOficina(id, cuerpo) : this.api.crearOficina(cuerpo), o => {
@@ -185,7 +186,7 @@ export class Oficinas implements OnInit {
   private oficinaVacia(): OficinaIn & { dias: boolean[] } {
     return { nombre: '', codigo: '', sede_ref: null, sede_nombre: null, direccion: '', ciudad: '', telefono: '',
       hora_apertura: '08:00', hora_cierre: '17:00', dias_habiles: '1111100', activa: true, dias: [true, true, true, true, true, false, false],
-      jefe_usuario_ref: null, jefe_usuario_nombre: null };
+      jefe_usuario_ref: null, jefe_usuario_nombre: null, acepta_remoto: true };
   }
 
   // ── Jefe de la oficina: a quien se le escala lo que nadie puede atender ──

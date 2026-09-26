@@ -1,0 +1,204 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>video_camera_front</mat-icon> Atención remota</h1>
+      <p class="tn-subtitulo">Atienda por videollamada, desde aquí, la entrevista, la selección o la contratación de quien espera en otra oficina. El turno queda marcado como remoto y con su nombre.</p>
+    </div>
+    <div class="tn-acciones">
+      @if (ctx.oficina(); as o) { <span class="tn-chip tn-chip--info" title="Desde dónde atiende"><mat-icon>place</mat-icon> {{ o.nombre }}</span> }
+      <button type="button" class="tn-boton tn-boton--fantasma" (click)="cargarCola()" [disabled]="cargando()"><mat-icon>refresh</mat-icon> Actualizar</button>
+    </div>
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="tn-aviso tn-aviso--ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <div class="remoto" [class.remoto--atendiendo]="!!turno()">
+    <!-- ═══════ Izquierda: lo que espera en otras oficinas ═══════ -->
+    <aside class="tn-tarjeta cola">
+      <h3><mat-icon>groups</mat-icon> Por atender de lejos <span class="cola__n">{{ colaVisible().length }}</span></h3>
+      <label class="tn-check cola__filtro"><input type="checkbox" [checked]="soloOtras()" (change)="soloOtras.set(!soloOtras())"> Solo otras oficinas @if (enMiOficina()) { <span class="muted">({{ enMiOficina() }} en la mía)</span> }</label>
+      @if (!colaVisible().length) {
+        <div class="tn-vacio"><mat-icon>weekend</mat-icon><span>Nadie esperando un trámite que se atienda por videollamada. Se actualiza solo.</span></div>
+      } @else {
+        <ul class="cola__lista">
+          @for (c of colaVisible(); track c.turno.id) {
+            <li class="fila" [style.--c]="c.turno.servicio_color || 'var(--brand-blue)'">
+              <div class="fila__cab">
+                <span class="tn-codigo">{{ c.turno.codigo }}</span>
+                <span class="fila__of"><mat-icon>place</mat-icon> {{ c.oficina_nombre }}{{ c.oficina_ciudad ? ' · ' + c.oficina_ciudad : '' }}</span>
+                <span class="fila__espera" [class.fila__espera--mucho]="c.espera_seg >= 900"><mat-icon>schedule</mat-icon> {{ espera(c.espera_seg) }}</span>
+              </div>
+              <div class="fila__srv">{{ c.turno.servicio_nombre }}</div>
+              <div class="fila__persona">{{ c.turno.nombre || 'Sin nombre' }}@if (c.turno.documento) { <span class="muted"> · {{ c.turno.documento }}</span> }</div>
+              <div class="fila__marcas">
+                @if (c.turno.escalado_en) { <span class="tn-chip tn-chip--warn" title="Nadie disponible en su oficina"><mat-icon>support_agent</mat-icon> Sin quién atienda</span> }
+                @if (c.turno.formulario_estado && c.turno.formulario_estado !== 'NO_APLICA' && c.turno.formulario_estado !== 'DESCONOCIDO') { <span class="tn-chip" [class.tn-chip--ok]="c.turno.formulario_listo" [class.tn-chip--warn]="!c.turno.formulario_listo"><mat-icon>assignment</mat-icon> {{ c.turno.formulario_listo ? 'Form. OK' : c.turno.formulario_etiqueta }}</span> }
+                @if (c.turno.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ c.turno.prioridad === 'CITA' ? 'Cita' : 'Preferencial' }}</span> }
+              </div>
+              <button type="button" class="tn-boton tn-boton--primario fila__tomar" (click)="tomar(c)" [disabled]="ocupado() || !!turno()" [title]="turno() ? 'Cierre el turno que tiene en curso' : 'Llamarlo por videollamada'"><mat-icon>video_call</mat-icon> Atender por videollamada</button>
+            </li>
+          }
+        </ul>
+      }
+    </aside>
+
+    <!-- ═══════ Derecha: la atención en curso ═══════ -->
+    <section class="atencion">
+      @if (!turno()) {
+        <div class="tn-tarjeta vacio">
+          <mat-icon>video_camera_front</mat-icon>
+          <h3>Elija un turno de la lista</h3>
+          <p>Al tomarlo, la sala de su oficina lo llama a "Videollamada" y la persona ve en su celular el botón para unirse. Aquí verá la videollamada, sus datos, lo que le falta, el resumen con IA y las opciones del proceso.</p>
+          @if (ctx.turnoActual(); as t) { <div class="tn-aviso"><mat-icon>info</mat-icon> Tiene el turno {{ t.codigo }} abierto en su puesto; ciérrelo desde el panel para atender de lejos.</div> }
+        </div>
+      } @else {
+        @let t = turno()!;
+        <div class="tn-tarjeta cabecera" [class.cabecera--llamado]="t.estado === 'LLAMADO'" [class.cabecera--atencion]="t.estado === 'EN_ATENCION'">
+          <div class="cabecera__turno">
+            <span class="tn-codigo grande">{{ t.codigo }}</span>
+            <div class="cabecera__texto">
+              <strong>{{ t.nombre || 'Sin nombre' }}</strong>
+              <span class="muted">{{ t.servicio_nombre }} · en <b>{{ t.oficina_id === ctx.oficinaId() ? 'mi oficina' : (cola().length ? 'otra oficina' : 'otra oficina') }}</b>@if (t.documento) { · CC {{ t.documento }} }@if (t.telefono) { · {{ t.telefono }} }</span>
+            </div>
+            <span class="tn-chip" [class.tn-chip--warn]="t.estado === 'LLAMADO'" [class.tn-chip--ok]="t.estado === 'EN_ATENCION'"><mat-icon>{{ t.estado === 'LLAMADO' ? 'ring_volume' : 'videocam' }}</mat-icon> {{ estadoTexto(t) }} · {{ tiempoTurno(t) }}</span>
+            <span class="tn-chip tn-chip--info" title="Se registra como atención remota"><mat-icon>video_camera_front</mat-icon> Remoto{{ t.atendido_desde_oficina_nombre ? ' desde ' + t.atendido_desde_oficina_nombre : '' }}</span>
+          </div>
+          @if (cerrandoCon(); as motivoDe) {
+            <div class="cabecera__cierre">
+              <input type="text" [(ngModel)]="motivoCierre" name="motivo" [placeholder]="motivoDe === 'NO_SE_PRESENTO' ? 'Motivo (opcional): no se conectó a la videollamada' : 'Motivo de la cancelación (opcional)'">
+              <button type="button" class="tn-boton tn-boton--peligro" (click)="finalizar(motivoDe)" [disabled]="ocupado()">Confirmar</button>
+              <button type="button" class="tn-boton tn-boton--fantasma" (click)="cerrandoCon.set(null)">Volver</button>
+            </div>
+          } @else {
+            <div class="cabecera__acciones">
+              @if (t.estado === 'LLAMADO') { <button type="button" class="tn-boton" (click)="rellamar()" [disabled]="ocupado()"><mat-icon>campaign</mat-icon> Volver a llamar</button> }
+              <button type="button" class="tn-boton tn-boton--exito" (click)="finalizar('ATENDIDO')" [disabled]="ocupado()"><mat-icon>task_alt</mat-icon> Finalizar atención</button>
+              <button type="button" class="tn-boton tn-boton--peligro" (click)="cerrandoCon.set('NO_SE_PRESENTO')" [disabled]="ocupado()"><mat-icon>person_off</mat-icon> No se conectó</button>
+              <button type="button" class="tn-boton tn-boton--fantasma" (click)="cerrandoCon.set('CANCELADO')" [disabled]="ocupado()" title="Cancelar el turno"><mat-icon>close</mat-icon></button>
+            </div>
+          }
+        </div>
+
+        <div class="atencion__cuerpo">
+          <!-- Videollamada -->
+          <div class="tn-tarjeta video">
+            <h3><mat-icon>videocam</mat-icon> Videollamada
+              @if (llamada(); as l) { <span class="tn-chip" [class.tn-chip--ok]="l.estado() === 'conectada'" [class.tn-chip--warn]="l.estado() === 'llamando' || l.estado() === 'preparando'" [class.tn-chip--danger]="l.estado() === 'error'">{{ l.estado() === 'conectada' ? 'Conectada' : l.estado() === 'llamando' ? 'Llamando…' : l.estado() === 'preparando' ? 'Preparando cámara…' : l.estado() === 'error' ? 'Error' : 'Terminada' }}</span> }
+              @if (ice() && !ice()!.tiene_turn) { <span class="muted video__nota" title="Sin servidor TURN algunas redes móviles no conectan">STUN</span> }
+            </h3>
+            @if (llamada(); as l) {
+              <div class="video__escena">
+                <video class="video__remoto" [srcObject]="l.remoto()" autoplay playsinline></video>
+                <video class="video__local" [srcObject]="l.local()" autoplay playsinline muted></video>
+                @if (l.estado() !== 'conectada') {
+                  <div class="video__estado">
+                    <mat-icon>{{ l.estado() === 'error' ? 'error' : l.estado() === 'terminada' ? 'call_end' : 'ring_volume' }}</mat-icon>
+                    <span>{{ l.detalle() || (l.estado() === 'llamando' ? 'Llamando…' : '') }}</span>
+                  </div>
+                }
+              </div>
+              <div class="video__barra">
+                <button type="button" class="tn-boton" (click)="l.alternarMicro()" [disabled]="l.estado() === 'terminada'"><mat-icon>{{ l.microSilenciado() ? 'mic_off' : 'mic' }}</mat-icon> {{ l.microSilenciado() ? 'Activar micrófono' : 'Silenciar' }}</button>
+                <button type="button" class="tn-boton" (click)="l.alternarCamara()" [disabled]="l.estado() === 'terminada'"><mat-icon>{{ l.camaraApagada() ? 'videocam_off' : 'videocam' }}</mat-icon> {{ l.camaraApagada() ? 'Encender cámara' : 'Apagar cámara' }}</button>
+                @if (l.estado() === 'terminada' || l.estado() === 'error') {
+                  <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaLlamada()"><mat-icon>video_call</mat-icon> Volver a llamar</button>
+                } @else {
+                  <button type="button" class="tn-boton tn-boton--peligro" (click)="colgar()"><mat-icon>call_end</mat-icon> Colgar</button>
+                }
+              </div>
+            } @else {
+              <div class="video__vacio">
+                <mat-icon>video_call</mat-icon>
+                <p>{{ t.estado === 'LLAMADO' ? 'La persona fue llamada: cuando esté lista en su celular, inicie la videollamada.' : 'Inicie la videollamada; la persona se une desde el enlace de su turno.' }}</p>
+                <button type="button" class="tn-boton tn-boton--primario tn-boton--grande" (click)="iniciarLlamada()"><mat-icon>video_call</mat-icon> Iniciar videollamada</button>
+                <span class="muted">Necesita cámara y micrófono en este equipo. La persona entra por la página de seguimiento de su turno.</span>
+              </div>
+            }
+          </div>
+
+          <!-- Datos, validación, opciones, IA -->
+          <div class="columna">
+            <div class="tn-tarjeta">
+              <h3><mat-icon>person</mat-icon> La persona
+                @if (persona(); as p) { <span class="tn-chip" [class.tn-chip--ok]="p.contrato_activo" [class.tn-chip--info]="!p.contrato_activo && p.proceso_id">{{ estadoPersona(p) }}</span> }
+              </h3>
+              @if (persona(); as p) {
+                <dl class="datos">
+                  <div><dt>Nombre</dt><dd>{{ nombreDe(p) }}</dd></div>
+                  <div><dt>Documento</dt><dd>CC {{ p.numero_documento }}</dd></div>
+                  <div><dt>Celular</dt><dd>{{ p.celular || p.whatsapp || t.telefono || '—' }}</dd></div>
+                  <div><dt>Correo</dt><dd>{{ p.email || t.correo || '—' }}</dd></div>
+                  <div><dt>Oficina</dt><dd>{{ p.oficina || '—' }}</dd></div>
+                  @if (p.vacante_cargo) { <div><dt>Vacante</dt><dd>{{ p.vacante_cargo }}{{ p.vacante_empresa ? ' · ' + p.vacante_empresa : '' }}{{ p.vacante_finca ? ' · ' + p.vacante_finca : '' }}</dd></div> }
+                </dl>
+              } @else if (t.documento) {
+                <p class="muted">No aparece en contratación con la cédula {{ t.documento }}. Regístrela desde el pipeline.</p>
+              } @else {
+                <p class="muted">El turno no trae cédula: pídasela y regístrela desde el pipeline.</p>
+              }
+              @if (atenciones().length) {
+                <div class="historial">
+                  <span class="historial__eti">Atenciones anteriores</span>
+                  @for (a of atenciones().slice(0, 4); track a.turno_id) {
+                    <span class="tn-chip" [class.tn-chip--info]="a.remoto" [title]="a.servicio_nombre + ' · ' + a.estado"><mat-icon>{{ a.remoto ? 'video_camera_front' : 'desk' }}</mat-icon> {{ fecha(a.iniciado_en || a.finalizado_en) || a.fecha }}{{ a.atendido_por_nombre ? ' · ' + a.atendido_por_nombre : '' }}{{ a.remoto && a.atendido_desde_oficina_nombre ? ' desde ' + a.atendido_desde_oficina_nombre : '' }}</span>
+                  }
+                </div>
+              }
+            </div>
+
+            <div class="tn-tarjeta">
+              <h3><mat-icon>fact_check</mat-icon> Validación</h3>
+              <ul class="checklist">
+                @for (v of verificaciones(); track v.etiqueta) {
+                  <li [class.ok]="v.ok === true" [class.falta]="v.ok === false">
+                    <mat-icon>{{ v.ok === true ? 'check_circle' : v.ok === false ? 'error' : 'radio_button_unchecked' }}</mat-icon>
+                    <span><b>{{ v.etiqueta }}</b>@if (v.detalle) { <span class="muted"> · {{ v.detalle }}</span> }</span>
+                  </li>
+                }
+              </ul>
+              @if (lectura()?.url; as url) { <a class="tn-boton" [href]="url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Enviar a completar el formulario</a> }
+            </div>
+
+            <div class="tn-tarjeta">
+              <h3><mat-icon>route</mat-icon> Opciones del proceso</h3>
+              <p class="muted">Abren el pipeline de esta persona en el mismo espacio, como un caso: vuelve a la videollamada por la pestaña del caso.</p>
+              <div class="opciones">
+                @for (o of opciones(); track o.etiqueta) {
+                  <button type="button" class="tn-boton" [class.tn-boton--primario]="o.primaria" (click)="o.accion()" [title]="o.ayuda"><mat-icon>{{ o.icono }}</mat-icon> {{ o.etiqueta }}</button>
+                }
+              </div>
+            </div>
+
+            <div class="tn-tarjeta ia">
+              <h3><mat-icon>auto_awesome</mat-icon> Resumen con IA
+                @if (!resumen() && !analizando()) { <button type="button" class="tn-boton tn-boton--primario" (click)="generarResumen()" [disabled]="!t.documento"><mat-icon>auto_awesome</mat-icon> Generar</button> }
+                @if (resumen()) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="generarResumen()" title="Volver a analizar"><mat-icon>refresh</mat-icon></button> }
+              </h3>
+              @if (analizando()) { <div class="tn-aviso"><mat-icon class="girando">sync</mat-icon> Leyendo el expediente y analizando…</div> }
+              @if (errorIa()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ errorIa() }}</div> }
+              @if (resumen(); as r) {
+                @if (r.resumen) { <p class="ia__resumen">{{ r.resumen }}</p> }
+                @if (r.cargoSugerido?.cargo || r.ajusteVacante) {
+                  <div class="ia__fila">
+                    @if (r.cargoSugerido?.cargo) { <span class="tn-chip tn-chip--info" [title]="r.cargoSugerido?.porque || ''"><mat-icon>work</mat-icon> Cargo sugerido: {{ r.cargoSugerido?.cargo }}</span> }
+                    @if (r.ajusteVacante?.nivel) { <span class="tn-chip" [class.tn-chip--ok]="r.ajusteVacante?.nivel === 'alto'" [class.tn-chip--warn]="r.ajusteVacante?.nivel === 'medio'" [class.tn-chip--danger]="r.ajusteVacante?.nivel === 'bajo'" [title]="r.ajusteVacante?.porque || ''">Ajuste {{ r.ajusteVacante?.nivel }}</span> }
+                  </div>
+                }
+                <div class="ia__cols">
+                  @if (r.aFavor?.length) { <div><span class="ia__eti ok">A favor</span><ul>@for (p of r.aFavor; track $index) { <li [title]="p.evidencia || ''">{{ p.punto }}</li> }</ul></div> }
+                  @if (r.enContra?.length) { <div><span class="ia__eti warn">En contra</span><ul>@for (p of r.enContra; track $index) { <li [title]="p.evidencia || ''">{{ p.punto }}</li> }</ul></div> }
+                  @if (r.riesgos?.length) { <div><span class="ia__eti danger">Riesgos</span><ul>@for (p of r.riesgos; track $index) { <li [title]="p.evidencia || ''">{{ p.punto }}</li> }</ul></div> }
+                </div>
+                @if (r.datosQueFaltan?.length) { <p class="muted"><b>Datos que faltan:</b> {{ r.datosQueFaltan!.join(', ') }}</p> }
+                @if (r.preguntasSugeridas?.length) { <div class="ia__preguntas"><span class="ia__eti">Preguntas para la entrevista</span><ol>@for (q of r.preguntasSugeridas; track $index) { <li>{{ q }}</li> }</ol></div> }
+              } @else if (!analizando() && !errorIa()) {
+                <p class="muted">Resume el expediente completo de la persona y analiza su ajuste a las labores que ofrecemos: cargo sugerido, a favor, en contra, riesgos y preguntas para la entrevista.</p>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </section>
+  </div>
+</div>

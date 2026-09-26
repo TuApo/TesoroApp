@@ -23,6 +23,8 @@ export interface Oficina {
   tiene_croquis: boolean; cartel_codigo: string | null;
   /** Jefe de la oficina: a quien se le escala lo que nadie puede atender. */
   jefe_usuario_ref: string | null; jefe_usuario_nombre: string | null;
+  /** Deja que otras oficinas atiendan sus turnos por videollamada. */
+  acepta_remoto: boolean;
 }
 
 export interface OficinaIn {
@@ -31,6 +33,7 @@ export interface OficinaIn {
   hora_apertura?: string | null; hora_cierre?: string | null; dias_habiles?: string;
   activa?: boolean; ui_json?: string | null;
   jefe_usuario_ref?: string | null; jefe_usuario_nombre?: string | null;
+  acepta_remoto?: boolean;
 }
 
 export type TipoArea = 'RECEPCION' | 'MODULO' | 'VENTANILLA' | 'PUESTO' | 'OFICINA' | 'AREA_ATENCION' | 'SALA_ESPERA'
@@ -144,17 +147,19 @@ export interface Servicio {
   agendable: boolean; verificar_formulario: boolean;
   /** De qué proceso predeterminado del catálogo salió, si salió de uno. */
   plantilla_clave: string | null;
+  /** Se atiende por videollamada desde otra oficina. */
+  remoto: boolean;
 }
 
 /** Un proceso PREDETERMINADO del catálogo global ("¿para qué proceso viene?"). */
 export interface ServicioPlantillaIn {
   clave?: string | null; nombre: string; descripcion?: string | null; prefijo: string; color?: string | null; icono?: string | null;
   prioridad?: number; tiempo_estimado_min?: number; requiere_documento?: boolean; verificar_formulario?: boolean;
-  agendable?: boolean; publico?: boolean; orden?: number; activo?: boolean;
+  agendable?: boolean; publico?: boolean; remoto?: boolean; orden?: number; activo?: boolean;
 }
 export interface ServicioPlantilla extends ServicioPlantillaIn {
   id: string; clave: string; prioridad: number; tiempo_estimado_min: number; requiere_documento: boolean;
-  verificar_formulario: boolean; agendable: boolean; publico: boolean; orden: number; activo: boolean;
+  verificar_formulario: boolean; agendable: boolean; publico: boolean; remoto: boolean; orden: number; activo: boolean;
 }
 
 export interface ServicioIn {
@@ -163,7 +168,7 @@ export interface ServicioIn {
   requiere_documento?: boolean; requiere_cita?: boolean; cupo_diario?: number;
   hora_apertura?: string | null; hora_cierre?: string | null; dias_habiles?: string | null;
   publico?: boolean; orden?: number; activo?: boolean;
-  agendable?: boolean; verificar_formulario?: boolean;
+  agendable?: boolean; verificar_formulario?: boolean; remoto?: boolean;
 }
 
 export type EstadoTurno = 'AGENDADO' | 'EN_ESPERA' | 'LLAMADO' | 'EN_ATENCION' | 'ATENDIDO' | 'NO_SE_PRESENTO'
@@ -193,7 +198,20 @@ export interface Turno {
   formulario_url: string | null; formulario_listo: boolean | null;
   /** Nadie disponible al registrarlo: quedó a cargo del jefe de la oficina (asignado_usuario_*). */
   escalado_en: string | null; escalado_motivo: string | null;
+  /** Atendido por videollamada desde otra oficina (y desde cuál); estado de la videollamada. */
+  remoto: boolean; atendido_desde_oficina_id: string | null; atendido_desde_oficina_nombre: string | null;
+  video_estado: 'SOLICITADA' | 'EN_CURSO' | 'TERMINADA' | null;
   delante: number | null; espera_estimada_min: number | null;
+}
+
+// ── Atención remota (videollamada desde otra oficina) ──
+export interface TurnoRemoto { turno: Turno; oficina_nombre: string | null; oficina_codigo: string | null; oficina_ciudad: string | null; espera_seg: number; es_mi_oficina: boolean; }
+export interface SenalVideo { tipo: 'offer' | 'answer' | 'ice' | 'lista' | 'colgar' | string; datos?: unknown; turno_id?: string; de?: 'agente' | 'persona'; }
+export interface IceConfig { ice_servers: RTCIceServer[]; tiene_turn: boolean; }
+export interface AtencionPersona {
+  turno_id: string; codigo: string; fecha: string; estado: EstadoTurno; servicio_nombre: string | null; oficina_nombre: string | null;
+  remoto: boolean; atendido_desde_oficina_nombre: string | null; atendido_por_nombre: string | null;
+  iniciado_en: string | null; finalizado_en: string | null; video_estado: string | null;
 }
 
 export type EstadoFormulario = 'NO_REGISTRADO' | 'SIN_LLENAR' | 'PARCIAL' | 'COMPLETO' | 'NO_APLICA' | 'DESCONOCIDO';
@@ -634,6 +652,20 @@ export class TurnosService {
         };
       })));
   }
+
+  // ── Atención remota ──
+  colaRemota(): Observable<TurnoRemoto[]> { return this.http.get<TurnoRemoto[]>(`${this.base}/remoto/cola`); }
+  tomarRemoto(turnoId: string): Observable<Turno> { return this.http.post<Turno>(`${this.base}/remoto/tomar/${turnoId}`, {}); }
+  senalRemoto(turnoId: string, senal: SenalVideo): Observable<{ ok: boolean }> { return this.http.post<{ ok: boolean }>(`${this.base}/remoto/${turnoId}/senal`, senal); }
+  iceRemoto(): Observable<IceConfig> { return this.http.get<IceConfig>(`${this.base}/remoto/ice`); }
+  atencionesDePersona(documento: string): Observable<AtencionPersona[]> { return this.http.get<AtencionPersona[]>(`${this.base}/personas/${encodeURIComponent(documento)}/atenciones`); }
+  /** Contratación marca a la persona como atendida (mismo endpoint que usa el pipeline). */
+  marcarAtendidoEnContratacion(documento: string): Observable<unknown> {
+    return this.http.post(`${environment.apiUrl}/gestion_contratacion/candidatos/mark-attended/`, { numero_documento: documento });
+  }
+  urlSenalesTurno(turnoId: string): string { return `${this.basePublica}/turno/${turnoId}/senales`; }
+  publicoSenal(turnoId: string, senal: SenalVideo): Observable<{ ok: boolean }> { return this.http.post<{ ok: boolean }>(`${this.basePublica}/turno/${turnoId}/senal`, senal); }
+  publicoIce(turnoId: string): Observable<IceConfig> { return this.http.get<IceConfig>(`${this.basePublica}/turno/${turnoId}/ice`); }
 
   // ── Procesos predeterminados (catálogo global) ──
   plantillasServicio(): Observable<ServicioPlantilla[]> { return this.http.get<ServicioPlantilla[]>(`${this.base}/servicios/plantillas`); }

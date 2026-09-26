@@ -2,8 +2,9 @@ import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, injec
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 
-import { Turno, TurnosService } from '../../dashboard/submodule/turnos/service/turnos.service';
+import { IceConfig, SenalVideo, Turno, TurnosService } from '../../dashboard/submodule/turnos/service/turnos.service';
 import { conectarSse, ConexionSse } from '../../dashboard/submodule/turnos/service/sse.util';
+import { Videollamada } from '../../dashboard/submodule/turnos/service/videollamada';
 
 /**
  * Seguir el turno desde el celular: cuántos hay delante y, cuando lo llamen, a dónde ir.
@@ -29,6 +30,12 @@ export class SeguimientoTurno implements OnInit {
   readonly agendado = computed(() => this.turno()?.estado === 'AGENDADO');
   readonly esperando = computed(() => this.turno()?.estado === 'EN_ESPERA');
   readonly anunciando = signal(false);
+  /** Atención remota: el asesor atiende por videollamada desde otra oficina. */
+  readonly remoto = computed(() => !!this.turno()?.remoto && (this.turno()?.estado === 'LLAMADO' || this.turno()?.estado === 'EN_ATENCION'));
+  readonly llamada = signal<Videollamada | null>(null);
+  readonly uniendo = signal(false);
+  private ofertaPendiente: RTCSessionDescriptionInit | null = null;
+  private senales: ConexionSse | null = null;
   readonly llamado = computed(() => this.turno()?.estado === 'LLAMADO');
   readonly enAtencion = computed(() => this.turno()?.estado === 'EN_ATENCION');
   readonly terminado = computed(() => { const e = this.turno()?.estado; return !!e && !['EN_ESPERA', 'LLAMADO', 'EN_ATENCION'].includes(e); });
@@ -36,12 +43,12 @@ export class SeguimientoTurno implements OnInit {
   ngOnInit(): void {
     this.cargar();
     const sondeo = setInterval(() => this.cargar(), 30_000);
-    this.destroyRef.onDestroy(() => { clearInterval(sondeo); this.conexion?.cerrar(); });
+    this.destroyRef.onDestroy(() => { clearInterval(sondeo); this.conexion?.cerrar(); this.senales?.cerrar(); this.llamada()?.colgar(); });
   }
 
   private cargar(): void {
     this.api.publicoSeguimiento(this.turnoId()).subscribe({
-      next: t => { this.turno.set(t); this.error.set(null); this.conectar(); },
+      next: t => { this.turno.set(t); this.error.set(null); this.conectar(); if (t.remoto) this.conectarSenales(); },
       error: e => this.error.set(e?.status === 404 ? 'Este turno no existe.' : 'Sin conexión. Reintentando…'),
     });
   }
@@ -63,6 +70,54 @@ export class SeguimientoTurno implements OnInit {
         }
       },
     });
+  }
+
+  /** Canal propio del turno: por aquí llega la oferta WebRTC del asesor. */
+  private conectarSenales(): void {
+    if (this.senales) return;
+    this.senales = conectarSse(this.api.urlSenalesTurno(this.turnoId()), {
+      token: null,
+      onEvento: (nombre, datos) => {
+        if (nombre !== 'video-senal') return;
+        const s = datos as SenalVideo;
+        if (s.de !== 'agente') return;
+        const l = this.llamada();
+        if (s.tipo === 'offer') {
+          this.ofertaPendiente = s.datos as RTCSessionDescriptionInit;
+          if (l && l.estado() !== 'terminada' && l.estado() !== 'error') void l.contestar(this.ofertaPendiente);
+          else if (this.uniendo()) void this.contestarPendiente();
+          this.avisar();
+        } else if (l) {
+          void l.recibir(s);
+        }
+      },
+    });
+  }
+
+  /** "Unirme a la videollamada": pide cámara y contesta la oferta del asesor (o la espera). */
+  async unirse(): Promise<void> {
+    if (this.llamada()) return;
+    this.uniendo.set(true);
+    this.error.set(null);
+    this.conectarSenales();
+    await this.contestarPendiente();
+  }
+
+  private async contestarPendiente(): Promise<void> {
+    if (!this.ofertaPendiente || this.llamada()) return;
+    let ice: IceConfig;
+    try { ice = await new Promise<IceConfig>((res, rej) => this.api.publicoIce(this.turnoId()).subscribe({ next: res, error: rej })); }
+    catch { ice = { ice_servers: [{ urls: ['stun:stun.l.google.com:19302'] }], tiene_turn: false }; }
+    const l = new Videollamada(ice.ice_servers, s => this.api.publicoSenal(this.turnoId(), s).subscribe({ error: () => {} }));
+    this.llamada.set(l);
+    await l.contestar(this.ofertaPendiente);
+    this.ofertaPendiente = null;
+  }
+
+  colgarLlamada(): void {
+    this.llamada()?.colgar();
+    this.llamada.set(null);
+    this.uniendo.set(false);
   }
 
   private avisar(): void {

@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, input, signal, untracked,
+  ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, effect, inject, input, signal, untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -46,6 +46,7 @@ export class PanelAtencion implements OnInit {
   private vista = inject(VistaCasoService);
   private router = inject(Router);
   private permisos = inject(PermissionsService);
+  private destroyRef = inject(DestroyRef);
 
   readonly permitido = signal(false);
   readonly abierto = signal(false);
@@ -70,6 +71,9 @@ export class PanelAtencion implements OnInit {
   readonly avisoArea = this.ctx.avisoArea;
   readonly avisoEscalado = this.ctx.avisoEscalado;
   readonly cargandoPredeterminados = signal(false);
+  /** Atención remota: cuántos esperan en otras oficinas por videollamada (si tengo el permiso). */
+  readonly puedeRemoto = signal(false);
+  readonly colaRemotaN = signal(0);
   readonly transfiriendo = signal(false);
   readonly servicioDestino = signal<string>('');
   readonly cerrandoCon = signal<'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
@@ -203,7 +207,14 @@ export class PanelAtencion implements OnInit {
     this.permitido.set(this.modo() === 'pagina' || this.permisos.canReadRoute('/dashboard/turnos/atencion'));
     // Recepción = quien puede ver la cola: registra a la gente que llega y dice quién la atiende.
     this.puedeRecepcion.set(this.permisos.canReadRoute('/dashboard/turnos/cola'));
+    this.puedeRemoto.set(this.permisos.canReadRoute('/dashboard/turnos/remoto'));
     if (this.permitido()) this.ctx.cargar();
+    if (this.permitido() && this.puedeRemoto()) {
+      const contar = () => this.api.colaRemota().subscribe({ next: c => this.colaRemotaN.set(c.filter(x => !x.es_mi_oficina).length), error: () => {} });
+      contar();
+      const cada = setInterval(contar, 45_000);
+      this.destroyRef.onDestroy(() => clearInterval(cada));
+    }
   }
 
   /** Puestos que se pueden asignar (del plano y manuales), con quien los ocupa. */
@@ -391,6 +402,7 @@ export class PanelAtencion implements OnInit {
 
   descartarAvisoArea(): void { this.ctx.avisoArea.set(null); }
   descartarAvisoEscalado(): void { this.ctx.avisoEscalado.set(null); }
+  irARemoto(): void { this.router.navigate(['/dashboard/turnos/remoto']); }
 
   /** La oficina no tiene procesos: un administrador carga el catálogo de predeterminados desde aquí. */
   cargarPredeterminados(): void {

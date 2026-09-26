@@ -75,7 +75,7 @@ export class Servicios implements OnInit {
   editarPlantilla(p: ServicioPlantilla): void {
     this.plantilla = { clave: p.clave, nombre: p.nombre, descripcion: p.descripcion, prefijo: p.prefijo, color: p.color, icono: p.icono,
       prioridad: p.prioridad, tiempo_estimado_min: p.tiempo_estimado_min, requiere_documento: p.requiere_documento,
-      verificar_formulario: p.verificar_formulario, agendable: p.agendable, publico: p.publico, orden: p.orden, activo: p.activo };
+      verificar_formulario: p.verificar_formulario, agendable: p.agendable, publico: p.publico, remoto: p.remoto, orden: p.orden, activo: p.activo };
     this.editandoPlantilla.set(p.id);
     this.formPlantillaAbierto.set(true);
   }
@@ -98,7 +98,7 @@ export class Servicios implements OnInit {
 
   private plantillaVacia(): ServicioPlantillaIn {
     return { clave: '', nombre: '', descripcion: '', prefijo: '', color: '#2B59F0', icono: 'description', prioridad: 5, tiempo_estimado_min: 10,
-      requiere_documento: true, verificar_formulario: false, agendable: false, publico: true, orden: this.plantillas().length + 1, activo: true };
+      requiere_documento: true, verificar_formulario: false, agendable: false, publico: true, remoto: false, orden: this.plantillas().length + 1, activo: true };
   }
 
   nuevo(): void { this.form = this.vacio(); this.editando.set(null); this.formAbierto.set(true); }
@@ -109,7 +109,7 @@ export class Servicios implements OnInit {
       prioridad: s.prioridad, tiempo_estimado_min: s.tiempo_estimado_min, requiere_documento: s.requiere_documento,
       requiere_cita: s.requiere_cita, cupo_diario: s.cupo_diario, hora_apertura: s.hora_apertura?.slice(0, 5) ?? null,
       hora_cierre: s.hora_cierre?.slice(0, 5) ?? null, dias_habiles: s.dias_habiles, publico: s.publico, orden: s.orden, activo: s.activo,
-      agendable: s.agendable, verificar_formulario: s.verificar_formulario,
+      agendable: s.agendable, verificar_formulario: s.verificar_formulario, remoto: s.remoto,
     };
     this.editando.set(s.id);
     this.formAbierto.set(true);
@@ -144,6 +144,6 @@ export class Servicios implements OnInit {
     return { nombre: '', descripcion: '', prefijo: '', area_id: null, color: '#2B59F0', icono: 'description', prioridad: 5,
       tiempo_estimado_min: 10, requiere_documento: false, requiere_cita: false, cupo_diario: 0, hora_apertura: null,
       hora_cierre: null, dias_habiles: null, publico: true, orden: this.servicios().length + 1, activo: true,
-      agendable: false, verificar_formulario: false };
+      agendable: false, verificar_formulario: false, remoto: false };
   }
 }

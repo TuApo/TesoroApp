@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
+import { EtiquetaAtencionRemota } from '../../../turnos/components/etiqueta-atencion-remota/etiqueta-atencion-remota';
 import { VacanteAsignadaResumen } from '../../service/pipeline-nav/pipeline-nav.service';
 import { Avance, pctDe, sumarAvances } from '../../shared/progreso.util';
 
@@ -25,7 +26,7 @@ interface Fila {
 @Component({
   selector: 'app-ficha-candidato',
   standalone: true,
-  imports: [SharedModule, MatIconModule],
+  imports: [SharedModule, MatIconModule, EtiquetaAtencionRemota],
   templateUrl: './ficha-candidato.component.html',
   styleUrls: ['./ficha-candidato.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,

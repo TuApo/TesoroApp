@@ -14,6 +14,7 @@ export const routes: Routes = [
   { path: '', loadComponent: () => import('./pages/home/home').then(m => m.TurnosHome) },
   { path: 'atencion', loadComponent: () => import('./pages/atencion/atencion').then(m => m.Atencion) },
   { path: 'cola', loadComponent: () => import('./pages/cola/cola').then(m => m.ColaRecepcion) },
+  { path: 'remoto', loadComponent: () => import('./pages/remoto/remoto').then(m => m.AtencionRemota) },
   { path: 'oficinas', loadComponent: () => import('./pages/oficinas/oficinas').then(m => m.Oficinas) },
   { path: 'oficinas/:id/croquis', loadComponent: () => import('./pages/croquis-editor/croquis-editor').then(m => m.CroquisEditor) },
   { path: 'servicios', loadComponent: () => import('./pages/servicios/servicios').then(m => m.Servicios) },

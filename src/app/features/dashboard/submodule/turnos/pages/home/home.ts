@@ -32,6 +32,7 @@ export class TurnosHome implements OnInit {
   readonly atajos: Atajo[] = [
     { ruta: 'atencion', icono: 'support_agent', titulo: 'Panel de atención', ayuda: 'Abrir puesto, llamar turnos y llevar varios casos a la vez' },
     { ruta: 'cola', icono: 'groups', titulo: 'Cola y recepción', ayuda: 'La sala ahora mismo; emitir turnos a mano' },
+    { ruta: 'remoto', icono: 'video_camera_front', titulo: 'Atención remota', ayuda: 'Atender por videollamada, desde aquí, la selección y contratación de otras oficinas' },
     { ruta: 'oficinas', icono: 'map', titulo: 'Oficinas y croquis', ayuda: 'El mapa de cada oficina, sus áreas y puntos', soloAdmin: true },
     { ruta: 'servicios', icono: 'list_alt', titulo: 'Servicios', ayuda: 'Trámites que reparten turnos: prefijo, área, prioridad', soloAdmin: true },
     { ruta: 'equipos', icono: 'groups_3', titulo: 'Equipos, horarios y agenda', ayuda: 'Quién trabaja en cada área (por rol o persona), horarios de turno y cuándo se dan citas', soloAdmin: true },

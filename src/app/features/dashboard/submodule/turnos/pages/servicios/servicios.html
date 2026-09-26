@@ -46,6 +46,7 @@
         <label class="tn-check"><input type="checkbox" name="cita" [(ngModel)]="form.requiere_cita"> Solo con cita</label>
         <label class="tn-check"><input type="checkbox" name="agendable" [(ngModel)]="form.agendable"> Se agenda por la web (aspirantes y empleados)</label>
         <label class="tn-check"><input type="checkbox" name="verificar" [(ngModel)]="form.verificar_formulario"> Es un proceso de selección: verificar el formulario de vacantes al dar turno</label>
+        <label class="tn-check"><input type="checkbox" name="remoto" [(ngModel)]="form.remoto"> Se atiende por videollamada desde otras oficinas (atención remota)</label>
         <label class="tn-check"><input type="checkbox" name="publico" [(ngModel)]="form.publico"> Visible en el QR y el kiosco</label>
         @if (editando()) { <label class="tn-check"><input type="checkbox" name="activo" [(ngModel)]="form.activo"> Activo</label> }
       </div>
@@ -119,6 +120,7 @@
         <label class="tn-check"><input type="checkbox" name="pdoc" [(ngModel)]="plantilla.requiere_documento"> Exige cédula</label>
         <label class="tn-check"><input type="checkbox" name="pverif" [(ngModel)]="plantilla.verificar_formulario"> Proceso de selección: verificar el formulario</label>
         <label class="tn-check"><input type="checkbox" name="pagend" [(ngModel)]="plantilla.agendable"> Se agenda por la web</label>
+        <label class="tn-check"><input type="checkbox" name="premoto" [(ngModel)]="plantilla.remoto"> Se atiende por videollamada desde otras oficinas</label>
         <label class="tn-check"><input type="checkbox" name="ppub" [(ngModel)]="plantilla.publico"> Visible en el QR y el kiosco</label>
         <label class="tn-check"><input type="checkbox" name="pactivo" [(ngModel)]="plantilla.activo"> Activo (se carga en las oficinas)</label>
         <div class="tn-acciones tn-campo--ancho">
@@ -147,6 +149,7 @@
                     @if (p.requiere_documento) { <span class="tn-chip">Cédula</span> }
                     @if (p.verificar_formulario) { <span class="tn-chip tn-chip--violet">Formulario</span> }
                     @if (p.agendable) { <span class="tn-chip tn-chip--info">Cita web</span> }
+                    @if (p.remoto) { <span class="tn-chip tn-chip--info">Remoto</span> }
                     @if (p.publico) { <span class="tn-chip">QR</span> }
                   </td>
                   <td>@if (p.activo) { <span class="tn-chip tn-chip--ok">Activo</span> } @else { <span class="tn-chip tn-chip--danger">Inactivo</span> }</td>

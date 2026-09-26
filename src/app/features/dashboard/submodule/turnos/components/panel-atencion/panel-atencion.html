@@ -185,7 +185,7 @@
         </div>
       } @else {
       <!-- Oficina y puesto en una sola línea -->
-      @if (!atencion()?.punto_id) {
+      @if (!atencion()?.punto_id && !turno()?.remoto) {
         <div class="puesto-barra">
           <mat-icon class="puesto-barra__icono">login</mat-icon>
           <select class="puesto-barra__sel" [value]="ctx.oficinaId() ?? ''" (change)="ctx.seleccionarOficina(($any($event.target).value) || null)" aria-label="Oficina">
@@ -218,7 +218,7 @@
         </div>
       } @else {
         <div class="puesto-barra puesto-barra--abierto">
-          <span class="puesto-barra__donde"><mat-icon>{{ puntoActualInfo()?.tipo === 'MOVIL' ? 'directions_walk' : 'desk' }}</mat-icon> <b>{{ atencion()!.punto_nombre }}</b><span class="muted"> · {{ jornada()?.area_nombre || atencion()!.oficina_nombre }}</span>@if (jornada()?.origen === 'HORARIO') { <span class="tn-chip tn-chip--info" [title]="'Por horario' + (jornada()?.fin_programado ? ', hasta las ' + horaDe(jornada()?.fin_programado) : '')"><mat-icon>schedule</mat-icon> {{ horaDe(jornada()?.fin_programado) || 'horario' }}</span> }</span>
+          <span class="puesto-barra__donde"><mat-icon>{{ turno()?.remoto && !atencion()?.punto_id ? 'video_camera_front' : puntoActualInfo()?.tipo === 'MOVIL' ? 'directions_walk' : 'desk' }}</mat-icon> <b>{{ atencion()!.punto_nombre || (turno()?.remoto ? 'Atención remota' : '') }}</b><span class="muted"> · {{ jornada()?.area_nombre || atencion()!.oficina_nombre }}</span>@if (jornada()?.origen === 'HORARIO') { <span class="tn-chip tn-chip--info" [title]="'Por horario' + (jornada()?.fin_programado ? ', hasta las ' + horaDe(jornada()?.fin_programado) : '')"><mat-icon>schedule</mat-icon> {{ horaDe(jornada()?.fin_programado) || 'horario' }}</span> }</span>
           <span class="tn-chip tn-chip--ok" title="Atendidos hoy por mí"><mat-icon>task_alt</mat-icon> {{ atencion()!.atendidos_hoy }}</span>
           <label class="tn-check puesto-barra__auto" title="Llamar el siguiente al finalizar"><input type="checkbox" [checked]="ctx.preferencia()?.auto_llamar" (change)="alternarAutoLlamar()"> Auto</label>
           <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cerrarPuesto()" title="Soltar el puesto (sigo en turno en el área)" [disabled]="!!turno()"><mat-icon>desk</mat-icon></button>
@@ -239,6 +239,7 @@
               @if (t.llamadas > 1) { <span class="tn-chip tn-chip--warn">Llamado {{ t.llamadas }} veces</span> }
               @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad }}</span> }
               @if (t.escalado_motivo) { <span class="tn-chip tn-chip--warn" [title]="t.escalado_motivo"><mat-icon>support_agent</mat-icon> Escalado al jefe</span> }
+              @if (t.remoto) { <button type="button" class="tn-chip tn-chip--info tn-chip--boton" (click)="irARemoto()" title="Abrir la videollamada en Atención remota"><mat-icon>video_camera_front</mat-icon> Videollamada{{ t.atendido_desde_oficina_nombre ? ' desde ' + t.atendido_desde_oficina_nombre : '' }}</button> }
               @if (t.formulario_estado && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') {
                 <span [class]="'tn-chip ' + claseFormulario(t.formulario_estado, t.formulario_listo)" [title]="t.formulario_etiqueta"><mat-icon>assignment</mat-icon> {{ t.formulario_etiqueta }}</span>
                 @if (t.formulario_url) { <a class="tn-chip" [href]="t.formulario_url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Abrir formulario</a> }
@@ -349,6 +350,13 @@
         </ol>
       }
 
+      @if (puedeRemoto()) {
+        <button type="button" class="remoto-cta" (click)="irARemoto()" title="Atender por videollamada turnos de otras oficinas">
+          <mat-icon>video_camera_front</mat-icon>
+          <span>{{ colaRemotaN() ? colaRemotaN() + (colaRemotaN() === 1 ? ' persona espera' : ' personas esperan') + ' en otras oficinas por videollamada' : 'Atención remota: nadie esperando en otras oficinas' }}</span>
+          <mat-icon>chevron_right</mat-icon>
+        </button>
+      }
       @if (enCurso().length) {
         <div class="en-curso">
           @for (t of enCurso(); track t.id) {

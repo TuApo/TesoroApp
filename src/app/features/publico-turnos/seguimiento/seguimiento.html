@@ -43,7 +43,29 @@
         }
         <button type="button" class="enlace" (click)="cancelar()"><mat-icon>close</mat-icon> Cancelar mi turno</button>
       }
-      @if (llamado()) {
+      @if (remoto()) {
+        <div class="estado estado--llamado">
+          <mat-icon>video_camera_front</mat-icon>
+          <strong>{{ t.estado === 'LLAMADO' ? '¡Lo atenderán por videollamada!' : 'En videollamada' }}</strong>
+          <span class="punto">{{ t.atendido_por_nombre ? t.atendido_por_nombre : 'Un asesor' }}{{ t.atendido_desde_oficina_nombre ? ', desde ' + t.atendido_desde_oficina_nombre + ',' : '' }} lo atiende desde este celular.</span>
+        </div>
+        @if (llamada(); as l) {
+          <div class="video">
+            <video class="video__remoto" [srcObject]="l.remoto()" autoplay playsinline></video>
+            <video class="video__local" [srcObject]="l.local()" autoplay playsinline muted></video>
+            @if (l.estado() !== 'conectada') { <div class="video__estado"><mat-icon>{{ l.estado() === 'error' ? 'error' : 'ring_volume' }}</mat-icon><span>{{ l.detalle() || 'Conectando…' }}</span></div> }
+          </div>
+          <div class="video__barra">
+            <button type="button" class="boton boton--claro" (click)="l.alternarMicro()"><mat-icon>{{ l.microSilenciado() ? 'mic_off' : 'mic' }}</mat-icon></button>
+            <button type="button" class="boton boton--claro" (click)="l.alternarCamara()"><mat-icon>{{ l.camaraApagada() ? 'videocam_off' : 'videocam' }}</mat-icon></button>
+            <button type="button" class="boton boton--rojo" (click)="colgarLlamada()"><mat-icon>call_end</mat-icon> Colgar</button>
+          </div>
+        } @else {
+          <button type="button" class="boton boton--grande" (click)="unirse()" [disabled]="uniendo()"><mat-icon>video_call</mat-icon> {{ uniendo() ? 'Esperando al asesor…' : 'Unirme a la videollamada' }}</button>
+          <span class="ayuda">Le pediremos permiso para usar la cámara y el micrófono. Manténgase en esta página.</span>
+        }
+      }
+      @if (llamado() && !remoto()) {
         <div class="estado estado--llamado">
           <mat-icon>campaign</mat-icon>
           <strong>¡Lo están llamando!</strong>
@@ -55,7 +77,7 @@
           }
         </div>
       }
-      @if (enAtencion()) {
+      @if (enAtencion() && !remoto()) {
         <div class="estado"><mat-icon>person_check</mat-icon><strong>Lo están atendiendo</strong><span>{{ t.punto_nombre }}</span></div>
       }
       @if (terminado()) {

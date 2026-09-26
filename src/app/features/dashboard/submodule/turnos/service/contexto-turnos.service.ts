@@ -1,9 +1,9 @@
 import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { filter } from 'rxjs';
+import { Subject, filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { Caso, CasoPatch, Cola, EstadoAtencion, Oficina, Preferencia, TurnosService, Turno } from './turnos.service';
+import { Caso, CasoPatch, Cola, EstadoAtencion, Oficina, Preferencia, SenalVideo, TurnosService, Turno } from './turnos.service';
 import { conectarSse, ConexionSse, tokenActual } from './sse.util';
 import { VistaCaso, VistaCasoService, mismaPantalla } from './vista-caso.service';
 import { RegistroVistaCaso } from '../../../../../core/services/vista-caso.registro';
@@ -64,6 +64,8 @@ export class ContextoTurnosService {
   readonly avisoArea = signal<Turno | null>(null);
   /** Último turno que nadie podía atender y quedó a mi cargo (soy el jefe de la oficina): evento turno-escalado. */
   readonly avisoEscalado = signal<Turno | null>(null);
+  /** Señales WebRTC de la persona en videollamada (evento video-senal del canal mío): las consume Atención remota. */
+  readonly videoSenal$ = new Subject<SenalVideo>();
 
   readonly oficina = computed<Oficina | null>(() => {
     const id = this.oficinaId();
@@ -295,6 +297,10 @@ export class ContextoTurnosService {
       token,
       onEstado: e => this.estadoCanal.set(e),
       onEvento: (nombre, datos) => {
+        if (nombre === 'video-senal') {
+          this.videoSenal$.next(datos as SenalVideo);
+          return;
+        }
         if (nombre === 'turno-escalado') {
           // Nadie podía atenderlo y quedó a mi cargo: se anuncia aparte del turno-creado que también llega.
           this.avisoEscalado.set(datos as Turno);
