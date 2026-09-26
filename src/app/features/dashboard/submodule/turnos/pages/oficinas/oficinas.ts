@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { Observable } from 'rxjs';
 
 import { ContextoTurnosService } from '../../service/contexto-turnos.service';
-import { Area, Oficina, OficinaIn, Punto, PuntoIn, Servicio, TurnosService } from '../../service/turnos.service';
+import { Area, Oficina, OficinaIn, Punto, PuntoIn, Servicio, TurnosService, UsuarioPlataforma } from '../../service/turnos.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
 
 interface Sede { id: string; nombre: string; }
@@ -43,6 +43,11 @@ export class Oficinas implements OnInit {
   readonly visibles = computed(() => this.oficinas().filter(o => this.mostrarInactivas() || o.activa));
 
   formOficina: OficinaIn & { dias: boolean[] } = this.oficinaVacia();
+  /** Búsqueda del jefe de la oficina (administración filtra por cédula o correo). */
+  readonly busquedaJefe = signal('');
+  readonly jefesEncontrados = signal<UsuarioPlataforma[]>([]);
+  readonly buscandoJefe = signal(false);
+  private temporizadorJefe: ReturnType<typeof setTimeout> | null = null;
   formPunto: PuntoIn & { servicios: string[] } = { nombre: '', codigo: '', tipo: 'FIJO', area_id: null, orden: 0, activo: true, servicios: [] };
   readonly DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
@@ -97,6 +102,7 @@ export class Oficinas implements OnInit {
       direccion: o.direccion, ciudad: o.ciudad, telefono: o.telefono,
       hora_apertura: o.hora_apertura?.slice(0, 5) ?? null, hora_cierre: o.hora_cierre?.slice(0, 5) ?? null,
       dias_habiles: o.dias_habiles, activa: o.activa, ui_json: o.ui_json, dias,
+      jefe_usuario_ref: o.jefe_usuario_ref, jefe_usuario_nombre: o.jefe_usuario_nombre,
     };
     this.editando.set(o.id);
     this.formAbierto.set('oficina');
@@ -111,6 +117,7 @@ export class Oficinas implements OnInit {
       direccion: f.direccion || null, ciudad: f.ciudad || null, telefono: f.telefono || null,
       hora_apertura: f.hora_apertura || null, hora_cierre: f.hora_cierre || null,
       dias_habiles: f.dias.map(d => (d ? '1' : '0')).join(''), activa: f.activa ?? true,
+      jefe_usuario_ref: f.jefe_usuario_ref || null, jefe_usuario_nombre: f.jefe_usuario_ref ? (f.jefe_usuario_nombre || null) : null,
     };
     const id = this.editando();
     this.correr(id ? this.api.actualizarOficina(id, cuerpo) : this.api.crearOficina(cuerpo), o => {
@@ -177,8 +184,34 @@ export class Oficinas implements OnInit {
 
   private oficinaVacia(): OficinaIn & { dias: boolean[] } {
     return { nombre: '', codigo: '', sede_ref: null, sede_nombre: null, direccion: '', ciudad: '', telefono: '',
-      hora_apertura: '08:00', hora_cierre: '17:00', dias_habiles: '1111100', activa: true, dias: [true, true, true, true, true, false, false] };
+      hora_apertura: '08:00', hora_cierre: '17:00', dias_habiles: '1111100', activa: true, dias: [true, true, true, true, true, false, false],
+      jefe_usuario_ref: null, jefe_usuario_nombre: null };
   }
+
+  // ── Jefe de la oficina: a quien se le escala lo que nadie puede atender ──
+
+  buscarJefe(q: string): void {
+    this.busquedaJefe.set(q);
+    if (this.temporizadorJefe) clearTimeout(this.temporizadorJefe);
+    const texto = q.trim();
+    if (texto.length < 3) { this.jefesEncontrados.set([]); return; }
+    this.temporizadorJefe = setTimeout(() => {
+      this.buscandoJefe.set(true);
+      this.api.buscarUsuarios(texto).subscribe({
+        next: u => { this.jefesEncontrados.set(u); this.buscandoJefe.set(false); },
+        error: () => { this.jefesEncontrados.set([]); this.buscandoJefe.set(false); },
+      });
+    }, 350);
+  }
+
+  elegirJefe(u: UsuarioPlataforma): void {
+    this.formOficina.jefe_usuario_ref = u.id;
+    this.formOficina.jefe_usuario_nombre = u.nombre;
+    this.jefesEncontrados.set([]);
+    this.busquedaJefe.set('');
+  }
+
+  quitarJefe(): void { this.formOficina.jefe_usuario_ref = null; this.formOficina.jefe_usuario_nombre = null; }
 
   private correr<T>(obs: Observable<T>, ok: (v: T) => void): void {
     this.ocupado.set(true);

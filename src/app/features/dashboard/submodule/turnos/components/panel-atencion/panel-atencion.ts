@@ -68,6 +68,8 @@ export class PanelAtencion implements OnInit {
   readonly cargandoFranjas = signal(false);
   cita = { fecha: new Date().toISOString().slice(0, 10), fecha_hora: '' };
   readonly avisoArea = this.ctx.avisoArea;
+  readonly avisoEscalado = this.ctx.avisoEscalado;
+  readonly cargandoPredeterminados = signal(false);
   readonly transfiriendo = signal(false);
   readonly servicioDestino = signal<string>('');
   readonly cerrandoCon = signal<'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
@@ -210,6 +212,8 @@ export class PanelAtencion implements OnInit {
 
   cambiarModo(m: 'atender' | 'recepcion'): void {
     this.mostrador.set(m);
+    // Recepción es un formulario: en el colapsador se le da alto para que no quede apachurrado.
+    if (m === 'recepcion' && this.modo() === 'colapsador' && this.alto() < 540) { this.alto.set(540); this.guardarPref({ panel_alto: 540 }); }
     if (m === 'recepcion' && !this.recepcion.servicio_id && this.servicios().length) this.recepcion.servicio_id = this.servicios()[0].id;
     if (m === 'recepcion') { this.cargarCitas(); if (this.modoRecepcion() === 'cita') this.cargarFranjas(); }
   }
@@ -386,6 +390,24 @@ export class PanelAtencion implements OnInit {
   }
 
   descartarAvisoArea(): void { this.ctx.avisoArea.set(null); }
+  descartarAvisoEscalado(): void { this.ctx.avisoEscalado.set(null); }
+
+  /** La oficina no tiene procesos: un administrador carga el catálogo de predeterminados desde aquí. */
+  cargarPredeterminados(): void {
+    const of = this.ctx.oficinaId();
+    if (!of || !this.ctx.esAdmin()) return;
+    this.cargandoPredeterminados.set(true);
+    this.api.cargarPredeterminados(of).subscribe({
+      next: creados => {
+        this.cargandoPredeterminados.set(false);
+        this.aviso.set(creados.length ? `${creados.length} procesos cargados; ajústelos en Control Oficina → Servicios` : 'La oficina ya tenía los procesos predeterminados');
+        this.cargarCatalogos(of);
+        setTimeout(() => { if (!this.recepcion.servicio_id && this.servicios().length) this.recepcion.servicio_id = this.servicios()[0].id; }, 400);
+        setTimeout(() => this.aviso.set(null), 4000);
+      },
+      error: e => { this.cargandoPredeterminados.set(false); this.error.set(e?.error?.message || 'No se pudieron cargar los procesos'); setTimeout(() => this.error.set(null), 4000); },
+    });
+  }
 
   // ── Recepción: formulario del aspirante y citas ───────────────────────
 

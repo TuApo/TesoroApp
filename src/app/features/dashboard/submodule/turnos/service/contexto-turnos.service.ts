@@ -62,6 +62,8 @@ export class ContextoTurnosService {
   readonly restaurando = signal(false);
   /** Último turno que entró para MI área estando en turno (evento turno-area): el panel lo anuncia. */
   readonly avisoArea = signal<Turno | null>(null);
+  /** Último turno que nadie podía atender y quedó a mi cargo (soy el jefe de la oficina): evento turno-escalado. */
+  readonly avisoEscalado = signal<Turno | null>(null);
 
   readonly oficina = computed<Oficina | null>(() => {
     const id = this.oficinaId();
@@ -293,6 +295,13 @@ export class ContextoTurnosService {
       token,
       onEstado: e => this.estadoCanal.set(e),
       onEvento: (nombre, datos) => {
+        if (nombre === 'turno-escalado') {
+          // Nadie podía atenderlo y quedó a mi cargo: se anuncia aparte del turno-creado que también llega.
+          this.avisoEscalado.set(datos as Turno);
+          this.sonarAviso();
+          this.programarRefresco();
+          return;
+        }
         if (nombre === 'turno-area') {
           // Entró un turno para el área en la que estoy en turno: se anuncia y se refresca la lista.
           this.avisoArea.set(datos as Turno);

@@ -5,10 +5,18 @@
        de pestañas hasta abajo; el cuerpo mide siempre `alto` para que el contenido no salte. -->
   <div class="cuerpo-marco" [class.cuerpo-marco--arrastrando]="arrastrando()" [style.height.px]="modo() === 'colapsador' ? (abierto() ? alto() : 0) : null" [attr.aria-hidden]="modo() === 'colapsador' && !abierto()">
   @if (abierto() || modo() === 'pagina' || montado()) {
-  <div id="tn-panel-cuerpo" class="cuerpo" [style.height.px]="modo() === 'colapsador' ? alto() : null">
+  <div id="tn-panel-cuerpo" class="cuerpo" [class.cuerpo--recepcion]="mostrador() === 'recepcion' && puedeRecepcion()" [style.height.px]="modo() === 'colapsador' ? alto() : null">
 
     @if (error()) { <div class="tn-aviso tn-aviso--error flotante"><mat-icon>error</mat-icon> {{ error() }}</div> }
     @if (aviso()) { <div class="tn-aviso tn-aviso--ok flotante"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+    @if (avisoEscalado(); as e) {
+      <div class="tn-aviso tn-aviso--escalado flotante" role="status">
+        <mat-icon>support_agent</mat-icon>
+        <span><b>Sin quién atienda:</b> <span class="tn-codigo">{{ e.codigo }}</span> {{ e.nombre || '' }} · {{ e.servicio_nombre }}. {{ e.escalado_motivo }}</span>
+        @if (puedoLlamar()) { <button type="button" class="tn-boton tn-boton--primario" (click)="llamarEste(e); descartarAvisoEscalado()"><mat-icon>campaign</mat-icon> Atender yo</button> }
+        <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="descartarAvisoEscalado()" title="Cerrar"><mat-icon>close</mat-icon></button>
+      </div>
+    }
     @if (avisoArea(); as a) {
       <div class="tn-aviso tn-aviso--area flotante" role="status">
         <mat-icon>notifications_active</mat-icon>
@@ -81,14 +89,30 @@
               <button type="button" class="modos__btn" role="tab" [class.modos__btn--on]="modoRecepcion() === 'cita'" (click)="cambiarModoRecepcion('cita')"><mat-icon>event</mat-icon> Agendar cita</button>
               @if (citasPendientes().length) { <span class="tn-chip tn-chip--info" title="Citas de hoy por llegar"><mat-icon>event_available</mat-icon> {{ citasPendientes().length }} hoy</span> }
             </div>
-            <div class="recepcion__fila">
-              <label>Cédula{{ servicioElegido()?.requiere_documento ? ' *' : '' }}<input type="text" name="rdoc" [(ngModel)]="recepcion.documento" (blur)="consultarFormulario(recepcion.documento)" inputmode="numeric" autocomplete="off"></label>
-              <label>Nombre<input type="text" name="rnombre" [(ngModel)]="recepcion.nombre" autocomplete="off"></label>
+            <div class="grupo">
+              <span class="grupo__eti"><mat-icon>person</mat-icon> Persona</span>
+              <div class="recepcion__fila recepcion__fila--3">
+                <label>Cédula{{ servicioElegido()?.requiere_documento ? ' *' : '' }}<input type="text" name="rdoc" [(ngModel)]="recepcion.documento" (blur)="consultarFormulario(recepcion.documento)" inputmode="numeric" autocomplete="off" placeholder="1.234.567.890"></label>
+                <label>Nombre completo<input type="text" name="rnombre" [(ngModel)]="recepcion.nombre" autocomplete="off" placeholder="Nombres y apellidos"></label>
+                <label>Celular<input type="tel" name="rtel" [(ngModel)]="recepcion.telefono" autocomplete="off" placeholder="300 000 0000"></label>
+              </div>
+              <div class="recepcion__fila">
+                <label>Correo (opcional)<input type="email" name="rcorreo" [(ngModel)]="recepcion.correo" autocomplete="off"></label>
+                <label>Empresa usuaria (opcional)<input type="text" name="remp" [(ngModel)]="recepcion.empresa_usuaria_nombre" autocomplete="off"></label>
+              </div>
             </div>
-            <div class="recepcion__fila">
-              <label>Celular<input type="tel" name="rtel" [(ngModel)]="recepcion.telefono" autocomplete="off"></label>
-              <label>Empresa usuaria<input type="text" name="remp" [(ngModel)]="recepcion.empresa_usuaria_nombre" autocomplete="off"></label>
-            </div>
+            <div class="grupo">
+              <span class="grupo__eti"><mat-icon>route</mat-icon> Trámite</span>
+              @if (!servicios().length) {
+                <div class="sin-servicios">
+                  <mat-icon>info</mat-icon>
+                  <span>Esta oficina aún no tiene procesos configurados.</span>
+                  @if (ctx.esAdmin()) {
+                    <button type="button" class="tn-boton tn-boton--primario" (click)="cargarPredeterminados()" [disabled]="cargandoPredeterminados()"><mat-icon>playlist_add</mat-icon> {{ cargandoPredeterminados() ? 'Cargando…' : 'Cargar los procesos predeterminados' }}</button>
+                    <span class="muted">Luego se ajustan (poner, quitar, cambiar) en Control Oficina → Servicios.</span>
+                  } @else { <span class="muted">Pida al coordinador que los cargue en Control Oficina → Servicios.</span> }
+                </div>
+              }
             <div class="recepcion__fila">
               <label>¿Para qué proceso viene?
                 <select name="rsrv" [(ngModel)]="recepcion.servicio_id" (ngModelChange)="modoRecepcion() === 'cita' && cargarFranjas()" required>
@@ -121,6 +145,7 @@
               </select>
             </label>
             <label>Observación<input type="text" name="robs" [(ngModel)]="recepcion.observaciones" placeholder="Opcional: trae documentos incompletos, viene por segunda vez…" autocomplete="off"></label>
+            </div>
             <div class="recepcion__acciones">
               @if (modoRecepcion() === 'cita') {
                 <button type="submit" class="tn-boton tn-boton--primario tn-boton--grande" [disabled]="ocupado() || !recepcion.servicio_id || !cita.fecha_hora"><mat-icon>event_available</mat-icon> Agendar cita</button>
@@ -128,11 +153,14 @@
                 <button type="submit" class="tn-boton tn-boton--primario tn-boton--grande" [disabled]="ocupado() || !recepcion.servicio_id"><mat-icon>confirmation_number</mat-icon> Dar turno</button>
               }
               @if (tiquete(); as t) {
-                <span class="tiquete-mini" [title]="t.mensaje">
+                <span class="tiquete-mini" [class.tiquete-mini--escalado]="!!t.escalado_motivo" [title]="t.mensaje">
                   <span class="tn-codigo">{{ t.turno.codigo }}</span> {{ t.servicio_nombre }}{{ t.turno.asignado_usuario_nombre ? ' · ' + t.turno.asignado_usuario_nombre : (t.turno.asignado_punto_nombre ? ' · ' + t.turno.asignado_punto_nombre : '') }}
                 </span>
               }
             </div>
+            @if (tiquete()?.escalado_motivo; as m) {
+              <div class="formulario formulario--warn"><mat-icon>support_agent</mat-icon><span><b>Nadie disponible para atender.</b> {{ m }}{{ tiquete()?.escalado_a ? '' : ' Configure el jefe de la oficina en Control Oficina → Oficinas.' }}</span></div>
+            }
           </form>
 
           @if (citasHoy().length) {
@@ -210,6 +238,7 @@
               @if (t.empresa_usuaria_nombre) { <span class="turno-actual__doc">{{ t.empresa_usuaria_nombre }}</span> }
               @if (t.llamadas > 1) { <span class="tn-chip tn-chip--warn">Llamado {{ t.llamadas }} veces</span> }
               @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad }}</span> }
+              @if (t.escalado_motivo) { <span class="tn-chip tn-chip--warn" [title]="t.escalado_motivo"><mat-icon>support_agent</mat-icon> Escalado al jefe</span> }
               @if (t.formulario_estado && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') {
                 <span [class]="'tn-chip ' + claseFormulario(t.formulario_estado, t.formulario_listo)" [title]="t.formulario_etiqueta"><mat-icon>assignment</mat-icon> {{ t.formulario_etiqueta }}</span>
                 @if (t.formulario_url) { <a class="tn-chip" [href]="t.formulario_url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Abrir formulario</a> }
@@ -298,6 +327,7 @@
                 }
                 @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad === 'CITA' ? (t.agendado_para ? 'Cita ' + horaDe(t.agendado_para) : 'Cita') : 'Preferencial' }}</span> }
                 @if (t.formulario_estado && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') { <span [class]="'tn-chip ' + claseFormulario(t.formulario_estado, t.formulario_listo)" [title]="t.formulario_etiqueta"><mat-icon>assignment</mat-icon> {{ t.formulario_listo ? 'Form. OK' : (t.formulario_estado === 'PARCIAL' ? 'Form. a medias' : 'Sin formulario') }}</span> }
+                @if (t.escalado_en) { <span class="tn-chip tn-chip--warn" [title]="t.escalado_motivo || 'Nadie disponible: a cargo del jefe'"><mat-icon>support_agent</mat-icon> Jefe</span> }
                 @if (t.llamadas > 0) { <span class="tn-chip tn-chip--warn" title="Ya fue llamado y volvió a la cola">↩ {{ t.llamadas }}</span> }
                 <mat-icon class="fila__canal" [title]="'Canal: ' + t.canal">{{ iconoCanal(t.canal) }}</mat-icon>
               </span>

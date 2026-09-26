@@ -6,7 +6,10 @@
     </div>
     <div class="tn-acciones">
       <app-selector-oficina />
-      @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nuevo()" [disabled]="!ctx.oficinaId()"><mat-icon>add</mat-icon> Nuevo servicio</button> }
+      @if (ctx.esAdmin()) {
+        <button type="button" class="tn-boton" (click)="cargarPredeterminados()" [disabled]="!ctx.oficinaId() || cargandoPredeterminados()" title="Trae al catálogo de esta oficina los procesos predeterminados que le falten"><mat-icon>playlist_add</mat-icon> {{ cargandoPredeterminados() ? 'Cargando…' : 'Cargar predeterminados' }}</button>
+        <button type="button" class="tn-boton tn-boton--primario" (click)="nuevo()" [disabled]="!ctx.oficinaId()"><mat-icon>add</mat-icon> Nuevo servicio</button>
+      }
     </div>
   </header>
 
@@ -55,7 +58,9 @@
 
   <div class="tn-tarjeta">
     @if (!servicios().length) {
-      <div class="tn-vacio"><mat-icon>list_alt</mat-icon><span>Esta oficina no tiene servicios. Sin servicios no hay turnos que repartir.</span></div>
+      <div class="tn-vacio"><mat-icon>list_alt</mat-icon><span>Esta oficina no tiene procesos. Sin procesos no hay turnos que repartir.</span>
+        @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="cargarPredeterminados()" [disabled]="!ctx.oficinaId() || cargandoPredeterminados()"><mat-icon>playlist_add</mat-icon> Cargar los procesos predeterminados</button> }
+      </div>
     } @else {
       <div class="tn-tabla-marco">
         <table class="tn-tabla">
@@ -82,6 +87,81 @@
           </tbody>
         </table>
       </div>
+    }
+  </div>
+
+  <!-- Catálogo global: los procesos predeterminados que se cargan en cada oficina -->
+  <div class="tn-tarjeta catalogo">
+    <h3>
+      <mat-icon>playlist_add_check</mat-icon> Procesos predeterminados
+      <span class="muted">catálogo para todas las oficinas · {{ plantillas().length }}</span>
+      <span class="espacio"></span>
+      @if (ctx.esAdmin()) { <button type="button" class="tn-boton" (click)="nuevaPlantilla()"><mat-icon>add</mat-icon> Nuevo predeterminado</button> }
+      <button type="button" class="tn-boton tn-boton--fantasma" (click)="verPlantillas.set(!verPlantillas())"><mat-icon>{{ verPlantillas() ? 'expand_less' : 'expand_more' }}</mat-icon> {{ verPlantillas() ? 'Ocultar' : 'Ver' }}</button>
+    </h3>
+    <p class="tn-subtitulo">Lo que toda oficina debería poder ofrecer. Una oficina nueva nace con ellos; una existente los carga con "Cargar predeterminados" y luego ajusta, quita o agrega los suyos.</p>
+
+    @if (formPlantillaAbierto()) {
+      <form class="tn-form catalogo__form" (ngSubmit)="guardarPlantilla()">
+        <label class="tn-campo"><span>Nombre</span><input name="pnombre" [(ngModel)]="plantilla.nombre" required placeholder="Entrevista y selección"></label>
+        <label class="tn-campo"><span>Prefijo</span><input name="pprefijo" [(ngModel)]="plantilla.prefijo" required maxlength="4" style="text-transform:uppercase" placeholder="S"></label>
+        <label class="tn-campo"><span>Clave (opcional)</span><input name="pclave" [(ngModel)]="plantilla.clave" [disabled]="!!editandoPlantilla()" placeholder="Se arma sola del nombre"></label>
+        <label class="tn-campo tn-campo--ancho"><span>Descripción</span><input name="pdesc" [(ngModel)]="plantilla.descripcion"></label>
+        <label class="tn-campo"><span>Prioridad (0 = primero)</span><input name="pprio" type="number" min="0" max="99" [(ngModel)]="plantilla.prioridad"></label>
+        <label class="tn-campo"><span>Duración estimada (min)</span><input name="ptiempo" type="number" min="1" [(ngModel)]="plantilla.tiempo_estimado_min"></label>
+        <label class="tn-campo"><span>Orden</span><input name="porden" type="number" [(ngModel)]="plantilla.orden"></label>
+        <div class="tn-campo"><span class="eti">Color</span>
+          <div class="colores">@for (c of COLORES; track c) { <button type="button" class="color" [style.background]="c" [class.color--on]="plantilla.color === c" (click)="plantilla.color = c" [attr.aria-label]="c"></button> }</div>
+        </div>
+        <div class="tn-campo"><span class="eti">Icono</span>
+          <div class="iconos">@for (i of ICONOS; track i) { <button type="button" class="icono" [class.icono--on]="plantilla.icono === i" (click)="plantilla.icono = i"><mat-icon>{{ i }}</mat-icon></button> }</div>
+        </div>
+        <label class="tn-check"><input type="checkbox" name="pdoc" [(ngModel)]="plantilla.requiere_documento"> Exige cédula</label>
+        <label class="tn-check"><input type="checkbox" name="pverif" [(ngModel)]="plantilla.verificar_formulario"> Proceso de selección: verificar el formulario</label>
+        <label class="tn-check"><input type="checkbox" name="pagend" [(ngModel)]="plantilla.agendable"> Se agenda por la web</label>
+        <label class="tn-check"><input type="checkbox" name="ppub" [(ngModel)]="plantilla.publico"> Visible en el QR y el kiosco</label>
+        <label class="tn-check"><input type="checkbox" name="pactivo" [(ngModel)]="plantilla.activo"> Activo (se carga en las oficinas)</label>
+        <div class="tn-acciones tn-campo--ancho">
+          <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !plantilla.nombre || !plantilla.prefijo"><mat-icon>save</mat-icon> Guardar</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="formPlantillaAbierto.set(false)">Cancelar</button>
+        </div>
+      </form>
+    }
+
+    @if (verPlantillas()) {
+      @if (!plantillas().length) {
+        <div class="tn-vacio"><mat-icon>playlist_remove</mat-icon><span>El catálogo está vacío.</span></div>
+      } @else {
+        <div class="tn-tabla-marco">
+          <table class="tn-tabla">
+            <thead><tr><th>Prefijo</th><th>Proceso</th><th>Clave</th><th class="numero">Prioridad</th><th class="numero">Dura</th><th>Reglas</th><th>Estado</th><th class="acciones"></th></tr></thead>
+            <tbody>
+              @for (p of plantillas(); track p.id) {
+                <tr [class.inactivo]="!p.activo">
+                  <td><span class="prefijo tn-codigo" [style.background]="p.color || '#2B59F0'"><mat-icon>{{ p.icono || 'description' }}</mat-icon>{{ p.prefijo }}</span></td>
+                  <td><strong>{{ p.nombre }}</strong>@if (p.descripcion) { <div class="desc">{{ p.descripcion }}</div> }</td>
+                  <td><code>{{ p.clave }}</code></td>
+                  <td class="numero">{{ p.prioridad }}</td>
+                  <td class="numero">{{ p.tiempo_estimado_min }} min</td>
+                  <td class="reglas">
+                    @if (p.requiere_documento) { <span class="tn-chip">Cédula</span> }
+                    @if (p.verificar_formulario) { <span class="tn-chip tn-chip--violet">Formulario</span> }
+                    @if (p.agendable) { <span class="tn-chip tn-chip--info">Cita web</span> }
+                    @if (p.publico) { <span class="tn-chip">QR</span> }
+                  </td>
+                  <td>@if (p.activo) { <span class="tn-chip tn-chip--ok">Activo</span> } @else { <span class="tn-chip tn-chip--danger">Inactivo</span> }</td>
+                  <td class="acciones">
+                    @if (ctx.esAdmin()) {
+                      <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarPlantilla(p)" title="Editar"><mat-icon>edit</mat-icon></button>
+                      <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="eliminarPlantilla(p)" title="Quitar del catálogo"><mat-icon>delete</mat-icon></button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
     }
   </div>
 </div>

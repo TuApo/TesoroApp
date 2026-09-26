@@ -21,6 +21,8 @@ export interface Oficina {
   creado_en: string; actualizado_en: string;
   servicios: number; puntos: number; pantallas: number;
   tiene_croquis: boolean; cartel_codigo: string | null;
+  /** Jefe de la oficina: a quien se le escala lo que nadie puede atender. */
+  jefe_usuario_ref: string | null; jefe_usuario_nombre: string | null;
 }
 
 export interface OficinaIn {
@@ -28,6 +30,7 @@ export interface OficinaIn {
   direccion?: string | null; ciudad?: string | null; telefono?: string | null;
   hora_apertura?: string | null; hora_cierre?: string | null; dias_habiles?: string;
   activa?: boolean; ui_json?: string | null;
+  jefe_usuario_ref?: string | null; jefe_usuario_nombre?: string | null;
 }
 
 export type TipoArea = 'RECEPCION' | 'MODULO' | 'VENTANILLA' | 'PUESTO' | 'OFICINA' | 'AREA_ATENCION' | 'SALA_ESPERA'
@@ -139,6 +142,19 @@ export interface Servicio {
   en_espera: number; espera_estimada_min: number;
   /** Se puede pedir cita desde la web; y al dar turno se verifica el formulario de vacantes (aspirantes). */
   agendable: boolean; verificar_formulario: boolean;
+  /** De qué proceso predeterminado del catálogo salió, si salió de uno. */
+  plantilla_clave: string | null;
+}
+
+/** Un proceso PREDETERMINADO del catálogo global ("¿para qué proceso viene?"). */
+export interface ServicioPlantillaIn {
+  clave?: string | null; nombre: string; descripcion?: string | null; prefijo: string; color?: string | null; icono?: string | null;
+  prioridad?: number; tiempo_estimado_min?: number; requiere_documento?: boolean; verificar_formulario?: boolean;
+  agendable?: boolean; publico?: boolean; orden?: number; activo?: boolean;
+}
+export interface ServicioPlantilla extends ServicioPlantillaIn {
+  id: string; clave: string; prioridad: number; tiempo_estimado_min: number; requiere_documento: boolean;
+  verificar_formulario: boolean; agendable: boolean; publico: boolean; orden: number; activo: boolean;
 }
 
 export interface ServicioIn {
@@ -175,6 +191,8 @@ export interface Turno {
   /** Verificación del formulario de vacantes del aspirante. */
   formulario_estado: EstadoFormulario | null; formulario_paso: number | null; formulario_etiqueta: string | null;
   formulario_url: string | null; formulario_listo: boolean | null;
+  /** Nadie disponible al registrarlo: quedó a cargo del jefe de la oficina (asignado_usuario_*). */
+  escalado_en: string | null; escalado_motivo: string | null;
   delante: number | null; espera_estimada_min: number | null;
 }
 
@@ -208,6 +226,8 @@ export interface PersonaContratacion {
 export interface Tiquete {
   turno: Turno; oficina_nombre: string; oficina_codigo: string; servicio_nombre: string;
   area_nombre: string | null; area_referencia: string | null; mensaje: string; url_seguimiento: string;
+  /** Si nadie podía atender: a quién se escaló y por qué. */
+  escalado_a: string | null; escalado_motivo: string | null;
 }
 
 export interface ResumenServicio {
@@ -614,6 +634,14 @@ export class TurnosService {
         };
       })));
   }
+
+  // ── Procesos predeterminados (catálogo global) ──
+  plantillasServicio(): Observable<ServicioPlantilla[]> { return this.http.get<ServicioPlantilla[]>(`${this.base}/servicios/plantillas`); }
+  crearPlantillaServicio(in_: ServicioPlantillaIn): Observable<ServicioPlantilla> { return this.http.post<ServicioPlantilla>(`${this.base}/servicios/plantillas`, in_); }
+  actualizarPlantillaServicio(id: string, in_: ServicioPlantillaIn): Observable<ServicioPlantilla> { return this.http.put<ServicioPlantilla>(`${this.base}/servicios/plantillas/${id}`, in_); }
+  eliminarPlantillaServicio(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/servicios/plantillas/${id}`); }
+  /** Carga en la oficina los procesos predeterminados que le falten; devuelve los creados. */
+  cargarPredeterminados(oficinaId: string): Observable<Servicio[]> { return this.http.post<Servicio[]>(`${this.base}/oficinas/${oficinaId}/servicios/predeterminados`, {}); }
 
   // ── Equipos por área, horarios y jornada ──
   equipos(oficinaId: string): Observable<AreaEquipo[]> { return this.http.get<AreaEquipo[]>(`${this.base}/oficinas/${oficinaId}/equipos`); }

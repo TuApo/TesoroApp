@@ -30,6 +30,25 @@
         <label class="tn-campo"><span>Ciudad</span><input name="ciudad" [(ngModel)]="formOficina.ciudad"></label>
         <label class="tn-campo tn-campo--ancho"><span>Dirección</span><input name="direccion" [(ngModel)]="formOficina.direccion"></label>
         <label class="tn-campo"><span>Teléfono</span><input name="telefono" [(ngModel)]="formOficina.telefono"></label>
+        <div class="tn-campo tn-campo--ancho">
+          <span class="eti">Jefe de la oficina</span>
+          @if (formOficina.jefe_usuario_ref) {
+            <div class="jefe"><mat-icon>support_agent</mat-icon> <b>{{ formOficina.jefe_usuario_nombre || formOficina.jefe_usuario_ref }}</b>
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="quitarJefe()" title="Quitar"><mat-icon>close</mat-icon></button>
+            </div>
+          } @else {
+            <div class="jefe-buscar">
+              <input type="search" name="jefe" [ngModel]="busquedaJefe()" (ngModelChange)="buscarJefe($event)" placeholder="Cédula o correo de la persona…" autocomplete="off">
+              @if (buscandoJefe()) { <mat-icon class="girando">sync</mat-icon> }
+            </div>
+            @if (jefesEncontrados().length) {
+              <ul class="resultados">
+                @for (u of jefesEncontrados(); track u.id) { <li (click)="elegirJefe(u)" tabindex="0" (keydown.enter)="elegirJefe(u)"><b>{{ u.nombre }}</b> <span class="muted">{{ u.documento }}{{ u.rol ? ' · ' + u.rol : '' }}</span></li> }
+              </ul>
+            }
+          }
+          <span class="ayuda">Cuando se registra un turno y nadie está disponible para atenderlo, queda a cargo de esta persona y se le avisa.</span>
+        </div>
         <label class="tn-campo"><span>Abre</span><input name="abre" type="time" [(ngModel)]="formOficina.hora_apertura"></label>
         <label class="tn-campo"><span>Cierra</span><input name="cierra" type="time" [(ngModel)]="formOficina.hora_cierre"></label>
         <div class="tn-campo"><span class="eti">Días hábiles</span>
