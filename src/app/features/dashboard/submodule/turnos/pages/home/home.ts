@@ -34,6 +34,7 @@ export class TurnosHome implements OnInit {
     { ruta: 'cola', icono: 'groups', titulo: 'Cola y recepción', ayuda: 'La sala ahora mismo; emitir turnos a mano' },
     { ruta: 'oficinas', icono: 'map', titulo: 'Oficinas y croquis', ayuda: 'El mapa de cada oficina, sus áreas y puntos', soloAdmin: true },
     { ruta: 'servicios', icono: 'list_alt', titulo: 'Servicios', ayuda: 'Trámites que reparten turnos: prefijo, área, prioridad', soloAdmin: true },
+    { ruta: 'equipos', icono: 'groups_3', titulo: 'Equipos, horarios y agenda', ayuda: 'Quién trabaja en cada área (por rol o persona), horarios de turno y cuándo se dan citas', soloAdmin: true },
     { ruta: 'cartel', icono: 'print', titulo: 'Cartel imprimible', ayuda: 'La hoja estándar con croquis, código y QR', soloAdmin: true },
     { ruta: 'pantallas', icono: 'tv', titulo: 'Pantallas de sala', ayuda: 'Televisores que cantan el turno y circulan publicidad', soloAdmin: true },
     { ruta: 'publicidad', icono: 'campaign', titulo: 'Publicidad y cursos', ayuda: 'Piezas, vigencia, alcance y listas de reproducción', soloAdmin: true },

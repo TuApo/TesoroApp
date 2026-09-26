@@ -26,7 +26,9 @@ export class SeguimientoTurno implements OnInit {
   readonly vibro = signal(false);
   private conexion: ConexionSse | null = null;
 
+  readonly agendado = computed(() => this.turno()?.estado === 'AGENDADO');
   readonly esperando = computed(() => this.turno()?.estado === 'EN_ESPERA');
+  readonly anunciando = signal(false);
   readonly llamado = computed(() => this.turno()?.estado === 'LLAMADO');
   readonly enAtencion = computed(() => this.turno()?.estado === 'EN_ATENCION');
   readonly terminado = computed(() => { const e = this.turno()?.estado; return !!e && !['EN_ESPERA', 'LLAMADO', 'EN_ATENCION'].includes(e); });
@@ -71,6 +73,21 @@ export class SeguimientoTurno implements OnInit {
       const o = ctx.createOscillator(); const g = ctx.createGain();
       o.frequency.value = 880; g.gain.value = 0.15; o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.4);
     } catch { /* sin audio */ }
+  }
+
+  /** "Ya llegué": la cita entra a la cola (solo dentro de su ventana; el servidor lo dice si no). */
+  llegue(): void {
+    this.anunciando.set(true);
+    this.api.publicoLlegue(this.turnoId()).subscribe({
+      next: t => { this.turno.set(t); this.anunciando.set(false); this.error.set(null); },
+      error: e => { this.anunciando.set(false); this.error.set(e?.error?.message || 'No se pudo anunciar la llegada'); },
+    });
+  }
+
+  fechaCita(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : d.toLocaleString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
   }
 
   cancelar(): void {

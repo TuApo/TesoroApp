@@ -1,6 +1,6 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { environment } from '../../../../../../environments/environment';
 
 /**
@@ -137,6 +137,8 @@ export interface Servicio {
   cupo_diario: number; hora_apertura: string | null; hora_cierre: string | null; dias_habiles: string | null;
   publico: boolean; orden: number; activo: boolean;
   en_espera: number; espera_estimada_min: number;
+  /** Se puede pedir cita desde la web; y al dar turno se verifica el formulario de vacantes (aspirantes). */
+  agendable: boolean; verificar_formulario: boolean;
 }
 
 export interface ServicioIn {
@@ -145,9 +147,10 @@ export interface ServicioIn {
   requiere_documento?: boolean; requiere_cita?: boolean; cupo_diario?: number;
   hora_apertura?: string | null; hora_cierre?: string | null; dias_habiles?: string | null;
   publico?: boolean; orden?: number; activo?: boolean;
+  agendable?: boolean; verificar_formulario?: boolean;
 }
 
-export type EstadoTurno = 'EN_ESPERA' | 'LLAMADO' | 'EN_ATENCION' | 'ATENDIDO' | 'NO_SE_PRESENTO'
+export type EstadoTurno = 'AGENDADO' | 'EN_ESPERA' | 'LLAMADO' | 'EN_ATENCION' | 'ATENDIDO' | 'NO_SE_PRESENTO'
   | 'CANCELADO' | 'TRANSFERIDO' | 'APLAZADO';
 
 export interface Turno {
@@ -167,7 +170,20 @@ export interface Turno {
   creado_en: string; llamado_en: string | null; iniciado_en: string | null; finalizado_en: string | null;
   espera_seg: number | null; atencion_seg: number | null; llamadas: number;
   motivo: string | null; observaciones: string | null;
+  /** Cita: fecha y hora acordadas y cuándo se anunció. */
+  agendado_para: string | null; confirmado_en: string | null;
+  /** Verificación del formulario de vacantes del aspirante. */
+  formulario_estado: EstadoFormulario | null; formulario_paso: number | null; formulario_etiqueta: string | null;
+  formulario_url: string | null; formulario_listo: boolean | null;
   delante: number | null; espera_estimada_min: number | null;
+}
+
+export type EstadoFormulario = 'NO_REGISTRADO' | 'SIN_LLENAR' | 'PARCIAL' | 'COMPLETO' | 'NO_APLICA' | 'DESCONOCIDO';
+
+/** Lo que contratación sabe del formulario de una persona (recepción lo consulta al encontrarla). */
+export interface LecturaFormulario {
+  documento: string; estado: EstadoFormulario; paso: number | null; completo: boolean | null; listo: boolean;
+  etiqueta: string; nombre: string | null; telefono: string | null; correo: string | null; url: string | null;
 }
 
 export interface TomarTurnoIn {
@@ -176,6 +192,8 @@ export interface TomarTurnoIn {
   empresa_usuaria_ref?: number | null; empresa_usuaria_nombre?: string | null; observaciones?: string | null;
   /** Recepción: reservar para un puesto (quién lo atiende) y enlazar la persona encontrada. */
   asignado_punto_id?: string | null; persona_ref?: string | null; persona_origen?: string | null;
+  /** Área destino distinta de la del servicio. */
+  area_id?: string | null;
 }
 
 /** Una persona encontrada en contratación (mismo buscador que el pipeline). */
@@ -223,7 +241,64 @@ export interface EstadoAtencion {
   espera_max_seg: number | null;
   /** true si no hay puesto abierto y los datos son de la oficina preferida. */
   sin_puesto: boolean;
+  /** Mi jornada ("estoy en turno"): área, puesto y desde cuándo; null si no he iniciado turno. */
+  jornada: Jornada | null;
 }
+
+// ── Equipos por área, horarios y jornadas ──
+export interface Jornada {
+  id: string; oficina_id: string; area_id: string | null; area_nombre: string | null;
+  punto_id: string | null; punto_nombre: string | null; origen: 'MANUAL' | 'HORARIO';
+  inicio: string; fin_programado: string | null;
+}
+export interface PuntoMini { id: string; nombre: string; tipo: 'FIJO' | 'MOVIL'; usuario_ref: string | null; usuario_nombre: string | null; }
+export interface Miembro { usuario_ref: string; usuario_nombre: string | null; }
+export interface EnTurno {
+  usuario_ref: string; usuario_nombre: string | null; area_id: string | null; area_nombre: string | null;
+  punto_id: string | null; punto_nombre: string | null; origen: 'MANUAL' | 'HORARIO'; inicio: string; fin_programado: string | null;
+}
+export interface AreaEquipo {
+  id: string; nombre: string; tipo: TipoArea; piso: string | null; referencia: string | null; movil: boolean; capacidad: number;
+  roles: string[]; miembros: Miembro[]; en_turno: EnTurno[]; puntos: PuntoMini[]; servicios: string[]; en_espera: number;
+}
+export interface HorarioIn {
+  area_id?: string | null; punto_id?: string | null; usuario_ref?: string | null; usuario_nombre?: string | null; rol?: string | null;
+  dias: string; hora_inicio: string; hora_fin: string; auto_abrir?: boolean; activo?: boolean;
+}
+export interface Horario extends HorarioIn {
+  id: string; oficina_id: string; area_nombre: string | null; punto_nombre: string | null;
+  auto_abrir: boolean; activo: boolean; vigente_ahora: boolean; proximo_inicio: string | null;
+}
+export interface MiArea { id: string; nombre: string; tipo: TipoArea; piso: string | null; movil: boolean; por: 'ROL' | 'MIEMBRO' | 'ADMIN' | 'ABIERTA'; puntos: PuntoMini[]; }
+export interface MisAreas { areas: MiArea[]; jornada: Jornada | null; horario_vigente: Horario | null; proximo_horario: Horario | null; }
+
+// ── Agenda de citas ──
+export interface AgendaConfigIn {
+  servicio_id?: string | null; dias?: string; hora_inicio?: string; hora_fin?: string; minutos_cita?: number; cupo_por_franja?: number;
+  anticipacion_min_horas?: number; anticipacion_max_dias?: number; activo?: boolean;
+}
+export interface AgendaConfig {
+  id: string; oficina_id: string; servicio_id: string | null; servicio_nombre: string | null; dias: string;
+  hora_inicio: string; hora_fin: string; minutos_cita: number; cupo_por_franja: number;
+  anticipacion_min_horas: number; anticipacion_max_dias: number; activo: boolean;
+}
+export interface Franja { inicio: string; hora: string; cupo: number; ocupadas: number; disponible: boolean; motivo: string | null; }
+export interface Disponibilidad { fecha: string; servicio_id: string; atiende: boolean; mensaje: string | null; franjas: Franja[]; }
+export interface AgendarIn {
+  servicio_id: string; fecha_hora: string; documento?: string | null; nombre?: string | null; telefono?: string | null; correo?: string | null;
+  empresa_usuaria_nombre?: string | null; observaciones?: string | null; persona_ref?: string | null; persona_origen?: string | null;
+}
+export interface Cita {
+  turno: Turno; oficina_nombre: string; oficina_codigo: string; direccion: string | null; servicio_nombre: string;
+  area_nombre: string | null; area_referencia: string | null; agendado_para: string; url_seguimiento: string;
+  formulario_url: string | null; mensaje: string;
+}
+export interface AgendaPublica {
+  oficina_id: string; oficina_nombre: string; oficina_codigo: string; direccion: string | null; ciudad: string | null;
+  servicios: Servicio[]; agenda_abierta: boolean; desde: string; hasta: string; dias: string;
+}
+/** Un usuario de la plataforma, como lo lista administración (para equipos y horarios). */
+export interface UsuarioPlataforma { id: string; nombre: string; documento: string | null; correo: string | null; rol: string | null; }
 
 export interface EventoTurno {
   id: number; tipo: string; de_estado: string | null; a_estado: string | null;
@@ -524,6 +599,61 @@ export class TurnosService {
   buscarPersonas(q: string): Observable<PersonaContratacion[]> {
     return this.http.get<PersonaContratacion[]>(`${environment.apiUrl}/gestion_contratacion/documento/buscar`, { params: { q } });
   }
+
+  /** Usuarios de la plataforma por cédula o correo (así filtra administración). */
+  buscarUsuarios(q: string): Observable<UsuarioPlataforma[]> {
+    return this.http.get<Record<string, unknown>[]>(`${environment.apiUrl}/gestion_admin/usuarios/`, { params: { q } }).pipe(
+      map(lista => (lista ?? []).slice(0, 30).map(u => {
+        const db = (u['datos_basicos'] ?? {}) as Record<string, unknown>;
+        const rol = (u['rol'] ?? {}) as Record<string, unknown>;
+        const nombre = [db['nombres'], db['apellidos']].filter(Boolean).join(' ').trim();
+        return {
+          id: String(u['id']), nombre: nombre || String(u['correo_electronico'] ?? ''),
+          documento: (u['numero_de_documento'] as string) ?? null, correo: (u['correo_electronico'] as string) ?? null,
+          rol: (rol['nombre'] as string) ?? null,
+        };
+      })));
+  }
+
+  // ── Equipos por área, horarios y jornada ──
+  equipos(oficinaId: string): Observable<AreaEquipo[]> { return this.http.get<AreaEquipo[]>(`${this.base}/oficinas/${oficinaId}/equipos`); }
+  guardarRolesDeArea(areaId: string, roles: string[]): Observable<string[]> { return this.http.put<string[]>(`${this.base}/areas/${areaId}/roles`, roles); }
+  guardarMiembrosDeArea(areaId: string, miembros: Miembro[]): Observable<Miembro[]> { return this.http.put<Miembro[]>(`${this.base}/areas/${areaId}/miembros`, miembros); }
+  horarios(oficinaId: string): Observable<Horario[]> { return this.http.get<Horario[]>(`${this.base}/oficinas/${oficinaId}/horarios`); }
+  crearHorario(oficinaId: string, in_: HorarioIn): Observable<Horario> { return this.http.post<Horario>(`${this.base}/oficinas/${oficinaId}/horarios`, in_); }
+  actualizarHorario(id: string, in_: HorarioIn): Observable<Horario> { return this.http.put<Horario>(`${this.base}/horarios/${id}`, in_); }
+  eliminarHorario(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/horarios/${id}`); }
+  enTurno(oficinaId: string): Observable<EnTurno[]> { return this.http.get<EnTurno[]>(`${this.base}/oficinas/${oficinaId}/en-turno`); }
+  misAreas(oficinaId: string | null): Observable<MisAreas> {
+    return this.http.get<MisAreas>(`${this.base}/atencion/mis-areas`, { params: oficinaId ? { oficina_id: oficinaId } : {} });
+  }
+  iniciarJornada(oficinaId: string, areaId: string | null, puntoId: string | null): Observable<EstadoAtencion> {
+    return this.http.post<EstadoAtencion>(`${this.base}/atencion/jornada/iniciar`, { oficina_id: oficinaId, area_id: areaId, punto_id: puntoId });
+  }
+  terminarJornada(): Observable<EstadoAtencion> { return this.http.post<EstadoAtencion>(`${this.base}/atencion/jornada/terminar`, {}); }
+  formularioEstado(documento: string): Observable<LecturaFormulario> {
+    return this.http.get<LecturaFormulario>(`${this.base}/formulario/estado`, { params: { documento } });
+  }
+
+  // ── Agenda de citas ──
+  agendaConfigs(oficinaId: string): Observable<AgendaConfig[]> { return this.http.get<AgendaConfig[]>(`${this.base}/oficinas/${oficinaId}/agenda/config`); }
+  guardarAgendaConfig(oficinaId: string, in_: AgendaConfigIn): Observable<AgendaConfig> { return this.http.put<AgendaConfig>(`${this.base}/oficinas/${oficinaId}/agenda/config`, in_); }
+  eliminarAgendaConfig(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/agenda/config/${id}`); }
+  disponibilidad(oficinaId: string, servicioId: string, fecha: string): Observable<Disponibilidad> {
+    return this.http.get<Disponibilidad>(`${this.base}/oficinas/${oficinaId}/agenda/disponibilidad`, { params: { servicio_id: servicioId, fecha } });
+  }
+  agendar(oficinaId: string, in_: AgendarIn): Observable<Cita> { return this.http.post<Cita>(`${this.base}/oficinas/${oficinaId}/citas`, in_); }
+  citas(oficinaId: string, fecha?: string): Observable<Turno[]> {
+    return this.http.get<Turno[]>(`${this.base}/oficinas/${oficinaId}/citas`, { params: fecha ? { fecha } : {} });
+  }
+  citaLlego(turnoId: string): Observable<Turno> { return this.http.post<Turno>(`${this.base}/citas/${turnoId}/llegue`, {}); }
+  citaCancelar(turnoId: string): Observable<Turno> { return this.http.post<Turno>(`${this.base}/citas/${turnoId}/cancelar`, {}); }
+  publicoAgenda(codigo: string): Observable<AgendaPublica> { return this.http.get<AgendaPublica>(`${this.basePublica}/agenda/${encodeURIComponent(codigo)}`); }
+  publicoDisponibilidad(codigo: string, servicioId: string, fecha: string): Observable<Disponibilidad> {
+    return this.http.get<Disponibilidad>(`${this.basePublica}/agenda/${encodeURIComponent(codigo)}/disponibilidad`, { params: { servicio_id: servicioId, fecha } });
+  }
+  publicoAgendar(codigo: string, in_: AgendarIn): Observable<Cita> { return this.http.post<Cita>(`${this.basePublica}/agenda/${encodeURIComponent(codigo)}/citas`, in_); }
+  publicoLlegue(turnoId: string): Observable<Turno> { return this.http.post<Turno>(`${this.basePublica}/turno/${turnoId}/llegue`, {}); }
 
   // ── Atención (en nombre de quien llama) ──
   estadoAtencion(): Observable<EstadoAtencion> { return this.http.get<EstadoAtencion>(`${this.base}/atencion/estado`); }

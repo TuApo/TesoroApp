@@ -13,6 +13,12 @@ export const routesPantalla: Routes = [
   { path: ':codigo', loadComponent: () => import('./pantalla-sala/pantalla-sala').then(m => m.PantallaSala) },
 ];
 
+/** /agendar/:codigo — pedir cita sin sesión (aspirantes y empleados). */
+export const routesAgenda: Routes = [
+  { path: ':codigo', loadComponent: () => import('./agendar/agendar').then(m => m.AgendarCita) },
+  { path: '', loadComponent: () => import('./agendar/agendar').then(m => m.AgendarCita) },
+];
+
 export const routesTurno: Routes = [
   { path: 'seguimiento/:turnoId', loadComponent: () => import('./seguimiento/seguimiento').then(m => m.SeguimientoTurno) },
   { path: ':codigo', loadComponent: () => import('./tomar-turno/tomar-turno').then(m => m.TomarTurno) },

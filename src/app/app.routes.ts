@@ -23,5 +23,10 @@ export const routes: Routes = [
         loadChildren: () =>
             import('./features/publico-turnos/routes').then((m) => m.routesTurno),
     },
+    {
+        path: 'agendar',
+        loadChildren: () =>
+            import('./features/publico-turnos/routes').then((m) => m.routesAgenda),
+    },
     { path: '**', redirectTo: '' },
 ];

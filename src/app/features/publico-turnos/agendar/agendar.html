@@ -1,0 +1,100 @@
+<div class="movil">
+  <header class="movil__cab">
+    <img src="logos/logo_alianza.svg" alt="Tu Apo" class="movil__logo">
+    @if (agenda(); as a) { <span class="movil__oficina">{{ a.oficina_nombre }}</span> }
+  </header>
+
+  @if (error()) { <div class="aviso aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  @if (paso() === 'codigo') {
+    <section class="tarjeta">
+      <h1>Agende su cita</h1>
+      <p>Escriba el código de la oficina (el que aparece en el cartel, debajo del QR).</p>
+      <form (ngSubmit)="buscar()">
+        <input class="codigo" type="text" [(ngModel)]="codigoManual" name="codigo" placeholder="FACA1" autocapitalize="characters" autocomplete="off">
+        <button type="submit" class="boton" [disabled]="cargando()"><mat-icon>search</mat-icon> Buscar oficina</button>
+      </form>
+    </section>
+  }
+
+  @if (paso() === 'servicio' && agenda(); as a) {
+    <section class="tarjeta">
+      <h1>¿Para qué trámite es la cita?</h1>
+      @if (a.direccion) { <p><mat-icon class="inline">place</mat-icon> {{ a.direccion }}{{ a.ciudad ? ', ' + a.ciudad : '' }}</p> }
+      <div class="servicios">
+        @for (s of a.servicios; track s.id) {
+          <button type="button" class="servicio" (click)="elegir(s)" [disabled]="!a.agenda_abierta">
+            <span class="servicio__prefijo" [style.background]="s.color || '#2B59F0'"><mat-icon>{{ s.icono || 'description' }}</mat-icon></span>
+            <span class="servicio__texto">
+              <strong>{{ s.nombre }}</strong>
+              @if (s.descripcion) { <span>{{ s.descripcion }}</span> }
+              @if (s.verificar_formulario) { <small>Proceso de selección: conviene llegar con el formulario de vacantes lleno.</small> }
+            </span>
+            <mat-icon class="servicio__ir">chevron_right</mat-icon>
+          </button>
+        }
+        @if (!a.servicios.length) { <p>Esta oficina no tiene trámites que se agenden por la web. Puede tomar turno al llegar.</p> }
+      </div>
+    </section>
+  }
+
+  @if (paso() === 'fecha' && elegido(); as s) {
+    <section class="tarjeta">
+      <button type="button" class="enlace" (click)="paso.set('servicio')"><mat-icon>arrow_back</mat-icon> Cambiar de trámite</button>
+      <h1>{{ s.nombre }}</h1>
+      <label class="campo">¿Qué día?<input type="date" name="fecha" [(ngModel)]="fecha" [min]="minFecha()" [max]="maxFecha()" (ngModelChange)="cargarFranjas()"></label>
+      @if (cargando()) { <div class="cargando"><mat-icon>hourglass_top</mat-icon> Buscando horas…</div> }
+      @else if (!franjas().length) { <p class="nota">{{ mensajeDia() || 'Ese día no hay agenda. Pruebe otro.' }}</p> }
+      @else {
+        @if (!franjasLibres().length) { <p class="nota">{{ mensajeDia() || 'No quedan citas ese día. Pruebe otro.' }}</p> }
+        <div class="franjas">
+          @for (f of franjas(); track f.inicio) {
+            <button type="button" class="franja" [class.franja--llena]="!f.disponible" [disabled]="!f.disponible" (click)="elegirFranja(f)" [title]="f.motivo || ''">{{ f.hora }}</button>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if (paso() === 'datos' && elegido() && franja(); as f) {
+    <section class="tarjeta">
+      <button type="button" class="enlace" (click)="paso.set('fecha')"><mat-icon>arrow_back</mat-icon> Cambiar la hora</button>
+      <h1>{{ elegido()!.nombre }}</h1>
+      <p><mat-icon class="inline">event</mat-icon> <strong>{{ fechaLarga(f.inicio) }}</strong></p>
+      <form (ngSubmit)="agendar()">
+        <label>Cédula<input type="text" name="documento" [(ngModel)]="form.documento" inputmode="numeric" autocomplete="off" required></label>
+        <label>Nombre completo<input type="text" name="nombre" [(ngModel)]="form.nombre" autocomplete="name"></label>
+        <label>Celular<input type="tel" name="telefono" [(ngModel)]="form.telefono" autocomplete="tel"></label>
+        <label>Correo (opcional)<input type="email" name="correo" [(ngModel)]="form.correo" autocomplete="email"></label>
+        <p class="nota">Si ya está registrado en contratación, completamos sus datos con la cédula.</p>
+        <button type="submit" class="boton boton--grande" [disabled]="enviando()"><mat-icon>event_available</mat-icon> {{ enviando() ? 'Agendando…' : 'Confirmar la cita' }}</button>
+      </form>
+    </section>
+  }
+
+  @if (paso() === 'listo' && cita(); as c) {
+    <section class="tarjeta tarjeta--ok">
+      <mat-icon class="grande">event_available</mat-icon>
+      <h1>Cita agendada</h1>
+      <span class="codigo-cita">{{ c.turno.codigo }}</span>
+      <p><strong>{{ fechaLarga(c.agendado_para) }}</strong></p>
+      <p>{{ c.servicio_nombre }} · {{ c.oficina_nombre }}@if (c.direccion) { <br>{{ c.direccion }} }@if (c.area_nombre) { <br>Se atiende en <strong>{{ c.area_nombre }}</strong>{{ c.area_referencia ? ', ' + c.area_referencia : '' }} }</p>
+      @if (c.turno.formulario_estado && !c.turno.formulario_listo && c.turno.formulario_estado !== 'NO_APLICA' && c.turno.formulario_estado !== 'DESCONOCIDO') {
+        <div class="aviso aviso--formulario">
+          <mat-icon>assignment_late</mat-icon>
+          <div><strong>{{ c.turno.formulario_etiqueta }}</strong><br>Para llegar listo a su cita, complete el formulario de vacantes antes de venir.
+            @if (c.formulario_url) { <br><a class="boton" [href]="c.formulario_url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Completar el formulario</a> }
+          </div>
+        </div>
+      } @else if (c.turno.formulario_estado === 'COMPLETO') {
+        <div class="aviso aviso--ok"><mat-icon>assignment_turned_in</mat-icon> Su formulario de vacantes está completo: llega listo al proceso.</div>
+      }
+      <p class="nota">{{ c.mensaje }}</p>
+      <button type="button" class="boton boton--grande" (click)="irASeguimiento()"><mat-icon>phone_iphone</mat-icon> Guardar en el celular</button>
+      <p class="nota">Ese enlace es su cita: ábralo al llegar y pulse "Ya llegué".</p>
+    </section>
+  }
+
+  @if (cargando() && paso() !== 'fecha') { <div class="cargando"><mat-icon>hourglass_top</mat-icon> Cargando…</div> }
+  <footer class="movil__pie">TuApo · Citas</footer>
+</div>

@@ -60,6 +60,8 @@ export class ContextoTurnosService {
   readonly ahora = signal(Date.now());
   /** true mientras se restaura la vista de un caso: el autoguardado se calla. */
   readonly restaurando = signal(false);
+  /** Último turno que entró para MI área estando en turno (evento turno-area): el panel lo anuncia. */
+  readonly avisoArea = signal<Turno | null>(null);
 
   readonly oficina = computed<Oficina | null>(() => {
     const id = this.oficinaId();
@@ -291,6 +293,13 @@ export class ContextoTurnosService {
       token,
       onEstado: e => this.estadoCanal.set(e),
       onEvento: (nombre, datos) => {
+        if (nombre === 'turno-area') {
+          // Entró un turno para el área en la que estoy en turno: se anuncia y se refresca la lista.
+          this.avisoArea.set(datos as Turno);
+          this.sonarAviso();
+          this.programarRefresco();
+          return;
+        }
         if (nombre.startsWith('turno-')) {
           this.aplicarTurno(datos as Turno);
           this.programarRefresco();
@@ -314,7 +323,7 @@ export class ContextoTurnosService {
     if (!token) return;
     this.canalOficina = conectarSse(this.api.urlEventosOficina(oficinaId), {
       token,
-      onEvento: nombre => { if (nombre.startsWith('turno-') || nombre.startsWith('puesto-')) this.programarRefresco(); },
+      onEvento: nombre => { if (nombre.startsWith('turno-') || nombre.startsWith('puesto-') || nombre.startsWith('jornada-')) this.programarRefresco(); },
     });
   }
 
@@ -324,6 +333,19 @@ export class ContextoTurnosService {
     this.refrescoEstado = setTimeout(() => this.refrescarEstado(), 300);
     if (this.refrescoCola) clearTimeout(this.refrescoCola);
     this.refrescoCola = setTimeout(() => this.recargarCola(), 350);
+  }
+
+  /** Dos notas cortas cuando llega un turno de mi área (si la persona no apagó el sonido). */
+  private sonarAviso(): void {
+    if (this.preferencia()?.sonido === false || typeof window === 'undefined') return;
+    try {
+      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      [[660, 0], [880, 0.18]].forEach(([f, t]) => {
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.frequency.value = f; g.gain.value = 0.12; o.connect(g).connect(ctx.destination);
+        o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.16);
+      });
+    } catch { /* sin audio */ }
   }
 
   cerrarCanales(): void {

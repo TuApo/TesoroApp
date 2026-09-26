@@ -1,0 +1,249 @@
+<div class="tn-pagina">
+  <header class="tn-encabezado">
+    <div>
+      <h1 class="tn-titulo"><mat-icon>groups_3</mat-icon> Equipos, horarios y agenda</h1>
+      <p class="tn-subtitulo">Quién trabaja en cada área (por rol o por persona), los horarios en que quedan en turno solos, y cuándo se dan citas.</p>
+    </div>
+    <app-selector-oficina />
+  </header>
+
+  @if (error()) { <div class="tn-aviso tn-aviso--error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="tn-aviso"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+  @if (!ctx.esAdmin()) { <div class="tn-aviso"><mat-icon>lock</mat-icon> Solo un administrador del módulo puede cambiar equipos, horarios y agenda. Aquí puede consultarlos.</div> }
+
+  <nav class="pestanas" role="tablist">
+    <button type="button" role="tab" class="pestanas__btn" [class.pestanas__btn--on]="pestana() === 'equipos'" (click)="pestana.set('equipos')"><mat-icon>groups</mat-icon> Equipos por área</button>
+    <button type="button" role="tab" class="pestanas__btn" [class.pestanas__btn--on]="pestana() === 'horarios'" (click)="pestana.set('horarios')"><mat-icon>schedule</mat-icon> Horarios de turno</button>
+    <button type="button" role="tab" class="pestanas__btn" [class.pestanas__btn--on]="pestana() === 'agenda'" (click)="pestana.set('agenda')"><mat-icon>event</mat-icon> Agenda de citas</button>
+  </nav>
+
+  <!-- ═══════════════ Equipos ═══════════════ -->
+  @if (pestana() === 'equipos') {
+    @if (!areas().length) {
+      <div class="tn-vacio"><mat-icon>map</mat-icon><span>Esta oficina no tiene áreas. Dibújelas en el croquis: cada área del plano es un equipo.</span></div>
+    }
+    <div class="areas">
+      @for (a of areas(); track a.id) {
+        <section class="tn-tarjeta area" [class.area--abierta]="!a.roles.length && !a.miembros.length">
+          <h3><mat-icon>{{ a.movil ? 'directions_walk' : 'meeting_room' }}</mat-icon> {{ a.nombre }}
+            <span class="muted">{{ a.tipo }}{{ a.piso ? ' · ' + a.piso : '' }}</span>
+            @if (a.en_espera) { <span class="tn-chip tn-chip--warn" title="Esperando por esta área"><mat-icon>hourglass_top</mat-icon> {{ a.en_espera }}</span> }
+          </h3>
+          @if (a.servicios.length) { <p class="muted">Trámites: {{ a.servicios.join(', ') }}</p> }
+
+          <div class="bloque">
+            <span class="bloque__eti">Roles que trabajan aquí</span>
+            <div class="chips">
+              @for (r of a.roles; track r) { <span class="tn-chip tn-chip--info">{{ r }} @if (ctx.esAdmin()) { <button type="button" class="chip-x" (click)="quitarRol(a, r)" title="Quitar"><mat-icon>close</mat-icon></button> }</span> }
+              @if (!a.roles.length && !a.miembros.length) { <span class="muted">Sin restricción: cualquiera puede iniciar turno aquí.</span> }
+            </div>
+            @if (ctx.esAdmin()) {
+              <div class="agregar">
+                <select [(ngModel)]="rolNuevo[a.id]" [name]="'rol-' + a.id">
+                  <option value="">Agregar un rol…</option>
+                  @for (r of roles(); track r.id) { @if (!a.roles.includes(r.nombre.toUpperCase())) { <option [value]="r.nombre">{{ r.nombre }}</option> } }
+                </select>
+                <button type="button" class="tn-boton" (click)="agregarRol(a)" [disabled]="ocupado() || !rolNuevo[a.id]"><mat-icon>add</mat-icon></button>
+              </div>
+            }
+          </div>
+
+          <div class="bloque">
+            <span class="bloque__eti">Personas fijas</span>
+            <div class="chips">
+              @for (m of a.miembros; track m.usuario_ref) { <span class="tn-chip">{{ m.usuario_nombre || m.usuario_ref }} @if (ctx.esAdmin()) { <button type="button" class="chip-x" (click)="quitarMiembro(a, m)" title="Quitar"><mat-icon>close</mat-icon></button> }</span> }
+              @if (!a.miembros.length) { <span class="muted">Ninguna.</span> }
+            </div>
+            @if (ctx.esAdmin()) {
+              @if (areaEditando() === a.id) {
+                <div class="agregar agregar--buscar">
+                  <input type="search" [ngModel]="busqueda()" (ngModelChange)="buscarPersonas($event)" placeholder="Cédula o correo de la persona…" autocomplete="off" [name]="'buscar-' + a.id">
+                  @if (buscando()) { <mat-icon class="girando">sync</mat-icon> }
+                  <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="areaEditando.set(null)"><mat-icon>close</mat-icon></button>
+                </div>
+                @if (encontrados().length) {
+                  <ul class="resultados">
+                    @for (u of encontrados(); track u.id) { <li (click)="agregarMiembro(a, u)" tabindex="0" (keydown.enter)="agregarMiembro(a, u)"><b>{{ u.nombre }}</b> <span class="muted">{{ u.documento }}{{ u.rol ? ' · ' + u.rol : '' }}</span></li> }
+                  </ul>
+                }
+              } @else {
+                <button type="button" class="tn-boton" (click)="areaEditando.set(a.id); busqueda.set(''); encontrados.set([])"><mat-icon>person_add</mat-icon> Agregar persona</button>
+              }
+            }
+          </div>
+
+          <div class="bloque">
+            <span class="bloque__eti">Ahora mismo</span>
+            @if (a.en_turno.length) {
+              <ul class="en-turno">
+                @for (e of a.en_turno; track e.usuario_ref) { <li><mat-icon>badge</mat-icon> <b>{{ e.usuario_nombre || e.usuario_ref }}</b> <span class="muted">desde las {{ horaDe(e.inicio) }}{{ e.punto_nombre ? ' · ' + e.punto_nombre : ' · sin puesto' }}{{ e.origen === 'HORARIO' ? ' · por horario' : '' }}</span></li> }
+              </ul>
+            } @else { <span class="muted">Nadie en turno en esta área.</span> }
+            @if (a.puntos.length) {
+              <div class="chips chips--puestos">
+                @for (p of a.puntos; track p.id) { <span class="tn-chip" [class.tn-chip--ok]="p.usuario_ref" [title]="p.usuario_nombre || 'Libre'">{{ p.tipo === 'MOVIL' ? '🚶 ' : '' }}{{ p.nombre }}{{ p.usuario_nombre ? ' · ' + p.usuario_nombre : '' }}</span> }
+              </div>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+
+  <!-- ═══════════════ Horarios ═══════════════ -->
+  @if (pestana() === 'horarios') {
+    <div class="tn-acciones" style="margin-bottom:12px">
+      @if (ctx.esAdmin()) { <button type="button" class="tn-boton tn-boton--primario" (click)="nuevoHorario()" [disabled]="!ctx.oficinaId()"><mat-icon>add</mat-icon> Nuevo horario</button> }
+      <span class="tn-subtitulo">Dentro de su horario la persona queda en turno sola; con "abrir el puesto solo", además llama desde su puesto sin tocar nada. Si termina el turno a mano, no se le vuelve a abrir ese día.</span>
+    </div>
+
+    @if (formHorarioAbierto()) {
+      <form class="tn-tarjeta" (ngSubmit)="guardarHorario()">
+        <h3><mat-icon>{{ editandoHorario() ? 'edit' : 'add' }}</mat-icon> {{ editandoHorario() ? 'Editar horario' : 'Nuevo horario' }}</h3>
+        <div class="tn-form">
+          <div class="tn-campo tn-campo--ancho">
+            <span class="eti">¿De quién es?</span>
+            @if (horarioPersona; as u) {
+              <div class="chips"><span class="tn-chip tn-chip--info"><mat-icon>person</mat-icon> {{ u.nombre }} <button type="button" class="chip-x" (click)="quitarPersonaHorario()"><mat-icon>close</mat-icon></button></span></div>
+            } @else {
+              <div class="agregar agregar--buscar">
+                <input type="search" [ngModel]="busqueda()" (ngModelChange)="buscarPersonas($event)" name="hbuscar" placeholder="Una persona: cédula o correo…" autocomplete="off">
+                @if (buscando()) { <mat-icon class="girando">sync</mat-icon> }
+                <span class="muted">o un rol</span>
+                <select name="hrol" [(ngModel)]="horario.rol"><option [ngValue]="null">Rol…</option>@for (r of roles(); track r.id) { <option [value]="r.nombre.toUpperCase()">{{ r.nombre }}</option> }</select>
+              </div>
+              @if (encontrados().length) {
+                <ul class="resultados">
+                  @for (u of encontrados(); track u.id) { <li (click)="elegirPersonaHorario(u)" tabindex="0" (keydown.enter)="elegirPersonaHorario(u)"><b>{{ u.nombre }}</b> <span class="muted">{{ u.documento }}{{ u.rol ? ' · ' + u.rol : '' }}</span></li> }
+                </ul>
+              }
+            }
+          </div>
+          <label class="tn-campo"><span>Área</span>
+            <select name="harea" [(ngModel)]="horario.area_id" (ngModelChange)="horario.punto_id = null">
+              <option [ngValue]="null">Cualquiera</option>
+              @for (a of areas(); track a.id) { <option [ngValue]="a.id">{{ a.nombre }}{{ a.piso ? ' · ' + a.piso : '' }}</option> }
+            </select>
+          </label>
+          <label class="tn-campo"><span>Puesto preferido</span>
+            <select name="hpunto" [(ngModel)]="horario.punto_id">
+              <option [ngValue]="null">Sin puesto (apoyo en el área)</option>
+              @for (p of puntosDelAreaHorario(); track p.id) { <option [ngValue]="p.id">{{ p.nombre }}</option> }
+            </select>
+          </label>
+          <div class="tn-campo"><span class="eti">Días</span>
+            <div class="dias">@for (d of DIAS; track d.n) { <button type="button" class="dia" [class.dia--on]="diaMarcado(d.n)" (click)="alternarDia(d.n)">{{ d.l }}</button> }</div>
+          </div>
+          <label class="tn-campo"><span>Desde</span><input name="hini" type="time" [(ngModel)]="horario.hora_inicio" required></label>
+          <label class="tn-campo"><span>Hasta</span><input name="hfin" type="time" [(ngModel)]="horario.hora_fin" required><span class="ayuda">Si es menor que "desde", el turno cruza la medianoche.</span></label>
+          <label class="tn-check"><input type="checkbox" name="hauto" [(ngModel)]="horario.auto_abrir"> Abrir el puesto solo al empezar</label>
+          <label class="tn-check"><input type="checkbox" name="hactivo" [(ngModel)]="horario.activo"> Activo</label>
+        </div>
+        <div class="tn-acciones" style="margin-top:12px">
+          <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado()"><mat-icon>save</mat-icon> Guardar</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="formHorarioAbierto.set(false)">Cancelar</button>
+        </div>
+      </form>
+    }
+
+    @if (!horarios().length) {
+      <div class="tn-vacio"><mat-icon>schedule</mat-icon><span>Sin horarios. Cree uno por persona o por rol; el turno arranca solo a esa hora.</span></div>
+    } @else {
+      <div class="tn-tabla-marco">
+        <table class="tn-tabla">
+          <thead><tr><th>Quién</th><th>Área</th><th>Puesto</th><th>Días</th><th>Horas</th><th>Auto</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            @for (h of horarios(); track h.id) {
+              <tr [class.fila--apagada]="!h.activo">
+                <td><b>{{ h.usuario_nombre || h.rol }}</b> <span class="muted">{{ h.usuario_ref ? 'persona' : 'rol' }}</span></td>
+                <td>{{ h.area_nombre || '—' }}</td>
+                <td>{{ h.punto_nombre || '—' }}</td>
+                <td>{{ diasTexto(h.dias) }}</td>
+                <td>{{ h.hora_inicio.slice(0, 5) }}–{{ h.hora_fin.slice(0, 5) }}</td>
+                <td>{{ h.auto_abrir ? 'Sí' : 'No' }}</td>
+                <td>@if (h.vigente_ahora) { <span class="tn-chip tn-chip--ok">En curso</span> } @else if (!h.activo) { <span class="tn-chip">Inactivo</span> } @else if (h.proximo_inicio) { <span class="tn-chip tn-chip--info">Próximo {{ h.proximo_inicio | date:'EEE d, HH:mm' }}</span> }</td>
+                <td class="acciones">@if (ctx.esAdmin()) {
+                  <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarHorario(h)" title="Editar"><mat-icon>edit</mat-icon></button>
+                  <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="eliminarHorario(h)" title="Eliminar"><mat-icon>delete</mat-icon></button>
+                }</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+
+  <!-- ═══════════════ Agenda ═══════════════ -->
+  @if (pestana() === 'agenda') {
+    <div class="tn-tarjeta enlace-agenda">
+      <h3><mat-icon>link</mat-icon> Enlace para agendar</h3>
+      @if (enlaceAgenda(); as e) {
+        <p>Aspirantes y empleados agendan aquí, sin usuario: <a [href]="e" target="_blank" rel="noopener">{{ e }}</a> <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="copiarEnlace()" title="Copiar"><mat-icon>content_copy</mat-icon></button></p>
+        <p class="muted">Solo salen los trámites marcados "Se agenda por la web" en Servicios ({{ serviciosAgendables().length }} ahora). La persona se anuncia desde su celular al llegar, o recepción la anuncia con "Llegó".</p>
+      } @else { <p class="muted">Elija una oficina.</p> }
+    </div>
+
+    <div class="tn-acciones" style="margin:12px 0">
+      @if (ctx.esAdmin()) {
+        <button type="button" class="tn-boton tn-boton--primario" (click)="nuevaAgenda(null)" [disabled]="!ctx.oficinaId()"><mat-icon>tune</mat-icon> Regla general</button>
+        <select class="tn-sel" #srvSel (change)="srvSel.value && nuevaAgenda(srvSel.value); srvSel.value = ''">
+          <option value="">Regla propia para un trámite…</option>
+          @for (s of servicios(); track s.id) { <option [value]="s.id">{{ s.nombre }}{{ s.agendable ? '' : ' (no agendable)' }}</option> }
+        </select>
+      }
+    </div>
+
+    @if (formAgendaAbierto()) {
+      <form class="tn-tarjeta" (ngSubmit)="guardarAgenda()">
+        <h3><mat-icon>event</mat-icon> {{ agenda.servicio_id ? 'Agenda de un trámite' : 'Agenda general de la oficina' }}</h3>
+        <div class="tn-form">
+          <label class="tn-campo"><span>Trámite</span>
+            <select name="asrv" [(ngModel)]="agenda.servicio_id"><option [ngValue]="null">Todos (regla general)</option>@for (s of servicios(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }</select>
+          </label>
+          <div class="tn-campo"><span class="eti">Días</span>
+            <div class="dias">@for (d of DIAS; track d.n) { <button type="button" class="dia" [class.dia--on]="diaAgendaMarcado(d.n)" (click)="alternarDiaAgenda(d.n)">{{ d.l }}</button> }</div>
+          </div>
+          <label class="tn-campo"><span>Desde</span><input name="aini" type="time" [(ngModel)]="agenda.hora_inicio" required></label>
+          <label class="tn-campo"><span>Hasta</span><input name="afin" type="time" [(ngModel)]="agenda.hora_fin" required></label>
+          <label class="tn-campo"><span>Minutos por cita</span><input name="amin" type="number" min="5" step="5" [(ngModel)]="agenda.minutos_cita"></label>
+          <label class="tn-campo"><span>Citas por franja</span><input name="acupo" type="number" min="1" [(ngModel)]="agenda.cupo_por_franja"><span class="ayuda">Cuántas personas caben a la misma hora.</span></label>
+          <label class="tn-campo"><span>Anticipación mínima (horas)</span><input name="aant" type="number" min="0" [(ngModel)]="agenda.anticipacion_min_horas"></label>
+          <label class="tn-campo"><span>Hasta cuántos días adelante</span><input name="amax" type="number" min="1" [(ngModel)]="agenda.anticipacion_max_dias"></label>
+          <label class="tn-check"><input type="checkbox" name="aactivo" [(ngModel)]="agenda.activo"> Activa</label>
+        </div>
+        <div class="tn-acciones" style="margin-top:12px">
+          <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado()"><mat-icon>save</mat-icon> Guardar</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="formAgendaAbierto.set(false)">Cancelar</button>
+        </div>
+      </form>
+    }
+
+    @if (!configs().length) {
+      <div class="tn-vacio"><mat-icon>event_busy</mat-icon><span>Esta oficina todavía no da citas. Cree la regla general (días, horas y minutos por cita).</span></div>
+    } @else {
+      <div class="tn-tabla-marco">
+        <table class="tn-tabla">
+          <thead><tr><th>Ámbito</th><th>Días</th><th>Horas</th><th>Cita</th><th>Cupo</th><th>Anticipación</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            @for (c of configs(); track c.id) {
+              <tr [class.fila--apagada]="!c.activo">
+                <td><b>{{ c.servicio_nombre || 'General (toda la oficina)' }}</b></td>
+                <td>{{ diasTexto(c.dias) }}</td>
+                <td>{{ c.hora_inicio.slice(0, 5) }}–{{ c.hora_fin.slice(0, 5) }}</td>
+                <td>{{ c.minutos_cita }} min</td>
+                <td>{{ c.cupo_por_franja }} por franja</td>
+                <td>{{ c.anticipacion_min_horas }} h · hasta {{ c.anticipacion_max_dias }} días</td>
+                <td>{{ c.activo ? 'Activa' : 'Inactiva' }}</td>
+                <td class="acciones">@if (ctx.esAdmin()) {
+                  <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="nuevaAgenda(c.servicio_id)" title="Editar"><mat-icon>edit</mat-icon></button>
+                  <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="eliminarAgenda(c)" title="Quitar"><mat-icon>delete</mat-icon></button>
+                }</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>

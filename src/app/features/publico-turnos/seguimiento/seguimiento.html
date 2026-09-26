@@ -7,6 +7,24 @@
       <span class="codigo">{{ t.codigo }}</span>
       <span class="servicio">{{ t.servicio_nombre }}</span>
 
+      @if (agendado()) {
+        <div class="estado">
+          <mat-icon>event</mat-icon>
+          <strong>Su cita es el {{ fechaCita(t.agendado_para) }}</strong>
+          @if (t.area_nombre) { <span>Se atiende en {{ t.area_nombre }}{{ t.area_referencia ? ', ' + t.area_referencia : '' }}</span> }
+          <span class="ayuda">Cuando llegue a la oficina pulse el botón: entra a la cola con prioridad de cita. También puede anunciarse en recepción.</span>
+        </div>
+        @if (t.formulario_estado && !t.formulario_listo && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') {
+          <div class="estado estado--formulario">
+            <mat-icon>assignment_late</mat-icon>
+            <strong>{{ t.formulario_etiqueta }}</strong>
+            <span>Para estar listo el día de la cita, complete el formulario de vacantes antes de venir.</span>
+            @if (t.formulario_url) { <a class="boton" [href]="t.formulario_url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Completar el formulario</a> }
+          </div>
+        }
+        <button type="button" class="boton boton--grande" (click)="llegue()" [disabled]="anunciando()"><mat-icon>how_to_reg</mat-icon> {{ anunciando() ? 'Anunciando…' : 'Ya llegué' }}</button>
+        <button type="button" class="enlace" (click)="cancelar()"><mat-icon>close</mat-icon> Cancelar mi cita</button>
+      }
       @if (esperando()) {
         <div class="estado">
           <mat-icon>hourglass_top</mat-icon>
@@ -15,6 +33,14 @@
           @if (t.espera_estimada_min) { <span>Espera aproximada: {{ t.espera_estimada_min }} min</span> }
           <span class="ayuda">Puede guardar el celular: esta página vibra y suena cuando lo llamen. Mantenga la pantalla abierta.</span>
         </div>
+        @if (t.formulario_estado && !t.formulario_listo && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') {
+          <div class="estado estado--formulario">
+            <mat-icon>assignment_late</mat-icon>
+            <strong>{{ t.formulario_etiqueta }}</strong>
+            <span>Mientras espera, adelante el formulario de vacantes: la entrevista será más corta.</span>
+            @if (t.formulario_url) { <a class="boton" [href]="t.formulario_url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Completar el formulario</a> }
+          </div>
+        }
         <button type="button" class="enlace" (click)="cancelar()"><mat-icon>close</mat-icon> Cancelar mi turno</button>
       }
       @if (llamado()) {

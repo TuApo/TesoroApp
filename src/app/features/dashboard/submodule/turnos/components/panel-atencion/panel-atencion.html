@@ -9,6 +9,14 @@
 
     @if (error()) { <div class="tn-aviso tn-aviso--error flotante"><mat-icon>error</mat-icon> {{ error() }}</div> }
     @if (aviso()) { <div class="tn-aviso tn-aviso--ok flotante"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+    @if (avisoArea(); as a) {
+      <div class="tn-aviso tn-aviso--area flotante" role="status">
+        <mat-icon>notifications_active</mat-icon>
+        <span>Nuevo turno para <b>{{ a.area_nombre || 'su área' }}</b>: <span class="tn-codigo">{{ a.codigo }}</span> {{ a.nombre || '' }} · {{ a.servicio_nombre }}</span>
+        @if (puedoLlamar() && paraMi(a)) { <button type="button" class="tn-boton tn-boton--primario" (click)="llamarEste(a); descartarAvisoArea()"><mat-icon>campaign</mat-icon> Llamar</button> }
+        <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="descartarAvisoArea()" title="Cerrar"><mat-icon>close</mat-icon></button>
+      </div>
+    }
 
     <!-- ══════════ IZQUIERDA: mi puesto / recepción ══════════ -->
     <div class="mitad mitad--turno">
@@ -57,10 +65,24 @@
               <button type="button" class="tn-boton tn-boton--fantasma" (click)="abrirFicha(p.numero_documento)" title="Abrir su registro en contratación"><mat-icon>open_in_new</mat-icon> Ficha</button>
             </div>
           }
+          @if (lecturaFormulario(); as lf) {
+            @if (lf.estado !== 'DESCONOCIDO' && (servicioVerificaFormulario() || !lf.listo)) {
+              <div class="formulario" [class.formulario--ok]="lf.listo" [class.formulario--warn]="!lf.listo && lf.estado === 'PARCIAL'" [class.formulario--danger]="!lf.listo && lf.estado !== 'PARCIAL'">
+                <mat-icon>{{ lf.listo ? 'assignment_turned_in' : 'assignment_late' }}</mat-icon>
+                <span><b>{{ lf.etiqueta }}</b>{{ lf.listo ? ': está lista para el proceso.' : (lf.estado === 'PARCIAL' ? ': le falta terminarlo antes de la entrevista.' : ': debe llenarlo antes de pasar al proceso.') }}</span>
+                @if (lf.url) { <a class="tn-boton" [href]="lf.url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Abrir formulario</a> }
+              </div>
+            }
+          }
 
-          <form class="recepcion__form" (ngSubmit)="emitirDesdeRecepcion()">
+          <form class="recepcion__form" (ngSubmit)="modoRecepcion() === 'cita' ? agendarDesdeRecepcion() : emitirDesdeRecepcion()">
+            <div class="recepcion__modos" role="tablist">
+              <button type="button" class="modos__btn" role="tab" [class.modos__btn--on]="modoRecepcion() === 'hoy'" (click)="cambiarModoRecepcion('hoy')"><mat-icon>confirmation_number</mat-icon> Turno para ahora</button>
+              <button type="button" class="modos__btn" role="tab" [class.modos__btn--on]="modoRecepcion() === 'cita'" (click)="cambiarModoRecepcion('cita')"><mat-icon>event</mat-icon> Agendar cita</button>
+              @if (citasPendientes().length) { <span class="tn-chip tn-chip--info" title="Citas de hoy por llegar"><mat-icon>event_available</mat-icon> {{ citasPendientes().length }} hoy</span> }
+            </div>
             <div class="recepcion__fila">
-              <label>Cédula{{ servicioElegido()?.requiere_documento ? ' *' : '' }}<input type="text" name="rdoc" [(ngModel)]="recepcion.documento" inputmode="numeric" autocomplete="off"></label>
+              <label>Cédula{{ servicioElegido()?.requiere_documento ? ' *' : '' }}<input type="text" name="rdoc" [(ngModel)]="recepcion.documento" (blur)="consultarFormulario(recepcion.documento)" inputmode="numeric" autocomplete="off"></label>
               <label>Nombre<input type="text" name="rnombre" [(ngModel)]="recepcion.nombre" autocomplete="off"></label>
             </div>
             <div class="recepcion__fila">
@@ -69,7 +91,7 @@
             </div>
             <div class="recepcion__fila">
               <label>¿Para qué proceso viene?
-                <select name="rsrv" [(ngModel)]="recepcion.servicio_id" required>
+                <select name="rsrv" [(ngModel)]="recepcion.servicio_id" (ngModelChange)="modoRecepcion() === 'cita' && cargarFranjas()" required>
                   @if (!servicios().length) { <option value="">Sin servicios en esta oficina</option> }
                   @for (s of servicios(); track s.id) { <option [value]="s.id">{{ s.prefijo }} · {{ s.nombre }}{{ s.area_nombre ? ' → ' + s.area_nombre : '' }} ({{ s.en_espera }} esperando)</option> }
                 </select>
@@ -78,8 +100,20 @@
                 <select name="rprio" [(ngModel)]="recepcion.prioridad"><option value="NORMAL">Normal</option><option value="PREFERENCIAL">Preferencial</option><option value="CITA">Con cita</option></select>
               </label>
             </div>
+            @if (modoRecepcion() === 'cita') {
+              <div class="recepcion__fila">
+                <label>Día de la cita<input type="date" name="rfecha" [(ngModel)]="cita.fecha" (ngModelChange)="cargarFranjas()" required></label>
+                <label>Hora
+                  <select name="rhora" [(ngModel)]="cita.fecha_hora" required>
+                    @if (cargandoFranjas()) { <option value="">Buscando horas…</option> }
+                    @else if (!franjas().length) { <option value="">Ese día no hay agenda para este trámite</option> }
+                    @else { <option value="">Elija una hora</option> @for (f of franjas(); track f.inicio) { <option [value]="f.inicio" [disabled]="!f.disponible">{{ f.hora }}{{ f.disponible ? (f.cupo > 1 ? ' (' + (f.cupo - f.ocupadas) + ' libres)' : '') : ' · ' + f.motivo }}</option> } }
+                  </select>
+                </label>
+              </div>
+            }
             <label>¿Quién la atiende?
-              <select name="rasig" [(ngModel)]="recepcion.asignado_punto_id">
+              <select name="rasig" [(ngModel)]="recepcion.asignado_punto_id" [disabled]="modoRecepcion() === 'cita'">
                 <option value="">Cola general: el primer puesto libre que llame</option>
                 @for (p of puntosAsignables(); track p.id) {
                   <option [value]="p.id">{{ p.usuario_nombre ? p.usuario_nombre + ' · ' : '' }}{{ p.nombre }}{{ p.usuario_ref ? '' : ' (sin nadie ahora)' }}</option>
@@ -88,7 +122,11 @@
             </label>
             <label>Observación<input type="text" name="robs" [(ngModel)]="recepcion.observaciones" placeholder="Opcional: trae documentos incompletos, viene por segunda vez…" autocomplete="off"></label>
             <div class="recepcion__acciones">
-              <button type="submit" class="tn-boton tn-boton--primario tn-boton--grande" [disabled]="ocupado() || !recepcion.servicio_id"><mat-icon>confirmation_number</mat-icon> Dar turno</button>
+              @if (modoRecepcion() === 'cita') {
+                <button type="submit" class="tn-boton tn-boton--primario tn-boton--grande" [disabled]="ocupado() || !recepcion.servicio_id || !cita.fecha_hora"><mat-icon>event_available</mat-icon> Agendar cita</button>
+              } @else {
+                <button type="submit" class="tn-boton tn-boton--primario tn-boton--grande" [disabled]="ocupado() || !recepcion.servicio_id"><mat-icon>confirmation_number</mat-icon> Dar turno</button>
+              }
               @if (tiquete(); as t) {
                 <span class="tiquete-mini" [title]="t.mensaje">
                   <span class="tn-codigo">{{ t.turno.codigo }}</span> {{ t.servicio_nombre }}{{ t.turno.asignado_usuario_nombre ? ' · ' + t.turno.asignado_usuario_nombre : (t.turno.asignado_punto_nombre ? ' · ' + t.turno.asignado_punto_nombre : '') }}
@@ -96,6 +134,26 @@
               }
             </div>
           </form>
+
+          @if (citasHoy().length) {
+            <div class="citas">
+              <h4><mat-icon>event</mat-icon> Citas de hoy</h4>
+              <ul>
+                @for (c of citasHoy(); track c.id) {
+                  <li class="cita" [class.cita--pasada]="c.estado !== 'AGENDADO'">
+                    <span class="cita__hora">{{ horaDe(c.agendado_para) }}</span>
+                    <span class="tn-codigo">{{ c.codigo }}</span>
+                    <span class="cita__texto"><b>{{ c.nombre || 'Sin nombre' }}</b>@if (c.documento) { <span class="muted"> · {{ c.documento }}</span> }<span class="muted"> · {{ c.servicio_nombre }}</span></span>
+                    @if (c.formulario_estado && c.formulario_estado !== 'NO_APLICA' && c.formulario_estado !== 'DESCONOCIDO') { <span class="tn-chip" [class]="'tn-chip ' + claseFormulario(c.formulario_estado, c.formulario_listo)" [title]="c.formulario_etiqueta"><mat-icon>assignment</mat-icon> {{ c.formulario_listo ? 'Form. OK' : c.formulario_etiqueta }}</span> }
+                    @if (c.estado === 'AGENDADO') {
+                      <button type="button" class="tn-boton tn-boton--exito" (click)="llegoCita(c)" [disabled]="ocupado()" title="La persona llegó: entra a la cola con prioridad"><mat-icon>how_to_reg</mat-icon> Llegó</button>
+                      <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cancelarCita(c)" [disabled]="ocupado()" title="Cancelar la cita"><mat-icon>event_busy</mat-icon></button>
+                    } @else { <span class="tn-chip" [class.tn-chip--ok]="c.estado === 'ATENDIDO'" [class.tn-chip--info]="c.estado === 'EN_ESPERA' || c.estado === 'LLAMADO' || c.estado === 'EN_ATENCION'">{{ estado(c) }}</span> }
+                  </li>
+                }
+              </ul>
+            </div>
+          }
         </div>
       } @else {
       <!-- Oficina y puesto en una sola línea -->
@@ -105,31 +163,38 @@
           <select class="puesto-barra__sel" [value]="ctx.oficinaId() ?? ''" (change)="ctx.seleccionarOficina(($any($event.target).value) || null)" aria-label="Oficina">
             @for (o of ctx.oficinas(); track o.id) { <option [value]="o.id">{{ o.nombre }}</option> }
           </select>
-          <select class="puesto-barra__sel puesto-barra__sel--puesto" [ngModel]="puntoElegido()" (ngModelChange)="puntoElegido.set($event)" aria-label="Dónde va a atender">
-            @if (!puntos().length) { <option value="">Sin puestos: dibújelos en el croquis</option> }
-            @for (g of gruposDePuntos(); track g.nombre) {
-              <optgroup [label]="g.nombre">
-                @for (p of g.puntos; track p.id) {
-                  <option [value]="p.id" [disabled]="!!p.usuario_ref && p.usuario_ref !== miId()">{{ p.tipo === 'MOVIL' ? '🚶 ' : '' }}{{ p.nombre }}{{ p.usuario_ref ? (p.usuario_ref === miId() ? ' · el mío' : ' · ' + p.usuario_nombre) : '' }}</option>
-                }
-              </optgroup>
-            }
+          <select class="puesto-barra__sel" [ngModel]="areaElegida()" (ngModelChange)="alElegirArea($event)" aria-label="Área donde va a trabajar">
+            @if (!misAreas()?.areas?.length) { <option value="">{{ misAreas() ? 'Su rol no tiene áreas aquí' : 'Cargando áreas…' }}</option> }
+            @for (a of misAreas()?.areas ?? []; track a.id) { <option [value]="a.id">{{ a.nombre }}{{ a.piso ? ' · ' + a.piso : '' }}{{ a.por === 'ROL' ? ' (mi rol)' : a.por === 'MIEMBRO' ? ' (miembro)' : '' }}</option> }
           </select>
-          <button type="button" class="tn-boton tn-boton--primario" (click)="abrirPuesto()" [disabled]="!puntoElegido() || ocupado()"><mat-icon>play_arrow</mat-icon> Abrir</button>
+          <select class="puesto-barra__sel puesto-barra__sel--puesto" [ngModel]="puntoElegido()" (ngModelChange)="puntoElegido.set($event)" aria-label="Puesto">
+            <option value="">{{ puntosDeArea().length ? 'Sin puesto: apoyo en el área' : 'El área no tiene puestos libres' }}</option>
+            @for (p of puntosDeArea(); track p.id) { <option [value]="p.id">{{ p.tipo === 'MOVIL' ? '🚶 ' : '' }}{{ p.nombre }}{{ p.usuario_ref === miId() ? ' · el mío' : '' }}</option> }
+          </select>
+          <button type="button" class="tn-boton tn-boton--primario" (click)="iniciarTurno()" [disabled]="ocupado() || (!areaElegida() && !puntoElegido())"><mat-icon>play_arrow</mat-icon> {{ jornada() ? 'Cambiar' : 'Iniciar turno' }}</button>
+          @if (jornada()) { <button type="button" class="tn-boton tn-boton--fantasma" (click)="terminarTurno()" [disabled]="ocupado()" title="Terminar mi turno"><mat-icon>logout</mat-icon> Terminar</button> }
         </div>
+        @if (jornada(); as j) {
+          <p class="puesto-barra__ayuda"><mat-icon class="inline">badge</mat-icon> En turno en <b>{{ j.area_nombre || 'la oficina' }}</b> desde las {{ horaDe(j.inicio) }}{{ j.origen === 'HORARIO' ? ' (por horario' + (j.fin_programado ? ', hasta las ' + horaDe(j.fin_programado) : '') + ')' : '' }}. Elija un puesto y pulse Cambiar para llamar desde él.</p>
+        } @else if (misAreas()?.horario_vigente; as h) {
+          <p class="puesto-barra__ayuda"><mat-icon class="inline">schedule</mat-icon> Su horario de hoy: {{ horarioTexto(h) }}{{ h.area_nombre ? ' en ' + h.area_nombre : '' }}. El turno arranca solo; si lo terminó a mano, pulse Iniciar turno.</p>
+        } @else if (misAreas()?.proximo_horario; as h) {
+          <p class="puesto-barra__ayuda"><mat-icon class="inline">schedule</mat-icon> Próximo turno por horario: {{ horarioTexto(h) }}{{ h.area_nombre ? ' en ' + h.area_nombre : '' }}.</p>
+        }
         @if (puntoElegidoInfo(); as pi) {
           <p class="puesto-barra__ayuda">{{ pi.tipo === 'MOVIL' ? 'Apoyo móvil: usted va hacia la persona; la pantalla dirá "lo atenderán en ' + (pi.area_nombre || 'la sala') + '".' : (pi.area_tipo === 'OFICINA' ? 'Oficina privada.' : pi.area_tipo === 'AREA_ATENCION' ? 'Área compartida: varios asesores atienden aquí.' : 'La pantalla dirá "diríjase a ' + pi.nombre + '".') }}</p>
         }
         <div class="sin-puesto">
           <mat-icon>{{ enEspera().length ? 'notifications_active' : 'weekend' }}</mat-icon>
-          <span>{{ enEspera().length ? enEspera().length + (enEspera().length === 1 ? ' persona espera' : ' personas esperan') + ' en ' + (atencion()?.oficina_nombre || 'la oficina') + '. Abra un puesto para llamar.' : 'Nadie esperando. Abra un puesto cuando vaya a atender.' }}</span>
+          <span>{{ enEspera().length ? enEspera().length + (enEspera().length === 1 ? ' persona espera' : ' personas esperan') + ' en ' + (atencion()?.oficina_nombre || 'la oficina') + '. Inicie turno en un puesto para llamar.' : 'Nadie esperando. Inicie turno cuando vaya a atender.' }}</span>
         </div>
       } @else {
         <div class="puesto-barra puesto-barra--abierto">
-          <span class="puesto-barra__donde"><mat-icon>{{ puntoActualInfo()?.tipo === 'MOVIL' ? 'directions_walk' : 'desk' }}</mat-icon> <b>{{ atencion()!.punto_nombre }}</b><span class="muted"> · {{ atencion()!.oficina_nombre }}</span></span>
+          <span class="puesto-barra__donde"><mat-icon>{{ puntoActualInfo()?.tipo === 'MOVIL' ? 'directions_walk' : 'desk' }}</mat-icon> <b>{{ atencion()!.punto_nombre }}</b><span class="muted"> · {{ jornada()?.area_nombre || atencion()!.oficina_nombre }}</span>@if (jornada()?.origen === 'HORARIO') { <span class="tn-chip tn-chip--info" [title]="'Por horario' + (jornada()?.fin_programado ? ', hasta las ' + horaDe(jornada()?.fin_programado) : '')"><mat-icon>schedule</mat-icon> {{ horaDe(jornada()?.fin_programado) || 'horario' }}</span> }</span>
           <span class="tn-chip tn-chip--ok" title="Atendidos hoy por mí"><mat-icon>task_alt</mat-icon> {{ atencion()!.atendidos_hoy }}</span>
           <label class="tn-check puesto-barra__auto" title="Llamar el siguiente al finalizar"><input type="checkbox" [checked]="ctx.preferencia()?.auto_llamar" (change)="alternarAutoLlamar()"> Auto</label>
-          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cerrarPuesto()" title="Cerrar puesto" [disabled]="!!turno()"><mat-icon>logout</mat-icon></button>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cerrarPuesto()" title="Soltar el puesto (sigo en turno en el área)" [disabled]="!!turno()"><mat-icon>desk</mat-icon></button>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="terminarTurno()" title="Terminar mi turno" [disabled]="!!turno()"><mat-icon>logout</mat-icon></button>
         </div>
 
         @if (turno(); as t) {
@@ -145,6 +210,10 @@
               @if (t.empresa_usuaria_nombre) { <span class="turno-actual__doc">{{ t.empresa_usuaria_nombre }}</span> }
               @if (t.llamadas > 1) { <span class="tn-chip tn-chip--warn">Llamado {{ t.llamadas }} veces</span> }
               @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad }}</span> }
+              @if (t.formulario_estado && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') {
+                <span [class]="'tn-chip ' + claseFormulario(t.formulario_estado, t.formulario_listo)" [title]="t.formulario_etiqueta"><mat-icon>assignment</mat-icon> {{ t.formulario_etiqueta }}</span>
+                @if (t.formulario_url) { <a class="tn-chip" [href]="t.formulario_url" target="_blank" rel="noopener"><mat-icon>edit_document</mat-icon> Abrir formulario</a> }
+              }
             </div>
 
             @if (cerrandoCon(); as motivoDe) {
@@ -216,18 +285,19 @@
       } @else {
         <ol class="cola__lista">
           @for (t of enEspera(); track t.id; let i = $index) {
-            <li class="fila" [class.fila--otro]="!paraMi(t)" [class.fila--prioridad]="t.prioridad !== 'NORMAL'" [attr.data-nivel]="nivelEspera(t)" [style.--c]="t.servicio_color || 'var(--brand-blue)'">
+            <li class="fila" [class.fila--otro]="!paraMi(t)" [class.fila--mi-area]="!!jornada()?.area_id && t.area_id === jornada()?.area_id" [class.fila--prioridad]="t.prioridad !== 'NORMAL'" [attr.data-nivel]="nivelEspera(t)" [style.--c]="t.servicio_color || 'var(--brand-blue)'">
               <span class="fila__pos">{{ i + 1 }}</span>
               <span class="fila__codigo tn-codigo">{{ t.codigo }}</span>
               <span class="fila__texto">
-                <span class="fila__srv">{{ t.servicio_nombre }}</span>
+                <span class="fila__srv">{{ t.servicio_nombre }}@if (t.area_nombre) { <span class="fila__area"> → {{ t.area_nombre }}</span> }</span>
                 <span class="fila__persona">{{ t.nombre || 'Sin nombre' }}@if (t.documento) { <span class="muted"> · {{ t.documento }}</span> }@if (t.empresa_usuaria_nombre) { <span class="muted"> · {{ t.empresa_usuaria_nombre }}</span> }</span>
               </span>
               <span class="fila__marcas">
                 @if (t.asignado_punto_id || t.asignado_usuario_ref) {
                   <span class="tn-chip" [class.tn-chip--ok]="asignadoAMi(t)" [class.tn-chip--info]="!asignadoAMi(t)" [title]="'Reservado para ' + etiquetaAsignado(t)"><mat-icon>person_pin</mat-icon> {{ asignadoAMi(t) ? 'para mí' : etiquetaAsignado(t) }}</span>
                 }
-                @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad === 'CITA' ? 'Cita' : 'Preferencial' }}</span> }
+                @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad === 'CITA' ? (t.agendado_para ? 'Cita ' + horaDe(t.agendado_para) : 'Cita') : 'Preferencial' }}</span> }
+                @if (t.formulario_estado && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') { <span [class]="'tn-chip ' + claseFormulario(t.formulario_estado, t.formulario_listo)" [title]="t.formulario_etiqueta"><mat-icon>assignment</mat-icon> {{ t.formulario_listo ? 'Form. OK' : (t.formulario_estado === 'PARCIAL' ? 'Form. a medias' : 'Sin formulario') }}</span> }
                 @if (t.llamadas > 0) { <span class="tn-chip tn-chip--warn" title="Ya fue llamado y volvió a la cola">↩ {{ t.llamadas }}</span> }
                 <mat-icon class="fila__canal" [title]="'Canal: ' + t.canal">{{ iconoCanal(t.canal) }}</mat-icon>
               </span>

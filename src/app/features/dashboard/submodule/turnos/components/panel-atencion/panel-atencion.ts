@@ -10,7 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { Observable } from 'rxjs';
 
 import { ContextoTurnosService, leerVista } from '../../service/contexto-turnos.service';
-import { Caso, PersonaContratacion, Punto, Servicio, Tiquete, Turno, TurnosService } from '../../service/turnos.service';
+import { Caso, Franja, LecturaFormulario, MisAreas, PersonaContratacion, Punto, Servicio, Tiquete, Turno, TurnosService } from '../../service/turnos.service';
 import { VistaCaso, VistaCasoService } from '../../service/vista-caso.service';
 import { PermissionsService } from '../../../../../../core/services/permissions.service';
 import { obtenerUsuarioActual } from '../../../../../../core/utils/usuario-actual';
@@ -57,6 +57,17 @@ export class PanelAtencion implements OnInit {
   readonly puntos = signal<Punto[]>([]);
   readonly servicios = signal<Servicio[]>([]);
   readonly puntoElegido = signal<string>('');
+  /** Dónde puedo iniciar turno (áreas de mi rol o de las que soy miembro), mi jornada y mi horario. */
+  readonly misAreas = signal<MisAreas | null>(null);
+  readonly areaElegida = signal<string>('');
+  /** Recepción: las citas de hoy, dar turno para ahora o agendar, y el formulario de la persona. */
+  readonly citasHoy = signal<Turno[]>([]);
+  readonly modoRecepcion = signal<'hoy' | 'cita'>('hoy');
+  readonly lecturaFormulario = signal<LecturaFormulario | null>(null);
+  readonly franjas = signal<Franja[]>([]);
+  readonly cargandoFranjas = signal(false);
+  cita = { fecha: new Date().toISOString().slice(0, 10), fecha_hora: '' };
+  readonly avisoArea = this.ctx.avisoArea;
   readonly transfiriendo = signal(false);
   readonly servicioDestino = signal<string>('');
   readonly cerrandoCon = signal<'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
@@ -120,6 +131,16 @@ export class PanelAtencion implements OnInit {
     return [...grupos.values()];
   });
   readonly puntoElegidoInfo = computed<Punto | null>(() => this.puntos().find(p => p.id === this.puntoElegido()) ?? null);
+  readonly jornada = computed(() => this.atencion()?.jornada ?? null);
+  /** Puestos del área elegida para iniciar turno (o todos si no se eligió área). */
+  readonly puntosDeArea = computed(() => {
+    const a = this.misAreas()?.areas.find(x => x.id === this.areaElegida());
+    const yo = this.miId();
+    const lista = a ? a.puntos : (this.misAreas()?.areas.flatMap(x => x.puntos) ?? []);
+    return lista.filter(p => !p.usuario_ref || p.usuario_ref === yo);
+  });
+  readonly citasPendientes = computed(() => this.citasHoy().filter(c => c.estado === 'AGENDADO'));
+  readonly franjasLibres = computed(() => this.franjas().filter(f => f.disponible));
   /** Servicios que atiende mi puesto (vacío = todos): marca en la lista quién es "para mí". */
   readonly misServicios = computed<Set<string>>(() => new Set(this.puntoActualInfo()?.servicios ?? []));
   readonly puedoLlamar = computed(() => this.ctx.puestoAbierto() && !this.turno() && !this.ocupado());
@@ -166,8 +187,13 @@ export class PanelAtencion implements OnInit {
     });
     effect(() => {
       const oficinaId = this.ctx.oficinaId();
-      if (!oficinaId) { this.puntos.set([]); this.servicios.set([]); return; }
-      untracked(() => this.cargarCatalogos(oficinaId));
+      if (!oficinaId) { this.puntos.set([]); this.servicios.set([]); this.misAreas.set(null); return; }
+      untracked(() => { this.cargarCatalogos(oficinaId); this.cargarMisAreas(oficinaId); });
+    });
+    // Cada vez que la cola se refresca (entró o salió alguien) la lista de citas de recepción también.
+    effect(() => {
+      this.ctx.cola();
+      untracked(() => { if (this.mostrador() === 'recepcion') this.cargarCitas(); });
     });
   }
 
@@ -185,6 +211,7 @@ export class PanelAtencion implements OnInit {
   cambiarModo(m: 'atender' | 'recepcion'): void {
     this.mostrador.set(m);
     if (m === 'recepcion' && !this.recepcion.servicio_id && this.servicios().length) this.recepcion.servicio_id = this.servicios()[0].id;
+    if (m === 'recepcion') { this.cargarCitas(); if (this.modoRecepcion() === 'cita') this.cargarFranjas(); }
   }
 
   /** Búsqueda amplia en contratación (documento, nombre, correo o teléfono), con espera corta. */
@@ -215,6 +242,7 @@ export class PanelAtencion implements OnInit {
     this.recepcion.correo = p.email || '';
     this.recepcion.empresa_usuaria_nombre = p.vacante_empresa || '';
     this.busqueda.set(this.recepcion.nombre || this.recepcion.documento);
+    this.consultarFormulario(this.recepcion.documento);
   }
 
   /** No está registrada: se registra con lo mínimo; lo escrito en la búsqueda sirve de arranque. */
@@ -222,6 +250,7 @@ export class PanelAtencion implements OnInit {
     this.personaElegida.set(null);
     this.resultados.set([]);
     this.sinResultados.set(false);
+    this.lecturaFormulario.set(null);
     const q = this.busqueda().trim();
     if (/^[\dxX][\d.]{4,}$/.test(q)) this.recepcion.documento = q.replace(/\./g, '');
     else if (q) this.recepcion.nombre = q;
@@ -233,6 +262,7 @@ export class PanelAtencion implements OnInit {
     this.sinResultados.set(false);
     this.busqueda.set('');
     this.tiquete.set(null);
+    this.lecturaFormulario.set(null);
     this.recepcion = { ...this.recepcion, documento: '', nombre: '', telefono: '', correo: '', empresa_usuaria_nombre: '', prioridad: 'NORMAL', observaciones: '' };
   }
 
@@ -291,6 +321,152 @@ export class PanelAtencion implements OnInit {
   abrirFicha(documento: string | null): void {
     if (!documento) return;
     this.router.navigate(['/dashboard/hiring/recruitment-pipeline'], { queryParams: { cedula: documento } });
+  }
+
+  // ── Jornada: iniciar turno en un área (y en un puesto) ────────────────
+
+  private cargarMisAreas(oficinaId: string): void {
+    this.api.misAreas(oficinaId).subscribe({
+      next: m => {
+        this.misAreas.set(m);
+        const actual = this.areaElegida();
+        if (!m.areas.some(a => a.id === actual)) this.areaElegida.set(m.jornada?.area_id ?? m.horario_vigente?.area_id ?? m.areas[0]?.id ?? '');
+        const pref = m.horario_vigente?.punto_id ?? this.ctx.preferencia()?.punto_id ?? null;
+        if (pref && this.puntosDeArea().some(p => p.id === pref)) this.puntoElegido.set(pref);
+        else if (!this.puntosDeArea().some(p => p.id === this.puntoElegido())) this.puntoElegido.set(this.puntosDeArea()[0]?.id ?? '');
+      },
+      error: () => this.misAreas.set(null),
+    });
+  }
+
+  alElegirArea(id: string): void {
+    this.areaElegida.set(id);
+    if (!this.puntosDeArea().some(p => p.id === this.puntoElegido())) this.puntoElegido.set(this.puntosDeArea()[0]?.id ?? '');
+  }
+
+  /** "Iniciar turno": quedo en turno en el área (y con el puesto abierto, si elegí uno). */
+  iniciarTurno(): void {
+    const of = this.ctx.oficinaId();
+    if (!of) return;
+    const area = this.areaElegida() || null;
+    const punto = this.puntoElegido() || null;
+    this.correr(this.api.iniciarJornada(of, area, punto), e => {
+      this.ctx.aplicarAtencion(e);
+      if (punto) this.guardarPref({ punto_id: punto, oficina_id: of });
+      const j = e.jornada;
+      this.aviso.set(j ? `En turno en ${j.area_nombre || 'la oficina'}${e.punto_nombre ? ' · puesto ' + e.punto_nombre : ''}` : 'Turno iniciado');
+      this.cargarMisAreas(of);
+    });
+  }
+
+  terminarTurno(): void {
+    if (this.turno()) { this.error.set('Cierre primero el turno que está atendiendo'); setTimeout(() => this.error.set(null), 3000); return; }
+    this.correr(this.api.terminarJornada(), e => {
+      this.ctx.aplicarAtencion(e);
+      this.aviso.set('Turno terminado');
+      const of = this.ctx.oficinaId();
+      if (of) this.cargarMisAreas(of);
+    });
+  }
+
+  readonly DIAS = ['', 'L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  /** "L-V 8:00–17:00" / "L, X, V 14:00–22:00". */
+  horarioTexto(h: { dias: string; hora_inicio: string; hora_fin: string } | null | undefined): string {
+    if (!h) return '';
+    const d = (h.dias || '').split('').map(Number).filter(n => n >= 1 && n <= 7);
+    const seguidos = d.length >= 3 && d.every((v, i) => i === 0 || v === d[i - 1] + 1);
+    const dias = seguidos ? `${this.DIAS[d[0]]}-${this.DIAS[d[d.length - 1]]}` : d.map(n => this.DIAS[n]).join(', ');
+    return `${dias} ${h.hora_inicio.slice(0, 5)}–${h.hora_fin.slice(0, 5)}`;
+  }
+
+  horaDe(iso: string | null | undefined): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  descartarAvisoArea(): void { this.ctx.avisoArea.set(null); }
+
+  // ── Recepción: formulario del aspirante y citas ───────────────────────
+
+  /** Al encontrar (o teclear) la cédula: ¿ya llenó el formulario de vacantes? */
+  consultarFormulario(documento: string): void {
+    const doc = (documento || '').replace(/\./g, '').trim();
+    if (!/^[xX]?\d{4,}$/.test(doc)) { this.lecturaFormulario.set(null); return; }
+    this.api.formularioEstado(doc).subscribe({
+      next: l => {
+        this.lecturaFormulario.set(l);
+        // Si contratación la conoce, se completan solos los datos que falten.
+        if (!this.recepcion.nombre && l.nombre) this.recepcion.nombre = l.nombre;
+        if (!this.recepcion.telefono && l.telefono) this.recepcion.telefono = l.telefono;
+        if (!this.recepcion.correo && l.correo) this.recepcion.correo = l.correo;
+      },
+      error: () => this.lecturaFormulario.set(null),
+    });
+  }
+
+  /** ¿El trámite elegido exige mirar el formulario? Solo entonces se muestra el aviso. */
+  readonly servicioVerificaFormulario = computed(() => !!this.servicioElegido()?.verificar_formulario);
+
+  claseFormulario(estado: string | null | undefined, listo: boolean | null | undefined): string {
+    if (!estado || estado === 'NO_APLICA' || estado === 'DESCONOCIDO') return '';
+    if (listo) return 'tn-chip--ok';
+    return estado === 'PARCIAL' ? 'tn-chip--warn' : 'tn-chip--danger';
+  }
+
+  cargarCitas(): void {
+    const of = this.ctx.oficinaId();
+    if (!of) { this.citasHoy.set([]); return; }
+    this.api.citas(of).subscribe({ next: c => this.citasHoy.set(c), error: () => this.citasHoy.set([]) });
+  }
+
+  cambiarModoRecepcion(m: 'hoy' | 'cita'): void {
+    this.modoRecepcion.set(m);
+    if (m === 'cita') this.cargarFranjas();
+  }
+
+  cargarFranjas(): void {
+    const of = this.ctx.oficinaId();
+    const srv = this.recepcion.servicio_id;
+    if (!of || !srv || !this.cita.fecha) { this.franjas.set([]); return; }
+    this.cargandoFranjas.set(true);
+    this.api.disponibilidad(of, srv, this.cita.fecha).subscribe({
+      next: d => { this.franjas.set(d.franjas); this.cargandoFranjas.set(false); if (!d.franjas.some(f => f.inicio === this.cita.fecha_hora)) this.cita.fecha_hora = ''; },
+      error: () => { this.franjas.set([]); this.cargandoFranjas.set(false); },
+    });
+  }
+
+  /** Recepción agenda por la persona (empleado o aspirante que no lo hizo por la web). */
+  agendarDesdeRecepcion(): void {
+    const of = this.ctx.oficinaId();
+    const f = this.recepcion;
+    if (!of || !f.servicio_id || !this.cita.fecha_hora) return;
+    const p = this.personaElegida();
+    this.correr(this.api.agendar(of, {
+      servicio_id: f.servicio_id, fecha_hora: this.cita.fecha_hora,
+      documento: f.documento.trim() || null, nombre: f.nombre.trim() || null, telefono: f.telefono.trim() || null,
+      correo: f.correo.trim() || null, empresa_usuaria_nombre: f.empresa_usuaria_nombre.trim() || null,
+      observaciones: f.observaciones.trim() || null,
+      persona_ref: p ? String(p.id) : null, persona_origen: p ? (p.contrato_activo ? 'TRABAJADOR' : 'CANDIDATO') : null,
+    }), c => {
+      this.aviso.set(`Cita ${c.turno.codigo} para el ${new Date(c.agendado_para).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`);
+      this.recepcion = { ...this.recepcion, documento: '', nombre: '', telefono: '', correo: '', empresa_usuaria_nombre: '', prioridad: 'NORMAL', observaciones: '' };
+      this.personaElegida.set(null);
+      this.lecturaFormulario.set(null);
+      this.busqueda.set('');
+      this.cita.fecha_hora = '';
+      this.cargarCitas();
+      this.cargarFranjas();
+    });
+  }
+
+  llegoCita(t: Turno): void {
+    this.correr(this.api.citaLlego(t.id), r => { this.aviso.set(`${r.codigo} entró a la cola con prioridad de cita`); this.ctx.recargarCola(); this.ctx.refrescarEstado(); this.cargarCitas(); });
+  }
+
+  cancelarCita(t: Turno): void {
+    if (!confirm(`¿Cancelar la cita ${t.codigo}${t.nombre ? ' de ' + t.nombre : ''}?`)) return;
+    this.correr(this.api.citaCancelar(t.id), () => { this.aviso.set('Cita cancelada'); this.cargarCitas(); });
   }
 
   // ── Pestaña ───────────────────────────────────────────────────────────
@@ -613,6 +789,9 @@ export class PanelAtencion implements OnInit {
   paraMi(t: Turno): boolean {
     if (this.asignadoAMi(t)) return true;
     if (this.asignadoAOtro(t)) return false;
+    // Estoy en turno en su área: es de los míos aunque el puesto filtre por servicio.
+    const j = this.jornada();
+    if (j?.area_id && t.area_id === j.area_id) return true;
     const s = this.misServicios();
     return s.size === 0 || s.has(t.servicio_id);
   }

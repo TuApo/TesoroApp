@@ -17,6 +17,7 @@ export const routes: Routes = [
   { path: 'oficinas', loadComponent: () => import('./pages/oficinas/oficinas').then(m => m.Oficinas) },
   { path: 'oficinas/:id/croquis', loadComponent: () => import('./pages/croquis-editor/croquis-editor').then(m => m.CroquisEditor) },
   { path: 'servicios', loadComponent: () => import('./pages/servicios/servicios').then(m => m.Servicios) },
+  { path: 'equipos', loadComponent: () => import('./pages/equipos/equipos').then(m => m.Equipos) },
   { path: 'cartel', loadComponent: () => import('./pages/cartel/cartel').then(m => m.CartelImprimiblePage) },
   { path: 'pantallas', loadComponent: () => import('./pages/pantallas/pantallas').then(m => m.Pantallas) },
   // Diseño de pantallas: vistas (bloques) y guiones (secuencia con transiciones) de los televisores.
