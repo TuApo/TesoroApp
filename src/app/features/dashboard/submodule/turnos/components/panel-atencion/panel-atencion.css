@@ -394,3 +394,35 @@
 .panel--colapsador .pestana--caso:hover .pestana__tiempo, .panel--colapsador .pestana--activa .pestana__tiempo { display: inline; }
 .panel--colapsador .pestana--mas { width: 22px; height: 22px; padding: 0; justify-content: center; }
 .panel--colapsador .pestana--mas mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+/* ── Móvil: el panel colgante ocupa la pantalla (bajo la cabecera y la pestaña, sobre la
+   barra inferior) y se ve UNA mitad a la vez con un selector; nada se corta ni se encima. ── */
+.cuerpo__segmentos { display: none; }
+@media (max-width: 900px) {
+  :host.tn-colapsador { --tn-cab: 64px; --tn-barra: calc(68px + env(safe-area-inset-bottom)); }
+  .panel--colapsador .pestanas { min-height: 26px; }
+  .panel--colapsador:not(.panel--abierto) .cuerpo-marco { display: none; }
+  .panel--colapsador.panel--abierto .cuerpo-marco {
+    position: fixed; left: 0; right: 0; top: calc(var(--tn-cab) + 26px); bottom: var(--tn-barra);
+    height: auto !important; overflow: hidden; border-radius: 0; box-shadow: 0 -8px 30px rgba(15, 23, 42, .35);
+  }
+  .panel--colapsador .cuerpo { height: 100% !important; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .panel--colapsador .cuerpo > .mitad { animation: none; }
+  .panel--colapsador .cuerpo__segmentos { display: flex; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--surface); flex: none; }
+  .segmento { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+  .segmento mat-icon { font-size: 17px; width: 17px; height: 17px; }
+  .segmento--on { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+  .segmento__codigo { font-size: 11px; padding: 0 5px; border-radius: 6px; background: rgba(255,255,255,.18); }
+  .segmento__n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; background: var(--surface-3); color: var(--text); }
+  .segmento--on .segmento__n { background: rgba(255,255,255,.22); color: #fff; }
+  .segmento__n--warn { background: var(--warning); color: #fff; }
+  .segmento__n--danger { background: var(--danger); color: #fff; }
+  .segmento__apoyo { color: var(--danger); animation: tn-apoyo-icono 1.3s ease-in-out infinite; }
+  .panel--colapsador .cuerpo .mitad { flex: 1; min-height: 0; overflow: auto; border-right: 0; border-bottom: 0; padding: 10px 12px 14px; }
+  .panel--colapsador .cuerpo--movil-turno .mitad--cola { display: none; }
+  .panel--colapsador .cuerpo--movil-cola .mitad--turno { display: none; }
+  .panel--colapsador .asa { display: none; }
+  .panel--colapsador .flotante { top: 52px; width: calc(100% - 24px); }
+  .panel--colapsador .mapa-puesto__lienzo { max-height: 240px; }
+  .panel--colapsador .cola__cab h3 { flex-wrap: wrap; }
+}

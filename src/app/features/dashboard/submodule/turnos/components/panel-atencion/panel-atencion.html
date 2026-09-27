@@ -5,7 +5,19 @@
        de pestañas hasta abajo; el cuerpo mide siempre `alto` para que el contenido no salte. -->
   <div class="cuerpo-marco" [class.cuerpo-marco--arrastrando]="arrastrando()" [style.height.px]="modo() === 'colapsador' ? (abierto() ? alto() : 0) : null" [attr.aria-hidden]="modo() === 'colapsador' && !abierto()">
   @if (abierto() || modo() === 'pagina' || montado()) {
-  <div id="tn-panel-cuerpo" class="cuerpo" [class.cuerpo--recepcion]="mostrador() === 'recepcion' && puedeRecepcion()" [style.height.px]="modo() === 'colapsador' ? alto() : null">
+  <div id="tn-panel-cuerpo" class="cuerpo" [class.cuerpo--recepcion]="mostrador() === 'recepcion' && puedeRecepcion()" [class.cuerpo--movil-turno]="mitadMovil() === 'turno'" [class.cuerpo--movil-cola]="mitadMovil() === 'cola'" [style.height.px]="modo() === 'colapsador' ? alto() : null">
+
+    <!-- Solo en móvil: el cuerpo ocupa la pantalla y se elige qué mitad ver. -->
+    <div class="cuerpo__segmentos" role="tablist" aria-label="Qué ver">
+      <button type="button" class="segmento" role="tab" [class.segmento--on]="mitadMovil() === 'turno'" [attr.aria-selected]="mitadMovil() === 'turno'" (click)="mitadMovil.set('turno')">
+        <mat-icon>{{ puedeRecepcion() && mostrador() === 'recepcion' ? 'person_search' : 'desk' }}</mat-icon> {{ puedeRecepcion() && mostrador() === 'recepcion' ? 'Recepción' : 'Mi puesto' }}
+        @if (turno(); as t) { <span class="tn-codigo segmento__codigo">{{ t.codigo }}</span> }
+      </button>
+      <button type="button" class="segmento" role="tab" [class.segmento--on]="mitadMovil() === 'cola'" [attr.aria-selected]="mitadMovil() === 'cola'" (click)="mitadMovil.set('cola')">
+        <mat-icon>groups</mat-icon> Por atender <span class="segmento__n" [class.segmento__n--warn]="semaforo() === 'amarillo'" [class.segmento__n--danger]="semaforo() === 'rojo'">{{ enEspera().length }}</span>
+        @if (apoyosAjenos().length) { <mat-icon class="segmento__apoyo" title="Una oficina pide apoyo">emergency_share</mat-icon> }
+      </button>
+    </div>
 
     @if (error()) { <div class="tn-aviso tn-aviso--error flotante"><mat-icon>error</mat-icon> {{ error() }}</div> }
     @if (aviso()) { <div class="tn-aviso tn-aviso--ok flotante"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }

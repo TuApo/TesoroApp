@@ -92,6 +92,18 @@ export class PanelAtencion implements OnInit {
   readonly motivoApoyo = signal('');
   /** Terminar el turno / soltar el puesto con un turno delante: se confirma en línea (el turno vuelve a la cola). */
   readonly confirmando = signal<'terminar' | 'soltar' | null>(null);
+  /** Móvil: el cuerpo ocupa la pantalla y se ve una mitad a la vez (mi puesto / por atender). */
+  readonly mitadMovil = signal<'turno' | 'cola'>('turno');
+  /** Móvil: el cuerpo se fija bajo la cabecera; su alto real se mide (cambia con la ruta y el ancho). */
+  private readonly medirCabecera = effect(() => {
+    if (!this.abierto() || typeof window === 'undefined') return;
+    const el = this.host.nativeElement;
+    const medir = () => el.style.setProperty('--tn-cab', Math.max(0, Math.round(el.getBoundingClientRect().top)) + 'px');
+    medir();
+    window.addEventListener('resize', medir, { passive: true });
+    setTimeout(medir, 350);
+    return () => window.removeEventListener('resize', medir);
+  });
   readonly transfiriendo = signal(false);
   readonly servicioDestino = signal<string>('');
   readonly cerrandoCon = signal<'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
