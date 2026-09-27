@@ -25,6 +25,8 @@ export interface Oficina {
   jefe_usuario_ref: string | null; jefe_usuario_nombre: string | null;
   /** Deja que otras oficinas atiendan sus turnos por videollamada. */
   acepta_remoto: boolean;
+  /** Pidió apoyo hoy: desde cuándo, por qué y quién (null = no). */
+  apoyo_solicitado_en: string | null; apoyo_motivo: string | null; apoyo_por: string | null;
 }
 
 export interface OficinaIn {
@@ -201,8 +203,20 @@ export interface Turno {
   /** Atendido por videollamada desde otra oficina (y desde cuál); estado de la videollamada. */
   remoto: boolean; atendido_desde_oficina_id: string | null; atendido_desde_oficina_nombre: string | null;
   video_estado: 'SOLICITADA' | 'EN_CURSO' | 'TERMINADA' | null;
+  /** Cómo terminó la atención (catálogo) al FINALIZAR, y si volvió a la cola sin cerrarse (cuántas veces y por qué). */
+  clasificacion: string | null; clasificacion_nombre: string | null;
+  devuelto_en: string | null; devuelto_motivo: string | null; devoluciones: number;
   delante: number | null; espera_estimada_min: number | null;
 }
+
+/** Cómo terminó la atención: catálogo global editable por un administrador. */
+export interface Clasificacion {
+  id: string; clave: string; nombre: string; descripcion: string | null; color: string | null; icono: string | null;
+  orden: number; activo: boolean;
+}
+export interface ClasificacionIn { clave?: string | null; nombre: string; descripcion?: string | null; color?: string | null; icono?: string | null; orden?: number | null; activo?: boolean | null; }
+/** Una oficina que pidió apoyo hoy. */
+export interface Apoyo { oficina_id: string; oficina_nombre: string; desde: string; motivo: string | null; por: string | null; en_espera: number; }
 
 // ── Atención remota (videollamada desde otra oficina) ──
 export interface TurnoRemoto { turno: Turno; oficina_nombre: string | null; oficina_codigo: string | null; oficina_ciudad: string | null; espera_seg: number; es_mi_oficina: boolean; }
@@ -281,6 +295,10 @@ export interface EstadoAtencion {
   sin_puesto: boolean;
   /** Mi jornada ("estoy en turno"): área, puesto y desde cuándo; null si no he iniciado turno. */
   jornada: Jornada | null;
+  /** Indicadores de la oficina: siendo atendidos ahora, asesores en turno, esperando por videollamada en otras oficinas. */
+  en_atencion: number; asesores_en_turno: number; cola_remota: number;
+  /** Oficinas que pidieron apoyo hoy (la propia incluida). */
+  apoyos: Apoyo[];
 }
 
 // ── Equipos por área, horarios y jornadas ──
@@ -725,9 +743,19 @@ export class TurnosService {
     return this.http.post<Turno>(`${this.base}/atencion/llamar`, { punto_id: puntoId, turno_id: turnoId ?? null });
   }
   iniciar(turnoId: string): Observable<Turno> { return this.http.post<Turno>(`${this.base}/atencion/iniciar/${turnoId}`, {}); }
-  cerrarTurno(turnoId: string, resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO', motivo?: string | null, observaciones?: string | null): Observable<Turno> {
-    return this.http.post<Turno>(`${this.base}/atencion/cerrar`, { turno_id: turnoId, resultado, motivo: motivo ?? null, observaciones: observaciones ?? null });
+  /** Finalizar (ATENDIDO) exige clasificación y nota; "no llegó" y "cancelado" solo llevan motivo opcional. */
+  cerrarTurno(turnoId: string, resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO', motivo?: string | null, observaciones?: string | null, clasificacion?: string | null): Observable<Turno> {
+    return this.http.post<Turno>(`${this.base}/atencion/cerrar`, { turno_id: turnoId, resultado, motivo: motivo ?? null, observaciones: observaciones ?? null, clasificacion: clasificacion ?? null });
   }
+  clasificaciones(todas = false): Observable<Clasificacion[]> { return this.http.get<Clasificacion[]>(`${this.base}/clasificaciones`, { params: { todas } }); }
+  crearClasificacion(in_: ClasificacionIn): Observable<Clasificacion> { return this.http.post<Clasificacion>(`${this.base}/clasificaciones`, in_); }
+  actualizarClasificacion(id: string, in_: ClasificacionIn): Observable<Clasificacion> { return this.http.put<Clasificacion>(`${this.base}/clasificaciones/${id}`, in_); }
+  desactivarClasificacion(id: string): Observable<void> { return this.http.delete<void>(`${this.base}/clasificaciones/${id}`); }
+  /** La oficina pide (activo) o retira apoyo a las demás; devuelve quién pide apoyo hoy. */
+  pedirApoyo(oficinaId: string, activo: boolean, motivo?: string | null): Observable<Apoyo[]> {
+    return this.http.post<Apoyo[]>(`${this.base}/oficinas/${oficinaId}/apoyo`, { activo, motivo: motivo ?? null });
+  }
+  apoyos(): Observable<Apoyo[]> { return this.http.get<Apoyo[]>(`${this.base}/apoyos`); }
   transferir(turnoId: string, servicioDestinoId: string, motivo?: string | null, mantenerPrioridad = true): Observable<Turno> {
     return this.http.post<Turno>(`${this.base}/atencion/transferir`, { turno_id: turnoId, servicio_destino_id: servicioDestinoId, motivo: motivo ?? null, mantener_prioridad: mantenerPrioridad });
   }

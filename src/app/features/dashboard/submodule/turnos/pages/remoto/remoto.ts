@@ -8,9 +8,10 @@ import { Observable } from 'rxjs';
 
 import { ContextoTurnosService } from '../../service/contexto-turnos.service';
 import {
-  AtencionPersona, IceConfig, LecturaFormulario, PersonaContratacion, Turno, TurnoRemoto, TurnosService,
+  AtencionPersona, IceConfig, LecturaFormulario, PersonaContratacion, Turno, TurnoRemoto, TurnosService, Clasificacion,
 } from '../../service/turnos.service';
 import { Videollamada } from '../../service/videollamada';
+import { CierreTurno } from '../../components/cierre-turno/cierre-turno';
 import { AnalisisCandidato, AnalisisIaService } from '../../../hiring/service/analisis-ia/analisis-ia.service';
 import { PermissionsService } from '../../../../../../core/services/permissions.service';
 
@@ -32,7 +33,7 @@ interface OpcionProceso { etiqueta: string; icono: string; ayuda: string; accion
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-turnos-remoto',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, CierreTurno],
   templateUrl: './remoto.html',
   styleUrls: ['../../styles/turnos-comun.css', './remoto.css'],
 })
@@ -57,12 +58,20 @@ export class AtencionRemota implements OnInit {
   readonly lectura = signal<LecturaFormulario | null>(null);
   readonly atenciones = signal<AtencionPersona[]>([]);
   readonly resumen = signal<AnalisisCandidato | null>(null);
+  /** El resumen con IA, como nota inicial del cierre (se puede editar antes de finalizar). */
+  readonly resumenParaNota = computed(() => {
+    const r = this.resumen() as unknown as { resumen?: string | null; conclusion?: string | null; texto?: string | null } | null;
+    const t = r?.resumen ?? r?.conclusion ?? r?.texto ?? '';
+    return typeof t === 'string' ? t.slice(0, 600) : '';
+  });
   readonly analizando = signal(false);
   readonly errorIa = signal<string | null>(null);
   readonly llamada = signal<Videollamada | null>(null);
   readonly ice = signal<IceConfig | null>(null);
-  readonly cerrandoCon = signal<'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
+  readonly cerrandoCon = signal<'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
   motivoCierre = '';
+  /** Catálogo de cómo terminó la atención: obligatorio (con nota) para finalizar. */
+  readonly clasificaciones = signal<Clasificacion[]>([]);
   readonly ahora = this.ctx.ahora;
 
   readonly colaVisible = computed(() => this.soloOtras() ? this.cola().filter(c => !c.es_mi_oficina) : this.cola());
@@ -193,10 +202,16 @@ export class AtencionRemota implements OnInit {
     void this.iniciarLlamada();
   }
 
-  finalizar(resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO'): void {
+  /** Finalizar exige clasificación y nota: primero se abre el formulario y luego llega aquí con los dos datos. */
+  finalizar(resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO', cierre?: { clasificacion: string; nota: string }): void {
     const t = this.turno();
     if (!t) return;
-    this.correr(this.api.cerrarTurno(t.id, resultado, this.motivoCierre || null), r => {
+    if (resultado === 'ATENDIDO' && !cierre) {
+      if (!this.clasificaciones().length) this.api.clasificaciones().subscribe({ next: l => this.clasificaciones.set(l), error: () => {} });
+      this.cerrandoCon.set('ATENDIDO');
+      return;
+    }
+    this.correr(this.api.cerrarTurno(t.id, resultado, this.motivoCierre || null, cierre?.nota ?? null, cierre?.clasificacion ?? null), r => {
       this.llamada()?.colgar();
       this.llamada.set(null);
       this.cerrandoCon.set(null);

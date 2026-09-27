@@ -12,7 +12,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { Observable } from 'rxjs';
 
 import { ContextoTurnosService, leerVista } from '../../service/contexto-turnos.service';
-import { Caso, Franja, LecturaFormulario, MisAreas, PersonaContratacion, Punto, Servicio, Tiquete, Turno, TurnosService } from '../../service/turnos.service';
+import { Apoyo, Caso, Clasificacion, Croquis, Franja, LecturaFormulario, MisAreas, PersonaContratacion, Punto, Servicio, Tiquete, Turno, TurnosService } from '../../service/turnos.service';
+import { CierreTurno } from '../cierre-turno/cierre-turno';
+import { CroquisSvg } from '../croquis-svg/croquis-svg';
 import { VistaCaso, VistaCasoService } from '../../service/vista-caso.service';
 import { PermissionsService } from '../../../../../../core/services/permissions.service';
 import { obtenerUsuarioActual } from '../../../../../../core/utils/usuario-actual';
@@ -36,7 +38,7 @@ import { obtenerUsuarioActual } from '../../../../../../core/utils/usuario-actua
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-panel-atencion',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, CierreTurno, CroquisSvg],
   templateUrl: './panel-atencion.html',
   styleUrls: ['../../styles/turnos-comun.css', './panel-atencion.css'],
 })
@@ -77,6 +79,17 @@ export class PanelAtencion implements OnInit {
   /** Atención remota: cuántos esperan en otras oficinas por videollamada (si tengo el permiso). */
   readonly puedeRemoto = signal(false);
   readonly colaRemotaN = signal(0);
+  /** Catálogo de cómo terminó la atención (obligatorio, con nota, para finalizar). */
+  readonly clasificaciones = signal<Clasificacion[]>([]);
+  /** Plano de la oficina para elegir el puesto "donde estoy" señalando el área. */
+  readonly croquis = signal<Croquis | null>(null);
+  readonly mapaAbierto = signal(false);
+  readonly cargandoMapa = signal(false);
+  /** Pedido de apoyo de mi oficina: motivo que se escribe antes de pedirlo. */
+  readonly pidiendoApoyo = signal(false);
+  readonly motivoApoyo = signal('');
+  /** Terminar el turno / soltar el puesto con un turno delante: se confirma en línea (el turno vuelve a la cola). */
+  readonly confirmando = signal<'terminar' | 'soltar' | null>(null);
   readonly transfiriendo = signal(false);
   readonly servicioDestino = signal<string>('');
   readonly cerrandoCon = signal<'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO' | null>(null);
@@ -127,6 +140,13 @@ export class PanelAtencion implements OnInit {
   readonly semaforo = this.ctx.semaforo;
 
   readonly puedeAbrirMas = computed(() => this.casos().length < this.ctx.maxCasos());
+  /** Oficinas pidiendo apoyo hoy: la mía aparte de las demás (las demás se resaltan con animación). */
+  readonly apoyos = computed<Apoyo[]>(() => this.atencion()?.apoyos ?? []);
+  readonly apoyosAjenos = computed(() => this.apoyos().filter(a => a.oficina_id !== this.ctx.oficinaId()));
+  readonly miApoyo = computed(() => this.apoyos().find(a => a.oficina_id === this.ctx.oficinaId()) ?? null);
+  readonly apoyosTexto = computed(() => this.apoyosAjenos().map(a => a.oficina_nombre).join(', '));
+  /** Áreas del plano que son puestos (capacidad > 0): las que se pueden señalar. */
+  readonly areasDelMapa = computed(() => (this.croquis()?.areas ?? []).filter(a => a.activa && (a.capacidad ?? 0) > 0));
 
   /** Los puntos agrupados por área del plano: "Contratación" → sus 4 puestos; manuales aparte. */
   readonly gruposDePuntos = computed(() => {
@@ -377,13 +397,60 @@ export class PanelAtencion implements OnInit {
     });
   }
 
-  terminarTurno(): void {
-    if (this.turno()) { this.error.set('Cierre primero el turno que está atendiendo'); setTimeout(() => this.error.set(null), 3000); return; }
+  /** Con un turno delante se confirma en línea: ese turno vuelve a la cola con prioridad (no queda colgado). */
+  terminarTurno(confirmado = false): void {
+    if (this.turno() && !confirmado) { this.confirmando.set('terminar'); return; }
+    this.confirmando.set(null);
     this.correr(this.api.terminarJornada(), e => {
       this.ctx.aplicarAtencion(e);
       this.aviso.set('Turno terminado');
       const of = this.ctx.oficinaId();
       if (of) this.cargarMisAreas(of);
+    });
+  }
+
+  // ── Plano de la oficina: elegir el puesto señalando el área ──────────────
+
+  abrirMapa(): void {
+    const of = this.ctx.oficinaId();
+    if (!of) return;
+    if (this.mapaAbierto()) { this.mapaAbierto.set(false); return; }
+    this.mapaAbierto.set(true);
+    if (this.croquis()) return;
+    this.cargandoMapa.set(true);
+    this.api.croquis(of).subscribe({
+      next: c => { this.croquis.set(c); this.cargandoMapa.set(false); if (!c) { this.error.set('Esta oficina no tiene plano publicado'); setTimeout(() => this.error.set(null), 3000); } },
+      error: () => { this.cargandoMapa.set(false); this.error.set('No se pudo cargar el plano'); setTimeout(() => this.error.set(null), 3000); },
+    });
+  }
+
+  /** Clic en un área del plano: queda como área elegida y su primer puesto libre como puesto. */
+  elegirEnMapa(e: { tipo: 'area' | 'elemento'; id: string }): void {
+    if (e.tipo !== 'area') return;
+    const area = this.croquis()?.areas.find(a => a.id === e.id);
+    if (!area || (area.capacidad ?? 0) <= 0) { this.aviso.set('Esa área no es un puesto de atención'); setTimeout(() => this.aviso.set(null), 2500); return; }
+    const mia = this.misAreas()?.areas.find(a => a.id === e.id);
+    if (!mia) { this.error.set(`Su rol no atiende en ${area.nombre}`); setTimeout(() => this.error.set(null), 3000); return; }
+    this.alElegirArea(e.id);
+    this.mapaAbierto.set(false);
+    this.aviso.set(`${area.nombre}${this.puntoElegidoInfo() ? ' · puesto ' + this.puntoElegidoInfo()!.nombre : ''}`);
+    setTimeout(() => this.aviso.set(null), 2500);
+  }
+
+  // ── Apoyo entre oficinas ──────────────────────────────────────────────────
+
+  /** Pide (o retira) apoyo a las demás oficinas: se resalta en todos los paneles hasta que se apague o cambie el día. */
+  alternarApoyo(): void {
+    const of = this.ctx.oficinaId();
+    if (!of) return;
+    if (this.miApoyo()) {
+      this.correr(this.api.pedirApoyo(of, false), () => { this.pidiendoApoyo.set(false); this.aviso.set('Pedido de apoyo retirado'); this.ctx.refrescarEstado(); });
+      return;
+    }
+    if (!this.pidiendoApoyo()) { this.pidiendoApoyo.set(true); return; }
+    this.correr(this.api.pedirApoyo(of, true, this.motivoApoyo() || null), () => {
+      this.pidiendoApoyo.set(false); this.motivoApoyo.set('');
+      this.aviso.set('Apoyo pedido: las demás oficinas lo ven resaltado'); this.ctx.refrescarEstado();
     });
   }
 
@@ -558,6 +625,8 @@ export class PanelAtencion implements OnInit {
   // ── Puesto ────────────────────────────────────────────────────────────
 
   private cargarCatalogos(oficinaId: string): void {
+    if (!this.clasificaciones().length) this.api.clasificaciones().subscribe({ next: l => this.clasificaciones.set(l), error: () => {} });
+    this.croquis.set(null);
     this.api.puntos(oficinaId).subscribe({
       next: lista => {
         this.puntos.set(lista.filter(p => p.activo));
@@ -580,7 +649,9 @@ export class PanelAtencion implements OnInit {
     });
   }
 
-  cerrarPuesto(): void {
+  cerrarPuesto(confirmado = false): void {
+    if (this.turno() && !confirmado) { this.confirmando.set('soltar'); return; }
+    this.confirmando.set(null);
     this.correr(this.api.cerrarPuesto(), e => { this.ctx.aplicarAtencion(e); this.aviso.set('Puesto cerrado'); });
   }
 
@@ -604,16 +675,17 @@ export class PanelAtencion implements OnInit {
     this.correr(this.api.iniciar(t.id), r => { this.ctx.aplicarTurno(r); this.ctx.refrescarEstado(); });
   }
 
+  /** Finalizar abre el cierre con clasificación y nota (obligatorias); "no llegó" y "cancelar" piden solo un motivo opcional. */
   pedirCierre(resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO'): void {
-    if (resultado === 'ATENDIDO') { this.cerrar(resultado); return; }
+    if (resultado === 'ATENDIDO' && !this.clasificaciones().length) this.api.clasificaciones().subscribe({ next: l => this.clasificaciones.set(l), error: () => {} });
     this.cerrandoCon.set(resultado);
     this.motivoCierre.set('');
   }
 
-  cerrar(resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO'): void {
+  cerrar(resultado: 'ATENDIDO' | 'NO_SE_PRESENTO' | 'CANCELADO', cierre?: { clasificacion: string; nota: string }): void {
     const t = this.turno();
     if (!t) return;
-    this.correr(this.api.cerrarTurno(t.id, resultado, this.motivoCierre() || null), r => {
+    this.correr(this.api.cerrarTurno(t.id, resultado, this.motivoCierre() || null, cierre?.nota ?? null, cierre?.clasificacion ?? null), r => {
       this.ctx.aplicarTurno(r);
       this.cerrandoCon.set(null);
       this.ctx.refrescarEstado();

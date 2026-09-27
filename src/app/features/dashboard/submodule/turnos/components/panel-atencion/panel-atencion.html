@@ -195,13 +195,42 @@
             @if (!misAreas()?.areas?.length) { <option value="">{{ misAreas() ? 'Su rol no tiene áreas aquí' : 'Cargando áreas…' }}</option> }
             @for (a of misAreas()?.areas ?? []; track a.id) { <option [value]="a.id">{{ a.nombre }}{{ a.piso ? ' · ' + a.piso : '' }}{{ a.por === 'ROL' ? ' (mi rol)' : a.por === 'MIEMBRO' ? ' (miembro)' : '' }}</option> }
           </select>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" [class.tn-boton--activo]="mapaAbierto()" (click)="abrirMapa()" title="Elegir el puesto señalando el área en el plano de la oficina" aria-label="Plano de la oficina"><mat-icon>map</mat-icon></button>
           <select class="puesto-barra__sel puesto-barra__sel--puesto" [ngModel]="puntoElegido()" (ngModelChange)="puntoElegido.set($event)" aria-label="Puesto">
             <option value="">{{ puntosDeArea().length ? 'Sin puesto: apoyo en el área' : 'El área no tiene puestos libres' }}</option>
             @for (p of puntosDeArea(); track p.id) { <option [value]="p.id">{{ p.tipo === 'MOVIL' ? '🚶 ' : '' }}{{ p.nombre }}{{ p.usuario_ref === miId() ? ' · el mío' : '' }}</option> }
           </select>
           <button type="button" class="tn-boton tn-boton--primario" (click)="iniciarTurno()" [disabled]="ocupado() || (!areaElegida() && !puntoElegido())"><mat-icon>play_arrow</mat-icon> {{ jornada() ? 'Cambiar' : 'Iniciar turno' }}</button>
-          @if (jornada()) { <button type="button" class="tn-boton tn-boton--fantasma" (click)="terminarTurno()" [disabled]="ocupado()" title="Terminar mi turno"><mat-icon>logout</mat-icon> Terminar</button> }
+          @if (jornada()) { <button type="button" class="tn-boton tn-boton--fantasma" (click)="terminarTurno()" [disabled]="ocupado()" title="Terminar mi turno (si tiene un turno delante, vuelve a la cola)"><mat-icon>logout</mat-icon> Terminar</button> }
         </div>
+        @if (mapaAbierto()) {
+          <div class="mapa-puesto">
+            <div class="mapa-puesto__cab">
+              <mat-icon>map</mat-icon>
+              <span>Pulse el área donde está: queda como su área y su puesto. Las áreas con puesto se ven resaltadas.</span>
+              <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="mapaAbierto.set(false)" title="Cerrar el plano"><mat-icon>close</mat-icon></button>
+            </div>
+            @if (cargandoMapa()) { <div class="tn-vacio"><mat-icon class="girando">sync</mat-icon> Cargando el plano…</div> }
+            @else if (croquis(); as c) {
+              <div class="mapa-puesto__lienzo">
+                <app-croquis-svg [croquis]="c" [interactivo]="true" [mostrarPuestos]="true" [seleccionId]="areaElegida() || null" [resaltar]="areaElegida() || null" (elegir)="elegirEnMapa($event)" />
+              </div>
+              <div class="mapa-puesto__leyenda">
+                @for (a of areasDelMapa(); track a.id) {
+                  <button type="button" class="tn-chip tn-chip--boton" [class.tn-chip--ok]="a.id === areaElegida()" [style.--c]="a.color || 'var(--brand-blue)'" (click)="elegirEnMapa({ tipo: 'area', id: a.id })" [title]="(a.descripcion || '') + (a.piso ? ' · ' + a.piso : '')">{{ a.nombre }}<span class="muted"> · {{ a.capacidad }}</span></button>
+                }
+              </div>
+            } @else { <div class="tn-vacio"><mat-icon>map</mat-icon> Esta oficina no tiene plano publicado.</div> }
+          </div>
+        }
+        @if (confirmando() === 'terminar') {
+          <div class="tn-aviso tn-aviso--area" role="alertdialog">
+            <mat-icon>undo</mat-icon>
+            <span>Tiene el turno <span class="tn-codigo">{{ turno()?.codigo }}</span> delante: al terminar su turno <b>vuelve a la cola con prioridad</b> para que otro asesor lo atienda y lo cierre.</span>
+            <button type="button" class="tn-boton tn-boton--peligro" (click)="terminarTurno(true)" [disabled]="ocupado()">Sí, terminar</button>
+            <button type="button" class="tn-boton tn-boton--fantasma" (click)="confirmando.set(null)">Volver</button>
+          </div>
+        }
         @if (jornada(); as j) {
           <p class="puesto-barra__ayuda"><mat-icon class="inline">badge</mat-icon> En turno en <b>{{ j.area_nombre || 'la oficina' }}</b> desde las {{ horaDe(j.inicio) }}{{ j.origen === 'HORARIO' ? ' (por horario' + (j.fin_programado ? ', hasta las ' + horaDe(j.fin_programado) : '') + ')' : '' }}. Elija un puesto y pulse Cambiar para llamar desde él.</p>
         } @else if (misAreas()?.horario_vigente; as h) {
@@ -221,9 +250,17 @@
           <span class="puesto-barra__donde"><mat-icon>{{ turno()?.remoto && !atencion()?.punto_id ? 'video_camera_front' : puntoActualInfo()?.tipo === 'MOVIL' ? 'directions_walk' : 'desk' }}</mat-icon> <b>{{ atencion()!.punto_nombre || (turno()?.remoto ? 'Atención remota' : '') }}</b><span class="muted"> · {{ jornada()?.area_nombre || atencion()!.oficina_nombre }}</span>@if (jornada()?.origen === 'HORARIO') { <span class="tn-chip tn-chip--info" [title]="'Por horario' + (jornada()?.fin_programado ? ', hasta las ' + horaDe(jornada()?.fin_programado) : '')"><mat-icon>schedule</mat-icon> {{ horaDe(jornada()?.fin_programado) || 'horario' }}</span> }</span>
           <span class="tn-chip tn-chip--ok" title="Atendidos hoy por mí"><mat-icon>task_alt</mat-icon> {{ atencion()!.atendidos_hoy }}</span>
           <label class="tn-check puesto-barra__auto" title="Llamar el siguiente al finalizar"><input type="checkbox" [checked]="ctx.preferencia()?.auto_llamar" (change)="alternarAutoLlamar()"> Auto</label>
-          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cerrarPuesto()" title="Soltar el puesto (sigo en turno en el área)" [disabled]="!!turno()"><mat-icon>desk</mat-icon></button>
-          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="terminarTurno()" title="Terminar mi turno" [disabled]="!!turno()"><mat-icon>logout</mat-icon></button>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="cerrarPuesto()" [title]="turno() ? 'Soltar el puesto: el turno de enfrente vuelve a la cola con prioridad' : 'Soltar el puesto (sigo en turno en el área)'" [disabled]="ocupado()"><mat-icon>desk</mat-icon></button>
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="terminarTurno()" [title]="turno() ? 'Terminar mi turno: el turno de enfrente vuelve a la cola con prioridad' : 'Terminar mi turno'" [disabled]="ocupado()"><mat-icon>logout</mat-icon></button>
         </div>
+        @if (confirmando(); as que) {
+          <div class="tn-aviso tn-aviso--area" role="alertdialog">
+            <mat-icon>undo</mat-icon>
+            <span>Tiene el turno <span class="tn-codigo">{{ turno()?.codigo }}</span> delante: al {{ que === 'terminar' ? 'terminar su turno' : 'soltar el puesto' }} <b>vuelve a la cola con prioridad</b> para que otro asesor lo atienda y lo cierre con su clasificación y nota.</span>
+            <button type="button" class="tn-boton tn-boton--peligro" (click)="que === 'terminar' ? terminarTurno(true) : cerrarPuesto(true)" [disabled]="ocupado()">Sí, {{ que === 'terminar' ? 'terminar' : 'soltar' }}</button>
+            <button type="button" class="tn-boton tn-boton--fantasma" (click)="confirmando.set(null)">Volver</button>
+          </div>
+        }
 
         @if (turno(); as t) {
           <div class="turno-actual" [class.turno-actual--llamado]="t.estado === 'LLAMADO'" [class.turno-actual--atencion]="t.estado === 'EN_ATENCION'">
@@ -237,6 +274,7 @@
               @if (t.documento) { <span class="turno-actual__doc">CC {{ t.documento }}</span> }
               @if (t.empresa_usuaria_nombre) { <span class="turno-actual__doc">{{ t.empresa_usuaria_nombre }}</span> }
               @if (t.llamadas > 1) { <span class="tn-chip tn-chip--warn">Llamado {{ t.llamadas }} veces</span> }
+              @if (t.devoluciones) { <span class="tn-chip tn-chip--warn" [title]="t.devuelto_motivo || 'Volvió a la cola sin cerrarse'"><mat-icon>undo</mat-icon> Volvió a la cola{{ t.devoluciones > 1 ? ' ×' + t.devoluciones : '' }}</span> }
               @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad }}</span> }
               @if (t.escalado_motivo) { <span class="tn-chip tn-chip--warn" [title]="t.escalado_motivo"><mat-icon>support_agent</mat-icon> Escalado al jefe</span> }
               @if (t.remoto) { <button type="button" class="tn-chip tn-chip--info tn-chip--boton" (click)="irARemoto()" title="Abrir la videollamada en Atención remota"><mat-icon>video_camera_front</mat-icon> Videollamada{{ t.atendido_desde_oficina_nombre ? ' desde ' + t.atendido_desde_oficina_nombre : '' }}</button> }
@@ -246,7 +284,10 @@
               }
             </div>
 
-            @if (cerrandoCon(); as motivoDe) {
+            @if (cerrandoCon() === 'ATENDIDO') {
+              <app-cierre-turno class="cierre-clasificado" [clasificaciones]="clasificaciones()" [codigo]="t.codigo" [ocupado]="ocupado()"
+                                (confirmar$)="cerrar('ATENDIDO', $event)" (cancelar)="cerrandoCon.set(null)" />
+            } @else if (cerrandoCon(); as motivoDe) {
               <div class="cierre">
                 <input type="text" [ngModel]="motivoCierre()" (ngModelChange)="motivoCierre.set($event)" [placeholder]="motivoDe === 'NO_SE_PRESENTO' ? 'Motivo (opcional): no respondió a tres llamados' : 'Motivo de la cancelación (opcional)'" (keydown.enter)="cerrar(motivoDe)">
                 <button type="button" class="tn-boton tn-boton--peligro" (click)="cerrar(motivoDe)">Confirmar</button>
@@ -302,13 +343,54 @@
     <!-- ══════════ DERECHA: personas por atender ══════════ -->
     <div class="mitad mitad--cola">
       <div class="cola__cab">
-        <h3><mat-icon>groups</mat-icon> Por atender <span class="cola__n" [class.cola__n--warn]="semaforo() === 'amarillo'" [class.cola__n--danger]="semaforo() === 'rojo'">{{ enEspera().length }}</span></h3>
+        <h3><mat-icon>groups</mat-icon> Por atender <span class="cola__n" [class.cola__n--warn]="semaforo() === 'amarillo'" [class.cola__n--danger]="semaforo() === 'rojo'">{{ enEspera().length }}</span>
+          <span class="cola__oficina" title="Oficina activa"><mat-icon>apartment</mat-icon> {{ atencion()?.oficina_nombre || ctx.oficina()?.nombre || 'Sin oficina' }}</span>
+        </h3>
         <div class="cola__kpis">
-          @if (atencion()?.espera_max_seg) { <span class="tn-chip" [class.tn-chip--warn]="(atencion()!.espera_max_seg || 0) >= 300" [class.tn-chip--danger]="(atencion()!.espera_max_seg || 0) >= 900" title="La persona que más lleva esperando"><mat-icon>hourglass_top</mat-icon> máx. {{ esperaMaxima() }}</span> }
-          @if (enCurso().length) { <span class="tn-chip tn-chip--info" title="Siendo atendidos ahora"><mat-icon>desk</mat-icon> {{ enCurso().length }} en atención</span> }
-          @if (cola(); as c) { <span class="tn-chip" title="Puestos abiertos en la oficina"><mat-icon>badge</mat-icon> {{ c.puestos_abiertos }} puestos</span> }
+          <span class="tn-chip" [class.tn-chip--warn]="semaforo() === 'amarillo'" [class.tn-chip--danger]="semaforo() === 'rojo'" title="Personas pendientes por atender"><mat-icon>hourglass_top</mat-icon> {{ enEspera().length }} pendientes</span>
+          <span class="tn-chip tn-chip--info" title="Personas siendo atendidas ahora"><mat-icon>person_check</mat-icon> {{ atencion()?.en_atencion ?? enCurso().length }} en atención</span>
+          <span class="tn-chip" title="Asesores en turno en la oficina"><mat-icon>badge</mat-icon> {{ atencion()?.asesores_en_turno ?? 0 }} atendiendo</span>
+          @if (cola(); as c) { <span class="tn-chip" title="Puestos abiertos en la oficina"><mat-icon>desk</mat-icon> {{ c.puestos_abiertos }} puestos</span> }
+          @if (puedeRemoto()) { <span class="tn-chip tn-chip--violet" title="Personas esperando por videollamada en otras oficinas"><mat-icon>video_camera_front</mat-icon> {{ atencion()?.cola_remota ?? colaRemotaN() }} virtuales</span> }
+          @if (atencion()?.espera_max_seg) { <span class="tn-chip" [class.tn-chip--warn]="(atencion()!.espera_max_seg || 0) >= 300" [class.tn-chip--danger]="(atencion()!.espera_max_seg || 0) >= 900" title="La persona que más lleva esperando"><mat-icon>schedule</mat-icon> máx. {{ esperaMaxima() }}</span> }
+          @if (ctx.oficinaId()) {
+            <button type="button" class="tn-chip tn-chip--boton" [class.tn-chip--danger]="miApoyo()" (click)="alternarApoyo()" [title]="miApoyo() ? 'Esta oficina está pidiendo apoyo: pulse para retirarlo' : 'Pedir apoyo a las demás oficinas (se apaga solo al final del día)'">
+              <mat-icon>{{ miApoyo() ? 'notifications_off' : 'campaign' }}</mat-icon> {{ miApoyo() ? 'Retirar apoyo' : 'Pedir apoyo' }}
+            </button>
+          }
         </div>
       </div>
+      @if (pidiendoApoyo() && !miApoyo()) {
+        <div class="cierre apoyo-form">
+          <input type="text" [ngModel]="motivoApoyo()" (ngModelChange)="motivoApoyo.set($event)" placeholder="Motivo (opcional): mucha gente, un solo asesor…" (keydown.enter)="alternarApoyo()" maxlength="200">
+          <button type="button" class="tn-boton tn-boton--peligro" (click)="alternarApoyo()" [disabled]="ocupado()"><mat-icon>campaign</mat-icon> Pedir apoyo</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="pidiendoApoyo.set(false)">Volver</button>
+        </div>
+      }
+      @if (apoyosAjenos().length) {
+        <div class="apoyo-aviso" role="status" [title]="apoyosAjenos()[0].por ? 'Lo pidió ' + apoyosAjenos()[0].por : ''">
+          <mat-icon class="apoyo-aviso__icono">emergency_share</mat-icon>
+          <span class="apoyo-aviso__texto">
+            <b>{{ apoyosTexto() }}</b> {{ apoyosAjenos().length === 1 ? 'pide apoyo' : 'piden apoyo' }}@if (apoyosAjenos()[0].motivo) { : {{ apoyosAjenos()[0].motivo }} } ·
+            {{ apoyosAjenos()[0].en_espera }} esperando allá desde las {{ horaDe(apoyosAjenos()[0].desde) }}
+          </span>
+          @if (puedeRemoto()) { <button type="button" class="tn-boton tn-boton--primario" (click)="irARemoto()"><mat-icon>video_camera_front</mat-icon> Atender por videollamada</button> }
+        </div>
+      }
+      @if (miApoyo(); as a) {
+        <div class="apoyo-aviso apoyo-aviso--mio" role="status">
+          <mat-icon>campaign</mat-icon>
+          <span class="apoyo-aviso__texto">Esta oficina pidió apoyo a las {{ horaDe(a.desde) }}{{ a.motivo ? ': ' + a.motivo : '' }}{{ a.por ? ' (' + a.por + ')' : '' }} · se apaga sola al final del día.</span>
+        </div>
+      }
+      @if (ctx.avisoDevuelto(); as d) {
+        <div class="tn-aviso tn-aviso--area" role="status">
+          <mat-icon>undo</mat-icon>
+          <span><span class="tn-codigo">{{ d.codigo }}</span> {{ d.nombre || '' }} volvió a la cola con prioridad: {{ d.devuelto_motivo || 'su asesor terminó el turno' }}.</span>
+          @if (puedoLlamar()) { <button type="button" class="tn-boton tn-boton--primario" (click)="llamarEste(d); ctx.avisoDevuelto.set(null)"><mat-icon>campaign</mat-icon> Llamar</button> }
+          <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="ctx.avisoDevuelto.set(null)" title="Cerrar"><mat-icon>close</mat-icon></button>
+        </div>
+      }
 
       @if (!enEspera().length) {
         <div class="tn-vacio cola__vacio"><mat-icon>hourglass_empty</mat-icon><span>Nadie esperando en {{ atencion()?.oficina_nombre || ctx.oficina()?.nombre || 'la oficina' }}.</span></div>
@@ -329,7 +411,8 @@
                 @if (t.prioridad !== 'NORMAL') { <span class="tn-chip tn-chip--violet">{{ t.prioridad === 'CITA' ? (t.agendado_para ? 'Cita ' + horaDe(t.agendado_para) : 'Cita') : 'Preferencial' }}</span> }
                 @if (t.formulario_estado && t.formulario_estado !== 'NO_APLICA' && t.formulario_estado !== 'DESCONOCIDO') { <span [class]="'tn-chip ' + claseFormulario(t.formulario_estado, t.formulario_listo)" [title]="t.formulario_etiqueta"><mat-icon>assignment</mat-icon> {{ t.formulario_listo ? 'Form. OK' : (t.formulario_estado === 'PARCIAL' ? 'Form. a medias' : 'Sin formulario') }}</span> }
                 @if (t.escalado_en) { <span class="tn-chip tn-chip--warn" [title]="t.escalado_motivo || 'Nadie disponible: a cargo del jefe'"><mat-icon>support_agent</mat-icon> Jefe</span> }
-                @if (t.llamadas > 0) { <span class="tn-chip tn-chip--warn" title="Ya fue llamado y volvió a la cola">↩ {{ t.llamadas }}</span> }
+                @if (t.devoluciones) { <span class="tn-chip tn-chip--warn" [title]="t.devuelto_motivo || 'Volvió a la cola sin cerrarse'"><mat-icon>undo</mat-icon> volvió{{ t.devoluciones > 1 ? ' ×' + t.devoluciones : '' }}</span> }
+                @else if (t.llamadas > 0) { <span class="tn-chip tn-chip--warn" title="Ya fue llamado y volvió a la cola">↩ {{ t.llamadas }}</span> }
                 <mat-icon class="fila__canal" [title]="'Canal: ' + t.canal">{{ iconoCanal(t.canal) }}</mat-icon>
               </span>
               <span class="fila__espera" [attr.data-nivel]="nivelEspera(t)" title="Tiempo esperando"><mat-icon>schedule</mat-icon> {{ esperaTexto(t) }}</span>

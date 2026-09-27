@@ -64,7 +64,10 @@
             <span class="tn-chip" [class.tn-chip--warn]="t.estado === 'LLAMADO'" [class.tn-chip--ok]="t.estado === 'EN_ATENCION'"><mat-icon>{{ t.estado === 'LLAMADO' ? 'ring_volume' : 'videocam' }}</mat-icon> {{ estadoTexto(t) }} · {{ tiempoTurno(t) }}</span>
             <span class="tn-chip tn-chip--info" title="Se registra como atención remota"><mat-icon>video_camera_front</mat-icon> Remoto{{ t.atendido_desde_oficina_nombre ? ' desde ' + t.atendido_desde_oficina_nombre : '' }}</span>
           </div>
-          @if (cerrandoCon(); as motivoDe) {
+          @if (cerrandoCon() === 'ATENDIDO') {
+            <app-cierre-turno [clasificaciones]="clasificaciones()" [codigo]="t.codigo" [ocupado]="ocupado()" [notaInicial]="resumenParaNota()"
+                              (confirmar$)="finalizar('ATENDIDO', $event)" (cancelar)="cerrandoCon.set(null)" />
+          } @else if (cerrandoCon(); as motivoDe) {
             <div class="cabecera__cierre">
               <input type="text" [(ngModel)]="motivoCierre" name="motivo" [placeholder]="motivoDe === 'NO_SE_PRESENTO' ? 'Motivo (opcional): no se conectó a la videollamada' : 'Motivo de la cancelación (opcional)'">
               <button type="button" class="tn-boton tn-boton--peligro" (click)="finalizar(motivoDe)" [disabled]="ocupado()">Confirmar</button>

@@ -94,6 +94,67 @@
   <!-- Catálogo global: los procesos predeterminados que se cargan en cada oficina -->
   <div class="tn-tarjeta catalogo">
     <h3>
+      <mat-icon>fact_check</mat-icon> Clasificaciones de cierre
+      <span class="muted">cómo terminó la atención · {{ clasificaciones().length }}</span>
+      <span class="espacio"></span>
+      @if (ctx.esAdmin()) { <button type="button" class="tn-boton" (click)="nuevaClasif()"><mat-icon>add</mat-icon> Nueva clasificación</button> }
+      <button type="button" class="tn-boton tn-boton--fantasma" (click)="verClasificaciones.set(!verClasificaciones())"><mat-icon>{{ verClasificaciones() ? 'expand_less' : 'expand_more' }}</mat-icon> {{ verClasificaciones() ? 'Ocultar' : 'Ver' }}</button>
+    </h3>
+    <p class="tn-subtitulo">Para finalizar un turno el asesor elige una de estas y deja una nota; así queda claro cómo terminó cada atención. Vale para todas las oficinas.</p>
+
+    @if (formClasifAbierto()) {
+      <form class="tn-form catalogo__form" (ngSubmit)="guardarClasif()">
+        <label class="tn-campo"><span>Nombre</span><input name="cnombre" [(ngModel)]="clasif.nombre" required placeholder="Requiere seguimiento"></label>
+        <label class="tn-campo"><span>Clave (opcional)</span><input name="cclave" [(ngModel)]="clasif.clave" [disabled]="!!editandoClasif()" placeholder="Se arma sola del nombre"></label>
+        <label class="tn-campo tn-campo--ancho"><span>Descripción (lo que ve el asesor al elegirla)</span><input name="cdesc" [(ngModel)]="clasif.descripcion" maxlength="300"></label>
+        <label class="tn-campo"><span>Orden</span><input name="corden" type="number" [(ngModel)]="clasif.orden"></label>
+        <div class="tn-campo"><span class="eti">Color</span>
+          <div class="colores">@for (c of COLORES; track c) { <button type="button" class="color" [style.background]="c" [class.color--on]="clasif.color === c" (click)="clasif.color = c" [attr.aria-label]="c"></button> }</div>
+        </div>
+        <div class="tn-campo"><span class="eti">Icono</span>
+          <div class="iconos">@for (i of ICONOS; track i) { <button type="button" class="icono" [class.icono--on]="clasif.icono === i" (click)="clasif.icono = i"><mat-icon>{{ i }}</mat-icon></button> }</div>
+        </div>
+        <label class="tn-check"><input type="checkbox" name="cactivo" [(ngModel)]="clasif.activo"> Activa (se puede elegir al finalizar)</label>
+        <div class="tn-acciones tn-campo--ancho">
+          <button type="submit" class="tn-boton tn-boton--primario" [disabled]="ocupado() || !clasif.nombre"><mat-icon>save</mat-icon> Guardar</button>
+          <button type="button" class="tn-boton tn-boton--fantasma" (click)="formClasifAbierto.set(false)">Cancelar</button>
+        </div>
+      </form>
+    }
+
+    @if (verClasificaciones()) {
+      @if (!clasificaciones().length) {
+        <div class="tn-vacio"><mat-icon>playlist_remove</mat-icon><span>No hay clasificaciones: sin ellas nadie puede finalizar un turno.</span></div>
+      } @else {
+        <div class="tn-tabla-marco">
+          <table class="tn-tabla">
+            <thead><tr><th></th><th>Clasificación</th><th>Clave</th><th class="numero">Orden</th><th>Estado</th><th class="acciones"></th></tr></thead>
+            <tbody>
+              @for (c of clasificaciones(); track c.id) {
+                <tr [class.inactivo]="!c.activo">
+                  <td><span class="prefijo tn-codigo" [style.background]="c.color || '#2B59F0'"><mat-icon>{{ c.icono || 'task_alt' }}</mat-icon></span></td>
+                  <td><strong>{{ c.nombre }}</strong>@if (c.descripcion) { <div class="desc">{{ c.descripcion }}</div> }</td>
+                  <td><code>{{ c.clave }}</code></td>
+                  <td class="numero">{{ c.orden }}</td>
+                  <td>{{ c.activo ? 'Activa' : 'Desactivada' }}</td>
+                  <td class="acciones">
+                    @if (ctx.esAdmin()) {
+                      <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="editarClasif(c)" title="Editar"><mat-icon>edit</mat-icon></button>
+                      @if (c.activo) { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="desactivarClasif(c)" title="Desactivar"><mat-icon>visibility_off</mat-icon></button> }
+                      @else { <button type="button" class="tn-boton tn-boton--fantasma tn-boton--icono" (click)="reactivarClasif(c)" title="Reactivar"><mat-icon>visibility</mat-icon></button> }
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </div>
+
+  <div class="tn-tarjeta catalogo">
+    <h3>
       <mat-icon>playlist_add_check</mat-icon> Procesos predeterminados
       <span class="muted">catálogo para todas las oficinas · {{ plantillas().length }}</span>
       <span class="espacio"></span>

@@ -64,6 +64,10 @@ export class ContextoTurnosService {
   readonly avisoArea = signal<Turno | null>(null);
   /** Último turno que nadie podía atender y quedó a mi cargo (soy el jefe de la oficina): evento turno-escalado. */
   readonly avisoEscalado = signal<Turno | null>(null);
+  /** Última oficina que pidió apoyo (evento oficina-apoyo): se anuncia; la lista completa viene en atencion().apoyos. */
+  readonly avisoApoyo = signal<{ oficina_id: string; oficina_nombre: string; activo: boolean; motivo: string | null; por: string | null } | null>(null);
+  /** Turno que volvió a la cola sin cerrarse (su asesor terminó el turno): evento turno-devuelto. */
+  readonly avisoDevuelto = signal<Turno | null>(null);
   /** Señales WebRTC de la persona en videollamada (evento video-senal del canal mío): las consume Atención remota. */
   readonly videoSenal$ = new Subject<SenalVideo>();
 
@@ -308,6 +312,13 @@ export class ContextoTurnosService {
           this.programarRefresco();
           return;
         }
+        if (nombre === 'turno-devuelto') {
+          // Volvió a la cola sin cerrarse (su asesor terminó el turno): se anuncia y se refresca.
+          this.avisoDevuelto.set(datos as Turno);
+          this.aplicarTurno(datos as Turno);
+          this.programarRefresco();
+          return;
+        }
         if (nombre === 'turno-area') {
           // Entró un turno para el área en la que estoy en turno: se anuncia y se refresca la lista.
           this.avisoArea.set(datos as Turno);
@@ -338,7 +349,18 @@ export class ContextoTurnosService {
     if (!token) return;
     this.canalOficina = conectarSse(this.api.urlEventosOficina(oficinaId), {
       token,
-      onEvento: nombre => { if (nombre.startsWith('turno-') || nombre.startsWith('puesto-') || nombre.startsWith('jornada-')) this.programarRefresco(); },
+      onEvento: (nombre, datos) => {
+        if (nombre === 'oficina-apoyo') {
+          // Una oficina pide (o retira) apoyo: llega a TODAS las oficinas; el estado trae la lista completa.
+          const a = datos as { oficina_id: string; oficina_nombre: string; activo: boolean; motivo: string | null; por: string | null };
+          this.avisoApoyo.set(a);
+          if (a.activo && a.oficina_id !== this.oficinaId()) this.sonarAviso();
+          this.programarRefresco();
+          return;
+        }
+        if (nombre === 'turno-devuelto') this.avisoDevuelto.set(datos as Turno);
+        if (nombre.startsWith('turno-') || nombre.startsWith('puesto-') || nombre.startsWith('jornada-')) this.programarRefresco();
+      },
     });
   }
 

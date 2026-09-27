@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { SelectorOficina } from '../../components/selector-oficina/selector-oficina';
 import { ContextoTurnosService } from '../../service/contexto-turnos.service';
-import { Area, Servicio, ServicioIn, ServicioPlantilla, ServicioPlantillaIn, TurnosService } from '../../service/turnos.service';
+import { Area, Clasificacion, ClasificacionIn, Servicio, ServicioIn, ServicioPlantilla, ServicioPlantillaIn, TurnosService } from '../../service/turnos.service';
 
 /** Los trámites que reparten turnos en la oficina elegida. */
 @Component({
@@ -36,6 +36,13 @@ export class Servicios implements OnInit {
   readonly editandoPlantilla = signal<string | null>(null);
   readonly cargandoPredeterminados = signal(false);
   plantilla: ServicioPlantillaIn = this.plantillaVacia();
+
+  /** Clasificaciones de cierre: cómo terminó la atención (obligatoria, con nota, al finalizar un turno). */
+  readonly clasificaciones = signal<Clasificacion[]>([]);
+  readonly verClasificaciones = signal(false);
+  readonly formClasifAbierto = signal(false);
+  readonly editandoClasif = signal<string | null>(null);
+  clasif: ClasificacionIn = this.clasifVacia();
   readonly COLORES = ['#2B59F0', '#4E8A12', '#6D28D9', '#B45309', '#0369A1', '#B91C1C', '#0F766E', '#BE185D'];
   readonly ICONOS = ['description', 'badge', 'payments', 'work', 'medical_services', 'school', 'account_balance', 'support_agent', 'assignment', 'verified'];
 
@@ -46,7 +53,7 @@ export class Servicios implements OnInit {
     });
   }
 
-  ngOnInit(): void { this.ctx.cargar(); this.cargarPlantillas(); }
+  ngOnInit(): void { this.ctx.cargar(); this.cargarPlantillas(); this.cargarClasificaciones(); }
 
   // ── Procesos predeterminados ──
 
@@ -94,6 +101,37 @@ export class Servicios implements OnInit {
   eliminarPlantilla(p: ServicioPlantilla): void {
     if (!confirm(`¿Quitar "${p.nombre}" del catálogo de predeterminados? Las oficinas que ya lo cargaron lo conservan.`)) return;
     this.api.eliminarPlantillaServicio(p.id).subscribe({ next: () => this.cargarPlantillas(), error: () => {} });
+  }
+
+  // ── Clasificaciones de cierre ──
+  private cargarClasificaciones(): void {
+    this.api.clasificaciones(true).subscribe({ next: c => this.clasificaciones.set(c), error: () => this.clasificaciones.set([]) });
+  }
+  nuevaClasif(): void { this.clasif = this.clasifVacia(); this.editandoClasif.set(null); this.formClasifAbierto.set(true); this.verClasificaciones.set(true); }
+  editarClasif(c: Clasificacion): void {
+    this.clasif = { clave: c.clave, nombre: c.nombre, descripcion: c.descripcion, color: c.color, icono: c.icono, orden: c.orden, activo: c.activo };
+    this.editandoClasif.set(c.id);
+    this.formClasifAbierto.set(true);
+  }
+  guardarClasif(): void {
+    const f: ClasificacionIn = { ...this.clasif, nombre: this.clasif.nombre.trim() };
+    const id = this.editandoClasif();
+    if (!f.nombre) return;
+    this.ocupado.set(true);
+    (id ? this.api.actualizarClasificacion(id, f) : this.api.crearClasificacion(f)).subscribe({
+      next: () => { this.ocupado.set(false); this.formClasifAbierto.set(false); this.aviso.set(id ? 'Clasificación actualizada' : 'Clasificación creada'); this.cargarClasificaciones(); setTimeout(() => this.aviso.set(null), 2500); },
+      error: e => { this.ocupado.set(false); this.error.set(e?.error?.message || e?.error?.error || 'No se pudo guardar'); setTimeout(() => this.error.set(null), 3500); },
+    });
+  }
+  /** Desactivar, no borrar: los turnos ya cerrados con ella conservan el nombre. */
+  desactivarClasif(c: Clasificacion): void {
+    this.api.desactivarClasificacion(c.id).subscribe({ next: () => this.cargarClasificaciones(), error: () => {} });
+  }
+  reactivarClasif(c: Clasificacion): void {
+    this.api.actualizarClasificacion(c.id, { nombre: c.nombre, descripcion: c.descripcion, color: c.color, icono: c.icono, orden: c.orden, activo: true }).subscribe({ next: () => this.cargarClasificaciones(), error: () => {} });
+  }
+  private clasifVacia(): ClasificacionIn {
+    return { clave: '', nombre: '', descripcion: '', color: '#2B59F0', icono: 'task_alt', orden: this.clasificaciones().length + 1, activo: true };
   }
 
   private plantillaVacia(): ServicioPlantillaIn {
