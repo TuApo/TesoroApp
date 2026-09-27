@@ -372,3 +372,25 @@
 .panel--colapsador:not(.panel--abierto):not(.panel--activo) .pestanas:hover,
 .panel--colapsador:not(.panel--abierto):not(.panel--activo) .pestanas:focus-within { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .panel--colapsador .pestanas { transition: none; } }
+
+/* ── Pestañas mínimas (como el dock del chat): en reposo la de Turnos es solo el punto,
+   el nombre y la flecha; el resumen y los chips salen al pasar el ratón, abierta o con
+   actividad. El "+" es un cuadrito. ── */
+.panel--colapsador .pestanas { min-height: 22px; padding: 0 8px; gap: 4px; }
+.panel--colapsador .pestana { height: 22px; padding: 0 7px; font-size: 10.5px; gap: 4px; border-radius: 0 0 9px 9px; }
+.panel--colapsador .pestana--turnos { max-width: min(50vw, 420px); }
+.panel--colapsador .pestana__titulo { font-size: 9px; }
+.panel--colapsador .pestana__icono { display: none; }
+.panel--colapsador .pestana__resumen, .panel--colapsador .pestana__chip { display: none; }
+.panel--colapsador.panel--abierto .pestana__resumen, .panel--colapsador.panel--activo .pestana__resumen,
+.panel--colapsador .pestana--turnos:hover .pestana__resumen,
+.panel--colapsador.panel--abierto .pestana__chip, .panel--colapsador.panel--activo .pestana__chip,
+.panel--colapsador .pestana--turnos:hover .pestana__chip { display: inline-flex; }
+.panel--colapsador .pestana__resumen { max-width: 240px; white-space: nowrap; }
+.panel--colapsador .pestana__chevron { font-size: 14px; width: 14px; height: 14px; margin-left: -3px; }
+.panel--colapsador .pestana--caso { height: 22px; max-width: 150px; padding-right: 3px; }
+.panel--colapsador .pestana__nombre { font-size: 10.5px; }
+.panel--colapsador .pestana__tiempo { display: none; }
+.panel--colapsador .pestana--caso:hover .pestana__tiempo, .panel--colapsador .pestana--activa .pestana__tiempo { display: inline; }
+.panel--colapsador .pestana--mas { width: 22px; height: 22px; padding: 0; justify-content: center; }
+.panel--colapsador .pestana--mas mat-icon { font-size: 14px; width: 14px; height: 14px; }
