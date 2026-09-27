@@ -346,3 +346,29 @@
 .mapa-puesto__leyenda .tn-chip { border: 1px solid color-mix(in srgb, var(--c) 45%, var(--border)); background: color-mix(in srgb, var(--c) 8%, var(--surface)); }
 .tn-boton--activo { background: var(--blue-soft); color: var(--brand-blue-strong); }
 .cierre-clasificado { display: block; margin-top: 10px; }
+
+/* ── Colgante: cuelga de la barra superior SIN ocupar la línea (como el dock del chat).
+   El host mide 0; el panel flota sobre la página, la fila de pestañas es pequeña y se
+   atenúa cuando está cerrada y no hay nada en curso; al pasar el ratón vuelve. ── */
+:host.tn-colapsador { position: relative; height: 0; z-index: 105; }
+.panel--colapsador { position: absolute; top: 0; left: 0; right: 0; pointer-events: none; }
+.panel--colapsador .cuerpo-marco, .panel--colapsador .pestana, .panel--colapsador .menu-caso, .panel--colapsador .progreso { pointer-events: auto; }
+.panel--colapsador.panel--abierto .cuerpo-marco { box-shadow: 0 22px 44px -18px rgba(15, 23, 42, .5); }
+.panel--colapsador .pestanas { min-height: 24px; padding: 0 10px; transition: opacity .2s ease; }
+.panel--colapsador .pestana { height: 24px; padding: 0 8px; font-size: 11px; gap: 5px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 10px -7px rgba(15, 23, 42, .4); }
+.panel--colapsador .pestana__titulo { font-size: 9.5px; letter-spacing: .05em; }
+.panel--colapsador .pestana__icono, .panel--colapsador .pestana__red, .panel--colapsador .pestana__web { font-size: 14px; width: 14px; height: 14px; }
+.panel--colapsador .pestana__luz { width: 8px; height: 8px; box-shadow: 0 0 0 2px color-mix(in srgb, var(--luz) 25%, transparent); }
+.panel--colapsador .pestana__chip { font-size: 10px; padding: 0 6px; }
+.panel--colapsador .pestana__chip .tn-codigo { font-size: 10px; }
+.panel--colapsador .pestana__chevron { font-size: 16px; width: 16px; height: 16px; }
+.panel--colapsador .pestana--caso { max-width: 180px; }
+.panel--colapsador .pestana__tiempo { font-size: 10px; }
+.panel--colapsador .pestana__menu { width: 16px; height: 16px; }
+.panel--colapsador .pestana__menu mat-icon { font-size: 14px; width: 14px; height: 14px; }
+.panel--colapsador .pestana--mas { padding: 0 6px; }
+.panel--colapsador .pestana--mas mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.panel--colapsador:not(.panel--abierto):not(.panel--activo) .pestanas { opacity: .42; }
+.panel--colapsador:not(.panel--abierto):not(.panel--activo) .pestanas:hover,
+.panel--colapsador:not(.panel--abierto):not(.panel--activo) .pestanas:focus-within { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .panel--colapsador .pestanas { transition: none; } }

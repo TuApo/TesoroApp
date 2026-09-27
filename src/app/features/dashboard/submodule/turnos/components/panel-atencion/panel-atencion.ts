@@ -37,6 +37,8 @@ import { obtenerUsuarioActual } from '../../../../../../core/utils/usuario-actua
  */
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Colgante: el host no ocupa altura (el panel flota sobre la página, como el dock del chat).
+  host: { '[class.tn-colapsador]': "modo() === 'colapsador'" },
   selector: 'app-panel-atencion',
   imports: [CommonModule, FormsModule, MatIconModule, CierreTurno, CroquisSvg],
   templateUrl: './panel-atencion.html',
@@ -140,6 +142,10 @@ export class PanelAtencion implements OnInit {
   readonly semaforo = this.ctx.semaforo;
 
   readonly puedeAbrirMas = computed(() => this.casos().length < this.ctx.maxCasos());
+  /** ¿Hay algo en curso o pendiente? Si no, la pestaña cerrada se atenúa para no estorbar en la página. */
+  readonly activo = computed(() => !!this.turno() || this.semaforo() === 'amarillo' || this.semaforo() === 'rojo'
+    || !!this.ctx.avisoArea() || !!this.ctx.avisoEscalado() || !!this.ctx.avisoDevuelto() || this.apoyosAjenos().length > 0
+    || !!this.casoRestaurando());
   /** Oficinas pidiendo apoyo hoy: la mía aparte de las demás (las demás se resaltan con animación). */
   readonly apoyos = computed<Apoyo[]>(() => this.atencion()?.apoyos ?? []);
   readonly apoyosAjenos = computed(() => this.apoyos().filter(a => a.oficina_id !== this.ctx.oficinaId()));
