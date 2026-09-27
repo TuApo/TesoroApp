@@ -70,6 +70,15 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
    * dispositivo: sobrevive al logout (ver safe-storage).
    */
   public expandido = true;
+  /**
+   * Escritorio: menú OCULTO del todo (ni el carril de iconos) para que el área de
+   * trabajo ocupe toda la pantalla. Una pestaña en el borde izquierdo lo despliega
+   * SOBRE el contenido (no lo corre) y pulsar fuera, Escape o navegar lo esconde
+   * de nuevo. Es lo predeterminado; "Fijar menú" lo ancla a la izquierda como antes.
+   */
+  public oculto = true;
+  /** Con el menú oculto: desplegado ahora mismo sobre el contenido. */
+  public desplegado = false;
   /** Grupo desplegado en el menú expandido (acordeón: uno a la vez). */
   public grupoAbierto: string | null = null;
   public pinOpen = false;
@@ -338,10 +347,14 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
   private loadUIState(): void {
     this.isSidebarHidden = this.lsGet('sidebarHidden') === 'true';
     this.pinOpen = this.lsGet('sidebarPin') === 'true';
-    this.expandido = this.lsGet(NavbarComponent.CLAVE_MENU) !== 'compacto';
+    const menu = this.lsGet(NavbarComponent.CLAVE_MENU);
+    // Oculto salvo que esta persona lo haya fijado (expandido o compacto).
+    this.oculto = menu !== 'expandido' && menu !== 'compacto';
+    this.expandido = menu !== 'compacto';
   }
 
-  static readonly CLAVE_MENU = 'tuapo.ui.menu';
+  /** v2: el valor 'oculto' (o ninguno) esconde el menú; antes solo había expandido/compacto. */
+  static readonly CLAVE_MENU = 'tuapo.ui.menu.v2';
 
   /** Nombres cortados que se están desplazando, con su animación. */
   private marquesinas = new Map<HTMLElement, Animation>();
@@ -350,7 +363,7 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
 
   /** Menú en modo lista: escritorio y expandido. */
   get modoLista(): boolean {
-    return this.expandido && !this.isMobile;
+    return !this.isMobile && (this.oculto ? this.desplegado : this.expandido);
   }
 
   /**
@@ -359,12 +372,13 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
    */
   @HostListener('document:pointerdown', ['$event'])
   public alPulsarFuera(evento: Event): void {
-    if (!this.expandido || this.isMobile || !this.isBrowser) return;
+    if (this.isMobile || !this.isBrowser) return;
+    if (!(this.oculto ? this.desplegado : this.expandido)) return;
     const destino = evento.target as Node | null;
     if (!destino || !destino.isConnected) return;
     const menu = document.getElementById('app-sidebar');
     if (!menu || menu.contains(destino)) return;
-    this.contraer();
+    if (this.oculto) this.replegarMenu(); else this.contraer();
   }
 
   private contraer(): void {
@@ -389,11 +403,58 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  /** El contenido se corre lo que mide el menú: se publica como variable CSS. */
+  // ===== menú oculto con pestaña =====
+  /** Pestaña del borde izquierdo: muestra el menú (como lista) sobre el contenido. */
+  public desplegarMenu(): void {
+    if (this.isMobile) return;
+    this.desplegado = true;
+    this.activeRoot = null;
+    const activo = this.visibleRoots.find(r => this.isTreeActive(r));
+    if (activo && this.hasChildren(activo)) {
+      this.grupoAbierto = activo.id;
+      (activo.hijos ?? []).forEach(h => (this.expanded[h.id] = this.expanded[h.id] ?? true));
+    }
+    this.cdr.markForCheck();
+  }
+
+  /** Lo esconde de nuevo: al pulsar fuera, con Escape o al navegar. */
+  public replegarMenu(): void {
+    if (!this.desplegado) return;
+    this.desplegado = false;
+    this.activeRoot = null;
+    this.cdr.markForCheck();
+  }
+
+  /** "Ocultar menú" desde el menú anclado: vuelve al modo oculto (el predeterminado). */
+  public ocultarMenu(): void {
+    this.oculto = true;
+    this.desplegado = false;
+    this.activeRoot = null;
+    this.lsSet(NavbarComponent.CLAVE_MENU, 'oculto');
+    this.publicarAncho();
+    this.cdr.markForCheck();
+  }
+
+  /** "Fijar menú": lo ancla a la izquierda como lista y el contenido se corre. */
+  public fijarMenu(): void {
+    this.oculto = false;
+    this.desplegado = false;
+    this.expandido = true;
+    this.lsSet(NavbarComponent.CLAVE_MENU, 'expandido');
+    this.publicarAncho();
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * El contenido se corre lo que mide el menú: se publica como variable CSS (0 con
+   * el menú oculto: desplegado flota encima). El modo también va en <html data-menu>
+   * para que la cabecera pueda mostrar la marca cuando el menú no está.
+   */
   private publicarAncho(): void {
     if (!this.isBrowser) return;
-    const ancho = this.isMobile ? '0px' : this.expandido ? '264px' : '84px';
+    const ancho = this.isMobile || this.oculto ? '0px' : this.expandido ? '264px' : '84px';
     document.documentElement.style.setProperty('--app-menu-w', ancho);
+    document.documentElement.dataset['menu'] = this.isMobile ? 'movil' : this.oculto ? 'oculto' : this.expandido ? 'expandido' : 'compacto';
   }
 
   /** Grupos del menú expandido: sin hijos navega; con hijos despliega. */
@@ -499,6 +560,7 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
   onLeafClick(): void {
     this.cancelClose();
     this.activeRoot = null;
+    if (this.oculto) this.replegarMenu();
 
     if (this.isBrowser && typeof matchMedia !== 'undefined' && matchMedia('(hover: none)').matches) {
       this.isSidebarHidden = true;
@@ -914,6 +976,7 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
   @HostListener('document:keydown.escape')
   onEsc(): void {
     if (!this.isBrowser) return;
+    this.replegarMenu();
     this.closeAll('esc');
   }
 

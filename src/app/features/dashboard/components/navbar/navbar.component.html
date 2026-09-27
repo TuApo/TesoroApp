@@ -1,4 +1,5 @@
 <aside id="app-sidebar" class="sidebar" [class.is-open]="!isSidebarHidden" [class.expandido]="modoLista"
+  [class.oculto]="oculto && !isMobile" [class.desplegado]="desplegado"
   [class.show-detail]="isMobile && !!activeRoot && hasChildren(activeRoot)" [class.right-pinned]="pinOpen">
 
   <!-- Árbol de submódulos: lo usan el panel lateral (compacto/móvil) y los grupos del menú expandido. -->
@@ -37,6 +38,18 @@
           <span class="brand-text">Tu Apo<small>Gestión de talento</small></span>
         }
       </a>
+      <!-- Oculto: el menú flota; "fijar" lo ancla. Anclado: "ocultar" lo devuelve a la pestaña. -->
+      @if (modoLista) {
+        @if (oculto) {
+          <button type="button" class="menu-ancla" (click)="fijarMenu()" title="Fijar el menú a la izquierda" aria-label="Fijar menú">
+            <mat-icon fontSet="material-symbols-outlined">keep</mat-icon>
+          </button>
+        } @else {
+          <button type="button" class="menu-ancla" (click)="ocultarMenu()" title="Ocultar el menú (queda una pestaña en el borde)" aria-label="Ocultar menú">
+            <mat-icon fontSet="material-symbols-outlined">left_panel_close</mat-icon>
+          </button>
+        }
+      }
     </div>
 
     <!-- BOTONES DE MÓDULO -->
@@ -83,6 +96,12 @@
               {{ getModuleIcon(root) }}
             </mat-icon>
             <span class="m-btn-label">{{ root.nombre }}</span>
+          </button>
+        }
+        @if (!isMobile) {
+          <button type="button" class="menu-ocultar" (click)="ocultarMenu()" title="Ocultar el menú (queda una pestaña en el borde)" aria-label="Ocultar menú">
+            <mat-icon fontSet="material-symbols-outlined">left_panel_close</mat-icon>
+            <span class="m-btn-label">Ocultar</span>
           </button>
         }
       }
@@ -135,3 +154,10 @@
       </div>
     }
   </aside>
+
+<!-- Menú oculto (escritorio): pestaña pegada al borde izquierdo que lo despliega. -->
+@if (!isMobile && oculto && !desplegado) {
+  <button type="button" class="pestana-menu" (click)="desplegarMenu()" title="Mostrar el menú" aria-label="Mostrar menú" aria-controls="app-sidebar" aria-expanded="false">
+    <mat-icon fontSet="material-symbols-outlined">menu</mat-icon>
+  </button>
+}

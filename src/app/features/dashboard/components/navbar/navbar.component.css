@@ -1413,3 +1413,97 @@
   }
   .sidebar.expandido .bottom-buttons .m-btn-label { display: inline; }
 }
+
+/* =========================
+   MENÚ OCULTO CON PESTAÑA (escritorio)
+   El menú entero (carril incluido) se va a la izquierda; una pestaña en el borde lo
+   despliega SOBRE el contenido y pulsar fuera lo esconde. --app-menu-w queda en 0.
+========================= */
+@media (min-width: 901px) {
+  .sidebar {
+    transition: transform var(--app-dur) var(--app-ease), visibility 0s linear 0s;
+  }
+  .sidebar.oculto {
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform var(--app-dur) var(--app-ease), visibility 0s linear var(--app-dur);
+  }
+  .sidebar.oculto.desplegado {
+    transform: none;
+    visibility: visible;
+    transition: transform var(--app-dur) var(--app-ease), visibility 0s linear 0s;
+  }
+  .sidebar.oculto.desplegado .left {
+    box-shadow: 0 24px 56px -16px rgba(15, 23, 42, 0.55);
+  }
+
+  .pestana-menu {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 151;
+    width: 22px;
+    height: 84px;
+    padding: 0;
+    border: 1px solid var(--app-sidebar-left-border);
+    border-left: 0;
+    border-radius: 0 12px 12px 0;
+    background: var(--app-sidebar-left-bg);
+    box-shadow: var(--app-sidebar-shadow);
+    color: var(--app-sidebar-left-icon-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: width var(--app-dur) var(--app-ease), color var(--app-dur) var(--app-ease);
+  }
+  .pestana-menu:hover,
+  .pestana-menu:focus-visible {
+    width: 32px;
+    color: var(--app-sidebar-left-icon-hover-color);
+    outline: none;
+  }
+  .pestana-menu .mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  /* Botón de la fila de marca (menú en lista): fijar / ocultar. */
+  .menu-ancla {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--app-sidebar-left-icon-color);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  .menu-ancla:hover {
+    background: var(--app-sidebar-right-hover-bg, rgba(127, 127, 127, 0.12));
+    color: var(--app-sidebar-left-icon-hover-color);
+  }
+  .menu-ancla .mat-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+  }
+  /* En el carril compacto el botón de ocultar va al final, como un módulo más. */
+  .module-buttons .menu-ocultar {
+    margin-top: auto;
+    opacity: 0.75;
+  }
+}
+@media (max-width: 900px) {
+  .pestana-menu,
+  .menu-ancla,
+  .menu-ocultar {
+    display: none !important;
+  }
+}

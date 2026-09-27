@@ -1,4 +1,6 @@
 import {
+  HostListener,
+  ElementRef,
   ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, effect, inject, input, signal, untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -47,6 +49,7 @@ export class PanelAtencion implements OnInit {
   private router = inject(Router);
   private permisos = inject(PermissionsService);
   private destroyRef = inject(DestroyRef);
+  private host = inject(ElementRef) as ElementRef<HTMLElement>;
 
   readonly permitido = signal(false);
   readonly abierto = signal(false);
@@ -504,6 +507,23 @@ export class PanelAtencion implements OnInit {
   }
 
   // ── Pestaña ───────────────────────────────────────────────────────────
+
+  /**
+   * Pulsar fuera del panel lo pliega solo (como el menú lateral): no hay que buscar
+   * la pestaña para recuperar el área de trabajo. Se ignoran los clics dentro de los
+   * desplegables y diálogos que el propio panel abre en el body (CDK / SweetAlert).
+   */
+  @HostListener('document:pointerdown', ['$event'])
+  alPulsarFuera(evento: Event): void {
+    if (this.modo() !== 'colapsador' || !this.abierto()) return;
+    const destino = evento.target as Node | null;
+    if (!destino || !destino.isConnected) return;
+    if (this.host.nativeElement.contains(destino)) return;
+    if ((destino as Element).closest?.('.cdk-overlay-container, .swal2-container')) return;
+    this.abierto.set(false);
+    this.menuCaso.set(null);
+    this.guardarPref({ panel_abierto: false });
+  }
 
   alternar(): void {
     this.abierto.update(v => !v);
