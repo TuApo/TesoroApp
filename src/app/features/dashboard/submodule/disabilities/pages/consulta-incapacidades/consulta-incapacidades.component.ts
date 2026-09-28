@@ -89,7 +89,10 @@ import {
   DatosDialogoExportMasivo,
   DialogoExportMasivoComponent,
 } from './dialogos/dialogo-export-masivo/dialogo-export-masivo.component';
-import { DialogoInformeUmbralComponent } from './dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
+import {
+  ANCHO_DIALOGO_UMBRALES,
+  DialogoInformeUmbralComponent,
+} from './dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
 import { indicadorSoportes, soportesCompletos } from './exportacion-incapacidades';
 
 // Los KPI se pintan con separador de miles colombiano (1.234, no 1,234).
@@ -1230,9 +1233,9 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
   /** Informe de personas proximas a 180/540 dias de incapacidad acumulada. */
   abrirInformeUmbral(): void {
     this.dialogo.open(DialogoInformeUmbralComponent, {
-      width: '1000px',
-      maxWidth: '95vw',
-      maxHeight: '92vh',
+      width: ANCHO_DIALOGO_UMBRALES,
+      maxWidth: '96vw',
+      maxHeight: '94vh',
       autoFocus: false,
       panelClass: 'disab-dialogo',
     });

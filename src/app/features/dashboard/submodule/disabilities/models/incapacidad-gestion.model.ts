@@ -117,6 +117,8 @@ export interface NotificacionCorreo {
   documentId: number | null;
   mensajeError: string | null;
   creadoEn: string | null;
+  /** Cuenta de correspondencia que lo envio (null en envios anteriores a que se guardara). */
+  remitente?: string | null;
 }
 
 export interface LoteCorreo {
@@ -426,3 +428,69 @@ export const ETIQUETA_ESTADO_ALERTA: Readonly<Record<EstadoAlertaIncapacidad, st
   DESCARTADA: 'Descartada',
   ATENDIDA: 'Atendida',
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// Umbrales 180 / 540 ubicados en el tiempo (revision funcional 2026-09-28)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Donde esta la cadena a la fecha de corte (espejo de CadenaUmbral.Situacion en ms-hr). */
+export type SituacionCadena = 'VIGENTE' | 'RECIENTE' | 'HISTORICO' | 'POR_REVISAR';
+
+/** Quien paga segun el dia de la cadena. */
+export type PagadorUmbral = 'EPS' | 'FONDO_PENSIONES' | 'EPS_POST_540';
+
+/** Una cadena continua de incapacidades (misma persona, mismo diagnostico). */
+export interface CadenaUmbral {
+  incapacidadId: number;
+  codigoConsecutivo: string | null;
+  cedula: string;
+  nombreCompleto: string;
+  empresa: string | null;
+  centroCosto: string | null;
+  oficina: string | null;
+  entidadGrupo: GrupoEmpresa | null;
+  eps: string | null;
+  afp: string | null;
+  codigoDiagnostico: string | null;
+  descripcionDiagnostico: string | null;
+  fechaInicioUltima: string | null;
+  fechaFinUltima: string | null;
+  diasUltima: number | null;
+  origen: string | null;
+  situacion: SituacionCadena;
+  situacionEtiqueta: string;
+  motivoRevision: string | null;
+  /** Primer dia de la cadena (null si las fechas estan por revisar). */
+  inicioCadena: string | null;
+  diasAcumuladosFin: number;
+  diasAcumuladosHoy: number;
+  /** Dia 181: desde ese dia paga el fondo de pensiones. */
+  fechaPasaFondo: string | null;
+  /** El dia 181 cae dentro de las incapacidades ya registradas. */
+  fondoCertificado: boolean;
+  /** Dia 541: desde ese dia vuelve a pagar la EPS. */
+  fechaVuelveEps: string | null;
+  epsCertificado: boolean;
+  pagadorHoy: PagadorUmbral;
+  pagadorHoyEtiqueta: string;
+}
+
+export interface InformeUmbrales {
+  fechaCorte: string;
+  umbralFondo: number;
+  umbralEps: number;
+  ventanaRecienteDias: number;
+  horizontes: number[];
+  conteos: Partial<Record<SituacionCadena, number>>;
+  cadenas: CadenaUmbral[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Adjuntos de un correo enviado (vista "como llego al buzon")
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface AdjuntoCorreo {
+  documentId: number;
+  nombre: string;
+  incapacidadId: number;
+}

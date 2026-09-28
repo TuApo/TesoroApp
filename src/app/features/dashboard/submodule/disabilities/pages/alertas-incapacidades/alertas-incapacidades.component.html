@@ -13,7 +13,7 @@
         </div>
         <div class="hero-acciones">
           <button type="button" mat-flat-button class="hero-btn hero-btn-primario" (click)="abrirInformeUmbral()"><mat-icon>list_alt</mat-icon><span>Informe 180 / 540</span></button>
-          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargarResumen(); cargar(); cargarUmbral()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargarResumen(); cargar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
         </div>
       </div>
 
@@ -128,42 +128,10 @@
             </ng-template>
           </mat-tab>
 
-          <mat-tab label="Proximos a 180 / 540">
+          <mat-tab label="Umbrales 180 / 540">
             <ng-template matTabContent>
-              <p class="ges-nota">Calculado en vivo sobre el acumulado por persona y diagnostico (no depende de que exista una alerta guardada).</p>
-              <div class="ges-filtros ges-filtros-inline">
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>Avisar con</mat-label>
-                  <mat-select [(ngModel)]="margenUmbral" (selectionChange)="cargarUmbral()">
-                    <mat-option [value]="15">15 dias de anticipacion</mat-option>
-                    <mat-option [value]="30">30 dias de anticipacion</mat-option>
-                    <mat-option [value]="60">60 dias de anticipacion</mat-option>
-                  </mat-select>
-                </mat-form-field>
-                <span class="ges-espaciador"></span>
-                <button type="button" mat-stroked-button (click)="abrirInformeUmbral()"><mat-icon>open_in_new</mat-icon> Informe completo / exportar</button>
-              </div>
-              @if (umbral() || cargandoUmbral()) {
-                <app-tabla-estandar
-                  id="incapacidades-alertas-proximos-umbral"
-                  titulo="Proximos a 180 / 540 dias"
-                  modulo="Incapacidades"
-                  vacio="Nadie esta proximo a los umbrales."
-                  [datos]="umbral()?.filas ?? []"
-                  [columnas]="columnasUmbral"
-                  [filaId]="idUmbral"
-                  [cargando]="cargandoUmbral()">
-
-                  <ng-template tablaCelda="diagnostico" let-f>
-                    {{ f.codigoDiagnostico || '—' }}
-                    @if (f.descripcionDiagnostico) { <span class="celda-sub">{{ f.descripcionDiagnostico }}</span> }
-                  </ng-template>
-
-                  <ng-template tablaCelda="dias" let-f>
-                    <strong>{{ f.diasAcumulados }}</strong>
-                  </ng-template>
-                </app-tabla-estandar>
-              }
+              <p class="ges-nota">Calculado en vivo sobre las cadenas continuas por persona y diagnóstico (no depende de que exista una alerta guardada).</p>
+              <app-panel-umbrales />
             </ng-template>
           </mat-tab>
         </mat-tab-group>

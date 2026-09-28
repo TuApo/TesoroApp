@@ -4,9 +4,10 @@
   </div>
 
   <div class="umb-hero-textos">
-    <h2 class="umb-hero-titulo" mat-dialog-title>Informe de umbrales de incapacidad</h2>
+    <h2 class="umb-hero-titulo" mat-dialog-title>Umbrales de 180 y 540 días</h2>
     <p class="umb-hero-sub">
-      Personas proximas a (o por encima de) los 180 dias (fondo de pensiones) y 540 dias (EPS)
+      Quién está incapacitado hoy, cuándo pasa cada persona al fondo de pensiones (día 181) y
+      cuándo vuelve a la EPS (día 541)
     </p>
   </div>
 
@@ -23,109 +24,14 @@
 </div>
 
 <mat-dialog-content class="umb-cuerpo">
-
-  <!-- ════════ Margen de anticipacion ════════ -->
-  <section class="umb-controles">
-    <div class="umb-margen">
-      <span class="umb-margen-etiqueta">
-        <mat-icon>notifications_active</mat-icon>
-        Margen de anticipacion
-      </span>
-
-      <mat-button-toggle-group
-        class="umb-toggle"
-        [value]="margen()"
-        (change)="cambiarMargen($event.value)"
-        [disabled]="cargando()"
-        aria-label="Margen de anticipacion en dias"
-      >
-        @for (opcion of margenes; track opcion) {
-          <mat-button-toggle [value]="opcion">{{ opcion }} dias</mat-button-toggle>
-        }
-      </mat-button-toggle-group>
-    </div>
-  </section>
-
-  <!-- ════════ Contadores por tramo ════════ -->
-  <section class="umb-contadores">
-    @for (definicion of tramos; track definicion.tramo) {
-      <div class="umb-contador" [matTooltip]="definicion.ayuda">
-        <span
-          class="umb-chip umb-contador-chip"
-          [style.color]="estiloTramo(definicion.tramo).color"
-          [style.background]="estiloTramo(definicion.tramo).background"
-        >
-          <mat-icon>{{ definicion.icono }}</mat-icon>
-          {{ definicion.etiqueta }}
-        </span>
-        <span class="umb-contador-valor">{{ conteoTramo(definicion.tramo) }}</span>
-      </div>
-    }
-  </section>
-
-  <!-- ════════ Estados / tabla ════════ -->
-  @if (error()) {
-    <div class="umb-estado umb-estado-error" role="alert">
-      <mat-icon>error_outline</mat-icon>
-      <p>{{ error() }}</p>
-      <button type="button" mat-stroked-button class="umb-btn" (click)="reintentar()">
-        <mat-icon>refresh</mat-icon>
-        <span>Reintentar</span>
-      </button>
-    </div>
-  } @else if (informeVacio()) {
-    <div class="umb-estado umb-estado-vacio">
-      <mat-icon>task_alt</mat-icon>
-      <p>Nadie esta proximo a los umbrales con este margen.</p>
-    </div>
-  } @else {
-    <!-- Ordenado por dias acumulados (mayor primero); busqueda, filtros y orden los da la tabla. -->
-    <app-tabla-estandar
-      id="incapacidades-informe-umbral"
-      titulo="Informe umbrales 180 - 540"
-      modulo="Incapacidades"
-      busqueda="Cedula, nombre, empresa…"
-      [datos]="filasOrdenadas()"
-      [columnas]="columnas"
-      [filaId]="idFila"
-      [cargando]="cargando()">
-
-      <ng-template tablaCelda="diagnostico" let-fila>
-        <span class="umb-diagnostico-codigo">{{ fila.codigoDiagnostico || '—' }}</span>
-        @if (fila.descripcionDiagnostico) {
-          <span class="umb-diagnostico-texto" [matTooltip]="fila.descripcionDiagnostico">
-            {{ fila.descripcionDiagnostico }}
-          </span>
-        }
-      </ng-template>
-
-      <ng-template tablaCelda="dias" let-fila>
-        <span class="umb-dias">{{ fila.diasAcumulados }}</span>
-      </ng-template>
-    </app-tabla-estandar>
-  }
+  <app-panel-umbrales />
 </mat-dialog-content>
 
 <mat-dialog-actions class="umb-acciones">
-  <span class="umb-resumen">
-    <mat-icon>groups</mat-icon>
-    {{ totalInforme() }} personas · margen {{ margen() }} dias
-  </span>
-
-  <span class="umb-espaciador"></span>
-
-  <button type="button" mat-stroked-button class="umb-btn" (click)="cerrar()">
-    <span>Cerrar</span>
-  </button>
-
-  <button
-    type="button"
-    mat-flat-button
-    class="umb-btn umb-btn-exportar"
-    [disabled]="!puedeExportar()"
-    (click)="exportarExcel()"
-  >
+  <span class="umb-pista">
     <mat-icon>download</mat-icon>
-    <span>Exportar a Excel</span>
-  </button>
+    Para llevarlo a Excel usa el botón de descarga de la tabla: baja lo que estés viendo.
+  </span>
+  <span class="umb-espaciador"></span>
+  <button type="button" mat-stroked-button (click)="cerrar()">Cerrar</button>
 </mat-dialog-actions>

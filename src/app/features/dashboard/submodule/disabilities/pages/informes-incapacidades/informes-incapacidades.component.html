@@ -55,8 +55,8 @@
           <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>event</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.totalDias | number }}</span><span class="kpi-etiqueta">Dias de incapacidad</span></span></div>
           <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>groups</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.personas | number }}</span><span class="kpi-etiqueta">Personas</span></span></div>
           <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>child_care</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.licenciasMaternidad | number }} / {{ g.licenciasPaternidad | number }}</span><span class="kpi-etiqueta">Lic. maternidad / paternidad</span></span></div>
-          <div class="kpi-tarjeta kpi-alerta kpi-clic" (click)="abrirInformeUmbral()" matTooltip="Ver el informe de umbrales"><span class="kpi-icono"><mat-icon>flag</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral180 | number }}</span><span class="kpi-etiqueta">Superan 180 dias · {{ g.proximas180 }} proximas</span></span></div>
-          <div class="kpi-tarjeta kpi-aviso kpi-clic" (click)="abrirInformeUmbral()" matTooltip="Ver el informe de umbrales"><span class="kpi-icono"><mat-icon>hourglass_top</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral540 | number }}</span><span class="kpi-etiqueta">Superan 540 dias</span></span></div>
+          <div class="kpi-tarjeta kpi-alerta kpi-clic" (click)="abrirInformeUmbral()" matTooltip="Ver el informe de umbrales"><span class="kpi-icono"><mat-icon>flag</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral180 | number }}</span><span class="kpi-etiqueta">Hoy con el fondo de pensiones · {{ g.proximas180 }} pasan en 30 días</span></span></div>
+          <div class="kpi-tarjeta kpi-aviso kpi-clic" (click)="abrirInformeUmbral()" matTooltip="Ver el informe de umbrales"><span class="kpi-icono"><mat-icon>hourglass_top</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral540 | number }}</span><span class="kpi-etiqueta">Hoy de vuelta en la EPS (+540)</span></span></div>
           <a class="kpi-tarjeta kpi-alerta kpi-clic" [routerLink]="rutaSst" matTooltip="Ir a Seguridad y salud en el trabajo"><span class="kpi-icono"><mat-icon>health_and_safety</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.arl.sinInvestigacion | number }}</span><span class="kpi-etiqueta">ARL sin investigacion (de {{ g.arl.total }})</span></span></a>
         </div>
       }
@@ -88,21 +88,7 @@
 
           <mat-tab label="180 / 540 dias">
             <ng-template matTabContent>
-              @if (global(); as g) {
-                <p class="ges-nota">
-                  Acumulado por persona y diagnostico (cadena continua, regla R7). Al superar 180 dias el pago pasa al
-                  fondo de pensiones; al superar 540 vuelve a la EPS. El informe detallado permite elegir el margen de
-                  anticipacion y exportarlo.
-                </p>
-                <div class="kpi-fila kpi-fila-compacta">
-                  <div class="kpi-tarjeta kpi-alerta"><span class="kpi-icono"><mat-icon>flag</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral180 }}</span><span class="kpi-etiqueta">Superan 180</span></span></div>
-                  <div class="kpi-tarjeta kpi-aviso"><span class="kpi-icono"><mat-icon>schedule</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.proximas180 }}</span><span class="kpi-etiqueta">Proximas a 180 (30 dias)</span></span></div>
-                  <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>report</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ g.umbral540 }}</span><span class="kpi-etiqueta">Superan 540</span></span></div>
-                </div>
-                <button type="button" mat-flat-button color="primary" (click)="abrirInformeUmbral()">
-                  <mat-icon>list_alt</mat-icon> Abrir informe detallado de umbrales
-                </button>
-              }
+              <app-panel-umbrales />
             </ng-template>
           </mat-tab>
 

@@ -1,0 +1,197 @@
+<section class="pu">
+
+  <!-- ════════ Como se lee ════════ -->
+  <div class="pu-regla">
+    <mat-icon aria-hidden="true">info</mat-icon>
+    <p>
+      Cada fila es una <strong>cadena continua</strong> de incapacidades de una persona con el mismo
+      diagnóstico: un solo día sin incapacidad reinicia la cuenta.
+      Desde el <strong class="pu-t-fondo">día {{ umbralFondo + 1 }}</strong> paga el fondo de pensiones;
+      desde el <strong class="pu-t-540">día {{ umbralEps + 1 }}</strong> vuelve a pagar la EPS.
+      @if (informe()) { <span class="pu-corte">Corte: {{ corte() }}.</span> }
+    </p>
+  </div>
+
+  <!-- ════════ Situacion: actuales vs historicos ════════ -->
+  <div class="pu-alcances" role="group" aria-label="Qué casos mostrar">
+    @for (a of alcances; track a.id) {
+      <button
+        type="button"
+        class="pu-alcance"
+        [class.pu-alcance--activo]="alcance() === a.id"
+        [class.pu-alcance--revisar]="a.id === 'POR_REVISAR'"
+        [attr.aria-pressed]="alcance() === a.id"
+        [matTooltip]="a.ayuda"
+        (click)="elegirAlcance(a.id)"
+      >
+        <mat-icon aria-hidden="true">{{ a.icono }}</mat-icon>
+        <span class="pu-alcance-textos">
+          <span class="pu-alcance-num">{{ conteoAlcance()[a.id] }}</span>
+          <span class="pu-alcance-etq">{{ a.etiqueta }}</span>
+        </span>
+      </button>
+    }
+  </div>
+
+  @if (error()) {
+    <div class="pu-estado pu-estado--error" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      <p>{{ error() }}</p>
+      <button type="button" mat-stroked-button (click)="cargar()">
+        <mat-icon>refresh</mat-icon> Reintentar
+      </button>
+    </div>
+  } @else {
+
+    <!-- ════════ Panorama por horizonte (solo casos vivos) ════════ -->
+    @if (vistaActiva()) {
+      <div class="pu-pano-cab">
+        <div>
+          <h3 class="pu-h3">¿Cómo se ve en los próximos días?</h3>
+          <p class="pu-sub">Elige una fecha: la tabla se recalcula a esa fecha.</p>
+        </div>
+        <mat-slide-toggle
+          class="pu-toggle"
+          [checked]="siContinua()"
+          (change)="alternarProrrogas($event.checked)"
+          matTooltip="Encendido: supone que quien está incapacitado hoy sigue incapacitado sin interrupción (prórrogas). Apagado: cuenta solo las incapacidades ya registradas."
+        >
+          Suponer que siguen incapacitados (prórrogas)
+        </mat-slide-toggle>
+      </div>
+
+      <div class="pu-horizontes">
+        @for (h of cortes(); track h.dias) {
+          <div class="pu-hz" [class.pu-hz--sel]="horizonte() === h.dias">
+            <button
+              type="button"
+              class="pu-hz-principal"
+              [attr.aria-pressed]="horizonte() === h.dias"
+              (click)="elegirHorizonte(h.dias)"
+            >
+              <span class="pu-hz-titulo">{{ tituloCorte(h) }}</span>
+              <span class="pu-hz-fecha">{{ fecha(h.fecha) }}</span>
+              <span class="pu-hz-fila pu-c-fondo"><b>{{ h.conFondo }}</b> con el fondo de pensiones</span>
+              <span class="pu-hz-fila pu-c-540"><b>{{ h.post540 }}</b> de vuelta en la EPS (+540)</span>
+              <span class="pu-hz-fila pu-c-eps"><b>{{ h.conEps }}</b> aún con la EPS</span>
+            </button>
+            @if (h.dias > 0) {
+              <button
+                type="button"
+                class="pu-hz-nuevos"
+                [disabled]="h.pasanAlFondo === 0"
+                (click)="elegirHorizonte(h.dias, 'PASAN_FONDO')"
+                [matTooltip]="h.pasanAlFondo ? 'Ver quiénes pasan al fondo de aquí a esa fecha' : ''"
+              >
+                +{{ h.pasanAlFondo }} pasan al fondo
+                @if (h.vuelvenEps) { · +{{ h.vuelvenEps }} vuelven a la EPS }
+              </button>
+            } @else {
+              <span class="pu-hz-nuevos pu-hz-nuevos--hoy">Situación actual</span>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="pu-filtros" role="group" aria-label="Filtrar la tabla">
+        @for (o of opcionesCambio(); track o.id) {
+          <button
+            type="button"
+            class="pu-chip"
+            [class.pu-chip--sel]="filtroCambio() === o.id"
+            [attr.aria-pressed]="filtroCambio() === o.id"
+            (click)="elegirFiltro(o.id)"
+          >
+            {{ o.texto }} <span class="pu-chip-n">{{ o.n }}</span>
+          </button>
+        }
+      </div>
+    } @else if (alcance() === 'HISTORICO') {
+      <p class="pu-nota">
+        <mat-icon aria-hidden="true">history</mat-icon>
+        Estas cadenas terminaron hace más de 30 días: la cuenta se cerró y no cambia con el tiempo.
+        Si la persona vuelve con el mismo diagnóstico, empieza una cadena nueva desde el día 1.
+        Se muestran como referencia.
+      </p>
+    } @else {
+      <p class="pu-nota pu-nota--revisar">
+        <mat-icon aria-hidden="true">report_problem</mat-icon>
+        Estos registros tienen fechas imposibles (casi siempre el año de la fecha fin mal digitado
+        en el histórico importado). No se cuentan en ningún total hasta que se corrijan desde la
+        incapacidad (botón <em>Abrir</em>).
+      </p>
+    }
+
+    <!-- ════════ Tabla ════════ -->
+    <app-tabla-estandar
+      id="incapacidades-umbrales-tiempo"
+      titulo="Umbrales 180 - 540"
+      modulo="Incapacidades"
+      busqueda="Cédula, nombre, finca, diagnóstico…"
+      [datos]="filas()"
+      [columnas]="columnas()"
+      [filaId]="idFila"
+      [filaClase]="claseFila"
+      [cargando]="cargando()"
+      vacio="No hay casos con este filtro."
+      anchoAcciones="64px"
+    >
+      <ng-template tablaCelda="persona" let-f>
+        <span class="pu-persona">
+          <span class="pu-persona-nombre">{{ f.c.nombreCompleto || '—' }}</span>
+          <span class="pu-persona-ced">CC {{ f.c.cedula }}</span>
+        </span>
+      </ng-template>
+
+      <ng-template tablaCelda="diagnostico" let-f>
+        <span class="pu-dx">
+          <span class="pu-dx-cod">{{ f.c.codigoDiagnostico || '—' }}</span>
+          @if (f.c.descripcionDiagnostico) {
+            <span class="pu-dx-txt" [matTooltip]="f.c.descripcionDiagnostico">{{ f.c.descripcionDiagnostico }}</span>
+          }
+        </span>
+      </ng-template>
+
+      <ng-template tablaCelda="situacion" let-f>
+        <span class="pu-sit">
+          <span class="pu-badge" [attr.data-tono]="tonoSituacion(f.c.situacion)">{{ f.c.situacionEtiqueta }}</span>
+          <span class="pu-sit-fin">{{ textoFin(f.c) }}</span>
+        </span>
+      </ng-template>
+
+      <ng-template tablaCelda="dias" let-f>
+        <span class="pu-dias">
+          <span class="pu-dias-num">{{ f.e.diasAlCorte }}</span>
+          <span class="pu-barra" aria-hidden="true">
+            <span class="pu-barra-relleno" [attr.data-pagador]="f.e.pagadorAlCorte" [style.width.%]="anchoBarra(f.e.diasAlCorte)"></span>
+            <span class="pu-barra-marca pu-barra-marca--180"></span>
+            <span class="pu-barra-marca pu-barra-marca--540"></span>
+          </span>
+          @if (horizonte() > 0 && f.e.diasHoy !== f.e.diasAlCorte) {
+            <span class="pu-dias-hoy">hoy {{ f.e.diasHoy }}</span>
+          }
+        </span>
+      </ng-template>
+
+      <ng-template tablaCelda="dia181" let-f>
+        <span class="pu-hito" [class]="'pu-hito ' + claseHito(f.c, f.c.fechaPasaFondo, f.c.fondoCertificado, umbralFondo)">
+          <span class="pu-hito-fecha">{{ fechaIso(f.c.fechaPasaFondo) }}</span>
+          <span class="pu-hito-txt">{{ textoHito(f.c, f.c.fechaPasaFondo, f.c.fondoCertificado, umbralFondo, hoy()) }}</span>
+        </span>
+      </ng-template>
+
+      <ng-template tablaCelda="dia541" let-f>
+        <span class="pu-hito" [class]="'pu-hito ' + claseHito(f.c, f.c.fechaVuelveEps, f.c.epsCertificado, umbralEps)">
+          <span class="pu-hito-fecha">{{ fechaIso(f.c.fechaVuelveEps) }}</span>
+          <span class="pu-hito-txt">{{ textoHito(f.c, f.c.fechaVuelveEps, f.c.epsCertificado, umbralEps, hoy()) }}</span>
+        </span>
+      </ng-template>
+
+      <ng-template tablaAcciones let-f>
+        <button type="button" mat-icon-button (click)="abrirIncapacidad(f)" matTooltip="Abrir la incapacidad" aria-label="Abrir la incapacidad">
+          <mat-icon>open_in_new</mat-icon>
+        </button>
+      </ng-template>
+    </app-tabla-estandar>
+  }
+</section>

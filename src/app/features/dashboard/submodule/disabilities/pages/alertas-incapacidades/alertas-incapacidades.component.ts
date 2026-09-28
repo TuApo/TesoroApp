@@ -35,7 +35,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 
-import { ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent, TonoBadge } from '../../../../../../shared/components/tabla-estandar';
+import { ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent } from '../../../../../../shared/components/tabla-estandar';
 import { IncapacidadGestionService } from '../../services/incapacidad-gestion/incapacidad-gestion.service';
 import {
   AlertaBandeja,
@@ -48,10 +48,12 @@ import {
   FiltrosAlertas,
   TipoAlertaIncapacidad,
 } from '../../models/incapacidad-gestion.model';
-import { FilaInformeUmbral, InformeUmbral } from '../../models/incapacidad-v2.model';
-import { DialogoInformeUmbralComponent } from '../consulta-incapacidades/dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
 import {
-  aFecha,
+  ANCHO_DIALOGO_UMBRALES,
+  DialogoInformeUmbralComponent,
+} from '../consulta-incapacidades/dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
+import { PanelUmbralesComponent } from '../../components/panel-umbrales/panel-umbrales.component';
+import {
   fechaTexto,
   mensajeDeError,
   tonoDeChip,
@@ -69,17 +71,6 @@ export function claseTipoAlerta(tipo: TipoAlertaIncapacidad): string {
   }
 }
 
-/** Tono del chip por tramo de los umbrales 180 / 540 (mismos colores que antes). */
-function tonoTramo(tramo: FilaInformeUmbral['tramo']): TonoBadge {
-  switch (tramo) {
-    case 'SUPERA_180': return 'danger';
-    case 'PROXIMO_180': return 'warn';
-    case 'SUPERA_540':
-    case 'PROXIMO_540': return 'violet';
-    default: return 'neutro';
-  }
-}
-
 export function claseEstadoAlerta(estado: EstadoAlertaIncapacidad): string {
   switch (estado) {
     case 'ATENDIDA':
@@ -93,6 +84,7 @@ export function claseEstadoAlerta(estado: EstadoAlertaIncapacidad): string {
   selector: 'app-alertas-incapacidades',
   standalone: true,
   imports: [
+    PanelUmbralesComponent,
     DatePipe,
     DecimalPipe,
     FormsModule,
@@ -130,11 +122,6 @@ export class AlertasIncapacidadesComponent implements OnInit {
   readonly cargando = signal(false);
   readonly error = signal('');
   readonly tab = signal(0);
-
-  /** Umbrales 180/540 en vivo (pestana propia). */
-  readonly umbral = signal<InformeUmbral | null>(null);
-  readonly cargandoUmbral = signal(false);
-  margenUmbral = 30;
 
   readonly rutaConsulta = '/dashboard/disabilities/consulta';
   readonly claseTipo = claseTipoAlerta;
@@ -180,28 +167,9 @@ export class AlertasIncapacidadesComponent implements OnInit {
   /** Falsedad dirigida a contratacion: la fila queda marcada. */
   readonly claseAlerta = (f: AlertaBandeja) => (f.paraContratacion ? 'te-fila--peligro' : '');
 
-  /** Proximos a 180 / 540: todo en cliente (el informe llega completo). */
-  readonly columnasUmbral: ColumnaTabla<FilaInformeUmbral>[] = [
-    { id: 'cedula', header: 'Cedula', valor: (f) => f.cedula, tarjeta: 'subtitulo' },
-    { id: 'nombre', header: 'Nombre', valor: (f) => f.nombreCompleto, tarjeta: 'titulo', minAncho: '180px' },
-    { id: 'empresa', header: 'Empresa', valor: (f) => f.empresa ?? '', formato: (f) => f.empresa || '—', tarjeta: 'cuerpo' },
-    { id: 'eps', header: 'EPS', valor: (f) => f.eps ?? '', formato: (f) => f.eps || '—', prioridad: 2, tarjeta: 'meta' },
-    { id: 'diagnostico', header: 'Diagnostico', valor: (f) => f.codigoDiagnostico ?? '',
-      formato: (f) => f.codigoDiagnostico || '—', prioridad: 2, tarjeta: 'cuerpo' },
-    { id: 'dias', header: 'Dias acum.', valor: (f) => f.diasAcumulados, align: 'right', tarjeta: 'meta' },
-    { id: 'fin', header: 'Fin ultima', valor: (f) => aFecha(f.fechaFinUltima),
-      formato: (f) => fechaTexto(f.fechaFinUltima), copiaTexto: (f) => fechaTexto(f.fechaFinUltima),
-      prioridad: 2, tarjeta: 'meta' },
-    { id: 'tramo', header: 'Tramo', valor: (f) => f.tramoEtiqueta, tarjeta: 'badge',
-      badge: (f) => ({ texto: f.tramoEtiqueta, tono: tonoTramo(f.tramo) }) },
-  ];
-
-  readonly idUmbral = (f: FilaInformeUmbral) => f.incapacidadId;
-
   ngOnInit(): void {
     this.cargarResumen();
     this.cargar();
-    this.cargarUmbral();
   }
 
   cargarResumen(): void {
@@ -230,14 +198,6 @@ export class AlertasIncapacidadesComponent implements OnInit {
       });
   }
 
-  cargarUmbral(): void {
-    this.cargandoUmbral.set(true);
-    this.srv.proximosUmbral(this.margenUmbral).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (u) => { this.umbral.set(u); this.cargandoUmbral.set(false); },
-      error: () => { this.umbral.set(null); this.cargandoUmbral.set(false); },
-    });
-  }
-
   filtrar(): void {
     this.page.set(0);
     this.cargar();
@@ -257,7 +217,7 @@ export class AlertasIncapacidadesComponent implements OnInit {
 
   abrirInformeUmbral(): void {
     this.dialogo.open(DialogoInformeUmbralComponent, {
-      width: '1000px', maxWidth: '95vw', maxHeight: '92vh', autoFocus: false, panelClass: 'disab-dialogo',
+      width: ANCHO_DIALOGO_UMBRALES, maxWidth: '96vw', maxHeight: '94vh', autoFocus: false, panelClass: 'disab-dialogo',
     });
   }
 

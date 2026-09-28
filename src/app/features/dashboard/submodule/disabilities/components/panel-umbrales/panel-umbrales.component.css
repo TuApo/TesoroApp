@@ -1,0 +1,256 @@
+/* ============================================================
+   PANEL: UMBRALES 180 / 540 EN EL TIEMPO
+   Colores de negocio (quien paga) con light-dark() para claro y oscuro:
+   EPS = azul · fondo de pensiones = ambar · EPS despues de 540 = violeta.
+   ============================================================ */
+
+:host {
+  --pu-eps: light-dark(#1565c0, #90caf9);
+  --pu-eps-suave: light-dark(#e3f2fd, #10263d);
+  --pu-fondo: light-dark(#a15c00, #fbbf24);
+  --pu-fondo-suave: light-dark(#fff4e0, #33250a);
+  --pu-540: light-dark(#6d28d9, #c4b5fd);
+  --pu-540-suave: light-dark(#f1ebff, #261c3d);
+  --pu-peligro: light-dark(#b42318, #fca5a5);
+  --pu-peligro-suave: light-dark(#fdecea, #3a1717);
+  --pu-borde: rgb(var(--ink-rgb) / 0.1);
+  --pu-acento: light-dark(#1976d2, #64b5f6);
+  display: block;
+  color: var(--text);
+}
+
+.pu {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Regla ─────────────────────────────────────────────────── */
+.pu-regla {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--pu-eps-suave);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pu-regla mat-icon { color: var(--pu-acento); flex-shrink: 0; margin-top: 1px; }
+.pu-regla p { margin: 0; max-width: 110ch; }
+.pu-t-fondo { color: var(--pu-fondo); }
+.pu-t-540 { color: var(--pu-540); }
+.pu-corte { color: var(--muted); white-space: nowrap; }
+
+/* ── Alcances ──────────────────────────────────────────────── */
+.pu-alcances {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  gap: 8px;
+}
+
+.pu-alcance {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--pu-borde);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+.pu-alcance:hover { border-color: var(--pu-acento); }
+.pu-alcance:focus-visible { outline: 2px solid var(--pu-acento); outline-offset: 2px; }
+.pu-alcance mat-icon { color: var(--muted); }
+.pu-alcance--activo {
+  border-color: var(--pu-acento);
+  background: var(--pu-eps-suave);
+  box-shadow: inset 0 0 0 1px var(--pu-acento);
+}
+.pu-alcance--activo mat-icon { color: var(--pu-acento); }
+.pu-alcance--revisar mat-icon { color: var(--pu-peligro); }
+.pu-alcance--revisar.pu-alcance--activo {
+  border-color: var(--pu-peligro);
+  background: var(--pu-peligro-suave);
+  box-shadow: inset 0 0 0 1px var(--pu-peligro);
+}
+.pu-alcance-textos { display: flex; flex-direction: column; line-height: 1.2; }
+.pu-alcance-num { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pu-alcance-etq { font-size: 12.5px; color: var(--muted); }
+
+/* ── Panorama ──────────────────────────────────────────────── */
+.pu-pano-cab {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.pu-h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.pu-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.pu-toggle { font-size: 13px; }
+
+.pu-horizontes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.pu-hz {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--pu-borde);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.pu-hz--sel {
+  border-color: var(--pu-acento);
+  box-shadow: inset 0 0 0 1px var(--pu-acento);
+}
+
+.pu-hz-principal {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.pu-hz-principal:hover { background: rgb(var(--ink-rgb) / 0.03); }
+.pu-hz-principal:focus-visible { outline: 2px solid var(--pu-acento); outline-offset: -2px; }
+.pu-hz-titulo { font-weight: 800; font-size: 14px; }
+.pu-hz-fecha { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.pu-hz-fila { font-size: 12.5px; }
+.pu-hz-fila b { font-variant-numeric: tabular-nums; font-size: 14px; }
+.pu-c-fondo b { color: var(--pu-fondo); }
+.pu-c-540 b { color: var(--pu-540); }
+.pu-c-eps b { color: var(--pu-eps); }
+
+.pu-hz-nuevos {
+  border: 0;
+  border-top: 1px solid var(--pu-borde);
+  padding: 6px 12px;
+  background: var(--pu-fondo-suave);
+  color: var(--pu-fondo);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.pu-hz-nuevos:disabled { background: transparent; color: var(--muted); font-weight: 500; cursor: default; }
+.pu-hz-nuevos:focus-visible { outline: 2px solid var(--pu-acento); outline-offset: -2px; }
+.pu-hz-nuevos--hoy { background: transparent; color: var(--muted); font-weight: 500; cursor: default; }
+
+/* ── Filtros de la tabla ───────────────────────────────────── */
+.pu-filtros { display: flex; flex-wrap: wrap; gap: 6px; }
+.pu-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--pu-borde);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.pu-chip:hover { border-color: var(--pu-acento); }
+.pu-chip:focus-visible { outline: 2px solid var(--pu-acento); outline-offset: 2px; }
+.pu-chip--sel { background: var(--pu-acento); border-color: var(--pu-acento); color: #fff; }
+.pu-chip-n {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgb(var(--ink-rgb) / 0.08);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.pu-chip--sel .pu-chip-n { background: rgba(255, 255, 255, 0.25); }
+
+/* ── Notas ─────────────────────────────────────────────────── */
+.pu-nota {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgb(var(--ink-rgb) / 0.04);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pu-nota mat-icon { color: var(--muted); flex-shrink: 0; }
+.pu-nota--revisar { background: var(--pu-peligro-suave); }
+.pu-nota--revisar mat-icon { color: var(--pu-peligro); }
+
+.pu-estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px;
+  text-align: center;
+}
+.pu-estado--error mat-icon { color: var(--pu-peligro); }
+
+/* ── Celdas ────────────────────────────────────────────────── */
+.pu-persona, .pu-dx, .pu-sit, .pu-hito { display: flex; flex-direction: column; line-height: 1.25; }
+.pu-persona-nombre { font-weight: 600; }
+.pu-persona-ced, .pu-sit-fin, .pu-hito-txt, .pu-dx-txt { font-size: 11.5px; color: var(--muted); }
+.pu-dx-cod { font-weight: 600; font-variant-numeric: tabular-nums; }
+.pu-dx-txt { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pu-badge {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: rgb(var(--ink-rgb) / 0.07);
+  color: var(--text);
+}
+.pu-badge[data-tono='info'] { background: var(--pu-eps-suave); color: var(--pu-eps); }
+.pu-badge[data-tono='danger'] { background: var(--pu-peligro-suave); color: var(--pu-peligro); }
+
+.pu-dias { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 90px; }
+.pu-dias-num { font-weight: 800; font-variant-numeric: tabular-nums; }
+.pu-dias-hoy { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pu-barra {
+  position: relative;
+  width: 90px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--ink-rgb) / 0.08);
+}
+.pu-barra-relleno { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--pu-eps); }
+.pu-barra-relleno[data-pagador='FONDO_PENSIONES'] { background: var(--pu-fondo); }
+.pu-barra-relleno[data-pagador='EPS_POST_540'] { background: var(--pu-540); }
+.pu-barra-marca { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); opacity: 0.45; }
+.pu-barra-marca--180 { left: 25%; }
+.pu-barra-marca--540 { left: 75%; }
+
+.pu-hito-fecha { font-weight: 700; font-variant-numeric: tabular-nums; }
+.pu-hito-ocurrio .pu-hito-fecha { color: var(--muted); }
+.pu-hito-registrado .pu-hito-txt { color: var(--pu-fondo); font-weight: 600; }
+.pu-hito-proyectado .pu-hito-txt { color: var(--pu-acento); }
+.pu-hito-no .pu-hito-fecha { color: var(--muted); text-decoration: line-through; }
+
+/* Fila que cambia de pagador dentro del periodo elegido. */
+:host ::ng-deep .pu-fila-cambia td:first-child { box-shadow: inset 3px 0 0 var(--pu-fondo); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pu-alcance, .pu-chip { transition: none; }
+}

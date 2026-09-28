@@ -6,6 +6,7 @@ import { environment } from '@/environments/environment';
 import { getLocalStorageItem } from '../../../../../../core/utils/safe-storage';
 import { InformeUmbral, Page } from '../../models/incapacidad-v2.model';
 import {
+  AdjuntoCorreo,
   AlertaBandeja,
   AlertasResumen,
   CorreoConfig,
@@ -21,6 +22,7 @@ import {
   GrupoEmpresa,
   InformeGlobal,
   InformeRecurrencia,
+  InformeUmbrales,
   InformeTop,
   InvestigacionSstRequest,
   LoteCorreo,
@@ -170,6 +172,27 @@ export class IncapacidadGestionService {
     });
   }
 
+  /** Los archivos que viajaron en el correo de un envio (en un lote, todos los del lote). */
+  adjuntosEnvio(id: number): Observable<AdjuntoCorreo[]> {
+    return this.http.get<AdjuntoCorreo[]>(`${this.base}/correos/envios/${id}/adjuntos`, {
+      headers: this.cabeceras(),
+    });
+  }
+
+  adjuntosLote(id: number): Observable<AdjuntoCorreo[]> {
+    return this.http.get<AdjuntoCorreo[]>(`${this.base}/correos/lotes/${id}/adjuntos`, {
+      headers: this.cabeceras(),
+    });
+  }
+
+  /** El PDF adjunto tal como llego (solo documentos que el ledger registra como adjuntos). */
+  descargarAdjunto(documentId: number): Observable<Blob> {
+    return this.http.get(`${this.base}/correos/adjuntos/${documentId}`, {
+      headers: this.cabeceras(),
+      responseType: 'blob',
+    });
+  }
+
   /** Historial de intentos de UNA incapacidad (endpoint previo, se conserva). */
   historialCorreo(incapacidadId: number): Observable<NotificacionCorreo[]> {
     return this.http.get<NotificacionCorreo[]>(`${this.base}/${incapacidadId}/notificacion-correo`, {
@@ -186,6 +209,13 @@ export class IncapacidadGestionService {
   }
 
   // ── Informes ──────────────────────────────────────────────────────────
+
+  /** Umbrales 180/540 ubicados en el tiempo (vigente / reciente / historico / por revisar). */
+  umbrales(): Observable<InformeUmbrales> {
+    return this.http.get<InformeUmbrales>(`${this.base}/informes/umbrales`, {
+      headers: this.cabeceras(),
+    });
+  }
 
   informeGlobal(f: FiltrosInforme = {}): Observable<InformeGlobal> {
     return this.http.get<InformeGlobal>(`${this.base}/informes/global`, {

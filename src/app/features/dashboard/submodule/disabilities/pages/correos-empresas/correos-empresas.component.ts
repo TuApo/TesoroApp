@@ -284,6 +284,10 @@ export class CorreosEmpresasComponent implements OnInit {
     this.abrirVista({
       titulo: `Correo a ${g.empresaMatch || g.incapacidades[0]?.empresa || 'empresa usuaria'}`,
       asunto: g.asunto, destinatario: g.destinatario, copias: g.copias, cuerpoHtml: g.cuerpoHtml,
+      enviadoEn: null,
+      referencia: 'lote de hoy, vista previa',
+      // Aun no se generan: solo se sabe con que nombre saldran.
+      adjuntos: { nombres: g.incapacidades.map((i) => nombreAdjunto(i.cedula, i.fechaInicio)) },
     });
   }
 
@@ -415,6 +419,8 @@ export class CorreosEmpresasComponent implements OnInit {
       next: (d) => this.abrirVista({
         titulo: `Lote #${d.id} · ${d.empresaMatch || 'sin finca'} · ${d.fechaLote}`,
         asunto: d.asunto, destinatario: d.destinatario, copias: d.cc, cuerpoHtml: d.cuerpoHtml ?? '', estado: d.estado, mensajeError: d.mensajeError,
+        remitente: d.remitente, enviadoEn: d.creadoEn, modo: d.modo, referencia: `lote #${d.id}`,
+        adjuntos: { tipo: 'lote', id: d.id },
       }),
       error: (e: unknown) => void Swal.fire({ icon: 'error', title: 'No se pudo abrir el lote', text: mensajeDeError(e, 'Intente de nuevo.') }),
     });
@@ -426,6 +432,9 @@ export class CorreosEmpresasComponent implements OnInit {
         titulo: `Envio #${h.notificacion.id} · CC ${h.incapacidad.cedula}`,
         asunto: h.notificacion.asunto, destinatario: h.notificacion.destinatarios, copias: h.notificacion.cc,
         cuerpoHtml: html, estado: h.notificacion.estado, mensajeError: h.notificacion.mensajeError,
+        remitente: h.notificacion.remitente ?? null, enviadoEn: h.notificacion.creadoEn, modo: h.notificacion.modo,
+        referencia: h.notificacion.loteId ? `envío #${h.notificacion.id}, lote #${h.notificacion.loteId}` : `envío #${h.notificacion.id}`,
+        adjuntos: { tipo: 'envio', id: h.notificacion.id },
       }),
       error: (e: unknown) => void Swal.fire({ icon: 'error', title: 'No se pudo abrir el correo', text: mensajeDeError(e, 'Intente de nuevo.') }),
     });
@@ -449,7 +458,7 @@ export class CorreosEmpresasComponent implements OnInit {
   }
 
   private abrirVista(datos: DatosVistaCorreo): void {
-    this.dialogo.open(DialogoVistaCorreoComponent, { data: datos, width: '820px', maxWidth: '96vw', autoFocus: false });
+    this.dialogo.open(DialogoVistaCorreoComponent, { data: datos, width: '1060px', maxWidth: '96vw', autoFocus: false });
   }
 
   trackGrupo(_: number, g: GrupoLotePreview): string { return g.clave; }
@@ -459,4 +468,11 @@ export class CorreosEmpresasComponent implements OnInit {
 
 function escapar(v: string): string {
   return v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Nombre con el que viaja el adjunto (espejo de PrimeraPaginaSoporteService.nombreAdjunto). */
+export function nombreAdjunto(cedula: string, fechaInicio: string | null): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(fechaInicio ?? '');
+  const fecha = m ? `${m[3]}${m[2]}${m[1]}` : '';
+  return `${(cedula ?? '').trim()} ${fecha} Notificacion.pdf`.replace(/\s+/g, ' ');
 }

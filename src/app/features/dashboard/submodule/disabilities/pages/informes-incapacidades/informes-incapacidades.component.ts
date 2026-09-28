@@ -48,7 +48,11 @@ import {
   InformeTop,
   SerieInforme,
 } from '../../models/incapacidad-gestion.model';
-import { DialogoInformeUmbralComponent } from '../consulta-incapacidades/dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
+import {
+  ANCHO_DIALOGO_UMBRALES,
+  DialogoInformeUmbralComponent,
+} from '../consulta-incapacidades/dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
+import { PanelUmbralesComponent } from '../../components/panel-umbrales/panel-umbrales.component';
 
 /** Paleta categorica fija (misma familia que la analitica de nomina; CVD-safe en claro). */
 export const PALETA_INFORMES: readonly string[] = [
@@ -113,6 +117,7 @@ export type FilaTopConPuesto = FilaTopPersona & { puesto: number };
   selector: 'app-informes-incapacidades',
   standalone: true,
   imports: [
+    PanelUmbralesComponent,
     DecimalPipe,
     FormsModule,
     RouterLink,
@@ -228,9 +233,9 @@ export class InformesIncapacidadesComponent implements OnInit {
 
   abrirInformeUmbral(): void {
     this.dialogo.open(DialogoInformeUmbralComponent, {
-      width: '1000px',
-      maxWidth: '95vw',
-      maxHeight: '92vh',
+      width: ANCHO_DIALOGO_UMBRALES,
+      maxWidth: '96vw',
+      maxHeight: '94vh',
       autoFocus: false,
       panelClass: 'disab-dialogo',
     });
@@ -291,9 +296,9 @@ export class InformesIncapacidadesComponent implements OnInit {
         { Indicador: 'Licencias de paternidad', Valor: g.licenciasPaternidad },
         { Indicador: 'ARL sin investigacion', Valor: g.arl.sinInvestigacion },
         { Indicador: 'ARL investigacion vencida', Valor: g.arl.vencidas },
-        { Indicador: 'Personas que superan 180 dias', Valor: g.umbral180 },
-        { Indicador: 'Personas proximas a 180 dias', Valor: g.proximas180 },
-        { Indicador: 'Personas que superan 540 dias', Valor: g.umbral540 },
+        { Indicador: 'Casos activos hoy con el fondo de pensiones (dia 181 a 540)', Valor: g.umbral180 },
+        { Indicador: 'Casos activos que pasan al fondo en los proximos 30 dias', Valor: g.proximas180 },
+        { Indicador: 'Casos activos hoy de vuelta en la EPS (mas de 540 dias)', Valor: g.umbral540 },
       ]),
       'Resumen',
     );
