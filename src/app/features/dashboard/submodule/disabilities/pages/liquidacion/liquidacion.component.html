@@ -34,6 +34,7 @@
           (drop)="alSoltar($event)"
           (click)="inputArchivo.click()"
           (keydown.enter)="inputArchivo.click()"
+          (keydown.space)="$event.preventDefault(); inputArchivo.click()"
           role="button"
           tabindex="0"
           aria-label="Cargar la plantilla de liquidación">
@@ -123,7 +124,7 @@
                   <h3 class="liq-grupo-titulo"><mat-icon>attach_money</mat-icon> Valor</h3>
                   <div class="liq-tarjetas liq-tarjetas-valor">
                     <div class="kpi-tarjeta"><span class="kpi-textos"><span class="kpi-valor kpi-valor-dinero">{{ pesos(r.valorTotalPagos) }}</span><span class="kpi-etiqueta">Valor total de pagos en la plantilla</span></span></div>
-                    <div class="kpi-tarjeta kpi-ok"><span class="kpi-textos"><span class="kpi-valor kpi-valor-dinero">{{ pesos(valorAplicable()) }}</span><span class="kpi-etiqueta">{{ editable() ? 'Valor que se aplicará' : 'Valor aplicado' }}</span></span></div>
+                    <div class="kpi-tarjeta kpi-ok"><span class="kpi-textos"><span class="kpi-valor kpi-valor-dinero">{{ pesos(valorAplicable()) }}</span><span class="kpi-etiqueta">{{ editable() ? 'Valor que se aplicará' : d.carga.estado === 'ANULADA' ? 'Valor anulado' : 'Valor aplicado' }}</span></span></div>
                     <div class="kpi-tarjeta"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.incapacidadesDistintas) }}</span><span class="kpi-etiqueta">Incapacidades distintas que cruzan</span></span></div>
                   </div>
                 </div>
@@ -271,11 +272,11 @@
           [opcionesPorPagina]="[25, 50, 100, 200]"
           (paginaCambio)="paginarCargas($event)">
           <ng-template tablaAcciones let-c>
-            <button type="button" mat-icon-button (click)="verCarga(c)" [matTooltip]="c.estado === 'SIMULADA' ? 'Continuar la revisión' : 'Ver detalle'"><mat-icon>{{ c.estado === 'SIMULADA' ? 'rate_review' : 'visibility' }}</mat-icon></button>
+            <button type="button" mat-icon-button (click)="verCarga(c)" [matTooltip]="c.estado === 'SIMULADA' ? 'Continuar la revisión' : 'Ver detalle'" [attr.aria-label]="(c.estado === 'SIMULADA' ? 'Continuar la revisión de la carga ' : 'Ver el detalle de la carga ') + c.id"><mat-icon>{{ c.estado === 'SIMULADA' ? 'rate_review' : 'visibility' }}</mat-icon></button>
             @if (c.estado === 'APLICADA') {
-              <a mat-icon-button [routerLink]="rutaPagos" [queryParams]="{ cargaId: c.id }" matTooltip="Ver los pagos de esta carga"><mat-icon>payments</mat-icon></a>
-              <a mat-icon-button [routerLink]="rutaNegaciones" [queryParams]="{ cargaId: c.id }" matTooltip="Ver las negaciones de esta carga"><mat-icon>block</mat-icon></a>
-              <button type="button" mat-icon-button class="accion-peligro" (click)="anularCarga(c)" matTooltip="Anular carga (anula sus pagos y negaciones)"><mat-icon>cancel</mat-icon></button>
+              <a mat-icon-button [routerLink]="rutaPagos" [queryParams]="{ cargaId: c.id }" matTooltip="Ver los pagos de esta carga" [attr.aria-label]="'Ver los pagos de la carga ' + c.id"><mat-icon>payments</mat-icon></a>
+              <a mat-icon-button [routerLink]="rutaNegaciones" [queryParams]="{ cargaId: c.id }" matTooltip="Ver las negaciones de esta carga" [attr.aria-label]="'Ver las negaciones de la carga ' + c.id"><mat-icon>block</mat-icon></a>
+              <button type="button" mat-icon-button class="accion-peligro" (click)="anularCarga(c)" matTooltip="Anular carga (anula sus pagos y negaciones)" [attr.aria-label]="'Anular la carga ' + c.id"><mat-icon>cancel</mat-icon></button>
             }
           </ng-template>
         </app-tabla-estandar>

@@ -15,7 +15,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 
 import { CausalNegacion, FilaLiquidacion } from '../../../models/incapacidad-salud.model';
-import { claseAccion, etiquetaAccion, fechaCorta } from '../liquidacion.utils';
+import { claseAccion, etiquetaAccion, fechaCorta, normalizarCausal } from '../liquidacion.utils';
 
 export interface DatosDialogoHomologarFila {
   fila: FilaLiquidacion;
@@ -69,9 +69,14 @@ export interface ResultadoDialogoHomologarFila {
         </p>
       }
 
-      <mat-checkbox [ngModel]="recordar()" (ngModelChange)="recordar.set($event)">
+      <mat-checkbox [ngModel]="recordar()" (ngModelChange)="recordar.set($event)" [disabled]="!hayTexto">
         Recordar para esta EPS: las próximas cargas con este mismo texto se homologan solas
       </mat-checkbox>
+      @if (!hayTexto) {
+        <p class="hf-nota">La fila no trae el texto de la causal: no hay nada que recordar.</p>
+      } @else if (!datos.fila.sinHomologar && recordar()) {
+        <p class="hf-nota">Si este texto ya tenía una equivalencia para la EPS, pasa a la causal que elijas aquí.</p>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button type="button" (click)="ref.close(undefined)">Cancelar</button>
@@ -93,6 +98,7 @@ export interface ResultadoDialogoHomologarFila {
     .hf-texto { margin: 0 0 10px; padding: 8px 12px; border-left: 3px solid var(--disab-warn); background: var(--surface-2); border-radius: 6px; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
     .hf-ancho { width: 100%; }
     .hf-efecto { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; font-size: 13px; }
+    .hf-nota { margin: 0 0 0 40px; font-size: 12px; color: var(--disab-text-muted); }
   `],
 })
 export class DialogoHomologarFilaComponent {
@@ -100,8 +106,14 @@ export class DialogoHomologarFilaComponent {
   readonly datos = inject<DatosDialogoHomologarFila>(MAT_DIALOG_DATA);
 
   readonly causalId = signal<number | null>(this.datos.fila.causalId ?? null);
-  /** Por defecto se recuerda: es la forma de ir armando las equivalencias por EPS sin adivinar. */
-  readonly recordar = signal(true);
+  /** ms-hr responde 400 si se pide recordar una fila sin texto de causal. */
+  readonly hayTexto = normalizarCausal(this.datos.fila.causalTexto) !== '';
+  /**
+   * Al homologar un texto nuevo se recuerda por defecto: es la forma de ir armando las equivalencias
+   * por EPS sin adivinar. Al CAMBIAR la causal de una fila ya homologada no: «recordar» re-apuntaria
+   * la equivalencia de esa EPS (afecta las proximas cargas) por una correccion puntual.
+   */
+  readonly recordar = signal(this.hayTexto && this.datos.fila.sinHomologar);
   readonly seleccionada = computed(() => this.datos.causales.find((c) => c.id === this.causalId()) ?? null);
 
   readonly fecha = fechaCorta;
@@ -111,6 +123,6 @@ export class DialogoHomologarFilaComponent {
   confirmar(): void {
     const causalId = this.causalId();
     if (!causalId) return;
-    this.ref.close({ causalId, recordar: this.recordar() });
+    this.ref.close({ causalId, recordar: this.hayTexto && this.recordar() });
   }
 }

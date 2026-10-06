@@ -224,6 +224,38 @@ describe('LiquidacionNegacionesComponent', () => {
     responderSinHomologar([]);
   });
 
+  it('si falla la consulta de "Sin homologar" muestra el error y no dice que todo esta homologado', async () => {
+    peticionNegaciones().flush(pagina([]));
+    responderSinHomologar([]);
+
+    componente.cambiarTab(TAB_SIN_HOMOLOGAR);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    // Cambiar la pestana por codigo hace que mat-tab-group tambien la emita: se responden todas.
+    for (const req of httpMock.match(`${BASE}/liquidacion/causales/sin-homologar`)) {
+      req.flush({ error: 'ms-hr no responde' }, { status: 500, statusText: 'Server Error' });
+    }
+    fixture.detectChanges();
+
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(componente.errorSinHomologar()).toBe('ms-hr no responde');
+    expect(texto).toContain('ms-hr no responde');
+    expect(texto).not.toContain('Todas las negaciones tienen su causal homologada');
+  });
+
+  it('exportar usa los filtros de lo que esta en pantalla, no lo escrito sin aplicar', () => {
+    peticionNegaciones().flush(pagina([negacionItem()], 1));
+    responderSinHomologar([]);
+    spyOn(componente, 'guardarLibro');
+    componente.formulario = { q: '', eps: '', accion: 'FINALIZA', soloSinHomologar: true };
+
+    componente.exportar();
+    const req = peticionNegaciones();
+    expect(req.request.params.has('accion')).toBeFalse();
+    expect(req.request.params.has('sinHomologar')).toBeFalse();
+    req.flush(pagina([negacionItem()], 1));
+  });
+
   it('mensajeReaplicar con singulares y sin coincidencias', () => {
     peticionNegaciones().flush(pagina([]));
     responderSinHomologar([]);

@@ -103,7 +103,7 @@
 
                 <ng-template tablaAcciones let-n>
                   @if (!n.anulado) {
-                    <button type="button" mat-icon-button class="accion-peligro" (click)="anular(n)" matTooltip="Anular negación"><mat-icon>block</mat-icon></button>
+                    <button type="button" mat-icon-button class="accion-peligro" (click)="anular(n)" matTooltip="Anular negación" aria-label="Anular negación"><mat-icon>block</mat-icon></button>
                   }
                 </ng-template>
               </app-tabla-estandar>
@@ -139,7 +139,7 @@
                 [filasPorPagina]="0">
                 <ng-template tablaCelda="codigo" let-c><span class="celda-mono">{{ c.codigo }}</span></ng-template>
                 <ng-template tablaAcciones let-c>
-                  <button type="button" mat-icon-button (click)="editarCausal(c)" matTooltip="Editar causal"><mat-icon>edit</mat-icon></button>
+                  <button type="button" mat-icon-button (click)="editarCausal(c)" matTooltip="Editar causal" aria-label="Editar causal"><mat-icon>edit</mat-icon></button>
                 </ng-template>
               </app-tabla-estandar>
             </ng-template>
@@ -174,8 +174,8 @@
                   @if (e.causalCodigo) { <span class="celda-sub celda-mono">{{ e.causalCodigo }}</span> }
                 </ng-template>
                 <ng-template tablaAcciones let-e>
-                  <button type="button" mat-icon-button (click)="editarEquivalencia(e)" matTooltip="Editar equivalencia"><mat-icon>edit</mat-icon></button>
-                  <button type="button" mat-icon-button class="accion-peligro" (click)="eliminarEquivalencia(e)" matTooltip="Eliminar equivalencia"><mat-icon>delete_outline</mat-icon></button>
+                  <button type="button" mat-icon-button (click)="editarEquivalencia(e)" matTooltip="Editar equivalencia" aria-label="Editar equivalencia"><mat-icon>edit</mat-icon></button>
+                  <button type="button" mat-icon-button class="accion-peligro" (click)="eliminarEquivalencia(e)" matTooltip="Eliminar equivalencia" aria-label="Eliminar equivalencia"><mat-icon>delete_outline</mat-icon></button>
                 </ng-template>
               </app-tabla-estandar>
             </ng-template>
@@ -188,7 +188,9 @@
               @if (sinHomologar().length) { <span class="ges-chip ges-chip-aviso neg-contador">{{ sinHomologar().length }}</span> }
             </ng-template>
             <ng-template matTabContent>
-              @if (sinHomologar().length) {
+              @if (errorSinHomologar()) {
+                <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ errorSinHomologar() }}</span></div>
+              } @else if (sinHomologar().length) {
                 <div class="ges-aviso">
                   <mat-icon>help_outline</mat-icon>
                   <span>

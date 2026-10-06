@@ -8,6 +8,7 @@
 import { EMPTY, Observable, expand, reduce } from 'rxjs';
 import * as XLSX from 'xlsx';
 
+import { isOfflineQueued } from '../../../../../../core/utils/offline-response';
 import type { TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import type { Page } from '../../models/incapacidad-v2.model';
 import {
@@ -149,6 +150,37 @@ export function mensajeDeError(e: unknown, porDefecto: string): string {
   return cuerpo?.error || cuerpo?.message || porDefecto;
 }
 
+/**
+ * El gateway corta a los 30 s (503 de su fallback, o 504) aunque ms-hr siga y TERMINE la operacion
+ * (aplicar o anular una carga grande recalcula cada incapacidad). En esos casos no se puede decir
+ * "no se pudo": hay que mirar el estado real antes de repetir.
+ */
+export function esTiempoAgotado(e: unknown): boolean {
+  const status = (e as { status?: number } | null)?.status;
+  return status === 503 || status === 504;
+}
+
+export const MENSAJE_TIEMPO_AGOTADO =
+  'El servidor tardó demasiado en responder y puede que la operación sí se haya completado. ' +
+  'Revisa el estado de la carga en el historial antes de repetirla.';
+
+/**
+ * Sin red, el interceptor offline ENCOLA los POST y responde un 200 falso (`_isOfflineMock`): la
+ * operacion no llego a ms-hr. Las pantallas de Liquidacion no deben pintarlo como hecho (p. ej.
+ * "Liquidacion aplicada" con todo en cero).
+ */
+export function quedoEnCola(respuesta: unknown): boolean {
+  return isOfflineQueued(respuesta);
+}
+
+export const AVISO_EN_COLA = {
+  icon: 'warning' as const,
+  title: 'Sin conexión con el servidor',
+  text:
+    'La operación todavía no se hizo: quedó en la cola de envíos pendientes y se enviará cuando vuelva ' +
+    'la conexión. Revisa el estado antes de repetirla.',
+};
+
 /** Para interpolar texto del usuario o del backend dentro del `html` de SweetAlert2. */
 export function escaparHtml(v: string | null | undefined): string {
   return (v ?? '')
@@ -263,7 +295,9 @@ function resumenDeHoja(filas: FilaLiquidacion[]): ResumenHoja {
  * para que siempre cuadren con la tabla. Criterio:
  *  - finalizan / recobro: negaciones que CRUZAN (las que se aplicarian) segun su accion;
  *  - sinHomologar: todas las negaciones sin causal interna (cruce aparte);
- *  - valorTotalPagos: el que informo el backend (lo que trae la plantilla);
+ *  - valorTotalPagos: la suma de TODAS las filas de Pagos (lo que trae la plantilla, para cuadrarlo
+ *    con el extracto). El de ms-hr solo suma las que cruzan y se queda viejo al asignar a mano; lo
+ *    que cruza ya se muestra aparte como "valor que se aplicara";
  *  - incapacidadesDistintas: incapacidades distintas entre las filas que cruzan.
  * Si el backend no mando filas (respuesta recortada) se respeta su resumen.
  */
@@ -286,8 +320,7 @@ export function resumenVigente(detalle: CargaLiquidacionDetalle | null): Resumen
   return {
     pagos: resumenDeHoja(pagos),
     negaciones: resumenNegaciones,
-    valorTotalPagos:
-      detalle.resumen?.valorTotalPagos ?? pagos.reduce((s, f) => s + Number(f.valorPagado ?? 0), 0),
+    valorTotalPagos: pagos.reduce((s, f) => s + (Number(f.valorPagado) || 0), 0),
     incapacidadesDistintas: distintas.size,
   };
 }

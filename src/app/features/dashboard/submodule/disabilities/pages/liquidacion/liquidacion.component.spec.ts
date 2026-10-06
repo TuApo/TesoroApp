@@ -240,7 +240,7 @@ describe('LiquidacionComponent', () => {
     expect(componente.filas()[1].resultado).toBe('NO_CRUZA');
   });
 
-  it('homologa la causal de una negacion y, al recordarla, tambien sus filas hermanas', () => {
+  it('homologa la causal y, al recordarla, relee la carga para ver las hermanas que homologo ms-hr', () => {
     responderHistorial();
     simular();
     const swal = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({}));
@@ -266,14 +266,60 @@ describe('LiquidacionComponent', () => {
     expect(principal.request.body.recordarEquivalencia).toBeTrue();
     principal.flush({ ...componente.filas()[4], sinHomologar: false, causalId: 3, causalCodigo: 'SIN_AFILIACION' });
 
-    // Misma EPS (escrita distinto) y mismo texto normalizado: se homologa sin crear otra equivalencia.
-    const hermana = httpMock.expectOne(`${BASE}/liquidacion/cargas/7/filas/6/causal`);
-    expect(hermana.request.body.recordarEquivalencia).toBeFalse();
-    hermana.flush({ ...componente.filas()[5], sinHomologar: false, causalId: 3 });
+    // Las hermanas las homologa ms-hr con la EPS canonica: aqui no se adivinan fila por fila.
+    httpMock.expectNone((r) => r.url === `${BASE}/liquidacion/cargas/7/filas/6/causal`);
+    const homologadas = filasCarga().map((f) =>
+      f.id === 5 || f.id === 6 ? { ...f, sinHomologar: false, causalId: 3, causalCodigo: 'SIN_AFILIACION' } : f,
+    );
+    httpMock.expectOne(`${BASE}/liquidacion/cargas/7`).flush(detalleCarga(homologadas));
 
     expect(componente.resumen()?.negaciones.sinHomologar).toBe(0);
+    expect(componente.filaOcupada()).toBeNull();
     expect(swal).toHaveBeenCalled();
     expect(JSON.stringify(swal.calls.mostRecent().args[0])).toContain('1 fila');
+  });
+
+  it('filas sin EPS: «recordar» no homologa por su cuenta filas que ms-hr dejo sin homologar (otra EPS)', () => {
+    responderHistorial();
+    const filas = filasCarga().map((f) => (f.hoja === 'NEGACIONES' ? { ...f, eps: null } : f));
+    simular(detalleCarga(filas));
+    const swal = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({}));
+    dialogoFalso.open.and.returnValue({ afterClosed: () => of({ causalId: 3, recordar: true }) });
+
+    componente.homologar(componente.filas()[4]);
+    httpMock.expectOne((r) => r.url === `${BASE}/liquidacion/causales`).flush([causalNegacion({ id: 3, accion: 'RECOBRO' })]);
+    httpMock.expectOne(`${BASE}/liquidacion/cargas/7/filas/5/causal`)
+      .flush({ ...componente.filas()[4], sinHomologar: false, causalId: 3 });
+
+    // La fila 6 es de una incapacidad de OTRA EPS: ms-hr no la toca y la pantalla tampoco.
+    httpMock.expectNone((r) => r.url === `${BASE}/liquidacion/cargas/7/filas/6/causal`);
+    const soloLaPrincipal = filas.map((f) => (f.id === 5 ? { ...f, sinHomologar: false, causalId: 3 } : f));
+    httpMock.expectOne(`${BASE}/liquidacion/cargas/7`).flush(detalleCarga(soloLaPrincipal));
+
+    expect(componente.filas().find((f) => f.id === 6)?.sinHomologar).toBeTrue();
+    expect(componente.resumen()?.negaciones.sinHomologar).toBe(1);
+    expect(swal).not.toHaveBeenCalled();
+  });
+
+  it('una tarjeta de la otra hoja conserva su filtro aunque la pestaña emita el cambio', async () => {
+    responderHistorial();
+    simular();
+    expect(componente.hoja()).toBe('PAGOS');
+
+    componente.filtrarPor('NEGACIONES', 'SIN_HOMOLOGAR');
+    fixture.detectChanges();
+    // mat-tab-group emite selectedIndexChange en una microtarea tras cambiar la pestaña por codigo.
+    await microtareas();
+    fixture.detectChanges();
+
+    expect(componente.hoja()).toBe('NEGACIONES');
+    expect(componente.filtro()).toBe('SIN_HOMOLOGAR');
+    expect(componente.filasVisibles().map((f) => f.id)).toEqual([5, 6]);
+
+    // Un cambio de pestaña del usuario si reinicia el filtro.
+    componente.cambiarHoja(0);
+    expect(componente.hoja()).toBe('PAGOS');
+    expect(componente.filtro()).toBe('TODAS');
   });
 
   it('aplicar confirma, muestra "Usted acaba de liquidar..." y recarga la carga', async () => {
@@ -306,6 +352,40 @@ describe('LiquidacionComponent', () => {
     expect(componente.editable()).toBeFalse();
     expect(componente.valorAplicable()).toBe(350184);
     expect(texto('.liq-revision .ges-aviso-info')).toContain('Carga aplicada por ligia');
+  });
+
+  it('sin conexion, aplicar NO se pinta como hecho (200 falso de la cola offline)', async () => {
+    responderHistorial();
+    simular();
+    const swal = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }));
+
+    componente.aplicar();
+    await microtareas();
+    httpMock.expectOne(`${BASE}/liquidacion/cargas/7/aplicar`).flush({ id: -3, _isOfflineMock: true });
+
+    const ultimo = JSON.stringify(swal.calls.mostRecent().args[0]);
+    expect(ultimo).toContain('Sin conexión');
+    expect(ultimo).not.toContain('Liquidación aplicada');
+    // Sigue en revision y sin releer nada (httpMock.verify del afterEach).
+    expect(componente.editable()).toBeTrue();
+  });
+
+  it('si aplicar pasa de los 30 s del gateway avisa que pudo aplicarse y relee la carga', async () => {
+    responderHistorial();
+    simular();
+    const swal = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }));
+
+    componente.aplicar();
+    await microtareas();
+    httpMock.expectOne(`${BASE}/liquidacion/cargas/7/aplicar`)
+      .flush({ ok: false, status: 503, message: 'Servicio temporalmente no disponible' }, { status: 503, statusText: 'Service Unavailable' });
+
+    expect(JSON.stringify(swal.calls.mostRecent().args[0])).toContain('puede que la operación sí se haya completado');
+    // ms-hr si alcanzo a aplicarla: la revision queda en solo lectura en vez de invitar a repetir.
+    const aplicadas = filasCarga().map((f) => (f.resultado === 'CRUZA' ? { ...f, aplicada: true } : f));
+    httpMock.expectOne(`${BASE}/liquidacion/cargas/7`).flush(detalleCarga(aplicadas, { estado: 'APLICADA' }));
+    responderHistorial();
+    expect(componente.editable()).toBeFalse();
   });
 
   it('aplicar no hace nada si el usuario cancela', async () => {

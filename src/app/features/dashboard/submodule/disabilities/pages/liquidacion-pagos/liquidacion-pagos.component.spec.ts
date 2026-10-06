@@ -110,6 +110,50 @@ describe('LiquidacionPagosComponent', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Solo los pagos de la carga #7');
   });
 
+  it('Enter en el buscador no consulta dos veces (ya filtra el submit del formulario)', () => {
+    crear();
+    peticionPagos().flush(paginaPagos([], 0, 0));
+    const input = (fixture.nativeElement as HTMLElement).querySelector<HTMLInputElement>('input[name="q"]')!;
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter' }));
+    httpMock.expectNone((r) => r.url === `${BASE}/liquidacion/pagos`);
+  });
+
+  it('una respuesta vieja que llega tarde no pisa el valor total del filtro vigente', () => {
+    crear();
+    componente.formulario = { q: '', eps: 'NUEVA EPS', desde: null, hasta: null };
+    componente.filtrar();
+    const [vieja, nueva] = httpMock.match((r) => r.url === `${BASE}/liquidacion/pagos`);
+    expect(nueva.request.params.get('eps')).toBe('NUEVA EPS');
+    nueva.flush(paginaPagos([pagoItem({ eps: 'NUEVA EPS' })], 1, 1000));
+    vieja.flush(paginaPagos([pagoItem(), pagoItem({ id: 6 })], 2, 999999));
+    expect(componente.valorTotal()).toBe(1000);
+    expect(componente.total()).toBe(1);
+  });
+
+  it('exportar usa los filtros de lo que esta en pantalla, no lo escrito sin aplicar', () => {
+    crear();
+    peticionPagos().flush(paginaPagos([pagoItem()], 1, 350184));
+    spyOn(componente, 'guardarLibro');
+    componente.formulario = { q: '999', eps: 'SANITAS', desde: null, hasta: null };
+
+    componente.exportar();
+    const req = peticionPagos();
+    expect(req.request.params.has('q')).toBeFalse();
+    expect(req.request.params.has('eps')).toBeFalse();
+    req.flush(paginaPagos([pagoItem()], 1, 350184));
+  });
+
+  it('sin conexion, anular no se pinta como hecho (200 falso de la cola offline)', async () => {
+    crear();
+    peticionPagos().flush(paginaPagos([pagoItem()], 1, 350184));
+    const swal = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }));
+    componente.anular(componente.filas()[0]);
+    await microtareas();
+    httpMock.expectOne(`${BASE}/liquidacion/pagos/5/anular`).flush({ motivo: null, id: -1, _isOfflineMock: true });
+    expect(JSON.stringify(swal.calls.mostRecent().args[0])).toContain('Sin conexión');
+    // No se recarga el listado como si se hubiera anulado (httpMock.verify del afterEach).
+  });
+
   it('filtrosDePagos no manda claves vacias', () => {
     expect(filtrosDePagos({ q: ' ', eps: '', desde: null, hasta: null }, null)).toEqual({});
   });

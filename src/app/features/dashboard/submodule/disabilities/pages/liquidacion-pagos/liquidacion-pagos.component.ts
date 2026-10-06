@@ -34,6 +34,7 @@ import { IncapacidadV2Service } from '../../services/incapacidad-v2/incapacidad-
 import { FiltrosPagos, PagoItem } from '../../models/incapacidad-salud.model';
 import { aIsoCorto } from '../../utils/fechas';
 import {
+  AVISO_EN_COLA,
   MAX_PAGINAS_EXPORT,
   RUTA_LIQUIDACION,
   TAMANO_PAGINA_EXPORT,
@@ -48,6 +49,7 @@ import {
   marcaDeTiempo,
   mensajeDeError,
   pesos,
+  quedoEnCola,
   traerTodasLasPaginas,
 } from '../liquidacion/liquidacion.utils';
 
@@ -114,6 +116,13 @@ export class LiquidacionPagosComponent implements OnInit {
   readonly exportando = signal(false);
   readonly error = signal('');
   readonly epsOpciones = signal<string[]>([]);
+  /**
+   * Filtros de lo que esta EN PANTALLA (los de la ultima consulta). Exportar usa estos y no lo que
+   * este escrito en el formulario sin aplicar: el Excel debe cuadrar con la tabla y los KPI.
+   */
+  private filtrosVigentes: FiltrosPagos = {};
+  /** Solo la respuesta de la ULTIMA consulta pinta (una vieja que llegue tarde no pisa el valor total). */
+  private consulta = 0;
 
   readonly pesos = pesos;
   readonly entero = entero;
@@ -160,14 +169,19 @@ export class LiquidacionPagosComponent implements OnInit {
   cargar(): void {
     this.cargando.set(true);
     this.error.set('');
-    this.srv.pagos(this.filtros(), this.pagina(), this.tamano()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    const filtros = this.filtros();
+    const consulta = ++this.consulta;
+    this.srv.pagos(filtros, this.pagina(), this.tamano()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (p) => {
+        if (consulta !== this.consulta) return;
+        this.filtrosVigentes = filtros;
         this.filas.set(p.content ?? []);
         this.total.set(p.totalElements ?? 0);
         this.valorTotal.set(Number(p.valorTotal ?? 0));
         this.cargando.set(false);
       },
       error: (e: unknown) => {
+        if (consulta !== this.consulta) return;
         this.cargando.set(false);
         this.error.set(mensajeDeError(e, 'No se pudieron cargar los pagos.'));
       },
@@ -218,7 +232,11 @@ export class LiquidacionPagosComponent implements OnInit {
       if (!r.isConfirmed) return;
       const motivo = typeof r.value === 'string' && r.value.trim() ? r.value.trim() : undefined;
       this.srv.anularPago(p.id, motivo).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-        next: () => {
+        next: (anulado) => {
+          if (quedoEnCola(anulado)) {
+            void Swal.fire(AVISO_EN_COLA);
+            return;
+          }
           void Swal.fire({ icon: 'success', title: 'Pago anulado', timer: 2500, showConfirmButton: false });
           this.cargar();
         },
@@ -234,7 +252,7 @@ export class LiquidacionPagosComponent implements OnInit {
   exportar(): void {
     if (this.exportando() || this.total() === 0) return;
     this.exportando.set(true);
-    const filtros = this.filtros();
+    const filtros = this.filtrosVigentes;
     traerTodasLasPaginas((pagina) => this.srv.pagos(filtros, pagina, TAMANO_PAGINA_EXPORT))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

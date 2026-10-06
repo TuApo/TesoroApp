@@ -73,13 +73,14 @@ describe('liquidacion.utils', () => {
       resumen: {
         pagos: { total: 99, cruzan: 99, noCruzan: 0, ambiguas: 0, duplicadas: 0, errores: 0 },
         negaciones: { total: 0, cruzan: 0, noCruzan: 0, ambiguas: 0, duplicadas: 0, errores: 0, finalizan: 0, recobro: 0, sinHomologar: 0 },
-        valorTotalPagos: 1050552,
+        // ms-hr solo suma los pagos que CRUZAN (y no se entera de las asignaciones a mano).
+        valorTotalPagos: 350184,
         incapacidadesDistintas: 1,
       },
       filas: f,
     });
 
-    it('recalcula los conteos desde las filas (cuadran con la tabla) y conserva el valor del backend', () => {
+    it('recalcula los conteos y el valor de la plantilla desde las filas (cuadran con la tabla)', () => {
       const r = resumenVigente(detalle(filas))!;
       expect(r.pagos).toEqual({ total: 3, cruzan: 1, noCruzan: 1, ambiguas: 0, duplicadas: 1, errores: 0 });
       expect(r.negaciones.total).toBe(3);
@@ -88,9 +89,15 @@ describe('liquidacion.utils', () => {
       expect(r.negaciones.finalizan).toBe(1);
       expect(r.negaciones.recobro).toBe(1);
       expect(r.negaciones.sinHomologar).toBe(2);
+      // Valor de la plantilla = TODAS las filas de Pagos (3 x 350.184), no solo la que cruza.
       expect(r.valorTotalPagos).toBe(1050552);
       // Filas 1 y 4/5 cruzan con las incapacidades 100, 9 y 10.
       expect(r.incapacidadesDistintas).toBe(3);
+    });
+
+    it('un pago sin valor legible (fila con error) no rompe la suma de la plantilla', () => {
+      const r = resumenVigente(detalle([filaLiquidacion({ id: 1, valorPagado: 1000 }), filaLiquidacion({ id: 2, resultado: 'ERROR', valorPagado: null })]))!;
+      expect(r.valorTotalPagos).toBe(1000);
     });
 
     it('sin filas respeta el resumen que mando el backend', () => {

@@ -49,6 +49,7 @@ import {
   NegacionItem,
 } from '../../models/incapacidad-salud.model';
 import {
+  AVISO_EN_COLA,
   EPS_TODAS,
   MAX_PAGINAS_EXPORT,
   RUTA_LIQUIDACION,
@@ -68,6 +69,7 @@ import {
   marcaDeTiempo,
   mensajeDeError,
   plural,
+  quedoEnCola,
   tonoDeChip,
   traerTodasLasPaginas,
 } from '../liquidacion/liquidacion.utils';
@@ -158,6 +160,10 @@ export class LiquidacionNegacionesComponent implements OnInit {
   readonly cargando = signal(false);
   readonly exportando = signal(false);
   readonly error = signal('');
+  /** Filtros de lo que esta EN PANTALLA: exportar no usa lo escrito en el formulario sin aplicar. */
+  private filtrosVigentes: FiltrosNegaciones = {};
+  /** Solo la respuesta de la ULTIMA consulta pinta. */
+  private consulta = 0;
 
   // ── Causales y equivalencias ──────────────────────────────────────────
   readonly causales = signal<CausalNegacion[] | null>(null);
@@ -166,6 +172,8 @@ export class LiquidacionNegacionesComponent implements OnInit {
   readonly cargandoEquivalencias = signal(false);
   readonly sinHomologar = signal<CausalSinHomologar[]>([]);
   readonly cargandoSinHomologar = signal(false);
+  /** Si la consulta falla NO se dice "todas homologadas": se muestra el error. */
+  readonly errorSinHomologar = signal('');
   readonly totalSinHomologar = computed(() => this.sinHomologar().reduce((s, x) => s + Number(x.veces ?? 0), 0));
 
   readonly etiquetaEps = etiquetaEps;
@@ -268,13 +276,18 @@ export class LiquidacionNegacionesComponent implements OnInit {
   cargar(): void {
     this.cargando.set(true);
     this.error.set('');
-    this.srv.negaciones(this.filtros(), this.pagina(), this.tamano()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    const filtros = this.filtros();
+    const consulta = ++this.consulta;
+    this.srv.negaciones(filtros, this.pagina(), this.tamano()).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (p) => {
+        if (consulta !== this.consulta) return;
+        this.filtrosVigentes = filtros;
         this.negaciones.set(p.content ?? []);
         this.total.set(p.totalElements ?? 0);
         this.cargando.set(false);
       },
       error: (e: unknown) => {
+        if (consulta !== this.consulta) return;
         this.cargando.set(false);
         this.error.set(mensajeDeError(e, 'No se pudieron cargar las negaciones.'));
       },
@@ -323,7 +336,11 @@ export class LiquidacionNegacionesComponent implements OnInit {
       if (!r.isConfirmed) return;
       const motivo = typeof r.value === 'string' && r.value.trim() ? r.value.trim() : undefined;
       this.srv.anularNegacion(n.id, motivo).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-        next: () => {
+        next: (anulada) => {
+          if (quedoEnCola(anulada)) {
+            void Swal.fire(AVISO_EN_COLA);
+            return;
+          }
           void Swal.fire({ icon: 'success', title: 'Negación anulada', timer: 2500, showConfirmButton: false });
           this.cargar();
           this.cargarSinHomologar();
@@ -337,7 +354,7 @@ export class LiquidacionNegacionesComponent implements OnInit {
   exportar(): void {
     if (this.exportando() || this.total() === 0) return;
     this.exportando.set(true);
-    const filtros = this.filtros();
+    const filtros = this.filtrosVigentes;
     traerTodasLasPaginas((pagina) => this.srv.negaciones(filtros, pagina, TAMANO_PAGINA_EXPORT))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -516,14 +533,16 @@ export class LiquidacionNegacionesComponent implements OnInit {
 
   cargarSinHomologar(): void {
     this.cargandoSinHomologar.set(true);
+    this.errorSinHomologar.set('');
     this.srv.causalesSinHomologar().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (s) => {
         this.sinHomologar.set(s ?? []);
         this.cargandoSinHomologar.set(false);
       },
-      error: () => {
+      error: (e: unknown) => {
         this.sinHomologar.set([]);
         this.cargandoSinHomologar.set(false);
+        this.errorSinHomologar.set(mensajeDeError(e, 'No se pudieron consultar las causales sin homologar.'));
       },
     });
   }

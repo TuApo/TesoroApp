@@ -33,7 +33,6 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { saveAs } from 'file-saver';
-import { Observable, catchError, from, map, mergeMap, of, toArray } from 'rxjs';
 import Swal from 'sweetalert2';
 import type * as XLSX from 'xlsx';
 
@@ -56,7 +55,9 @@ import {
   ResultadoDialogoHomologarFila,
 } from './dialogos/dialogo-homologar-fila.component';
 import {
+  AVISO_EN_COLA,
   ETIQUETA_ESTADO_CARGA,
+  MENSAJE_TIEMPO_AGOTADO,
   NOMBRE_PLANTILLA,
   RUTA_NEGACIONES,
   RUTA_PAGOS,
@@ -70,6 +71,7 @@ import {
   entero,
   escaparHtml,
   escribirLibro,
+  esTiempoAgotado,
   etiquetaAccion,
   fechaComoDate,
   fechaCorta,
@@ -78,19 +80,15 @@ import {
   libroFilasSinCruce,
   marcaDeTiempo,
   mensajeDeError,
-  mismaEps,
-  normalizarCausal,
   pesos,
   plural,
+  quedoEnCola,
   resumenVigente,
   tonoDeChip,
 } from './liquidacion.utils';
 
 /** Filtro rapido de la tabla de revision. */
 export type FiltroFilas = 'TODAS' | ResultadoFilaLiquidacion | 'SIN_HOMOLOGAR';
-
-/** Peticiones simultaneas al homologar las filas hermanas (mismo texto y EPS) de una carga. */
-const CONCURRENCIA_HERMANAS = 4;
 
 @Component({
   selector: 'app-liquidacion',
@@ -387,6 +385,15 @@ export class LiquidacionComponent implements OnInit {
       },
       error: (e: unknown) => {
         this.simulando.set(false);
+        if (esTiempoAgotado(e)) {
+          // Una plantilla grande puede pasar de los 30 s del gateway y aun asi quedar simulada.
+          this.errorCarga.set(
+            'El servidor tardó demasiado en leer la plantilla. En unos segundos revisa el historial: si la carga ' +
+              'aparece «En revisión», ábrela desde ahí en vez de volver a subirla.',
+          );
+          this.cargarHistorial();
+          return;
+        }
         this.errorCarga.set(mensajeDeError(e, 'No se pudo leer la plantilla. Revisa que tenga las hojas Pagos y Negaciones.'));
       },
     });
@@ -401,7 +408,12 @@ export class LiquidacionComponent implements OnInit {
   }
 
   cambiarHoja(indice: number): void {
-    this.hoja.set(indice === 1 ? 'NEGACIONES' : 'PAGOS');
+    const hoja: HojaLiquidacion = indice === 1 ? 'NEGACIONES' : 'PAGOS';
+    // mat-tab-group tambien emite `selectedIndexChange` (en una microtarea) cuando la pestana cambia
+    // por codigo: `filtrarPor` desde una tarjeta de la otra hoja. Si ya estamos en esa hoja el cambio
+    // salio de aqui y no se pisa el filtro que se acaba de elegir.
+    if (hoja === this.hoja()) return;
+    this.hoja.set(hoja);
     this.filtro.set('TODAS');
   }
 
@@ -438,6 +450,10 @@ export class LiquidacionComponent implements OnInit {
     this.srv.asignarFila(carga.id, fila.id, incapacidadId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (actualizada) => {
         this.filaOcupada.set(null);
+        if (quedoEnCola(actualizada)) {
+          void Swal.fire(AVISO_EN_COLA);
+          return;
+        }
         this.reemplazarFila(actualizada);
       },
       error: (e: unknown) => {
@@ -487,38 +503,27 @@ export class LiquidacionComponent implements OnInit {
   }
 
   /**
-   * Homologa la fila y, si se pidio recordar, tambien las filas HERMANAS de la misma carga (misma
-   * EPS y mismo texto normalizado) que siguen sin homologar: la equivalencia ya quedo creada con
-   * la primera, a las demas se les manda `recordarEquivalencia=false`.
+   * Homologa la fila. Con «recordar», ms-hr guarda la equivalencia y homologa EL MISMO las demas
+   * filas sin causal de la carga con ese texto y esa EPS CANONICA (si la fila no trae EPS usa la de
+   * su incapacidad), pero solo devuelve la fila tocada: se relee la carga para pintar las hermanas
+   * tal como quedaron. Antes se adivinaban aqui comparando el texto de la EPS y, con filas sin EPS,
+   * se homologaban filas de OTRA EPS sin que nadie lo decidiera (nunca se adivina).
    */
   private aplicarCausal(cargaId: number, fila: FilaLiquidacion, r: ResultadoDialogoHomologarFila): void {
     this.filaOcupada.set(fila.id);
     this.srv.asignarCausalFila(cargaId, fila.id, r.causalId, r.recordar).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (actualizada) => {
+        if (quedoEnCola(actualizada)) {
+          this.filaOcupada.set(null);
+          void Swal.fire(AVISO_EN_COLA);
+          return;
+        }
         this.reemplazarFila(actualizada);
-        const texto = normalizarCausal(fila.causalTexto);
-        const hermanas = r.recordar
-          ? this.filasNegaciones().filter(
-              (f) => f.id !== fila.id && f.sinHomologar && mismaEps(f.eps, fila.eps) && normalizarCausal(f.causalTexto) === texto,
-            )
-          : [];
-        if (hermanas.length === 0) {
+        if (!r.recordar) {
           this.filaOcupada.set(null);
           return;
         }
-        this.homologarHermanas(cargaId, hermanas, r.causalId).subscribe({
-          next: (n) => {
-            this.filaOcupada.set(null);
-            void Swal.fire({
-              icon: 'success',
-              title: 'Causal homologada',
-              text: `También se homologaron ${plural(n, 'fila', 'filas')} de esta carga con el mismo texto y la misma EPS.`,
-              timer: 3500,
-              showConfirmButton: false,
-            });
-          },
-          error: () => this.filaOcupada.set(null),
-        });
+        this.releerHermanas(cargaId);
       },
       error: (e: unknown) => {
         this.filaOcupada.set(null);
@@ -527,25 +532,28 @@ export class LiquidacionComponent implements OnInit {
     });
   }
 
-  /** Cuantas hermanas quedaron homologadas (una que falle no tumba a las demas). */
-  private homologarHermanas(cargaId: number, hermanas: FilaLiquidacion[], causalId: number): Observable<number> {
-    return from(hermanas).pipe(
-      mergeMap(
-        (h) =>
-          this.srv.asignarCausalFila(cargaId, h.id, causalId, false).pipe(
-            map((actualizada) => {
-              this.reemplazarFila(actualizada);
-              return 1;
-            }),
-            // Una hermana que falle se queda sin homologar y se ve en la tabla.
-            catchError(() => of(0)),
-          ),
-        CONCURRENCIA_HERMANAS,
-      ),
-      toArray(),
-      map((unos) => unos.reduce((s, v) => s + v, 0)),
-      takeUntilDestroyed(this.destroyRef),
-    );
+  /** Relee la carga tras «recordar» y dice cuantas filas hermanas homologo ms-hr. */
+  private releerHermanas(cargaId: number): void {
+    const pendientes = new Set(this.filasNegaciones().filter((f) => f.sinHomologar).map((f) => f.id));
+    this.srv.detalleCarga(cargaId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (d) => {
+        this.filaOcupada.set(null);
+        // Mientras tanto se pudo cerrar la revision o abrir otra carga.
+        if (this.carga()?.id !== cargaId || !d?.carga) return;
+        this.detalle.set({ ...d, filas: d.filas ?? [] });
+        const n = (d.filas ?? []).filter((f) => pendientes.has(f.id) && !f.sinHomologar).length;
+        if (n === 0) return;
+        void Swal.fire({
+          icon: 'success',
+          title: 'Causal homologada',
+          text: `También se homologaron ${plural(n, 'fila', 'filas')} de esta carga con el mismo texto y la misma EPS.`,
+          timer: 3500,
+          showConfirmButton: false,
+        });
+      },
+      // La fila principal ya quedo; las hermanas se ven al reabrir la carga.
+      error: () => this.filaOcupada.set(null),
+    });
   }
 
   // ── Aplicar / descartar ───────────────────────────────────────────────
@@ -580,13 +588,26 @@ export class LiquidacionComponent implements OnInit {
       this.srv.aplicarCarga(carga.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (res) => {
           this.aplicando.set(false);
+          if (quedoEnCola(res)) {
+            void Swal.fire(AVISO_EN_COLA);
+            return;
+          }
           this.mostrarResultado(res);
           this.recargarDetalle(carga.id);
           this.cargarHistorial();
         },
         error: (e: unknown) => {
           this.aplicando.set(false);
-          void Swal.fire({ icon: 'error', title: 'No se pudo aplicar la carga', text: mensajeDeError(e, 'Inténtalo de nuevo.') });
+          const tiempo = esTiempoAgotado(e);
+          void Swal.fire({
+            icon: tiempo ? 'warning' : 'error',
+            title: tiempo ? 'La aplicación no respondió a tiempo' : 'No se pudo aplicar la carga',
+            text: tiempo ? MENSAJE_TIEMPO_AGOTADO : mensajeDeError(e, 'Inténtalo de nuevo.'),
+          });
+          // Se relee la carga: si ms-hr si alcanzo a aplicarla (o otro usuario lo hizo, 409) queda a
+          // la vista como aplicada en vez de invitar a repetir.
+          this.recargarDetalle(carga.id, false);
+          this.cargarHistorial();
         },
       });
     });
@@ -628,7 +649,11 @@ export class LiquidacionComponent implements OnInit {
     }).then((r) => {
       if (!r.isConfirmed) return;
       this.srv.descartarCarga(carga.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-        next: () => {
+        next: (r) => {
+          if (quedoEnCola(r)) {
+            void Swal.fire(AVISO_EN_COLA);
+            return;
+          }
           this.detalle.set(null);
           this.cargarHistorial();
         },
@@ -638,16 +663,17 @@ export class LiquidacionComponent implements OnInit {
     });
   }
 
-  private recargarDetalle(cargaId: number): void {
+  private recargarDetalle(cargaId: number, cerrarSiFalla = true): void {
     this.srv.detalleCarga(cargaId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (d) => {
+        if (!d?.carga) return;
         const hoja = this.hoja();
         this.detalle.set({ ...d, filas: d.filas ?? [] });
         this.hoja.set(hoja);
       },
       error: () => {
         // El resultado ya se mostro; si el detalle no llega se cierra la revision.
-        this.detalle.set(null);
+        if (cerrarSiFalla) this.detalle.set(null);
       },
     });
   }
@@ -718,6 +744,10 @@ export class LiquidacionComponent implements OnInit {
       if (!r.isConfirmed) return;
       this.srv.anularCarga(c.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (anulada) => {
+          if (quedoEnCola(anulada)) {
+            void Swal.fire(AVISO_EN_COLA);
+            return;
+          }
           void Swal.fire({
             icon: 'success',
             title: 'Carga anulada',
@@ -728,8 +758,15 @@ export class LiquidacionComponent implements OnInit {
           if (this.carga()?.id === c.id) this.recargarDetalle(c.id);
           this.cargarHistorial();
         },
-        error: (e: unknown) =>
-          void Swal.fire({ icon: 'error', title: 'No se pudo anular la carga', text: mensajeDeError(e, 'Inténtalo de nuevo.') }),
+        error: (e: unknown) => {
+          const tiempo = esTiempoAgotado(e);
+          void Swal.fire({
+            icon: tiempo ? 'warning' : 'error',
+            title: tiempo ? 'La anulación no respondió a tiempo' : 'No se pudo anular la carga',
+            text: tiempo ? MENSAJE_TIEMPO_AGOTADO : mensajeDeError(e, 'Inténtalo de nuevo.'),
+          });
+          this.cargarHistorial();
+        },
       });
     });
   }

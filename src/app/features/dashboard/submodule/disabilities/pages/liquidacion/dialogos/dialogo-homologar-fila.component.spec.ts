@@ -56,4 +56,28 @@ describe('DialogoHomologarFilaComponent', () => {
     c.confirmar();
     expect(refFalso.close).toHaveBeenCalledWith({ causalId: 3, recordar: false });
   });
+
+  it('al CAMBIAR la causal de una fila ya homologada no recuerda por defecto (no re-apunta la equivalencia)', () => {
+    TestBed.overrideProvider(MAT_DIALOG_DATA, {
+      useValue: { ...datos, fila: { ...datos.fila, sinHomologar: false, causalId: 1, accion: 'FINALIZA' } },
+    });
+    const c = TestBed.createComponent(DialogoHomologarFilaComponent).componentInstance;
+    expect(c.recordar()).toBeFalse();
+    c.causalId.set(3);
+    c.confirmar();
+    expect(refFalso.close).toHaveBeenCalledOnceWith({ causalId: 3, recordar: false });
+  });
+
+  it('sin texto de causal no se puede recordar (ms-hr responde 400)', () => {
+    TestBed.overrideProvider(MAT_DIALOG_DATA, { useValue: { ...datos, fila: { ...datos.fila, causalTexto: '  ' } } });
+    const fixture = TestBed.createComponent(DialogoHomologarFilaComponent);
+    const c = fixture.componentInstance;
+    fixture.detectChanges();
+    expect(c.recordar()).toBeFalse();
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('no hay nada que recordar');
+    c.recordar.set(true);
+    c.causalId.set(3);
+    c.confirmar();
+    expect(refFalso.close).toHaveBeenCalledOnceWith({ causalId: 3, recordar: false });
+  });
 });
