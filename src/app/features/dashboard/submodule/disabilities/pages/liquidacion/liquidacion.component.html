@@ -1,0 +1,285 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-liquidacion">
+        <div class="disab-hero-icon"><mat-icon>request_quote</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Liquidación de incapacidades</h1>
+          <p class="disab-hero-sub">
+            Carga en un solo archivo lo que pagó (hoja Pagos) y lo que negó (hoja Negaciones) cada EPS. Primero se revisa
+            cuántas filas cruzan con una incapacidad; nada se registra hasta que apliques la carga.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <button type="button" mat-flat-button class="hero-btn hero-btn-primario" (click)="descargarPlantilla()" [disabled]="descargandoPlantilla()">
+            <mat-icon>download</mat-icon><span>Descargar plantilla</span>
+          </button>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="inputArchivo.click()" [disabled]="simulando()">
+            <mat-icon>upload_file</mat-icon><span>Cargar plantilla</span>
+          </button>
+          <a mat-stroked-button class="hero-btn hero-btn-secundario" [routerLink]="rutaPagos"><mat-icon>payments</mat-icon><span>Pagos</span></a>
+          <a mat-stroked-button class="hero-btn hero-btn-secundario" [routerLink]="rutaNegaciones"><mat-icon>block</mat-icon><span>Negaciones</span></a>
+        </div>
+      </div>
+
+      <div class="ges-cuerpo">
+        <!-- ════════ 1. Carga del archivo ════════ -->
+        <input #inputArchivo type="file" class="liq-input-oculto" accept=".xlsx" (change)="alSeleccionarArchivo($event)" />
+        <div
+          class="liq-dropzone"
+          [class.liq-dropzone-activa]="arrastrando()"
+          [class.liq-dropzone-compacta]="!!detalle()"
+          (dragover)="alArrastrarEncima($event)"
+          (dragleave)="alSalirArrastre($event)"
+          (drop)="alSoltar($event)"
+          (click)="inputArchivo.click()"
+          (keydown.enter)="inputArchivo.click()"
+          role="button"
+          tabindex="0"
+          aria-label="Cargar la plantilla de liquidación">
+          <mat-icon class="liq-dropzone-icono">cloud_upload</mat-icon>
+          <div class="liq-dropzone-textos">
+            <p class="liq-dropzone-texto">Arrastra aquí la plantilla diligenciada o <strong>haz clic para buscarla</strong></p>
+            <p class="liq-dropzone-ayuda">Solo .xlsx · máximo {{ tamanoMaximoTexto }} · hojas «Pagos» y «Negaciones»</p>
+          </div>
+        </div>
+
+        @if (simulando()) {
+          <div class="liq-progreso" aria-live="polite">
+            <span><mat-icon>sync</mat-icon> Leyendo la plantilla y cruzando cada fila con las incapacidades…</span>
+            <mat-progress-bar mode="indeterminate" />
+          </div>
+        }
+        @if (errorCarga()) {
+          <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ errorCarga() }}</span></div>
+        }
+
+        <!-- ════════ 2. Revision de la carga ════════ -->
+        @if (detalle(); as d) {
+          <section class="liq-revision" aria-label="Revisión de la carga">
+            <header class="liq-revision-cabecera">
+              <div class="liq-revision-titulo">
+                <mat-icon>fact_check</mat-icon>
+                <h2>Carga #{{ d.carga.id }}</h2>
+                <span [class]="'ges-chip ' + claseEstadoCarga(d.carga.estado)">{{ etiquetaEstadoCarga[d.carga.estado] || d.carga.estadoEtiqueta }}</span>
+                <span class="liq-archivo" [title]="d.carga.nombreArchivo || ''">{{ d.carga.nombreArchivo }}</span>
+              </div>
+              <button type="button" mat-icon-button (click)="cerrarRevision()" matTooltip="Cerrar la revisión" aria-label="Cerrar la revisión"><mat-icon>close</mat-icon></button>
+            </header>
+
+            @if (!editable()) {
+              <div class="ges-aviso ges-aviso-info">
+                <mat-icon>info</mat-icon>
+                <span>
+                  @switch (d.carga.estado) {
+                    @case ('APLICADA') { Carga aplicada por {{ d.carga.aplicadoPor || '—' }} el {{ fechaHora(d.carga.aplicadoEn) || '—' }}. }
+                    @case ('ANULADA') { Carga anulada por {{ d.carga.anuladoPor || '—' }} el {{ fechaHora(d.carga.anuladoEn) || '—' }}: sus pagos y negaciones ya no cuentan. }
+                    @default { Carga descartada: no se aplicó. }
+                  }
+                  Solo lectura.
+                </span>
+              </div>
+            }
+
+            <!-- La ALERTA que pidio la funcional -->
+            @if (alerta(); as a) {
+              <div [class]="'liq-alerta liq-alerta-' + a.tono" role="alert">
+                <mat-icon class="liq-alerta-icono">{{ a.tono === 'ok' ? 'task_alt' : a.tono === 'aviso' ? 'warning_amber' : 'report' }}</mat-icon>
+                <div class="liq-alerta-textos">
+                  <p class="liq-alerta-titulo">{{ a.titulo }}</p>
+                  @for (linea of a.detalle; track $index) { <p class="liq-alerta-detalle">{{ linea }}</p> }
+                </div>
+              </div>
+            }
+
+            @if (resumen(); as r) {
+              <div class="liq-resumen">
+                <div class="liq-grupo">
+                  <h3 class="liq-grupo-titulo"><mat-icon>payments</mat-icon> Pagos <span>{{ entero(r.pagos.total) }}</span></h3>
+                  <div class="liq-tarjetas">
+                    <button type="button" class="kpi-tarjeta kpi-ok kpi-clic" (click)="filtrarPor('PAGOS', 'CRUZA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.pagos.cruzan) }}</span><span class="kpi-etiqueta">Cruzan</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-alerta]="r.pagos.noCruzan > 0" (click)="filtrarPor('PAGOS', 'NO_CRUZA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.pagos.noCruzan) }}</span><span class="kpi-etiqueta">No cruzan</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-aviso]="r.pagos.ambiguas > 0" (click)="filtrarPor('PAGOS', 'AMBIGUA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.pagos.ambiguas) }}</span><span class="kpi-etiqueta">Varias posibles</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" (click)="filtrarPor('PAGOS', 'DUPLICADA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.pagos.duplicadas) }}</span><span class="kpi-etiqueta">Ya registradas</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-alerta]="r.pagos.errores > 0" (click)="filtrarPor('PAGOS', 'ERROR')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.pagos.errores) }}</span><span class="kpi-etiqueta">Con error</span></span></button>
+                  </div>
+                </div>
+
+                <div class="liq-grupo">
+                  <h3 class="liq-grupo-titulo"><mat-icon>block</mat-icon> Negaciones <span>{{ entero(r.negaciones.total) }}</span></h3>
+                  <div class="liq-tarjetas">
+                    <button type="button" class="kpi-tarjeta kpi-ok kpi-clic" (click)="filtrarPor('NEGACIONES', 'CRUZA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.cruzan) }}</span><span class="kpi-etiqueta">Cruzan</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-alerta]="r.negaciones.noCruzan > 0" (click)="filtrarPor('NEGACIONES', 'NO_CRUZA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.noCruzan) }}</span><span class="kpi-etiqueta">No cruzan</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-aviso]="r.negaciones.ambiguas > 0" (click)="filtrarPor('NEGACIONES', 'AMBIGUA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.ambiguas) }}</span><span class="kpi-etiqueta">Varias posibles</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" (click)="filtrarPor('NEGACIONES', 'DUPLICADA')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.duplicadas) }}</span><span class="kpi-etiqueta">Ya registradas</span></span></button>
+                    <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-alerta]="r.negaciones.errores > 0" (click)="filtrarPor('NEGACIONES', 'ERROR')"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.errores) }}</span><span class="kpi-etiqueta">Con error</span></span></button>
+                    <div class="kpi-tarjeta liq-kpi-morado" matTooltip="Negaciones que cruzan con una causal que finaliza la incapacidad"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.finalizan) }}</span><span class="kpi-etiqueta">Finalizan</span></span></div>
+                    <div class="kpi-tarjeta kpi-aviso" matTooltip="Negaciones que cruzan y pasan a Recobro"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.recobro) }}</span><span class="kpi-etiqueta">A recobro</span></span></div>
+                    <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-aviso]="r.negaciones.sinHomologar > 0" (click)="filtrarPor('NEGACIONES', 'SIN_HOMOLOGAR')" matTooltip="Texto de causal sin equivalencia: homológalo o pasará a recobro"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.negaciones.sinHomologar) }}</span><span class="kpi-etiqueta">Sin homologar</span></span></button>
+                  </div>
+                </div>
+
+                <div class="liq-grupo">
+                  <h3 class="liq-grupo-titulo"><mat-icon>attach_money</mat-icon> Valor</h3>
+                  <div class="liq-tarjetas liq-tarjetas-valor">
+                    <div class="kpi-tarjeta"><span class="kpi-textos"><span class="kpi-valor kpi-valor-dinero">{{ pesos(r.valorTotalPagos) }}</span><span class="kpi-etiqueta">Valor total de pagos en la plantilla</span></span></div>
+                    <div class="kpi-tarjeta kpi-ok"><span class="kpi-textos"><span class="kpi-valor kpi-valor-dinero">{{ pesos(valorAplicable()) }}</span><span class="kpi-etiqueta">{{ editable() ? 'Valor que se aplicará' : 'Valor aplicado' }}</span></span></div>
+                    <div class="kpi-tarjeta"><span class="kpi-textos"><span class="kpi-valor">{{ entero(r.incapacidadesDistintas) }}</span><span class="kpi-etiqueta">Incapacidades distintas que cruzan</span></span></div>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <div class="liq-acciones">
+              @if (editable()) {
+                <button type="button" mat-flat-button color="primary" (click)="aplicar()" [disabled]="aplicando() || filasAplicables().length === 0 || filaOcupada() !== null">
+                  <mat-icon>done_all</mat-icon> Aplicar {{ filasAplicables().length }} {{ filasAplicables().length === 1 ? 'fila' : 'filas' }}
+                </button>
+                <button type="button" mat-stroked-button color="warn" (click)="descartar()" [disabled]="aplicando()"><mat-icon>delete_sweep</mat-icon> Descartar</button>
+              }
+              <span class="ges-espaciador"></span>
+              <button type="button" mat-stroked-button (click)="exportarSinCruce()" [disabled]="filasPorGestionar().length === 0"
+                      matTooltip="Excel con las filas que no cruzan, con varias posibles o con error (mismas columnas de la plantilla)">
+                <mat-icon>file_download</mat-icon> Exportar filas sin cruce ({{ filasPorGestionar().length }})
+              </button>
+            </div>
+            @if (aplicando()) { <mat-progress-bar mode="indeterminate" /> }
+
+            <mat-tab-group [selectedIndex]="hoja() === 'PAGOS' ? 0 : 1" (selectedIndexChange)="cambiarHoja($event)" animationDuration="150ms">
+              <mat-tab [label]="'Pagos (' + filasPagos().length + ')'" />
+              <mat-tab [label]="'Negaciones (' + filasNegaciones().length + ')'" />
+            </mat-tab-group>
+
+            <div class="liq-filtros" role="group" aria-label="Filtrar por resultado">
+              @for (o of opcionesFiltro(); track o.valor) {
+                <button type="button" class="liq-filtro" [class.liq-filtro-activo]="filtro() === o.valor" [attr.aria-pressed]="filtro() === o.valor" (click)="filtro.set(o.valor)">
+                  {{ o.etiqueta }} <span [class]="'ges-chip ' + o.clase">{{ o.total }}</span>
+                </button>
+              }
+            </div>
+
+            <ng-template #celdaResultado let-f>
+              <span [class]="'ges-chip ' + claseResultado(f.resultado)">{{ f.resultadoEtiqueta || f.resultado }}</span>
+              @if (f.asignadaManual) { <span class="celda-sub celda-manual"><mat-icon inline>touch_app</mat-icon> Asignada a mano</span> }
+              @if (f.aplicada) { <span class="celda-sub celda-aplicada"><mat-icon inline>check</mat-icon> Aplicada</span> }
+            </ng-template>
+
+            <ng-template #celdaIncapacidad let-f>
+              <!-- El motivo va aqui (y no junto al chip) para que en tarjetas no aplaste la cedula. -->
+              @if (f.mensaje) { <span class="celda-sub celda-mensaje" [class.celda-mensaje-alerta]="f.resultado !== 'CRUZA'">{{ f.mensaje }}</span> }
+              @if (f.incapacidad; as inc) {
+                <div class="celda-inc">
+                  <span class="celda-mono celda-codigo">{{ codigo(inc) }}</span>
+                  @if (inc.codigoOficina) { <span class="celda-sub celda-mono">{{ inc.codigoUnico }}</span> }
+                  <span class="celda-nombre">{{ inc.nombreCompleto }}</span>
+                  <span class="celda-sub">{{ fecha(inc.fechaInicio) }} → {{ fecha(inc.fechaFin) }} · {{ inc.dias ?? '—' }} d · {{ inc.eps || '—' }}</span>
+                  <span [class]="'ges-chip ' + claseEstadoIncapacidad(inc.estado)">{{ inc.estadoEtiqueta || inc.estado }}</span>
+                  @if (editable() && f.asignadaManual && !f.aplicada) {
+                    <button type="button" mat-button class="celda-boton" (click)="soltar(f)" [disabled]="filaOcupada() !== null"><mat-icon>link_off</mat-icon> Soltar</button>
+                  }
+                </div>
+              } @else if (f.sugerencias?.length) {
+                <span class="celda-sub celda-sugerencias-titulo">{{ f.resultado === 'AMBIGUA' ? 'Varias posibles:' : 'Sugerencias (misma cédula):' }}</span>
+                <ul class="celda-sugerencias">
+                  @for (s of f.sugerencias; track s.id) {
+                    <li>
+                      <span class="celda-sug-textos">
+                        <span class="celda-mono">{{ codigo(s) }}</span>
+                        <span class="celda-sub">{{ fecha(s.fechaInicio) }} → {{ fecha(s.fechaFin) }} · {{ s.dias ?? '—' }} d · {{ s.estadoEtiqueta || s.estado }}</span>
+                      </span>
+                      @if (editable()) {
+                        <button type="button" mat-stroked-button class="celda-boton" (click)="asignar(f, s)" [disabled]="filaOcupada() !== null"
+                                [attr.aria-label]="'Asignar a ' + codigo(s)">
+                          <mat-icon>link</mat-icon> Asignar
+                        </button>
+                      }
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <span class="celda-sub">{{ f.resultado === 'ERROR' || f.resultado === 'DUPLICADA' ? '—' : 'Sin sugerencias: revisa la cédula y la fecha de inicio' }}</span>
+              }
+            </ng-template>
+
+            @if (hoja() === 'PAGOS') {
+              <app-tabla-estandar
+                id="incapacidades-liquidacion-revision-pagos"
+                titulo="Revisión de pagos"
+                modulo="Incapacidades"
+                vacio="No hay filas de pagos con este filtro."
+                [datos]="filasVisibles()"
+                [columnas]="columnasPagos"
+                [filaId]="idFila"
+                [filaClase]="claseFila"
+                [filasPorPagina]="50">
+                <ng-template tablaCelda="resultado" let-f><ng-container [ngTemplateOutlet]="celdaResultado" [ngTemplateOutletContext]="{ $implicit: f }" /></ng-template>
+                <ng-template tablaCelda="incapacidad" let-f><ng-container [ngTemplateOutlet]="celdaIncapacidad" [ngTemplateOutletContext]="{ $implicit: f }" /></ng-template>
+              </app-tabla-estandar>
+            } @else {
+              <app-tabla-estandar
+                id="incapacidades-liquidacion-revision-negaciones"
+                titulo="Revisión de negaciones"
+                modulo="Incapacidades"
+                vacio="No hay filas de negaciones con este filtro."
+                [datos]="filasVisibles()"
+                [columnas]="columnasNegaciones"
+                [filaId]="idFila"
+                [filaClase]="claseFila"
+                [filasPorPagina]="50">
+                <ng-template tablaCelda="resultado" let-f><ng-container [ngTemplateOutlet]="celdaResultado" [ngTemplateOutletContext]="{ $implicit: f }" /></ng-template>
+                <ng-template tablaCelda="causalEps" let-f><span class="celda-causal">{{ f.causalTexto || '—' }}</span></ng-template>
+                <ng-template tablaCelda="causal" let-f>
+                  @if (f.sinHomologar) {
+                    <span class="ges-chip ges-chip-aviso"><mat-icon>help_outline</mat-icon> Sin homologar</span>
+                    <span class="celda-sub">Pasará a recobro si no se homologa</span>
+                  } @else {
+                    <span class="celda-nombre">{{ f.causalNombre || f.causalCodigo }}</span>
+                    <span [class]="'ges-chip ' + claseAccion(f.accion)">{{ f.accionEtiqueta || etiquetaAccion(f.accion) }}</span>
+                  }
+                  @if (editable() && !f.aplicada) {
+                    <button type="button" mat-stroked-button class="celda-boton" (click)="homologar(f)" [disabled]="filaOcupada() !== null">
+                      <mat-icon>{{ f.sinHomologar ? 'rule' : 'edit' }}</mat-icon> {{ f.sinHomologar ? 'Homologar' : 'Cambiar' }}
+                    </button>
+                  }
+                </ng-template>
+                <ng-template tablaCelda="incapacidad" let-f><ng-container [ngTemplateOutlet]="celdaIncapacidad" [ngTemplateOutletContext]="{ $implicit: f }" /></ng-template>
+              </app-tabla-estandar>
+            }
+          </section>
+        }
+
+        <!-- ════════ 3. Historial de cargas ════════ -->
+        <h2 class="ges-seccion-titulo liq-historial-titulo"><mat-icon>history</mat-icon> Historial de cargas</h2>
+        @if (errorCargas()) {
+          <div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ errorCargas() }}</span></div>
+        }
+        <!-- Modo servidor: la pagina va al backend (sin busqueda libre ni orden en el endpoint). -->
+        <app-tabla-estandar
+          id="incapacidades-liquidacion-cargas"
+          titulo="Cargas de liquidación"
+          modulo="Incapacidades"
+          vacio="Todavía no se ha cargado ninguna plantilla."
+          [busqueda]="false"
+          [datos]="cargas()"
+          [columnas]="columnasCargas"
+          [filaId]="idCarga"
+          [filaClase]="claseCarga"
+          [cargando]="cargandoCargas()"
+          [totalServidor]="totalCargas()"
+          [paginaServidor]="paginaCargas()"
+          [filasPorPagina]="tamanoCargas()"
+          [opcionesPorPagina]="[25, 50, 100, 200]"
+          (paginaCambio)="paginarCargas($event)">
+          <ng-template tablaAcciones let-c>
+            <button type="button" mat-icon-button (click)="verCarga(c)" [matTooltip]="c.estado === 'SIMULADA' ? 'Continuar la revisión' : 'Ver detalle'"><mat-icon>{{ c.estado === 'SIMULADA' ? 'rate_review' : 'visibility' }}</mat-icon></button>
+            @if (c.estado === 'APLICADA') {
+              <a mat-icon-button [routerLink]="rutaPagos" [queryParams]="{ cargaId: c.id }" matTooltip="Ver los pagos de esta carga"><mat-icon>payments</mat-icon></a>
+              <a mat-icon-button [routerLink]="rutaNegaciones" [queryParams]="{ cargaId: c.id }" matTooltip="Ver las negaciones de esta carga"><mat-icon>block</mat-icon></a>
+              <button type="button" mat-icon-button class="accion-peligro" (click)="anularCarga(c)" matTooltip="Anular carga (anula sus pagos y negaciones)"><mat-icon>cancel</mat-icon></button>
+            }
+          </ng-template>
+        </app-tabla-estandar>
+      </div>
+    </mat-card>
+  </div>
+</div>

@@ -1,0 +1,223 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-negaciones">
+        <div class="disab-hero-icon"><mat-icon>block</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Negaciones de incapacidades</h1>
+          <p class="disab-hero-sub">
+            Respuestas negativas de las EPS con su causal. Cada EPS escribe la causal a su manera: aquí se homologa a una causal
+            interna, que decide si la incapacidad se finaliza o pasa a recobro.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <a mat-flat-button class="hero-btn hero-btn-primario" [routerLink]="rutaLiquidacion"><mat-icon>upload_file</mat-icon><span>Cargar plantilla</span></a>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargar(); cargarSinHomologar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+        </div>
+      </div>
+
+      <div class="ges-cuerpo">
+        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="cambiarTab($event)" animationDuration="150ms">
+
+          <!-- ════════ 1. NEGACIONES ════════ -->
+          <mat-tab label="Negaciones">
+            <ng-template matTabContent>
+              <form class="ges-filtros neg-filtros" (ngSubmit)="filtrar()">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ges-filtro-ancho">
+                  <mat-label>Buscar</mat-label>
+                  <mat-icon matPrefix>search</mat-icon>
+                  <input matInput name="q" [(ngModel)]="formulario.q" placeholder="Cédula, código o nombre" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>EPS</mat-label>
+                  <input matInput name="eps" [(ngModel)]="formulario.eps" list="negaciones-eps" (change)="filtrar()" />
+                  <datalist id="negaciones-eps">@for (e of epsOpciones(); track e) { <option [value]="e"></option> }</datalist>
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Acción</mat-label>
+                  <mat-select name="accion" [(ngModel)]="formulario.accion" (selectionChange)="filtrar()">
+                    <mat-option value="">Todas</mat-option>
+                    <mat-option value="FINALIZA">Finaliza</mat-option>
+                    <mat-option value="RECOBRO">Recobro</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-slide-toggle name="soloSinHomologar" [(ngModel)]="formulario.soloSinHomologar" (change)="filtrar()">Solo sin homologar</mat-slide-toggle>
+                <button type="submit" mat-flat-button color="primary"><mat-icon>filter_alt</mat-icon> Filtrar</button>
+                <button type="button" mat-button (click)="limpiar()">Limpiar</button>
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-stroked-button (click)="exportar()" [disabled]="exportando() || total() === 0" matTooltip="Excel con todas las negaciones del filtro">
+                  <mat-icon>file_download</mat-icon> {{ exportando() ? 'Exportando…' : 'Exportar a Excel' }}
+                </button>
+              </form>
+
+              @if (cargaId(); as c) {
+                <div class="ges-aviso ges-aviso-info neg-filtro-carga">
+                  <mat-icon>filter_list</mat-icon>
+                  <span>Solo las negaciones de la carga <strong>#{{ c }}</strong>.</span>
+                  <button type="button" mat-button (click)="quitarFiltroCarga()"><mat-icon>close</mat-icon> Ver todas</button>
+                </div>
+              }
+              @if (error()) {
+                <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+              }
+
+              <!-- Modo servidor: la pagina va al backend. -->
+              <app-tabla-estandar
+                id="incapacidades-liquidacion-negaciones"
+                titulo="Negaciones de incapacidades"
+                modulo="Incapacidades"
+                vacio="No hay negaciones con estos filtros."
+                [busqueda]="false"
+                [datos]="negaciones()"
+                [columnas]="columnasNegaciones"
+                [filaId]="idNegacion"
+                [filaClase]="claseNegacion"
+                [cargando]="cargando()"
+                [totalServidor]="total()"
+                [paginaServidor]="pagina()"
+                [filasPorPagina]="tamano()"
+                [opcionesPorPagina]="[25, 50, 100, 200]"
+                (paginaCambio)="paginar($event)">
+
+                <ng-template tablaCelda="codigo" let-n>
+                  <span class="celda-mono celda-codigo">{{ n.incapacidad?.codigoOficina || n.incapacidad?.codigoUnico }}</span>
+                  @if (n.incapacidad?.codigoOficina) { <span class="celda-sub celda-mono">{{ n.incapacidad?.codigoUnico }}</span> }
+                  @if (n.anulado) { <span class="ges-chip ges-chip-peligro">Anulada</span> }
+                </ng-template>
+
+                <ng-template tablaCelda="causalEps" let-n>
+                  <span class="celda-causal">{{ n.causalTexto }}</span>
+                </ng-template>
+
+                <ng-template tablaCelda="causal" let-n>
+                  @if (n.sinHomologar) {
+                    <span class="ges-chip ges-chip-aviso"><mat-icon>help_outline</mat-icon> Sin homologar</span>
+                    @if (!n.anulado) {
+                      <button type="button" mat-button class="celda-boton" (click)="homologar(n.causalTexto, n.eps)"><mat-icon>rule</mat-icon> Homologar</button>
+                    }
+                  } @else {
+                    <span class="celda-nombre">{{ n.causalNombre || n.causalCodigo }}</span>
+                    @if (n.causalCodigo) { <span class="celda-sub celda-mono">{{ n.causalCodigo }}</span> }
+                  }
+                </ng-template>
+
+                <ng-template tablaAcciones let-n>
+                  @if (!n.anulado) {
+                    <button type="button" mat-icon-button class="accion-peligro" (click)="anular(n)" matTooltip="Anular negación"><mat-icon>block</mat-icon></button>
+                  }
+                </ng-template>
+              </app-tabla-estandar>
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ 2. CAUSALES INTERNAS ════════ -->
+          <mat-tab label="Causales internas">
+            <ng-template matTabContent>
+              <div class="ges-aviso" role="note">
+                <mat-icon>gavel</mat-icon>
+                <span>
+                  Solo <strong>«1 y 2 días no reconocidos»</strong> y <strong>«sin aportes en las 4 semanas anteriores»</strong> deberían
+                  finalizar la incapacidad (reunión 2026-10-05). Cualquier otra causal pasa a recobro. La lista definitiva la
+                  estandarizan la funcional y sistemas.
+                </span>
+              </div>
+              <div class="neg-barra">
+                <span class="ges-nota">Las causales inactivas no se ofrecen al homologar, pero conservan su historia.</span>
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-flat-button color="primary" (click)="nuevaCausal()"><mat-icon>add</mat-icon> Nueva causal</button>
+              </div>
+              <app-tabla-estandar
+                id="incapacidades-liquidacion-causales"
+                titulo="Causales internas de negación"
+                modulo="Incapacidades"
+                vacio="No hay causales internas."
+                [datos]="causales() ?? []"
+                [columnas]="columnasCausales"
+                [filaId]="idCausal"
+                [filaClase]="claseInactiva"
+                [cargando]="cargandoCausales()"
+                [filasPorPagina]="0">
+                <ng-template tablaCelda="codigo" let-c><span class="celda-mono">{{ c.codigo }}</span></ng-template>
+                <ng-template tablaAcciones let-c>
+                  <button type="button" mat-icon-button (click)="editarCausal(c)" matTooltip="Editar causal"><mat-icon>edit</mat-icon></button>
+                </ng-template>
+              </app-tabla-estandar>
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ 3. EQUIVALENCIAS POR EPS ════════ -->
+          <mat-tab label="Equivalencias por EPS">
+            <ng-template matTabContent>
+              <div class="neg-barra">
+                <span class="ges-nota">
+                  Texto (o código) con que responde cada EPS → causal interna. «Todas las EPS» aplica cuando la EPS concreta no
+                  tiene una equivalencia propia para ese texto.
+                </span>
+                <span class="ges-espaciador"></span>
+                <button type="button" mat-flat-button color="primary" (click)="nuevaEquivalencia()"><mat-icon>add_link</mat-icon> Nueva equivalencia</button>
+              </div>
+              <app-tabla-estandar
+                id="incapacidades-liquidacion-equivalencias"
+                titulo="Equivalencias de causales por EPS"
+                modulo="Incapacidades"
+                vacio="Todavía no hay equivalencias: homologa los textos desde «Sin homologar»."
+                [datos]="equivalencias() ?? []"
+                [columnas]="columnasEquivalencias"
+                [filaId]="idEquivalencia"
+                [filaClase]="claseInactiva"
+                [cargando]="cargandoEquivalencias()">
+                <ng-template tablaCelda="eps" let-e>
+                  @if (e.eps === epsTodas) { <span class="ges-chip ges-chip-info">Todas las EPS</span> } @else { {{ e.eps }} }
+                </ng-template>
+                <ng-template tablaCelda="causal" let-e>
+                  <span class="celda-nombre">{{ e.causalNombre || e.causalCodigo }}</span>
+                  @if (e.causalCodigo) { <span class="celda-sub celda-mono">{{ e.causalCodigo }}</span> }
+                </ng-template>
+                <ng-template tablaAcciones let-e>
+                  <button type="button" mat-icon-button (click)="editarEquivalencia(e)" matTooltip="Editar equivalencia"><mat-icon>edit</mat-icon></button>
+                  <button type="button" mat-icon-button class="accion-peligro" (click)="eliminarEquivalencia(e)" matTooltip="Eliminar equivalencia"><mat-icon>delete_outline</mat-icon></button>
+                </ng-template>
+              </app-tabla-estandar>
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ 4. SIN HOMOLOGAR ════════ -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              Sin homologar
+              @if (sinHomologar().length) { <span class="ges-chip ges-chip-aviso neg-contador">{{ sinHomologar().length }}</span> }
+            </ng-template>
+            <ng-template matTabContent>
+              @if (sinHomologar().length) {
+                <div class="ges-aviso">
+                  <mat-icon>help_outline</mat-icon>
+                  <span>
+                    {{ entero(sinHomologar().length) }} {{ sinHomologar().length === 1 ? 'texto de causal' : 'textos de causal' }} sin equivalencia
+                    ({{ entero(totalSinHomologar()) }} {{ totalSinHomologar() === 1 ? 'negación' : 'negaciones' }}). Mientras no se homologuen
+                    esas incapacidades quedan en recobro.
+                  </span>
+                </div>
+              } @else if (!cargandoSinHomologar()) {
+                <div class="ges-aviso ges-aviso-info"><mat-icon>task_alt</mat-icon><span>Todas las negaciones tienen su causal homologada.</span></div>
+              }
+              <app-tabla-estandar
+                id="incapacidades-liquidacion-sin-homologar"
+                titulo="Causales sin homologar"
+                modulo="Incapacidades"
+                vacio="No hay causales sin homologar."
+                [datos]="sinHomologar()"
+                [columnas]="columnasSinHomologar"
+                [filaId]="idSinHomologar"
+                [cargando]="cargandoSinHomologar()">
+                <ng-template tablaCelda="texto" let-s><span class="celda-causal">{{ s.textoExterno }}</span></ng-template>
+                <ng-template tablaAcciones let-s>
+                  <button type="button" mat-stroked-button class="celda-boton" (click)="homologar(s.textoExterno, s.eps)"><mat-icon>rule</mat-icon> Homologar</button>
+                </ng-template>
+              </app-tabla-estandar>
+            </ng-template>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+    </mat-card>
+  </div>
+</div>

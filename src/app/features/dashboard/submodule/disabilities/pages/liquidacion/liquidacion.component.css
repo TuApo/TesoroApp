@@ -1,0 +1,103 @@
+.disab-hero-liquidacion::before {
+  content: 'request_quote';
+  font-family: 'Material Icons';
+  position: absolute; right: -30px; top: -40px; font-size: 220px;
+  color: rgba(255, 255, 255, 0.08); line-height: 1; pointer-events: none;
+}
+
+/* ── Carga del archivo ─────────────────────────────────────── */
+.liq-input-oculto { display: none; }
+.liq-dropzone {
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  margin: 6px 0 10px; padding: 22px 16px; text-align: center; cursor: pointer;
+  border: 2px dashed rgba(25, 118, 210, 0.35); border-radius: var(--disab-radius-sm); background: var(--disab-surface);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.liq-dropzone:hover, .liq-dropzone:focus-visible, .liq-dropzone-activa { background: var(--disab-primary-light); border-color: var(--disab-primary); outline: none; }
+.liq-dropzone-compacta { padding: 10px 14px; }
+.liq-dropzone-icono { font-size: 38px; width: 38px; height: 38px; color: var(--disab-primary); }
+.liq-dropzone-compacta .liq-dropzone-icono { font-size: 26px; width: 26px; height: 26px; }
+.liq-dropzone-textos { min-width: 0; }
+.liq-dropzone-texto { margin: 0 0 2px; font-size: 13.5px; color: var(--disab-text); }
+.liq-dropzone-ayuda { margin: 0; font-size: 12px; color: var(--disab-text-muted); }
+.liq-progreso { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 12px; font-size: 13px; color: var(--disab-text-muted); }
+.liq-progreso span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* ── Revision ──────────────────────────────────────────────── */
+.liq-revision {
+  margin: 8px 0 18px; padding: 14px 16px 16px; border: 1px solid var(--disab-border);
+  border-radius: var(--disab-radius); background: var(--disab-surface); box-shadow: var(--disab-shadow-sm);
+}
+.liq-revision-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.liq-revision-titulo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.liq-revision-titulo h2 { margin: 0; font-size: 17px; font-weight: 800; color: var(--disab-text); }
+.liq-revision-titulo mat-icon { color: var(--disab-primary); }
+.liq-archivo { font-size: 12.5px; color: var(--disab-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+/* La alerta que pidio la funcional: grande y con color segun el resultado. */
+.liq-alerta {
+  display: flex; gap: 14px; align-items: flex-start; margin: 8px 0 14px; padding: 16px 18px;
+  border-radius: var(--disab-radius-sm); border: 1px solid; border-left-width: 6px;
+}
+.liq-alerta-icono { font-size: 34px; width: 34px; height: 34px; flex-shrink: 0; }
+.liq-alerta-textos { min-width: 0; }
+.liq-alerta-titulo { margin: 0 0 4px; font-size: 17px; font-weight: 800; line-height: 1.35; }
+.liq-alerta-detalle { margin: 2px 0 0; font-size: 13px; line-height: 1.45; }
+.liq-alerta-ok { background: #e8f5e9; background: light-dark(#e8f5e9, #193430); border-color: #66bb6a; color: #1b5e20; color: light-dark(#1b5e20, #b9e6bc); }
+.liq-alerta-aviso { background: #fff8e1; background: light-dark(#fff8e1, #383524); border-color: #f59e0b; color: #7c4a03; color: light-dark(#7c4a03, #f7cf97); }
+.liq-alerta-peligro { background: #ffebee; background: light-dark(#ffebee, #38162a); border-color: #ef5350; color: #7f1d1d; color: light-dark(#7f1d1d, #eaa4a4); }
+
+.liq-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 12px 16px; margin-bottom: 12px; }
+.liq-grupo { min-width: 0; }
+.liq-grupo-titulo { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 13px; font-weight: 800; color: var(--text-2); text-transform: uppercase; letter-spacing: .02em; }
+.liq-grupo-titulo mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--disab-primary); }
+.liq-grupo-titulo span { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--disab-text-muted); }
+.liq-tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(110px, 100%), 1fr)); gap: 8px; }
+.liq-tarjetas-valor { grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); }
+.liq-tarjetas .kpi-tarjeta { padding: 8px 10px 8px 14px; }
+.liq-tarjetas .kpi-valor { font-size: 19px; }
+.liq-tarjetas .kpi-valor-dinero { font-size: 17px; font-variant-numeric: tabular-nums; }
+.liq-tarjetas .kpi-etiqueta { font-size: 11.5px; line-height: 1.25; }
+.liq-kpi-morado::before { background: #8e24aa !important; }
+button.kpi-tarjeta { font: inherit; }
+
+.liq-acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
+.liq-acciones .ges-espaciador { flex: 1 1 auto; }
+
+.liq-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 8px; }
+.liq-filtro {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--disab-border); background: var(--disab-surface); color: var(--disab-text); font: inherit; font-size: 12.5px; font-weight: 600;
+}
+.liq-filtro:hover { background: var(--surface-2); }
+.liq-filtro-activo { border-color: var(--disab-primary); background: var(--disab-primary-light); color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4); }
+
+.liq-historial-titulo { margin-top: 18px; }
+
+/* ── Celdas propias (plantillas tablaCelda) ────────────────── */
+.celda-sub { display: block; font-size: 11.5px; color: var(--disab-text-muted); }
+.celda-mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px; }
+.celda-codigo { font-weight: 700; }
+.celda-nombre { display: block; font-weight: 600; color: var(--disab-text); }
+.celda-mensaje { max-width: 320px; white-space: normal; margin-bottom: 4px; }
+.celda-mensaje-alerta { color: var(--disab-danger); color: light-dark(var(--disab-danger), #eaa4a4); font-weight: 600; }
+.celda-manual { color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4); font-weight: 600; }
+.celda-aplicada { color: var(--disab-ok); color: light-dark(var(--disab-ok), #ade1b0); font-weight: 600; }
+.celda-causal { display: block; max-width: 320px; white-space: normal; font-size: 12.5px; }
+.celda-inc { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.celda-boton { margin-top: 4px; min-height: 30px; line-height: 30px; font-size: 12.5px; }
+.celda-boton mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.celda-sugerencias-titulo { font-weight: 700; }
+.celda-sugerencias { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.celda-sugerencias li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 4px 6px; border-radius: 8px; background: var(--surface-2); }
+.celda-sug-textos { display: flex; flex-direction: column; min-width: 0; }
+.celda-sugerencias .celda-boton { margin-top: 0; }
+.accion-peligro { color: var(--disab-danger); }
+
+@media (max-width: 720px) {
+  .liq-revision { padding: 10px; }
+  .liq-alerta { padding: 12px; gap: 10px; }
+  .liq-alerta-titulo { font-size: 15px; }
+  .liq-alerta-icono { font-size: 26px; width: 26px; height: 26px; }
+  .liq-acciones > button { flex: 1 1 100%; }
+}
