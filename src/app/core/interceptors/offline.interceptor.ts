@@ -71,6 +71,14 @@ const NEVER_QUEUE_PATHS = [
   '/Robots/excel-antecedentes',
   '/Robots/full',                       // export
   '/gestion_documental/exportar',       // patrón genérico
+
+  // Salud (reunión 2026-10-05): radicados, recobros y liquidación de incapacidades. Reproducirlos
+  // tarde desde la cola pisaría correcciones hechas mientras tanto (un radicado, una carga anulada):
+  // sin red se falla y el usuario lo repite a conciencia.
+  '/Incapacidades/v2/radicacion/',
+  '/Incapacidades/v2/radicados/',
+  '/Incapacidades/v2/recobros',
+  '/Incapacidades/v2/liquidacion/',
 ];
 
 const isNeverQueueable = (url: string): boolean =>
