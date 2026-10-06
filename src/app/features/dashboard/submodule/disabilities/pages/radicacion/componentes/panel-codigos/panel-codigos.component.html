@@ -1,0 +1,205 @@
+<section class="pc" [attr.aria-label]="esRecobro() ? 'Recobro por código único' : 'Radicar por código único'">
+  <header class="pc-cabecera">
+    <span class="pc-icono"><mat-icon>{{ esRecobro() ? 'replay' : 'qr_code_scanner' }}</mat-icon></span>
+    <div class="pc-cabecera-textos">
+      <h2 class="pc-titulo">{{ esRecobro() ? 'Recobro por código único' : 'Radicar por código único' }}</h2>
+      <p class="pc-sub">
+        Escriba el código y pulse <kbd>Enter</kbd>, o pegue varios a la vez cuando la EPS entregó un mismo
+        radicado para varias incapacidades (búsqueda colectiva).
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Entrada: un codigo o varios pegados ───────────────────────────── -->
+  <div class="pc-entrada">
+    <mat-form-field appearance="outline" class="pc-campo" subscriptSizing="dynamic">
+      <mat-label>Código único</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input
+        matInput
+        [ngModel]="codigo()"
+        (ngModelChange)="codigo.set($event)"
+        (keydown.enter)="$event.preventDefault(); agregarCodigo()"
+        (paste)="alPegarEnCampo($event)"
+        autocomplete="off"
+        placeholder="Ej.: 100585150520260131 o TASB018"
+        aria-describedby="pc-ayuda-codigo"
+      />
+      <mat-hint id="pc-ayuda-codigo">General (cédula + fecha de inicio aaaammdd, pegadito) o de oficina.</mat-hint>
+    </mat-form-field>
+    <div class="pc-entrada-botones">
+      <button type="button" mat-flat-button color="primary" class="pc-btn" (click)="agregarCodigo()" [disabled]="buscando() || !codigo().trim()">
+        <mat-icon>add</mat-icon><span>Agregar</span>
+      </button>
+      <button type="button" mat-stroked-button class="pc-btn" (click)="alternarPegar()" [attr.aria-expanded]="pegarAbierto()">
+        <mat-icon>content_paste</mat-icon><span>Pegar varios</span>
+      </button>
+    </div>
+  </div>
+
+  @if (pegarAbierto()) {
+    <div class="pc-pegar">
+      <mat-form-field appearance="outline" class="pc-textarea" subscriptSizing="dynamic">
+        <mat-label>Códigos a buscar</mat-label>
+        <textarea
+          matInput
+          rows="5"
+          [ngModel]="textoPegado()"
+          (ngModelChange)="textoPegado.set($event)"
+          placeholder="Uno por línea, o separados por coma, espacio o tabulación (sirve pegar una columna de Excel)"
+        ></textarea>
+        <mat-hint>
+          {{ codigosPegados().length }} código(s) distinto(s)
+          @if (codigosPegados().length > maxCodigos) { · máximo {{ maxCodigos }} por búsqueda }
+        </mat-hint>
+      </mat-form-field>
+      <div class="pc-pegar-acciones">
+        <button type="button" mat-button (click)="cancelarPegar()">Cancelar</button>
+        <button type="button" mat-flat-button color="primary" class="pc-btn" (click)="buscarPegados()" [disabled]="buscando() || !codigosPegados().length">
+          <mat-icon>manage_search</mat-icon><span>Buscar {{ codigosPegados().length }} código(s)</span>
+        </button>
+      </div>
+    </div>
+  }
+
+  @if (buscando()) { <mat-progress-bar mode="indeterminate" class="pc-progreso" /> }
+  @if (errorBusqueda()) {
+    <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ errorBusqueda() }}</span></div>
+  }
+
+  <!-- ── No encontrados ─────────────────────────────────────────────────── -->
+  @if (noEncontrados().length) {
+    <div class="ges-aviso ges-aviso-peligro pc-noencontrados">
+      <mat-icon>search_off</mat-icon>
+      <div class="pc-noencontrados-cuerpo">
+        <span>
+          <strong>{{ noEncontrados().length }} código(s) sin incapacidad.</strong>
+          Revise que el general sea la cédula seguida de la fecha de inicio (aaaammdd) sin espacios, o use el de oficina.
+        </span>
+        <div class="pc-chips">
+          @for (c of noEncontrados(); track c) {
+            <span class="pc-chip">
+              <span class="celda-mono">{{ c }}</span>
+              <button type="button" class="pc-chip-quitar" (click)="quitarNoEncontrado(c)" [attr.aria-label]="'Quitar ' + c" matTooltip="Quitar">
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
+          }
+          <button type="button" mat-button class="pc-quitar-todos" (click)="quitarNoEncontrados()">Quitar todos</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ── Lista de trabajo ───────────────────────────────────────────────── -->
+  @if (encontrados().length) {
+    <div class="kpi-fila pc-kpis">
+      <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>list_alt</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ encontrados().length }}</span><span class="kpi-etiqueta">En la lista</span></span></div>
+      <div class="kpi-tarjeta kpi-ok"><span class="kpi-icono"><mat-icon>check_circle</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ cantidadMarcadas() }}</span><span class="kpi-etiqueta">Marcadas para guardar</span></span></div>
+      @if (noSePueden()) {
+        <div class="kpi-tarjeta kpi-alerta"><span class="kpi-icono"><mat-icon>block</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ noSePueden() }}</span><span class="kpi-etiqueta">{{ esRecobro() ? 'No admiten recobro' : 'No se pueden radicar' }}</span></span></div>
+      }
+      @if (correcciones().length) {
+        <div class="kpi-tarjeta kpi-aviso"><span class="kpi-icono"><mat-icon>edit_note</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ correcciones().length }}</span><span class="kpi-etiqueta">Correcciones marcadas</span></span></div>
+      }
+      @if (ambiguas()) {
+        <div class="kpi-tarjeta kpi-aviso"><span class="kpi-icono"><mat-icon>call_split</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ ambiguas() }}</span><span class="kpi-etiqueta">Código con varias</span></span></div>
+      }
+    </div>
+
+    <div class="pc-barra">
+      <span class="pc-barra-cuenta"><mat-icon>checklist</mat-icon><strong>{{ cantidadMarcadas() }}</strong>&nbsp;de {{ encontrados().length }} marcada(s)</span>
+      <span class="ges-espaciador"></span>
+      <button type="button" mat-button (click)="marcarListas()" [disabled]="!listas()">Marcar las listas</button>
+      <button type="button" mat-button (click)="desmarcarTodas()" [disabled]="!cantidadMarcadas()">Desmarcar</button>
+      <button type="button" mat-button class="pc-vaciar" (click)="vaciarLista()"><mat-icon>delete_sweep</mat-icon>Vaciar lista</button>
+    </div>
+
+    <app-tabla-estandar
+      [id]="esRecobro() ? 'incapacidades-recobro-codigos' : 'incapacidades-radicacion-codigos'"
+      [titulo]="esRecobro() ? 'Recobro por código' : 'Radicación por código'"
+      modulo="Incapacidades"
+      [datos]="encontrados()"
+      [columnas]="columnas()"
+      [filaId]="idFila"
+      [filaClase]="claseFila"
+      [filasPorPagina]="50"
+      [ayuda]="false"
+      busqueda="Filtrar la lista">
+
+      <ng-template tablaCelda="marca" let-e>
+        <mat-checkbox
+          [checked]="estaMarcada(e)"
+          [disabled]="!e.puedeRadicar"
+          (change)="alternar(e, $event.checked)"
+          [aria-label]="(esRecobro() ? 'Recobrar ' : 'Radicar ') + e.incapacidad.nombreCompleto"
+        />
+      </ng-template>
+
+      <ng-template tablaCelda="codigo" let-e>
+        @if (e.incapacidad.codigoOficina) {
+          <span class="celda-mono celda-fuerte">{{ e.incapacidad.codigoOficina }}</span>
+          <span class="celda-sub celda-mono">{{ codigoGeneral(e) }}</span>
+        } @else {
+          <span class="celda-mono celda-fuerte">{{ codigoGeneral(e) }}</span>
+        }
+      </ng-template>
+
+      <ng-template tablaCelda="nombre" let-e>
+        <span class="celda-nombre">{{ e.incapacidad.nombreCompleto }}</span>
+        @if (e.incapacidad.oficina) { <span class="celda-sub">{{ e.incapacidad.oficina }}</span> }
+      </ng-template>
+
+      <ng-template tablaCelda="radicado" let-e>
+        @if (e.incapacidad.numeroRadicado) {
+          <span class="celda-mono">{{ e.incapacidad.numeroRadicado }}</span>
+          <span class="celda-sub">
+            {{ fechaCorta(e.incapacidad.fechaRadicado) }}{{ etiquetaDonde(e.incapacidad.dondeRadicado) ? ' · ' + etiquetaDonde(e.incapacidad.dondeRadicado) : '' }}
+          </span>
+          @if (e.incapacidad.radicadoPor) { <span class="celda-sub">{{ e.incapacidad.radicadoPor }}</span> }
+        } @else {
+          <span class="celda-sub">Sin radicado</span>
+        }
+      </ng-template>
+
+      <ng-template tablaCelda="aviso" let-e>
+        @let aviso = avisoDe(e);
+        <span [class]="'celda-aviso celda-aviso-' + aviso.tono"><mat-icon>{{ aviso.icono }}</mat-icon><span>{{ aviso.texto }}</span></span>
+      </ng-template>
+
+      <ng-template tablaAcciones let-e>
+        <button type="button" mat-icon-button (click)="quitar(e)" matTooltip="Quitar de la lista" aria-label="Quitar de la lista">
+          <mat-icon>close</mat-icon>
+        </button>
+      </ng-template>
+    </app-tabla-estandar>
+  } @else if (!buscando() && !noEncontrados().length && !resultado()) {
+    <div class="pc-vacio">
+      <mat-icon>playlist_add</mat-icon>
+      <span>
+        Agregue códigos para empezar.
+        @if (!esRecobro()) { También puede traerlas desde la pestaña <strong>Pendientes por radicar</strong>. }
+      </span>
+    </div>
+  }
+
+  <!-- El formulario se oculta (no se destruye) sin lista: asi conserva fecha y canal entre lotes. -->
+  <div class="pc-formulario" [hidden]="!encontrados().length">
+    <h3 class="ges-seccion-titulo"><mat-icon>edit_document</mat-icon>{{ esRecobro() ? 'Datos del radicado de recobro' : 'Datos del radicado' }}</h3>
+    <app-formulario-radicado
+      [cantidad]="cantidadMarcadas()"
+      [textoBoton]="esRecobro() ? 'Registrar recobro' : 'Guardar radicado'"
+      [guardando]="guardando()"
+      [bloqueo]="bloqueo()"
+      (enviar)="guardar($event)"
+    />
+  </div>
+
+  <app-resultado-radicado
+    class="pc-resultado"
+    [resultado]="resultado()"
+    [numero]="numeroGuardado()"
+    [recobro]="esRecobro()"
+    (cerrar)="resultado.set(null)"
+  />
+</section>

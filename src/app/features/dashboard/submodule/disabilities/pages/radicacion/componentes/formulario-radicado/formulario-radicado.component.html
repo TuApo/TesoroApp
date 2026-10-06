@@ -1,0 +1,75 @@
+<form class="frad" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
+  <div class="frad-campos">
+    <mat-form-field appearance="outline" class="frad-numero" subscriptSizing="dynamic">
+      <mat-label>Número de radicado</mat-label>
+      <mat-icon matPrefix>confirmation_number</mat-icon>
+      <input
+        matInput
+        formControlName="numeroRadicado"
+        [attr.maxlength]="maxRadicado"
+        autocomplete="off"
+        placeholder="El que entregó la EPS"
+        required
+      />
+      <mat-hint align="end">{{ largoNumero() }}/{{ maxRadicado }}</mat-hint>
+      @if (errorNumero(); as e) { <mat-error>{{ e }}</mat-error> }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="frad-fecha" subscriptSizing="dynamic">
+      <mat-label>Fecha de radicado</mat-label>
+      <input matInput type="date" formControlName="fechaRadicado" [max]="hoy" required />
+      @if (errorFecha(); as e) { <mat-error>{{ e }}</mat-error> }
+    </mat-form-field>
+  </div>
+
+  <div class="frad-donde">
+    <span class="frad-etiqueta" id="frad-donde-etiqueta">¿Dónde se radicó? <span aria-hidden="true">*</span></span>
+    <mat-button-toggle-group
+      formControlName="dondeRadicado"
+      class="frad-toggles"
+      aria-labelledby="frad-donde-etiqueta"
+      [hideSingleSelectionIndicator]="true"
+    >
+      @for (o of opciones; track o.valor) {
+        <mat-button-toggle [value]="o.valor">
+          <mat-icon>{{ iconos[o.valor] }}</mat-icon>
+          <span>{{ o.etiqueta }}</span>
+        </mat-button-toggle>
+      }
+    </mat-button-toggle-group>
+    @if (dondeConError()) {
+      <span class="frad-error" role="alert">Indique dónde se radicó: página web, correo o presencial.</span>
+    }
+  </div>
+
+  <mat-form-field appearance="outline" class="frad-obs" subscriptSizing="dynamic">
+    <mat-label>Observaciones (opcional)</mat-label>
+    <textarea matInput formControlName="observaciones" rows="2" [attr.maxlength]="maxObservaciones"></textarea>
+    @if (formulario.controls.observaciones.hasError('maxlength')) {
+      <mat-error>Máximo {{ maxObservaciones }} caracteres.</mat-error>
+    }
+  </mat-form-field>
+
+  <div class="frad-pie">
+    <span class="frad-quien">
+      <mat-icon>person</mat-icon>
+      <span>
+        Radicado por <strong>{{ usuario || 'el usuario de la sesión' }}</strong>
+        <span class="frad-quien-nota">· lo registra el sistema con la sesión iniciada</span>
+      </span>
+    </span>
+    @if (bloqueo(); as b) {
+      <span class="frad-bloqueo" role="status"><mat-icon>block</mat-icon>{{ b }}</span>
+    }
+    <button
+      type="submit"
+      mat-flat-button
+      color="primary"
+      class="frad-guardar"
+      [disabled]="cantidad() === 0 || guardando() || !!bloqueo()"
+    >
+      @if (guardando()) { <mat-spinner diameter="18" /> } @else { <mat-icon>save</mat-icon> }
+      <span>{{ textoBoton() }} ({{ cantidad() }})</span>
+    </button>
+  </div>
+</form>

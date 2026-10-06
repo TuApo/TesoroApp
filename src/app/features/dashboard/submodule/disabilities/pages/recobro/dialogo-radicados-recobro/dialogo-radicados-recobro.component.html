@@ -1,0 +1,80 @@
+<div class="rdlg-hero">
+  <div class="rdlg-hero-icono"><mat-icon>history</mat-icon></div>
+  <div class="rdlg-hero-textos">
+    <h2 class="rdlg-hero-titulo" mat-dialog-title>Radicados de la incapacidad</h2>
+    <p class="rdlg-hero-sub">{{ codigo }} · {{ inc.nombreCompleto }} · CC {{ inc.cedula }}</p>
+  </div>
+  <button type="button" mat-icon-button class="rdlg-cerrar" (click)="cerrar()" aria-label="Cerrar" matTooltip="Cerrar">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="rdlg-cuerpo">
+  <dl class="drr-resumen">
+    <div><dt>EPS / entidad</dt><dd>{{ entidad || '—' }}</dd></div>
+    <div><dt>Inicio – fin</dt><dd>{{ periodo || '—' }} @if (inc.dias) { · {{ inc.dias }} días }</dd></div>
+    <div><dt>Estado</dt><dd>{{ inc.estadoEtiqueta || inc.estado }}</dd></div>
+  </dl>
+
+  @if (negacion; as n) {
+    <div class="ges-aviso ges-aviso-peligro drr-negacion">
+      <mat-icon>block</mat-icon>
+      <div>
+        <strong>Negada{{ n.fechaRespuesta ? ' el ' + fechaCorta(n.fechaRespuesta) : '' }}:</strong> {{ n.causalTexto }}
+        <span class="drr-homologada">
+          @if (homologada) { Causal homologada: <strong>{{ homologada }}</strong> } @else { Causal sin homologar }
+        </span>
+      </div>
+    </div>
+  }
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate" /> }
+  @if (error()) {
+    <div class="ges-aviso ges-aviso-peligro" role="alert">
+      <mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+      <button type="button" mat-button (click)="cargar()">Reintentar</button>
+    </div>
+  }
+
+  @if (!cargando() && !error() && !lineas().length) {
+    <div class="ges-estado"><mat-icon>inbox</mat-icon><p>Esta incapacidad no tiene radicados registrados.</p></div>
+  }
+
+  @if (lineas().length) {
+    <p class="ges-nota">{{ vigentes() }} radicado(s) vigente(s), del más antiguo al más reciente.</p>
+    <ol class="drr-linea">
+      @for (l of lineas(); track $index) {
+        <li class="drr-item" [class.drr-recobro]="l.radicado.tipo === 'RECOBRO'" [class.drr-anulado]="l.radicado.anulado">
+          <span class="drr-punto" aria-hidden="true"></span>
+          <div class="drr-contenido">
+            <div class="drr-cabecera">
+              <span class="ges-chip" [class.ges-chip-info]="l.radicado.tipo !== 'RECOBRO'" [class.ges-chip-morado]="l.radicado.tipo === 'RECOBRO' && !l.radicado.anulado" [class.ges-chip-neutro]="l.radicado.anulado">{{ l.rotulo }}</span>
+              <span class="drr-numero celda-mono">{{ l.radicado.numeroRadicado }}</span>
+              <span class="drr-fecha">{{ fechaCorta(l.radicado.fechaRadicado) }}</span>
+              <span class="ges-espaciador"></span>
+              @if (puedeAnular(l.radicado)) {
+                <button type="button" mat-button class="drr-anular" (click)="anular(l.radicado)" [disabled]="anulando() !== null">
+                  <mat-icon>block</mat-icon>Anular
+                </button>
+              }
+            </div>
+            <div class="drr-detalle">
+              @if (l.radicado.dondeRadicado) {
+                <span><mat-icon>{{ iconos[l.radicado.dondeRadicado] }}</mat-icon>{{ etiquetaDonde(l.radicado.dondeRadicado) }}</span>
+              }
+              @if (l.radicado.radicadoPor) { <span><mat-icon>person</mat-icon>{{ l.radicado.radicadoPor }}</span> }
+              @if (l.radicado.creadoEn) { <span><mat-icon>schedule</mat-icon>Anotado el {{ fechaHora(l.radicado.creadoEn) }}</span> }
+              @if (l.radicado.numeroAnterior) { <span><mat-icon>edit_note</mat-icon>Reemplazó a <span class="celda-mono">{{ l.radicado.numeroAnterior }}</span></span> }
+              @if (l.radicado.lote) { <span><mat-icon>dynamic_feed</mat-icon>Radicado colectivo</span> }
+            </div>
+            @if (l.radicado.observaciones) { <p class="drr-obs">{{ l.radicado.observaciones }}</p> }
+          </div>
+        </li>
+      }
+    </ol>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="rdlg-acciones">
+  <button type="button" mat-flat-button color="primary" (click)="cerrar()">Cerrar</button>
+</mat-dialog-actions>

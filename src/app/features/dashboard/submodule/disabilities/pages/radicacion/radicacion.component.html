@@ -1,0 +1,183 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-radicacion">
+        <div class="disab-hero-icon"><mat-icon>assignment_turned_in</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Radicación</h1>
+          <p class="disab-hero-sub">
+            Anote el número de radicado que entrega cada EPS después de radicar en su portal, por correo o en
+            persona. Sirve para un código o para varios a la vez: el mismo radicado queda en todas, con su fecha,
+            el canal y quién lo registró.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <a mat-flat-button class="hero-btn hero-btn-primario" [routerLink]="rutaRecobro">
+            <mat-icon>replay</mat-icon><span>Recobro</span>
+          </a>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="abrirCargaMasiva()"
+                  matTooltip="La carga de radicados por archivo Excel de siempre">
+            <mat-icon>upload_file</mat-icon><span>Carga masiva (Excel)</span>
+          </button>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="actualizar()"
+                  [disabled]="cargandoPendientes()">
+            <mat-icon>refresh</mat-icon><span>Actualizar</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="ges-cuerpo">
+        <div #bloquePanel class="rad-bloque">
+          <app-panel-codigos-radicado modo="RADICACION" (guardado)="alGuardar()" />
+        </div>
+
+        <mat-tab-group class="rad-tabs" [selectedIndex]="tab()" (selectedIndexChange)="cambiarTab($event)" animationDuration="150ms">
+          <!-- ════════ PENDIENTES POR RADICAR ════════ -->
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span>Pendientes por radicar</span><span class="tab-cuenta">{{ totalPendientes() }}</span>
+            </ng-template>
+            <ng-template matTabContent>
+              <p class="ges-nota">
+                Incapacidades validadas que aún no tienen radicado. Márquelas y use <strong>Agregar a radicar</strong>
+                para llevarlas al bloque de arriba sin volver a escribir sus códigos.
+              </p>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ges-filtro-ancho">
+                  <mat-label>Buscar</mat-label>
+                  <mat-icon matPrefix>search</mat-icon>
+                  <input matInput [(ngModel)]="filtros.q" (keyup.enter)="filtrarPendientes()" (blur)="filtrarPendientes()"
+                         placeholder="Cédula, código o nombre" autocomplete="off" />
+                </mat-form-field>
+                @if (epsOpciones().length) {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>EPS</mat-label>
+                    <mat-select [(ngModel)]="filtros.eps" (selectionChange)="filtrarPendientes()">
+                      <mat-option value="">Todas</mat-option>
+                      @for (e of epsOpciones(); track e) { <mat-option [value]="e">{{ e }}</mat-option> }
+                    </mat-select>
+                  </mat-form-field>
+                } @else {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>EPS</mat-label>
+                    <input matInput [(ngModel)]="filtros.eps" (keyup.enter)="filtrarPendientes()" (blur)="filtrarPendientes()" />
+                  </mat-form-field>
+                }
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Oficina</mat-label>
+                  <input matInput [(ngModel)]="filtros.oficina" (keyup.enter)="filtrarPendientes()" (blur)="filtrarPendientes()" autocomplete="off" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Empleador</mat-label>
+                  <mat-select [(ngModel)]="filtros.entidadGrupo" (selectionChange)="filtrarPendientes()">
+                    <mat-option value="">Apoyo y Alianza</mat-option>
+                    <mat-option value="APOYO">Apoyo Laboral</mat-option>
+                    <mat-option value="ALIANZA">Tu Alianza</mat-option>
+                  </mat-select>
+                </mat-form-field>
+                <mat-checkbox [(ngModel)]="filtros.soloAplicativo" (change)="filtrarPendientes()"
+                              matTooltip="Sin marcar también aparecen las históricas importadas del Excel del área">
+                  Solo registradas en el aplicativo
+                </mat-checkbox>
+                <button type="button" mat-button (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon>Limpiar</button>
+              </div>
+
+              @if (errorPendientes()) {
+                <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ errorPendientes() }}</span></div>
+              }
+
+              <app-tabla-estandar
+                id="incapacidades-radicacion-pendientes"
+                titulo="Pendientes por radicar"
+                modulo="Incapacidades"
+                vacio="No hay incapacidades pendientes por radicar con estos filtros."
+                [busqueda]="false"
+                [datos]="pendientes()"
+                [columnas]="columnasPendientes"
+                [filaId]="idPendiente"
+                [filaClase]="clasePendiente"
+                [cargando]="cargandoPendientes()"
+                [totalServidor]="totalPendientes()"
+                [paginaServidor]="paginaPendientes()"
+                [filasPorPagina]="tamanoPendientes()"
+                [opcionesPorPagina]="opcionesPorPagina"
+                [seleccion]="seleccionPendientes"
+                (paginaCambio)="paginarPendientes($event)">
+
+                <div tablaAccionesSeleccion>
+                  <button type="button" mat-flat-button color="primary" class="rad-btn-agregar" (click)="agregarSeleccion()">
+                    <mat-icon>playlist_add</mat-icon><span>Agregar a radicar ({{ marcadasPendientes() }})</span>
+                  </button>
+                </div>
+
+                <ng-template tablaCelda="codigo" let-r>
+                  @if (r.codigoOficina) {
+                    <span class="celda-mono celda-fuerte">{{ r.codigoOficina }}</span>
+                    <span class="celda-sub celda-mono">{{ r.codigoUnico }}</span>
+                  } @else {
+                    <span class="celda-mono celda-fuerte">{{ r.codigoUnico }}</span>
+                  }
+                </ng-template>
+
+                <ng-template tablaAcciones let-r>
+                  <button type="button" mat-icon-button (click)="agregarARadicar([r])" matTooltip="Agregar a radicar" aria-label="Agregar a radicar">
+                    <mat-icon>playlist_add</mat-icon>
+                  </button>
+                </ng-template>
+              </app-tabla-estandar>
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ RADICADOS RECIENTES ════════ -->
+          <mat-tab>
+            <ng-template mat-tab-label><span>Radicados recientes</span></ng-template>
+            <ng-template matTabContent>
+              <p class="ges-nota">Los últimos radicados anotados, del más reciente al más antiguo (sin los anulados).</p>
+              @if (errorHistorial()) {
+                <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ errorHistorial() }}</span></div>
+              }
+              <app-tabla-estandar
+                id="incapacidades-radicacion-recientes"
+                titulo="Radicados recientes"
+                modulo="Incapacidades"
+                vacio="Todavía no hay radicados con esta búsqueda."
+                busqueda="Buscar por radicado, código, cédula o nombre"
+                [datos]="historial()"
+                [columnas]="columnasHistorial"
+                [filaId]="idRadicado"
+                [cargando]="cargandoHistorial()"
+                [totalServidor]="totalHistorial()"
+                [paginaServidor]="paginaHistorial()"
+                [filasPorPagina]="tamanoHistorial()"
+                [opcionesPorPagina]="opcionesPorPagina"
+                (busquedaCambio)="buscarHistorial($event)"
+                (paginaCambio)="paginarHistorial($event)">
+
+                <ng-template tablaCelda="numero" let-r>
+                  <span class="celda-mono celda-fuerte">{{ r.numeroRadicado }}</span>
+                  @if (r.numeroAnterior) { <span class="celda-sub">Corrigió: <span class="celda-mono">{{ r.numeroAnterior }}</span></span> }
+                </ng-template>
+
+                <ng-template tablaCelda="nombre" let-r>
+                  <span class="celda-nombre">{{ r.nombreCompleto }}</span>
+                </ng-template>
+
+                <ng-template tablaCelda="lote" let-r>
+                  @if (r.lote) {
+                    <span class="ges-chip ges-chip-info" [matTooltip]="'Lote ' + r.lote">Colectivo</span>
+                  } @else {
+                    <span class="celda-sub">Individual</span>
+                  }
+                </ng-template>
+
+                <ng-template tablaCelda="observaciones" let-r>
+                  <span class="celda-texto">{{ r.observaciones }}</span>
+                </ng-template>
+              </app-tabla-estandar>
+            </ng-template>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+    </mat-card>
+  </div>
+</div>
