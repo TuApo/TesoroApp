@@ -8,7 +8,14 @@
  * cae aqui y no en la oficina.
  */
 
+import { provideZonelessChangeDetection } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+
 import {
+  DatosFormularioSaludTotal,
+  DialogoFormularioSaludTotalComponent,
   PREGUNTAS_SALUD_TOTAL,
   RUTA_PDF_SALUD_TOTAL,
   fechaAccidenteLegible,
@@ -77,5 +84,103 @@ describe('llenarFormatoSaludTotal', () => {
     expect(form.getCheckBox('1NO').isChecked()).toBeTrue();
     expect(form.getCheckBox('1SI').isChecked()).toBeFalse();
     expect(form.getCheckBox('6NO').isChecked()).toBeTrue();
+  }, 15000);
+});
+
+/**
+ * Reunion 2026-10-05: el CARGO llega de contratacion y se corrige a mano en el dialogo. Se
+ * genera el PDF REAL y se relee: lo escrito en el campo es lo que queda en la casilla CARGO.
+ */
+describe('DialogoFormularioSaludTotalComponent (cargo editable)', () => {
+  const DATOS: DatosFormularioSaludTotal = {
+    nombres: 'JUAN CARLOS',
+    apellidos: 'PEREZ GOMEZ',
+    telefono: '3001234567',
+    arl: 'ARL SURA',
+    cargo: 'OPERARIO',
+    responsable: 'JUAN CARLOS PEREZ GOMEZ',
+    cedula: '1075263514',
+  };
+
+  let refFalso: { close: jasmine.Spy };
+
+  function crear(datos: DatosFormularioSaludTotal = DATOS) {
+    TestBed.overrideProvider(MAT_DIALOG_DATA, { useValue: datos });
+    const fixture = TestBed.createComponent(DialogoFormularioSaludTotalComponent);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  /** Bytes del formato oficial servido por karma, o null si no lo sirve. */
+  async function formatoDisponible(): Promise<boolean> {
+    const respuesta = await fetch(RUTA_PDF_SALUD_TOTAL);
+    return respuesta.ok;
+  }
+
+  async function cargoDelPdf(archivo: File): Promise<string | undefined> {
+    const { PDFDocument } = await import('pdf-lib');
+    const doc = await PDFDocument.load(await archivo.arrayBuffer());
+    return doc.getForm().getTextField('CARGO').getText();
+  }
+
+  beforeEach(async () => {
+    refFalso = { close: jasmine.createSpy('close') };
+    await TestBed.configureTestingModule({
+      imports: [DialogoFormularioSaludTotalComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideNoopAnimations(),
+        { provide: MAT_DIALOG_DATA, useValue: DATOS },
+        { provide: MatDialogRef, useValue: refFalso },
+      ],
+    }).compileComponents();
+  });
+
+  it('muestra SIEMPRE el cargo como campo editable, prellenado con el de contratacion', async () => {
+    const fixture = crear();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.form.controls.cargo.value).toBe('OPERARIO');
+    const input = fixture.nativeElement.querySelector(
+      'input[formcontrolname="cargo"]',
+    ) as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    expect(input?.value).toBe('OPERARIO');
+    expect(input?.readOnly).toBeFalse();
+  });
+
+  it('sin cargo de contratacion el campo sigue ahi, vacio, para escribirlo', async () => {
+    const sinCargo = crear({ ...DATOS, cargo: '' });
+    await sinCargo.whenStable();
+    expect(sinCargo.nativeElement.querySelector('input[formcontrolname="cargo"]')).not.toBeNull();
+    expect(sinCargo.componentInstance.form.controls.cargo.value).toBe('');
+  });
+
+  it('el cargo corregido a mano es el que queda en la casilla CARGO del PDF', async () => {
+    if (!(await formatoDisponible())) {
+      pending('karma no sirve el asset del formato');
+      return;
+    }
+    const fixture = crear();
+    const comp = fixture.componentInstance;
+    comp.form.controls.cargo.setValue('  AUXILIAR DE CAMPO ');
+
+    await comp.generar();
+
+    expect(refFalso.close).toHaveBeenCalledTimes(1);
+    const archivo = refFalso.close.calls.mostRecent().args[0] as File;
+    expect(archivo instanceof File).toBeTrue();
+    expect(archivo.name).toBe('formato-salud-total-1075263514.pdf');
+    expect(await cargoDelPdf(archivo)).toBe('AUXILIAR DE CAMPO');
+  }, 15000);
+
+  it('sin tocarlo, el PDF lleva el cargo que vino de contratacion', async () => {
+    if (!(await formatoDisponible())) {
+      pending('karma no sirve el asset del formato');
+      return;
+    }
+    const fixture = crear();
+    await fixture.componentInstance.generar();
+    const archivo = refFalso.close.calls.mostRecent().args[0] as File;
+    expect(await cargoDelPdf(archivo)).toBe('OPERARIO');
   }, 15000);
 });

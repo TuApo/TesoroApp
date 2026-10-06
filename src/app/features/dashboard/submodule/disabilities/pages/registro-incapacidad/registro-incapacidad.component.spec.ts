@@ -23,7 +23,7 @@ import { provideRouter } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 
-import { RegistroIncapacidadComponent } from './registro-incapacidad.component';
+import { RegistroIncapacidadComponent, cargoDeContratacion } from './registro-incapacidad.component';
 import {
   CatalogosIncapacidad,
   DatosContratacionResponse,
@@ -427,6 +427,190 @@ describe('RegistroIncapacidadComponent', () => {
     });
   });
 
+  // ── Tipo de documento antes de buscar y cargo (reunion 2026-10-05) ──
+
+  describe('tipo de documento antes de buscar', () => {
+    const esBusqueda = (r: { url: string }) => r.url.endsWith('/Incapacidades/v2/empleados/buscar');
+
+    beforeEach(() => {
+      resolverCargaInicial();
+    });
+
+    it('sin tipo el buscador esta deshabilitado y no busca', async () => {
+      expect(comp.tipoBusqueda()).toBe('');
+      let resultado: EmpleadoBusqueda[] | undefined;
+      comp.buscarEmpleado('1001').subscribe((r) => (resultado = r));
+      expect(resultado).toEqual([]);
+      http.expectNone(esBusqueda);
+      http.expectNone((r) => r.url.includes('/contratacion/empleados/buscar'));
+
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const input = (fixture.nativeElement as HTMLElement).querySelector(
+        '.reg-buscador-persona input',
+      ) as HTMLInputElement;
+      expect(input.disabled).toBeTrue();
+
+      comp.alCambiarTipoBusqueda('CC');
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(input.disabled).toBeFalse();
+    });
+
+    it('ofrece la lista canonica (CC, CE, PPT, TI, PA) y ya no NIT', () => {
+      expect(comp.tiposDocumento.map((t) => t.valor)).toEqual(['CC', 'CE', 'PPT', 'TI', 'PA']);
+    });
+
+    it('con numero busca por documento ENVIANDO el tipo y deja solo las fichas de ese tipo', () => {
+      comp.alCambiarTipoBusqueda('CC');
+      let resultado: EmpleadoBusqueda[] = [];
+      comp.buscarEmpleado('1001').subscribe((r) => (resultado = r));
+
+      const req = http.expectOne(esBusqueda);
+      expect(req.request.params.get('q')).toBe('1001');
+      expect(req.request.params.get('tipo')).toBe('CC');
+      expect(req.request.params.get('limit')).toBe('15');
+      req.flush([
+        { ...EMPLEADO, tipoDocumentoCanonico: 'CC' },
+        { ...EMPLEADO, tipoDocumento: 'PET', tipoDocumentoCanonico: 'PPT' },
+      ]);
+
+      expect(resultado.length).toBe(1);
+      expect(resultado[0].tipoDocumentoCanonico).toBe('CC');
+      http.expectNone((r) => r.url.includes('/contratacion/empleados/buscar'));
+    });
+
+    it('una X inicial buscada como CC cambia el tipo a PPT y avisa', () => {
+      comp.alCambiarTipoBusqueda('CC');
+      comp.buscarEmpleado('X1234567').subscribe();
+
+      const req = http.expectOne(esBusqueda);
+      expect(req.request.params.get('tipo')).toBe('PPT');
+      req.flush([]);
+      expect(comp.tipoBusqueda()).toBe('PPT');
+      expect(comp.avisoTipoBusqueda()).toContain('PPT');
+    });
+
+    it('por nombre no manda el tipo (el servidor no lo admite) pero filtra por el elegido', () => {
+      comp.alCambiarTipoBusqueda('PPT');
+      let resultado: EmpleadoBusqueda[] = [];
+      comp.buscarEmpleado('perez').subscribe((r) => (resultado = r));
+
+      const req = http.expectOne(esBusqueda);
+      expect(req.request.params.has('tipo')).toBeFalse();
+      // Backend anterior (sin tipoDocumentoCanonico): se canoniza el crudo en el navegador.
+      req.flush([
+        { ...EMPLEADO, tipoDocumento: 'C.C' },
+        { ...EMPLEADO, cedula: '2002', tipoDocumento: 'P.P.T' },
+      ]);
+      expect(resultado.map((e) => e.cedula)).toEqual(['2002']);
+    });
+
+    it('cambiar el tipo limpia el buscador y suelta a la persona elegida', () => {
+      comp.alCambiarTipoBusqueda('CC');
+      seleccionarEmpleado();
+      expect(comp.personaCargada()).toBeTrue();
+
+      comp.alCambiarTipoBusqueda('PPT');
+
+      expect(comp.empleado()).toBeNull();
+      expect(comp.form.controls.personal.controls.numeroDocumento.value).toBe('');
+      expect(comp.form.controls.personal.controls.cargo.value).toBe('');
+      expect(comp.tipoBusqueda()).toBe('PPT');
+    });
+
+    it('escribe el tipo CANONICO en personal.tipoDocumento, no el crudo de contratacion', () => {
+      comp.alCambiarTipoBusqueda('PPT');
+      comp.alSeleccionarEmpleado({ ...EMPLEADO, tipoDocumento: 'PET', tipoDocumentoCanonico: 'PPT' });
+      http
+        .expectOne((r) => r.url.includes('/contratacion/datosIncapacidadContratacion/1001'))
+        .flush({
+          ...DATOS_CONTRATACION,
+          datos_basicos: { ...DATOS_CONTRATACION.datos_basicos, tipodedocumento: 'P.P.T' },
+        });
+      expect(comp.form.controls.personal.controls.tipoDocumento.value).toBe('PPT');
+    });
+
+    it('en modo manual el tipo arranca con el escogido para buscar', () => {
+      comp.alCambiarTipoBusqueda('CE');
+      comp.alSeleccionarEmpleado({ ...EMPLEADO, tipoDocumento: '' });
+      http
+        .expectOne((r) => r.url.includes('/contratacion/datosIncapacidadContratacion/1001'))
+        .flush({}, { status: 404, statusText: 'Not Found' });
+      comp.activarModoManual();
+      expect(comp.form.controls.personal.controls.tipoDocumento.value).toBe('CE');
+    });
+
+    it('al editar, el selector arranca con el canonico del tipo guardado y manda el cargo guardado', () => {
+      comp['aplicarIncapacidadExistente']({
+        id: 9,
+        cedula: '1001',
+        tipoDocumento: 'C.C',
+        nombreCompleto: 'PEREZ GOMEZ JUAN CARLOS',
+        cargo: 'SUPERVISOR DE CAMPO',
+      });
+      expect(comp.tipoBusqueda()).toBe('CC');
+
+      http
+        .expectOne((r) => r.url.includes('/contratacion/datosIncapacidadContratacion/1001'))
+        .flush(DATOS_CONTRATACION);
+      // Contratacion dice OPERARIO, pero el cargo corregido y guardado manda.
+      expect(comp.form.controls.personal.controls.cargo.value).toBe('SUPERVISOR DE CAMPO');
+      expect(comp.form.controls.personal.controls.tipoDocumento.value).toBe('CC');
+    });
+  });
+
+  describe('cargo', () => {
+    beforeEach(() => {
+      resolverCargaInicial();
+    });
+
+    it('se llena desde contratacion.cargo y queda editable', async () => {
+      seleccionarEmpleado();
+      expect(comp.form.controls.personal.controls.cargo.value).toBe('OPERARIO');
+
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const input = (fixture.nativeElement as HTMLElement).querySelector(
+        'input[formcontrolname="cargo"]',
+      ) as HTMLInputElement;
+      expect(input).not.toBeNull();
+      expect(input.readOnly).toBeFalse();
+    });
+
+    it('descarta lo que no es un cargo (tipo de proceso) y deja el campo vacio', () => {
+      seleccionarEmpleado({
+        ...DATOS_CONTRATACION,
+        contratacion: { ...DATOS_CONTRATACION.contratacion, cargo: 'Autorización de ingreso' },
+      });
+      expect(comp.form.controls.personal.controls.cargo.value).toBe('');
+    });
+
+    it('cargoDeContratacion filtra la basura conocida y recorta a 160', () => {
+      expect(cargoDeContratacion('  OPERARIO   DE CAMPO ')).toBe('OPERARIO DE CAMPO');
+      expect(cargoDeContratacion('PRUEBA TECNICA')).toBe('');
+      expect(cargoDeContratacion('Prueba técnica')).toBe('');
+      expect(cargoDeContratacion('autorizacion de ingreso')).toBe('');
+      expect(cargoDeContratacion('')).toBe('');
+      expect(cargoDeContratacion(null)).toBe('');
+      expect(cargoDeContratacion('A'.repeat(200)).length).toBe(160);
+    });
+
+    it('el formulario de Salud Total recibe el cargo (antes iba vacio fijo)', () => {
+      seleccionarEmpleado();
+      comp.form.controls.personal.controls.cargo.setValue('AUXILIAR DE CAMPO');
+      const dialogo = fixture.debugElement.injector.get(MatDialog);
+      const abrir = spyOn(dialogo, 'open').and.returnValue({
+        afterClosed: () => of(undefined),
+      } as never);
+
+      comp.abrirFormularioSaludTotal();
+
+      const config = abrir.calls.mostRecent().args[1] as { data: { cargo: string } };
+      expect(config.data.cargo).toBe('AUXILIAR DE CAMPO');
+    });
+  });
+
   // ── C) Calculo de la edad ───────────────────────────────────────────
 
   describe('calculo de la edad', () => {
@@ -802,6 +986,9 @@ describe('RegistroIncapacidadComponent', () => {
       // El backend lo llama `recibidoPor`: cualquier otro nombre es un 400.
       expect(cuerpo['recibidoPor']).toBe('ANA RUIZ');
       expect(cuerpo['afp']).toBe('PORVENIR');
+      // Reunion 2026-10-05: el cargo viaja en el request (y el tipo, canonico).
+      expect(cuerpo['cargo']).toBe('OPERARIO');
+      expect(cuerpo['tipoDocumento']).toBe('CC');
       creacion.flush({ id: 55, codigoUnico: '1001_20250110' });
 
       // La subida ancla en el ID NUMERICO (el multipart legacy respondia 404

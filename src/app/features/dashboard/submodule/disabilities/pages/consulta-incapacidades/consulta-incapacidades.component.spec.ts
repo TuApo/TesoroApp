@@ -27,6 +27,7 @@ import {
   IncapacidadResumenExtendido,
 } from './consulta-incapacidades.model';
 import { DialogoExportarIncapacidadesComponent } from './dialogos/dialogo-exportar-incapacidades/dialogo-exportar-incapacidades.component';
+import { DialogoExportMasivoComponent } from './dialogos/dialogo-export-masivo/dialogo-export-masivo.component';
 import {
   CLAVES_EXPORTACION_POR_DEFECTO,
   COLUMNAS_EXPORTABLES,
@@ -699,6 +700,35 @@ describe('ConsultaIncapacidadesComponent', () => {
       expect(configuracion.data.filasPaginaActual.length).toBe(1);
       expect(configuracion.data.columnasEnTabla).toContain('cedula');
       expect(configuracion.data.columnasEnTabla).not.toContain('actions');
+    });
+
+    it('"Base actual" abre la descarga masiva en modo base actual, sin filtros (reunion 2026-10-05)', () => {
+      peticionPrincipal().flush(pagina([FILA_A, FILA_B], 837));
+      responderKpis();
+
+      componente.formulario.patchValue({ eps: 'SURA' });
+      componente.aplicarFiltros();
+      peticionPrincipal().flush(pagina([FILA_B], 400));
+      responderKpis();
+
+      // El boton esta en la barra de resultados, junto a "Descarga masiva".
+      fixture.detectChanges();
+      const botones = Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll('.acciones-toolbar button'),
+      ).map((b) => (b.textContent ?? '').trim());
+      const iMasiva = botones.findIndex((t) => t.includes('Descarga masiva'));
+      expect(botones[iMasiva + 1]).toContain('Base actual');
+
+      componente.abrirBaseActual();
+
+      const [componenteAbierto, configuracion] = dialogoFalso.open.calls.mostRecent().args as [
+        unknown,
+        { data: { filtros: Record<string, string>; totalEstimado: number | null; modo: string } },
+      ];
+      expect(componenteAbierto).toBe(DialogoExportMasivoComponent);
+      expect(configuracion.data.modo).toBe('BASE_ACTUAL');
+      expect(configuracion.data.filtros).toEqual({});
+      expect(configuracion.data.totalEstimado).toBeNull();
     });
   });
 });

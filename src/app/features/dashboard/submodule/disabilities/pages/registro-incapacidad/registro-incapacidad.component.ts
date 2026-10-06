@@ -108,6 +108,13 @@ import {
   parsearFechaFlexible,
 } from '../../utils/fechas';
 import { codigoSinGuion } from '../../utils/codigos';
+import {
+  TIPOS_DOCUMENTO_CANONICOS,
+  TipoDocumentoCanonico,
+  canonizarTipoDocumento,
+  empiezaConX,
+  pareceNumeroDocumento,
+} from '../../utils/tipo-documento';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Constantes de presentacion (solo UI: nada de reglas de negocio)
@@ -173,8 +180,21 @@ const TAMANO_MAXIMO = 10 * 1024 * 1024;
 /** Espera antes de pedir una nueva validacion al backend. */
 const MS_DEBOUNCE_VALIDACION = 400;
 
-/** Opciones de tipo de documento cuando hay que capturarlo a mano. */
-const TIPOS_DOCUMENTO = ['CC', 'CE', 'TI', 'PA', 'PPT', 'NIT'] as const;
+/**
+ * Opciones de tipo de documento: la lista CANONICA (reunion 2026-10-05). NIT salio: un
+ * trabajador no se identifica con NIT.
+ */
+const TIPOS_DOCUMENTO = TIPOS_DOCUMENTO_CANONICOS;
+
+/**
+ * Valores de `contratacion.cargo` que NO son un cargo: `vacante_tipo` guarda tambien el tipo
+ * de proceso ("Autorizacion de ingreso", "Prueba tecnica"). Se comparan sin tildes ni
+ * mayusculas; con ellos el campo queda vacio para escribirlo a mano.
+ */
+const CARGOS_NO_VALIDOS = ['autorizacion de ingreso', 'prueba tecnica'];
+
+/** Tope del cargo (columna `incapacidad.cargo`). */
+const CARGO_MAXIMO = 160;
 
 /** Opciones de sexo cuando hay que capturarlo a mano. */
 const OPCIONES_SEXO = ['MASCULINO', 'FEMENINO', 'OTRO'] as const;
@@ -294,6 +314,13 @@ function primerTexto(...valores: unknown[]): string {
   return '';
 }
 
+/** Cargo de contratacion listo para el formulario: '' si es basura de tipo de proceso o vacio. */
+export function cargoDeContratacion(crudo: unknown): string {
+  const texto = primerTexto(crudo).replace(/\s+/g, ' ');
+  if (!texto || CARGOS_NO_VALIDOS.includes(normalizar(texto))) return '';
+  return texto.slice(0, CARGO_MAXIMO);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 
 @Component({
@@ -405,6 +432,12 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       arl: new FormControl(ARL_POR_DEFECTO, { nonNullable: true }),
       temporal: new FormControl('', { nonNullable: true }),
       numeroContrato: new FormControl('', { nonNullable: true }),
+      // Reunion 2026-10-05: el formato de Salud Total pide el CARGO. Sale de contratacion pero
+      // siempre es editable (el dato de origen viene sucio) y es opcional.
+      cargo: new FormControl('', {
+        nonNullable: true,
+        validators: [Validators.maxLength(CARGO_MAXIMO)],
+      }),
     }),
     incapacidad: new FormGroup(
       {
@@ -491,6 +524,16 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   readonly camposSinDato = signal<ReadonlySet<string>>(new Set<string>());
 
   readonly personaCargada = computed(() => this.empleado() !== null || this.modoManual());
+
+  // ── Tipo de documento antes de buscar (reunion 2026-10-05) ────────────
+  /** Tipo con el que se busca al trabajador. Obligatorio: sin el, el buscador no busca. */
+  readonly tipoBusqueda = signal<TipoDocumentoCanonico | ''>('');
+  /** Aviso cuando el tipo se cambio solo (numero con X inicial buscado como CC). */
+  readonly avisoTipoBusqueda = signal('');
+  private readonly buscadorPersona =
+    viewChild<BuscadorRemotoComponent<EmpleadoBusqueda>>('buscadorPersona');
+  /** Cargo guardado en la incapacidad que se edita: manda sobre el de contratacion. */
+  private cargoGuardado: string | null = null;
 
   // ── Estado de la validacion en vivo ───────────────────────────────────
   readonly validacion = signal<ValidacionResponse | null>(null);
@@ -893,7 +936,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   // ─────────────────────────────────────────────────────────────────────
 
   readonly buscarEmpleado = (q: string): Observable<EmpleadoBusqueda[]> =>
-    this.srv.buscarEmpleados(q, 15);
+    this.buscarEmpleadoPorTipo(q);
   readonly mostrarEmpleado = (e: EmpleadoBusqueda): string =>
     `${e.cedula} - ${e.nombreCompleto}`;
   readonly detalleEmpleado = (e: EmpleadoBusqueda): string =>
@@ -1099,13 +1142,59 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   // A) Buscador inteligente de la persona
   // ─────────────────────────────────────────────────────────────────────
 
+  /**
+   * Reunion 2026-10-05: primero se escoge el tipo de documento y luego se busca. Lo lee la
+   * referencia estable `buscarEmpleado`, asi que el tipo vigente se toma en cada busqueda.
+   *  - Con digitos es un NUMERO: va con `tipo` y ms-hr filtra por el tipo canonico de la ficha.
+   *    Una X inicial con CC no encontraria nada (es la marca de los PPT/PEP): se pasa a PPT y
+   *    se avisa.
+   *  - Solo letras es un NOMBRE: el servidor no busca nombres con `tipo`, asi que se pide sin el
+   *    y se dejan las fichas de ese tipo (para no perder la busqueda por nombre de siempre).
+   * El filtro por tipo se aplica tambien a los numeros: no cuesta nada y protege si el backend
+   * todavia no filtra.
+   */
+  private buscarEmpleadoPorTipo(q: string): Observable<EmpleadoBusqueda[]> {
+    let tipo = this.tipoBusqueda();
+    if (!tipo) return of([]);
+    const texto = (q ?? '').trim();
+    if (tipo === 'CC' && empiezaConX(texto)) {
+      tipo = 'PPT';
+      this.tipoBusqueda.set(tipo);
+      this.avisoTipoBusqueda.set(
+        'El número empieza por X, que es como se guardan los PPT/PEP: se cambió el tipo a PPT.',
+      );
+    }
+    const elegido = tipo;
+    return this.srv
+      .buscarEmpleadosPorDocumento(texto, pareceNumeroDocumento(texto) ? elegido : null, 15)
+      .pipe(
+        map((filas) =>
+          filas.filter(
+            (e) => (e.tipoDocumentoCanonico || canonizarTipoDocumento(e.tipoDocumento)) === elegido,
+          ),
+        ),
+      );
+  }
+
+  /** El usuario escogio otro tipo: lo buscado con el anterior ya no vale y se limpia. */
+  alCambiarTipoBusqueda(tipo: TipoDocumentoCanonico | ''): void {
+    this.tipoBusqueda.set(tipo);
+    this.avisoTipoBusqueda.set('');
+    // `limpiar()` emite (limpiado) -> alLimpiarEmpleado(), y deja al buscador listo para volver
+    // a pedir aunque se escriba el mismo numero (su distinctUntilChanged no lo frena).
+    this.buscadorPersona()?.limpiar();
+  }
+
   /** Handler del `(seleccionado)` del buscador de empleados. */
   alSeleccionarEmpleado(empleado: EmpleadoBusqueda): void {
+    // Otra persona elegida a mano: el cargo de la incapacidad editada ya no aplica.
+    this.cargoGuardado = null;
     this.empleadoElegido$.next(empleado);
   }
 
   /** Handler del `(limpiado)` del buscador de empleados. */
   alLimpiarEmpleado(): void {
+    this.cargoGuardado = null;
     this.empleado.set(null);
     this.errorPersona.set('');
     this.cedulaBuscada.set('');
@@ -1219,6 +1308,11 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     // guardado traiga otra cosa, el campo fijo la corrige al reguardar.
     this.form.controls.personal.patchValue({ arl: ARL_POR_DEFECTO });
 
+    // Reunion 2026-10-05: el selector arranca con el tipo (canonico) de la incapacidad, y el
+    // cargo guardado manda sobre el que traiga contratacion (pudo corregirse a mano).
+    this.tipoBusqueda.set(canonizarTipoDocumento(inc.tipoDocumento) ?? '');
+    this.cargoGuardado = (inc.cargo ?? '').trim() || null;
+
     // Los datos del trabajador son maestros de contratacion: se recargan
     // por el mismo camino que el alta, no se copian del registro guardado.
     this.valorInicialPersona.set(
@@ -1249,12 +1343,16 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   activarModoManual(): void {
     this.modoManual.set(true);
     this.errorPersona.set('');
+    const tipo = this.form.controls.personal.controls.tipoDocumento;
+    if (!tipo.value && this.tipoBusqueda()) tipo.setValue(this.tipoBusqueda());
   }
 
   /** Prellenado rapido con lo que ya trae la fila del buscador. */
   private aplicarEmpleado(emp: EmpleadoBusqueda): void {
     this.form.controls.personal.patchValue({
-      tipoDocumento: (emp.tipoDocumento ?? '').trim(),
+      tipoDocumento: this.tipoDocumentoDe(emp.tipoDocumentoCanonico, emp.tipoDocumento),
+      // El de la persona anterior no puede quedarse mientras llega contratacion.
+      cargo: this.cargoGuardado ?? '',
       numeroDocumento: (emp.cedula ?? '').trim(),
       empresa: (emp.empresa ?? '').trim(),
       centroCosto: (emp.centroCosto ?? '').trim(),
@@ -1288,7 +1386,11 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     const emp = this.empleado();
 
     const valores = {
-      tipoDocumento: primerTexto(b.tipodedocumento, emp?.tipoDocumento),
+      tipoDocumento: this.tipoDocumentoDe(
+        emp?.tipoDocumentoCanonico,
+        b.tipodedocumento,
+        emp?.tipoDocumento,
+      ),
       numeroDocumento: primerTexto(b.numerodeceduladepersona, emp?.cedula),
       primerApellido: primerTexto(b.primer_apellido),
       segundoApellido: primerTexto(b.segundo_apellido),
@@ -1309,6 +1411,8 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
     this.form.controls.personal.patchValue({
       ...valores,
+      // Fuera de `valores`: el cargo es siempre editable, nunca queda en solo lectura.
+      cargo: this.cargoGuardado ?? cargoDeContratacion(c.cargo),
       fechaNacimiento: parsearFechaFlexible(b.fecha_nacimiento),
       fechaIngreso: parsearFechaFlexible(
         primerTexto(c.fechaIngreso, c.fecha_contratacion, emp?.fechaIngreso),
@@ -1328,6 +1432,21 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     if (valores.epsAfiliacion && !this.form.controls.incapacidad.controls.eps.value) {
       this.form.controls.incapacidad.controls.eps.setValue(valores.epsAfiliacion);
     }
+  }
+
+  /**
+   * Tipo que se guarda: SIEMPRE canonico (CC, CE, PPT, TI, PA). Manda el escogido antes de
+   * buscar; sin el (incapacidad vieja con un tipo raro), el canonico de lo que traiga
+   * contratacion y, si nada se reconoce, el texto crudo para no perder el dato.
+   */
+  private tipoDocumentoDe(...crudos: (string | null | undefined)[]): string {
+    const elegido = this.tipoBusqueda();
+    if (elegido) return elegido;
+    for (const crudo of crudos) {
+      const canonico = canonizarTipoDocumento(crudo);
+      if (canonico) return canonico;
+    }
+    return primerTexto(...crudos);
   }
 
   /** `true` si el campo debe ir en solo lectura (vino de contratacion). */
@@ -1571,7 +1690,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       apellidos: [p.primerApellido, p.segundoApellido].filter(Boolean).join(' ').trim(),
       telefono: (p.celular || p.whatsapp || '').trim(),
       arl: (p.arl || ARL_POR_DEFECTO).trim(),
-      cargo: '',
+      cargo: p.cargo.trim(),
       // Reunion 2026-09-07: el responsable del diligenciamiento es el TRABAJADOR, no quien
       // recibe en la oficina; si no hay nombre del trabajador se cae a quien recibe.
       responsable:
@@ -1946,6 +2065,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       centroCosto: p.centroCosto.trim(),
       temporal: p.temporal.trim(),
       numeroContrato: p.numeroContrato.trim(),
+      cargo: p.cargo.trim() || null,
       eps: i.eps.trim(),
       afp: p.fondoPension.trim(),
       arl: p.arl.trim(),
@@ -2017,6 +2137,10 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     this.errorRegistro.set('');
     this.idCreado.set(null);
     this.origenEdicion.set(null);
+    this.cargoGuardado = null;
+    this.tipoBusqueda.set('');
+    this.avisoTipoBusqueda.set('');
+    this.buscadorPersona()?.limpiar();
 
     const manuales = (this.catalogos()?.estadosDocumento ?? []).filter((e) => !e.automatico);
     this.form.reset({

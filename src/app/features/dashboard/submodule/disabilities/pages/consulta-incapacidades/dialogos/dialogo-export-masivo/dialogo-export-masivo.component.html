@@ -1,11 +1,16 @@
 <div class="exm-hero">
   <div class="exm-hero-icono">
-    <mat-icon>cloud_sync</mat-icon>
+    <mat-icon>{{ esBaseActual ? 'table_view' : 'cloud_sync' }}</mat-icon>
   </div>
 
   <div class="exm-hero-textos">
-    <h2 class="exm-hero-titulo" mat-dialog-title>Exportacion masiva</h2>
-    <p class="exm-hero-sub">El servidor genera el archivo completo; aqui solo esperas y descargas</p>
+    @if (esBaseActual) {
+      <h2 class="exm-hero-titulo" mat-dialog-title>Base actual</h2>
+      <p class="exm-hero-sub">Consolidado completo de incapacidades, generado en el servidor</p>
+    } @else {
+      <h2 class="exm-hero-titulo" mat-dialog-title>Exportacion masiva</h2>
+      <p class="exm-hero-sub">El servidor genera el archivo completo; aqui solo esperas y descargas</p>
+    }
   </div>
 
   <button
@@ -22,8 +27,26 @@
 
 <mat-dialog-content class="exm-cuerpo">
 
+  <!-- ════════ Base actual: tipo fijo, sin tarjetas ni filtros (reunion 2026-10-05) ════════ -->
+  @if (fase() === 'seleccion' && esBaseActual) {
+    <section class="exm-bloque exm-base-actual">
+      <header class="exm-bloque-cabecera">
+        <mat-icon class="exm-base-icono">table_view</mat-icon>
+        <h3 class="exm-bloque-titulo">Excel de la base actual</h3>
+      </header>
+      <p class="exm-base-texto">
+        Descarga el consolidado completo de la base (todas las incapacidades) con radicados,
+        pagos y negaciones.
+      </p>
+      <p class="exm-nota">
+        <mat-icon>filter_alt_off</mat-icon>
+        No usa los filtros de la consulta: incluye todas las incapacidades activas.
+      </p>
+    </section>
+  }
+
   <!-- ════════ Paso 1: elegir tipo ════════ -->
-  @if (fase() === 'seleccion') {
+  @if (fase() === 'seleccion' && !esBaseActual) {
     <section class="exm-bloque">
       <header class="exm-bloque-cabecera">
         <span class="exm-paso">1</span>

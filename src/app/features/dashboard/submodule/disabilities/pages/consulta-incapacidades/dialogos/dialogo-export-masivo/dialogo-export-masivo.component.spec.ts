@@ -20,6 +20,7 @@ import {
   DatosDialogoExportMasivo,
   DialogoExportMasivoComponent,
   INTERVALO_SONDEO_MS,
+  nombrePorDefectoExport,
 } from './dialogo-export-masivo.component';
 
 const BASE = `${environment.apiUrl}/Incapacidades/v2`;
@@ -248,4 +249,121 @@ describe('DialogoExportMasivoComponent', () => {
     expect(componente.job()).toBeNull();
     expect(componente.error()).toBe('');
   }));
+});
+
+// ═════════════════════════════════════════════════════════════════════
+// Modo "Base actual" (reunion 2026-10-05): tipo fijo, sin tarjetas ni filtros
+// ═════════════════════════════════════════════════════════════════════
+
+describe('DialogoExportMasivoComponent en modo Base actual', () => {
+  let fixture: ComponentFixture<DialogoExportMasivoComponent>;
+  let componente: DialogoExportMasivoComponent;
+  let httpMock: HttpTestingController;
+
+  /** Aunque la consulta tuviera filtros, la base actual NO los manda. */
+  const DATOS_BASE: DatosDialogoExportMasivo = {
+    filtros: { eps: 'SURA' },
+    totalEstimado: null,
+    modo: 'BASE_ACTUAL',
+  };
+
+  beforeEach(async () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+
+    await TestBed.configureTestingModule({
+      imports: [DialogoExportMasivoComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: MAT_DIALOG_DATA, useValue: DATOS_BASE },
+        { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(DialogoExportMasivoComponent);
+    componente = fixture.componentInstance;
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    for (const pendiente of httpMock.match((r) => r.url.includes('/exports/'))) {
+      if (!pendiente.cancelled) {
+        pendiente.flush(job({ estado: 'EN_PROCESO', estadoEtiqueta: 'En proceso' }));
+      }
+    }
+    httpMock.verify();
+  });
+
+  it('arranca con EXCEL_BASE_ACTUAL fijo, sin tarjetas de tipo y con el texto de la base', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const html = fixture.nativeElement as HTMLElement;
+
+    expect(componente.esBaseActual).toBeTrue();
+    expect(componente.tipo()).toBe('EXCEL_BASE_ACTUAL');
+    expect(componente.puedeGenerar()).toBeTrue();
+    expect(html.querySelectorAll('.exm-tarjeta').length).toBe(0);
+    expect(html.textContent).toContain('Base actual');
+    expect(html.textContent).toContain(
+      'Descarga el consolidado completo de la base (todas las incapacidades) con radicados, pagos y negaciones',
+    );
+
+    // No se puede cambiar el tipo desde fuera de la seleccion.
+    componente.seleccionarTipo('ZIP_SOPORTES');
+    expect(componente.tipo()).toBe('EXCEL_BASE_ACTUAL');
+  });
+
+  it('genera el trabajo SIN filtros y descarga con el nombre del servidor', fakeAsync(() => {
+    fixture.detectChanges();
+    const guardar = spyOn(componente, 'guardarArchivo');
+
+    componente.generar();
+    const post = httpMock.expectOne(`${BASE}/exports`);
+    expect(post.request.body.tipo).toBe('EXCEL_BASE_ACTUAL');
+    expect(post.request.body.filtros).toEqual({});
+    post.flush(job({ tipo: 'EXCEL_BASE_ACTUAL', tipoEtiqueta: 'Base actual (consolidado completo)' }));
+
+    tick(0);
+    httpMock.expectOne(`${BASE}/exports/job-1`).flush(
+      job({
+        tipo: 'EXCEL_BASE_ACTUAL',
+        estado: 'COMPLETADO',
+        estadoEtiqueta: 'Completado',
+        nombreResultado: 'base_actual_incapacidades.xlsx',
+      }),
+    );
+    httpMock.expectOne(`${BASE}/exports/job-1/descargar`).flush(new Blob(['xlsx']));
+
+    expect(guardar).toHaveBeenCalledWith(jasmine.any(Blob), 'base_actual_incapacidades.xlsx');
+    discardPeriodicTasks();
+  }));
+
+  it('si el servidor no da nombre, usa uno por defecto con la extension del tipo', fakeAsync(() => {
+    fixture.detectChanges();
+    const guardar = spyOn(componente, 'guardarArchivo');
+
+    componente.generar();
+    httpMock.expectOne(`${BASE}/exports`).flush(job({ tipo: 'EXCEL_BASE_ACTUAL' }));
+    tick(0);
+    httpMock
+      .expectOne(`${BASE}/exports/job-1`)
+      .flush(job({ tipo: 'EXCEL_BASE_ACTUAL', estado: 'COMPLETADO', estadoEtiqueta: 'Completado' }));
+    httpMock.expectOne(`${BASE}/exports/job-1/descargar`).flush(new Blob(['xlsx']));
+
+    expect(guardar).toHaveBeenCalledWith(jasmine.any(Blob), 'base-actual-incapacidades.xlsx');
+    discardPeriodicTasks();
+  }));
+});
+
+describe('nombrePorDefectoExport', () => {
+  it('da .zip a los ZIP (soportes y SEVENET) y .xlsx a los Excel (consolidado y base actual)', () => {
+    expect(nombrePorDefectoExport('ZIP_SOPORTES')).toMatch(/\.zip$/);
+    expect(nombrePorDefectoExport('ZIP_SEVENET')).toMatch(/\.zip$/);
+    expect(nombrePorDefectoExport('EXCEL_CONSOLIDADO')).toMatch(/\.xlsx$/);
+    expect(nombrePorDefectoExport('EXCEL_BASE_ACTUAL')).toMatch(/\.xlsx$/);
+  });
 });

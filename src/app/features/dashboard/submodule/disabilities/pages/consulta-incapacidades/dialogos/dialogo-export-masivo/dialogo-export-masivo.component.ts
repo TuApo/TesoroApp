@@ -28,12 +28,35 @@ import {
 } from '../../../../models/incapacidad-v2.model';
 import { IncapacidadV2Service } from '../../../../services/incapacidad-v2/incapacidad-v2.service';
 
+/**
+ * `FILTRADO` (por defecto): el usuario elige ZIP de soportes o Excel consolidado del filtro.
+ * `BASE_ACTUAL` (reunion 2026-10-05, boton "Base actual"): tipo EXCEL_BASE_ACTUAL fijo, sin
+ * tarjetas y SIN filtros: el servidor exporta toda la base.
+ */
+export type ModoExportMasivo = 'FILTRADO' | 'BASE_ACTUAL';
+
 /** Lo que recibe el dialogo desde la vista de consulta. */
 export interface DatosDialogoExportMasivo {
   /** Filtros que estan aplicados AHORA en la consulta (los mismos que ve el usuario). */
   filtros: FiltrosIncapacidadV2;
   /** Total de registros que cumplen el filtro segun la tabla (`null` si no se conoce). */
   totalEstimado: number | null;
+  /** Sin valor = `FILTRADO`. */
+  modo?: ModoExportMasivo;
+}
+
+/** Nombre de descarga si el servidor no manda `nombreResultado` (no deberia pasar). */
+export function nombrePorDefectoExport(tipo: TipoExportJob): string {
+  switch (tipo) {
+    case 'ZIP_SOPORTES':
+      return 'soportes-incapacidades.zip';
+    case 'ZIP_SEVENET':
+      return 'sevenet-incapacidades.zip';
+    case 'EXCEL_BASE_ACTUAL':
+      return 'base-actual-incapacidades.xlsx';
+    default:
+      return 'incapacidades.xlsx';
+  }
 }
 
 /** Cada cuanto se pregunta al servidor por el estado del trabajo. */
@@ -121,9 +144,12 @@ export class DialogoExportMasivoComponent implements OnDestroy {
 
   readonly tarjetas: readonly TarjetaTipoExport[] = TARJETAS_TIPO_EXPORT;
 
+  /** Boton "Base actual": tipo fijo y sin filtros. */
+  readonly esBaseActual = this.datos.modo === 'BASE_ACTUAL';
+
   // ── Estado ────────────────────────────────────────────────────────────
 
-  readonly tipo = signal<TipoExportJob>('ZIP_SOPORTES');
+  readonly tipo = signal<TipoExportJob>(this.esBaseActual ? 'EXCEL_BASE_ACTUAL' : 'ZIP_SOPORTES');
 
   /** El trabajo tal como lo reporta el servidor (`null` = todavia no hay). */
   readonly job = signal<ExportJob | null>(null);
@@ -147,8 +173,8 @@ export class DialogoExportMasivoComponent implements OnDestroy {
     return 'progreso';
   });
 
-  /** El filtro actual no tiene registros: no hay nada que exportar. */
-  readonly sinRegistros = computed(() => this.datos.totalEstimado === 0);
+  /** El filtro actual no tiene registros: no hay nada que exportar (la base actual no filtra). */
+  readonly sinRegistros = computed(() => !this.esBaseActual && this.datos.totalEstimado === 0);
 
   readonly puedeGenerar = computed(
     () => this.fase() === 'seleccion' && !this.generando() && !this.sinRegistros(),
@@ -172,7 +198,7 @@ export class DialogoExportMasivoComponent implements OnDestroy {
   // ── Paso 1: tipo ──────────────────────────────────────────────────────
 
   seleccionarTipo(tipo: TipoExportJob): void {
-    if (this.fase() !== 'seleccion') return;
+    if (this.fase() !== 'seleccion' || this.esBaseActual) return;
     this.tipo.set(tipo);
   }
 
@@ -184,7 +210,7 @@ export class DialogoExportMasivoComponent implements OnDestroy {
     this.generando.set(true);
 
     this.subs.add(
-      this.srv.crearExport(this.tipo(), this.datos.filtros).subscribe({
+      this.srv.crearExport(this.tipo(), this.esBaseActual ? {} : this.datos.filtros).subscribe({
         next: (job) => {
           this.generando.set(false);
           this.job.set(job);
@@ -242,7 +268,7 @@ export class DialogoExportMasivoComponent implements OnDestroy {
       this.srv.descargarExport(job.id).subscribe({
         next: (blob) => {
           this.descargando.set(false);
-          this.guardarArchivo(blob, job.nombreResultado || this.nombrePorDefecto(job));
+          this.guardarArchivo(blob, job.nombreResultado || nombrePorDefectoExport(job.tipo));
         },
         error: () => {
           this.descargando.set(false);
@@ -255,11 +281,6 @@ export class DialogoExportMasivoComponent implements OnDestroy {
   /** Envoltura de `saveAs` separada para poder espiarla en las pruebas. */
   guardarArchivo(blob: Blob, nombre: string): void {
     saveAs(blob, nombre);
-  }
-
-  /** Por si el servidor no manda `nombreResultado` (no deberia pasar). */
-  private nombrePorDefecto(job: ExportJob): string {
-    return job.tipo === 'ZIP_SOPORTES' ? 'soportes-incapacidades.zip' : 'incapacidades.xlsx';
   }
 
   // ── Otras acciones ────────────────────────────────────────────────────

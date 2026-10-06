@@ -256,8 +256,8 @@ export class CorreosEmpresasComponent implements OnInit {
           void Swal.fire({
             icon: 'success', title: 'Configuracion guardada',
             text: c.envioModo === 'DIARIO'
-              ? `Los correos saldran en un solo lote por finca todos los dias a las ${c.envioHora}.`
-              : 'Cada incapacidad enviara su correo al momento de recibirla (al cargar el soporte).',
+              ? `Solo saldrá el lote diario automático: un correo por finca todos los días a las ${c.envioHora}.`
+              : 'Cada incapacidad enviará su correo al registrarla (al cargar el soporte); lo que no salga se envía a mano con el lote del día.',
             timer: 3500, showConfirmButton: false,
           });
           this.cargarPreview();
@@ -296,13 +296,13 @@ export class CorreosEmpresasComponent implements OnInit {
     if (!p || p.totalIncapacidades === 0) return;
     void Swal.fire({
       icon: 'question',
-      title: 'Enviar los correos de hoy ahora',
+      title: 'Enviar lote del día (pendientes)',
       html:
         `<p style="margin:0 0 8px">Se enviaran <b>${p.totalCorreos}</b> correo(s) con <b>${p.totalIncapacidades}</b> incapacidad(es).</p>` +
         (p.prueba
           ? `<p style="margin:0;font-size:13px;color:#b26a00"><b>Modo prueba:</b> todo sale a ${escapar(p.destinoPrueba ?? '')} con el destinatario real anotado.</p>`
           : '<p style="margin:0;font-size:13px;color:#c62828"><b>Modo activo:</b> saldran a los correos reales de cada finca.</p>'),
-      showCancelButton: true, confirmButtonText: 'Enviar ahora', cancelButtonText: 'Cancelar', confirmButtonColor: '#1976d2',
+      showCancelButton: true, confirmButtonText: 'Enviar lote', cancelButtonText: 'Cancelar', confirmButtonColor: '#1976d2',
     }).then((r) => {
       if (!r.isConfirmed) return;
       this.enviando.set(true);

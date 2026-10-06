@@ -1,0 +1,89 @@
+/* SEVENET (reunion 2026-10-05): rango semanal + carpeta comprimida. Lenguaje .disab-* comun. */
+
+.disab-hero-sevenet::before {
+  content: 'archive';
+  font-family: 'Material Icons';
+  position: absolute; right: -30px; top: -40px; font-size: 220px;
+  color: rgba(255, 255, 255, 0.08); line-height: 1; pointer-events: none;
+}
+
+.sev-cuerpo { display: flex; flex-direction: column; gap: 14px; max-width: 960px; }
+
+.sev-bloque {
+  border: 1px solid var(--disab-border); border-radius: var(--disab-radius-sm);
+  background: var(--disab-surface); box-shadow: var(--disab-shadow-sm); padding: 14px 16px 16px; min-width: 0;
+}
+.sev-bloque-cabecera { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.sev-paso {
+  width: 24px; height: 24px; border-radius: 50%; background: var(--disab-primary); color: #fff;
+  font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.sev-bloque-titulo { margin: 0; font-size: 15px; font-weight: 700; color: var(--disab-text); }
+
+/* ── Atajos de semana ──────────────────────────────────────── */
+.sev-atajos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 14px; }
+.sev-atajo { border-radius: 10px !important; text-transform: none !important; }
+.sev-atajo-activo {
+  background: var(--disab-primary-light) !important; border-color: var(--disab-primary) !important;
+  color: var(--disab-primary-dark) !important; color: light-dark(var(--disab-primary-dark), #9ac4f4) !important;
+}
+.sev-atajos-nota { font-size: 12.5px; color: var(--disab-text-muted); }
+
+/* ── Fechas y eje ──────────────────────────────────────────── */
+.sev-fechas { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.sev-campo { flex: 1 1 200px; min-width: 0; max-width: 280px; }
+
+.sev-eje { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 6px; }
+.sev-eje-etiqueta { font-size: 12px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase; color: var(--disab-text-muted); }
+.sev-eje-opciones { display: flex; flex-direction: column; gap: 4px; }
+.sev-eje-ayuda { display: block; font-size: 12px; color: var(--disab-text-muted); font-weight: 400; }
+
+/* ── Conteo ────────────────────────────────────────────────── */
+.sev-conteo { margin-top: 10px; min-height: 40px; }
+.sev-conteo .ges-aviso { margin: 0; }
+.sev-conteo-linea {
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--disab-radius-sm);
+  background: var(--disab-primary-light); color: var(--disab-text); font-size: 13.5px; line-height: 1.45;
+}
+.sev-conteo-icono {
+  width: 36px; height: 36px; border-radius: 10px; background: var(--disab-surface); flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--disab-primary-dark); color: light-dark(var(--disab-primary-dark), #9ac4f4);
+}
+.sev-conteo-numero { font-size: 20px; font-weight: 800; margin-right: 2px; }
+.sev-conteo-vacio { background: #fff8e1; background: light-dark(#fff8e1, #383524); }
+.sev-conteo-vacio .sev-conteo-icono { color: var(--disab-warn); color: light-dark(var(--disab-warn), #f7d097); }
+
+/* ── Acciones ──────────────────────────────────────────────── */
+.sev-acciones { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sev-btn { border-radius: 12px !important; font-weight: 600 !important; text-transform: none !important; }
+.sev-btn-primario { background: var(--disab-primary) !important; color: #fff !important; }
+.sev-btn-primario:disabled { opacity: 0.55; }
+.sev-plano { display: inline-flex; cursor: not-allowed; }
+
+.sev-pendiente {
+  display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 12.5px;
+  color: var(--disab-warn); color: light-dark(var(--disab-warn), #f7d097); font-weight: 600;
+}
+.sev-pendiente mat-icon { font-size: 18px; width: 18px; height: 18px; flex-shrink: 0; }
+
+/* ── Estado del trabajo ────────────────────────────────────── */
+.sev-estado {
+  display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding: 12px 14px;
+  border-radius: var(--disab-radius-sm); border: 1px solid var(--disab-border); background: var(--surface-2);
+}
+.sev-estado-ok { border-color: rgba(46, 125, 50, 0.35); }
+.sev-estado-ok .sev-estado-texto mat-icon { color: var(--disab-ok); color: light-dark(var(--disab-ok), #ade1b0); }
+.sev-estado-texto { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13.5px; color: var(--disab-text); word-break: break-word; }
+.sev-estado-texto mat-icon { flex-shrink: 0; color: var(--disab-primary); }
+.sev-estado-nota { margin: 0; font-size: 12.5px; color: var(--disab-text-muted); }
+.sev-estado .sev-btn { align-self: flex-start; }
+
+.sev-contenido { display: flex; gap: 8px; align-items: flex-start; margin: 14px 0 0; }
+.sev-contenido mat-icon { font-size: 18px; width: 18px; height: 18px; flex-shrink: 0; color: var(--disab-primary); }
+
+@media (max-width: 520px) {
+  .sev-campo { max-width: none; flex-basis: 100%; }
+  .sev-acciones > *, .sev-plano .sev-btn { width: 100%; }
+  .sev-plano { display: flex; }
+}
