@@ -809,7 +809,8 @@ export interface ResultadoCargaMasivaRadicados {
 }
 
 /** Trabajos asincronos de exportacion masiva. */
-export type TipoExportJob = 'ZIP_SOPORTES' | 'EXCEL_CONSOLIDADO';
+/** ZIP_SEVENET y EXCEL_BASE_ACTUAL: reunion funcional 2026-10-05 (SEVENET y boton "Base actual"). */
+export type TipoExportJob = 'ZIP_SOPORTES' | 'EXCEL_CONSOLIDADO' | 'ZIP_SEVENET' | 'EXCEL_BASE_ACTUAL';
 export type EstadoExportJob = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'ERROR';
 
 export interface ExportJob {

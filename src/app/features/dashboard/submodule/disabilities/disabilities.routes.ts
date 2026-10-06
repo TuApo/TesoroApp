@@ -76,4 +76,43 @@ export const routes: Routes = [
           (m) => m.CorreosEmpresasComponent,
         ),
     },
+
+    // ── Modulos de Salud de la reunion funcional 2026-10-05 ─────────────
+    // Salud = Incapacidades + Radicacion (con Recobro) + SEVENET + Liquidacion
+    // (con Pagos y Negaciones). Cada uno con su entrada de menu en db_admin
+    // (ms-auth-admin V133) bajo Salud. Rutas hermanas, todas perezosas.
+    {
+      path: 'radicacion',
+      loadComponent: () =>
+        import('./pages/radicacion/radicacion.component').then((m) => m.RadicacionComponent),
+    },
+    {
+      path: 'radicacion/recobro',
+      loadComponent: () =>
+        import('./pages/recobro/recobro.component').then((m) => m.RecobroComponent),
+    },
+    {
+      path: 'sevenet',
+      loadComponent: () =>
+        import('./pages/sevenet/sevenet.component').then((m) => m.SevenetComponent),
+    },
+    {
+      path: 'liquidacion',
+      loadComponent: () =>
+        import('./pages/liquidacion/liquidacion.component').then((m) => m.LiquidacionComponent),
+    },
+    {
+      path: 'liquidacion/pagos',
+      loadComponent: () =>
+        import('./pages/liquidacion-pagos/liquidacion-pagos.component').then(
+          (m) => m.LiquidacionPagosComponent,
+        ),
+    },
+    {
+      path: 'liquidacion/negaciones',
+      loadComponent: () =>
+        import('./pages/liquidacion-negaciones/liquidacion-negaciones.component').then(
+          (m) => m.LiquidacionNegacionesComponent,
+        ),
+    },
 ];
