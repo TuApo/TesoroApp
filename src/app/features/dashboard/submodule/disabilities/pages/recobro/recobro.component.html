@@ -1,0 +1,161 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-recobro">
+        <div class="disab-hero-icon"><mat-icon>replay</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Recobro</h1>
+          <p class="disab-hero-sub">
+            Incapacidades que la EPS negó por una causal que no las finaliza. Se vuelven a radicar (PQR) con un número
+            nuevo bajo el mismo código único, las veces que haga falta, y cada radicado queda con su fecha. Se finalizan
+            solo cuando llega una respuesta de pago.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <a mat-flat-button class="hero-btn hero-btn-primario" [routerLink]="rutaRadicacion">
+            <mat-icon>assignment_turned_in</mat-icon><span>Radicación</span>
+          </a>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="recargarTodo()" [disabled]="cargando()">
+            <mat-icon>refresh</mat-icon><span>Actualizar</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="kpi-fila">
+        <button type="button" class="kpi-tarjeta kpi-aviso kpi-clic" [class.kpi-activo]="situacion() === 'PENDIENTE'"
+                (click)="cambiarSituacion('PENDIENTE')" matTooltip="Negadas sin un radicado de recobro posterior a la negación">
+          <span class="kpi-icono"><mat-icon>pending_actions</mat-icon></span>
+          <span class="kpi-textos"><span class="kpi-valor">{{ conteoPendientes() ?? '—' }}</span><span class="kpi-etiqueta">Pendientes de recobro</span></span>
+        </button>
+        <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-activo]="situacion() === 'RADICADO'"
+                (click)="cambiarSituacion('RADICADO')" matTooltip="Con recobro radicado, esperando la respuesta de la EPS">
+          <span class="kpi-icono"><mat-icon>mark_email_read</mat-icon></span>
+          <span class="kpi-textos"><span class="kpi-valor">{{ conteoRadicados() ?? '—' }}</span><span class="kpi-etiqueta">Recobro radicado</span></span>
+        </button>
+      </div>
+
+      <div class="ges-cuerpo">
+        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)" animationDuration="150ms" [preserveContent]="true">
+          <!-- ════════ BANDEJA ════════ -->
+          <mat-tab>
+            <ng-template mat-tab-label><span>Bandeja de recobro</span><span class="tab-cuenta">{{ total() }}</span></ng-template>
+            <ng-template matTabContent>
+              <div class="ges-filtros ges-filtros-inline">
+                <mat-button-toggle-group class="rec-situacion" [value]="situacion()" (change)="cambiarSituacion($event.value)"
+                                         aria-label="Situación del recobro" [hideSingleSelectionIndicator]="true">
+                  @for (s of situaciones; track s.valor) {
+                    <mat-button-toggle [value]="s.valor"><mat-icon>{{ s.icono }}</mat-icon><span>{{ s.etiqueta }}</span></mat-button-toggle>
+                  }
+                </mat-button-toggle-group>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ges-filtro-ancho">
+                  <mat-label>Buscar</mat-label>
+                  <mat-icon matPrefix>search</mat-icon>
+                  <input matInput [(ngModel)]="filtros.q" (keyup.enter)="filtrar()" (blur)="filtrar()"
+                         placeholder="Cédula, código o nombre" autocomplete="off" />
+                </mat-form-field>
+                @if (epsOpciones().length) {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>EPS</mat-label>
+                    <mat-select [(ngModel)]="filtros.eps" (selectionChange)="filtrar()">
+                      <mat-option value="">Todas</mat-option>
+                      @for (e of epsOpciones(); track e) { <mat-option [value]="e">{{ e }}</mat-option> }
+                    </mat-select>
+                  </mat-form-field>
+                } @else {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>EPS</mat-label>
+                    <input matInput [(ngModel)]="filtros.eps" (keyup.enter)="filtrar()" (blur)="filtrar()" />
+                  </mat-form-field>
+                }
+              </div>
+
+              @if (error()) {
+                <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+              }
+
+              <app-tabla-estandar
+                id="incapacidades-recobro-bandeja"
+                titulo="Bandeja de recobro"
+                modulo="Incapacidades"
+                [vacio]="situacion() === 'PENDIENTE' ? 'No hay incapacidades pendientes de recobro con estos filtros.' : 'No hay incapacidades con estos filtros.'"
+                [busqueda]="false"
+                [datos]="filas()"
+                [columnas]="columnas"
+                [filaId]="idFila"
+                [cargando]="cargando()"
+                [totalServidor]="total()"
+                [paginaServidor]="pagina()"
+                [filasPorPagina]="tamano()"
+                [opcionesPorPagina]="opcionesPorPagina"
+                [seleccion]="seleccion"
+                (paginaCambio)="paginar($event)">
+
+                <div tablaAccionesSeleccion>
+                  <button type="button" mat-flat-button color="primary" class="rec-btn" (click)="registrarSeleccion()">
+                    <mat-icon>add_task</mat-icon><span>Registrar radicado de recobro ({{ marcadas() }})</span>
+                  </button>
+                </div>
+
+                <ng-template tablaCelda="codigo" let-r>
+                  @if (r.incapacidad.codigoOficina) {
+                    <span class="celda-mono celda-fuerte">{{ r.incapacidad.codigoOficina }}</span>
+                    <span class="celda-sub celda-mono">{{ codigoGeneral(r) }}</span>
+                  } @else {
+                    <span class="celda-mono celda-fuerte">{{ codigoGeneral(r) }}</span>
+                  }
+                </ng-template>
+
+                <ng-template tablaCelda="nombre" let-r>
+                  <span class="celda-nombre">{{ r.incapacidad.nombreCompleto }}</span>
+                  @if (r.incapacidad.oficina) { <span class="celda-sub">{{ r.incapacidad.oficina }}</span> }
+                </ng-template>
+
+                <ng-template tablaCelda="causal" let-r>
+                  @if (r.negacion; as n) {
+                    <span class="celda-texto">{{ n.causalTexto }}</span>
+                    @if (causalHomologada(r); as h) {
+                      <span class="ges-chip ges-chip-info rec-homologada">{{ h }}</span>
+                    } @else {
+                      <span class="ges-chip ges-chip-aviso rec-homologada">Sin homologar</span>
+                    }
+                  } @else {
+                    <span class="celda-sub">Sin negación registrada</span>
+                  }
+                </ng-template>
+
+                <ng-template tablaCelda="radicados" let-r>
+                  <span class="celda-fuerte">{{ r.totalRadicados }}</span>
+                  @if (ultimoRecobro(r); as u) {
+                    <span class="celda-sub">Último: <span class="celda-mono">{{ u.numeroRadicado }}</span></span>
+                    <span class="celda-sub">{{ fechaCorta(u.fechaRadicado) }}</span>
+                  } @else {
+                    <span class="celda-sub">Sin recobro</span>
+                  }
+                </ng-template>
+
+                <ng-template tablaAcciones let-r>
+                  <button type="button" mat-icon-button (click)="verRadicados(r)" matTooltip="Ver radicados" aria-label="Ver radicados">
+                    <mat-icon>history</mat-icon>
+                  </button>
+                  <button type="button" mat-icon-button (click)="registrar([r])" matTooltip="Registrar radicado de recobro" aria-label="Registrar radicado de recobro">
+                    <mat-icon>add_task</mat-icon>
+                  </button>
+                </ng-template>
+              </app-tabla-estandar>
+            </ng-template>
+          </mat-tab>
+
+          <!-- ════════ RECOBRO POR CODIGO ════════ -->
+          <mat-tab>
+            <ng-template mat-tab-label><span>Recobro por código</span></ng-template>
+            <ng-template matTabContent>
+              <div class="rec-panel">
+                <app-panel-codigos-radicado modo="RECOBRO" (guardado)="recargarTodo()" />
+              </div>
+            </ng-template>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+    </mat-card>
+  </div>
+</div>
