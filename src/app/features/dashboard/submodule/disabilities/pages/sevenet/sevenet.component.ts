@@ -7,7 +7,8 @@
  *
  * Fase 1 (esta pantalla): con fecha inicial y final se genera una CARPETA COMPRIMIDA con la
  * primera hoja de TODAS las incapacidades del rango, consolidada (Apoyo y Alianza juntas). Se
- * trabaja por semanas: los atajos dan la semana de cartera (lunes a sabado). El rango se mira
+ * trabaja por semanas: los atajos dan la semana de lunes a DOMINGO (la de cartera es de lunes a sabado,
+ * pero aqui el domingo no puede quedar fuera de toda semana: lo registrado ese dia se perderia). El rango se mira
  * por fecha de REGISTRO (lo cargado esa semana, lo normal) o por fecha de inicio.
  *
  * El ZIP lo arma el servidor como trabajo asincrono (`ZIP_SEVENET`): el gateway corta a los
@@ -71,8 +72,9 @@ export const MS_ESPERA_CONTEO = 300;
 export const AVISO_ARCHIVO_PLANO = 'Pendiente: se define con Ángela (estructura del archivo árbol)';
 
 /**
- * Semana de cartera que contiene `referencia`: de LUNES a SABADO. El domingo pertenece a la
- * semana que empezo el lunes anterior (igual que `SemanaRadicacion` de ms-hr).
+ * Semana que contiene `referencia`: de LUNES a DOMINGO. El domingo pertenece a la semana que
+ * empezo el lunes anterior (igual que `SemanaRadicacion` de ms-hr) y CIERRA el rango: con lunes a
+ * sabado lo registrado un domingo no caia en ninguna semana (revision de integracion 2026-10-06).
  * `desplazamiento = -1` da la semana anterior. Fechas locales, sin horas.
  */
 export function semanaCartera(referencia: Date, desplazamiento = 0): RangoSemana {
@@ -83,7 +85,7 @@ export function semanaCartera(referencia: Date, desplazamiento = 0): RangoSemana
     referencia.getMonth(),
     referencia.getDate() - desdeLunes + 7 * desplazamiento,
   );
-  const fin = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + 5);
+  const fin = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + 6);
   return { inicio, fin };
 }
 
@@ -247,7 +249,7 @@ export class SevenetComponent {
 
   // ── Rango ─────────────────────────────────────────────────────────────
 
-  /** Atajos "Esta semana" (0) y "Semana anterior" (-1): lunes a sabado. */
+  /** Atajos "Esta semana" (0) y "Semana anterior" (-1): lunes a domingo. */
   aplicarSemana(desplazamiento: 0 | -1): void {
     const { inicio, fin } = semanaCartera(new Date(), desplazamiento);
     this.form.patchValue({ inicial: inicio, final: fin });

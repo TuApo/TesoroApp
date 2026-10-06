@@ -1,5 +1,5 @@
 /**
- * Pruebas de la pantalla SEVENET (reunion 2026-10-05): rango semanal (lunes a sabado), eje de
+ * Pruebas de la pantalla SEVENET (reunion 2026-10-05): rango semanal (lunes a domingo), eje de
  * fecha, conteo previo con los MISMOS filtros del trabajo, generacion del ZIP_SEVENET con
  * sondeo y descarga automatica, y el boton del archivo plano deshabilitado.
  */
@@ -53,30 +53,30 @@ function job(parcial: Partial<ExportJob> = {}): ExportJob {
 /** `yyyy-MM-dd` de un Date local (lo que deben llevar los filtros). */
 const iso = (d: Date) => aIsoCorto(d);
 
-describe('semanaCartera (lunes a sabado, como la semana de cartera)', () => {
-  it('un miercoles cae en la semana de su lunes al sabado', () => {
+describe('semanaCartera (lunes a domingo: el domingo no queda fuera)', () => {
+  it('un miercoles cae en la semana de su lunes al domingo', () => {
     const s = semanaCartera(new Date(2026, 9, 7)); // miercoles 7 de octubre de 2026
     expect(iso(s.inicio)).toBe('2026-10-05');
-    expect(iso(s.fin)).toBe('2026-10-10');
+    expect(iso(s.fin)).toBe('2026-10-11');
   });
 
   it('el domingo pertenece a la semana que empezo el lunes anterior', () => {
     const s = semanaCartera(new Date(2026, 9, 11)); // domingo
     expect(iso(s.inicio)).toBe('2026-10-05');
-    expect(iso(s.fin)).toBe('2026-10-10');
+    expect(iso(s.fin)).toBe('2026-10-11');
   });
 
   it('el lunes abre semana nueva y la semana anterior es la de 7 dias antes', () => {
     expect(iso(semanaCartera(new Date(2026, 9, 12)).inicio)).toBe('2026-10-12');
     const anterior = semanaCartera(new Date(2026, 9, 7), -1);
     expect(iso(anterior.inicio)).toBe('2026-09-28');
-    expect(iso(anterior.fin)).toBe('2026-10-03');
+    expect(iso(anterior.fin)).toBe('2026-10-04');
   });
 
   it('cruza el cambio de ano sin desfase', () => {
     const s = semanaCartera(new Date(2027, 0, 1)); // viernes 1 de enero de 2027
     expect(iso(s.inicio)).toBe('2026-12-28');
-    expect(iso(s.fin)).toBe('2027-01-02');
+    expect(iso(s.fin)).toBe('2027-01-03');
   });
 });
 
