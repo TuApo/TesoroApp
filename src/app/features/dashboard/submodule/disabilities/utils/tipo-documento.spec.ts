@@ -24,6 +24,17 @@ describe('tipo de documento canonico', () => {
     expect(canonizarTipoDocumento('Pasaporte')).toBe('PA');
   });
 
+  it('reconoce lo MISMO que ms-hr: nombres largos y separadores raros (revision)', () => {
+    // Antes solo se quitaban puntos: "C E", "C-C" o "Cédula de extranjería" quedaban en null
+    // mientras el servidor si los reconocia (compara solo letras y digitos).
+    expect(canonizarTipoDocumento('Cédula de extranjería')).toBe('CE');
+    expect(canonizarTipoDocumento('C E')).toBe('CE');
+    expect(canonizarTipoDocumento('C-C')).toBe('CC');
+    expect(canonizarTipoDocumento('Tarjeta de identidad')).toBe('TI');
+    expect(canonizarTipoDocumento('Permiso por protección temporal')).toBe('PPT');
+    expect(canonizarTipoDocumento('Permiso especial de permanencia')).toBe('PPT');
+  });
+
   it('no adivina: lo desconocido o vacio queda en null', () => {
     expect(canonizarTipoDocumento('CONT.')).toBeNull();
     expect(canonizarTipoDocumento('NIT')).toBeNull();

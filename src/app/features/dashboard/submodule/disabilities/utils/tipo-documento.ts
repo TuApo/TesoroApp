@@ -8,7 +8,9 @@
  *
  * Espejo de `TipoDocumentoCanonico` de ms-hr: CC <- {CC, C.C, C.C., CEDULA, CEDULA DE
  * CIUDADANIA}; PPT <- {PPT, P.P.T, PET, PT, PEP, P.E.P}; CE <- {CE, C.E}; TI <- {TI, T.I};
- * PA <- {PA, PAS, PASAPORTE}; cualquier otra cosa -> null (no se adivina).
+ * PA <- {PA, PAS, PASAPORTE}; cualquier otra cosa -> null (no se adivina). La comparacion es
+ * la MISMA que la del servidor (sin tildes y solo letras y digitos) para que el navegador y
+ * ms-hr nunca discrepen sobre una ficha.
  */
 export type TipoDocumentoCanonico = 'CC' | 'CE' | 'PPT' | 'TI' | 'PA';
 
@@ -27,19 +29,25 @@ export const TIPOS_DOCUMENTO_CANONICOS: readonly OpcionTipoDocumento[] = [
 ];
 
 /**
- * Grafias reconocidas, ya SIN puntos ni tildes y en mayusculas (por eso "C.C." y "C.C"
- * caen en "CC" y "P.E.P" en "PEP").
+ * Grafias reconocidas, ya como las deja `canonizarTipoDocumento` (mayusculas, sin tildes y
+ * SOLO letras y digitos: "C.C." -> "CC", "P.E.P" -> "PEP", "Cedula de ciudadania" ->
+ * "CEDULADECIUDADANIA").
+ * Mismas variantes que el enum de ms-hr.
  */
 const ALIAS: Readonly<Record<string, TipoDocumentoCanonico>> = {
   CC: 'CC',
   CEDULA: 'CC',
-  'CEDULA DE CIUDADANIA': 'CC',
-  PPT: 'PPT',
-  PET: 'PPT',
-  PT: 'PPT',
-  PEP: 'PPT',
+  CEDULADECIUDADANIA: 'CC',
   CE: 'CE',
+  CEDULADEEXTRANJERIA: 'CE',
+  PPT: 'PPT',
+  PT: 'PPT',
+  PET: 'PPT',
+  PEP: 'PPT',
+  PERMISOPORPROTECCIONTEMPORAL: 'PPT',
+  PERMISOESPECIALDEPERMANENCIA: 'PPT',
   TI: 'TI',
+  TARJETADEIDENTIDAD: 'TI',
   PA: 'PA',
   PAS: 'PA',
   PASAPORTE: 'PA',
@@ -49,11 +57,9 @@ const ALIAS: Readonly<Record<string, TipoDocumentoCanonico>> = {
 export function canonizarTipoDocumento(crudo: string | null | undefined): TipoDocumentoCanonico | null {
   const clave = (crudo ?? '')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
-    .replace(/\./g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/[^A-Z0-9]/g, '');
   return ALIAS[clave] ?? null;
 }
 

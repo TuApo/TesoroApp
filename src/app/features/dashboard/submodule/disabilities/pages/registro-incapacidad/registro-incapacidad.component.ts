@@ -196,6 +196,15 @@ const CARGOS_NO_VALIDOS = ['autorizacion de ingreso', 'prueba tecnica'];
 /** Tope del cargo (columna `incapacidad.cargo`). */
 const CARGO_MAXIMO = 160;
 
+/** Personas que se muestran en el buscador del trabajador. */
+const LIMITE_RESULTADOS_PERSONA = 15;
+
+/**
+ * Fichas que se piden al buscar por NOMBRE (tope de `EmpleadoBusquedaService` en ms-hr): el
+ * tipo de documento se filtra en el navegador, asi que hay que pedir de mas.
+ */
+const LIMITE_BUSQUEDA_POR_NOMBRE = 50;
+
 /** Opciones de sexo cuando hay que capturarlo a mano. */
 const OPCIONES_SEXO = ['MASCULINO', 'FEMENINO', 'OTRO'] as const;
 
@@ -1146,8 +1155,8 @@ export class RegistroIncapacidadComponent implements OnDestroy {
    * Reunion 2026-10-05: primero se escoge el tipo de documento y luego se busca. Lo lee la
    * referencia estable `buscarEmpleado`, asi que el tipo vigente se toma en cada busqueda.
    *  - Con digitos es un NUMERO: va con `tipo` y ms-hr filtra por el tipo canonico de la ficha.
-   *    Una X inicial con CC no encontraria nada (es la marca de los PPT/PEP): se pasa a PPT y
-   *    se avisa.
+   *    Una X inicial con CC (o CE, TI, PA) no encontraria nada (es la marca de los PPT/PEP): se
+   *    pasa a PPT y se avisa.
    *  - Solo letras es un NOMBRE: el servidor no busca nombres con `tipo`, asi que se pide sin el
    *    y se dejan las fichas de ese tipo (para no perder la busqueda por nombre de siempre).
    * El filtro por tipo se aplica tambien a los numeros: no cuesta nada y protege si el backend
@@ -1157,7 +1166,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     let tipo = this.tipoBusqueda();
     if (!tipo) return of([]);
     const texto = (q ?? '').trim();
-    if (tipo === 'CC' && empiezaConX(texto)) {
+    // ms-hr quita la X y fuerza PPT con CUALQUIER tipo: con CE, TI o PA el filtro de abajo lo
+    // dejaria todo fuera sin decir por que, asi que se cambia a PPT igual que con CC.
+    if (tipo !== 'PPT' && empiezaConX(texto)) {
       tipo = 'PPT';
       this.tipoBusqueda.set(tipo);
       this.avisoTipoBusqueda.set(
@@ -1165,13 +1176,23 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       );
     }
     const elegido = tipo;
+    const porNumero = pareceNumeroDocumento(texto);
+    // Por NOMBRE el tipo se filtra aqui: con 15 fichas, 15 homonimos CC taparian a la unica PPT
+    // (las PPT son ~7% de la base). Se piden las del tope del servidor y se recorta despues.
     return this.srv
-      .buscarEmpleadosPorDocumento(texto, pareceNumeroDocumento(texto) ? elegido : null, 15)
+      .buscarEmpleadosPorDocumento(
+        texto,
+        porNumero ? elegido : null,
+        porNumero ? LIMITE_RESULTADOS_PERSONA : LIMITE_BUSQUEDA_POR_NOMBRE,
+      )
       .pipe(
         map((filas) =>
-          filas.filter(
-            (e) => (e.tipoDocumentoCanonico || canonizarTipoDocumento(e.tipoDocumento)) === elegido,
-          ),
+          filas
+            .filter(
+              (e) =>
+                (e.tipoDocumentoCanonico || canonizarTipoDocumento(e.tipoDocumento)) === elegido,
+            )
+            .slice(0, LIMITE_RESULTADOS_PERSONA),
         ),
       );
   }
@@ -1183,6 +1204,9 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     // `limpiar()` emite (limpiado) -> alLimpiarEmpleado(), y deja al buscador listo para volver
     // a pedir aunque se escriba el mismo numero (su distinctUntilChanged no lo frena).
     this.buscadorPersona()?.limpiar();
+    // El "Tipo de documento" de Informacion personal se ve desde el principio: que diga lo
+    // mismo que el selector de arriba y no quede vacio (o con otro) mientras no hay persona.
+    this.form.controls.personal.controls.tipoDocumento.setValue(tipo);
   }
 
   /** Handler del `(seleccionado)` del buscador de empleados. */
@@ -1700,15 +1724,29 @@ export class RegistroIncapacidadComponent implements OnDestroy {
           .trim() || (o.nombreQuienRecibe || '').trim(),
       cedula: (p.numeroDocumento || '').trim(),
     };
-    this.dialogo
-      .open<DialogoFormularioSaludTotalComponent, DatosFormularioSaludTotal, File | undefined>(
-        DialogoFormularioSaludTotalComponent,
-        { width: '640px', maxWidth: '95vw', data: datos, autoFocus: false },
-      )
+    const ref = this.dialogo.open<
+      DialogoFormularioSaludTotalComponent,
+      DatosFormularioSaludTotal,
+      File | undefined
+    >(DialogoFormularioSaludTotalComponent, {
+      width: '640px',
+      maxWidth: '95vw',
+      data: datos,
+      autoFocus: false,
+    });
+    // El cargo se puede corregir dentro del dialogo: si el PDF se genero con otro, la
+    // incapacidad debe guardar ESE (si no, el formato y la base dirian cosas distintas).
+    const cargoDialogo = ref.componentInstance?.form.controls.cargo;
+    ref
       .afterClosed()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((archivo) => {
-        if (archivo) this.registrarArchivo('FORMULARIO_SALUD_TOTAL', archivo);
+        if (!archivo) return;
+        const cargo = cargoDialogo?.value.trim();
+        if (cargo !== undefined && cargo !== datos.cargo) {
+          this.form.controls.personal.controls.cargo.setValue(cargo);
+        }
+        this.registrarArchivo('FORMULARIO_SALUD_TOTAL', archivo);
       });
   }
 

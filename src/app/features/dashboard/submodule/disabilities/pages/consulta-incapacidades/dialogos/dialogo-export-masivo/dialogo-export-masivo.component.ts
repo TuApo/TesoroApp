@@ -85,7 +85,7 @@ export const TARJETAS_TIPO_EXPORT: readonly TarjetaTipoExport[] = [
     tipo: 'EXCEL_CONSOLIDADO',
     icono: 'table_view',
     titulo: 'Excel consolidado (servidor)',
-    descripcion: 'Todas las columnas y todas las filas del filtro actual, sin limite',
+    descripcion: 'Todas las columnas y todas las filas del filtro actual, sin límite',
   },
 ];
 
@@ -218,7 +218,7 @@ export class DialogoExportMasivoComponent implements OnDestroy {
         },
         error: () => {
           this.generando.set(false);
-          this.error.set('No se pudo crear el trabajo de exportacion. Intentalo de nuevo.');
+          this.error.set('No se pudo crear el trabajo de exportación. Inténtalo de nuevo.');
         },
       }),
     );
@@ -250,7 +250,7 @@ export class DialogoExportMasivoComponent implements OnDestroy {
           // ya no puede seguirlo: se vuelve al paso 1 para generar otro.
           this.job.set(null);
           this.error.set(
-            'Se perdio la consulta del estado del trabajo. Genera la exportacion de nuevo.',
+            'Se perdió la consulta del estado del trabajo. Genera la exportación de nuevo.',
           );
         },
       });
@@ -272,7 +272,7 @@ export class DialogoExportMasivoComponent implements OnDestroy {
         },
         error: () => {
           this.descargando.set(false);
-          this.error.set('No se pudo descargar el resultado. Intentalo con el boton "Descargar".');
+          this.error.set('No se pudo descargar el resultado. Inténtalo con el botón "Descargar".');
         },
       }),
     );

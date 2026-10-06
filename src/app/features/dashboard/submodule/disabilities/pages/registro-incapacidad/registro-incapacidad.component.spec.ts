@@ -20,8 +20,9 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { FormControl } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 
 import { RegistroIncapacidadComponent, cargoDeContratacion } from './registro-incapacidad.component';
 import {
@@ -506,6 +507,47 @@ describe('RegistroIncapacidadComponent', () => {
       expect(resultado.map((e) => e.cedula)).toEqual(['2002']);
     });
 
+    it('por nombre pide el tope del servidor y recorta a 15 DESPUES de filtrar por tipo (revision)', () => {
+      // Con limit=15 los homonimos CC tapaban a la unica ficha PPT y el buscador decia "sin
+      // resultados" aunque la persona existiera.
+      comp.alCambiarTipoBusqueda('PPT');
+      let resultado: EmpleadoBusqueda[] = [];
+      comp.buscarEmpleado('maria').subscribe((r) => (resultado = r));
+
+      const req = http.expectOne(esBusqueda);
+      expect(req.request.params.has('tipo')).toBeFalse();
+      expect(req.request.params.get('limit')).toBe('50');
+      const homonimosCc = Array.from({ length: 30 }, (_, i) => ({
+        ...EMPLEADO,
+        cedula: String(5000 + i),
+        tipoDocumentoCanonico: 'CC',
+      }));
+      const ppt = Array.from({ length: 20 }, (_, i) => ({
+        ...EMPLEADO,
+        cedula: String(9000 + i),
+        tipoDocumentoCanonico: 'PPT',
+      }));
+      req.flush([...homonimosCc, ...ppt]);
+
+      expect(resultado.length).toBe(15);
+      expect(resultado.every((e) => e.tipoDocumentoCanonico === 'PPT')).toBeTrue();
+      expect(resultado[0].cedula).toBe('9000');
+    });
+
+    it('una X inicial con CE (o TI, PA) tambien pasa a PPT: ms-hr la fuerza igual (revision)', () => {
+      comp.alCambiarTipoBusqueda('CE');
+      let resultado: EmpleadoBusqueda[] = [];
+      comp.buscarEmpleado('X1234567').subscribe((r) => (resultado = r));
+
+      const req = http.expectOne(esBusqueda);
+      expect(req.request.params.get('tipo')).toBe('PPT');
+      req.flush([{ ...EMPLEADO, cedula: '1234567', tipoDocumento: 'PET', tipoDocumentoCanonico: 'PPT' }]);
+      // Antes quedaba en CE y el filtro del navegador descartaba la ficha PPT que si existia.
+      expect(comp.tipoBusqueda()).toBe('PPT');
+      expect(resultado.map((e) => e.cedula)).toEqual(['1234567']);
+      expect(comp.avisoTipoBusqueda()).toContain('PPT');
+    });
+
     it('cambiar el tipo limpia el buscador y suelta a la persona elegida', () => {
       comp.alCambiarTipoBusqueda('CC');
       seleccionarEmpleado();
@@ -517,6 +559,8 @@ describe('RegistroIncapacidadComponent', () => {
       expect(comp.form.controls.personal.controls.numeroDocumento.value).toBe('');
       expect(comp.form.controls.personal.controls.cargo.value).toBe('');
       expect(comp.tipoBusqueda()).toBe('PPT');
+      // Revision: el tipo de "Informacion personal" (visible desde el principio) sigue al de arriba.
+      expect(comp.form.controls.personal.controls.tipoDocumento.value).toBe('PPT');
     });
 
     it('escribe el tipo CANONICO en personal.tipoDocumento, no el crudo de contratacion', () => {
@@ -608,6 +652,41 @@ describe('RegistroIncapacidadComponent', () => {
 
       const config = abrir.calls.mostRecent().args[1] as { data: { cargo: string } };
       expect(config.data.cargo).toBe('AUXILIAR DE CAMPO');
+    });
+
+    it('el cargo corregido en el dialogo de Salud Total vuelve al registro (revision)', () => {
+      // Antes el PDF salia con el cargo corregido y la incapacidad se guardaba con el de
+      // contratacion: el formato y la base decian cosas distintas.
+      seleccionarEmpleado();
+      expect(comp.form.controls.personal.controls.cargo.value).toBe('OPERARIO');
+      const cargoDelDialogo = new FormControl('OPERARIO', { nonNullable: true });
+      const cerrado = new Subject<File | undefined>();
+      const dialogo = fixture.debugElement.injector.get(MatDialog);
+      spyOn(dialogo, 'open').and.returnValue({
+        componentInstance: { form: { controls: { cargo: cargoDelDialogo } } },
+        afterClosed: () => cerrado.asObservable(),
+      } as never);
+
+      comp.abrirFormularioSaludTotal();
+      cargoDelDialogo.setValue('  SUPERVISOR DE CAMPO ');
+      cerrado.next(new File([new Uint8Array([37, 80, 68, 70])], 'st.pdf', { type: 'application/pdf' }));
+
+      expect(comp.form.controls.personal.controls.cargo.value).toBe('SUPERVISOR DE CAMPO');
+    });
+
+    it('si el dialogo de Salud Total se cancela, el cargo del registro no cambia (revision)', () => {
+      seleccionarEmpleado();
+      const cargoDelDialogo = new FormControl('OPERARIO', { nonNullable: true });
+      const dialogo = fixture.debugElement.injector.get(MatDialog);
+      spyOn(dialogo, 'open').and.returnValue({
+        componentInstance: { form: { controls: { cargo: cargoDelDialogo } } },
+        afterClosed: () => of(undefined),
+      } as never);
+
+      cargoDelDialogo.setValue('OTRO');
+      comp.abrirFormularioSaludTotal();
+
+      expect(comp.form.controls.personal.controls.cargo.value).toBe('OPERARIO');
     });
   });
 
