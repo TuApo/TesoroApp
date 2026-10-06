@@ -8,6 +8,7 @@
  */
 import Swal from 'sweetalert2';
 
+import { isOfflineQueued } from '../../../../../../core/utils/offline-response';
 import type { TonoBadge } from '../../../../../../shared/components/tabla-estandar';
 import { swalEnDialogo } from '../../../../../../shared/utils/swal-en-dialogo';
 import type { DondeRadicado, EstadoIncapacidad } from '../../models/incapacidad-v2.model';
@@ -154,9 +155,54 @@ export function tonoEstado(estado: EstadoIncapacidad | null | undefined): TonoBa
   }
 }
 
+/**
+ * Estados con respuesta de pago o ya cerrados. El backend admite un recobro sobre cualquier
+ * incapacidad con radicado inicial (las historicas negadas en el Excel del area siguen en
+ * RADICADA), pero sobre una pagada o finalizada un recobro es raro (a lo sumo un pago parcial):
+ * se deja elegir, pero no se marca sola para que un pegado de 10 codigos no la arrastre.
+ */
+const ESTADOS_CON_RESPUESTA_FINAL: ReadonlySet<EstadoIncapacidad> = new Set<EstadoIncapacidad>([
+  'PAGADA',
+  'PENDIENTE_CONCILIACION',
+  'CONCILIADA',
+  'FINALIZADA',
+]);
+
+/** En modo RECOBRO: se puede, pero la incapacidad ya figura pagada o finalizada. */
+export function recobroDudoso(e: CodigoEncontrado, modo: ModoBusquedaRadicacion): boolean {
+  return modo === 'RECOBRO' && e.puedeRadicar && ESTADOS_CON_RESPUESTA_FINAL.has(e.incapacidad.estado);
+}
+
 /** Solo se marca sola la fila que se puede radicar y que no deja dudas de cual incapacidad es. */
-export function marcadaPorDefecto(e: CodigoEncontrado): boolean {
-  return e.puedeRadicar && !e.ambiguo;
+export function marcadaPorDefecto(e: CodigoEncontrado, modo: ModoBusquedaRadicacion = 'RADICACION'): boolean {
+  return e.puedeRadicar && !e.ambiguo && !recobroDudoso(e, modo);
+}
+
+/**
+ * El interceptor offline (core) ENCOLA un POST que falla sin conexion y devuelve un 200 falso con
+ * el cuerpo de la peticion: no es la respuesta del backend. Las vistas lo detectan con
+ * `quedoEnCola` y avisan con este texto en vez de pintar un resultado que no existe.
+ */
+export const MENSAJE_SIN_CONEXION_EN_COLA =
+  'No hay conexión con el servidor: el guardado quedó en «Envíos pendientes» y se enviará solo cuando ' +
+  'vuelva la conexión. No lo registre de nuevo; revise después que haya quedado.';
+
+export const MENSAJE_BUSQUEDA_SIN_CONEXION =
+  'No hay conexión con el servidor: no se pudieron buscar los códigos. Intente de nuevo cuando vuelva la conexión.';
+
+/** true si la "respuesta" es el 200 falso de la cola offline (la peticion no llego al servidor). */
+export function quedoEnCola(respuesta: unknown): boolean {
+  return isOfflineQueued(respuesta);
+}
+
+/** Aviso (Swal) de un guardado que quedo en la cola offline y no llego al servidor. */
+export function avisarGuardadoEnCola(enDialogo = false): void {
+  void Swal.fire({
+    ...(enDialogo ? swalEnDialogo() : {}),
+    icon: 'warning',
+    title: 'Sin conexión',
+    text: MENSAJE_SIN_CONEXION_EN_COLA,
+  });
 }
 
 /**

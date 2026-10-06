@@ -174,6 +174,29 @@ describe('PanelCodigosComponent', () => {
       expect(componente.buscando()).toBeFalse();
     });
 
+    it('sin conexion la busqueda queda en cola: avisa y NO borra lo pegado', () => {
+      componente.alternarPegar();
+      componente.textoPegado.set('TASB018\n200');
+      componente.buscarPegados();
+      // 200 falso del interceptor offline: el cuerpo de la peticion con la marca de cola.
+      httpMock
+        .expectOne(`${BASE}/radicacion/buscar`)
+        .flush({ codigos: ['TASB018', '200'], modo: 'RADICACION', id: -3, _isOfflineMock: true });
+      expect(componente.errorBusqueda()).toContain('No hay conexión');
+      expect(componente.textoPegado()).toBe('TASB018\n200');
+      expect(componente.pegarAbierto()).toBeTrue();
+      expect(componente.encontrados().length).toBe(0);
+    });
+
+    it('un doble Enter mientras busca no lanza una segunda busqueda', () => {
+      componente.codigo.set('TASB018');
+      componente.agregarCodigo();
+      componente.agregarCodigo();
+      // expectOne falla si salieron dos peticiones.
+      responderBusqueda({ encontrados: [BUSQUEDA.encontrados[0]], noEncontrados: [] });
+      expect(componente.encontrados().length).toBe(1);
+    });
+
     it('pegar una lista en el campo simple la pasa al cuadro de pegar varios', () => {
       const datos = new DataTransfer();
       datos.setData('text', '111\n222');
@@ -244,6 +267,30 @@ describe('PanelCodigosComponent', () => {
       expect(guardados.length).toBe(1);
     });
 
+    it('sin conexion el guardado queda en cola: avisa, no pinta un resultado falso ni recarga', async () => {
+      const fire = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }));
+      await componente.guardar(DATOS);
+      httpMock
+        .expectOne(`${BASE}/radicacion/asignar`)
+        .flush({ incapacidadIds: [1, 2], numeroRadicado: 'RAD-2026-77', id: -4, _isOfflineMock: true });
+      // Antes este cuerpo llegaba al resumen y su plantilla reventaba (resultados undefined).
+      expect(() => fixture.detectChanges()).not.toThrow();
+      const aviso = fire.calls.mostRecent().args[0] as { icon: string; text: string };
+      expect(aviso.icon).toBe('warning');
+      expect(aviso.text).toContain('Envíos pendientes');
+      expect(componente.resultado()).toBeNull();
+      expect(componente.encontrados().length).toBe(5);
+      expect(guardados.length).toBe(0);
+    });
+
+    it('volver a guardar el MISMO numero no se advierte como reemplazo', async () => {
+      const fire = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: false }));
+      await componente.guardar({ ...DATOS, numeroRadicado: 'VIEJO-1' });
+      const opciones = fire.calls.mostRecent().args[0] as { html: string; icon: string };
+      expect(opciones.html).not.toContain('ya tenía radicado');
+      expect(opciones.icon).toBe('question');
+    });
+
     it('si el usuario cancela no se escribe nada', async () => {
       spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: false }));
       await componente.guardar(DATOS);
@@ -297,6 +344,28 @@ describe('PanelCodigosComponent', () => {
     beforeEach(() => {
       fixture.componentRef.setInput('modo', 'RECOBRO');
       fixture.detectChanges();
+    });
+
+    it('una pagada no se marca sola: avisa, no entra en "Marcar las listas" y se puede marcar a mano', () => {
+      componente.codigo.set('A B');
+      componente.agregarCodigo();
+      responderBusqueda({
+        encontrados: [
+          encontradoPrueba({ codigo: 'A', yaRadicada: true }, { id: 11, estado: 'RECOBRO', estadoEtiqueta: 'Recobro', numeroRadicado: 'R-11' }),
+          encontradoPrueba({ codigo: 'B', yaRadicada: true }, { id: 12, estado: 'PAGADA', estadoEtiqueta: 'Pagada', numeroRadicado: 'R-12' }),
+        ],
+        noEncontrados: [],
+      });
+      expect([...componente.marcados()]).toEqual([11]);
+      const pagada = componente.encontrados()[1];
+      expect(componente.avisoDe(pagada).tono).toBe('aviso');
+      expect(componente.avisoDe(pagada).texto).toContain('Pagada');
+      expect(componente.claseFila(pagada)).toBe('te-fila--alerta');
+      componente.desmarcarTodas();
+      componente.marcarListas();
+      expect([...componente.marcados()]).toEqual([11]);
+      componente.alternar(pagada, true);
+      expect(componente.marcados().has(12)).toBeTrue();
     });
 
     it('busca en modo RECOBRO y registra en /recobros sin hablar de correcciones', async () => {

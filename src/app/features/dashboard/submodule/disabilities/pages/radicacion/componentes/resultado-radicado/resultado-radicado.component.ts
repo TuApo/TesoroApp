@@ -34,7 +34,7 @@ import { codigoSinGuion } from '../../../../utils/codigos';
             </button>
           }
         </header>
-        @if (r.resultados.length) {
+        @if (ordenados().length) {
           <ul class="rres-lista">
             @for (f of ordenados(); track f.incapacidadId) {
               <li [class.rres-error]="!f.ok">
@@ -76,10 +76,10 @@ export class ResultadoRadicadoComponent {
   readonly cerrable = input(true);
   readonly cerrar = output<void>();
 
-  /** Los errores primero: son lo que hay que mirar. */
+  /** Los errores primero: son lo que hay que mirar. Tolerante a un cuerpo sin `resultados`. */
   readonly ordenados = computed(() => {
     const r = this.resultado();
-    return r ? [...r.resultados].sort((a, b) => Number(a.ok) - Number(b.ok)) : [];
+    return Array.isArray(r?.resultados) ? [...r.resultados].sort((a, b) => Number(a.ok) - Number(b.ok)) : [];
   });
 
   readonly titulo = computed(() => {

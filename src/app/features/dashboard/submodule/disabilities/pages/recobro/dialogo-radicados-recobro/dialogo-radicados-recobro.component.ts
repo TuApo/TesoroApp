@@ -18,6 +18,7 @@ import type { RadicadoItem, RecobroItem } from '../../../models/incapacidad-salu
 import { IncapacidadSaludService } from '../../../services/incapacidad-salud/incapacidad-salud.service';
 import {
   ICONO_DONDE,
+  avisarGuardadoEnCola,
   codigoVisible,
   entidadDe,
   escaparHtml,
@@ -26,6 +27,7 @@ import {
   fechaHora,
   mensajeError,
   periodo,
+  quedoEnCola,
 } from '../../radicacion/radicacion.utils';
 import { causalHomologada, rotularRadicados } from '../recobro.utils';
 
@@ -143,8 +145,13 @@ export class DialogoRadicadosRecobroComponent implements OnInit {
       .anularRadicado(r.id as number, motivo)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: (respuesta) => {
           this.anulando.set(null);
+          // 200 falso de la cola offline: la anulacion no llego al servidor todavia.
+          if (quedoEnCola(respuesta)) {
+            avisarGuardadoEnCola(true);
+            return;
+          }
           this.huboCambios = true;
           this.cargar();
         },
@@ -160,7 +167,9 @@ export class DialogoRadicadosRecobroComponent implements OnInit {
       });
   }
 
+  /** Con una anulacion en vuelo no se cierra: se perderia su resultado y el aviso a la bandeja. */
   cerrar(): void {
+    if (this.anulando() !== null) return;
     this.ref.close({ recargar: this.huboCambios });
   }
 }

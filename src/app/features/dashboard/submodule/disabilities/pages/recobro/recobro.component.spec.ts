@@ -112,6 +112,20 @@ describe('RecobroComponent', () => {
     todos.flush(paginaPrueba([], 0));
   });
 
+  it('otra situacion cancela la consulta en vuelo: una respuesta vieja no pisa la tabla', () => {
+    responder();
+    componente.filtros = { q: '1005', eps: '' };
+    componente.filtrar(); // blur del buscador
+    const vieja = recobros()[0];
+    componente.cambiarSituacion('RADICADO'); // clic enseguida en otra situacion
+    expect(vieja.cancelled).toBeTrue();
+    const nueva = recobros().find((r) => !r.cancelled)!;
+    expect(nueva.request.params.get('situacion')).toBe('RADICADO');
+    nueva.flush(paginaPrueba([REC_B], 1));
+    expect(componente.filas().map((r) => r.incapacidad.id)).toEqual([32]);
+    expect(componente.cargando()).toBeFalse();
+  });
+
   it('la paginacion va al servidor y un blur sin cambios no repite la consulta', () => {
     responder();
     componente.paginar({ pagina: 3, porPagina: 50 });
@@ -188,6 +202,21 @@ describe('recobro.utils', () => {
     expect(situacionDe(sinNegacion)).toBe('RADICADO');
   });
 
+  it('situacionDe en TODOS mira todos los recobros, no solo el ultimo por fecha de radicado', () => {
+    const item = recobroPrueba({
+      recobros: [
+        // Anotado DESPUES de la negacion (5, creada el 2026-03-02) pero con fecha de radicado
+        // anterior: la lista va por fecha de radicado y queda primero.
+        radicadoPrueba({ id: 2, tipo: 'RECOBRO', fechaRadicado: '2026-02-20', negacionId: null, creadoEn: '2026-03-05T10:00:00Z' }),
+        radicadoPrueba({ id: 1, tipo: 'RECOBRO', fechaRadicado: '2026-02-25', negacionId: 1, creadoEn: '2026-02-26T10:00:00Z' }),
+      ],
+    });
+    expect(situacionDe(item)).toBe('RADICADO');
+    // Sin hora para comparar cuenta como radicado, igual que el backend.
+    const sinHora = recobroPrueba({ recobros: [radicadoPrueba({ tipo: 'RECOBRO', negacionId: null, creadoEn: null })] });
+    expect(situacionDe(sinHora)).toBe('RADICADO');
+  });
+
   it('ultimoRecobro ignora los anulados', () => {
     const item = recobroPrueba({
       recobros: [
@@ -213,5 +242,15 @@ describe('recobro.utils', () => {
       radicadoPrueba({ id: 4, tipo: 'RECOBRO' }),
     ]);
     expect(r.map((x) => x.rotulo)).toEqual(['Radicación inicial', 'Recobro 1', 'Recobro anulado', 'Recobro 2']);
+  });
+
+  it('rotularRadicados: el inicial es el registrado primero; volver a radicar es correccion', () => {
+    const r = rotularRadicados([
+      // Correccion de la fecha hacia atras (mismo numero, sin numeroAnterior): va primero en la lista.
+      radicadoPrueba({ id: 21, tipo: 'RADICACION', fechaRadicado: '2026-02-01', creadoEn: '2026-02-12T10:00:00Z' }),
+      radicadoPrueba({ id: 20, tipo: 'RADICACION', fechaRadicado: '2026-02-10', creadoEn: '2026-02-10T10:00:00Z' }),
+      radicadoPrueba({ id: 22, tipo: 'RECOBRO', fechaRadicado: '2026-03-10' }),
+    ]);
+    expect(r.map((x) => x.rotulo)).toEqual(['Radicación (corrección)', 'Radicación inicial', 'Recobro 1']);
   });
 });

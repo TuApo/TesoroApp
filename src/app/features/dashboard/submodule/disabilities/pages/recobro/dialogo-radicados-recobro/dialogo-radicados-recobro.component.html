@@ -4,7 +4,7 @@
     <h2 class="rdlg-hero-titulo" mat-dialog-title>Radicados de la incapacidad</h2>
     <p class="rdlg-hero-sub">{{ codigo }} · {{ inc.nombreCompleto }} · CC {{ inc.cedula }}</p>
   </div>
-  <button type="button" mat-icon-button class="rdlg-cerrar" (click)="cerrar()" aria-label="Cerrar" matTooltip="Cerrar">
+  <button type="button" mat-icon-button class="rdlg-cerrar" (click)="cerrar()" [disabled]="anulando() !== null" aria-label="Cerrar" matTooltip="Cerrar">
     <mat-icon>close</mat-icon>
   </button>
 </div>
@@ -76,5 +76,5 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end" class="rdlg-acciones">
-  <button type="button" mat-flat-button color="primary" (click)="cerrar()">Cerrar</button>
+  <button type="button" mat-flat-button color="primary" (click)="cerrar()" [disabled]="anulando() !== null">Cerrar</button>
 </mat-dialog-actions>

@@ -106,6 +106,21 @@ describe('DialogoRadicadosRecobroComponent', () => {
     expect(refFalso.close).toHaveBeenCalledWith({ recargar: false });
   });
 
+  it('con una anulacion en vuelo no se cierra; si queda en la cola offline avisa y no pide recargar', async () => {
+    httpMock.expectOne(`${BASE}/51/radicados`).flush(RADICADOS);
+    const fire = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: true, value: '' }));
+    await componente.anular(RADICADOS[2]);
+    const req = httpMock.expectOne(`${BASE}/radicados/81/anular`);
+    componente.cerrar();
+    expect(refFalso.close).not.toHaveBeenCalled();
+    req.flush({ motivo: null, id: -9, _isOfflineMock: true });
+    // No llego al servidor: no se recarga la linea de tiempo ni se avisa a la bandeja.
+    httpMock.expectNone(`${BASE}/51/radicados`);
+    expect((fire.calls.mostRecent().args[0] as { icon: string }).icon).toBe('warning');
+    componente.cerrar();
+    expect(refFalso.close).toHaveBeenCalledWith({ recargar: false });
+  });
+
   it('un error al cargar se muestra con opcion de reintentar', () => {
     httpMock.expectOne(`${BASE}/51/radicados`).flush({ error: 'No encontrada' }, { status: 404, statusText: 'Not Found' });
     expect(componente.error()).toBe('No encontrada');

@@ -22,6 +22,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
+import type { Subscription } from 'rxjs';
 
 import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import type { RecobroItem, SituacionRecobro } from '../../models/incapacidad-salud.model';
@@ -105,6 +106,11 @@ export class RecobroComponent implements OnInit {
   readonly error = signal('');
   readonly seleccion = new SelectionModel<RecobroItem>(true, []);
   readonly marcadas = signal(0);
+  /**
+   * Consulta en vuelo de la bandeja: una nueva cancela la anterior (un blur del buscador seguido de
+   * un clic en otra situacion lanzaba dos y la que respondiera ultima mandaba en la tabla).
+   */
+  private consulta?: Subscription;
 
   /** KPI: cuantas hay en cada situacion (sin filtros de texto ni EPS). */
   readonly conteoPendientes = signal<number | null>(null);
@@ -175,9 +181,10 @@ export class RecobroComponent implements OnInit {
   }
 
   cargar(): void {
+    this.consulta?.unsubscribe();
     this.cargando.set(true);
     this.error.set('');
-    this.srv
+    this.consulta = this.srv
       .recobros(
         { situacion: this.situacion(), q: this.filtros.q.trim(), eps: this.filtros.eps.trim() },
         this.pagina(),

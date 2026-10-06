@@ -33,6 +33,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
+import type { Subscription } from 'rxjs';
 
 import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import type {
@@ -127,6 +128,14 @@ export class RadicacionComponent implements OnInit {
   readonly cargandoHistorial = signal(false);
   readonly errorHistorial = signal('');
   private historialCargado = false;
+
+  /**
+   * Consulta en vuelo de cada listado. Una nueva cancela la anterior: un blur del buscador seguido
+   * de un cambio de EPS (o la busqueda de Recientes mientras se escribe) lanzaba dos y, si la vieja
+   * respondia despues, la tabla quedaba con datos de un filtro que ya no estaba puesto.
+   */
+  private consultaPendientes?: Subscription;
+  private consultaHistorial?: Subscription;
 
   readonly idPendiente = (r: IncapacidadRef) => r.id;
   readonly idRadicado = (r: RadicadoItem) => `${r.id ?? 'h'}-${r.incapacidadId}-${r.numeroRadicado}`;
@@ -230,9 +239,10 @@ export class RadicacionComponent implements OnInit {
   }
 
   cargarPendientes(): void {
+    this.consultaPendientes?.unsubscribe();
     this.cargandoPendientes.set(true);
     this.errorPendientes.set('');
-    this.srv
+    this.consultaPendientes = this.srv
       .pendientesRadicacion(this.filtrosLimpios(), this.paginaPendientes(), this.tamanoPendientes())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -275,9 +285,10 @@ export class RadicacionComponent implements OnInit {
 
   cargarHistorial(): void {
     this.historialCargado = true;
+    this.consultaHistorial?.unsubscribe();
     this.cargandoHistorial.set(true);
     this.errorHistorial.set('');
-    this.srv
+    this.consultaHistorial = this.srv
       .historialRadicados('RADICACION', this.qHistorial(), this.paginaHistorial(), this.tamanoHistorial())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({

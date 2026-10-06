@@ -46,7 +46,9 @@ import { codigoSinGuion } from '../../../../utils/codigos';
 import {
   DatosRadicado,
   MAX_CODIGOS_POR_BUSQUEDA,
+  MENSAJE_BUSQUEDA_SIN_CONEXION,
   aFechaLocal,
+  avisarGuardadoEnCola,
   codigoVisible,
   confirmarRadicado,
   entidadDe,
@@ -56,6 +58,8 @@ import {
   marcadaPorDefecto,
   mensajeError,
   periodo,
+  quedoEnCola,
+  recobroDudoso,
   separarCodigos,
   tonoEstado,
 } from '../../radicacion.utils';
@@ -131,7 +135,7 @@ export class PanelCodigosComponent {
     return this.encontrados().filter((e) => m.has(e.incapacidad.id));
   });
   readonly cantidadMarcadas = computed(() => this.filasMarcadas().length);
-  readonly listas = computed(() => this.encontrados().filter(marcadaPorDefecto).length);
+  readonly listas = computed(() => this.encontrados().filter((e) => marcadaPorDefecto(e, this.modo())).length);
   readonly noSePueden = computed(() => this.encontrados().filter((e) => !e.puedeRadicar).length);
   readonly ambiguas = computed(() => this.encontrados().filter((e) => e.puedeRadicar && e.ambiguo).length);
   /** Solo en Radicacion: marcadas que ya tenian radicado (guardar reemplaza el numero). */
@@ -151,7 +155,7 @@ export class PanelCodigosComponent {
   readonly claseFila = (e: CodigoEncontrado): string => {
     if (this.erroresGuardado().has(e.incapacidad.id)) return 'te-fila--peligro';
     if (!e.puedeRadicar) return 'te-fila--atenuada';
-    if (e.ambiguo || (!this.esRecobro() && e.yaRadicada)) return 'te-fila--alerta';
+    if (e.ambiguo || (!this.esRecobro() && e.yaRadicada) || recobroDudoso(e, this.modo())) return 'te-fila--alerta';
     return '';
   };
 
@@ -187,6 +191,9 @@ export class PanelCodigosComponent {
 
   /** Enter o "Agregar": el campo admite uno o varios codigos. */
   agregarCodigo(): void {
+    // El boton se deshabilita mientras busca, pero el Enter no: sin esto un doble Enter lanza
+    // dos busquedas cruzadas y la barra de progreso se apaga con la primera.
+    if (this.buscando()) return;
     const codigos = separarCodigos(this.codigo());
     if (!codigos.length) return;
     this.buscar(codigos, () => this.codigo.set(''));
@@ -213,7 +220,7 @@ export class PanelCodigosComponent {
 
   buscarPegados(): void {
     const codigos = this.codigosPegados();
-    if (!codigos.length) return;
+    if (!codigos.length || this.buscando()) return;
     this.buscar(codigos, () => this.cancelarPegar());
   }
 
@@ -260,6 +267,12 @@ export class PanelCodigosComponent {
       .subscribe({
         next: (r) => {
           this.buscando.set(false);
+          // Sin conexion el interceptor encola el POST y devuelve un 200 falso: no hay resultado y
+          // lo escrito NO se borra (antes se vaciaba el cuadro de pegar sin mostrar nada).
+          if (quedoEnCola(r)) {
+            this.errorBusqueda.set(MENSAJE_BUSQUEDA_SIN_CONEXION);
+            return;
+          }
           const limpio: ResultadoBusquedaCodigos = { encontrados: r?.encontrados ?? [], noEncontrados: r?.noEncontrados ?? [] };
           this.incorporar(ajustar ? ajustar(limpio) : limpio);
           alTerminar?.();
@@ -283,7 +296,7 @@ export class PanelCodigosComponent {
       const id = e.incapacidad.id;
       errores.delete(id);
       if (!previos.has(id)) {
-        if (marcadaPorDefecto(e)) marcados.add(id);
+        if (marcadaPorDefecto(e, this.modo())) marcados.add(id);
       } else if (!e.puedeRadicar) {
         marcados.delete(id);
       }
@@ -317,7 +330,9 @@ export class PanelCodigosComponent {
 
   /** Marca las que se pueden radicar sin dudas; las ambiguas se eligen a mano. */
   marcarListas(): void {
-    this.marcados.set(new Set(this.encontrados().filter(marcadaPorDefecto).map((e) => e.incapacidad.id)));
+    this.marcados.set(
+      new Set(this.encontrados().filter((e) => marcadaPorDefecto(e, this.modo())).map((e) => e.incapacidad.id)),
+    );
   }
 
   desmarcarTodas(): void {
@@ -377,6 +392,12 @@ export class PanelCodigosComponent {
     if (e.ambiguo) {
       return { tono: 'aviso', icono: 'call_split', texto: 'El código corresponde a varias incapacidades: marque la que corresponde.' };
     }
+    if (recobroDudoso(e, this.modo())) {
+      return {
+        tono: 'aviso', icono: 'help',
+        texto: `Figura como ${e.incapacidad.estadoEtiqueta || e.incapacidad.estado}: márquela solo si de verdad corresponde un recobro.`,
+      };
+    }
     if (!this.esRecobro() && e.yaRadicada) {
       const actual = e.incapacidad.numeroRadicado;
       return {
@@ -403,7 +424,11 @@ export class PanelCodigosComponent {
       modo: this.modo(),
       datos,
       cantidad: filas.length,
-      correcciones: this.correcciones().map((e) => codigoVisible(e.incapacidad)),
+      // Con el MISMO numero el backend no reemplaza nada (sin cambios, o solo fecha/canal): no se
+      // advierte un reemplazo que no va a pasar.
+      correcciones: this.correcciones()
+        .filter((e) => (e.incapacidad.numeroRadicado ?? '').trim() !== datos.numeroRadicado)
+        .map((e) => codigoVisible(e.incapacidad)),
     });
     if (!confirmado) return;
 
@@ -413,6 +438,12 @@ export class PanelCodigosComponent {
     llamada.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (r) => {
         this.guardando.set(false);
+        // 200 falso de la cola offline: no llego al servidor. Se avisa y la lista queda igual (pintar
+        // ese cuerpo como resultado reventaba la plantilla del resumen).
+        if (quedoEnCola(r)) {
+          avisarGuardadoEnCola();
+          return;
+        }
         this.aplicarResultado(r, datos.numeroRadicado);
       },
       error: (e: unknown) => {

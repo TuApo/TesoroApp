@@ -95,6 +95,18 @@ describe('RadicacionComponent', () => {
     httpMock.expectNone((r) => r.url === `${BASE}/radicacion/pendientes`);
   });
 
+  it('un filtro nuevo cancela la consulta en vuelo: una respuesta vieja no pisa la tabla', () => {
+    const vieja = pendientes();
+    componente.filtros = { ...componente.filtros, eps: 'SALUD TOTAL' };
+    componente.filtrarPendientes();
+    expect(vieja.cancelled).toBeTrue();
+    const nueva = pendientes();
+    expect(nueva.request.params.get('eps')).toBe('SALUD TOTAL');
+    nueva.flush(paginaPrueba([PEND_B], 1));
+    expect(componente.pendientes().map((r) => r.id)).toEqual([22]);
+    expect(componente.cargandoPendientes()).toBeFalse();
+  });
+
   it('un error al cargar pendientes queda a la vista', () => {
     pendientes().flush({ error: 'Servicio no disponible' }, { status: 503, statusText: 'Service Unavailable' });
     expect(componente.errorPendientes()).toBe('Servicio no disponible');

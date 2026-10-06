@@ -113,6 +113,30 @@ describe('DialogoRegistrarRecobroComponent', () => {
     expect(refFalso.close).toHaveBeenCalledWith({ recargar: false });
   });
 
+  it('mientras guarda no se cierra (fondo ni boton); al terminar si, y pide recargar', async () => {
+    spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }));
+    await componente.guardar(RADICADO);
+    const req = httpMock.expectOne(`${BASE}/recobros`);
+    fondo.next(new MouseEvent('click'));
+    componente.cerrar();
+    expect(refFalso.close).not.toHaveBeenCalled();
+    req.flush(resultadoPrueba([{ id: 41, ok: true }, { id: 42, ok: true }]));
+    fondo.next(new MouseEvent('click'));
+    expect(refFalso.close).toHaveBeenCalledWith({ recargar: true });
+  });
+
+  it('sin conexion el recobro queda en cola: avisa y las incapacidades se quedan', async () => {
+    const fire = spyOn(swalEspiable(), 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }));
+    await componente.guardar(RADICADO);
+    httpMock.expectOne(`${BASE}/recobros`).flush({ incapacidadIds: [41, 42], id: -7, _isOfflineMock: true });
+    expect(() => fixture.detectChanges()).not.toThrow();
+    expect((fire.calls.mostRecent().args[0] as { icon: string }).icon).toBe('warning');
+    expect(componente.items().length).toBe(2);
+    expect(componente.resultado()).toBeNull();
+    componente.cerrar();
+    expect(refFalso.close).toHaveBeenCalledWith({ recargar: false });
+  });
+
   it('quitar una incapacidad la saca de este registro', () => {
     componente.quitar(DATOS_DIALOGO.items[0]);
     expect(componente.items().map((i) => i.incapacidad.id)).toEqual([42]);

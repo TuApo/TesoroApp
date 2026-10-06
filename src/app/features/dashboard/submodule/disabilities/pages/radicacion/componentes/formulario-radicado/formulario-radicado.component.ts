@@ -50,6 +50,9 @@ function fechaValida(control: AbstractControl<string | null>): ValidationErrors 
   return esFechaFutura(valor) ? { fechaFutura: true } : null;
 }
 
+/** Ids unicos por instancia: la pestana de recobro por codigo y su dialogo pueden estar abiertos a la vez. */
+let instancias = 0;
+
 @Component({
   selector: 'app-formulario-radicado',
   standalone: true,
@@ -80,7 +83,12 @@ export class FormularioRadicadoComponent {
   readonly iconos = ICONO_DONDE;
   readonly maxRadicado = MAX_LARGO_RADICADO;
   readonly maxObservaciones = MAX_LARGO_OBSERVACIONES;
-  readonly hoy = hoyIso();
+  readonly idEtiquetaDonde = `frad-donde-etiqueta-${++instancias}`;
+
+  /** Tope del selector de fecha. Getter: la pantalla puede quedar abierta de un dia para otro. */
+  get hoy(): string {
+    return hoyIso();
+  }
   /** A nombre de quien queda el radicado (el mismo actor que viaja al backend). */
   readonly usuario = inject(IncapacidadSaludService).cuerpoActor().actor ?? null;
 

@@ -22,11 +22,13 @@ import { ResultadoRadicadoComponent } from '../../radicacion/componentes/resulta
 import {
   DatosRadicado,
   MAX_CODIGOS_POR_BUSQUEDA,
+  avisarGuardadoEnCola,
   codigoVisible,
   confirmarRadicado,
   entidadDe,
   fechaCorta,
   mensajeError,
+  quedoEnCola,
 } from '../../radicacion/radicacion.utils';
 import { causalHomologada, ultimoRecobro } from '../recobro.utils';
 
@@ -115,6 +117,11 @@ export class DialogoRegistrarRecobroComponent {
       .subscribe({
         next: (r) => {
           this.guardando.set(false);
+          // 200 falso de la cola offline: no llego al servidor; las incapacidades se quedan.
+          if (quedoEnCola(r)) {
+            avisarGuardadoEnCola(true);
+            return;
+          }
           const resultados = r?.resultados ?? [];
           const okIds = new Set(resultados.filter((x) => x.ok).map((x) => x.incapacidadId));
           const errores = new Map<number, string>();
@@ -140,7 +147,12 @@ export class DialogoRegistrarRecobroComponent {
       });
   }
 
+  /**
+   * Mientras guarda no se cierra (ni por fondo, ni Esc, ni boton): cerrar cancelaba la suscripcion,
+   * el backend podia guardar igual y la bandeja no se enteraba ni el usuario veia el resultado.
+   */
   cerrar(): void {
+    if (this.guardando()) return;
     this.ref.close({ recargar: this.huboCambios });
   }
 }

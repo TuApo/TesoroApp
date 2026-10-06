@@ -137,4 +137,27 @@ describe('FormularioRadicadoComponent', () => {
     expect(v.dondeRadicado).toBe('CORREO');
     expect(componente.dondeConError()).toBeFalse();
   });
+
+  it('el tope de la fecha sigue al reloj (la pantalla puede quedar abierta de un dia para otro)', () => {
+    jasmine.clock().install();
+    try {
+      jasmine.clock().mockDate(new Date(2026, 9, 6, 23, 59));
+      expect(componente.hoy).toBe('2026-10-06');
+      jasmine.clock().mockDate(new Date(2026, 9, 7, 0, 1));
+      expect(componente.hoy).toBe('2026-10-07');
+    } finally {
+      jasmine.clock().uninstall();
+    }
+  });
+
+  it('dos formularios a la vez no repiten el id que nombra el grupo de canales', () => {
+    const otro = TestBed.createComponent(FormularioRadicadoComponent);
+    otro.detectChanges();
+    const grupo = (f: ComponentFixture<FormularioRadicadoComponent>) =>
+      (f.nativeElement as HTMLElement).querySelector('mat-button-toggle-group')!.getAttribute('aria-labelledby');
+    expect(grupo(fixture)).toBeTruthy();
+    expect(grupo(fixture)).not.toBe(grupo(otro));
+    expect((fixture.nativeElement as HTMLElement).querySelector(`#${grupo(fixture)}`)).not.toBeNull();
+    otro.destroy();
+  });
 });

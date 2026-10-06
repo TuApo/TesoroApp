@@ -10,6 +10,8 @@ import {
   marcadaPorDefecto,
   mensajeError,
   periodo,
+  quedoEnCola,
+  recobroDudoso,
   separarCodigos,
   tonoEstado,
 } from './radicacion.utils';
@@ -85,6 +87,25 @@ describe('radicacion.utils', () => {
     expect(marcadaPorDefecto(encontradoPrueba({ ambiguo: true }))).toBeFalse();
     expect(marcadaPorDefecto(encontradoPrueba({ puedeRadicar: false }))).toBeFalse();
     expect(marcadaPorDefecto(encontradoPrueba({ yaRadicada: true }))).toBeTrue();
+  });
+
+  it('en RECOBRO una pagada o finalizada no se marca sola (en RADICACION no aplica)', () => {
+    const pagada = encontradoPrueba({ yaRadicada: true }, { estado: 'PAGADA' });
+    expect(recobroDudoso(pagada, 'RECOBRO')).toBeTrue();
+    expect(marcadaPorDefecto(pagada, 'RECOBRO')).toBeFalse();
+    expect(marcadaPorDefecto(encontradoPrueba({ yaRadicada: true }, { estado: 'FINALIZADA' }), 'RECOBRO')).toBeFalse();
+    expect(marcadaPorDefecto(encontradoPrueba({ yaRadicada: true }, { estado: 'RECOBRO' }), 'RECOBRO')).toBeTrue();
+    // Historicas negadas en el Excel del area: siguen en RADICADA y el recobro es lo normal.
+    expect(marcadaPorDefecto(encontradoPrueba({ yaRadicada: true }, { estado: 'RADICADA' }), 'RECOBRO')).toBeTrue();
+    expect(recobroDudoso(pagada, 'RADICACION')).toBeFalse();
+    expect(recobroDudoso(encontradoPrueba({ puedeRadicar: false }, { estado: 'PAGADA' }), 'RECOBRO')).toBeFalse();
+  });
+
+  it('quedoEnCola reconoce el 200 falso de la cola offline y nada mas', () => {
+    expect(quedoEnCola({ incapacidadIds: [1], id: -3, _isOfflineMock: true })).toBeTrue();
+    expect(quedoEnCola({ success: true, offlineQueue: true })).toBeTrue();
+    expect(quedoEnCola({ lote: null, total: 1, exitosos: 1, fallidos: 0, resultados: [] })).toBeFalse();
+    expect(quedoEnCola(null)).toBeFalse();
   });
 
   it('fusionarEncontrados no duplica: refresca lo que estaba y agrega lo nuevo al final', () => {
