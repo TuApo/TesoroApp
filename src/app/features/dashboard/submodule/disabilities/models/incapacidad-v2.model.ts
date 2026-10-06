@@ -273,6 +273,8 @@ export interface CrearIncapacidadV2Request {
   /** Etiqueta ya resuelta: "Apoyo Laboral" | "Tu Alianza" | el crudo si es desconocido. */
   temporal?: string;
   numeroContrato?: string;
+  /** Reunion 2026-10-05: cargo (de contratacion, corregible a mano; max 160). Va al formato de Salud Total. */
+  cargo?: string | null;
   /** EPS normalizada con `trim()`. */
   eps: string;
   /** Fondo de pension obligatoria: viene de `afp.afp`, NUNCA de `afp.afc` (cesantias). */
@@ -396,6 +398,8 @@ export interface IncapacidadV2 {
   centroCosto?: string;
   temporal?: string;
   numeroContrato?: string;
+  /** Reunion 2026-10-05: cargo guardado en la incapacidad (null en las anteriores). */
+  cargo?: string | null;
   fechaIngreso?: string;
   eps?: string;
   afp?: string;
@@ -608,6 +612,13 @@ export interface EmpleadoBusqueda {
   eps: string;
   afp: string;
   oficina: string;
+  /**
+   * Reunion 2026-10-05 (`GET /Incapacidades/v2/empleados/buscar`): tipo CANONICO de la ficha
+   * (CC, CE, PPT, TI, PA) o null si el crudo no se reconoce.
+   */
+  tipoDocumentoCanonico?: string | null;
+  /** Solo en `/Incapacidades/v2/empleados/buscar`: la fecha de ingreso cruda si no se pudo leer. */
+  fechaIngresoTexto?: string | null;
 }
 
 /**

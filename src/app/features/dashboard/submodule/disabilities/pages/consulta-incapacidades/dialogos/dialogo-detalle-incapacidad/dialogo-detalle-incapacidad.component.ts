@@ -21,7 +21,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { Observable, Subscription } from 'rxjs';
+import { Observable, Subscription, forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { saveAs } from 'file-saver';
 
 import {
@@ -34,6 +35,15 @@ import {
   TipoSoporte,
 } from '../../../../models/incapacidad-v2.model';
 import { IncapacidadV2Service } from '../../../../services/incapacidad-v2/incapacidad-v2.service';
+import { IncapacidadSaludService } from '../../../../services/incapacidad-salud/incapacidad-salud.service';
+import {
+  ACCION_CAUSAL_ETIQUETA,
+  DONDE_RADICADO_OPCIONES,
+  LiquidacionIncapacidad,
+  NegacionItem,
+  PagoItem,
+  RadicadoItem,
+} from '../../../../models/incapacidad-salud.model';
 import { calcularEdad, parsearFechaFlexible } from '../../../../utils/fechas';
 import { codigoSinGuion } from '../../../../utils/codigos';
 import {
@@ -104,6 +114,63 @@ export interface PreviewDocumento {
 
 const VACIO = '—';
 
+/**
+ * Estados en los que la incapacidad ya tiene (o pudo tener) radicados y respuesta de la EPS: con
+ * ellos la seccion "Radicados y liquidacion" se consulta sola al abrir. En los demas queda un
+ * boton para consultarla a mano (carga perezosa: no se pide lo que casi nunca hay).
+ */
+const ESTADOS_CON_RADICADOS: ReadonlySet<string> = new Set([
+  'RADICADA',
+  'EN_REVISION_EPS',
+  'PAGADA',
+  'NEGADA',
+  'RECOBRO',
+  'NUEVA_RESPUESTA',
+  'PENDIENTE_CONCILIACION',
+  'CONCILIADA',
+  'FINALIZADA',
+]);
+
+/** Un radicado ya preparado para la lista compacta del detalle. */
+export interface RadicadoVista {
+  clave: string;
+  tipo: string;
+  esRecobro: boolean;
+  numero: string;
+  fecha: string;
+  donde: string;
+  quien: string;
+  anulado: boolean;
+}
+
+/** Fila compacta de un radicado (inicial o recobro). Canal con los nombres de la funcional. */
+export function radicadoAVista(r: RadicadoItem, indice: number): RadicadoVista {
+  const donde =
+    DONDE_RADICADO_OPCIONES.find((o) => o.valor === r.dondeRadicado)?.etiqueta ||
+    r.dondeRadicadoEtiqueta ||
+    VACIO;
+  return {
+    clave: r.id === null ? `inicial-${indice}` : String(r.id),
+    tipo: r.tipo === 'RECOBRO' ? 'Recobro' : 'Radicación',
+    esRecobro: r.tipo === 'RECOBRO',
+    numero: (r.numeroRadicado ?? '').trim() || VACIO,
+    fecha: fechaLegible(r.fechaRadicado) || VACIO,
+    donde,
+    quien: (r.radicadoPor ?? '').trim() || VACIO,
+    anulado: r.anulado === true,
+  };
+}
+
+/** Pesos colombianos sin decimales ("$ 350.184"). */
+export function pesos(valor: number | null | undefined): string {
+  if (valor === null || valor === undefined || isNaN(Number(valor))) return VACIO;
+  return new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    maximumFractionDigits: 0,
+  }).format(Number(valor));
+}
+
 /** Canales de radicacion si el catalogo del backend aun no los envia. */
 const DONDES_RESPALDO: { codigo: DondeRadicado; etiqueta: string }[] = [
   { codigo: 'PAGINA', etiqueta: 'Portal web' },
@@ -138,6 +205,7 @@ const DONDES_RESPALDO: { codigo: DondeRadicado; etiqueta: string }[] = [
 })
 export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
   private readonly srv = inject(IncapacidadV2Service);
+  private readonly srvSalud = inject(IncapacidadSaludService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sanitizador = inject(DomSanitizer);
   private readonly subs = new Subscription();
@@ -236,6 +304,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
       .join(' · ');
 
     const ips = [d?.nitIps, d?.ipsNombre].filter((x) => !!x).join(' · ');
+    const cargo = (d?.cargo ?? '').trim();
 
     return [
       {
@@ -260,6 +329,8 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
           { etiqueta: 'Centro de costo', valor: texto(d?.centroCosto ?? r?.centroCosto) },
           { etiqueta: 'Temporal', valor: texto(d?.temporal ?? r?.temporal) },
           { etiqueta: 'Numero de contrato', valor: texto(d?.numeroContrato ?? r?.numeroContrato) },
+          // Reunion 2026-10-05: solo las registradas desde entonces lo tienen.
+          ...(cargo ? [{ etiqueta: 'Cargo', valor: cargo }] : []),
           { etiqueta: 'Fecha de ingreso', valor: fechaLegible(d?.fechaIngreso) || VACIO },
           { etiqueta: 'Oficina', valor: texto(d?.oficina ?? r?.oficina) },
           { etiqueta: 'EPS', valor: texto(d?.eps ?? r?.eps) },
@@ -668,6 +739,7 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
           this.huboCambiosRadicacion = true;
           alTerminar?.();
           this.refrescarDetalle();
+          if (this.saludConsultada()) this.cargarSalud();
         },
         error: (err: unknown) => {
           this.accionRadicacion.set(false);
@@ -691,6 +763,113 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
 
   trackArchivoRadicacion = (_: number, archivo: ArchivoRadicacion) => archivo.id;
 
+  // ── Radicados y liquidacion (reunion 2026-10-05) ──────────────────────
+  //
+  // TODOS los radicados (inicial + recobros) y la respuesta de la EPS (pagos, negaciones y
+  // terminacion). Carga PEREZOSA: se pide despues del detalle y solo si el estado lo amerita
+  // (o a mano). Cada parte tolera su propio error: si un endpoint falla, la seccion avisa y el
+  // resto del dialogo sigue funcionando.
+
+  readonly radicadosSalud = signal<RadicadoItem[] | null>(null);
+  readonly liquidacionSalud = signal<LiquidacionIncapacidad | null>(null);
+  readonly cargandoSalud = signal(false);
+  readonly errorRadicadosSalud = signal('');
+  readonly errorLiquidacionSalud = signal('');
+  /** Ya se consulto al menos una vez (aunque fallara). */
+  readonly saludConsultada = signal(false);
+
+  readonly radicadosVista = computed<RadicadoVista[]>(() =>
+    (this.radicadosSalud() ?? []).map((r, i) => radicadoAVista(r, i)),
+  );
+  readonly pagosSalud = computed<PagoItem[]>(() => this.liquidacionSalud()?.pagos ?? []);
+  readonly negacionesSalud = computed<NegacionItem[]>(
+    () => this.liquidacionSalud()?.negaciones ?? [],
+  );
+  readonly terminacionSalud = computed(() => (this.liquidacionSalud()?.terminacion ?? '').trim());
+  readonly totalPagadoSalud = computed(() => this.liquidacionSalud()?.valorPagadoTotal ?? 0);
+  readonly sinLiquidacion = computed(
+    () =>
+      !!this.liquidacionSalud() &&
+      this.pagosSalud().length === 0 &&
+      this.negacionesSalud().length === 0 &&
+      !this.terminacionSalud(),
+  );
+
+  readonly fechaLegible = fechaLegible;
+  readonly pesos = pesos;
+
+  accionNegacion(n: NegacionItem): string {
+    return n.accionEtiqueta || ACCION_CAUSAL_ETIQUETA[n.accion] || VACIO;
+  }
+
+  /** "Pagado el dd/mm/aaaa · N dias liquidados" (lo que falte no se pinta). */
+  metaPago(p: PagoItem): string {
+    const fecha = fechaLegible(p.fechaPago);
+    return [
+      fecha ? `Pagado el ${fecha}` : '',
+      p.diasLiquidados !== null && p.diasLiquidados !== undefined
+        ? `${p.diasLiquidados} días liquidados`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  /** "Respuesta del dd/mm/aaaa · Finaliza | Pasa a recobro". */
+  metaNegacion(n: NegacionItem): string {
+    const fecha = fechaLegible(n.fechaRespuesta);
+    return [fecha ? `Respuesta del ${fecha}` : '', this.accionNegacion(n)]
+      .filter((x) => !!x && x !== VACIO)
+      .join(' · ');
+  }
+
+  /** Causal homologada si la hay; si no, el texto que mando la EPS. */
+  causalNegacion(n: NegacionItem): string {
+    return (n.causalNombre || n.causalTexto || '').trim() || VACIO;
+  }
+
+  /** Tras cargar (o no) el detalle: se consulta sola si el estado ya admite radicados. */
+  private cargarSaludSiAplica(): void {
+    const estado = this.estadoActual();
+    if (ESTADOS_CON_RADICADOS.has(estado) || !!this.datos.resumen?.numeroRadicado) {
+      this.cargarSalud();
+    }
+  }
+
+  cargarSalud(): void {
+    if (this.cargandoSalud()) return;
+    this.cargandoSalud.set(true);
+    this.errorRadicadosSalud.set('');
+    this.errorLiquidacionSalud.set('');
+    this.subs.add(
+      forkJoin({
+        radicados: this.srvSalud.radicadosDe(this.datos.id).pipe(
+          catchError((err: unknown) => {
+            this.errorRadicadosSalud.set(
+              motivoHttp(err) || 'No se pudieron consultar los radicados de la incapacidad.',
+            );
+            return of(null);
+          }),
+        ),
+        liquidacion: this.srvSalud.liquidacionDe(this.datos.id).pipe(
+          catchError((err: unknown) => {
+            this.errorLiquidacionSalud.set(
+              motivoHttp(err) || 'No se pudo consultar la liquidación (pagos y negaciones).',
+            );
+            return of(null);
+          }),
+        ),
+      }).subscribe(({ radicados, liquidacion }) => {
+        this.radicadosSalud.set(radicados);
+        this.liquidacionSalud.set(liquidacion);
+        this.cargandoSalud.set(false);
+        this.saludConsultada.set(true);
+      }),
+    );
+  }
+
+  trackRadicadoVista = (_: number, r: RadicadoVista) => r.clave;
+
   // ── Ciclo de vida ─────────────────────────────────────────────────────
 
   ngOnInit(): void {
@@ -702,12 +881,14 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
           next: (detalle) => {
             this.detalle.set(detalle as IncapacidadV2Detalle);
             this.cargando.set(false);
+            this.cargarSaludSiAplica();
           },
           error: () => {
             this.cargando.set(false);
             this.error.set(
               'No se pudo cargar el detalle completo. Se muestra la informacion del listado.',
             );
+            this.cargarSaludSiAplica();
           },
         }),
     );

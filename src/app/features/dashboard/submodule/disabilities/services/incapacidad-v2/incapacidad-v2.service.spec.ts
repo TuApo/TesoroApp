@@ -339,6 +339,30 @@ describe('IncapacidadV2Service', () => {
       req.flush([]);
     });
 
+    it('buscarEmpleadosPorDocumento va a /Incapacidades/v2/empleados/buscar con q, tipo y limit', () => {
+      let filas: unknown[] = [];
+      servicio.buscarEmpleadosPorDocumento('X1234', 'PPT').subscribe((r) => (filas = r));
+      const req = http.expectOne((r) => r.url === `${BASE}/empleados/buscar`);
+      expect(req.request.method).toBe('GET');
+      expect(req.request.params.get('q')).toBe('X1234');
+      expect(req.request.params.get('tipo')).toBe('PPT');
+      expect(req.request.params.get('limit')).toBe('15');
+      req.flush([
+        { cedula: '1234', nombreCompleto: 'ANA', tipoDocumento: 'PET', tipoDocumentoCanonico: 'PPT',
+          fechaIngreso: null, fechaIngresoTexto: '01/02/2024' },
+      ]);
+      // Sin fecha tipada se cae al texto crudo (parsearFechaFlexible lo entiende).
+      expect((filas[0] as { fechaIngreso: string }).fechaIngreso).toBe('01/02/2024');
+    });
+
+    it('buscarEmpleadosPorDocumento sin tipo no manda el parametro (busqueda de siempre)', () => {
+      servicio.buscarEmpleadosPorDocumento('perez', null, 10).subscribe();
+      const req = http.expectOne((r) => r.url === `${BASE}/empleados/buscar`);
+      expect(req.request.params.has('tipo')).toBeFalse();
+      expect(req.request.params.get('limit')).toBe('10');
+      req.flush([]);
+    });
+
     it('datosContratacion codifica la cedula en la ruta', () => {
       servicio.datosContratacion('1005 851').subscribe();
       const req = http.expectOne(

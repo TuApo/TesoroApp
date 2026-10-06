@@ -1,0 +1,242 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-sevenet">
+        <div class="disab-hero-icon"><mat-icon>archive</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">SEVENET</h1>
+          <p class="disab-hero-sub">
+            SEVENET es el archivo digital de la empresa (lo administra Ángela). Por ahora aquí se descarga la
+            carpeta comprimida con la primera hoja de cada incapacidad del rango, sin la historia clínica y con
+            Apoyo y Alianza juntas, lista para cargar. Se trabaja por semanas.
+          </p>
+        </div>
+      </div>
+
+      <div class="ges-cuerpo sev-cuerpo">
+        <!-- ════════ 1. Rango ════════ -->
+        <section class="sev-bloque" [formGroup]="form">
+          <header class="sev-bloque-cabecera">
+            <span class="sev-paso">1</span>
+            <h2 class="sev-bloque-titulo">Rango de fechas</h2>
+          </header>
+
+          <div class="sev-atajos" role="group" aria-label="Atajos de semana">
+            <button
+              type="button"
+              mat-stroked-button
+              class="sev-atajo"
+              [class.sev-atajo-activo]="atajo() === 'ACTUAL'"
+              [attr.aria-pressed]="atajo() === 'ACTUAL'"
+              (click)="aplicarSemana(0)"
+            >
+              <mat-icon>today</mat-icon>
+              <span>Esta semana</span>
+            </button>
+            <button
+              type="button"
+              mat-stroked-button
+              class="sev-atajo"
+              [class.sev-atajo-activo]="atajo() === 'ANTERIOR'"
+              [attr.aria-pressed]="atajo() === 'ANTERIOR'"
+              (click)="aplicarSemana(-1)"
+            >
+              <mat-icon>history</mat-icon>
+              <span>Semana anterior</span>
+            </button>
+            <span class="sev-atajos-nota">De lunes a sábado, como la semana de cartera</span>
+          </div>
+
+          <div class="sev-fechas">
+            <mat-form-field appearance="outline" class="sev-campo">
+              <mat-label>Fecha inicial</mat-label>
+              <!-- Solo calendario: el adaptador nativo leeria "06/10" al estilo de EE. UU. -->
+              <input
+                matInput
+                readonly
+                [matDatepicker]="dpInicial"
+                formControlName="inicial"
+                required
+                (click)="dpInicial.open()"
+              />
+              <mat-datepicker-toggle matIconSuffix [for]="dpInicial" />
+              <mat-datepicker #dpInicial />
+              <mat-hint>Elígela en el calendario</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="sev-campo">
+              <mat-label>Fecha final</mat-label>
+              <input
+                matInput
+                readonly
+                [matDatepicker]="dpFinal"
+                [min]="form.controls.inicial.value"
+                formControlName="final"
+                required
+                (click)="dpFinal.open()"
+              />
+              <mat-datepicker-toggle matIconSuffix [for]="dpFinal" />
+              <mat-datepicker #dpFinal />
+              <mat-hint>Elígela en el calendario</mat-hint>
+            </mat-form-field>
+          </div>
+
+          <div class="sev-eje">
+            <span class="sev-eje-etiqueta">Buscar por</span>
+            <mat-radio-group formControlName="eje" class="sev-eje-opciones" aria-label="Fecha por la que se busca">
+              <mat-radio-button value="REGISTRO">
+                <strong>Fecha de registro</strong>
+                <span class="sev-eje-ayuda">Lo cargado al aplicativo en esas fechas (lo normal: lo de la semana).</span>
+              </mat-radio-button>
+              <mat-radio-button value="INICIO">
+                <strong>Fecha de inicio de la incapacidad</strong>
+                <span class="sev-eje-ayuda">Las que empiezan en esas fechas, sin importar cuándo se cargaron.</span>
+              </mat-radio-button>
+            </mat-radio-group>
+          </div>
+
+          <!-- Conteo previo: cuantas incapacidades trae la carpeta -->
+          <div class="sev-conteo" aria-live="polite">
+            @if (problemaRango()) {
+              <div class="ges-aviso" role="alert">
+                <mat-icon>event_busy</mat-icon>
+                <span>{{ problemaRango() }}</span>
+              </div>
+            } @else if (contando()) {
+              <div class="sev-conteo-linea">
+                <mat-spinner diameter="20"></mat-spinner>
+                <span>Contando las incapacidades del rango…</span>
+              </div>
+            } @else if (errorConteo()) {
+              <div class="ges-aviso ges-aviso-peligro" role="alert">
+                <mat-icon>error_outline</mat-icon>
+                <span>{{ errorConteo() }} Aún puedes generar la carpeta.</span>
+              </div>
+            } @else if (conteo() !== null) {
+              <div class="sev-conteo-linea" [class.sev-conteo-vacio]="conteo() === 0">
+                <span class="sev-conteo-icono"><mat-icon>{{ conteo() ? 'inventory_2' : 'inbox' }}</mat-icon></span>
+                <span>
+                  <strong class="sev-conteo-numero">{{ conteo() | number }}</strong>
+                  {{ conteo() === 1 ? 'incapacidad' : 'incapacidades' }}
+                  {{ eje() === 'REGISTRO' ? 'registradas' : 'que inician' }}
+                  del {{ desdeTexto() }} al {{ hastaTexto() }}.
+                  @if (conteo() === 0) {
+                    No hay nada que comprimir: cambia el rango o la fecha de búsqueda.
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        </section>
+
+        <!-- ════════ 2. Descargar ════════ -->
+        <section class="sev-bloque">
+          <header class="sev-bloque-cabecera">
+            <span class="sev-paso">2</span>
+            <h2 class="sev-bloque-titulo">Descargar</h2>
+          </header>
+
+          <div class="sev-acciones">
+            <button
+              type="button"
+              mat-flat-button
+              class="sev-btn sev-btn-primario"
+              [disabled]="!puedeGenerar()"
+              (click)="generar()"
+            >
+              <mat-icon>folder_zip</mat-icon>
+              <span>{{ enCurso() ? 'Generando…' : 'Generar carpeta (ZIP)' }}</span>
+            </button>
+
+            <!-- Fase 2: el boton deshabilitado no recibe el raton; el tooltip va en el envoltorio -->
+            <span class="sev-plano" [matTooltip]="avisoArchivoPlano">
+              <button type="button" mat-stroked-button class="sev-btn" disabled>
+                <mat-icon>description</mat-icon>
+                <span>Archivo plano para cargue</span>
+              </button>
+            </span>
+          </div>
+
+          <p class="sev-pendiente">
+            <mat-icon>schedule</mat-icon>
+            <span>{{ avisoArchivoPlano }}.</span>
+          </p>
+
+          @switch (fase()) {
+            @case ('progreso') {
+              <div class="sev-estado" aria-live="polite">
+                <p class="sev-estado-texto">
+                  <mat-icon>hourglass_top</mat-icon>
+                  <span>
+                    <strong>Armando la carpeta</strong> · {{ job()?.estadoEtiqueta }}
+                    @if (progresoDeterminado()) {
+                      · {{ job()?.procesados ?? 0 }} de {{ job()?.totalRegistros }} incapacidades
+                    }
+                  </span>
+                </p>
+                @if (progresoDeterminado()) {
+                  <mat-progress-bar mode="determinate" [value]="progreso()"></mat-progress-bar>
+                } @else {
+                  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                }
+                <p class="sev-estado-nota">{{ textoRangoGenerado() }}. La descarga arranca sola al terminar.</p>
+              </div>
+            }
+            @case ('completado') {
+              <div class="sev-estado sev-estado-ok" aria-live="polite">
+                <p class="sev-estado-texto">
+                  <mat-icon>check_circle</mat-icon>
+                  <span>
+                    <strong>Carpeta lista:</strong> {{ job()?.nombreResultado }}
+                    @if (tamanoLegible(job()?.tamanoBytes)) {
+                      · {{ tamanoLegible(job()?.tamanoBytes) }}
+                    }
+                  </span>
+                </p>
+                <p class="sev-estado-nota">
+                  {{ textoRangoGenerado() }}. Si el navegador bloqueó la descarga, bájala otra vez.
+                </p>
+                <button
+                  type="button"
+                  mat-stroked-button
+                  class="sev-btn"
+                  [disabled]="descargando()"
+                  (click)="descargar()"
+                >
+                  <mat-icon>download</mat-icon>
+                  <span>{{ descargando() ? 'Descargando…' : 'Descargar de nuevo' }}</span>
+                </button>
+              </div>
+            }
+            @case ('error') {
+              <div class="ges-aviso ges-aviso-peligro" role="alert">
+                <mat-icon>error_outline</mat-icon>
+                <span>
+                  <strong>No se pudo armar la carpeta.</strong>
+                  {{ job()?.mensajeError || 'El servidor no informó el motivo.' }} Puedes generarla de nuevo.
+                </span>
+              </div>
+            }
+          }
+
+          @if (errorJob()) {
+            <div class="ges-aviso ges-aviso-peligro" role="alert">
+              <mat-icon>error_outline</mat-icon>
+              <span>{{ errorJob() }}</span>
+            </div>
+          }
+
+          <p class="ges-nota sev-contenido">
+            <mat-icon>info_outline</mat-icon>
+            <span>
+              La carpeta trae un PDF por incapacidad con su código único como nombre (solo la primera hoja del
+              soporte de la incapacidad), <strong>_indice.xlsx</strong> con el listado y
+              <strong>_PENDIENTES.txt</strong> con las que no tenían soporte o no se pudieron leer. Puedes salir
+              de esta pantalla: el servidor termina la carpeta igual, pero la descarga solo arranca aquí.
+            </span>
+          </p>
+        </section>
+      </div>
+    </mat-card>
+  </div>
+</div>

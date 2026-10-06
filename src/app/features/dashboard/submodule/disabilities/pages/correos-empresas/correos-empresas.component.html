@@ -6,9 +6,10 @@
         <div class="disab-hero-texts">
           <h1 class="disab-hero-title">Correos a empresas usuarias</h1>
           <p class="disab-hero-sub">
-            Notificacion a las fincas de las incapacidades registradas: un correo por finca al final del dia
-            (o uno por incapacidad al recibirla, segun la configuracion), dirigido al asistente al trabajador y
-            en copia a los demas contactos, con la tabla de cedulas y la primera pagina de cada soporte.
+            Notificación a las fincas de las incapacidades registradas: el correo sale solo al registrar cada
+            incapacidad y, al final del día, se envía a mano el lote de lo que no haya salido. Va dirigido al
+            asistente al trabajador, en copia a los demás contactos, con la tabla de cédulas y la primera página
+            de cada soporte.
           </p>
         </div>
         <div class="hero-acciones">
@@ -33,11 +34,12 @@
                   <mat-icon>{{ c.envioModo === 'DIARIO' ? 'schedule_send' : 'bolt' }}</mat-icon>
                   <span>
                     @if (c.envioModo === 'DIARIO') {
-                      Modo <strong>DIARIO</strong>: el sistema envia solo, todos los dias a las <strong>{{ c.envioHora }}</strong>, un correo por finca con
-                      lo registrado (ultima corrida automatica: {{ c.ultimaCorrida || 'ninguna todavia' }}). Aqui puedes revisar lo que saldra y adelantarlo.
+                      Modo <strong>solo lote diario automático</strong>: nada sale al registrar; el sistema envía solo, todos los días a las
+                      <strong>{{ c.envioHora }}</strong>, un correo por finca con lo registrado (última corrida automática: {{ c.ultimaCorrida || 'ninguna todavía' }}).
+                      Aquí puedes revisar lo que saldrá y adelantarlo.
                     } @else {
-                      Modo <strong>INMEDIATO</strong>: cada incapacidad envia su correo al recibirla. Lo que aparece aqui es lo que aun no ha salido
-                      (fallidas o sin destinatario) y puede enviarse en lote.
+                      Modo <strong>automático al registrar + lote manual</strong>: cada incapacidad envía su correo sola al registrarla. Lo que aparece
+                      aquí es lo que aún no ha salido (fallidas o sin destinatario): al final del día envíalo a mano con «Enviar lote del día (pendientes)».
                     }
                   </span>
                 </div>
@@ -58,7 +60,7 @@
                   <span class="ges-espaciador"></span>
                   <button type="button" mat-flat-button color="primary" [disabled]="enviando() || p.totalIncapacidades === 0" (click)="enviarAhora()">
                     @if (enviando()) { <mat-spinner diameter="18"></mat-spinner> } @else { <mat-icon>send</mat-icon> }
-                    Enviar correos de hoy ahora
+                    Enviar lote del día (pendientes)
                   </button>
                 </div>
                 @if (p.grupos.length === 0) {
@@ -115,18 +117,21 @@
           </mat-tab>
 
           <!-- ════════ CONFIGURACION ════════ -->
-          <mat-tab label="Configuracion">
+          <mat-tab label="Configuración">
             <ng-template matTabContent>
               <p class="ges-nota">
-                La reunion funcional acordo el envio automatico al final del dia ("con eso no dependemos de nadie"); otra
-                jefatura prefiere el correo al recibir cada incapacidad. Por eso el modo es configurable sin despliegue.
+                Reunión funcional 2026-10-05: el correo sale automáticamente al registrar la incapacidad y, al final del día,
+                se envía a mano el lote de lo que no haya salido. El lote diario automático queda como alternativa y el modo
+                se cambia aquí sin despliegue.
               </p>
               <mat-radio-group class="cfg-modos" [(ngModel)]="modoEnvio">
-                <mat-radio-button value="DIARIO">
-                  <strong>Diario, en lote</strong> — un correo por finca al final del dia con todas las incapacidades recibidas.
-                </mat-radio-button>
                 <mat-radio-button value="INMEDIATO">
-                  <strong>Inmediato</strong> — un correo por incapacidad en el momento en que se guarda como recibida (al cargar el soporte).
+                  <strong>Automático al registrar + lote manual</strong> — el correo sale solo al registrar cada incapacidad (al cargar
+                  el soporte); al final del día se envía a mano, desde «Lote de hoy», el lote de lo que no salió.
+                </mat-radio-button>
+                <mat-radio-button value="DIARIO">
+                  <strong>Solo lote diario automático ({{ horaEnvio || '19:00' }})</strong> — nada sale al registrar: un correo por finca
+                  al final del día con todas las incapacidades recibidas.
                 </mat-radio-button>
               </mat-radio-group>
               <div class="ges-filtros ges-filtros-inline">
