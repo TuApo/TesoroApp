@@ -98,6 +98,7 @@ export class BannerEditorComponent implements OnInit {
 
   readonly superficies = computed(() => this.catalogo()?.superficies ?? [
     { valor: 'TESORO', nombre: 'Plataforma (web, escritorio y celular)', ayuda: '' },
+    { valor: 'TUAPO_WEB', nombre: 'Portal Tu Apo (trabajadores)', ayuda: '' },
   ]);
 
   /** Sugerencias de destino: las pantallas que la persona puede abrir (formularios incluidos). */

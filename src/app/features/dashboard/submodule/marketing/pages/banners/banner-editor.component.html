@@ -234,8 +234,13 @@
               @for (s of superficies(); track s.valor) {
                 <label class="check">
                   <input type="checkbox" [ngModel]="form().superficies.includes(s.valor)" (ngModelChange)="alternarSuperficie(s.valor, $event)" />
-                  <span>{{ s.nombre }}</span>
+                  <span>{{ s.nombre }} @if (s.ayuda) { <small class="ayuda-sup">{{ s.ayuda }}</small> }</span>
                 </label>
+              }
+              @if (form().superficies.includes('TUAPO_WEB') && form().destino_tipo === 'RUTA_INTERNA') {
+                <p class="aviso-sup"><mat-icon aria-hidden="true">info</mat-icon>
+                  En el Portal Tu Apo esa pantalla no existe: para quienes lo vean allá, mejor un enlace
+                  externo https://tuapo.co/… o un banner aparte solo para el portal.</p>
               }
             </div>
           </fieldset>
