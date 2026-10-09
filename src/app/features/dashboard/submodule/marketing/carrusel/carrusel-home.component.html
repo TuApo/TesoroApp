@@ -1,0 +1,114 @@
+@if (cargando() && mostrarEsqueleto()) {
+  <div class="carrusel" aria-hidden="true">
+    <div class="marco marco--esqueleto" [attr.data-orientacion]="orientacion()"></div>
+  </div>
+}
+
+@if (!cargando() && items().length) {
+  <section class="carrusel"
+           role="region"
+           aria-roledescription="carrusel"
+           aria-label="Anuncios y comunicados"
+           tabindex="0"
+           (pointerenter)="entraMouse($event)"
+           (pointerleave)="saleMouse($event)"
+           (focusin)="entraFoco($event)"
+           (focusout)="saleFoco($event)"
+           (keydown)="teclado($event)"
+           (pointerdown)="punteroAbajo($event)"
+           (pointerup)="punteroArriba($event)">
+
+    <div class="marco" [attr.data-orientacion]="orientacion()">
+    <div class="pista" aria-live="off">
+      @for (it of items(); track it.id; let i = $index) {
+        <div class="hoja"
+             [class.hoja--activa]="i === indice()"
+             role="group"
+             aria-roledescription="anuncio"
+             [attr.aria-label]="(i + 1) + ' de ' + items().length"
+             [attr.aria-hidden]="i !== indice()"
+             [attr.inert]="i !== indice() ? '' : null">
+          <!-- Solo se montan el activo y sus vecinos: con 12 banners con video, montarlos
+               todos pediría 12 videos al abrir el home. -->
+          @if (i === indice() || i === (indice() + 1) % items().length || i === (indice() - 1 + items().length) % items().length) {
+            <app-banner-slide
+              [item]="it"
+              [orientacion]="orientacion()"
+              [activo]="i === indice() && !detalle()"
+              [silenciado]="silenciado()"
+              [nombreUsuario]="nombre()"
+              (cta)="abrir(it)"
+              (ocultar)="ocultar(it)"
+              (videoTerminado)="i === indice() ? alTerminarVideo() : null" />
+          }
+        </div>
+      }
+    </div>
+
+    @if (items().length > 1) {
+      <button type="button" class="flecha flecha--izq" (click)="anterior()" aria-label="Anuncio anterior">
+        <mat-icon aria-hidden="true">chevron_left</mat-icon>
+      </button>
+      <button type="button" class="flecha flecha--der" (click)="siguiente()" aria-label="Anuncio siguiente">
+        <mat-icon aria-hidden="true">chevron_right</mat-icon>
+      </button>
+    }
+    </div>
+
+    <!-- Debajo y no encima: superpuestos tapaban el texto de los diseños con franja. -->
+    <div class="controles">
+      @if (items().length > 1) {
+        <div class="puntos" role="group" aria-label="Elegir anuncio">
+          @for (it of items(); track it.id; let i = $index) {
+            <button type="button" class="punto"
+                    [class.punto--activo]="i === indice()"
+                    [attr.aria-label]="'Ir al anuncio ' + (i + 1)"
+                    [attr.aria-current]="i === indice() ? 'true' : null"
+                    (click)="ir(i)">
+              @if (i === indice()) {
+                <span class="punto__progreso"
+                      [class.punto__progreso--quieto]="pausado()"
+                      [style.animation-duration.ms]="duracionActual()"></span>
+              }
+            </button>
+          }
+        </div>
+        @if (!reducirMovimiento()) {
+          <button type="button" class="control" (click)="alternarPausa()"
+                  [attr.aria-label]="pausaManual() ? 'Reanudar el carrusel' : 'Pausar el carrusel'">
+            <mat-icon aria-hidden="true">{{ pausaManual() ? 'play_arrow' : 'pause' }}</mat-icon>
+          </button>
+        }
+      }
+      @if (esVideoActual()) {
+        <button type="button" class="control" (click)="alternarSonido()"
+                [attr.aria-label]="silenciado() ? 'Activar el sonido' : 'Silenciar'">
+          <mat-icon aria-hidden="true">{{ silenciado() ? 'volume_off' : 'volume_up' }}</mat-icon>
+        </button>
+      }
+    </div>
+  </section>
+}
+
+@if (detalle(); as d) {
+  <div class="telon" (click)="cerrarDetalle()">
+    <div class="detalle" role="dialog" aria-modal="true" [attr.aria-label]="d.titulo || 'Detalle del anuncio'"
+         (click)="$event.stopPropagation()">
+      @if (detalleMedio(); as dm) {
+        <div class="detalle__medio">
+          <app-banner-slide [item]="dm" [orientacion]="'HORIZONTAL'" [activo]="true" [silenciado]="silenciado()" />
+        </div>
+      }
+      <div class="detalle__cuerpo">
+        @if (d.etiqueta) { <span class="detalle__etq">{{ d.etiqueta }}</span> }
+        @if (d.titulo) { <h2>{{ d.titulo }}</h2> }
+        @if (d.subtitulo) { <p class="detalle__sub">{{ d.subtitulo }}</p> }
+        @if (d.descripcion) { <p class="detalle__desc">{{ d.descripcion }}</p> }
+        <button type="button" class="detalle__cerrar" (click)="cerrarDetalle()">Entendido</button>
+      </div>
+      <button type="button" class="detalle__x" (click)="cerrarDetalle()" aria-label="Cerrar">
+        <mat-icon aria-hidden="true">close</mat-icon>
+      </button>
+    </div>
+  </div>
+}

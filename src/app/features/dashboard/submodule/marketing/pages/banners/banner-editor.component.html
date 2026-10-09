@@ -1,0 +1,310 @@
+<div class="telon" (click)="cerrar()">
+  <section class="editor" role="dialog" aria-modal="true" aria-labelledby="ed-titulo" (click)="$event.stopPropagation()">
+
+    <header class="cab">
+      <div class="cab__txt">
+        <h2 id="ed-titulo">{{ banner() ? 'Editar banner' : 'Nuevo banner' }}</h2>
+        <span class="estado" [attr.data-estado]="banner()?.situacion ?? 'BORRADOR'">
+          {{ banner()?.situacion === 'EN_AIRE' ? 'En el aire' : (banner()?.situacion ?? 'Borrador') }}
+        </span>
+        @if (sucio()) { <span class="sucio">Cambios sin guardar</span> }
+      </div>
+      <button type="button" class="icono" (click)="cerrar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+
+    @if (cargando()) {
+      <p class="cargando">Cargando…</p>
+    } @else {
+      <div class="cuerpo">
+        <!-- ── formulario ─────────────────────────────────────────────────── -->
+        <div class="col-form">
+
+          <fieldset class="bloque">
+            <legend><span class="num">1</span> Tipo de comunicado</legend>
+            <p class="ayuda">Elige un diseño predefinido: ya trae colores, posición del texto y botón. Solo cambias lo tuyo.</p>
+            <div class="plantillas">
+              @for (t of plantillas(); track t.id) {
+                @if (t.activo || t.id === form().plantilla_id) {
+                  <button type="button" class="plantilla" [class.plantilla--on]="t.id === form().plantilla_id"
+                          (click)="elegirPlantilla(t)" [attr.aria-pressed]="t.id === form().plantilla_id">
+                    <span class="plantilla__muestra" [style.background]="t.color_fondo" [style.color]="t.color_texto">
+                      <mat-icon aria-hidden="true" [style.color]="t.color_acento">{{ t.icono || 'image' }}</mat-icon>
+                    </span>
+                    <span class="plantilla__txt"><strong>{{ t.nombre }}</strong><small>{{ t.descripcion }}</small></span>
+                  </button>
+                }
+              }
+            </div>
+          </fieldset>
+
+          <fieldset class="bloque">
+            <legend><span class="num">2</span> Imagen o video <span class="oblig">obligatorio en las dos versiones</span></legend>
+            <p class="ayuda">La plataforma es responsive: en computador se muestra la versión <strong>horizontal</strong> y en
+              celular la <strong>vertical</strong>. {{ limites().max_imagen_mb }} MB por imagen (JPG, PNG, WEBP, GIF) y
+              {{ limites().max_video_mb }} MB por video (MP4). Si lleva texto dentro, déjalo lejos de los bordes.</p>
+            <div class="medios">
+              @for (o of orientaciones; track o) {
+                @let m = o === 'HORIZONTAL' ? medioH() : medioV();
+                <div class="medio" [class.medio--v]="o === 'VERTICAL'"
+                     (dragover)="$event.preventDefault()" (drop)="soltar(o, $event)">
+                  <div class="medio__cab">
+                    <mat-icon aria-hidden="true">{{ o === 'HORIZONTAL' ? 'desktop_windows' : 'smartphone' }}</mat-icon>
+                    <strong>{{ o === 'HORIZONTAL' ? 'Horizontal · computador' : 'Vertical · celular' }}</strong>
+                    <small>{{ o === 'HORIZONTAL' ? 'Ideal 1920 × 640 (3:1)' : 'Ideal 1080 × 1350 (4:5)' }}</small>
+                  </div>
+                  <label class="medio__zona" [class.medio__zona--lleno]="!!m">
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4" class="oculto"
+                           (change)="elegirArchivo(o, $event)" [disabled]="subiendo()[o]" />
+                    @if (m) {
+                      <span class="medio__previa" [class.medio__previa--v]="o === 'VERTICAL'">
+                        <app-banner-slide [item]="o === 'HORIZONTAL' ? muestraH()! : muestraV()!"
+                                          [orientacion]="o" [activo]="false" />
+                      </span>
+                      <span class="medio__datos">
+                        @if (subiendo()[o]) { <span class="subiendo">Subiendo…</span> }
+                        @else if (m.ancho) {
+                          {{ m.tipo === 'VIDEO' ? 'Video' : 'Imagen' }} · {{ m.ancho }} × {{ m.alto }}
+                          @if (m.duracion_ms) { · {{ (m.duracion_ms / 1000).toFixed(0) }} s }
+                        }
+                        <span class="cambiar">Cambiar</span>
+                      </span>
+                    } @else {
+                      <mat-icon aria-hidden="true" class="medio__icono">add_photo_alternate</mat-icon>
+                      <span>Arrastra aquí o <u>elige un archivo</u></span>
+                    }
+                  </label>
+                  @if (errorMedio()[o]) {
+                    <p class="error" role="alert"><mat-icon aria-hidden="true">error</mat-icon> {{ errorMedio()[o] }}</p>
+                  }
+                </div>
+              }
+            </div>
+          </fieldset>
+
+          <fieldset class="bloque">
+            <legend><span class="num">3</span> Contenido</legend>
+            <label class="campo">
+              <span>Nombre interno <em>(solo lo ve Marketing)</em></span>
+              <input type="text" maxlength="160" [ngModel]="form().nombre_interno" (ngModelChange)="campo('nombre_interno', $event)"
+                     placeholder="Feria de servicios octubre — operarios" />
+            </label>
+            @if (previa().diseno !== 'SOLO_MEDIA') {
+              <div class="fila">
+                <label class="campo">
+                  <span>Etiqueta</span>
+                  <input type="text" maxlength="30" [ngModel]="form().etiqueta" (ngModelChange)="campo('etiqueta', $event)"
+                         [placeholder]="plantilla()?.etiqueta_defecto || 'Evento'" />
+                </label>
+                <label class="campo">
+                  <span>Texto del botón</span>
+                  <input type="text" maxlength="30" [ngModel]="form().cta_texto" (ngModelChange)="campo('cta_texto', $event)"
+                         [placeholder]="plantilla()?.cta_defecto || 'Ver más'" [disabled]="form().destino_tipo === 'NINGUNO'" />
+                </label>
+              </div>
+              <label class="campo">
+                <span>Título <small class="cuenta">{{ (form().titulo || '').length }}/90</small></span>
+                <input type="text" maxlength="90" [ngModel]="form().titulo" (ngModelChange)="campo('titulo', $event)"
+                       [placeholder]="plantilla()?.titulo_ejemplo || 'Lo más importante, en pocas palabras'" />
+              </label>
+              <label class="campo">
+                <span>Subtítulo <small class="cuenta">{{ (form().subtitulo || '').length }}/160</small></span>
+                <input type="text" maxlength="160" [ngModel]="form().subtitulo" (ngModelChange)="campo('subtitulo', $event)"
+                       [placeholder]="plantilla()?.subtitulo_ejemplo || 'Fecha, lugar o el dato que falta'" />
+              </label>
+            }
+            <label class="campo">
+              <span>Descripción <em>(se lee al abrir «Ver detalle» y la usan los lectores de pantalla)</em></span>
+              <textarea rows="3" maxlength="1500" [ngModel]="form().descripcion" (ngModelChange)="campo('descripcion', $event)"></textarea>
+            </label>
+            <label class="campo">
+              <span>Texto alternativo <em>(qué muestra la imagen, para quien no la ve)</em></span>
+              <input type="text" maxlength="250" [ngModel]="form().texto_alternativo" (ngModelChange)="campo('texto_alternativo', $event)"
+                     placeholder="Grupo de trabajadores en la feria de servicios" />
+            </label>
+            <p class="ayuda">Puedes usar <code>{{ variableNombre }}</code> para saludar a cada persona por su nombre.</p>
+          </fieldset>
+
+          <fieldset class="bloque">
+            <legend><span class="num">4</span> ¿A dónde lleva?</legend>
+            <div class="destinos">
+              @for (d of destinos; track d.valor) {
+                <button type="button" class="destino" [class.destino--on]="form().destino_tipo === d.valor"
+                        (click)="campo('destino_tipo', d.valor)">
+                  <mat-icon aria-hidden="true">{{ d.icono }}</mat-icon>
+                  <span><strong>{{ d.nombre }}</strong><small>{{ d.ayuda }}</small></span>
+                </button>
+              }
+            </div>
+            @if (form().destino_tipo === 'RUTA_INTERNA' || form().destino_tipo === 'FORMULARIO') {
+              <label class="campo">
+                <span>{{ form().destino_tipo === 'FORMULARIO' ? 'Formulario (ruta de la plataforma o enlace https://)' : 'Pantalla de la plataforma' }}</span>
+                <input type="text" list="mk-rutas" [ngModel]="form().destino_valor"
+                       (ngModelChange)="campo('destino_valor', $event)" (change)="elegirSugerencia(form().destino_valor || '')"
+                       placeholder="/dashboard/capacitaciones" />
+                <datalist id="mk-rutas">
+                  @for (m of sugerencias(); track m.ruta) {
+                    <option [value]="m.ruta">{{ m.padres.length ? m.padres.join(' › ') + ' › ' : '' }}{{ m.nombre }}</option>
+                  }
+                </datalist>
+              </label>
+              @if (nombreModulo(form().destino_valor)) {
+                <p class="ok"><mat-icon aria-hidden="true">check_circle</mat-icon> {{ nombreModulo(form().destino_valor) }}</p>
+              }
+              <label class="check">
+                <input type="checkbox" [ngModel]="form().destino_nueva_pestana" (ngModelChange)="campo('destino_nueva_pestana', $event)" />
+                <span>Abrir en otra pestaña</span>
+              </label>
+            }
+            @if (form().destino_tipo === 'URL_EXTERNA') {
+              <label class="campo">
+                <span>Enlace (https://…) <em>— se abre siempre en otra pestaña</em></span>
+                <input type="url" [ngModel]="form().destino_valor" (ngModelChange)="campo('destino_valor', $event)"
+                       placeholder="https://tuapo.co/formulario" />
+              </label>
+            }
+          </fieldset>
+
+          <fieldset class="bloque">
+              <legend><span class="num">5</span> Diseño y colores <span class="opc">opcional: por defecto, los de la plantilla</span></legend>
+              <div class="disenos">
+                @for (d of disenos; track d.valor) {
+                  <button type="button" class="diseno" [class.diseno--on]="previa().diseno === d.valor"
+                          (click)="campo('diseno', d.valor === plantilla()?.diseno ? null : d.valor)">
+                    <span class="diseno__mini" [attr.data-d]="d.valor"><i></i></span>
+                    <small>{{ d.nombre }}</small>
+                  </button>
+                }
+              </div>
+              <div class="colores">
+                @for (c of [{ k: 'color_fondo', n: 'Fondo' }, { k: 'color_texto', n: 'Texto' }, { k: 'color_acento', n: 'Acento' }]; track c.k) {
+                  <label class="color">
+                    <input type="color" [ngModel]="colorEfectivo($any(c.k))" (ngModelChange)="campo($any(c.k), $event)" />
+                    <span>{{ c.n }} @if (heredado($any(c.k))) { <small>(plantilla)</small> }
+                      @else { <button type="button" class="link" (click)="campo($any(c.k), null)">restaurar</button> }</span>
+                  </label>
+                }
+                <label class="campo campo--rango">
+                  <span>Oscurecer la foto: {{ previa().oscurecer }} %</span>
+                  <input type="range" min="0" max="90" step="5" [ngModel]="previa().oscurecer" (ngModelChange)="numero('oscurecer', $event)" />
+                </label>
+              </div>
+          </fieldset>
+
+          <fieldset class="bloque">
+            <legend><span class="num">6</span> ¿Quién lo ve?</legend>
+            <app-selector-audiencia [reglas]="form().audiencia" (reglasChange)="audiencia($event)" />
+          </fieldset>
+
+          <fieldset class="bloque">
+            <legend><span class="num">7</span> Cuándo, en qué orden y dónde</legend>
+            <div class="fila">
+              <label class="campo">
+                <span>Desde <em>(vacío = desde que se publique)</em></span>
+                <input type="datetime-local" [ngModel]="form().vigente_desde" (ngModelChange)="campo('vigente_desde', $event)" />
+              </label>
+              <label class="campo">
+                <span>Hasta <em>(vacío = sin fecha de fin)</em></span>
+                <input type="datetime-local" [ngModel]="form().vigente_hasta" (ngModelChange)="campo('vigente_hasta', $event)" />
+              </label>
+            </div>
+            <label class="campo campo--rango">
+              <span>Prioridad: <strong>{{ form().prioridad }}</strong> <em>(0 a 100; el de mayor prioridad sale primero)</em></span>
+              <input type="range" min="0" max="100" step="1" [ngModel]="form().prioridad" (ngModelChange)="numero('prioridad', $event)" />
+            </label>
+            <div class="fila">
+              <label class="campo">
+                <span>Segundos en pantalla <em>(los videos duran lo que dura el video)</em></span>
+                <input type="number" min="3" max="60" [ngModel]="form().duracion_segundos" (ngModelChange)="numero('duracion_segundos', $event)" />
+              </label>
+              <label class="campo">
+                <span>Máximo de veces por persona <em>(vacío = sin tope)</em></span>
+                <input type="number" min="1" [ngModel]="form().max_vistas_usuario" (ngModelChange)="numero('max_vistas_usuario', $event)" />
+              </label>
+            </div>
+            <label class="check">
+              <input type="checkbox" [ngModel]="form().fijado" (ngModelChange)="campo('fijado', $event)" />
+              <span><strong>Fijar al inicio</strong> — sale primero sin importar la prioridad</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" [ngModel]="form().descartable" (ngModelChange)="campo('descartable', $event)" />
+              <span>La persona puede ocultarlo («no volver a mostrar»). Desmárcalo en comunicados obligatorios.</span>
+            </label>
+            <div class="superficies">
+              <span class="etq-campo">Dónde se muestra</span>
+              @for (s of superficies(); track s.valor) {
+                <label class="check">
+                  <input type="checkbox" [ngModel]="form().superficies.includes(s.valor)" (ngModelChange)="alternarSuperficie(s.valor, $event)" />
+                  <span>{{ s.nombre }}</span>
+                </label>
+              }
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- ── vista previa ───────────────────────────────────────────────── -->
+        <aside class="col-previa">
+          <div class="previa__cab">
+            <strong>Vista previa</strong>
+            <div class="seg" role="group" aria-label="Versión">
+              <button type="button" [class.on]="vista() === 'HORIZONTAL'" (click)="vista.set('HORIZONTAL')">
+                <mat-icon aria-hidden="true">desktop_windows</mat-icon> Computador
+              </button>
+              <button type="button" [class.on]="vista() === 'VERTICAL'" (click)="vista.set('VERTICAL')">
+                <mat-icon aria-hidden="true">smartphone</mat-icon> Celular
+              </button>
+            </div>
+          </div>
+          <div class="previa" [class.previa--v]="vista() === 'VERTICAL'">
+            <app-banner-slide [item]="previa()" [orientacion]="vista()" [activo]="true" [miniatura]="true" nombreUsuario="Ana" />
+            @if ((vista() === 'HORIZONTAL' && !medioH()) || (vista() === 'VERTICAL' && !medioV())) {
+              <span class="previa__falta">Falta la versión {{ vista() === 'HORIZONTAL' ? 'horizontal' : 'vertical' }}</span>
+            }
+          </div>
+          <p class="ayuda">Así lo verá la gente en el home. «Ana» es un ejemplo de <code>nombre</code>.</p>
+
+          @if (problemas().length) {
+            <div class="avisos avisos--error" role="alert">
+              <strong>No se pudo completar:</strong>
+              <ul>@for (p of problemas(); track p) { <li>{{ p }}</li> }</ul>
+            </div>
+          } @else if (faltantes().length) {
+            <div class="avisos">
+              <strong>Para publicar falta:</strong>
+              <ul>@for (p of faltantes(); track p) { <li>{{ p }}</li> }</ul>
+            </div>
+          } @else {
+            <p class="listo"><mat-icon aria-hidden="true">task_alt</mat-icon> Listo para publicar.</p>
+          }
+
+          @if (banner()?.metricas; as met) {
+            @if (met.vistas) {
+              <div class="mini-met">
+                <span>Alcance: <strong>{{ met.alcance }}</strong></span>
+                <span>Con clic: <strong>{{ met.personas_clic }}</strong> ({{ met.tasa_clic }} %)</span>
+              </div>
+            }
+          }
+        </aside>
+      </div>
+
+      <footer class="pie">
+        <button type="button" class="btn btn--fantasma" (click)="cerrar()">Cerrar</button>
+        <span class="grow"></span>
+        <button type="button" class="btn btn--fantasma" (click)="guardar()" [disabled]="guardando()">
+          <mat-icon aria-hidden="true">save</mat-icon> Guardar {{ publicado() ? 'cambios' : 'borrador' }}
+        </button>
+        @if (publicado()) {
+          <button type="button" class="btn btn--alerta" (click)="pausar()" [disabled]="guardando()">
+            <mat-icon aria-hidden="true">pause</mat-icon> Pausar
+          </button>
+        } @else {
+          <button type="button" class="btn btn--primario" (click)="publicar()"
+                  [disabled]="guardando() || faltantes().length > 0"
+                  [title]="faltantes().length ? faltantes().join(' ') : 'Publicar'">
+            <mat-icon aria-hidden="true">campaign</mat-icon> Publicar
+          </button>
+        }
+      </footer>
+    }
+  </section>
+</div>

@@ -28,6 +28,7 @@ import { MerchandisingMerchandiseComponent } from '../components/merchandising-m
 import { MigrationPanelComponent } from '../components/migration-panel/migration-panel.component';
 import { InfoCardComponent } from '@/app/shared/components/info-card/info-card.component';
 import { HomeDashboardComponent } from '../components/home-dashboard/home-dashboard.component';
+import { CarruselHomeComponent } from '../../marketing/carrusel/carrusel-home.component';
 import {
   HomeService,
   PdfKey,
@@ -74,6 +75,7 @@ type ProgresoTipoPrioridadRow = {
     MigrationPanelComponent,
     InfoCardComponent,
     HomeDashboardComponent,
+    CarruselHomeComponent,
 ],
   templateUrl: './home.component.html',
   styleUrls: ['./home.component.css'],

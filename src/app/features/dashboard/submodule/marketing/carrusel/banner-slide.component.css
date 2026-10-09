@@ -1,0 +1,234 @@
+:host { display: block; width: 100%; height: 100%; }
+
+.bs-slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--b-fondo);
+  color: var(--b-texto);
+  isolation: isolate;
+  /* El texto se mide contra el ANCHO DEL BANNER (cqw), no contra la ventana: así el mismo
+     componente se ve igual en el home, en la vista previa del editor y en una miniatura,
+     solo que a escala. Cada regla declara antes un valor en px/vw para navegadores sin
+     container queries. */
+  container-type: inline-size;
+}
+.bs-slide--clicable { cursor: pointer; }
+
+.bs-medio, .bs-velo { position: absolute; inset: 0; }
+.bs-medio img, .bs-medio video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── texto ──────────────────────────────────────────────────────────────── */
+.bs-contenido {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  gap: clamp(4px, .9cqw, 12px);
+  box-sizing: border-box;
+}
+.bs-etiqueta {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  padding: clamp(2px, .35cqw, 5px) clamp(6px, 1cqw, 13px);
+  border-radius: 999px;
+  background: var(--b-acento);
+  color: var(--b-fondo);
+  font-size: .74rem;
+  font-size: clamp(7px, .95cqw, 12px);
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.bs-etiqueta .mat-icon { font-size: 1.3em; width: 1.3em; height: 1.3em; }
+.bs-titulo {
+  margin: 0;
+  font-size: clamp(1.25rem, 2.5vw, 2.35rem);
+  font-size: clamp(10px, 3cqw, 40px);
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -.01em;
+  text-wrap: balance;
+  text-shadow: 0 1px 12px rgb(0 0 0 / .25);
+}
+.bs-subtitulo {
+  margin: 0;
+  font-size: clamp(.88rem, 1.25vw, 1.12rem);
+  font-size: clamp(8px, 1.5cqw, 19px);
+  line-height: 1.4;
+  opacity: .94;
+  max-width: 52ch;
+  text-wrap: pretty;
+}
+.bs-cta {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--b-acento);
+  color: var(--b-fondo);
+  font: inherit;
+  font-size: .92rem;
+  font-weight: 800;
+  cursor: pointer;
+  min-height: 44px !important;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .22);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.bs-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgb(0 0 0 / .28); }
+.bs-cta:focus-visible { outline: 3px solid var(--b-texto); outline-offset: 3px; }
+.bs-cta .mat-icon { font-size: 1.25em; width: 1.25em; height: 1.25em; }
+/* En una miniatura o en la vista previa el botón no puede medir 44 px: se escala con el
+   banner. En el banner real (también en un celular) conserva el mínimo táctil. */
+.bs-slide--mini .bs-cta {
+  min-height: 0 !important;
+  padding: clamp(2px, 1cqw, 10px) clamp(6px, 2cqw, 20px);
+  font-size: clamp(6px, 1.3cqw, 15px);
+  margin-top: 0;
+}
+.bs-slide--mini[data-orientacion="VERTICAL"] .bs-cta { font-size: clamp(6px, 3.4cqw, 15px); padding: clamp(2px, 2cqw, 10px) clamp(6px, 4.4cqw, 20px); }
+.bs-cta--flotante { position: absolute; z-index: 2; right: 20px; bottom: 20px; }
+
+.bs-ocultar {
+  position: absolute;
+  z-index: 3;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  /* !important: styles.css fuerza 48 px a todo <button>. */
+  min-height: 32px !important;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / .38);
+  color: #fff;
+  cursor: pointer;
+  opacity: .75;
+  transition: opacity .15s ease, background .15s ease;
+}
+.bs-ocultar:hover, .bs-ocultar:focus-visible { opacity: 1; background: rgb(0 0 0 / .6); }
+.bs-ocultar .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+/* ── diseños, versión HORIZONTAL ───────────────────────────────────────── */
+.bs-slide[data-diseno="TEXTO_IZQUIERDA"] .bs-velo {
+  background: linear-gradient(90deg,
+    rgb(0 0 0 / calc(var(--b-velo) * 1.15)) 0%,
+    rgb(0 0 0 / calc(var(--b-velo) * .7)) 42%,
+    rgb(0 0 0 / 0) 78%);
+}
+.bs-slide[data-diseno="TEXTO_IZQUIERDA"] .bs-contenido {
+  left: clamp(20px, 5%, 64px);
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: min(560px, 55%);
+}
+
+.bs-slide[data-diseno="TEXTO_CENTRO"] .bs-velo { background: rgb(0 0 0 / var(--b-velo)); }
+.bs-slide[data-diseno="TEXTO_CENTRO"] .bs-contenido {
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 12%;
+}
+.bs-slide[data-diseno="TEXTO_CENTRO"] .bs-etiqueta,
+.bs-slide[data-diseno="TEXTO_CENTRO"] .bs-cta { align-self: center; }
+.bs-slide[data-diseno="TEXTO_CENTRO"] .bs-subtitulo { margin-inline: auto; }
+
+.bs-slide[data-diseno="FRANJA_INFERIOR"] .bs-velo {
+  background: linear-gradient(0deg, rgb(0 0 0 / calc(var(--b-velo) * 1.2)) 0%, rgb(0 0 0 / 0) 60%);
+}
+.bs-slide[data-diseno="FRANJA_INFERIOR"] .bs-contenido {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 20px;
+  row-gap: 6px;
+  padding: 18px clamp(20px, 5%, 64px);
+  padding: clamp(6px, 1.5cqw, 20px) clamp(10px, 5%, 64px);
+  background: color-mix(in srgb, var(--b-fondo) 88%, transparent);
+  backdrop-filter: blur(6px);
+}
+.bs-slide[data-diseno="FRANJA_INFERIOR"] .bs-titulo { font-size: clamp(1.1rem, 2vw, 1.8rem); font-size: clamp(9px, 2.3cqw, 32px); flex: 1 1 50%; }
+.bs-slide[data-diseno="FRANJA_INFERIOR"] .bs-subtitulo { flex: 1 1 100%; order: 3; }
+.bs-slide[data-diseno="FRANJA_INFERIOR"] .bs-etiqueta { align-self: center; }
+.bs-slide[data-diseno="FRANJA_INFERIOR"] .bs-cta { align-self: center; margin-top: 0; }
+
+.bs-slide[data-diseno="TARJETA_LATERAL"] .bs-velo { display: none; }
+.bs-slide[data-diseno="TARJETA_LATERAL"] .bs-contenido {
+  right: clamp(16px, 4%, 48px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(420px, 42%);
+  padding: clamp(18px, 2.4vw, 30px);
+  padding: clamp(8px, 2.4cqw, 30px);
+  border-radius: 18px;
+  background: var(--b-fondo);
+  box-shadow: 0 18px 44px rgb(0 0 0 / .3);
+}
+.bs-slide[data-diseno="TARJETA_LATERAL"] .bs-titulo { text-shadow: none; font-size: clamp(1.15rem, 2vw, 1.9rem); font-size: clamp(9px, 2.3cqw, 32px); }
+
+/* ── versión VERTICAL (celulares): todo se apila abajo ─────────────────── */
+.bs-slide[data-orientacion="VERTICAL"] .bs-titulo { font-size: clamp(1.35rem, 6.4vw, 2rem); font-size: clamp(10px, 7cqw, 38px); }
+.bs-slide[data-orientacion="VERTICAL"] .bs-subtitulo { font-size: clamp(.9rem, 3.8vw, 1.05rem); font-size: clamp(8px, 4cqw, 20px); }
+.bs-slide[data-orientacion="VERTICAL"] .bs-etiqueta { font-size: clamp(7px, 2.6cqw, 13px); }
+
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="TEXTO_IZQUIERDA"] .bs-velo {
+  background: linear-gradient(0deg,
+    rgb(0 0 0 / calc(var(--b-velo) * 1.25)) 0%,
+    rgb(0 0 0 / calc(var(--b-velo) * .6)) 45%,
+    rgb(0 0 0 / 0) 75%);
+}
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="TEXTO_IZQUIERDA"] .bs-contenido {
+  left: 20px;
+  right: 20px;
+  top: auto;
+  bottom: 28px;
+  transform: none;
+  max-width: none;
+}
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="TEXTO_CENTRO"] .bs-contenido { padding: 24px 22px; }
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="FRANJA_INFERIOR"] .bs-contenido {
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px 20px 26px;
+}
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="FRANJA_INFERIOR"] .bs-titulo { flex: none; font-size: clamp(1.25rem, 5.8vw, 1.8rem); font-size: clamp(10px, 6.2cqw, 34px); }
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="FRANJA_INFERIOR"] .bs-subtitulo { order: 0; }
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="FRANJA_INFERIOR"] .bs-etiqueta,
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="FRANJA_INFERIOR"] .bs-cta { align-self: flex-start; }
+.bs-slide[data-orientacion="VERTICAL"][data-diseno="TARJETA_LATERAL"] .bs-contenido {
+  left: 14px;
+  right: 14px;
+  top: auto;
+  bottom: 14px;
+  transform: none;
+  width: auto;
+}
+.bs-slide[data-orientacion="VERTICAL"] .bs-cta--flotante { right: 14px; bottom: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bs-cta { transition: none; }
+  .bs-cta:hover { transform: none; }
+}

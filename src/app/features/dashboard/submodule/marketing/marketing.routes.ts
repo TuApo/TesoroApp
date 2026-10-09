@@ -56,6 +56,13 @@ export const routes: Routes = [
     data: { title: 'Seguimiento de vacantes' },
   },
   {
+    // Carrusel del home: banners de eventos, comunicados y publicidad que se ven de primero
+    // al entrar a la plataforma, con audiencia por rol, sede, grupo, persona o evento.
+    path: 'banners',
+    loadComponent: () => import('./pages/banners/banners.component').then((m) => m.BannersComponent),
+    data: { title: 'Carrusel del home' },
+  },
+  {
     path: 'config-marcas',
     loadComponent: () =>
       import('./pages/config-marcas/config-marcas.component').then((m) => m.ConfigMarcasComponent),

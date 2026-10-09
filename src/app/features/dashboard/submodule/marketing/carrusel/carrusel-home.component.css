@@ -1,0 +1,208 @@
+:host { display: block; }
+
+.carrusel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+  outline: none;
+  border-radius: 18px;
+}
+.carrusel:focus-visible .marco { box-shadow: 0 0 0 3px var(--primary, #2b59f0); }
+.marco {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  max-height: 380px;
+  min-height: 180px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface-3, #eef1f6);
+  box-shadow: 0 10px 30px rgb(15 23 42 / .10);
+  touch-action: pan-y;
+}
+.marco[data-orientacion="VERTICAL"] {
+  aspect-ratio: 4 / 5;
+  max-height: 72vh;
+  border-radius: 16px;
+}
+.marco--esqueleto {
+  background: linear-gradient(100deg, var(--surface-3, #eef1f6) 30%, var(--surface-2, #f7f9fc) 50%, var(--surface-3, #eef1f6) 70%);
+  background-size: 200% 100%;
+  animation: brillo 1.2s linear infinite;
+  box-shadow: none;
+}
+@keyframes brillo { to { background-position: -200% 0; } }
+
+.pista, .hoja { position: absolute; inset: 0; }
+.hoja {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .5s ease, visibility 0s linear .5s;
+}
+.hoja--activa {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity .5s ease, visibility 0s;
+  z-index: 1;
+}
+
+/* ── flechas ────────────────────────────────────────────────────────────── */
+.flecha {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  /* !important: styles.css fuerza 48 px a todo <button>. */
+  min-height: 40px !important;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / .88);
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgb(0 0 0 / .18);
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+.flecha--izq { left: 12px; }
+.flecha--der { right: 12px; }
+.marco:hover .flecha, .carrusel:focus-within .flecha { opacity: 1; }
+.flecha:focus-visible { opacity: 1; outline: 3px solid var(--primary, #2b59f0); outline-offset: 2px; }
+
+/* En pantallas táctiles no hay hover: las flechas sobran (se desliza con el dedo). */
+@media (hover: none) { .flecha { display: none; } }
+
+/* ── puntos y controles (debajo del banner) ────────────────────────────── */
+.controles {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 28px;
+}
+.controles:empty { display: none; }
+.puntos { display: flex; align-items: center; gap: 7px; }
+.punto {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  /* !important: styles.css fuerza 48 px a todo <button>. */
+  min-height: 8px !important;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text, #0f1b2d) 22%, transparent);
+  cursor: pointer;
+  transition: width .25s ease, background .25s ease;
+}
+/* Área táctil de 24 px sin agrandar el punto. */
+.punto::before { content: ""; position: absolute; inset: -8px -4px; }
+.punto--activo { width: 28px; overflow: hidden; background: color-mix(in srgb, var(--primary, #2b59f0) 25%, transparent); }
+.punto__progreso {
+  position: absolute;
+  inset: 0;
+  background: var(--primary, #2b59f0);
+  transform-origin: left center;
+  animation-name: avance;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.punto__progreso--quieto { animation-play-state: paused; }
+@keyframes avance { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.control {
+  width: 28px;
+  height: 28px;
+  min-height: 28px !important;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted, #6b778c);
+  cursor: pointer;
+}
+.control:hover { background: var(--surface-3, #eef1f6); }
+.control:focus-visible, .punto:focus-visible { outline: 2px solid var(--primary, #2b59f0); outline-offset: 2px; }
+.control .mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+/* ── detalle ────────────────────────────────────────────────────────────── */
+.telon {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgb(15 23 42 / .55);
+  backdrop-filter: blur(3px);
+}
+.detalle {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  border-radius: 18px;
+  background: var(--surface, #fff);
+  color: var(--text, #0f1b2d);
+  box-shadow: 0 30px 80px rgb(0 0 0 / .35);
+}
+.detalle__medio { aspect-ratio: 3 / 1; }
+.detalle__cuerpo { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 10px; }
+.detalle__cuerpo h2 { margin: 0; font-size: 1.35rem; font-weight: 800; }
+.detalle__etq {
+  align-self: flex-start;
+  font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em;
+  padding: 3px 10px; border-radius: 999px; background: var(--surface-3); color: var(--muted);
+}
+.detalle__sub { margin: 0; color: var(--muted); }
+.detalle__desc { margin: 0; white-space: pre-line; line-height: 1.55; }
+.detalle__cerrar {
+  align-self: flex-end;
+  margin-top: 8px;
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary, #2b59f0);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.detalle__x {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  width: 36px;
+  height: 36px;
+  min-height: 36px !important;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / .45);
+  color: #fff;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .carrusel { margin-bottom: 14px; }
+  .detalle__cuerpo { padding: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hoja, .hoja--activa { transition: none; }
+  .marco--esqueleto { animation: none; }
+  .punto__progreso { animation: none; transform: scaleX(1); }
+}

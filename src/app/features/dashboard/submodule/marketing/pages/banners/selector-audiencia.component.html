@@ -1,0 +1,88 @@
+<div class="aud" [class.aud--off]="deshabilitado()">
+  <div class="modo">
+    <button type="button" class="modo__op" [class.modo__op--on]="paraTodos()" (click)="paraTodosClick()">
+      <mat-icon aria-hidden="true">public</mat-icon>
+      <span><strong>Todas las personas</strong><small>Cualquiera con sesión en la plataforma</small></span>
+    </button>
+    <button type="button" class="modo__op" [class.modo__op--on]="!paraTodos()" (click)="pestana.set('ROL')">
+      <mat-icon aria-hidden="true">filter_alt</mat-icon>
+      <span><strong>Personalizada</strong><small>Por rol, sede, grupo, personas o evento</small></span>
+    </button>
+  </div>
+
+  <p class="frase"><mat-icon aria-hidden="true">visibility</mat-icon> <span>Lo verán: <strong>{{ frase() }}</strong></span></p>
+  <p class="regla">Dentro de un mismo tipo basta con cumplir uno (rol A <em>o</em> rol B). Entre tipos hay que cumplirlos
+     todos (rol A <em>y</em> sede X). Lo excluido no lo ve nunca.</p>
+
+  @if (reglas().length) {
+    <div class="elegidas">
+      @for (r of reglas(); track r.tipo + r.valor + r.excluir) {
+        <span class="chip" [class.chip--fuera]="r.excluir">
+          <small>{{ r.excluir ? 'Sin' : nombreTipo(r.tipo) }}</small> {{ r.etiqueta || r.valor }}
+          <button type="button" (click)="quitar(r)" [attr.aria-label]="'Quitar ' + (r.etiqueta || r.valor)">
+            <mat-icon aria-hidden="true">close</mat-icon>
+          </button>
+        </span>
+      }
+    </div>
+  }
+
+  <div class="selector">
+    <div class="tabs" role="tablist">
+      @for (t of tipos; track t.tipo) {
+        <button type="button" role="tab" class="tab" [class.tab--on]="pestana() === t.tipo"
+                [attr.aria-selected]="pestana() === t.tipo" (click)="pestana.set(t.tipo); busqueda.set('')">
+          <mat-icon aria-hidden="true">{{ t.icono }}</mat-icon> {{ t.nombre }}
+        </button>
+      }
+    </div>
+
+    <div class="barra">
+      <label class="aud-buscar">
+        <mat-icon aria-hidden="true">search</mat-icon>
+        <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)"
+               [placeholder]="pestana() === 'USUARIO' ? 'Busca por nombre, cédula o correo' : 'Filtrar'" />
+      </label>
+      <label class="excluir">
+        <input type="checkbox" [ngModel]="modoExcluir()" (ngModelChange)="modoExcluir.set($event)" />
+        <span>Lo que marque ahora, <strong>excluirlo</strong></span>
+      </label>
+    </div>
+
+    @if (cargando()) {
+      <p class="nota">Cargando catálogos…</p>
+    } @else {
+      <div class="opciones">
+        @for (o of filtradas(); track o.valor) {
+          <button type="button" class="op" [class.op--in]="estado(o) === 'in'" [class.op--out]="estado(o) === 'out'"
+                  (click)="alternar(o)">
+            <mat-icon aria-hidden="true">{{ estado(o) === 'in' ? 'check_circle' : estado(o) === 'out' ? 'block' : 'add_circle_outline' }}</mat-icon>
+            <span class="op__txt"><span>{{ o.nombre }}</span>@if (o.detalle) {<small>{{ o.detalle }}</small>}</span>
+          </button>
+        } @empty {
+          <p class="nota">
+            @if (pestana() === 'USUARIO' && !busqueda()) { Escribe para buscar personas. }
+            @else if (pestana() === 'EVENTO') { No hay eventos activos. Créalos en la pestaña «Eventos de plataforma». }
+            @else { Nada coincide. }
+          </p>
+        }
+      </div>
+      @if (pestana() === 'USUARIO') {
+        <div class="cedulas">
+          <label>
+            <span>¿Tienes una lista? Pega las cédulas (una por línea):</span>
+            <textarea rows="3" [ngModel]="cedulas()" (ngModelChange)="cedulas.set($event)"
+                      placeholder="1023456789&#10;52123456"></textarea>
+          </label>
+          <button type="button" class="btn-sec" (click)="agregarCedulas()" [disabled]="!cedulas().trim()">
+            <mat-icon aria-hidden="true">playlist_add</mat-icon> Agregar cédulas
+          </button>
+        </div>
+      }
+      @if (pestana() === 'EVENTO') {
+        <p class="nota">Un banner con evento solo le sale a quien tenga ese evento vigente (por ejemplo, el día de su
+          cumpleaños). Su texto puede usar <code>{{ variableNombre }}</code>.</p>
+      }
+    }
+  </div>
+</div>

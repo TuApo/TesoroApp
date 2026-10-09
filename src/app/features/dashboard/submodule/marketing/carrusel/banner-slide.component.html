@@ -1,0 +1,58 @@
+<div class="bs-slide"
+     [style]="estilo()"
+     [attr.data-diseno]="item().diseno"
+     [attr.data-orientacion]="orientacion()"
+     [class.bs-slide--clicable]="soloMedia() && hayCta()"
+     [class.bs-slide--mini]="miniatura()"
+     (click)="soloMedia() && hayCta() ? cta.emit() : null">
+
+  <div class="bs-medio">
+    @if (src()) {
+      @if (esVideo()) {
+        <video #video
+               [src]="src()"
+               muted
+               playsinline
+               preload="metadata"
+               [attr.aria-label]="alt()"
+               (ended)="alTerminarVideo()"></video>
+      } @else {
+        <img [src]="src()" [alt]="alt()" decoding="async" />
+      }
+    }
+  </div>
+
+  @if (!soloMedia()) {
+    <div class="bs-velo" aria-hidden="true"></div>
+    <div class="bs-contenido">
+      @if (etiqueta()) {
+        <span class="bs-etiqueta">
+          @if (item().icono) { <mat-icon aria-hidden="true">{{ item().icono }}</mat-icon> }
+          {{ etiqueta() }}
+        </span>
+      }
+      @if (titulo()) { <h2 class="bs-titulo">{{ titulo() }}</h2> }
+      @if (subtitulo()) { <p class="bs-subtitulo">{{ subtitulo() }}</p> }
+      @if (hayCta()) {
+        <button type="button" class="bs-cta" (click)="$event.stopPropagation(); cta.emit()">
+          {{ item().cta_texto }}
+          <mat-icon aria-hidden="true">{{ item().destino.tipo === 'URL_EXTERNA' ? 'open_in_new' : 'arrow_forward' }}</mat-icon>
+        </button>
+      }
+    </div>
+  } @else if (hayCta()) {
+    <!-- La pieza ya trae su texto: solo un botón discreto para quien no sepa que se puede tocar. -->
+    <button type="button" class="bs-cta bs-cta--flotante" (click)="$event.stopPropagation(); cta.emit()">
+      {{ item().cta_texto }}
+      <mat-icon aria-hidden="true">{{ item().destino.tipo === 'URL_EXTERNA' ? 'open_in_new' : 'arrow_forward' }}</mat-icon>
+    </button>
+  }
+
+  @if (item().descartable && !miniatura()) {
+    <button type="button" class="bs-ocultar" title="No volver a mostrar"
+            aria-label="No volver a mostrar este anuncio"
+            (click)="$event.stopPropagation(); ocultar.emit()">
+      <mat-icon aria-hidden="true">close</mat-icon>
+    </button>
+  }
+</div>

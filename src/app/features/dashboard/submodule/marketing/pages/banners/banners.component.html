@@ -1,0 +1,230 @@
+<section class="pagina">
+  <header class="cabecera">
+    <div>
+      <h2>Carrusel del home</h2>
+      <p class="sub">Eventos, comunicados y publicidad que se ven <strong>de primero</strong> al entrar a la plataforma,
+        en computador y en celular. Hoy hay <strong>{{ enAire() }}</strong> en el aire.</p>
+    </div>
+    @if (!sinPermiso()) {
+      <button type="button" class="btn btn--primario" (click)="nuevo()"><mat-icon>add</mat-icon> Nuevo banner</button>
+    }
+  </header>
+
+  @if (sinPermiso()) {
+    <div class="vacio">
+      <mat-icon>lock</mat-icon>
+      <p><strong>Solo el equipo de Marketing administra el carrusel.</strong></p>
+      <p>Si necesitas publicar un comunicado, pídeselo a Marketing.</p>
+    </div>
+  } @else {
+    <nav class="pestanas" role="tablist">
+      <button type="button" role="tab" [class.on]="pestana() === 'banners'" (click)="pestana.set('banners')">
+        <mat-icon>view_carousel</mat-icon> Banners</button>
+      <button type="button" role="tab" [class.on]="pestana() === 'plantillas'" (click)="pestana.set('plantillas')">
+        <mat-icon>palette</mat-icon> Plantillas</button>
+      <button type="button" role="tab" [class.on]="pestana() === 'eventos'" (click)="pestana.set('eventos')">
+        <mat-icon>event</mat-icon> Eventos de plataforma</button>
+      <button type="button" role="tab" [class.on]="pestana() === 'simulador'" (click)="abrirSimulador()">
+        <mat-icon>person_search</mat-icon> ¿Qué ve una persona?</button>
+    </nav>
+
+    @switch (pestana()) {
+      @case ('banners') {
+        <div class="filtros" role="group" aria-label="Filtrar">
+          @for (f of filtros; track f.valor) {
+            <button type="button" class="chip-filtro" [class.on]="filtro() === f.valor" (click)="elegirFiltro(f.valor)">
+              {{ f.nombre }}
+              @if (f.valor !== 'TODOS' && f.valor !== 'ARCHIVADO' && conteos()[f.valor]) { <span class="n">{{ conteos()[f.valor] }}</span> }
+            </button>
+          }
+        </div>
+        @if (ordenable()) {
+          <p class="sub pista"><mat-icon>drag_indicator</mat-icon> Arrastra para cambiar el orden en que salen. Los fijados van siempre primero.</p>
+        }
+
+        @if (cargando()) {
+          <p class="sub">Cargando…</p>
+        } @else if (!visibles().length) {
+          <div class="vacio">
+            <mat-icon>view_carousel</mat-icon>
+            @if (filtro() === 'TODOS') {
+              <p><strong>Todavía no hay banners.</strong></p>
+              <p>Crea el primero: elige un tipo de comunicado, sube la versión horizontal y la vertical, y decide quién lo ve.</p>
+              <button type="button" class="btn btn--primario" (click)="nuevo()"><mat-icon>add</mat-icon> Crear banner</button>
+            } @else {
+              <p>No hay banners en «{{ situacionTexto(filtro()) }}».</p>
+            }
+          </div>
+        } @else {
+          <ol class="lista" cdkDropList [cdkDropListDisabled]="!ordenable()" (cdkDropListDropped)="soltar($event)">
+            @for (b of visibles(); track b.id; let i = $index) {
+              <li class="item" cdkDrag [cdkDragData]="b" [attr.data-situacion]="b.situacion">
+                @if (ordenable()) {
+                  <span class="asa" cdkDragHandle aria-hidden="true"><mat-icon>drag_indicator</mat-icon></span>
+                }
+                <button type="button" class="miniatura" (click)="editar(b)" [attr.aria-label]="'Editar ' + b.nombre_interno">
+                  @if (b.horizontal) {
+                    <app-banner-slide [item]="b" orientacion="HORIZONTAL" [activo]="false" [miniatura]="true" nombreUsuario="Ana" />
+                  } @else {
+                    <span class="miniatura__falta"><mat-icon>image_not_supported</mat-icon> Sin imagen</span>
+                  }
+                </button>
+                <div class="info">
+                  <div class="info__fila">
+                    <strong class="item-nombre">{{ b.nombre_interno }}</strong>
+                    <span class="sit" [attr.data-s]="b.situacion">{{ situacionTexto(b.situacion) }}</span>
+                    @if (b.fijado) { <span class="tag"><mat-icon>push_pin</mat-icon> Fijado</span> }
+                    @if (b.plantilla_nombre) { <span class="tag tag--suave">{{ b.plantilla_nombre }}</span> }
+                  </div>
+                  <div class="meta"><mat-icon>schedule</mat-icon> {{ vigencia(b) }}</div>
+                  <div class="meta"><mat-icon>groups</mat-icon> {{ b.audiencia_resumen }}</div>
+                  <div class="meta">
+                    <mat-icon>low_priority</mat-icon> Prioridad {{ b.prioridad }}
+                    @if (!b.horizontal || !b.vertical) {
+                      <span class="falta"><mat-icon>warning</mat-icon> Falta la versión {{ !b.horizontal ? 'horizontal' : 'vertical' }}</span>
+                    }
+                  </div>
+                  @if (b.metricas; as m) {
+                    <button type="button" class="metricas" (click)="verMetricas(b)" title="Ver la evolución">
+                      <span>Alcance <strong>{{ m.alcance | number }}</strong></span>
+                      <span>Vistas <strong>{{ m.vistas | number }}</strong></span>
+                      <span>Clics <strong>{{ m.personas_clic | number }}</strong> ({{ m.tasa_clic }} %)</span>
+                      @if (m.descartes) { <span>Lo ocultaron <strong>{{ m.descartes | number }}</strong></span> }
+                    </button>
+                  }
+                </div>
+                <div class="acciones">
+                  <button type="button" class="mini" (click)="editar(b)" title="Editar"><mat-icon>edit</mat-icon></button>
+                  @if (b.estado === 'PUBLICADO') {
+                    <button type="button" class="mini" (click)="pausar(b)" title="Pausar"><mat-icon>pause</mat-icon></button>
+                  } @else if (b.estado !== 'ARCHIVADO') {
+                    <button type="button" class="mini mini--ok" (click)="publicar(b)"
+                            [disabled]="b.problemas_para_publicar.length > 0"
+                            [title]="b.problemas_para_publicar.length ? b.problemas_para_publicar.join(' ') : 'Publicar'">
+                      <mat-icon>play_arrow</mat-icon></button>
+                  }
+                  @if (b.estado === 'ARCHIVADO') {
+                    <button type="button" class="mini" (click)="restaurar(b)" title="Restaurar como borrador"><mat-icon>unarchive</mat-icon></button>
+                  } @else {
+                    <button type="button" class="mini" (click)="duplicar(b)" title="Duplicar"><mat-icon>content_copy</mat-icon></button>
+                    <button type="button" class="mini" (click)="archivar(b)" title="Archivar"><mat-icon>archive</mat-icon></button>
+                  }
+                  @if (ordenable()) {
+                    <span class="flechas-orden">
+                      <button type="button" class="mini mini--chico" (click)="mover(b, -1)" [disabled]="i === 0" title="Subir"><mat-icon>arrow_upward</mat-icon></button>
+                      <button type="button" class="mini mini--chico" (click)="mover(b, 1)" [disabled]="i === visibles().length - 1" title="Bajar"><mat-icon>arrow_downward</mat-icon></button>
+                    </span>
+                  }
+                </div>
+              </li>
+            }
+          </ol>
+        }
+      }
+
+      @case ('plantillas') {
+        <app-plantillas-banner [plantillas]="plantillas()" (cambio)="recargarPlantillas()" (usar)="nuevo($event)" />
+      }
+
+      @case ('eventos') {
+        <app-eventos-plataforma />
+      }
+
+      @case ('simulador') {
+        <div class="simulador">
+          <p class="sub">Elige a una persona y mira qué banners le salen hoy (o en otra fecha), en qué orden, y por qué no
+            le sale cada uno de los demás. Útil para revisar una audiencia antes de publicar.</p>
+          <div class="sim-form">
+            <label class="campo buscar-persona">
+              <span>Persona</span>
+              @if (persona(); as p) {
+                <span class="elegida">{{ p.nombre }} <small>{{ p.detalle }}</small>
+                  <button type="button" class="link" (click)="persona.set(null)">cambiar</button></span>
+              } @else {
+                <input type="search" [ngModel]="busquedaPersona()" (ngModelChange)="busquedaPersona.set($event)"
+                       placeholder="Nombre, cédula o correo (mínimo 3 letras)" />
+                @if (personasFiltradas().length) {
+                  <ul class="sugerencias">
+                    @for (p of personasFiltradas(); track p.id) {
+                      <li><button type="button" (click)="elegirPersona(p)">{{ p.nombre }} <small>{{ p.detalle }}</small></button></li>
+                    }
+                  </ul>
+                }
+              }
+            </label>
+            <label class="campo"><span>Cédula <em>(para los eventos cargados por cédula)</em></span>
+              <input [ngModel]="cedulaSim()" (ngModelChange)="cedulaSim.set($event)" placeholder="1023456789" /></label>
+            <label class="campo"><span>Fecha y hora <em>(vacío = ahora)</em></span>
+              <input type="datetime-local" [ngModel]="fechaSim()" (ngModelChange)="fechaSim.set($event)" /></label>
+            <button type="button" class="btn btn--primario" (click)="simular()" [disabled]="simulando() || (!persona() && !cedulaSim())">
+              <mat-icon>visibility</mat-icon> Simular</button>
+          </div>
+
+          @if (simulacion(); as s) {
+            @if (!s.perfil.audiencia_resuelta) {
+              <p class="aviso-sim"><mat-icon>info</mat-icon> No se pudo consultar la sede y los grupos de esta persona: solo se
+                evalúan rol, cédula y eventos.</p>
+            }
+            @if (s.perfil.eventos.length) {
+              <p class="sub">Eventos vigentes: <strong>{{ s.perfil.eventos.join(', ') }}</strong></p>
+            }
+            <h3 class="sim-tit">Vería {{ s.veria.length }} banner(es), en este orden</h3>
+            <div class="sim-veria">
+              @for (it of s.veria; track it.id; let i = $index) {
+                <figure>
+                  <span class="orden">{{ i + 1 }}</span>
+                  <div class="sim-slide"><app-banner-slide [item]="it" orientacion="HORIZONTAL" [activo]="false" [miniatura]="true"
+                                                           [nombreUsuario]="(persona()?.nombre ?? '').split(' ')[0]" /></div>
+                  @if (it.evento_nombre) { <figcaption>Por el evento «{{ it.evento_nombre }}»</figcaption> }
+                </figure>
+              } @empty {
+                <p class="sub">Ninguno: su home se vería sin carrusel.</p>
+              }
+            </div>
+            @if (s.no_veria.length) {
+              <h3 class="sim-tit">No vería</h3>
+              <ul class="no-veria">
+                @for (n of s.no_veria; track n.id) { <li><strong>{{ n.nombre_interno }}</strong> — {{ n.motivo }}</li> }
+              </ul>
+            }
+          }
+        </div>
+      }
+    }
+  }
+</section>
+
+@if (editorId() !== undefined) {
+  <app-banner-editor [bannerId]="editorId() ?? null" [plantillas]="plantillas()" [catalogo]="catalogo()"
+                     [plantillaInicial]="plantillaParaNuevo()" (cerrado)="alCerrarEditor($event)" />
+}
+
+@if (metricasDe(); as b) {
+  <div class="telon" (click)="metricasDe.set(null)">
+    <div class="panel panel--ancho" (click)="$event.stopPropagation()">
+      <h3>{{ b.nombre_interno }} · últimos 30 días</h3>
+      @if (b.metricas; as m) {
+        <div class="kpis">
+          <div><strong>{{ m.alcance | number }}</strong><span>alcance (personas distintas)</span></div>
+          <div><strong>{{ m.vistas | number }}</strong><span>vistas</span></div>
+          <div><strong>{{ m.personas_clic | number }}</strong><span>con clic (personas)</span></div>
+          <div><strong>{{ m.tasa_clic }} %</strong><span>tasa de clic</span></div>
+        </div>
+      }
+      @if (serie().length) {
+        <div class="barras" role="img" [attr.aria-label]="'Vistas por día de ' + b.nombre_interno">
+          @for (p of serie(); track p.dia) {
+            <div class="barra" [title]="(p.dia | date: 'd MMM') + ': ' + p.vistas + ' vistas, ' + p.clics + ' clics'">
+              <span class="barra__v" [style.height.%]="(p.vistas / maxSerie()) * 100"></span>
+              <span class="barra__c" [style.height.%]="(p.clics / maxSerie()) * 100"></span>
+            </div>
+          }
+        </div>
+        <p class="sub leyenda"><span class="ley ley--v"></span> vistas <span class="ley ley--c"></span> clics</p>
+      } @else {
+        <p class="sub">Todavía no hay vistas registradas.</p>
+      }
+      <div class="pie"><button type="button" class="btn btn--fantasma" (click)="metricasDe.set(null)">Cerrar</button></div>
+    </div>
+  </div>
+}
