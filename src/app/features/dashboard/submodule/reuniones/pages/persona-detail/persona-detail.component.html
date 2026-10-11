@@ -1,0 +1,140 @@
+<section class="pagina" [style.--hc]="color()">
+  <nav class="migas" aria-label="Ruta">
+    <a routerLink="/dashboard/reuniones"><mat-icon>arrow_back</mat-icon> Reuniones</a>
+    <span aria-hidden="true">/</span>
+    <a routerLink="/dashboard/reuniones" [queryParams]="{ vista: 'personas' }">Personas</a>
+  </nav>
+
+  @if (cargando()) {
+    <div class="esqueleto" aria-hidden="true">
+      <div class="cab-esq"><span class="esq" style="width: 64px; height: 64px; border-radius: 50%"></span>
+        <div class="lineas"><span class="esq" style="width: 240px; height: 24px"></span><span class="esq" style="width: 160px; height: 12px"></span></div></div>
+      <span class="esq" style="height: 70px"></span>
+      <span class="esq" style="height: 200px"></span>
+    </div>
+    <p class="visualmente-oculto" role="status">Cargando la ficha</p>
+  } @else if (error()) {
+    <div class="vacio">
+      <mat-icon>person_off</mat-icon>
+      <h3>No se pudo abrir la ficha</h3>
+      <p>{{ error() }}</p>
+      <div class="acciones-vacio">
+        <button type="button" class="btn primario" (click)="cargar()"><mat-icon>refresh</mat-icon> Intentar de nuevo</button>
+        <a class="btn" routerLink="/dashboard/reuniones" [queryParams]="{ vista: 'personas' }">Ver todas las personas</a>
+      </div>
+    </div>
+  } @else if (ficha(); as f) {
+    <header class="ficha-cab">
+      <app-reu-avatar [nombre]="f.person.display_name" [colorIdx]="colorIdx()" [tam]="64" />
+      <div class="ficha-titulos">
+        <h1>{{ f.person.display_name }}</h1>
+        @if (cargo()) { <p class="cargo">{{ cargo() }}</p> }
+        @if (f.person.is_external) { <span class="chip">Persona externa</span> }
+      </div>
+    </header>
+
+    <dl class="cifras">
+      <div><dt>Reuniones</dt><dd>{{ f.person.meetings_count }}</dd></div>
+      <div><dt>Habló en</dt><dd>{{ f.person.spoke_in_count }}</dd></div>
+      <div><dt>Tiempo hablado</dt><dd>{{ duracionHumana(f.person.talk_ms) }}</dd></div>
+      <div [class.destacado]="f.person.open_commitments > 0"><dt>Compromisos abiertos</dt><dd>{{ f.person.open_commitments }}</dd></div>
+      @if (f.person.last_meeting_on) { <div><dt>Última reunión</dt><dd>{{ fechaCorta(f.person.last_meeting_on) }}</dd></div> }
+    </dl>
+
+    @if (errorAccion()) {
+      <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ errorAccion() }}</span>
+        <button type="button" class="icono" (click)="errorAccion.set('')" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button></p>
+    }
+
+    <div class="rejilla">
+      <div class="principal">
+        <section aria-labelledby="t-reuniones">
+          <h2 id="t-reuniones" class="rotulo">Reuniones y lo que aportó <span class="n">{{ reuniones().length }}</span></h2>
+          @if (!reuniones().length) { <p class="apagado">Todavía no aparece en ninguna reunión.</p> }
+          <ul class="reuniones">
+            @for (m of reuniones(); track m.meeting_id) {
+              <li class="reunion" [class.callada]="!m.talk_ms">
+                <div class="r-cab">
+                  <a class="r-nombre" [routerLink]="['/dashboard/reuniones', m.meeting_id]">{{ m.name }}</a>
+                  <span class="r-meta"><span class="tc">{{ m.code }}</span>@if (m.held_on) { · {{ fechaCorta(m.held_on) }} }@if (m.role) { · {{ m.role }} }</span>
+                </div>
+                @if (m.talk_ms) {
+                  <div class="r-voz">
+                    <span class="medidor" aria-hidden="true"><span [style.width.%]="m.talk_pct ?? 0"></span></span>
+                    <span class="r-cifra">Habló {{ duracionHumana(m.talk_ms) }}@if (m.talk_pct != null) { · {{ porcentaje(m.talk_pct) }} del tiempo }</span>
+                  </div>
+                  @if (m.speaker_summary) { <p class="r-resumen">{{ m.speaker_summary }}</p> }
+                } @else {
+                  <p class="apagado">Asistió sin intervenir, o su voz aún no está asignada en esa reunión.</p>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+
+        <section aria-labelledby="t-citas">
+          <h2 id="t-citas" class="rotulo">Lo que ha dicho <span class="n">{{ citas().length }}</span></h2>
+          @if (!citas().length) { <p class="apagado">Sin frases todavía: aparecen cuando su voz queda asignada en una reunión transcrita.</p> }
+          <ul class="citas">
+            @for (c of citas(); track c.meeting_id + '-' + c.start_ms) {
+              <li>
+                <a class="cita" [routerLink]="['/dashboard/reuniones', c.meeting_id]" [queryParams]="{ t: c.start_ms }">
+                  <blockquote>«{{ c.text }}»</blockquote>
+                  <span class="cita-pie"><span>{{ c.meeting_name }}</span><span class="tc minuto"><mat-icon>play_arrow</mat-icon>{{ reloj(c.start_ms) }}</span></span>
+                </a>
+              </li>
+            }
+          </ul>
+        </section>
+      </div>
+
+      <aside class="lateral">
+        <section class="caja" aria-labelledby="t-compromisos">
+          <h2 id="t-compromisos" class="rotulo">Compromisos a su cargo <span class="n">{{ abiertos() }} abiertos</span></h2>
+          @if (!compromisos().length) { <p class="apagado">No tiene compromisos registrados.</p> }
+          <ul class="acuerdos">
+            @for (c of compromisos(); track c.id) {
+              <li class="acuerdo" [attr.data-estado]="c.status">
+                <button type="button" class="check denso" [class.marcado]="c.status === 'HECHO'" (click)="alternarHecho(c)"
+                        [disabled]="ocupado() === c.id || c.status === 'DESCARTADO'" [attr.aria-pressed]="c.status === 'HECHO'"
+                        [attr.aria-label]="c.status === 'HECHO' ? 'Marcar como pendiente' : 'Marcar como hecho'">
+                  <mat-icon>{{ c.status === 'HECHO' ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                </button>
+                <div class="a-cuerpo">
+                  <p class="a-texto">{{ c.text }}</p>
+                  <p class="a-meta">
+                    @if (c.due_text) { <span><mat-icon inline>event</mat-icon> {{ c.due_text }}</span> }
+                    @if (c.status === 'DESCARTADO') { <span class="chip">Descartado</span> }
+                    <a [routerLink]="['/dashboard/reuniones', c.meeting_id]" [queryParams]="c.start_ms != null ? { t: c.start_ms } : {}" class="a-reunion">
+                      {{ c.meeting_name }}@if (c.start_ms != null) { · {{ reloj(c.start_ms) }} }
+                    </a>
+                  </p>
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+
+        <section class="caja" aria-labelledby="t-decisiones">
+          <h2 id="t-decisiones" class="rotulo">Decisiones que planteó <span class="n">{{ decisiones().length }}</span></h2>
+          @if (!decisiones().length) { <p class="apagado">No hay decisiones atribuidas a esta persona.</p> }
+          <ul class="acuerdos">
+            @for (d of decisiones(); track d.id) {
+              <li class="acuerdo decision">
+                <mat-icon class="ico-decision">gavel</mat-icon>
+                <div class="a-cuerpo">
+                  <p class="a-texto">{{ d.text }}</p>
+                  <p class="a-meta">
+                    <a [routerLink]="['/dashboard/reuniones', d.meeting_id]" [queryParams]="d.start_ms != null ? { t: d.start_ms } : {}" class="a-reunion">
+                      {{ d.meeting_name }}@if (d.start_ms != null) { · {{ reloj(d.start_ms) }} }
+                    </a>
+                  </p>
+                </div>
+              </li>
+            }
+          </ul>
+        </section>
+      </aside>
+    </div>
+  }
+</section>

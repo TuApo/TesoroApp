@@ -1,0 +1,284 @@
+<section class="panel" aria-labelledby="titulo-hablado">
+  <h2 id="titulo-hablado" class="rotulo">Lo que se habló</h2>
+
+  <div class="pestanas" role="tablist" aria-label="Lo que se habló">
+    <button type="button" role="tab" class="denso" [attr.aria-selected]="pestana() === 'resumen'" [class.activa]="pestana() === 'resumen'"
+            (click)="pestana.set('resumen')">Resumen</button>
+    <button type="button" role="tab" class="denso" [attr.aria-selected]="pestana() === 'temas'" [class.activa]="pestana() === 'temas'"
+            (click)="pestana.set('temas')">Temas @if (insights().topics.length) {<span class="n">{{ insights().topics.length }}</span>}</button>
+    <button type="button" role="tab" class="denso" [attr.aria-selected]="pestana() === 'acuerdos'" [class.activa]="pestana() === 'acuerdos'"
+            (click)="pestana.set('acuerdos')">Acuerdos @if (items().length) {<span class="n" [class.fuerte]="abiertos() > 0">{{ items().length }}</span>}</button>
+    <button type="button" role="tab" class="denso" [attr.aria-selected]="pestana() === 'personas'" [class.activa]="pestana() === 'personas'"
+            (click)="pestana.set('personas')">Por persona</button>
+  </div>
+
+  @if (error()) {
+    <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ error() }}</span>
+      <button type="button" class="icono" (click)="error.set('')" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button></p>
+  }
+
+  <div class="contenido" role="tabpanel">
+    <!-- ── RESUMEN ───────────────────────────────────────────────────── -->
+    @if (pestana() === 'resumen') {
+      @if (hechos().length) {
+        <p class="hechos">
+          @for (h of hechos(); track h; let ultimo = $last) { <span>{{ h }}</span>@if (!ultimo) {<i aria-hidden="true">·</i>} }
+        </p>
+      }
+      @switch (estadoAnalisis()) {
+        @case ('curso') {
+          <div class="analizando" role="status">
+            <p><mat-icon inline class="girando">autorenew</mat-icon> Leyendo la conversación para sacar el resumen, los temas y los acuerdos. Suele tardar uno o dos minutos.</p>
+            <span class="esq" style="height: 12px; width: 96%"></span>
+            <span class="esq" style="height: 12px; width: 88%"></span>
+            <span class="esq" style="height: 12px; width: 70%"></span>
+          </div>
+        }
+        @case ('error') {
+          <div class="alerta aviso">
+            <mat-icon>report</mat-icon>
+            <span class="alerta-texto">
+              <strong>No se pudo generar el resumen.</strong>
+              @if (analisis()?.error) { {{ analisis()?.error }} }
+              La transcripción y las voces siguen completas.
+            </span>
+          </div>
+          <button type="button" class="btn primario" (click)="reanalizar.emit()"><mat-icon>refresh</mat-icon> Volver a analizar</button>
+        }
+        @case ('sin') {
+          <div class="vacio compacto">
+            <mat-icon>summarize</mat-icon>
+            <p>Esta conversación todavía no tiene resumen, temas ni acuerdos.</p>
+            <button type="button" class="btn primario" (click)="reanalizar.emit()"><mat-icon>auto_awesome</mat-icon> Analizar la conversación</button>
+          </div>
+        }
+        @case ('lista') {
+          @if (parrafos().length) {
+            <div class="resumen">
+              @for (p of parrafos(); track $index) { <p>{{ p }}</p> }
+            </div>
+          } @else {
+            <p class="apagado">El análisis terminó sin resumen.</p>
+          }
+          <footer class="pie">
+            <span>
+              Resumen automático
+              @if (analisis()?.generated_at) { · {{ fechaHora(analisis()?.generated_at) }} }
+              @if ((analisis()?.version ?? 1) > 1) { · versión {{ analisis()?.version }} }
+            </span>
+            <button type="button" class="btn fantasma chico" (click)="reanalizar.emit()"
+                    matTooltip="Vuelve a leer la conversación. Conserva los acuerdos que agregaste o editaste.">
+              <mat-icon>refresh</mat-icon> Reanalizar
+            </button>
+          </footer>
+        }
+      }
+    }
+
+    <!-- ── TEMAS ─────────────────────────────────────────────────────── -->
+    @if (pestana() === 'temas') {
+      @if (!temas().length) {
+        <p class="apagado">
+          {{ estadoAnalisis() === 'curso' ? 'Los temas aparecen cuando termine el análisis.' : 'No se identificaron temas en esta conversación.' }}
+        </p>
+      }
+      <ol class="temas">
+        @for (v of temas(); track v.t.id) {
+          <li class="tema" [class.actual]="temaActual() === v.t.id" [class.elegido]="filtroTema() === v.t.id">
+            <div class="tema-cab">
+              <button type="button" class="tc salto denso" (click)="saltar.emit(v.t.start_ms)"
+                      [attr.aria-label]="'Escuchar el tema desde ' + reloj(v.t.start_ms)">
+                <mat-icon>play_arrow</mat-icon>{{ reloj(v.t.start_ms) }}–{{ reloj(v.t.end_ms) }}
+              </button>
+              <span class="apagado chico">{{ duracionHumana(v.dur) }}</span>
+            </div>
+            <h3>{{ v.t.title }}</h3>
+            @if (v.reparto.length) {
+              <div class="reparto" [attr.aria-label]="'Hablaron: ' + v.quienes">
+                @for (r of v.reparto; track r.id) {
+                  <span [style.--hc]="colorVar(r.color)" [style.width.%]="r.pct" [matTooltip]="r.nombre + ' · ' + porcentaje(r.pct)"></span>
+                }
+              </div>
+              <p class="quienes">{{ v.quienes }}</p>
+            }
+            @if (v.t.summary) { <p class="tema-resumen">{{ v.t.summary }}</p> }
+            @if (v.t.keywords.length) {
+              <div class="claves">@for (k of v.t.keywords; track k) { <span class="chip">{{ k }}</span> }</div>
+            }
+            <button type="button" class="btn chico" (click)="filtrarTema.emit(v.t.id)" [attr.aria-pressed]="filtroTema() === v.t.id">
+              <mat-icon>{{ filtroTema() === v.t.id ? 'filter_alt_off' : 'filter_alt' }}</mat-icon>
+              {{ filtroTema() === v.t.id ? 'Ver toda la conversación' : 'Leer solo este tema' }}
+            </button>
+          </li>
+        }
+      </ol>
+    }
+
+    <!-- ── ACUERDOS ──────────────────────────────────────────────────── -->
+    @if (pestana() === 'acuerdos') {
+      <div class="acuerdos-cab">
+        <p class="apagado">
+          @if (items().length) { {{ abiertos() }} por cumplir de {{ items().length }} }
+          @else { Decisiones, compromisos, pendientes y riesgos. }
+        </p>
+        @if (!formulario()) {
+          <button type="button" class="btn chico" (click)="nuevo()"><mat-icon>add</mat-icon> Agregar</button>
+        }
+      </div>
+
+      @if (formulario(); as f) {
+        <form class="form-acuerdo" (submit)="$event.preventDefault(); guardarFormulario()">
+          <h3>{{ f.modo === 'nuevo' ? 'Nuevo acuerdo' : 'Editar acuerdo' }}</h3>
+          <div class="tipos" role="radiogroup" aria-label="Tipo de acuerdo">
+            @for (k of TIPOS; track k) {
+              <button type="button" role="radio" class="tipo denso" [attr.data-tipo]="k" [attr.aria-checked]="f.kind === k"
+                      [class.elegido]="f.kind === k" (click)="actualizar('kind', k)">
+                <mat-icon>{{ ICONO[k] }}</mat-icon> {{ etiquetaTipo(k) }}
+              </button>
+            }
+          </div>
+          <label class="campo">
+            <span>Qué se acordó</span>
+            <textarea rows="3" [value]="f.text" (input)="actualizar('text', $any($event.target).value)"
+                      placeholder="Enviar el cronograma de cierre a Contratación"></textarea>
+          </label>
+          <div class="dos">
+            <label class="campo">
+              <span>Responsable</span>
+              <select (change)="actualizar('responsable', $any($event.target).value)">
+                <option value="" [selected]="f.responsable === ''">Sin responsable</option>
+                @for (o of opcionesResponsable(); track o.valor) {
+                  <option [value]="o.valor" [selected]="f.responsable === o.valor">{{ o.texto }}</option>
+                }
+                <option value="o" [selected]="f.responsable === 'o'">Otra persona…</option>
+              </select>
+            </label>
+            <label class="campo">
+              <span>Para cuándo</span>
+              <input type="text" [value]="f.due" (input)="actualizar('due', $any($event.target).value)" placeholder="el viernes 15" />
+            </label>
+          </div>
+          @if (f.responsable === 'o') {
+            <label class="campo">
+              <span>Nombre del responsable</span>
+              <input type="text" [value]="f.otro" (input)="actualizar('otro', $any($event.target).value)" />
+            </label>
+          }
+          @if (f.modo === 'nuevo') {
+            <label class="check-linea">
+              <input type="checkbox" [checked]="f.anclar" (change)="actualizar('anclar', $any($event.target).checked)" />
+              Anclar al minuto <span class="tc">{{ reloj(posicionMs()) }}</span> de la grabación
+            </label>
+          }
+          <div class="acciones">
+            <button type="button" class="btn fantasma" (click)="formulario.set(null)">Cancelar</button>
+            <button type="submit" class="btn primario" [disabled]="guardando()">
+              {{ guardando() ? 'Guardando…' : (f.modo === 'nuevo' ? 'Agregar acuerdo' : 'Guardar cambios') }}
+            </button>
+          </div>
+        </form>
+      }
+
+      @if (!items().length && !formulario()) {
+        <p class="apagado">
+          {{ estadoAnalisis() === 'curso' ? 'Los acuerdos aparecen cuando termine el análisis.' : 'No se registraron decisiones ni compromisos. Agrega los que falten.' }}
+        </p>
+      }
+
+      @for (g of grupos(); track g.kind) {
+        <section class="grupo" [attr.data-tipo]="g.kind">
+          <h3><mat-icon>{{ ICONO[g.kind] }}</mat-icon> {{ g.etiqueta }} <span class="n">{{ g.items.length }}</span></h3>
+          <ul>
+            @for (v of g.items; track v.a.id) {
+              <li class="acuerdo" [id]="'acuerdo-' + v.a.id" [attr.data-estado]="v.a.status" [class.resaltado]="resaltadoId() === v.a.id">
+                <div class="acuerdo-fila">
+                  @if (v.a.kind === 'COMPROMISO' || v.a.kind === 'PENDIENTE') {
+                    <button type="button" class="check denso" [class.marcado]="v.a.status === 'HECHO'"
+                            [attr.aria-pressed]="v.a.status === 'HECHO'" [disabled]="ocupado() === v.a.id || v.a.status === 'DESCARTADO'"
+                            [attr.aria-label]="v.a.status === 'HECHO' ? 'Marcar como pendiente' : 'Marcar como hecho'"
+                            (click)="cambiarEstado(v.a, v.a.status === 'HECHO' ? 'ABIERTO' : 'HECHO')">
+                      <mat-icon>{{ v.a.status === 'HECHO' ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    </button>
+                  }
+                  <p class="acuerdo-texto">{{ v.a.text }}</p>
+                  <button type="button" class="icono" [matMenuTriggerFor]="menu" aria-label="Más acciones del acuerdo" [disabled]="ocupado() === v.a.id">
+                    <mat-icon>more_vert</mat-icon>
+                  </button>
+                  <mat-menu #menu="matMenu" xPosition="before">
+                    @if ((v.a.kind === 'COMPROMISO' || v.a.kind === 'PENDIENTE') && v.a.status === 'ABIERTO') {
+                      <button mat-menu-item type="button" (click)="crearTarea(v.a)"><mat-icon>add_task</mat-icon> Crear tarea de seguimiento</button>
+                    }
+                    <button mat-menu-item type="button" (click)="editar(v.a)"><mat-icon>edit</mat-icon> Editar</button>
+                    @if (v.a.status !== 'DESCARTADO') {
+                      <button mat-menu-item type="button" (click)="cambiarEstado(v.a, 'DESCARTADO')"><mat-icon>block</mat-icon> Descartar</button>
+                    } @else {
+                      <button mat-menu-item type="button" (click)="cambiarEstado(v.a, 'ABIERTO')"><mat-icon>undo</mat-icon> Reabrir</button>
+                    }
+                    <button mat-menu-item type="button" (click)="confirmandoEliminar.set(v.a.id)"><mat-icon>delete</mat-icon> Eliminar</button>
+                  </mat-menu>
+                </div>
+                <div class="acuerdo-meta">
+                  @if (v.responsable) {
+                    <span class="persona" [style.--hc]="colorVar(v.colorResponsable)"><i class="punto"></i>{{ v.responsable }}</span>
+                  }
+                  @if (v.a.due_text) { <span class="dato"><mat-icon>event</mat-icon>{{ v.a.due_text }}</span> }
+                  @if (v.dijo && (v.a.kind === 'DECISION' || v.a.kind === 'RIESGO' || v.dijo !== v.responsable)) {
+                    <span class="dato">Lo dijo <strong [style.--hc]="colorVar(v.colorDijo)" class="nombre-color">{{ v.dijo }}</strong></span>
+                  }
+                  @if (v.a.start_ms != null) {
+                    <button type="button" class="tc salto denso" (click)="saltar.emit(v.a.start_ms)"
+                            [attr.aria-label]="'Escuchar desde ' + reloj(v.a.start_ms)"><mat-icon>play_arrow</mat-icon>{{ reloj(v.a.start_ms) }}</button>
+                  }
+                  @if (v.a.status === 'DESCARTADO') { <span class="chip">Descartado</span> }
+                  @if (v.a.source === 'MANUAL') { <span class="chip">Agregado a mano</span> }
+                </div>
+                @if (v.a.quote) { <blockquote>«{{ v.a.quote }}»</blockquote> }
+                @if (confirmandoEliminar() === v.a.id) {
+                  <div class="confirmar" role="alert">
+                    <span>¿Eliminar este acuerdo? No se puede deshacer.</span>
+                    <button type="button" class="btn peligro chico" (click)="eliminar(v.a)" [disabled]="ocupado() === v.a.id">Eliminar</button>
+                    <button type="button" class="btn fantasma chico" (click)="confirmandoEliminar.set(null)">Cancelar</button>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    }
+
+    <!-- ── POR PERSONA ───────────────────────────────────────────────── -->
+    @if (pestana() === 'personas') {
+      @if (!porPersona().length) { <p class="apagado">Todavía no hay voces separadas.</p> }
+      @for (p of porPersona(); track p.h.id) {
+        <article class="aporte" [style.--hc]="colorVar(p.color)">
+          <header>
+            <app-reu-avatar [nombre]="p.h.display_name" [colorIdx]="p.color" [tam]="34" />
+            <div class="aporte-quien">
+              <strong>{{ p.h.display_name }}</strong>
+              <span class="apagado chico">{{ duracionHumana(p.h.talk_ms) }} · {{ porcentaje(p.h.talk_pct) }} del tiempo</span>
+            </div>
+          </header>
+          @if (p.h.summary) { <p class="aporte-resumen">{{ p.h.summary }}</p> }
+          @else { <p class="apagado chico">{{ estadoAnalisis() === 'curso' ? 'Resumiendo su aporte…' : 'Sin resumen de su aporte.' }}</p> }
+          @if (p.decisiones || p.aCargo) {
+            <p class="conteos">
+              @if (p.decisiones) { <span><mat-icon inline>gavel</mat-icon> {{ p.decisiones }} {{ p.decisiones === 1 ? 'decisión planteada' : 'decisiones planteadas' }}</span> }
+              @if (p.aCargo) { <span><mat-icon inline>assignment_ind</mat-icon> {{ p.aCargo }} {{ p.aCargo === 1 ? 'compromiso a su cargo' : 'compromisos a su cargo' }}</span> }
+            </p>
+          }
+          <div class="acciones">
+            <button type="button" class="btn chico" (click)="filtrarHablante.emit(p.h.id)" [attr.aria-pressed]="enFiltro(p.h.id)">
+              <mat-icon>{{ enFiltro(p.h.id) ? 'filter_alt_off' : 'record_voice_over' }}</mat-icon>
+              {{ enFiltro(p.h.id) ? 'Ver a todos' : 'Leer lo que dijo' }}
+            </button>
+            @if (p.clave; as clave) {
+              <a class="btn fantasma chico" [routerLink]="['/dashboard/reuniones/personas', clave]"
+                 [attr.aria-label]="'Ver la ficha de ' + p.h.display_name"><mat-icon>badge</mat-icon> Ver ficha</a>
+            }
+          </div>
+        </article>
+      }
+    }
+  </div>
+</section>

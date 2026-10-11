@@ -1,0 +1,111 @@
+<div class="captura" [class.compacta]="compacto()">
+  @if (!compacto()) {
+    <header class="intro">
+      <span class="onda" aria-hidden="true">
+        @for (b of [5, 11, 18, 9, 22, 14, 7, 16, 10, 4]; track $index) { <i [style.height.px]="b"></i> }
+      </span>
+      <h3>Esta reunión todavía no tiene grabación</h3>
+      <p>Grábala aquí mismo o sube el audio. La transcribimos separando quién habló y sacamos los temas y acuerdos.</p>
+    </header>
+  }
+
+  <div class="opciones">
+    <!-- Grabar -->
+    <section class="opcion" aria-labelledby="titulo-grabar">
+      <h4 id="titulo-grabar" class="rotulo">Grabar ahora</h4>
+      @if (motivoNoGraba) {
+        <p class="nota">{{ motivoNoGraba }}</p>
+      } @else if (grabador.estado(); as g) {
+        @if (!grabando()) {
+          <div class="fila-botones">
+            <button type="button" class="btn primario grande" (click)="grabar(false)" [disabled]="subiendo()">
+              <mat-icon>mic</mat-icon> Grabar ahora
+            </button>
+            <button type="button" class="btn fantasma" (click)="grabar(true)" [disabled]="subiendo()">
+              <mat-icon>videocam</mat-icon> Con video
+            </button>
+          </div>
+          <p class="nota">Cada 15 segundos lo grabado se guarda en el servidor: un corte al final no se lleva la reunión.</p>
+          @if (g.fase === 'listo') { <p class="nota ok"><mat-icon inline>check_circle</mat-icon> Grabación guardada.</p> }
+        } @else {
+          <div class="en-vivo" [attr.data-fase]="g.fase" role="status" aria-live="polite">
+            <span class="tiempo">
+              @if (g.fase === 'grabando') { <span class="punto" aria-hidden="true"></span> }
+              {{ reloj(g.segundos * 1000) }}
+            </span>
+            <span class="estado-vivo">
+              @switch (g.fase) {
+                @case ('preparando') { Abriendo el micrófono… }
+                @case ('grabando') { Grabando }
+                @case ('pausado') { En pausa }
+                @case ('finalizando') { Guardando los últimos segundos… }
+              }
+            </span>
+          </div>
+          <div class="fila-botones">
+            @if (g.fase === 'grabando') {
+              <button type="button" class="btn" (click)="grabador.pausar()"><mat-icon>pause</mat-icon> Pausar</button>
+            }
+            @if (g.fase === 'pausado') {
+              <button type="button" class="btn" (click)="grabador.continuar()"><mat-icon>play_arrow</mat-icon> Continuar</button>
+            }
+            @if (g.fase === 'grabando' || g.fase === 'pausado') {
+              <button type="button" class="btn primario" (click)="finalizar()"><mat-icon>stop</mat-icon> Terminar y transcribir</button>
+              <button type="button" class="btn peligro" (click)="descartar()">Descartar</button>
+            }
+          </div>
+          @if (g.fase !== 'preparando') {
+            <p class="nota">
+              {{ g.fragmentosEnviados }} {{ g.fragmentosEnviados === 1 ? 'fragmento guardado' : 'fragmentos guardados' }}
+              @if (g.fragmentosPendientes) { · {{ g.fragmentosPendientes }} en camino }
+            </p>
+          }
+        }
+        @if (g.fase === 'error' && g.mensaje) { <p class="alerta"><mat-icon>mic_off</mat-icon><span class="alerta-texto">{{ g.mensaje }}</span></p> }
+      }
+    </section>
+
+    <!-- Subir -->
+    <section class="opcion" aria-labelledby="titulo-subir">
+      <h4 id="titulo-subir" class="rotulo">Subir archivo</h4>
+      <label class="zona" [class.deshabilitada]="subiendo() || grabando()">
+        <input type="file" accept="audio/*,video/*" (change)="elegirArchivo($event)"
+               [disabled]="subiendo() || grabando()" />
+        <mat-icon>upload_file</mat-icon>
+        <span class="zona-titulo">Elegir audio o video</span>
+        <span class="zona-ayuda">MP3, M4A, WAV, OGG, MP4, MOV o WEBM. Si se corta, elige el mismo archivo y sigue donde iba.</span>
+      </label>
+
+      @if (subidas.estado(); as s) {
+        @if (s.fase !== 'inactiva') {
+          <div class="progreso" role="status" aria-live="polite">
+            <div class="barra" role="progressbar" [attr.aria-valuenow]="s.porcentaje" aria-valuemin="0" aria-valuemax="100">
+              <div class="relleno" [style.width.%]="s.porcentaje"></div>
+            </div>
+            <div class="progreso-texto">
+              <strong>
+                @switch (s.fase) {
+                  @case ('iniciando') { Preparando la subida }
+                  @case ('subiendo') { Subiendo }
+                  @case ('ensamblando') { Uniendo las partes }
+                  @case ('lista') { Grabación subida }
+                  @case ('pausada') { Subida en pausa }
+                  @case ('error') { Se interrumpió la subida }
+                }
+              </strong>
+              <span class="tc">{{ s.porcentaje }} %</span>
+            </div>
+            @if (s.mensaje && s.fase !== 'lista') { <p class="nota">{{ s.mensaje }}</p> }
+            @if (s.fase === 'subiendo') {
+              <button type="button" class="btn chico" (click)="subidas.cancelar()"><mat-icon>pause</mat-icon> Pausar subida</button>
+            }
+          </div>
+        }
+      }
+    </section>
+  </div>
+
+  @if (error()) {
+    <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ error() }}</span></p>
+  }
+</div>

@@ -1,0 +1,133 @@
+<section class="panel" aria-labelledby="titulo-quien">
+  <header class="cab">
+    <h2 id="titulo-quien" class="rotulo">Quién habló <span class="cuenta">{{ hablantes().length }}</span></h2>
+    @if (filtro().length) {
+      <button type="button" class="btn fantasma chico" (click)="limpiarFiltro.emit()">Ver a todos</button>
+    }
+  </header>
+
+  @if (avisoSeparacion(); as aviso) {
+    <p class="alerta aviso"><mat-icon>info</mat-icon><span class="alerta-texto">{{ aviso }}</span></p>
+  }
+  @if (sinConfirmar() && hablantes().length) {
+    <p class="pendientes">
+      {{ sinConfirmar() === 1 ? 'Falta confirmar 1 voz' : 'Faltan confirmar ' + sinConfirmar() + ' voces' }}.
+      Así cada frase, compromiso y decisión queda con el nombre de quien la dijo.
+    </p>
+  }
+
+  @if (!hablantes().length) {
+    <p class="vacio-corto">Todavía no hay voces separadas en esta grabación.</p>
+  }
+
+  <ul class="lista">
+    @for (f of filas(); track f.h.id) {
+      <li class="hablante" [style.--hc]="colorVar(f.color)"
+          [class.en-filtro]="enFiltro(f.h.id)"
+          [class.atenuado]="filtro().length > 0 && !enFiltro(f.h.id)">
+        <button type="button" class="cabeza denso" (click)="alternarFiltro.emit(f.h.id)"
+                [attr.aria-pressed]="enFiltro(f.h.id)"
+                [attr.aria-label]="(enFiltro(f.h.id) ? 'Dejar de filtrar por ' : 'Ver solo lo que dijo ') + f.h.display_name">
+          <app-reu-avatar [nombre]="f.h.display_name" [colorIdx]="f.color" [tam]="38" />
+          <span class="quien">
+            <strong class="hab-nombre">{{ f.h.display_name }}</strong>
+            @if (f.rol) { <small>{{ f.rol }}</small> }
+          </span>
+          @if (hablandoAhora() === f.h.id) {
+            <span class="ahora" matTooltip="Hablando ahora" aria-label="Hablando ahora"><i></i><i></i><i></i></span>
+          }
+        </button>
+
+        <div class="medidor" aria-hidden="true"><span [style.width.%]="f.h.talk_pct"></span></div>
+        <p class="cifras">
+          <span>{{ duracionHumana(f.h.talk_ms) }}</span>
+          <span class="sep">·</span>
+          <span>{{ porcentaje(f.h.talk_pct) }} del tiempo</span>
+          <span class="sep">·</span>
+          <span>{{ f.h.segments_count }} {{ f.h.segments_count === 1 ? 'intervención' : 'intervenciones' }}</span>
+        </p>
+
+        <!-- Identidad -->
+        @switch (f.identidad) {
+          @case ('por-confirmar') {
+            <div class="identidad ia">
+              <p><mat-icon inline>auto_awesome</mat-icon> La IA lo reconoció como <strong>{{ f.h.participant_name }}</strong>.</p>
+              @if (f.h.suggestion_reason) {
+                <button type="button" class="cita denso" (click)="saltar.emit(f.h.suggestion_at_ms ?? f.h.first_at_ms ?? 0)">
+                  «{{ f.h.suggestion_reason }}» <span class="tc">{{ reloj(f.h.suggestion_at_ms) }}</span>
+                </button>
+              }
+              <div class="acciones">
+                <button type="button" class="btn primario chico" (click)="confirmar.emit(f.h.id)" [disabled]="ocupado() === f.h.id">
+                  <mat-icon>check</mat-icon> Confirmar
+                </button>
+                <button type="button" class="btn chico" (click)="abrirSelector(f.h.id)" [disabled]="ocupado() === f.h.id">Es otra persona</button>
+              </div>
+            </div>
+          }
+          @case ('sugerida') {
+            <div class="identidad sugerencia">
+              <p>¿Es <strong>{{ f.h.suggested_name }}</strong>@if (f.h.suggested_role) {<span>, de {{ f.h.suggested_role }}</span>}?</p>
+              @if (f.h.suggestion_reason) {
+                <button type="button" class="cita denso" (click)="saltar.emit(f.h.suggestion_at_ms ?? f.h.first_at_ms ?? 0)">
+                  «{{ f.h.suggestion_reason }}» <span class="tc">{{ reloj(f.h.suggestion_at_ms) }}</span>
+                </button>
+              }
+              <div class="acciones">
+                @if (f.coincide; as p) {
+                  <button type="button" class="btn primario chico" (click)="elegir(f.h.id, p.id)" [disabled]="ocupado() === f.h.id">
+                    <mat-icon>check</mat-icon> Sí, es {{ p.display_name }}
+                  </button>
+                } @else {
+                  <button type="button" class="btn primario chico" (click)="crearDesdeSugerencia.emit(f.h.id)" [disabled]="ocupado() === f.h.id">
+                    <mat-icon>person_add</mat-icon> Agregar a {{ f.h.suggested_name }}
+                  </button>
+                }
+                <button type="button" class="btn chico" (click)="abrirSelector(f.h.id)" [disabled]="ocupado() === f.h.id">Es otra persona</button>
+              </div>
+            </div>
+          }
+          @case ('desconocida') {
+            <div class="identidad">
+              <button type="button" class="btn chico" (click)="abrirSelector(f.h.id)" [disabled]="ocupado() === f.h.id">
+                <mat-icon>person_search</mat-icon> ¿Quién es?
+              </button>
+            </div>
+          }
+          @case ('confirmada') {
+            <div class="identidad confirmada">
+              @if (f.clave; as clave) {
+                <a class="btn fantasma chico" [routerLink]="['/dashboard/reuniones/personas', clave]"
+                   [attr.aria-label]="'Ver la ficha de ' + f.h.display_name">
+                  <mat-icon>badge</mat-icon> Ver ficha
+                </a>
+              }
+              <button type="button" class="btn fantasma chico" (click)="abrirSelector(f.h.id)" [disabled]="ocupado() === f.h.id">Cambiar</button>
+            </div>
+          }
+        }
+
+        @if (eligiendo() === f.h.id) {
+          <div class="selector">
+            <label [attr.for]="'sel-' + f.h.id">¿Quién es {{ f.h.label }}?</label>
+            <select [id]="'sel-' + f.h.id" [value]="f.h.participant_id ?? ''" (change)="elegir(f.h.id, $any($event.target).value)">
+              <option value="" disabled [selected]="!f.h.participant_id">Elige un participante</option>
+              @for (p of participantes(); track p.id) {
+                <option [value]="p.id">{{ p.display_name }}{{ p.area ? ' · ' + p.area : '' }}</option>
+              }
+              @if (f.h.participant_id) { <option value="">Quitar la asignación</option> }
+            </select>
+            <div class="acciones">
+              <button type="button" class="btn fantasma chico" (click)="eligiendo.set(null)">Cancelar</button>
+              <button type="button" class="btn fantasma chico" (click)="gestionarParticipantes.emit()">
+                <mat-icon>group_add</mat-icon> No está en la lista
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (ocupado() === f.h.id) { <span class="guardando" role="status">Guardando…</span> }
+      </li>
+    }
+  </ul>
+</section>

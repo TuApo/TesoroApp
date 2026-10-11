@@ -1,0 +1,71 @@
+:host { display: block; --etq: 104px; --alto-carril: 16px; }
+
+.lt { display: flex; flex-direction: column; gap: 4px; user-select: none; }
+.fila { display: grid; grid-template-columns: var(--etq) minmax(0, 1fr); align-items: center; gap: 0; }
+.etq { display: flex; align-items: center; gap: 6px; min-width: 0; padding-right: 8px; }
+.pista { position: relative; height: var(--alto-carril); min-width: 0; }
+
+/* Temas */
+.temas .pista { height: 24px; }
+.banda {
+  position: absolute; top: 0; bottom: 0; min-width: 4px; padding: 0 6px; overflow: hidden;
+  border: 0; border-radius: 6px; cursor: pointer; font: inherit; font-size: 0.7rem; font-weight: 700;
+  color: var(--text-2); background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--border);
+  text-align: left; white-space: nowrap; text-overflow: ellipsis;
+}
+.banda.par { background: var(--surface-4); }
+.banda span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.banda:hover { color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.banda.actual { color: var(--text); box-shadow: inset 0 -2px 0 var(--reu-primario), inset 0 0 0 1px var(--border-strong); }
+.banda.elegida { background: var(--reu-primario); color: var(--reu-sobre-primario); box-shadow: none; }
+
+/* Carriles */
+.carriles { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 4px 0; }
+.carril .pista { background: var(--surface-2); border-radius: 4px; box-shadow: inset 0 0 0 1px var(--border); }
+.bloque {
+  position: absolute; top: 2px; bottom: 2px; min-width: 2px; border-radius: 3px; background: var(--hc);
+}
+.corto {
+  font-size: 0.74rem; font-weight: 700; color: var(--hc);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.carril.atenuado .bloque { opacity: .22; }
+.carril.atenuado .corto { opacity: .5; }
+
+.capa {
+  position: absolute; top: 0; bottom: 0; left: var(--etq); right: 0; cursor: pointer; border-radius: 4px;
+}
+.capa:focus-visible { outline: 2px solid var(--reu-foco); outline-offset: 2px; }
+.cabezal {
+  position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
+  background: var(--text); pointer-events: none; border-radius: 1px;
+}
+.cabezal-punta {
+  position: absolute; bottom: -5px; left: 50%; width: 10px; height: 10px; margin-left: -5px;
+  border-radius: 50%; background: var(--text); box-shadow: 0 0 0 2px var(--surface);
+}
+.guia { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--muted); opacity: .7; pointer-events: none; }
+.guia-hora {
+  position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  padding: 1px 6px; border-radius: 6px; background: var(--text); color: var(--surface); white-space: nowrap;
+}
+
+/* Regla */
+.regla { margin-top: 4px; }
+.regla .pista { height: 14px; }
+.marca { position: absolute; top: 0; transform: translateX(-50%); font-size: 0.66rem; color: var(--text-faint); }
+.marca.primera { transform: none; }
+.marca.ultima { transform: translateX(-100%); }
+
+/* En táctil la banda de temas es un objetivo de 44 px. */
+@media (pointer: coarse) {
+  .temas .pista { height: 44px; }
+}
+@media (max-width: 600px) {
+  :host { --etq: 30px; --alto-carril: 16px; }
+  /* En el teléfono el reproductor va fijo arriba: se deja sólo lo esencial (los temas están en "Lo que se habló"). */
+  .temas { display: none; }
+  .corto { display: none; }
+  .temas .etq { visibility: hidden; }
+  .marca:nth-child(2), .marca:nth-child(4) { display: none; }
+}

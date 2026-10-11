@@ -1,0 +1,132 @@
+/*
+ * Piezas comunes del módulo Reuniones (botones, chips, esqueletos, vacíos, alertas).
+ * Se incluye en el styleUrls de cada componente: con encapsulado emulado cada uno
+ * necesita su copia, y así no se toca styles.css global.
+ */
+:host {
+  --reu-primario: var(--mat-sys-primary, #2B59F0);
+  --reu-sobre-primario: var(--mat-sys-on-primary, #FFFFFF);
+  --reu-foco: var(--mat-sys-primary, #2B59F0);
+}
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 38px; padding: 7px 14px; border-radius: var(--r-sm, 10px);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 0.88rem; font-weight: 650; line-height: 1.2; cursor: pointer;
+  text-decoration: none; white-space: nowrap;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+.btn:hover:not(:disabled) { border-color: var(--reu-primario); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.btn.primario { background: var(--reu-primario); border-color: var(--reu-primario); color: var(--reu-sobre-primario); }
+.btn.primario:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.fantasma { border-color: transparent; background: transparent; color: var(--text-2); }
+.btn.fantasma:hover:not(:disabled) { background: var(--surface-3); border-color: transparent; color: var(--text); }
+.btn.peligro { color: var(--danger-fg); border-color: var(--danger-border); }
+.btn.peligro:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger-border); }
+.btn.chico { min-height: 30px; padding: 4px 10px; font-size: 0.8rem; }
+
+.icono {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 34px; height: 34px; border-radius: 9px; border: 0; background: transparent;
+  color: var(--muted); cursor: pointer; padding: 0;
+}
+.icono:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
+.icono:disabled { opacity: .45; cursor: default; }
+.icono mat-icon { font-size: 20px; width: 20px; height: 20px; }
+
+:is(.btn, .icono, button, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--reu-foco); outline-offset: 2px;
+}
+
+.tc {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 0.74rem; letter-spacing: 0; color: var(--muted);
+}
+
+.rotulo {
+  margin: 0; font-size: 0.7rem; font-weight: 750; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  padding: 3px 10px; border-radius: 999px; font-size: 0.76rem; font-weight: 600;
+  background: var(--surface-3); color: var(--text-2); border: 1px solid var(--border);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.tono { display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; font-weight: 650;
+  padding: 3px 10px 3px 8px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+.tono mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.tono[data-tono='neutro'] { background: var(--surface-3); color: var(--text-2); border-color: var(--border); }
+.tono[data-tono='progreso'] { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+.tono[data-tono='ok'] { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-border); }
+.tono[data-tono='aviso'] { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border); }
+.tono[data-tono='error'] { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-border); }
+.tono[data-tono='progreso'] mat-icon { animation: reu-giro 1.6s linear infinite; }
+
+.alerta {
+  display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 14px;
+  border-radius: var(--r-sm, 10px); font-size: 0.88rem; line-height: 1.45;
+  background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger-border);
+}
+.alerta.aviso { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border); }
+.alerta.info { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+.alerta mat-icon { flex: none; font-size: 19px; width: 19px; height: 19px; margin-top: 1px; }
+.alerta .alerta-texto { flex: 1; min-width: 0; }
+.alerta .btn { margin-left: auto; }
+
+.vacio {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+  padding: 40px 20px; border: 1px dashed var(--border-strong); border-radius: var(--r-md, 14px);
+  background: var(--surface); color: var(--muted);
+}
+.vacio > mat-icon { font-size: 34px; width: 34px; height: 34px; color: var(--text-faint); }
+.vacio h3 { margin: 4px 0 0; font-size: 1rem; font-weight: 750; color: var(--text); }
+.vacio p { margin: 0; max-width: 48ch; font-size: 0.88rem; line-height: 1.5; }
+.vacio .acciones-vacio { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+
+.esq {
+  display: block; border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface-3) 0%, var(--surface-4) 50%, var(--surface-3) 100%);
+  background-size: 300% 100%; animation: reu-brillo 1.5s ease-in-out infinite;
+}
+
+.visualmente-oculto {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+mark { background: #FDE68A; color: #3B2A00; border-radius: 3px; padding: 0 1px; }
+:host-context(html[data-theme='dark']) mark { background: #8A6A12; color: #FFF7DB; }
+
+@keyframes reu-brillo { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@keyframes reu-giro { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .esq, .tono[data-tono='progreso'] mat-icon { animation: none; }
+  .btn { transition: none; }
+}
+
+/*
+ * styles.css fija `button { min-height: 48px !important }` pensando en táctil. Con mouse en
+ * escritorio, los controles densos del módulo (marcas de tiempo, pestañas, chips, bandas de
+ * temas) recuperan su alto; en táctil y en móvil sigue mandando el global (≥ 44 px).
+ */
+@media (pointer: fine) and (min-width: 601px) {
+  .btn { min-height: 38px !important; }
+  .btn.chico { min-height: 30px !important; }
+  .icono { min-height: 34px !important; }
+  .denso { min-height: 0 !important; }
+}
+.siempre-denso { min-height: 0 !important; }
+
+/* Objetivos táctiles de al menos 44 px en pantallas táctiles y en móvil. */
+@media (pointer: coarse), (max-width: 600px) {
+  .btn { min-height: 44px; }
+  .btn.chico { min-height: 44px; }
+  .icono { width: 44px; height: 44px; }
+}

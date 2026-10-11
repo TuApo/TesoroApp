@@ -1,146 +1,287 @@
 <section class="pagina">
   <header class="cabecera">
-    <div>
-      <h1>Reuniones funcionales</h1>
-      <p class="sub">Levantamiento de necesidades, requisitos y decisiones con trazabilidad hasta el minuto exacto.</p>
+    <div class="titulos">
+      <h1>Reuniones</h1>
+      <p class="sub">Lo que se dijo, quién lo dijo y en qué minuto.</p>
     </div>
     <button type="button" class="btn primario" (click)="abrirAlta()">
       <mat-icon>add</mat-icon> Nueva reunión
     </button>
   </header>
 
-  <div class="filtros">
-    <div class="campo-busqueda">
-      <mat-icon>search</mat-icon>
-      <input type="search" placeholder="Buscar por nombre u objetivo"
-             [ngModel]="filtroTexto()" (ngModelChange)="filtroTexto.set($event)"
-             (keyup.enter)="buscar()" />
-    </div>
-    <select [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event); buscar()">
-      @for (e of ESTADOS; track e.valor) {
-        <option [value]="e.valor">{{ e.etiqueta }}</option>
-      }
-    </select>
-    <button type="button" class="btn" (click)="buscar()">Buscar</button>
+  <!-- ── Buscador en todo lo transcrito ─────────────────────────────────── -->
+  <div class="buscador" role="search">
+    <mat-icon class="lupa" aria-hidden="true">manage_search</mat-icon>
+    <input type="search" class="buscador-campo" placeholder="Busca en todo lo que se ha dicho…"
+           aria-label="Buscar en todo lo que se ha dicho en las reuniones" autocomplete="off"
+           [value]="texto()" (input)="alEscribir($any($event.target).value)" (keydown.escape)="limpiarBusqueda()" />
+    @if (buscando()) { <span class="girando" aria-hidden="true"></span> }
+    @if (texto()) {
+      <button type="button" class="icono" (click)="limpiarBusqueda()" aria-label="Limpiar la búsqueda"><mat-icon>close</mat-icon></button>
+    }
   </div>
-
-  @if (error()) {
-    <p class="alerta">{{ error() }}</p>
-  }
+  <p class="pista-busqueda">
+    @if (texto().trim() && !modoBusqueda()) { Escribe al menos {{ MINIMO }} letras. }
+    @else if (!texto().trim()) { Busca una palabra o una frase en las transcripciones de todas las reuniones que puedes ver. }
+  </p>
 
   @if (creando()) {
-    <form class="alta" (ngSubmit)="crear()">
-      <h2>Nueva reunión</h2>
-      <div class="rejilla">
-        <label>
-          <span>Nombre de la reunión *</span>
-          <input type="text" [ngModel]="nueva().name" name="name"
-                 (ngModelChange)="actualizarCampo('name', $event)"
-                 placeholder="Levantamiento módulo de novedades" required />
-        </label>
-        <label>
-          <span>Tipo</span>
-          <select [ngModel]="nueva().meeting_type" name="meeting_type"
-                  (ngModelChange)="actualizarCampo('meeting_type', $event)">
-            @for (t of TIPOS; track t) { <option [value]="t">{{ t }}</option> }
-          </select>
-        </label>
-        <label>
-          <span>Fecha</span>
-          <input type="date" [ngModel]="nueva().held_on" name="held_on"
-                 (ngModelChange)="actualizarCampo('held_on', $event)" />
-        </label>
-        <label>
-          <span>Modalidad</span>
-          <select [ngModel]="nueva().modality" name="modality"
-                  (ngModelChange)="actualizarCampo('modality', $event)">
-            <option value="VIRTUAL">Virtual</option>
-            <option value="PRESENCIAL">Presencial</option>
-            <option value="MIXTA">Mixta</option>
-          </select>
-        </label>
-        <label>
-          <span>Sistema</span>
-          <input type="text" [ngModel]="nueva().system_name" name="system_name"
-                 (ngModelChange)="actualizarCampo('system_name', $event)" placeholder="TesoroApp" />
-        </label>
-        <label>
-          <span>Módulo</span>
-          <input type="text" [ngModel]="nueva().module_name" name="module_name"
-                 (ngModelChange)="actualizarCampo('module_name', $event)" placeholder="Nómina" />
-        </label>
-        <label>
-          <span>Área solicitante</span>
-          <input type="text" [ngModel]="nueva().requesting_area" name="requesting_area"
-                 (ngModelChange)="actualizarCampo('requesting_area', $event)" placeholder="Recursos Humanos" />
-        </label>
-        <label>
-          <span>Confidencialidad</span>
-          <select [ngModel]="nueva().confidentiality" name="confidentiality"
-                  (ngModelChange)="actualizarCampo('confidentiality', $event)">
-            <option value="INTERNA">Interna</option>
-            <option value="RESTRINGIDA">Restringida</option>
-          </select>
-        </label>
-        <label class="ancho-total">
-          <span>Objetivo de la reunión</span>
-          <textarea rows="2" [ngModel]="nueva().objective" name="objective"
-                    (ngModelChange)="actualizarCampo('objective', $event)"
-                    placeholder="Qué se busca resolver o definir"></textarea>
-        </label>
+    <form class="alta" (submit)="$event.preventDefault(); crear()">
+      <div class="alta-cab">
+        <h2>Nueva reunión</h2>
+        <button type="button" class="icono" (click)="cerrarAlta()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
       </div>
-      <p class="pista">
-        <mat-icon inline>lock</mat-icon>
-        Una reunión <strong>restringida</strong> sólo la ven quienes se agreguen a su lista de acceso.
-      </p>
+      <div class="rejilla">
+        <label class="campo ancho-total"><span>Nombre de la reunión *</span>
+          <input type="text" [value]="nueva().name" (input)="actualizarCampo('name', $any($event.target).value)"
+                 placeholder="Levantamiento del módulo de novedades" required /></label>
+        <label class="campo"><span>Tipo</span>
+          <select (change)="actualizarCampo('meeting_type', $any($event.target).value)">
+            @for (t of TIPOS; track t.valor) { <option [value]="t.valor" [selected]="nueva().meeting_type === t.valor">{{ t.etiqueta }}</option> }
+          </select></label>
+        <label class="campo"><span>Fecha</span>
+          <input type="date" [value]="nueva().held_on ?? ''" (input)="actualizarCampo('held_on', $any($event.target).value)" /></label>
+        <label class="campo"><span>Modalidad</span>
+          <select (change)="actualizarCampo('modality', $any($event.target).value)">
+            <option value="VIRTUAL" [selected]="nueva().modality === 'VIRTUAL'">Virtual</option>
+            <option value="PRESENCIAL" [selected]="nueva().modality === 'PRESENCIAL'">Presencial</option>
+            <option value="MIXTA" [selected]="nueva().modality === 'MIXTA'">Mixta</option>
+          </select></label>
+        <label class="campo"><span>Sistema</span>
+          <input type="text" [value]="nueva().system_name ?? ''" (input)="actualizarCampo('system_name', $any($event.target).value)" placeholder="TesoroApp" /></label>
+        <label class="campo"><span>Módulo</span>
+          <input type="text" [value]="nueva().module_name ?? ''" (input)="actualizarCampo('module_name', $any($event.target).value)" placeholder="Nómina" /></label>
+        <label class="campo"><span>Área solicitante</span>
+          <input type="text" [value]="nueva().requesting_area ?? ''" (input)="actualizarCampo('requesting_area', $any($event.target).value)" placeholder="Recursos Humanos" /></label>
+        <label class="campo"><span>Confidencialidad</span>
+          <select (change)="actualizarCampo('confidentiality', $any($event.target).value)">
+            <option value="INTERNA" [selected]="nueva().confidentiality === 'INTERNA'">Interna</option>
+            <option value="RESTRINGIDA" [selected]="nueva().confidentiality === 'RESTRINGIDA'">Restringida</option>
+          </select></label>
+        <label class="campo ancho-total"><span>Objetivo de la reunión</span>
+          <textarea rows="2" [value]="nueva().objective ?? ''" (input)="actualizarCampo('objective', $any($event.target).value)"
+                    placeholder="Qué se busca resolver o definir"></textarea></label>
+      </div>
+      <p class="pista"><mat-icon inline>lock</mat-icon> Una reunión <strong>restringida</strong> solo la ven quienes estén en su lista de acceso.</p>
+      @if (errorAlta()) { <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ errorAlta() }}</span></p> }
       <div class="acciones">
-        <button type="button" class="btn" (click)="cerrarAlta()">Cancelar</button>
-        <button type="submit" class="btn primario" [disabled]="guardando()">
-          {{ guardando() ? 'Creando…' : 'Crear reunión' }}
-        </button>
+        <button type="button" class="btn fantasma" (click)="cerrarAlta()">Cancelar</button>
+        <button type="submit" class="btn primario" [disabled]="guardando()">{{ guardando() ? 'Creando…' : 'Crear reunión' }}</button>
       </div>
     </form>
   }
 
-  @if (cargando() && !reuniones().length) {
-    <div class="esqueleto">
-      @for (i of [1,2,3,4]; track i) { <div class="fila-esqueleto"></div> }
-    </div>
-  } @else if (!reuniones().length) {
-    <div class="vacio">
-      <mat-icon>mic_none</mat-icon>
-      <h2>Todavía no hay reuniones</h2>
-      <p>Cree la primera y suba o grabe el audio: el sistema la transcribe y la deja lista para analizar.</p>
-      <button type="button" class="btn primario" (click)="abrirAlta()">Nueva reunión</button>
-    </div>
-  } @else {
-    <ul class="lista">
-      @for (r of reuniones(); track r.id) {
-        <li class="tarjeta">
-          <a [routerLink]="['/dashboard/reuniones', r.id]" class="enlace">
-            <div class="linea-1">
-              <span class="codigo">{{ r.code }}</span>
-              <h3>{{ r.name }}</h3>
-              <span class="estado" [attr.data-estado]="r.status">{{ etiquetaEstado(r.status) }}</span>
-              @if (r.confidentiality === 'RESTRINGIDA') {
-                <mat-icon class="candado" matTooltip="Reunión restringida">lock</mat-icon>
-              }
-            </div>
-            <div class="linea-2">
-              @if (r.held_on) { <span><mat-icon inline>event</mat-icon> {{ r.held_on }}</span> }
-              @if (r.module_name) { <span><mat-icon inline>widgets</mat-icon> {{ r.module_name }}</span> }
-              <span><mat-icon inline>group</mat-icon> {{ r.participants_count }} participantes</span>
-              <span><mat-icon inline>graphic_eq</mat-icon> {{ r.recordings_count }} grabaciones</span>
-            </div>
-          </a>
-        </li>
-      }
-    </ul>
+  @if (modoBusqueda()) {
+    <!-- ── Resultados de la búsqueda global ─────────────────────────────── -->
+    <section class="resultados" aria-live="polite" aria-labelledby="t-resultados">
+      <div class="resultados-cab">
+        <h2 id="t-resultados">
+          @if (buscando() && !resultados()) { Buscando «{{ texto().trim() }}»… }
+          @else if (resultados(); as r) {
+            @if (r.total) {
+              {{ r.total }} {{ r.total === 1 ? 'vez' : 'veces' }} en {{ grupos().length }} {{ grupos().length === 1 ? 'reunión' : 'reuniones' }}
+            } @else { Nadie ha dicho «{{ r.query || texto().trim() }}» }
+          }
+        </h2>
+        <label class="dicho-por">
+          <span>Dicho por</span>
+          <select (change)="cambiarPersonaBusqueda($any($event.target).value)">
+            <option value="" [selected]="!filtroPersona()">Cualquier persona</option>
+            @for (p of personas(); track p.person_key) {
+              <option [value]="p.person_key" [selected]="filtroPersona() === p.person_key">{{ p.display_name }}</option>
+            }
+          </select>
+        </label>
+      </div>
 
-    @if (hayMas()) {
-      <button type="button" class="btn mas" (click)="masResultados()" [disabled]="cargando()">
-        {{ cargando() ? 'Cargando…' : 'Ver más' }}
-      </button>
+      @if (errorBusqueda()) {
+        <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ errorBusqueda() }}</span></p>
+      }
+
+      @if (buscando() && !resultados()) {
+        @for (i of [1, 2]; track i) { <div class="grupo esq-grupo" aria-hidden="true"><span class="esq" style="height: 14px; width: 40%"></span><span class="esq" style="height: 48px"></span><span class="esq" style="height: 48px"></span></div> }
+      } @else if (resultados()?.total === 0) {
+        <div class="vacio">
+          <mat-icon>search_off</mat-icon>
+          <h3>Sin coincidencias</h3>
+          <p>Prueba con otra palabra, revisa la ortografía o quita el filtro de persona. Solo se busca en reuniones ya transcritas.</p>
+        </div>
+      }
+
+      @for (g of grupos(); track g.meeting_id) {
+        <article class="grupo">
+          <header class="grupo-cab">
+            <a [routerLink]="['/dashboard/reuniones', g.meeting_id]" class="grupo-titulo">{{ g.name }}</a>
+            <span class="tc">{{ g.code }}</span>
+            @if (g.held_on) { <span class="apagado">{{ fechaCorta(g.held_on) }}</span> }
+            <span class="apagado">{{ g.matches.length }} {{ g.matches.length === 1 ? 'coincidencia' : 'coincidencias' }}</span>
+          </header>
+          <ul>
+            @for (m of g.matches; track m.segment_id) {
+              <li>
+                <a class="coincidencia" [style.--hc]="colorVar(m.color_idx)"
+                   [routerLink]="['/dashboard/reuniones', m.meeting_id]" [queryParams]="{ t: m.start_ms }"
+                   [attr.aria-label]="(m.speaker_name || 'Alguien') + ' en el minuto ' + reloj(m.start_ms) + ': ' + m.text">
+                  <span class="quien">
+                    <app-reu-avatar [nombre]="m.speaker_name || '?'" [colorIdx]="m.color_idx" [tam]="24" />
+                    <strong>{{ m.speaker_name || 'Sin identificar' }}</strong>
+                  </span>
+                  <span class="fragmento">@for (p of m.partes; track $index) {@if (p.marca) {<mark>{{ p.texto }}</mark>} @else {<span>{{ p.texto }}</span>}}</span>
+                  <span class="minuto tc"><mat-icon>play_arrow</mat-icon>{{ reloj(m.start_ms) }}</span>
+                </a>
+              </li>
+            }
+          </ul>
+        </article>
+      }
+      @if (resultados(); as r) {
+        @if (r.total > r.matches.length) {
+          <p class="apagado centro">Se muestran las primeras {{ r.matches.length }}. Afina la búsqueda para ver el resto.</p>
+        }
+      }
+    </section>
+  } @else {
+    <!-- ── Pestañas ──────────────────────────────────────────────────────── -->
+    <nav class="pestanas" role="tablist" aria-label="Ver">
+      <button type="button" role="tab" class="denso" [attr.aria-selected]="pestana() === 'reuniones'" [class.activa]="pestana() === 'reuniones'"
+              (click)="irAPestana('reuniones')"><mat-icon>forum</mat-icon> Reuniones @if (total()) {<span class="n">{{ total() }}</span>}</button>
+      <button type="button" role="tab" class="denso" [attr.aria-selected]="pestana() === 'personas'" [class.activa]="pestana() === 'personas'"
+              (click)="irAPestana('personas')"><mat-icon>groups</mat-icon> Personas @if (personas().length) {<span class="n">{{ personas().length }}</span>}</button>
+    </nav>
+
+    @if (pestana() === 'reuniones') {
+      <div class="filtros">
+        <div class="filtro-texto">
+          <mat-icon aria-hidden="true">filter_list</mat-icon>
+          <input type="search" placeholder="Filtrar por nombre u objetivo" aria-label="Filtrar reuniones por nombre u objetivo"
+                 [value]="filtroTexto()" (input)="filtroTexto.set($any($event.target).value)" (keydown.enter)="filtrar()" />
+        </div>
+        <select aria-label="Estado de la reunión" (change)="filtroEstado.set($any($event.target).value); filtrar()">
+          @for (e of ESTADOS; track e.valor) { <option [value]="e.valor" [selected]="filtroEstado() === e.valor">{{ e.etiqueta }}</option> }
+        </select>
+        <button type="button" class="btn" (click)="filtrar()">Filtrar</button>
+      </div>
+
+      @if (error()) {
+        <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ error() }}</span>
+          <button type="button" class="btn chico" (click)="cargar(0)">Intentar de nuevo</button></p>
+      }
+
+      @if (cargando() && !reuniones().length) {
+        <ul class="tarjetas" aria-hidden="true">
+          @for (i of [1, 2, 3, 4]; track i) {
+            <li class="tarjeta esq-tarjeta"><span class="esq" style="height: 12px; width: 45%"></span><span class="esq" style="height: 20px; width: 80%"></span><span class="esq" style="height: 36px"></span><span class="esq" style="height: 8px"></span></li>
+          }
+        </ul>
+      } @else if (!reuniones().length && !error()) {
+        <div class="vacio">
+          <mat-icon>mic_none</mat-icon>
+          <h3>{{ filtroTexto() || filtroEstado() ? 'Ninguna reunión coincide con el filtro' : 'Todavía no hay reuniones' }}</h3>
+          <p>{{ filtroTexto() || filtroEstado() ? 'Cambia el filtro o crea una reunión nueva.' : 'Crea la primera y graba o sube el audio: la transcribimos separando quién habló y sacamos los temas y acuerdos.' }}</p>
+          <div class="acciones-vacio"><button type="button" class="btn primario" (click)="abrirAlta()"><mat-icon>add</mat-icon> Nueva reunión</button></div>
+        </div>
+      } @else {
+        <ul class="tarjetas">
+          @for (c of tarjetas(); track c.r.id) {
+            <li class="tarjeta">
+              <a [routerLink]="['/dashboard/reuniones', c.r.id]" class="enlace">
+                <span class="t-meta">
+                  <span class="tc">{{ c.r.code }}</span>
+                  @if (c.r.held_on) { <span>{{ fechaCorta(c.r.held_on) }}</span> }
+                  @if (c.duracion) { <span>{{ c.duracion }}</span> }
+                  @if (c.r.confidentiality === 'RESTRINGIDA') { <mat-icon class="candado" matTooltip="Reunión restringida" aria-label="Restringida">lock</mat-icon> }
+                </span>
+                <h3>{{ c.r.name }}</h3>
+                <span class="tono" [attr.data-tono]="c.estado.tono"><mat-icon>{{ c.estado.icono }}</mat-icon>{{ c.estado.texto }}</span>
+                @if (c.r.summary_snippet) { <p class="resumen">{{ c.r.summary_snippet }}</p> }
+                @if (c.temas.length) {
+                  <span class="temas">@for (t of c.temas; track $index) { <span class="chip">{{ t }}</span> }</span>
+                }
+                @if (c.voces.length) {
+                  <span class="huella" aria-hidden="true">
+                    @for (v of c.huella; track $index) { <span [style.--hc]="colorVar(v.color_idx)" [style.width.%]="v.talk_pct ?? 0"></span> }
+                  </span>
+                  <span class="voces">
+                    <span class="apilados">
+                      @for (v of c.voces.slice(0, 4); track $index) {
+                        <app-reu-avatar [nombre]="v.display_name" [colorIdx]="v.color_idx" [tam]="26"
+                                        [matTooltip]="v.display_name + ' · ' + porcentaje(v.talk_pct) + ' del tiempo'" />
+                      }
+                      @if (c.voces.length > 4) { <span class="mas">+{{ c.voces.length - 4 }}</span> }
+                    </span>
+                    <span class="leyenda">{{ c.leyenda }}</span>
+                  </span>
+                } @else {
+                  <span class="sin-voces">
+                    <mat-icon inline>group</mat-icon> {{ c.r.participants_count }} {{ c.r.participants_count === 1 ? 'participante' : 'participantes' }}
+                    · <mat-icon inline>graphic_eq</mat-icon> {{ c.r.recordings_count }} {{ c.r.recordings_count === 1 ? 'grabación' : 'grabaciones' }}
+                  </span>
+                }
+              </a>
+            </li>
+          }
+        </ul>
+        @if (hayMas()) {
+          <button type="button" class="btn mas-resultados" (click)="masResultados()" [disabled]="cargando()">
+            {{ cargando() ? 'Cargando…' : 'Ver más reuniones' }}
+          </button>
+        }
+      }
+    }
+
+    @if (pestana() === 'personas') {
+      <div class="filtros">
+        <div class="filtro-texto">
+          <mat-icon aria-hidden="true">person_search</mat-icon>
+          <input type="search" placeholder="Filtrar por nombre, cargo o área" aria-label="Filtrar personas"
+                 [value]="filtroPersonas()" (input)="filtroPersonas.set($any($event.target).value)" />
+        </div>
+      </div>
+
+      @if (errorPersonas()) {
+        <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ errorPersonas() }}</span>
+          <button type="button" class="btn chico" (click)="cargarPersonas(true)">Intentar de nuevo</button></p>
+      }
+
+      @if (cargandoPersonas() && !personas().length) {
+        <ul class="personas" aria-hidden="true">
+          @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+            <li class="persona esq-tarjeta"><span class="esq" style="width: 44px; height: 44px; border-radius: 50%"></span><span class="esq" style="height: 40px; flex: 1"></span></li>
+          }
+        </ul>
+      } @else if (!personasVisibles().length && !errorPersonas()) {
+        <div class="vacio">
+          <mat-icon>groups</mat-icon>
+          <h3>{{ filtroPersonas() ? 'Nadie coincide con el filtro' : 'Todavía no hay personas' }}</h3>
+          <p>{{ filtroPersonas() ? 'Prueba con otro nombre o área.' : 'Aparecen aquí cuando se agregan como participantes de una reunión.' }}</p>
+        </div>
+      } @else {
+        <ul class="personas">
+          @for (p of personasVisibles(); track p.person_key) {
+            <li>
+              <a class="persona" [routerLink]="['/dashboard/reuniones/personas', p.person_key]" [style.--hc]="colorVar(idxDeClave(p.person_key))">
+                <app-reu-avatar [nombre]="p.display_name" [colorIdx]="idxDeClave(p.person_key)" [tam]="44" />
+                <span class="p-cuerpo">
+                  <span class="p-nombre">
+                    <strong>{{ p.display_name }}</strong>
+                    @if (p.is_external) { <span class="chip">Externa</span> }
+                  </span>
+                  @if (cargoDe(p)) { <span class="p-cargo">{{ cargoDe(p) }}</span> }
+                  <span class="p-cifras">
+                    {{ p.meetings_count }} {{ p.meetings_count === 1 ? 'reunión' : 'reuniones' }}
+                    @if (p.talk_ms) { · habló {{ duracionHumana(p.talk_ms) }} }
+                    @else { · no ha intervenido }
+                  </span>
+                  @if (p.open_commitments) {
+                    <span class="p-compromisos"><mat-icon inline>assignment_ind</mat-icon> {{ p.open_commitments }} {{ p.open_commitments === 1 ? 'compromiso abierto' : 'compromisos abiertos' }}</span>
+                  }
+                </span>
+                <mat-icon class="flecha" aria-hidden="true">chevron_right</mat-icon>
+              </a>
+            </li>
+          }
+        </ul>
+      }
     }
   }
 </section>

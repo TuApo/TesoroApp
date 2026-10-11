@@ -1,0 +1,71 @@
+:host { display: flex; flex-direction: column; gap: 14px; }
+.rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.columna { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.caja {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 16px 18px;
+  border: 1px solid var(--border); border-radius: var(--r-md, 14px); background: var(--surface); box-shadow: var(--shadow-sm);
+}
+.cuenta { margin-left: 4px; color: var(--text-faint); }
+.parrafo { margin: 0; font-size: 0.92rem; line-height: 1.6; color: var(--text); }
+.apagado { margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.5; }
+.datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 10px 14px; margin: 0; }
+.datos dt { font-size: 0.72rem; color: var(--muted); font-weight: 650; }
+.datos dd { margin: 2px 0 0; font-size: 0.9rem; color: var(--text); overflow-wrap: anywhere; }
+.datos a { color: var(--link); }
+.etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.participantes, .notas, .grabaciones { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.participantes li {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 6px 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm, 10px);
+}
+.p-datos { display: flex; flex-direction: column; min-width: 0; }
+.p-nombre { font-weight: 700; font-size: 0.92rem; color: var(--text); text-decoration: none; }
+.p-nombre:hover { color: var(--link); text-decoration: underline; }
+.p-datos small { color: var(--muted); font-size: 0.76rem; }
+
+.alta { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 8px; padding-top: 6px; border-top: 1px solid var(--border); }
+.alta-acciones { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+.campo { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 0.76rem; font-weight: 650; color: var(--text-2); }
+.campo :is(input, select, textarea) {
+  width: 100%; box-sizing: border-box; min-height: 38px; padding: 7px 10px; border-radius: var(--r-sm, 10px);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 0.88rem; font-weight: 500;
+}
+.campo textarea { resize: vertical; line-height: 1.5; }
+.campo :is(input, select, textarea):focus { outline: 0; border-color: var(--reu-primario); box-shadow: var(--ring); }
+
+.notas li { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: var(--r-sm, 10px); background: var(--surface-2); }
+.notas p { margin: 0; font-size: 0.88rem; line-height: 1.5; color: var(--text); white-space: pre-wrap; }
+.salto {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 2px; padding: 2px 8px 2px 4px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--link); cursor: pointer;
+}
+.salto mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.nota-alta { display: flex; flex-direction: column; gap: 8px; }
+.nota-acciones { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.check-linea { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text-2); margin-right: auto; }
+.check-linea input { width: 18px; height: 18px; }
+
+.grabaciones li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm, 10px); }
+.g-ico { color: var(--muted); flex: none; }
+.g-datos { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.g-datos strong { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g-datos small { font-size: 0.76rem; color: var(--muted); }
+.g-error { color: var(--danger-fg) !important; }
+
+.otra summary {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 38px; cursor: pointer; list-style: none;
+  font-size: 0.88rem; font-weight: 650; color: var(--link);
+}
+.otra summary::-webkit-details-marker { display: none; }
+.otra[open] summary { margin-bottom: 10px; }
+
+@media (max-width: 900px) {
+  .rejilla { grid-template-columns: minmax(0, 1fr); }
+}
+@media (pointer: coarse), (max-width: 600px) {
+  .campo :is(input, select) { min-height: 44px; }
+  .salto, .otra summary { min-height: 44px; }
+  .caja { padding: 14px; }
+  .grabaciones li { flex-wrap: wrap; }
+}

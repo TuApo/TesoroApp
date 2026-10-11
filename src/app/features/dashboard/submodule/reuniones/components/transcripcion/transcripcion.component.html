@@ -1,0 +1,145 @@
+<div class="barra">
+  <div class="buscar-reunion" role="search">
+    <mat-icon aria-hidden="true">search</mat-icon>
+    <input type="search" placeholder="Buscar en esta reunión" aria-label="Buscar en esta reunión"
+           [value]="consulta()" (input)="alEscribir($any($event.target).value)"
+           (keydown.enter)="alEnter($event)" (keydown.escape)="limpiarBusqueda()" />
+    @if (consultaAplicada()) {
+      <span class="conteo tc" aria-live="polite">
+        @if (coincidencias().length) { {{ indiceCoincidencia() + 1 }} de {{ coincidencias().length }} }
+        @else { Sin resultados }
+      </span>
+      <button type="button" class="icono" (click)="anterior()" [disabled]="!coincidencias().length"
+              aria-label="Coincidencia anterior" matTooltip="Anterior (Mayús + Enter)"><mat-icon>keyboard_arrow_up</mat-icon></button>
+      <button type="button" class="icono" (click)="siguiente()" [disabled]="!coincidencias().length"
+              aria-label="Coincidencia siguiente" matTooltip="Siguiente (Enter)"><mat-icon>keyboard_arrow_down</mat-icon></button>
+    }
+  </div>
+  <button type="button" class="btn fantasma chico seguir" [class.encendido]="seguirAudio()"
+          [attr.aria-pressed]="seguirAudio()" (click)="seguirAudio.set(!seguirAudio())"
+          matTooltip="Mantener a la vista la frase que está sonando">
+    <mat-icon>{{ seguirAudio() ? 'my_location' : 'location_searching' }}</mat-icon> Seguir el audio
+  </button>
+</div>
+
+@if (hayFiltros()) {
+  <div class="filtros" aria-label="Filtros activos">
+    <span class="rotulo">Mostrando</span>
+    @for (id of filtroHablantes(); track id) {
+      <button type="button" class="filtro-activo denso" [style.--hc]="colorVar(colorHablante(id))" (click)="quitarFiltroHablante.emit(id)"
+              [attr.aria-label]="'Quitar filtro de ' + nombreHablante(id)">
+        <i class="punto"></i> {{ nombreHablante(id) }} <mat-icon>close</mat-icon>
+      </button>
+    }
+    @if (temaFiltrado(); as t) {
+      <button type="button" class="filtro-activo tema denso" (click)="quitarFiltroTema.emit()" [attr.aria-label]="'Quitar filtro del tema ' + t.title">
+        <mat-icon class="ico-tema">bookmark</mat-icon> {{ t.title }} <span class="tc">{{ reloj(t.start_ms) }}–{{ reloj(t.end_ms) }}</span> <mat-icon>close</mat-icon>
+      </button>
+    }
+    <span class="cuenta">{{ totalVisibles() }} de {{ segmentos().length }} frases</span>
+    <button type="button" class="btn fantasma chico" (click)="limpiarFiltros.emit()">Ver todo</button>
+  </div>
+}
+
+<div class="lista" #lista>
+  @if (cargando() && !segmentos().length) {
+    @for (i of [1, 2, 3, 4]; track i) {
+      <div class="turno esqueleto" aria-hidden="true">
+        <span class="esq av-esq"></span>
+        <div class="esq-lineas">
+          <span class="esq" style="width: 28%; height: 12px"></span>
+          <span class="esq" style="width: 92%; height: 12px"></span>
+          <span class="esq" style="width: 74%; height: 12px"></span>
+        </div>
+      </div>
+    }
+    <p class="visualmente-oculto" role="status">Cargando la transcripción</p>
+  } @else if (!segmentos().length) {
+    <div class="vacio">
+      <mat-icon>voice_over_off</mat-icon>
+      <h3>No se reconoció ninguna frase</h3>
+      <p>La grabación terminó de procesarse pero no trae voz que transcribir. Revisa que el audio tenga sonido o sube otro archivo en Detalles.</p>
+    </div>
+  } @else if (!turnos().length) {
+    <div class="vacio">
+      <mat-icon>filter_alt_off</mat-icon>
+      <h3>Con estos filtros no queda nada</h3>
+      <p>La persona elegida no habló en este tema.</p>
+      <div class="acciones-vacio"><button type="button" class="btn" (click)="limpiarFiltros.emit()">Ver toda la conversación</button></div>
+    </div>
+  }
+
+  @for (t of turnos(); track t.clave) {
+    <article class="turno" [class.continua]="t.continua" [style.--hc]="colorVar(t.color)">
+      @if (!t.continua) {
+        <header class="turno-cab">
+          <app-reu-avatar [nombre]="t.nombre" [colorIdx]="t.color" [tam]="30" />
+          <span class="turno-nombre">{{ t.nombre }}</span>
+          @if (t.rol) { <span class="turno-rol">{{ t.rol }}</span> }
+        </header>
+      }
+      <div class="turno-cuerpo">
+        @for (s of t.segmentos; track s.id) {
+          <div class="seg" [id]="'seg-' + s.id"
+               [class.activo]="segmentoActivo() === s.id"
+               [class.actual]="coincidenciaActual() === s.id"
+               [class.destello]="destello() === s.id">
+            <button type="button" class="seg-t tc denso" (click)="saltar.emit(s.start_ms)"
+                    [attr.aria-label]="'Escuchar desde el minuto ' + reloj(s.start_ms)">{{ reloj(s.start_ms) }}</button>
+
+            @if (editandoId() === s.id) {
+              <div class="edicion">
+                <label class="visualmente-oculto" [attr.for]="'edit-' + s.id">Corregir lo que dijo {{ t.nombre }}</label>
+                <textarea [id]="'edit-' + s.id" rows="3" [value]="textoEditado()"
+                          (input)="textoEditado.set($any($event.target).value)"
+                          (keydown)="teclaEdicion($event, s)"></textarea>
+                @if (errorEdicion()) {
+                  <p class="alerta"><mat-icon>error_outline</mat-icon><span class="alerta-texto">{{ errorEdicion() }}</span></p>
+                }
+                <div class="edicion-acciones">
+                  <span class="ayuda">Ctrl + Enter guarda · Esc cancela</span>
+                  <button type="button" class="btn fantasma chico" (click)="cancelarEdicion()">Cancelar</button>
+                  <button type="button" class="btn primario chico" (click)="guardar(s)" [disabled]="guardando()">
+                    {{ guardando() ? 'Guardando…' : 'Guardar corrección' }}
+                  </button>
+                </div>
+                @if (s.text_original) { <p class="original">Transcripción original: {{ s.text_original }}</p> }
+              </div>
+            } @else {
+              <p class="seg-texto">
+                @if (partes().get(s.id); as ps) {
+                  @for (p of ps; track $index) {@if (p.marca) {<mark>{{ p.texto }}</mark>} @else {<span>{{ p.texto }}</span>}}
+                } @else {
+                  <span>{{ s.text }}</span>
+                }
+                @if (s.edited) { <span class="corregido" [matTooltip]="'Original: ' + (s.text_original || '—')">corregido</span> }
+              </p>
+              <button type="button" class="icono seg-editar" (click)="editar(s)"
+                      aria-label="Corregir este texto" matTooltip="Corregir el texto"><mat-icon>edit</mat-icon></button>
+            }
+
+            @if (acuerdosSeg().get(s.id); as lista) {
+              <div class="marcas">
+                @for (a of lista; track a.id) {
+                  <button type="button" class="marca denso" [attr.data-tipo]="a.kind" [class.hecho]="a.status === 'HECHO'"
+                          (click)="verAcuerdo.emit(a.id)" [attr.aria-label]="etiquetaTipo(a.kind) + ': ' + a.text + '. Ver en acuerdos'">
+                    <mat-icon>{{ ICONO[a.kind] }}</mat-icon>
+                    <strong>{{ etiquetaTipo(a.kind) }}</strong>
+                    <span>{{ a.text }}</span>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </article>
+  }
+
+  @if (cargando() && segmentos().length) {
+    <p class="cargando-mas" role="status">
+      <span class="esq punto-carga"></span>
+      Cargando el resto de la conversación… {{ segmentos().length }}@if (totalEsperado()) { de {{ totalEsperado() }} } frases
+    </p>
+  }
+</div>

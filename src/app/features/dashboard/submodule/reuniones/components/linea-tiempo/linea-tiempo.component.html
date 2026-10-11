@@ -1,0 +1,60 @@
+<div class="lt">
+  @if (bandas().length) {
+    <div class="fila temas">
+      <span class="etq rotulo">Temas</span>
+      <div class="pista">
+        @for (b of bandas(); track b.tema.id; let par = $even) {
+          <button type="button" class="banda siempre-denso"
+                  [class.par]="par"
+                  [class.actual]="temaActual() === b.tema.id"
+                  [class.elegida]="filtroTema() === b.tema.id"
+                  [style.left.%]="b.izq" [style.width.%]="b.ancho"
+                  [attr.aria-pressed]="filtroTema() === b.tema.id"
+                  [attr.aria-label]="'Tema: ' + b.tema.title + ', desde ' + reloj(b.tema.start_ms)"
+                  [title]="b.tema.title + ' · ' + reloj(b.tema.start_ms) + '–' + reloj(b.tema.end_ms)"
+                  (click)="elegirTema.emit(b.tema.id)">
+            <span>{{ b.tema.title }}</span>
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <div class="carriles">
+    @for (c of carriles(); track c.speakerId ?? 'nadie') {
+      <div class="fila carril" [style.--hc]="colorVar(c.color)" [class.atenuado]="atenuado(c.speakerId)">
+        <span class="etq" [title]="c.nombre">
+          <app-reu-avatar [nombre]="c.nombre" [colorIdx]="c.color" [tam]="20" />
+          <span class="corto">{{ c.corto }}</span>
+        </span>
+        <div class="pista">
+          @for (b of c.bloques; track $index) {
+            <i class="bloque" [style.left.%]="b.izq" [style.width.%]="b.ancho"></i>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Capa interactiva sobre las pistas: clic = saltar; teclado = deslizador. -->
+    <div class="capa" role="slider" tabindex="0"
+         aria-label="Línea de tiempo por persona. Clic o flechas para moverse en el audio."
+         aria-valuemin="0" [attr.aria-valuemax]="duracion()" [attr.aria-valuenow]="posicionMs()"
+         [attr.aria-valuetext]="reloj(posicionMs()) + ' de ' + reloj(duracion())"
+         (click)="clic($event)" (mousemove)="mover($event)" (mouseleave)="guiaPct.set(null)"
+         (keydown)="tecla($event)">
+      <span class="cabezal" [style.left.%]="cabezalPct()"><span class="cabezal-punta"></span></span>
+      @if (guiaPct() !== null) {
+        <span class="guia" [style.left.%]="guiaPct()"><span class="guia-hora tc">{{ guiaTexto() }}</span></span>
+      }
+    </div>
+  </div>
+
+  <div class="fila regla" aria-hidden="true">
+    <span class="etq"></span>
+    <div class="pista">
+      @for (m of marcas(); track m.pct; let primero = $first; let ultimo = $last) {
+        <span class="marca tc" [style.left.%]="m.pct" [class.primera]="primero" [class.ultima]="ultimo">{{ m.texto }}</span>
+      }
+    </div>
+  </div>
+</div>

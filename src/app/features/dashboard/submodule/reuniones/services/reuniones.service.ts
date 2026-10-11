@@ -1,11 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 
 import { environment } from '@/environments/environment';
 import {
-  CrearReunion, Grabacion, Nota, PaginaSpring, Participante, ResultadoBusqueda,
-  ReunionDetalle, ReunionResumen, SegmentoTranscripcion, Transcripcion,
+  Acuerdo, Analisis, CrearReunion, FichaPersona, FiltroSegmentos, Grabacion, GuardarAcuerdo,
+  HablanteInsight, InsightsReunion, Nota, PaginaSpring, Participante, Persona, ResultadoBusqueda,
+  ResultadoBusquedaGlobal, ReunionDetalle, ReunionResumen, SegmentoTranscripcion, Transcripcion,
 } from '../models/reunion.model';
 
 /**
@@ -107,8 +108,18 @@ export class ReunionesService {
     return this.http.get<Transcripcion>(`${this.base}/recordings/${grabacionId}/transcript`);
   }
 
-  segmentos(grabacionId: string, page = 0, size = 200): Observable<PaginaSpring<SegmentoTranscripcion>> {
-    const params = new HttpParams().set('page', page).set('size', size);
+  /**
+   * Segmentos por páginas. `filtro` acota a un hablante y/o a un rango de tiempo (un tema);
+   * la ficha trae la reunión completa y filtra en el navegador, pero el backend lo admite
+   * para quien necesite sólo un pedazo.
+   */
+  segmentos(
+    grabacionId: string, page = 0, size = 200, filtro: FiltroSegmentos = {},
+  ): Observable<PaginaSpring<SegmentoTranscripcion>> {
+    let params = new HttpParams().set('page', page).set('size', size);
+    if (filtro.speaker_id) params = params.set('speaker_id', filtro.speaker_id);
+    if (filtro.from_ms != null) params = params.set('from_ms', filtro.from_ms);
+    if (filtro.to_ms != null) params = params.set('to_ms', filtro.to_ms);
     return this.http.get<PaginaSpring<SegmentoTranscripcion>>(
       `${this.base}/recordings/${grabacionId}/segments`, { params });
   }
@@ -123,7 +134,69 @@ export class ReunionesService {
     return this.http.put<SegmentoTranscripcion>(`${this.base}/segments/${segmentoId}`, { text });
   }
 
-  asignarHablante(hablanteId: string, participanteId: string | null): Observable<unknown> {
-    return this.http.put(`${this.base}/speakers/${hablanteId}`, { participant_id: participanteId });
+  /** Asignación MANUAL; `null` la limpia. */
+  asignarHablante(hablanteId: string, participanteId: string | null): Observable<HablanteInsight> {
+    return this.http.put<HablanteInsight>(`${this.base}/speakers/${hablanteId}`, { participant_id: participanteId });
+  }
+
+  /** Da por buena la asignación que hizo la IA (IA → MANUAL). */
+  confirmarHablante(hablanteId: string): Observable<HablanteInsight> {
+    return this.http.post<HablanteInsight>(`${this.base}/speakers/${hablanteId}/confirm`, {});
+  }
+
+  /** Crea el participante con el nombre y el cargo que sugirió la IA y se lo asigna. 409 sin sugerencia. */
+  participanteDesdeSugerencia(hablanteId: string): Observable<HablanteInsight> {
+    return this.http.post<HablanteInsight>(
+      `${this.base}/speakers/${hablanteId}/participant-from-suggestion`, {});
+  }
+
+  // ── Lo que se habló: análisis, temas y acuerdos ───────────────────────────
+
+  /** Hablantes con estadísticas, temas, acuerdos, resumen y estado del pipeline. */
+  insights(reunionId: string): Observable<InsightsReunion> {
+    return this.http.get<InsightsReunion>(`${this.base}/${reunionId}/insights`);
+  }
+
+  /**
+   * Relanza el análisis (202). Acepta la respuesta como el análisis suelto o envuelto en
+   * `{ analysis }`: el contrato dice "202 + analysis" y no vale la pena romperse por la forma.
+   */
+  analizar(reunionId: string): Observable<Analisis | null> {
+    return this.http.post<Analisis | { analysis: Analisis } | null>(`${this.base}/${reunionId}/analyze`, {})
+      .pipe(map(r => (r && 'analysis' in r ? r.analysis : (r as Analisis | null))));
+  }
+
+  crearAcuerdo(reunionId: string, body: GuardarAcuerdo): Observable<Acuerdo> {
+    return this.http.post<Acuerdo>(`${this.base}/${reunionId}/items`, body);
+  }
+
+  actualizarAcuerdo(acuerdoId: string, body: GuardarAcuerdo): Observable<Acuerdo> {
+    return this.http.put<Acuerdo>(`${this.base}/items/${acuerdoId}`, body);
+  }
+
+  eliminarAcuerdo(acuerdoId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/items/${acuerdoId}`);
+  }
+
+  // ── Búsqueda global y personas ────────────────────────────────────────────
+
+  /** Busca en TODO lo transcrito que el usuario puede ver. `persona` = person_key. */
+  buscarGlobal(q: string, opciones: { persona?: string | null; limit?: number } = {}): Observable<ResultadoBusquedaGlobal> {
+    let params = new HttpParams().set('q', q);
+    if (opciones.persona) params = params.set('person', opciones.persona);
+    if (opciones.limit) params = params.set('limit', opciones.limit);
+    return this.http.get<ResultadoBusquedaGlobal>(`${this.base}/search`, { params });
+  }
+
+  /** Directorio de personas a través de todas las reuniones visibles. */
+  personas(q?: string): Observable<Persona[]> {
+    let params = new HttpParams();
+    if (q?.trim()) params = params.set('q', q.trim());
+    return this.http.get<Persona[]>(`${this.base}/people`, { params });
+  }
+
+  /** Ficha de una persona. La clave lleva `:` y a veces `@` o espacios: va codificada. */
+  persona(clave: string): Observable<FichaPersona> {
+    return this.http.get<FichaPersona>(`${this.base}/people/${encodeURIComponent(clave)}`);
   }
 }

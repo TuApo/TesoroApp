@@ -1,0 +1,29 @@
+/*
+ * Paleta de hablantes (12 colores), indexada por `color_idx`.
+ *
+ * Se declara en el :host de cada PÁGINA del módulo y los componentes hijos la heredan
+ * (las variables CSS atraviesan el encapsulado emulado). Cada elemento pinta con
+ * `var(--hc)`, que la plantilla fija con `[style.--hc]="colorVar(idx)"`.
+ *
+ * Claro: tonos 700 (texto blanco encima ≥ 4,5:1 y legibles como texto sobre blanco).
+ * Oscuro: tonos 300 (texto oscuro encima y legibles sobre la superficie oscura).
+ * El orden alterna familias para que las primeras voces de una reunión —las que más
+ * se ven— queden lo más separadas posible entre sí.
+ */
+:host {
+  --hc0: #1D4ED8;  --hc1: #C2410C;  --hc2: #0F766E;  --hc3: #BE185D;
+  --hc4: #6D28D9;  --hc5: #15803D;  --hc6: #A16207;  --hc7: #0E7490;
+  --hc8: #A21CAF;  --hc9: #4D7C0F;  --hc10: #4338CA; --hc11: #B91C1C;
+  --hc-nulo: #64748B;
+  /* Texto sobre el color sólido (avatares). */
+  --hc-on: #FFFFFF;
+  --hc: var(--hc-nulo);
+}
+
+:host-context(html[data-theme='dark']) {
+  --hc0: #93C5FD;  --hc1: #FDBA74;  --hc2: #5EEAD4;  --hc3: #F9A8D4;
+  --hc4: #C4B5FD;  --hc5: #86EFAC;  --hc6: #FDE047;  --hc7: #67E8F9;
+  --hc8: #F0ABFC;  --hc9: #BEF264;  --hc10: #A5B4FC; --hc11: #FCA5A5;
+  --hc-nulo: #94A3B8;
+  --hc-on: #0F1B2D;
+}

@@ -1,0 +1,80 @@
+:host { display: block; }
+.panel { display: flex; flex-direction: column; gap: 12px; }
+.cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+.cuenta { margin-left: 4px; color: var(--text-faint); }
+.pendientes { margin: 0; font-size: 0.8rem; line-height: 1.45; color: var(--text-2); }
+.vacio-corto { margin: 0; font-size: 0.86rem; color: var(--muted); }
+
+.lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+
+.hablante {
+  position: relative; display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 10px 12px 12px; border-radius: var(--r-md, 14px);
+  border: 1px solid var(--border); background: var(--surface);
+  transition: opacity .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.hablante::before {
+  content: ''; position: absolute; left: -1px; top: 12px; bottom: 12px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--hc);
+}
+.hablante.en-filtro { border-color: var(--hc); box-shadow: 0 0 0 1px var(--hc) inset; }
+.hablante.atenuado { opacity: .55; }
+.hablante.atenuado:hover, .hablante.atenuado:focus-within { opacity: 1; }
+
+.cabeza {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 0;
+  border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  border-radius: 10px;
+}
+.quien { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.hab-nombre {
+  font-size: 0.94rem; font-weight: 750; color: var(--hc); line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.quien small { font-size: 0.76rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Tres barras que se mueven cuando esa persona está hablando en el audio. */
+.ahora { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; flex: none; }
+.ahora i { display: block; width: 3px; background: var(--hc); border-radius: 1px; animation: eq 0.9s ease-in-out infinite; }
+.ahora i:nth-child(2) { animation-delay: .2s; }
+.ahora i:nth-child(3) { animation-delay: .4s; }
+@keyframes eq { 0%, 100% { height: 4px; } 50% { height: 14px; } }
+
+.medidor { height: 5px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.medidor span { display: block; height: 100%; min-width: 2px; background: var(--hc); border-radius: 999px; }
+.cifras { margin: 0; display: flex; flex-wrap: wrap; gap: 4px; font-size: 0.74rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sep { color: var(--text-faint); }
+
+.identidad { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }
+.identidad p { margin: 0; font-size: 0.84rem; line-height: 1.4; color: var(--text); }
+.identidad.ia p mat-icon { color: var(--violet-fg); }
+.identidad.sugerencia, .identidad.ia {
+  padding: 8px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border);
+}
+.identidad.confirmada { flex-direction: row; flex-wrap: wrap; gap: 4px; margin-top: 0; }
+.acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+.acciones .btn { white-space: normal; text-align: left; }
+
+.cita {
+  display: block; width: 100%; padding: 4px 0; border: 0; background: transparent; cursor: pointer;
+  text-align: left; font: inherit; font-size: 0.8rem; font-style: italic; color: var(--text-2); line-height: 1.4;
+}
+.cita:hover { color: var(--text); }
+.cita .tc { font-style: normal; margin-left: 4px; color: var(--link); }
+
+.selector { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.selector label { font-size: 0.78rem; font-weight: 650; color: var(--text-2); }
+.selector select {
+  width: 100%; min-height: 38px; padding: 6px 10px; border-radius: var(--r-sm, 10px);
+  border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 0.88rem;
+}
+.guardando { font-size: 0.74rem; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ahora i { animation: none; height: 10px; }
+  .hablante { transition: none; }
+}
+@media (pointer: coarse), (max-width: 600px) {
+  .selector select { min-height: 44px; }
+  .cita { min-height: 44px; }
+}

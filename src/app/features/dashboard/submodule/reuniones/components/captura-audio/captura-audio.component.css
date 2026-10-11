@@ -1,0 +1,64 @@
+:host { display: block; }
+
+.captura {
+  display: flex; flex-direction: column; gap: 18px; padding: 28px;
+  border: 1px dashed var(--border-strong); border-radius: var(--r-lg, 18px); background: var(--surface);
+}
+.captura.compacta { padding: 0; border: 0; background: transparent; gap: 12px; }
+
+.intro { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
+.intro h3 { margin: 6px 0 0; font-size: 1.15rem; font-weight: 750; color: var(--text); letter-spacing: -0.01em; }
+.intro p { margin: 0; max-width: 52ch; color: var(--muted); font-size: 0.92rem; line-height: 1.55; }
+
+/* Una onda quieta: lo que falta aquí es sonido. */
+.onda { display: inline-flex; align-items: center; gap: 3px; height: 26px; }
+.onda i { display: block; width: 4px; border-radius: 2px; background: var(--border-strong); }
+
+.opciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.compacta .opciones { grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); }
+.opcion {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  padding: 16px; border: 1px solid var(--border); border-radius: var(--r-md, 14px); background: var(--surface-2);
+}
+.fila-botones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn.grande { min-height: 48px; padding: 10px 20px; font-size: 0.95rem; }
+.nota { margin: 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+.nota.ok { color: var(--ok-fg); display: inline-flex; align-items: center; gap: 4px; }
+
+.en-vivo { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.tiempo {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 2rem; font-weight: 650; color: var(--text);
+}
+.punto { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); animation: latir 1.4s ease infinite; }
+.estado-vivo { color: var(--muted); font-size: 0.88rem; font-weight: 600; }
+@keyframes latir { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+.zona {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: 120px; padding: 16px; text-align: center; cursor: pointer;
+  border: 1px dashed var(--border-strong); border-radius: var(--r-md, 14px); background: var(--surface);
+  color: var(--text-2); transition: border-color .15s ease, color .15s ease;
+}
+.zona:hover:not(.deshabilitada), .zona:focus-within { border-color: var(--reu-primario); color: var(--text); }
+.zona.deshabilitada { opacity: .6; cursor: default; }
+.zona input { position: absolute; inset: 0; opacity: 0; cursor: inherit; width: 100%; height: 100%; }
+.zona mat-icon { font-size: 28px; width: 28px; height: 28px; color: var(--muted); }
+.zona-titulo { font-weight: 700; font-size: 0.92rem; }
+.zona-ayuda { font-size: 0.78rem; color: var(--muted); max-width: 40ch; line-height: 1.45; }
+
+.progreso { display: flex; flex-direction: column; gap: 8px; }
+.barra { height: 8px; background: var(--surface-4); border-radius: 999px; overflow: hidden; }
+.relleno { height: 100%; background: var(--reu-primario); border-radius: 999px; transition: width .25s ease; }
+.progreso-texto { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.86rem; gap: 8px; }
+
+@media (prefers-reduced-motion: reduce) { .punto { animation: none; } .relleno, .zona { transition: none; } }
+
+@media (max-width: 900px) {
+  .opciones { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .captura { padding: 18px 14px; }
+  .fila-botones .btn { flex: 1 1 auto; }
+  .tiempo { font-size: 1.7rem; }
+}
