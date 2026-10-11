@@ -1,0 +1,50 @@
+:host { display: flex; flex-direction: column; gap: 12px; }
+.cl-barra { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cl-nav { display: flex; align-items: center; gap: 4px; }
+.cl-nav h2 { margin: 0 6px; min-width: 170px; text-align: center; font-size: 19px; font-weight: 800; color: var(--navy-ink); text-transform: capitalize; }
+.cl-resumen { display: flex; gap: 12px; font-size: 13px; color: var(--muted); }
+.cl-resumen strong { color: var(--text); }
+.cl-venc, .cl-venc strong { color: var(--danger-fg) !important; }
+.cl-alcance { margin-left: auto; display: inline-flex; padding: 3px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); }
+.cl-alcance button { border: 0; background: none; padding: 7px 12px; border-radius: 9px; font: inherit; font-weight: 700; font-size: 13px; color: var(--text-2); cursor: pointer; min-height: 36px !important; }
+.cl-on { background: var(--navy) !important; color: #fff !important; }
+:host-context(html[data-theme='dark']) .cl-on { background: var(--primary) !important; }
+.cl-error { display: flex; align-items: center; gap: 6px; color: var(--danger-fg); margin: 0; }
+.cl-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 14px; align-items: start; }
+.cl-mes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; background: var(--surface); border: 1px solid var(--border);
+          border-radius: 18px; padding: 10px; transition: opacity .2s; }
+.cl-mes--cargando { opacity: .55; }
+.cl-dia-nombre { text-align: center; font-size: 12px; font-weight: 800; color: var(--muted); padding: 4px 0 6px; text-transform: uppercase; }
+.cl-celda { position: relative; min-height: 104px; display: flex; flex-direction: column; gap: 3px; padding: 5px; border-radius: 10px;
+            background: var(--surface-2); border: 1px solid transparent; cursor: pointer; min-width: 0; }
+.cl-celda:hover { border-color: var(--border-strong); }
+.cl-celda:focus-visible { outline: none; box-shadow: var(--ring); }
+.cl-celda--fuera { opacity: .45; }
+.cl-celda--hoy .cl-num { background: var(--primary); color: #fff; }
+.cl-celda--on { border-color: var(--primary); background: var(--blue-soft); }
+.cl-num { align-self: flex-start; font-size: 12.5px; font-weight: 800; color: var(--text-2); min-width: 22px; height: 22px; border-radius: 7px;
+          display: grid; place-items: center; padding: 0 4px; }
+.cl-tarea { display: block; width: 100%; text-align: left; border: 0; border-left: 3px solid var(--c); background: var(--surface); border-radius: 6px;
+            padding: 2px 6px; font: inherit; font-size: 11.5px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; cursor: pointer; min-height: 0 !important; }
+.cl-tarea[data-tono="vencida"] { background: var(--danger-bg); color: var(--danger-fg); }
+.cl-tarea[data-tono="hecha"] { text-decoration: line-through; color: var(--muted); }
+.cl-mas { font-size: 11px; color: var(--muted); font-weight: 700; padding-left: 4px; }
+.cl-punto { display: none; }
+.cl-lado { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 10px;
+           position: sticky; top: 74px; max-height: calc(100vh - 110px); overflow: auto; }
+.cl-lado header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cl-lado h3 { margin: 0; font-size: 16px; font-weight: 800; }
+.cl-lado h3::first-letter { text-transform: uppercase; }
+.cl-items { display: flex; flex-direction: column; gap: 6px; }
+.cl-vacio { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; margin: 0; }
+
+@media (max-width: 1100px) { .cl-cuerpo { grid-template-columns: 1fr; } .cl-lado { position: static; max-height: none; } }
+@media (max-width: 700px) {
+  .cl-alcance { margin-left: 0; }
+  .cl-celda { min-height: 52px; align-items: center; }
+  .cl-tarea, .cl-mas { display: none; }
+  .cl-punto { display: block; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+  .cl-mes { padding: 6px; gap: 2px; }
+  .cl-nav h2 { min-width: 0; font-size: 16px; }
+}

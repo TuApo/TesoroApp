@@ -1,0 +1,263 @@
+@if (cargando() && !tablero()) {
+  <div class="tl-centro"><mat-spinner diameter="40" /></div>
+} @else if (error()) {
+  <div class="tl-vacio"><mat-icon>search_off</mat-icon><p>{{ error() }}</p>
+    <a mat-stroked-button routerLink="/dashboard/tareas/tableros">Ver tableros</a></div>
+} @else if (tablero(); as t) {
+  <!-- Cabecera del tablero -->
+  <header class="tl-cab" [style.--c]="t.accent || 'var(--primary)'">
+    @if (editandoTablero()) {
+      <div class="tl-ed">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Nombre</mat-label>
+          <input matInput [(ngModel)]="edNombre" maxlength="200" (keydown.enter)="guardarTablero()"></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tl-ed__desc"><mat-label>Descripción</mat-label>
+          <input matInput [(ngModel)]="edDesc" maxlength="500"></mat-form-field>
+        <div class="tl-colores">
+          @for (c of coloresTablero; track c) {
+            <button type="button" class="tl-color" [style.background]="c" [class.tl-color--on]="edColor === c" (click)="edColor = c" [attr.aria-label]="'Color ' + c"></button>
+          }
+        </div>
+        <button mat-stroked-button (click)="editandoTablero.set(false)">Cancelar</button>
+        <button mat-flat-button (click)="guardarTablero()" [disabled]="!edNombre.trim()">Guardar</button>
+      </div>
+    } @else {
+      <div class="tl-cab__info">
+        <a class="tl-volver" routerLink="/dashboard/tareas/tableros" aria-label="Volver a tableros"><mat-icon>arrow_back</mat-icon></a>
+        <div class="tl-cab__txt">
+          <span class="tl-espacio"><a [routerLink]="['/dashboard/tareas/espacios', t.workspace]">{{ t.workspace_name }}</a></span>
+          <h2>{{ t.name }}
+            <button type="button" class="tl-star" [class.tl-star--on]="t.is_favorite" (click)="favorito()"
+                    [attr.aria-label]="t.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'">
+              <mat-icon>{{ t.is_favorite ? 'star' : 'star_outline' }}</mat-icon>
+            </button>
+          </h2>
+          @if (t.description) { <p>{{ t.description }}</p> }
+        </div>
+      </div>
+      <div class="tl-cab__lado">
+        <div class="tl-stats">
+          <span><strong>{{ abiertas() }}</strong> abiertas</span>
+          @if (vencidas()) { <span class="tl-venc"><strong>{{ vencidas() }}</strong> vencidas</span> }
+          <span><strong>{{ totalTareas() - abiertas() }}</strong> hechas</span>
+        </div>
+        <div class="tl-equipo" [matTooltip]="miembrosActivos().length + ' miembros del espacio'">
+          @for (m of miembrosActivos().slice(0, 6); track m.id) { <app-tarea-avatar [usuario]="m.user" [tam]="28" /> }
+          @if (miembrosActivos().length > 6) { <span class="tl-mas">+{{ miembrosActivos().length - 6 }}</span> }
+        </div>
+        @if (!t.can_manage_content) { <span class="tl-lectura"><mat-icon>visibility</mat-icon>Solo lectura</span> }
+      </div>
+    }
+  </header>
+
+  <!-- Barra: vista, filtros y acciones -->
+  <div class="tl-barra">
+    <div class="tl-vistas" role="radiogroup" aria-label="Vista">
+      <button type="button" role="radio" [attr.aria-checked]="vista() === 'columnas'" [class.tl-vista--on]="vista() === 'columnas'"
+              (click)="cambiarVista('columnas')"><mat-icon>view_kanban</mat-icon>Columnas</button>
+      <button type="button" role="radio" [attr.aria-checked]="vista() === 'lista'" [class.tl-vista--on]="vista() === 'lista'"
+              (click)="cambiarVista('lista')"><mat-icon>view_list</mat-icon>Lista</button>
+    </div>
+    <div class="tl-buscar">
+      <mat-icon>search</mat-icon>
+      <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar en el tablero" aria-label="Buscar tareas del tablero">
+    </div>
+    <button type="button" class="tl-toggle tl-toggle--movil" [class.tl-toggle--on]="cuantosFiltros() > 0" (click)="filtrosAbiertos.set(!filtrosAbiertos())"
+            [attr.aria-expanded]="filtrosAbiertos()"><mat-icon>tune</mat-icon>Filtros @if (cuantosFiltros()) { ({{ cuantosFiltros() }}) }</button>
+    <div class="tl-filtros" [class.tl-filtros--abiertos]="filtrosAbiertos()">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tl-sel">
+        <mat-label>Responsable</mat-label>
+        <mat-select [value]="responsable()" (selectionChange)="responsable.set($event.value)">
+          <mat-option [value]="null">Todos</mat-option>
+          <mat-option value="yo">Mis tareas</mat-option>
+          <mat-option value="sin">Sin responsable</mat-option>
+          @for (p of personasEnTablero(); track p.id) { <mat-option [value]="p.id">{{ p.nombre }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tl-sel">
+        <mat-label>Vencimiento</mat-label>
+        <mat-select [value]="fecha()" (selectionChange)="fecha.set($event.value)">
+          <mat-option [value]="null">Cualquiera</mat-option>
+          <mat-option value="vencidas">Vencidas</mat-option>
+          <mat-option value="hoy">Para hoy</mat-option>
+          <mat-option value="semana">Próximos 7 días</mat-option>
+          <mat-option value="sin-fecha">Sin fecha</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tl-sel">
+        <mat-label>Prioridad</mat-label>
+        <mat-select [value]="prioridad()" (selectionChange)="prioridad.set($event.value)">
+          <mat-option [value]="null">Todas</mat-option>
+          @for (p of prioridades; track p.clave) { <mat-option [value]="p.clave">{{ p.etiqueta }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      @if (etiquetas().length) {
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="tl-sel">
+          <mat-label>Etiqueta</mat-label>
+          <mat-select [value]="etiqueta()" (selectionChange)="etiqueta.set($event.value)">
+            <mat-option [value]="null">Todas</mat-option>
+            @for (e of etiquetas(); track e.id) { <mat-option [value]="e.id"><i class="tl-dot" [style.background]="e.color"></i>{{ e.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+      }
+      <button type="button" class="tl-toggle" [class.tl-toggle--on]="ocultarHechas()" (click)="ocultarHechas.set(!ocultarHechas())"
+              [attr.aria-pressed]="ocultarHechas()"><mat-icon>{{ ocultarHechas() ? 'visibility_off' : 'task_alt' }}</mat-icon>Ocultar hechas</button>
+    </div>
+    @if (hayFiltros()) { <button mat-button (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon>Limpiar</button> }
+
+    <span class="tl-esp"></span>
+    @if (t.can_manage_content) {
+      <button mat-flat-button (click)="nueva()"><mat-icon>add_task</mat-icon>Nueva tarea</button>
+      <button mat-icon-button [matMenuTriggerFor]="menuTablero" aria-label="Opciones del tablero"><mat-icon>more_vert</mat-icon></button>
+      <mat-menu #menuTablero="matMenu" xPosition="before">
+        <button mat-menu-item (click)="abrirEdicion()"><mat-icon>edit</mat-icon>Editar tablero</button>
+        <button mat-menu-item [matMenuTriggerFor]="menuEtiquetas"><mat-icon>sell</mat-icon>Etiquetas</button>
+        <button mat-menu-item (click)="creandoLista.set(true)"><mat-icon>view_week</mat-icon>Nueva columna</button>
+        <a mat-menu-item [routerLink]="['/dashboard/tareas/espacios', t.workspace]"><mat-icon>group_add</mat-icon>Miembros y grupos</a>
+        <button mat-menu-item class="tl-peligro" (click)="eliminarTablero()"><mat-icon>delete</mat-icon>Eliminar tablero</button>
+      </mat-menu>
+      <mat-menu #menuEtiquetas="matMenu">
+        @for (e of etiquetas(); track e.id) {
+          <button mat-menu-item (click)="eliminarEtiqueta(e)"><mat-icon [style.color]="e.color">sell</mat-icon>{{ e.name }}<mat-icon class="tl-menu-x">delete_outline</mat-icon></button>
+        }
+        <div class="tl-etq-nueva" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+          <input [(ngModel)]="nuevaEtiqueta" placeholder="Nueva etiqueta" maxlength="40" (keydown.enter)="crearEtiqueta()">
+          <div class="tl-colores">
+            @for (c of coloresEtiqueta; track c) {
+              <button type="button" class="tl-color tl-color--mini" [style.background]="c" [class.tl-color--on]="colorEtiqueta === c" (click)="colorEtiqueta = c" [attr.aria-label]="'Color ' + c"></button>
+            }
+          </div>
+          <button mat-flat-button [disabled]="!nuevaEtiqueta.trim()" (click)="crearEtiqueta()">Crear</button>
+        </div>
+      </mat-menu>
+    }
+  </div>
+  @if (hayFiltros() && vista() === 'columnas') {
+    <p class="tl-aviso"><mat-icon>info</mat-icon>Con filtros activos no se puede arrastrar: quita los filtros para reordenar.</p>
+  }
+
+  @if (vista() === 'columnas') {
+    <!-- Columnas -->
+    <div class="tl-kanban" cdkDropListGroup>
+      @for (l of listasVisibles(); track l.id) {
+        <section class="tl-col" [attr.data-tipo]="l.list_type">
+          <header class="tl-col__cab">
+            @if (listaEditando() === l.id) {
+              <input class="tl-col__input" [(ngModel)]="nombreLista" (blur)="guardarLista(l)" (keydown.enter)="guardarLista(l)"
+                     (keydown.escape)="listaEditando.set(null)" maxlength="200" aria-label="Nombre de la columna">
+            } @else {
+              <span class="tl-col__marca" [matTooltip]="'Estado al entrar: ' + tipoDe(l.list_type)"></span>
+              <h3 (dblclick)="t.can_manage_content && editarLista(l)">{{ l.name }}</h3>
+              <span class="tl-col__n">{{ l.cards.length }}</span>
+            }
+            @if (t.can_manage_content) {
+              <button mat-icon-button class="tl-col__menu" [matMenuTriggerFor]="menuLista" aria-label="Opciones de la columna"><mat-icon>more_horiz</mat-icon></button>
+              <mat-menu #menuLista="matMenu">
+                <button mat-menu-item (click)="nueva(l)"><mat-icon>add_task</mat-icon>Nueva tarea aquí</button>
+                <button mat-menu-item (click)="editarLista(l)"><mat-icon>edit</mat-icon>Renombrar</button>
+                <button mat-menu-item [matMenuTriggerFor]="menuTipo"><mat-icon>rule</mat-icon>Estado de la columna</button>
+                <button mat-menu-item (click)="moverLista(l, -1)" [disabled]="$first"><mat-icon>arrow_back</mat-icon>Mover a la izquierda</button>
+                <button mat-menu-item (click)="moverLista(l, 1)" [disabled]="$last"><mat-icon>arrow_forward</mat-icon>Mover a la derecha</button>
+                <button mat-menu-item class="tl-peligro" (click)="eliminarLista(l)"><mat-icon>delete</mat-icon>Eliminar columna</button>
+              </mat-menu>
+              <mat-menu #menuTipo="matMenu">
+                @for (tp of tiposLista; track tp.clave) {
+                  <button mat-menu-item (click)="tipoLista(l, tp.clave)">
+                    <mat-icon>{{ l.list_type === tp.clave ? 'radio_button_checked' : 'radio_button_unchecked' }}</mat-icon>{{ tp.etiqueta }}
+                  </button>
+                }
+              </mat-menu>
+            }
+          </header>
+
+          <div class="tl-col__cuerpo" cdkDropList [id]="'lista-' + l.id" [cdkDropListData]="l.cards" [cdkDropListConnectedTo]="idsListas()"
+               [cdkDropListDisabled]="!t.can_manage_content || hayFiltros()" (cdkDropListDropped)="soltar($event, l)">
+            @for (c of l.cards; track c.id) {
+              @let v = venc(c);
+              <article class="tl-card" cdkDrag [cdkDragData]="c" [attr.data-p]="prio(c.priority).tono" [class.tl-card--hecha]="c.status === 'DONE'"
+                       tabindex="0" (click)="abrir(c.id)" (keydown.enter)="abrir(c.id)" [attr.aria-label]="c.title">
+                @if (c.labels?.length) {
+                  <div class="tl-card__etqs">
+                    @for (e of c.labels; track e.id) { <span class="tl-card__etq" [style.background]="e.label_color" [matTooltip]="e.label_name">{{ e.label_name }}</span> }
+                  </div>
+                }
+                <p class="tl-card__titulo">
+                  @if (c.status === 'DONE') { <mat-icon class="tl-card__ok">check_circle</mat-icon> }
+                  @if (c.status === 'BLOCKED') { <mat-icon class="tl-card__bloq">block</mat-icon> }
+                  {{ c.title }}
+                </p>
+                <div class="tl-card__pie">
+                  @if (c.due_at) { <span class="tl-chip" [attr.data-tono]="v.tono"><mat-icon>event</mat-icon>{{ v.texto }}</span> }
+                  @if (c.priority === 'URGENT' || c.priority === 'HIGH') {
+                    <span class="tl-chip" [attr.data-p]="prio(c.priority).tono"><mat-icon>{{ prio(c.priority).icono }}</mat-icon>{{ prio(c.priority).etiqueta }}</span>
+                  }
+                  @if ((c.checklist_total ?? 0) > 0) {
+                    <span class="tl-ico" [class.tl-ico--ok]="c.checklist_done === c.checklist_total"><mat-icon>checklist</mat-icon>{{ c.checklist_done }}/{{ c.checklist_total }}</span>
+                  }
+                  @if ((c.comment_count ?? 0) > 0) { <span class="tl-ico"><mat-icon>chat_bubble_outline</mat-icon>{{ c.comment_count }}</span> }
+                  @if ((c.attachment_count ?? 0) > 0) { <span class="tl-ico"><mat-icon>attach_file</mat-icon>{{ c.attachment_count }}</span> }
+                  @if (c.origen_tipo) { <span class="tl-ico" matTooltip="Viene de otro módulo"><mat-icon>link</mat-icon></span> }
+                  <span class="tl-esp"></span>
+                  @if (c.assignee_group && !c.assignee) {
+                    <app-tarea-avatar [grupo]="c.assignee_group_name || 'Grupo'" [tam]="24" />
+                  } @else if (c.assignee) {
+                    <app-tarea-avatar [usuario]="c.assignee" [tam]="24" />
+                  }
+                </div>
+                <div class="tl-card__fantasma" *cdkDragPlaceholder></div>
+              </article>
+            } @empty {
+              <p class="tl-col__vacia">{{ hayFiltros() ? 'Nada coincide' : 'Sin tareas' }}</p>
+            }
+          </div>
+
+          @if (t.can_manage_content) {
+            <div class="tl-alta">
+              <mat-icon>add</mat-icon>
+              <input [ngModel]="textoAlta(l.id)" (ngModelChange)="ponerAlta(l.id, $event)" (keydown.enter)="crearRapida(l)"
+                     placeholder="Agregar tarea y Enter" maxlength="500" [attr.aria-label]="'Agregar tarea en ' + l.name">
+            </div>
+          }
+        </section>
+      }
+
+      @if (t.can_manage_content) {
+        <section class="tl-col tl-col--nueva">
+          @if (creandoLista()) {
+            <input class="tl-col__input" [(ngModel)]="nuevaLista" placeholder="Nombre de la columna" (keydown.enter)="crearLista()" maxlength="200" aria-label="Nombre de la nueva columna">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Estado al entrar</mat-label>
+              <mat-select [(value)]="nuevaListaTipo">
+                @for (tp of tiposLista; track tp.clave) { <mat-option [value]="tp.clave">{{ tp.etiqueta }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <div class="tl-col__acc">
+              <button mat-stroked-button (click)="creandoLista.set(false)">Cancelar</button>
+              <button mat-flat-button [disabled]="!nuevaLista.trim()" (click)="crearLista()">Agregar</button>
+            </div>
+          } @else {
+            <button type="button" class="tl-col__agregar" (click)="creandoLista.set(true)"><mat-icon>add</mat-icon>Nueva columna</button>
+          }
+        </section>
+      }
+    </div>
+  } @else {
+    <!-- Lista -->
+    <div class="tl-listas">
+      @for (l of listasVisibles(); track l.id) {
+        <section class="tl-grupo">
+          <header class="tl-grupo__cab" [attr.data-tipo]="l.list_type">
+            <span class="tl-col__marca"></span><h3>{{ l.name }}</h3><span class="tl-col__n">{{ l.cards.length }}</span>
+            @if (t.can_manage_content) { <button mat-button (click)="nueva(l)"><mat-icon>add</mat-icon>Tarea</button> }
+          </header>
+          <div class="tl-grupo__items">
+            @for (c of ordenadas(l.cards); track c.id) {
+              <app-tarea-item [tarea]="c" [mostrarContexto]="false" (abrir)="abrir($event.id)" (completar)="completar($event)" (cambiarEstado)="cambiarEstado($event)" />
+            } @empty {
+              <p class="tl-col__vacia">{{ hayFiltros() ? 'Nada coincide' : 'Sin tareas' }}</p>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+}

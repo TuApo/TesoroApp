@@ -31,7 +31,9 @@ export const routes: Routes = [
       { path: 'afiliaciones', loadChildren: () => import('./submodule/afiliaciones/afiliaciones.routes').then(m => m.routes) },
       { path: 'financiera', loadChildren: () => import('./submodule/financiera/financiera.routes').then(m => m.routes) },
       { path: 'bug-tickets', loadChildren: () => import('./submodule/bug-tickets/bug-tickets.routes').then(m => m.routes) },
-      { path: 'matder', loadChildren: () => import('./submodule/matder/matder.routes').then(m => m.routes) },
+      { path: 'tareas', loadChildren: () => import('./submodule/seguimiento-tareas/seguimiento-tareas.routes').then(m => m.routes) },
+      // MatDer pasó a ser Seguimiento Tareas: lo viejo redirige a lo nuevo.
+      { path: 'matder', loadChildren: () => import('./submodule/seguimiento-tareas/seguimiento-tareas.routes').then(m => m.rutasMatderLegado) },
       { path: 'disabilities', loadChildren: () => import('./submodule/disabilities/disabilities.routes').then(m => m.routes) },
       { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.routes').then(m => m.routes) },
       { path: 'marketing', loadChildren: () => import('./submodule/marketing/marketing.routes').then(m => m.routes) },

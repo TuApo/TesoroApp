@@ -1,0 +1,166 @@
+<div class="cf-tabs" role="tablist">
+  <button type="button" role="tab" [class.cf-on]="pestana() === 'parametros'" [attr.aria-selected]="pestana() === 'parametros'" (click)="abrirPestana('parametros')"><mat-icon>tune</mat-icon>Parámetros</button>
+  <button type="button" role="tab" [class.cf-on]="pestana() === 'avisos'" [attr.aria-selected]="pestana() === 'avisos'" (click)="abrirPestana('avisos')"><mat-icon>notifications</mat-icon>Mis avisos</button>
+  <button type="button" role="tab" [class.cf-on]="pestana() === 'importar'" [attr.aria-selected]="pestana() === 'importar'" (click)="abrirPestana('importar')"><mat-icon>upload_file</mat-icon>Importar</button>
+  <button type="button" role="tab" [class.cf-on]="pestana() === 'auditoria'" [attr.aria-selected]="pestana() === 'auditoria'" (click)="abrirPestana('auditoria')"><mat-icon>history</mat-icon>Auditoría</button>
+</div>
+
+@switch (pestana()) {
+  @case ('parametros') {
+    @if (!esAdmin) {
+      <p class="cf-nota"><mat-icon>lock</mat-icon>Solo administración cambia estos parámetros. Aquí puedes ver cómo está configurado el módulo.</p>
+    }
+    @if (cargandoParametros()) {
+      <div class="cf-centro"><mat-spinner diameter="36" /></div>
+    } @else {
+      <div class="cf-grupos">
+        @for (g of grupos(); track g.clave) {
+          <section class="cf-card">
+            <header><mat-icon>{{ g.icono }}</mat-icon><div><h3>{{ g.titulo }}</h3><p>{{ g.ayuda }}</p></div></header>
+            @for (p of g.items; track p.clave) {
+              <div class="cf-param" [class.cf-param--ancho]="p.tipo === 'LISTAS'">
+                <div class="cf-param__txt">
+                  <strong>{{ p.etiqueta }}</strong>
+                  @if (p.descripcion) { <small>{{ p.descripcion }}</small> }
+                  @if (p.updated_by) { <small class="cf-quien">Cambiado por {{ dir.nombre(p.updated_by) }} {{ hace(p.updated_at) }}</small> }
+                </div>
+                <div class="cf-param__ctl">
+                  @switch (p.tipo) {
+                    @case ('BOOLEANO') {
+                      <mat-slide-toggle [checked]="p.valor === 'true'" [disabled]="!esAdmin" (change)="alternar(p, $event.checked)" [attr.aria-label]="p.etiqueta" />
+                    }
+                    @case ('ENTERO') {
+                      <input class="cf-num" type="number" min="0" [ngModel]="borrador(p.clave)" (ngModelChange)="ponerBorrador(p.clave, $event)" [disabled]="!esAdmin" [attr.aria-label]="p.etiqueta">
+                      @if (cambiado(p)) { <button mat-flat-button (click)="guardar(p)">Guardar</button> }
+                    }
+                    @case ('OPCION') {
+                      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="cf-sel">
+                        <mat-select [value]="p.valor" [disabled]="!esAdmin" (selectionChange)="guardar(p, $event.value)" [attr.aria-label]="p.etiqueta">
+                          @for (o of p.opciones; track o) { <mat-option [value]="o">{{ etiquetaOpcion(o) }}</mat-option> }
+                        </mat-select>
+                      </mat-form-field>
+                    }
+                    @case ('LISTAS') {
+                      <div class="cf-listas">
+                        @for (f of listasEditadas(); track $index; let i = $index) {
+                          <div class="cf-fila">
+                            <span class="cf-fila__n">{{ i + 1 }}</span>
+                            <input [ngModel]="f.nombre" (ngModelChange)="editarFila(i, 'nombre', $event)" [disabled]="!esAdmin" placeholder="Nombre de la columna" maxlength="60">
+                            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="cf-sel">
+                              <mat-select [value]="f.tipo" (selectionChange)="editarFila(i, 'tipo', $event.value)" [disabled]="!esAdmin">
+                                @for (t of tiposLista; track t.clave) { <mat-option [value]="t.clave">{{ t.etiqueta }}</mat-option> }
+                              </mat-select>
+                            </mat-form-field>
+                            @if (esAdmin) {
+                              <button mat-icon-button (click)="moverFila(i, -1)" [disabled]="i === 0" aria-label="Subir"><mat-icon>arrow_upward</mat-icon></button>
+                              <button mat-icon-button (click)="quitarFila(i)" aria-label="Quitar"><mat-icon>close</mat-icon></button>
+                            }
+                          </div>
+                        }
+                        @if (esAdmin) {
+                          <div class="cf-listas__acc">
+                            <button mat-button (click)="agregarFila()"><mat-icon>add</mat-icon>Columna</button>
+                            <button mat-flat-button (click)="guardarListas(p)">Guardar columnas</button>
+                          </div>
+                        }
+                      </div>
+                    }
+                    @default {
+                      <input class="cf-txt" [ngModel]="borrador(p.clave)" (ngModelChange)="ponerBorrador(p.clave, $event)" [disabled]="!esAdmin">
+                      @if (cambiado(p)) { <button mat-flat-button (click)="guardar(p)">Guardar</button> }
+                    }
+                  }
+                </div>
+              </div>
+            }
+            @if (g.clave === 'NOTIFICACIONES' && esAdmin) {
+              <div class="cf-param">
+                <div class="cf-param__txt"><strong>Enviar los recordatorios ahora</strong>
+                  <small>Por vencer y vencidas, sin esperar la hora configurada. No repite avisos enviados en las últimas 20 horas.</small></div>
+                <div class="cf-param__ctl"><button mat-stroked-button (click)="ejecutarRecordatorios()"><mat-icon>send</mat-icon>Enviar</button></div>
+              </div>
+            }
+          </section>
+        }
+      </div>
+    }
+  }
+
+  @case ('avisos') {
+    <p class="cf-nota"><mat-icon>info</mat-icon>Estos avisos llegan a tu bandeja de Notificaciones (la campana). Apaga los que no quieras recibir; no afecta a los demás.</p>
+    @if (cargandoAvisos()) {
+      <div class="cf-centro"><mat-spinner diameter="36" /></div>
+    } @else {
+      <section class="cf-card">
+        @for (t of tipos(); track t.clave) {
+          <div class="cf-param">
+            <span class="cf-ico" [style.background]="t.color"><mat-icon>{{ t.icono }}</mat-icon></span>
+            <div class="cf-param__txt"><strong>{{ t.nombre }}</strong><small>{{ t.descripcion }}</small></div>
+            <div class="cf-param__ctl">
+              <mat-slide-toggle [checked]="habilitado(t.clave, 'IN_APP')" (change)="fijarAviso(t.clave, 'IN_APP', $event.checked)"
+                                [attr.aria-label]="'Recibir ' + t.nombre">En la plataforma</mat-slide-toggle>
+            </div>
+          </div>
+        } @empty {
+          <p class="cf-nota">No se encontró el catálogo de avisos del módulo.</p>
+        }
+      </section>
+    }
+  }
+
+  @case ('importar') {
+    <section class="cf-card">
+      <header><mat-icon>upload_file</mat-icon><div><h3>Importar desde Excel</h3>
+        <p>Columnas: Tablero · Lista · Tarea · Estado · Prioridad · Descripción · Vence. Crea los tableros y columnas que no existan.</p></div></header>
+      <div class="cf-import">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="cf-sel-ancho">
+          <mat-label>Espacio destino</mat-label>
+          <mat-select [(value)]="espacioImportar">
+            @for (e of espacios(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <label class="cf-drop" (dragover)="$event.preventDefault()" (drop)="soltarArchivo($event)">
+          <mat-icon>{{ archivo ? 'description' : 'cloud_upload' }}</mat-icon>
+          <span>{{ archivo ? archivo.name : 'Arrastra el archivo .xlsx o haz clic para elegirlo' }}</span>
+          <input type="file" accept=".xlsx" hidden (change)="elegirArchivo($event)">
+        </label>
+        <div class="cf-import__acc">
+          <button mat-button (click)="plantilla()"><mat-icon>download</mat-icon>Plantilla</button>
+          <button mat-flat-button [disabled]="!archivo || !espacioImportar || importando()" (click)="importar()">
+            {{ importando() ? 'Importando…' : 'Importar' }}</button>
+        </div>
+      </div>
+      <h4>Historial</h4>
+      <ul class="cf-hist">
+        @for (l of importaciones(); track l.id) {
+          <li><mat-icon [class.cf-err]="l.status === 'FAILED'">{{ l.status === 'FAILED' ? 'error' : 'check_circle' }}</mat-icon>
+            <span><strong>{{ l.file_name }}</strong> · {{ l.boards_created }} tableros, {{ l.cards_created }} tareas
+              @if (l.errors && l.errors.length) { · <span class="cf-err">{{ l.errors.length }} errores</span> }</span>
+            <small>{{ l.created_at | date: 'd MMM y, h:mm a' }}</small></li>
+        } @empty { <li class="cf-vacio">Sin importaciones.</li> }
+      </ul>
+    </section>
+  }
+
+  @case ('auditoria') {
+    <div class="cf-filtros">
+      <button type="button" class="cf-chip" [class.cf-chip--on]="!filtroAuditoria()" (click)="filtroAuditoria.set(null)">Todo</button>
+      @for (e of entidades; track e.clave) {
+        <button type="button" class="cf-chip" [class.cf-chip--on]="filtroAuditoria() === e.clave" (click)="filtroAuditoria.set(e.clave)">{{ e.etiqueta }}</button>
+      }
+      <button mat-icon-button (click)="cargarAuditoria()" aria-label="Recargar"><mat-icon>refresh</mat-icon></button>
+    </div>
+    @if (cargandoAuditoria()) {
+      <div class="cf-centro"><mat-spinner diameter="36" /></div>
+    } @else {
+      <section class="cf-card">
+        <ul class="cf-aud">
+          @for (a of auditoriaFiltrada(); track a.id) {
+            <li><strong>{{ a.user ? dir.nombre(a.user) : 'Sistema' }}</strong><span>{{ describir(a) }}</span>
+              <small [matTooltip]="(a.created_at | date: 'd MMM y, h:mm:ss a') ?? ''">{{ hace(a.created_at) }}</small></li>
+          } @empty { <li class="cf-vacio">Sin registros.</li> }
+        </ul>
+      </section>
+    }
+  }
+}

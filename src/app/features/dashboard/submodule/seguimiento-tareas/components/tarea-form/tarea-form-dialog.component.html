@@ -1,0 +1,133 @@
+<div class="tf">
+  <header class="tf-cab">
+    <div>
+      <p class="tf-eyebrow">Seguimiento Tareas</p>
+      <h2>Nueva tarea</h2>
+    </div>
+    <button mat-icon-button (click)="cancelar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+  </header>
+
+  @if (origen) {
+    <div class="tf-origen"><mat-icon>link</mat-icon>
+      <span>Nace de <strong>{{ origen.etiqueta || origenTexto }}</strong>{{ origen.ref ? ' · ' + origen.ref : '' }}. Quedará enlazada para volver al registro original.</span>
+    </div>
+  }
+
+  @if (cargando()) {
+    <div class="tf-cargando"><mat-spinner diameter="32" /></div>
+  } @else {
+    <div class="tf-cuerpo">
+      <mat-form-field appearance="outline" class="tf-full">
+        <mat-label>¿Qué hay que hacer?</mat-label>
+        <input matInput [(ngModel)]="titulo" maxlength="500" required cdkFocusInitial (keydown.enter)="guardar()">
+      </mat-form-field>
+
+      <div class="tf-fila">
+        <mat-form-field appearance="outline">
+          <mat-label>Tablero</mat-label>
+          <mat-select [value]="tableroId" (selectionChange)="elegirTablero($event.value)">
+            @for (g of porEspacio(); track g.espacio) {
+              <mat-optgroup [label]="g.espacio">
+                @for (t of g.tableros; track t.id) {
+                  <mat-option [value]="t.id"><i class="tf-dot" [style.background]="t.accent || 'var(--primary)'"></i>{{ t.name }}</mat-option>
+                }
+              </mat-optgroup>
+            }
+          </mat-select>
+          @if (!porEspacio().length) { <mat-hint>No tienes tableros donde crear tareas. Crea uno en Tableros.</mat-hint> }
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Columna</mat-label>
+          <mat-select [(value)]="listaId" [disabled]="!listas().length">
+            @for (l of listas(); track l.id) { <mat-option [value]="l.id">{{ l.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+      </div>
+
+      <div class="tf-bloque">
+        <span class="tf-lbl">Responsable</span>
+        @if (responsable(); as r) {
+          <div class="tf-elegido">
+            @if (r.tipo === 'grupo') { <app-tarea-avatar [grupo]="r.nombre" [tam]="28" /> } @else { <app-tarea-avatar [usuario]="r.id" [tam]="28" /> }
+            <span>{{ r.tipo === 'grupo' ? 'Grupo ' + r.nombre : dir.nombre(r.id) }}</span>
+            <button type="button" class="tf-x" (click)="responsable.set(null)" aria-label="Quitar responsable"><mat-icon>close</mat-icon></button>
+          </div>
+        } @else {
+          <div class="tf-pick">
+            <app-persona-picker [cercanos]="cercanos()" [grupos]="grupos()" placeholder="Persona o grupo" (elegido)="elegirResponsable($event)" />
+            <button mat-stroked-button type="button" (click)="asignarme()">Asignarme</button>
+          </div>
+        }
+      </div>
+
+      <div class="tf-fila">
+        <div class="tf-bloque">
+          <span class="tf-lbl">Vence</span>
+          <div class="tf-fecha">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <input matInput [matDatepicker]="dp" [(ngModel)]="vence" placeholder="dd/mm/aaaa">
+              <mat-datepicker-toggle matIconSuffix [for]="dp" />
+              <mat-datepicker #dp />
+            </mat-form-field>
+            <div class="tf-atajos">
+              @for (a of atajos; track a.etiqueta) {
+                <button type="button" class="tf-chip" [class.tf-chip--on]="vence && vence.toDateString() === a.fecha.toDateString()"
+                        (click)="vence = a.fecha">{{ a.etiqueta }}</button>
+              }
+            </div>
+          </div>
+        </div>
+        <div class="tf-bloque">
+          <span class="tf-lbl">Prioridad</span>
+          <div class="tf-atajos">
+            @for (p of prioridades; track p.clave) {
+              <button type="button" class="tf-chip" [class.tf-chip--on]="prioridad === p.clave" [attr.data-p]="p.tono"
+                      (click)="prioridad = p.clave"><mat-icon>{{ p.icono }}</mat-icon>{{ p.etiqueta }}</button>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="tf-bloque">
+        <span class="tf-lbl">¿Quién más debe enterarse? <small>(seguidores: reciben comentarios, cambios y el cierre)</small></span>
+        <div class="tf-seguidores">
+          @for (s of seguidores(); track s) {
+            <span class="tf-persona"><app-tarea-avatar [usuario]="s" [tam]="22" />{{ dir.nombre(s) }}
+              <button type="button" class="tf-x" (click)="quitarSeguidor(s)" [attr.aria-label]="'Quitar a ' + dir.nombre(s)"><mat-icon>close</mat-icon></button>
+            </span>
+          }
+        </div>
+        <app-persona-picker [cercanos]="cercanos()" [excluir]="seguidores()" placeholder="Agregar seguidor" (elegido)="agregarSeguidor($event)" />
+      </div>
+
+      <mat-form-field appearance="outline" class="tf-full">
+        <mat-label>Descripción</mat-label>
+        <textarea matInput [(ngModel)]="descripcion" rows="3" placeholder="Contexto, criterio de terminado, enlaces…"></textarea>
+      </mat-form-field>
+
+      <div class="tf-bloque">
+        <span class="tf-lbl">Pasos (checklist)</span>
+        @for (p of pasos; track $index; let i = $index) {
+          <div class="tf-paso"><mat-icon>check_box_outline_blank</mat-icon><span>{{ p }}</span>
+            <button type="button" class="tf-x" (click)="quitarPaso(i)" aria-label="Quitar paso"><mat-icon>close</mat-icon></button>
+          </div>
+        }
+        <div class="tf-paso tf-paso--nuevo"><mat-icon>add</mat-icon>
+          <input [(ngModel)]="nuevoPaso" placeholder="Agregar paso y Enter" (keydown.enter)="agregarPaso(); $event.preventDefault()">
+        </div>
+      </div>
+
+      @if (error()) { <p class="tf-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p> }
+    </div>
+  }
+
+  <footer class="tf-pie">
+    <span class="tf-ayuda">
+      @if (responsable(); as r) { Le llegará un aviso a {{ r.tipo === 'grupo' ? 'cada miembro del grupo' : dir.nombre(r.id) }}. }
+    </span>
+    <button mat-stroked-button (click)="cancelar()">Cancelar</button>
+    <button mat-flat-button [disabled]="!puedeGuardar()" (click)="guardar()">
+      @if (guardando()) { <mat-spinner diameter="18" /> } @else { <mat-icon>add_task</mat-icon> } Crear tarea
+    </button>
+  </footer>
+</div>

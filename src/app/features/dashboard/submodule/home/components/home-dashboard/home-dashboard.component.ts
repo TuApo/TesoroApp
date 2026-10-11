@@ -78,7 +78,8 @@ export class HomeDashboardComponent implements OnInit {
     { label: 'Vacantes', icon: 'work_outline', route: '/dashboard/vacancies', color: '#f59e0b', desc: 'Publicación de vacantes' },
     { label: 'Tesorería', icon: 'account_balance_wallet', route: '/dashboard/treasury/manage-workers', color: '#ec4899', desc: 'Gestión de pagos' },
     { label: 'Documentos', icon: 'folder_open', route: '/dashboard/document-management', color: '#64748b', desc: 'Gestión documental' },
-    { label: 'Notificaciones', icon: 'notifications_active', route: '/dashboard/matder', color: '#0ea5e9', desc: 'Alertas y seguimiento' },
+    { label: 'Notificaciones', icon: 'notifications_active', route: '/dashboard/novedades', color: '#0ea5e9', desc: 'Alertas y avisos' },
+    { label: 'Seguimiento Tareas', icon: 'task_alt', route: '/dashboard/tareas', color: '#16a34a', desc: 'Asignadas, delegadas y seguidas' },
     { label: 'Audit Logs', icon: 'security', route: '/dashboard/audit-logs', color: '#dc2626', desc: 'Historial de cambios' },
   ];
 

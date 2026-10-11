@@ -6,6 +6,7 @@ import { TicketsService, BugTicket, TicketComentario } from '../../services/tick
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import Swal from 'sweetalert2';
+import { TareasDialogosService } from '../../../seguimiento-tareas/services/tareas-dialogos.service';
 
 @Component({
   selector: 'app-tickets-list',
@@ -17,6 +18,7 @@ import Swal from 'sweetalert2';
 })
 export class TicketsListComponent implements OnInit {
   private readonly locale = inject(LOCALE_ID);
+  private readonly tareas = inject(TareasDialogosService);
 
   /** Tickets que devolvió el backend con los filtros de estado y prioridad. */
   tickets: any[] = [];
@@ -167,6 +169,20 @@ export class TicketsListComponent implements OnInit {
         Swal.fire('Error', 'No se pudo actualizar el estado.', 'error');
       },
     });
+  }
+
+  /**
+   * Lleva el ticket a Seguimiento Tareas: responsable real de la plataforma (no texto
+   * libre), fecha, avisos y seguimiento compartido; la tarea queda enlazada al ticket.
+   */
+  async crearTareaSeguimiento(ticket: any): Promise<void> {
+    const t = await this.tareas.nuevaTarea({
+      titulo: `Ticket #${ticket.id}: ${ticket.titulo ?? ''}`.trim(),
+      descripcion: [ticket.descripcion, ticket.url_actual ? `Pantalla: ${ticket.url_actual}` : ''].filter(Boolean).join('\n\n'),
+      prioridad: ({ Critica: 'URGENT', 'Crítica': 'URGENT', Alta: 'HIGH', Media: 'MEDIUM', Baja: 'LOW' } as Record<string, any>)[ticket.prioridad] ?? 'MEDIUM',
+      origen: { tipo: 'TICKET', ref: String(ticket.id), url: 'bug-tickets/tickets', etiqueta: `Ticket de soporte #${ticket.id}` },
+    });
+    if (t) Swal.fire({ icon: 'success', title: 'Tarea creada', text: 'El responsable recibió el aviso y la verá en «Mis tareas».', timer: 2200, showConfirmButton: false });
   }
 
   async asignarTicket(ticket: any): Promise<void> {

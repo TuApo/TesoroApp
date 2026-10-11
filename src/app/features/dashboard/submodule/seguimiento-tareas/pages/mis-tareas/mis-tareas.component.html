@@ -1,0 +1,104 @@
+<!-- Alcance: qué tengo que hacer / qué pedí / qué sigo -->
+<div class="mt-alcances" role="tablist" aria-label="Qué tareas ver">
+  @for (a of alcances; track a.clave) {
+    <button type="button" role="tab" class="mt-alc" [class.mt-alc--on]="alcance() === a.clave"
+            [attr.aria-selected]="alcance() === a.clave" (click)="elegirAlcance(a.clave)">
+      <mat-icon>{{ a.icono }}</mat-icon>
+      <span class="mt-alc__txt">{{ a.titulo }}</span>
+      <span class="mt-alc__n">{{ conteos()[a.clave] }}</span>
+    </button>
+  }
+</div>
+
+<!-- Resumen -->
+<div class="mt-kpis">
+  @for (k of kpis(); track k.clave) {
+    <div class="mt-kpi" [attr.data-tono]="k.tono" [class.mt-kpi--cero]="k.valor === 0">
+      <mat-icon>{{ k.icono }}</mat-icon>
+      <div><strong>{{ k.valor }}</strong><span>{{ k.etiqueta }}</span></div>
+    </div>
+  }
+</div>
+
+<!-- Filtros -->
+<div class="mt-filtros">
+  <div class="mt-buscar">
+    <mat-icon>search</mat-icon>
+    <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar por tarea o tablero"
+           aria-label="Buscar tareas">
+  </div>
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="mt-sel">
+    <mat-label>Espacio</mat-label>
+    <mat-select [value]="espacio()" (selectionChange)="espacio.set($event.value)">
+      <mat-option [value]="null">Todos</mat-option>
+      @for (e of espacios(); track e.id) { <mat-option [value]="e.id">{{ e.nombre }}</mat-option> }
+    </mat-select>
+  </mat-form-field>
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="mt-sel">
+    <mat-label>Prioridad</mat-label>
+    <mat-select [value]="prioridad()" (selectionChange)="prioridad.set($event.value)">
+      <mat-option [value]="null">Todas</mat-option>
+      @for (p of prioridades; track p.clave) { <mat-option [value]="p.clave">{{ p.etiqueta }}</mat-option> }
+    </mat-select>
+  </mat-form-field>
+  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="mt-sel">
+    <mat-label>Agrupar por</mat-label>
+    <mat-select [value]="agrupar()" (selectionChange)="agrupar.set($event.value)">
+      <mat-option value="vencimiento">Vencimiento</mat-option>
+      <mat-option value="estado">Estado</mat-option>
+      <mat-option value="tablero">Tablero</mat-option>
+      <mat-option value="responsable">Responsable</mat-option>
+    </mat-select>
+  </mat-form-field>
+  @if (hayFiltros()) {
+    <button mat-button (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon>Limpiar</button>
+  }
+  <button mat-stroked-button class="mt-nueva" (click)="nueva()"><mat-icon>add</mat-icon>Tarea</button>
+</div>
+
+@if (cargando()) {
+  <div class="mt-centro"><mat-spinner diameter="40" /></div>
+} @else if (error()) {
+  <div class="mt-vacio mt-vacio--error">
+    <mat-icon>cloud_off</mat-icon><p>{{ error() }}</p>
+    <button mat-stroked-button (click)="cargar()">Reintentar</button>
+  </div>
+} @else if (!tareas().length) {
+  <div class="mt-vacio">
+    <mat-icon>{{ info().icono }}</mat-icon>
+    <h3>{{ info().titulo }}: nada por ahora</h3>
+    <p>{{ info().vacio }}</p>
+    <button mat-flat-button (click)="nueva()"><mat-icon>add_task</mat-icon>Crear una tarea</button>
+  </div>
+} @else if (!secciones().length) {
+  <div class="mt-vacio">
+    <mat-icon>filter_alt</mat-icon>
+    <p>Ninguna tarea coincide con los filtros.</p>
+    <button mat-stroked-button (click)="limpiarFiltros()">Quitar filtros</button>
+  </div>
+} @else {
+  @for (s of secciones(); track s.clave) {
+    <section class="mt-sec" [attr.data-sec]="s.clave">
+      <button type="button" class="mt-sec__cab" (click)="alternarSeccion(s.clave)" [attr.aria-expanded]="!s.plegada">
+        <mat-icon class="mt-sec__flecha">{{ s.plegada ? 'chevron_right' : 'expand_more' }}</mat-icon>
+        @if (agrupar() === 'responsable' && s.clave.startsWith('u-')) {
+          <app-tarea-avatar [usuario]="s.avatar" [tam]="24" />
+        } @else if (s.acento) {
+          <i class="mt-sec__dot" [style.background]="s.acento"></i>
+        } @else {
+          <mat-icon class="mt-sec__ico">{{ s.icono }}</mat-icon>
+        }
+        <span class="mt-sec__titulo">{{ s.titulo }}</span>
+        <span class="mt-sec__n">{{ s.tareas.length }}</span>
+      </button>
+      @if (!s.plegada) {
+        <div class="mt-lista">
+          @for (t of s.tareas; track t.id) {
+            <app-tarea-item [tarea]="t" [mostrarResponsable]="alcance() !== 'asignadas' || !!t.assignee_group"
+                            (abrir)="abrir($event)" (completar)="completar($event)" (cambiarEstado)="cambiarEstado($event)" />
+          }
+        </div>
+      }
+    </section>
+  }
+}

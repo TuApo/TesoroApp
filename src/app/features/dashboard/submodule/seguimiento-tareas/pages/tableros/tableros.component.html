@@ -1,0 +1,111 @@
+@if (recientes().length) {
+  <section class="tb-recientes" aria-label="Abiertos hace poco">
+    <span class="tb-lbl"><mat-icon>history</mat-icon>Abiertos hace poco</span>
+    <div class="tb-recientes__pista">
+      @for (r of recientes(); track r.id) {
+        <a class="tb-reciente" [routerLink]="['/dashboard/tareas/tableros', r.id]" [style.--c]="r.acento || 'var(--primary)'">
+          <strong>{{ r.nombre }}</strong><small>{{ r.detalle }} · {{ hace(r.visto) }}</small>
+        </a>
+      }
+    </div>
+  </section>
+}
+
+<div class="tb-barra">
+  <div class="tb-buscar">
+    <mat-icon>search</mat-icon>
+    <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar tablero o espacio" aria-label="Buscar tableros">
+  </div>
+  <button type="button" class="tb-filtro" [class.tb-filtro--on]="soloFavoritos()" (click)="soloFavoritos.set(!soloFavoritos())"
+          [attr.aria-pressed]="soloFavoritos()">
+    <mat-icon>{{ soloFavoritos() ? 'star' : 'star_outline' }}</mat-icon>Favoritos
+  </button>
+  @if (espaciosEditables().length) {
+    <button mat-flat-button (click)="abrirAlta()"><mat-icon>add</mat-icon>Nuevo tablero</button>
+  }
+</div>
+
+@if (creando()) {
+  <section class="tb-alta">
+    <h3>Nuevo tablero</h3>
+    <div class="tb-alta__campos">
+      <mat-form-field appearance="outline">
+        <mat-label>Espacio</mat-label>
+        <mat-select [(value)]="nuevoEspacio">
+          @for (e of espaciosEditables(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Nombre</mat-label>
+        <input matInput [(ngModel)]="nuevoNombre" maxlength="200" (keydown.enter)="crear()">
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="tb-alta__desc">
+        <mat-label>Descripción (opcional)</mat-label>
+        <input matInput [(ngModel)]="nuevaDesc" maxlength="500">
+      </mat-form-field>
+    </div>
+    <div class="tb-alta__pie">
+      <div class="tb-colores" role="radiogroup" aria-label="Color del tablero">
+        @for (c of colores; track c) {
+          <button type="button" class="tb-color" role="radio" [attr.aria-checked]="nuevoColor === c" [style.background]="c"
+                  [class.tb-color--on]="nuevoColor === c" (click)="nuevoColor = c" [attr.aria-label]="'Color ' + c"></button>
+        }
+      </div>
+      <span class="tb-ayuda">Nace con las columnas configuradas (Por hacer, En progreso, Bloqueadas, Completadas).</span>
+      <button mat-stroked-button (click)="creando.set(false)">Cancelar</button>
+      <button mat-flat-button [disabled]="!nuevoEspacio || !nuevoNombre.trim() || guardando()" (click)="crear()">Crear tablero</button>
+    </div>
+  </section>
+}
+
+@if (cargando()) {
+  <div class="tb-centro"><mat-spinner diameter="40" /></div>
+} @else if (error()) {
+  <div class="tb-vacio"><mat-icon>cloud_off</mat-icon><p>{{ error() }}</p><button mat-stroked-button (click)="cargar()">Reintentar</button></div>
+} @else if (!grupos().length) {
+  <div class="tb-vacio">
+    <mat-icon>view_kanban</mat-icon>
+    @if (busqueda() || soloFavoritos()) {
+      <p>Ningún tablero coincide.</p>
+    } @else {
+      <h3>Aún no hay tableros</h3>
+      <p>Un tablero agrupa las tareas de un proyecto o proceso. Primero crea un espacio en «Espacios y equipos» y luego su tablero.</p>
+    }
+  </div>
+} @else {
+  @for (g of grupos(); track g.id) {
+    <section class="tb-espacio">
+      <header class="tb-espacio__cab">
+        <a [routerLink]="['/dashboard/tareas/espacios', g.id]" class="tb-espacio__nombre"><mat-icon>workspaces</mat-icon>{{ g.nombre }}</a>
+        <span class="tb-n">{{ g.tableros.length }}</span>
+      </header>
+      <div class="tb-grid">
+        @for (t of g.tableros; track t.id) {
+          <a class="tb-card" [routerLink]="['/dashboard/tareas/tableros', t.id]" [style.--c]="t.accent || 'var(--primary)'">
+            <div class="tb-card__cab">
+              <strong>{{ t.name }}</strong>
+              <button type="button" class="tb-star" [class.tb-star--on]="t.is_favorite" (click)="favorito(t, $event)"
+                      [matTooltip]="t.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'"
+                      [attr.aria-label]="t.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'">
+                <mat-icon>{{ t.is_favorite ? 'star' : 'star_outline' }}</mat-icon>
+              </button>
+            </div>
+            <p class="tb-card__desc">{{ t.description || 'Sin descripción' }}</p>
+            @if (ind(t.id); as i) {
+              <div class="tb-prog" [attr.aria-label]="i.progress_percent + '% completado'">
+                <div class="tb-prog__barra" [style.width.%]="i.progress_percent"></div>
+              </div>
+              <div class="tb-card__pie">
+                <span><strong>{{ abiertas(t.id) }}</strong> abiertas</span>
+                @if (i.overdue_task_count) { <span class="tb-venc"><mat-icon>running_with_errors</mat-icon>{{ i.overdue_task_count }} vencidas</span> }
+                <span class="tb-pct">{{ i.progress_percent }}%</span>
+              </div>
+            } @else {
+              <div class="tb-card__pie"><span class="tb-sutil">Sin tareas todavía</span></div>
+            }
+          </a>
+        }
+      </div>
+    </section>
+  }
+}

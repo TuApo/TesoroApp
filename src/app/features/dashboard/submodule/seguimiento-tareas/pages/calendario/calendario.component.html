@@ -1,0 +1,59 @@
+<div class="cl-barra">
+  <div class="cl-nav">
+    <button mat-icon-button (click)="mover(-1)" aria-label="Mes anterior"><mat-icon>chevron_left</mat-icon></button>
+    <h2>{{ mes() | date: 'MMMM y' }}</h2>
+    <button mat-icon-button (click)="mover(1)" aria-label="Mes siguiente"><mat-icon>chevron_right</mat-icon></button>
+    <button mat-stroked-button (click)="hoy()">Hoy</button>
+  </div>
+  <div class="cl-resumen">
+    <span><strong>{{ resumen().abiertas }}</strong> abiertas este mes</span>
+    @if (resumen().vencidas) { <span class="cl-venc"><strong>{{ resumen().vencidas }}</strong> vencidas</span> }
+  </div>
+  <div class="cl-alcance" role="radiogroup" aria-label="Qué tareas ver">
+    <button type="button" role="radio" [attr.aria-checked]="alcance() === 'mias'" [class.cl-on]="alcance() === 'mias'" (click)="cambiarAlcance('mias')">Donde participo</button>
+    <button type="button" role="radio" [attr.aria-checked]="alcance() === 'todas'" [class.cl-on]="alcance() === 'todas'" (click)="cambiarAlcance('todas')">Todas</button>
+  </div>
+</div>
+
+@if (error()) {
+  <p class="cl-error"><mat-icon>cloud_off</mat-icon>{{ error() }}</p>
+}
+
+<div class="cl-cuerpo">
+  <div class="cl-mes" [class.cl-mes--cargando]="cargando()">
+    @for (d of dias; track d) { <div class="cl-dia-nombre">{{ d }}</div> }
+    @for (c of celdas(); track c.clave) {
+      <div class="cl-celda" role="button" tabindex="0" [class.cl-celda--fuera]="!c.delMes" [class.cl-celda--hoy]="c.hoy"
+           [class.cl-celda--on]="diaElegido() === c.clave" (click)="diaElegido.set(c.clave)" (keydown.enter)="diaElegido.set(c.clave)"
+           [attr.aria-label]="(c.fecha | date: 'EEEE d MMMM') + ', ' + c.tareas.length + ' tareas'">
+        <span class="cl-num">{{ c.fecha.getDate() }}</span>
+        @for (t of c.tareas.slice(0, 3); track t.id) {
+          <button type="button" class="cl-tarea" [attr.data-tono]="tono(t)" [style.--c]="t.board_accent || 'var(--primary)'"
+                  (click)="$event.stopPropagation(); abrir(t)" [matTooltip]="t.title + (t.board_name ? ' · ' + t.board_name : '')">
+            {{ t.title }}
+          </button>
+        }
+        @if (c.tareas.length > 3) { <span class="cl-mas">+{{ c.tareas.length - 3 }} más</span> }
+        @if (c.tareas.length) { <span class="cl-punto" [attr.data-n]="c.tareas.length"></span> }
+      </div>
+    }
+  </div>
+
+  <aside class="cl-lado">
+    @if (elegido(); as d) {
+      <header>
+        <h3>{{ d.fecha | date: 'EEEE d \'de\' MMMM' }}</h3>
+        <button mat-stroked-button (click)="nuevaEn(d)"><mat-icon>add</mat-icon>Tarea</button>
+      </header>
+      <div class="cl-items">
+        @for (t of d.tareas; track t.id) {
+          <app-tarea-item [tarea]="t" (abrir)="abrir($event)" (completar)="completar($event)" (cambiarEstado)="completar($event.tarea)" />
+        } @empty {
+          <p class="cl-vacio">Nada vence este día.</p>
+        }
+      </div>
+    } @else {
+      <p class="cl-vacio">Elige un día para ver sus tareas.</p>
+    }
+  </aside>
+</div>

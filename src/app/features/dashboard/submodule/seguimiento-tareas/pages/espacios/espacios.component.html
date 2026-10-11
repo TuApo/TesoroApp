@@ -1,0 +1,174 @@
+<div class="es" [class.es--detalle]="seleccionado()">
+  <!-- Lista de espacios -->
+  <aside class="es-lista">
+    <div class="es-lista__cab">
+      <div class="es-buscar">
+        <mat-icon>search</mat-icon>
+        <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar espacio" aria-label="Buscar espacio">
+      </div>
+      <button mat-flat-button (click)="creando.set(!creando())"><mat-icon>add</mat-icon>Espacio</button>
+    </div>
+    @if (creando()) {
+      <div class="es-alta">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Nombre del espacio</mat-label>
+          <input matInput [(ngModel)]="nombreNuevo" maxlength="200" (keydown.enter)="crear()"></mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Para qué es (opcional)</mat-label>
+          <input matInput [(ngModel)]="descNueva" maxlength="500"></mat-form-field>
+        <div class="es-alta__acc">
+          <button mat-stroked-button (click)="creando.set(false)">Cancelar</button>
+          <button mat-flat-button [disabled]="!nombreNuevo.trim()" (click)="crear()">Crear</button>
+        </div>
+      </div>
+    }
+    @if (cargando() && !espacios().length) {
+      <div class="es-centro"><mat-spinner diameter="32" /></div>
+    } @else {
+      <ul class="es-items">
+        @for (e of filtrados(); track e.id) {
+          <li>
+            <button type="button" class="es-item" [class.es-item--on]="seleccionado()?.id === e.id" (click)="elegir(e)">
+              <span class="es-item__ico"><mat-icon>workspaces</mat-icon></span>
+              <span class="es-item__txt"><strong>{{ e.name }}</strong>
+                <small>{{ e.board_count }} tableros · {{ e.member_count }} miembros</small></span>
+              @if (e.is_favorite) { <mat-icon class="es-fav">star</mat-icon> }
+            </button>
+          </li>
+        } @empty {
+          <li class="es-vacio">{{ busqueda() ? 'Nada coincide.' : 'Aún no hay espacios. Crea el primero para tu área o proyecto.' }}</li>
+        }
+      </ul>
+    }
+  </aside>
+
+  <!-- Detalle del espacio -->
+  <section class="es-det">
+    @if (seleccionado(); as e) {
+      <header class="es-det__cab">
+        <button type="button" class="es-atras" (click)="seleccionado.set(null)" aria-label="Volver a la lista"><mat-icon>arrow_back</mat-icon></button>
+        <div class="es-det__txt">
+          <h2>{{ e.name }}
+            <button type="button" class="es-star" (click)="favorito(e)" [attr.aria-label]="e.is_favorite ? 'Quitar de favoritos' : 'Marcar como favorito'">
+              <mat-icon>{{ e.is_favorite ? 'star' : 'star_outline' }}</mat-icon></button>
+          </h2>
+          <p>{{ e.description || 'Sin descripción' }}</p>
+          <span class="es-rol">Tu rol: {{ rolDe(e.current_user_role || 'MEMBER') }}</span>
+        </div>
+        @if (e.can_delete_workspace) {
+          <button mat-stroked-button class="es-peligro" (click)="eliminar(e)"><mat-icon>delete</mat-icon>Eliminar</button>
+        }
+      </header>
+
+      <div class="es-tabs" role="tablist">
+        <button type="button" role="tab" [class.es-tab--on]="pestana() === 'miembros'" [attr.aria-selected]="pestana() === 'miembros'" (click)="pestana.set('miembros')">
+          <mat-icon>badge</mat-icon>Miembros <span class="es-n">{{ activos().length }}</span></button>
+        <button type="button" role="tab" [class.es-tab--on]="pestana() === 'grupos'" [attr.aria-selected]="pestana() === 'grupos'" (click)="pestana.set('grupos')">
+          <mat-icon>groups</mat-icon>Grupos <span class="es-n">{{ grupos().length }}</span></button>
+        <button type="button" role="tab" [class.es-tab--on]="pestana() === 'tableros'" [attr.aria-selected]="pestana() === 'tableros'" (click)="pestana.set('tableros')">
+          <mat-icon>view_kanban</mat-icon>Tableros <span class="es-n">{{ tableros().length }}</span></button>
+      </div>
+
+      @if (cargandoDetalle()) {
+        <div class="es-centro"><mat-spinner diameter="32" /></div>
+      } @else if (pestana() === 'miembros') {
+        @if (e.can_manage_members) {
+          <div class="es-agregar">
+            <app-persona-picker [excluir]="idsActivos()" placeholder="Agregar persona al espacio" (elegido)="agregarMiembro($event)" />
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="es-rol-sel">
+              <mat-label>Con rol</mat-label>
+              <mat-select [(value)]="rolNuevo">
+                @for (r of roles; track r.clave) { <mat-option [value]="r.clave">{{ r.etiqueta }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+          </div>
+        }
+        <ul class="es-miembros">
+          @for (m of activos(); track m.id) {
+            <li>
+              <app-tarea-avatar [usuario]="m.user" [tam]="34" />
+              <div class="es-m__txt"><strong>{{ dir.nombre(m.user) }}</strong><small>{{ dir.persona(m.user)?.email || '' }}</small></div>
+              @if (e.can_manage_members && m.role !== 'OWNER' || (e.can_delete_workspace && m.user !== dir.yo.id)) {
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="es-rol-sel">
+                  <mat-select [value]="m.role" (selectionChange)="cambiarRol(m, $event.value)" [attr.aria-label]="'Rol de ' + dir.nombre(m.user)">
+                    @for (r of roles; track r.clave) { <mat-option [value]="r.clave" [disabled]="r.clave === 'OWNER' && !e.can_delete_workspace">{{ r.etiqueta }}</mat-option> }
+                  </mat-select>
+                </mat-form-field>
+                <button mat-icon-button (click)="alternarActivo(m)" matTooltip="Quitar del espacio" [attr.aria-label]="'Quitar a ' + dir.nombre(m.user)"><mat-icon>person_remove</mat-icon></button>
+              } @else {
+                <span class="es-chip-rol">{{ rolDe(m.role) }}</span>
+              }
+            </li>
+          } @empty {
+            <li class="es-vacio">Sin miembros. Agrega a las personas que van a recibir y trabajar tareas aquí.</li>
+          }
+        </ul>
+        @if (inactivos().length && e.can_manage_members) {
+          <details class="es-inactivos">
+            <summary>Retirados ({{ inactivos().length }})</summary>
+            <ul class="es-miembros">
+              @for (m of inactivos(); track m.id) {
+                <li><app-tarea-avatar [usuario]="m.user" [tam]="28" /><div class="es-m__txt"><strong>{{ dir.nombre(m.user) }}</strong></div>
+                  <button mat-button (click)="alternarActivo(m)">Reincorporar</button></li>
+              }
+            </ul>
+          </details>
+        }
+        <p class="es-ayuda"><mat-icon>info</mat-icon>
+          Dueño y Gestor administran el equipo; Miembro crea y trabaja tareas; Lector solo consulta, pero siempre puede trabajar las tareas que le asignen.</p>
+      } @else if (pestana() === 'grupos') {
+        <p class="es-ayuda"><mat-icon>info</mat-icon>Un grupo permite asignar una tarea a varias personas a la vez: cada integrante recibe el aviso y la ve en «Mis tareas».</p>
+        <div class="es-grupos-acc">
+          <button mat-stroked-button (click)="creandoGrupo.set(!creandoGrupo())"><mat-icon>group_add</mat-icon>Nuevo grupo</button>
+        </div>
+        @if (creandoGrupo()) {
+          <div class="es-alta es-alta--inline">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Nombre del grupo</mat-label>
+              <input matInput [(ngModel)]="nombreGrupo" maxlength="120" (keydown.enter)="crearGrupo()"></mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Descripción</mat-label>
+              <input matInput [(ngModel)]="descGrupo" maxlength="255"></mat-form-field>
+            <button mat-flat-button [disabled]="!nombreGrupo.trim()" (click)="crearGrupo()">Crear</button>
+          </div>
+        }
+        <ul class="es-grupos">
+          @for (g of grupos(); track g.id) {
+            <li class="es-grupo" [class.es-grupo--on]="grupoAbierto() === g.id">
+              <button type="button" class="es-grupo__cab" (click)="abrirGrupo(g)" [attr.aria-expanded]="grupoAbierto() === g.id">
+                <app-tarea-avatar [grupo]="g.name" [tam]="32" />
+                <span class="es-m__txt"><strong>{{ g.name }}</strong><small>{{ g.member_count }} integrantes{{ g.description ? ' · ' + g.description : '' }}</small></span>
+                <mat-icon>{{ grupoAbierto() === g.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if (grupoAbierto() === g.id) {
+                <div class="es-grupo__cuerpo">
+                  <app-persona-picker [cercanos]="idsMiembros()" [excluir]="idsGrupo(g.id)" placeholder="Agregar integrante" (elegido)="agregarAGrupo(g, $event)" />
+                  <ul class="es-miembros">
+                    @for (m of integrantes(g.id); track m.id) {
+                      <li><app-tarea-avatar [usuario]="m.user" [tam]="28" /><div class="es-m__txt"><strong>{{ dir.nombre(m.user) }}</strong></div>
+                        <button mat-icon-button (click)="quitarDeGrupo(g, m)" [attr.aria-label]="'Quitar a ' + dir.nombre(m.user)"><mat-icon>close</mat-icon></button></li>
+                    } @empty { <li class="es-vacio">Sin integrantes.</li> }
+                  </ul>
+                  <button mat-button class="es-peligro" (click)="eliminarGrupo(g)"><mat-icon>delete</mat-icon>Eliminar grupo</button>
+                </div>
+              }
+            </li>
+          } @empty {
+            <li class="es-vacio">No hay grupos todavía.</li>
+          }
+        </ul>
+      } @else {
+        <div class="es-tableros">
+          @for (t of tableros(); track t.id) {
+            <a class="es-tablero" [routerLink]="['/dashboard/tareas/tableros', t.id]" [style.--c]="t.accent || 'var(--primary)'">
+              <strong>{{ t.name }}</strong><small>{{ t.description || 'Sin descripción' }}</small>
+            </a>
+          } @empty {
+            <p class="es-vacio">Este espacio aún no tiene tableros. Créalo desde «Tableros».</p>
+          }
+        </div>
+      }
+    } @else {
+      <div class="es-placeholder">
+        <mat-icon>groups</mat-icon>
+        <p>Elige un espacio para ver y administrar su equipo, sus grupos y sus tableros.</p>
+      </div>
+    }
+  </section>
+</div>

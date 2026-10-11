@@ -1,0 +1,103 @@
+@if (cargando() && !resumen()) {
+  <div class="in-centro"><mat-spinner diameter="40" /></div>
+} @else if (error()) {
+  <div class="in-vacio"><mat-icon>cloud_off</mat-icon><p>{{ error() }}</p><button mat-stroked-button (click)="cargar()">Reintentar</button></div>
+} @else if (resumen(); as r) {
+  <div class="in-kpis">
+    @for (k of kpis(); track k.etiqueta) {
+      <div class="in-kpi" [attr.data-tono]="k.tono">
+        <mat-icon>{{ k.icono }}</mat-icon>
+        <div><strong>{{ k.valor }}</strong><span>{{ k.etiqueta }}</span><small>{{ k.detalle }}</small></div>
+      </div>
+    }
+  </div>
+
+  @if (distribucion().length) {
+    <section class="in-card">
+      <h3>Estado de todas las tareas</h3>
+      <div class="in-barra" role="img" [attr.aria-label]="'Distribución por estado'">
+        @for (d of distribucion(); track d.etiqueta) {
+          @if (d.n) { <span class="in-seg" [attr.data-tono]="d.tono" [style.width.%]="d.pct" [matTooltip]="d.etiqueta + ': ' + d.n + ' (' + d.pct + '%)'"></span> }
+        }
+      </div>
+      <div class="in-leyenda">
+        @for (d of distribucion(); track d.etiqueta) {
+          <span><i [attr.data-tono]="d.tono"></i>{{ d.etiqueta }} <strong>{{ d.n }}</strong></span>
+        }
+      </div>
+    </section>
+  }
+
+  <div class="in-dos">
+    <section class="in-card">
+      <div class="in-card__cab">
+        <h3>Carga por persona</h3>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="in-sel">
+          <mat-label>Espacio</mat-label>
+          <mat-select [value]="espacio()" (selectionChange)="elegirEspacio($event.value)">
+            <mat-option [value]="null">Todos</mat-option>
+            @for (e of espacios(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+      </div>
+      @if (sinPermisoGlobal()) {
+        <p class="in-nota"><mat-icon>lock</mat-icon>La carga de toda la plataforma es solo para administración. Elige un espacio para ver la de su equipo.</p>
+      } @else if (!carga().length) {
+        <p class="in-nota">Sin tareas en este alcance.</p>
+      } @else {
+        <table class="in-tabla">
+          <thead><tr><th>Responsable</th><th>Abiertas</th><th>Vencidas</th><th>Bloq.</th><th>Hechas 30 d</th></tr></thead>
+          <tbody>
+            @for (c of carga(); track c.clave) {
+              <tr>
+                <td class="in-quien">
+                  @if (c.grupo) { <app-tarea-avatar [grupo]="c.grupo" [tam]="26" /> } @else { <app-tarea-avatar [usuario]="c.usuario" [tam]="26" /> }
+                  <span>{{ c.nombre }}</span>
+                </td>
+                <td><div class="in-carga"><div class="in-carga__barra" [style.width.%]="c.abiertas * 100 / maxCarga()"></div><span>{{ c.abiertas }}</span></div></td>
+                <td [class.in-rojo]="c.vencidas">{{ c.vencidas }}</td>
+                <td [class.in-rojo]="c.bloqueadas">{{ c.bloqueadas }}</td>
+                <td class="in-verde">{{ c.hechas }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <section class="in-card">
+      <h3>Tableros que necesitan atención</h3>
+      @if (!tablerosOrdenados().length) { <p class="in-nota">Sin tareas todavía.</p> }
+      <ul class="in-tableros">
+        @for (b of tablerosOrdenados(); track b.id) {
+          <li>
+            <a [routerLink]="['/dashboard/tareas/tableros', b.id]" class="in-tab" [style.--c]="b.accent || 'var(--primary)'">
+              <span class="in-tab__nombre"><strong>{{ b.name }}</strong><small>{{ b.workspace_name }}</small></span>
+              <span class="in-tab__prog"><span [style.width.%]="b.progress_percent"></span></span>
+              <span class="in-tab__pct">{{ b.progress_percent }}%</span>
+              @if (b.overdue_task_count) { <span class="in-tab__venc" [matTooltip]="b.overdue_task_count + ' vencidas'"><mat-icon>running_with_errors</mat-icon>{{ b.overdue_task_count }}</span> }
+            </a>
+          </li>
+        }
+      </ul>
+    </section>
+  </div>
+
+  <section class="in-card">
+    <h3>Por espacio</h3>
+    <table class="in-tabla">
+      <thead><tr><th>Espacio</th><th>Tableros</th><th>Tareas</th><th>En progreso</th><th>Bloqueadas</th><th>Vencidas</th><th>Avance</th></tr></thead>
+      <tbody>
+        @for (w of espaciosOrdenados(); track w.id) {
+          <tr>
+            <td><a [routerLink]="['/dashboard/tareas/espacios', w.id]">{{ w.name }}</a></td>
+            <td>{{ w.board_count }}</td><td>{{ w.task_count }}</td><td>{{ w.in_progress_task_count }}</td>
+            <td [class.in-rojo]="w.blocked_task_count">{{ w.blocked_task_count }}</td>
+            <td [class.in-rojo]="w.overdue_task_count">{{ w.overdue_task_count }}</td>
+            <td><div class="in-carga"><div class="in-carga__barra in-carga__barra--ok" [style.width.%]="w.progress_percent"></div><span>{{ w.progress_percent }}%</span></div></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+}

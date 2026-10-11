@@ -1,0 +1,364 @@
+@if (cargando()) {
+  <div class="td-estado"><mat-spinner diameter="36" /><p>Cargando tarea…</p></div>
+} @else if (error()) {
+  <div class="td-estado td-estado--error">
+    <mat-icon>search_off</mat-icon>
+    <p>{{ error() }}</p>
+    <button mat-stroked-button (click)="cerrar.emit()">Volver</button>
+  </div>
+} @else if (t(); as t) {
+  <div class="td" [class.td--panel]="enPanel()">
+    @if (guardando()) { <mat-progress-bar class="td-barra" mode="indeterminate" /> }
+
+    <!-- Cabecera: dónde vive la tarea y acciones -->
+    <header class="td-cab">
+      <nav class="td-ruta" aria-label="Ubicación de la tarea">
+        <i class="td-dot" [style.background]="t.board_accent || 'var(--primary)'"></i>
+        <span>{{ t.workspace_name }}</span>
+        <mat-icon>chevron_right</mat-icon>
+        <button type="button" class="td-link" (click)="irAlTablero()" matTooltip="Abrir el tablero">{{ t.board_name }}</button>
+        @if (t.list_name) { <mat-icon>chevron_right</mat-icon><span>{{ t.list_name }}</span> }
+      </nav>
+      <div class="td-acciones">
+        <button mat-stroked-button class="td-seguir" [class.td-seguir--on]="t.is_watching" (click)="alternarSeguir()"
+                [matTooltip]="t.is_watching ? 'Dejar de recibir sus novedades' : 'Recibir sus comentarios, cambios y cierre'">
+          <mat-icon>{{ t.is_watching ? 'visibility' : 'visibility_off' }}</mat-icon>
+          {{ t.is_watching ? 'Siguiendo' : 'Seguir' }}
+        </button>
+        <button mat-icon-button (click)="copiarEnlace()" matTooltip="Copiar enlace a la tarea" aria-label="Copiar enlace">
+          <mat-icon>link</mat-icon>
+        </button>
+        <button mat-icon-button [matMenuTriggerFor]="menuMas" aria-label="Más acciones"><mat-icon>more_vert</mat-icon></button>
+        <mat-menu #menuMas="matMenu" xPosition="before">
+          <button mat-menu-item (click)="irAlTablero()"><mat-icon>view_kanban</mat-icon>Abrir en el tablero</button>
+          @if (puedeEditar() && listas().length > 1) {
+            <button mat-menu-item [matMenuTriggerFor]="menuMover"><mat-icon>drive_file_move</mat-icon>Mover a columna</button>
+          }
+          @if (t.origen_url) {
+            <button mat-menu-item (click)="irAlOrigen()"><mat-icon>open_in_new</mat-icon>Ir a {{ origen() || 'el origen' }}</button>
+          }
+          @if (puedeEditar()) {
+            <button mat-menu-item class="td-peligro" (click)="eliminar()"><mat-icon>delete</mat-icon>Eliminar tarea</button>
+          }
+        </mat-menu>
+        <mat-menu #menuMover="matMenu">
+          @for (l of listas(); track l.id) {
+            <button mat-menu-item [disabled]="l.id === t.board_list" (click)="moverA(l.id)">{{ l.name }}</button>
+          }
+        </mat-menu>
+        @if (enPanel()) {
+          <button mat-icon-button (click)="cerrar.emit()" aria-label="Cerrar" matTooltip="Cerrar (Esc)"><mat-icon>close</mat-icon></button>
+        }
+      </div>
+    </header>
+
+    <!-- Título -->
+    <div class="td-titulo">
+      @if (puedeEditar()) {
+        <textarea class="td-titulo__input" rows="1" [(ngModel)]="titulo" (blur)="guardarTitulo()"
+                  (keydown.enter)="$any($event.target).blur(); $event.preventDefault()"
+                  aria-label="Título de la tarea" maxlength="500"></textarea>
+      } @else {
+        <h2 class="td-titulo__texto">{{ t.title }}</h2>
+      }
+      @if (t.origen_tipo) {
+        <button type="button" class="td-origen" (click)="irAlOrigen()" [disabled]="!t.origen_url"
+                [matTooltip]="t.origen_url ? 'Abrir el registro original' : ''">
+          <mat-icon>link</mat-icon>{{ origen() }}{{ t.origen_ref ? ' · ' + t.origen_ref : '' }}
+        </button>
+      }
+    </div>
+
+    <!-- Estado -->
+    <div class="td-estados" role="radiogroup" aria-label="Estado de la tarea">
+      @for (e of estados; track e.clave) {
+        <button type="button" class="td-est" role="radio" [attr.aria-checked]="t.status === e.clave"
+                [class.td-est--on]="t.status === e.clave" [attr.data-tono]="e.tono"
+                [disabled]="!puedeTrabajar() || guardando()" (click)="cambiarEstado(e.clave)">
+          <mat-icon>{{ e.icono }}</mat-icon><span>{{ e.etiqueta }}</span>
+        </button>
+      }
+    </div>
+    @if (t.status === 'DONE' && t.completed_at) {
+      <p class="td-nota"><mat-icon>task_alt</mat-icon>Completada {{ t.completed_at | date: 'EEEE d MMM, h:mm a' }}</p>
+    }
+
+    <!-- Propiedades -->
+    <section class="td-props">
+      <div class="td-prop">
+        <span class="td-prop__lbl">Responsable</span>
+        <div class="td-prop__val">
+          @if (t.assignee) {
+            <span class="td-quien"><app-tarea-avatar [usuario]="t.assignee" [tam]="26" />{{ dir.nombre(t.assignee) }}</span>
+          } @else if (t.assignee_group) {
+            <span class="td-quien"><app-tarea-avatar [grupo]="t.assignee_group_name || 'Grupo'" [tam]="26" />Grupo {{ t.assignee_group_name }}</span>
+          } @else {
+            <span class="td-vacio">Sin asignar</span>
+          }
+          @if (puedeEditar()) {
+            <span class="td-mini">
+              <button type="button" class="td-btn-mini" (click)="eligiendoResponsable.set(!eligiendoResponsable())">
+                {{ t.assignee || t.assignee_group ? 'Cambiar' : 'Asignar' }}
+              </button>
+              @if (t.assignee !== dir.yo.id) {
+                <button type="button" class="td-btn-mini" (click)="asignarme()">Asignarme</button>
+              }
+              @if (t.assignee || t.assignee_group) {
+                <button type="button" class="td-btn-mini" (click)="quitarResponsable()">Quitar</button>
+              }
+            </span>
+          }
+        </div>
+        @if (eligiendoResponsable()) {
+          <app-persona-picker class="td-picker" [cercanos]="cercanos()" [grupos]="grupos()"
+                              placeholder="Persona o grupo responsable" (elegido)="asignar($event)" />
+        }
+      </div>
+
+      <div class="td-prop">
+        <span class="td-prop__lbl">Vence</span>
+        <div class="td-prop__val">
+          <button type="button" class="td-fecha" [attr.data-tono]="venc()?.tono" [disabled]="!puedeEditar()"
+                  (click)="picker.open()">
+            <mat-icon>event</mat-icon>
+            {{ t.due_at ? (fechaVence() | date: 'EEE d MMM y') : 'Sin fecha' }}
+            @if (t.due_at && venc()?.tono !== 'futuro' && venc()?.tono !== 'hecha') { <em>· {{ venc()?.texto }}</em> }
+          </button>
+          <input class="td-oculto" [matDatepicker]="picker" [value]="fechaVence()" (dateChange)="cambiarFecha($event.value)" tabindex="-1" aria-hidden="true">
+          <mat-datepicker #picker />
+          @if (puedeEditar()) {
+            <span class="td-mini">
+              @for (a of atajos; track a.etiqueta) {
+                <button type="button" class="td-btn-mini" (click)="cambiarFecha(a.fecha)">{{ a.etiqueta }}</button>
+              }
+              @if (t.due_at) { <button type="button" class="td-btn-mini" (click)="cambiarFecha(null)">Quitar</button> }
+            </span>
+          }
+        </div>
+      </div>
+
+      <div class="td-prop">
+        <span class="td-prop__lbl">Prioridad</span>
+        <div class="td-prop__val td-prios">
+          @for (p of prioridades; track p.clave) {
+            <button type="button" class="td-prio" [class.td-prio--on]="t.priority === p.clave" [attr.data-p]="p.tono"
+                    [disabled]="!puedeEditar()" (click)="cambiarPrioridad(p.clave)">
+              <mat-icon>{{ p.icono }}</mat-icon>{{ p.etiqueta }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="td-prop">
+        <span class="td-prop__lbl">Etiquetas</span>
+        <div class="td-prop__val td-etqs">
+          @for (l of t.card_labels; track l.id) {
+            <span class="td-etq" [style.--c]="l.label_color">{{ l.label_name }}</span>
+          }
+          @if (puedeEditar()) {
+            <button type="button" class="td-btn-mini" [matMenuTriggerFor]="menuEtq">
+              <mat-icon>sell</mat-icon>{{ t.card_labels.length ? 'Editar' : 'Agregar' }}
+            </button>
+            <mat-menu #menuEtq="matMenu" class="td-menu-etq">
+              @for (e of etiquetas(); track e.id) {
+                <button mat-menu-item (click)="$event.stopPropagation(); alternarEtiqueta(e)">
+                  <mat-icon [style.color]="e.color">{{ etiquetasPuestas().has(e.id) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>{{ e.name }}
+                </button>
+              }
+              <div class="td-etq-nueva" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                <input [(ngModel)]="nuevaEtiqueta" placeholder="Nueva etiqueta" maxlength="40" (keydown.enter)="crearEtiqueta()">
+                <div class="td-colores">
+                  @for (c of coloresEtiqueta; track c) {
+                    <button type="button" class="td-color" [style.background]="c" [class.td-color--on]="colorEtiqueta === c"
+                            (click)="colorEtiqueta = c" [attr.aria-label]="'Color ' + c"></button>
+                  }
+                </div>
+                <button mat-flat-button [disabled]="!nuevaEtiqueta.trim()" (click)="crearEtiqueta()">Crear y poner</button>
+              </div>
+            </mat-menu>
+          } @else if (!t.card_labels.length) {
+            <span class="td-vacio">—</span>
+          }
+        </div>
+      </div>
+
+      <div class="td-prop">
+        <span class="td-prop__lbl">Seguimiento</span>
+        <div class="td-prop__val">
+          <span class="td-pila">
+            @for (s of seguidores(); track s) {
+              <span class="td-seg">
+                <app-tarea-avatar [usuario]="s" [tam]="26" />
+                @if (puedeTrabajar() || s === dir.yo.id) {
+                  <button type="button" class="td-seg__x" (click)="quitarSeguidor(s)" [attr.aria-label]="'Quitar a ' + dir.nombre(s)">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                }
+              </span>
+            } @empty {
+              <span class="td-vacio">Nadie la sigue</span>
+            }
+          </span>
+          @if (puedeTrabajar()) {
+            <button type="button" class="td-btn-mini" (click)="agregandoSeguidor.set(!agregandoSeguidor())">
+              <mat-icon>person_add</mat-icon>Agregar
+            </button>
+          }
+        </div>
+        @if (agregandoSeguidor()) {
+          <app-persona-picker class="td-picker" [cercanos]="cercanos()" [excluir]="seguidores()"
+                              placeholder="¿Quién más debe enterarse?" (elegido)="agregarSeguidor($event)" />
+        }
+        <p class="td-ayuda">Los seguidores reciben en Notificaciones los comentarios, cambios de estado y el cierre.</p>
+      </div>
+
+      <div class="td-prop">
+        <span class="td-prop__lbl">Creada</span>
+        <div class="td-prop__val td-sutil">
+          @if (t.created_by) {
+            <span class="td-quien"><app-tarea-avatar [usuario]="t.created_by" [tam]="22" />{{ dir.nombre(t.created_by) }}</span> ·
+          }
+          {{ t.created_at | date: 'd MMM y, h:mm a' }}
+        </div>
+      </div>
+    </section>
+
+    <!-- Descripción -->
+    <section class="td-sec">
+      <h3><mat-icon>notes</mat-icon>Descripción</h3>
+      @if (puedeEditar()) {
+        <textarea class="td-desc" [(ngModel)]="descripcion" (blur)="guardarDescripcion()" rows="4"
+                  placeholder="Contexto, criterios de terminado, enlaces…"></textarea>
+      } @else {
+        <p class="td-desc-texto">{{ t.description || 'Sin descripción.' }}</p>
+      }
+    </section>
+
+    <!-- Checklist -->
+    <section class="td-sec">
+      <h3><mat-icon>checklist</mat-icon>Checklist
+        @if (progreso(); as p) { <span class="td-cuenta">{{ p.hechos }}/{{ p.total }}</span> }
+      </h3>
+      @if (progreso(); as p) {
+        <div class="td-prog"><div class="td-prog__barra" [style.width.%]="p.pct"></div></div>
+      }
+      <ul class="td-check">
+        @for (i of t.checklist_items; track i.id) {
+          <li [class.td-check--hecho]="i.completed">
+            <button type="button" class="td-check__box" [disabled]="!puedeTrabajar()" (click)="alternarItem(i.id, !i.completed)"
+                    [attr.aria-label]="(i.completed ? 'Desmarcar ' : 'Marcar ') + i.content">
+              <mat-icon>{{ i.completed ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+            </button>
+            <span class="td-check__txt">{{ i.content }}</span>
+            @if (puedeTrabajar()) {
+              <button type="button" class="td-check__x" (click)="eliminarItem(i.id)" aria-label="Quitar paso"><mat-icon>close</mat-icon></button>
+            }
+          </li>
+        }
+      </ul>
+      @if (puedeTrabajar()) {
+        <div class="td-agregar">
+          <mat-icon>add</mat-icon>
+          <input [(ngModel)]="nuevoItem" placeholder="Agregar un paso y presionar Enter" (keydown.enter)="agregarItem()" maxlength="500">
+        </div>
+      }
+    </section>
+
+    <!-- Adjuntos -->
+    <section class="td-sec">
+      <h3><mat-icon>attach_file</mat-icon>Adjuntos
+        @if (t.uploads.length) { <span class="td-cuenta">{{ t.uploads.length }}</span> }
+        @if (puedeTrabajar()) {
+          <button mat-stroked-button class="td-subir" (click)="archivo.click()" [disabled]="subiendo()">
+            <mat-icon>{{ subiendo() ? 'hourglass_top' : 'upload' }}</mat-icon>{{ subiendo() ? 'Subiendo…' : 'Adjuntar' }}
+          </button>
+          <input #archivo type="file" multiple hidden (change)="subir($event)">
+        }
+      </h3>
+      <ul class="td-adj">
+        @for (a of t.uploads; track a.uuid) {
+          <li>
+            <mat-icon class="td-adj__ico">{{ icono(a) }}</mat-icon>
+            <button type="button" class="td-adj__nombre" (click)="descargar(a)" [matTooltip]="'Descargar ' + a.original_name">{{ a.original_name }}</button>
+            <span class="td-sutil">{{ tamano(a.size_bytes) }} · {{ hace(a.created_at) }}{{ a.uploader ? ' · ' + dir.nombre(a.uploader) : '' }}</span>
+            @if (puedeTrabajar()) {
+              <button type="button" class="td-check__x" (click)="eliminarAdjunto(a)" aria-label="Quitar adjunto"><mat-icon>delete_outline</mat-icon></button>
+            }
+          </li>
+        } @empty {
+          <li class="td-vacio">Sin archivos.</li>
+        }
+      </ul>
+    </section>
+
+    <!-- Actividad -->
+    <section class="td-sec td-actividad">
+      <div class="td-tabs" role="tablist">
+        <button type="button" role="tab" [attr.aria-selected]="pestana() === 'comentarios'" [class.td-tab--on]="pestana() === 'comentarios'"
+                (click)="pestana.set('comentarios')"><mat-icon>forum</mat-icon>Comentarios <span class="td-cuenta">{{ comentarios().length }}</span></button>
+        <button type="button" role="tab" [attr.aria-selected]="pestana() === 'historial'" [class.td-tab--on]="pestana() === 'historial'"
+                (click)="pestana.set('historial')"><mat-icon>history</mat-icon>Historial</button>
+      </div>
+
+      @if (pestana() === 'comentarios') {
+        @if (puedeTrabajar()) {
+          <div class="td-composer">
+            <app-tarea-avatar [usuario]="dir.yo.id" [tam]="30" />
+            <div class="td-composer__caja">
+              <textarea #cajaComentario [(ngModel)]="comentario" rows="2" (input)="alEscribir($event)" (keydown)="teclaComentario($event)"
+                        (blur)="cerrarMenciones()" placeholder="Escribe un comentario. Usa @ para avisarle a alguien."
+                        aria-label="Nuevo comentario"></textarea>
+              @if (sugerenciasMencion().length) {
+                <ul class="td-menciones" role="listbox">
+                  @for (p of sugerenciasMencion(); track p.id; let i = $index) {
+                    <li role="option" [attr.aria-selected]="i === indiceMencion()" [class.td-mencion--on]="i === indiceMencion()"
+                        (mousedown)="$event.preventDefault(); mencionar(p)">
+                      <app-tarea-avatar [usuario]="p.id" [tam]="22" /><strong>{{ p.nombre }}</strong><small>{{ p.email }}</small>
+                    </li>
+                  }
+                </ul>
+              }
+              <div class="td-composer__pie">
+                <span class="td-sutil">Ctrl + Enter para enviar</span>
+                <button mat-flat-button [disabled]="!comentario.trim() || enviandoComentario()" (click)="comentar()">
+                  <mat-icon>send</mat-icon>Comentar
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+        <ul class="td-coments">
+          @for (c of comentarios(); track c.id) {
+            <li>
+              <app-tarea-avatar [usuario]="c.author" [tam]="30" />
+              <div class="td-coment">
+                <div class="td-coment__cab">
+                  <strong>{{ dir.nombre(c.author, 'Sistema') }}</strong>
+                  <span class="td-sutil" [matTooltip]="(c.created_at | date: 'd MMM y, h:mm a') ?? ''">{{ hace(c.created_at) }}</span>
+                  @if (esMio(c)) {
+                    <button type="button" class="td-check__x" (click)="borrarComentario(c)" aria-label="Eliminar comentario"><mat-icon>delete_outline</mat-icon></button>
+                  }
+                </div>
+                <p class="td-coment__txt">@for (p of partes(c.body); track $index) {<span [class.td-m]="p.m">{{ p.t }}</span>}</p>
+              </div>
+            </li>
+          } @empty {
+            <li class="td-vacio">Aún no hay comentarios. Lo que se escriba aquí le llega al responsable y a los seguidores.</li>
+          }
+        </ul>
+      } @else {
+        <ul class="td-hist">
+          @for (e of eventos(); track e.id) {
+            <li>
+              <mat-icon>{{ e.icono }}</mat-icon>
+              <span><strong>{{ e.quien ? dir.nombre(e.quien) : 'Sistema' }}</strong> {{ e.texto }}</span>
+              <span class="td-sutil" [matTooltip]="(e.cuando | date: 'd MMM y, h:mm a') ?? ''">{{ hace(e.cuando) }}</span>
+            </li>
+          } @empty {
+            <li class="td-vacio">Sin movimientos registrados.</li>
+          }
+        </ul>
+      }
+    </section>
+  </div>
+}

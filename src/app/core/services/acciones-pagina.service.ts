@@ -11,8 +11,7 @@ const CABECERAS = [
   '.card-header-premium:not(.card-header-premium--portada)',
   'app-analisis-nomina .analisis-header',
   'app-manage-workers header.top-bar',
-  ':is(app-matder-dashboard, app-workspaces-page, app-boards-page, app-calendar-page, app-analytics-page, ' +
-    'app-groups-page, app-notifications-page, app-import-page, app-audit-page, app-favorites-page, app-novedades) header.hero',
+  'app-novedades header.hero',
   '.barra-acciones',
 ].join(', ');
 
