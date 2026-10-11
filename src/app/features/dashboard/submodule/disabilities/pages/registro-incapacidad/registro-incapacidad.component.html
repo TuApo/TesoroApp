@@ -37,7 +37,7 @@
           <header class="disab-section-header">
             <mat-icon class="disab-section-icon">person_search</mat-icon>
             <h2 class="disab-section-title">Trabajador</h2>
-            <span class="disab-section-hint">Busca por cedula o por nombre</span>
+            <span class="disab-section-hint">Escoge el tipo de documento y busca por número o por nombre</span>
           </header>
 
           @if (errorRegistro()) {
@@ -50,20 +50,51 @@
             </div>
           }
 
-          <app-buscador-remoto
-            class="reg-buscador-persona"
-            [buscar]="buscarEmpleado"
-            [mostrar]="mostrarEmpleado"
-            [secundario]="detalleEmpleado"
-            [valorInicial]="valorInicialPersona()"
-            etiqueta="Buscar trabajador"
-            placeholder="Escribe la cedula o el nombre"
-            icono="badge"
-            ayuda="Escribe al menos 3 caracteres: filtra por cedula o por nombre"
-            [minCaracteres]="3"
-            (seleccionado)="alSeleccionarEmpleado($event)"
-            (limpiado)="alLimpiarEmpleado()"
-          />
+          <!-- Reunion 2026-10-05: primero el tipo de documento (obligatorio), luego la busqueda -->
+          <div class="reg-busqueda-fila">
+            <mat-form-field appearance="outline" class="reg-tipo-busqueda">
+              <mat-label>Tipo de documento</mat-label>
+              <mat-icon matPrefix aria-hidden="true">fact_check</mat-icon>
+              <mat-select
+                [value]="tipoBusqueda()"
+                (selectionChange)="alCambiarTipoBusqueda($event.value)"
+                required
+                aria-label="Tipo de documento del trabajador"
+              >
+                <mat-select-trigger>{{ tipoBusqueda() }}</mat-select-trigger>
+                @for (td of tiposDocumento; track td.valor) {
+                  <mat-option [value]="td.valor">{{ td.valor }} · {{ td.etiqueta }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Obligatorio antes de buscar</mat-hint>
+            </mat-form-field>
+
+            <app-buscador-remoto
+              #buscadorPersona
+              class="reg-buscador-persona"
+              [buscar]="buscarEmpleado"
+              [mostrar]="mostrarEmpleado"
+              [secundario]="detalleEmpleado"
+              [valorInicial]="valorInicialPersona()"
+              [deshabilitado]="!tipoBusqueda()"
+              etiqueta="Buscar trabajador"
+              [placeholder]="tipoBusqueda() ? 'Número de documento o nombre' : 'Escoge primero el tipo de documento'"
+              icono="badge"
+              [ayuda]="tipoBusqueda() ? 'Escribe al menos 3 caracteres: número de documento o nombre' : 'Escoge primero el tipo de documento'"
+              [minCaracteres]="3"
+              (seleccionado)="alSeleccionarEmpleado($event)"
+              (limpiado)="alLimpiarEmpleado()"
+            />
+          </div>
+
+          @if (avisoTipoBusqueda()) {
+            <div class="reg-aviso reg-aviso--alerta reg-aviso--compacto" role="status">
+              <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+              <div class="reg-aviso-texto">
+                <strong>{{ avisoTipoBusqueda() }}</strong>
+              </div>
+            </div>
+          }
 
           <!-- Skeleton mientras se consulta contratacion -->
           @if (cargandoPersona()) {
@@ -241,13 +272,14 @@
               </header>
 
               <div class="disab-grid reg-grid-3">
-                <!-- Tipo de documento -->
-                @if (completarManual('tipoDocumento') || !personaCargada()) {
+                <!-- Tipo de documento (lista canonica; en modo manual siempre elegible) -->
+                @if (completarManual('tipoDocumento') || !personaCargada() || modoManual()) {
                   <mat-form-field appearance="outline" class="reg-campo reg-campo--manual">
                     <mat-label>Tipo de documento</mat-label>
                     <mat-select formControlName="tipoDocumento">
-                      @for (td of tiposDocumento; track td) {
-                        <mat-option [value]="td">{{ td }}</mat-option>
+                      <mat-select-trigger>{{ valores().personal.tipoDocumento }}</mat-select-trigger>
+                      @for (td of tiposDocumento; track td.valor) {
+                        <mat-option [value]="td.valor">{{ td.valor }} · {{ td.etiqueta }}</mat-option>
                       }
                     </mat-select>
                     @if (personaCargada()) { <mat-hint>Completar manualmente</mat-hint> }
@@ -463,6 +495,18 @@
                     [readonly]="soloLectura('centroCosto')"
                   />
                   @if (completarManual('centroCosto')) { <mat-hint>Completar manualmente</mat-hint> }
+                </mat-form-field>
+
+                <!-- Cargo (reunion 2026-10-05): de contratacion, siempre editable; va al formato de Salud Total -->
+                <mat-form-field appearance="outline" class="reg-campo">
+                  <mat-label>Cargo</mat-label>
+                  <mat-icon matPrefix aria-hidden="true">engineering</mat-icon>
+                  <input matInput formControlName="cargo" maxlength="160" />
+                  @if (form.controls.personal.controls.cargo.hasError('maxlength')) {
+                    <mat-error>Máximo 160 caracteres</mat-error>
+                  } @else {
+                    <mat-hint>Opcional: corrígelo si contratación lo trae mal</mat-hint>
+                  }
                 </mat-form-field>
 
                 <mat-form-field

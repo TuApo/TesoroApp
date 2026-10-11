@@ -14,9 +14,6 @@
     <span class="fst-persona-dato">
       <strong>{{ datos.apellidos }} {{ datos.nombres }}</strong>
     </span>
-    @if (datos.cargo) {
-      <span class="fst-persona-dato">Cargo: {{ datos.cargo }}</span>
-    }
     @if (datos.telefono) {
       <span class="fst-persona-dato">Tel: {{ datos.telefono }}</span>
     }
@@ -24,6 +21,13 @@
   </div>
 
   <form [formGroup]="form">
+    <mat-form-field appearance="outline" class="fst-campo">
+      <mat-label>Cargo del trabajador</mat-label>
+      <mat-icon matPrefix aria-hidden="true">engineering</mat-icon>
+      <input matInput formControlName="cargo" maxlength="160" />
+      <mat-hint>Se toma de contratación; corrígelo si no corresponde. Va en la casilla CARGO.</mat-hint>
+    </mat-form-field>
+
     <p class="fst-instruccion">
       Responde SI o NO segun corresponda (el formato descarta que el evento sea laboral, por
       eso las respuestas arrancan en NO):

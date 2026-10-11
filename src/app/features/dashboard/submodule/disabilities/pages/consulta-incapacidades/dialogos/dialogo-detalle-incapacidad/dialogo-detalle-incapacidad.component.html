@@ -439,6 +439,110 @@
     </section>
   }
 
+  <!-- ════════ Radicados y liquidacion (reunion 2026-10-05) ════════ -->
+  <section class="det-bloque det-salud" aria-live="polite">
+    <header class="det-bloque-cabecera">
+      <mat-icon class="det-bloque-icono">receipt_long</mat-icon>
+      <h3 class="det-bloque-titulo">Radicados y liquidación</h3>
+      @if (saludConsultada() && !cargandoSalud()) {
+        <button
+          type="button"
+          mat-icon-button
+          class="det-salud-recargar"
+          (click)="cargarSalud()"
+          matTooltip="Volver a consultar"
+          aria-label="Volver a consultar radicados y liquidación"
+        >
+          <mat-icon>refresh</mat-icon>
+        </button>
+      }
+    </header>
+
+    @if (cargandoSalud()) {
+      <div class="det-cargando">
+        <mat-spinner diameter="22"></mat-spinner>
+        <span>Consultando radicados y liquidación…</span>
+      </div>
+    } @else if (!saludConsultada()) {
+      <div class="det-salud-pendiente">
+        <span>Todos los radicados (inicial y recobros) y la respuesta de la EPS: pagos y negaciones.</span>
+        <button type="button" mat-stroked-button class="det-salud-consultar" (click)="cargarSalud()">
+          <mat-icon>search</mat-icon>
+          <span>Consultar</span>
+        </button>
+      </div>
+    } @else {
+      <h4 class="det-salud-subtitulo">Radicados</h4>
+      @if (errorRadicadosSalud()) {
+        <div class="det-aviso det-aviso-error" role="alert">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ errorRadicadosSalud() }}</span>
+        </div>
+      } @else if (radicadosVista().length === 0) {
+        <p class="det-salud-vacio">Sin radicados registrados.</p>
+      } @else {
+        <ul class="det-salud-lista">
+          @for (r of radicadosVista(); track trackRadicadoVista($index, r)) {
+            <li class="det-salud-fila" [class.det-salud-anulado]="r.anulado">
+              <span class="det-salud-chip" [class.det-salud-chip-recobro]="r.esRecobro">{{ r.tipo }}</span>
+              <span class="det-salud-principal">{{ r.numero }}</span>
+              <span class="det-salud-meta">{{ r.fecha }} · {{ r.donde }} · {{ r.quien }}</span>
+              @if (r.anulado) {
+                <span class="det-salud-chip det-salud-chip-anulado">Anulado</span>
+              }
+            </li>
+          }
+        </ul>
+      }
+
+      <h4 class="det-salud-subtitulo">Liquidación</h4>
+      @if (errorLiquidacionSalud()) {
+        <div class="det-aviso det-aviso-error" role="alert">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ errorLiquidacionSalud() }}</span>
+        </div>
+      } @else if (sinLiquidacion()) {
+        <p class="det-salud-vacio">La EPS todavía no ha respondido: sin pagos ni negaciones.</p>
+      } @else if (liquidacionSalud()) {
+        @if (pagosSalud().length) {
+          <ul class="det-salud-lista">
+            @for (pago of pagosSalud(); track pago.id) {
+              <li class="det-salud-fila" [class.det-salud-anulado]="pago.anulado">
+                <span class="det-salud-chip det-salud-chip-pago">Pago</span>
+                <span class="det-salud-principal">{{ pesos(pago.valorPagado) }}</span>
+                <span class="det-salud-meta">{{ metaPago(pago) }}</span>
+                @if (pago.anulado) {
+                  <span class="det-salud-chip det-salud-chip-anulado">Anulado</span>
+                }
+              </li>
+            }
+          </ul>
+          <p class="det-salud-total">Total pagado: <strong>{{ pesos(totalPagadoSalud()) }}</strong></p>
+        }
+        @if (negacionesSalud().length) {
+          <ul class="det-salud-lista">
+            @for (negacion of negacionesSalud(); track negacion.id) {
+              <li class="det-salud-fila" [class.det-salud-anulado]="negacion.anulado">
+                <span class="det-salud-chip det-salud-chip-negacion">Negación</span>
+                <span class="det-salud-principal" [matTooltip]="negacion.causalTexto">{{ causalNegacion(negacion) }}</span>
+                <span class="det-salud-meta">{{ metaNegacion(negacion) }}</span>
+                @if (negacion.anulado) {
+                  <span class="det-salud-chip det-salud-chip-anulado">Anulada</span>
+                }
+              </li>
+            }
+          </ul>
+        }
+        @if (terminacionSalud()) {
+          <p class="det-salud-terminacion">
+            <mat-icon>flag</mat-icon>
+            <span>Terminación: <strong>{{ terminacionSalud() }}</strong></span>
+          </p>
+        }
+      }
+    }
+  </section>
+
   <!-- ════════ Visor embebido (soportes y PDFs de radicacion) ════════ -->
   @if (preview(); as visor) {
     <section class="det-bloque det-visor" id="det-visor-documento">

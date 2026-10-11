@@ -1,0 +1,68 @@
+<div class="rdlg-hero">
+  <div class="rdlg-hero-icono"><mat-icon>replay</mat-icon></div>
+  <div class="rdlg-hero-textos">
+    <h2 class="rdlg-hero-titulo" mat-dialog-title>Registrar radicado de recobro</h2>
+    <p class="rdlg-hero-sub">
+      {{ total }} incapacidad(es) · el mismo número queda como un radicado más de cada una
+    </p>
+  </div>
+  <button type="button" mat-icon-button class="rdlg-cerrar" (click)="cerrar()" [disabled]="guardando()" aria-label="Cerrar" matTooltip="Cerrar">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="rdlg-cuerpo">
+  @if (items().length) {
+    <h3 class="ges-seccion-titulo"><mat-icon>assignment_late</mat-icon>Incapacidades ({{ items().length }})</h3>
+    <ul class="drg-lista">
+      @for (i of items(); track i.incapacidad.id) {
+        <li class="drg-item" [class.drg-error]="errores().has(i.incapacidad.id)">
+          <div class="drg-principal">
+            <span class="celda-mono celda-fuerte">{{ codigoVisible(i.incapacidad) }}</span>
+            <span class="celda-nombre">{{ i.incapacidad.nombreCompleto }}</span>
+            <span class="celda-sub">
+              CC {{ i.incapacidad.cedula }} · {{ entidadDe(i.incapacidad) || 'Sin EPS' }}
+              · {{ i.totalRadicados }} radicado(s)
+              @if (ultimoRecobro(i); as u) { · último recobro {{ u.numeroRadicado }} ({{ fechaCorta(u.fechaRadicado) }}) }
+            </span>
+            @if (i.negacion; as n) {
+              <span class="celda-sub drg-causal">
+                Negada{{ n.fechaRespuesta ? ' el ' + fechaCorta(n.fechaRespuesta) : '' }}: {{ n.causalTexto }}
+                @if (causalHomologada(i); as h) { · {{ h }} }
+              </span>
+            }
+            @if (errores().get(i.incapacidad.id); as err) {
+              <span class="celda-aviso celda-aviso-peligro"><mat-icon>error</mat-icon><span>No se guardó: {{ err }}</span></span>
+            }
+          </div>
+          @if (items().length > 1) {
+            <button type="button" mat-icon-button (click)="quitar(i)" [disabled]="guardando()" matTooltip="Quitar" aria-label="Quitar de este registro">
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </li>
+      }
+    </ul>
+
+    <h3 class="ges-seccion-titulo"><mat-icon>edit_document</mat-icon>Datos del radicado de recobro</h3>
+    <app-formulario-radicado
+      [cantidad]="items().length"
+      textoBoton="Registrar recobro"
+      [guardando]="guardando()"
+      [bloqueo]="bloqueo()"
+      (enviar)="guardar($event)"
+    />
+  }
+
+  <app-resultado-radicado
+    class="drg-resultado"
+    [resultado]="resultado()"
+    [numero]="numeroGuardado()"
+    [recobro]="true"
+    [cerrable]="false"
+  />
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="rdlg-acciones">
+  <button type="button" mat-button (click)="cerrar()" [disabled]="guardando()">{{ items().length ? 'Cancelar' : 'Cerrar' }}</button>
+</mat-dialog-actions>

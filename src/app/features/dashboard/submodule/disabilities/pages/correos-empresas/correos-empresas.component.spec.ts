@@ -1,5 +1,18 @@
-import { agruparDirectorio, claseEstadoEnvio, filtrarDirectorio } from './correos-empresas.component';
-import { CorreoEmpresa } from '../../models/incapacidad-gestion.model';
+import { provideZonelessChangeDetection } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { MatDialog } from '@angular/material/dialog';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
+
+import { environment } from '@/environments/environment';
+import {
+  CorreosEmpresasComponent,
+  agruparDirectorio,
+  claseEstadoEnvio,
+  filtrarDirectorio,
+} from './correos-empresas.component';
+import { CorreoConfig, CorreoEmpresa, LotePreview } from '../../models/incapacidad-gestion.model';
 
 /** Helpers puros del directorio de correos: agrupado por finca y filtro de texto. */
 describe('CorreosEmpresas helpers', () => {
@@ -37,5 +50,88 @@ describe('CorreosEmpresas helpers', () => {
     expect(claseEstadoEnvio('FALLIDO')).toBe('ges-chip-peligro');
     expect(claseEstadoEnvio('SIN_DESTINATARIO')).toBe('ges-chip-aviso');
     expect(claseEstadoEnvio(null)).toBe('ges-chip-neutro');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Textos del modo acordado en la reunion 2026-10-05 (sin cambios de logica)
+// ─────────────────────────────────────────────────────────────────────────
+
+describe('CorreosEmpresasComponent (textos del modo de envio)', () => {
+  let fixture: ComponentFixture<CorreosEmpresasComponent>;
+  let http: HttpTestingController;
+  const BASE = `${environment.apiUrl}/Incapacidades/v2`;
+
+  const CONFIG: CorreoConfig = {
+    envioModo: 'INMEDIATO',
+    envioHora: '19:00',
+    ventanaDias: 3,
+    ultimaCorrida: '2026-10-05',
+    modoPlataforma: 'prueba',
+    destinoPrueba: 'pruebas@correo.co',
+  };
+
+  const PREVIEW: LotePreview = {
+    fecha: '2026-10-06',
+    modoEnvio: 'INMEDIATO',
+    prueba: true,
+    destinoPrueba: 'pruebas@correo.co',
+    totalIncapacidades: 0,
+    totalCorreos: 0,
+    grupos: [],
+  };
+
+  async function montar(config: CorreoConfig): Promise<HTMLElement> {
+    fixture = TestBed.createComponent(CorreosEmpresasComponent);
+    http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    http.expectOne(`${BASE}/correos/config`).flush(config);
+    http.expectOne((r) => r.url === `${BASE}/correos/lotes/previsualizar`).flush(PREVIEW);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [CorreosEmpresasComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideNoopAnimations(),
+        { provide: MatDialog, useValue: { open: jasmine.createSpy('open') } },
+      ],
+    }).compileComponents();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    http.verify();
+  });
+
+  it('en INMEDIATO explica el automatico al registrar + lote manual y el boton envia el lote del dia', async () => {
+    const html = await montar(CONFIG);
+    const texto = html.textContent ?? '';
+
+    expect(texto).toContain('automático al registrar + lote manual');
+    expect(texto).toContain('Enviar lote del día (pendientes)');
+    expect(texto).not.toContain('Enviar correos de hoy ahora');
+  });
+
+  it('en DIARIO explica que solo sale el lote diario automatico', async () => {
+    const html = await montar({ ...CONFIG, envioModo: 'DIARIO' });
+    expect(html.textContent ?? '').toContain('solo lote diario automático');
+  });
+
+  it('la configuracion nombra los dos modos acordados', async () => {
+    await montar(CONFIG);
+    fixture.componentInstance.cambiarTab(1);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect(texto).toContain('Automático al registrar + lote manual');
+    expect(texto).toContain('Solo lote diario automático (19:00)');
   });
 });

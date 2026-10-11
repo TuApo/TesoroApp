@@ -491,6 +491,36 @@ export class IncapacidadV2Service {
   }
 
   /**
+   * `GET /Incapacidades/v2/empleados/buscar?q=&tipo=&limit=` (reunion 2026-10-05).
+   *
+   * Con `tipo` (CC, CE, PPT, TI, PA) `q` es el NUMERO de documento: ms-hr lo limpia, quita una
+   * X inicial (forzando PPT) y solo devuelve fichas cuyo tipo canonico coincide. Sin `tipo`
+   * (null o vacio) se comporta como el buscador de siempre (cedula o nombre). Cada fila trae
+   * ademas `tipoDocumentoCanonico`. Si la fecha de ingreso no se pudo leer en el servidor
+   * llega null y se cae a su texto crudo, como la entregaba el buscador de contratacion.
+   */
+  buscarEmpleadosPorDocumento(
+    q: string,
+    tipo: string | null,
+    limit = 15,
+  ): Observable<EmpleadoBusqueda[]> {
+    let params = new HttpParams().set('q', q ?? '').set('limit', String(limit));
+    if (tipo && tipo.trim()) params = params.set('tipo', tipo.trim());
+    return this.http
+      .get<EmpleadoBusqueda[]>(`${this.base}/empleados/buscar`, {
+        headers: this.cabeceras(),
+        params,
+      })
+      .pipe(
+        map((filas) =>
+          (filas ?? []).map((e) =>
+            e.fechaIngreso ? e : { ...e, fechaIngreso: e.fechaIngresoTexto ?? '' },
+          ),
+        ),
+      );
+  }
+
+  /**
    * `GET /contratacion/datosIncapacidadContratacion/{cedula}`.
    * Trae `datos_basicos`, `contratacion` y `afp` para autocompletar el
    * formulario. OJO con los avisos del modelo: `afp.afp` (no `afc`),

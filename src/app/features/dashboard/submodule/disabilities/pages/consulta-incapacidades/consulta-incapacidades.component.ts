@@ -1230,6 +1230,27 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Reunion 2026-10-05, boton "Base actual": el consolidado de TODA la base (37 columnas +
+   * radicados + liquidacion). Mismo dialogo de trabajos asincronos, con el tipo fijo y sin
+   * los filtros de la consulta.
+   */
+  abrirBaseActual(): void {
+    const datos: DatosDialogoExportMasivo = {
+      filtros: {},
+      totalEstimado: null,
+      modo: 'BASE_ACTUAL',
+    };
+    this.dialogo.open(DialogoExportMasivoComponent, {
+      data: datos,
+      width: '640px',
+      maxWidth: '95vw',
+      maxHeight: '92vh',
+      autoFocus: false,
+      panelClass: 'disab-dialogo',
+    });
+  }
+
   /** Informe de personas proximas a 180/540 dias de incapacidad acumulada. */
   abrirInformeUmbral(): void {
     this.dialogo.open(DialogoInformeUmbralComponent, {

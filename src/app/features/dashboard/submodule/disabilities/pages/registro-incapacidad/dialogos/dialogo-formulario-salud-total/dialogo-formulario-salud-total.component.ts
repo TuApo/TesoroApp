@@ -14,6 +14,9 @@
  * TRABAJADOR (no el coordinador), asi que la firma se prellena con su nombre; y el formato
  * lleva fecha y hora del accidente, obligatorias cuando alguna respuesta es SI (hubo evento).
  *
+ * Reunion 2026-10-05: el campo CARGO nunca se llenaba. Ahora llega de contratacion (via el
+ * registro) y es EDITABLE aqui: el dato de origen viene sucio y la oficina lo corrige a mano.
+ *
  * Devuelve al cerrar un `File` PDF listo para adjuntar, o `undefined` si se cancela.
  */
 
@@ -33,6 +36,7 @@ export interface DatosFormularioSaludTotal {
   apellidos: string;
   telefono: string;
   arl: string;
+  /** Prellenado desde contratacion; editable en el dialogo (va al campo CARGO del formato). */
   cargo: string;
   /** Nombre de quien diligencia: el TRABAJADOR (reunion 2026-09-07). */
   responsable: string;
@@ -155,6 +159,10 @@ export class DialogoFormularioSaludTotalComponent {
       ),
     ),
     relato: new FormControl('', { nonNullable: true }),
+    cargo: new FormControl(this.datos.cargo ?? '', {
+      nonNullable: true,
+      validators: [Validators.maxLength(160)],
+    }),
     fechaAccidente: new FormControl('', { nonNullable: true }),
     horaAccidente: new FormControl('', { nonNullable: true }),
     responsable: new FormControl(this.datos.responsable ?? '', {
@@ -205,7 +213,11 @@ export class DialogoFormularioSaludTotalComponent {
       const respuestas = PREGUNTAS_SALUD_TOTAL.map((_, i) => grupo[`p${i + 1}`]);
       const bytes = await llenarFormatoSaludTotal(
         base,
-        { ...this.datos, responsable: this.form.controls.responsable.value.trim() },
+        {
+          ...this.datos,
+          cargo: this.form.controls.cargo.value.trim(),
+          responsable: this.form.controls.responsable.value.trim(),
+        },
         respuestas,
         {
           relato: this.form.controls.relato.value.trim() || undefined,

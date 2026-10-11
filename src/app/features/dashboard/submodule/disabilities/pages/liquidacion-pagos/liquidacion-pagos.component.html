@@ -1,0 +1,101 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <mat-card class="disab-card">
+      <div class="disab-hero disab-hero-pagos">
+        <div class="disab-hero-icon"><mat-icon>payments</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Pagos de incapacidades</h1>
+          <p class="disab-hero-sub">
+            Lo que pagó cada EPS por incapacidad, con el número de la EPS y el soporte contable del extracto. Los pagos se
+            registran al aplicar la plantilla en Liquidación.
+          </p>
+        </div>
+        <div class="hero-acciones">
+          <a mat-flat-button class="hero-btn hero-btn-primario" [routerLink]="rutaLiquidacion"><mat-icon>upload_file</mat-icon><span>Cargar plantilla</span></a>
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon><span>Actualizar</span></button>
+        </div>
+      </div>
+
+      <div class="kpi-fila">
+        <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>receipt_long</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ entero(total()) }}</span><span class="kpi-etiqueta">Pagos con este filtro</span></span></div>
+        <div class="kpi-tarjeta kpi-ok"><span class="kpi-icono"><mat-icon>attach_money</mat-icon></span><span class="kpi-textos"><span class="kpi-valor kpi-dinero">{{ pesos(valorTotal()) }}</span><span class="kpi-etiqueta">Valor total pagado (todo el filtro)</span></span></div>
+      </div>
+
+      <form class="ges-filtros" (ngSubmit)="filtrar()">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ges-filtro-ancho">
+          <mat-label>Buscar</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput name="q" [(ngModel)]="formulario.q" placeholder="Cédula, código o nombre" />
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>EPS</mat-label>
+          <input matInput name="eps" [(ngModel)]="formulario.eps" list="pagos-eps" (change)="filtrar()" />
+          <datalist id="pagos-eps">@for (e of epsOpciones(); track e) { <option [value]="e"></option> }</datalist>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pag-rango">
+          <mat-label>Fecha de pago</mat-label>
+          <mat-date-range-input [rangePicker]="pickerPago">
+            <input matStartDate name="desde" [(ngModel)]="formulario.desde" placeholder="Desde" />
+            <input matEndDate name="hasta" [(ngModel)]="formulario.hasta" placeholder="Hasta" (dateChange)="filtrar()" />
+          </mat-date-range-input>
+          <mat-datepicker-toggle matIconSuffix [for]="pickerPago"></mat-datepicker-toggle>
+          <mat-date-range-picker #pickerPago></mat-date-range-picker>
+        </mat-form-field>
+        <button type="submit" mat-flat-button color="primary"><mat-icon>filter_alt</mat-icon> Filtrar</button>
+        <button type="button" mat-button (click)="limpiar()">Limpiar</button>
+        <span class="ges-espaciador"></span>
+        <button type="button" mat-stroked-button (click)="exportar()" [disabled]="exportando() || total() === 0" matTooltip="Excel con todos los pagos del filtro">
+          <mat-icon>file_download</mat-icon> {{ exportando() ? 'Exportando…' : 'Exportar a Excel' }}
+        </button>
+      </form>
+
+      <div class="ges-cuerpo">
+        @if (cargaId(); as c) {
+          <div class="ges-aviso ges-aviso-info pag-filtro-carga">
+            <mat-icon>filter_list</mat-icon>
+            <span>Solo los pagos de la carga <strong>#{{ c }}</strong>.</span>
+            <button type="button" mat-button (click)="quitarFiltroCarga()"><mat-icon>close</mat-icon> Ver todos</button>
+          </div>
+        }
+        @if (error()) {
+          <div class="ges-aviso ges-aviso-peligro" role="alert"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+        }
+
+        <!-- Modo servidor: la pagina va al backend (el endpoint no ordena ni busca por columna). -->
+        <app-tabla-estandar
+          id="incapacidades-liquidacion-pagos"
+          titulo="Pagos de incapacidades"
+          modulo="Incapacidades"
+          vacio="No hay pagos con estos filtros."
+          [busqueda]="false"
+          [datos]="filas()"
+          [columnas]="columnas"
+          [filaId]="idFila"
+          [filaClase]="claseFila"
+          [cargando]="cargando()"
+          [totalServidor]="total()"
+          [paginaServidor]="pagina()"
+          [filasPorPagina]="tamano()"
+          [opcionesPorPagina]="[25, 50, 100, 200]"
+          (paginaCambio)="paginar($event)">
+
+          <ng-template tablaCelda="codigo" let-p>
+            <span class="celda-mono celda-codigo">{{ p.incapacidad?.codigoOficina || p.incapacidad?.codigoUnico }}</span>
+            @if (p.incapacidad?.codigoOficina) { <span class="celda-sub celda-mono">{{ p.incapacidad?.codigoUnico }}</span> }
+            @if (p.anulado) { <span class="ges-chip ges-chip-peligro">Anulado</span> }
+          </ng-template>
+
+          <ng-template tablaCelda="valor" let-p>
+            <span class="celda-valor" [class.celda-tachado]="p.anulado">{{ pesos(p.valorPagado) }}</span>
+          </ng-template>
+
+          <ng-template tablaAcciones let-p>
+            @if (!p.anulado) {
+              <button type="button" mat-icon-button class="accion-peligro" (click)="anular(p)" matTooltip="Anular pago" aria-label="Anular pago"><mat-icon>block</mat-icon></button>
+            }
+          </ng-template>
+        </app-tabla-estandar>
+      </div>
+    </mat-card>
+  </div>
+</div>
