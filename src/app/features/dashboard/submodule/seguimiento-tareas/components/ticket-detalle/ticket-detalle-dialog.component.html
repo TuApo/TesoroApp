@@ -1,0 +1,189 @@
+@if (cargando()) {
+  <div class="tk-centro"><mat-spinner diameter="36" /></div>
+} @else if (error()) {
+  <div class="tk-centro tk-vacio"><mat-icon>search_off</mat-icon><p>{{ error() }}</p><button mat-stroked-button (click)="cerrar()">Cerrar</button></div>
+} @else if (t(); as t) {
+  @let p = prioridadTicket(t.prioridad);
+  <div class="tk">
+    @if (guardando()) { <mat-progress-bar class="tk-barra" mode="indeterminate" /> }
+    <header class="tk-cab">
+      <span class="tk-ruta"><mat-icon>support_agent</mat-icon>Mesa de soporte <mat-icon>chevron_right</mat-icon><code>#{{ t.id.slice(0, 8) }}</code></span>
+      <span class="tk-esp"></span>
+      <button mat-icon-button (click)="irAlModuloClasico()" matTooltip="Abrir en el módulo de tickets" aria-label="Abrir en el módulo de tickets"><mat-icon>open_in_new</mat-icon></button>
+      <button mat-icon-button (click)="cerrar()" aria-label="Cerrar" matTooltip="Cerrar (Esc)"><mat-icon>close</mat-icon></button>
+    </header>
+
+    <div class="tk-cuerpo">
+      <h2 class="tk-titulo">{{ t.titulo }}</h2>
+      <div class="tk-chips">
+        <span class="tk-cat"><mat-icon>category</mat-icon>{{ t.categoria }}</span>
+        <span class="tk-sutil">Reportado {{ hace(t.fecha_reporte) }}</span>
+      </div>
+
+      <div class="tk-estados" role="radiogroup" aria-label="Estado del ticket">
+        @for (e of estados; track e.clave) {
+          <button type="button" role="radio" class="tk-est" [attr.data-tono]="e.tono" [class.tk-est--on]="t.estado === e.clave"
+                  [attr.aria-checked]="t.estado === e.clave" [disabled]="guardando()"
+                  (click)="t.estado !== e.clave && cambiar({ estado: e.clave }, 'Estado: ' + e.clave)">
+            <mat-icon>{{ e.icono }}</mat-icon>{{ e.clave }}
+          </button>
+        }
+      </div>
+
+      <section class="tk-props">
+        <div class="tk-prop">
+          <span class="tk-lbl">Prioridad</span>
+          <div class="tk-prios">
+            @for (x of prioridades; track x.clave) {
+              <button type="button" class="tk-chip" [attr.data-p]="x.tono" [class.tk-chip--on]="p.clave === x.clave" [disabled]="guardando()"
+                      (click)="p.clave !== x.clave && cambiar({ prioridad: x.clave }, 'Prioridad: ' + x.etiqueta)">{{ x.etiqueta }}</button>
+            }
+          </div>
+        </div>
+        <div class="tk-prop">
+          <span class="tk-lbl">Responsable</span>
+          @if (asignando()) {
+            <div class="tk-pick">
+              <app-persona-picker placeholder="Buscar persona" (elegido)="asignar($event)" />
+              <button mat-button (click)="asignando.set(false)">Cancelar</button>
+            </div>
+          } @else if (t.asignado_a) {
+            <span class="tk-resp"><mat-icon>person</mat-icon>{{ t.asignado_a }}
+              <button type="button" class="tk-x" (click)="asignando.set(true)" matTooltip="Reasignar" aria-label="Reasignar"><mat-icon>edit</mat-icon></button>
+              <button type="button" class="tk-x" (click)="quitarAsignado()" matTooltip="Quitar" aria-label="Quitar responsable"><mat-icon>close</mat-icon></button>
+            </span>
+          } @else {
+            <div class="tk-pick">
+              <button mat-stroked-button (click)="asignarme()"><mat-icon>front_hand</mat-icon>Me encargo</button>
+              <button mat-button (click)="asignando.set(true)">Asignar a…</button>
+            </div>
+          }
+        </div>
+        <div class="tk-prop tk-prop--meta">
+          <span class="tk-lbl">Quién reporta</span>
+          <span>{{ t.usuario || 'Sin nombre' }}{{ t.documento ? ' · ' + t.documento : '' }}</span>
+          <small>{{ t.rol || 'Sin rol' }}{{ t.sede ? ' · ' + t.sede : '' }}</small>
+        </div>
+        <div class="tk-prop tk-prop--meta">
+          <span class="tk-lbl">Dónde</span>
+          <span class="tk-url" [title]="t.url_actual">{{ t.url_actual || '—' }}</span>
+          <small>{{ t.navegador }}{{ t.resolucion ? ' · ' + t.resolucion : '' }}{{ t.version_app ? ' · v' + t.version_app : '' }}</small>
+        </div>
+      </section>
+
+      <section class="tk-sec">
+        <h3><mat-icon>notes</mat-icon>Lo que reporta</h3>
+        <p class="tk-desc">{{ t.descripcion }}</p>
+        @if (captura(); as src) {
+          <button type="button" class="tk-captura" (click)="verCaptura()" matTooltip="Ver la captura completa">
+            <img [src]="src" alt="Captura de pantalla del problema">
+            <span><mat-icon>zoom_in</mat-icon>Ver captura</span>
+          </button>
+        }
+        @if (t.console_logs) {
+          <button type="button" class="tk-toggle" (click)="verLogs.set(!verLogs())" [attr.aria-expanded]="verLogs()">
+            <mat-icon>terminal</mat-icon>Registro de la consola<mat-icon>{{ verLogs() ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+          @if (verLogs()) { <pre class="tk-logs">{{ t.console_logs }}</pre> }
+        }
+      </section>
+
+      @if (t.ai_analisis || t.ai_sugerencia) {
+        <section class="tk-sec tk-auto">
+          <h3><mat-icon>psychology</mat-icon>Análisis automático</h3>
+          @if (t.ai_analisis) { <p class="tk-pre">{{ t.ai_analisis }}</p> }
+          @if (t.ai_sugerencia) { <p class="tk-pre tk-sug"><strong>Sugerencia:</strong> {{ t.ai_sugerencia }}</p> }
+        </section>
+      }
+
+      <!-- Plan con IA + tareas de seguimiento -->
+      <section class="tk-sec tk-plan">
+        <h3><mat-icon>assignment_turned_in</mat-icon>Plan de solución y seguimiento
+          <span class="tk-esp"></span>
+          @if (iaDisponible()) {
+            <button mat-stroked-button class="tk-ia" [disabled]="planeando()" (click)="planificar()">
+              <mat-icon>auto_awesome</mat-icon>{{ plan() ? 'Otro plan' : 'Plan con IA' }}
+            </button>
+          }
+          <button mat-flat-button (click)="crearTarea()"><mat-icon>add_task</mat-icon>Crear tarea</button>
+        </h3>
+        @if (planeando()) { <mat-progress-bar mode="indeterminate" /><small class="tk-sutil">La IA está revisando el ticket, los logs y los comentarios…</small> }
+        @if (plan(); as pl) {
+          <div class="tk-plan__res">
+            @if (pl.texto) { <p class="tk-pre">{{ pl.texto }}</p> }
+            @if (pl.pasos.length) { <ol>@for (x of pl.pasos; track $index) { <li>{{ x }}</li> }</ol> }
+            <div class="tk-acc">
+              <button mat-button (click)="plan.set(null)">Descartar</button>
+              <button mat-stroked-button [disabled]="enviando()" (click)="publicarPlan()"><mat-icon>forum</mat-icon>Publicar al usuario</button>
+              <button mat-flat-button class="tk-btn-ia" (click)="crearTarea()"><mat-icon>add_task</mat-icon>Crear tarea con este plan</button>
+            </div>
+          </div>
+        }
+        @if (tareas().length) {
+          <ul class="tk-tareas">
+            @for (x of tareas(); track x.id) {
+              @let e = estadoTarea(x.status);
+              @let v = venc(x);
+              <li>
+                <button type="button" class="tk-tarea" (click)="abrirTarea(x.id)">
+                  <mat-icon [attr.data-tono]="e.tono">{{ e.icono }}</mat-icon>
+                  <span class="tk-tarea__tit">{{ x.title }}</span>
+                  <small>{{ x.assignee ? dir.nombre(x.assignee) : 'Sin responsable' }} · <span [attr.data-v]="v.tono">{{ v.texto }}</span></small>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else if (!plan()) {
+          <p class="tk-sutil">Sin tareas de seguimiento. Crea una para asignar el trabajo y que todos vean el avance.</p>
+        }
+      </section>
+
+      <!-- Enjambre de agentes (solo se pinta si hay acceso) -->
+      <app-panel-agentes-ticket [ticket]="t" />
+
+      <!-- Conversación -->
+      <section class="tk-sec">
+        <h3><mat-icon>forum</mat-icon>Conversación <span class="tk-n">{{ t.comentarios.length || 0 }}</span></h3>
+        <ul class="tk-coments">
+          @for (c of t.comentarios; track c.id) {
+            <li>
+              <span class="tk-av">{{ (c.autor || '?').slice(0, 1).toUpperCase() }}</span>
+              <div>
+                <strong>{{ c.autor }}</strong> <small>{{ hace(c.fecha) }}</small>
+                <p>{{ c.mensaje }}</p>
+                @if (c.archivo_url) {
+                  <button type="button" class="tk-adj" (click)="verDataUrl(c.archivo_url, c.archivo_nombre)"><mat-icon>attach_file</mat-icon>{{ c.archivo_nombre || 'Archivo' }}</button>
+                }
+              </div>
+            </li>
+          } @empty {
+            <li class="tk-sutil">Aún no hay comentarios.</li>
+          }
+        </ul>
+        <div class="tk-nuevo">
+          <textarea [(ngModel)]="comentario" rows="2" placeholder="Escribe una respuesta o una nota interna…" aria-label="Comentario"></textarea>
+          <div class="tk-nuevo__pie">
+            <input #adj type="file" hidden (change)="elegirArchivo($event)">
+            <button type="button" class="tk-x" (click)="adj.click()" matTooltip="Adjuntar archivo" aria-label="Adjuntar archivo"><mat-icon>attach_file</mat-icon></button>
+            @if (archivo(); as f) { <span class="tk-archivo">{{ f.name }} <button type="button" class="tk-x" (click)="archivo.set(null)" aria-label="Quitar"><mat-icon>close</mat-icon></button></span> }
+            <span class="tk-esp"></span>
+            <button mat-flat-button [disabled]="enviando() || (!comentario.trim() && !archivo())" (click)="comentar()"><mat-icon>send</mat-icon>Publicar</button>
+          </div>
+        </div>
+      </section>
+
+      @if (t.historial.length) {
+        <section class="tk-sec">
+          <button type="button" class="tk-toggle" (click)="verHistorial.set(!verHistorial())" [attr.aria-expanded]="verHistorial()">
+            <mat-icon>history</mat-icon>Historial ({{ t.historial.length }})<mat-icon>{{ verHistorial() ? 'expand_less' : 'expand_more' }}</mat-icon>
+          </button>
+          @if (verHistorial()) {
+            <ul class="tk-hist">
+              @for (h of t.historial; track h.id) { <li><span>{{ h.descripcion }}</span><small>{{ h.usuario }} · {{ hace(h.fecha) }}</small></li> }
+            </ul>
+          }
+        </section>
+      }
+    </div>
+  </div>
+}

@@ -1,5 +1,6 @@
 <div class="cf-tabs" role="tablist">
   <button type="button" role="tab" [class.cf-on]="pestana() === 'parametros'" [attr.aria-selected]="pestana() === 'parametros'" (click)="abrirPestana('parametros')"><mat-icon>tune</mat-icon>Parámetros</button>
+  <button type="button" role="tab" [class.cf-on]="pestana() === 'plantillas'" [attr.aria-selected]="pestana() === 'plantillas'" (click)="abrirPestana('plantillas')"><mat-icon>dashboard_customize</mat-icon>Plantillas</button>
   <button type="button" role="tab" [class.cf-on]="pestana() === 'avisos'" [attr.aria-selected]="pestana() === 'avisos'" (click)="abrirPestana('avisos')"><mat-icon>notifications</mat-icon>Mis avisos</button>
   <button type="button" role="tab" [class.cf-on]="pestana() === 'importar'" [attr.aria-selected]="pestana() === 'importar'" (click)="abrirPestana('importar')"><mat-icon>upload_file</mat-icon>Importar</button>
   <button type="button" role="tab" [class.cf-on]="pestana() === 'auditoria'" [attr.aria-selected]="pestana() === 'auditoria'" (click)="abrirPestana('auditoria')"><mat-icon>history</mat-icon>Auditoría</button>
@@ -82,6 +83,45 @@
             }
           </section>
         }
+      </div>
+    }
+  }
+
+  @case ('plantillas') {
+    <div class="cf-pl-barra">
+      <div class="cf-pl-buscar"><mat-icon>search</mat-icon>
+        <input type="search" [ngModel]="buscarPlantilla()" (ngModelChange)="buscarPlantilla.set($event)" placeholder="Buscar plantilla" aria-label="Buscar plantillas"></div>
+      <span class="cf-esp"></span>
+      <button mat-stroked-button class="cf-ia" (click)="plantillaConIa()"><mat-icon>auto_awesome</mat-icon>Crear plantilla con IA</button>
+    </div>
+    <p class="cf-nota"><mat-icon>info</mat-icon>Las plantillas aparecen al crear un tablero. También puedes guardar cualquier tablero como plantilla desde su menú (⋮ › Guardar como plantilla).</p>
+    @if (cargandoPlantillas()) {
+      <div class="cf-centro"><mat-spinner diameter="36" /></div>
+    } @else {
+      <div class="cf-grupos">
+      @for (g of plantillasPorArea(); track g.area) {
+        <section class="cf-card cf-pl">
+          <h4>{{ g.area }} <span class="cf-pl-n">{{ g.items.length }}</span></h4>
+          @for (p of g.items; track p.id) {
+            <div class="cf-param">
+              <span class="cf-ico" [style.background]="p.color || 'var(--primary)'"><mat-icon>{{ p.icono || 'view_kanban' }}</mat-icon></span>
+              <div class="cf-param__txt">
+                <strong>{{ p.nombre }} <span class="cf-pl-origen" [attr.data-o]="p.origen">{{ origenPlantilla(p) }}</span></strong>
+                <small>{{ p.descripcion || 'Sin descripción' }}</small>
+                <small class="cf-quien">{{ p.definicion.listas.length }} columnas · {{ p.definicion.tareas.length }} tareas{{ p.usos ? ' · usada ' + p.usos + (p.usos === 1 ? ' vez' : ' veces') : '' }}{{ p.creado_por ? ' · ' + dir.nombre(p.creado_por, '') : '' }}</small>
+              </div>
+              <div class="cf-param__ctl">
+                <button mat-stroked-button (click)="usarPlantilla(p)"><mat-icon>visibility</mat-icon>Ver y usar</button>
+                @if (puedeRetirar(p)) {
+                  <button mat-icon-button (click)="retirarPlantilla(p)" matTooltip="Retirar plantilla" aria-label="Retirar plantilla"><mat-icon>delete_outline</mat-icon></button>
+                }
+              </div>
+            </div>
+          }
+        </section>
+      } @empty {
+        <p class="cf-nota">No hay plantillas que coincidan.</p>
+      }
       </div>
     }
   }

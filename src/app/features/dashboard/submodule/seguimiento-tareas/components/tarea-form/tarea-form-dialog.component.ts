@@ -10,12 +10,17 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { filter, lastValueFrom } from 'rxjs';
 import { TareasApiService } from '../../services/tareas-api.service';
 import { DirectorioService } from '../../services/directorio.service';
-import { Grupo, Lista, MiembroEspacio, NuevaTareaPrefill, Prioridad, Tablero, Tarea } from '../../models/tareas.models';
-import { PRIORIDADES, aIsoFinDeJornada, atajosFecha, etiquetaOrigen, mensajeError } from '../../utils/tareas-ui';
+import { TareasDialogosService } from '../../services/tareas-dialogos.service';
+import { Grupo, Lista, MiembroEspacio, NuevaTareaPrefill, Prioridad, Sugerencia, Tablero, Tarea } from '../../models/tareas.models';
+import { PRIORIDADES, aIsoFinDeJornada, atajosFecha, etiquetaOrigen, mensajeError, prioridadInfo } from '../../utils/tareas-ui';
 import { TareaAvatarComponent } from '../avatar/avatar.component';
 import { Eleccion, PersonaPickerComponent } from '../persona-picker/persona-picker.component';
+import { ZonaArchivosComponent } from '../zona-archivos/zona-archivos.component';
 
 const CLAVE_ULTIMO_TABLERO = 'tareas.ultimoTablero';
 
@@ -39,7 +44,7 @@ function guardarUltimo(id: number): void {
   imports: [
     FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDatepickerModule, MatNativeDateModule, MatTooltipModule, MatProgressSpinnerModule,
-    TareaAvatarComponent, PersonaPickerComponent,
+    MatProgressBarModule, MatSnackBarModule, TareaAvatarComponent, PersonaPickerComponent, ZonaArchivosComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tarea-form-dialog.component.html',
@@ -49,6 +54,8 @@ export class TareaFormDialogComponent implements OnInit {
   private readonly api = inject(TareasApiService);
   readonly dir = inject(DirectorioService);
   private readonly ref = inject(MatDialogRef<TareaFormDialogComponent, Tarea | null>);
+  private readonly dialogos = inject(TareasDialogosService);
+  private readonly snack = inject(MatSnackBar);
   readonly data = inject<NuevaTareaPrefill>(MAT_DIALOG_DATA, { optional: true }) ?? {};
 
   readonly tableros = signal<Tablero[]>([]);
@@ -67,8 +74,20 @@ export class TareaFormDialogComponent implements OnInit {
   vence: Date | null = this.data.vence ?? null;
   readonly responsable = signal<Eleccion | null>(null);
   readonly seguidores = signal<string[]>([]);
-  pasos: string[] = [];
+  pasos: string[] = [...(this.data.pasos ?? [])];
   nuevoPaso = '';
+
+  // Adjuntos: se suben al crear la tarea (con avance) y la IA también los lee.
+  readonly archivos = signal<File[]>([]);
+  readonly maxMb = signal(100);
+  readonly subida = signal<{ n: number; total: number; pct: number; nombre: string } | null>(null);
+
+  // IA
+  readonly iaDisponible = signal(false);
+  readonly sugiriendo = signal(false);
+  readonly sugerencia = signal<Sugerencia | null>(null);
+  readonly prioridadInfo = prioridadInfo;
+  private abandonado = false;
 
   readonly prioridades = PRIORIDADES;
   readonly atajos = atajosFecha();
@@ -87,6 +106,7 @@ export class TareaFormDialogComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     this.dir.cargar();
+    this.api.iaEstado().then(e => { this.iaDisponible.set(e.disponible); this.maxMb.set(e.max_mb_adjuntos); }).catch(() => undefined);
     if (this.data.responsable) {
       this.responsable.set({ tipo: 'persona', id: this.data.responsable, nombre: this.dir.nombre(this.data.responsable) });
     } else if (this.data.grupo) {
@@ -146,6 +166,54 @@ export class TareaFormDialogComponent implements OnInit {
   }
   quitarPaso(i: number): void { this.pasos = this.pasos.filter((_, j) => j !== i); }
 
+  verArchivo(i: number): void {
+    this.dialogos.verArchivos(this.archivos().map(f => ({ nombre: f.name, mime: f.type, tamano: f.size, archivo: f })), i);
+  }
+
+  /** La IA completa el borrador: descripción, pasos, prioridad y plazo (leyendo los adjuntos). */
+  async sugerir(): Promise<void> {
+    if (!this.titulo.trim() || this.sugiriendo()) return;
+    this.sugiriendo.set(true);
+    this.sugerencia.set(null);
+    this.error.set(null);
+    try {
+      const t = await this.api.iaGenerar('sugerir', {
+        descripcion: `Título: ${this.titulo.trim()}` + (this.descripcion.trim() ? `\nDescripción actual: ${this.descripcion.trim()}` : '')
+          + (this.pasos.length ? `\nPasos ya escritos: ${this.pasos.join('; ')}` : ''),
+        modo: 'borrador',
+        archivos: this.archivos(),
+      });
+      this.sugerencia.set(await this.api.esperarIa<Sugerencia>(t.id, { cancelado: () => this.abandonado }));
+    } catch (e: any) {
+      if (e?.message !== 'cancelado') this.error.set(e instanceof Error ? e.message : mensajeError(e, 'La IA no pudo sugerir.'));
+    } finally {
+      this.sugiriendo.set(false);
+    }
+  }
+
+  aplicarSugerencia(que: 'todo' | 'pasos'): void {
+    const s = this.sugerencia();
+    if (!s) return;
+    const nuevos = s.pasos.filter(p => !this.pasos.includes(p));
+    this.pasos = [...this.pasos, ...nuevos];
+    if (que === 'todo') {
+      if (s.texto) this.descripcion = this.descripcion.trim() ? `${this.descripcion.trim()}\n\n${s.texto}` : s.texto;
+      if (s.prioridad) this.prioridad = s.prioridad;
+      if (s.dias !== undefined && s.dias !== null && !this.vence) {
+        const h = new Date();
+        this.vence = new Date(h.getFullYear(), h.getMonth(), h.getDate() + s.dias);
+      }
+    }
+    this.sugerencia.set(null);
+  }
+
+  plazo(dias: number | undefined): string {
+    if (dias === undefined || dias === null) return '';
+    if (dias === 0) return 'vence hoy';
+    if (dias === 1) return 'vence mañana';
+    return `vence en ${dias} días`;
+  }
+
   puedeGuardar(): boolean {
     return !!this.titulo.trim() && !!this.listaId && !this.guardando();
   }
@@ -171,6 +239,10 @@ export class TareaFormDialogComponent implements OnInit {
       });
       for (const paso of this.pasos) await this.api.agregarItem(tarea.id, paso);
       if (this.tableroId) guardarUltimo(this.tableroId);
+      const fallidos = await this.subirAdjuntos(tarea.id);
+      if (fallidos.length) {
+        this.snack.open(`La tarea se creó, pero no se pudo subir: ${fallidos.join(', ')}. Adjúntalo desde la tarea.`, 'Cerrar', { duration: 8000 });
+      }
       this.ref.close(tarea);
     } catch (e) {
       this.error.set(mensajeError(e, 'No se pudo crear la tarea.'));
@@ -179,5 +251,26 @@ export class TareaFormDialogComponent implements OnInit {
     }
   }
 
-  cancelar(): void { this.ref.close(null); }
+  /** Sube los adjuntos uno a uno mostrando el avance. Devuelve los nombres que fallaron. */
+  private async subirAdjuntos(tareaId: number): Promise<string[]> {
+    const lista = this.archivos();
+    const fallidos: string[] = [];
+    for (let i = 0; i < lista.length; i++) {
+      const f = lista[i];
+      this.subida.set({ n: i + 1, total: lista.length, pct: 0, nombre: f.name });
+      try {
+        await lastValueFrom(this.api.subirConAvance({ card: tareaId }, f).pipe(
+          filter(ev => { if (ev.tipo === 'progreso') this.subida.update(s => s && { ...s, pct: ev.pct }); return ev.tipo === 'listo'; })));
+      } catch {
+        fallidos.push(f.name);
+      }
+    }
+    this.subida.set(null);
+    return fallidos;
+  }
+
+  cancelar(): void {
+    this.abandonado = true;
+    this.ref.close(null);
+  }
 }

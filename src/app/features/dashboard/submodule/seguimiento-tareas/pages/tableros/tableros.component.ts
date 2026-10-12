@@ -1,19 +1,17 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { TareasApiService } from '../../services/tareas-api.service';
+import { TareasDialogosService } from '../../services/tareas-dialogos.service';
 import { RecientesService, Reciente } from '../../services/recientes.service';
 import { sinTildes } from '../../services/directorio.service';
 import { Espacio, IndicadorTablero, Tablero } from '../../models/tareas.models';
-import { COLORES_TABLERO, hace, mensajeError } from '../../utils/tareas-ui';
+import { hace, mensajeError } from '../../utils/tareas-ui';
 
 /**
  * Todos los tableros, agrupados por espacio, con su avance y lo vencido a la vista.
@@ -23,7 +21,7 @@ import { COLORES_TABLERO, hace, mensajeError } from '../../utils/tareas-ui';
   selector: 'app-tableros',
   standalone: true,
   imports: [
-    FormsModule, RouterLink, MatIconModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule,
+    FormsModule, RouterLink, MatIconModule, MatButtonModule,
     MatTooltipModule, MatProgressSpinnerModule, MatSnackBarModule,
   ],
   templateUrl: './tableros.component.html',
@@ -34,7 +32,7 @@ export class TablerosComponent implements OnInit {
   private readonly api = inject(TareasApiService);
   private readonly recientesSvc = inject(RecientesService);
   private readonly snack = inject(MatSnackBar);
-  private readonly router = inject(Router);
+  private readonly dialogos = inject(TareasDialogosService);
 
   readonly tableros = signal<Tablero[]>([]);
   readonly espacios = signal<Espacio[]>([]);
@@ -45,15 +43,6 @@ export class TablerosComponent implements OnInit {
 
   readonly busqueda = signal('');
   readonly soloFavoritos = signal(false);
-
-  // Alta
-  readonly creando = signal(false);
-  readonly guardando = signal(false);
-  nuevoEspacio: number | null = null;
-  nuevoNombre = '';
-  nuevaDesc = '';
-  nuevoColor = COLORES_TABLERO[0];
-  readonly colores = COLORES_TABLERO;
 
   readonly espaciosEditables = computed(() => this.espacios().filter(e => e.can_create_boards));
 
@@ -120,29 +109,13 @@ export class TablerosComponent implements OnInit {
     }
   }
 
-  abrirAlta(espacioId?: number): void {
-    this.nuevoEspacio = espacioId ?? this.espaciosEditables()[0]?.id ?? null;
-    this.nuevoNombre = '';
-    this.nuevaDesc = '';
-    this.creando.set(true);
+  /** Galería: en blanco, plantilla del área o con IA. El diálogo navega al tablero creado. */
+  async abrirAlta(espacioId?: number): Promise<void> {
+    await this.dialogos.nuevoTablero({ espacioId: espacioId ?? null });
   }
 
-  async crear(): Promise<void> {
-    if (!this.nuevoEspacio || !this.nuevoNombre.trim() || this.guardando()) return;
-    this.guardando.set(true);
-    try {
-      const t = await this.api.crearTablero({
-        workspace: this.nuevoEspacio, name: this.nuevoNombre.trim(),
-        description: this.nuevaDesc.trim() || null, accent: this.nuevoColor,
-      });
-      this.creando.set(false);
-      this.snack.open('Tablero creado con sus columnas por defecto', undefined, { duration: 2500 });
-      this.router.navigate(['/dashboard/tareas/tableros', t.id]);
-    } catch (e) {
-      this.snack.open(mensajeError(e, 'No se pudo crear el tablero.'), 'Cerrar', { duration: 4500 });
-    } finally {
-      this.guardando.set(false);
-    }
+  async conIa(): Promise<void> {
+    await this.dialogos.generarConIa({ modo: 'tablero', espacioId: this.espaciosEditables()[0]?.id ?? null });
   }
 
   hace = hace;

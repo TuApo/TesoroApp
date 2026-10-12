@@ -266,30 +266,14 @@
 
     <!-- Adjuntos -->
     <section class="td-sec">
-      <h3><mat-icon>attach_file</mat-icon>Adjuntos
+      <h3><mat-icon>attach_file</mat-icon>Archivos
         @if (t.uploads.length) { <span class="td-cuenta">{{ t.uploads.length }}</span> }
-        @if (puedeTrabajar()) {
-          <button mat-stroked-button class="td-subir" (click)="archivo.click()" [disabled]="subiendo()">
-            <mat-icon>{{ subiendo() ? 'hourglass_top' : 'upload' }}</mat-icon>{{ subiendo() ? 'Subiendo…' : 'Adjuntar' }}
-          </button>
-          <input #archivo type="file" multiple hidden (change)="subir($event)">
-        }
       </h3>
-      <ul class="td-adj">
-        @for (a of t.uploads; track a.uuid) {
-          <li>
-            <mat-icon class="td-adj__ico">{{ icono(a) }}</mat-icon>
-            <button type="button" class="td-adj__nombre" (click)="descargar(a)" [matTooltip]="'Descargar ' + a.original_name">{{ a.original_name }}</button>
-            <span class="td-sutil">{{ tamano(a.size_bytes) }} · {{ hace(a.created_at) }}{{ a.uploader ? ' · ' + dir.nombre(a.uploader) : '' }}</span>
-            @if (puedeTrabajar()) {
-              <button type="button" class="td-check__x" (click)="eliminarAdjunto(a)" aria-label="Quitar adjunto"><mat-icon>delete_outline</mat-icon></button>
-            }
-          </li>
-        } @empty {
-          <li class="td-vacio">Sin archivos.</li>
-        }
-      </ul>
+      <app-adjuntos [adjuntos]="t.uploads" [destino]="{ card: t.id }" [puedeEditar]="puedeTrabajar()" (cambio)="alCambiarAdjuntos()" />
     </section>
+
+    <!-- IA: asistente y enjambre -->
+    <app-tarea-ia [tarea]="t" [puedeEditar]="puedeEditar()" [puedeTrabajar]="puedeTrabajar()" (cambio)="alCambiarPorIa()" />
 
     <!-- Actividad -->
     <section class="td-sec td-actividad">

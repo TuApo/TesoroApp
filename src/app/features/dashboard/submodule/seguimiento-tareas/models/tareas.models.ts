@@ -84,6 +84,7 @@ export interface Adjunto {
   id: number;
   uuid: string;
   card: number | null;
+  board?: number | null;
   original_name: string;
   file: string;
   mime_type: string | null;
@@ -286,6 +287,97 @@ export interface NuevaTareaPrefill {
   grupo?: number | null;
   prioridad?: Prioridad;
   vence?: Date | null;
+  /** Pasos del checklist ya propuestos (p.ej. el plan de la IA para un ticket). */
+  pasos?: string[];
   /** Registro de otro módulo del que nace la tarea (compromiso de reunión, ticket...). */
   origen?: { tipo: string; ref: string; url?: string | null; etiqueta?: string };
+}
+
+// ── Plantillas e IA (V15) ──
+
+export interface TareaDefinida {
+  titulo: string;
+  descripcion?: string | null;
+  /** Índice de la columna dentro de `listas` (o de las columnas del tablero). */
+  lista: number;
+  prioridad: Prioridad;
+  /** Vencimiento en días desde el inicio; null = sin fecha. */
+  dias?: number | null;
+  checklist: string[];
+  /** Índices dentro de `etiquetas`. */
+  etiquetas: number[];
+  /** Solo en propuestas para un tablero existente: columna y etiquetas reales. */
+  lista_id?: number;
+  etiqueta_ids?: number[];
+}
+
+export interface DefinicionTablero {
+  listas: { nombre: string; tipo: TipoLista }[];
+  etiquetas: { nombre: string; color: string }[];
+  tareas: TareaDefinida[];
+}
+
+export interface Plantilla {
+  id: number;
+  clave: string | null;
+  nombre: string;
+  area: string;
+  descripcion: string | null;
+  icono: string | null;
+  color: string | null;
+  origen: 'SISTEMA' | 'USUARIO' | 'IA';
+  usos: number;
+  creado_por: string | null;
+  created_at: string | null;
+  definicion: DefinicionTablero;
+}
+
+export type TipoIa = 'GENERAR_TABLERO' | 'GENERAR_TAREAS' | 'GENERAR_PLANTILLA' | 'SUGERIR' | 'AGENTE';
+export type EstadoIa = 'PENDIENTE' | 'EN_CURSO' | 'LISTO' | 'ERROR' | 'CANCELADO';
+
+export interface PropuestaTablero {
+  nombre: string;
+  descripcion: string | null;
+  area: string;
+  color: string;
+  definicion: DefinicionTablero;
+}
+
+export interface PropuestaTareas {
+  tareas: TareaDefinida[];
+  columnas: { id: number; nombre: string }[];
+  etiquetas: { id: number; nombre: string; color: string }[];
+}
+
+export interface Sugerencia {
+  modo: 'pasos' | 'descripcion' | 'resumen' | 'siguientes' | 'desglosar' | 'borrador';
+  texto: string;
+  pasos: string[];
+  tareas?: TareaDefinida[];
+  /** Solo en modo borrador (formulario de nueva tarea). */
+  prioridad?: Prioridad;
+  dias?: number;
+}
+
+export interface IaTrabajo<R = unknown> {
+  id: number;
+  tipo: TipoIa;
+  estado: EstadoIa;
+  card_id: number | null;
+  board_id: number | null;
+  referencia_externa: string | null;
+  error: string | null;
+  coste_usd: number | null;
+  creado_por: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  solicitud: any;
+  resultado: R | null;
+}
+
+export interface IaEstado {
+  disponible: boolean;
+  agentes_habilitados: boolean;
+  puede_usar_agentes: boolean;
+  max_mb_adjuntos: number;
 }

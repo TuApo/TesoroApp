@@ -15,11 +15,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { NotificationCenterService, NotificationPreference, NotificationType } from '@/app/core/services/notification-center.service';
 import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import { TareasApiService } from '../../services/tareas-api.service';
-import { DirectorioService } from '../../services/directorio.service';
-import { Espacio, Parametro, RegistroAuditoria, RegistroImportacion, TipoLista } from '../../models/tareas.models';
+import { DirectorioService, sinTildes } from '../../services/directorio.service';
+import { TareasDialogosService } from '../../services/tareas-dialogos.service';
+import { Espacio, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion, TipoLista } from '../../models/tareas.models';
 import { TIPOS_LISTA, hace, mensajeError } from '../../utils/tareas-ui';
 
-type Pestana = 'parametros' | 'avisos' | 'importar' | 'auditoria';
+type Pestana = 'parametros' | 'plantillas' | 'avisos' | 'importar' | 'auditoria';
 
 const GRUPOS: Record<string, { titulo: string; icono: string; ayuda: string }> = {
   NOTIFICACIONES: { titulo: 'Avisos automáticos', icono: 'notifications_active',
@@ -27,6 +28,8 @@ const GRUPOS: Record<string, { titulo: string; icono: string; ayuda: string }> =
   SEGUIMIENTO: { titulo: 'Seguimiento compartido', icono: 'visibility', ayuda: 'Quién queda siguiendo una tarea sin pedirlo.' },
   TABLEROS: { titulo: 'Tableros', icono: 'view_kanban', ayuda: 'Cómo nacen los tableros y las tareas nuevas.' },
   ACCESO: { titulo: 'Acceso', icono: 'lock', ayuda: 'Qué puede hacer cada quien en los espacios.' },
+  IA: { titulo: 'Inteligencia artificial', icono: 'auto_awesome',
+    ayuda: 'Asistente para crear tableros, tareas y plantillas desde documentos, y el enjambre de agentes (solo administración).' },
 };
 
 const OPCIONES: Record<string, string> = {
@@ -59,6 +62,7 @@ export class ConfiguracionComponent {
   private readonly snack = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly dialogos = inject(TareasDialogosService);
 
   readonly esAdmin = ['ADMIN', 'GERENCIA'].includes((obtenerUsuarioActual().rol || '').toUpperCase());
   readonly pestana = signal<Pestana>((this.route.snapshot.queryParamMap.get('tab') as Pestana) || 'parametros');
@@ -76,6 +80,20 @@ export class ConfiguracionComponent {
     return [...m.entries()]
       .sort((a, b) => (orden.indexOf(a[0]) + 99 * Number(!orden.includes(a[0]))) - (orden.indexOf(b[0]) + 99 * Number(!orden.includes(b[0]))))
       .map(([clave, items]) => ({ clave, ...(GRUPOS[clave] ?? { titulo: clave, icono: 'tune', ayuda: '' }), items }));
+  });
+
+  // Plantillas
+  readonly plantillas = signal<Plantilla[]>([]);
+  readonly cargandoPlantillas = signal(false);
+  readonly buscarPlantilla = signal('');
+  readonly plantillasPorArea = computed(() => {
+    const q = sinTildes(this.buscarPlantilla().trim());
+    const m = new Map<string, Plantilla[]>();
+    for (const p of this.plantillas()) {
+      if (q && !sinTildes(`${p.nombre} ${p.area} ${p.descripcion ?? ''}`).includes(q)) continue;
+      m.set(p.area, [...(m.get(p.area) ?? []), p]);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([area, items]) => ({ area, items }));
   });
 
   // Avisos
@@ -113,10 +131,51 @@ export class ConfiguracionComponent {
 
   private cargarPestana(p: Pestana): void {
     if (p === 'parametros' && !this.parametros().length) this.cargarParametros();
+    if (p === 'plantillas' && !this.plantillas().length) this.cargarPlantillas();
     if (p === 'avisos' && !this.tipos().length) this.cargarAvisos();
     if (p === 'importar' && !this.espacios().length) this.cargarImportar();
     if (p === 'auditoria' && !this.auditoria().length) this.cargarAuditoria();
   }
+
+  // ── Plantillas ──
+  async cargarPlantillas(): Promise<void> {
+    this.cargandoPlantillas.set(true);
+    try {
+      this.plantillas.set(await this.api.plantillas());
+    } catch (e) {
+      this.snack.open(mensajeError(e, 'No se pudieron cargar las plantillas.'), 'Cerrar', { duration: 4500 });
+    } finally {
+      this.cargandoPlantillas.set(false);
+    }
+  }
+
+  /** Abre la galería con la plantilla elegida: vista previa y "crear tablero". */
+  usarPlantilla(p: Plantilla): void { this.dialogos.nuevoTablero({ plantillaId: p.id }); }
+
+  async plantillaConIa(): Promise<void> {
+    const r = await this.dialogos.generarConIa({ modo: 'plantilla' });
+    if (r?.plantilla) {
+      this.snack.open(`Plantilla «${r.plantilla.nombre}» guardada`, undefined, { duration: 3000 });
+      this.cargarPlantillas();
+    }
+  }
+
+  puedeRetirar(p: Plantilla): boolean {
+    return this.esAdmin || (p.origen !== 'SISTEMA' && p.creado_por === this.dir.yo.id);
+  }
+
+  async retirarPlantilla(p: Plantilla): Promise<void> {
+    if (!confirm(`¿Retirar la plantilla «${p.nombre}»? Los tableros ya creados con ella no cambian.`)) return;
+    try {
+      await this.api.eliminarPlantilla(p.id);
+      this.plantillas.update(l => l.filter(x => x.id !== p.id));
+      this.snack.open('Plantilla retirada', undefined, { duration: 2500 });
+    } catch (e) {
+      this.snack.open(mensajeError(e), 'Cerrar', { duration: 4500 });
+    }
+  }
+
+  origenPlantilla(p: Plantilla): string { return p.origen === 'SISTEMA' ? 'Tu-Apo' : p.origen === 'IA' ? 'IA' : 'Equipo'; }
 
   // ── Parámetros ──
   async cargarParametros(): Promise<void> {

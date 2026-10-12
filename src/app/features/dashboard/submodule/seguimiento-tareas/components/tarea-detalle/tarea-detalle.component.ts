@@ -19,14 +19,16 @@ import { firstValueFrom } from 'rxjs';
 import { TareasApiService } from '../../services/tareas-api.service';
 import { DirectorioService, Persona } from '../../services/directorio.service';
 import {
-  Adjunto, Comentario, Estado, Etiqueta, Grupo, Lista, MiembroEspacio, Prioridad, RegistroAuditoria, TareaDetalle,
+  Comentario, Estado, Etiqueta, Grupo, Lista, MiembroEspacio, Prioridad, RegistroAuditoria, TareaDetalle,
 } from '../../models/tareas.models';
 import {
   COLORES_ETIQUETA, ESTADOS, PRIORIDADES, aIsoFinDeJornada, atajosFecha, estadoInfo, etiquetaOrigen, hace,
-  mensajeError, prioridadInfo, tamano, vencimiento,
+  mensajeError, prioridadInfo, vencimiento,
 } from '../../utils/tareas-ui';
 import { TareaAvatarComponent } from '../avatar/avatar.component';
 import { Eleccion, PersonaPickerComponent } from '../persona-picker/persona-picker.component';
+import { AdjuntosComponent } from '../adjuntos/adjuntos.component';
+import { TareaIaComponent } from '../tarea-ia/tarea-ia.component';
 import { AvisoDialogComponent } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 
 interface EventoHistorial { id: string; quien: string | null; texto: string; cuando: string; icono: string }
@@ -44,7 +46,7 @@ interface EventoHistorial { id: string; quien: string | null; texto: string; cua
   imports: [
     DatePipe, FormsModule, MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule, MatDatepickerModule,
     MatNativeDateModule, MatProgressBarModule, MatProgressSpinnerModule, MatSnackBarModule,
-    TareaAvatarComponent, PersonaPickerComponent,
+    TareaAvatarComponent, PersonaPickerComponent, AdjuntosComponent, TareaIaComponent,
   ],
   templateUrl: './tarea-detalle.component.html',
   styleUrls: ['./tarea-detalle.component.css'],
@@ -73,7 +75,6 @@ export class TareaDetalleComponent implements OnInit {
   readonly historial = signal<RegistroAuditoria[]>([]);
   readonly pestana = signal<'comentarios' | 'historial'>('comentarios');
   readonly guardando = signal(false);
-  readonly subiendo = signal(false);
   readonly eligiendoResponsable = signal(false);
   readonly agregandoSeguidor = signal(false);
 
@@ -93,7 +94,6 @@ export class TareaDetalleComponent implements OnInit {
   private mencionados = new Map<string, string>(); // nombre → id
   private inicioMencion = -1;
   readonly cajaComentario = viewChild<ElementRef<HTMLTextAreaElement>>('cajaComentario');
-  readonly archivo = viewChild<ElementRef<HTMLInputElement>>('archivo');
 
   readonly estados = ESTADOS;
   readonly prioridades = PRIORIDADES;
@@ -308,52 +308,16 @@ export class TareaDetalleComponent implements OnInit {
     this.guardar(() => this.api.eliminarItem(id));
   }
 
-  // ── Adjuntos ──
-  async subir(ev: Event): Promise<void> {
-    const t = this.t();
-    const files = (ev.target as HTMLInputElement).files;
-    if (!t || !files?.length) return;
-    this.subiendo.set(true);
-    try {
-      for (const f of Array.from(files)) await this.api.subirAdjunto(t.id, f);
-      await this.cargar(true);
-      this.cambio.emit();
-      this.snack.open(files.length === 1 ? 'Archivo adjuntado' : `${files.length} archivos adjuntados`, undefined, { duration: 2200 });
-    } catch (e) {
-      this.snack.open(mensajeError(e, 'No se pudo subir el archivo.'), 'Cerrar', { duration: 4500 });
-    } finally {
-      this.subiendo.set(false);
-      const input = this.archivo()?.nativeElement;
-      if (input) input.value = '';
-    }
+  // ── Adjuntos e IA: los componentes hijos guardan; aquí solo se recarga y se avisa ──
+  async alCambiarAdjuntos(): Promise<void> {
+    await this.cargar(true);
+    this.cambio.emit();
   }
 
-  async descargar(a: Adjunto): Promise<void> {
-    try {
-      const blob = await this.api.descargarAdjunto(a.uuid);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = a.original_name || 'archivo';
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (e) {
-      this.snack.open(mensajeError(e, 'No se pudo descargar.'), 'Cerrar', { duration: 4000 });
-    }
-  }
-
-  async eliminarAdjunto(a: Adjunto): Promise<void> {
-    if (!(await this.confirmar('¿Quitar el adjunto?', `Se elimina <b>${this.escapar(a.original_name)}</b> de la tarea.`, 'Quitar'))) return;
-    this.guardar(() => this.api.eliminarAdjunto(a.uuid), 'Adjunto eliminado');
-  }
-
-  icono(a: Adjunto): string {
-    const m = a.mime_type ?? '';
-    if (m.startsWith('image/')) return 'image';
-    if (m.includes('pdf')) return 'picture_as_pdf';
-    if (m.includes('sheet') || m.includes('excel') || a.original_name?.endsWith('.xlsx')) return 'table_chart';
-    if (m.includes('word') || a.original_name?.endsWith('.docx')) return 'description';
-    return 'insert_drive_file';
+  async alCambiarPorIa(): Promise<void> {
+    await this.cargar(true);
+    this.cambio.emit();
+    this.cargarHistorial();
   }
 
   // ── Comentarios con @menciones ──
@@ -505,7 +469,6 @@ export class TareaDetalleComponent implements OnInit {
 
   // ── Utilidades ──
   hace = hace;
-  tamano = tamano;
 
   private escapar(t: string): string {
     return (t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));

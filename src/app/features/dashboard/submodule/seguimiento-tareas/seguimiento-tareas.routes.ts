@@ -1,4 +1,11 @@
-import { Routes } from '@angular/router';
+import { inject } from '@angular/core';
+import { Router, Routes } from '@angular/router';
+import { PermissionsService } from '@/app/core/services/permissions.service';
+import { RUTA_TICKETS } from './utils/tareas-ui';
+
+/** La mesa de soporte trabaja los tickets: la ve quien puede leer el módulo de tickets. */
+const puedeVerSoporte = () =>
+  inject(PermissionsService).canReadRoute(RUTA_TICKETS) || inject(Router).parseUrl('/dashboard/tareas/mis-tareas');
 
 /**
  * Seguimiento Tareas (antes "Workspace - MatDer").
@@ -20,6 +27,7 @@ export const routes: Routes = [
       { path: 'espacios/:id', loadComponent: () => import('./pages/espacios/espacios.component').then(m => m.EspaciosComponent) },
       { path: 'calendario', loadComponent: () => import('./pages/calendario/calendario.component').then(m => m.CalendarioComponent) },
       { path: 'indicadores', loadComponent: () => import('./pages/indicadores/indicadores.component').then(m => m.IndicadoresComponent) },
+      { path: 'soporte', canActivate: [puedeVerSoporte], loadComponent: () => import('./pages/soporte/soporte.component').then(m => m.SoporteComponent) },
       { path: 'configuracion', loadComponent: () => import('./pages/configuracion/configuracion.component').then(m => m.ConfiguracionComponent) },
       { path: 'tarea/:id', loadComponent: () => import('./pages/tarea/tarea-page.component').then(m => m.TareaPageComponent) },
 

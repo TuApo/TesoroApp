@@ -8,6 +8,8 @@
 .tf-origen mat-icon { font-size: 18px; width: 18px; height: 18px; flex: none; }
 .tf-cargando { display: flex; justify-content: center; padding: 40px; }
 .tf-cuerpo { display: flex; flex-direction: column; gap: 6px; padding: 14px 22px 8px; overflow-y: auto; }
+/* En un flex con scroll los hijos no deben encogerse (el bloque de IA quedaba en 1 px). */
+.tf-cuerpo > * { flex-shrink: 0; }
 .tf-full { width: 100%; }
 .tf-fila { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .tf-fila mat-form-field { width: 100%; }
@@ -48,7 +50,29 @@
 .tf-pie mat-spinner { display: inline-block; margin-right: 6px; }
 .tf-ayuda { flex: 1; font-size: 12.5px; color: var(--muted); min-width: 160px; }
 .tf-dot { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 8px; }
+.tf-ia { border: 1px solid var(--violet-border); border-radius: 14px; background: linear-gradient(160deg, var(--violet-bg), var(--surface) 75%);
+         margin-bottom: 12px; overflow: hidden; }
+.tf-ia__cab { display: flex; align-items: center; gap: 10px; padding: 10px 12px; }
+.tf-ia__cab > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tf-ia__cab strong { color: var(--violet-fg); font-size: 14px; }
+.tf-ia__cab small { color: var(--muted); font-size: 12.5px; }
+.tf-ia__ico { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; flex: none; color: #fff;
+              background: linear-gradient(135deg, #7c3aed, #2B59F0); }
+.tf-ia__ico mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.tf-ia__btn { border-color: var(--violet-border) !important; color: var(--violet-fg) !important; min-height: 36px !important; }
+.tf-ia__btn mat-spinner { display: inline-block; margin-right: 6px; }
+.tf-ia__res { padding: 4px 14px 12px 54px; display: flex; flex-direction: column; gap: 8px; }
+.tf-ia__meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.tf-ia__texto { margin: 0; white-space: pre-line; font-size: 13.5px; color: var(--text-2); max-height: 180px; overflow-y: auto; }
+.tf-ia__pasos { margin: 0; padding-left: 18px; font-size: 13.5px; display: flex; flex-direction: column; gap: 2px; }
+.tf-ia__acc { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.tf-ia__acc button { min-height: 36px !important; }
+.tf-ia__aplicar { background: linear-gradient(135deg, #7c3aed, #2B59F0) !important; color: #fff !important; }
+.tf-subida { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 8px 22px 0; font-size: 12.5px; color: var(--text-2); }
+.tf-subida span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tf-subida mat-progress-bar { grid-column: 1 / -1; }
 @media (max-width: 600px) {
+  .tf-ia__res { padding-left: 14px; }
   .tf-fila { grid-template-columns: 1fr; }
   .tf-cab, .tf-cuerpo, .tf-pie { padding-left: 14px; padding-right: 14px; }
   .tf-pick { flex-direction: column; align-items: stretch; }

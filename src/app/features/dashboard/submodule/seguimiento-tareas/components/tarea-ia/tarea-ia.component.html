@@ -1,0 +1,171 @@
+@if (disponible() || estadoEnjambre()) {
+  <section class="ti" aria-label="Inteligencia artificial">
+    @if (disponible() && puedeTrabajar()) {
+      <header class="ti-cab">
+        <span class="ti-ico"><mat-icon>auto_awesome</mat-icon></span>
+        <div><h3>Asistente IA</h3><small>Lee la tarea, su checklist, los comentarios y hasta 5 archivos adjuntos.</small></div>
+      </header>
+      <div class="ti-acciones">
+        @for (a of acciones; track a.modo) {
+          @if (a.modo !== 'desglosar' || puedeEditar()) {
+            <button type="button" class="ti-accion" [class.ti-accion--on]="modo() === a.modo" [disabled]="pensando()"
+                    (click)="sugerir(a.modo)" [matTooltip]="a.ayuda">
+              <mat-icon>{{ a.icono }}</mat-icon>{{ a.etiqueta }}
+            </button>
+          }
+        }
+      </div>
+      <input class="ti-instr" [(ngModel)]="instruccion" maxlength="500"
+             placeholder="Indicación opcional: «enfócate en el Excel del cliente», «máximo 5 pasos»…" aria-label="Indicación para la IA">
+
+      @if (pensando()) {
+        <div class="ti-pensando"><mat-progress-bar mode="indeterminate" /><small>{{ accionActual()?.etiqueta }}… suele tardar entre 5 y 30 segundos.</small></div>
+      }
+      @if (error()) { <p class="ti-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p> }
+
+      @if (sugerencia(); as s) {
+        <div class="ti-res">
+          <div class="ti-res__cab"><mat-icon>{{ accionActual()?.icono }}</mat-icon><strong>{{ accionActual()?.etiqueta }}</strong>
+            <span class="ti-esp"></span>
+            <button type="button" class="ti-x" (click)="descartar()" aria-label="Descartar"><mat-icon>close</mat-icon></button>
+          </div>
+          @if (s.texto) { <p class="ti-texto">{{ s.texto }}</p> }
+
+          @if (s.modo === 'desglosar') {
+            <ul class="ti-lista">
+              @for (x of s.tareas ?? []; track $index; let i = $index) {
+                <li [class.ti-fuera]="!elegidos().has(i)">
+                  <button type="button" class="ti-check" (click)="alternar(i)" [attr.aria-pressed]="elegidos().has(i)">
+                    <mat-icon>{{ elegidos().has(i) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+                  </button>
+                  <div class="ti-sub">
+                    <strong>{{ x.titulo }}</strong>
+                    <small>
+                      <span [attr.data-p]="prioridadInfo(x.prioridad).tono">{{ prioridadInfo(x.prioridad).etiqueta }}</span>
+                      @if (x.dias !== null && x.dias !== undefined) { · vence en {{ x.dias }} d }
+                      @if (x.checklist.length) { · {{ x.checklist.length }} pasos }
+                    </small>
+                    @if (x.descripcion) { <small class="ti-sub__desc">{{ x.descripcion }}</small> }
+                  </div>
+                </li>
+              }
+            </ul>
+          } @else if (s.pasos.length) {
+            <ul class="ti-lista">
+              @for (p of s.pasos; track $index; let i = $index) {
+                <li [class.ti-fuera]="!elegidos().has(i)">
+                  <button type="button" class="ti-check" (click)="alternar(i)" [attr.aria-pressed]="elegidos().has(i)">
+                    <mat-icon>{{ elegidos().has(i) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+                  </button>
+                  <span>{{ p }}</span>
+                </li>
+              }
+            </ul>
+          }
+
+          <div class="ti-res__acc">
+            @switch (s.modo) {
+              @case ('descripcion') {
+                @if (puedeEditar()) {
+                  @if (tarea().description) { <button mat-stroked-button [disabled]="aplicando()" (click)="usarDescripcion('agregar')">Agregar al final</button> }
+                  <button mat-flat-button class="ti-btn" [disabled]="aplicando()" (click)="usarDescripcion('reemplazar')"><mat-icon>check</mat-icon>Usar como descripción</button>
+                }
+              }
+              @case ('desglosar') {
+                <button mat-flat-button class="ti-btn" [disabled]="aplicando() || !elegidos().size" (click)="crearSubtareas()">
+                  <mat-icon>account_tree</mat-icon>Crear {{ elegidos().size }} {{ elegidos().size === 1 ? 'subtarea' : 'subtareas' }}
+                </button>
+              }
+              @default {
+                <button mat-stroked-button [disabled]="aplicando()" (click)="publicar()"><mat-icon>forum</mat-icon>Publicar como comentario</button>
+                @if (s.pasos.length) {
+                  <button mat-flat-button class="ti-btn" [disabled]="aplicando() || !elegidos().size" (click)="agregarPasos()">
+                    <mat-icon>playlist_add</mat-icon>Agregar {{ elegidos().size }} al checklist
+                  </button>
+                }
+              }
+            }
+          </div>
+        </div>
+      }
+    }
+
+    @if (estadoEnjambre(); as e) {
+      <div class="ti-enj">
+        <header class="ti-cab">
+          <span class="ti-ico ti-ico--enj"><mat-icon>hub</mat-icon></span>
+          <div>
+            <h3>Enjambre de agentes</h3>
+            <small>Análisis de solo lectura: investiga, revisa los módulos y deja una propuesta. No cambia código ni datos.</small>
+          </div>
+          <span class="ti-pool" [attr.data-ok]="hayAgentes()"
+                [matTooltip]="hayAgentes() ? e.trabajo.enCurso + ' en curso · ' + e.trabajo.enCola + ' en cola' : 'Las cuentas del enjambre necesitan iniciar sesión (setup-token). Los encargos quedan en cola.'">
+            <i></i>{{ hayAgentes() ? e.pool.listas + (e.pool.listas === 1 ? ' agente listo' : ' agentes listos') : 'Detenido' }}
+          </span>
+        </header>
+
+        @if (!mostrarEncargo()) {
+          <button mat-stroked-button class="ti-encargar" (click)="abrirEncargo()"><mat-icon>smart_toy</mat-icon>Encargar a un agente</button>
+        } @else {
+          <div class="ti-form">
+            <label class="ti-lbl" for="ti-obj">¿Qué debe resolver el agente?</label>
+            <textarea id="ti-obj" [(ngModel)]="objetivo" rows="4" maxlength="4000"></textarea>
+            <div class="ti-form__fila">
+              <label>Tiempo máximo
+                <select [(ngModel)]="minutos"><option [ngValue]="10">10 min</option><option [ngValue]="20">20 min</option><option [ngValue]="45">45 min</option><option [ngValue]="90">90 min</option></select>
+              </label>
+              <label>Código a revisar
+                <select [(ngModel)]="repo">
+                  <option value="ninguno">Ninguno (solo análisis)</option>
+                  <option value="TesoroApp">Frontend (TesoroApp)</option>
+                  <option value="microservices">Backend (microservicios)</option>
+                  <option value="todos">Todo</option>
+                </select>
+              </label>
+              <label class="ti-chk"><input type="checkbox" [(ngModel)]="conAdjuntos"> Enviar los archivos de la tarea (hasta 8 MB)</label>
+            </div>
+            @if (!hayAgentes()) {
+              <p class="ti-aviso"><mat-icon>info</mat-icon>El enjambre está detenido: el encargo queda en cola hasta que un administrador reactive las cuentas.</p>
+            }
+            <div class="ti-res__acc">
+              <button mat-button (click)="mostrarEncargo.set(false)">Cancelar</button>
+              <button mat-flat-button class="ti-btn ti-btn--enj" [disabled]="encargando() || !objetivo.trim()" (click)="encargar()">
+                <mat-icon>send</mat-icon>{{ encargando() ? 'Enviando…' : 'Encargar' }}
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (corridas().length) {
+          <ul class="ti-corridas">
+            @for (c of corridas(); track c.id) {
+              @let st = estadoCorrida(c);
+              <li>
+                <div class="ti-corrida">
+                  <span class="ti-est" [attr.data-tono]="st.tono"><mat-icon>{{ st.icono }}</mat-icon>{{ st.texto }}</span>
+                  <span class="ti-corrida__txt">{{ c.solicitud || 'Encargo' }}</span>
+                  <small>{{ hace(c.created_at) }}{{ c.coste_usd ? ' · US$' + c.coste_usd : '' }}</small>
+                  @if (st.tono === 'curso') {
+                    <button type="button" class="ti-x" (click)="cancelarCorrida(c)" matTooltip="Cancelar" aria-label="Cancelar encargo"><mat-icon>stop_circle</mat-icon></button>
+                  }
+                  @if (textoCorrida(c)) {
+                    <button type="button" class="ti-x" (click)="abiertaCorrida.set(abiertaCorrida() === c.id ? null : c.id)" [attr.aria-expanded]="abiertaCorrida() === c.id"
+                            aria-label="Ver resultado"><mat-icon>{{ abiertaCorrida() === c.id ? 'expand_less' : 'expand_more' }}</mat-icon></button>
+                  }
+                </div>
+                @if (abiertaCorrida() === c.id) {
+                  <div class="ti-informe">
+                    <pre>{{ textoCorrida(c) }}</pre>
+                    @if (c.estado === 'LISTO') {
+                      <button mat-stroked-button (click)="publicarCorrida(c)"><mat-icon>forum</mat-icon>Publicar como comentario</button>
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  </section>
+}

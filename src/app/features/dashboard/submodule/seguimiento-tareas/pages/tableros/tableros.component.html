@@ -21,42 +21,10 @@
     <mat-icon>{{ soloFavoritos() ? 'star' : 'star_outline' }}</mat-icon>Favoritos
   </button>
   @if (espaciosEditables().length) {
+    <button mat-stroked-button class="tb-ia" (click)="conIa()"><mat-icon>auto_awesome</mat-icon>Crear con IA</button>
     <button mat-flat-button (click)="abrirAlta()"><mat-icon>add</mat-icon>Nuevo tablero</button>
   }
 </div>
-
-@if (creando()) {
-  <section class="tb-alta">
-    <h3>Nuevo tablero</h3>
-    <div class="tb-alta__campos">
-      <mat-form-field appearance="outline">
-        <mat-label>Espacio</mat-label>
-        <mat-select [(value)]="nuevoEspacio">
-          @for (e of espaciosEditables(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
-        </mat-select>
-      </mat-form-field>
-      <mat-form-field appearance="outline">
-        <mat-label>Nombre</mat-label>
-        <input matInput [(ngModel)]="nuevoNombre" maxlength="200" (keydown.enter)="crear()">
-      </mat-form-field>
-      <mat-form-field appearance="outline" class="tb-alta__desc">
-        <mat-label>Descripción (opcional)</mat-label>
-        <input matInput [(ngModel)]="nuevaDesc" maxlength="500">
-      </mat-form-field>
-    </div>
-    <div class="tb-alta__pie">
-      <div class="tb-colores" role="radiogroup" aria-label="Color del tablero">
-        @for (c of colores; track c) {
-          <button type="button" class="tb-color" role="radio" [attr.aria-checked]="nuevoColor === c" [style.background]="c"
-                  [class.tb-color--on]="nuevoColor === c" (click)="nuevoColor = c" [attr.aria-label]="'Color ' + c"></button>
-        }
-      </div>
-      <span class="tb-ayuda">Nace con las columnas configuradas (Por hacer, En progreso, Bloqueadas, Completadas).</span>
-      <button mat-stroked-button (click)="creando.set(false)">Cancelar</button>
-      <button mat-flat-button [disabled]="!nuevoEspacio || !nuevoNombre.trim() || guardando()" (click)="crear()">Crear tablero</button>
-    </div>
-  </section>
-}
 
 @if (cargando()) {
   <div class="tb-centro"><mat-spinner diameter="40" /></div>
@@ -69,7 +37,15 @@
       <p>Ningún tablero coincide.</p>
     } @else {
       <h3>Aún no hay tableros</h3>
-      <p>Un tablero agrupa las tareas de un proyecto o proceso. Primero crea un espacio en «Espacios y equipos» y luego su tablero.</p>
+      <p>Un tablero agrupa las tareas de un proyecto o proceso. Empieza desde una plantilla de tu área o deja que la IA lo arme con tus documentos.</p>
+      @if (espaciosEditables().length) {
+        <div class="tb-vacio__acc">
+          <button mat-flat-button (click)="abrirAlta()"><mat-icon>dashboard_customize</mat-icon>Ver plantillas</button>
+          <button mat-stroked-button class="tb-ia" (click)="conIa()"><mat-icon>auto_awesome</mat-icon>Crear con IA</button>
+        </div>
+      } @else {
+        <p>Primero crea un espacio en «Espacios y equipos».</p>
+      }
     }
   </div>
 } @else {

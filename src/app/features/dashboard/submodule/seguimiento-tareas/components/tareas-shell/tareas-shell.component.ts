@@ -5,6 +5,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { TareasDialogosService } from '../../services/tareas-dialogos.service';
 import { DirectorioService } from '../../services/directorio.service';
 import { TareasEventosService } from '../../services/tareas-eventos.service';
+import { PermissionsService } from '@/app/core/services/permissions.service';
+import { RUTA_TICKETS } from '../../utils/tareas-ui';
 
 interface Seccion { ruta: string; etiqueta: string; icono: string }
 
@@ -90,6 +92,8 @@ export class TareasShellComponent {
   readonly secciones: Seccion[] = [
     { ruta: 'mis-tareas', etiqueta: 'Mis tareas', icono: 'checklist' },
     { ruta: 'tableros', etiqueta: 'Tableros', icono: 'view_kanban' },
+    // La mesa de soporte solo para quien puede leer el módulo de tickets.
+    ...(inject(PermissionsService).canReadRoute(RUTA_TICKETS) ? [{ ruta: 'soporte', etiqueta: 'Mesa de soporte', icono: 'support_agent' }] : []),
     { ruta: 'espacios', etiqueta: 'Espacios y equipos', icono: 'groups' },
     { ruta: 'calendario', etiqueta: 'Calendario', icono: 'calendar_month' },
     { ruta: 'indicadores', etiqueta: 'Indicadores', icono: 'insights' },

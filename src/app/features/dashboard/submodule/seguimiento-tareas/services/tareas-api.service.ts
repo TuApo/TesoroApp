@@ -1,13 +1,16 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
+import { HttpClient, HttpEvent, HttpEventType, HttpParams } from '@angular/common/http';
+import { Observable, filter, firstValueFrom, map } from 'rxjs';
 import { environment } from '@/environments/environment';
 import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import {
-  Adjunto, Alcance, Comentario, Espacio, Etiqueta, EtiquetaTarea, Grupo, ItemChecklist, Lista,
-  MiembroEspacio, MiembroGrupo, Parametro, RegistroAuditoria, RegistroImportacion, Resumen,
-  RolEspacio, Seguidor, Tablero, Tarea, TareaDetalle, TipoLista,
+  Adjunto, Alcance, Comentario, DefinicionTablero, Espacio, Etiqueta, EtiquetaTarea, Grupo, IaEstado, IaTrabajo,
+  ItemChecklist, Lista, MiembroEspacio, MiembroGrupo, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion,
+  Resumen, RolEspacio, Seguidor, Tablero, Tarea, TareaDefinida, TareaDetalle, TipoLista,
 } from '../models/tareas.models';
+
+/** Avance de una subida: porcentaje mientras sube y el adjunto al terminar. */
+export type AvanceSubida = { tipo: 'progreso'; pct: number } | { tipo: 'listo'; adjunto: Adjunto };
 
 /**
  * Todas las llamadas de Seguimiento Tareas (ms-tools, /matder/**).
@@ -169,6 +172,90 @@ export class TareasApiService {
     return firstValueFrom(this.http.get(`${this.base}/uploads/${uuid}/file/`, { responseType: 'blob' }));
   }
   eliminarAdjunto(uuid: string): Promise<unknown> { return this.del(`/uploads/${uuid}/`); }
+
+  /** Subida con avance (para archivos grandes). `board` = archivo del tablero (sin tarea). */
+  subirConAvance(destino: { card?: number; board?: number }, archivo: File): Observable<AvanceSubida> {
+    const fd = new FormData();
+    fd.append('file', archivo);
+    if (destino.card) fd.append('card', String(destino.card));
+    if (destino.board) fd.append('board', String(destino.board));
+    return this.http.post<Adjunto>(`${this.base}/uploads/`, fd, { reportProgress: true, observe: 'events' }).pipe(
+      map((ev: HttpEvent<Adjunto>): AvanceSubida | null => {
+        if (ev.type === HttpEventType.UploadProgress) return { tipo: 'progreso', pct: ev.total ? Math.round(ev.loaded * 100 / ev.total) : 0 };
+        if (ev.type === HttpEventType.Response && ev.body) return { tipo: 'listo', adjunto: ev.body };
+        return null;
+      }),
+      // Los demás eventos (envío, cabeceras) no le interesan a la vista.
+      filter((v): v is AvanceSubida => v !== null),
+    );
+  }
+  archivosTablero(tableroId: number): Promise<Adjunto[]> { return this.get<Adjunto[]>(`/boards/${tableroId}/uploads`); }
+  textoArchivo(uuid: string): Promise<{ nombre: string; tipo: string | null; texto: string | null; recortado: boolean }> {
+    return this.get(`/uploads/${uuid}/texto`);
+  }
+
+  // ── IA ──
+  iaEstado(): Promise<IaEstado> { return this.get<IaEstado>('/ia/estado'); }
+  iaGenerar(tipo: 'tablero' | 'tareas' | 'plantilla' | 'sugerir', datos: {
+    descripcion?: string; area?: string; modo?: string; instruccion?: string;
+    board_id?: number; card_id?: number; adjuntos?: string[]; archivos?: File[];
+  }): Promise<IaTrabajo> {
+    const fd = new FormData();
+    fd.append('tipo', tipo);
+    for (const [k, v] of Object.entries(datos)) {
+      if (v === undefined || v === null || k === 'archivos' || k === 'adjuntos') continue;
+      fd.append(k, String(v));
+    }
+    if (datos.adjuntos?.length) fd.append('adjuntos', datos.adjuntos.join(','));
+    for (const f of datos.archivos ?? []) fd.append('archivos', f, f.name);
+    return firstValueFrom(this.http.post<IaTrabajo>(`${this.base}/ia/generar`, fd));
+  }
+  iaTrabajo<R = unknown>(id: number): Promise<IaTrabajo<R>> { return this.get<IaTrabajo<R>>(`/ia/trabajos/${id}`); }
+  /**
+   * Espera a que un trabajo de IA termine (consulta cada 2,5 s). Resuelve el resultado o
+   * lanza un Error con el motivo legible. `cancelado()` permite abandonar la espera.
+   */
+  async esperarIa<R>(id: number, opts: { maxSeg?: number; cancelado?: () => boolean } = {}): Promise<R> {
+    const limite = Date.now() + (opts.maxSeg ?? 240) * 1000;
+    for (;;) {
+      await new Promise(r => setTimeout(r, 2500));
+      if (opts.cancelado?.()) throw new Error('cancelado');
+      const t = await this.iaTrabajo<R>(id);
+      if (t.estado === 'LISTO' && t.resultado) return t.resultado;
+      if (t.estado === 'ERROR' || t.estado === 'CANCELADO') throw new Error(t.error || 'La IA no pudo completar el pedido.');
+      if (Date.now() > limite) throw new Error('La IA está tardando demasiado. Intenta de nuevo en un momento.');
+    }
+  }
+  iaDeTarea(tareaId: number): Promise<IaTrabajo[]> { return this.get<IaTrabajo[]>(`/cards/${tareaId}/ia`); }
+  registrarAgente(tareaId: number, referencia: string, solicitud: string): Promise<IaTrabajo> {
+    return this.post<IaTrabajo>(`/cards/${tareaId}/ia/agente`, { referencia, solicitud });
+  }
+  actualizarIa(id: number, data: { estado?: string; resultado?: string; coste_usd?: number }): Promise<IaTrabajo> {
+    return this.patch<IaTrabajo>(`/ia/trabajos/${id}`, data);
+  }
+
+  // ── Plantillas ──
+  /** La definición nunca llega null a la vista (si el servidor no pudo leerla, va vacía). */
+  async plantillas(): Promise<Plantilla[]> {
+    const l = await this.get<Plantilla[]>('/plantillas');
+    return l.map(p => ({ ...p, definicion: p.definicion ?? { listas: [], etiquetas: [], tareas: [] } }));
+  }
+  crearPlantilla(data: { nombre: string; area: string; descripcion?: string | null; icono?: string | null;
+    color?: string | null; definicion: DefinicionTablero; origen?: 'USUARIO' | 'IA' }): Promise<Plantilla> {
+    return this.post<Plantilla>('/plantillas', data);
+  }
+  plantillaDesdeTablero(data: { board_id: number; nombre?: string; area?: string; descripcion?: string | null; incluir_tareas?: boolean }): Promise<Plantilla> {
+    return this.post<Plantilla>('/plantillas/desde-tablero', data);
+  }
+  eliminarPlantilla(id: number): Promise<unknown> { return this.del(`/plantillas/${id}`); }
+  aplicarPlantilla(data: { plantilla_id?: number; definicion?: DefinicionTablero; workspace: number; nombre: string;
+    descripcion?: string | null; accent?: string | null; inicio?: string | null; responsable?: string | null }): Promise<{ board_id: number; tareas: number }> {
+    return this.post('/plantillas/aplicar', data);
+  }
+  tareasEnLote(tableroId: number, data: { tareas: TareaDefinida[]; inicio?: string | null; responsable?: string | null;
+    origen_tipo?: string | null; origen_ref?: string | null; origen_url?: string | null }): Promise<{ creadas: number }> {
+    return this.post(`/boards/${tableroId}/tareas-lote`, data);
+  }
 
   // ── Seguidores ──
   alternarSeguir(tareaId: number): Promise<{ is_watching: boolean; watcher_count: number }> {

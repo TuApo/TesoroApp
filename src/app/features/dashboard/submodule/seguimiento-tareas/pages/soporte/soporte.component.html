@@ -1,0 +1,83 @@
+<section class="sp-kpis" aria-label="Resumen de soporte">
+  @let k = kpis();
+  <button type="button" class="sp-kpi" (click)="limpiar()"><mat-icon>inbox</mat-icon><strong>{{ k.abiertos }}</strong><span>Abiertos</span></button>
+  <button type="button" class="sp-kpi" (click)="limpiar()"><mat-icon>timelapse</mat-icon><strong>{{ k.progreso }}</strong><span>En progreso</span></button>
+  <div class="sp-kpi" [class.sp-kpi--alerta]="k.sinAsignar"><mat-icon>person_off</mat-icon><strong>{{ k.sinAsignar }}</strong><span>Sin asignar</span></div>
+  <button type="button" class="sp-kpi" [class.sp-kpi--peligro]="k.criticos" (click)="prioridad.set(prioridad() === 'Critica' ? null : 'Critica')">
+    <mat-icon>priority_high</mat-icon><strong>{{ k.criticos }}</strong><span>Críticos y altos</span></button>
+  <div class="sp-kpi sp-kpi--ok"><mat-icon>task_alt</mat-icon><strong>{{ k.resueltos7 }}</strong><span>Resueltos en 7 días</span></div>
+</section>
+
+<div class="sp-barra">
+  <div class="sp-buscar">
+    <mat-icon>search</mat-icon>
+    <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar por título, persona, cédula, sede o código" aria-label="Buscar tickets">
+  </div>
+  <div class="sp-prios" role="group" aria-label="Prioridad">
+    @for (p of prioridades; track p.clave) {
+      <button type="button" class="sp-chip" [attr.data-p]="p.tono" [class.sp-chip--on]="prioridad() === p.clave"
+              (click)="prioridad.set(prioridad() === p.clave ? null : p.clave)" [attr.aria-pressed]="prioridad() === p.clave">{{ p.etiqueta }}</button>
+    }
+  </div>
+  @if (categorias().length > 1) {
+    <select class="sp-sel" [ngModel]="categoria() ?? ''" (ngModelChange)="categoria.set($event || null)" aria-label="Categoría">
+      <option value="">Todas las categorías</option>
+      @for (c of categorias(); track c) { <option [value]="c">{{ c }}</option> }
+    </select>
+  }
+  @if (sedes().length > 1) {
+    <select class="sp-sel" [ngModel]="sede() ?? ''" (ngModelChange)="sede.set($event || null)" aria-label="Sede">
+      <option value="">Todas las sedes</option>
+      @for (s of sedes(); track s) { <option [value]="s">{{ s }}</option> }
+    </select>
+  }
+  <button type="button" class="sp-chip" [class.sp-chip--on]="mios()" (click)="mios.set(!mios())" [attr.aria-pressed]="mios()"><mat-icon>person</mat-icon>Asignados a mí</button>
+  <button type="button" class="sp-chip" [class.sp-chip--on]="verCerrados()" (click)="verCerrados.set(!verCerrados())" [attr.aria-pressed]="verCerrados()"><mat-icon>archive</mat-icon>Cerrados</button>
+  @if (hayFiltros()) { <button mat-button (click)="limpiar()"><mat-icon>filter_alt_off</mat-icon>Limpiar</button> }
+  <span class="sp-esp"></span>
+  <button mat-icon-button (click)="cargar()" matTooltip="Actualizar" aria-label="Actualizar"><mat-icon>refresh</mat-icon></button>
+</div>
+
+@if (cargando() && !tickets().length) {
+  <div class="sp-centro"><mat-spinner diameter="40" /></div>
+} @else if (error()) {
+  <div class="sp-vacio"><mat-icon>cloud_off</mat-icon><p>{{ error() }}</p><button mat-stroked-button (click)="cargar()">Reintentar</button></div>
+} @else {
+  <div class="sp-kanban" cdkDropListGroup>
+    @for (c of columnas(); track c.clave) {
+      <section class="sp-col" [attr.data-tono]="c.tono">
+        <header class="sp-col__cab"><mat-icon>{{ c.icono }}</mat-icon><strong>{{ c.etiqueta }}</strong><span class="sp-n">{{ c.tickets.length }}</span></header>
+        <div class="sp-col__lista" cdkDropList [cdkDropListData]="c.clave" (cdkDropListDropped)="soltar($event)">
+          @for (t of c.tickets; track t.id) {
+            @let p = prioridadTicket(t.prioridad);
+            <article class="sp-card" cdkDrag [cdkDragData]="t" [attr.data-p]="p.tono" (click)="abrir(t.id)" (keydown.enter)="abrir(t.id)" tabindex="0"
+                     [attr.aria-label]="'Ticket ' + t.titulo">
+              <div class="sp-card__cab">
+                <span class="sp-prio" [attr.data-p]="p.tono">{{ p.etiqueta }}</span>
+                <span class="sp-cat">{{ t.categoria }}</span>
+                <span class="sp-esp"></span>
+                <code class="sp-cod">#{{ t.id.slice(0, 6) }}</code>
+              </div>
+              <strong class="sp-card__tit">{{ t.titulo }}</strong>
+              <p class="sp-card__desc">{{ t.descripcion }}</p>
+              <div class="sp-card__pie">
+                <span class="sp-quien" [matTooltip]="(t.rol || '') + (t.documento ? ' · ' + t.documento : '')">{{ t.usuario || 'Sin nombre' }}{{ t.sede ? ' · ' + t.sede : '' }}</span>
+                <span class="sp-esp"></span>
+                @if (t.tiene_captura) { <mat-icon class="sp-ic" matTooltip="Trae captura de pantalla">image</mat-icon> }
+                @if (t.ai_analisis) { <mat-icon class="sp-ic sp-ic--ia" matTooltip="Analizado por IA">auto_awesome</mat-icon> }
+                <small>{{ hace(t.fecha_reporte) }}</small>
+                @if (t.asignado_a) {
+                  <span class="sp-asig" [matTooltip]="'Asignado a ' + t.asignado_a">{{ iniciales(t.asignado_a) }}</span>
+                } @else {
+                  <span class="sp-asig sp-asig--no" matTooltip="Sin asignar"><mat-icon>person_off</mat-icon></span>
+                }
+              </div>
+            </article>
+          } @empty {
+            <p class="sp-col__vacia">Nada por aquí.</p>
+          }
+        </div>
+      </section>
+    }
+  </div>
+}

@@ -100,6 +100,47 @@
         <app-persona-picker [cercanos]="cercanos()" [excluir]="seguidores()" placeholder="Agregar seguidor" (elegido)="agregarSeguidor($event)" />
       </div>
 
+      <div class="tf-bloque">
+        <span class="tf-lbl">Archivos <small>(cualquier tipo: PDF, Excel, Word, imágenes, audio, video, comprimidos…)</small></span>
+        <app-zona-archivos [(archivos)]="archivos" [maxMb]="maxMb()" [compacta]="true" (ver)="verArchivo($event)"
+                           texto="Arrastra archivos aquí o haz clic para adjuntarlos" />
+      </div>
+
+      @if (iaDisponible()) {
+        <div class="tf-ia" [class.tf-ia--abierta]="sugerencia() || sugiriendo()">
+          <div class="tf-ia__cab">
+            <span class="tf-ia__ico"><mat-icon>auto_awesome</mat-icon></span>
+            <div>
+              <strong>Completar con IA</strong>
+              <small>Con el título{{ archivos().length ? ' y los archivos' : '' }} propone descripción, pasos, prioridad y plazo.</small>
+            </div>
+            <button mat-stroked-button type="button" class="tf-ia__btn" [disabled]="!titulo.trim() || sugiriendo()" (click)="sugerir()"
+                    [matTooltip]="titulo.trim() ? '' : 'Escribe primero qué hay que hacer'">
+              @if (sugiriendo()) { <mat-spinner diameter="16" /> } @else { <mat-icon>auto_awesome</mat-icon> }
+              {{ sugiriendo() ? 'Pensando…' : 'Sugerir' }}
+            </button>
+          </div>
+          @if (sugiriendo()) { <mat-progress-bar mode="indeterminate" /> }
+          @if (sugerencia(); as s) {
+            <div class="tf-ia__res">
+              <div class="tf-ia__meta">
+                @if (s.prioridad) { <span class="tf-chip tf-chip--on" [attr.data-p]="prioridadInfo(s.prioridad).tono"><mat-icon>{{ prioridadInfo(s.prioridad).icono }}</mat-icon>{{ prioridadInfo(s.prioridad).etiqueta }}</span> }
+                @if (s.dias !== undefined && s.dias !== null) { <span class="tf-chip"><mat-icon>event</mat-icon>{{ plazo(s.dias) }}</span> }
+              </div>
+              @if (s.texto) { <p class="tf-ia__texto">{{ s.texto }}</p> }
+              @if (s.pasos.length) {
+                <ul class="tf-ia__pasos">@for (p of s.pasos; track $index) { <li>{{ p }}</li> }</ul>
+              }
+              <div class="tf-ia__acc">
+                <button mat-button type="button" (click)="sugerencia.set(null)">Descartar</button>
+                @if (s.pasos.length) { <button mat-stroked-button type="button" (click)="aplicarSugerencia('pasos')">Solo los pasos</button> }
+                <button mat-flat-button type="button" class="tf-ia__aplicar" (click)="aplicarSugerencia('todo')"><mat-icon>done_all</mat-icon>Aplicar todo</button>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
       <mat-form-field appearance="outline" class="tf-full">
         <mat-label>Descripción</mat-label>
         <textarea matInput [(ngModel)]="descripcion" rows="3" placeholder="Contexto, criterio de terminado, enlaces…"></textarea>
@@ -121,9 +162,16 @@
     </div>
   }
 
+  @if (subida(); as u) {
+    <div class="tf-subida" role="status">
+      <span>Subiendo {{ u.n }} de {{ u.total }} · {{ u.nombre }}</span><strong>{{ u.pct }}%</strong>
+      <mat-progress-bar mode="determinate" [value]="u.pct" />
+    </div>
+  }
   <footer class="tf-pie">
     <span class="tf-ayuda">
       @if (responsable(); as r) { Le llegará un aviso a {{ r.tipo === 'grupo' ? 'cada miembro del grupo' : dir.nombre(r.id) }}. }
+      @if (archivos().length) { {{ archivos().length === 1 ? 'Se adjuntará 1 archivo.' : 'Se adjuntarán ' + archivos().length + ' archivos.' }} }
     </span>
     <button mat-stroked-button (click)="cancelar()">Cancelar</button>
     <button mat-flat-button [disabled]="!puedeGuardar()" (click)="guardar()">

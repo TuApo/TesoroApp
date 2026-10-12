@@ -63,6 +63,7 @@ export class TableroComponent implements OnInit {
   readonly id = input.required<string>();
 
   readonly tablero = signal<Tablero | null>(null);
+  readonly nArchivos = signal(0);
   readonly listas = signal<Lista[]>([]);
   readonly etiquetas = signal<Etiqueta[]>([]);
   readonly miembros = signal<MiembroEspacio[]>([]);
@@ -169,6 +170,7 @@ export class TableroComponent implements OnInit {
       this.etiquetas.set(etiquetas);
       this.recientes.anotar({ tipo: 'tablero', id: t.id, nombre: t.name, detalle: t.workspace_name, acento: t.accent });
       this.api.miembros(t.workspace).then(m => this.miembros.set(m)).catch(() => this.miembros.set([]));
+      this.contarArchivos();
     } catch (e: any) {
       this.error.set(e?.status === 404 ? 'Este tablero ya no existe.' : mensajeError(e, 'No se pudo cargar el tablero.'));
     } finally {
@@ -210,6 +212,40 @@ export class TableroComponent implements OnInit {
     const t = this.tablero();
     if (!t) return;
     if (await this.dialogos.nuevaTarea({ tableroId: t.id, listaId: lista?.id })) this.recargarListas();
+  }
+
+  /** La IA propone tareas para este tablero (desde una descripción y/o documentos). */
+  async conIa(): Promise<void> {
+    const t = this.tablero();
+    if (!t) return;
+    const r = await this.dialogos.generarConIa({ modo: 'tareas', tableroId: t.id, tableroNombre: t.name });
+    if (r?.creadas) {
+      this.snack.open(r.creadas === 1 ? 'Se creó 1 tarea' : `Se crearon ${r.creadas} tareas`, undefined, { duration: 3000 });
+      this.recargarListas();
+    }
+  }
+
+  async archivos(): Promise<void> {
+    const t = this.tablero();
+    if (!t) return;
+    if (await this.dialogos.archivosTablero({ id: t.id, nombre: t.name, puedeEditar: t.can_manage_content })) {
+      this.recargarListas();
+      this.contarArchivos();
+    }
+  }
+
+  async comoPlantilla(): Promise<void> {
+    const t = this.tablero();
+    if (!t) return;
+    const p = await this.dialogos.guardarComoPlantilla({ id: t.id, nombre: t.name, descripcion: t.description });
+    if (p) this.snack.open(`Plantilla «${p.nombre}» guardada. Aparece al crear un tablero nuevo.`, undefined, { duration: 4000 });
+  }
+
+  /** Cuántos archivos tiene el tablero (para el botón de la barra). */
+  async contarArchivos(): Promise<void> {
+    const t = this.tablero();
+    if (!t) return;
+    this.nArchivos.set((await this.api.archivosTablero(t.id).catch(() => [])).length);
   }
 
   textoAlta(listaId: number): string { return this.altaRapida()[listaId] ?? ''; }

@@ -23,6 +23,13 @@ export const TIPOS_LISTA: { clave: TipoLista; etiqueta: string }[] = [
   { clave: 'UNASSIGNED', etiqueta: 'Libre (no cambia el estado)' },
 ];
 
+/** Módulo de tickets: quien lo puede leer ve la Mesa de soporte de Seguimiento Tareas. */
+export const RUTA_TICKETS = '/dashboard/bug-tickets/tickets';
+
+/** Áreas de la empresa para plantillas y propuestas de la IA. */
+export const AREAS_TAREAS = ['General', 'Selección', 'Contratación', 'Afiliaciones', 'Nómina', 'Tesorería', 'Jurídico', 'SST', 'Salud',
+  'Marketing', 'Soporte', 'Tecnología', 'Comercial', 'Capacitaciones', 'Gestión de oficinas'];
+
 export const COLORES_TABLERO = ['#2B59F0', '#0d9488', '#7c3aed', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#475569'];
 export const COLORES_ETIQUETA = ['#ef4444', '#f59e0b', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#64748b'];
 
@@ -144,6 +151,41 @@ export function etiquetaOrigen(tipo: string | null | undefined): string {
     COMPROMISO: 'Compromiso',
     TICKET: 'Ticket de soporte',
     SOPORTE: 'Soporte',
+    TAREA: 'Subtarea de otra tarea',
   };
   return tipo ? (m[tipo.toUpperCase()] ?? tipo) : '';
+}
+
+/** Ícono de Material para un archivo según su tipo. */
+export function iconoArchivo(nombre: string | null | undefined, mime?: string | null): string {
+  const m = (mime ?? '').toLowerCase();
+  const ext = (nombre ?? '').split('.').pop()?.toLowerCase() ?? '';
+  if (m.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'heic'].includes(ext)) return 'image';
+  if (m.includes('pdf') || ext === 'pdf') return 'picture_as_pdf';
+  if (m.startsWith('video/') || ['mp4', 'mov', 'webm', 'avi', 'mkv'].includes(ext)) return 'movie';
+  if (m.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'opus'].includes(ext)) return 'audiotrack';
+  if (['xlsx', 'xls', 'xlsm', 'csv', 'ods'].includes(ext) || m.includes('sheet') || m.includes('excel')) return 'table_chart';
+  if (['docx', 'doc', 'odt', 'rtf'].includes(ext) || m.includes('word')) return 'description';
+  if (['pptx', 'ppt', 'odp'].includes(ext) || m.includes('presentation')) return 'slideshow';
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'folder_zip';
+  if (['txt', 'md', 'json', 'xml', 'log', 'sql', 'yml', 'yaml', 'html', 'js', 'ts', 'java', 'py'].includes(ext)) return 'article';
+  return 'insert_drive_file';
+}
+
+/** Cómo se previsualiza un archivo en el visor. */
+export type ModoVista = 'imagen' | 'pdf' | 'video' | 'audio' | 'hoja' | 'csv' | 'texto' | 'documento' | 'ninguna';
+
+export function modoVista(nombre: string | null | undefined, mime?: string | null): ModoVista {
+  const m = (mime ?? '').toLowerCase();
+  const ext = (nombre ?? '').split('.').pop()?.toLowerCase() ?? '';
+  if (m.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'imagen';
+  if (m.includes('pdf') || ext === 'pdf') return 'pdf';
+  if (m.startsWith('video/') || ['mp4', 'webm', 'mov'].includes(ext)) return 'video';
+  if (m.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'opus'].includes(ext)) return 'audio';
+  if (['xlsx', 'xls', 'xlsm', 'ods'].includes(ext)) return 'hoja';
+  if (ext === 'csv' || ext === 'tsv' || m.includes('csv')) return 'csv';
+  if (['docx', 'pptx'].includes(ext)) return 'documento';
+  if (m.startsWith('text/') || m.includes('json') || m.includes('xml') ||
+      ['txt', 'md', 'json', 'xml', 'log', 'sql', 'yml', 'yaml', 'html', 'htm', 'js', 'ts', 'java', 'py', 'css', 'ini', 'sh'].includes(ext)) return 'texto';
+  return 'ninguna';
 }

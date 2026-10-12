@@ -1,0 +1,177 @@
+<div class="nt">
+  <header class="nt-cab">
+    @if (seleccion()) {
+      <button mat-icon-button (click)="volver()" aria-label="Volver a las plantillas" matTooltip="Volver a las plantillas"><mat-icon>arrow_back</mat-icon></button>
+    }
+    <div class="nt-cab__tit">
+      <p class="nt-eyebrow">Seguimiento Tareas</p>
+      <h2>{{ seleccion()?.tipo === 'blanco' ? 'Tablero en blanco' : plantilla()?.nombre ?? 'Nuevo tablero' }}</h2>
+    </div>
+    @if (!seleccion()) {
+      <div class="nt-buscar">
+        <mat-icon>search</mat-icon>
+        <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar plantilla, área o tarea" aria-label="Buscar plantillas">
+      </div>
+    }
+    <button mat-icon-button (click)="cerrar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+  </header>
+
+  @if (cargando()) {
+    <div class="nt-centro"><mat-spinner diameter="38" /></div>
+  } @else if (!espacios().length) {
+    <div class="nt-centro nt-vacio">
+      <mat-icon>workspaces</mat-icon>
+      <h3>Necesitas un espacio</h3>
+      <p>Los tableros viven dentro de un espacio de trabajo. Crea uno en «Espacios y equipos» o pide que te den rol de gestor en alguno.</p>
+    </div>
+  } @else if (!seleccion()) {
+    <!-- Galería -->
+    <div class="nt-galeria">
+      <nav class="nt-areas" aria-label="Áreas">
+        <button type="button" [class.nt-on]="area() === 'todas'" (click)="area.set('todas')"><mat-icon>apps</mat-icon><span>Todas</span><small>{{ plantillas().length }}</small></button>
+        @if (delEquipo()) {
+          <button type="button" [class.nt-on]="area() === 'equipo'" (click)="area.set('equipo')"><mat-icon>groups</mat-icon><span>Del equipo</span><small>{{ delEquipo() }}</small></button>
+        }
+        <span class="nt-areas__sep">Por área</span>
+        @for (a of areas(); track a.nombre) {
+          <button type="button" [class.nt-on]="area() === a.nombre" (click)="area.set(a.nombre)"><span>{{ a.nombre }}</span><small>{{ a.n }}</small></button>
+        }
+      </nav>
+
+      <div class="nt-grid-wrap">
+        <div class="nt-grid">
+          <button type="button" class="nt-card nt-card--accion" (click)="enBlanco()">
+            <span class="nt-card__ico nt-ico--blanco"><mat-icon>add</mat-icon></span>
+            <strong>En blanco</strong>
+            <p>Con las columnas configuradas del módulo. Tú decides el resto.</p>
+          </button>
+          <button type="button" class="nt-card nt-card--accion nt-card--ia" (click)="conIa()">
+            <span class="nt-card__ico nt-ico--ia"><mat-icon>auto_awesome</mat-icon></span>
+            <strong>Crear con IA</strong>
+            <p>Describe el proceso o sube el acta, el correo o el Excel: la IA arma columnas, etiquetas y tareas.</p>
+          </button>
+          @for (p of visibles(); track p.id) {
+            <button type="button" class="nt-card" [style.--c]="p.color || 'var(--primary)'" (click)="elegir(p)">
+              <span class="nt-card__ico"><mat-icon>{{ p.icono || 'view_kanban' }}</mat-icon></span>
+              <span class="nt-card__area">{{ p.area }}</span>
+              <strong>{{ p.nombre }}</strong>
+              <p>{{ p.descripcion || 'Sin descripción' }}</p>
+              <span class="nt-card__mini" aria-hidden="true">
+                @for (l of p.definicion.listas; track $index) { <i [attr.data-tipo]="l.tipo"></i> }
+              </span>
+              <span class="nt-card__pie">
+                <span>{{ p.definicion.listas.length }} columnas · {{ totalTareas(p) }} tareas</span>
+                @if (p.origen !== 'SISTEMA') { <span class="nt-origen" [attr.data-o]="p.origen">{{ origen(p) }}</span> }
+              </span>
+            </button>
+          }
+        </div>
+        @if (!visibles().length) {
+          <p class="nt-nada">Ninguna plantilla coincide. Prueba con otra palabra o <button type="button" class="nt-link" (click)="conIa()">créala con IA</button>.</p>
+        }
+      </div>
+    </div>
+  } @else {
+    <!-- Vista previa + datos -->
+    <div class="nt-detalle">
+      <section class="nt-previa" aria-label="Vista previa">
+        @if (plantilla(); as p) {
+          <div class="nt-previa__cab">
+            <span class="nt-chip" [style.--c]="p.color || 'var(--primary)'"><mat-icon>{{ p.icono || 'view_kanban' }}</mat-icon>{{ p.area }}</span>
+            <span class="nt-sutil">{{ origen(p) }}{{ creador(p) ? ' · ' + creador(p) : '' }}{{ p.usos ? ' · usada ' + p.usos + (p.usos === 1 ? ' vez' : ' veces') : '' }}</span>
+            <span class="nt-esp"></span>
+            @if (puedeBorrar()) {
+              <button mat-button class="nt-peligro" (click)="borrar()"><mat-icon>delete_outline</mat-icon>Retirar plantilla</button>
+            }
+          </div>
+          @if (p.descripcion) { <p class="nt-previa__desc">{{ p.descripcion }}</p> }
+          <p class="nt-sutil">{{ totalTareas(p) }} tareas · {{ pasos(p) }} pasos de checklist · {{ p.definicion.etiquetas.length }} etiquetas</p>
+          @if (p.definicion.etiquetas.length) {
+            <div class="nt-etqs">
+              @for (e of p.definicion.etiquetas; track e.nombre) { <span class="nt-etq" [style.--c]="e.color">{{ e.nombre }}</span> }
+            </div>
+          }
+          <div class="nt-kanban">
+            @for (c of columnas(); track $index) {
+              <div class="nt-col" [attr.data-tipo]="c.tipo">
+                <header><strong>{{ c.nombre }}</strong><small>{{ c.tareas.length }}</small></header>
+                @for (t of c.tareas; track $index) {
+                  <article class="nt-tarea">
+                    <span class="nt-tarea__tit">{{ t.titulo }}</span>
+                    <span class="nt-tarea__meta">
+                      <span class="nt-prio" [attr.data-p]="prioridad(t).tono"><mat-icon>{{ prioridad(t).icono }}</mat-icon>{{ prioridad(t).etiqueta }}</span>
+                      @if (t.dias !== null && t.dias !== undefined) { <span><mat-icon>event</mat-icon>día {{ t.dias }}</span> }
+                      @if (t.checklist.length) { <span><mat-icon>checklist</mat-icon>{{ t.checklist.length }}</span> }
+                    </span>
+                    @if (t.etiquetas.length) {
+                      <span class="nt-tarea__etqs">
+                        @for (e of t.etiquetas; track e) { <i [style.background]="p.definicion.etiquetas[e]?.color" [title]="p.definicion.etiquetas[e]?.nombre"></i> }
+                      </span>
+                    }
+                  </article>
+                } @empty {
+                  <p class="nt-col__vacia">Sin tareas al iniciar</p>
+                }
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="nt-blanco">
+            <mat-icon>view_kanban</mat-icon>
+            <h3>Empieza de cero</h3>
+            <p>El tablero nace con las columnas que defina la configuración del módulo (por defecto: Por hacer, En progreso, Bloqueadas y Completadas). Después puedes agregar tareas a mano, desde Excel o con IA.</p>
+          </div>
+        }
+      </section>
+
+      <aside class="nt-form" aria-label="Datos del tablero">
+        <mat-form-field appearance="outline">
+          <mat-label>Espacio</mat-label>
+          <mat-select [(value)]="espacioId" (selectionChange)="cargarMiembros($event.value)">
+            @for (e of espacios(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Nombre del tablero</mat-label>
+          <input matInput [(ngModel)]="nombre" maxlength="200" (keydown.enter)="crear()">
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Descripción (opcional)</mat-label>
+          <textarea matInput [(ngModel)]="descripcion" rows="2" maxlength="500"></textarea>
+        </mat-form-field>
+        <div class="nt-colores" role="radiogroup" aria-label="Color del tablero">
+          @for (c of colores; track c) {
+            <button type="button" class="nt-color" role="radio" [attr.aria-checked]="color === c" [style.background]="c"
+                    [class.nt-color--on]="color === c" (click)="color = c" [attr.aria-label]="'Color ' + c"></button>
+          }
+        </div>
+        @if (plantilla()) {
+          @if (conFechas()) {
+            <mat-form-field appearance="outline">
+              <mat-label>Fecha de inicio</mat-label>
+              <input matInput [matDatepicker]="dp" [(ngModel)]="inicio">
+              <mat-datepicker-toggle matIconSuffix [for]="dp" />
+              <mat-datepicker #dp />
+              <mat-hint>Los vencimientos se cuentan desde aquí.</mat-hint>
+            </mat-form-field>
+          }
+          <div class="nt-resp">
+            <span class="nt-lbl">Responsable de las tareas (opcional)</span>
+            @if (responsable(); as r) {
+              <span class="nt-elegido"><app-tarea-avatar [usuario]="r.tipo === 'persona' ? r.id : null" [tam]="24" />{{ r.nombre }}
+                <button type="button" class="nt-x" (click)="responsable.set(null)" aria-label="Quitar"><mat-icon>close</mat-icon></button></span>
+            } @else {
+              <app-persona-picker [cercanos]="cercanos()" placeholder="Asignar a…" (elegido)="responsable.set($event)" />
+            }
+          </div>
+        }
+        @if (error()) { <p class="nt-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p> }
+        <span class="nt-esp"></span>
+        <button mat-flat-button class="nt-crear" [disabled]="!espacioId || !nombre.trim() || guardando()" (click)="crear()">
+          @if (guardando()) { <mat-spinner diameter="18" /> } @else { <mat-icon>check</mat-icon> }
+          {{ plantilla() ? 'Crear con ' + totalTareas(plantilla()!) + ' tareas' : 'Crear tablero' }}
+        </button>
+      </aside>
+    </div>
+  }
+</div>
