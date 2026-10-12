@@ -258,7 +258,8 @@
           </header>
           <div class="tl-grupo__items">
             @for (c of ordenadas(l.cards); track c.id) {
-              <app-tarea-item [tarea]="c" [mostrarContexto]="false" (abrir)="abrir($event.id)" (completar)="completar($event)" (cambiarEstado)="cambiarEstado($event)" />
+              <app-tarea-item [tarea]="c" [mostrarContexto]="false" (abrir)="abrir($event.id)" (completar)="completar($event)" (cambiarEstado)="cambiarEstado($event)"
+                              [puedeTomar]="!!tablero()?.can_manage_content && !c.assignee && !c.assignee_group" (tomar)="tomar($event)" />
             } @empty {
               <p class="tl-col__vacia">{{ hayFiltros() ? 'Nada coincide' : 'Sin tareas' }}</p>
             }

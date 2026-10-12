@@ -68,13 +68,13 @@
                 </span>
               }
               <div class="sp-card__pie">
-                <span class="sp-quien" [matTooltip]="(t.rol || '') + (t.documento ? ' · ' + t.documento : '')">{{ t.usuario || 'Sin nombre' }}{{ t.sede ? ' · ' + t.sede : '' }}</span>
+                <span class="sp-quien" [matTooltip]="(t.rol || '') + (t.documento ? ' · ' + t.documento : '')">{{ t.reportado_por_id ? dir.nombre(t.reportado_por_id, t.usuario || 'Usuario') : (t.usuario || 'Sin nombre') }}{{ t.sede ? ' · ' + t.sede : '' }}</span>
                 <span class="sp-esp"></span>
                 @if (t.tiene_captura) { <mat-icon class="sp-ic" matTooltip="Trae captura de pantalla">image</mat-icon> }
                 @if (t.ai_analisis) { <mat-icon class="sp-ic sp-ic--ia" matTooltip="Analizado por IA">auto_awesome</mat-icon> }
                 <small>{{ hace(t.fecha_reporte) }}</small>
-                @if (t.asignado_a) {
-                  <span class="sp-asig" [matTooltip]="'Asignado a ' + t.asignado_a">{{ iniciales(t.asignado_a) }}</span>
+                @if (t.asignado_id) {
+                  <span [matTooltip]="'Lo atiende ' + responsable(t)"><app-tarea-avatar [usuario]="t.asignado_id" [tam]="24" /></span>
                 } @else {
                   <span class="sp-asig sp-asig--no" matTooltip="Sin asignar"><mat-icon>person_off</mat-icon></span>
                 }

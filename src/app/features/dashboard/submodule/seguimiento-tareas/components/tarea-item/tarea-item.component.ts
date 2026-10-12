@@ -78,7 +78,11 @@ import { TareaAvatarComponent } from '../avatar/avatar.component';
       </div>
 
       <div class="ti__lado">
-        @if (mostrarResponsable()) {
+        @if (mostrarResponsable() && puedeTomar()) {
+          <button type="button" class="ti__tomar" (click)="$event.stopPropagation(); tomar.emit(t)" matTooltip="Sin responsable: asignármela">
+            <mat-icon>person_add</mat-icon>
+          </button>
+        } @else if (mostrarResponsable()) {
           @if (t.assignee_group && !t.assignee) {
             <app-tarea-avatar [grupo]="t.assignee_group_name || 'Grupo'" [tam]="28" />
           } @else {
@@ -90,6 +94,9 @@ import { TareaAvatarComponent } from '../avatar/avatar.component';
           <mat-icon>more_vert</mat-icon>
         </button>
         <mat-menu #menu="matMenu" xPosition="before">
+          @if (puedeTomar()) {
+            <button mat-menu-item (click)="tomar.emit(t)"><mat-icon class="menu-ico">front_hand</mat-icon>Asignármela</button>
+          }
           @for (e of estados; track e.clave) {
             <button mat-menu-item [disabled]="e.clave === t.status" (click)="cambiarEstado.emit({ tarea: t, estado: e.clave })">
               <mat-icon [attr.data-tono]="e.tono" class="menu-ico">{{ e.icono }}</mat-icon>{{ e.etiqueta }}
@@ -147,6 +154,9 @@ import { TareaAvatarComponent } from '../avatar/avatar.component';
     .ti__mas { border: 0; background: none; color: var(--text-faint); cursor: pointer; border-radius: 8px; padding: 4px;
                display: inline-flex; min-height: 0 !important; }
     .ti__mas:hover { background: var(--surface-3); color: var(--text); }
+    .ti__tomar { width: 28px; height: 28px; border-radius: 50%; border: 1.5px dashed var(--warning); background: var(--warn-bg); color: var(--warn-fg);
+                 display: grid; place-items: center; cursor: pointer; padding: 0; min-height: 0 !important; }
+    .ti__tomar mat-icon { font-size: 16px; width: 16px; height: 16px; }
     .menu-ico[data-tono="done"] { color: var(--mt-done); }
     .menu-ico[data-tono="prog"] { color: var(--mt-prog); }
     .menu-ico[data-tono="block"] { color: var(--mt-block); }
@@ -165,6 +175,9 @@ export class TareaItemComponent {
   readonly abrir = output<Tarea>();
   readonly completar = output<Tarea>();
   readonly cambiarEstado = output<{ tarea: Tarea; estado: Estado }>();
+  /** Tarea sin responsable: ofrecer "Asignármela" para que nada quede suelto. */
+  readonly puedeTomar = input(false);
+  readonly tomar = output<Tarea>();
 
   readonly estados = ESTADOS;
   readonly estado = computed(() => estadoInfo(this.tarea().status));

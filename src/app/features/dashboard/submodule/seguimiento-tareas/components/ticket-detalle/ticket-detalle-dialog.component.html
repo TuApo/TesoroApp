@@ -7,9 +7,11 @@
   <div class="tk">
     @if (guardando()) { <mat-progress-bar class="tk-barra" mode="indeterminate" /> }
     <header class="tk-cab">
-      <span class="tk-ruta"><mat-icon>support_agent</mat-icon>Mesa de soporte <mat-icon>chevron_right</mat-icon><code>#{{ t.id.slice(0, 8) }}</code></span>
+      <span class="tk-ruta"><mat-icon>support_agent</mat-icon>{{ soporte ? 'Mesa de soporte' : 'Mi reporte' }} <mat-icon>chevron_right</mat-icon><code>#{{ t.id.slice(0, 8) }}</code></span>
       <span class="tk-esp"></span>
+      @if (soporte) {
       <button mat-icon-button (click)="irAlModuloClasico()" matTooltip="Abrir en el módulo de tickets" aria-label="Abrir en el módulo de tickets"><mat-icon>open_in_new</mat-icon></button>
+      }
       <button mat-icon-button (click)="cerrar()" aria-label="Cerrar" matTooltip="Cerrar (Esc)"><mat-icon>close</mat-icon></button>
     </header>
 
@@ -20,6 +22,10 @@
         <span class="tk-sutil">Reportado {{ hace(t.fecha_reporte) }}</span>
       </div>
 
+      @if (!soporte) {
+        <p class="tk-estado-fijo" [attr.data-e]="t.estado"><mat-icon>flag</mat-icon>Estado: <strong>{{ t.estado }}</strong>
+          @if (t.asignado_id) { · lo atiende <strong>{{ responsableNombre(t) }}</strong> } @else { · esperando a que soporte lo tome }</p>
+      } @else {
       <div class="tk-estados" role="radiogroup" aria-label="Estado del ticket">
         @for (e of estados; track e.clave) {
           <button type="button" role="radio" class="tk-est" [attr.data-tono]="e.tono" [class.tk-est--on]="t.estado === e.clave"
@@ -29,14 +35,17 @@
           </button>
         }
       </div>
+      }
 
       <section class="tk-props">
         <div class="tk-prop">
           <span class="tk-lbl">Prioridad</span>
           <div class="tk-prios">
             @for (x of prioridades; track x.clave) {
+              @if (soporte || p.clave === x.clave) {
               <button type="button" class="tk-chip" [attr.data-p]="x.tono" [class.tk-chip--on]="p.clave === x.clave" [disabled]="guardando()"
-                      (click)="p.clave !== x.clave && cambiar({ prioridad: x.clave }, 'Prioridad: ' + x.etiqueta)">{{ x.etiqueta }}</button>
+                      [disabled]="!soporte" (click)="p.clave !== x.clave && cambiar({ prioridad: x.clave }, 'Prioridad: ' + x.etiqueta)">{{ x.etiqueta }}</button>
+              }
             }
           </div>
         </div>
@@ -47,11 +56,15 @@
               <app-persona-picker placeholder="Buscar persona" (elegido)="asignar($event)" />
               <button mat-button (click)="asignando.set(false)">Cancelar</button>
             </div>
-          } @else if (t.asignado_a) {
-            <span class="tk-resp"><mat-icon>person</mat-icon>{{ t.asignado_a }}
-              <button type="button" class="tk-x" (click)="asignando.set(true)" matTooltip="Reasignar" aria-label="Reasignar"><mat-icon>edit</mat-icon></button>
-              <button type="button" class="tk-x" (click)="quitarAsignado()" matTooltip="Quitar" aria-label="Quitar responsable"><mat-icon>close</mat-icon></button>
+          } @else if (t.asignado_id || t.asignado_a) {
+            <span class="tk-resp"><app-tarea-avatar [usuario]="t.asignado_id" [tam]="24" />{{ responsableNombre(t) }}
+              @if (soporte) {
+                <button type="button" class="tk-x" (click)="asignando.set(true)" matTooltip="Reasignar" aria-label="Reasignar"><mat-icon>edit</mat-icon></button>
+                <button type="button" class="tk-x" (click)="quitarAsignado()" matTooltip="Quitar" aria-label="Quitar responsable"><mat-icon>close</mat-icon></button>
+              }
             </span>
+          } @else if (!soporte) {
+            <span class="tk-sutil">Aún sin responsable</span>
           } @else {
             <div class="tk-pick">
               <button mat-stroked-button (click)="asignarme()"><mat-icon>front_hand</mat-icon>Me encargo</button>
@@ -61,7 +74,8 @@
         </div>
         <div class="tk-prop tk-prop--meta">
           <span class="tk-lbl">Quién reporta</span>
-          <span>{{ t.usuario || 'Sin nombre' }}{{ t.documento ? ' · ' + t.documento : '' }}</span>
+          <span class="tk-quien">@if (t.reportado_por_id) { <app-tarea-avatar [usuario]="t.reportado_por_id" [tam]="22" /> }
+            {{ t.reportado_por_id ? dir.nombre(t.reportado_por_id, t.usuario || 'Usuario') : (t.usuario || 'Sin nombre') }}{{ t.documento ? ' · ' + t.documento : '' }}</span>
           <small>{{ t.rol || 'Sin rol' }}{{ t.sede ? ' · ' + t.sede : '' }}</small>
         </div>
         <div class="tk-prop tk-prop--meta">
@@ -96,7 +110,8 @@
         </section>
       }
 
-      <!-- Plan con IA + tareas de seguimiento -->
+      <!-- Plan con IA + tareas de seguimiento (solo quien atiende) -->
+      @if (soporte) {
       <section class="tk-sec tk-plan">
         <h3><mat-icon>assignment_turned_in</mat-icon>Plan de solución y seguimiento
           <span class="tk-esp"></span>
@@ -141,6 +156,7 @@
 
       <!-- Enjambre de agentes (solo se pinta si hay acceso) -->
       <app-panel-agentes-ticket [ticket]="t" />
+      }
 
       <!-- Conversación -->
       <section class="tk-sec">
@@ -148,9 +164,9 @@
         <ul class="tk-coments">
           @for (c of t.comentarios; track c.id) {
             <li>
-              <span class="tk-av">{{ (c.autor || '?').slice(0, 1).toUpperCase() }}</span>
+              @if (c.autor_id) { <app-tarea-avatar [usuario]="c.autor_id" [tam]="30" /> } @else { <span class="tk-av">{{ (c.autor || '?').slice(0, 1).toUpperCase() }}</span> }
               <div>
-                <strong>{{ c.autor }}</strong> <small>{{ hace(c.fecha) }}</small>
+                <strong>{{ c.autor_id ? dir.nombre(c.autor_id, c.autor) : c.autor }}</strong> <small>{{ hace(c.fecha) }}</small>
                 <p>{{ c.mensaje }}</p>
                 @if (c.archivo_url) {
                   <button type="button" class="tk-adj" (click)="verDataUrl(c.archivo_url, c.archivo_nombre)"><mat-icon>attach_file</mat-icon>{{ c.archivo_nombre || 'Archivo' }}</button>
@@ -162,7 +178,7 @@
           }
         </ul>
         <div class="tk-nuevo">
-          <textarea [(ngModel)]="comentario" rows="2" placeholder="Escribe una respuesta o una nota interna…" aria-label="Comentario"></textarea>
+          <textarea [(ngModel)]="comentario" rows="2" [placeholder]="soporte ? 'Escribe una respuesta para quien lo reportó…' : 'Agrega información o responde a soporte…'" aria-label="Comentario"></textarea>
           <div class="tk-nuevo__pie">
             <input #adj type="file" hidden (change)="elegirArchivo($event)">
             <button type="button" class="tk-x" (click)="adj.click()" matTooltip="Adjuntar archivo" aria-label="Adjuntar archivo"><mat-icon>attach_file</mat-icon></button>

@@ -6,7 +6,7 @@ import { BugTicket } from '../../bug-tickets/services/tickets.service';
 import { DirectorioService } from './directorio.service';
 
 /** Ticket tal como llega en el listado liviano (sin captura ni logs). */
-export type TicketMesa = BugTicket & { tiene_captura?: boolean };
+export type TicketMesa = BugTicket & { tiene_captura?: boolean; mi_rol?: 'asignado' | 'reporte' | 'ambos' };
 
 export const ESTADOS_TICKET: { clave: string; etiqueta: string; icono: string; tono: string }[] = [
   { clave: 'Abierto', etiqueta: 'Abiertos', icono: 'inbox', tono: 'todo' },
@@ -46,7 +46,13 @@ export class MesaSoporteService {
     return firstValueFrom(this.http.get<BugTicket>(`${this.base}/tickets/${id}`));
   }
 
-  async actualizar(id: string, cambios: { estado?: string; asignado_a?: string | null; prioridad?: string; comentario?: string }): Promise<BugTicket> {
+  /** Los tickets de la persona: los que reportó y los que tiene asignados (no exige acceso a la Mesa). */
+  misTickets(): Promise<TicketMesa[]> {
+    return firstValueFrom(this.http.get<TicketMesa[]>(`${this.base}/mis-tickets`));
+  }
+
+  /** `asignado_id` es el usuario (vacío = sin responsable); `asignado_nombre`, la foto para mostrar. */
+  async actualizar(id: string, cambios: { estado?: string; asignado_id?: string; asignado_nombre?: string | null; prioridad?: string; comentario?: string }): Promise<BugTicket> {
     const r = await firstValueFrom(this.http.patch<{ ok: boolean; ticket: BugTicket }>(`${this.base}/tickets/${id}`,
       { ...cambios, actualizado_por: this.dir.yo.nombre }));
     return r.ticket;

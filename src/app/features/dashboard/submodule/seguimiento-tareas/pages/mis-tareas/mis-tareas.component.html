@@ -101,7 +101,8 @@
       @if (!s.plegada) {
         <div class="mt-lista">
           @for (t of s.tareas; track t.id) {
-            <app-tarea-item [tarea]="t" [caso]="estadoCaso(t)" [mostrarResponsable]="alcance() !== 'asignadas' || !!t.assignee_group"
+            <app-tarea-item [tarea]="t" [caso]="estadoCaso(t)" [puedeTomar]="!t.assignee && !t.assignee_group" (tomar)="tomar($event)"
+                            [mostrarResponsable]="alcance() !== 'asignadas' || !!t.assignee_group"
                             (abrir)="abrir($event)" (completar)="completar($event)" (cambiarEstado)="cambiarEstado($event)" />
           }
         </div>
@@ -115,25 +116,37 @@
 <aside class="mt-casos" [class.mt-casos--plegado]="casosPlegados()" aria-label="Casos y procesos">
   <button type="button" class="mt-casos__cab" (click)="casosPlegados.set(!casosPlegados())" [attr.aria-expanded]="!casosPlegados()">
     <mat-icon>hub</mat-icon><h3>Casos y procesos</h3>
-    <span class="mt-n">{{ misTickets().length + tareasDeCasos().length }}</span>
+    <span class="mt-n">{{ misTickets().length + misReportes().length + tareasDeCasos().length }}</span>
     <mat-icon class="mt-casos__flecha">{{ casosPlegados() ? 'expand_more' : 'expand_less' }}</mat-icon>
   </button>
   <div class="mt-casos__cuerpo">
-  @if (veTickets) {
+  @if (veTickets || misTickets().length) {
     <section class="mt-casos__sec">
       <div class="mt-casos__tit"><span>Tickets a mi cargo</span><span class="mt-n">{{ misTickets().length }}</span>
-        <a class="mt-link" routerLink="/dashboard/tareas/soporte">Mesa de soporte</a></div>
+        @if (veTickets) { <a class="mt-link" routerLink="/dashboard/tareas/soporte">Mesa de soporte</a> }</div>
       @for (k of misTickets().slice(0, 6); track k.id) {
         @let p = prioridadTicket(k.prioridad);
-        <a class="mt-caso" [routerLink]="['/dashboard/tareas/soporte']" [queryParams]="{ ticket: k.id }" [attr.data-p]="p.tono">
+        <button type="button" class="mt-caso" [attr.data-p]="p.tono" (click)="abrirTicket(k.id)">
           <span class="mt-caso__tit">{{ k.titulo }}</span>
           <span class="mt-caso__meta"><b [attr.data-p]="p.tono">{{ p.etiqueta }}</b> · {{ k.estado }} · {{ hace(k.fecha_reporte) }}</span>
-        </a>
+        </button>
       } @empty {
-        <p class="mt-casos__vacio">Sin tickets abiertos a tu nombre.</p>
+        <p class="mt-casos__vacio">Sin tickets abiertos asignados a ti.</p>
       }
     </section>
   }
+  <section class="mt-casos__sec">
+    <div class="mt-casos__tit"><span>Mis reportes</span><span class="mt-n">{{ misReportes().length }}</span></div>
+    @for (k of misReportes().slice(0, 5); track k.id) {
+      <button type="button" class="mt-caso mt-caso--reporte" [attr.data-e]="k.estado" (click)="abrirTicket(k.id)">
+        <span class="mt-caso__tit">{{ k.titulo }}</span>
+        <span class="mt-caso__meta"><b class="mt-caso__est" [attr.data-e]="k.estado">{{ k.estado }}</b>
+          · {{ k.asignado_id ? 'lo atiende ' + dir.nombre(k.asignado_id, k.asignado_a || 'soporte') : 'sin responsable aún' }}</span>
+      </button>
+    } @empty {
+      <p class="mt-casos__vacio">Lo que reportes con el botón «Reportar un problema» aparece aquí con su estado.</p>
+    }
+  </section>
   <section class="mt-casos__sec">
     <div class="mt-casos__tit"><span>Tareas con caso</span><span class="mt-n">{{ tareasDeCasos().length }}</span>
       @if (tareasDeCasos().length) { <button type="button" class="mt-link" (click)="verCasos()">Ver en la lista</button> }</div>

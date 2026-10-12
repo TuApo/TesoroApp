@@ -17,6 +17,7 @@ import { DirectorioService } from '../../services/directorio.service';
 import { Sugerencia, Tarea } from '../../models/tareas.models';
 import { estadoInfo, hace, mensajeError, prioridadInfo, vencimiento } from '../../utils/tareas-ui';
 import { Eleccion, PersonaPickerComponent } from '../persona-picker/persona-picker.component';
+import { TareaAvatarComponent } from '../avatar/avatar.component';
 
 /** Prioridad del ticket → prioridad de la tarea de seguimiento. */
 const PRIORIDAD_TAREA: Record<string, 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW'> = { Critica: 'URGENT', Alta: 'HIGH', Media: 'MEDIUM', Baja: 'LOW' };
@@ -31,14 +32,16 @@ const PRIORIDAD_TAREA: Record<string, 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW'> = { 
   standalone: true,
   imports: [
     FormsModule, MatDialogModule, MatIconModule, MatButtonModule, MatTooltipModule, MatProgressBarModule, MatProgressSpinnerModule,
-    MatSnackBarModule, PersonaPickerComponent, PanelAgentesTicketComponent,
+    MatSnackBarModule, PersonaPickerComponent, PanelAgentesTicketComponent, TareaAvatarComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ticket-detalle-dialog.component.html',
   styleUrls: ['./ticket-detalle-dialog.component.css'],
 })
 export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
-  readonly data = inject<{ id: string }>(MAT_DIALOG_DATA);
+  readonly data = inject<{ id: string; modo?: 'soporte' | 'reportante' }>(MAT_DIALOG_DATA);
+  /** Quien lo reportó ve el estado, el responsable y la conversación; no lo administra. */
+  readonly soporte = (this.data.modo ?? 'soporte') === 'soporte';
   private readonly ref = inject(MatDialogRef<TicketDetalleDialogComponent, boolean>);
   private readonly mesa = inject(MesaSoporteService);
   private readonly api = inject(TareasApiService);
@@ -87,7 +90,7 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
     this.ref.keydownEvents().subscribe(e => { if (e.key === 'Escape') this.cerrar(); });
     this.ref.disableClose = true;
     this.dir.cargar();
-    this.api.iaEstado().then(e => this.iaDisponible.set(e.disponible)).catch(() => undefined);
+    if (this.soporte) this.api.iaEstado().then(e => this.iaDisponible.set(e.disponible)).catch(() => undefined);
     await this.cargar();
   }
 
@@ -98,7 +101,7 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
     try {
       this.t.set(await this.mesa.detalle(this.data.id));
       this.error.set(null);
-      this.cargarTareas();
+      if (this.soporte) this.cargarTareas();
     } catch (e: any) {
       this.error.set(e?.status === 404 ? 'Este ticket ya no existe.' : mensajeError(e, 'No se pudo cargar el ticket.'));
     } finally {
@@ -111,7 +114,7 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
   }
 
   // ── Estado, prioridad, responsable ──
-  async cambiar(cambios: { estado?: string; prioridad?: string; asignado_a?: string | null }, ok: string): Promise<void> {
+  async cambiar(cambios: { estado?: string; prioridad?: string; asignado_id?: string; asignado_nombre?: string | null }, ok: string): Promise<void> {
     this.guardando.set(true);
     try {
       this.t.set(await this.mesa.actualizar(this.data.id, cambios));
@@ -124,12 +127,21 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
     }
   }
 
-  asignarme(): void { this.cambiar({ asignado_a: this.dir.yo.nombre, estado: this.t()?.estado === 'Abierto' ? 'En Progreso' : undefined }, 'Te asignaste el ticket'); }
-  asignar(el: Eleccion): void {
-    this.asignando.set(false);
-    this.cambiar({ asignado_a: el.nombre }, `Asignado a ${el.nombre}`);
+  asignarme(): void {
+    this.cambiar({ asignado_id: this.dir.yo.id, asignado_nombre: this.dir.yo.nombre,
+      estado: this.t()?.estado === 'Abierto' ? 'En Progreso' : undefined }, 'Te asignaste el ticket');
   }
-  quitarAsignado(): void { this.cambiar({ asignado_a: '' }, 'Ticket sin responsable'); }
+  asignar(el: Eleccion): void {
+    if (el.tipo !== 'persona') return;
+    this.asignando.set(false);
+    this.cambiar({ asignado_id: el.id, asignado_nombre: el.nombre }, `Asignado a ${el.nombre}`);
+  }
+  quitarAsignado(): void { this.cambiar({ asignado_id: '' }, 'Ticket sin responsable'); }
+
+  /** Nombre del responsable: el del directorio por su usuario; la foto guardada si no está. */
+  responsableNombre(t: BugTicket): string {
+    return t.asignado_id ? this.dir.nombre(t.asignado_id, t.asignado_a || 'Usuario') : (t.asignado_a || '');
+  }
 
   // ── Captura ──
   verCaptura(): void {
@@ -196,6 +208,7 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
       prioridad: p?.prioridad ?? PRIORIDAD_TAREA[prioridadTicket(t.prioridad).clave] ?? 'MEDIUM',
       vence,
       pasos: p?.pasos ?? [],
+      responsable: t.asignado_id ?? null,
       origen: { tipo: 'TICKET', ref: t.id, url: `/dashboard/tareas/soporte?ticket=${t.id}`, etiqueta: 'Ticket de soporte' },
     });
     if (tarea) {
@@ -242,6 +255,7 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
   }
 
   irAlModuloClasico(): void {
+    if (!this.soporte) return;
     this.ref.close(this.cambios);
     this.router.navigate(['/dashboard/bug-tickets/tickets']);
   }

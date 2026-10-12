@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { Adjunto, NuevaTareaPrefill, Plantilla, Tarea } from '../models/tareas.models';
 import type { ArchivoVisor } from '../components/visor-archivo/visor-archivo-dialog.component';
 import type { IaGenerarData } from '../components/ia-generar/ia-generar-dialog.component';
+import type { ElegirPersonaData, ElegirPersonaResultado } from '../components/elegir-persona/elegir-persona-dialog.component';
 
 /**
  * Puerta de entrada a los diálogos del módulo, también para OTROS módulos: un compromiso
@@ -126,5 +127,35 @@ export class TareasDialogosService {
       width: 'min(540px, 96vw)',
     });
     return (await firstValueFrom(ref.afterClosed())) ?? null;
+  }
+
+  /**
+   * Elegir un usuario real (para asignar tickets, casos...). Resuelve `{ id, nombre }`,
+   * `{ quitar: true }` si se pidió dejarlo sin responsable, o null si se canceló.
+   */
+  async elegirPersona(data: ElegirPersonaData): Promise<ElegirPersonaResultado> {
+    const { ElegirPersonaDialogComponent } = await import('../components/elegir-persona/elegir-persona-dialog.component');
+    const ref = this.dialog.open(ElegirPersonaDialogComponent, { data, width: 'min(520px, 96vw)', autoFocus: 'first-tabbable' });
+    return (await firstValueFrom(ref.afterClosed())) ?? null;
+  }
+
+  /**
+   * Abre un ticket de soporte. `soporte` = quien atiende (estado, responsable, plan, tareas);
+   * `reportante` = quien lo reportó o lo sigue (estado, responsable y conversación).
+   * Resuelve true si cambió algo.
+   */
+  async abrirTicket(id: string, modo: 'soporte' | 'reportante' = 'soporte'): Promise<boolean> {
+    const { TicketDetalleDialogComponent } = await import('../components/ticket-detalle/ticket-detalle-dialog.component');
+    const ref = this.dialog.open(TicketDetalleDialogComponent, {
+      data: { id, modo },
+      position: { right: '0', top: '0' },
+      height: '100dvh',
+      width: 'min(820px, 100vw)',
+      maxWidth: '100vw',
+      maxHeight: '100dvh',
+      panelClass: 'tt-drawer',
+      autoFocus: false,
+    });
+    return !!(await firstValueFrom(ref.afterClosed()));
   }
 }

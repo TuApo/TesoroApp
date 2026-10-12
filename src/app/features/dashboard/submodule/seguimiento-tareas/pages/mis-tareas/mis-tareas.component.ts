@@ -74,7 +74,10 @@ export class MisTareasComponent implements OnInit {
 
   readonly alcance = signal<Vista>('asignadas');
   readonly datos = signal<Record<string, Tarea[]>>({ asignadas: [], delegadas: [], sigo: [], areas: [] });
+  /** Toda la Mesa (solo quien tiene acceso): para el estado de los casos de sus tareas. */
   readonly tickets = signal<TicketMesa[]>([]);
+  /** Los tickets de la persona por usuario: los que tiene asignados y los que reportó. */
+  readonly misTicketsApi = signal<TicketMesa[]>([]);
   readonly soloCasos = signal(false);
   readonly filtrosAbiertos = signal(false);
   /** En pantallas angostas el panel de casos arranca plegado para no empujar la lista. */
@@ -112,15 +115,16 @@ export class MisTareasComponent implements OnInit {
   });
 
   /** Estado de cada ticket (para el chip "Ticket · En Progreso" de las tareas que nacen de uno). */
-  readonly estadosTicket = computed(() => new Map(this.tickets().map(t => [t.id, t.estado])));
+  readonly estadosTicket = computed(() => new Map([...this.tickets(), ...this.misTicketsApi()].map(t => [t.id, t.estado])));
 
-  /** Tickets a mi cargo que siguen abiertos (asignado_a guarda el nombre de la persona). */
-  readonly misTickets = computed(() => {
-    const yo = sinTildes(this.dir.yo.nombre);
-    return this.tickets()
-      .filter(t => (t.estado === 'Abierto' || t.estado === 'En Progreso') && sinTildes(t.asignado_a ?? '') === yo)
-      .sort((a, b) => prioridadTicket(b.prioridad).peso - prioridadTicket(a.prioridad).peso);
-  });
+  /** Tickets a mi cargo (asignados a mi usuario) que siguen abiertos. */
+  readonly misTickets = computed(() => this.misTicketsApi()
+    .filter(t => (t.mi_rol === 'asignado' || t.mi_rol === 'ambos') && (t.estado === 'Abierto' || t.estado === 'En Progreso'))
+    .sort((a, b) => prioridadTicket(b.prioridad).peso - prioridadTicket(a.prioridad).peso));
+
+  /** Lo que reporté (botón de ayuda): para saber en qué va sin depender de nadie. */
+  readonly misReportes = computed(() => this.misTicketsApi()
+    .filter(t => (t.mi_rol === 'reporte' || t.mi_rol === 'ambos') && t.estado !== 'Cerrado'));
 
   /** Tareas abiertas que nacen de un proceso (ticket, reunión, otra tarea...), de todas mis vistas. */
   readonly tareasDeCasos = computed(() => {
@@ -156,7 +160,9 @@ export class MisTareasComponent implements OnInit {
       { clave: 'hoy', etiqueta: 'Para hoy', valor: g('hoy'), tono: 'aviso', icono: 'today' },
       { clave: 'semana', etiqueta: 'Próx. 7 días', valor: g('semana'), tono: 'info', icono: 'date_range' },
       { clave: 'bloqueadas', etiqueta: 'Bloqueadas', valor: abiertas.filter(t => t.status === 'BLOCKED').length, tono: 'peligro', icono: 'block' },
-      { clave: 'hechas', etiqueta: 'Completadas (30 d)', valor: ts.filter(t => t.status === 'DONE').length, tono: 'ok', icono: 'task_alt' },
+      this.alcance() === 'areas'
+        ? { clave: 'sin', etiqueta: 'Sin responsable', valor: abiertas.filter(t => !t.assignee && !t.assignee_group).length, tono: 'aviso', icono: 'person_off' }
+        : { clave: 'hechas', etiqueta: 'Completadas (30 d)', valor: ts.filter(t => t.status === 'DONE').length, tono: 'ok', icono: 'task_alt' },
     ];
   });
 
@@ -212,6 +218,9 @@ export class MisTareasComponent implements OnInit {
       if (v === 'asignadas' || v === 'delegadas' || v === 'sigo' || v === 'areas') this.alcance.set(v);
       if (v === 'delegadas') this.agrupar.set('responsable');
       if (v === 'areas') this.agrupar.set('tablero');
+      // Enlace de un aviso de ticket (p.ej. "Tu reporte quedó Resuelto"): se abre aquí mismo.
+      const ticket = q.get('ticket');
+      if (ticket) this.abrirTicket(ticket);
     });
   }
 
@@ -226,6 +235,7 @@ export class MisTareasComponent implements OnInit {
         this.api.misTareas('areas').catch(() => [] as Tarea[]),
       ]);
       this.datos.set({ asignadas, delegadas, sigo, areas });
+      this.mesa.misTickets().then(t => this.misTicketsApi.set(t)).catch(() => this.misTicketsApi.set([]));
       if (this.veTickets) this.mesa.listar().then(t => this.tickets.set(t)).catch(() => this.tickets.set([]));
     } catch (e) {
       this.error.set(mensajeError(e, 'No se pudieron cargar tus tareas.'));
@@ -249,6 +259,26 @@ export class MisTareasComponent implements OnInit {
   }
 
   hayFiltros(): boolean { return !!(this.busqueda() || this.espacio() || this.prioridad() || this.soloCasos()); }
+
+  /** Abre un ticket: quien atiende lo administra; quien lo reportó ve su estado y conversa. */
+  async abrirTicket(id: string): Promise<void> {
+    const mio = this.misTicketsApi().find(t => t.id === id);
+    const modo = this.veTickets && mio?.mi_rol !== 'reporte' ? 'soporte' : 'reportante';
+    const cambio = await this.dialogos.abrirTicket(id, modo);
+    this.router.navigate([], { relativeTo: this.route, queryParams: { ticket: null }, queryParamsHandling: 'merge', replaceUrl: true });
+    if (cambio) this.cargar(true);
+  }
+
+  /** Nada suelto: tomar una tarea sin responsable de mis áreas. */
+  async tomar(t: Tarea): Promise<void> {
+    try {
+      await this.api.actualizarTarea(t.id, { assignee: this.dir.yo.id, assignee_name: this.dir.yo.nombre });
+      this.snack.open(`Ahora estás a cargo de «${t.title}»`, undefined, { duration: 3000 });
+      this.cargar(true);
+    } catch (e) {
+      this.snack.open(mensajeError(e), 'Cerrar', { duration: 4500 });
+    }
+  }
 
   estadoCaso(t: Tarea): string | null {
     return (t.origen_tipo ?? '').toUpperCase() === 'TICKET' && t.origen_ref ? this.estadosTicket().get(t.origen_ref) ?? null : null;

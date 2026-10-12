@@ -23,7 +23,11 @@ export interface BugTicket {
   version_app: string;
   fecha_reporte: string;
   fecha_actualizacion: string | null;
+  /** Nombre del responsable, solo para mostrar: la asignación real es asignado_id (usuario). */
   asignado_a: string | null;
+  asignado_id?: string | null;
+  /** Usuario que lo reportó. */
+  reportado_por_id?: string | null;
   ai_analisis: string | null;
   ai_sugerencia: string | null;
   comentarios: TicketComentario[];
@@ -33,6 +37,7 @@ export interface BugTicket {
 export interface TicketComentario {
   id: string;
   autor: string;
+  autor_id?: string | null;
   mensaje: string;
   archivo: string | null;
   archivo_nombre: string;
@@ -48,6 +53,7 @@ export interface TicketHistorial {
   valor_anterior: string;
   valor_nuevo: string;
   usuario: string;
+  usuario_id?: string | null;
   fecha: string;
 }
 
@@ -86,9 +92,12 @@ export class TicketsService {
     });
   }
 
-  asignarTicket(id: string, asignadoA: string): Observable<any> {
+  /** Asigna a un usuario de la plataforma (id); el nombre queda como foto. usuarioId null = sin responsable. */
+  asignarTicket(id: string, usuarioId: string | null, nombre: string | null): Observable<any> {
     return this.http.patch(`${this.apiUrl}/bug_tickets/tickets/${id}/`, {
-      asignado_a: asignadoA,
+      asignado_id: usuarioId ?? '',
+      asignado_nombre: nombre,
+      actualizado_por: this.getNombreUsuario(),
     });
   }
 

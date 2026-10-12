@@ -185,24 +185,20 @@ export class TicketsListComponent implements OnInit {
     if (t) Swal.fire({ icon: 'success', title: 'Tarea creada', text: 'El responsable recibió el aviso y la verá en «Mis tareas».', timer: 2200, showConfirmButton: false });
   }
 
+  /** Asignar a un usuario real de la plataforma (buscador), no a un nombre escrito a mano. */
   async asignarTicket(ticket: any): Promise<void> {
-    const { value: asignadoA } = await Swal.fire({
-      title: 'Asignar Ticket',
-      input: 'text',
-      inputLabel: 'A quien se asigna este ticket?',
-      inputPlaceholder: 'Nombre del responsable...',
-      inputValue: ticket.asignado_a || '',
-      showCancelButton: true,
-      confirmButtonText: 'Asignar',
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#3b82f6',
+    const r = await this.tareas.elegirPersona({
+      titulo: ticket.asignado_id ? 'Reasignar ticket' : 'Asignar ticket',
+      ayuda: 'Le llegará un aviso y lo verá en su tablero de Seguimiento Tareas.',
+      actualId: ticket.asignado_id ?? null,
+      permitirQuitar: true,
     });
-
-    if (!asignadoA) return;
-
-    this.ticketsService.asignarTicket(ticket.id, asignadoA).subscribe({
+    if (!r) return;
+    const persona = 'quitar' in r ? null : r;
+    this.ticketsService.asignarTicket(ticket.id, persona?.id ?? null, persona?.nombre ?? null).subscribe({
       next: () => {
-        Swal.fire({ title: 'Asignado', text: `Ticket asignado a "${asignadoA}".`, icon: 'success', timer: 2000, showConfirmButton: false });
+        Swal.fire({ title: persona ? 'Asignado' : 'Sin responsable', text: persona ? `Ticket asignado a ${persona.nombre}.` : 'El ticket quedó sin responsable.',
+          icon: 'success', timer: 2000, showConfirmButton: false });
         this.cargarTickets();
         if (this.mostrarDetalle && this.ticketSeleccionado?.id === ticket.id) {
           this.verDetalle(ticket);

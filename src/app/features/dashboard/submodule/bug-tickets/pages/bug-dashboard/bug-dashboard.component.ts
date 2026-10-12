@@ -95,7 +95,7 @@ export class BugDashboardComponent implements OnInit {
         this.ticketsRecientes = lista;
 
         // Calcular tickets sin asignar
-        this.ticketsSinAsignar = lista.filter((t: any) => !t.asignado_a).length;
+        this.ticketsSinAsignar = lista.filter((t: any) => !t.asignado_id && !t.asignado_a).length;
         this.cdr.markForCheck();
       },
       error: () => {

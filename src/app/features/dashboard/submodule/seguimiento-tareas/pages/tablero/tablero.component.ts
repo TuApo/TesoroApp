@@ -214,6 +214,17 @@ export class TableroComponent implements OnInit {
     if (await this.dialogos.nuevaTarea({ tableroId: t.id, listaId: lista?.id })) this.recargarListas();
   }
 
+  /** Nada suelto: tomar una tarea sin responsable. */
+  async tomar(t: Tarea): Promise<void> {
+    try {
+      await this.api.actualizarTarea(t.id, { assignee: this.dir.yo.id, assignee_name: this.dir.yo.nombre });
+      this.snack.open(`Ahora estás a cargo de «${t.title}»`, undefined, { duration: 3000 });
+      this.recargarListas();
+    } catch (e) {
+      this.snack.open(mensajeError(e), 'Cerrar', { duration: 4500 });
+    }
+  }
+
   /** La IA propone tareas para este tablero (desde una descripción y/o documentos). */
   async conIa(): Promise<void> {
     const t = this.tablero();

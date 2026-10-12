@@ -7,10 +7,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatDialog } from '@angular/material/dialog';
-import { firstValueFrom } from 'rxjs';
 import { DirectorioService, sinTildes } from '../../services/directorio.service';
 import { TareasApiService } from '../../services/tareas-api.service';
+import { TareasDialogosService } from '../../services/tareas-dialogos.service';
+import { TareaAvatarComponent } from '../../components/avatar/avatar.component';
 import { ResumenCaso } from '../../models/tareas.models';
 import { ESTADOS_TICKET, MesaSoporteService, PRIORIDADES_TICKET, TicketMesa, prioridadTicket } from '../../services/mesa-soporte.service';
 import { hace, mensajeError } from '../../utils/tareas-ui';
@@ -25,7 +25,8 @@ const DIA = 86_400_000;
 @Component({
   selector: 'app-soporte-tareas',
   standalone: true,
-  imports: [FormsModule, DragDropModule, MatIconModule, MatButtonModule, MatTooltipModule, MatProgressSpinnerModule, MatSnackBarModule],
+  imports: [FormsModule, DragDropModule, MatIconModule, MatButtonModule, MatTooltipModule, MatProgressSpinnerModule, MatSnackBarModule,
+    TareaAvatarComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './soporte.component.html',
   styleUrls: ['./soporte.component.css'],
@@ -33,8 +34,8 @@ const DIA = 86_400_000;
 export class SoporteComponent implements OnInit {
   private readonly mesa = inject(MesaSoporteService);
   private readonly api = inject(TareasApiService);
-  private readonly dir = inject(DirectorioService);
-  private readonly dialog = inject(MatDialog);
+  readonly dir = inject(DirectorioService);
+  private readonly dialogos = inject(TareasDialogosService);
   private readonly snack = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -63,12 +64,12 @@ export class SoporteComponent implements OnInit {
   readonly filtrados = computed(() => {
     const q = sinTildes(this.busqueda().trim());
     const p = this.prioridad(), c = this.categoria(), s = this.sede(), mios = this.mios();
-    const yo = sinTildes(this.dir.yo.nombre);
+    const yo = this.dir.yo.id;
     return this.tickets().filter(t =>
       (!q || sinTildes(`${t.titulo} ${t.descripcion} ${t.usuario} ${t.documento} ${t.sede} ${t.categoria} ${t.id.slice(0, 8)}`).includes(q)) &&
       (!p || prioridadTicket(t.prioridad).clave === p) &&
       (!c || t.categoria === c) && (!s || t.sede === s) &&
-      (!mios || sinTildes(t.asignado_a ?? '') === yo));
+      (!mios || t.asignado_id === yo));
   });
 
   readonly columnas = computed(() => {
@@ -88,7 +89,7 @@ export class SoporteComponent implements OnInit {
     return {
       abiertos: ts.filter(t => t.estado === 'Abierto').length,
       progreso: ts.filter(t => t.estado === 'En Progreso').length,
-      sinAsignar: abiertos.filter(t => !t.asignado_a).length,
+      sinAsignar: abiertos.filter(t => !t.asignado_id).length,
       criticos: abiertos.filter(t => prioridadTicket(t.prioridad).peso >= 3).length,
       resueltos7: ts.filter(t => t.estado === 'Resuelto' && t.fecha_actualizacion && new Date(t.fecha_actualizacion).getTime() >= hace7).length,
     };
@@ -141,23 +142,12 @@ export class SoporteComponent implements OnInit {
 
   async abrir(id: string): Promise<void> {
     this.router.navigate([], { relativeTo: this.route, queryParams: { ticket: id }, replaceUrl: true });
-    const { TicketDetalleDialogComponent } = await import('../../components/ticket-detalle/ticket-detalle-dialog.component');
-    const ref = this.dialog.open(TicketDetalleDialogComponent, {
-      data: { id },
-      position: { right: '0', top: '0' },
-      height: '100dvh',
-      width: 'min(820px, 100vw)',
-      maxWidth: '100vw',
-      maxHeight: '100dvh',
-      panelClass: 'tt-drawer',
-      autoFocus: false,
-    });
-    const cambio = await firstValueFrom(ref.afterClosed());
+    const cambio = await this.dialogos.abrirTicket(id, 'soporte');
     this.router.navigate([], { relativeTo: this.route, queryParams: { ticket: null }, replaceUrl: true });
     if (cambio) this.cargar();
   }
 
-  iniciales(nombre: string | null | undefined): string {
-    return (nombre ?? '').split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('') || '?';
-  }
+
+  /** Nombre del responsable por su usuario (la foto guardada si el directorio no lo tiene). */
+  responsable(t: TicketMesa): string { return t.asignado_id ? this.dir.nombre(t.asignado_id, t.asignado_a || 'Usuario') : ''; }
 }
