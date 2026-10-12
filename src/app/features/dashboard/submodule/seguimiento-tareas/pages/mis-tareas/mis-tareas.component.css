@@ -1,6 +1,8 @@
 :host { display: flex; flex-direction: column; gap: 14px; }
 
-.mt-alcances { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.mt-saludo { margin: 0; font-size: 15px; color: var(--text-2); }
+.mt-saludo strong { color: var(--navy-ink); }
+.mt-alcances { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .mt-alc { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--border);
           background: var(--surface); color: var(--text-2); font: inherit; font-weight: 750; font-size: 15px; cursor: pointer;
           text-align: left; transition: border-color .15s, box-shadow .15s, background .15s; min-height: 56px !important; }
@@ -35,7 +37,6 @@
 .mt-buscar input:focus { outline: none; }
 .mt-buscar:focus-within { border-color: var(--primary); box-shadow: var(--ring); }
 .mt-sel { width: 170px; max-width: 100%; }
-.mt-nueva { margin-left: auto; }
 
 .mt-centro { display: flex; justify-content: center; padding: 50px; }
 .mt-vacio { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 44px 20px;
@@ -57,12 +58,56 @@
 .mt-sec[data-sec="hechas"] .mt-sec__titulo, .mt-sec[data-sec="hechas"] .mt-sec__ico { color: var(--ok-fg); }
 .mt-lista { display: flex; flex-direction: column; gap: 6px; }
 
+.mt-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+.mt-principal { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.mt-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2);
+           border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; min-height: 40px !important; }
+.mt-chip mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.mt-chip--movil { display: none; }
+.mt-chip--on { background: var(--violet-bg); border-color: var(--violet-border); color: var(--violet-fg); }
+.mt-casos { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: 18px;
+            background: var(--surface); border: 1px solid var(--border); }
+.mt-casos__cab { display: flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; font: inherit; color: inherit;
+                 text-align: left; cursor: default; min-height: 0 !important; }
+.mt-casos__cab h3 { flex: 1; }
+.mt-casos__flecha { display: none !important; color: var(--muted) !important; }
+.mt-casos__cuerpo { display: flex; flex-direction: column; gap: 12px; }
+.mt-casos__cab h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--navy-ink); }
+.mt-casos__cab mat-icon { color: var(--violet-fg); }
+.mt-casos__sec { display: flex; flex-direction: column; gap: 6px; }
+.mt-casos__tit { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.mt-n { font-size: 11px; background: var(--surface-3); color: var(--text-2); border-radius: 999px; padding: 0 7px; }
+.mt-link { margin-left: auto; border: 0; background: none; padding: 0; font: inherit; font-size: 12px; font-weight: 700; color: var(--link);
+           text-transform: none; letter-spacing: 0; cursor: pointer; text-decoration: none; min-height: 0 !important; }
+.mt-link:hover { text-decoration: underline; }
+.mt-caso { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--border);
+           border-left: 3px solid var(--slate-300); background: var(--surface-2); text-decoration: none; color: var(--text); cursor: pointer; }
+.mt-caso:hover { border-color: var(--border-strong); }
+.mt-caso[data-p="urgente"] { border-left-color: var(--danger); }
+.mt-caso[data-p="alta"] { border-left-color: var(--warning); }
+.mt-caso--tarea { border-left-color: var(--violet-border); }
+.mt-caso__tit { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mt-caso__meta { font-size: 11.5px; color: var(--muted); }
+.mt-caso__meta b[data-p="urgente"] { color: var(--danger-fg); }
+.mt-caso__meta b[data-p="alta"] { color: var(--warn-fg); }
+.mt-casos__vacio { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.mt-casos__nota { display: flex; gap: 6px; align-items: flex-start; margin: 0; font-size: 11.5px; color: var(--muted); }
+.mt-casos__nota mat-icon { font-size: 16px; width: 16px; height: 16px; flex: none; color: var(--ok-fg); }
+
+@media (max-width: 1200px) {
+  .mt-layout { grid-template-columns: 1fr; }
+  .mt-casos { position: static; order: -1; padding: 10px 12px; }
+  .mt-casos__cab { cursor: pointer; }
+  .mt-casos__flecha { display: inline-flex !important; }
+  .mt-casos--plegado .mt-casos__cuerpo { display: none; }
+}
 @media (max-width: 1100px) { .mt-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 900px) {
   .mt-sel { flex: 1 1 140px; width: auto; }
 }
 @media (max-width: 600px) {
-  .mt-alcances { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .mt-alcances { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .mt-saludo { font-size: 14px; }
   .mt-alc { flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; text-align: center; font-size: 12.5px; min-height: 0 !important; position: relative; }
   .mt-alc__txt { flex: none; line-height: 1.2; }
   .mt-alc__n { position: absolute; top: 6px; right: 6px; padding: 0 7px; font-size: 11.5px; }
@@ -70,5 +115,10 @@
   .mt-kpis::-webkit-scrollbar { display: none; }
   .mt-kpi { flex: 0 0 132px; padding: 10px; scroll-snap-align: start; }
   .mt-kpi strong { font-size: 19px; }
-  .mt-nueva { margin-left: 0; flex: 1 1 100%; }
+  .mt-buscar { height: 48px; flex: 1 1 0; }
+  .mt-chip--movil { display: inline-flex; height: 48px; }
+  .mt-filtros > :not(.mt-buscar):not(.mt-chip--movil) { display: none; }
+  .mt-filtros--abiertos > :not(.mt-buscar):not(.mt-chip--movil) { display: inline-flex; }
+  .mt-filtros--abiertos .mt-sel { flex: 1 1 140px; }
+  .mt-alc mat-icon { font-size: 20px; width: 20px; height: 20px; }
 }

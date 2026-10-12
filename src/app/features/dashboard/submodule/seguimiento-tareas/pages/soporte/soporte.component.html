@@ -60,6 +60,13 @@
               </div>
               <strong class="sp-card__tit">{{ t.titulo }}</strong>
               <p class="sp-card__desc">{{ t.descripcion }}</p>
+              @if (tareasPorTicket().get(t.id); as r) {
+                <span class="sp-tareas" [class.sp-tareas--ok]="!r.abiertas" [class.sp-tareas--venc]="r.vencidas"
+                      [matTooltip]="r.vencidas ? r.vencidas + ' vencidas' : ''">
+                  <mat-icon>{{ r.abiertas ? 'pending_actions' : 'task_alt' }}</mat-icon>
+                  {{ r.total }} {{ r.total === 1 ? 'tarea' : 'tareas' }} · {{ r.abiertas ? r.abiertas + (r.abiertas === 1 ? ' abierta' : ' abiertas') : 'todas hechas' }}
+                </span>
+              }
               <div class="sp-card__pie">
                 <span class="sp-quien" [matTooltip]="(t.rol || '') + (t.documento ? ' · ' + t.documento : '')">{{ t.usuario || 'Sin nombre' }}{{ t.sede ? ' · ' + t.sede : '' }}</span>
                 <span class="sp-esp"></span>

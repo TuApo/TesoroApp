@@ -23,11 +23,13 @@ import {
 } from '../../models/tareas.models';
 import {
   COLORES_ETIQUETA, ESTADOS, PRIORIDADES, aIsoFinDeJornada, atajosFecha, estadoInfo, etiquetaOrigen, hace,
-  mensajeError, prioridadInfo, vencimiento,
+  mensajeError, prioridadInfo, vencimiento, RUTA_TICKETS, rutaDeCaso,
 } from '../../utils/tareas-ui';
 import { TareaAvatarComponent } from '../avatar/avatar.component';
 import { Eleccion, PersonaPickerComponent } from '../persona-picker/persona-picker.component';
 import { AdjuntosComponent } from '../adjuntos/adjuntos.component';
+import { MesaSoporteService } from '../../services/mesa-soporte.service';
+import { PermissionsService } from '@/app/core/services/permissions.service';
 import { TareaIaComponent } from '../tarea-ia/tarea-ia.component';
 import { AvisoDialogComponent } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 
@@ -118,6 +120,10 @@ export class TareaDetalleComponent implements OnInit {
   readonly seguidores = computed(() => (this.t()?.watchers ?? []).map(w => w.usuario_id));
   readonly comentarios = computed(() => this.t()?.comments ?? []);
   readonly origen = computed(() => etiquetaOrigen(this.t()?.origen_tipo));
+  /** Caso de origen cuando es un ticket: su título y estado (control de estado tarea ↔ caso). */
+  readonly caso = signal<{ titulo: string; estado: string } | null>(null);
+  private readonly mesa = inject(MesaSoporteService);
+  private readonly veTickets = inject(PermissionsService).canReadRoute(RUTA_TICKETS);
   readonly eventos = computed<EventoHistorial[]>(() => this.historial().map(h => this.describir(h)));
 
   async ngOnInit(): Promise<void> {
@@ -156,6 +162,9 @@ export class TareaDetalleComponent implements OnInit {
     this.t.set(t);
     this.titulo = t.title;
     this.descripcion = t.description ?? '';
+    if ((t.origen_tipo ?? '').toUpperCase() === 'TICKET' && t.origen_ref && this.veTickets) {
+      this.mesa.detalle(t.origen_ref).then(k => this.caso.set({ titulo: k.titulo, estado: k.estado })).catch(() => this.caso.set(null));
+    }
   }
 
   private async cargarHistorial(): Promise<void> {
@@ -421,11 +430,12 @@ export class TareaDetalleComponent implements OnInit {
   }
 
   irAlOrigen(): void {
-    const url = this.t()?.origen_url;
+    const t = this.t();
+    const url = t ? rutaDeCaso(t) : null;
     if (!url) return;
     if (/^https?:\/\//i.test(url)) { window.open(url, '_blank', 'noopener'); return; }
     this.cerrar.emit();
-    this.router.navigateByUrl(url.startsWith('/') ? url : `/dashboard/${url}`);
+    this.router.navigateByUrl(url);
   }
 
   async eliminar(): Promise<void> {

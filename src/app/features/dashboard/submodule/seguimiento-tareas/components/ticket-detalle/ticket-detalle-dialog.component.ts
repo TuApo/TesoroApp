@@ -199,14 +199,15 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
       origen: { tipo: 'TICKET', ref: t.id, url: `/dashboard/tareas/soporte?ticket=${t.id}`, etiqueta: 'Ticket de soporte' },
     });
     if (tarea) {
+      // El estado lo controla ms-tools: un ticket «Abierto» pasa solo a «En Progreso».
       this.cambios = true;
-      await this.cargarTareas();
-      if (t.estado === 'Abierto') await this.cambiar({ estado: 'En Progreso' }, 'Tarea creada y ticket en progreso');
-      else this.snack.open('Tarea de seguimiento creada', undefined, { duration: 2500 });
+      await this.cargar(true);
+      this.snack.open(t.estado === 'Abierto' ? 'Tarea creada: el ticket pasó a En Progreso' : 'Tarea de seguimiento creada', undefined, { duration: 3000 });
     }
   }
 
-  abrirTarea(id: number): void { this.dialogos.abrirTarea(id).then(c => { if (c) this.cargarTareas(); }); }
+  /** Al volver de la tarea se recarga el ticket: completarla puede haberlo resuelto. */
+  abrirTarea(id: number): void { this.dialogos.abrirTarea(id).then(c => { if (c) { this.cambios = true; this.cargar(true); } }); }
 
   // ── Conversación ──
   elegirArchivo(ev: Event): void {

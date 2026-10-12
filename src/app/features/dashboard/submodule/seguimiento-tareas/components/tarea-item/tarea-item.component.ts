@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { Estado, Tarea } from '../../models/tareas.models';
-import { ESTADOS, estadoInfo, etiquetaOrigen, prioridadInfo, vencimiento } from '../../utils/tareas-ui';
+import { ESTADOS, estadoInfo, etiquetaOrigen, prioridadInfo, rutaDeCaso, vencimiento } from '../../utils/tareas-ui';
 import { TareaAvatarComponent } from '../avatar/avatar.component';
 
 /**
@@ -64,7 +65,14 @@ import { TareaAvatarComponent } from '../avatar/avatar.component';
             <span class="ti__cnt" matTooltip="La sigues"><mat-icon>visibility</mat-icon></span>
           }
           @if (t.origen_tipo) {
-            <span class="ti__cnt" [matTooltip]="'Viene de: ' + origen()"><mat-icon>link</mat-icon></span>
+            @if (rutaCaso()) {
+              <button type="button" class="ti__caso" [attr.data-estado]="tonoCaso()" (click)="$event.stopPropagation(); irAlCaso()"
+                      [matTooltip]="'Abrir ' + origen() + (t.origen_ref ? ' · ' + t.origen_ref : '')">
+                <mat-icon>open_in_new</mat-icon>{{ etiquetaCaso() }}@if (caso()) { <b>· {{ caso() }}</b> }
+              </button>
+            } @else {
+              <span class="ti__cnt" [matTooltip]="'Viene de: ' + origen()"><mat-icon>link</mat-icon></span>
+            }
           }
         </div>
       </div>
@@ -128,6 +136,13 @@ import { TareaAvatarComponent } from '../avatar/avatar.component';
     .ti__venc[data-tono="hoy"] { color: var(--warn-fg); font-weight: 700; }
     .ti__venc[data-tono="pronto"] { color: var(--text-2); }
     .ti__cnt--ok { color: var(--ok-fg); }
+    .ti__caso { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--violet-border); background: var(--violet-bg);
+                color: var(--violet-fg); border-radius: 999px; padding: 1px 9px 1px 6px; font: inherit; font-size: 11.5px; font-weight: 700;
+                cursor: pointer; min-height: 0 !important; max-width: 100%; white-space: nowrap; }
+    .ti__caso b { font-weight: 800; }
+    .ti__caso:hover { filter: brightness(.97); text-decoration: underline; }
+    .ti__caso[data-estado="ok"] { border-color: var(--ok-border); background: var(--ok-bg); color: var(--ok-fg); }
+    .ti__caso[data-estado="gris"] { border-color: var(--border); background: var(--surface-3); color: var(--text-2); }
     .ti__lado { display: flex; align-items: center; gap: 4px; flex: none; }
     .ti__mas { border: 0; background: none; color: var(--text-faint); cursor: pointer; border-radius: 8px; padding: 4px;
                display: inline-flex; min-height: 0 !important; }
@@ -145,6 +160,8 @@ export class TareaItemComponent {
   readonly tarea = input.required<Tarea>();
   readonly mostrarContexto = input(true);
   readonly mostrarResponsable = input(true);
+  /** Estado del caso de origen cuando se conoce (p.ej. el del ticket: «En Progreso»). */
+  readonly caso = input<string | null | undefined>(null);
   readonly abrir = output<Tarea>();
   readonly completar = output<Tarea>();
   readonly cambiarEstado = output<{ tarea: Tarea; estado: Estado }>();
@@ -154,4 +171,22 @@ export class TareaItemComponent {
   readonly prioridad = computed(() => prioridadInfo(this.tarea().priority));
   readonly venc = computed(() => vencimiento(this.tarea()));
   readonly origen = computed(() => etiquetaOrigen(this.tarea().origen_tipo));
+  readonly etiquetaCaso = computed(() => {
+    const tipo = (this.tarea().origen_tipo ?? '').toUpperCase();
+    return tipo === 'TICKET' ? 'Ticket' : tipo === 'REUNION' || tipo === 'COMPROMISO' ? 'Reunión' : tipo === 'TAREA' ? 'Tarea madre' : 'Caso';
+  });
+  readonly tonoCaso = computed(() => {
+    const c = (this.caso() ?? '').toLowerCase();
+    return c.startsWith('resuel') ? 'ok' : c.startsWith('cerrad') ? 'gris' : 'curso';
+  });
+  private readonly router = inject(Router);
+
+  /** Lleva al registro del proceso de donde salió la tarea (ticket, reunión, tarea madre...). */
+  readonly rutaCaso = computed(() => rutaDeCaso(this.tarea()));
+  irAlCaso(): void {
+    const url = this.rutaCaso();
+    if (!url) return;
+    if (/^https?:\/\//.test(url)) window.open(url, '_blank', 'noopener');
+    else this.router.navigateByUrl(url);
+  }
 }

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { skip } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,9 +15,11 @@ import { TareasApiService } from '../../services/tareas-api.service';
 import { DirectorioService, sinTildes } from '../../services/directorio.service';
 import { TareasDialogosService } from '../../services/tareas-dialogos.service';
 import { TareasEventosService } from '../../services/tareas-eventos.service';
+import { MesaSoporteService, TicketMesa, prioridadTicket } from '../../services/mesa-soporte.service';
+import { PermissionsService } from '@/app/core/services/permissions.service';
 import { Alcance, Estado, Tarea } from '../../models/tareas.models';
 import {
-  ESTADOS, GRUPOS_VENCIMIENTO, PRIORIDADES, compararTareas, estadoInfo, grupoVencimiento, mensajeError,
+  ESTADOS, GRUPOS_VENCIMIENTO, PRIORIDADES, RUTA_TICKETS, compararTareas, estadoInfo, etiquetaOrigen, grupoVencimiento, hace, mensajeError,
 } from '../../utils/tareas-ui';
 import { TareaItemComponent } from '../../components/tarea-item/tarea-item.component';
 import { TareaAvatarComponent } from '../../components/avatar/avatar.component';
@@ -25,25 +27,30 @@ import { TareaAvatarComponent } from '../../components/avatar/avatar.component';
 type Agrupar = 'vencimiento' | 'tablero' | 'responsable' | 'estado';
 interface Seccion { clave: string; titulo: string; icono: string; tareas: Tarea[]; plegada: boolean; avatar?: string | null; acento?: string | null }
 
-const ALCANCES: { clave: Exclude<Alcance, 'todas'>; titulo: string; icono: string; vacio: string }[] = [
+type Vista = Exclude<Alcance, 'todas'>;
+
+const ALCANCES: { clave: Vista; titulo: string; icono: string; vacio: string }[] = [
   { clave: 'asignadas', titulo: 'Asignadas a mí', icono: 'assignment_ind',
     vacio: 'No tienes tareas pendientes. Cuando alguien te asigne una (a ti o a uno de tus grupos) aparecerá aquí y te llegará un aviso.' },
   { clave: 'delegadas', titulo: 'Delegadas por mí', icono: 'forward_to_inbox',
     vacio: 'Aquí ves el avance de lo que pediste a otras personas. Crea una tarea y asígnasela a alguien para darle seguimiento.' },
   { clave: 'sigo', titulo: 'Las que sigo', icono: 'visibility',
     vacio: 'Sigue una tarea (botón «Seguir» en su detalle) para recibir sus comentarios, cambios y el cierre aunque no seas el responsable.' },
+  { clave: 'areas', titulo: 'De mis áreas', icono: 'groups',
+    vacio: 'Aquí ves el trabajo de los espacios (áreas y equipos) de los que eres miembro, aunque no esté a tu nombre.' },
 ];
 
 /**
- * "Mis tareas": la vista de trabajo diario. Responde a tres preguntas sin abrir tableros:
- * qué tengo que hacer (asignadas a mí o a mis grupos), cómo va lo que pedí (delegadas) y
- * qué estoy siguiendo. Agrupa por urgencia y deja completar o cambiar estado en un clic.
+ * "Mis tareas": el tablero personal de trabajo diario. Responde sin abrir tableros qué tengo
+ * que hacer (asignadas a mí o a mis grupos), cómo va lo que pedí (delegadas), qué sigo y qué
+ * se mueve en mis áreas. Al lado, los casos de los procesos (tickets a mi cargo y tareas que
+ * nacen de un ticket, una reunión...) con su estado y el acceso directo al caso.
  */
 @Component({
   selector: 'app-mis-tareas',
   standalone: true,
   imports: [
-    FormsModule, MatIconModule, MatButtonModule, MatSelectModule, MatFormFieldModule, MatInputModule,
+    FormsModule, RouterLink, MatIconModule, MatButtonModule, MatSelectModule, MatFormFieldModule, MatInputModule,
     MatProgressSpinnerModule, MatSnackBarModule, MatTooltipModule, TareaItemComponent, TareaAvatarComponent,
   ],
   templateUrl: './mis-tareas.component.html',
@@ -52,7 +59,9 @@ const ALCANCES: { clave: Exclude<Alcance, 'todas'>; titulo: string; icono: strin
 })
 export class MisTareasComponent implements OnInit {
   private readonly api = inject(TareasApiService);
-  private readonly dir = inject(DirectorioService);
+  readonly dir = inject(DirectorioService);
+  private readonly mesa = inject(MesaSoporteService);
+  readonly veTickets = inject(PermissionsService).canReadRoute(RUTA_TICKETS);
   private readonly dialogos = inject(TareasDialogosService);
   private readonly snack = inject(MatSnackBar);
   private readonly route = inject(ActivatedRoute);
@@ -63,8 +72,16 @@ export class MisTareasComponent implements OnInit {
   readonly prioridades = PRIORIDADES;
   readonly estados = ESTADOS;
 
-  readonly alcance = signal<Exclude<Alcance, 'todas'>>('asignadas');
-  readonly datos = signal<Record<string, Tarea[]>>({ asignadas: [], delegadas: [], sigo: [] });
+  readonly alcance = signal<Vista>('asignadas');
+  readonly datos = signal<Record<string, Tarea[]>>({ asignadas: [], delegadas: [], sigo: [], areas: [] });
+  readonly tickets = signal<TicketMesa[]>([]);
+  readonly soloCasos = signal(false);
+  readonly filtrosAbiertos = signal(false);
+  /** En pantallas angostas el panel de casos arranca plegado para no empujar la lista. */
+  readonly casosPlegados = signal(typeof window !== 'undefined' && window.innerWidth <= 1200);
+  readonly prioridadTicket = prioridadTicket;
+  readonly hace = hace;
+  readonly etiquetaOrigen = etiquetaOrigen;
   readonly cargando = signal(true);
   readonly error = signal<string | null>(null);
 
@@ -86,10 +103,41 @@ export class MisTareasComponent implements OnInit {
     const q = sinTildes(this.busqueda().trim());
     const ws = this.espacio();
     const p = this.prioridad();
+    const casos = this.soloCasos();
     return this.tareas().filter(t =>
-      (!q || sinTildes(`${t.title} ${t.board_name ?? ''} ${t.workspace_name ?? ''}`).includes(q)) &&
+      (!q || sinTildes(`${t.title} ${t.board_name ?? ''} ${t.workspace_name ?? ''} ${t.origen_ref ?? ''}`).includes(q)) &&
       (!ws || t.workspace_id === ws) &&
-      (!p || t.priority === p));
+      (!p || t.priority === p) &&
+      (!casos || !!t.origen_tipo));
+  });
+
+  /** Estado de cada ticket (para el chip "Ticket · En Progreso" de las tareas que nacen de uno). */
+  readonly estadosTicket = computed(() => new Map(this.tickets().map(t => [t.id, t.estado])));
+
+  /** Tickets a mi cargo que siguen abiertos (asignado_a guarda el nombre de la persona). */
+  readonly misTickets = computed(() => {
+    const yo = sinTildes(this.dir.yo.nombre);
+    return this.tickets()
+      .filter(t => (t.estado === 'Abierto' || t.estado === 'En Progreso') && sinTildes(t.asignado_a ?? '') === yo)
+      .sort((a, b) => prioridadTicket(b.prioridad).peso - prioridadTicket(a.prioridad).peso);
+  });
+
+  /** Tareas abiertas que nacen de un proceso (ticket, reunión, otra tarea...), de todas mis vistas. */
+  readonly tareasDeCasos = computed(() => {
+    const vistas = new Map<number, Tarea>();
+    for (const k of ['asignadas', 'delegadas', 'sigo'] as const) {
+      for (const t of this.datos()[k] ?? []) if (t.origen_tipo && t.status !== 'DONE') vistas.set(t.id, t);
+    }
+    return [...vistas.values()].sort(compararTareas);
+  });
+
+  readonly saludo = computed(() => {
+    const a = (this.datos()['asignadas'] ?? []).filter(t => t.status !== 'DONE');
+    const venc = a.filter(t => grupoVencimiento(t) === 'vencidas').length;
+    const hoy = a.filter(t => grupoVencimiento(t) === 'hoy').length;
+    const nombre = (this.dir.yo.nombre || '').split(' ')[0];
+    const partes = [venc ? `${venc} vencida${venc === 1 ? '' : 's'}` : '', hoy ? `${hoy} para hoy` : ''].filter(Boolean);
+    return { nombre, texto: partes.length ? `Tienes ${partes.join(' y ')}.` : a.length ? 'Vas al día.' : 'No tienes pendientes asignados.' };
   });
 
   readonly conteos = computed(() => {
@@ -161,8 +209,9 @@ export class MisTareasComponent implements OnInit {
       .subscribe(() => this.cargar(true));
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(q => {
       const v = q.get('vista');
-      if (v === 'asignadas' || v === 'delegadas' || v === 'sigo') this.alcance.set(v);
+      if (v === 'asignadas' || v === 'delegadas' || v === 'sigo' || v === 'areas') this.alcance.set(v);
       if (v === 'delegadas') this.agrupar.set('responsable');
+      if (v === 'areas') this.agrupar.set('tablero');
     });
   }
 
@@ -172,10 +221,12 @@ export class MisTareasComponent implements OnInit {
     if (!silencioso) this.cargando.set(true);
     this.error.set(null);
     try {
-      const [asignadas, delegadas, sigo] = await Promise.all([
+      const [asignadas, delegadas, sigo, areas] = await Promise.all([
         this.api.misTareas('asignadas'), this.api.misTareas('delegadas'), this.api.misTareas('sigo'),
+        this.api.misTareas('areas').catch(() => [] as Tarea[]),
       ]);
-      this.datos.set({ asignadas, delegadas, sigo });
+      this.datos.set({ asignadas, delegadas, sigo, areas });
+      if (this.veTickets) this.mesa.listar().then(t => this.tickets.set(t)).catch(() => this.tickets.set([]));
     } catch (e) {
       this.error.set(mensajeError(e, 'No se pudieron cargar tus tareas.'));
     } finally {
@@ -183,9 +234,9 @@ export class MisTareasComponent implements OnInit {
     }
   }
 
-  elegirAlcance(a: Exclude<Alcance, 'todas'>): void {
+  elegirAlcance(a: Vista): void {
     this.alcance.set(a);
-    this.agrupar.set(a === 'delegadas' ? 'responsable' : 'vencimiento');
+    this.agrupar.set(a === 'delegadas' ? 'responsable' : a === 'areas' ? 'tablero' : 'vencimiento');
     this.router.navigate([], { relativeTo: this.route, queryParams: { vista: a }, replaceUrl: true });
   }
 
@@ -194,10 +245,20 @@ export class MisTareasComponent implements OnInit {
   }
 
   limpiarFiltros(): void {
-    this.busqueda.set(''); this.espacio.set(null); this.prioridad.set(null);
+    this.busqueda.set(''); this.espacio.set(null); this.prioridad.set(null); this.soloCasos.set(false);
   }
 
-  hayFiltros(): boolean { return !!(this.busqueda() || this.espacio() || this.prioridad()); }
+  hayFiltros(): boolean { return !!(this.busqueda() || this.espacio() || this.prioridad() || this.soloCasos()); }
+
+  estadoCaso(t: Tarea): string | null {
+    return (t.origen_tipo ?? '').toUpperCase() === 'TICKET' && t.origen_ref ? this.estadosTicket().get(t.origen_ref) ?? null : null;
+  }
+
+  /** Ver en la lista solo las tareas que vienen de un caso, en la vista de lo asignado. */
+  verCasos(): void {
+    if (this.alcance() !== 'asignadas') this.elegirAlcance('asignadas');
+    this.soloCasos.set(true);
+  }
 
   async abrir(t: Tarea): Promise<void> {
     if (await this.dialogos.abrirTarea(t.id)) this.cargar(true);

@@ -11,8 +11,8 @@ export type Prioridad = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 export type TipoLista = Estado | 'UNASSIGNED';
 export type RolEspacio = 'OWNER' | 'MANAGER' | 'MEMBER' | 'VIEWER';
 
-/** Alcance de "Mis tareas" (GET /matder/my-tasks?scope=). */
-export type Alcance = 'asignadas' | 'delegadas' | 'sigo' | 'todas';
+/** Alcance de "Mis tareas" (GET /matder/my-tasks?scope=); `areas` = espacios de los que soy miembro. */
+export type Alcance = 'asignadas' | 'delegadas' | 'sigo' | 'areas' | 'todas';
 
 export interface EtiquetaTarea {
   id: number;
@@ -381,3 +381,6 @@ export interface IaEstado {
   puede_usar_agentes: boolean;
   max_mb_adjuntos: number;
 }
+
+/** Tareas de cada caso de otro módulo (GET /matder/tasks/by-origin/resumen?tipo=). */
+export interface ResumenCaso { ref: string; total: number; abiertas: number; vencidas: number; hechas: number }

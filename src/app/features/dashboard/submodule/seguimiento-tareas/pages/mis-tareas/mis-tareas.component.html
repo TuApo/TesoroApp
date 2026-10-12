@@ -1,4 +1,6 @@
-<!-- Alcance: qué tengo que hacer / qué pedí / qué sigo -->
+<p class="mt-saludo"><strong>Hola, {{ saludo().nombre }}.</strong> {{ saludo().texto }}</p>
+
+<!-- Alcance: qué tengo que hacer / qué pedí / qué sigo / qué pasa en mis áreas -->
 <div class="mt-alcances" role="tablist" aria-label="Qué tareas ver">
   @for (a of alcances; track a.clave) {
     <button type="button" role="tab" class="mt-alc" [class.mt-alc--on]="alcance() === a.clave"
@@ -20,13 +22,17 @@
   }
 </div>
 
+<div class="mt-layout">
+<div class="mt-principal">
 <!-- Filtros -->
-<div class="mt-filtros">
+<div class="mt-filtros" [class.mt-filtros--abiertos]="filtrosAbiertos()">
   <div class="mt-buscar">
     <mat-icon>search</mat-icon>
     <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Buscar por tarea o tablero"
            aria-label="Buscar tareas">
   </div>
+  <button type="button" class="mt-chip mt-chip--movil" [class.mt-chip--on]="hayFiltros()" (click)="filtrosAbiertos.set(!filtrosAbiertos())"
+          [attr.aria-expanded]="filtrosAbiertos()"><mat-icon>tune</mat-icon>Filtros</button>
   <mat-form-field appearance="outline" subscriptSizing="dynamic" class="mt-sel">
     <mat-label>Espacio</mat-label>
     <mat-select [value]="espacio()" (selectionChange)="espacio.set($event.value)">
@@ -50,10 +56,11 @@
       <mat-option value="responsable">Responsable</mat-option>
     </mat-select>
   </mat-form-field>
+  <button type="button" class="mt-chip" [class.mt-chip--on]="soloCasos()" (click)="soloCasos.set(!soloCasos())" [attr.aria-pressed]="soloCasos()"
+          matTooltip="Solo las que vienen de un ticket, una reunión u otro proceso"><mat-icon>link</mat-icon>Con caso</button>
   @if (hayFiltros()) {
     <button mat-button (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon>Limpiar</button>
   }
-  <button mat-stroked-button class="mt-nueva" (click)="nueva()"><mat-icon>add</mat-icon>Tarea</button>
 </div>
 
 @if (cargando()) {
@@ -94,7 +101,7 @@
       @if (!s.plegada) {
         <div class="mt-lista">
           @for (t of s.tareas; track t.id) {
-            <app-tarea-item [tarea]="t" [mostrarResponsable]="alcance() !== 'asignadas' || !!t.assignee_group"
+            <app-tarea-item [tarea]="t" [caso]="estadoCaso(t)" [mostrarResponsable]="alcance() !== 'asignadas' || !!t.assignee_group"
                             (abrir)="abrir($event)" (completar)="completar($event)" (cambiarEstado)="cambiarEstado($event)" />
           }
         </div>
@@ -102,3 +109,44 @@
     </section>
   }
 }
+</div>
+
+<!-- Casos de los procesos: lo que llega de soporte, reuniones y otros módulos -->
+<aside class="mt-casos" [class.mt-casos--plegado]="casosPlegados()" aria-label="Casos y procesos">
+  <button type="button" class="mt-casos__cab" (click)="casosPlegados.set(!casosPlegados())" [attr.aria-expanded]="!casosPlegados()">
+    <mat-icon>hub</mat-icon><h3>Casos y procesos</h3>
+    <span class="mt-n">{{ misTickets().length + tareasDeCasos().length }}</span>
+    <mat-icon class="mt-casos__flecha">{{ casosPlegados() ? 'expand_more' : 'expand_less' }}</mat-icon>
+  </button>
+  <div class="mt-casos__cuerpo">
+  @if (veTickets) {
+    <section class="mt-casos__sec">
+      <div class="mt-casos__tit"><span>Tickets a mi cargo</span><span class="mt-n">{{ misTickets().length }}</span>
+        <a class="mt-link" routerLink="/dashboard/tareas/soporte">Mesa de soporte</a></div>
+      @for (k of misTickets().slice(0, 6); track k.id) {
+        @let p = prioridadTicket(k.prioridad);
+        <a class="mt-caso" [routerLink]="['/dashboard/tareas/soporte']" [queryParams]="{ ticket: k.id }" [attr.data-p]="p.tono">
+          <span class="mt-caso__tit">{{ k.titulo }}</span>
+          <span class="mt-caso__meta"><b [attr.data-p]="p.tono">{{ p.etiqueta }}</b> · {{ k.estado }} · {{ hace(k.fecha_reporte) }}</span>
+        </a>
+      } @empty {
+        <p class="mt-casos__vacio">Sin tickets abiertos a tu nombre.</p>
+      }
+    </section>
+  }
+  <section class="mt-casos__sec">
+    <div class="mt-casos__tit"><span>Tareas con caso</span><span class="mt-n">{{ tareasDeCasos().length }}</span>
+      @if (tareasDeCasos().length) { <button type="button" class="mt-link" (click)="verCasos()">Ver en la lista</button> }</div>
+    @for (t of tareasDeCasos().slice(0, 6); track t.id) {
+      <div class="mt-caso mt-caso--tarea" role="button" tabindex="0" (click)="abrir(t)" (keydown.enter)="abrir(t)">
+        <span class="mt-caso__tit">{{ t.title }}</span>
+        <span class="mt-caso__meta">{{ etiquetaOrigen(t.origen_tipo) }}{{ estadoCaso(t) ? ' · ' + estadoCaso(t) : '' }}</span>
+      </div>
+    } @empty {
+      <p class="mt-casos__vacio">Cuando una tarea nazca de un ticket, una reunión u otro proceso, aquí verás el caso y su estado.</p>
+    }
+  </section>
+  <p class="mt-casos__nota"><mat-icon>sync</mat-icon>Al completar todas las tareas de un ticket, el ticket pasa solo a «Resuelto».</p>
+  </div>
+</aside>
+</div>

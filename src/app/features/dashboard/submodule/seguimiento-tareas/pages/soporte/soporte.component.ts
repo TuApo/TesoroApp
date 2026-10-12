@@ -10,6 +10,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { DirectorioService, sinTildes } from '../../services/directorio.service';
+import { TareasApiService } from '../../services/tareas-api.service';
+import { ResumenCaso } from '../../models/tareas.models';
 import { ESTADOS_TICKET, MesaSoporteService, PRIORIDADES_TICKET, TicketMesa, prioridadTicket } from '../../services/mesa-soporte.service';
 import { hace, mensajeError } from '../../utils/tareas-ui';
 
@@ -30,6 +32,7 @@ const DIA = 86_400_000;
 })
 export class SoporteComponent implements OnInit {
   private readonly mesa = inject(MesaSoporteService);
+  private readonly api = inject(TareasApiService);
   private readonly dir = inject(DirectorioService);
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
@@ -42,6 +45,8 @@ export class SoporteComponent implements OnInit {
   readonly hace = hace;
 
   readonly tickets = signal<TicketMesa[]>([]);
+  /** Tareas de seguimiento de cada ticket (control de estado: al cerrarlas todas, el ticket se resuelve). */
+  readonly tareasPorTicket = signal<Map<string, ResumenCaso>>(new Map());
   readonly cargando = signal(true);
   readonly error = signal<string | null>(null);
 
@@ -102,7 +107,11 @@ export class SoporteComponent implements OnInit {
     this.cargando.set(true);
     this.error.set(null);
     try {
-      this.tickets.set(await this.mesa.listar());
+      const [tickets, resumen] = await Promise.all([
+        this.mesa.listar(), this.api.resumenPorOrigen('TICKET').catch(() => [] as ResumenCaso[]),
+      ]);
+      this.tickets.set(tickets);
+      this.tareasPorTicket.set(new Map(resumen.map(r => [r.ref, r])));
     } catch (e) {
       this.error.set(mensajeError(e, 'No se pudieron cargar los tickets.'));
     } finally {

@@ -5,7 +5,7 @@ import { environment } from '@/environments/environment';
 import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import {
   Adjunto, Alcance, Comentario, DefinicionTablero, Espacio, Etiqueta, EtiquetaTarea, Grupo, IaEstado, IaTrabajo,
-  ItemChecklist, Lista, MiembroEspacio, MiembroGrupo, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion,
+  ItemChecklist, Lista, MiembroEspacio, MiembroGrupo, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion, ResumenCaso,
   Resumen, RolEspacio, Seguidor, Tablero, Tarea, TareaDefinida, TareaDetalle, TipoLista,
 } from '../models/tareas.models';
 
@@ -62,6 +62,10 @@ export class TareasApiService {
 
   porOrigen(tipo: string, ref: string): Promise<Tarea[]> {
     return this.get<Tarea[]>('/tasks/by-origin', { tipo, ref });
+  }
+  /** Cuántas tareas (abiertas, vencidas, hechas) tiene cada caso de un tipo, p.ej. TICKET. */
+  resumenPorOrigen(tipo: string): Promise<ResumenCaso[]> {
+    return this.get<ResumenCaso[]>('/tasks/by-origin/resumen', { tipo });
   }
 
   // ── Espacios ──

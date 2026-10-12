@@ -62,10 +62,18 @@
         <h2 class="td-titulo__texto">{{ t.title }}</h2>
       }
       @if (t.origen_tipo) {
-        <button type="button" class="td-origen" (click)="irAlOrigen()" [disabled]="!t.origen_url"
+        <button type="button" class="td-origen" (click)="irAlOrigen()" [disabled]="!t.origen_url && t.origen_tipo !== 'TICKET'"
                 [matTooltip]="t.origen_url ? 'Abrir el registro original' : ''">
-          <mat-icon>link</mat-icon>{{ origen() }}{{ t.origen_ref ? ' · ' + t.origen_ref : '' }}
+          <mat-icon>link</mat-icon>
+          @if (caso(); as k) {
+            {{ origen() }} · {{ k.titulo }} <span class="td-caso-est" [attr.data-e]="k.estado">{{ k.estado }}</span>
+          } @else {
+            {{ origen() }}{{ t.origen_ref && t.origen_tipo !== 'TICKET' ? ' · ' + t.origen_ref : '' }}
+          }
         </button>
+        @if (caso() && t.status !== 'DONE') {
+          <small class="td-caso-nota">Al completar todas las tareas de este ticket, el ticket pasa solo a «Resuelto».</small>
+        }
       }
     </div>
 

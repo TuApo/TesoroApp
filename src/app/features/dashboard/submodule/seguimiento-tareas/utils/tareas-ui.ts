@@ -156,6 +156,21 @@ export function etiquetaOrigen(tipo: string | null | undefined): string {
   return tipo ? (m[tipo.toUpperCase()] ?? tipo) : '';
 }
 
+/**
+ * A dónde lleva "Ir al caso" de una tarea que nace de otro módulo. Los tickets abren la Mesa
+ * de soporte con ese ticket; el resto usa origen_url, que los módulos guardan relativa a
+ * /dashboard (p.ej. `reuniones/12`). Devuelve una URL externa tal cual.
+ */
+export function rutaDeCaso(t: { origen_tipo?: string | null; origen_ref?: string | null; origen_url?: string | null }): string | null {
+  if ((t.origen_tipo ?? '').toUpperCase() === 'TICKET' && /^[0-9a-f-]{36}$/i.test(t.origen_ref ?? '')) {
+    return `/dashboard/tareas/soporte?ticket=${t.origen_ref}`;
+  }
+  const url = t.origen_url;
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return url.startsWith('/') ? url : `/dashboard/${url}`;
+}
+
 /** Ícono de Material para un archivo según su tipo. */
 export function iconoArchivo(nombre: string | null | undefined, mime?: string | null): string {
   const m = (mime ?? '').toLowerCase();
