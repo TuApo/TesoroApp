@@ -384,3 +384,29 @@ export interface IaEstado {
 
 /** Tareas de cada caso de otro módulo (GET /matder/tasks/by-origin/resumen?tipo=). */
 export interface ResumenCaso { ref: string; total: number; abiertas: number; vencidas: number; hechas: number }
+
+// ── Chat de IA de una tarea o un ticket (V17) ──
+
+export type AmbitoChat = 'tarea' | 'ticket';
+
+export interface DocumentoChat { uuid: string; nombre: string; tipo: string; tamano: number }
+
+export interface ChatMensaje {
+  id: number;
+  ambito: 'TAREA' | 'TICKET';
+  ref: string;
+  rol: 'USUARIO' | 'ASISTENTE' | 'AGENTE';
+  destino: 'ASISTENTE' | 'AGENTE' | null;
+  contenido: string | null;
+  adjuntos: { uuid: string; nombre: string; mime: string | null; tamano: number }[];
+  documentos: DocumentoChat[];
+  acciones: { pasos?: string[] } | null;
+  estado: 'PENDIENTE' | 'LISTO' | 'ERROR';
+  error: string | null;
+  referencia_externa: string | null;
+  coste_usd: number | null;
+  autor_id: string | null;
+  autor_nombre: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}

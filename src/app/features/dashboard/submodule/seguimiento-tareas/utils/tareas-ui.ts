@@ -188,7 +188,7 @@ export function iconoArchivo(nombre: string | null | undefined, mime?: string | 
 }
 
 /** Cómo se previsualiza un archivo en el visor. */
-export type ModoVista = 'imagen' | 'pdf' | 'video' | 'audio' | 'hoja' | 'csv' | 'texto' | 'documento' | 'ninguna';
+export type ModoVista = 'imagen' | 'pdf' | 'video' | 'audio' | 'hoja' | 'csv' | 'html' | 'texto' | 'documento' | 'ninguna';
 
 export function modoVista(nombre: string | null | undefined, mime?: string | null): ModoVista {
   const m = (mime ?? '').toLowerCase();
@@ -200,6 +200,7 @@ export function modoVista(nombre: string | null | undefined, mime?: string | nul
   if (['xlsx', 'xls', 'xlsm', 'ods'].includes(ext)) return 'hoja';
   if (ext === 'csv' || ext === 'tsv' || m.includes('csv')) return 'csv';
   if (['docx', 'pptx'].includes(ext)) return 'documento';
+  if (['html', 'htm'].includes(ext) || m.includes('text/html')) return 'html';
   if (m.startsWith('text/') || m.includes('json') || m.includes('xml') ||
       ['txt', 'md', 'json', 'xml', 'log', 'sql', 'yml', 'yaml', 'html', 'htm', 'js', 'ts', 'java', 'py', 'css', 'ini', 'sh'].includes(ext)) return 'texto';
   return 'ninguna';

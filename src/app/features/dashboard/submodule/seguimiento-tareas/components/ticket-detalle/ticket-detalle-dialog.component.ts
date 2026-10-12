@@ -18,6 +18,7 @@ import { Sugerencia, Tarea } from '../../models/tareas.models';
 import { estadoInfo, hace, mensajeError, prioridadInfo, vencimiento } from '../../utils/tareas-ui';
 import { Eleccion, PersonaPickerComponent } from '../persona-picker/persona-picker.component';
 import { TareaAvatarComponent } from '../avatar/avatar.component';
+import { IaChatComponent } from '../ia-chat/ia-chat.component';
 
 /** Prioridad del ticket → prioridad de la tarea de seguimiento. */
 const PRIORIDAD_TAREA: Record<string, 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW'> = { Critica: 'URGENT', Alta: 'HIGH', Media: 'MEDIUM', Baja: 'LOW' };
@@ -32,7 +33,7 @@ const PRIORIDAD_TAREA: Record<string, 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW'> = { 
   standalone: true,
   imports: [
     FormsModule, MatDialogModule, MatIconModule, MatButtonModule, MatTooltipModule, MatProgressBarModule, MatProgressSpinnerModule,
-    MatSnackBarModule, PersonaPickerComponent, PanelAgentesTicketComponent, TareaAvatarComponent,
+    MatSnackBarModule, PersonaPickerComponent, PanelAgentesTicketComponent, TareaAvatarComponent, IaChatComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ticket-detalle-dialog.component.html',
@@ -253,6 +254,24 @@ export class TicketDetalleDialogComponent implements OnInit, OnDestroy {
       this.enviando.set(false);
     }
   }
+
+  marcarCambio(): void { this.cambios = true; }
+
+  /** Contexto del ticket para los agentes del chat. */
+  readonly contextoAgentes = (): string => {
+    const t = this.t();
+    if (!t) return '';
+    return [
+      `Ticket de soporte #${t.id.slice(0, 8)}: ${t.titulo}`,
+      `Categoría: ${t.categoria} · Prioridad: ${t.prioridad} · Estado: ${t.estado}`,
+      `Reportado por: ${t.usuario || 'usuario'} (${t.rol || 'sin rol'}, sede ${t.sede || 'sin sede'}) en ${t.url_actual || 'pantalla desconocida'}`,
+      `Navegador: ${t.navegador || ''} · Versión: ${t.version_app || ''}`,
+      '', 'Descripción:', t.descripcion,
+      t.ai_analisis ? `\nAnálisis automático previo:\n${t.ai_analisis}` : '',
+      t.console_logs ? `\nErrores de consola (recorte):\n${t.console_logs.slice(0, 4000)}` : '',
+      ...(t.comentarios ?? []).slice(-10).map(c => `- ${c.autor}: ${c.mensaje}`),
+    ].filter(x => x !== '').join('\n');
+  };
 
   irAlModuloClasico(): void {
     if (!this.soporte) return;

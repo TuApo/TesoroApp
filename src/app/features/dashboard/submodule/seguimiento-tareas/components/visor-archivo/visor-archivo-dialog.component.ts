@@ -42,7 +42,7 @@ interface Hoja { nombre: string; filas: string[][] }
           <button mat-icon-button (click)="mover(-1)" aria-label="Anterior" matTooltip="Anterior (←)"><mat-icon>chevron_left</mat-icon></button>
           <button mat-icon-button (click)="mover(1)" aria-label="Siguiente" matTooltip="Siguiente (→)"><mat-icon>chevron_right</mat-icon></button>
         }
-        @if (url()) {
+        @if (urlCruda()) {
           <a mat-icon-button [href]="urlCruda()" target="_blank" rel="noopener" aria-label="Abrir en otra pestaña" matTooltip="Abrir en otra pestaña"><mat-icon>open_in_new</mat-icon></a>
         }
         <button mat-icon-button (click)="descargar()" aria-label="Descargar" matTooltip="Descargar"><mat-icon>download</mat-icon></button>
@@ -61,6 +61,10 @@ interface Hoja { nombre: string; filas: string[][] }
             @case ('video') { <video class="va-media" [src]="url()" controls></video> }
             @case ('audio') { <div class="va-centro"><mat-icon class="va-grande">audiotrack</mat-icon><audio [src]="url()" controls></audio></div> }
             @case ('texto') { <pre class="va-texto">{{ texto() }}</pre> }
+            @case ('html') {
+              <!-- Página renderizada en un marco aislado: sin scripts, formularios ni navegación. -->
+              <iframe class="va-frame" sandbox="" [src]="url()" [title]="a.nombre"></iframe>
+            }
             @case ('documento') {
               @if (texto()) {
                 <p class="va-nota"><mat-icon>info</mat-icon>Vista de texto del documento (sin formato). Descárgalo para verlo con su diseño original.</p>
@@ -165,9 +169,14 @@ export class VisorArchivoDialogComponent implements OnDestroy {
     this.cargar();
   }
 
+  /** Blob de la vista previa HTML: no se ofrece "abrir en otra pestaña" (ahí sí se ejecutaría). */
+  private urlHtml: string | null = null;
+
   private liberar(): void {
     const u = this.urlCruda();
     if (u) URL.revokeObjectURL(u);
+    if (this.urlHtml) URL.revokeObjectURL(this.urlHtml);
+    this.urlHtml = null;
     this.url.set(null);
     this.urlCruda.set(null);
   }
@@ -190,6 +199,11 @@ export class VisorArchivoDialogComponent implements OnDestroy {
         const tipo = a.mime || (modo === 'pdf' ? 'application/pdf' : this.blob.type);
         const u = URL.createObjectURL(tipo && this.blob.type !== tipo ? new Blob([this.blob], { type: tipo }) : this.blob);
         this.urlCruda.set(u);
+        this.url.set(this.sanitizer.bypassSecurityTrustResourceUrl(u));
+      } else if (modo === 'html') {
+        // Como blob text/html dentro de un iframe con sandbox vacío: se ve con su diseño, sin ejecutar nada.
+        const u = URL.createObjectURL(new Blob([await this.blob.text()], { type: 'text/html' }));
+        this.urlHtml = u;
         this.url.set(this.sanitizer.bypassSecurityTrustResourceUrl(u));
       } else if (modo === 'texto') {
         const t = await this.blob.text();

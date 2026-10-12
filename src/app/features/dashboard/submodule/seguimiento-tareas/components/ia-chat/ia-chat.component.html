@@ -1,0 +1,112 @@
+<div class="ch">
+  <div class="ch-lista" #lista aria-live="polite">
+    @if (cargando()) {
+      <p class="ch-vacio">Cargando la conversación…</p>
+    } @else if (!mensajes().length) {
+      <div class="ch-bienvenida">
+        <span class="ch-bienvenida__ico"><mat-icon>forum</mat-icon></span>
+        <strong>Trabaja la solución conversando</strong>
+        <p>Pregunta, sube actas, bases o correos y pide los documentos que necesites: Excel, Word, páginas HTML o CSV.
+          Todo queda guardado aquí y los documentos, en Archivos{{ ambito() === 'tarea' ? ' de la tarea' : '' }}.</p>
+        <div class="ch-sug">
+          @for (s of sugerencias; track s.texto) {
+            <button type="button" class="ch-chip" (click)="usar(s.texto)"><mat-icon>{{ s.icono }}</mat-icon>{{ s.texto }}</button>
+          }
+        </div>
+      </div>
+    }
+
+    @for (m of mensajes(); track m.id) {
+      @switch (m.rol) {
+        @case ('USUARIO') {
+          <div class="ch-msg ch-msg--yo">
+            <div class="ch-burbuja">
+              <span class="ch-meta">{{ autor(m) }}{{ m.destino === 'AGENTE' ? ' → Agentes' : '' }} · {{ hace(m.created_at) }}</span>
+              @if (m.contenido) { <p class="ch-texto">{{ m.contenido }}</p> }
+              @if (m.adjuntos.length) {
+                <div class="ch-adj">
+                  @for (a of m.adjuntos; track a.uuid; let i = $index) {
+                    <button type="button" class="ch-adj__item" (click)="verAdjuntos(m, i)"><mat-icon>{{ icono(a) }}</mat-icon>{{ a.nombre }}</button>
+                  }
+                </div>
+              }
+            </div>
+            <app-tarea-avatar [usuario]="m.autor_id" [tam]="28" />
+          </div>
+        }
+        @default {
+          <div class="ch-msg" [class.ch-msg--agente]="m.rol === 'AGENTE'">
+            <span class="ch-av" [class.ch-av--agente]="m.rol === 'AGENTE'"><mat-icon>{{ m.rol === 'AGENTE' ? 'smart_toy' : 'auto_awesome' }}</mat-icon></span>
+            <div class="ch-burbuja">
+              <span class="ch-meta">{{ m.rol === 'AGENTE' ? 'Agente' : 'Asistente IA' }}{{ m.coste_usd ? ' · US$' + m.coste_usd : '' }} · {{ hace(m.updated_at || m.created_at) }}</span>
+              @if (m.estado === 'PENDIENTE') {
+                <p class="ch-escribiendo"><span class="ch-puntos"><i></i><i></i><i></i></span>
+                  {{ m.rol === 'AGENTE' ? estadoAgente(m) : 'Pensando y preparando la respuesta…' }}</p>
+                @if (m.rol === 'AGENTE') { <small class="ch-nota">Los agentes pueden tardar varios minutos; si el servicio se interrumpe, retoman solos.</small> }
+              } @else if (m.estado === 'ERROR') {
+                <p class="ch-error"><mat-icon>error_outline</mat-icon>{{ m.error || m.contenido || 'No se pudo responder.' }}</p>
+              } @else {
+                @if (m.contenido) { <p class="ch-texto">{{ m.contenido }}</p> }
+              }
+              @if (m.documentos.length) {
+                <div class="ch-docs">
+                  @for (d of m.documentos; track d.uuid; let i = $index) {
+                    <div class="ch-doc" [attr.data-t]="d.tipo">
+                      <span class="ch-doc__ico"><mat-icon>{{ icono(d) }}</mat-icon></span>
+                      <span class="ch-doc__txt"><strong>{{ d.nombre }}</strong><small>{{ d.tipo.toUpperCase() }} · {{ tamano(d.tamano) }}</small></span>
+                      <button type="button" class="ch-doc__btn" (click)="verDocs(m.documentos, i)" matTooltip="Vista previa" aria-label="Vista previa"><mat-icon>visibility</mat-icon></button>
+                      <button type="button" class="ch-doc__btn" (click)="descargar(d)" matTooltip="Descargar" aria-label="Descargar"><mat-icon>download</mat-icon></button>
+                    </div>
+                  }
+                </div>
+              }
+              @if (m.acciones?.pasos?.length) {
+                <div class="ch-pasos">
+                  <span class="ch-lbl">Pasos sugeridos</span>
+                  <ol>@for (p of m.acciones!.pasos!; track $index) { <li>{{ p }}</li> }</ol>
+                  @if (puedeAplicar()) {
+                    <button mat-stroked-button class="ch-aplicar" (click)="agregarPasos(m)"><mat-icon>playlist_add</mat-icon>Agregar al checklist</button>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  @if (disponible() || agentesDisponibles()) {
+    <div class="ch-redactar">
+      @if (agentesDisponibles()) {
+        <div class="ch-destino" role="radiogroup" aria-label="A quién le escribes">
+          <button type="button" role="radio" [attr.aria-checked]="destino() === 'ASISTENTE'" [class.ch-destino--on]="destino() === 'ASISTENTE'"
+                  (click)="destino.set('ASISTENTE')"><mat-icon>auto_awesome</mat-icon>Asistente IA</button>
+          <button type="button" role="radio" [attr.aria-checked]="destino() === 'AGENTE'" [class.ch-destino--on]="destino() === 'AGENTE'"
+                  class="ch-destino--ag" (click)="destino.set('AGENTE')"><mat-icon>smart_toy</mat-icon>Agentes · resolver</button>
+          @if (destino() === 'AGENTE') {
+            <span class="ch-pool" [attr.data-ok]="hayAgentesListos()"><i></i>{{ hayAgentesListos() ? estadoEnjambre()!.pool.listas + ' listos' : 'sin sesión: queda en cola' }}</span>
+          }
+        </div>
+      }
+      @if (archivos().length) {
+        <div class="ch-adj ch-adj--nuevos">
+          @for (f of archivos(); track f.name + $index; let i = $index) {
+            <span class="ch-adj__item"><mat-icon>{{ icono({ nombre: f.name }) }}</mat-icon>{{ f.name }}
+              <button type="button" class="ch-x" (click)="quitarArchivo(i)" [attr.aria-label]="'Quitar ' + f.name"><mat-icon>close</mat-icon></button></span>
+          }
+        </div>
+      }
+      <div class="ch-caja">
+        <input #selector type="file" multiple hidden (change)="elegirArchivos($event)">
+        <button type="button" class="ch-btn" (click)="selector.click()" matTooltip="Adjuntar archivos (cualquier tipo)" aria-label="Adjuntar archivos"><mat-icon>attach_file</mat-icon></button>
+        <textarea [(ngModel)]="texto" (keydown)="teclear($event)" rows="2" maxlength="8000" aria-label="Mensaje"
+                  [placeholder]="destino() === 'AGENTE' ? 'Qué debe resolver el agente (o la siguiente instrucción)…' : 'Escribe, pide un documento o adjunta archivos…'"></textarea>
+        <button type="button" class="ch-enviar" [class.ch-enviar--ag]="destino() === 'AGENTE'" [disabled]="enviando() || (!texto.trim() && !archivos().length)"
+                (click)="enviar()" aria-label="Enviar"><mat-icon>{{ enviando() ? 'hourglass_top' : 'send' }}</mat-icon></button>
+      </div>
+    </div>
+  } @else if (!cargando()) {
+    <p class="ch-vacio">La IA no está disponible en este momento.</p>
+  }
+</div>

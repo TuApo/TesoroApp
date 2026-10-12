@@ -5,7 +5,7 @@ import { environment } from '@/environments/environment';
 import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import {
   Adjunto, Alcance, Comentario, DefinicionTablero, Espacio, Etiqueta, EtiquetaTarea, Grupo, IaEstado, IaTrabajo,
-  ItemChecklist, Lista, MiembroEspacio, MiembroGrupo, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion, ResumenCaso,
+  AmbitoChat, ChatMensaje, ItemChecklist, Lista, MiembroEspacio, MiembroGrupo, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion, ResumenCaso,
   Resumen, RolEspacio, Seguidor, Tablero, Tarea, TareaDefinida, TareaDetalle, TipoLista,
 } from '../models/tareas.models';
 
@@ -236,6 +236,20 @@ export class TareasApiService {
   }
   actualizarIa(id: number, data: { estado?: string; resultado?: string; coste_usd?: number }): Promise<IaTrabajo> {
     return this.patch<IaTrabajo>(`/ia/trabajos/${id}`, data);
+  }
+
+  // ── Chat de IA (tarea o ticket) ──
+  chat(ambito: AmbitoChat, ref: string | number): Promise<ChatMensaje[]> { return this.get<ChatMensaje[]>(`/chat/${ambito}/${ref}`); }
+  enviarChat(ambito: AmbitoChat, ref: string | number, texto: string, adjuntos: string[]): Promise<ChatMensaje[]> {
+    return this.post<ChatMensaje[]>(`/chat/${ambito}/${ref}`, { texto, adjuntos, autor_nombre: this.actor() });
+  }
+  chatMensaje(id: number): Promise<ChatMensaje> { return this.get<ChatMensaje>(`/chat/mensajes/${id}`); }
+  /** Turno de un agente del enjambre (lo crea el front en ms-ai; solo administración). */
+  registrarAgenteChat(ambito: AmbitoChat, ref: string | number, texto: string, referencia: string, adjuntos: string[]): Promise<ChatMensaje[]> {
+    return this.post<ChatMensaje[]>(`/chat/${ambito}/${ref}/agente`, { texto, referencia, adjuntos, autor_nombre: this.actor() });
+  }
+  cerrarAgenteChat(id: number, data: { estado?: 'LISTO' | 'ERROR' | 'PENDIENTE'; contenido?: string; coste_usd?: number; referencia?: string }): Promise<ChatMensaje> {
+    return this.patch<ChatMensaje>(`/chat/mensajes/${id}`, data);
   }
 
   // ── Plantillas ──
