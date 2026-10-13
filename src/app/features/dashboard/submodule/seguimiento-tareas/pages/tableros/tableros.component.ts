@@ -51,9 +51,9 @@ export class TablerosComponent implements OnInit {
     const fav = this.soloFavoritos();
     const lista = this.tableros().filter(t =>
       (!q || sinTildes(`${t.name} ${t.workspace_name} ${t.description ?? ''}`).includes(q)) && (!fav || t.is_favorite));
-    const m = new Map<number, { id: number; nombre: string; tableros: Tablero[] }>();
+    const m = new Map<number, { id: number; nombre: string; privado: boolean; tableros: Tablero[] }>();
     for (const t of lista) {
-      const g = m.get(t.workspace) ?? { id: t.workspace, nombre: t.workspace_name, tableros: [] };
+      const g = m.get(t.workspace) ?? { id: t.workspace, nombre: t.workspace_name, privado: !!t.workspace_privado, tableros: [] };
       g.tableros.push(t);
       m.set(t.workspace, g);
     }

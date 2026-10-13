@@ -14,6 +14,12 @@
           <input matInput [(ngModel)]="nombreNuevo" maxlength="200" (keydown.enter)="crear()"></mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Para qué es (opcional)</mat-label>
           <input matInput [(ngModel)]="descNueva" maxlength="500"></mat-form-field>
+        <div class="es-vis" role="radiogroup" aria-label="Quién lo ve">
+          <button type="button" role="radio" [attr.aria-checked]="privadoNuevo" [class.es-vis--on]="privadoNuevo" (click)="privadoNuevo = true">
+            <mat-icon>lock</mat-icon><span><strong>Privado</strong><small>Solo su dueño y los miembros que agregues</small></span></button>
+          <button type="button" role="radio" [attr.aria-checked]="!privadoNuevo" [class.es-vis--on]="!privadoNuevo" (click)="privadoNuevo = false">
+            <mat-icon>public</mat-icon><span><strong>Público</strong><small>Lo ve toda la oficina</small></span></button>
+        </div>
         <div class="es-alta__acc">
           <button mat-stroked-button (click)="creando.set(false)">Cancelar</button>
           <button mat-flat-button [disabled]="!nombreNuevo.trim()" (click)="crear()">Crear</button>
@@ -28,7 +34,7 @@
           <li>
             <button type="button" class="es-item" [class.es-item--on]="seleccionado()?.id === e.id" (click)="elegir(e)">
               <span class="es-item__ico"><mat-icon>workspaces</mat-icon></span>
-              <span class="es-item__txt"><strong>{{ e.name }}</strong>
+              <span class="es-item__txt"><strong>@if (e.privado) { <mat-icon class="es-candado" aria-label="Privado">lock</mat-icon> }{{ e.name }}</strong>
                 <small>{{ e.board_count }} tableros · {{ e.member_count }} miembros</small></span>
               @if (e.is_favorite) { <mat-icon class="es-fav">star</mat-icon> }
             </button>
@@ -51,8 +57,19 @@
               <mat-icon>{{ e.is_favorite ? 'star' : 'star_outline' }}</mat-icon></button>
           </h2>
           <p>{{ e.description || 'Sin descripción' }}</p>
-          <span class="es-rol">Tu rol: {{ rolDe(e.current_user_role || 'MEMBER') }}</span>
+          <div class="es-chips">
+            <span class="es-rol">Tu rol: {{ rolDe(e.current_user_role || 'MEMBER') }}</span>
+            <span class="es-priv" [class.es-priv--on]="e.privado">
+              <mat-icon>{{ e.privado ? 'lock' : 'public' }}</mat-icon>{{ e.privado ? 'Privado · solo miembros' : 'Público · lo ve la oficina' }}
+            </span>
+          </div>
         </div>
+        @if (e.can_manage_members) {
+          <button mat-stroked-button class="es-priv-btn" [disabled]="cambiandoPrivacidad()" (click)="cambiarPrivacidad(e)"
+                  [matTooltip]="e.privado ? 'Que lo vea toda la oficina' : 'Que solo lo vean sus miembros'">
+            <mat-icon>{{ e.privado ? 'lock_open' : 'lock' }}</mat-icon>{{ e.privado ? 'Hacer público' : 'Hacer privado' }}
+          </button>
+        }
         @if (e.can_delete_workspace) {
           <button mat-stroked-button class="es-peligro" (click)="eliminar(e)"><mat-icon>delete</mat-icon>Eliminar</button>
         }

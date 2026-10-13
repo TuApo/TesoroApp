@@ -132,6 +132,7 @@ export interface Tablero {
   accent: string | null;
   can_manage_content: boolean;
   is_favorite?: boolean;
+  workspace_privado?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -159,6 +160,8 @@ export interface Espacio {
   can_create_boards: boolean;
   can_delete_workspace: boolean;
   is_favorite?: boolean;
+  /** Privado: solo su dueño y sus miembros lo ven (quien esté en una tarea ve esa tarea). */
+  privado?: boolean;
   created_at: string;
   updated_at: string;
 }

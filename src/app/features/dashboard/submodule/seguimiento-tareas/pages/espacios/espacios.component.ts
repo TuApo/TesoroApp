@@ -73,6 +73,9 @@ export class EspaciosComponent {
   readonly creando = signal(false);
   nombreNuevo = '';
   descNueva = '';
+  /** Los espacios nuevos nacen privados (solo quien tenga ingreso los ve). */
+  privadoNuevo = true;
+  readonly cambiandoPrivacidad = signal(false);
   readonly creandoGrupo = signal(false);
   nombreGrupo = '';
   descGrupo = '';
@@ -137,13 +140,32 @@ export class EspaciosComponent {
     const nombre = this.nombreNuevo.trim();
     if (!nombre) return;
     try {
-      const e = await this.api.crearEspacio({ name: nombre, description: this.descNueva.trim() || null });
+      const e = await this.api.crearEspacio({ name: nombre, description: this.descNueva.trim() || null, privado: this.privadoNuevo });
       this.creando.set(false);
-      this.nombreNuevo = ''; this.descNueva = '';
+      this.nombreNuevo = ''; this.descNueva = ''; this.privadoNuevo = true;
       await this.cargar();
       this.elegir(e);
       this.snack.open('Espacio creado: ahora agrega a tu equipo', undefined, { duration: 3000 });
     } catch (err) { this.snack.open(mensajeError(err), 'Cerrar', { duration: 4500 }); }
+  }
+
+  /** Privado ↔ público. Al volverlo privado, quien no es miembro deja de verlo (salvo sus propias tareas). */
+  async cambiarPrivacidad(e: Espacio): Promise<void> {
+    const privado = !e.privado;
+    if (privado && !(await this.confirmar(`¿Hacer privado «${e.name}»?`,
+      `Solo lo verán su dueño y sus <b>${this.activos().length} miembros</b>. Quien no sea miembro dejará de ver sus tableros; ` +
+      'si tiene una tarea asignada allí, seguirá viendo solo esa tarea.', 'Hacer privado'))) return;
+    this.cambiandoPrivacidad.set(true);
+    try {
+      const n = await this.api.actualizarEspacio(e.id, { privado });
+      this.seleccionado.set({ ...e, ...n });
+      this.espacios.update(l => l.map(x => x.id === e.id ? { ...x, privado: n.privado } : x));
+      this.snack.open(privado ? 'Ahora es privado: solo lo ven sus miembros' : 'Ahora es público para la oficina', undefined, { duration: 3000 });
+    } catch (err) {
+      this.snack.open(mensajeError(err), 'Cerrar', { duration: 4500 });
+    } finally {
+      this.cambiandoPrivacidad.set(false);
+    }
   }
 
   async eliminar(e: Espacio): Promise<void> {

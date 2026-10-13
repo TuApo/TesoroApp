@@ -71,8 +71,12 @@ export class TareasApiService {
   // ── Espacios ──
   espacios(): Promise<Espacio[]> { return this.get<Espacio[]>('/workspaces/'); }
   espacio(id: number): Promise<Espacio> { return this.get<Espacio>(`/workspaces/${id}/`); }
-  crearEspacio(data: { name: string; description?: string | null }): Promise<Espacio> {
+  crearEspacio(data: { name: string; description?: string | null; privado?: boolean }): Promise<Espacio> {
     return this.post<Espacio>('/workspaces/', data);
+  }
+  /** Nombre, descripción o privacidad (dueño o gestor). */
+  actualizarEspacio(id: number, data: { name?: string; description?: string | null; privado?: boolean }): Promise<Espacio> {
+    return this.patch<Espacio>(`/workspaces/${id}`, data);
   }
   eliminarEspacio(id: number): Promise<unknown> { return this.del(`/workspaces/${id}/`); }
   miembros(espacioId: number): Promise<MiembroEspacio[]> {
