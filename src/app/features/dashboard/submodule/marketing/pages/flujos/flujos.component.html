@@ -1,0 +1,153 @@
+<section class="fl">
+  <header class="fl-cab">
+    <div>
+      <a class="fl-volver" routerLink="/dashboard/marketing/ordenes"><mat-icon>arrow_back</mat-icon> Órdenes</a>
+      <h2>Flujos de generación con IA</h2>
+      <p class="os-sub">Recetas de varios pasos (Claude → Higgsfield → revisión → render…) que producen las versiones
+        de las órdenes. Se ajustan aquí, sin desplegar; las generaciones ya lanzadas siguen con su copia.</p>
+    </div>
+    <button type="button" class="os-btn os-btn--prim" (click)="nuevo()"><mat-icon>add</mat-icon> Nuevo flujo</button>
+  </header>
+
+  @if (proveedores(); as p) {
+    <div class="fl-prov">
+      <div class="fl-prov__item" [class.fl-prov__item--ok]="p.texto.claude_configurado" [class.fl-prov__item--medio]="!p.texto.claude_configurado && p.texto.activo !== 'NINGUNO'">
+        <mat-icon>edit_note</mat-icon>
+        <div><b>Texto: {{ p.texto.activo === 'CLAUDE' ? 'Claude' : p.texto.activo === 'MS_AI' ? 'ms-ai (respaldo)' : 'sin proveedor' }}</b>
+          <span class="os-meta">{{ p.texto.claude_configurado ? p.texto.claude_modelo + ' · ' : '' }}{{ p.texto.nota }}</span></div>
+      </div>
+      <div class="fl-prov__item" [class.fl-prov__item--ok]="p.higgsfield.configurado">
+        <mat-icon>auto_awesome</mat-icon>
+        <div><b>Higgsfield</b><span class="os-meta">{{ p.higgsfield.configurado ? 'Listo (API de plataforma)' : p.higgsfield.falta }}</span></div>
+      </div>
+      <div class="fl-prov__item" [class.fl-prov__item--ok]="p.elevenlabs.configurado">
+        <mat-icon>record_voice_over</mat-icon>
+        <div><b>ElevenLabs</b><span class="os-meta">{{ p.elevenlabs.configurado ? 'Listo' : p.elevenlabs.falta }}</span></div>
+      </div>
+      <div class="fl-prov__item" [class.fl-prov__item--ok]="p.render.configurado">
+        <mat-icon>picture_as_pdf</mat-icon>
+        <div><b>Render (Chromium)</b><span class="os-meta">{{ p.render.configurado ? 'Listo' : 'No responde' }}</span></div>
+      </div>
+    </div>
+  }
+
+  @if (cargando()) {
+    <p class="os-cargando">Cargando…</p>
+  } @else {
+    <div class="fl-lista">
+      @for (f of flujos(); track f.id) {
+        <article class="fl-item" [class.fl-item--off]="!f.activo">
+          <div class="fl-item__cab">
+            <div>
+              <h3>{{ f.nombre }}</h3>
+              <span class="os-meta"><span class="os-codigo">{{ f.codigo }}</span> · {{ etiquetaTipo(f.tipo_entregable) }}
+                · {{ f.entrada === 'NINGUNA' ? 'crea desde cero' : 'edita: ' + (f.entrada | lowercase) }} · v{{ f.version }}</span>
+            </div>
+            <div class="fl-item__etqs">
+              @if (f.experimental) { <span class="os-etq os-etq--exp">Experimental</span> }
+              @if (!f.activo) { <span class="os-etq">Desactivado</span> }
+            </div>
+          </div>
+          <p class="os-ayuda">{{ f.descripcion }}</p>
+          <div class="fl-cadena">
+            @for (s of f.resumen_pasos; track s.clave; let ultimo = $last) {
+              <span class="fl-paso" [class.fl-paso--res]="s.resultado">
+                <mat-icon>{{ iconoPaso[s.tipo] }}</mat-icon> {{ s.titulo || s.clave }}
+                <small>{{ nombrePaso[s.tipo] }}{{ s.opcional ? ' · opcional' : '' }}</small>
+              </span>
+              @if (!ultimo) { <mat-icon class="fl-flecha">chevron_right</mat-icon> }
+            }
+          </div>
+          @if (f.faltantes.length) {
+            <div class="os-aviso"><mat-icon>key_off</mat-icon><div>{{ f.faltantes.join(' ') }}</div></div>
+          }
+          <div class="fl-item__acciones">
+            <button type="button" class="os-btn os-btn--chico" (click)="abrir(f)"><mat-icon>tune</mat-icon> Ver y editar</button>
+            <button type="button" class="os-btn os-btn--chico" (click)="duplicar(f)"><mat-icon>content_copy</mat-icon> Duplicar para probar</button>
+          </div>
+        </article>
+      }
+    </div>
+  }
+
+  @if (editando()) {
+    <div class="os-telon" (click)="editando.set(null)">
+      <div class="os-panel fl-editor" (click)="$event.stopPropagation()">
+        <div class="os-panel__cab">
+          <h3>{{ esNuevo() ? 'Nuevo flujo' : nombre }}</h3>
+          <button type="button" class="os-icono" (click)="editando.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+        </div>
+        @if (!esAdmin()) { <div class="os-aviso"><mat-icon>lock</mat-icon> Solo el equipo de marketing puede guardar cambios.</div> }
+
+        <div class="os-rejilla">
+          @if (esNuevo()) {
+            <label class="os-campo"><span>Código</span><input [(ngModel)]="codigo" placeholder="VIDEO_TESTIMONIO" /></label>
+          }
+          <label class="os-campo"><span>Nombre</span><input [(ngModel)]="nombre" /></label>
+          <label class="os-campo">
+            <span>Entregable</span>
+            <select [(ngModel)]="tipoEntregable">@for (t of tipos; track t.clave) { <option [value]="t.clave">{{ t.etiqueta }}</option> }</select>
+          </label>
+          <label class="os-campo">
+            <span>Archivo de partida</span>
+            <select [(ngModel)]="entrada">@for (e of entradas; track e) { <option [value]="e">{{ e === 'NINGUNA' ? 'Ninguno (crea)' : e | titlecase }}</option> }</select>
+          </label>
+        </div>
+        <label class="os-campo"><span>Descripción</span><textarea rows="2" [(ngModel)]="descripcion"></textarea></label>
+        <div class="fl-checks">
+          <label class="os-check"><input type="checkbox" [(ngModel)]="activo" /> Activo</label>
+          <label class="os-check"><input type="checkbox" [(ngModel)]="experimental" /> Experimental</label>
+        </div>
+
+        <label class="os-campo">
+          <span>Pasos (JSON)</span>
+          <textarea class="fl-json" rows="22" spellcheck="false" [(ngModel)]="pasosTexto"></textarea>
+        </label>
+
+        @if (problemas().length) {
+          <div class="os-alerta"><mat-icon>error_outline</mat-icon>
+            <ul class="fl-problemas">@for (pr of problemas(); track $index) { <li>{{ pr }}</li> }</ul>
+          </div>
+        }
+
+        <details class="fl-ayuda" ngNonBindable>
+          <summary>Tipos de paso y variables</summary>
+          <ul>
+            <li><b>IA_TEXTO</b> (Claude): <code>prompt</code>, <code>system</code>, <code>formato</code> texto|json|html,
+              <code>esquema</code> (si json), <code>max_tokens</code>, <code>esfuerzo</code> low|medium|high,
+              <code>adjuntar</code> ["&#123;&#123;base.archivo&#125;&#125;"], <code>guardar_como</code> &#123;nombre, mime&#125;.</li>
+            <li><b>HIGGSFIELD</b>: <code>modelo</code> (ruta REST), <code>parametros</code> &#123;prompt, aspect_ratio, image_url…&#125;, <code>nombre</code>.</li>
+            <li><b>RENDER_PDF</b>: <code>html</code>, <code>tamano</code> A4|CARTA|OFICIO, <code>horizontal</code>, <code>margen_mm</code>.</li>
+            <li><b>RENDER_IMAGEN</b>: <code>html</code>, <code>ancho</code>, <code>alto</code>, <code>formato</code> PNG|JPG.</li>
+            <li><b>TTS</b> (ElevenLabs): <code>texto</code>, <code>voz</code>, <code>modelo</code>.</li>
+            <li><b>REVISION</b>: <code>mensaje</code>. Detiene el flujo hasta que alguien lo deja seguir.</li>
+            <li>En cada paso: <code>clave</code>, <code>titulo</code>, <code>resultado</code> (su archivo es la versión), <code>opcional</code> (si falla o falta el proveedor, se omite).</li>
+          </ul>
+          <p class="os-meta">Variables: &#123;&#123;orden.titulo|brief|objetivo|publico|canales&#125;&#125; · &#123;&#123;entregable.titulo&#125;&#125; ·
+            &#123;&#123;espec.clave|respaldo&#125;&#125; · &#123;&#123;marca.nombre|tono|paleta&#125;&#125; · &#123;&#123;instrucciones&#125;&#125; · &#123;&#123;revisiones&#125;&#125; ·
+            &#123;&#123;insumos&#125;&#125; · &#123;&#123;base.nombre|texto|archivo&#125;&#125; · &#123;&#123;base.pasos.X.json.campo&#125;&#125; ·
+            &#123;&#123;pasos.X.texto|html|json.campo|archivo&#125;&#125;</p>
+        </details>
+
+        <details class="fl-ayuda">
+          <summary>Catálogo de modelos de Higgsfield ({{ modelos().length }})</summary>
+          <ul class="fl-modelos">
+            @for (m of modelos(); track m.modelo_id) {
+              <li>
+                <button type="button" class="os-btn os-btn--chico" (click)="copiar(m.ruta_api)" title="Copiar la ruta"><mat-icon>content_copy</mat-icon></button>
+                <div><b>{{ m.nombre }}</b> <span class="os-etq">{{ m.tipo_salida }}</span>
+                  <code>{{ m.ruta_api }}</code><span class="os-meta"> {{ m.descripcion }}</span></div>
+              </li>
+            }
+          </ul>
+        </details>
+
+        <div class="os-panel__pie">
+          <button type="button" class="os-btn" (click)="validar()"><mat-icon>rule</mat-icon> Validar</button>
+          <button type="button" class="os-btn os-btn--prim" (click)="guardar()" [disabled]="guardando()">
+            <mat-icon>save</mat-icon> {{ guardando() ? 'Guardando…' : 'Guardar' }}</button>
+        </div>
+      </div>
+    </div>
+  }
+</section>

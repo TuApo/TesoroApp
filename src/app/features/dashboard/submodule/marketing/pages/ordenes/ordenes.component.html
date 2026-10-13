@@ -1,0 +1,192 @@
+<section class="os">
+
+  <header class="os-cab">
+    <div>
+      <h2>Órdenes de servicio</h2>
+      <p class="os-sub">Pide a marketing un video, un PDF, un curso, una pieza o un texto. Cada pedido
+        guarda sus versiones (hechas con IA o subidas a mano), las revisiones y la evidencia de entrega.</p>
+    </div>
+    <div class="os-cab__acciones">
+      @if (atencion() > 0) {
+        <div class="os-contador" title="Órdenes por revisar o con cambios pedidos">
+          <span class="os-contador__n">{{ atencion() }}</span>
+          <span class="os-contador__t">necesitan<br>atención</span>
+        </div>
+      }
+      <button type="button" class="os-btn os-btn--prim" (click)="nueva()">
+        <mat-icon>add</mat-icon> Nueva orden
+      </button>
+    </div>
+  </header>
+
+  <div class="os-barra">
+    <div class="os-filtros" role="group" aria-label="Filtrar por estado">
+      <button type="button" [class.activo]="filtroEstado() === ''" (click)="filtrar('')">Todas</button>
+      @for (e of estados; track e.clave) {
+        <button type="button" [class.activo]="filtroEstado() === e.clave" (click)="filtrar(e.clave)">
+          {{ e.etiqueta }}
+          @if (porEstado()[e.clave]) { <span class="os-filtros__n">{{ porEstado()[e.clave] }}</span> }
+        </button>
+      }
+    </div>
+    <input class="os-buscador" type="search" placeholder="Buscar por código, título, quién pidió…"
+           [ngModel]="busca()" (ngModelChange)="buscar($event)" />
+    @if (esAdmin()) {
+      <label class="os-check"><input type="checkbox" [checked]="mias()" (change)="alternarMias()" /> Solo las mías</label>
+    }
+  </div>
+
+  @if (cargando()) {
+    <p class="os-cargando">Cargando…</p>
+  } @else if (!ordenes().length) {
+    <div class="os-vacio">
+      <mat-icon>assignment</mat-icon>
+      <p>No hay órdenes con ese filtro.</p>
+      <button type="button" class="os-btn" (click)="nueva()"><mat-icon>add</mat-icon> Pedir algo a marketing</button>
+    </div>
+  } @else {
+    <ul class="os-lista">
+      @for (o of ordenes(); track o.id) {
+        <li (click)="abrir(o)" [class]="'os-fila os-fila--' + o.estado.toLowerCase()">
+          <mat-icon class="os-fila__icono">{{ iconoTipo(o.tipo) }}</mat-icon>
+          <div class="os-fila__datos">
+            <div class="os-fila__titulo">
+              <span class="os-codigo">{{ o.codigo }}</span>
+              <span class="os-fila__nombre">{{ o.titulo }}</span>
+              @if (o.prioridad === 'ALTA' || o.prioridad === 'URGENTE') {
+                <span class="os-etq os-etq--prioridad">{{ o.prioridad }}</span>
+              }
+            </div>
+            <div class="os-meta">
+              {{ etiquetaTipo(o.tipo) }}
+              · pidió {{ o.solicitante_nombre || '—' }}
+              @if (o.responsable_nombre) { · a cargo de {{ o.responsable_nombre }} } @else { · <em>sin responsable</em> }
+              @if (o.relacion_etiqueta) { · {{ o.relacion_etiqueta }} }
+            </div>
+          </div>
+          <div class="os-fila__lado">
+            <span [class]="'os-estado os-estado--' + o.estado.toLowerCase()">{{ etiqueta[o.estado] }}</span>
+            <span class="os-meta">
+              {{ o.entregables_listos }}/{{ o.entregables_total }} entregados
+              @if (o.fecha_requerida) {
+                · <span [class.os-vencida]="vencida(o)">para {{ o.fecha_requerida | date: 'd MMM' }}</span>
+              }
+            </span>
+          </div>
+        </li>
+      }
+    </ul>
+  }
+
+  <!-- ── nueva orden ─────────────────────────────────────────────────────── -->
+  @if (creando()) {
+    <div class="os-telon" (click)="creando.set(false)">
+      <form class="os-panel" (click)="$event.stopPropagation()" (ngSubmit)="guardar()">
+        <div class="os-panel__cab">
+          <h3>Nueva orden de servicio</h3>
+          <button type="button" class="os-icono" (click)="creando.set(false)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+        </div>
+
+        <label class="os-campo">
+          <span>¿Qué necesitas?</span>
+          <input name="titulo" [(ngModel)]="titulo" required maxlength="200" placeholder="Ej.: Video para la feria de empleo de Facatativá" />
+        </label>
+
+        <div class="os-rejilla">
+          <label class="os-campo">
+            <span>Tipo principal</span>
+            <select name="tipo" [ngModel]="tipo" (ngModelChange)="cambiarTipoOrden($event)">
+              @for (t of tipos; track t.clave) { <option [value]="t.clave">{{ t.etiqueta }}</option> }
+            </select>
+          </label>
+          <label class="os-campo">
+            <span>Marca</span>
+            <select name="marca" [(ngModel)]="marcaId">
+              @for (m of marcas(); track m.id) { <option [ngValue]="m.id">{{ m.nombre }}</option> }
+            </select>
+          </label>
+          <label class="os-campo">
+            <span>Prioridad</span>
+            <select name="prioridad" [(ngModel)]="prioridad">
+              <option value="BAJA">Baja</option><option value="MEDIA">Media</option>
+              <option value="ALTA">Alta</option><option value="URGENTE">Urgente</option>
+            </select>
+          </label>
+          <label class="os-campo">
+            <span>Para cuándo</span>
+            <input type="date" name="fecha" [(ngModel)]="fechaRequerida" [min]="hoy" />
+          </label>
+        </div>
+
+        <label class="os-campo">
+          <span>Brief: qué, para quién y qué debe decir</span>
+          <textarea name="brief" rows="4" [(ngModel)]="brief"
+                    placeholder="Datos concretos: fechas, lugar, cargos, requisitos, qué no puede faltar. La IA no inventa lo que no esté aquí."></textarea>
+        </label>
+        <div class="os-rejilla os-rejilla--2">
+          <label class="os-campo"><span>Objetivo</span><input name="objetivo" [(ngModel)]="objetivo" placeholder="Ej.: que lleguen 200 personas" /></label>
+          <label class="os-campo"><span>Público</span><input name="publico" [(ngModel)]="publico" placeholder="Ej.: jóvenes de 18 a 30 años" /></label>
+        </div>
+
+        <div class="os-campo">
+          <span>Dónde se va a publicar</span>
+          <div class="os-chips">
+            @for (c of canales; track c) {
+              <button type="button" class="os-chip" [class.activo]="canalesElegidos.has(c)" (click)="alternarCanal(c)">{{ c | titlecase }}</button>
+            }
+          </div>
+        </div>
+
+        <div class="os-rejilla os-rejilla--2">
+          <label class="os-campo">
+            <span>Relacionada con</span>
+            <select name="relacion" [(ngModel)]="relacionTipo">
+              <option value="">Nada en particular</option>
+              <option value="VACANTE">Una vacante</option><option value="CAMPANA">Una campaña</option>
+              <option value="CURSO">Un curso de capacitaciones</option><option value="BANNER">Un banner del home</option>
+              <option value="SITIO">Un sitio web</option><option value="LIBRE">Otro</option>
+            </select>
+          </label>
+          @if (relacionTipo) {
+            <label class="os-campo"><span>¿Cuál?</span><input name="relEtq" [(ngModel)]="relacionEtiqueta" placeholder="Nombre o número" /></label>
+          }
+        </div>
+
+        <div class="os-entregables">
+          <div class="os-entregables__cab">
+            <h4>Entregables</h4>
+            <button type="button" class="os-btn os-btn--chico" (click)="agregarEntregable()"><mat-icon>add</mat-icon> Agregar</button>
+          </div>
+          <p class="os-ayuda">Cada cosa que hay que producir por separado: un video vertical, un PDF, tres posts…</p>
+          @for (e of entregables; track $index; let i = $index) {
+            <div class="os-entregable">
+              <select [name]="'et' + i" [ngModel]="e.tipo" (ngModelChange)="cambiarTipoEntregable(e, $event)">
+                @for (t of tipos; track t.clave) { <option [value]="t.clave">{{ t.etiqueta }}</option> }
+              </select>
+              <input [name]="'en' + i" [(ngModel)]="e.titulo" placeholder="Título (opcional)" />
+              @for (c of camposEspec[e.tipo] || []; track c.clave) {
+                @if (c.opciones) {
+                  <select [name]="'es' + i + c.clave" [(ngModel)]="e.espec[c.clave]" [title]="c.etiqueta">
+                    @for (op of c.opciones; track op) { <option [value]="op">{{ c.etiqueta }}: {{ op }}</option> }
+                  </select>
+                } @else {
+                  <input [name]="'es' + i + c.clave" type="number" min="1" [(ngModel)]="e.espec[c.clave]" [placeholder]="c.etiqueta" class="os-num" />
+                }
+              }
+              @if (entregables.length > 1) {
+                <button type="button" class="os-icono" (click)="quitarEntregable(i)" aria-label="Quitar"><mat-icon>delete_outline</mat-icon></button>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="os-panel__pie">
+          <button type="button" class="os-btn" (click)="creando.set(false)">Cancelar</button>
+          <button type="submit" class="os-btn os-btn--prim" [disabled]="guardando()">
+            <mat-icon>send</mat-icon> {{ guardando() ? 'Creando…' : 'Crear orden' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  }
+</section>

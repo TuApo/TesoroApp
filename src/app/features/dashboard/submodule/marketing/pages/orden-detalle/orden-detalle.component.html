@@ -1,0 +1,492 @@
+<section class="od">
+  <a class="od-volver" routerLink="/dashboard/marketing/ordenes"><mat-icon>arrow_back</mat-icon> Órdenes</a>
+
+  @if (cargando()) {
+    <p class="os-cargando">Cargando…</p>
+  } @else if (orden(); as o) {
+    @let p = permisos()!;
+
+    <!-- ── cabecera ─────────────────────────────────────────────────────── -->
+    <header class="od-cab">
+      <div class="od-cab__titulo">
+        <mat-icon class="od-cab__icono">{{ iconoTipo(o.tipo) }}</mat-icon>
+        <div>
+          <div class="od-cab__fila">
+            <span class="os-codigo">{{ o.codigo }}</span>
+            <span [class]="'os-estado os-estado--' + o.estado.toLowerCase()">{{ etiqueta[o.estado] }}</span>
+            @if (o.prioridad === 'ALTA' || o.prioridad === 'URGENTE') { <span class="os-etq os-etq--prioridad">{{ o.prioridad }}</span> }
+          </div>
+          <h2>{{ o.titulo }}</h2>
+          <p class="os-meta">
+            Pidió {{ o.solicitante_nombre || '—' }} el {{ o.creado_en | date: 'd MMM y, h:mm a' }}
+            @if (o.fecha_requerida) { · para el {{ o.fecha_requerida | date: 'd MMM y' }} }
+            · @if (o.responsable_nombre) { a cargo de <b>{{ o.responsable_nombre }}</b> } @else { <em>sin responsable</em> }
+            @if (o.relacion_etiqueta) { · {{ o.relacion_tipo | titlecase }}: {{ o.relacion_etiqueta }} }
+          </p>
+        </div>
+      </div>
+      <div class="od-cab__acciones">
+        @if (p.es_admin && !o.responsable_id && o.estado !== 'CANCELADA') {
+          <button type="button" class="os-btn os-btn--prim" (click)="tomar()"><mat-icon>pan_tool</mat-icon> Tomarla</button>
+        }
+        @if (o.estado === 'CANCELADA' && p.es_admin) {
+          <button type="button" class="os-btn" (click)="reactivar()"><mat-icon>restore</mat-icon> Reactivar</button>
+        } @else if (o.estado !== 'ENTREGADA' && o.estado !== 'CANCELADA' && (p.es_admin || p.editar)) {
+          <button type="button" class="os-btn os-btn--alerta" (click)="abrir('cancelar')"><mat-icon>block</mat-icon> Cancelar</button>
+        }
+      </div>
+    </header>
+
+    @if (o.estado === 'CANCELADA') {
+      <div class="os-alerta"><mat-icon>block</mat-icon> Orden cancelada{{ o.cancelada_motivo ? ': ' + o.cancelada_motivo : '.' }}</div>
+    }
+
+    <div class="od-rejilla">
+      <!-- ── entregables ─────────────────────────────────────────────────── -->
+      <div class="od-principal">
+        @for (e of det()!.entregables; track e.id) {
+          @let activa = activaDe(e);
+          @let v = versionMostrada(e);
+          <article class="od-ent" [class.od-ent--cancelado]="e.estado === 'CANCELADO'">
+            <div class="od-ent__cab">
+              <div class="od-ent__titulo">
+                <mat-icon>{{ iconoTipo(e.tipo) }}</mat-icon>
+                <div>
+                  <h3>{{ e.titulo }}</h3>
+                  <span class="os-meta">{{ etiquetaTipo(e.tipo) }}@if (espec(e)) { · {{ espec(e) }} }</span>
+                </div>
+              </div>
+              <span [class]="'os-estado os-estado--' + e.estado.toLowerCase()">{{ etiqueta[e.estado] }}</span>
+            </div>
+
+            <!-- generacion en curso -->
+            @if (activa) {
+              <div class="od-ej" [class.od-ej--revision]="activa.estado === 'ESPERANDO_REVISION'">
+                <div class="od-ej__cab">
+                  <div>
+                    <b><mat-icon class="od-girando" [class.od-quieto]="activa.estado === 'ESPERANDO_REVISION'">autorenew</mat-icon>
+                      {{ activa.flujo_nombre }}</b>
+                    <span class="os-meta">
+                      @if (activa.base_archivo_id) { sobre {{ nombreArchivo(activa.base_archivo_id) }} · }
+                      lanzó {{ activa.solicitado_nombre }}
+                    </span>
+                  </div>
+                  <span [class]="'os-estado os-estado--' + activa.estado.toLowerCase()">{{ etiqueta[activa.estado] }}</span>
+                </div>
+                @if (activa.instrucciones) { <p class="od-instr">«{{ activa.instrucciones }}»</p> }
+                <ol class="od-pasos">
+                  @for (ps of activa.pasos; track ps.id) {
+                    <li [class]="'od-paso od-paso--' + ps.estado.toLowerCase()">
+                      <button type="button" class="od-paso__cab" (click)="pasoAbierto.set(pasoAbierto() === ps.id ? null : ps.id)">
+                        <mat-icon>{{ iconoPaso[ps.tipo] || 'circle' }}</mat-icon>
+                        <span class="od-paso__nombre">{{ ps.titulo || ps.clave }}</span>
+                        <span class="os-meta">{{ nombrePaso[ps.tipo] }}@if (ps.modelo && ps.tipo !== 'REVISION') { · {{ ps.modelo }} }</span>
+                        <span [class]="'os-estado os-estado--' + ps.estado.toLowerCase()">{{ etiqueta[ps.estado] || ps.estado }}</span>
+                      </button>
+                      @if (ps.error_detalle) { <p class="od-paso__error">{{ ps.error_detalle }}</p> }
+                      @if (ps.archivo_id && archivoDe(ps.archivo_id); as arch) {
+                        <app-os-vista-archivo class="od-paso__vista" [ordenId]="id()" [archivo]="arch" />
+                      }
+                      @if (pasoAbierto() === ps.id) {
+                        @if (resumenSalida(ps); as res) { <pre class="os-pre">{{ res }}</pre> }
+                        @if (ps.entrada) {
+                          <details class="od-detalles"><summary>Lo que se mandó al proveedor</summary><pre class="os-pre">{{ json(ps.entrada) }}</pre></details>
+                        }
+                      }
+                    </li>
+                  }
+                </ol>
+                @if (p.producir) {
+                  <div class="od-ej__acciones">
+                    @if (activa.estado === 'ESPERANDO_REVISION') {
+                      <button type="button" class="os-btn os-btn--ok" (click)="continuar(activa)"><mat-icon>check</mat-icon> Se ve bien, seguir</button>
+                      <button type="button" class="os-btn" (click)="abrir('rehacer', { entregable: e, ejecucion: activa })"><mat-icon>replay</mat-icon> Rehacer con cambios</button>
+                    }
+                    <button type="button" class="os-btn os-btn--chico os-btn--alerta" (click)="cancelarEjecucion(activa)">Cancelar</button>
+                  </div>
+                }
+              </div>
+            } @else if (ultimaFallidaDe(e); as fallida) {
+              <div class="os-alerta">
+                <mat-icon>error_outline</mat-icon>
+                <div class="od-fallo">
+                  <b>La última generación falló.</b> {{ fallida.error_detalle }}
+                  @if (p.producir) {
+                    <div><button type="button" class="os-btn os-btn--chico" (click)="abrir('rehacer', { entregable: e, ejecucion: fallida })">
+                      <mat-icon>replay</mat-icon> Reintentar</button></div>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- versiones -->
+            @if (e.versiones.length) {
+              <div class="od-versiones">
+                <div class="od-versiones__chips">
+                  @for (x of e.versiones; track x.id) {
+                    <button type="button" class="od-vchip" [class.activo]="v?.id === x.id"
+                            [class.od-vchip--ok]="x.revision === 'APROBADA'" [class.od-vchip--no]="x.revision === 'RECHAZADA'"
+                            (click)="elegirVersion(e, x)">
+                      v{{ x.numero }}
+                      @if (x.origen === 'IA' || x.origen === 'RENDER') { <mat-icon>auto_awesome</mat-icon> }
+                      @if (x.id === e.version_vigente_id) { <mat-icon>verified</mat-icon> }
+                    </button>
+                  }
+                </div>
+                @if (v) {
+                  <div class="od-version">
+                    <app-os-vista-archivo [ordenId]="id()" [archivo]="v" [fuente]="fuenteDe() === v.id" />
+                    <div class="od-version__meta">
+                      <div>
+                        <b>Versión {{ v.numero }}</b>
+                        @if (v.revision) {
+                          <span [class]="'os-estado os-estado--' + (v.revision === 'APROBADA' ? 'aprobada' : v.revision === 'RECHAZADA' ? 'rechazada' : 'en_revision')">
+                            {{ v.revision === 'APROBADA' ? 'Aprobada' : v.revision === 'RECHAZADA' ? 'Cambios pedidos' : 'Por revisar' }}
+                          </span>
+                        }
+                      </div>
+                      <span class="os-meta">
+                        {{ v.origen === 'SUBIDA' ? 'Subida' : 'Generada' }} por {{ v.creado_por_nombre || '—' }} · {{ v.creado_en | date: 'd MMM, h:mm a' }}
+                        @if (meta(v).flujo_nombre) { · {{ meta(v).flujo_nombre }} }
+                        @if (modelosDe(v)) { · {{ modelosDe(v) }} }
+                        @if (v.padre_id) { · parte de {{ nombreArchivo(v.padre_id) }} }
+                      </span>
+                      @if (meta(v).instrucciones) { <span class="os-meta">Instrucciones: «{{ meta(v).instrucciones }}»</span> }
+                      @if (v.descripcion && v.origen === 'SUBIDA') { <span class="os-meta">{{ v.descripcion }}</span> }
+                      @if (v.revision_nota) { <p class="od-nota">«{{ v.revision_nota }}»</p> }
+                    </div>
+                    <div class="od-version__acciones">
+                      @if (v.revision === 'PENDIENTE' && p.revisar && e.estado !== 'ENTREGADO') {
+                        <button type="button" class="os-btn os-btn--ok" (click)="aprobar(v)"><mat-icon>thumb_up</mat-icon> Aprobar</button>
+                        <button type="button" class="os-btn" (click)="abrir('cambios', { entregable: e, archivo: v })"><mat-icon>rate_review</mat-icon> Pedir cambios</button>
+                      }
+                      @if (p.producir && e.estado !== 'ENTREGADO' && e.estado !== 'CANCELADO' && !activa) {
+                        <button type="button" class="os-btn os-btn--ia" (click)="abrir('generar', { entregable: e, archivo: v })">
+                          <mat-icon>auto_fix_high</mat-icon> Iterar con IA</button>
+                      }
+                      @if (v.tiene_binario) {
+                        <button type="button" class="os-btn os-btn--chico" (click)="descargar(v)"><mat-icon>download</mat-icon> Descargar</button>
+                      }
+                      @if (v.tiene_fuente) {
+                        <button type="button" class="os-btn os-btn--chico" (click)="fuenteDe.set(fuenteDe() === v.id ? null : v.id)">
+                          <mat-icon>code</mat-icon> {{ fuenteDe() === v.id ? 'Ver archivo' : 'Ver fuente' }}</button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else if (!activa) {
+              <div class="od-sin">
+                <mat-icon>inbox</mat-icon>
+                <span>Todavía no hay versiones.@if (p.producir) { Genera una con IA o sube el archivo. }</span>
+              </div>
+            }
+
+            <!-- intermedios -->
+            @if (e.intermedios.length) {
+              <details class="od-detalles">
+                <summary>Producido por el camino ({{ e.intermedios.length }}): imágenes, locuciones, fuentes…</summary>
+                <div class="od-intermedios">
+                  @for (a of e.intermedios; track a.id) {
+                    <div class="od-inter">
+                      <app-os-vista-archivo [ordenId]="id()" [archivo]="a" />
+                      <span class="os-meta">{{ a.descripcion || a.nombre }}</span>
+                      @if (p.producir && e.estado !== 'ENTREGADO' && !activa) {
+                        <button type="button" class="os-btn os-btn--chico" (click)="abrir('generar', { entregable: e, archivo: a })">
+                          <mat-icon>auto_fix_high</mat-icon> Usar como base</button>
+                      }
+                    </div>
+                  }
+                </div>
+              </details>
+            }
+
+            <!-- evidencias -->
+            @if (e.evidencias.length) {
+              <div class="od-evid">
+                <h4><mat-icon>verified_user</mat-icon> Evidencia de entrega</h4>
+                @for (ev of e.evidencias; track ev.id) {
+                  <div class="od-evid__fila">
+                    <span class="os-etq">{{ ev.evidencia_tipo }}</span>
+                    @if (ev.url_externa) {
+                      <a [href]="ev.url_externa" target="_blank" rel="noopener noreferrer">{{ ev.url_externa }}</a>
+                    } @else {
+                      <button type="button" class="od-enlace" (click)="descargar(ev)">{{ ev.nombre }}</button>
+                    }
+                    @if (ev.descripcion) { <span class="os-meta">{{ ev.descripcion }}</span> }
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- acciones del entregable -->
+            <div class="od-ent__acciones">
+              @if (p.producir && e.estado !== 'ENTREGADO' && e.estado !== 'CANCELADO' && o.estado !== 'CANCELADA') {
+                @if (!activa) {
+                  <button type="button" class="os-btn os-btn--ia" (click)="abrir('generar', { entregable: e })">
+                    <mat-icon>auto_awesome</mat-icon> Generar con IA</button>
+                }
+                <button type="button" class="os-btn" (click)="abrir('version', { entregable: e })"><mat-icon>upload</mat-icon> Subir versión</button>
+                <button type="button" class="os-btn" (click)="abrir('evidencia', { entregable: e })"><mat-icon>add_link</mat-icon> Evidencia</button>
+                <button type="button" class="os-btn" (click)="abrir('directa', { entregable: e })"><mat-icon>bolt</mat-icon> Entrega directa</button>
+                <button type="button" class="os-btn os-btn--prim" [disabled]="e.estado !== 'APROBADO'"
+                        [title]="e.estado !== 'APROBADO' ? 'Necesita una versión aprobada y evidencia' : ''" (click)="entregar(e)">
+                  <mat-icon>task_alt</mat-icon> Entregar</button>
+              }
+              @if (e.estado === 'ENTREGADO' && p.revisar) {
+                <button type="button" class="os-btn" (click)="abrir('reabrir', { entregable: e })"><mat-icon>undo</mat-icon> Reabrir</button>
+              }
+              @if (ejecucionesDe(e).length) {
+                <button type="button" class="os-btn os-btn--chico" (click)="alternarHistorial(e)">
+                  <mat-icon>history</mat-icon> Generaciones ({{ ejecucionesDe(e).length }})</button>
+              }
+            </div>
+
+            @if (historialAbierto()[e.id]) {
+              <ul class="od-historial">
+                @for (h of ejecucionesDe(e); track h.id) {
+                  <li>
+                    <span [class]="'os-estado os-estado--' + h.estado.toLowerCase()">{{ etiqueta[h.estado] }}</span>
+                    <span>{{ h.flujo_nombre }}</span>
+                    <span class="os-meta">{{ h.creado_en | date: 'd MMM, h:mm a' }} · {{ h.solicitado_nombre }}
+                      @if (h.resultado_archivo_id) { · dio {{ nombreArchivo(h.resultado_archivo_id) }} }
+                      @if (h.error_detalle) { · {{ h.error_detalle }} }
+                    </span>
+                    @if (p.producir && !activa && (h.estado === 'COMPLETADA' || h.estado === 'ERROR' || h.estado === 'CANCELADA')) {
+                      <button type="button" class="os-btn os-btn--chico" (click)="abrir('rehacer', { entregable: e, ejecucion: h })">Rehacer</button>
+                    }
+                  </li>
+                }
+              </ul>
+            }
+          </article>
+        }
+      </div>
+
+      <!-- ── lateral: brief, insumos, bitacora ───────────────────────────── -->
+      <aside class="od-lado">
+        <div class="od-caja">
+          <h4>Brief</h4>
+          <p class="od-brief">{{ o.brief || 'Sin brief.' }}</p>
+          @if (o.objetivo) { <p class="os-meta"><b>Objetivo:</b> {{ o.objetivo }}</p> }
+          @if (o.publico) { <p class="os-meta"><b>Público:</b> {{ o.publico }}</p> }
+          @if (o.canales?.length) {
+            <div class="os-chips">@for (c of o.canales; track c) { <span class="os-etq">{{ c }}</span> }</div>
+          }
+        </div>
+
+        <div class="od-caja">
+          <div class="od-caja__cab">
+            <h4>Insumos</h4>
+            @if (o.estado !== 'CANCELADA') {
+              <button type="button" class="os-btn os-btn--chico" (click)="abrir('insumo')"><mat-icon>attach_file</mat-icon> Agregar</button>
+            }
+          </div>
+          <p class="os-ayuda">Logos, fotos, el PDF a corregir, datos del evento. La IA los lee al generar.</p>
+          @for (a of det()!.insumos; track a.id) {
+            <div class="od-insumo">
+              <mat-icon>{{ a.url_externa ? 'link' : a.tiene_binario ? 'description' : 'notes' }}</mat-icon>
+              <div class="od-insumo__datos">
+                @if (a.url_externa) {
+                  <a [href]="a.url_externa" target="_blank" rel="noopener noreferrer">{{ a.nombre }}</a>
+                } @else if (a.tiene_binario) {
+                  <button type="button" class="od-enlace" (click)="descargar(a)">{{ a.nombre }}</button>
+                } @else {
+                  <span>{{ a.nombre }}</span>
+                }
+                @if (a.descripcion) { <span class="os-meta">{{ a.descripcion }}</span> }
+                @if (a.texto) { <span class="os-meta od-recorte">{{ a.texto }}</span> }
+              </div>
+              <button type="button" class="os-icono" (click)="retirar(a)" aria-label="Retirar"><mat-icon>close</mat-icon></button>
+            </div>
+          } @empty {
+            <p class="os-meta">Sin insumos.</p>
+          }
+        </div>
+
+        <div class="od-caja">
+          <h4>Bitácora</h4>
+          <div class="od-comentar">
+            <textarea rows="2" [(ngModel)]="comentario" placeholder="Escribe un comentario…"></textarea>
+            <button type="button" class="os-btn os-btn--chico" (click)="comentar()" [disabled]="!comentario.trim()"><mat-icon>send</mat-icon></button>
+          </div>
+          <ul class="od-bitacora">
+            @for (ev of det()!.eventos; track ev.id) {
+              <li [class]="'od-ev od-ev--' + ev.tipo.toLowerCase()">
+                <span class="od-ev__texto">{{ ev.texto }}</span>
+                <span class="os-meta">{{ ev.autor_nombre }} · {{ ev.creado_en | date: 'd MMM, h:mm a' }}</span>
+              </li>
+            }
+          </ul>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ── dialogos ─────────────────────────────────────────────────────── -->
+    @if (dialogo(); as d) {
+      <div class="os-telon" (click)="cerrar()">
+        <form class="os-panel" (click)="$event.stopPropagation()" (ngSubmit)="enviar()">
+          <div class="os-panel__cab">
+            <h3>
+              @switch (d.tipo) {
+                @case ('generar') { Generar con IA }
+                @case ('version') { Subir una versión }
+                @case ('evidencia') { Agregar evidencia }
+                @case ('directa') { Entrega directa }
+                @case ('cambios') { Pedir cambios a la versión {{ d.archivo?.numero }} }
+                @case ('rehacer') { Rehacer la generación }
+                @case ('insumo') { Agregar insumo }
+                @case ('cancelar') { Cancelar la orden }
+                @case ('reabrir') { Reabrir «{{ d.entregable?.titulo }}» }
+              }
+            </h3>
+            <button type="button" class="os-icono" (click)="cerrar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+          </div>
+          @if (d.entregable && d.tipo !== 'reabrir') { <p class="os-meta">Entregable: <b>{{ d.entregable.titulo }}</b></p> }
+
+          @switch (d.tipo) {
+            @case ('generar') {
+              <label class="os-campo">
+                <span>Flujo</span>
+                <select name="flujo" [(ngModel)]="flujoId">
+                  @for (f of flujosPara(d.entregable!); track f.id) {
+                    <option [value]="f.id">{{ f.nombre }}{{ f.tipo_entregable !== d.entregable!.tipo ? ' (' + etiquetaTipo(f.tipo_entregable) + ')' : '' }}</option>
+                  }
+                </select>
+              </label>
+              @if (flujo(); as f) {
+                <p class="os-ayuda">{{ f.descripcion }}</p>
+                <div class="od-cadena">
+                  @for (s of f.resumen_pasos; track s.clave; let ultimo = $last) {
+                    <span class="od-cadena__paso" [class.od-cadena__paso--res]="s.resultado" [title]="nombrePaso[s.tipo]">
+                      <mat-icon>{{ iconoPaso[s.tipo] }}</mat-icon> {{ s.titulo || s.clave }}@if (s.opcional) { <em>(opcional)</em> }
+                    </span>
+                    @if (!ultimo) { <mat-icon class="od-cadena__flecha">chevron_right</mat-icon> }
+                  }
+                </div>
+                @if (f.experimental) { <div class="os-aviso"><mat-icon>science</mat-icon> Flujo experimental: revisa el resultado con cuidado.</div> }
+                @if (!f.listo) {
+                  <div class="os-alerta"><mat-icon>key_off</mat-icon><div>No se puede lanzar todavía: {{ f.faltantes.join(' ') }}</div></div>
+                }
+                @if (f.pasos_de_pago.length) {
+                  <div class="os-aviso"><mat-icon>paid</mat-icon><div>Cuesta créditos: {{ f.pasos_de_pago.join(', ') }}.</div></div>
+                }
+                @if (f.entrada !== 'NINGUNA') {
+                  <label class="os-campo">
+                    <span>Archivo de partida ({{ f.entrada | lowercase }})</span>
+                    <select name="base" [(ngModel)]="baseId">
+                      <option [ngValue]="null">— elige —</option>
+                      @for (b of basesPara(f); track b.id) { <option [ngValue]="b.id">{{ etiquetaBase(b) }}</option> }
+                    </select>
+                  </label>
+                } @else {
+                  <label class="os-campo">
+                    <span>Partir de una versión anterior (opcional)</span>
+                    <select name="base" [(ngModel)]="baseId">
+                      <option [ngValue]="null">No, empezar de cero</option>
+                      @for (b of d.entregable!.versiones; track b.id) { <option [ngValue]="b.id">{{ etiquetaBase(b) }}</option> }
+                    </select>
+                  </label>
+                }
+              }
+              <label class="os-campo">
+                <span>Instrucciones para esta generación</span>
+                <textarea name="instr" rows="4" [(ngModel)]="instrucciones"
+                          placeholder="Qué cambiar o qué cuidar. Ej.: más luz, que se vea el coliseo, la hora más grande."></textarea>
+              </label>
+              <p class="os-ayuda">La IA también recibe el brief, los insumos y lo que se dijo en las revisiones anteriores.</p>
+            }
+
+            @case ('version') {
+              <label class="os-campo"><span>Archivo</span><input type="file" (change)="elegirArchivo($event, 'archivo')" /></label>
+              <label class="os-campo"><span>…o el texto (para posts y guiones)</span><textarea name="texto" rows="5" [(ngModel)]="texto"></textarea></label>
+              <label class="os-campo"><span>Qué cambió (opcional)</span><input name="desc" [(ngModel)]="descripcion" /></label>
+              @if (d.entregable!.versiones.length) {
+                <label class="os-campo">
+                  <span>Parte de</span>
+                  <select name="padre" [(ngModel)]="baseId">
+                    <option [ngValue]="null">Ninguna (nueva)</option>
+                    @for (b of d.entregable!.versiones; track b.id) { <option [ngValue]="b.id">Versión {{ b.numero }}</option> }
+                  </select>
+                </label>
+              }
+            }
+
+            @case ('evidencia') {
+              <label class="os-campo">
+                <span>Tipo</span>
+                <select name="tipoev" [(ngModel)]="tipoEvidencia">
+                  @for (t of tiposEvidencia; track t.clave) { <option [value]="t.clave">{{ t.etiqueta }}</option> }
+                </select>
+              </label>
+              <label class="os-campo"><span>Enlace</span><input name="url" type="url" [(ngModel)]="url" placeholder="https://…" /></label>
+              <label class="os-campo"><span>…o archivo (captura, acta, archivo fuente)</span><input type="file" (change)="elegirArchivo($event, 'archivo')" /></label>
+              <label class="os-campo"><span>Nota (opcional)</span><input name="desc" [(ngModel)]="descripcion" /></label>
+            }
+
+            @case ('directa') {
+              <p class="os-ayuda">Para lo que se produjo fuera de la plataforma (CapCut, Canva, InDesign…): sube el archivo final
+                y la evidencia en un solo paso. Queda aprobado por ti y entregado, y la bitácora lo dice así.</p>
+              <label class="os-campo"><span>Archivo final</span><input type="file" (change)="elegirArchivo($event, 'archivo')" /></label>
+              <label class="os-campo"><span>…o el texto final</span><textarea name="texto" rows="4" [(ngModel)]="texto"></textarea></label>
+              <label class="os-campo">
+                <span>Evidencia</span>
+                <select name="tipoev" [(ngModel)]="tipoEvidencia">
+                  @for (t of tiposEvidencia; track t.clave) { <option [value]="t.clave">{{ t.etiqueta }}</option> }
+                </select>
+              </label>
+              <label class="os-campo"><span>Enlace de la evidencia</span><input name="evurl" type="url" [(ngModel)]="evidenciaUrl" placeholder="https://…" /></label>
+              <label class="os-campo"><span>…o archivo de evidencia</span><input type="file" (change)="elegirArchivo($event, 'evidencia')" /></label>
+            }
+
+            @case ('cambios') {
+              <label class="os-campo">
+                <span>¿Qué hay que cambiar?</span>
+                <textarea name="nota" rows="5" [(ngModel)]="nota" placeholder="Sé concreto: es lo que leerá la IA (o la persona) en la siguiente versión."></textarea>
+              </label>
+            }
+
+            @case ('rehacer') {
+              <label class="os-campo">
+                <span>Rehacer desde el paso</span>
+                <select name="desde" [(ngModel)]="desde">
+                  <option [ngValue]="null">Desde el principio</option>
+                  @for (s of d.ejecucion!.pasos; track s.id) {
+                    @if (s.indice > 0) { <option [ngValue]="s.clave">{{ s.titulo || s.clave }}</option> }
+                  }
+                </select>
+              </label>
+              <p class="os-ayuda">Los pasos anteriores se reutilizan tal cual (no se vuelven a pagar).</p>
+              <label class="os-campo"><span>Instrucciones</span><textarea name="instr" rows="4" [(ngModel)]="instrucciones"></textarea></label>
+            }
+
+            @case ('insumo') {
+              <label class="os-campo"><span>Archivo</span><input type="file" (change)="elegirArchivo($event, 'archivo')" /></label>
+              <label class="os-campo"><span>…o un enlace</span><input name="url" type="url" [(ngModel)]="url" placeholder="https://…" /></label>
+              <label class="os-campo"><span>…o un texto de referencia</span><textarea name="texto" rows="4" [(ngModel)]="texto"></textarea></label>
+              <label class="os-campo"><span>Qué es (lo lee la IA)</span><input name="desc" [(ngModel)]="descripcion" placeholder="Ej.: logo del cliente, fotos del lugar" /></label>
+            }
+
+            @case ('cancelar') {
+              <label class="os-campo"><span>Motivo</span><textarea name="nota" rows="3" [(ngModel)]="nota"></textarea></label>
+            }
+
+            @case ('reabrir') {
+              <label class="os-campo"><span>¿Qué hay que cambiar?</span><textarea name="nota" rows="4" [(ngModel)]="nota"></textarea></label>
+            }
+          }
+
+          <div class="os-panel__pie">
+            <button type="button" class="os-btn" (click)="cerrar()">Cerrar</button>
+            <button type="submit" class="os-btn" [class.os-btn--ia]="d.tipo === 'generar' || d.tipo === 'rehacer'"
+                    [class.os-btn--prim]="d.tipo !== 'generar' && d.tipo !== 'rehacer' && d.tipo !== 'cancelar'"
+                    [class.os-btn--alerta]="d.tipo === 'cancelar'"
+                    [disabled]="enviando() || (d.tipo === 'generar' && flujo() && !flujo()!.listo)">
+              {{ enviando() ? 'Enviando…' : d.tipo === 'generar' ? 'Generar' : d.tipo === 'rehacer' ? 'Rehacer' : d.tipo === 'cancelar' ? 'Cancelar orden' : 'Guardar' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    }
+  }
+</section>

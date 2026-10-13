@@ -63,6 +63,24 @@ export const routes: Routes = [
     data: { title: 'Carrusel del home' },
   },
   {
+    // Ordenes de servicio: pedidos a marketing (videos, PDF, cursos, piezas, textos) con sus
+    // versiones —hechas con IA o subidas a mano—, revisiones y evidencia de entrega.
+    path: 'ordenes',
+    loadComponent: () => import('./pages/ordenes/ordenes.component').then((m) => m.OrdenesComponent),
+    data: { title: 'Órdenes de servicio' },
+  },
+  {
+    path: 'ordenes/:id',
+    loadComponent: () =>
+      import('./pages/orden-detalle/orden-detalle.component').then((m) => m.OrdenDetalleComponent),
+    data: { title: 'Orden de servicio' },
+  },
+  {
+    path: 'flujos',
+    loadComponent: () => import('./pages/flujos/flujos.component').then((m) => m.FlujosComponent),
+    data: { title: 'Flujos de IA' },
+  },
+  {
     path: 'config-marcas',
     loadComponent: () =>
       import('./pages/config-marcas/config-marcas.component').then((m) => m.ConfigMarcasComponent),
