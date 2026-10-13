@@ -1,0 +1,70 @@
+<div class="cr">
+  <header class="cr-cab">
+    <div class="cr-sel">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="cr-espacio">
+        <mat-label>Espacio</mat-label>
+        <mat-select [value]="espacioId()" (selectionChange)="elegirEspacio($event.value)">
+          @for (e of espacios(); track e.id) {
+            <mat-option [value]="e.id">@if (e.privado) { <mat-icon class="cr-lock">lock</mat-icon> }{{ e.name }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+      @if (datos()?.tableros?.length; as n) {
+        @if (n > 1) {
+          <div class="cr-chips" role="radiogroup" aria-label="Tablero">
+            <button type="button" role="radio" [attr.aria-checked]="!tablero()" [class.cr-chip--on]="!tablero()" (click)="elegirTablero(null)">Todos</button>
+            @for (b of datos()!.tableros; track b.id) {
+              <button type="button" role="radio" [attr.aria-checked]="tablero() === b.id" [class.cr-chip--on]="tablero() === b.id"
+                      (click)="elegirTablero(b.id)"><i [style.background]="b.accent || 'var(--primary)'"></i>{{ b.name }}</button>
+            }
+          </div>
+        }
+      }
+    </div>
+    <div class="cr-opc">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="cr-agrupar">
+        <mat-label>Agrupar por</mat-label>
+        <mat-select [value]="agrupar()" (selectionChange)="cambiarAgrupar($event.value)">
+          <mat-option value="tablero">Tablero</mat-option>
+          <mat-option value="lista">Columna</mat-option>
+          <mat-option value="responsable">Responsable</mat-option>
+          <mat-option value="estado">Estado</mat-option>
+          <mat-option value="ninguno">Sin agrupar</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <button type="button" class="cr-toggle" [class.cr-toggle--on]="ocultarHechas()" (click)="ocultarHechas.set(!ocultarHechas())"
+              [attr.aria-pressed]="ocultarHechas()"><mat-icon>{{ ocultarHechas() ? 'visibility_off' : 'task_alt' }}</mat-icon>Ocultar hechas</button>
+      <button type="button" class="cr-toggle" [class.cr-toggle--on]="soloConFechas()" (click)="soloConFechas.set(!soloConFechas())"
+              [attr.aria-pressed]="soloConFechas()"><mat-icon>event</mat-icon>Solo con fechas</button>
+    </div>
+  </header>
+
+  @if (cargando() && !datos()) {
+    <div class="cr-centro"><mat-spinner diameter="38" /></div>
+  } @else if (error()) {
+    <div class="cr-vacio"><mat-icon>error_outline</mat-icon><p>{{ error() }}</p><button mat-stroked-button (click)="cargar()">Reintentar</button></div>
+  } @else if (!espacios().length) {
+    <div class="cr-vacio"><mat-icon>view_timeline</mat-icon><p>Aún no tienes espacios. Crea uno para planear su cronograma.</p>
+      <a mat-flat-button routerLink="/dashboard/tareas/espacios">Ir a Espacios</a></div>
+  } @else {
+    @let k = kpis();
+    <section class="cr-kpis" aria-label="Avance del proyecto">
+      <div class="cr-kpi cr-kpi--avance">
+        <span class="cr-anillo" [style.--p]="k.avance"><strong>{{ k.avance }}%</strong></span>
+        <div><b>Avance</b><small>{{ k.hechas }} de {{ k.total }} tareas</small></div>
+      </div>
+      <div class="cr-kpi"><mat-icon>timelapse</mat-icon><div><b>{{ k.enCurso }}</b><small>en progreso</small></div></div>
+      <div class="cr-kpi" [class.cr-kpi--mal]="k.atrasadas > 0"><mat-icon>running_with_errors</mat-icon><div><b>{{ k.atrasadas }}</b><small>atrasadas</small></div></div>
+      <div class="cr-kpi" [class.cr-kpi--ojo]="k.esperando > 0"><mat-icon>lock_clock</mat-icon><div><b>{{ k.esperando }}</b><small>esperando requisitos</small></div></div>
+      <div class="cr-kpi"><mat-icon>event_busy</mat-icon><div><b>{{ k.sinFecha }}</b><small>sin fechas</small></div></div>
+      <div class="cr-kpi"><mat-icon>flag</mat-icon><div><b>{{ k.fin ? (k.fin | date: 'd MMM y') : '—' }}</b><small>último vencimiento</small></div></div>
+    </section>
+
+    <app-gantt [tareas]="tareas()" [dependencias]="dependencias()" [agrupar]="agrupar()" [editable]="editable()"
+               (abrir)="abrir($event)" (cambiarFechas)="reprogramar($event)" />
+
+    <p class="cr-nota"><mat-icon>info</mat-icon>
+      Las flechas unen una tarea con las que la esperan (se configuran en el detalle de la tarea, sección «Dependencias»).
+      Sin fecha de inicio, la barra arranca el día en que se creó la tarea.</p>
+  }
+</div>

@@ -1,5 +1,6 @@
 <div class="cf-tabs" role="tablist">
   <button type="button" role="tab" [class.cf-on]="pestana() === 'parametros'" [attr.aria-selected]="pestana() === 'parametros'" (click)="abrirPestana('parametros')"><mat-icon>tune</mat-icon>Parámetros</button>
+  <button type="button" role="tab" [class.cf-on]="pestana() === 'automatizaciones'" [attr.aria-selected]="pestana() === 'automatizaciones'" (click)="abrirPestana('automatizaciones')"><mat-icon>auto_mode</mat-icon>Automatizaciones</button>
   <button type="button" role="tab" [class.cf-on]="pestana() === 'plantillas'" [attr.aria-selected]="pestana() === 'plantillas'" (click)="abrirPestana('plantillas')"><mat-icon>dashboard_customize</mat-icon>Plantillas</button>
   <button type="button" role="tab" [class.cf-on]="pestana() === 'avisos'" [attr.aria-selected]="pestana() === 'avisos'" (click)="abrirPestana('avisos')"><mat-icon>notifications</mat-icon>Mis avisos</button>
   <button type="button" role="tab" [class.cf-on]="pestana() === 'importar'" [attr.aria-selected]="pestana() === 'importar'" (click)="abrirPestana('importar')"><mat-icon>upload_file</mat-icon>Importar</button>
@@ -85,6 +86,10 @@
         }
       </div>
     }
+  }
+
+  @case ('automatizaciones') {
+    <app-automatizaciones />
   }
 
   @case ('plantillas') {

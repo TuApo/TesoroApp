@@ -56,6 +56,8 @@
               (click)="cambiarVista('columnas')"><mat-icon>view_kanban</mat-icon>Columnas</button>
       <button type="button" role="radio" [attr.aria-checked]="vista() === 'lista'" [class.tl-vista--on]="vista() === 'lista'"
               (click)="cambiarVista('lista')"><mat-icon>view_list</mat-icon>Lista</button>
+      <button type="button" role="radio" [attr.aria-checked]="vista() === 'cronograma'" [class.tl-vista--on]="vista() === 'cronograma'"
+              (click)="cambiarVista('cronograma')"><mat-icon>view_timeline</mat-icon>Cronograma</button>
     </div>
     <div class="tl-buscar">
       <mat-icon>search</mat-icon>
@@ -203,6 +205,9 @@
                   @if ((c.comment_count ?? 0) > 0) { <span class="tl-ico"><mat-icon>chat_bubble_outline</mat-icon>{{ c.comment_count }}</span> }
                   @if ((c.attachment_count ?? 0) > 0) { <span class="tl-ico"><mat-icon>attach_file</mat-icon>{{ c.attachment_count }}</span> }
                   @if (c.origen_tipo) { <span class="tl-ico" matTooltip="Viene de otro módulo"><mat-icon>link</mat-icon></span> }
+                  @if ((c.requisitos_abiertos ?? 0) > 0 && c.status !== 'DONE') {
+                    <span class="tl-ico tl-ico--espera" [matTooltip]="'Espera a que se terminen ' + c.requisitos_abiertos + ' tarea(s)'"><mat-icon>lock_clock</mat-icon>{{ c.requisitos_abiertos }}</span>
+                  }
                   <span class="tl-esp"></span>
                   @if (c.assignee_group && !c.assignee) {
                     <app-tarea-avatar [grupo]="c.assignee_group_name || 'Grupo'" [tam]="24" />
@@ -247,6 +252,10 @@
         </section>
       }
     </div>
+  } @else if (vista() === 'cronograma') {
+    <!-- Cronograma (Gantt) -->
+    <app-gantt [tareas]="tareasCronograma()" [dependencias]="dependencias()" agrupar="lista" [editable]="t.can_manage_content"
+               (abrir)="abrir($event)" (cambiarFechas)="reprogramar($event)" />
   } @else {
     <!-- Lista -->
     <div class="tl-listas">

@@ -5,7 +5,7 @@ import { environment } from '@/environments/environment';
 import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 import {
   Adjunto, Alcance, Comentario, DefinicionTablero, Espacio, Etiqueta, EtiquetaTarea, Grupo, IaEstado, IaTrabajo,
-  AmbitoChat, ChatMensaje, ItemChecklist, Lista, MiembroEspacio, MiembroGrupo, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion, ResumenCaso,
+  AmbitoChat, AreaSolicitud, Automatizacion, ChatMensaje, Cronograma, DependenciasTarea, EjecucionAuto, EventoCatalogo, ItemChecklist, PlanAuto, Lista, MiembroEspacio, MiembroGrupo, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion, ResumenCaso,
   Resumen, RolEspacio, Seguidor, Tablero, Tarea, TareaDefinida, TareaDetalle, TipoLista,
 } from '../models/tareas.models';
 
@@ -47,6 +47,52 @@ export class TareasApiService {
   /** Nombre de quien hace el cambio, para el texto de los avisos. */
   private actor(): string | null {
     return obtenerUsuarioActual().nombreCompleto || null;
+  }
+
+  // ── Cronograma y dependencias ──
+  cronograma(filtro: { workspace?: number | null; board?: number | null }): Promise<Cronograma> {
+    return this.get<Cronograma>('/cronograma', { workspace: filtro.workspace, board: filtro.board });
+  }
+  dependencias(tareaId: number): Promise<DependenciasTarea> { return this.get<DependenciasTarea>(`/cards/${tareaId}/dependencias`); }
+  agregarDependencia(tareaId: number, requisitoId: number): Promise<DependenciasTarea> {
+    return this.post<DependenciasTarea>(`/cards/${tareaId}/dependencias`, { requisito_id: requisitoId });
+  }
+  quitarDependencia(tareaId: number, requisitoId: number): Promise<unknown> { return this.del(`/cards/${tareaId}/dependencias/${requisitoId}`); }
+  buscarTareas(q: string, workspace?: number | null): Promise<Tarea[]> { return this.get<Tarea[]>('/cards/buscar', { q, workspace }); }
+
+  // ── Automatizaciones y solicitudes ──
+  automatizaciones(): Promise<Automatizacion[]> { return this.get<Automatizacion[]>('/automatizaciones'); }
+  catalogoEventos(): Promise<EventoCatalogo[]> { return this.get<EventoCatalogo[]>('/automatizaciones/eventos'); }
+  crearAutomatizacion(data: Partial<Automatizacion>): Promise<Automatizacion> { return this.post<Automatizacion>('/automatizaciones', data); }
+  actualizarAutomatizacion(id: number, data: Partial<Automatizacion>): Promise<Automatizacion> {
+    return this.put<Automatizacion>(`/automatizaciones/${id}`, data);
+  }
+  activarAutomatizacion(id: number, activo: boolean): Promise<Automatizacion> {
+    return this.patch<Automatizacion>(`/automatizaciones/${id}/activo`, { activo });
+  }
+  eliminarAutomatizacion(id: number): Promise<unknown> { return this.del(`/automatizaciones/${id}`); }
+  probarAutomatizacion(id: number, data: { datos?: Record<string, string>; destinatarios?: string[]; crear?: boolean }):
+    Promise<{ cumple_condiciones: boolean; planes: PlanAuto[]; creadas?: number[] }> {
+    return this.post(`/automatizaciones/${id}/probar`, data);
+  }
+  ejecuciones(id?: number | null, limite = 60): Promise<EjecucionAuto[]> {
+    return this.get<EjecucionAuto[]>(id ? `/automatizaciones/${id}/ejecuciones` : '/automatizaciones/ejecuciones', { limite });
+  }
+  simularEvento(data: { evento_clave: string; destinatarios?: string[]; payload?: Record<string, string>; dedup_key?: string | null }):
+    Promise<{ evento_id: string; tareas: Tarea[] }> {
+    return this.post('/automatizaciones/eventos/simular', data);
+  }
+  areasSolicitud(): Promise<AreaSolicitud[]> { return this.get<AreaSolicitud[]>('/solicitudes/areas'); }
+  enviarSolicitud(data: { automatizacion_id: number; titulo: string; descripcion?: string | null; prioridad?: string | null; adjuntos?: string[] }):
+    Promise<{ tareas: Tarea[] }> {
+    return this.post('/solicitudes', { ...data, actor_name: this.actor() });
+  }
+  misSolicitudes(): Promise<Tarea[]> { return this.get<Tarea[]>('/solicitudes/mias'); }
+  /** Archivo sin tarea todavía (se liga a la tarea al crearla). */
+  subirSuelto(archivo: File): Promise<Adjunto> {
+    const fd = new FormData();
+    fd.append('file', archivo, archivo.name);
+    return firstValueFrom(this.http.post<Adjunto>(`${this.base}/uploads/`, fd));
   }
 
   // ── Mis tareas ──
@@ -122,7 +168,7 @@ export class TareasApiService {
     title: string; description?: string | null; priority?: string; due_at?: string | null;
     assignee?: string | null; assignee_name?: string | null; assignee_group?: number | null;
     watchers?: string[]; origen_tipo?: string | null; origen_ref?: string | null; origen_url?: string | null;
-    status?: string;
+    status?: string; start_at?: string | null; adjuntos?: string[];
   }): Promise<Tarea> {
     return this.post<Tarea>(`/lists/${listaId}/cards/`, { ...data, actor_name: this.actor() });
   }
@@ -271,7 +317,7 @@ export class TareasApiService {
   }
   eliminarPlantilla(id: number): Promise<unknown> { return this.del(`/plantillas/${id}`); }
   aplicarPlantilla(data: { plantilla_id?: number; definicion?: DefinicionTablero; workspace: number; nombre: string;
-    descripcion?: string | null; accent?: string | null; inicio?: string | null; responsable?: string | null }): Promise<{ board_id: number; tareas: number }> {
+    descripcion?: string | null; accent?: string | null; inicio?: string | null; responsable?: string | null; adjuntos?: string[] }): Promise<{ board_id: number; tareas: number }> {
     return this.post('/plantillas/aplicar', data);
   }
   tareasEnLote(tableroId: number, data: { tareas: TareaDefinida[]; inicio?: string | null; responsable?: string | null;

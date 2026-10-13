@@ -1,0 +1,108 @@
+<div class="gt">
+  <div class="gt-barra">
+    <div class="gt-zoom" role="radiogroup" aria-label="Escala del diagrama">
+      <button type="button" role="radio" [attr.aria-checked]="zoom() === 'dia'" [class.gt-zoom--on]="zoom() === 'dia'" (click)="cambiarZoom('dia')">Días</button>
+      <button type="button" role="radio" [attr.aria-checked]="zoom() === 'semana'" [class.gt-zoom--on]="zoom() === 'semana'" (click)="cambiarZoom('semana')">Semanas</button>
+      <button type="button" role="radio" [attr.aria-checked]="zoom() === 'mes'" [class.gt-zoom--on]="zoom() === 'mes'" (click)="cambiarZoom('mes')">Meses</button>
+    </div>
+    <button type="button" class="gt-hoy" (click)="irAHoy()"><mat-icon>today</mat-icon>Hoy</button>
+    <span class="gt-esp"></span>
+    <div class="gt-leyenda" aria-hidden="true">
+      <span><i class="gt-l gt-l--todo"></i>Por hacer</span>
+      <span><i class="gt-l gt-l--prog"></i>En progreso</span>
+      <span><i class="gt-l gt-l--block"></i>Bloqueada</span>
+      <span><i class="gt-l gt-l--done"></i>Completada</span>
+      <span><i class="gt-l gt-l--dep"></i>Depende de</span>
+    </div>
+    @if (editable()) { <span class="gt-ayuda"><mat-icon>pan_tool_alt</mat-icon>Arrastra una barra para moverla; estírala por los bordes</span> }
+  </div>
+
+  @if (!tareas().length) {
+    <div class="gt-vacio"><mat-icon>view_timeline</mat-icon><p>No hay tareas para mostrar en el cronograma.</p></div>
+  } @else {
+    <div class="gt-scroll" #scroll (pointermove)="mover($event)" (pointerup)="soltar($event)" (pointercancel)="cancelar()" (pointerleave)="arrastre() && cancelar()">
+      <div class="gt-lienzo" [style.--px]="px() + 'px'" [style.--linea]="anchoLinea() + 'px'">
+        <!-- Encabezado -->
+        <div class="gt-cab">
+          <div class="gt-cab__nombre">Tarea</div>
+          <div class="gt-cab__linea">
+            <div class="gt-meses">
+              @for (m of meses(); track m.x) { <span [style.left.px]="m.x" [style.width.px]="m.ancho">{{ m.texto }}</span> }
+            </div>
+            <div class="gt-marcas">
+              @for (d of marcas(); track d.x) {
+                <span [style.left.px]="d.x" [style.width.px]="d.ancho" [class.gt-finde]="d.finde" [class.gt-marca-hoy]="d.hoy">
+                  @if (d.sub) { <small>{{ d.sub }}</small> }{{ d.texto }}
+                </span>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Cuerpo -->
+        <div class="gt-cuerpo" [style.height.px]="alto()">
+          <div class="gt-capa" aria-hidden="true">
+            @for (x of findes(); track x) { <i class="gt-sombra" [style.left.px]="x" [style.width.px]="px() * 2"></i> }
+            <i class="gt-linea-hoy" [style.left.px]="xHoy()"></i>
+            <svg class="gt-flechas" [attr.width]="anchoLinea()" [attr.height]="alto()">
+              <defs>
+                <marker id="gt-punta" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L8,4 L0,8 z" fill="context-stroke" />
+                </marker>
+              </defs>
+              @for (f of flechas(); track f.de + '-' + f.a) {
+                <path [attr.d]="f.d" class="gt-flecha" [attr.data-tono]="f.tono" [class.gt-tenue]="tenueFlecha(f)" marker-end="url(#gt-punta)" />
+              }
+            </svg>
+          </div>
+
+          @for (f of filas(); track f.clave) {
+            @if (f.grupo; as g) {
+              <div class="gt-fila gt-fila--grupo" [style.height.px]="f.alto">
+                <button type="button" class="gt-nombre gt-nombre--grupo" (click)="alternarGrupo(g.clave)" [attr.aria-expanded]="g.abierto">
+                  <mat-icon>{{ g.abierto ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                  @if (g.color) { <i class="gt-dot" [style.background]="g.color"></i> }
+                  <span class="gt-nombre__txt">{{ g.titulo }}</span>
+                  <small>{{ g.n }} · {{ (g.avance * 100).toFixed(0) }}%</small>
+                </button>
+                <div class="gt-pista">
+                  <div class="gt-resumen" [style.left.px]="g.ini * px()" [style.width.px]="(g.fin - g.ini + 1) * px()">
+                    <i [style.width.%]="g.avance * 100"></i>
+                  </div>
+                </div>
+              </div>
+            } @else if (f.barra; as b) {
+              <div class="gt-fila" [style.height.px]="f.alto" [class.gt-tenue]="tenue(b.tarea.id)"
+                   (mouseenter)="foco.set(b.tarea.id)" (mouseleave)="foco.set(null)">
+                <button type="button" class="gt-nombre" (click)="abrir.emit(b.tarea.id)" [attr.aria-label]="'Abrir ' + b.tarea.title">
+                  @if (b.tarea.assignee) { <app-tarea-avatar [usuario]="b.tarea.assignee" [tam]="22" /> }
+                  @else if (b.tarea.assignee_group) { <app-tarea-avatar [grupo]="b.tarea.assignee_group_name || 'Grupo'" [tam]="22" /> }
+                  @else { <span class="gt-sin"><mat-icon>person_off</mat-icon></span> }
+                  <span class="gt-nombre__txt" [class.gt-hecha]="b.tarea.status === 'DONE'">{{ b.tarea.title }}</span>
+                  @if (b.esperando) { <mat-icon class="gt-candado" [matTooltip]="'Espera ' + b.esperando + ' requisito(s)'">lock_clock</mat-icon> }
+                </button>
+                <div class="gt-pista">
+                  <div class="gt-bar" [attr.data-e]="b.tarea.status" [class.gt-bar--sin]="b.sinFecha" [class.gt-bar--tarde]="b.atrasada"
+                       [class.gt-bar--edit]="editable()" [class.gt-bar--mov]="arrastre()?.id === b.tarea.id"
+                       [style.left.px]="x(b)" [style.width.px]="ancho(b)"
+                       [matTooltip]="etiqueta(b)" matTooltipClass="gt-tip" [matTooltipShowDelay]="350"
+                       (pointerdown)="bajar($event, b, 'mover')" (keydown.enter)="abrir.emit(b.tarea.id)" tabindex="0" role="button"
+                       [attr.aria-label]="etiqueta(b)">
+                    <i class="gt-bar__avance" [style.width.%]="b.avance * 100"></i>
+                    @if (editable()) {
+                      <span class="gt-asa gt-asa--ini" (pointerdown)="bajar($event, b, 'ini')"></span>
+                      <span class="gt-asa gt-asa--fin" (pointerdown)="bajar($event, b, 'fin')"></span>
+                    }
+                  </div>
+                  @if (ancho(b) < 140 || zoom() !== 'dia') {
+                    <span class="gt-rotulo" [style.left.px]="x(b) + ancho(b) + 6">{{ fechaCorta(b) }}@if (b.atrasada) { · vencida }</span>
+                  }
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>

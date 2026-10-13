@@ -152,6 +152,8 @@ export function etiquetaOrigen(tipo: string | null | undefined): string {
     TICKET: 'Ticket de soporte',
     SOPORTE: 'Soporte',
     TAREA: 'Subtarea de otra tarea',
+    SOLICITUD: 'Solicitud',
+    EVENTO: 'Evento de la plataforma',
   };
   return tipo ? (m[tipo.toUpperCase()] ?? tipo) : '';
 }

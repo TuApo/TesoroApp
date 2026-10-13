@@ -19,7 +19,7 @@ import { firstValueFrom } from 'rxjs';
 import { TareasApiService } from '../../services/tareas-api.service';
 import { DirectorioService, Persona } from '../../services/directorio.service';
 import {
-  Comentario, Estado, Etiqueta, Grupo, Lista, MiembroEspacio, Prioridad, RegistroAuditoria, TareaDetalle,
+  Comentario, DependenciasTarea, Estado, Etiqueta, Grupo, Lista, MiembroEspacio, Prioridad, RegistroAuditoria, Tarea, TareaDetalle,
 } from '../../models/tareas.models';
 import {
   COLORES_ETIQUETA, ESTADOS, PRIORIDADES, aIsoFinDeJornada, atajosFecha, estadoInfo, etiquetaOrigen, hace,
@@ -105,6 +105,16 @@ export class TareaDetalleComponent implements OnInit {
   readonly prioridad = computed(() => prioridadInfo(this.t()?.priority));
   readonly venc = computed(() => { const t = this.t(); return t ? vencimiento(t) : null; });
   readonly fechaVence = computed(() => { const d = this.t()?.due_at; return d ? new Date(d) : null; });
+  readonly fechaInicio = computed(() => { const d = this.t()?.start_at; return d ? new Date(d) : null; });
+
+  // ── Dependencias: lo que esta tarea espera y lo que la espera a ella ──
+  readonly deps = signal<DependenciasTarea>({ requisitos: [], dependientes: [] });
+  readonly requisitosAbiertos = computed(() => this.deps().requisitos.filter(r => r.status !== 'DONE'));
+  readonly agregandoDep = signal(false);
+  readonly resultadosDep = signal<Tarea[]>([]);
+  readonly buscandoDep = signal(false);
+  textoDep = '';
+  private temporizadorDep: ReturnType<typeof setTimeout> | null = null;
   readonly cercanos = computed(() => this.miembros().filter(m => m.active).map(m => m.user));
   /** Editar contenido (título, responsable, fechas...) exige no ser VIEWER del espacio. */
   readonly puedeEditar = computed(() => (this.t()?.workspace_role ?? 'MEMBER') !== 'VIEWER');
@@ -150,6 +160,7 @@ export class TareaDetalleComponent implements OnInit {
         this.grupos.set(grupos);
       }
       this.cargarHistorial();
+      this.cargarDependencias();
     } catch (e: any) {
       this.error.set(e?.status === 404 ? 'Esta tarea ya no existe: la eliminaron o se movió fuera de tu alcance.'
                                        : mensajeError(e, 'No se pudo cargar la tarea.'));
@@ -256,6 +267,73 @@ export class TareaDetalleComponent implements OnInit {
     const t = this.t();
     if (!t) return;
     this.guardar(() => this.api.actualizarTarea(t.id, { due_at: aIsoFinDeJornada(d) }), d ? 'Fecha actualizada' : 'Sin fecha');
+  }
+
+  cambiarInicio(d: Date | null): void {
+    const t = this.t();
+    if (!t) return;
+    const iso = d ? new Date(d.getFullYear(), d.getMonth(), d.getDate(), 8, 0, 0).toISOString() : null;
+    this.guardar(() => this.api.actualizarTarea(t.id, { start_at: iso }), d ? 'Inicio actualizado' : 'Sin fecha de inicio');
+  }
+
+  // ── Dependencias ──
+  async cargarDependencias(): Promise<void> {
+    try { this.deps.set(await this.api.dependencias(this.tareaId())); } catch { this.deps.set({ requisitos: [], dependientes: [] }); }
+  }
+
+  buscarDependencia(q: string): void {
+    this.textoDep = q;
+    if (this.temporizadorDep) clearTimeout(this.temporizadorDep);
+    if (q.trim().length < 2) { this.resultadosDep.set([]); return; }
+    this.temporizadorDep = setTimeout(async () => {
+      const t = this.t();
+      if (!t) return;
+      this.buscandoDep.set(true);
+      try {
+        const ya = new Set([t.id, ...this.deps().requisitos.map(r => r.id), ...this.deps().dependientes.map(r => r.id)]);
+        // Primero del mismo espacio; si no hay, de cualquiera que se pueda ver.
+        let r = await this.api.buscarTareas(q.trim(), t.workspace_id);
+        if (!r.length) r = await this.api.buscarTareas(q.trim());
+        this.resultadosDep.set(r.filter(x => !ya.has(x.id)).slice(0, 8));
+      } catch { this.resultadosDep.set([]); }
+      finally { this.buscandoDep.set(false); }
+    }, 250);
+  }
+
+  async agregarDependencia(r: Tarea): Promise<void> {
+    const t = this.t();
+    if (!t) return;
+    try {
+      this.deps.set(await this.api.agregarDependencia(t.id, r.id));
+      this.textoDep = '';
+      this.resultadosDep.set([]);
+      this.agregandoDep.set(false);
+      this.snack.open(`Ahora espera a «${r.title}»`, undefined, { duration: 2600 });
+      await this.cargar(true);
+      this.cambio.emit();
+    } catch (e) {
+      this.snack.open(mensajeError(e, 'No se pudo enlazar.'), 'Cerrar', { duration: 4500 });
+    }
+  }
+
+  async quitarDependencia(requisito: Tarea, desde?: Tarea): Promise<void> {
+    const t = this.t();
+    if (!t) return;
+    // desde = tarea dependiente (cuando se quita desde "Bloquea a"); si no, es esta.
+    const tarea = desde ?? t;
+    try {
+      await this.api.quitarDependencia(tarea.id, requisito.id);
+      await this.cargarDependencias();
+      await this.cargar(true);
+      this.cambio.emit();
+    } catch (e) {
+      this.snack.open(mensajeError(e), 'Cerrar', { duration: 4500 });
+    }
+  }
+
+  abrirOtra(id: number): void {
+    this.cerrar.emit();
+    this.router.navigate(['/dashboard/tareas/tarea', id]);
   }
 
   // ── Etiquetas ──

@@ -46,6 +46,9 @@ import { TareaAvatarComponent } from '../avatar/avatar.component';
           @if (t.status !== 'TODO' && t.status !== 'DONE') {
             <span class="ti__estado" [attr.data-tono]="estado().tono">{{ estado().etiqueta }}</span>
           }
+          @if ((t.requisitos_abiertos ?? 0) > 0 && t.status !== 'DONE') {
+            <span class="ti__espera" [matTooltip]="'Espera a que se terminen ' + t.requisitos_abiertos + ' tarea(s)'"><mat-icon>lock_clock</mat-icon>Espera {{ t.requisitos_abiertos }}</span>
+          }
           @if (t.due_at) {
             <span class="ti__venc" [attr.data-tono]="venc().tono"><mat-icon>event</mat-icon>{{ venc().texto }}</span>
           }
@@ -107,6 +110,9 @@ import { TareaAvatarComponent } from '../avatar/avatar.component';
     </div>
   `,
   styles: [`
+    .ti__espera { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 700; color: #b45309;
+                  background: color-mix(in srgb, #f59e0b 14%, transparent); border-radius: 999px; padding: 1px 8px 1px 5px; }
+    .ti__espera mat-icon { font-size: 14px; width: 14px; height: 14px; }
     :host { display: block; }
     .ti { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
           background: var(--surface); border: 1px solid var(--border); cursor: pointer;

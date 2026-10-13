@@ -146,6 +146,22 @@
       </div>
 
       <div class="td-prop">
+        <span class="td-prop__lbl">Inicia</span>
+        <div class="td-prop__val">
+          <button type="button" class="td-fecha" [disabled]="!puedeEditar()" (click)="pickerInicio.open()">
+            <mat-icon>play_circle_outline</mat-icon>
+            {{ t.start_at ? (fechaInicio() | date: 'EEE d MMM y') : 'Sin fecha de inicio' }}
+          </button>
+          <input class="td-oculto" [matDatepicker]="pickerInicio" [value]="fechaInicio()" [max]="fechaVence()"
+                 (dateChange)="cambiarInicio($event.value)" tabindex="-1" aria-hidden="true">
+          <mat-datepicker #pickerInicio />
+          @if (puedeEditar() && t.start_at) {
+            <span class="td-mini"><button type="button" class="td-btn-mini" (click)="cambiarInicio(null)">Quitar</button></span>
+          }
+        </div>
+      </div>
+
+      <div class="td-prop">
         <span class="td-prop__lbl">Prioridad</span>
         <div class="td-prop__val td-prios">
           @for (p of prioridades; track p.clave) {
@@ -270,6 +286,78 @@
           <input [(ngModel)]="nuevoItem" placeholder="Agregar un paso y presionar Enter" (keydown.enter)="agregarItem()" maxlength="500">
         </div>
       }
+    </section>
+
+    <!-- Dependencias -->
+    <section class="td-sec">
+      <h3><mat-icon>account_tree</mat-icon>Dependencias
+        @if (deps().requisitos.length + deps().dependientes.length) { <span class="td-cuenta">{{ deps().requisitos.length + deps().dependientes.length }}</span> }
+      </h3>
+      @if (requisitosAbiertos().length && t.status !== 'DONE') {
+        <p class="td-espera"><mat-icon>lock_clock</mat-icon>
+          Espera a que se termine{{ requisitosAbiertos().length > 1 ? 'n ' + requisitosAbiertos().length + ' tareas' : ' una tarea' }}:
+          no puede pasar a En progreso ni a Completada hasta entonces.</p>
+      }
+      <div class="td-deps">
+        <div class="td-deps__col">
+          <span class="td-deps__lbl">Espera a (requisitos)</span>
+          @for (r of deps().requisitos; track r.id) {
+            <div class="td-dep" [attr.data-e]="r.status">
+              <mat-icon class="td-dep__ico">{{ r.status === 'DONE' ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+              <button type="button" class="td-dep__txt" (click)="abrirOtra(r.id)">
+                <strong>{{ r.title }}</strong>
+                <small>{{ r.board_name }}@if (r.due_at) { · vence {{ r.due_at | date: 'd MMM' }} }@if (r.assignee) { · {{ dir.nombre(r.assignee) }} }</small>
+              </button>
+              @if (puedeEditar()) {
+                <button type="button" class="td-check__x" (click)="quitarDependencia(r)" [attr.aria-label]="'Quitar requisito ' + r.title"><mat-icon>close</mat-icon></button>
+              }
+            </div>
+          } @empty {
+            <span class="td-vacio">No espera a ninguna tarea.</span>
+          }
+          @if (puedeEditar()) {
+            @if (agregandoDep()) {
+              <div class="td-dep-buscar">
+                <mat-icon>search</mat-icon>
+                <input [value]="textoDep" (input)="buscarDependencia($any($event.target).value)" placeholder="Busca la tarea que debe terminarse antes"
+                       aria-label="Buscar tarea requisito" autofocus>
+                <button type="button" class="td-check__x" (click)="agregandoDep.set(false); resultadosDep.set([])" aria-label="Cerrar búsqueda"><mat-icon>close</mat-icon></button>
+              </div>
+              @if (resultadosDep().length) {
+                <ul class="td-dep-res" role="listbox">
+                  @for (r of resultadosDep(); track r.id) {
+                    <li role="option" (click)="agregarDependencia(r)" (keydown.enter)="agregarDependencia(r)" tabindex="0">
+                      <mat-icon>{{ r.status === 'DONE' ? 'check_circle' : 'add_link' }}</mat-icon>
+                      <span><strong>{{ r.title }}</strong><small>{{ r.workspace_name }} › {{ r.board_name }}</small></span>
+                    </li>
+                  }
+                </ul>
+              } @else if (textoDep.trim().length >= 2 && !buscandoDep()) {
+                <span class="td-vacio">Nada coincide.</span>
+              }
+            } @else {
+              <button type="button" class="td-btn-mini td-dep-add" (click)="agregandoDep.set(true)"><mat-icon>add_link</mat-icon>Agregar requisito</button>
+            }
+          }
+        </div>
+        <div class="td-deps__col">
+          <span class="td-deps__lbl">Bloquea a (la esperan)</span>
+          @for (d of deps().dependientes; track d.id) {
+            <div class="td-dep" [attr.data-e]="d.status">
+              <mat-icon class="td-dep__ico">{{ (d.requisitos_abiertos ?? 0) > 0 ? 'lock_clock' : 'lock_open' }}</mat-icon>
+              <button type="button" class="td-dep__txt" (click)="abrirOtra(d.id)">
+                <strong>{{ d.title }}</strong>
+                <small>{{ d.board_name }}@if (d.assignee) { · {{ dir.nombre(d.assignee) }} }</small>
+              </button>
+              @if (puedeEditar()) {
+                <button type="button" class="td-check__x" (click)="quitarDependencia(t, d)" [attr.aria-label]="'Quitar dependencia de ' + d.title"><mat-icon>close</mat-icon></button>
+              }
+            </div>
+          } @empty {
+            <span class="td-vacio">Ninguna tarea la espera.</span>
+          }
+        </div>
+      </div>
     </section>
 
     <!-- Adjuntos -->

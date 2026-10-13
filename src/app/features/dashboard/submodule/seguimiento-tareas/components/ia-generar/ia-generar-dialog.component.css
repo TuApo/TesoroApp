@@ -1,5 +1,5 @@
 :host { display: block; font-family: var(--font-sans); color: var(--text); }
-.ig { display: flex; flex-direction: column; max-height: 92vh; }
+.ig { display: flex; flex-direction: column; max-height: 92vh; height: 100%; }
 .ig-cab { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 8px; }
 .ig-cab > div { flex: 1; min-width: 0; }
 .ig-cab h2 { margin: 0; font-size: 21px; font-weight: 800; color: var(--navy-ink); }
@@ -109,4 +109,25 @@
   .ig-ayuda { flex: 1 1 100%; min-width: 0; }
   .ig-pie > button { flex: 1 1 0; }
   .ig-pie .ig-esp { display: none; }
+}
+
+/* Chat con la IA: arriba del contenido; ampliado, al lado (columna derecha). */
+.ig-marco { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ig-principal { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.ig-asistente { margin: 0 20px 6px; flex-shrink: 0; }
+.ig-marco--amplio { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(360px, 1fr); }
+.ig-marco--amplio > .ig-principal { grid-column: 1; grid-row: 1; min-height: 0; max-height: calc(92vh - 80px); }
+.ig-marco--amplio > .ig-asistente { grid-column: 2; grid-row: 1; margin: 0 20px 16px 0; height: calc(92vh - 100px); }
+.ig-conversar { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 14px; border: 1px dashed var(--violet-border);
+                background: var(--violet-bg); color: var(--text-2); text-align: left; font: inherit; font-size: 13px; cursor: pointer; min-height: 0 !important; }
+.ig-conversar mat-icon { color: #7c3aed; flex: none; }
+.ig-conversar strong { color: var(--violet-fg); }
+.ig-btn-chat { color: var(--violet-fg) !important; }
+@media (max-width: 900px) {
+  /* En el celular todo corre en un solo desplazamiento (chat arriba, propuesta abajo). */
+  .ig-marco { overflow-y: auto; }
+  .ig-principal, .ig-marco .ig-cuerpo { flex: none; min-height: auto; overflow: visible; }
+  .ig-marco--amplio { display: flex; }
+  .ig-marco--amplio > .ig-asistente { height: auto; margin: 0 14px 6px; }
+  .ig-asistente { margin: 0 14px 6px; }
 }

@@ -1,0 +1,98 @@
+<section class="as" [class.as--abierto]="abierto()" [class.as--amplio]="amplio()">
+  <header class="as-cab">
+    <button type="button" class="as-cab__toggle" (click)="alternar()" [attr.aria-expanded]="abierto()">
+      <span class="as-ico"><mat-icon>auto_awesome</mat-icon></span>
+      <span class="as-cab__txt">
+        <strong>Completar con IA</strong>
+        <small>{{ abierto()
+          ? (modo() === 'tarea' ? 'Cuéntale, pega o sube lo que tengas: va rellenando y te pregunta lo que falta.' : 'Conversa para ajustar columnas y tareas; usa tus documentos.')
+          : (mensajes().length ? mensajes().length + ' mensajes · toca para seguir' : 'Conversa con la IA para dejar ' + (modo() === 'tarea' ? 'la tarea' : 'el tablero') + ' completo') }}</small>
+      </span>
+      @if (completitud() !== null) {
+        <span class="as-comp" [style.--p]="completitud()" [matTooltip]="'Completa al ' + completitud() + '%'"><b>{{ completitud() }}%</b></span>
+      }
+      <mat-icon class="as-cab__flecha">{{ abierto() ? 'expand_less' : 'expand_more' }}</mat-icon>
+    </button>
+    @if (abierto() && puedeAmpliar()) {
+      <button type="button" class="as-amp" (click)="amplio.set(!amplio())" [matTooltip]="amplio() ? 'Volver al formulario normal' : 'Trabajar lado a lado'"
+              [attr.aria-label]="amplio() ? 'Contraer' : 'Ampliar'"><mat-icon>{{ amplio() ? 'close_fullscreen' : 'open_in_full' }}</mat-icon></button>
+    }
+  </header>
+
+  @if (abierto()) {
+    @if (faltantes().length) {
+      <div class="as-faltan"><mat-icon>checklist_rtl</mat-icon><span>Falta:</span>
+        @for (f of faltantes(); track f) { <i>{{ f }}</i> }
+      </div>
+    }
+    <div class="as-lista" #lista aria-live="polite">
+      @if (!mensajes().length) {
+        <div class="as-hola">
+          <p>{{ modo() === 'tarea'
+            ? 'Escribe todo lo que sepas de la tarea (o pega el correo, el acta, la solicitud) y adjunta archivos. Te propongo título, descripción, pasos, prioridad y fechas, y te pregunto lo que falte.'
+            : 'Cuéntame el proceso o el proyecto y sube los documentos que tengas. Armo las columnas necesarias y las tareas a detalle; luego lo ajustamos conversando.' }}</p>
+          <div class="as-sug">
+            @for (s of sugerencias(); track s) { <button type="button" (click)="usar(s)"><mat-icon>bolt</mat-icon>{{ s }}</button> }
+          </div>
+        </div>
+      }
+      @for (m of mensajes(); track m.id) {
+        <div class="as-msg" [class.as-msg--yo]="m.rol === 'usuario'" [class.as-msg--error]="m.error">
+          @if (m.rol === 'asistente') { <span class="as-av"><mat-icon>{{ m.error ? 'error_outline' : 'auto_awesome' }}</mat-icon></span> }
+          <div class="as-burbuja">
+            @if (m.texto) { <p>{{ m.texto }}</p> }
+            @if (m.adjuntos?.length) {
+              <div class="as-adj">
+                @for (a of m.adjuntos!; track a.uuid; let i = $index) {
+                  <button type="button" (click)="verAdjunto(m.adjuntos!, i)"><mat-icon>{{ icono(a.original_name, a.mime_type) }}</mat-icon>{{ a.original_name }}</button>
+                }
+              </div>
+            }
+            @if (m.aplicado?.length) {
+              <div class="as-aplicado" [class.as-aplicado--off]="m.deshecho">
+                <mat-icon>{{ m.deshecho ? 'undo' : 'edit_note' }}</mat-icon>
+                <span>{{ m.deshecho ? 'Deshecho' : 'Rellené' }}: {{ m.aplicado!.join(' · ') }}</span>
+                @if (m.deshacer && !m.deshecho) { <button type="button" (click)="deshacer(m)">Deshacer</button> }
+              </div>
+            }
+            @if (m.preguntas?.length) {
+              <div class="as-preg">
+                @for (q of m.preguntas!; track q) {
+                  <button type="button" (click)="responder(q)" matTooltip="Responder esta pregunta"><mat-icon>help_outline</mat-icon>{{ q }}</button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+      @if (pensando()) {
+        <div class="as-msg">
+          <span class="as-av"><mat-icon>auto_awesome</mat-icon></span>
+          <div class="as-burbuja as-burbuja--pensando"><span class="as-puntos"><i></i><i></i><i></i></span>{{ estadoPensando() }}… <small>{{ segundos() }} s</small></div>
+        </div>
+      }
+    </div>
+
+    @if (pendientes().length || subiendo()) {
+      <div class="as-pend">
+        @for (a of pendientes(); track a.uuid) {
+          <span><mat-icon>{{ icono(a.original_name, a.mime_type) }}</mat-icon>{{ a.original_name }} <small>{{ tamano(a.size_bytes) }}</small>
+            <button type="button" (click)="quitarPendiente(a)" [attr.aria-label]="'Quitar ' + a.original_name"><mat-icon>close</mat-icon></button></span>
+        }
+        @if (subiendo()) { <span class="as-subiendo"><mat-icon>hourglass_top</mat-icon>Subiendo {{ subiendo() }}…</span> }
+      </div>
+    }
+    <div class="as-caja">
+      <label class="as-btn" matTooltip="Adjuntar archivos (quedan con {{ modo() === 'tarea' ? 'la tarea' : 'el tablero' }})">
+        <input type="file" multiple hidden (change)="subir($event)"><mat-icon>attach_file</mat-icon>
+      </label>
+      <textarea #caja [(ngModel)]="texto" (keydown)="teclear($event)" rows="2" maxlength="12000" [placeholder]="marcador()" aria-label="Mensaje para la IA"></textarea>
+      <button type="button" class="as-enviar" (click)="enviar()" [disabled]="pensando() || subiendo() > 0" aria-label="Enviar">
+        <mat-icon>{{ pensando() ? 'hourglass_top' : 'send' }}</mat-icon>
+      </button>
+    </div>
+    @if (adjuntos().length) {
+      <small class="as-nota"><mat-icon>attach_file</mat-icon>{{ adjuntos().length }} archivo{{ adjuntos().length === 1 ? '' : 's' }} quedará{{ adjuntos().length === 1 ? '' : 'n' }} con {{ modo() === 'tarea' ? 'la tarea' : 'el tablero' }}.</small>
+    }
+  }
+</section>

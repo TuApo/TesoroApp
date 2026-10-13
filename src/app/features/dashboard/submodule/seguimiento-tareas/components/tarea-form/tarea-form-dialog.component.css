@@ -82,3 +82,18 @@
   .tf-pie > button { flex: 1 1 0; }
   .tf-pie .ig-esp { display: none; }
 }
+
+/* Chat de IA: arriba del formulario; en modo amplio, columna derecha fija mientras se llena la izquierda. */
+.tf-asistente { margin-bottom: 12px; }
+.tf-cuerpo--amplio { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 20px; align-content: start; }
+.tf-cuerpo--amplio > * { grid-column: 1; }
+.tf-cuerpo--amplio > .tf-asistente { grid-column: 2; grid-row: 1 / span 40; position: sticky; top: 0; align-self: start;
+                                      height: min(72vh, 760px); margin-bottom: 0; }
+.tf-sugerido { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 10px; border-radius: 12px;
+               background: var(--violet-bg); border: 1px solid var(--violet-border); color: var(--violet-fg); font-size: 13px; }
+.tf-sugerido mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.tf-sugerido span { flex: 1; min-width: 0; }
+@media (max-width: 900px) {
+  .tf-cuerpo--amplio { display: flex; }
+  .tf-cuerpo--amplio > .tf-asistente { position: static; height: auto; }
+}

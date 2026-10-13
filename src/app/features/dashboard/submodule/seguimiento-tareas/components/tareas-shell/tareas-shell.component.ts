@@ -75,7 +75,9 @@ export class TareasShellComponent {
     { ruta: 'tableros', etiqueta: 'Tableros', icono: 'view_kanban' },
     // La mesa de soporte solo para quien puede leer el módulo de tickets.
     ...(inject(PermissionsService).canReadRoute(RUTA_TICKETS) ? [{ ruta: 'soporte', etiqueta: 'Mesa de soporte', icono: 'support_agent' }] : []),
+    { ruta: 'solicitudes', etiqueta: 'Solicitudes', icono: 'move_to_inbox' },
     { ruta: 'espacios', etiqueta: 'Espacios y equipos', icono: 'groups' },
+    { ruta: 'cronograma', etiqueta: 'Cronograma', icono: 'view_timeline' },
     { ruta: 'calendario', etiqueta: 'Calendario', icono: 'calendar_month' },
     { ruta: 'indicadores', etiqueta: 'Indicadores', icono: 'insights' },
     { ruta: 'configuracion', etiqueta: 'Configuración', icono: 'tune' },

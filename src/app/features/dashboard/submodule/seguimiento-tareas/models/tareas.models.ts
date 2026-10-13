@@ -32,6 +32,10 @@ export interface Tarea {
   status: Estado;
   priority: Prioridad;
   due_at: string | null;
+  /** Inicio planeado (cronograma). Sin él, el Gantt la empieza el día que se creó. */
+  start_at?: string | null;
+  /** Tareas que esta espera y aún no se completan (V19). */
+  requisitos_abiertos?: number;
   position: number;
   assignee: string | null;
   assignee_name: string | null;
@@ -412,4 +416,110 @@ export interface ChatMensaje {
   autor_nombre: string | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+// ── Cronograma y dependencias (V19) ──
+
+export interface Dependencia { card_id: number; requisito_id: number }
+
+export interface Cronograma {
+  tableros: { id: number; name: string; accent: string | null; workspace: number; workspace_name: string }[];
+  tareas: Tarea[];
+  dependencias: Dependencia[];
+}
+
+/** Lo que una tarea espera (requisitos) y lo que la espera a ella (dependientes). */
+export interface DependenciasTarea { requisitos: Tarea[]; dependientes: Tarea[] }
+
+// ── Automatizaciones y solicitudes (V20) ──
+
+export type ModoResponsable = 'DESTINATARIO' | 'ACTOR' | 'PERSONA' | 'GRUPO' | 'REPARTIR' | 'SIN';
+export type OperadorCondicion = 'igual' | 'distinto' | 'contiene' | 'no_contiene' | 'empieza' | 'existe' | 'no_existe';
+
+export interface CondicionAuto { campo: string; op: OperadorCondicion; valor: string }
+
+export interface Automatizacion {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  area: string | null;
+  evento_clave: string;
+  evento_nombre: string;
+  condiciones: CondicionAuto[];
+  workspace_id: number;
+  workspace_name: string | null;
+  board_id: number;
+  board_name: string | null;
+  list_id: number | null;
+  list_name: string | null;
+  responsable_modo: ModoResponsable;
+  responsable_id: string | null;
+  grupo_id: number | null;
+  grupo_name: string | null;
+  por_destinatario: boolean;
+  prioridad: Prioridad | null;
+  dias_vencimiento: number | null;
+  plantilla_titulo: string;
+  plantilla_descripcion: string | null;
+  seguir_actor: boolean;
+  evitar_duplicados: boolean;
+  activo: boolean;
+  ejecuciones: number;
+  ultima_ejecucion: string | null;
+  creado_por: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface EventoCatalogo {
+  clave: string;
+  nombre: string;
+  descripcion: string | null;
+  modulo: string | null;
+  icono: string | null;
+  color: string | null;
+  campos: string[];
+  interno: boolean;
+  veces: number;
+  ultimo: string | null;
+}
+
+export interface EjecucionAuto {
+  id: number;
+  automatizacion_id: number;
+  automatizacion: string | null;
+  evento_clave: string;
+  evento_nombre: string;
+  resultado: 'CREADA' | 'DUPLICADA' | 'OMITIDA' | 'ERROR' | 'PRUEBA';
+  detalle: string | null;
+  destinatario: string | null;
+  actor_id: string | null;
+  card_id: number | null;
+  card_title: string | null;
+  card_status: Estado | null;
+  created_at: string;
+}
+
+export interface PlanAuto {
+  titulo: string;
+  descripcion: string;
+  lista: string | null;
+  responsable: string | null;
+  grupo: number | null;
+  grupo_nombre: string | null;
+  seguidores: string[];
+  vence: string | null;
+  prioridad: Prioridad;
+}
+
+/** Área que recibe solicitudes (una regla con evento tareas.solicitud). */
+export interface AreaSolicitud {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  area: string | null;
+  workspace: number;
+  workspace_name: string | null;
+  responsable_modo: ModoResponsable;
+  dias_vencimiento: number | null;
 }

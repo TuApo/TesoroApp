@@ -9,6 +9,12 @@
     <button mat-icon-button (click)="cerrar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
   </header>
 
+  <div class="ig-marco" [class.ig-marco--amplio]="chatAbierto() && chatAmplio()">
+  @if (conChat && paso() !== 'generando') {
+    <app-asistente-ia class="ig-asistente" modo="tablero" [estado]="estadoTablero" [aplicador]="aplicarChat" [area]="area || null"
+                      [(abierto)]="chatAbierto" [(amplio)]="chatAmplio" [archivosLocales]="archivos()" (adjuntosCambio)="adjuntosChat.set($event)" />
+  }
+  <div class="ig-principal">
   @switch (paso()) {
     @case ('pedido') {
       <div class="ig-cuerpo">
@@ -62,6 +68,11 @@
         <app-zona-archivos [(archivos)]="archivos" [maxMb]="maxMb()" (ver)="verArchivo($event)"
                            texto="Arrastra aquí actas, correos, bases o procedimientos" />
 
+        @if (conChat && !chatAbierto()) {
+          <button type="button" class="ig-conversar" (click)="abrirChat()">
+            <mat-icon>forum</mat-icon><span><strong>¿Prefieres conversar?</strong> Cuéntale a la IA el proceso paso a paso y sube tus documentos: arma las columnas y las tareas a detalle y te pregunta lo que falte.</span>
+          </button>
+        }
         @if (error()) { <p class="ig-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p> }
       </div>
       <footer class="ig-pie">
@@ -191,6 +202,10 @@
         @if (error()) { <p class="ig-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p> }
       </div>
       <footer class="ig-pie">
+        @if (subiendoArchivos(); as sa) { <span class="ig-ayuda"><mat-icon>upload</mat-icon>Guardando {{ sa }} en el tablero…</span> }
+        @if (conChat && !chatAbierto()) {
+          <button mat-button class="ig-btn-chat" (click)="abrirChat()"><mat-icon>forum</mat-icon>Ajustar conversando</button>
+        }
         <button mat-button (click)="volverAPedir()"><mat-icon>edit</mat-icon>Ajustar el pedido</button>
         <button mat-button (click)="generar()"><mat-icon>refresh</mat-icon>Generar otra</button>
         <span class="ig-esp"></span>
@@ -201,4 +216,6 @@
       </footer>
     }
   }
+  </div>
+  </div>
 </div>

@@ -1,0 +1,123 @@
+<div class="so">
+  @if (cargando() && !areas().length && !mias().length) {
+    <div class="so-centro"><mat-spinner diameter="38" /></div>
+  } @else {
+    <div class="so-grid">
+      <!-- Pedir -->
+      <section class="so-pedir">
+        <header class="so-cab">
+          <h2><mat-icon>move_to_inbox</mat-icon>Pedirle algo a un área</h2>
+          <p>Elige el área, cuenta qué necesitas y adjunta lo que sirva. Te avisamos cuando avance.</p>
+        </header>
+
+        @if (error()) {
+          <p class="so-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p>
+        } @else if (!areas().length) {
+          <div class="so-vacio">
+            <mat-icon>inbox</mat-icon>
+            <strong>Ningún área está recibiendo solicitudes todavía</strong>
+            <p>Quien gestiona un espacio puede abrir su bandeja en Configuración › Automatizaciones.</p>
+            <a mat-stroked-button routerLink="/dashboard/tareas/configuracion" [queryParams]="{ tab: 'automatizaciones' }"><mat-icon>auto_mode</mat-icon>Configurar</a>
+          </div>
+        } @else if (enviada(); as t) {
+          <div class="so-listo">
+            <span class="so-listo__ico"><mat-icon>check_circle</mat-icon></span>
+            <strong>Solicitud enviada a {{ elegida()?.nombre }}</strong>
+            <p>
+              @if (t.assignee) { La atiende <b>{{ dir.nombre(t.assignee) }}</b>. }
+              @else { Quedó en la bandeja del área; alguien del equipo la tomará. }
+              @if (t.due_at) { Fecha estimada: {{ t.due_at.slice(0, 10) }}. }
+            </p>
+            <div class="so-listo__acc">
+              <button mat-stroked-button (click)="abrir(t.id)"><mat-icon>open_in_new</mat-icon>Ver la solicitud</button>
+              <button mat-flat-button (click)="otra()"><mat-icon>add</mat-icon>Otra solicitud</button>
+            </div>
+          </div>
+        } @else if (elegida(); as a) {
+          <div class="so-form">
+            <div class="so-form__area">
+              <button type="button" class="so-volver" (click)="cancelar()" aria-label="Elegir otra área"><mat-icon>arrow_back</mat-icon></button>
+              <div><strong>{{ a.nombre }}</strong><small>{{ a.workspace_name }}{{ a.area ? ' · ' + a.area : '' }} · {{ quienAtiende(a) }}</small></div>
+            </div>
+            @if (enviando()) { <mat-progress-bar mode="indeterminate" /> }
+            <label class="so-campo">¿Qué necesitas?
+              <input id="sol-titulo" [(ngModel)]="titulo" maxlength="300" placeholder="Ej.: Certificado laboral con salario" (keydown.enter)="enviar()">
+            </label>
+            <label class="so-campo">Detalles
+              <textarea [(ngModel)]="descripcion" rows="5" maxlength="8000" placeholder="Para qué es, fechas, datos que deben saber…"></textarea>
+            </label>
+            <div class="so-campo">Urgencia
+              <div class="so-prios" role="radiogroup" aria-label="Urgencia">
+                @for (p of prioridades; track p.clave) {
+                  <button type="button" role="radio" [attr.aria-checked]="prioridad === p.clave" [class.so-prio--on]="prioridad === p.clave"
+                          [attr.data-p]="p.tono" (click)="prioridad = p.clave"><mat-icon>{{ p.icono }}</mat-icon>{{ p.etiqueta }}</button>
+                }
+              </div>
+            </div>
+            <div class="so-campo">Archivos
+              <div class="so-adj">
+                @for (f of adjuntos(); track f.uuid) {
+                  <span class="so-adj__item"><mat-icon>{{ icono(f.original_name, f.mime_type) }}</mat-icon>{{ f.original_name }}
+                    <small>{{ tamano(f.size_bytes) }}</small>
+                    <button type="button" (click)="quitarAdjunto(f)" [attr.aria-label]="'Quitar ' + f.original_name"><mat-icon>close</mat-icon></button></span>
+                }
+                <label class="so-subir">
+                  <input type="file" multiple hidden (change)="subir($event)">
+                  <mat-icon>{{ subiendo() ? 'hourglass_top' : 'attach_file' }}</mat-icon>{{ subiendo() ? 'Subiendo…' : 'Adjuntar (cualquier tipo)' }}
+                </label>
+              </div>
+            </div>
+            <div class="so-form__pie">
+              <button mat-stroked-button (click)="cancelar()">Cancelar</button>
+              <button mat-flat-button (click)="enviar()" [disabled]="!titulo.trim() || enviando() || subiendo() > 0"><mat-icon>send</mat-icon>Enviar solicitud</button>
+            </div>
+          </div>
+        } @else {
+          @if (areas().length > 6) {
+            <div class="so-buscar"><mat-icon>search</mat-icon>
+              <input type="search" [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" placeholder="Buscar área" aria-label="Buscar área"></div>
+          }
+          <div class="so-areas">
+            @for (a of areasVisibles(); track a.id) {
+              <button type="button" class="so-area" (click)="elegir(a)">
+                <span class="so-area__ico"><mat-icon>move_to_inbox</mat-icon></span>
+                <span class="so-area__txt">
+                  <strong>{{ a.nombre }}</strong>
+                  <small>{{ a.descripcion || a.workspace_name }}</small>
+                  <em>{{ a.area || a.workspace_name }}@if (a.dias_vencimiento !== null) { · respuesta en {{ a.dias_vencimiento }} d }</em>
+                </span>
+                <mat-icon class="so-area__ir">chevron_right</mat-icon>
+              </button>
+            } @empty {
+              <p class="so-nota">Ningún área coincide.</p>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- Seguir -->
+      <section class="so-mias">
+        <header class="so-cab">
+          <h2><mat-icon>outbox</mat-icon>Mis solicitudes</h2>
+          <p>{{ abiertas().length }} en curso · {{ hechas().length }} resueltas</p>
+        </header>
+        <div class="so-lista">
+          @for (t of abiertas(); track t.id) {
+            <app-tarea-item [tarea]="t" (abrir)="abrir($event.id)" />
+          } @empty {
+            <p class="so-nota"><mat-icon>info</mat-icon>No tienes solicitudes en curso.</p>
+          }
+        </div>
+        @if (hechas().length) {
+          <button type="button" class="so-ver" (click)="verHechas.set(!verHechas())" [attr.aria-expanded]="verHechas()">
+            <mat-icon>{{ verHechas() ? 'expand_less' : 'expand_more' }}</mat-icon>Resueltas ({{ hechas().length }})</button>
+          @if (verHechas()) {
+            <div class="so-lista">
+              @for (t of hechas(); track t.id) { <app-tarea-item [tarea]="t" (abrir)="abrir($event.id)" /> }
+            </div>
+          }
+        }
+      </section>
+    </div>
+  }
+</div>

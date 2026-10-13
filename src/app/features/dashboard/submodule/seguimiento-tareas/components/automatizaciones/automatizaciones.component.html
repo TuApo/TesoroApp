@@ -1,0 +1,176 @@
+<div class="au">
+  <div class="au-intro">
+    <div>
+      <h3>Automatizaciones</h3>
+      <p>Lo que pasa en la plataforma —una solicitud a un área, un ticket, un compromiso, una asignación— llega como tarea al espacio que lo atiende,
+        con su responsable, su fecha y el enlace al caso. Nada queda suelto.</p>
+    </div>
+    <div class="au-nueva">
+      <button mat-flat-button [matMenuTriggerFor]="menuNueva"><mat-icon>add</mat-icon>Nueva regla</button>
+      <mat-menu #menuNueva="matMenu" xPosition="before">
+        <button mat-menu-item (click)="nueva('solicitud')"><mat-icon>move_to_inbox</mat-icon>Bandeja de solicitudes de un área</button>
+        <button mat-menu-item (click)="nueva('evento')"><mat-icon>bolt</mat-icon>Tarea desde un evento de la plataforma</button>
+      </mat-menu>
+    </div>
+  </div>
+
+  <div class="au-tabs" role="tablist">
+    <button type="button" role="tab" [attr.aria-selected]="vista() === 'reglas'" [class.au-tab--on]="vista() === 'reglas'" (click)="vista.set('reglas')">
+      <mat-icon>rule</mat-icon>Reglas <span class="au-n">{{ reglas().length }}</span></button>
+    <button type="button" role="tab" [attr.aria-selected]="vista() === 'bitacora'" [class.au-tab--on]="vista() === 'bitacora'" (click)="vista.set('bitacora'); filtroBitacora.set(null)">
+      <mat-icon>receipt_long</mat-icon>Bitácora</button>
+    <button type="button" role="tab" [attr.aria-selected]="vista() === 'eventos'" [class.au-tab--on]="vista() === 'eventos'" (click)="vista.set('eventos')">
+      <mat-icon>bolt</mat-icon>Eventos disponibles</button>
+  </div>
+
+  @if (cargando() && !reglas().length) {
+    <div class="au-centro"><mat-spinner diameter="34" /></div>
+  } @else if (error()) {
+    <p class="au-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p>
+  } @else {
+    @switch (vista()) {
+      @case ('reglas') {
+        @if (!reglas().length) {
+          <div class="au-vacio">
+            <mat-icon>auto_mode</mat-icon>
+            <strong>Aún no hay reglas</strong>
+            <p>Empieza por una bandeja de solicitudes para tu área, o crea tareas automáticamente cuando otro módulo avise de algo.</p>
+            <div class="au-vacio__acc">
+              <button mat-stroked-button (click)="nueva('solicitud')"><mat-icon>move_to_inbox</mat-icon>Bandeja de solicitudes</button>
+              <button mat-stroked-button (click)="nueva('evento')"><mat-icon>bolt</mat-icon>Desde un evento</button>
+            </div>
+          </div>
+        }
+        @for (bloque of [{ titulo: 'Bandejas de solicitudes', items: solicitudes(), icono: 'move_to_inbox' }, { titulo: 'Desde eventos de la plataforma', items: deEventos(), icono: 'bolt' }]; track bloque.titulo) {
+          @if (bloque.items.length) {
+            <h4 class="au-bloque"><mat-icon>{{ bloque.icono }}</mat-icon>{{ bloque.titulo }}</h4>
+            <div class="au-lista">
+              @for (r of bloque.items; track r.id) {
+                @let ev = evento(r.evento_clave);
+                <article class="au-regla" [class.au-regla--off]="!r.activo">
+                  <span class="au-ico" [style.background]="ev?.color || 'var(--primary)'"><mat-icon>{{ ev?.icono || 'bolt' }}</mat-icon></span>
+                  <div class="au-regla__txt">
+                    <div class="au-regla__cab">
+                      <strong>{{ r.nombre }}</strong>
+                      @if (r.area) { <span class="au-chip">{{ r.area }}</span> }
+                      @if (!r.activo) { <span class="au-chip au-chip--off">Pausada</span> }
+                    </div>
+                    @if (r.descripcion) { <small class="au-desc">{{ r.descripcion }}</small> }
+                    <div class="au-flujo">
+                      <span class="au-paso" [matTooltip]="r.evento_clave"><mat-icon>bolt</mat-icon>{{ r.evento_nombre }}</span>
+                      @if (r.condiciones.length) {
+                        <span class="au-paso au-paso--cond" [matTooltip]="r.condiciones.map(condicion).join(' y ')"><mat-icon>filter_alt</mat-icon>{{ r.condiciones.length }} condición{{ r.condiciones.length === 1 ? '' : 'es' }}</span>
+                      }
+                      <mat-icon class="au-flecha">arrow_forward</mat-icon>
+                      <span class="au-paso"><mat-icon>view_kanban</mat-icon>{{ r.workspace_name }} › {{ r.board_name }}{{ r.list_name ? ' › ' + r.list_name : '' }}</span>
+                      <mat-icon class="au-flecha">arrow_forward</mat-icon>
+                      <span class="au-paso">
+                        @if (r.responsable_modo === 'PERSONA' && r.responsable_id) { <app-tarea-avatar [usuario]="r.responsable_id" [tam]="18" /> }
+                        @else { <mat-icon>{{ iconoModo(r) }}</mat-icon> }
+                        {{ modo(r) }}
+                      </span>
+                      @if (r.dias_vencimiento !== null) { <span class="au-paso"><mat-icon>event</mat-icon>{{ r.dias_vencimiento }} d</span> }
+                      @if (r.prioridad) { <span class="au-paso" [attr.data-p]="prio(r.prioridad).tono">{{ prio(r.prioridad).etiqueta }}</span> }
+                    </div>
+                    <small class="au-stats">
+                      {{ r.ejecuciones }} tarea{{ r.ejecuciones === 1 ? '' : 's' }} creada{{ r.ejecuciones === 1 ? '' : 's' }}
+                      @if (r.ultima_ejecucion) { · última {{ hace(r.ultima_ejecucion) }} }
+                    </small>
+                  </div>
+                  <div class="au-regla__ctl">
+                    <mat-slide-toggle [checked]="r.activo" (change)="activar(r, $event.checked)" [attr.aria-label]="r.activo ? 'Pausar' : 'Activar'"
+                                      [matTooltip]="r.activo ? 'Activa' : 'Pausada'" />
+                    <button mat-icon-button [matMenuTriggerFor]="menuRegla" aria-label="Opciones de la regla"><mat-icon>more_vert</mat-icon></button>
+                    <mat-menu #menuRegla="matMenu" xPosition="before">
+                      <button mat-menu-item (click)="editar(r)"><mat-icon>edit</mat-icon>Editar</button>
+                      <button mat-menu-item (click)="abrirPrueba(r)"><mat-icon>science</mat-icon>Probar</button>
+                      <button mat-menu-item (click)="verBitacora(r)"><mat-icon>receipt_long</mat-icon>Ver bitácora</button>
+                      <button mat-menu-item class="au-peligro" (click)="eliminar(r)"><mat-icon>delete</mat-icon>Eliminar</button>
+                    </mat-menu>
+                  </div>
+
+                  @if (probando() === r.id) {
+                    <div class="au-prueba">
+                      <div class="au-prueba__form">
+                        <label>Título de ejemplo<input [(ngModel)]="pruebaTitulo" maxlength="200"></label>
+                        <label>Mensaje<input [(ngModel)]="pruebaMensaje" maxlength="500" placeholder="Opcional"></label>
+                      </div>
+                      <div class="au-prueba__acc">
+                        <button mat-stroked-button (click)="probar(r, false)" [disabled]="ejecutandoPrueba()"><mat-icon>visibility</mat-icon>Ver qué haría</button>
+                        <button mat-flat-button (click)="probar(r, true)" [disabled]="ejecutandoPrueba()"><mat-icon>science</mat-icon>Crear tarea de prueba</button>
+                      </div>
+                      @if (planes(); as p) {
+                        @if (!p.cumple) {
+                          <p class="au-nota"><mat-icon>filter_alt_off</mat-icon>Con estos datos no se cumplen las condiciones: no crearía nada.</p>
+                        }
+                        @for (pl of p.planes; track $index) {
+                          <div class="au-plan">
+                            <mat-icon>add_task</mat-icon>
+                            <div>
+                              <strong>{{ pl.titulo }}</strong>
+                              <small>{{ pl.lista || 'Primera columna' }} ·
+                                {{ pl.responsable ? dir.nombre(pl.responsable) : (pl.grupo_nombre ? 'Grupo ' + pl.grupo_nombre : 'Sin responsable') }}
+                                · {{ prio(pl.prioridad).etiqueta }}@if (pl.vence) { · vence {{ pl.vence | date: 'd MMM' }} }</small>
+                            </div>
+                          </div>
+                        }
+                      }
+                    </div>
+                  }
+                </article>
+              }
+            </div>
+          }
+        }
+      }
+
+      @case ('bitacora') {
+        <div class="au-bit-barra">
+          @if (reglaFiltrada(); as rf) {
+            <span class="au-chip">{{ rf.nombre }}
+              <button type="button" (click)="filtroBitacora.set(null)" aria-label="Ver todas"><mat-icon>close</mat-icon></button></span>
+          }
+          <span class="au-esp"></span>
+          <button mat-button (click)="cargar()"><mat-icon>refresh</mat-icon>Actualizar</button>
+        </div>
+        <div class="au-bit">
+          @for (b of bitacoraVisible(); track b.id) {
+            @let res = resultado(b.resultado);
+            <div class="au-bit__fila" [attr.data-r]="b.resultado">
+              <span class="au-bit__ico"><mat-icon>{{ res.icono }}</mat-icon></span>
+              <div class="au-bit__txt">
+                <strong>{{ res.texto }}@if (b.card_title) { · <button type="button" class="au-link" (click)="abrirTarea(b.card_id)">{{ b.card_title }}</button> }</strong>
+                <small>{{ b.automatizacion }} · {{ b.evento_nombre }}
+                  @if (b.destinatario) { · para {{ dir.nombre(b.destinatario) }} }
+                  @if (b.actor_id) { · por {{ dir.nombre(b.actor_id) }} }
+                  @if (b.detalle) { · {{ b.detalle }} }</small>
+              </div>
+              @if (b.card_status) { <span class="au-estado" [attr.data-e]="b.card_status">{{ estado(b.card_status).etiqueta }}</span> }
+              <small class="au-cuando" [matTooltip]="(b.created_at | date: 'd MMM y, h:mm a') ?? ''">{{ hace(b.created_at) }}</small>
+            </div>
+          } @empty {
+            <p class="au-nota"><mat-icon>info</mat-icon>Todavía no hay ejecuciones. Cuando llegue un evento o una solicitud, aquí verás qué se hizo.</p>
+          }
+        </div>
+      }
+
+      @case ('eventos') {
+        <p class="au-nota"><mat-icon>info</mat-icon>Eventos que los módulos emiten. Los datos de cada uno sirven en el título de la tarea y en las condiciones.</p>
+        <div class="au-eventos">
+          @for (e of eventosOrdenados(); track e.clave) {
+            <div class="au-evento">
+              <span class="au-ico au-ico--sm" [style.background]="e.color || 'var(--primary)'"><mat-icon>{{ e.icono || 'bolt' }}</mat-icon></span>
+              <div class="au-evento__txt">
+                <strong>{{ e.nombre }} <small class="au-mod">{{ e.modulo }}</small></strong>
+                <small>{{ e.descripcion }}</small>
+                <small class="au-campos"><code>{{ e.clave }}</code> · datos: {{ e.campos.join(', ') || '—' }}</small>
+              </div>
+              <span class="au-veces" [class.au-veces--0]="!e.veces" [matTooltip]="e.ultimo ? 'Último: ' + ((e.ultimo | date: 'd MMM y, h:mm a') ?? '') : 'Aún no ha llegado ninguno'">
+                {{ e.veces ? e.veces + ' recibido' + (e.veces === 1 ? '' : 's') : 'Sin actividad' }}</span>
+            </div>
+          }
+        </div>
+      }
+    }
+  }
+</div>

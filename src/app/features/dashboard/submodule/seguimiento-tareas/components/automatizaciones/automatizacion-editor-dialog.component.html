@@ -1,0 +1,220 @@
+<div class="ae">
+  <header class="ae-cab">
+    <span class="ae-ico"><mat-icon>{{ tipo() === 'solicitud' ? 'move_to_inbox' : 'bolt' }}</mat-icon></span>
+    <div>
+      <h2>{{ data.regla ? 'Editar regla' : (tipo() === 'solicitud' ? 'Nueva bandeja de solicitudes' : 'Nueva regla desde un evento') }}</h2>
+      <p>{{ tipo() === 'solicitud'
+        ? 'Cualquier persona podrá enviar solicitudes a esta área desde «Solicitudes»; cada una llega como tarea.'
+        : 'Cuando otro módulo de la plataforma avise de algo, se crea una tarea en el área que lo atiende.' }}</p>
+    </div>
+    <button mat-icon-button (click)="cerrar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+  </header>
+  @if (guardando()) { <mat-progress-bar mode="indeterminate" /> }
+
+  <div class="ae-cuerpo">
+    @if (!data.regla) {
+      <div class="ae-tipos" role="radiogroup" aria-label="Qué dispara la regla">
+        <button type="button" role="radio" [attr.aria-checked]="tipo() === 'solicitud'" [class.ae-tipo--on]="tipo() === 'solicitud'"
+                (click)="tipo.set('solicitud'); modo.set('REPARTIR')">
+          <mat-icon>move_to_inbox</mat-icon><strong>Solicitudes al área</strong><small>Una bandeja que recibe pedidos de cualquiera</small>
+        </button>
+        <button type="button" role="radio" [attr.aria-checked]="tipo() === 'evento'" [class.ae-tipo--on]="tipo() === 'evento'"
+                (click)="tipo.set('evento'); modo.set('DESTINATARIO')">
+          <mat-icon>bolt</mat-icon><strong>Evento de la plataforma</strong><small>Asignaciones, tickets, compromisos, alertas…</small>
+        </button>
+      </div>
+    }
+
+    <!-- 1. Qué -->
+    <section class="ae-sec">
+      <h3><span>1</span>{{ tipo() === 'solicitud' ? 'La bandeja' : 'El evento' }}</h3>
+      @if (tipo() === 'evento') {
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ae-ancho">
+          <mat-label>Cuando pase…</mat-label>
+          <mat-select [value]="eventoElegido()" (selectionChange)="elegirEvento($event.value)">
+            @for (m of modulos(); track m[0]) {
+              <mat-optgroup [label]="m[0]">
+                @for (e of m[1]; track e.clave) {
+                  <mat-option [value]="e.clave">
+                    <mat-icon [style.color]="e.color">{{ e.icono || 'bolt' }}</mat-icon>{{ e.nombre }}
+                    @if (e.veces) { <small class="ae-veces">· {{ e.veces }} recibido{{ e.veces === 1 ? '' : 's' }}</small> }
+                  </mat-option>
+                }
+              </mat-optgroup>
+            }
+            @if (eventoElegido() && !infoEvento()) { <mat-option [value]="eventoElegido()">{{ eventoElegido() }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        @if (infoEvento(); as ie) { <p class="ae-ayuda"><mat-icon>info</mat-icon>{{ ie.descripcion }} <code>{{ ie.clave }}</code></p> }
+        <details class="ae-avanzado">
+          <summary>Otro evento o un grupo completo (p.ej. <code>hr.*</code>)</summary>
+          <div class="ae-fila">
+            <input class="ae-input" [(ngModel)]="eventoLibre" placeholder="clave del evento, ej. legal.*" aria-label="Clave del evento">
+            <button mat-stroked-button (click)="usarEventoLibre()" [disabled]="!eventoLibre.trim()">Usar</button>
+          </div>
+        </details>
+      }
+      <div class="ae-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Nombre</mat-label>
+          <input matInput [(ngModel)]="nombre" maxlength="150" [placeholder]="tipo() === 'solicitud' ? 'Mesa de nómina' : 'Compromisos de llamadas'">
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Área</mat-label>
+          <mat-select [(value)]="area">
+            <mat-option [value]="null">—</mat-option>
+            @for (a of areas; track a) { <mat-option [value]="a">{{ a }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ae-ancho">
+        <mat-label>{{ tipo() === 'solicitud' ? 'Qué se le puede pedir a esta área' : 'Descripción (opcional)' }}</mat-label>
+        <input matInput [(ngModel)]="descripcion" maxlength="500">
+      </mat-form-field>
+    </section>
+
+    <!-- 2. Dónde -->
+    <section class="ae-sec">
+      <h3><span>2</span>Dónde cae la tarea</h3>
+      <div class="ae-grid ae-grid--3">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Espacio</mat-label>
+          <mat-select [value]="espacioId()" (selectionChange)="elegirEspacio($event.value)">
+            @for (e of espacios(); track e.id) { <mat-option [value]="e.id">{{ e.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Tablero</mat-label>
+          <mat-select [value]="tableroId()" (selectionChange)="elegirTablero($event.value)" [disabled]="!tableros().length">
+            @for (b of tableros(); track b.id) { <mat-option [value]="b.id">{{ b.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Columna</mat-label>
+          <mat-select [(value)]="listaId" [disabled]="!listas().length">
+            <mat-option [value]="null">La primera «Por hacer»</mat-option>
+            @for (l of listas(); track l.id) { <mat-option [value]="l.id">{{ l.name }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+      </div>
+      @if (!espacios().length) { <p class="ae-ayuda"><mat-icon>info</mat-icon>Solo puedes elegir espacios que gestionas (dueño o gestor).</p> }
+    </section>
+
+    <!-- 3. Quién -->
+    <section class="ae-sec">
+      <h3><span>3</span>Quién la atiende</h3>
+      <div class="ae-modos" role="radiogroup" aria-label="Responsable">
+        @for (m of modos; track m.clave) {
+          @if (tipo() === 'evento' || (m.clave !== 'DESTINATARIO' && m.clave !== 'ACTOR')) {
+            <button type="button" role="radio" [attr.aria-checked]="modo() === m.clave" [class.ae-modo--on]="modo() === m.clave" (click)="modo.set(m.clave)">
+              <mat-icon>{{ m.icono }}</mat-icon><span><strong>{{ m.etiqueta }}</strong><small>{{ m.ayuda }}</small></span>
+            </button>
+          }
+        }
+      </div>
+      @switch (modo()) {
+        @case ('PERSONA') {
+          <div class="ae-persona">
+            @if (persona(); as p) {
+              <span class="ae-quien"><app-tarea-avatar [usuario]="p.id" [tam]="26" />{{ p.nombre || dir.nombre(p.id) }}</span>
+            }
+            <button type="button" class="ae-mini" (click)="eligiendoPersona.set(!eligiendoPersona())">{{ persona() ? 'Cambiar' : 'Elegir persona' }}</button>
+          </div>
+          @if (eligiendoPersona()) {
+            <app-persona-picker [cercanos]="[]" [grupos]="[]" placeholder="Persona responsable" (elegido)="elegirPersona($event)" />
+          }
+        }
+        @case ('GRUPO') {
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ae-ancho">
+            <mat-label>Grupo</mat-label>
+            <mat-select [(value)]="grupoId">
+              @for (g of grupos(); track g.id) { <mat-option [value]="g.id">{{ g.name }} ({{ g.member_count }})</mat-option> }
+            </mat-select>
+          </mat-form-field>
+        }
+        @case ('DESTINATARIO') {
+          <mat-slide-toggle [(ngModel)]="porDestinatario">Una tarea para cada persona a la que le llega (si son varias)</mat-slide-toggle>
+        }
+      }
+    </section>
+
+    <!-- 4. Cómo -->
+    <section class="ae-sec">
+      <h3><span>4</span>Cómo se crea</h3>
+      <div class="ae-grid">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Prioridad</mat-label>
+          <mat-select [(value)]="prioridad">
+            <mat-option [value]="null">{{ tipo() === 'solicitud' ? 'La que elija quien pide' : 'La que traiga el evento' }}</mat-option>
+            @for (p of prioridades; track p.clave) { <mat-option [value]="p.clave">{{ p.etiqueta }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Vence en (días)</mat-label>
+          <input matInput type="number" min="0" max="365" [(ngModel)]="dias" placeholder="Sin fecha">
+        </mat-form-field>
+      </div>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ae-ancho">
+        <mat-label>Título de la tarea</mat-label>
+        <input matInput [(ngModel)]="plantillaTitulo" maxlength="500">
+        <mat-hint>Vista previa: {{ previa(plantillaTitulo) }}</mat-hint>
+      </mat-form-field>
+      <div class="ae-vars" aria-label="Insertar dato en el título">
+        @for (v of variables(); track v) { <button type="button" (click)="insertar('titulo', v)">{{ token(v) }}</button> }
+      </div>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ae-ancho">
+        <mat-label>Descripción (vacía = el mensaje del evento)</mat-label>
+        <textarea matInput rows="3" [(ngModel)]="plantillaDescripcion"></textarea>
+      </mat-form-field>
+      <div class="ae-vars">
+        @for (v of variables(); track v) { <button type="button" (click)="insertar('descripcion', v)">{{ token(v) }}</button> }
+      </div>
+      <div class="ae-switches">
+        <mat-slide-toggle [(ngModel)]="seguirActor">{{ tipo() === 'solicitud' ? 'Quien pide sigue su solicitud (ve el avance)' : 'Quien provocó el evento sigue la tarea' }}</mat-slide-toggle>
+        <mat-slide-toggle [(ngModel)]="evitarDuplicados">No duplicar: si el mismo caso ya tiene una tarea abierta, no crear otra</mat-slide-toggle>
+      </div>
+    </section>
+
+    <!-- 5. Condiciones -->
+    @if (tipo() === 'evento') {
+      <section class="ae-sec">
+        <h3><span>5</span>Solo si… <small>(opcional)</small></h3>
+        @for (c of condiciones(); track $index; let i = $index) {
+          <div class="ae-cond">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Dato</mat-label>
+              <mat-select [value]="c.campo" (selectionChange)="cambiarCondicion(i, { campo: $event.value })">
+                @for (v of variables(); track v) { <mat-option [value]="v">{{ v }}</mat-option> }
+                @if (!variables().includes(c.campo)) { <mat-option [value]="c.campo">{{ c.campo }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>Condición</mat-label>
+              <mat-select [value]="c.op" (selectionChange)="cambiarCondicion(i, { op: $event.value })">
+                @for (o of operadores; track o.clave) { <mat-option [value]="o.clave">{{ o.etiqueta }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            @if (!sinValor(c.op)) {
+              <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>Valor</mat-label>
+                <input matInput [value]="c.valor" (input)="cambiarCondicion(i, { valor: $any($event.target).value })">
+              </mat-form-field>
+            }
+            <button mat-icon-button (click)="quitarCondicion(i)" aria-label="Quitar condición"><mat-icon>delete_outline</mat-icon></button>
+          </div>
+        } @empty {
+          <p class="ae-ayuda"><mat-icon>filter_alt_off</mat-icon>Sin condiciones: actúa con cada evento de este tipo.</p>
+        }
+        <button type="button" class="ae-mini" (click)="agregarCondicion()"><mat-icon>add</mat-icon>Agregar condición</button>
+        <p class="ae-ayuda">Sin distinguir mayúsculas ni tildes. Todas deben cumplirse.</p>
+      </section>
+    }
+  </div>
+
+  <footer class="ae-pie">
+    @if (error()) { <span class="ae-error"><mat-icon>error_outline</mat-icon>{{ error() }}</span> }
+    <span class="ae-esp"></span>
+    <button mat-stroked-button (click)="cerrar()">Cancelar</button>
+    <button mat-flat-button (click)="guardar()" [disabled]="guardando()"><mat-icon>save</mat-icon>{{ data.regla ? 'Guardar cambios' : 'Crear regla' }}</button>
+  </footer>
+</div>

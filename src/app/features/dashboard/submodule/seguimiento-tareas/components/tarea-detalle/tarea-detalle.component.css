@@ -172,3 +172,34 @@
 .td-caso-est[data-e="Resuelto"] { background: var(--ok-bg); color: var(--ok-fg); }
 .td-caso-est[data-e="Cerrado"] { background: var(--surface-3); color: var(--text-2); }
 .td-caso-nota { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+
+/* Dependencias */
+.td-espera { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; font-size: 13px;
+             color: #92400e; background: color-mix(in srgb, #f59e0b 14%, var(--surface)); border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent); }
+.td-espera mat-icon { font-size: 18px; width: 18px; height: 18px; flex: none; }
+:host-context(html[data-theme='dark']) .td-espera { color: #fcd34d; }
+.td-deps { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.td-deps__col { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.td-deps__lbl { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.td-dep { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); min-width: 0; }
+.td-dep__ico { font-size: 18px; width: 18px; height: 18px; flex: none; color: var(--muted); }
+.td-dep[data-e='DONE'] .td-dep__ico { color: var(--mt-done, #16a34a); }
+.td-dep[data-e='DONE'] strong { text-decoration: line-through; color: var(--muted); }
+.td-dep__txt { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; border: 0; background: none; padding: 0; text-align: left;
+               font: inherit; cursor: pointer; color: var(--text); min-height: 0 !important; }
+.td-dep__txt strong { font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-dep__txt small { font-size: 11.5px; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-dep__txt:hover strong { color: var(--primary); }
+.td-dep-add { align-self: flex-start; }
+.td-dep-buscar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--primary); background: var(--surface); }
+.td-dep-buscar mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--muted); }
+.td-dep-buscar input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 13px; color: var(--text); padding: 6px 0; }
+.td-dep-res { list-style: none; margin: 0; padding: 4px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
+              box-shadow: var(--shadow-sm); max-height: 260px; overflow: auto; }
+.td-dep-res li { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+.td-dep-res li:hover, .td-dep-res li:focus { background: var(--surface-3); outline: 0; }
+.td-dep-res mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--primary); flex: none; }
+.td-dep-res span { display: flex; flex-direction: column; min-width: 0; }
+.td-dep-res strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-dep-res small { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) { .td-deps { grid-template-columns: 1fr; } }

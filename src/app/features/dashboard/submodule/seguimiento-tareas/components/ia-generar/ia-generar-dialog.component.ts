@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
+import { filter, lastValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -15,12 +16,13 @@ import { TareasApiService } from '../../services/tareas-api.service';
 import { DirectorioService } from '../../services/directorio.service';
 import { TareasDialogosService } from '../../services/tareas-dialogos.service';
 import {
-  DefinicionTablero, Espacio, IaTrabajo, MiembroEspacio, Prioridad, PropuestaTablero, PropuestaTareas, TareaDefinida,
+  Adjunto, DefinicionTablero, Espacio, IaTrabajo, MiembroEspacio, Prioridad, PropuestaTablero, PropuestaTareas, TareaDefinida,
 } from '../../models/tareas.models';
 import { AREAS_TAREAS, PRIORIDADES, TIPOS_LISTA, mensajeError } from '../../utils/tareas-ui';
 import { ZonaArchivosComponent } from '../zona-archivos/zona-archivos.component';
 import { Eleccion, PersonaPickerComponent } from '../persona-picker/persona-picker.component';
 import { TareaAvatarComponent } from '../avatar/avatar.component';
+import { Aplicador, AsistenteIaComponent } from '../asistente-ia/asistente-ia.component';
 
 export type ModoIa = 'tablero' | 'tareas' | 'plantilla';
 
@@ -67,7 +69,7 @@ const FASES = ['Leyendo los documentos', 'Entendiendo el pedido', 'Diseñando co
   imports: [
     FormsModule, MatDialogModule, MatIconModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule,
     MatTooltipModule, MatDatepickerModule, MatNativeDateModule, MatProgressBarModule,
-    ZonaArchivosComponent, PersonaPickerComponent, TareaAvatarComponent,
+    ZonaArchivosComponent, PersonaPickerComponent, TareaAvatarComponent, AsistenteIaComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './ia-generar-dialog.component.html',
@@ -117,6 +119,13 @@ export class IaGenerarDialogComponent implements OnInit, OnDestroy {
   /** Etiquetas reales del tablero (modo tareas): los índices de la propuesta apuntan aquí. */
   etiquetasTablero: { id: number; nombre: string; color: string }[] = [];
 
+  // Chat con la IA para armar y ajustar el tablero conversando (con archivos que quedan en él).
+  readonly conChat = this.data.modo !== 'tareas';
+  readonly chatAbierto = signal(false);
+  readonly chatAmplio = signal(false);
+  readonly adjuntosChat = signal<Adjunto[]>([]);
+  readonly subiendoArchivos = signal<string | null>(null);
+
   private sondeo: ReturnType<typeof setInterval> | null = null;
   private reloj: ReturnType<typeof setInterval> | null = null;
 
@@ -126,6 +135,56 @@ export class IaGenerarDialogComponent implements OnInit, OnDestroy {
   readonly tareas = computed(() => this.definicion()?.tareas ?? []);
   readonly totalIncluidas = computed(() => this.incluidas().size);
   readonly cercanos = computed(() => this.miembros().filter(m => m.active).map(m => m.user));
+
+  constructor() {
+    effect(() => this.ref.updateSize(this.chatAmplio() ? 'min(1360px, 98vw)' : 'min(920px, 96vw)'));
+  }
+
+  /** Lo que la IA debe saber del tablero en curso: el pedido y la propuesta tal como va (editada). */
+  readonly estadoTablero = () => {
+    const d = this.definicion();
+    return {
+      pedido: this.descripcion.trim() || null,
+      area: this.area || null,
+      nombre: this.nombre || null,
+      descripcion: this.descripcionTablero || null,
+      ...(d ? { listas: d.listas, etiquetas: d.etiquetas, tareas: d.tareas.filter((_, i) => this.incluidas().has(i)) } : {}),
+      archivos: [...this.archivos().map(f => f.name), ...this.guardados().map(g => g.nombre), ...this.adjuntosChat().map(a => a.original_name)],
+    };
+  };
+
+  /** En pantallas anchas el chat se abre al lado de la propuesta. */
+  abrirChat(): void {
+    this.chatAbierto.set(true);
+    this.chatAmplio.set(window.innerWidth >= 1100);
+  }
+
+  /** La propuesta del chat reemplaza la actual (con deshacer). */
+  readonly aplicarChat: Aplicador = r => {
+    const p = r.propuesta;
+    if (!p) return { aplicado: [] };
+    const antes = { paso: this.paso(), nombre: this.nombre, desc: this.descripcionTablero, color: this.color, area: this.area,
+      definicion: this.definicion(), incluidas: this.incluidas() };
+    const previa = this.definicion();
+    this.nombre = p.nombre || this.nombre;
+    this.descripcionTablero = p.descripcion ?? this.descripcionTablero;
+    this.color = p.color || this.color;
+    if (p.area) this.area = this.areaDelCatalogo(p.area);
+    this.definicion.set(p.definicion);
+    this.incluidas.set(new Set(p.definicion.tareas.map((_, i) => i)));
+    this.paso.set('propuesta');
+    const hecho: string[] = [];
+    if (!previa) hecho.push('propuesta nueva');
+    hecho.push(`${p.definicion.listas.length} columnas`, `${p.definicion.tareas.length} tareas`);
+    if (p.definicion.etiquetas.length) hecho.push(`${p.definicion.etiquetas.length} etiquetas`);
+    return {
+      aplicado: hecho,
+      deshacer: () => {
+        this.paso.set(antes.paso); this.nombre = antes.nombre; this.descripcionTablero = antes.desc; this.color = antes.color;
+        this.area = antes.area; this.definicion.set(antes.definicion); this.incluidas.set(antes.incluidas);
+      },
+    };
+  };
 
   async ngOnInit(): Promise<void> {
     this.dir.cargar();
@@ -288,8 +347,10 @@ export class IaGenerarDialogComponent implements OnInit, OnDestroy {
         const res = await this.api.aplicarPlantilla({
           definicion: { ...d, tareas: sel }, workspace: this.espacioId!, nombre: this.nombre.trim() || 'Tablero',
           descripcion: this.descripcionTablero || null, accent: this.color, inicio: this.iso(this.inicio),
-          responsable: r?.tipo === 'persona' ? r.id : null,
+          responsable: r?.tipo === 'persona' ? r.id : null, adjuntos: this.adjuntosChat().map(a => a.uuid),
         });
+        // Los documentos con que se armó quedan como archivos del tablero.
+        await this.subirAlTablero(res.board_id);
         this.ref.close({ tableroId: res.board_id });
         this.router.navigate(['/dashboard/tareas/tableros', res.board_id]);
       }
@@ -300,7 +361,20 @@ export class IaGenerarDialogComponent implements OnInit, OnDestroy {
     }
   }
 
-  cerrar(): void { this.ref.close(null); }
+  cerrar(): void {
+    for (const a of this.adjuntosChat()) this.api.eliminarAdjunto(a.uuid).catch(() => undefined);
+    this.ref.close(null);
+  }
+
+  private async subirAlTablero(tableroId: number): Promise<void> {
+    for (const f of this.archivos()) {
+      this.subiendoArchivos.set(f.name);
+      try {
+        await lastValueFrom(this.api.subirConAvance({ board: tableroId }, f).pipe(filter(ev => ev.tipo === 'listo')));
+      } catch { /* el tablero ya existe; el archivo se puede subir luego desde Archivos */ }
+    }
+    this.subiendoArchivos.set(null);
+  }
 
   private iso(d: Date | null): string | null {
     if (!d) return null;

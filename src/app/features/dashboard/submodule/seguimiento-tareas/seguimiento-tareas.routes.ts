@@ -25,6 +25,8 @@ export const routes: Routes = [
       { path: 'tableros/:id', loadComponent: () => import('./pages/tablero/tablero.component').then(m => m.TableroComponent) },
       { path: 'espacios', loadComponent: () => import('./pages/espacios/espacios.component').then(m => m.EspaciosComponent) },
       { path: 'espacios/:id', loadComponent: () => import('./pages/espacios/espacios.component').then(m => m.EspaciosComponent) },
+      { path: 'cronograma', loadComponent: () => import('./pages/cronograma/cronograma.component').then(m => m.CronogramaComponent) },
+      { path: 'solicitudes', loadComponent: () => import('./pages/solicitudes/solicitudes.component').then(m => m.SolicitudesComponent) },
       { path: 'calendario', loadComponent: () => import('./pages/calendario/calendario.component').then(m => m.CalendarioComponent) },
       { path: 'indicadores', loadComponent: () => import('./pages/indicadores/indicadores.component').then(m => m.IndicadoresComponent) },
       { path: 'soporte', canActivate: [puedeVerSoporte], loadComponent: () => import('./pages/soporte/soporte.component').then(m => m.SoporteComponent) },

@@ -19,8 +19,9 @@ import { DirectorioService, sinTildes } from '../../services/directorio.service'
 import { TareasDialogosService } from '../../services/tareas-dialogos.service';
 import { Espacio, Parametro, Plantilla, RegistroAuditoria, RegistroImportacion, TipoLista } from '../../models/tareas.models';
 import { TIPOS_LISTA, hace, mensajeError } from '../../utils/tareas-ui';
+import { AutomatizacionesComponent } from '../../components/automatizaciones/automatizaciones.component';
 
-type Pestana = 'parametros' | 'plantillas' | 'avisos' | 'importar' | 'auditoria';
+type Pestana = 'parametros' | 'automatizaciones' | 'plantillas' | 'avisos' | 'importar' | 'auditoria';
 
 const GRUPOS: Record<string, { titulo: string; icono: string; ayuda: string }> = {
   NOTIFICACIONES: { titulo: 'Avisos automáticos', icono: 'notifications_active',
@@ -28,6 +29,8 @@ const GRUPOS: Record<string, { titulo: string; icono: string; ayuda: string }> =
   SEGUIMIENTO: { titulo: 'Seguimiento compartido', icono: 'visibility', ayuda: 'Quién queda siguiendo una tarea sin pedirlo.' },
   TABLEROS: { titulo: 'Tableros', icono: 'view_kanban', ayuda: 'Cómo nacen los tableros y las tareas nuevas.' },
   ACCESO: { titulo: 'Acceso', icono: 'lock', ayuda: 'Qué puede hacer cada quien en los espacios.' },
+  AUTOMATIZACIONES: { titulo: 'Automatizaciones', icono: 'auto_mode',
+    ayuda: 'Interruptor general de las reglas que crean tareas desde eventos y solicitudes (se configuran en la pestaña Automatizaciones).' },
   IA: { titulo: 'Inteligencia artificial', icono: 'auto_awesome',
     ayuda: 'Asistente para crear tableros, tareas y plantillas desde documentos, y el enjambre de agentes (solo administración).' },
 };
@@ -49,7 +52,7 @@ interface FilaLista { nombre: string; tipo: TipoLista }
   standalone: true,
   imports: [
     DatePipe, FormsModule, MatIconModule, MatButtonModule, MatSlideToggleModule, MatSelectModule, MatFormFieldModule,
-    MatInputModule, MatProgressSpinnerModule, MatSnackBarModule, MatTooltipModule,
+    MatInputModule, MatProgressSpinnerModule, MatSnackBarModule, MatTooltipModule, AutomatizacionesComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './configuracion.component.html',

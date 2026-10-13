@@ -19,7 +19,8 @@ import { DirectorioService, sinTildes } from '../../services/directorio.service'
 import { TareasDialogosService } from '../../services/tareas-dialogos.service';
 import { TareasEventosService } from '../../services/tareas-eventos.service';
 import { RecientesService } from '../../services/recientes.service';
-import { Estado, Etiqueta, Lista, MiembroEspacio, Tablero, Tarea, TipoLista } from '../../models/tareas.models';
+import { Dependencia, Estado, Etiqueta, Lista, MiembroEspacio, Tablero, Tarea, TipoLista } from '../../models/tareas.models';
+import { CambioFechas, GanttComponent } from '../../components/gantt/gantt.component';
 import {
   COLORES_ETIQUETA, COLORES_TABLERO, ESTADOS, PRIORIDADES, TIPOS_LISTA, compararTareas, estadoInfo, grupoVencimiento,
   mensajeError, prioridadInfo, vencimiento,
@@ -28,7 +29,7 @@ import { TareaAvatarComponent } from '../../components/avatar/avatar.component';
 import { TareaItemComponent } from '../../components/tarea-item/tarea-item.component';
 import { AvisoDialogComponent } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 
-type Vista = 'columnas' | 'lista';
+type Vista = 'columnas' | 'lista' | 'cronograma';
 const CLAVE_VISTA = 'tareas.vistaTablero';
 
 /**
@@ -42,7 +43,7 @@ const CLAVE_VISTA = 'tareas.vistaTablero';
   imports: [
     FormsModule, RouterLink, DragDropModule, MatIconModule, MatButtonModule, MatMenuModule, MatTooltipModule,
     MatSelectModule, MatFormFieldModule, MatInputModule, MatProgressSpinnerModule, MatSnackBarModule,
-    TareaAvatarComponent, TareaItemComponent,
+    TareaAvatarComponent, TareaItemComponent, GanttComponent,
   ],
   templateUrl: './tablero.component.html',
   styleUrls: ['./tablero.component.css'],
@@ -70,6 +71,8 @@ export class TableroComponent implements OnInit {
   readonly cargando = signal(true);
   readonly error = signal<string | null>(null);
   readonly vista = signal<Vista>(this.leerVista());
+  /** Dependencias del tablero para el cronograma (las tareas salen de las listas). */
+  readonly dependencias = signal<Dependencia[]>([]);
 
   // Filtros
   readonly busqueda = signal('');
@@ -171,6 +174,7 @@ export class TableroComponent implements OnInit {
       this.recientes.anotar({ tipo: 'tablero', id: t.id, nombre: t.name, detalle: t.workspace_name, acento: t.accent });
       this.api.miembros(t.workspace).then(m => this.miembros.set(m)).catch(() => this.miembros.set([]));
       this.contarArchivos();
+      if (this.vista() === 'cronograma') this.cargarDependencias();
     } catch (e: any) {
       this.error.set(e?.status === 404 ? 'Este tablero ya no existe.' : mensajeError(e, 'No se pudo cargar el tablero.'));
     } finally {
@@ -182,6 +186,34 @@ export class TableroComponent implements OnInit {
     const t = this.tablero();
     if (!t) return;
     try { this.listas.set(this.ordenar(await this.api.listas(t.id))); } catch { /* se queda lo que hay */ }
+    if (this.vista() === 'cronograma') this.cargarDependencias();
+  }
+
+  /** Tareas filtradas del tablero, para el cronograma (con el contexto de su columna). */
+  readonly tareasCronograma = computed(() => {
+    const t = this.tablero();
+    return this.listasVisibles().flatMap(l => l.cards.map(c => ({
+      ...c, list_name: l.name, board_name: t?.name ?? null, board_accent: t?.accent ?? null, board_id: t?.id ?? c.board_id,
+    })));
+  });
+
+  async cargarDependencias(): Promise<void> {
+    const t = this.tablero();
+    if (!t) return;
+    try { this.dependencias.set((await this.api.cronograma({ board: t.id })).dependencias); } catch { this.dependencias.set([]); }
+  }
+
+  /** Reprogramar desde el cronograma arrastrando la barra. */
+  async reprogramar(c: CambioFechas): Promise<void> {
+    this.listas.update(ls => ls.map(l => ({ ...l, cards: l.cards.map(x => x.id === c.tarea.id ? { ...x, start_at: c.start_at, due_at: c.due_at } : x) })));
+    try {
+      await this.api.actualizarTarea(c.tarea.id, { start_at: c.start_at, due_at: c.due_at });
+      const f = (iso: string) => new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short' });
+      this.snack.open(`«${c.tarea.title}»: ${f(c.start_at)} → ${f(c.due_at)}`, undefined, { duration: 2600 });
+    } catch (e) {
+      this.snack.open(mensajeError(e, 'No se pudo reprogramar.'), 'Cerrar', { duration: 4500 });
+    }
+    this.recargarListas();
   }
 
   private ordenar(ls: Lista[]): Lista[] {
@@ -192,10 +224,14 @@ export class TableroComponent implements OnInit {
   // ── Vista ──
   cambiarVista(v: Vista): void {
     this.vista.set(v);
+    if (v === 'cronograma') this.cargarDependencias();
     try { localStorage.setItem(CLAVE_VISTA, v); } catch { /* sin almacenamiento */ }
   }
   private leerVista(): Vista {
-    try { return localStorage.getItem(CLAVE_VISTA) === 'lista' ? 'lista' : 'columnas'; } catch { return 'columnas'; }
+    try {
+      const v = localStorage.getItem(CLAVE_VISTA);
+      return v === 'lista' || v === 'cronograma' ? v : 'columnas';
+    } catch { return 'columnas'; }
   }
 
   limpiarFiltros(): void {

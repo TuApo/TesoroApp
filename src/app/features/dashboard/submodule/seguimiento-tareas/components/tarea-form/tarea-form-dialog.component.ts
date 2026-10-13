@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,11 +16,12 @@ import { filter, lastValueFrom } from 'rxjs';
 import { TareasApiService } from '../../services/tareas-api.service';
 import { DirectorioService } from '../../services/directorio.service';
 import { TareasDialogosService } from '../../services/tareas-dialogos.service';
-import { Grupo, Lista, MiembroEspacio, NuevaTareaPrefill, Prioridad, Sugerencia, Tablero, Tarea } from '../../models/tareas.models';
+import { Adjunto, Grupo, Lista, MiembroEspacio, NuevaTareaPrefill, Prioridad, Tablero, Tarea } from '../../models/tareas.models';
 import { PRIORIDADES, aIsoFinDeJornada, atajosFecha, etiquetaOrigen, mensajeError, prioridadInfo } from '../../utils/tareas-ui';
 import { TareaAvatarComponent } from '../avatar/avatar.component';
 import { Eleccion, PersonaPickerComponent } from '../persona-picker/persona-picker.component';
 import { ZonaArchivosComponent } from '../zona-archivos/zona-archivos.component';
+import { Aplicador, AsistenteIaComponent } from '../asistente-ia/asistente-ia.component';
 
 const CLAVE_ULTIMO_TABLERO = 'tareas.ultimoTablero';
 
@@ -44,7 +45,7 @@ function guardarUltimo(id: number): void {
   imports: [
     FormsModule, MatDialogModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDatepickerModule, MatNativeDateModule, MatTooltipModule, MatProgressSpinnerModule,
-    MatProgressBarModule, MatSnackBarModule, TareaAvatarComponent, PersonaPickerComponent, ZonaArchivosComponent,
+    MatProgressBarModule, MatSnackBarModule, TareaAvatarComponent, PersonaPickerComponent, ZonaArchivosComponent, AsistenteIaComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tarea-form-dialog.component.html',
@@ -82,12 +83,16 @@ export class TareaFormDialogComponent implements OnInit {
   readonly maxMb = signal(100);
   readonly subida = signal<{ n: number; total: number; pct: number; nombre: string } | null>(null);
 
-  // IA
+  // IA: chat que va completando el formulario (se pliega y se amplía al lado)
   readonly iaDisponible = signal(false);
-  readonly sugiriendo = signal(false);
-  readonly sugerencia = signal<Sugerencia | null>(null);
+  readonly iaAbierta = signal(false);
+  readonly iaAmplia = signal(false);
+  /** Archivos subidos en el chat: quedan en la tarea al crearla. */
+  readonly adjuntosIa = signal<Adjunto[]>([]);
+  inicia: Date | null = null;
+  /** Persona que la IA entendió como responsable y que se puede confirmar con un toque. */
+  readonly sugeridoResponsable = signal<{ id: string; nombre: string } | null>(null);
   readonly prioridadInfo = prioridadInfo;
-  private abandonado = false;
 
   readonly prioridades = PRIORIDADES;
   readonly atajos = atajosFecha();
@@ -103,6 +108,14 @@ export class TareaFormDialogComponent implements OnInit {
     return [...m.entries()].map(([espacio, tableros]) => ({ espacio, tableros }));
   });
   readonly cercanos = computed(() => this.miembros().filter(m => m.active).map(m => m.user));
+
+  constructor() {
+    // Lado a lado: el diálogo se ensancha para trabajar el formulario junto al chat.
+    effect(() => {
+      const amplio = this.iaAmplia();
+      this.ref.updateSize(amplio ? 'min(1280px, 98vw)' : 'min(720px, 96vw)');
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     this.dir.cargar();
@@ -170,48 +183,67 @@ export class TareaFormDialogComponent implements OnInit {
     this.dialogos.verArchivos(this.archivos().map(f => ({ nombre: f.name, mime: f.type, tamano: f.size, archivo: f })), i);
   }
 
-  /** La IA completa el borrador: descripción, pasos, prioridad y plazo (leyendo los adjuntos). */
-  async sugerir(): Promise<void> {
-    if (!this.titulo.trim() || this.sugiriendo()) return;
-    this.sugiriendo.set(true);
-    this.sugerencia.set(null);
-    this.error.set(null);
-    try {
-      const t = await this.api.iaGenerar('sugerir', {
-        descripcion: `Título: ${this.titulo.trim()}` + (this.descripcion.trim() ? `\nDescripción actual: ${this.descripcion.trim()}` : '')
-          + (this.pasos.length ? `\nPasos ya escritos: ${this.pasos.join('; ')}` : ''),
-        modo: 'borrador',
-        archivos: this.archivos(),
-      });
-      this.sugerencia.set(await this.api.esperarIa<Sugerencia>(t.id, { cancelado: () => this.abandonado }));
-    } catch (e: any) {
-      if (e?.message !== 'cancelado') this.error.set(e instanceof Error ? e.message : mensajeError(e, 'La IA no pudo sugerir.'));
-    } finally {
-      this.sugiriendo.set(false);
-    }
-  }
+  /** Foto del formulario para la IA (lo que ya está lleno). */
+  readonly estadoFormulario = () => {
+    const r = this.responsable();
+    const t = this.tableros().find(x => x.id === this.tableroId);
+    return {
+      titulo: this.titulo.trim() || null,
+      descripcion: this.descripcion.trim() || null,
+      pasos: this.pasos,
+      prioridad: this.prioridad,
+      vence: this.vence ? this.vence.toISOString().slice(0, 10) : null,
+      inicia: this.inicia ? this.inicia.toISOString().slice(0, 10) : null,
+      responsable: r ? (r.tipo === 'grupo' ? `Grupo ${r.nombre}` : this.dir.nombre(r.id)) : null,
+      tablero: t ? `${t.workspace_name} › ${t.name}` : null,
+      columna: this.listas().find(l => l.id === this.listaId)?.name ?? null,
+      seguidores: this.seguidores().map(id => this.dir.nombre(id)),
+      archivos: [...this.archivos().map(f => f.name), ...this.adjuntosIa().map(a => a.original_name)],
+      origen: this.origen ? (this.origen.etiqueta || this.origenTexto) : null,
+    };
+  };
 
-  aplicarSugerencia(que: 'todo' | 'pasos'): void {
-    const s = this.sugerencia();
-    if (!s) return;
-    const nuevos = s.pasos.filter(p => !this.pasos.includes(p));
-    this.pasos = [...this.pasos, ...nuevos];
-    if (que === 'todo') {
-      if (s.texto) this.descripcion = this.descripcion.trim() ? `${this.descripcion.trim()}\n\n${s.texto}` : s.texto;
-      if (s.prioridad) this.prioridad = s.prioridad;
-      if (s.dias !== undefined && s.dias !== null && !this.vence) {
-        const h = new Date();
-        this.vence = new Date(h.getFullYear(), h.getMonth(), h.getDate() + s.dias);
+  /** Aplica lo que propone la IA, guardando lo anterior para poder deshacer. */
+  readonly aplicarIa: Aplicador = r => {
+    const c = r.campos ?? {};
+    const antes = { titulo: this.titulo, descripcion: this.descripcion, pasos: [...this.pasos], prioridad: this.prioridad, vence: this.vence, inicia: this.inicia };
+    const hecho: string[] = [];
+    const hoy = new Date();
+    const dia = (n: number) => new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + n);
+    if (c.titulo && c.titulo !== this.titulo.trim()) { this.titulo = c.titulo; hecho.push('título'); }
+    if (c.descripcion && c.descripcion !== this.descripcion.trim()) { this.descripcion = c.descripcion; hecho.push('descripción'); }
+    if (c.pasos?.length) {
+      const nuevos = c.pasos.filter(p => !this.pasos.some(x => x.trim().toLowerCase() === p.trim().toLowerCase()));
+      if (nuevos.length) { this.pasos = [...this.pasos, ...nuevos]; hecho.push(nuevos.length === 1 ? '1 paso' : `${nuevos.length} pasos`); }
+    }
+    if (c.prioridad && c.prioridad !== this.prioridad) { this.prioridad = c.prioridad; hecho.push(`prioridad ${prioridadInfo(c.prioridad).etiqueta.toLowerCase()}`); }
+    if (c.dias !== undefined && c.dias !== null) {
+      const v = dia(c.dias);
+      if (!this.vence || this.vence.toDateString() !== v.toDateString()) {
+        this.vence = v; hecho.push(`vence ${v.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}`);
       }
     }
-    this.sugerencia.set(null);
-  }
+    if (c.inicio_dias !== undefined && c.inicio_dias !== null && c.inicio_dias > 0) {
+      const v = dia(c.inicio_dias);
+      if (!this.vence || v <= this.vence) { this.inicia = v; hecho.push(`inicia ${v.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}`); }
+    }
+    if (c.responsable && !this.responsable()) {
+      const p = this.dir.buscar(c.responsable, this.cercanos(), 1)[0];
+      if (p) this.sugeridoResponsable.set({ id: p.id, nombre: p.nombre });
+    }
+    return {
+      aplicado: hecho,
+      deshacer: hecho.length ? () => {
+        this.titulo = antes.titulo; this.descripcion = antes.descripcion; this.pasos = antes.pasos;
+        this.prioridad = antes.prioridad; this.vence = antes.vence; this.inicia = antes.inicia;
+      } : undefined,
+    };
+  };
 
-  plazo(dias: number | undefined): string {
-    if (dias === undefined || dias === null) return '';
-    if (dias === 0) return 'vence hoy';
-    if (dias === 1) return 'vence mañana';
-    return `vence en ${dias} días`;
+  aceptarResponsable(): void {
+    const p = this.sugeridoResponsable();
+    if (p) this.responsable.set({ tipo: 'persona', id: p.id, nombre: p.nombre });
+    this.sugeridoResponsable.set(null);
   }
 
   puedeGuardar(): boolean {
@@ -229,6 +261,8 @@ export class TareaFormDialogComponent implements OnInit {
         description: this.descripcion.trim() || null,
         priority: this.prioridad,
         due_at: aIsoFinDeJornada(this.vence),
+        start_at: this.inicia ? new Date(this.inicia.getFullYear(), this.inicia.getMonth(), this.inicia.getDate(), 8, 0, 0).toISOString() : null,
+        adjuntos: this.adjuntosIa().map(a => a.uuid),
         assignee: r?.tipo === 'persona' ? r.id : null,
         assignee_name: r?.tipo === 'persona' ? r.nombre : null,
         assignee_group: r?.tipo === 'grupo' ? r.id : null,
@@ -270,7 +304,8 @@ export class TareaFormDialogComponent implements OnInit {
   }
 
   cancelar(): void {
-    this.abandonado = true;
+    // Lo subido en el chat sin llegar a crear la tarea no debe quedar suelto.
+    for (const a of this.adjuntosIa()) this.api.eliminarAdjunto(a.uuid).catch(() => undefined);
     this.ref.close(null);
   }
 }
