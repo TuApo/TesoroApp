@@ -7,6 +7,7 @@ const http = require('http');
 const { execFile } = require('child_process');
 const log = require('electron-log');
 const { initDatabase, closeDatabase } = require('./electron-db');
+const { initEndpointAgent, isActive: endpointActivo } = require('./endpoint-agent');
 const {
   isSafeExternalUrl,
   openExternalIfSafe,
@@ -649,6 +650,9 @@ app.whenReady().then(() => {
   cleanupStaleTempDirs();
   initDatabase();
   if (!isDev) registerAutoUpdaterListeners();
+  // Agente de monitoreo de endpoints: vive en la bandeja aunque se cierre la ventana. No debe tumbar
+  // la app si falla (su init ya atrapa todo), pero lo envolvemos por si acaso.
+  try { initEndpointAgent({ app, ipcMain, logger: log, assertSender: assertAllowedIpcSender }); } catch (e) { log.warn('endpoint-agent: ' + e.message); }
   createWindow();
 
   app.on('activate', () => {
@@ -659,7 +663,10 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   cleanupPdfContext();
   cleanupViewerWindows();
-  if (process.platform !== 'darwin') app.quit();
+  // Con el agente activo, la app sigue viva en la bandeja (monitoreo/soporte); si no, cierra como siempre.
+  let agente = false;
+  try { agente = endpointActivo(); } catch { /* noop */ }
+  if (process.platform !== 'darwin' && !agente) app.quit();
 });
 
 app.on('before-quit', () => {
