@@ -7,6 +7,12 @@ export const routes: Routes = [
     pathMatch: 'full',
   },
   {
+    // Bandeja central del chat de IA estándar (todas las conversaciones de todos los módulos).
+    path: 'conversaciones',
+    loadComponent: () =>
+      import('./pages/conversaciones/conversaciones').then((m) => m.ConversacionesIa),
+  },
+  {
     path: 'asistente',
     loadComponent: () =>
       import('./pages/asistente-ia/asistente-ia.component').then(

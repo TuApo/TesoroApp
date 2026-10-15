@@ -1,0 +1,119 @@
+<div class="bia" [class.bia--detalle]="verDetalleMovil()">
+  <!-- Lista -->
+  <section class="bia-lista" aria-label="Conversaciones">
+    <div class="bia-barra">
+      <div class="bia-buscar">
+        <mat-icon>search</mat-icon>
+        <input type="search" [(ngModel)]="q" (input)="buscar()" placeholder="Buscar en títulos y mensajes…" aria-label="Buscar conversaciones">
+      </div>
+      <button mat-flat-button class="bia-nueva" (click)="nueva()"><mat-icon>add_comment</mat-icon>Nueva</button>
+    </div>
+
+    <div class="bia-filtros">
+      <div class="bia-chips" role="group" aria-label="Filtrar por módulo">
+        <button type="button" class="bia-chip" [class.activo]="!modulo()" (click)="filtrarModulo(null)">Todos</button>
+        @for (m of facetas().modulos; track m.clave) {
+          <button type="button" class="bia-chip" [class.activo]="modulo() === m.clave" (click)="filtrarModulo(m.clave)">
+            <mat-icon>{{ icono(m.clave) }}</mat-icon>{{ m.nombre }}<span class="bia-cuenta">{{ m.total }}</span>
+          </button>
+        }
+      </div>
+      <div class="bia-fila-filtros">
+        @if (facetas().tiendas.length) {
+          <select class="bia-select" [value]="tienda() ?? ''" (change)="filtrarTienda($any($event.target).value)" aria-label="Filtrar por tienda">
+            <option value="">Todas las tiendas</option>
+            @for (t of facetas().tiendas; track t.id) { <option [value]="t.id">{{ t.nombre }} ({{ t.total }})</option> }
+          </select>
+        }
+        <label class="bia-fecha">Desde <input type="date" [(ngModel)]="desde" (change)="cargar()"></label>
+        <label class="bia-fecha">Hasta <input type="date" [(ngModel)]="hasta" (change)="cargar()"></label>
+      </div>
+      <div class="bia-fila-filtros">
+        <mat-slide-toggle [checked]="archivadas()" (change)="alternarArchivadas()">Archivadas</mat-slide-toggle>
+        @if (esAdmin) {
+          <mat-slide-toggle [checked]="todas()" (change)="alternarTodas()" matTooltip="Revisar las conversaciones de todas las personas (solo lectura)">
+            De todas las personas
+          </mat-slide-toggle>
+        }
+        @if (hayFiltros() || q || desde || hasta) {
+          <button mat-button class="bia-limpiar" (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon>Limpiar</button>
+        }
+      </div>
+    </div>
+
+    <div class="bia-resultados">
+      <small class="bia-total">{{ total() }} conversación{{ total() === 1 ? '' : 'es' }}</small>
+      @if (error()) { <p class="bia-error"><mat-icon>error_outline</mat-icon>{{ error() }}</p> }
+      @for (c of conversaciones(); track c.id) {
+        <button type="button" class="bia-item" [class.activa]="seleccionada() === c.id" (click)="abrir(c.id)">
+          <span class="bia-item-ico"><mat-icon>{{ icono(c.modulo) }}</mat-icon></span>
+          <span class="bia-item-cuerpo">
+            <span class="bia-item-linea">
+              <strong class="bia-item-tit">{{ c.titulo }}</strong>
+              @if (c.fijada) { <mat-icon class="bia-pin">push_pin</mat-icon> }
+              <small class="bia-item-fecha">{{ c.updatedAt | date: 'd MMM' }}</small>
+            </span>
+            <span class="bia-item-meta">
+              <span class="bia-etq">{{ c.moduloNombre || 'Sin módulo' }}</span>
+              @if (c.tiendaNombre) { <span class="bia-etq bia-etq--tienda"><mat-icon>storefront</mat-icon>{{ c.tiendaNombre }}</span> }
+              @if (c.legado) { <span class="bia-etq bia-etq--legado">anterior</span> }
+              @if (!c.propia) { <span class="bia-etq bia-etq--persona"><mat-icon>person</mat-icon>{{ c.usuarioNombre || 'Otra persona' }}</span> }
+            </span>
+            @if (c.ultimoMensaje) { <span class="bia-item-ultimo">{{ c.ultimoMensaje }}</span> }
+          </span>
+        </button>
+      } @empty {
+        @if (!cargando()) {
+          <div class="bia-vacio">
+            <app-chat-ia-robot [tam]="56" />
+            <p>{{ q || hayFiltros() ? 'No hay conversaciones con esos filtros.' : 'Todavía no tienes conversaciones. Abre el chat desde cualquier módulo o empieza una aquí.' }}</p>
+          </div>
+        }
+      }
+      @if (cargando()) { <div class="bia-cargando"><mat-spinner diameter="26" /></div> }
+      @if (!cargando() && pagina() + 1 < paginas()) {
+        <button mat-stroked-button class="bia-mas" (click)="cargar(true)">Cargar más</button>
+      }
+    </div>
+  </section>
+
+  <!-- Detalle -->
+  <section class="bia-detalle" aria-label="Conversación">
+    @if (detalle(); as d) {
+      <header class="bia-det-cab">
+        @if (enMovil()) { <button mat-icon-button (click)="volverALista()" aria-label="Volver a la lista"><mat-icon>arrow_back</mat-icon></button> }
+        <span class="bia-item-ico"><mat-icon>{{ icono(d.modulo) }}</mat-icon></span>
+        <div class="bia-det-tit">
+          @if (editandoTitulo()) {
+            <input class="bia-det-input" [(ngModel)]="tituloEditado" (keydown.enter)="renombrar(d)" (keydown.escape)="editandoTitulo.set(false)" (blur)="renombrar(d)"
+                   aria-label="Título de la conversación" autofocus>
+          } @else {
+            <strong (dblclick)="d.propia && empezarRenombrar(d)" [title]="d.titulo">{{ d.titulo }}</strong>
+          }
+          <small>{{ d.moduloNombre || 'Sin módulo' }}{{ d.tiendaNombre ? ' · ' + d.tiendaNombre : '' }}{{ !d.propia ? ' · ' + (d.usuarioNombre || 'otra persona') : '' }}
+            · {{ d.createdAt | date: 'd MMM y, h:mm a' }}</small>
+        </div>
+        @if (d.ruta) {
+          <button mat-stroked-button class="bia-ir" (click)="irAlModulo(d)" matTooltip="Abrir la pantalla en que se trabajó" aria-label="Ir al módulo"><mat-icon>open_in_new</mat-icon><span class="bia-ir-txt">Ir al módulo</span></button>
+        }
+        @if (d.propia) {
+          <button mat-icon-button (click)="empezarRenombrar(d)" aria-label="Renombrar" matTooltip="Renombrar"><mat-icon>edit</mat-icon></button>
+          <button mat-icon-button class="bia-fijar" (click)="fijar(d)" [attr.aria-label]="d.fijada ? 'Desfijar' : 'Fijar'" [matTooltip]="d.fijada ? 'Desfijar' : 'Fijar arriba'">
+            <mat-icon>{{ d.fijada ? 'push_pin' : 'keep' }}</mat-icon>
+          </button>
+          <button mat-icon-button (click)="archivar(d)" [attr.aria-label]="d.archivada ? 'Desarchivar' : 'Archivar'" [matTooltip]="d.archivada ? 'Desarchivar' : 'Archivar'">
+            <mat-icon>{{ d.archivada ? 'unarchive' : 'archive' }}</mat-icon>
+          </button>
+        }
+      </header>
+      <app-chat-ia class="bia-chat" modo="pagina" [cabecera]="false" [conversacionId]="seleccionada()" (cambio)="alCambiar($event)" />
+    } @else {
+      <header class="bia-det-cab">
+        @if (enMovil()) { <button mat-icon-button (click)="volverALista()" aria-label="Volver a la lista"><mat-icon>arrow_back</mat-icon></button> }
+        <span class="bia-item-ico"><mat-icon>forum</mat-icon></span>
+        <div class="bia-det-tit"><strong>Nueva conversación</strong><small>General · sin datos de un módulo</small></div>
+      </header>
+      <app-chat-ia class="bia-chat" modo="pagina" [cabecera]="false" [contexto]="contextoGeneral" [conversacionId]="null" (cambio)="alCambiar($event)" />
+    }
+  </section>
+</div>

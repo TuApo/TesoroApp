@@ -12,6 +12,7 @@ import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/component
 import { SelectorTienda } from '../../components/selector-tienda/selector-tienda';
 import { ContextoTiendaService } from '../../service/contexto-tienda.service';
 import { KpiDia, ResumenKpi, TiendaService } from '../../service/tienda.service';
+import { ChatIaAcceso, ContextoChatIa } from '../../../../../../shared/components/chat-ia';
 
 /**
  * Tablero de la tienda.
@@ -27,7 +28,7 @@ import { KpiDia, ResumenKpi, TiendaService } from '../../service/tienda.service'
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-tienda-indicadores',
-  imports: [CommonModule, FormsModule, RouterLink, MatIconModule, NgxEchartsDirective, SelectorTienda, ...TABLA_ESTANDAR],
+  imports: [CommonModule, FormsModule, RouterLink, MatIconModule, NgxEchartsDirective, SelectorTienda, ChatIaAcceso, ...TABLA_ESTANDAR],
   providers: [provideEchartsTema()],
   templateUrl: './indicadores.html',
   styleUrls: ['../../styles/tienda-comun.css', './indicadores.css'],
@@ -84,6 +85,28 @@ export class Indicadores implements OnInit {
 
   /** Ámbito: una tienda o todas las del alcance. Solo tiene sentido si ve más de una. */
   readonly todasLasTiendas = signal(false);
+
+  /** Contexto del chat de IA: la tienda elegida (o todas), el rango y los indicadores que se ven. */
+  readonly contextoChat = computed<ContextoChatIa>(() => {
+    const t = this.todasLasTiendas() ? null : this.ctx.tienda();
+    const r = this.resumen();
+    return {
+      modulo: 'tienda.indicadores',
+      moduloNombre: 'Tienda › Indicadores',
+      tiendaId: t?.id ?? null,
+      tiendaNombre: t?.nombre ?? (this.todasLasTiendas() ? 'Todas las tiendas' : null),
+      ruta: '/dashboard/tienda/indicadores',
+      parametros: { tienda: t?.id ?? null, desde: this.desde || null, hasta: this.hasta || null },
+      pantalla: { periodo: this.desde || this.hasta ? `${this.desde || 'hace 30 días'} a ${this.hasta || 'hoy'}` : 'últimos 30 días', indicadores: r },
+      sugerencias: [
+        '¿Cómo van las ventas de este periodo frente al anterior?',
+        '¿Qué productos dejan más margen y cuáles menos?',
+        '¿Qué buscaron los compradores y no encontraron?',
+        'Prepárame una presentación con los indicadores del periodo',
+        'Hazme un informe en PDF para gerencia',
+      ],
+    };
+  });
 
   constructor() {
     effect(() => {

@@ -12,6 +12,7 @@ import { SelectorTienda } from '../../components/selector-tienda/selector-tienda
 import { ContextoTiendaService } from '../../service/contexto-tienda.service';
 import { TiendaService } from '../../service/tienda.service';
 import { ARCHIVOS_EXPORT_LOGIS, ArchivoExport } from './logis-export';
+import { ChatIaAcceso, ContextoChatIa } from '../../../../../../shared/components/chat-ia';
 
 type Fila = Record<string, any>;
 type Pestana = 'resumen' | 'productos' | 'categorias' | 'clientes' | 'fincas' | 'patrones' | 'canasta' | 'proyeccion' | 'operacion' | 'datos';
@@ -33,7 +34,7 @@ const DIAS_CORTOS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-tienda-logis',
-  imports: [CommonModule, FormsModule, MatIconModule, NgxEchartsDirective, SelectorTienda, ...TABLA_ESTANDAR],
+  imports: [CommonModule, FormsModule, MatIconModule, NgxEchartsDirective, SelectorTienda, ChatIaAcceso, ...TABLA_ESTANDAR],
   providers: [provideEchartsTema()],
   templateUrl: './logis.html',
   styleUrls: ['../../styles/tienda-comun.css', './logis.css'],
@@ -129,6 +130,26 @@ export class Logis implements OnInit {
   }
 
   readonly puedeCompararTiendas = computed(() => this.ctx.esSuperAdmin() || this.ctx.tiendas().length > 1);
+
+  /** Lo que el chat de IA sabe de esta pantalla: tienda, periodo, pestaña y el resumen que se ve. */
+  readonly contextoChat = computed<ContextoChatIa>(() => {
+    const t = this.todasLasTiendas() ? null : this.ctx.tienda();
+    const pestana = this.pestanas.find(p => p.id === this.pestana())?.titulo ?? this.pestana();
+    return {
+      modulo: 'tienda.logis',
+      moduloNombre: 'Tienda › Logis',
+      tiendaId: t?.id ?? null,
+      tiendaNombre: t?.nombre ?? (this.todasLasTiendas() ? 'Todas las tiendas' : null),
+      ruta: `/dashboard/tienda/logis?vista=${this.pestana()}`,
+      parametros: { tienda: t?.id ?? null, desde: this.desde() || null, hasta: this.hasta() || null },
+      pantalla: {
+        pestana,
+        periodo: this.desde() || this.hasta() ? `${this.desde() || 'inicio del histórico'} a ${this.hasta() || 'hoy'}` : 'todo el histórico',
+        todasLasTiendas: this.todasLasTiendas(),
+        resumen: this.datos()['resumen'] ?? null,
+      },
+    };
+  });
 
   private filtros() {
     return {
