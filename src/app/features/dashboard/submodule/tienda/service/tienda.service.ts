@@ -272,7 +272,7 @@ export interface PersonaTarjeta {
 
 export interface ResumenKpi {
   ventas_cantidad?: number; ventas_total: number; costo_total?: number;
-  margen_bruto?: number; margen_pct?: number; descuento_total?: number;
+  margen_bruto?: number; margen_pct?: number; costo_estimado_pct?: number; descuento_total?: number;
   ticket_promedio?: number; pagos_por_metodo?: Record<string, number>;
   credito_nomina?: number; valor_inventario?: number; productos_sin_stock?: number;
   rotacion?: number | null; sin_alcance?: boolean; sin_tiendas?: boolean; mensaje?: string;
@@ -702,6 +702,26 @@ export class TiendaService {
   busquedasSinResultado(tienda: string, dias = 30): Observable<Array<Record<string, unknown>>> {
     return this.http.get<Array<Record<string, unknown>>>(`${this.base}/kpi/busquedas-sin-resultado`,
       { params: new HttpParams().set('tienda', tienda).set('dias', String(dias)) });
+  }
+
+  // ── Logis (análisis a fondo: histórico de Logis + caja nueva) ────────────
+
+  /**
+   * Un recurso del análisis de Logis (`resumen`, `serie`, `proyeccion`, `productos`, `categorias`,
+   * `clientes`, `patrones`, `canasta`, `operacion`, `reabastecimiento`, `datos`). Todo llega
+   * agregado del servidor; los parámetros extra (grano, orden, límite, días) van en `extra`.
+   */
+  logis<T = any>(recurso: string, opciones: { tienda?: string; nodo?: string; desde?: string; hasta?: string } = {},
+                 extra: Record<string, string | number> = {}): Observable<T> {
+    let params = this.rango(opciones);
+    for (const [k, v] of Object.entries(extra)) params = params.set(k, String(v));
+    return this.http.get<T>(`${this.base}/logis/${recurso}`, { params });
+  }
+
+  /** Rehace el costo estimado de las ventas viejas de Logis de una tienda. */
+  recalcularCostosLogis(tienda: string): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(`${this.base}/logis/costos/recalcular`, null,
+      { params: new HttpParams().set('tienda', tienda) });
   }
 
   pagosPorVerificar(tienda: string): Observable<Pago[]> {

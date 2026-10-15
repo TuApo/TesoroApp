@@ -55,6 +55,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/indicadores/indicadores').then(m => m.Indicadores),
   },
   {
+    // Logis: el análisis a fondo de las ventas (histórico de Logis + caja nueva). Nodo propio en
+    // db_admin (ms-auth-admin V146), con los mismos permisos que Indicadores.
+    path: 'logis',
+    loadComponent: () => import('./pages/logis/logis').then(m => m.Logis),
+  },
+  {
     path: 'administracion',
     loadComponent: () => import('./pages/administracion/administracion').then(m => m.Administracion),
   },
