@@ -224,12 +224,17 @@ export class Indicadores implements OnInit {
   readonly graficaDepartamentos = computed<EChartsOption>(() => {
     const d = [...this.departamentos()].reverse();
     return {
-      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (v: any) => this.pesos(v) },
-      grid: { left: 8, right: 16, top: 6, bottom: 6, containLabel: true },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+        formatter: (p: any) => { const x = d[p[0].dataIndex];
+          return `${x['departamento']}<br>${this.pesos(x['venta'])}<br>Utilidad ${Number(x['margen_pct'] ?? 0).toLocaleString(this.locale, { maximumFractionDigits: 1 })} %`
+            + (x['utilidad_promedio_pct'] != null ? ` · promedio por producto ${Number(x['utilidad_promedio_pct']).toLocaleString(this.locale, { maximumFractionDigits: 1 })} %` : ''); } },
+      grid: { left: 8, right: 56, top: 6, bottom: 6, containLabel: true },
       xAxis: { type: 'value', axisLabel: { fontSize: 10, formatter: (v: number) => v >= 1e6 ? `${(v / 1e6).toFixed(0)}M` : `${Math.round(v / 1000)}k` },
         splitLine: { lineStyle: { color: '#f3f4f6' } } },
       yAxis: { type: 'category', data: d.map(x => String(x['departamento'] ?? '').slice(0, 26)), axisLabel: { fontSize: 10 } },
-      series: [{ type: 'bar', data: d.map(x => Math.round(x['venta'])), itemStyle: { color: '#b4720e', borderRadius: [0, 4, 4, 0] } }],
+      series: [{ type: 'bar', data: d.map(x => Math.round(x['venta'])), itemStyle: { color: '#b4720e', borderRadius: [0, 4, 4, 0] },
+        label: { show: true, position: 'right', fontSize: 10,
+          formatter: (p: any) => `${Number(d[p.dataIndex]['margen_pct'] ?? 0).toLocaleString(this.locale, { maximumFractionDigits: 1 })} %` } }],
     };
   });
 

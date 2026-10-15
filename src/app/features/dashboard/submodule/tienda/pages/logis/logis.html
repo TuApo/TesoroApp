@@ -211,9 +211,22 @@
       } @else if (categorias(); as c) {
         <section class="tienda-tarjeta">
           <h2 class="titulo-seccion">Venta por departamento y familia</h2>
-          <p class="nota">El tamaño de cada cuadro es la plata que mueve. Toque un departamento para ver sus familias.</p>
+          <p class="nota">El tamaño de cada cuadro es la plata que mueve; junto a la venta va el % de utilidad. Toque un departamento para ver sus familias.</p>
           <div echarts [options]="graficaTreemap()" class="grafica muy-alta"></div>
         </section>
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Departamentos</h2>
+            <p class="nota">«Utilidad %» es la utilidad del grupo sobre su venta. «Utilidad prom. por producto» es el promedio simple
+              del % de cada producto con venta: si se separan mucho, unos pocos productos grandes están jalando el resultado.</p>
+            <app-tabla-estandar id="tienda-logis-departamentos" titulo="Venta y utilidad por departamento" modulo="Tienda › Logis"
+              [datos]="departamentosTabla()" [columnas]="columnasDepartamentos" [filaId]="idDepartamento" />
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Cuánto deja cada departamento</h2>
+            <div echarts [options]="graficaUtilidadDepartamentos()" class="grafica alta"></div>
+          </section>
+        </div>
         <section class="tienda-tarjeta">
           <h2 class="titulo-seccion">Familias</h2>
           <app-tabla-estandar id="tienda-logis-familias" titulo="Venta por familia" modulo="Tienda › Logis"
@@ -249,6 +262,12 @@
               <span class="ayuda">mediana: compra cada {{ c['dias_entre_compras_mediana'] ?? '—' }} días</span></article>
             <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Gasto por cliente</span>
               <span class="valor">{{ pesos(c['gasto_por_cliente']) }}</span><span class="ayuda">en todo el período</span></article>
+            @if (c['laboral']; as l) {
+              <article class="tienda-tarjeta tienda-kpi destacado"><span class="etiqueta">Siguen en la empresa</span>
+                <span class="valor">{{ num(l['activos']) }}</span>
+                <span class="ayuda">de {{ num(c['clientes']) }} compradores ({{ num(l['activos_pct'], 1) }} %) · hicieron el
+                  {{ num(l['venta_de_activos_pct'], 1) }} % de la venta · {{ num(l['retirados']) }} ya no están</span></article>
+            }
             <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Concentración</span>
               <span class="valor">{{ num(c['concentracion']['top10_pct_de_la_venta'], 1) }} %</span>
               <span class="ayuda">de la venta la hace el 10 % de los clientes · {{ num(c['concentracion']['clientes_para_80_pct']) }} clientes hacen el 80 %</span></article>
@@ -261,10 +280,33 @@
                 <p class="desc">{{ s['descripcion'] }}</p>
                 <p class="cifras">{{ num(s['clientes_pct'], 1) }} % de los clientes · {{ num(s['venta_pct'], 1) }} % de la venta<br>
                   {{ num(s['compras_promedio'], 1) }} compras · {{ pesos(s['gasto_promedio']) }} c/u</p>
+                @if (c['tesoreria_disponible']) {
+                  <p class="laboral"><b>{{ num(s['activos']) }}</b> siguen en la empresa · {{ num(s['retirados']) }} ya no están</p>
+                }
                 <p class="accion"><mat-icon>tips_and_updates</mat-icon> {{ s['accion'] }}</p>
               </article>
             }
           </section>
+
+          @if (!c['tesoreria_disponible']) {
+            <div class="aviso-banda"><mat-icon>info</mat-icon> No se pudo cruzar con tesorería y contratación: los segmentos van sin estado laboral ni contacto.</div>
+          }
+          @if (c['alcance']; as a) {
+            <section class="tienda-tarjeta">
+              <div class="cabecera-seccion">
+                <h2 class="titulo-seccion">Hasta dónde llega la tienda entre los activos de tesorería</h2>
+                <button type="button" class="boton secundario" (click)="irA('fincas')"><mat-icon>agriculture</mat-icon> Ver por finca y temporal</button>
+              </div>
+              <p class="nota">Fincas atendidas = las que tienen al menos 5 compradores activos. La tienda no surte a toda la empresa.</p>
+              <div class="rejilla-mini">
+                <div><span>Activos en la empresa</span><b>{{ num(a['activos_empresa']) }}</b><small>según tesorería hoy</small></div>
+                <div><span>Fincas atendidas</span><b>{{ num(a['fincas_atendidas']) }}</b><small>{{ num(a['activos_en_fincas_atendidas']) }} activos en ellas</small></div>
+                <div><span>Les compran</span><b>{{ num(a['penetracion_fincas_atendidas_pct'], 1) }} %</b>
+                  <small>{{ num(a['compradores_activos_en_fincas_atendidas']) }} compradores activos en el rango</small></div>
+                <div><span>Nunca han comprado</span><b>{{ num(a['activos_sin_compra']) }}</b><small>activos de esas fincas: ya tienen cupo</small></div>
+              </div>
+            </section>
+          }
 
           <div class="dos-columnas">
             <section class="tienda-tarjeta">
@@ -303,21 +345,170 @@
 
           <section class="tienda-tarjeta">
             <h2 class="titulo-seccion">En riesgo: compraban seguido y dejaron de venir</h2>
-            <p class="nota">La lista de llamadas de esta semana. Ordenada por lo que compraban.</p>
+            <p class="nota">La lista de llamadas de esta semana: primero los que siguen en la empresa, ordenados por lo que compraban.
+              Teléfono y correo vienen de contratación.</p>
             <app-tabla-estandar id="tienda-logis-en-riesgo" titulo="Clientes en riesgo" modulo="Tienda › Logis"
-              vacio="Nadie en riesgo: buena señal." [datos]="c['en_riesgo']" [columnas]="columnasClientes" [filaId]="idCliente" />
+              vacio="Nadie en riesgo: buena señal." [datos]="c['en_riesgo']" [columnas]="columnasClientes" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
           </section>
           <section class="tienda-tarjeta">
             <h2 class="titulo-seccion">Los mejores clientes</h2>
             <app-tabla-estandar id="tienda-logis-top-clientes" titulo="Mejores clientes" modulo="Tienda › Logis"
-              [datos]="c['top']" [columnas]="columnasClientes" [filaId]="idCliente" />
+              [datos]="c['top']" [columnas]="columnasClientes" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
           </section>
           <section class="tienda-tarjeta">
-            <h2 class="titulo-seccion">Perdidos que más compraban</h2>
-            <p class="nota">Más de 4 meses sin venir. Antes de intentar recuperarlos, revise si siguen en la empresa.</p>
-            <app-tabla-estandar id="tienda-logis-perdidos" titulo="Clientes perdidos" modulo="Tienda › Logis"
-              vacio="Ninguno." [datos]="c['perdidos_valiosos']" [columnas]="columnasClientes" [filaId]="idCliente" />
+            <h2 class="titulo-seccion">Perdidos que siguen en la empresa</h2>
+            <p class="nota">Más de 4 meses sin venir, pero siguen activos en tesorería: se pueden recuperar.
+              @if (c['perdidos_retirados']) { Otros {{ num(c['perdidos_retirados']) }} perdidos ya no están en la empresa y no aparecen aquí. }</p>
+            <app-tabla-estandar id="tienda-logis-perdidos" titulo="Perdidos que siguen en la empresa" modulo="Tienda › Logis"
+              vacio="Ninguno." [datos]="c['perdidos_activos']" [columnas]="columnasClientes" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
           </section>
+          @if (c['activos_sin_compra']?.length) {
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Activos que nunca le han comprado a la tienda</h2>
+              <p class="nota">Trabajan en fincas que la tienda ya atiende y tienen cupo en tesorería, pero nunca han comprado.
+                Primero los que entraron más recientemente: es el mejor momento para darles la bienvenida. Se muestran los primeros 300 de
+                {{ num(c['alcance']?.['activos_sin_compra']) }}.</p>
+              <app-tabla-estandar id="tienda-logis-sin-compra" titulo="Activos que nunca han comprado" modulo="Tienda › Logis"
+                [datos]="c['activos_sin_compra']" [columnas]="columnasSinCompra" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
+            </section>
+          }
+        }
+      }
+    }
+
+    <!-- ═══════════════════════ FINCAS Y TEMPORALES ═══════════════════════ -->
+    @case ('fincas') {
+      @if (estaCargando('fincas') && !fincas()) {
+        <div class="cargando"><span class="giro"></span> Cruzando compradores con tesorería…</div>
+      } @else if (fincas(); as fz) {
+        @if (fz['disponible'] === false || fz['sin_datos']) {
+          <div class="tienda-tarjeta tienda-vacio"><mat-icon>agriculture</mat-icon><p>{{ fz['mensaje'] || 'Sin compradores identificados en el rango.' }}</p></div>
+        } @else {
+          <div class="aviso-banda"><mat-icon>info</mat-icon> {{ fz['nota'] }}</div>
+          <section class="rejilla-kpi">
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Fincas con compradores</span>
+              <span class="valor">{{ num(fz['fincas_con_compradores']) }}</span>
+              <span class="ayuda">{{ num(fz['fincas_atendidas']) }} atendidas (5 o más compradores activos)</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">La finca que más compra</span>
+              <span class="valor texto">{{ fz['por_finca'][0]?.['finca'] ?? '—' }}</span>
+              <span class="ayuda">{{ num(fz['por_finca'][0]?.['participacion_pct'], 1) }} % de la venta identificada ·
+                {{ num(fz['por_finca'][0]?.['penetracion_pct'], 1) }} % de sus activos compra</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Primera compra de un ingreso nuevo</span>
+              <span class="valor">{{ fz['primera_compra']['mediana_dias'] ?? '—' }} días</span>
+              <span class="ayuda">mediana entre la fecha de ingreso y la primera compra ({{ num(fz['primera_compra']['personas_con_dato']) }} personas)</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Temporales</span>
+              <span class="valor">{{ fz['por_temporal'].length }}</span>
+              <span class="ayuda">
+                @for (t of fz['por_temporal'].slice(0, 2); track t['temporal']) { {{ t['temporal'] }} {{ num(t['participacion_pct'], 0) }} % · }
+              </span></article>
+          </section>
+
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Venta por finca, mes a mes</h2>
+            <p class="nota">Las {{ fz['serie_fincas']['series'].length - 1 }} fincas que más compran y el resto junto.</p>
+            <div echarts [options]="graficaFincasVenta()" class="grafica muy-alta"></div>
+          </section>
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Compradores por finca, mes a mes</h2>
+              <p class="nota">Cuántas personas distintas de cada finca compraron cada mes.</p>
+              <div echarts [options]="graficaFincasCompradores()" class="grafica alta"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Penetración en las fincas atendidas</h2>
+              <p class="nota">Activos de hoy en cada finca frente a los que compraron en el rango.</p>
+              <div echarts [options]="graficaPenetracionFincas()" class="grafica alta"></div>
+            </section>
+          </div>
+
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Todas las fincas</h2>
+            <app-tabla-estandar id="tienda-logis-fincas" titulo="Clientes por finca" modulo="Tienda › Logis"
+              [datos]="fz['por_finca']" [columnas]="columnasFincas" [filaId]="idFinca" />
+          </section>
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Venta por temporal, mes a mes</h2>
+              <div echarts [options]="graficaTemporalesVenta()" class="grafica alta"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Temporales</h2>
+              <app-tabla-estandar id="tienda-logis-temporales" titulo="Clientes por temporal" modulo="Tienda › Logis" [busqueda]="false"
+                [datos]="fz['por_temporal']" [columnas]="columnasTemporales" [filaId]="idTemporal" />
+            </section>
+          </div>
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">¿Compran más los nuevos o los antiguos?</h2>
+              <p class="nota">Activos de las fincas atendidas por antigüedad del contrato vigente, y qué parte compró en el rango.</p>
+              <div echarts [options]="graficaAntiguedad()" class="grafica alta"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Cuánto tarda un ingreso en estrenarse</h2>
+              <p class="nota">Días entre la fecha de ingreso en tesorería y la primera compra en la tienda. La mitad compra antes de
+                {{ fz['primera_compra']['mediana_dias'] ?? '—' }} días; el 75 % antes de {{ fz['primera_compra']['p75_dias'] ?? '—' }}.</p>
+              <div echarts [options]="graficaPrimeraCompra()" class="grafica"></div>
+              @if (fz['primera_compra']['por_finca']?.length) {
+                <h3 class="subtitulo">Mediana por finca (10 o más personas)</h3>
+                <ul class="lista-simple">
+                  @for (m of fz['primera_compra']['por_finca']; track m['finca']) {
+                    <li><span>{{ m['finca'] }}</span><span>{{ m['mediana_dias'] }} días · {{ num(m['personas']) }} personas</span></li>
+                  }
+                </ul>
+              }
+            </section>
+          </div>
         }
       }
     }

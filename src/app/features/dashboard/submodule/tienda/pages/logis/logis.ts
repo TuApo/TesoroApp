@@ -14,7 +14,7 @@ import { TiendaService } from '../../service/tienda.service';
 import { ARCHIVOS_EXPORT_LOGIS, ArchivoExport } from './logis-export';
 
 type Fila = Record<string, any>;
-type Pestana = 'resumen' | 'productos' | 'categorias' | 'clientes' | 'patrones' | 'canasta' | 'proyeccion' | 'operacion' | 'datos';
+type Pestana = 'resumen' | 'productos' | 'categorias' | 'clientes' | 'fincas' | 'patrones' | 'canasta' | 'proyeccion' | 'operacion' | 'datos';
 type Criterio = 'vendido' | 'unidades' | 'compradores' | 'margen' | 'tendencia';
 
 const VERDE = '#0b6b58', VERDE_2 = '#3f9c86', OCRE = '#b4720e', OCRE_2 = '#8a5c10', GRIS = '#6b7280', ROJO = '#9c3123', AZUL = '#2f5f98', VIOLETA = '#6d4aa8';
@@ -50,6 +50,7 @@ export class Logis implements OnInit {
     { id: 'productos', titulo: 'Productos', icono: 'shopping_basket' },
     { id: 'categorias', titulo: 'Categorías y marcas', icono: 'category' },
     { id: 'clientes', titulo: 'Clientes', icono: 'groups' },
+    { id: 'fincas', titulo: 'Fincas y temporales', icono: 'agriculture' },
     { id: 'patrones', titulo: 'Cuándo compran', icono: 'schedule' },
     { id: 'canasta', titulo: 'Canasta', icono: 'hub' },
     { id: 'proyeccion', titulo: 'Proyección y compras', icono: 'trending_up' },
@@ -146,6 +147,7 @@ export class Logis implements OnInit {
       case 'productos': this.pedir('productos', 'productos', { limite: 5000 }); break;
       case 'categorias': this.pedir('categorias', 'categorias'); break;
       case 'clientes': this.pedir('clientes', 'clientes'); break;
+      case 'fincas': this.pedir('fincas', 'fincas'); break;
       case 'patrones': this.pedir('patrones', 'patrones'); break;
       case 'canasta': this.pedir('canasta', 'canasta', { limite: 60 }); break;
       case 'proyeccion':
@@ -212,6 +214,7 @@ export class Logis implements OnInit {
   readonly productos = computed<Fila[]>(() => this.datos()['productos'] ?? []);
   readonly categorias = computed<Fila | null>(() => this.datos()['categorias'] ?? null);
   readonly clientes = computed<Fila | null>(() => this.datos()['clientes'] ?? null);
+  readonly fincas = computed<Fila | null>(() => this.datos()['fincas'] ?? null);
   readonly patrones = computed<Fila | null>(() => this.datos()['patrones'] ?? null);
   readonly canasta = computed<Fila | null>(() => this.datos()['canasta'] ?? null);
   readonly proyeccion = computed<Fila | null>(() => this.datos()['proyeccion'] ?? null);
@@ -340,21 +343,60 @@ export class Logis implements OnInit {
     };
   });
 
+  /** Árbol departamento › familia: el tamaño es la venta; la etiqueta dice además cuánto deja (utilidad %). */
   readonly graficaTreemap = computed<EChartsOption>(() => {
     const deps: Fila[] = this.categorias()?.['departamentos'] ?? [];
+    const util = (d: any) => d?.margen_pct == null ? '' : ` · ${this.num(d.margen_pct, 1)} %`;
     return {
-      tooltip: { formatter: (p: any) => `${p.treePathInfo?.map((x: any) => x.name).filter(Boolean).join(' › ')}<br>${this.pesos(p.value)}` },
+      tooltip: {
+        formatter: (p: any) => {
+          const d = p.data ?? {};
+          const ruta = p.treePathInfo?.map((x: any) => x.name).filter(Boolean).join(' › ');
+          return `<b>${ruta}</b><br>Venta: ${this.pesos(p.value)} (${this.num(d.participacion_pct, 1)} %)`
+            + `<br>Utilidad: ${this.num(d.margen_pct, 1)} % de la venta`
+            + (d.utilidad_promedio_pct != null ? `<br>Utilidad promedio por producto: ${this.num(d.utilidad_promedio_pct, 1)} %` : '')
+            + (d.productos != null ? `<br>${this.num(d.productos)} productos · ${this.num(d.compradores)} compradores` : '');
+        },
+      },
       series: [{
         type: 'treemap', roam: false, nodeClick: 'zoomToNode', breadcrumb: { show: true, bottom: 0, itemStyle: { textStyle: { fontSize: 11 } } },
         top: 4, left: 4, right: 4, bottom: 30,
-        label: { show: true, fontSize: 11, formatter: (p: any) => `${p.name}\n${this.corto(p.value)}` },
-        upperLabel: { show: true, height: 20, fontSize: 11, color: '#fff' },
-        levels: [{ itemStyle: { borderWidth: 2, gapWidth: 2, borderColor: 'rgba(255,255,255,.6)' } }, { itemStyle: { gapWidth: 1 }, colorSaturation: [0.35, 0.6] }],
-        data: deps.map((d, i) => ({
-          name: d['departamento'], value: Math.round(d['venta']), itemStyle: { color: PALETA[i % PALETA.length] },
-          children: (d['familias'] as Fila[]).map(f => ({ name: f['familia'], value: Math.round(f['venta']) })),
-        })),
+        label: { show: true, fontSize: 11, formatter: (p: any) => `${p.name}\n${this.corto(p.value)}${util(p.data)}` },
+        // El encabezado de cada departamento toma el color del borde: va del mismo color que el
+        // departamento (con borde blanco el texto blanco no se veía).
+        upperLabel: { show: true, height: 22, fontSize: 11, color: '#fff', fontWeight: 600,
+          formatter: (p: any) => `${p.name} · ${this.corto(p.value)}${util(p.data)}` },
+        data: deps.map((d, i) => {
+          const color = PALETA[i % PALETA.length];
+          return {
+            name: d['departamento'], value: Math.round(d['venta']), margen_pct: d['margen_pct'], utilidad_promedio_pct: d['utilidad_promedio_pct'],
+            participacion_pct: d['participacion_pct'], productos: d['productos'], compradores: d['compradores'],
+            itemStyle: { color, borderColor: color, borderWidth: 2, gapWidth: 1 },
+            children: (d['familias'] as Fila[]).map(f => ({
+              name: f['familia'], value: Math.round(f['venta']), margen_pct: f['margen_pct'], utilidad_promedio_pct: f['utilidad_promedio_pct'],
+              participacion_pct: f['participacion_pct'], productos: f['productos'], compradores: f['compradores'],
+            })),
+          };
+        }),
       }],
+    } as EChartsOption;
+  });
+
+  /** Cuánto deja cada departamento: utilidad sobre la venta y el promedio de sus productos. */
+  readonly graficaUtilidadDepartamentos = computed<EChartsOption>(() => {
+    const deps: Fila[] = [...(this.categorias()?.['departamentos'] ?? [])]
+      .filter(d => Number(d['venta']) > 0).sort((a, b) => Number(a['margen_pct']) - Number(b['margen_pct']));
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: (v: any) => v == null ? '—' : `${this.num(v, 1)} %` },
+      legend: { bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { left: 8, right: 40, top: 8, bottom: 36, containLabel: true },
+      xAxis: { type: 'value', axisLabel: { fontSize: 10, formatter: '{value}%' }, splitLine: { lineStyle: { color: 'rgba(128,128,128,.15)' } } },
+      yAxis: { type: 'category', data: deps.map(d => this.recortar(d['departamento'], 24)), axisLabel: { fontSize: 10 } },
+      series: [
+        { name: 'Utilidad sobre la venta', type: 'bar', data: deps.map(d => d['margen_pct']), itemStyle: { color: OCRE, borderRadius: [0, 4, 4, 0] },
+          label: { show: true, position: 'right', fontSize: 10, formatter: (p: any) => `${this.num(p.value, 1)}%` } },
+        { name: 'Promedio por producto', type: 'scatter', data: deps.map(d => d['utilidad_promedio_pct']), symbolSize: 9, itemStyle: { color: VERDE } },
+      ],
     } as EChartsOption;
   });
 
@@ -553,6 +595,73 @@ export class Logis implements OnInit {
     } as EChartsOption;
   });
 
+  private serieMultiple(datos: Fila | null | undefined, campo: 'venta' | 'compradores', apilada: boolean): EChartsOption {
+    const meses: string[] = datos?.['meses'] ?? [];
+    const series: Fila[] = datos?.['series'] ?? [];
+    return {
+      tooltip: { trigger: 'axis', valueFormatter: (v: any) => campo === 'venta' ? this.pesos(v) : this.num(v) },
+      legend: { bottom: 0, type: 'scroll', textStyle: { fontSize: 11 } },
+      grid: { left: 60, right: 16, top: 16, bottom: 56 },
+      xAxis: { type: 'category', data: meses.map(m => this.mesCorto(m)), axisLabel: { fontSize: 10 } },
+      yAxis: campo === 'venta' ? this.ejeValor() : { type: 'value', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(128,128,128,.15)' } } },
+      series: series.map((s, i) => ({
+        name: s['nombre'], type: apilada ? 'bar' : 'line', stack: apilada ? 'f' : undefined, smooth: !apilada, showSymbol: false,
+        data: s[campo], itemStyle: { color: s['nombre'] === 'Otras' ? GRIS : PALETA[i % PALETA.length] },
+      })),
+    } as EChartsOption;
+  }
+
+  readonly graficaFincasVenta = computed<EChartsOption>(() => this.serieMultiple(this.fincas()?.['serie_fincas'], 'venta', true));
+  readonly graficaFincasCompradores = computed<EChartsOption>(() => this.serieMultiple(this.fincas()?.['serie_fincas'], 'compradores', false));
+  readonly graficaTemporalesVenta = computed<EChartsOption>(() => this.serieMultiple(this.fincas()?.['serie_temporales'], 'venta', false));
+
+  /** Penetración entre los activos de las fincas atendidas: barras de cuántos hay y cuántos compraron. */
+  readonly graficaPenetracionFincas = computed<EChartsOption>(() => {
+    const f: Fila[] = (this.fincas()?.['por_finca'] ?? []).filter((x: Fila) => x['atendida']).slice(0, 15);
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { left: 8, right: 44, top: 8, bottom: 40, containLabel: true },
+      xAxis: { type: 'category', data: f.map(x => this.recortar(x['finca'], 14)), axisLabel: { fontSize: 10, rotate: 30 } },
+      yAxis: [{ type: 'value', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(128,128,128,.15)' } } },
+        { type: 'value', max: 100, axisLabel: { fontSize: 10, formatter: '{value}%' }, splitLine: { show: false } }],
+      series: [
+        { name: 'Activos hoy', type: 'bar', data: f.map(x => x['activos_hoy']), itemStyle: { color: 'rgba(107,114,128,.45)' } },
+        { name: 'Compradores activos', type: 'bar', data: f.map(x => x['compradores_activos']), itemStyle: { color: VERDE } },
+        { name: 'Penetración', type: 'line', yAxisIndex: 1, data: f.map(x => x['penetracion_pct']), itemStyle: { color: OCRE } },
+      ],
+    } as EChartsOption;
+  });
+
+  readonly graficaAntiguedad = computed<EChartsOption>(() => {
+    const a: Fila[] = (this.fincas()?.['antiguedad'] ?? []).filter((x: Fila) => Number(x['activos']) > 0);
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: { bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { left: 44, right: 44, top: 12, bottom: 40 },
+      xAxis: { type: 'category', data: a.map(x => x['rango']), axisLabel: { fontSize: 10 } },
+      yAxis: [{ type: 'value', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(128,128,128,.15)' } } },
+        { type: 'value', max: 100, axisLabel: { fontSize: 10, formatter: '{value}%' }, splitLine: { show: false } }],
+      series: [
+        { name: 'Activos', type: 'bar', data: a.map(x => x['activos']), itemStyle: { color: 'rgba(107,114,128,.45)' } },
+        { name: 'Compraron', type: 'bar', data: a.map(x => x['compraron']), itemStyle: { color: VERDE } },
+        { name: '% que compró', type: 'line', yAxisIndex: 1, data: a.map(x => x['penetracion_pct']), itemStyle: { color: OCRE } },
+      ],
+    } as EChartsOption;
+  });
+
+  readonly graficaPrimeraCompra = computed<EChartsOption>(() => {
+    const c: Fila[] = this.fincas()?.['primera_compra']?.['cubetas'] ?? [];
+    return {
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { left: 44, right: 12, top: 16, bottom: 30 },
+      xAxis: { type: 'category', data: c.map(x => x['rango']), axisLabel: { fontSize: 10 } },
+      yAxis: { type: 'value', axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(128,128,128,.15)' } } },
+      series: [{ type: 'bar', data: c.map(x => x['personas']), itemStyle: { color: AZUL, borderRadius: [4, 4, 0, 0] },
+        label: { show: true, position: 'top', fontSize: 10, formatter: (p: any) => `${this.num(c[p.dataIndex]['personas_pct'], 0)}%` } }],
+    };
+  });
+
   // ── Tablas ───────────────────────────────────────────────────────────────
 
   readonly idProducto = (f: Fila) => f['producto_id'] ?? f['codigo'] ?? f['nombre'];
@@ -589,8 +698,8 @@ export class Logis implements OnInit {
     this.colNum('unidades', 'Unidades', 'unidades', 0),
     this.colPesos('vendido', 'Vendido', 'vendido'),
     this.colPct('participacion', '% venta', 'participacion_pct', { prioridad: 2 }),
-    this.colPesos('margen', 'Margen', 'margen'),
-    this.colPct('margen_pct', 'Margen %', 'margen_pct', { prioridad: 2 }),
+    this.colPesos('margen', 'Utilidad', 'margen'),
+    this.colPct('margen_pct', 'Utilidad %', 'margen_pct', { prioridad: 2 }),
     this.colNum('compradores', 'Compradores', 'compradores'),
     this.colPct('penetracion', 'Penetración', 'penetracion_pct', { prioridad: 2 }),
     this.colNum('documentos', 'Tickets', 'documentos', 0, { prioridad: 3 }),
@@ -607,7 +716,9 @@ export class Logis implements OnInit {
     { id: 'familia', header: 'Familia', valor: f => f['familia'], tarjeta: 'titulo' },
     this.colPesos('venta', 'Venta', 'venta'),
     this.colPct('participacion', '% venta', 'participacion_pct'),
-    this.colPct('margen_pct', 'Margen %', 'margen_pct'),
+    this.colPesos('margen', 'Utilidad', 'margen', { prioridad: 2 }),
+    this.colPct('margen_pct', 'Utilidad %', 'margen_pct'),
+    this.colPct('util_prom', 'Utilidad prom. por producto', 'utilidad_promedio_pct'),
     this.colNum('unidades', 'Unidades', 'unidades', 0, { prioridad: 2 }),
     this.colNum('compradores', 'Compradores', 'compradores', 0, { prioridad: 2 }),
     this.colPct('penetracion', 'Penetración', 'penetracion_pct', { prioridad: 2 }),
@@ -618,15 +729,39 @@ export class Logis implements OnInit {
     { id: 'marca', header: 'Marca', valor: f => f['marca'], tarjeta: 'titulo' },
     this.colPesos('venta', 'Venta', 'venta'),
     this.colPct('participacion', '% venta', 'participacion_pct'),
-    this.colPct('margen_pct', 'Margen %', 'margen_pct'),
+    this.colPct('margen_pct', 'Utilidad %', 'margen_pct'),
     this.colNum('compradores', 'Compradores', 'compradores', 0, { prioridad: 2 }),
     this.colNum('productos', 'Productos', 'productos', 0, { prioridad: 2 }),
   ];
+
+  readonly idDepartamento = (f: Fila) => f['departamento'];
+
+  readonly columnasDepartamentos: ColumnaTabla<Fila>[] = [
+    { id: 'departamento', header: 'Departamento', valor: f => f['departamento'], tarjeta: 'titulo' },
+    this.colPesos('venta', 'Venta', 'venta'),
+    this.colPct('participacion', '% venta', 'participacion_pct'),
+    this.colPesos('margen', 'Utilidad', 'margen', { prioridad: 2 }),
+    this.colPct('margen_pct', 'Utilidad %', 'margen_pct'),
+    this.colPct('util_prom', 'Utilidad prom. por producto', 'utilidad_promedio_pct'),
+    this.colNum('familias', 'Familias', 'n_familias', 0, { prioridad: 3 }),
+    this.colNum('productos', 'Productos', 'productos', 0, { prioridad: 2 }),
+    this.colNum('compradores', 'Compradores', 'compradores', 0, { prioridad: 2 }),
+    this.colPct('penetracion', 'Penetración', 'penetracion_pct', { prioridad: 3 }),
+  ];
+
+  readonly departamentosTabla = computed<Fila[]>(() =>
+    (this.categorias()?.['departamentos'] ?? []).map((d: Fila) => ({ ...d, n_familias: (d['familias'] ?? []).length })));
 
   readonly columnasClientes: ColumnaTabla<Fila>[] = [
     { id: 'nombre', header: 'Cliente', valor: f => f['nombre'], tarjeta: 'titulo', minAncho: '180px' },
     { id: 'documento', header: 'Documento', valor: f => f['documento'], tarjeta: 'subtitulo' },
     { id: 'segmento', header: 'Segmento', valor: f => f['segmento'], tarjeta: 'badge', badge: f => this.badgeSegmento(f['segmento']) },
+    { id: 'laboral', header: 'En la empresa', valor: f => this.textoLaboral(f['estado_laboral']), badge: f => this.badgeLaboral(f) },
+    { id: 'celular', header: 'Celular', valor: f => f['celular'], interactiva: true, minAncho: '120px' },
+    { id: 'whatsapp', header: 'WhatsApp', valor: f => f['whatsapp'], interactiva: true, prioridad: 2 },
+    { id: 'correo', header: 'Correo', valor: f => f['correo'], interactiva: true, prioridad: 2, minAncho: '180px' },
+    { id: 'finca', header: 'Finca', valor: f => f['finca'], prioridad: 2 },
+    { id: 'temporal', header: 'Temporal', valor: f => f['temporal'], prioridad: 3 },
     this.colNum('compras', 'Compras', 'compras'),
     this.colPesos('total', 'Total', 'total'),
     this.colPesos('ticket', 'Ticket', 'ticket_promedio', { prioridad: 2 }),
@@ -634,6 +769,56 @@ export class Logis implements OnInit {
     this.colNum('sin', 'Días sin comprar', 'dias_sin_comprar'),
     { id: 'ultima', header: 'Última compra', valor: f => f['ultima_compra'], tarjeta: 'meta', prioridad: 2 },
     { id: 'primera', header: 'Cliente desde', valor: f => f['primera_compra'], tarjeta: 'meta', prioridad: 3 },
+  ];
+
+  /** Activos de tesorería en fincas atendidas que nunca le han comprado a la tienda. */
+  readonly columnasSinCompra: ColumnaTabla<Fila>[] = [
+    { id: 'nombre', header: 'Nombre', valor: f => f['nombre'], tarjeta: 'titulo', minAncho: '180px' },
+    { id: 'documento', header: 'Documento', valor: f => f['documento'], tarjeta: 'subtitulo' },
+    { id: 'finca', header: 'Finca', valor: f => f['finca'] },
+    { id: 'temporal', header: 'Temporal', valor: f => f['temporal'], prioridad: 2 },
+    { id: 'ingreso', header: 'Ingresó', valor: f => f['ingreso'], prioridad: 2, tarjeta: 'meta' },
+    { id: 'celular', header: 'Celular', valor: f => f['celular'], interactiva: true, minAncho: '120px' },
+    { id: 'whatsapp', header: 'WhatsApp', valor: f => f['whatsapp'], interactiva: true, prioridad: 2 },
+    { id: 'correo', header: 'Correo', valor: f => f['correo'], interactiva: true, prioridad: 2, minAncho: '180px' },
+    { id: 'bloqueado', header: 'Cupo', valor: f => f['bloqueado_tesoreria'] ? 'Bloqueado' : 'Disponible', prioridad: 3,
+      badge: f => f['bloqueado_tesoreria'] ? { texto: 'Bloqueado', tono: 'danger' } : { texto: 'Disponible', tono: 'ok' } },
+  ];
+
+  readonly idFinca = (f: Fila) => f['finca'];
+  readonly idTemporal = (f: Fila) => f['temporal'];
+
+  readonly columnasFincas: ColumnaTabla<Fila>[] = [
+    { id: 'finca', header: 'Finca', valor: f => f['finca'], tarjeta: 'titulo', minAncho: '160px' },
+    { id: 'temporal', header: 'Temporal', valor: f => f['temporal'], prioridad: 3, tarjeta: 'subtitulo' },
+    this.colPesos('venta', 'Venta', 'venta'),
+    this.colPct('participacion', '% venta', 'participacion_pct'),
+    this.colNum('compradores', 'Compradores', 'compradores'),
+    this.colNum('activos', 'Activos hoy', 'activos_hoy'),
+    this.colNum('comp_activos', 'Compradores activos', 'compradores_activos', 0, { prioridad: 2 }),
+    this.colPct('penetracion', 'Penetración', 'penetracion_pct'),
+    this.colNum('comp90', 'Compraron 90 d', 'compradores_90d', 0, { prioridad: 2 }),
+    { id: 'tendencia', header: 'Venta 90 d vs anteriores', align: 'center', valor: f => f['tendencia_pct'],
+      badge: f => f['tendencia_pct'] == null ? { texto: 'Sin base', tono: 'neutro' }
+        : Number(f['tendencia_pct']) >= 10 ? { texto: `+${this.num(f['tendencia_pct'], 0)}%`, tono: 'ok', icono: 'trending_up' }
+        : Number(f['tendencia_pct']) <= -10 ? { texto: `${this.num(f['tendencia_pct'], 0)}%`, tono: 'warn', icono: 'trending_down' }
+        : { texto: `${this.num(f['tendencia_pct'], 0)}%`, tono: 'info' } },
+    this.colPesos('ticket', 'Ticket', 'ticket_promedio', { prioridad: 2 }),
+    this.colNum('compras_c', 'Compras c/u', 'compras_por_comprador', 1, { prioridad: 3 }),
+    this.colPesos('gasto_c', 'Gasto c/u', 'gasto_por_comprador', { prioridad: 2 }),
+    this.colNum('retirados', 'Ya no están', 'compradores_retirados', 0, { prioridad: 3 }),
+    { id: 'ultima', header: 'Última compra', valor: f => f['ultima_compra'], prioridad: 3, tarjeta: 'meta' },
+  ];
+
+  readonly columnasTemporales: ColumnaTabla<Fila>[] = [
+    { id: 'temporal', header: 'Temporal', valor: f => f['temporal'], tarjeta: 'titulo' },
+    this.colPesos('venta', 'Venta', 'venta'),
+    this.colPct('participacion', '% venta', 'participacion_pct'),
+    this.colNum('compradores', 'Compradores', 'compradores'),
+    this.colNum('activos', 'Activos hoy', 'activos_hoy'),
+    this.colPct('penetracion', 'Penetración', 'penetracion_pct'),
+    this.colPesos('gasto_c', 'Gasto c/u', 'gasto_por_comprador', { prioridad: 2 }),
+    this.colNum('fincas', 'Fincas', 'fincas', 0, { prioridad: 2 }),
   ];
 
   readonly columnasPares: ColumnaTabla<Fila>[] = [
@@ -699,6 +884,24 @@ export class Logis implements OnInit {
     if (t === 'SUBE') return { texto: `Sube${pct}`, tono: 'ok', icono: 'trending_up' };
     if (t === 'BAJA') return { texto: `Baja${pct}`, tono: 'warn', icono: 'trending_down' };
     return { texto: `Estable${pct}`, tono: 'info' };
+  }
+
+  textoLaboral(e: string): string {
+    return e === 'ACTIVO' ? 'Activo' : e === 'RETIRADO' ? 'Ya no está' : 'Sin dato';
+  }
+
+  badgeLaboral(f: Fila): BadgeCelda {
+    const e = f['estado_laboral'];
+    if (e === 'ACTIVO') return f['bloqueado_tesoreria'] ? { texto: 'Activo · cupo bloqueado', tono: 'warn' } : { texto: 'Activo', tono: 'ok' };
+    if (e === 'RETIRADO') return { texto: 'Ya no está', tono: 'neutro' };
+    return { texto: 'Sin dato', tono: 'neutro' };
+  }
+
+  /** Enlace de WhatsApp: números colombianos de 10 dígitos llevan el 57 delante. */
+  enlaceWhatsapp(numero: unknown): string | null {
+    const d = String(numero ?? '').replace(/\D/g, '');
+    if (d.length < 7) return null;
+    return `https://wa.me/${d.length === 10 ? '57' + d : d}`;
   }
 
   badgeSegmento(s: string): BadgeCelda {
