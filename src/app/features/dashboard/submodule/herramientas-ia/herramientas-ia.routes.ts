@@ -13,10 +13,12 @@ export const routes: Routes = [
       import('./pages/conversaciones/conversaciones').then((m) => m.ConversacionesIa),
   },
   {
+    // Asistente IA sobre el chat estándar (ms-ai /api/v1/ai/chat, módulo herramientas-ia.asistente).
+    // El componente anterior (pages/asistente-ia) queda solo para el chat del proceso de contratación.
     path: 'asistente',
     loadComponent: () =>
-      import('./pages/asistente-ia/asistente-ia.component').then(
-        (m) => m.AsistenteIaComponent,
+      import('./pages/asistente-chat/asistente-chat').then(
+        (m) => m.AsistenteChat,
       ),
   },
   {
