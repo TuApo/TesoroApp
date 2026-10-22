@@ -1,0 +1,211 @@
+<h2 mat-dialog-title class="cg-titulo">
+  <mat-icon>upload_file</mat-icon>
+  Carga masiva de gestores y correos
+</h2>
+
+<mat-dialog-content class="cg-contenido">
+  @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  @if (error()) {
+    <div class="cg-error" role="alert"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  <mat-tab-group mat-stretch-tabs="false" (selectedIndexChange)="alCambiarPestana($event)" animationDuration="0ms">
+    <!-- ═════════════════════════════ CARGAR ═════════════════════════════ -->
+    <mat-tab label="Cargar">
+      <div class="cg-pestana">
+
+        <!-- ── Paso 1: plantilla + archivo + modo ─────────────────────── -->
+        @if (paso() === 'archivo') {
+          <section class="cg-bloque">
+            <h3><span class="cg-num">1</span> Descarga la plantilla con los datos actuales</h3>
+            <p class="cg-ayuda">Viene prellenada con los centros habilitados. La llave es <code>centro_costo_id</code>;
+              las columnas grises son de referencia y no se pueden editar. Trae una hoja «Instrucciones».</p>
+            <div class="cg-fila">
+              <mat-form-field appearance="outline" class="cg-campo">
+                <mat-label>Temporal</mat-label>
+                <mat-select [ngModel]="temporalPlantilla()" (ngModelChange)="alCambiarTemporal($event)">
+                  <mat-option [value]="null">Todas</mat-option>
+                  @for (t of data.temporales; track t.id) { <mat-option [value]="t.id">{{ t.nombre }}</mat-option> }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="cg-campo cg-campo--ancho">
+                <mat-label>Empresas usuarias</mat-label>
+                <mat-select multiple [ngModel]="empresasPlantilla()" (ngModelChange)="empresasPlantilla.set($event)">
+                  @for (e of empresasDeTemporal(); track e.ref) { <mat-option [value]="e.ref">{{ e.nombre }}</mat-option> }
+                </mat-select>
+                <mat-hint>Vacío = todas las de la temporal elegida.</mat-hint>
+              </mat-form-field>
+              <button mat-stroked-button type="button" (click)="descargarPlantilla()" [disabled]="cargando()">
+                <mat-icon>download</mat-icon> Descargar plantilla
+              </button>
+            </div>
+          </section>
+
+          <section class="cg-bloque">
+            <h3><span class="cg-num">2</span> Sube el archivo editado</h3>
+            <input type="file" #selector hidden accept=".xlsx,.csv" (change)="alElegirArchivo($event)">
+            <div class="cg-zona" (click)="selector.click()" (drop)="alSoltar($event)" (dragover)="alArrastrar($event)">
+              <mat-icon class="cg-zona__icono">upload_file</mat-icon>
+              @if (archivo(); as a) {
+                <p class="cg-zona__nombre">{{ a.name }}</p>
+                <p class="cg-zona__peso">{{ peso(a.size) }}</p>
+              } @else {
+                <p>Arrastra el archivo aquí o haz clic para elegirlo (.xlsx o .csv, máx. 5 MB y 2.000 filas)</p>
+              }
+            </div>
+          </section>
+
+          <section class="cg-bloque">
+            <h3><span class="cg-num">3</span> Elige cómo se aplica</h3>
+            <mat-radio-group class="cg-modos" [ngModel]="modo()" (ngModelChange)="modo.set($event)">
+              <mat-radio-button value="AGREGAR">
+                <strong>Solo agregar/actualizar</strong>
+                <span class="cg-modo-ayuda">No desactiva nada. Una celda vacía no borra. Un correo nuevo se suma al rol.</span>
+              </mat-radio-button>
+              <mat-radio-button value="REEMPLAZAR">
+                <strong>Reemplazar</strong>
+                <span class="cg-modo-ayuda">La fila es toda la verdad del centro: los correos que falten quedan inactivos y las celdas vacías borran el dato.</span>
+              </mat-radio-button>
+            </mat-radio-group>
+          </section>
+        }
+
+        <!-- ── Paso 2 y 3: vista previa / resultado ───────────────────── -->
+        @if (paso() !== 'archivo' && loteActual(); as l) {
+          <div class="cg-aviso" [class.cg-aviso--ok]="paso() === 'resultado'">
+            <mat-icon>{{ paso() === 'resultado' ? 'task_alt' : 'visibility' }}</mat-icon>
+            @if (paso() === 'resultado') {
+              <span>Carga <strong>{{ l.id }}</strong> aplicada en modo <strong>{{ l.modo === 'REEMPLAZAR' ? 'Reemplazar' : 'Solo agregar' }}</strong>
+                con la fuente <code>{{ l.fuente }}</code>.</span>
+            } @else {
+              <span>Vista previa de <strong>{{ l.archivo_nombre }}</strong> en modo
+                <strong>{{ l.modo === 'REEMPLAZAR' ? 'Reemplazar' : 'Solo agregar' }}</strong>. <strong>Todavía no se guardó nada.</strong></span>
+            }
+          </div>
+
+          <div class="cg-totales">
+            @if (paso() === 'resultado') {
+              <div class="cg-total"><span class="cg-total__n">{{ l.centros_actualizados }}</span><span>Centros actualizados</span></div>
+              <div class="cg-total"><span class="cg-total__n">{{ l.correos_creados }}</span><span>Correos creados</span></div>
+              <div class="cg-total"><span class="cg-total__n">{{ l.correos_desactivados }}</span><span>Correos desactivados</span></div>
+              <div class="cg-total cg-total--error"><span class="cg-total__n">{{ l.filas_error }}</span><span>Filas con error</span></div>
+            } @else {
+              <button type="button" class="cg-total" [class.cg-total--sel]="filtro() === 'TODAS'" (click)="filtro.set('TODAS')">
+                <span class="cg-total__n">{{ l.filas_total }}</span><span>Filas</span></button>
+              <button type="button" class="cg-total cg-total--nuevo" [class.cg-total--sel]="filtro() === 'NUEVO'" (click)="filtro.set('NUEVO')">
+                <span class="cg-total__n">{{ l.filas_nuevo }}</span><span>Nuevos</span></button>
+              <button type="button" class="cg-total cg-total--mod" [class.cg-total--sel]="filtro() === 'MODIFICADO'" (click)="filtro.set('MODIFICADO')">
+                <span class="cg-total__n">{{ l.filas_modificado }}</span><span>Modificados</span></button>
+              <button type="button" class="cg-total" [class.cg-total--sel]="filtro() === 'SIN_CAMBIOS'" (click)="filtro.set('SIN_CAMBIOS')">
+                <span class="cg-total__n">{{ l.filas_sin_cambios }}</span><span>Sin cambios</span></button>
+              <button type="button" class="cg-total cg-total--error" [class.cg-total--sel]="filtro() === 'ERROR'" (click)="filtro.set('ERROR')">
+                <span class="cg-total__n">{{ l.filas_error }}</span><span>Con error</span></button>
+              <button type="button" class="cg-total cg-total--adv" [class.cg-total--sel]="filtro() === 'ADVERTENCIA'" (click)="filtro.set('ADVERTENCIA')">
+                <span class="cg-total__n">{{ l.filas_con_advertencia }}</span><span>Advertencias</span></button>
+            }
+          </div>
+
+          <div class="cg-tabla-wrap">
+            <table class="cg-tabla">
+              <thead>
+                <tr><th class="cg-c-fila">Fila</th><th class="cg-c-centro">Centro</th><th class="cg-c-estado">Estado</th><th>Cambios (antes → después) / motivo</th></tr>
+              </thead>
+              <tbody>
+                @for (f of filasVisibles(); track f.fila) {
+                  <tr>
+                    <td class="cg-c-fila">{{ f.fila }}</td>
+                    <td class="cg-c-centro">
+                      <span class="cg-centro">{{ f.centro_nombre ?? '—' }}</span>
+                      @if (f.centro_costo_id) { <span class="cg-id">#{{ f.centro_costo_id }}</span> }
+                    </td>
+                    <td class="cg-c-estado">
+                      <span [class]="claseEstado(f.estado)">{{ etiquetasEstado[f.estado] }}</span>
+                      @if (paso() === 'resultado' && f.aplicada) { <mat-icon class="cg-aplicada" matTooltip="Aplicada">check</mat-icon> }
+                    </td>
+                    <td>
+                      @for (e of f.errores; track e) { <div class="cg-linea cg-linea--error"><mat-icon>error</mat-icon>{{ e }}</div> }
+                      @for (c of f.cambios; track c) { <div class="cg-linea">{{ c }}</div> }
+                      @for (a of f.advertencias; track a) { <div class="cg-linea cg-linea--adv"><mat-icon>warning</mat-icon>{{ a }}</div> }
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="4" class="cg-vacio">No hay filas con ese estado.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ═════════════════════════════ HISTORIAL ═════════════════════════════ -->
+    <mat-tab label="Historial">
+      <div class="cg-pestana">
+        @if (cargandoLotes()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+        <div class="cg-tabla-wrap">
+          <table class="cg-tabla">
+            <thead>
+              <tr><th>Lote</th><th>Estado</th><th>Archivo</th><th>Modo</th><th>Subido por</th><th>Fecha</th>
+                <th class="cg-num-col">Centros</th><th class="cg-num-col">+ Correos</th><th class="cg-num-col">− Correos</th><th class="cg-num-col">Errores</th><th></th></tr>
+            </thead>
+            <tbody>
+              @for (l of lotes(); track l.id) {
+                <tr>
+                  <td>{{ l.id }}</td>
+                  <td><span [class]="claseEstado(l.estado)">{{ l.estado }}</span></td>
+                  <td class="cg-archivo">{{ l.archivo_nombre }}</td>
+                  <td>{{ l.modo === 'REEMPLAZAR' ? 'Reemplazar' : 'Agregar' }}</td>
+                  <td>{{ l.aplicado_por ?? l.creado_por }}</td>
+                  <td>{{ (l.aplicado_at ?? l.created_at) | date:'dd/MM/yyyy HH:mm' }}
+                    @if (l.revertido_at) { <div class="cg-sub">Revertido {{ l.revertido_at | date:'dd/MM HH:mm' }} · {{ l.revertido_por }}</div> }</td>
+                  <td class="cg-num-col">{{ l.centros_actualizados }}</td>
+                  <td class="cg-num-col">{{ l.correos_creados }}</td>
+                  <td class="cg-num-col">{{ l.correos_desactivados }}</td>
+                  <td class="cg-num-col">{{ l.filas_error }}</td>
+                  <td class="cg-acciones">
+                    <button mat-icon-button type="button" (click)="descargarResultado(l.id)" matTooltip="Descargar resultado (Excel)">
+                      <mat-icon>download</mat-icon>
+                    </button>
+                    @if (l.estado === 'APLICADO') {
+                      <button mat-icon-button type="button" (click)="revertir(l)" matTooltip="Revertir esta carga">
+                        <mat-icon>undo</mat-icon>
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="11" class="cg-vacio">Todavía no hay cargas.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="cg-ayuda">Los lotes SIMULADOS son vistas previas que no se confirmaron: no cambiaron ningún centro.</p>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  @switch (paso()) {
+    @case ('archivo') {
+      <button mat-button type="button" (click)="cerrar()">Cerrar</button>
+      <button mat-flat-button class="btn-managerial" type="button" (click)="simular()" [disabled]="!archivo() || cargando()">
+        <mat-icon>fact_check</mat-icon> Ver vista previa
+      </button>
+    }
+    @case ('revision') {
+      <button mat-button type="button" (click)="otraCarga()">Subir otro archivo</button>
+      <button mat-stroked-button type="button" (click)="descargarResultado()"><mat-icon>download</mat-icon> Vista previa en Excel</button>
+      <button mat-flat-button class="btn-managerial" type="button" (click)="confirmarAplicar()"
+              [disabled]="!filasAAplicar() || cargando()">
+        <mat-icon>done_all</mat-icon> Aplicar {{ filasAAplicar() }} fila(s) válida(s)
+      </button>
+    }
+    @case ('resultado') {
+      <button mat-stroked-button type="button" (click)="descargarResultado()"><mat-icon>download</mat-icon> Descargar resultado</button>
+      <button mat-button type="button" (click)="otraCarga()">Nueva carga</button>
+      <button mat-flat-button class="btn-managerial" type="button" (click)="cerrar()">Cerrar</button>
+    }
+  }
+</mat-dialog-actions>

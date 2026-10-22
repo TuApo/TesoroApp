@@ -28,7 +28,7 @@ import {
   AreaOperativa,
   SeguroFunerario, CentroSeguro, SeguroCentro, SalarioMinimoAnio,
   PerfilVacante, CargoArea, ConfiguracionCentroCargo, EsquemaLabor,
-  CargoVacante, CentroArea, CentroOpcion, CentroVacante, DatosMaestroEmpresa, EmpresaVacante,
+  CargoVacante, CentroArea, CentroOpcion, CentroVacante, OficinaTemporal, RolContactoInfo, DatosMaestroEmpresa, EmpresaVacante,
   ParametrizacionVacantesService, ReglaLabor, ResumenCadena, TipoResolucion,
   ResolucionPagoCasino,
   CondicionDocumento, DestinoDocumento, DocumentoEmpresa, DocumentoEmpresaRequest, EmpresaDocumentos,
@@ -40,6 +40,8 @@ import {
 import { Temporal, TemporalRequest, TemporalesService } from '../../services/parametrizacion-vacantes/temporales.service';
 import { CalendarioPagoDialogComponent, CalendarioPagoDialogData } from './calendario-pago-dialog.component';
 import { PoliticaCasinoDialogComponent, PoliticaCasinoDialogData } from './politica-casino-dialog.component';
+import { GestorCorreosDialogComponent, GestorCorreosDialogData } from './gestor-correos-dialog.component';
+import { CargaGestoresDialogComponent, CargaGestoresDialogData } from './carga-gestores-dialog.component';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { environment } from '@/environments/environment';
@@ -296,6 +298,30 @@ export class ParametrizacionVacantesComponent implements OnInit {
   buscadorEmpresa = signal('');
   centros = signal<CentroVacante[]>([]);
   verNoHabilitados = signal(false);
+
+  // ── Gestor y correos de los centros ───────────────────────────────────────
+  /** Lo decide el backend (rol ADMIN/GERENCIA) y lo vuelve a exigir al guardar. */
+  puedeEditarContactos = signal(false);
+  oficinasCatalogo = signal<OficinaTemporal[]>([]);
+  rolesContacto = signal<RolContactoInfo[]>([]);
+  /** Filtros propios de la pestaña: '' = todas / todos. */
+  filtroOficina = signal<string>('');
+  filtroGestor = signal<string>('');
+  soloSinGestor = signal(false);
+
+  /** Gestores presentes en los centros cargados, para el desplegable del filtro. */
+  gestoresDeCentros = computed(() =>
+    [...new Set(this.centros().map(c => c.nombre_gestor).filter((g): g is string => !!g))]
+      .sort((a, b) => a.localeCompare(b, 'es')));
+
+  /** Lo que pinta la tabla: los centros de las empresas elegidas con los filtros de gestor. */
+  centrosFiltrados = computed(() => {
+    const ofi = this.filtroOficina(), gestor = this.filtroGestor(), sin = this.soloSinGestor();
+    return this.centros().filter(c =>
+      (!ofi || (ofi === '__SIN__' ? !c.oficina_responsable : c.oficina_responsable === ofi)) &&
+      (!gestor || c.nombre_gestor === gestor) &&
+      (!sin || !c.nombre_gestor));
+  });
   /** Ver también las áreas retiradas del alcance (las 15 que no están en el Excel). */
   verAreasRetiradas = signal(false);
   verPerfilesVacanteInactivos = signal(false);
@@ -414,12 +440,17 @@ export class ParametrizacionVacantesComponent implements OnInit {
   ];
 
   readonly colCentros: ColumnDefinition[] = [
-    { name: 'actions', header: 'Acciones', type: 'custom', stickyStart: true, width: '160px', filterable: false },
+    { name: 'actions', header: 'Acciones', type: 'custom', stickyStart: true, width: '200px', filterable: false },
     { name: 'empresa_nombre', header: 'Empresa', type: 'text', filterable: true, width: '22%' },
     { name: 'finca', header: 'Centro / Finca', type: 'text', filterable: true, stickyStart: true, width: '24%' },
     { name: 'ccostos', header: 'Cód. costo', type: 'text', filterable: true },
     { name: 'ciudad', header: 'Ciudad', type: 'text', filterable: true },
     { name: 'direccion', header: 'Dirección', type: 'text', width: '26%' },
+    { name: 'gestorTxt', header: 'Gestor', type: 'status', filterable: true,
+      statusConfig: { 'Sin gestor': { color: 'var(--warn-fg)', background: 'var(--warn-bg)' } } },
+    { name: 'telefono_gestor', header: 'Teléfono', type: 'text', filterable: true },
+    { name: 'oficina_responsable', header: 'Oficina', type: 'text', filterable: true },
+    { name: 'correos_activos', header: '# Correos', type: 'number', align: 'right' },
     { name: 'areasTxt', header: 'Áreas permitidas', type: 'status',
       statusConfig: { 'Sin áreas': { color: 'var(--warn-fg)', background: 'var(--warn-bg)' } } },
     { name: 'estadoTxt', header: 'En vacantes', type: 'status',
@@ -839,6 +870,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
   }
 
   cargarTodo(): void {
+    this.cargarCatalogoContactos();
     this.cargarTemporales();
     this.cargarEmpresas();
     this.cargarCentros();
@@ -1378,6 +1410,8 @@ export class ParametrizacionVacantesComponent implements OnInit {
           // 'Sin áreas' se resalta: un centro sin áreas no puede llegar a tener cargos
           // ni resolver labor, así que es un hueco que hay que ver de un vistazo.
           areasTxt: c.areas || 'Sin áreas',
+          gestorTxt: c.nombre_gestor || 'Sin gestor',
+          correos_activos: c.correos_activos ?? 0,
         } as CentroVacante)));
         this.cargandoCentros.set(false);
       },
@@ -1449,13 +1483,56 @@ export class ParametrizacionVacantesComponent implements OnInit {
       { name: 'ccostos', label: 'Código de costo', type: 'text', maxLength: 50 },
       { name: 'subcentro', label: 'Subcentro', type: 'text', maxLength: 80 },
       { name: 'ciudad', label: 'Ciudad', type: 'text', maxLength: 120 },
-      { name: 'direccion', label: 'Dirección', type: 'text', maxLength: 300 },
-      // Contacto del gestor del centro: los tres juntos, que es como se usan.
-      { name: 'nombre_gestor', label: 'Nombre del gestor', type: 'text', maxLength: 200,
-        hint: 'Quién responde por este centro. Se usa para contactarlo, no para permisos.' },
-      { name: 'telefono_gestor', label: 'Teléfono del gestor', type: 'text', maxLength: 50 },
-      { name: 'email_gestor', label: 'Correo del gestor', type: 'text', maxLength: 200 },
+      { name: 'direccion', label: 'Dirección', type: 'text', maxLength: 300,
+        hint: 'Gestor, teléfono, oficina y correos se editan en «Gestor y correos» (ícono de sobre de la fila).' },
     ];
+  }
+
+  // ── Gestor y correos de los centros ───────────────────────────────────────
+
+  /** Permiso, oficinas y roles: una vez con la pantalla. Si falla, se queda en solo lectura. */
+  cargarCatalogoContactos(): void {
+    this.svc.permisosContactos().subscribe({
+      next: p => this.puedeEditarContactos.set(!!p?.puede_editar),
+      error: () => this.puedeEditarContactos.set(false),
+    });
+    this.svc.oficinas().subscribe({
+      next: o => this.oficinasCatalogo.set(o ?? []),
+      error: e => this.error('No se pudo cargar el catálogo de oficinas', e),
+    });
+    this.svc.rolesContacto().subscribe({
+      next: r => this.rolesContacto.set(r ?? []),
+      error: e => this.error('No se pudieron cargar los roles de correo', e),
+    });
+  }
+
+  gestorYCorreos(c: CentroVacante): void {
+    if (!c.habilitado_vacantes) {
+      this.snack.open('Solo los centros habilitados para vacantes tienen gestor y correos.', 'Cerrar', { duration: 4000 });
+      return;
+    }
+    const data: GestorCorreosDialogData = {
+      centro: c, puedeEditar: this.puedeEditarContactos(),
+      oficinas: this.oficinasCatalogo(), roles: this.rolesContacto(),
+    };
+    this.dialog.open(GestorCorreosDialogComponent, { width: 'min(820px, 96vw)', data })
+      .afterClosed().subscribe(guardo => {
+        if (guardo) this.ok('Gestor y correos guardados', () => this.cargarCentros());
+      });
+  }
+
+  cargaMasivaGestores(): void {
+    const data: CargaGestoresDialogData = {
+      temporales: this.temporales()
+        .filter(t => t.id != null)
+        .map(t => ({ id: t.id as number, nombre: t.nombre_display })),
+      empresas: this.empresas()
+        .filter(e => e.activo_vacantes !== false)
+        .map(e => ({ ref: e.empresa_usuaria_ref, nombre: e.nombre ?? e.nombre_excel ?? `#${e.empresa_usuaria_ref}`,
+                     temporal: e.temporal_config_ref ?? null })),
+    };
+    this.dialog.open(CargaGestoresDialogComponent, { width: 'min(1140px, 96vw)', maxWidth: '96vw', data, disableClose: true })
+      .afterClosed().subscribe(escribio => { if (escribio) this.cargarCentros(); });
   }
 
   // ── Temporales (eslabón 1) ────────────────────────────────────────────────
