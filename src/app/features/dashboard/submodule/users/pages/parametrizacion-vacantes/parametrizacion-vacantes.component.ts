@@ -304,24 +304,6 @@ export class ParametrizacionVacantesComponent implements OnInit {
   puedeEditarContactos = signal(false);
   oficinasCatalogo = signal<OficinaTemporal[]>([]);
   rolesContacto = signal<RolContactoInfo[]>([]);
-  /** Filtros propios de la pestaña: '' = todas / todos. */
-  filtroOficina = signal<string>('');
-  filtroGestor = signal<string>('');
-  soloSinGestor = signal(false);
-
-  /** Gestores presentes en los centros cargados, para el desplegable del filtro. */
-  gestoresDeCentros = computed(() =>
-    [...new Set(this.centros().map(c => c.nombre_gestor).filter((g): g is string => !!g))]
-      .sort((a, b) => a.localeCompare(b, 'es')));
-
-  /** Lo que pinta la tabla: los centros de las empresas elegidas con los filtros de gestor. */
-  centrosFiltrados = computed(() => {
-    const ofi = this.filtroOficina(), gestor = this.filtroGestor(), sin = this.soloSinGestor();
-    return this.centros().filter(c =>
-      (!ofi || (ofi === '__SIN__' ? !c.oficina_responsable : c.oficina_responsable === ofi)) &&
-      (!gestor || c.nombre_gestor === gestor) &&
-      (!sin || !c.nombre_gestor));
-  });
   /** Ver también las áreas retiradas del alcance (las 15 que no están en el Excel). */
   verAreasRetiradas = signal(false);
   verPerfilesVacanteInactivos = signal(false);

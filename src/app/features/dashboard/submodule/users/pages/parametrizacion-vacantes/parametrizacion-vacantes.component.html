@@ -437,32 +437,6 @@
             </button>
           </div>
 
-          <!-- Filtros de gestor: se aplican sobre los centros de las empresas elegidas.
-               «Seleccionar N» en el selector de empresas los trae todos de una vez. -->
-          @if (empresasSel().length && centros().length) {
-            <div class="tab-actions filtros-gestor">
-              <mat-form-field appearance="outline" class="filtro-corto">
-                <mat-label>Oficina</mat-label>
-                <mat-select [value]="filtroOficina()" (selectionChange)="filtroOficina.set($event.value)">
-                  <mat-option value="">Todas</mat-option>
-                  <mat-option value="__SIN__">Sin oficina</mat-option>
-                  @for (o of oficinasCatalogo(); track o.id) { <mat-option [value]="o.nombre">{{ o.nombre }}</mat-option> }
-                </mat-select>
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="filtro-corto">
-                <mat-label>Gestor</mat-label>
-                <mat-select [value]="filtroGestor()" (selectionChange)="filtroGestor.set($event.value)"
-                            [disabled]="soloSinGestor()">
-                  <mat-option value="">Todos</mat-option>
-                  @for (g of gestoresDeCentros(); track g) { <mat-option [value]="g">{{ g }}</mat-option> }
-                </mat-select>
-              </mat-form-field>
-              <mat-slide-toggle [checked]="soloSinGestor()" (change)="soloSinGestor.set($event.checked)">
-                Solo sin gestor
-              </mat-slide-toggle>
-              <span class="filtros-gestor__cuenta">{{ centrosFiltrados().length }} de {{ centros().length }} centros</span>
-            </div>
-          }
 
           @if (!empresasSel().length) {
             <div class="aviso aviso-info">
@@ -488,7 +462,7 @@
 
           @if (empresasSel().length && centros().length) {
             <app-standard-filter-table
-              [data]="centrosFiltrados()" [columnDefinitions]="colCentrosVisibles()"
+              [data]="centros()" [columnDefinitions]="colCentrosVisibles()"
               [pageSizeOptions]="pageSizeOptions" [isLoading]="cargandoCentros()"
               tableTitle="Centros de costo" storageKey="param-vacantes-centros">
               <ng-template #actionsTemplate let-row>
