@@ -24,6 +24,7 @@ import { CandidatosExcelDownloadService } from '../../services/candidatos-excel-
 import { STAGE_LABEL_TO_KEY, PipelineStage } from '../../models/contratacion-metricas.models';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
+import { ChatIaAcceso, ContextoChatIa } from '@/app/shared/components/chat-ia';
 
 interface KpiData {
   total_procesos: number;
@@ -51,6 +52,7 @@ type SegmentKind = 'oficina' | 'finca' | 'fecha' | 'pipeline' | 'motivo';
     MatTooltipModule,
     NgxEchartsDirective,
     StandardFilterTable,
+    ChatIaAcceso,
   ],
   providers: [provideEchartsTema()],
   templateUrl: './informe-temporal.component.html',
@@ -72,6 +74,32 @@ export class InformeTemporalComponent implements OnInit {
   });
 
   readonly temporales = ['APOYO LABORAL TS SAS', 'TU ALIANZA SAS'];
+
+  private ctxChat: ContextoChatIa | null = null;
+  /**
+   * Contexto del chat de IA (módulo contratacion de ms-ai): el rango, la temporal y los KPIs que se ven.
+   * Devuelve el MISMO objeto mientras no cambien: el chat recarga su módulo cada vez que cambia el contexto.
+   */
+  contextoChat(): ContextoChatIa {
+    const r = this.dateRange.value;
+    const start = r.start ? this.toYMD(r.start) : null;
+    const end = r.end ? this.toYMD(r.end) : null;
+    const nuevo: ContextoChatIa = {
+      modulo: 'contratacion.metricas',
+      moduloNombre: 'Métricas › Contratación',
+      ruta: '/dashboard/metricas/contratacion',
+      parametros: { start, end, desde: start, hasta: end, temporal: this.temporalControl.value || null },
+      pantalla: { rango: `${start ?? 'hace 30 días'} a ${end ?? 'hoy'}`, temporal: this.temporalControl.value || 'todas', indicadores: this.kpis() },
+      sugerencias: [
+        '¿Cómo va el embudo de selección en este rango y dónde se pierde más gente?',
+        '¿Qué oficinas contratan más y cuáles tienen más rechazos?',
+        '¿Cuáles son los principales motivos de no aplica?',
+        'Prepárame una presentación con los indicadores de contratación del periodo',
+      ],
+    };
+    if (!this.ctxChat || JSON.stringify(nuevo) !== JSON.stringify(this.ctxChat)) this.ctxChat = nuevo;
+    return this.ctxChat;
+  }
 
   // Estado
   loading = signal(false);

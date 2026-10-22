@@ -35,6 +35,9 @@ const INVOKE_CHANNELS = new Set([
   'db:clear-cache',
   'db:clear-queue',
   'db:clear-user-data',
+  // Agente de monitoreo de endpoints (solo estado y enrolamiento desde la app).
+  'endpoint:status',
+  'endpoint:enrol',
 ]);
 
 const ON_CHANNELS = new Set([
@@ -131,5 +134,10 @@ contextBridge.exposeInMainWorld('electron', {
     saveUpload: (payload) => ipcRenderer.invoke('offline:save-upload', payload),
     readUpload: (storedPath) => ipcRenderer.invoke('offline:read-upload', storedPath),
     deleteUpload: (storedPath) => ipcRenderer.invoke('offline:delete-upload', storedPath),
+  },
+  // Monitoreo de endpoints: la app muestra el estado y puede activar el equipo con un PIN del admin.
+  endpoint: {
+    status: () => ipcRenderer.invoke('endpoint:status'),
+    enrol: (pin) => ipcRenderer.invoke('endpoint:enrol', pin),
   },
 });

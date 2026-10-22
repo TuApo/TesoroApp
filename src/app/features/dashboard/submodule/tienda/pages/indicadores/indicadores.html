@@ -6,6 +6,7 @@
       <p class="tienda-subtitulo">
         Todo agregado en el servidor. El margen exige que los productos tengan costo:
         si sale en cero, revise que las entradas de inventario lo lleven.
+        <a class="enlace" routerLink="../logis"><mat-icon>analytics</mat-icon> Análisis a fondo en Logis</a>
       </p>
     </div>
     <app-selector-tienda />
@@ -43,7 +44,8 @@
         <article class="tienda-tarjeta tienda-kpi">
           <span class="etiqueta">Margen bruto</span>
           <span class="valor">{{ r.margen_bruto | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-          <span class="ayuda">{{ r.margen_pct ?? 0 }}% de la venta</span>
+          <span class="ayuda">{{ r.margen_pct ?? 0 }}% de la venta
+            @if ((r.costo_estimado_pct ?? 0) > 0) { · costo reconstruido en el {{ r.costo_estimado_pct | number:'1.0-0' }}% (Logis no lo guardó) }</span>
         </article>
         <article class="tienda-tarjeta tienda-kpi">
           <span class="etiqueta">Cobrado por nómina</span>
@@ -57,6 +59,42 @@
             {{ r.rotacion ?? '—' }}</span>
         </article>
       </section>
+
+      @if (extra(); as x) {
+        @if (!x['sin_datos']) {
+          <section class="tienda-rejilla">
+            <article class="tienda-tarjeta tienda-kpi">
+              <span class="etiqueta">Clientes distintos</span>
+              <span class="valor">{{ x['clientes'] | number:'1.0-0' }}</span>
+              <span class="ayuda">
+                @if (variacion('clientes'); as v) { <b [class]="v.clase">{{ v.texto }}</b> · }
+                {{ x['compras_por_cliente'] | number:'1.1-1' }} compras c/u · {{ x['gasto_por_cliente'] | currency:'COP':'symbol-narrow':'1.0-0' }} c/u
+              </span>
+            </article>
+            <article class="tienda-tarjeta tienda-kpi">
+              <span class="etiqueta">Frente al período anterior</span>
+              <span class="valor">
+                @if (variacion('venta'); as v) { <span [class]="v.clase">{{ v.texto }}</span> } @else { — }
+              </span>
+              <span class="ayuda">en venta ·
+                @if (variacion('documentos'); as v) { <b [class]="v.clase">{{ v.texto }}</b> en tickets }
+                ({{ x['anterior']?.['desde'] }} → {{ x['anterior']?.['hasta'] }})</span>
+            </article>
+            <article class="tienda-tarjeta tienda-kpi">
+              <span class="etiqueta">Unidades vendidas</span>
+              <span class="valor">{{ x['unidades'] | number:'1.0-0' }}</span>
+              <span class="ayuda">{{ x['unidades_por_ticket'] | number:'1.1-1' }} por ticket ·
+                {{ x['lineas_por_ticket'] | number:'1.1-1' }} productos distintos por ticket</span>
+            </article>
+            <article class="tienda-tarjeta tienda-kpi">
+              <span class="etiqueta">Productos vendidos</span>
+              <span class="valor">{{ x['productos_distintos'] | number:'1.0-0' }}</span>
+              <span class="ayuda">{{ x['venta_por_dia'] | currency:'COP':'symbol-narrow':'1.0-0' }} por día con venta ·
+                margen real donde hay costo {{ x['margen_real_pct'] | number:'1.1-1' }}%</span>
+            </article>
+          </section>
+        }
+      }
 
       <div class="disposicion-graficas">
         <section class="tienda-tarjeta">
@@ -78,6 +116,27 @@
           } @else {
             <div echarts [options]="graficaPagos()" class="grafica"></div>
           }
+        </section>
+      </div>
+
+      <div class="disposicion-tres">
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Cuándo se vende</h2>
+          <p class="nota">Plata por día y hora (hora de Colombia).</p>
+          @if ((patrones()?.['calor']?.length ?? 0) === 0) { <p class="nota">Sin ventas en el rango.</p> }
+          @else { <div echarts [options]="graficaCalor()" class="grafica"></div> }
+        </section>
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Lo que más sale (unidades)</h2>
+          <p class="nota">Lo que más rota pide más espacio y reposición.</p>
+          @if (topUnidades().length === 0) { <p class="nota">Sin ventas en el rango.</p> }
+          @else { <div echarts [options]="graficaTopUnidades()" class="grafica"></div> }
+        </section>
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Venta por departamento</h2>
+          <p class="nota">Los 10 que más venden; al lado de cada barra, su % de utilidad.</p>
+          @if (departamentos().length === 0) { <p class="nota">Sin ventas en el rango.</p> }
+          @else { <div echarts [options]="graficaDepartamentos()" class="grafica"></div> }
         </section>
       </div>
 
@@ -134,7 +193,7 @@
             [filaId]="idRanking">
 
             <ng-template tablaCelda="tienda" let-t>
-              <span class="mono">{{ $any(t)['tienda_id'] }}</span>
+              <span>{{ nombreTienda($any(t)['tienda_id']) }}</span>
             </ng-template>
           </app-tabla-estandar>
         </section>
@@ -142,3 +201,6 @@
     }
   }
 </div>
+
+<!-- Chat de IA de la plataforma con el contexto de Indicadores (tienda, rango, cifras). -->
+<app-chat-ia-acceso [contexto]="contextoChat()" />

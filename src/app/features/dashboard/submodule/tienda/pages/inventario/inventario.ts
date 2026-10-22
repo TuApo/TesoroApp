@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, LOCALE_ID, OnInit, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, LOCALE_ID, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule, formatCurrency, formatDate, getCurrencySymbol } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,6 +7,7 @@ import { ColumnaTabla, TABLA_ESTANDAR, TonoBadge } from '../../../../../../share
 import { SelectorTienda } from '../../components/selector-tienda/selector-tienda';
 import { ContextoTiendaService } from '../../service/contexto-tienda.service';
 import { Movimiento, Producto, Stock, TiendaService } from '../../service/tienda.service';
+import { ChatIaAcceso, ContextoChatIa } from '../../../../../../shared/components/chat-ia';
 
 /**
  * Existencias, kardex y ajustes.
@@ -19,7 +20,7 @@ import { Movimiento, Producto, Stock, TiendaService } from '../../service/tienda
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-tienda-inventario',
-  imports: [CommonModule, FormsModule, MatIconModule, SelectorTienda, ...TABLA_ESTANDAR],
+  imports: [CommonModule, FormsModule, MatIconModule, SelectorTienda, ...TABLA_ESTANDAR, ChatIaAcceso],
   templateUrl: './inventario.html',
   styleUrls: ['../../styles/tienda-comun.css', './inventario.css'],
 })
@@ -40,6 +41,31 @@ export class Inventario implements OnInit {
   readonly formularioAbierto = signal(false);
 
   readonly productos = signal<Producto[]>([]);
+
+  /** Contexto del chat de IA: la tienda, la pestaña y lo que está por reponer (con nombres). */
+  readonly contextoChat = computed<ContextoChatIa>(() => {
+    const t = this.ctx.tienda();
+    const n = this.nombres();
+    return {
+      modulo: 'tienda.inventario',
+      moduloNombre: 'Tienda › Inventario',
+      tiendaId: t?.id ?? null,
+      tiendaNombre: t?.nombre ?? null,
+      ruta: '/dashboard/tienda/inventario',
+      parametros: { tienda: t?.id ?? null },
+      pantalla: {
+        pestana: this.pestana(),
+        referenciasConExistencias: this.stock().length,
+        bajoMinimo: this.bajoMinimo().slice(0, 40).map(s => ({ producto: n[s.producto_id] ?? s.producto_id, cantidad: s.cantidad })),
+      },
+      sugerencias: [
+        '¿Qué productos se van a agotar en los próximos días?',
+        'Arma el pedido sugerido para 30 días y expórtalo a Excel',
+        '¿Qué inventario está quieto o en exceso y cuánto dinero representa?',
+        '¿Qué se vende más en esta tienda y tengo suficiente?',
+      ],
+    };
+  });
   ajuste = { producto_id: '', tipo: 'ENTRADA_COMPRA', cantidad: 0, costo_unitario: 0, motivo: '' };
 
   readonly tiposAjuste = [

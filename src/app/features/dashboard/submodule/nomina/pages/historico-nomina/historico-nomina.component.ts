@@ -29,6 +29,7 @@ import {
   DesprendiblePreviewData,
 } from '../../components/desprendible-preview/desprendible-preview.component';
 import * as XLSX from 'xlsx';
+import { ChatIaAcceso, ContextoChatIa } from '../../../../../../shared/components/chat-ia';
 import Swal from 'sweetalert2';
 
 @Component({
@@ -51,6 +52,7 @@ import Swal from 'sweetalert2';
     MatCheckboxModule,
     MatDialogModule,
     ...TABLA_ESTANDAR,
+    ChatIaAcceso,
   ],
   templateUrl: './historico-nomina.component.html',
   styleUrls: ['./historico-nomina.component.css']
@@ -77,6 +79,32 @@ export class HistoricoNominaComponent implements OnInit {
   
   /** Resultado de la última búsqueda en el histórico. */
   historico: any[] = [];
+
+  private ctxChat: ContextoChatIa | null = null;
+  /**
+   * Contexto del chat de IA (módulo nomina de ms-ai): periodo, empresa, fincas y búsqueda elegidos.
+   * Devuelve el MISMO objeto mientras no cambien: el chat recarga su módulo cada vez que cambia el contexto.
+   */
+  contextoChat(): ContextoChatIa {
+    const periodo = typeof this.periodoControl.value === 'object' ? this.periodoControl.value : null;
+    const cliente = typeof this.clientControl.value === 'object' ? this.clientControl.value : null;
+    const cecos = this.selectedCecoIds.length && !this.isAllCecosSelected() ? this.selectedCecoIds.join(',') : null;
+    const nuevo: ContextoChatIa = {
+      modulo: 'nomina.historial',
+      moduloNombre: 'Nómina › Historial de nómina',
+      ruta: '/dashboard/nomina/historial-de-nomina',
+      parametros: { periodo_id: periodo?.id_periodo ?? null, cliente_id: cliente?.id_entidad ?? null, cecos, query: this.queryControl.value?.trim() || null },
+      pantalla: { periodo: periodo?.descripcion ?? null, empresa: cliente?.nombre_legal ?? 'Todas las empresas', fincas_elegidas: cecos ? this.selectedCecoIds.length : 'todas', resumen: this.resumen ?? null },
+      sugerencias: [
+        '¿Cuántas nóminas de este periodo faltan por aprobar o pagar?',
+        '¿Cómo va el neto pagado de los últimos 3 meses?',
+        '¿Qué fincas tienen más incapacidades este año?',
+        'Hazme un Excel con el resumen de nómina por finca',
+      ],
+    };
+    if (!this.ctxChat || JSON.stringify(nuevo) !== JSON.stringify(this.ctxChat)) this.ctxChat = nuevo;
+    return this.ctxChat;
+  }
 
   readonly columnas: ColumnaTabla<any>[] = [
     { id: 'identificacion', header: 'Identificación', valor: (r) => r.identificacion, tarjeta: 'subtitulo' },

@@ -51,6 +51,8 @@ export class TiendaHome implements OnInit {
       ayuda: 'Campañas con condiciones y publicidad' },
     { ruta: 'indicadores', icono: 'insights', titulo: 'Indicadores',
       ayuda: 'Venta, margen, rotación y embudo' },
+    { ruta: 'logis', icono: 'analytics', titulo: 'Logis',
+      ayuda: 'Qué se compra, quién, cuándo, qué va junto y qué viene: el análisis a fondo' },
     { ruta: 'administracion', icono: 'account_tree', titulo: 'Administración',
       ayuda: 'Negocios, jerarquía, tiendas y alcances', soloSuperAdmin: true },
   ];

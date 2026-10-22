@@ -1,0 +1,802 @@
+<div class="tienda-pagina">
+
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>analytics</mat-icon> Logis</h1>
+      <p class="tienda-subtitulo">
+        El análisis a fondo de las ventas: el histórico que se trajo de Logis y lo que vende la caja nueva,
+        juntos. Qué compra la gente, quién compra, cuándo, qué va junto, qué viene y qué hay que pedir.
+      </p>
+    </div>
+    <app-selector-tienda />
+  </header>
+
+  <div class="tienda-barra barra-logis">
+    <div class="campo"><label>Desde</label>
+      <input type="date" [ngModel]="desde()" (ngModelChange)="cambiarFecha('desde', $event)" /></div>
+    <div class="campo"><label>Hasta</label>
+      <input type="date" [ngModel]="hasta()" (ngModelChange)="cambiarFecha('hasta', $event)" /></div>
+    <div class="atajos-rango" role="group" aria-label="Rango rápido">
+      @for (a of [['todo', 'Toda la historia'], ['12m', '12 meses'], ['anio', 'Este año'], ['90', '90 días'], ['30', '30 días']]; track a[0]) {
+        <button type="button" class="chip" [class.activo]="atajo() === a[0]" (click)="usarAtajo(a[0])">{{ a[1] }}</button>
+      }
+    </div>
+    @if (puedeCompararTiendas()) {
+      <label class="casilla">
+        <input type="checkbox" [checked]="todasLasTiendas()" (change)="todasLasTiendas.set(!todasLasTiendas())" />
+        Todas mis tiendas
+      </label>
+    }
+  </div>
+
+  <nav class="pestanas" role="tablist">
+    @for (p of pestanas; track p.id) {
+      <button type="button" role="tab" class="pestana" [class.activa]="pestana() === p.id"
+              [attr.aria-selected]="pestana() === p.id" (click)="irA(p.id)">
+        <mat-icon>{{ p.icono }}</mat-icon><span>{{ p.titulo }}</span>
+      </button>
+    }
+  </nav>
+
+  @if ((errores() | keyvalue).length > 0) {
+    <div class="tienda-error">
+      <mat-icon>error_outline</mat-icon>
+      <span>No se pudo cargar parte del análisis.</span>
+      <button type="button" class="boton secundario" (click)="reintentar()"><mat-icon>refresh</mat-icon> Reintentar</button>
+    </div>
+  }
+
+  @switch (pestana()) {
+
+    <!-- ═══════════════════════ RESUMEN ═══════════════════════ -->
+    @case ('resumen') {
+      @if (estaCargando('resumen') && !resumen()) {
+        <div class="cargando"><span class="giro"></span> Sumando el histórico…</div>
+      } @else if (sinDatos()) {
+        <div class="tienda-tarjeta tienda-vacio"><mat-icon>insights</mat-icon><p>No hay ventas en este rango para esta tienda.</p></div>
+      } @else if (resumen(); as r) {
+        <section class="rejilla-kpi">
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Vendido</span>
+            <span class="valor">{{ pesos(r['venta']) }}</span>
+            <span class="ayuda">
+              @if (variacion('venta'); as v) { <b [class]="v.clase">{{ v.texto }}</b> vs. período anterior · }
+              {{ pesos(r['venta_por_dia']) }} por día con venta
+            </span>
+          </article>
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Margen bruto</span>
+            <span class="valor">{{ pesos(r['margen']) }}</span>
+            <span class="ayuda">{{ num(r['margen_pct'], 1) }} % de la venta
+              @if (r['venta_con_costo_real_pct'] < 99) { · real donde hay costo: {{ num(r['margen_real_pct'], 1) }} % }</span>
+          </article>
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Tickets</span>
+            <span class="valor">{{ num(r['documentos']) }}</span>
+            <span class="ayuda">
+              @if (variacion('documentos'); as v) { <b [class]="v.clase">{{ v.texto }}</b> · }
+              ticket promedio {{ pesos(r['ticket_promedio']) }}
+            </span>
+          </article>
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Clientes distintos</span>
+            <span class="valor">{{ num(r['clientes']) }}</span>
+            <span class="ayuda">
+              @if (variacion('clientes'); as v) { <b [class]="v.clase">{{ v.texto }}</b> · }
+              {{ num(r['compras_por_cliente'], 1) }} compras c/u · {{ pesos(r['gasto_por_cliente']) }} c/u
+            </span>
+          </article>
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Unidades vendidas</span>
+            <span class="valor">{{ num(r['unidades']) }}</span>
+            <span class="ayuda">{{ num(r['unidades_por_ticket'], 1) }} por ticket · {{ num(r['lineas_por_ticket'], 1) }} productos distintos por ticket</span>
+          </article>
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Productos que se vendieron</span>
+            <span class="valor">{{ num(r['productos_distintos']) }}</span>
+            <span class="ayuda">en {{ num(r['dias_con_venta']) }} días con venta ({{ r['primera_venta'] }} → {{ r['ultima_venta'] }})</span>
+          </article>
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Cobrado por nómina</span>
+            <span class="valor">{{ num(r['nomina_pct'], 1) }} %</span>
+            <span class="ayuda">No entra en caja: se descuenta en la quincena</span>
+          </article>
+          <article class="tienda-tarjeta tienda-kpi">
+            <span class="etiqueta">Descuentos</span>
+            <span class="valor">{{ pesos(r['descuento_total']) }}</span>
+            <span class="ayuda">en {{ num(r['documentos_con_descuento']) }} tickets · consumidor final {{ num(r['consumidor_final_pct'], 1) }} % de los tickets</span>
+          </article>
+        </section>
+
+        @if (hallazgos().length) {
+          <section class="tienda-tarjeta hallazgos">
+            <h2 class="titulo-seccion"><mat-icon>lightbulb</mat-icon> Lo que dicen los datos</h2>
+            <ul>@for (h of hallazgos(); track $index) { <li>{{ h }}</li> }</ul>
+          </section>
+        }
+
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Venta, margen y clientes por mes</h2>
+            @if (serie().length === 0) { <p class="nota">Cargando…</p> }
+            @else { <div echarts [options]="graficaMensual()" class="grafica alta"></div> }
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Cómo se cobra</h2>
+            <ul class="barras-lista">
+              @for (p of pagosLista(r); track p.metodo) {
+                <li>
+                  <span class="nombre">{{ nombreMetodo(p.metodo) }}</span>
+                  <span class="barra"><span [style.width.%]="p.pct"></span></span>
+                  <span class="cifra">{{ num(p.pct, 1) }} %</span>
+                </li>
+              }
+            </ul>
+            <h3 class="subtitulo">De dónde sale el costo del margen</h3>
+            <ul class="barras-lista">
+              @for (f of fuentesLista(r['costo_por_fuente']); track f['fuente']) {
+                <li [title]="nombreFuente(f['fuente'])">
+                  <span class="nombre">{{ nombreFuente(f['fuente']) }}</span>
+                  <span class="barra ocre"><span [style.width.%]="f.pct"></span></span>
+                  <span class="cifra">{{ num(f.pct, 1) }} %</span>
+                </li>
+              }
+            </ul>
+            <p class="nota">Logis no guardó el costo de las ventas antes de marzo de 2026. Se reconstruye con el costo
+              de compra de sus movimientos de inventario (coincide con el real en el 96,6 % de los casos que sí lo tienen).</p>
+          </section>
+        </div>
+      }
+    }
+
+    <!-- ═══════════════════════ PRODUCTOS ═══════════════════════ -->
+    @case ('productos') {
+      @if (estaCargando('productos') && productos().length === 0) {
+        <div class="cargando"><span class="giro"></span> Ordenando los productos…</div>
+      } @else {
+        <section class="tienda-tarjeta">
+          <div class="cabecera-seccion">
+            <h2 class="titulo-seccion">Lo que más compra la gente</h2>
+            <div class="selector" role="group">
+              @for (c of [['vendido', 'En plata'], ['unidades', 'En unidades'], ['compradores', 'Por compradores'], ['margen', 'Lo que más deja'], ['tendencia', 'Lo que va subiendo']]; track c[0]) {
+                <button type="button" class="chip" [class.activo]="criterio() === c[0]" (click)="criterio.set($any(c[0]))">{{ c[1] }}</button>
+              }
+            </div>
+          </div>
+          <p class="nota">
+            @switch (criterio()) {
+              @case ('compradores') { Cuánta gente distinta lo lleva: lo que no puede faltar nunca en la góndola. }
+              @case ('margen') { Ordenado por lo que deja (venta − costo), no por lo que se vende. }
+              @case ('tendencia') { Unidades de los últimos 60 días frente a los 60 anteriores (con al menos 10 unidades). }
+              @case ('unidades') { Lo que más rota: lo que más espacio y reposición pide. }
+              @default { Lo que más plata mueve. }
+            }
+          </p>
+          <div echarts [options]="graficaTop()" class="grafica muy-alta"></div>
+        </section>
+
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Curva de Pareto (ABC)</h2>
+            <p class="nota">
+              <b>{{ num(abc().a) }}</b> productos (clase A) hacen el 80 % de la venta; <b>{{ num(abc().b) }}</b> (B) el
+              siguiente 15 % y <b>{{ num(abc().c) }}</b> (C) apenas el 5 %. Los A no se pueden agotar; los C son candidatos
+              a salir del surtido o a venderse bajo pedido.
+            </p>
+            <div echarts [options]="graficaPareto()" class="grafica"></div>
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Cómo leer la tabla</h2>
+            <dl class="glosario">
+              <dt>Penetración</dt><dd>Qué parte de los clientes del período compró el producto al menos una vez.</dd>
+              <dt>Tendencia 60 d</dt><dd>Unidades de los últimos 60 días del rango contra los 60 anteriores.</dd>
+              <dt>Días de cobertura</dt><dd>Para cuántos días alcanza la existencia de hoy al ritmo de los últimos 60 días.</dd>
+              <dt>Margen</dt><dd>Con el costo reconstruido donde Logis no lo guardó.</dd>
+            </dl>
+          </section>
+        </div>
+
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Todos los productos vendidos ({{ num(productos().length) }})</h2>
+          <app-tabla-estandar id="tienda-logis-productos" titulo="Productos vendidos" modulo="Tienda › Logis"
+            vacio="Sin ventas en el rango." [datos]="productos()" [columnas]="columnasProductos" [filaId]="idProducto" />
+        </section>
+      }
+    }
+
+    <!-- ═══════════════════════ CATEGORÍAS ═══════════════════════ -->
+    @case ('categorias') {
+      @if (estaCargando('categorias') && !categorias()) {
+        <div class="cargando"><span class="giro"></span> Armando el árbol de categorías…</div>
+      } @else if (categorias(); as c) {
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Venta por departamento y familia</h2>
+          <p class="nota">El tamaño de cada cuadro es la plata que mueve; junto a la venta va el % de utilidad. Toque un departamento para ver sus familias.</p>
+          <div echarts [options]="graficaTreemap()" class="grafica muy-alta"></div>
+        </section>
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Departamentos</h2>
+            <p class="nota">«Utilidad %» es la utilidad del grupo sobre su venta. «Utilidad prom. por producto» es el promedio simple
+              del % de cada producto con venta: si se separan mucho, unos pocos productos grandes están jalando el resultado.</p>
+            <app-tabla-estandar id="tienda-logis-departamentos" titulo="Venta y utilidad por departamento" modulo="Tienda › Logis"
+              [datos]="departamentosTabla()" [columnas]="columnasDepartamentos" [filaId]="idDepartamento" />
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Cuánto deja cada departamento</h2>
+            <div echarts [options]="graficaUtilidadDepartamentos()" class="grafica alta"></div>
+          </section>
+        </div>
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Familias</h2>
+          <app-tabla-estandar id="tienda-logis-familias" titulo="Venta por familia" modulo="Tienda › Logis"
+            [datos]="c['familias']" [columnas]="columnasFamilias" [filaId]="idFamilia" />
+        </section>
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Las marcas que más venden</h2>
+            <div echarts [options]="graficaMarcas()" class="grafica alta"></div>
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Marcas</h2>
+            <app-tabla-estandar id="tienda-logis-marcas" titulo="Venta por marca" modulo="Tienda › Logis"
+              [datos]="c['marcas']" [columnas]="columnasMarcas" [filaId]="idMarca" />
+          </section>
+        </div>
+      }
+    }
+
+    <!-- ═══════════════════════ CLIENTES ═══════════════════════ -->
+    @case ('clientes') {
+      @if (estaCargando('clientes') && !clientes()) {
+        <div class="cargando"><span class="giro"></span> Siguiendo a cada comprador…</div>
+      } @else if (clientes(); as c) {
+        @if (!c['clientes']) {
+          <div class="tienda-tarjeta tienda-vacio"><mat-icon>groups</mat-icon><p>No hay compradores identificados en el rango.</p></div>
+        } @else {
+          <section class="rejilla-kpi">
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Compradores</span>
+              <span class="valor">{{ num(c['clientes']) }}</span><span class="ayuda">identificados por su documento</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Compras por cliente</span>
+              <span class="valor">{{ num(c['compras_por_cliente'], 1) }}</span>
+              <span class="ayuda">mediana: compra cada {{ c['dias_entre_compras_mediana'] ?? '—' }} días</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Gasto por cliente</span>
+              <span class="valor">{{ pesos(c['gasto_por_cliente']) }}</span><span class="ayuda">en todo el período</span></article>
+            @if (c['laboral']; as l) {
+              <article class="tienda-tarjeta tienda-kpi destacado"><span class="etiqueta">Siguen en la empresa</span>
+                <span class="valor">{{ num(l['activos']) }}</span>
+                <span class="ayuda">de {{ num(c['clientes']) }} compradores ({{ num(l['activos_pct'], 1) }} %) · hicieron el
+                  {{ num(l['venta_de_activos_pct'], 1) }} % de la venta · {{ num(l['retirados']) }} ya no están</span></article>
+            }
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Concentración</span>
+              <span class="valor">{{ num(c['concentracion']['top10_pct_de_la_venta'], 1) }} %</span>
+              <span class="ayuda">de la venta la hace el 10 % de los clientes · {{ num(c['concentracion']['clientes_para_80_pct']) }} clientes hacen el 80 %</span></article>
+          </section>
+
+          <section class="segmentos">
+            @for (s of c['segmentos']; track s['segmento']) {
+              <article class="tienda-tarjeta segmento" [attr.data-segmento]="s['segmento']">
+                <header><span class="nombre">{{ s['segmento'] }}</span><span class="cuantos">{{ num(s['clientes']) }}</span></header>
+                <p class="desc">{{ s['descripcion'] }}</p>
+                <p class="cifras">{{ num(s['clientes_pct'], 1) }} % de los clientes · {{ num(s['venta_pct'], 1) }} % de la venta<br>
+                  {{ num(s['compras_promedio'], 1) }} compras · {{ pesos(s['gasto_promedio']) }} c/u</p>
+                @if (c['tesoreria_disponible']) {
+                  <p class="laboral"><b>{{ num(s['activos']) }}</b> siguen en la empresa · {{ num(s['retirados']) }} ya no están</p>
+                }
+                <p class="accion"><mat-icon>tips_and_updates</mat-icon> {{ s['accion'] }}</p>
+              </article>
+            }
+          </section>
+
+          @if (!c['tesoreria_disponible']) {
+            <div class="aviso-banda"><mat-icon>info</mat-icon> No se pudo cruzar con tesorería y contratación: los segmentos van sin estado laboral ni contacto.</div>
+          }
+          @if (c['alcance']; as a) {
+            <section class="tienda-tarjeta">
+              <div class="cabecera-seccion">
+                <h2 class="titulo-seccion">Hasta dónde llega la tienda entre los activos de tesorería</h2>
+                <button type="button" class="boton secundario" (click)="irA('fincas')"><mat-icon>agriculture</mat-icon> Ver por finca y temporal</button>
+              </div>
+              <p class="nota">Fincas atendidas = las que tienen al menos 5 compradores activos. La tienda no surte a toda la empresa.</p>
+              <div class="rejilla-mini">
+                <div><span>Activos en la empresa</span><b>{{ num(a['activos_empresa']) }}</b><small>según tesorería hoy</small></div>
+                <div><span>Fincas atendidas</span><b>{{ num(a['fincas_atendidas']) }}</b><small>{{ num(a['activos_en_fincas_atendidas']) }} activos en ellas</small></div>
+                <div><span>Les compran</span><b>{{ num(a['penetracion_fincas_atendidas_pct'], 1) }} %</b>
+                  <small>{{ num(a['compradores_activos_en_fincas_atendidas']) }} compradores activos en el rango</small></div>
+                <div><span>Nunca han comprado</span><b>{{ num(a['activos_sin_compra']) }}</b><small>activos de esas fincas: ya tienen cupo</small></div>
+              </div>
+            </section>
+          }
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Nuevos y recurrentes, mes a mes</h2>
+              <p class="nota">La línea es qué parte de quienes compraron el mes anterior volvió este mes.</p>
+              <div echarts [options]="graficaClientesMes()" class="grafica alta"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Cuántas veces compra cada quien</h2>
+              <div echarts [options]="graficaFrecuencia()" class="grafica alta"></div>
+            </section>
+          </div>
+
+          @if (c['cohortes']?.length) {
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Cohortes: ¿vuelven los clientes nuevos?</h2>
+              <p class="nota">Cada fila es la gente que compró por primera vez ese mes; cada columna, qué % volvió a comprar N meses después.</p>
+              <div class="tabla-cohortes">
+                <table>
+                  <thead><tr><th>Primera compra</th><th>Clientes</th>
+                    @for (k of [0,1,2,3,4,5,6,7,8,9,10,11,12]; track k) { <th>{{ k === 0 ? 'Mes 0' : '+' + k }}</th> }</tr></thead>
+                  <tbody>
+                    @for (f of c['cohortes']; track f['cohorte']) {
+                      <tr><td>{{ mesCorto(f['cohorte']) }}</td><td class="num">{{ num(f['clientes']) }}</td>
+                        @for (k of [0,1,2,3,4,5,6,7,8,9,10,11,12]; track k) {
+                          <td class="num celda" [style.background]="colorCohorte(f['retencion_pct'][k] ?? null)">
+                            {{ f['retencion_pct'][k] != null ? num(f['retencion_pct'][k], 0) + '%' : '' }}</td>
+                        }
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          }
+
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">En riesgo: compraban seguido y dejaron de venir</h2>
+            <p class="nota">La lista de llamadas de esta semana: primero los que siguen en la empresa, ordenados por lo que compraban.
+              Teléfono y correo vienen de contratación.</p>
+            <app-tabla-estandar id="tienda-logis-en-riesgo" titulo="Clientes en riesgo" modulo="Tienda › Logis"
+              vacio="Nadie en riesgo: buena señal." [datos]="c['en_riesgo']" [columnas]="columnasClientes" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Los mejores clientes</h2>
+            <app-tabla-estandar id="tienda-logis-top-clientes" titulo="Mejores clientes" modulo="Tienda › Logis"
+              [datos]="c['top']" [columnas]="columnasClientes" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Perdidos que siguen en la empresa</h2>
+            <p class="nota">Más de 4 meses sin venir, pero siguen activos en tesorería: se pueden recuperar.
+              @if (c['perdidos_retirados']) { Otros {{ num(c['perdidos_retirados']) }} perdidos ya no están en la empresa y no aparecen aquí. }</p>
+            <app-tabla-estandar id="tienda-logis-perdidos" titulo="Perdidos que siguen en la empresa" modulo="Tienda › Logis"
+              vacio="Ninguno." [datos]="c['perdidos_activos']" [columnas]="columnasClientes" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
+          </section>
+          @if (c['activos_sin_compra']?.length) {
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Activos que nunca le han comprado a la tienda</h2>
+              <p class="nota">Trabajan en fincas que la tienda ya atiende y tienen cupo en tesorería, pero nunca han comprado.
+                Primero los que entraron más recientemente: es el mejor momento para darles la bienvenida. Se muestran los primeros 300 de
+                {{ num(c['alcance']?.['activos_sin_compra']) }}.</p>
+              <app-tabla-estandar id="tienda-logis-sin-compra" titulo="Activos que nunca han comprado" modulo="Tienda › Logis"
+                [datos]="c['activos_sin_compra']" [columnas]="columnasSinCompra" [filaId]="idCliente">
+              <ng-template tablaCelda="celular" let-f>
+                @if ($any(f)['celular']; as cel) { <a class="contacto" [href]="'tel:' + cel">{{ cel }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="whatsapp" let-f>
+                @if (enlaceWhatsapp($any(f)['whatsapp'] || $any(f)['celular']); as wa) {
+                  <a class="contacto wa" [href]="wa" target="_blank" rel="noopener"><mat-icon>chat</mat-icon>{{ $any(f)['whatsapp'] || $any(f)['celular'] }}</a>
+                } @else { <span class="sin">—</span> }
+              </ng-template>
+              <ng-template tablaCelda="correo" let-f>
+                @if ($any(f)['correo']; as m) { <a class="contacto" [href]="'mailto:' + m">{{ m }}</a> } @else { <span class="sin">—</span> }
+              </ng-template>
+            </app-tabla-estandar>
+            </section>
+          }
+        }
+      }
+    }
+
+    <!-- ═══════════════════════ FINCAS Y TEMPORALES ═══════════════════════ -->
+    @case ('fincas') {
+      @if (estaCargando('fincas') && !fincas()) {
+        <div class="cargando"><span class="giro"></span> Cruzando compradores con tesorería…</div>
+      } @else if (fincas(); as fz) {
+        @if (fz['disponible'] === false || fz['sin_datos']) {
+          <div class="tienda-tarjeta tienda-vacio"><mat-icon>agriculture</mat-icon><p>{{ fz['mensaje'] || 'Sin compradores identificados en el rango.' }}</p></div>
+        } @else {
+          <div class="aviso-banda"><mat-icon>info</mat-icon> {{ fz['nota'] }}</div>
+          <section class="rejilla-kpi">
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Fincas con compradores</span>
+              <span class="valor">{{ num(fz['fincas_con_compradores']) }}</span>
+              <span class="ayuda">{{ num(fz['fincas_atendidas']) }} atendidas (5 o más compradores activos)</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">La finca que más compra</span>
+              <span class="valor texto">{{ fz['por_finca'][0]?.['finca'] ?? '—' }}</span>
+              <span class="ayuda">{{ num(fz['por_finca'][0]?.['participacion_pct'], 1) }} % de la venta identificada ·
+                {{ num(fz['por_finca'][0]?.['penetracion_pct'], 1) }} % de sus activos compra</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Primera compra de un ingreso nuevo</span>
+              <span class="valor">{{ fz['primera_compra']['mediana_dias'] ?? '—' }} días</span>
+              <span class="ayuda">mediana entre la fecha de ingreso y la primera compra ({{ num(fz['primera_compra']['personas_con_dato']) }} personas)</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Temporales</span>
+              <span class="valor">{{ fz['por_temporal'].length }}</span>
+              <span class="ayuda">
+                @for (t of fz['por_temporal'].slice(0, 2); track t['temporal']) { {{ t['temporal'] }} {{ num(t['participacion_pct'], 0) }} % · }
+              </span></article>
+          </section>
+
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Venta por finca, mes a mes</h2>
+            <p class="nota">Las {{ fz['serie_fincas']['series'].length - 1 }} fincas que más compran y el resto junto.</p>
+            <div echarts [options]="graficaFincasVenta()" class="grafica muy-alta"></div>
+          </section>
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Compradores por finca, mes a mes</h2>
+              <p class="nota">Cuántas personas distintas de cada finca compraron cada mes.</p>
+              <div echarts [options]="graficaFincasCompradores()" class="grafica alta"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Penetración en las fincas atendidas</h2>
+              <p class="nota">Activos de hoy en cada finca frente a los que compraron en el rango.</p>
+              <div echarts [options]="graficaPenetracionFincas()" class="grafica alta"></div>
+            </section>
+          </div>
+
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Todas las fincas</h2>
+            <app-tabla-estandar id="tienda-logis-fincas" titulo="Clientes por finca" modulo="Tienda › Logis"
+              [datos]="fz['por_finca']" [columnas]="columnasFincas" [filaId]="idFinca" />
+          </section>
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Venta por temporal, mes a mes</h2>
+              <div echarts [options]="graficaTemporalesVenta()" class="grafica alta"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Temporales</h2>
+              <app-tabla-estandar id="tienda-logis-temporales" titulo="Clientes por temporal" modulo="Tienda › Logis" [busqueda]="false"
+                [datos]="fz['por_temporal']" [columnas]="columnasTemporales" [filaId]="idTemporal" />
+            </section>
+          </div>
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">¿Compran más los nuevos o los antiguos?</h2>
+              <p class="nota">Activos de las fincas atendidas por antigüedad del contrato vigente, y qué parte compró en el rango.</p>
+              <div echarts [options]="graficaAntiguedad()" class="grafica alta"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Cuánto tarda un ingreso en estrenarse</h2>
+              <p class="nota">Días entre la fecha de ingreso en tesorería y la primera compra en la tienda. La mitad compra antes de
+                {{ fz['primera_compra']['mediana_dias'] ?? '—' }} días; el 75 % antes de {{ fz['primera_compra']['p75_dias'] ?? '—' }}.</p>
+              <div echarts [options]="graficaPrimeraCompra()" class="grafica"></div>
+              @if (fz['primera_compra']['por_finca']?.length) {
+                <h3 class="subtitulo">Mediana por finca (10 o más personas)</h3>
+                <ul class="lista-simple">
+                  @for (m of fz['primera_compra']['por_finca']; track m['finca']) {
+                    <li><span>{{ m['finca'] }}</span><span>{{ m['mediana_dias'] }} días · {{ num(m['personas']) }} personas</span></li>
+                  }
+                </ul>
+              }
+            </section>
+          </div>
+        }
+      }
+    }
+
+    <!-- ═══════════════════════ CUÁNDO COMPRAN ═══════════════════════ -->
+    @case ('patrones') {
+      @if (estaCargando('patrones') && !patrones()) {
+        <div class="cargando"><span class="giro"></span> Mirando el reloj y el calendario…</div>
+      } @else if (patrones(); as p) {
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Día y hora: dónde se concentra la venta</h2>
+          <p class="nota">Plata vendida por franja (hora de Colombia). Sirve para turnos de caja, reposición y para no hacer inventario en hora pico.</p>
+          <div echarts [options]="graficaCalor()" class="grafica alta"></div>
+        </section>
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Venta promedio por día del mes</h2>
+            <p class="nota">En ocre, los días que venden más de 25 % sobre el promedio: casi siempre los que siguen al pago de la quincena.</p>
+            <div echarts [options]="graficaDiaMes()" class="grafica"></div>
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Venta promedio por día de la semana</h2>
+            <p class="nota">Promediado por cada día calendario, no por los días que hubo venta.</p>
+            <div echarts [options]="graficaDiaSemana()" class="grafica"></div>
+          </section>
+        </div>
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Venta por hora del día</h2>
+          <div echarts [options]="graficaHora()" class="grafica"></div>
+        </section>
+      }
+    }
+
+    <!-- ═══════════════════════ CANASTA ═══════════════════════ -->
+    @case ('canasta') {
+      @if (estaCargando('canasta') && !canasta()) {
+        <div class="cargando"><span class="giro"></span> Revisando qué va junto en {{ num(resumen()?.['documentos']) }} tickets…</div>
+      } @else if (canasta(); as k) {
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Lo que se lleva junto</h2>
+          <p class="nota">Cada punto es un producto; cada línea, que se compran en el mismo ticket (más gruesa, más veces).
+            Se puede arrastrar y hacer zoom. Úselo para la exhibición, los combos y la caja.</p>
+          <div echarts [options]="graficaCanasta()" class="grafica muy-alta"></div>
+        </section>
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Pares más frecuentes</h2>
+          <app-tabla-estandar id="tienda-logis-canasta" titulo="Pares más frecuentes" modulo="Tienda › Logis"
+            [datos]="k['frecuentes']" [columnas]="columnasPares" [filaId]="idPar" />
+        </section>
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Relaciones fuertes (lift)</h2>
+          <p class="nota">
+            Lift = cuántas veces más se compran juntos de lo que daría el azar. Un lift de 3 dice que quien lleva uno tiene
+            tres veces más probabilidad de llevar el otro: ponerlos cerca o en combo vende más. Solo pares con suficientes casos.
+          </p>
+          <app-tabla-estandar id="tienda-logis-lift" titulo="Relaciones fuertes" modulo="Tienda › Logis"
+            vacio="Sin relaciones fuertes con suficientes casos." [datos]="k['fuertes']" [columnas]="columnasPares" [filaId]="idPar" />
+        </section>
+      }
+    }
+
+    <!-- ═══════════════════════ PROYECCIÓN Y COMPRAS ═══════════════════════ -->
+    @case ('proyeccion') {
+      @if (estaCargando('proyeccion') && !proyeccion()) {
+        <div class="cargando"><span class="giro"></span> Proyectando…</div>
+      } @else if (proyeccion(); as p) {
+        @if (p['sin_datos']) {
+          <div class="tienda-tarjeta tienda-vacio"><mat-icon>trending_up</mat-icon><p>Sin historia suficiente para proyectar.</p></div>
+        } @else {
+          @if (p['dias_sin_venta'] > 3) {
+            <div class="aviso-banda"><mat-icon>info</mat-icon>
+              La última venta registrada es del {{ fechaLarga(p['ultima_venta']) }} ({{ p['dias_sin_venta'] }} días sin ventas).
+              Si la tienda ya vende por la caja nueva, esas ventas entran aquí al confirmarse.</div>
+          }
+          <section class="rejilla-kpi">
+            @if (p['mes_en_curso']; as m) {
+              <article class="tienda-tarjeta tienda-kpi destacado"><span class="etiqueta">Cierre estimado de {{ mesLargo(m['mes']) }}</span>
+                <span class="valor">{{ pesos(m['proyeccion_cierre']) }}</span>
+                <span class="ayuda">llevaba {{ pesos(m['acumulado']) }} al día {{ m['hasta_dia'] }}; a esa altura suele ir el
+                  {{ num(m['participacion_tipica_pct'], 0) }} % del mes</span></article>
+            }
+            @if (proximos().siguiente; as s) {
+              <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">{{ mesLargo(s['mes']) }}</span>
+                <span class="valor">{{ pesos(s['venta']) }}</span>
+                <span class="ayuda">entre {{ pesos(s['minimo']) }} y {{ pesos(s['maximo']) }}</span></article>
+            }
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Próximos 3 meses</span>
+              <span class="valor">{{ pesos(proximos().tres) }}</span>
+              <span class="ayuda">entre {{ pesos(proximos().tresMin) }} y {{ pesos(proximos().tresMax) }}</span></article>
+            <article class="tienda-tarjeta tienda-kpi"><span class="etiqueta">Tendencia</span>
+              <span class="valor">{{ p['crecimiento_mensual_pct'] == null ? '—' : (p['crecimiento_mensual_pct'] >= 0 ? '+' : '') + num(p['crecimiento_mensual_pct'], 1) + ' %' }}</span>
+              <span class="ayuda">por mes, sin estacionalidad
+                @if (p['variacion_anual_pct'] != null) { · {{ mesCorto(p['variacion_anual_mes']) }} vs. un año antes:
+                  {{ (p['variacion_anual_pct'] >= 0 ? '+' : '') + num(p['variacion_anual_pct'], 1) }} % }</span></article>
+          </section>
+
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Venta mensual y pronóstico</h2>
+            <p class="nota">{{ p['metodo'] }} Las barras claras son meses incompletos.</p>
+            <div echarts [options]="graficaProyeccion()" class="grafica muy-alta"></div>
+          </section>
+
+          <div class="dos-columnas">
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Estacionalidad</h2>
+              <p class="nota">Cuánto vende cada mes frente a un mes típico (100 %). Los meses con un solo año de datos pesan menos.</p>
+              <div echarts [options]="graficaEstacional()" class="grafica"></div>
+            </section>
+            <section class="tienda-tarjeta">
+              <h2 class="titulo-seccion">Cómo se acumula la venta en el mes</h2>
+              <ul class="perfil-mes">
+                @for (d of p['perfil_mes']; track d['dia']) {
+                  @if (d['dia'] % 5 === 0 || d['dia'] === 1 || d['dia'] === 15) {
+                    <li><span>Día {{ d['dia'] }}</span><span class="barra"><span [style.width.%]="d['acumulado_pct']"></span></span>
+                      <b>{{ num(d['acumulado_pct'], 0) }} %</b></li>
+                  }
+                }
+              </ul>
+            </section>
+          </div>
+        }
+      }
+
+      <section class="tienda-tarjeta">
+        <div class="cabecera-seccion">
+          <h2 class="titulo-seccion">Qué pedir y qué sobra</h2>
+          <div class="selector" role="group" aria-label="Días a cubrir">
+            <span class="nota sin-margen">Cubrir</span>
+            @for (d of [15, 30, 45, 60]; track d) {
+              <button type="button" class="chip" [class.activo]="diasCobertura() === d" (click)="diasCobertura.set(d)">{{ d }} días</button>
+            }
+          </div>
+        </div>
+        <p class="nota">Con la venta diaria de los últimos 60 días del rango (corregida por si va subiendo o bajando) y la
+          existencia de hoy. «Pedir» es lo que falta para cubrir {{ diasCobertura() }} días.</p>
+        @if (estaCargando('reabastecimiento-' + diasCobertura()) && !reabastecimiento()) {
+          <div class="cargando"><span class="giro"></span> Cruzando venta con existencias…</div>
+        } @else if (reabastecimiento(); as rb) {
+          <div class="estados-reab">
+            @for (e of estadosReab; track e.id) {
+              <button type="button" class="estado" [class]="'estado ' + e.clase" [class.activo]="filtroEstado() === e.id"
+                      (click)="filtroEstado.set(filtroEstado() === e.id ? '' : e.id)">
+                <span class="cuantos">{{ num(rb['resumen'][e.id]) }}</span>
+                <span class="titulo">{{ e.titulo }}</span>
+                <span class="ayuda">{{ e.ayuda }}</span>
+              </button>
+            }
+          </div>
+          <p class="totales-reab">
+            Pedido sugerido: <b>{{ pesos(rb['resumen']['valor_sugerido']) }}</b> a costo ·
+            existencia de más (sobre 90 días): <b>{{ pesos(rb['resumen']['valor_exceso']) }}</b> ·
+            plata quieta en productos sin venta: <b>{{ pesos(rb['resumen']['valor_dormido']) }}</b>
+          </p>
+          <app-tabla-estandar id="tienda-logis-reabastecimiento" titulo="Qué pedir y qué sobra" modulo="Tienda › Logis"
+            vacio="Nada en este estado." [datos]="reabFiltrado()" [columnas]="columnasReabastecimiento" [filaId]="idProducto" />
+        }
+      </section>
+    }
+
+    <!-- ═══════════════════════ PAGOS Y OPERACIÓN ═══════════════════════ -->
+    @case ('operacion') {
+      @if (estaCargando('operacion') && !operacion()) {
+        <div class="cargando"><span class="giro"></span> Revisando pagos y cajas…</div>
+      } @else if (operacion(); as o) {
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Medios de pago por mes</h2>
+          <div echarts [options]="graficaPagosMes()" class="grafica alta"></div>
+        </section>
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Quién vendió</h2>
+            <p class="nota">Logis guarda el número de usuario del cajero, no su nombre.</p>
+            <app-tabla-estandar id="tienda-logis-vendedores" titulo="Ventas por cajero" modulo="Tienda › Logis"
+              [datos]="o['vendedores']" [columnas]="columnasVendedores" [filaId]="idVendedor" />
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Cierres de caja de Logis</h2>
+            <dl class="cifras-lista">
+              <dt>Cierres</dt><dd>{{ num(o['cierres_caja']['cierres']) }}</dd>
+              <dt>Tickets por cierre</dt><dd>{{ num(o['cierres_caja']['documentos_por_cierre'], 1) }}</dd>
+              <dt>Venta por cierre</dt><dd>{{ pesos(o['cierres_caja']['venta_por_cierre']) }}</dd>
+            </dl>
+            <h3 class="subtitulo">Documentos por estado</h3>
+            <app-tabla-estandar id="tienda-logis-estados" titulo="Documentos por estado" modulo="Tienda › Logis" [busqueda]="false"
+              [datos]="o['documentos_por_estado']" [columnas]="columnasEstados" [filaId]="idEstadoDoc" />
+          </section>
+        </div>
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Cartera que dejó Logis</h2>
+          <p class="nota">Facturas con saldo por cobrar (foto de hoy, no depende del rango). Se descartan los saldos imposibles.</p>
+          <div class="rejilla-mini">
+            <div><span>Por cobrar</span><b>{{ pesos(o['cartera']['saldo']) }}</b><small>{{ num(o['cartera']['documentos']) }} facturas</small></div>
+            <div><span>Hasta 30 días</span><b>{{ pesos(o['cartera']['hasta_30_dias']) }}</b></div>
+            <div><span>31 a 90 días</span><b>{{ pesos(o['cartera']['de_31_a_90']) }}</b></div>
+            <div><span>91 a 180 días</span><b>{{ pesos(o['cartera']['de_91_a_180']) }}</b></div>
+            <div><span>Más de 180 días</span><b>{{ pesos(o['cartera']['mas_de_180']) }}</b></div>
+          </div>
+          <app-tabla-estandar id="tienda-logis-cartera" titulo="Cartera de Logis" modulo="Tienda › Logis"
+            vacio="Sin saldos por cobrar." [datos]="o['cartera']['detalle']" [columnas]="columnasCartera" [filaId]="idCartera" />
+        </section>
+      }
+    }
+
+    <!-- ═══════════════════════ DATOS DEL EXPORT ═══════════════════════ -->
+    @case ('datos') {
+      <section class="tienda-tarjeta">
+        <h2 class="titulo-seccion">Qué trae el export de Logis y qué se hizo con cada cosa</h2>
+        <p class="nota">Export de logis.com.co de Flora Market / MercaFlor, entregado el 11 de octubre de 2026.</p>
+        <ul class="manifiesto">
+          @for (a of archivos; track a.archivo) {
+            <li [attr.data-estado]="a.estado">
+              <div class="cabeza">
+                <span class="carpeta">{{ a.carpeta }}</span>
+                <span class="archivo">{{ a.archivo }}</span>
+                <span class="insignia" [class.exito]="a.estado === 'IMPORTADO'" [class.info]="a.estado === 'DERIVADO' || a.estado === 'PARCIAL'"
+                      [class.neutra]="a.estado === 'NO_IMPORTADO' || a.estado === 'INFORMATIVO'">
+                  {{ a.estado === 'IMPORTADO' ? 'Importado' : a.estado === 'PARCIAL' ? 'En parte' : a.estado === 'DERIVADO' ? 'Se calcula' : a.estado === 'INFORMATIVO' ? 'Informativo' : 'No se cargó' }}
+                </span>
+              </div>
+              <p>{{ a.contenido }}</p>
+              <p class="meta"><b>{{ a.registros }}</b>@if (a.periodo) { · {{ a.periodo }} } · {{ a.destino }}</p>
+              @if (a.nota) { <p class="nota-archivo"><mat-icon>info</mat-icon> {{ a.nota }}</p> }
+            </li>
+          }
+        </ul>
+      </section>
+
+      @if (estaCargando('datos') && !calidad()) {
+        <div class="cargando"><span class="giro"></span> Contando lo que quedó en la base…</div>
+      } @else if (calidad(); as d) {
+        <section class="tienda-tarjeta">
+          <h2 class="titulo-seccion">Lo que quedó en la base (en vivo)</h2>
+          <div class="rejilla-mini">
+            <div><span>Líneas de venta</span><b>{{ num(d['lineas']['lineas']) }}</b>
+              <small>{{ num(d['lineas']['sin_producto']) }} sin enlazar al catálogo ({{ pesos(d['lineas']['venta_sin_producto']) }})</small></div>
+            <div><span>Movimientos de inventario</span><b>{{ num(d['inventario']['movimientos']) }}</b>
+              <small>{{ num(d['inventario']['con_costo']) }} con costo · {{ num(d['inventario']['cantidades_imposibles']) }} cantidades imposibles</small></div>
+            <div><span>Productos de Logis</span><b>{{ num(d['catalogo']['productos']) }}</b>
+              <small>{{ num(d['catalogo']['activos']) }} activos · {{ num(d['catalogo']['con_foto']) }} con foto</small></div>
+            <div><span>Sin código de barras</span><b>{{ num(d['catalogo']['sin_barras']) }}</b>
+              <small>{{ num(d['barras_compartidas']) }} barras las comparten varios productos</small></div>
+            <div><span>Nunca vendidos</span><b>{{ num(d['catalogo']['nunca_vendidos']) }}</b><small>en el histórico</small></div>
+            <div><span>Existencias negativas</span><b>{{ num(d['existencias']['negativas']) }}</b>
+              <small>{{ num(d['sin_control_stock']) }} productos sin control de existencia</small></div>
+            <div><span>Códigos</span><b>{{ num(numeroCodigo(d['codigos'], 'BARRAS')) }}</b>
+              <small>barras · {{ num(numeroCodigo(d['codigos'], 'INTERNO')) }} internos · {{ num(numeroCodigo(d['codigos'], 'ORIGEN')) }} de Logis</small></div>
+            <div><span>Saldos imposibles</span><b>{{ num(d['saldos_imposibles']) }}</b><small>facturas con saldo negativo o mayor que el total</small></div>
+          </div>
+        </section>
+
+        <section class="tienda-tarjeta">
+          <div class="cabecera-seccion">
+            <h2 class="titulo-seccion">El costo: lo que traía Logis y lo reconstruido</h2>
+            @if (!todasLasTiendas() && ctx.tiendaId()) {
+              <button type="button" class="boton secundario" [disabled]="recalculando()" (click)="recalcularCostos()">
+                <mat-icon>calculate</mat-icon> {{ recalculando() ? 'Recalculando…' : 'Recalcular costos' }}</button>
+            }
+          </div>
+          <div echarts [options]="graficaCostoMes()" class="grafica alta"></div>
+          <ul class="barras-lista">
+            @for (f of fuentesLista(d['costo_por_fuente']); track f['fuente']) {
+              <li><span class="nombre">{{ nombreFuente(f['fuente']) }}</span>
+                <span class="barra ocre"><span [style.width.%]="f.pct"></span></span>
+                <span class="cifra">{{ num(f['lineas']) }} líneas · {{ num(f.pct, 1) }} %</span></li>
+            }
+          </ul>
+        </section>
+
+        <div class="dos-columnas">
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Documentos del histórico</h2>
+            <app-tabla-estandar id="tienda-logis-docs" titulo="Documentos del histórico" modulo="Tienda › Logis" [busqueda]="false"
+              [datos]="d['documentos']" [columnas]="columnasEstados" [filaId]="idEstadoDoc" />
+          </section>
+          <section class="tienda-tarjeta">
+            <h2 class="titulo-seccion">Formas de pago como venían de Logis</h2>
+            <ul class="lista-simple">
+              @for (p of d['pagos']; track $index) {
+                <li><span>{{ p['forma_origen'] }} → <b>{{ nombreMetodo(p['metodo']) }}</b></span>
+                  <span>{{ num(p['pagos']) }} pagos · {{ pesos(p['valor']) }}</span></li>
+              }
+            </ul>
+          </section>
+        </div>
+      }
+    }
+  }
+</div>
+
+<!-- Chat de IA de la plataforma con el contexto de Logis (tienda, periodo, pestaña). -->
+<app-chat-ia-acceso [contexto]="contextoChat()" />

@@ -10,10 +10,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonToggleGroup } from '@angular/material/button-toggle';
 import { MatSelect } from '@angular/material/select';
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { AvisoDialogComponent, AvisoDialogData, AvisoIcono } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { TarjetasPanelComponent } from '@/app/features/dashboard/submodule/hiring/components/tarjetas-panel/tarjetas-panel.component';
 import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 // El buscador inteligente nacio en Crear Vacante y es standalone: se reutiliza tal cual en vez
 // de copiarlo. Busca por palabras sueltas, resalta lo que casa y solo saca la caja de busqueda
@@ -26,7 +28,7 @@ import {
   AreaOperativa,
   SeguroFunerario, CentroSeguro, SeguroCentro, SalarioMinimoAnio,
   PerfilVacante, CargoArea, ConfiguracionCentroCargo, EsquemaLabor,
-  CargoVacante, CentroArea, CentroOpcion, CentroVacante, DatosMaestroEmpresa, EmpresaVacante,
+  CargoVacante, CentroArea, CentroOpcion, CentroVacante, OficinaTemporal, RolContactoInfo, DatosMaestroEmpresa, EmpresaVacante,
   ParametrizacionVacantesService, ReglaLabor, ResumenCadena, TipoResolucion,
   ResolucionPagoCasino,
   CondicionDocumento, DestinoDocumento, DocumentoEmpresa, DocumentoEmpresaRequest, EmpresaDocumentos,
@@ -38,6 +40,8 @@ import {
 import { Temporal, TemporalRequest, TemporalesService } from '../../services/parametrizacion-vacantes/temporales.service';
 import { CalendarioPagoDialogComponent, CalendarioPagoDialogData } from './calendario-pago-dialog.component';
 import { PoliticaCasinoDialogComponent, PoliticaCasinoDialogData } from './politica-casino-dialog.component';
+import { GestorCorreosDialogComponent, GestorCorreosDialogData } from './gestor-correos-dialog.component';
+import { CargaGestoresDialogComponent, CargaGestoresDialogData } from './carga-gestores-dialog.component';
 import { HttpClient } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import { environment } from '@/environments/environment';
@@ -83,6 +87,7 @@ export interface CeldaDestino {
 export interface FilaDocumento {
   tipo: TipoDocumentalResumen;
   obligatorio: boolean;
+  requiere_firma_empleado: boolean;
   orden_archivo: number | null;
   bloque_archivo: number | null;
   /** No se edita aquí: viaja tal cual para no perder de qué versión del listado salió. */
@@ -263,6 +268,7 @@ export class FiltrosCentroJerarquicos {
     SharedModule, StandardFilterTable, MatTabsModule, MatDialogModule,
     MatSnackBarModule, MatIconModule, MatButtonModule, MatTooltipModule,
     MatProgressSpinnerModule, MatSlideToggleModule, RouterLink, SmartSelectComponent,
+    TarjetasPanelComponent, DragDropModule,
     ...TABLA_ESTANDAR,
   ],
   templateUrl: './parametrizacion-vacantes.component.html',
@@ -292,6 +298,12 @@ export class ParametrizacionVacantesComponent implements OnInit {
   buscadorEmpresa = signal('');
   centros = signal<CentroVacante[]>([]);
   verNoHabilitados = signal(false);
+
+  // ── Gestor y correos de los centros ───────────────────────────────────────
+  /** Lo decide el backend (rol ADMIN/GERENCIA) y lo vuelve a exigir al guardar. */
+  puedeEditarContactos = signal(false);
+  oficinasCatalogo = signal<OficinaTemporal[]>([]);
+  rolesContacto = signal<RolContactoInfo[]>([]);
   /** Ver también las áreas retiradas del alcance (las 15 que no están en el Excel). */
   verAreasRetiradas = signal(false);
   verPerfilesVacanteInactivos = signal(false);
@@ -364,8 +376,8 @@ export class ParametrizacionVacantesComponent implements OnInit {
       // `critico: false` a proposito: un catálogo de perfiles vacío NO impide resolver
       // la labor ni publicar —el formulario cae a su lista de respaldo—, así que no
       // debe salir como «siguiente paso» por delante de un eslabón que sí bloquea.
-      { n: 5, titulo: 'Perfil vacante', propio: true, tab: 5, critico: false,
-        detalle: 'Rosa, Clavel… llena el campo «Área» del formulario. No interviene en la labor.',
+      { n: 5, titulo: 'Producto finca', propio: true, tab: 5, critico: false,
+        detalle: 'Rosa, Clavel… llena el campo «Producto finca» del formulario (opcional). No interviene en la labor.',
         conteo: n(r?.perfiles_vacante_activos) },
       { n: 6, titulo: 'Área operativa', propio: true, tab: 6, critico: true,
         detalle: 'CU, PO, AD… el vocabulario con el que se resuelve la labor.',
@@ -410,12 +422,17 @@ export class ParametrizacionVacantesComponent implements OnInit {
   ];
 
   readonly colCentros: ColumnDefinition[] = [
-    { name: 'actions', header: 'Acciones', type: 'custom', stickyStart: true, width: '160px', filterable: false },
+    { name: 'actions', header: 'Acciones', type: 'custom', stickyStart: true, width: '200px', filterable: false },
     { name: 'empresa_nombre', header: 'Empresa', type: 'text', filterable: true, width: '22%' },
     { name: 'finca', header: 'Centro / Finca', type: 'text', filterable: true, stickyStart: true, width: '24%' },
     { name: 'ccostos', header: 'Cód. costo', type: 'text', filterable: true },
     { name: 'ciudad', header: 'Ciudad', type: 'text', filterable: true },
     { name: 'direccion', header: 'Dirección', type: 'text', width: '26%' },
+    { name: 'gestorTxt', header: 'Gestor', type: 'status', filterable: true,
+      statusConfig: { 'Sin gestor': { color: 'var(--warn-fg)', background: 'var(--warn-bg)' } } },
+    { name: 'telefono_gestor', header: 'Teléfono', type: 'text', filterable: true },
+    { name: 'oficina_responsable', header: 'Oficina', type: 'text', filterable: true },
+    { name: 'correos_activos', header: '# Correos', type: 'number', align: 'right' },
     { name: 'areasTxt', header: 'Áreas permitidas', type: 'status',
       statusConfig: { 'Sin áreas': { color: 'var(--warn-fg)', background: 'var(--warn-bg)' } } },
     { name: 'estadoTxt', header: 'En vacantes', type: 'status',
@@ -448,7 +465,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
 
   readonly colPerfilesVacante: ColumnDefinition[] = [
     { name: 'actions', header: 'Acciones', type: 'custom', stickyStart: true, width: '128px', filterable: false },
-    { name: 'nombre', header: 'Perfil', type: 'text', filterable: true, stickyStart: true, width: '28%' },
+    { name: 'nombre', header: 'Producto', type: 'text', filterable: true, stickyStart: true, width: '28%' },
     { name: 'descripcion', header: 'Descripción', type: 'text', filterable: true },
     { name: 'orden', header: 'Orden', type: 'text', width: '90px' },
     { name: 'activo', header: 'Activo', type: 'status',
@@ -835,6 +852,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
   }
 
   cargarTodo(): void {
+    this.cargarCatalogoContactos();
     this.cargarTemporales();
     this.cargarEmpresas();
     this.cargarCentros();
@@ -884,18 +902,18 @@ export class ParametrizacionVacantesComponent implements OnInit {
   }
 
   nuevoPerfilVacante(): void {
-    this.abrirDialogo('Nuevo perfil de vacante', this.camposPerfilVacante(), {}, v =>
+    this.abrirDialogo('Nuevo producto finca', this.camposPerfilVacante(), {}, v =>
       this.svc.crearPerfilVacante(v).subscribe({
-        next: () => this.ok('Perfil de vacante creado', () => this.cargarPerfilesVacante()),
-        error: e => this.error('No se pudo crear el perfil de vacante', e),
+        next: () => this.ok('Producto finca creado', () => this.cargarPerfilesVacante()),
+        error: e => this.error('No se pudo crear el producto finca', e),
       }));
   }
 
   editarPerfilVacante(p: PerfilVacante): void {
     this.abrirDialogo(`Editar «${p.nombre}»`, this.camposPerfilVacante(), p, v =>
       this.svc.actualizarPerfilVacante(p.id!, v).subscribe({
-        next: () => this.ok('Perfil de vacante actualizado', () => this.cargarPerfilesVacante()),
-        error: e => this.error('No se pudo actualizar el perfil de vacante', e),
+        next: () => this.ok('Producto finca actualizado', () => this.cargarPerfilesVacante()),
+        error: e => this.error('No se pudo actualizar el producto finca', e),
       }));
   }
 
@@ -909,7 +927,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
 
   private camposPerfilVacante(): FieldConfig[] {
     return [
-      { name: 'nombre', label: 'Perfil', type: 'text', required: true, maxLength: 120,
+      { name: 'nombre', label: 'Producto', type: 'text', required: true, maxLength: 120,
         hint: 'Tal cual debe salir en el desplegable de la vacante. Ej: Rosa, Clavel, Pompon.' },
       { name: 'descripcion', label: 'Descripción', type: 'text', maxLength: 300 },
       { name: 'orden', label: 'Orden', type: 'number',
@@ -1374,6 +1392,8 @@ export class ParametrizacionVacantesComponent implements OnInit {
           // 'Sin áreas' se resalta: un centro sin áreas no puede llegar a tener cargos
           // ni resolver labor, así que es un hueco que hay que ver de un vistazo.
           areasTxt: c.areas || 'Sin áreas',
+          gestorTxt: c.nombre_gestor || 'Sin gestor',
+          correos_activos: c.correos_activos ?? 0,
         } as CentroVacante)));
         this.cargandoCentros.set(false);
       },
@@ -1445,13 +1465,57 @@ export class ParametrizacionVacantesComponent implements OnInit {
       { name: 'ccostos', label: 'Código de costo', type: 'text', maxLength: 50 },
       { name: 'subcentro', label: 'Subcentro', type: 'text', maxLength: 80 },
       { name: 'ciudad', label: 'Ciudad', type: 'text', maxLength: 120 },
-      { name: 'direccion', label: 'Dirección', type: 'text', maxLength: 300 },
-      // Contacto del gestor del centro: los tres juntos, que es como se usan.
-      { name: 'nombre_gestor', label: 'Nombre del gestor', type: 'text', maxLength: 200,
-        hint: 'Quién responde por este centro. Se usa para contactarlo, no para permisos.' },
-      { name: 'telefono_gestor', label: 'Teléfono del gestor', type: 'text', maxLength: 50 },
-      { name: 'email_gestor', label: 'Correo del gestor', type: 'text', maxLength: 200 },
+      { name: 'direccion', label: 'Dirección', type: 'text', maxLength: 300,
+        hint: 'Gestor, teléfono, oficina y correos se editan en «Gestor y correos» (ícono de sobre de la fila).' },
     ];
+  }
+
+  // ── Gestor y correos de los centros ───────────────────────────────────────
+
+  /** Permiso, oficinas y roles: una vez con la pantalla. Si falla, se queda en solo lectura. */
+  cargarCatalogoContactos(): void {
+    this.svc.permisosContactos().subscribe({
+      next: p => this.puedeEditarContactos.set(!!p?.puede_editar),
+      error: () => this.puedeEditarContactos.set(false),
+    });
+    this.svc.oficinas().subscribe({
+      next: o => this.oficinasCatalogo.set(o ?? []),
+      error: e => this.error('No se pudo cargar el catálogo de oficinas', e),
+    });
+    this.svc.rolesContacto().subscribe({
+      next: r => this.rolesContacto.set(r ?? []),
+      error: e => this.error('No se pudieron cargar los roles de correo', e),
+    });
+  }
+
+  gestorYCorreos(c: CentroVacante): void {
+    if (!c.habilitado_vacantes) {
+      this.snack.open('Solo los centros habilitados para vacantes tienen gestor y correos.', 'Cerrar', { duration: 4000 });
+      return;
+    }
+    const data: GestorCorreosDialogData = {
+      centro: c, puedeEditar: this.puedeEditarContactos(),
+      oficinas: this.oficinasCatalogo(), roles: this.rolesContacto(),
+    };
+    // maxWidth explicito: el valor por defecto de la app (560px) recortaba la tabla de correos.
+    this.dialog.open(GestorCorreosDialogComponent, { width: 'min(860px, 96vw)', maxWidth: '96vw', data })
+      .afterClosed().subscribe(guardo => {
+        if (guardo) this.ok('Gestor y correos guardados', () => this.cargarCentros());
+      });
+  }
+
+  cargaMasivaGestores(): void {
+    const data: CargaGestoresDialogData = {
+      temporales: this.temporales()
+        .filter(t => t.id != null)
+        .map(t => ({ id: t.id as number, nombre: t.nombre_display })),
+      empresas: this.empresas()
+        .filter(e => e.activo_vacantes !== false)
+        .map(e => ({ ref: e.empresa_usuaria_ref, nombre: e.nombre ?? e.nombre_excel ?? `#${e.empresa_usuaria_ref}`,
+                     temporal: e.temporal_config_ref ?? null })),
+    };
+    this.dialog.open(CargaGestoresDialogComponent, { width: 'min(1140px, 96vw)', maxWidth: '96vw', data, disableClose: true })
+      .afterClosed().subscribe(escribio => { if (escribio) this.cargarCentros(); });
   }
 
   // ── Temporales (eslabón 1) ────────────────────────────────────────────────
@@ -2198,8 +2262,40 @@ export class ParametrizacionVacantesComponent implements OnInit {
       ?? this.detalleDocs()?.nombre_excel ?? `Empresa #${id}`;
   });
 
-  /** Mismo orden que el backend: orden de archivo (vacíos al final) y luego código. */
-  filasDocsOrdenadas = computed(() => [...this.filasDocs()].sort((a, b) => this.compararFilasDocs(a, b)));
+  /**
+   * Qué orden se ve y se cambia al arrastrar: el general (orden de archivo) o el de un
+   * destino. Son órdenes distintos a propósito: los paquetes que se empalman (Trabajador,
+   * Trabajador finca, Escáner usuaria) salen del orden de SU destino, y solo si falta,
+   * del general (`DocumentosMapper.paquetes`).
+   */
+  ordenDocsVista = signal<'GENERAL' | DestinoDocumento>('GENERAL');
+
+  /**
+   * GENERAL: mismo orden que el backend, orden de archivo (vacíos al final) y luego código.
+   * Un destino: primero los documentos que van a él, en el orden del paquete; detrás, los
+   * que no van, que no se pueden arrastrar.
+   */
+  filasDocsOrdenadas = computed(() => {
+    const vista = this.ordenDocsVista();
+    const filas = [...this.filasDocs()];
+    if (vista === 'GENERAL') return filas.sort((a, b) => this.compararFilasDocs(a, b));
+    const dentro = filas.filter(f => f.destinos[vista].incluido)
+      .sort((a, b) => this.compararFilasDestino(a, b, vista));
+    const fuera = filas.filter(f => !f.destinos[vista].incluido)
+      .sort((a, b) => this.compararFilasDocs(a, b));
+    return [...dentro, ...fuera];
+  });
+
+  /** Cuántas filas, desde arriba, se pueden arrastrar en la vista actual. */
+  arrastrablesDocs = computed(() => {
+    const vista = this.ordenDocsVista();
+    return vista === 'GENERAL'
+      ? this.filasDocs().length
+      : this.filasDocs().filter(f => f.destinos[vista].incluido).length;
+  });
+
+  /** No deja soltar entre los documentos que no van al destino elegido. */
+  readonly puedeSoltarDoc = (index: number): boolean => index < this.arrastrablesDocs();
 
   private firmaDocsOriginal = computed(() => {
     const d = this.detalleDocs();
@@ -2572,6 +2668,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
         options: this.destinosDoc.map(d => ({ value: d.codigo, label: d.etiqueta })),
         hint: 'A dónde va. La forma y las copias se ajustan después en la matriz.' },
       { name: 'obligatorio', label: 'Obligatorio', type: 'checkbox' },
+      { name: 'requiere_firma_empleado', label: 'Requiere firma del empleado', type: 'checkbox' },
     ];
     this.abrirDialogo('Agregar documento', campos, { destinos: ['ARCHIVO_TEMPORAL'], obligatorio: true }, v => {
       const tipo = disponibles.find(t => t.id === Number(v.tipo_documental_id));
@@ -2579,7 +2676,12 @@ export class ParametrizacionVacantesComponent implements OnInit {
       const elegidos = new Set<string>(v.destinos ?? []);
       const destinos = {} as Record<DestinoDocumento, CeldaDestino>;
       for (const col of this.destinosDoc) {
-        destinos[col.codigo] = { ...this.celdaVaciaDoc(col), incluido: elegidos.has(col.codigo) };
+        const incluido = elegidos.has(col.codigo);
+        // Al final del paquete de cada destino elegido.
+        const orden = incluido
+          ? this.filasDocs().reduce((max, f) => Math.max(max, f.destinos[col.codigo].orden ?? 0), 0) + 1
+          : null;
+        destinos[col.codigo] = { ...this.celdaVaciaDoc(col), incluido, orden };
       }
       // Al final del archivo: el siguiente orden libre.
       const siguienteOrden = this.filasDocs().reduce((max, f) => Math.max(max, f.orden_archivo ?? 0), 0) + 1;
@@ -2591,6 +2693,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
           observacion: tipo.observacion ?? null, tipo_documento_ref: tipo.tipo_documento_ref ?? null,
         },
         obligatorio: !!v.obligatorio,
+        requiere_firma_empleado: !!v.requiere_firma_empleado,
         orden_archivo: siguienteOrden,
         bloque_archivo: null,
         version_listado: null,
@@ -2599,6 +2702,29 @@ export class ParametrizacionVacantesComponent implements OnInit {
       this.filasDocs.update(filas => [...filas, fila]);
       this.snack.open(`«${tipo.nombre}» agregado. Se guarda con «Guardar cambios».`, 'OK', { duration: 3000 });
     });
+  }
+
+  /**
+   * Al soltar se renumera 1..N lo que se puede arrastrar, en el orden en que quedó: el
+   * orden de archivo en la vista general, o el orden del destino elegido. Así lo que se ve
+   * es lo que guarda «Guardar cambios», sin huecos ni empates.
+   */
+  soltarDoc(ev: CdkDragDrop<FilaDocumento[]>): void {
+    const n = this.arrastrablesDocs();
+    const desde = ev.previousIndex;
+    const hasta = Math.min(ev.currentIndex, n - 1);
+    if (desde === hasta || desde >= n) return;
+    const vista = this.ordenDocsVista();
+    const lista = this.filasDocsOrdenadas().slice(0, n);
+    moveItemInArray(lista, desde, hasta);
+    const posicion = new Map(lista.map((f, i) => [f.tipo.id, i + 1]));
+    this.filasDocs.update(filas => filas.map(f => {
+      const orden = posicion.get(f.tipo.id);
+      if (orden == null) return f;
+      return vista === 'GENERAL'
+        ? { ...f, orden_archivo: orden }
+        : this.conCeldaDoc(f, vista, { ...f.destinos[vista], orden });
+    }));
   }
 
   quitarDocumento(f: FilaDocumento): void {
@@ -2637,6 +2763,10 @@ export class ParametrizacionVacantesComponent implements OnInit {
 
   cambiarObligatorioDoc(f: FilaDocumento, obligatorio: boolean): void {
     this.editarFilaDoc(f.tipo.id, x => ({ ...x, obligatorio }));
+  }
+
+  cambiarFirmaEmpleadoDoc(f: FilaDocumento, requiere_firma_empleado: boolean): void {
+    this.editarFilaDoc(f.tipo.id, x => ({ ...x, requiere_firma_empleado }));
   }
 
   cambiarNumeroDoc(f: FilaDocumento, campo: 'orden_archivo' | 'bloque_archivo', raw: unknown): void {
@@ -2798,6 +2928,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
       return {
         tipo: d.tipo,
         obligatorio: d.obligatorio !== false,
+        requiere_firma_empleado: d.requiere_firma_empleado === true,
         orden_archivo: d.orden_archivo ?? null,
         bloque_archivo: d.bloque_archivo ?? null,
         version_listado: d.version_listado ?? null,
@@ -2818,6 +2949,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
       .map(f => ({
         tipo_documental_id: f.tipo.id,
         obligatorio: f.obligatorio,
+        requiere_firma_empleado: f.requiere_firma_empleado,
         orden_archivo: f.orden_archivo,
         bloque_archivo: f.bloque_archivo,
         version_listado: f.version_listado,
@@ -2838,6 +2970,14 @@ export class ParametrizacionVacantesComponent implements OnInit {
   private compararFilasDocs(a: FilaDocumento, b: FilaDocumento): number {
     const oa = a.orden_archivo ?? Number.MAX_SAFE_INTEGER;
     const ob = b.orden_archivo ?? Number.MAX_SAFE_INTEGER;
+    if (oa !== ob) return oa - ob;
+    return a.tipo.codigo < b.tipo.codigo ? -1 : a.tipo.codigo > b.tipo.codigo ? 1 : 0;
+  }
+
+  /** Mismo criterio que `DocumentosMapper.paquetes`: orden del destino, si falta el de archivo, y el código. */
+  private compararFilasDestino(a: FilaDocumento, b: FilaDocumento, destino: DestinoDocumento): number {
+    const oa = a.destinos[destino].orden ?? a.orden_archivo ?? Number.MAX_SAFE_INTEGER;
+    const ob = b.destinos[destino].orden ?? b.orden_archivo ?? Number.MAX_SAFE_INTEGER;
     if (oa !== ob) return oa - ob;
     return a.tipo.codigo < b.tipo.codigo ? -1 : a.tipo.codigo > b.tipo.codigo ? 1 : 0;
   }

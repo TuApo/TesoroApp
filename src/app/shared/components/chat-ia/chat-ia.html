@@ -1,0 +1,219 @@
+<div class="cia" [class.cia--arrastrando]="arrastrando()">
+  @if (cabecera()) {
+    <header class="cia-cab">
+      <app-chat-ia-robot [tam]="38" [pensando]="pendiente()" [hablando]="reproductor.sonando() !== null" [nivel]="reproductor.nivel()" />
+      <div class="cia-cab-texto">
+        <strong>Tu Apo IA</strong>
+        <span class="cia-cab-ctx">
+          <mat-icon>apps</mat-icon>{{ nombreModulo() }}
+          @if (nombreTienda()) { <span class="cia-punto">·</span><mat-icon>storefront</mat-icon>{{ nombreTienda() }} }
+        </span>
+      </div>
+      <button mat-icon-button [matMenuTriggerFor]="menuConv" aria-label="Conversaciones" matTooltip="Conversaciones">
+        <mat-icon>history</mat-icon>
+      </button>
+      <button mat-icon-button (click)="nueva()" aria-label="Nueva conversación" matTooltip="Nueva conversación">
+        <mat-icon>add_comment</mat-icon>
+      </button>
+      @if (mostrarCerrar()) {
+        <button mat-icon-button (click)="cerrar.emit()" aria-label="Cerrar el chat" matTooltip="Cerrar"><mat-icon>close</mat-icon></button>
+      }
+      <mat-menu #menuConv="matMenu" class="cia-menu">
+        <button mat-menu-item (click)="nueva()"><mat-icon>add_comment</mat-icon>Nueva conversación</button>
+        <button mat-menu-item (click)="alternarLeer()">
+          <mat-icon>{{ leerSiempre() ? 'volume_up' : 'volume_off' }}</mat-icon>{{ leerSiempre() ? 'Dejar de leer en voz alta' : 'Leer las respuestas en voz alta' }}
+        </button>
+        <button mat-menu-item (click)="verEnBandeja()"><mat-icon>inbox</mat-icon>Ver todas en la bandeja</button>
+        @if (recientes().length) {
+          <div class="cia-menu-sep">En este módulo</div>
+          @for (c of recientes().slice(0, 12); track c.id) {
+            <button mat-menu-item (click)="elegir(c)" [class.cia-menu-actual]="c.id === conversacionId()">
+              <mat-icon>{{ c.fijada ? 'push_pin' : 'chat_bubble_outline' }}</mat-icon>
+              <span class="cia-menu-tit">{{ c.titulo }}</span>
+            </button>
+          }
+        }
+      </mat-menu>
+    </header>
+  }
+
+  <div class="cia-hilo" #hilo role="log" aria-live="polite">
+    @if (cargando()) {
+      <div class="cia-centro"><mat-spinner diameter="30" /></div>
+    } @else if (!mensajes().length) {
+      <section class="cia-inicio">
+        <app-chat-ia-robot [tam]="72" [pensando]="false" />
+        <h2>{{ primerNombre() ? 'Hola, ' + primerNombre() : 'Hola' }}. ¿En qué te ayudo?</h2>
+        <p>
+          Estoy en <b>{{ nombreModulo() }}</b>@if (nombreTienda()) { · <b>{{ nombreTienda() }}</b> }.
+          @if ((modulo()?.fuentes?.length ?? 0) > 0) { Consulto sus datos con tus permisos, }
+          leo fotos, PDF, Excel y notas de voz, y te entrego informes en PDF, Excel, Word o presentaciones.
+        </p>
+        @if (sugerencias().length) {
+          <div class="cia-sugerencias">
+            @for (s of sugerencias(); track s) {
+              <button type="button" class="cia-sugerencia" (click)="usarSugerencia(s)" [disabled]="!puedeEnviar() || soloLectura()">
+                <mat-icon>auto_awesome</mat-icon><span>{{ s }}</span>
+              </button>
+            }
+          </div>
+        }
+        @if (sinServicio()) { <p class="cia-aviso-servicio"><mat-icon>cloud_off</mat-icon>{{ sinServicio() }}</p> }
+      </section>
+    } @else {
+      @for (m of mensajes(); track m.id) {
+        @if (m.rol === 'user') {
+          <div class="cia-fila cia-fila--yo">
+            <div class="cia-burbuja cia-burbuja--yo">
+              @if (m.viaVoz) { <span class="cia-chip cia-chip--voz"><mat-icon>mic</mat-icon>Nota de voz</span> }
+              @if (m.contenido) { <div class="cia-texto-yo">{{ m.contenido }}</div> }
+              @if (m.adjuntos.length) {
+                <div class="cia-adjuntos-msg">
+                  @for (a of m.adjuntos; track a.id ?? $index; let i = $index) {
+                    @if (a.tipo !== 'AUDIO' || !m.viaVoz) {
+                      <button type="button" class="cia-chip" (click)="a.id && ver(m.adjuntos, i)" [title]="a.error || a.nombre"
+                              [class.cia-chip--error]="a.estado === 'ERROR'">
+                        <mat-icon>{{ icono(a) }}</mat-icon><span>{{ a.nombre }}</span>
+                      </button>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        } @else if (m.rol === 'assistant') {
+          <div class="cia-fila">
+            <app-chat-ia-robot class="cia-avatar" [tam]="30" [pensando]="m.estado === 'PENDIENTE'"
+                               [hablando]="reproductor.sonando() === m.id" [nivel]="reproductor.nivel()" />
+            <div class="cia-burbuja">
+              @switch (m.estado) {
+                @case ('PENDIENTE') {
+                  <div class="cia-pensando">
+                    <span class="cia-puntos"><i></i><i></i><i></i></span>
+                    <span>{{ m.progreso || 'Pensando…' }}</span>
+                  </div>
+                }
+                @case ('ERROR') {
+                  <div class="cia-error">
+                    <mat-icon>error_outline</mat-icon>
+                    <span>{{ m.error || 'No se pudo completar la respuesta.' }}</span>
+                    @if (!soloLectura()) { <button mat-stroked-button (click)="reintentar(m)">Reintentar</button> }
+                  </div>
+                }
+                @default {
+                  <app-markdown-message [content]="m.contenido" />
+                  @if (m.archivos.length) {
+                    <div class="cia-archivos">
+                      @for (a of m.archivos; track a.id; let i = $index) {
+                        <div class="cia-archivo">
+                          <button type="button" class="cia-archivo-abrir" (click)="ver(m.archivos, i)" [attr.aria-label]="'Ver ' + a.nombre">
+                            <span class="cia-archivo-ico" [attr.data-formato]="formato(a)"><mat-icon>{{ icono(a) }}</mat-icon></span>
+                            <span class="cia-archivo-info"><strong>{{ a.nombre }}</strong><small>{{ formato(a) }} · {{ tam(a.tamano) }}</small></span>
+                          </button>
+                          <button mat-icon-button (click)="ver(m.archivos, i)" aria-label="Vista previa" matTooltip="Vista previa"><mat-icon>visibility</mat-icon></button>
+                          <button mat-icon-button (click)="descargar(a)" aria-label="Descargar" matTooltip="Descargar"><mat-icon>download</mat-icon></button>
+                        </div>
+                      }
+                    </div>
+                  }
+                  <div class="cia-acciones">
+                    <button mat-icon-button (click)="escuchar(m)" [attr.aria-label]="reproductor.sonando() === m.id ? 'Detener' : 'Escuchar'"
+                            [matTooltip]="reproductor.sonando() === m.id ? 'Detener' : 'Escuchar'">
+                      @if (cargandoVoz() === m.id) { <mat-spinner diameter="16" /> } @else {
+                        <mat-icon>{{ reproductor.sonando() === m.id ? 'stop_circle' : 'volume_up' }}</mat-icon>
+                      }
+                    </button>
+                    <button mat-icon-button (click)="copiar(m)" aria-label="Copiar" [matTooltip]="copiado() === m.id ? 'Copiado' : 'Copiar'">
+                      <mat-icon>{{ copiado() === m.id ? 'check' : 'content_copy' }}</mat-icon>
+                    </button>
+                    @if (m.createdAt) { <small class="cia-hora">{{ m.createdAt | date: 'd MMM, h:mm a' }}</small> }
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        }
+      }
+    }
+  </div>
+
+  @if (aviso()) {
+    <div class="cia-aviso" role="alert">
+      <mat-icon>info</mat-icon><span>{{ aviso() }}</span>
+      <button mat-icon-button (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  @if (soloLectura()) {
+    <footer class="cia-solo-lectura">
+      <mat-icon>visibility</mat-icon>
+      <span>
+        @if (conversacion()?.legado) { Conversación del {{ conversacion()?.moduloNombre }}: se continúa desde su pantalla. }
+        @else { Conversación de {{ conversacion()?.usuarioNombre || 'otra persona' }} (solo lectura). }
+      </span>
+      @if (conversacion()?.ruta && conversacion()?.legado) {
+        <a mat-stroked-button [routerLink]="conversacion()!.ruta">Abrir</a>
+      }
+    </footer>
+  } @else {
+    <footer class="cia-redactar">
+      @if (adjuntos().length) {
+        <div class="cia-adjuntos">
+          @for (a of adjuntos(); track a.clave) {
+            <div class="cia-adj" [class.cia-adj--error]="a.estado === 'error'" [title]="a.error || a.nombre">
+              @if (a.vista) { <img [src]="a.vista" alt=""> } @else { <mat-icon>{{ a.archivo ? icono(a.archivo) : 'draft' }}</mat-icon> }
+              <span class="cia-adj-nombre">{{ a.nombre }}</span>
+              @switch (a.estado) {
+                @case ('subiendo') { <mat-spinner diameter="14" /> }
+                @case ('leyendo') { <mat-spinner diameter="14" /> }
+                @case ('error') { <mat-icon class="cia-adj-mal">error</mat-icon> }
+                @default { <mat-icon class="cia-adj-bien">check_circle</mat-icon> }
+              }
+              <button type="button" class="cia-adj-quitar" (click)="quitarAdjunto(a.clave)" aria-label="Quitar adjunto"><mat-icon>close</mat-icon></button>
+            </div>
+          }
+        </div>
+      }
+      @if (grabadora.grabando()) {
+        <div class="cia-grabando">
+          <button mat-icon-button (click)="cancelarGrabacion()" aria-label="Cancelar nota de voz" matTooltip="Cancelar"><mat-icon>delete</mat-icon></button>
+          <span class="cia-rec"></span>
+          <span class="cia-onda" [style.--nivel]="grabadora.nivel()"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="cia-tiempo">{{ segundosGrabados() }}</span>
+          <button mat-flat-button class="cia-enviar-voz" (click)="alternarGrabacion()"><mat-icon>send</mat-icon>Enviar</button>
+        </div>
+      } @else {
+        <div class="cia-caja">
+          <input #selector type="file" multiple hidden (change)="elegirArchivos($event)"
+                 accept="image/*,application/pdf,.xlsx,.xls,.csv,.docx,.pptx,.txt,.md,.json,audio/*">
+          <input #camara type="file" accept="image/*" capture="environment" hidden (change)="elegirArchivos($event)">
+          <button mat-icon-button (click)="selector.click()" aria-label="Adjuntar archivos" matTooltip="Adjuntar (o pega / arrastra aquí)">
+            <mat-icon>attach_file</mat-icon>
+          </button>
+          <button mat-icon-button class="cia-solo-movil" (click)="camara.click()" aria-label="Tomar foto" matTooltip="Tomar foto">
+            <mat-icon>photo_camera</mat-icon>
+          </button>
+          <textarea #entrada rows="1" [ngModel]="texto()" (ngModelChange)="texto.set($event)" (input)="ajustarAltura()" (keydown)="teclear($event)"
+                    [placeholder]="estado()?.disponible === false ? 'La IA no está disponible' : 'Escribe tu pregunta…'"
+                    aria-label="Mensaje para Tu Apo IA" [disabled]="estado()?.disponible === false"></textarea>
+          @if (!texto().trim() && !adjuntos().length && puedeGrabar) {
+            <button mat-icon-button class="cia-mic" (click)="alternarGrabacion()" [disabled]="enviando() || !estado()?.disponible"
+                    aria-label="Grabar nota de voz" matTooltip="Nota de voz">
+              @if (enviando()) { <mat-spinner diameter="18" /> } @else { <mat-icon>mic</mat-icon> }
+            </button>
+          } @else {
+            <button mat-icon-button class="cia-enviar" (click)="enviar()" [disabled]="!puedeEnviar() || (!texto().trim() && !adjuntos().length)"
+                    aria-label="Enviar" matTooltip="Enviar (Enter)">
+              @if (enviando()) { <mat-spinner diameter="18" /> } @else { <mat-icon>send</mat-icon> }
+            </button>
+          }
+        </div>
+        <small class="cia-pie">La IA puede equivocarse: revisa las cifras importantes. Enter envía · Shift+Enter, nueva línea.</small>
+      }
+    </footer>
+  }
+
+  @if (arrastrando()) {
+    <div class="cia-soltar"><mat-icon>upload_file</mat-icon><span>Suelta aquí para adjuntar</span></div>
+  }
+</div>

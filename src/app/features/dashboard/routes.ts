@@ -46,6 +46,16 @@ export const routes: Routes = [
       // Turnos y control de turnos: oficinas/croquis, cola, pantallas de sala y casos.
       // La ruta coincide con db_admin.modulo (ms-auth-admin V119).
       { path: 'turnos', loadChildren: () => import('./submodule/turnos/turnos.routes').then(m => m.routes) },
+      // Monitoreo de equipos corporativos (inventario + estado + auditoría nocturna + soporte remoto).
+      { path: 'monitoreo-equipos', loadChildren: () => import('./submodule/activos-monitoreo/activos-monitoreo.routes').then(m => m.routes) },
+      // Comunicaciones: chat 1 a 1 y en grupo, llamadas transcritas, actas y compromisos.
+      { path: 'comunicaciones', loadChildren: () => import('./submodule/comunicaciones/comunicaciones.routes').then(m => m.routes) },
+      // Infraestructura: servidor, contenedores, clúster K3s, sitios, red y datos en vivo (ms-infra).
+      // La ruta coincide con db_admin.modulo (ms-auth-admin V138).
+      { path: 'infraestructura', loadChildren: () => import('./submodule/infraestructura/infraestructura.routes').then(m => m.routes) },
+      // Seguridad: centro de monitoreo, grabaciones, IA visual, rostros, domótica, audio y alertas (ms-seguridad).
+      // La ruta coincide con db_admin.modulo (ms-auth-admin V140).
+      { path: 'seguridad', loadChildren: () => import('./submodule/seguridad/seguridad.routes').then(m => m.routes) },
       { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
       { path: 'reuniones', loadChildren: () => import('./submodule/reuniones/reuniones.routes').then(m => m.routes) },
       // Capacitaciones del colaborador (learning-ms). Vive aquí y no solo en Tu-Apo-Web:
@@ -60,6 +70,7 @@ export const routes: Routes = [
       { path: 'herramientas-ia', loadChildren: () => import('./submodule/herramientas-ia/herramientas-ia.routes').then(m => m.routes) },
       { path: 'gestion-legal', loadChildren: () => import('./submodule/gestion-legal/gestion-legal.routes').then(m => m.routes) },
       { path: 'audit-logs', loadChildren: () => import('./submodule/audit-logs/audit-logs.routes').then(m => m.routes) },
+      { path: 'actividad', loadChildren: () => import('./submodule/actividad/actividad.routes').then(m => m.routes) },
       // Reportes y Analítica: constructor de reportes, tableros y catálogo de datos.
       // Las rutas hijas están declaradas en db_admin.modulo (ms-auth-admin V46).
       { path: 'reportes', loadChildren: () => import('./submodule/reportes/reportes.routes').then(m => m.routes) },

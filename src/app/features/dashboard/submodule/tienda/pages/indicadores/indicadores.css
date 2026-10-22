@@ -16,6 +16,16 @@
 
 .grafica { width: 100%; height: 280px; }
 
+.disposicion-tres {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.sube { color: #0b6b58; color: light-dark(#0b6b58, #6fd3b8); }
+.baja { color: #9c3123; color: light-dark(#9c3123, #f19a8d); }
+.tienda-subtitulo .enlace { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; font-weight: 600; }
+
 .lista-busquedas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .lista-busquedas li {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -34,7 +44,11 @@
   letter-spacing: 0; font-size: 13px; font-weight: 400; color: var(--text-2);
 }
 
+@media (max-width: 1200px) {
+  .disposicion-tres { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 900px) {
-  .disposicion-graficas, .disposicion-tablas { grid-template-columns: minmax(0, 1fr); }
+  .disposicion-graficas, .disposicion-tablas, .disposicion-tres { grid-template-columns: minmax(0, 1fr); }
   .grafica { height: 230px; }
 }
