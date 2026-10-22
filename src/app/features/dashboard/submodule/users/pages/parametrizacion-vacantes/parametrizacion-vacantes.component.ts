@@ -1515,7 +1515,8 @@ export class ParametrizacionVacantesComponent implements OnInit {
       centro: c, puedeEditar: this.puedeEditarContactos(),
       oficinas: this.oficinasCatalogo(), roles: this.rolesContacto(),
     };
-    this.dialog.open(GestorCorreosDialogComponent, { width: 'min(820px, 96vw)', data })
+    // maxWidth explicito: el valor por defecto de la app (560px) recortaba la tabla de correos.
+    this.dialog.open(GestorCorreosDialogComponent, { width: 'min(860px, 96vw)', maxWidth: '96vw', data })
       .afterClosed().subscribe(guardo => {
         if (guardo) this.ok('Gestor y correos guardados', () => this.cargarCentros());
       });

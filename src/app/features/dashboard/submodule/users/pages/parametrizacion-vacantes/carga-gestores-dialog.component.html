@@ -90,9 +90,15 @@
               <div class="cg-total"><span class="cg-total__n">{{ l.correos_creados }}</span><span>Correos creados</span></div>
               <div class="cg-total"><span class="cg-total__n">{{ l.correos_desactivados }}</span><span>Correos desactivados</span></div>
               <div class="cg-total cg-total--error"><span class="cg-total__n">{{ l.filas_error }}</span><span>Filas con error</span></div>
+              <span class="grow"></span>
+              <button mat-button type="button" (click)="filtro.set(filtro() === 'TODAS' ? 'CAMBIOS' : 'TODAS')">
+                {{ filtro() === 'TODAS' ? 'Ver solo las aplicadas' : 'Ver todas las filas' }}
+              </button>
             } @else {
               <button type="button" class="cg-total" [class.cg-total--sel]="filtro() === 'TODAS'" (click)="filtro.set('TODAS')">
                 <span class="cg-total__n">{{ l.filas_total }}</span><span>Filas</span></button>
+              <button type="button" class="cg-total cg-total--mod" [class.cg-total--sel]="filtro() === 'CAMBIOS'" (click)="filtro.set('CAMBIOS')">
+                <span class="cg-total__n">{{ l.filas_nuevo + l.filas_modificado }}</span><span>Con cambios</span></button>
               <button type="button" class="cg-total cg-total--nuevo" [class.cg-total--sel]="filtro() === 'NUEVO'" (click)="filtro.set('NUEVO')">
                 <span class="cg-total__n">{{ l.filas_nuevo }}</span><span>Nuevos</span></button>
               <button type="button" class="cg-total cg-total--mod" [class.cg-total--sel]="filtro() === 'MODIFICADO'" (click)="filtro.set('MODIFICADO')">

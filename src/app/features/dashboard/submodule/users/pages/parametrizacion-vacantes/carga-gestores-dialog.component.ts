@@ -40,7 +40,8 @@ export interface CargaGestoresDialogData {
 export const TAMANO_MAXIMO_CONTACTOS = 5 * 1024 * 1024;
 const EXTENSIONES = ['.xlsx', '.csv'];
 
-type FiltroEstado = 'TODAS' | EstadoFilaCarga | 'ADVERTENCIA';
+/** CAMBIOS = NUEVO + MODIFICADO: lo que de verdad va a tocar la carga. */
+type FiltroEstado = 'TODAS' | 'CAMBIOS' | EstadoFilaCarga | 'ADVERTENCIA';
 
 @Component({
   selector: 'app-carga-gestores-dialog',
@@ -88,6 +89,7 @@ export class CargaGestoresDialogComponent {
     const f = this.filtro();
     if (f === 'TODAS') return base;
     if (f === 'ADVERTENCIA') return base.filter(x => x.advertencias.length);
+    if (f === 'CAMBIOS') return base.filter(x => x.estado === 'NUEVO' || x.estado === 'MODIFICADO');
     return base.filter(x => x.estado === f);
   });
 
@@ -164,7 +166,8 @@ export class CargaGestoresDialogComponent {
       next: r => {
         this.cargando.set(false);
         this.simulacion.set(r);
-        this.filtro.set(r.lote.filas_error ? 'ERROR' : 'TODAS');
+        // Primero lo que hay que mirar: los errores, o si no hay, lo que va a cambiar.
+        this.filtro.set(r.lote.filas_error ? 'ERROR' : (r.lote.filas_nuevo + r.lote.filas_modificado) ? 'CAMBIOS' : 'TODAS');
       },
       error: e => this.fallo(e),
     });
@@ -196,7 +199,7 @@ export class CargaGestoresDialogComponent {
         this.cargando.set(false);
         this.escribio = true;
         this.aplicacion.set(r);
-        this.filtro.set('TODAS');
+        this.filtro.set('CAMBIOS');
       },
       error: e => this.fallo(e),
     });
