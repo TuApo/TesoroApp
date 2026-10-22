@@ -10,10 +10,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonToggleGroup } from '@angular/material/button-toggle';
 import { MatSelect } from '@angular/material/select';
+import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { AvisoDialogComponent, AvisoDialogData, AvisoIcono } from '@/app/shared/components/confirm-dialog/confirm-dialog.component';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
+import { TarjetasPanelComponent } from '@/app/features/dashboard/submodule/hiring/components/tarjetas-panel/tarjetas-panel.component';
 import { ColumnaTabla, TABLA_ESTANDAR } from '@/app/shared/components/tabla-estandar';
 // El buscador inteligente nacio en Crear Vacante y es standalone: se reutiliza tal cual en vez
 // de copiarlo. Busca por palabras sueltas, resalta lo que casa y solo saca la caja de busqueda
@@ -83,6 +85,7 @@ export interface CeldaDestino {
 export interface FilaDocumento {
   tipo: TipoDocumentalResumen;
   obligatorio: boolean;
+  requiere_firma_empleado: boolean;
   orden_archivo: number | null;
   bloque_archivo: number | null;
   /** No se edita aquí: viaja tal cual para no perder de qué versión del listado salió. */
@@ -263,6 +266,7 @@ export class FiltrosCentroJerarquicos {
     SharedModule, StandardFilterTable, MatTabsModule, MatDialogModule,
     MatSnackBarModule, MatIconModule, MatButtonModule, MatTooltipModule,
     MatProgressSpinnerModule, MatSlideToggleModule, RouterLink, SmartSelectComponent,
+    TarjetasPanelComponent, DragDropModule,
     ...TABLA_ESTANDAR,
   ],
   templateUrl: './parametrizacion-vacantes.component.html',
@@ -364,8 +368,8 @@ export class ParametrizacionVacantesComponent implements OnInit {
       // `critico: false` a proposito: un catálogo de perfiles vacío NO impide resolver
       // la labor ni publicar —el formulario cae a su lista de respaldo—, así que no
       // debe salir como «siguiente paso» por delante de un eslabón que sí bloquea.
-      { n: 5, titulo: 'Perfil vacante', propio: true, tab: 5, critico: false,
-        detalle: 'Rosa, Clavel… llena el campo «Área» del formulario. No interviene en la labor.',
+      { n: 5, titulo: 'Producto finca', propio: true, tab: 5, critico: false,
+        detalle: 'Rosa, Clavel… llena el campo «Producto finca» del formulario (opcional). No interviene en la labor.',
         conteo: n(r?.perfiles_vacante_activos) },
       { n: 6, titulo: 'Área operativa', propio: true, tab: 6, critico: true,
         detalle: 'CU, PO, AD… el vocabulario con el que se resuelve la labor.',
@@ -448,7 +452,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
 
   readonly colPerfilesVacante: ColumnDefinition[] = [
     { name: 'actions', header: 'Acciones', type: 'custom', stickyStart: true, width: '128px', filterable: false },
-    { name: 'nombre', header: 'Perfil', type: 'text', filterable: true, stickyStart: true, width: '28%' },
+    { name: 'nombre', header: 'Producto', type: 'text', filterable: true, stickyStart: true, width: '28%' },
     { name: 'descripcion', header: 'Descripción', type: 'text', filterable: true },
     { name: 'orden', header: 'Orden', type: 'text', width: '90px' },
     { name: 'activo', header: 'Activo', type: 'status',
@@ -884,18 +888,18 @@ export class ParametrizacionVacantesComponent implements OnInit {
   }
 
   nuevoPerfilVacante(): void {
-    this.abrirDialogo('Nuevo perfil de vacante', this.camposPerfilVacante(), {}, v =>
+    this.abrirDialogo('Nuevo producto finca', this.camposPerfilVacante(), {}, v =>
       this.svc.crearPerfilVacante(v).subscribe({
-        next: () => this.ok('Perfil de vacante creado', () => this.cargarPerfilesVacante()),
-        error: e => this.error('No se pudo crear el perfil de vacante', e),
+        next: () => this.ok('Producto finca creado', () => this.cargarPerfilesVacante()),
+        error: e => this.error('No se pudo crear el producto finca', e),
       }));
   }
 
   editarPerfilVacante(p: PerfilVacante): void {
     this.abrirDialogo(`Editar «${p.nombre}»`, this.camposPerfilVacante(), p, v =>
       this.svc.actualizarPerfilVacante(p.id!, v).subscribe({
-        next: () => this.ok('Perfil de vacante actualizado', () => this.cargarPerfilesVacante()),
-        error: e => this.error('No se pudo actualizar el perfil de vacante', e),
+        next: () => this.ok('Producto finca actualizado', () => this.cargarPerfilesVacante()),
+        error: e => this.error('No se pudo actualizar el producto finca', e),
       }));
   }
 
@@ -909,7 +913,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
 
   private camposPerfilVacante(): FieldConfig[] {
     return [
-      { name: 'nombre', label: 'Perfil', type: 'text', required: true, maxLength: 120,
+      { name: 'nombre', label: 'Producto', type: 'text', required: true, maxLength: 120,
         hint: 'Tal cual debe salir en el desplegable de la vacante. Ej: Rosa, Clavel, Pompon.' },
       { name: 'descripcion', label: 'Descripción', type: 'text', maxLength: 300 },
       { name: 'orden', label: 'Orden', type: 'number',
@@ -2198,8 +2202,40 @@ export class ParametrizacionVacantesComponent implements OnInit {
       ?? this.detalleDocs()?.nombre_excel ?? `Empresa #${id}`;
   });
 
-  /** Mismo orden que el backend: orden de archivo (vacíos al final) y luego código. */
-  filasDocsOrdenadas = computed(() => [...this.filasDocs()].sort((a, b) => this.compararFilasDocs(a, b)));
+  /**
+   * Qué orden se ve y se cambia al arrastrar: el general (orden de archivo) o el de un
+   * destino. Son órdenes distintos a propósito: los paquetes que se empalman (Trabajador,
+   * Trabajador finca, Escáner usuaria) salen del orden de SU destino, y solo si falta,
+   * del general (`DocumentosMapper.paquetes`).
+   */
+  ordenDocsVista = signal<'GENERAL' | DestinoDocumento>('GENERAL');
+
+  /**
+   * GENERAL: mismo orden que el backend, orden de archivo (vacíos al final) y luego código.
+   * Un destino: primero los documentos que van a él, en el orden del paquete; detrás, los
+   * que no van, que no se pueden arrastrar.
+   */
+  filasDocsOrdenadas = computed(() => {
+    const vista = this.ordenDocsVista();
+    const filas = [...this.filasDocs()];
+    if (vista === 'GENERAL') return filas.sort((a, b) => this.compararFilasDocs(a, b));
+    const dentro = filas.filter(f => f.destinos[vista].incluido)
+      .sort((a, b) => this.compararFilasDestino(a, b, vista));
+    const fuera = filas.filter(f => !f.destinos[vista].incluido)
+      .sort((a, b) => this.compararFilasDocs(a, b));
+    return [...dentro, ...fuera];
+  });
+
+  /** Cuántas filas, desde arriba, se pueden arrastrar en la vista actual. */
+  arrastrablesDocs = computed(() => {
+    const vista = this.ordenDocsVista();
+    return vista === 'GENERAL'
+      ? this.filasDocs().length
+      : this.filasDocs().filter(f => f.destinos[vista].incluido).length;
+  });
+
+  /** No deja soltar entre los documentos que no van al destino elegido. */
+  readonly puedeSoltarDoc = (index: number): boolean => index < this.arrastrablesDocs();
 
   private firmaDocsOriginal = computed(() => {
     const d = this.detalleDocs();
@@ -2572,6 +2608,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
         options: this.destinosDoc.map(d => ({ value: d.codigo, label: d.etiqueta })),
         hint: 'A dónde va. La forma y las copias se ajustan después en la matriz.' },
       { name: 'obligatorio', label: 'Obligatorio', type: 'checkbox' },
+      { name: 'requiere_firma_empleado', label: 'Requiere firma del empleado', type: 'checkbox' },
     ];
     this.abrirDialogo('Agregar documento', campos, { destinos: ['ARCHIVO_TEMPORAL'], obligatorio: true }, v => {
       const tipo = disponibles.find(t => t.id === Number(v.tipo_documental_id));
@@ -2579,7 +2616,12 @@ export class ParametrizacionVacantesComponent implements OnInit {
       const elegidos = new Set<string>(v.destinos ?? []);
       const destinos = {} as Record<DestinoDocumento, CeldaDestino>;
       for (const col of this.destinosDoc) {
-        destinos[col.codigo] = { ...this.celdaVaciaDoc(col), incluido: elegidos.has(col.codigo) };
+        const incluido = elegidos.has(col.codigo);
+        // Al final del paquete de cada destino elegido.
+        const orden = incluido
+          ? this.filasDocs().reduce((max, f) => Math.max(max, f.destinos[col.codigo].orden ?? 0), 0) + 1
+          : null;
+        destinos[col.codigo] = { ...this.celdaVaciaDoc(col), incluido, orden };
       }
       // Al final del archivo: el siguiente orden libre.
       const siguienteOrden = this.filasDocs().reduce((max, f) => Math.max(max, f.orden_archivo ?? 0), 0) + 1;
@@ -2591,6 +2633,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
           observacion: tipo.observacion ?? null, tipo_documento_ref: tipo.tipo_documento_ref ?? null,
         },
         obligatorio: !!v.obligatorio,
+        requiere_firma_empleado: !!v.requiere_firma_empleado,
         orden_archivo: siguienteOrden,
         bloque_archivo: null,
         version_listado: null,
@@ -2599,6 +2642,29 @@ export class ParametrizacionVacantesComponent implements OnInit {
       this.filasDocs.update(filas => [...filas, fila]);
       this.snack.open(`«${tipo.nombre}» agregado. Se guarda con «Guardar cambios».`, 'OK', { duration: 3000 });
     });
+  }
+
+  /**
+   * Al soltar se renumera 1..N lo que se puede arrastrar, en el orden en que quedó: el
+   * orden de archivo en la vista general, o el orden del destino elegido. Así lo que se ve
+   * es lo que guarda «Guardar cambios», sin huecos ni empates.
+   */
+  soltarDoc(ev: CdkDragDrop<FilaDocumento[]>): void {
+    const n = this.arrastrablesDocs();
+    const desde = ev.previousIndex;
+    const hasta = Math.min(ev.currentIndex, n - 1);
+    if (desde === hasta || desde >= n) return;
+    const vista = this.ordenDocsVista();
+    const lista = this.filasDocsOrdenadas().slice(0, n);
+    moveItemInArray(lista, desde, hasta);
+    const posicion = new Map(lista.map((f, i) => [f.tipo.id, i + 1]));
+    this.filasDocs.update(filas => filas.map(f => {
+      const orden = posicion.get(f.tipo.id);
+      if (orden == null) return f;
+      return vista === 'GENERAL'
+        ? { ...f, orden_archivo: orden }
+        : this.conCeldaDoc(f, vista, { ...f.destinos[vista], orden });
+    }));
   }
 
   quitarDocumento(f: FilaDocumento): void {
@@ -2637,6 +2703,10 @@ export class ParametrizacionVacantesComponent implements OnInit {
 
   cambiarObligatorioDoc(f: FilaDocumento, obligatorio: boolean): void {
     this.editarFilaDoc(f.tipo.id, x => ({ ...x, obligatorio }));
+  }
+
+  cambiarFirmaEmpleadoDoc(f: FilaDocumento, requiere_firma_empleado: boolean): void {
+    this.editarFilaDoc(f.tipo.id, x => ({ ...x, requiere_firma_empleado }));
   }
 
   cambiarNumeroDoc(f: FilaDocumento, campo: 'orden_archivo' | 'bloque_archivo', raw: unknown): void {
@@ -2798,6 +2868,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
       return {
         tipo: d.tipo,
         obligatorio: d.obligatorio !== false,
+        requiere_firma_empleado: d.requiere_firma_empleado === true,
         orden_archivo: d.orden_archivo ?? null,
         bloque_archivo: d.bloque_archivo ?? null,
         version_listado: d.version_listado ?? null,
@@ -2818,6 +2889,7 @@ export class ParametrizacionVacantesComponent implements OnInit {
       .map(f => ({
         tipo_documental_id: f.tipo.id,
         obligatorio: f.obligatorio,
+        requiere_firma_empleado: f.requiere_firma_empleado,
         orden_archivo: f.orden_archivo,
         bloque_archivo: f.bloque_archivo,
         version_listado: f.version_listado,
@@ -2838,6 +2910,14 @@ export class ParametrizacionVacantesComponent implements OnInit {
   private compararFilasDocs(a: FilaDocumento, b: FilaDocumento): number {
     const oa = a.orden_archivo ?? Number.MAX_SAFE_INTEGER;
     const ob = b.orden_archivo ?? Number.MAX_SAFE_INTEGER;
+    if (oa !== ob) return oa - ob;
+    return a.tipo.codigo < b.tipo.codigo ? -1 : a.tipo.codigo > b.tipo.codigo ? 1 : 0;
+  }
+
+  /** Mismo criterio que `DocumentosMapper.paquetes`: orden del destino, si falta el de archivo, y el código. */
+  private compararFilasDestino(a: FilaDocumento, b: FilaDocumento, destino: DestinoDocumento): number {
+    const oa = a.destinos[destino].orden ?? a.orden_archivo ?? Number.MAX_SAFE_INTEGER;
+    const ob = b.destinos[destino].orden ?? b.orden_archivo ?? Number.MAX_SAFE_INTEGER;
     if (oa !== ob) return oa - ob;
     return a.tipo.codigo < b.tipo.codigo ? -1 : a.tipo.codigo > b.tipo.codigo ? 1 : 0;
   }

@@ -623,6 +623,7 @@ export interface DocumentoEmpresa {
   id: number | null;
   tipo: TipoDocumentalResumen;
   obligatorio: boolean | null;
+  requiere_firma_empleado: boolean | null;
   orden_archivo: number | null;
   bloque_archivo: number | null;
   version_listado: string | null;
@@ -661,6 +662,7 @@ export interface EmpresaDocumentos {
 export interface DocumentoEmpresaRequest {
   tipo_documental_id: number;
   obligatorio: boolean;
+  requiere_firma_empleado: boolean;
   orden_archivo: number | null;
   bloque_archivo: number | null;
   version_listado: string | null;

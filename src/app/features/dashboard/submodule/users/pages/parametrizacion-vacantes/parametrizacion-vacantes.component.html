@@ -54,9 +54,9 @@
           <p class="tab-hint cadena-intro">
             Los eslabones en el orden en que hay que configurarlos. El orden importa:
             sin centro de costo no hay configuración de puesto, y sin ésta el sistema no
-            puede resolver la labor de una vacante. <strong>Perfil vacante</strong> es la
-            excepción: es un catálogo aparte —llena el campo «Área» del formulario— y no
-            bloquea nada si está vacío.
+            puede resolver la labor de una vacante. <strong>Producto finca</strong> es la
+            excepción: es un catálogo aparte —llena el campo «Producto finca» del formulario,
+            que es opcional y por defecto queda en «No aplica»— y no bloquea nada si está vacío.
           </p>
 
           @if (primerPasoVacio(); as paso) {
@@ -530,7 +530,7 @@
       </mat-tab>
 
       <!-- ─────────────── ÁREAS OPERATIVAS ─────────────── -->
-      <mat-tab label="Perfil vacante">
+      <mat-tab label="Producto finca">
         <div class="tab-body">
           <div class="tab-actions">
             <span class="tab-hint">
@@ -546,7 +546,7 @@
             }
             <span class="grow"></span>
             <button mat-flat-button class="btn-managerial" (click)="nuevoPerfilVacante()">
-              <mat-icon>add</mat-icon><span>Nuevo perfil</span>
+              <mat-icon>add</mat-icon><span>Nuevo producto</span>
             </button>
           </div>
 
@@ -563,7 +563,7 @@
 
           <app-standard-filter-table
             [data]="perfilesVacante()" [columnDefinitions]="colPerfilesVacanteVisibles()"
-            [pageSizeOptions]="pageSizeOptions" tableTitle="Perfil vacante"
+            [pageSizeOptions]="pageSizeOptions" tableTitle="Producto finca"
             storageKey="param-vacantes-perfiles-vacante">
             <ng-template #actionsTemplate let-row>
               <div class="row-actions">
@@ -1050,7 +1050,27 @@
                     </span>
                   </div>
                 } @else {
-                  <div class="docs-matriz-scroll">
+                  <div class="docs-orden-barra">
+                    <span class="docs-orden-lbl"><mat-icon>drag_indicator</mat-icon>Arrastra las filas para ordenar:</span>
+                    <mat-button-toggle-group [value]="ordenDocsVista()" (change)="ordenDocsVista.set($event.value)"
+                                             hideSingleSelectionIndicator aria-label="Orden que se arrastra">
+                      <mat-button-toggle value="GENERAL" matTooltip="Orden de archivo de la empresa">General</mat-button-toggle>
+                      @for (d of destinosDoc; track d.codigo) {
+                        <mat-button-toggle [value]="d.codigo" [matTooltip]="'Orden del paquete ' + d.etiqueta">
+                          {{ d.etiqueta }}
+                        </mat-button-toggle>
+                      }
+                    </mat-button-toggle-group>
+                    <span class="tab-hint">
+                      @if (ordenDocsVista() === 'GENERAL') {
+                        Cambia el <strong>orden de archivo</strong>.
+                      } @else {
+                        Cambia el orden de los documentos dentro del paquete de este destino (el que se
+                        empalma); los que no van a él quedan al final y no se mueven.
+                      }
+                    </span>
+                  </div>
+                  <div class="docs-matriz-scroll" cdkScrollable>
                     <table class="docs-matriz">
                       <thead>
                         <tr>
@@ -1058,20 +1078,34 @@
                           <th class="col-bloque">Bloque</th>
                           <th class="col-doc">Documento</th>
                           <th class="col-obl">Obligatorio</th>
+                          <th class="col-firma">Requiere firma del empleado</th>
                           @for (d of destinosDoc; track d.codigo) {
                             <th class="col-destino">{{ d.etiqueta }}</th>
                           }
                           <th class="col-quitar" aria-label="Quitar"></th>
                         </tr>
                       </thead>
-                      <tbody>
-                        @for (fila of filasDocsOrdenadas(); track fila.tipo.id) {
-                          <tr [class.fila-error]="filasDocsConError().has(fila.tipo.id)">
+                      <tbody cdkDropList [cdkDropListData]="filasDocsOrdenadas()" cdkDropListLockAxis="y"
+                             [cdkDropListSortPredicate]="puedeSoltarDoc" (cdkDropListDropped)="soltarDoc($event)">
+                        @for (fila of filasDocsOrdenadas(); track fila.tipo.id; let i = $index) {
+                          @let arrastrable = i < arrastrablesDocs();
+                          <tr cdkDrag [cdkDragData]="fila" [cdkDragDisabled]="!arrastrable || guardandoDocs()"
+                              [class.fila-error]="filasDocsConError().has(fila.tipo.id)"
+                              [class.fila-fuera]="!arrastrable">
                             <td class="col-orden">
+                              <div class="docs-orden-celda">
+                                <span class="docs-asa" cdkDragHandle [class.docs-asa-off]="!arrastrable"
+                                      [matTooltip]="arrastrable ? 'Arrastra para mover' : 'No va a este destino'">
+                                  <mat-icon>drag_indicator</mat-icon>
+                                  @if (ordenDocsVista() !== 'GENERAL' && arrastrable) {
+                                    <span class="docs-pos">{{ i + 1 }}</span>
+                                  }
+                                </span>
                               <input type="number" class="docs-num" min="1" step="1"
                                      [value]="fila.orden_archivo ?? ''"
                                      (change)="cambiarNumeroDoc(fila, 'orden_archivo', $any($event.target).value)"
                                      [attr.aria-label]="'Orden de archivo de ' + fila.tipo.nombre">
+                              </div>
                             </td>
                             <td class="col-bloque">
                               <input type="number" class="docs-num" min="1" max="5" step="1"
@@ -1102,9 +1136,16 @@
                                             [aria-label]="'Obligatorio: ' + fila.tipo.nombre">
                               </mat-checkbox>
                             </td>
+                            <td class="col-firma">
+                              <mat-checkbox [checked]="fila.requiere_firma_empleado"
+                                            (change)="cambiarFirmaEmpleadoDoc(fila, $event.checked)"
+                                            [aria-label]="'Requiere firma del empleado: ' + fila.tipo.nombre">
+                              </mat-checkbox>
+                            </td>
                             @for (d of destinosDoc; track d.codigo) {
                               @let celda = fila.destinos[d.codigo];
-                              <td class="col-destino" [class.destino-on]="celda.incluido">
+                              <td class="col-destino" [class.destino-on]="celda.incluido"
+                                  [class.destino-vista]="ordenDocsVista() === d.codigo">
                                 <mat-checkbox [checked]="celda.incluido"
                                               (change)="alternarDestinoDoc(fila, d.codigo, $event.checked)">
                                   Incluido
@@ -1747,6 +1788,23 @@
               (<code>POLITICA_EN_USO</code>).
             </p>
           }
+        </div>
+      </mat-tab>
+
+
+      <!-- ══ Tarjetas ═══════════════════════════════════════════════════════
+           Va AL FINAL a proposito: `cadena()` cablea los indices de las
+           pestañas anteriores (TAB_CENTRO_PAGO=17, TAB_CENTRO_CASINO=18) y
+           meter una en medio hace que «Administrar aquí» abra la equivocada. -->
+      <mat-tab label="Tarjetas">
+        <div class="tab-body">
+          <p class="tab-hint">
+            Relación <strong>cédula ↔ número de tarjeta</strong>. La carga masiva
+            <strong>no escribe nada hasta que confirmes</strong>: primero valida el archivo y te
+            dice fila a fila qué crearía, qué actualizaría y qué rechaza. Subir dos veces el mismo
+            archivo no duplica registros.
+          </p>
+          <app-tarjetas-panel></app-tarjetas-panel>
         </div>
       </mat-tab>
 
