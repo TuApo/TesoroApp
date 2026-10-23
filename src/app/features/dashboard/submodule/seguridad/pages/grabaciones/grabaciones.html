@@ -1,0 +1,101 @@
+<section class="sg-tarjeta controles" aria-label="Elegir grabación">
+  <label class="sg-campo-nativo camara">Cámara
+    <select [ngModel]="camaraId()" (ngModelChange)="elegirCamara($event)">
+      <option [ngValue]="null">— Elija una cámara —</option>
+      @for (c of camaras(); track c.id) { <option [ngValue]="c.id">{{ c.sede_nombre }} · {{ c.nombre }}</option> }
+    </select>
+  </label>
+  <label class="sg-campo-nativo">Día
+    <input type="date" [ngModel]="dia()" (ngModelChange)="cambiarDia($event)" />
+  </label>
+  <label class="sg-campo-nativo">Desde la hora
+    <input type="time" [ngModel]="horaMomento()" (ngModelChange)="ponerHora($event)" />
+  </label>
+  <label class="sg-campo-nativo">Duración
+    <select [ngModel]="duracionMin()" (ngModelChange)="duracionMin.set(+$event)">
+      @for (d of duraciones; track d) { <option [ngValue]="d">{{ d }} min</option> }
+    </select>
+  </label>
+</section>
+
+@if (error(); as e) { <div class="sg-aviso warn"><mat-icon aria-hidden="true">warning</mat-icon><span>{{ e }}</span></div> }
+
+@if (camaraId()) {
+  <section class="sg-tarjeta">
+    <h3><mat-icon aria-hidden="true">timeline</mat-icon>Grabado en el servidor central
+      <span class="sg-sub">@if (cargando()) { cargando… } @else { {{ segmentos().length }} tramos · {{ f.cronometro(totalGrabado()) }} }</span></h3>
+
+    <div class="linea" role="slider" tabindex="0" aria-label="Línea de 24 horas: elija el momento a reproducir"
+         [attr.aria-valuenow]="minuto()" aria-valuemin="0" aria-valuemax="1439" [attr.aria-valuetext]="horaMomento()"
+         (click)="clicLinea($event)" (keydown)="teclaLinea($event)">
+      @for (s of segmentos(); track $index) {
+        <i class="seg" [style.left.%]="s.izq" [style.width.%]="s.ancho" [matTooltip]="f.horaCorta(s.inicio) + ' → ' + f.horaCorta(s.fin)"></i>
+      }
+      <span class="cursor" [style.left.%]="minuto() / 14.4"><b class="sg-mono">{{ horaMomento() }}</b></span>
+    </div>
+    <div class="eje" aria-hidden="true">
+      @for (h of marcas; track h) { <span [style.left.%]="h / 24 * 100">{{ h }}h</span> }
+    </div>
+    @if (!cargando() && grabaciones() && !segmentos().length) {
+      <p class="sg-nota">No hay grabación central ese día. @if (camara()?.grabacion === 'NINGUNA') { Esta cámara está configurada sin grabación central. }</p>
+    }
+    @if (grabaciones()?.dvr; as dvr) {
+      <p class="sg-nota dvr"><mat-icon aria-hidden="true">dns</mat-icon>
+        @if (dvr.soportado) { El grabador de la sede también tiene su propia grabación: puede reproducirla desde el DVR. } @else { {{ dvr.mensaje || 'Este grabador no permite reproducir desde aquí.' }} }
+      </p>
+    }
+
+    <div class="sg-fila acciones">
+      <button type="button" class="sg-boton sg-boton--primario" (click)="reproducir('CENTRAL')" [disabled]="!segmentos().length">
+        <mat-icon aria-hidden="true">play_arrow</mat-icon>Reproducir {{ horaMomento() }}
+      </button>
+      @if (grabaciones()?.dvr?.soportado) {
+        <button type="button" class="sg-boton" (click)="reproducir('DVR')"><mat-icon aria-hidden="true">dns</mat-icon>Reproducir desde el DVR</button>
+      }
+      <button type="button" class="sg-boton" (click)="descargar()" [disabled]="descargando() || !segmentos().length">
+        <mat-icon aria-hidden="true">download</mat-icon>{{ descargando() ? 'Preparando MP4…' : 'Descargar ' + duracionMin() + ' min (MP4)' }}
+      </button>
+      <button type="button" class="sg-boton" (click)="guardarClip()" [disabled]="!segmentos().length"><mat-icon aria-hidden="true">bookmark_add</mat-icon>Guardar clip</button>
+      @if (segmentos().length && !hayGrabacionEnMomento()) { <span class="sg-chip warn">No hay grabación a las {{ horaMomento() }}</span> }
+    </div>
+  </section>
+
+  <div class="sg-rejilla--2 abajo">
+    <section class="reproductor">
+      @if (reproduccion(); as r) {
+        <sg-visor-camara [reproduccion]="r" [camara]="camara()" [etiqueta]="(camara()?.nombre ?? '') + ' ' + dia() + ' ' + horaMomento()" />
+      } @else {
+        <div class="sg-vacio negro"><mat-icon aria-hidden="true">smart_display</mat-icon>Elija un momento en la línea y presione Reproducir.</div>
+      }
+    </section>
+    <section class="sg-tarjeta">
+      <h3><mat-icon aria-hidden="true">list</mat-icon>Tramos grabados</h3>
+      <div class="sg-scroll-x tramos">
+        <table class="sg-tabla-simple">
+          <thead><tr><th>Inicio</th><th>Fin</th><th class="num">Duración</th><th></th></tr></thead>
+          <tbody>
+            @for (s of segmentos(); track $index) {
+              <tr>
+                <td class="sg-mono">{{ f.horaCorta(s.inicio) }}</td><td class="sg-mono">{{ f.horaCorta(s.fin) }}</td>
+                <td class="num">{{ f.cronometro(s.duracion) }}</td>
+                <td><button type="button" class="sg-boton sg-boton--icono" (click)="irASegmento(s)" aria-label="Reproducir este tramo"><mat-icon>play_arrow</mat-icon></button></td>
+              </tr>
+            } @empty { <tr><td colspan="4" class="sg-tenue">Sin tramos.</td></tr> }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+} @else {
+  <div class="sg-tarjeta sg-vacio"><mat-icon aria-hidden="true">video_library</mat-icon>Elija una cámara para ver qué hay grabado.</div>
+}
+
+<section class="clips">
+  <app-tabla-estandar id="seguridad-clips" titulo="Clips guardados" modulo="Seguridad" [datos]="clips()" [columnas]="columnasClips"
+                      [filaId]="idClip" [cargando]="cargandoClips()" [seleccionable]="false" vacio="Aún no hay clips guardados.">
+    <ng-template tablaAcciones let-c>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="verClip(c)" aria-label="Ver clip" matTooltip="Ver"><mat-icon>play_arrow</mat-icon></button>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="descargarClip(c)" aria-label="Descargar clip" matTooltip="Descargar"><mat-icon>download</mat-icon></button>
+    </ng-template>
+  </app-tabla-estandar>
+</section>

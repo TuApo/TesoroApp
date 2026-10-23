@@ -1,0 +1,101 @@
+@if (error(); as e) {
+  <div class="sg-aviso warn"><mat-icon aria-hidden="true">cloud_off</mat-icon><span>{{ e }}</span>
+    <button type="button" class="sg-boton" (click)="cargar()">Reintentar</button></div>
+}
+
+@if (tablero(); as t) {
+  <section class="sg-lecturas" aria-label="Indicadores">
+    <div class="sg-lectura" [class.danger]="t.incidentes.sin_reconocer > 0">
+      <span class="et">Sin reconocer</span><span class="va">{{ t.incidentes.sin_reconocer }}</span>
+      <span class="ay">{{ t.incidentes.abiertos }} abiertas · {{ t.incidentes.criticos }} críticas</span>
+    </div>
+    <div class="sg-lectura" [class.warn]="t.camaras.en_linea < t.camaras.total">
+      <span class="et">Cámaras en línea</span><span class="va">{{ t.camaras.en_linea }}<small>/ {{ t.camaras.total }}</small></span>
+      <span class="ay">Grabadores {{ t.grabadores.en_linea }}/{{ t.grabadores.total }}</span>
+    </div>
+    <div class="sg-lectura" [class.danger]="t.dispositivos.en_alarma > 0">
+      <span class="et">Dispositivos</span><span class="va">{{ t.dispositivos.total }}</span>
+      <span class="ay">{{ t.dispositivos.en_alarma }} en alarma · {{ t.dispositivos.abiertos }} abiertos</span>
+    </div>
+    <div class="sg-lectura">
+      <span class="et">Personas en sedes</span><span class="va">{{ t.aforo_total }}</span><span class="ay">aforo en vivo</span>
+    </div>
+    <div class="sg-lectura" [class.warn]="t.workers_en_linea === 0">
+      <span class="et">IA visual</span><span class="va">{{ t.workers_en_linea }}</span>
+      <span class="ay">{{ t.workers_en_linea === 1 ? 'worker en línea' : 'workers en línea' }}</span>
+    </div>
+  </section>
+} @else if (!error()) {
+  <div class="sg-lecturas esqueleto" aria-busy="true">@for (x of [1, 2, 3, 4, 5]; track x) { <div class="sg-lectura"><span class="et">…</span><span class="va">—</span></div> }</div>
+}
+
+<div class="disposicion">
+  <div class="col">
+    @if (incidentes().length) {
+      <section class="sg-tarjeta">
+        <h3><mat-icon aria-hidden="true">notifications_active</mat-icon>Alarmas activas
+          <a class="sg-sub" routerLink="../monitoreo">Atender en el centro →</a></h3>
+        <ul class="sg-lista">
+          @for (i of incidentes(); track i.id) {
+            <li class="inc" [class]="'inc sev-' + i.severidad">
+              <div class="cuerpo">
+                <div class="t">{{ i.titulo }}</div>
+                <div class="d">{{ i.sede_nombre }} · {{ nombreSev[i.severidad] }} ·
+                  @if (i.estado === 'ABIERTO' || i.estado === 'NOTIFICANDO') { <b class="sin">sin reconocer</b> } @else { reconocida por {{ i.reconocido_por_nombre }} }
+                </div>
+              </div>
+              <span class="cuando sg-mono">{{ f.cronometro(segundosDesde(i.creado_en)) }}</span>
+              <a class="sg-boton" [routerLink]="'../monitoreo'" [queryParams]="{ incidente: i.id }">Ver</a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <section class="sedes" aria-label="Sedes">
+      @for (s of tablero()?.sedes ?? []; track s.sede_id) {
+        <article class="sede sg-tarjeta" [class.alarma]="s.incidentes_abiertos > 0">
+          <header>
+            <h3>{{ s.nombre }}</h3>
+            @if (s.armada) {
+              <span class="sg-chip info" matTooltip="Hay reglas armadas en este momento"><mat-icon aria-hidden="true">shield_lock</mat-icon>Armada</span>
+            } @else {
+              <span class="sg-chip neutro"><mat-icon aria-hidden="true">shield</mat-icon>Desarmada</span>
+            }
+          </header>
+          <dl>
+            <div><dt>Cámaras</dt><dd class="sg-mono" [class.mal]="s.en_linea < s.camaras">{{ s.en_linea }}/{{ s.camaras }}</dd></div>
+            <div><dt>Ocupación</dt><dd class="sg-mono">{{ s.ocupacion }}</dd></div>
+            <div><dt>Alarmas</dt><dd class="sg-mono" [class.mal]="s.incidentes_abiertos > 0">{{ s.incidentes_abiertos }}</dd></div>
+          </dl>
+          <a class="sg-boton" routerLink="../monitoreo" [queryParams]="{ sede: s.sede_id }"><mat-icon aria-hidden="true">videocam</mat-icon>Ver cámaras</a>
+        </article>
+      } @empty {
+        @if (tablero()) {
+          <div class="sg-tarjeta sg-vacio">
+            <mat-icon aria-hidden="true">add_location_alt</mat-icon>
+            Aún no hay sedes. Empiece en <a routerLink="../configuracion">Configuración → Sedes</a>, luego agregue el grabador (DVR/NVR) y sus cámaras.
+          </div>
+        }
+      }
+    </section>
+  </div>
+
+  <section class="sg-tarjeta bitacora">
+    <h3><mat-icon aria-hidden="true">receipt_long</mat-icon>Últimos eventos <span class="sg-sub">en vivo</span></h3>
+    <ul class="sg-lista">
+      @for (e of eventos(); track e.id) {
+        <li [class]="'ev sev-' + e.severidad">
+          @if (e.captura_url) { <sg-imagen class="mini" [src]="e.captura_url" [alt]="e.titulo" /> }
+          <div class="cuerpo">
+            <div class="t">{{ e.titulo }}</div>
+            <div class="d">{{ e.sede_nombre }}@if (e.camara_nombre) { · {{ e.camara_nombre }} }@if (e.dispositivo_nombre) { · {{ e.dispositivo_nombre }} } · {{ nombreOrigen[e.origen] }}</div>
+          </div>
+          <span class="cuando" [title]="e.ocurrido_en">{{ f.horaCorta(e.ocurrido_en) }}</span>
+        </li>
+      } @empty {
+        <li class="sg-vacio"><mat-icon aria-hidden="true">check_circle</mat-icon>Sin eventos recientes.</li>
+      }
+    </ul>
+  </section>
+</div>

@@ -1,0 +1,135 @@
+<audio #audio (timeupdate)="alAvanzar()" (ended)="sonando.set(null)" (pause)="sonando.set(null)" hidden></audio>
+
+@if (error()) {
+  <div class="estado-vacio"><mat-icon>error_outline</mat-icon><p>{{ error() }}</p></div>
+} @else if (!t()) {
+  <div class="estado-vacio"><mat-icon class="gira">autorenew</mat-icon><p>Cargando el acta…</p></div>
+} @else {
+  @let tr = t()!;
+  <header class="cab">
+    <div class="ico" [class.video]="tr.llamada.tipo === 'VIDEO'"><mat-icon>{{ tr.llamada.tipo === 'VIDEO' ? 'videocam' : 'call' }}</mat-icon></div>
+    <div class="cab-txt">
+      <h2>{{ titulo() }}</h2>
+      <p>{{ fechaLarga(tr.llamada.creada_en) }} · {{ dur(tr.llamada.duracion_seg) }}
+        @if (tr.llamada.conversacion_nombre) { · {{ tr.llamada.conversacion_nombre }} }</p>
+      <div class="asistentes">
+        @for (p of asistentes(); track p.usuario_id) {
+          <span class="asis" [style.--c]="color(p.usuario_id)"><app-com-avatar [usuarioId]="p.usuario_id" [nombre]="p.nombre" [tam]="20" /> {{ p.nombre }}</span>
+        }
+      </div>
+    </div>
+    <div class="cab-acc">
+      <button type="button" (click)="copiar()" matTooltip="Copiar el acta"><mat-icon>content_copy</mat-icon></button>
+      <button type="button" (click)="descargar()" matTooltip="Descargar .txt"><mat-icon>download</mat-icon></button>
+    </div>
+  </header>
+
+  @switch (tr.llamada.transcripcion_estado) {
+    @case ('PENDIENTE') { <div class="aviso"><mat-icon>hourglass_top</mat-icon> Esperando el audio de todos para transcribir. Tarda uno o dos minutos después de colgar.</div> }
+    @case ('PROCESANDO') { <div class="aviso"><mat-icon class="gira">autorenew</mat-icon> Transcribiendo y resumiendo la llamada… esta página se actualiza sola.</div> }
+    @case ('ERROR') { <div class="aviso err"><mat-icon>error</mat-icon> La transcripción falló. <button type="button" (click)="reprocesar()">Reintentar</button></div> }
+    @case ('SIN_AUDIO') { <div class="aviso"><mat-icon>mic_off</mat-icon> No llegó audio para transcribir (nadie habló o no se permitió grabar). <button type="button" (click)="reprocesar()">Reintentar</button></div> }
+    @case ('NINGUNA') { <div class="aviso"><mat-icon>info</mat-icon> Esta llamada no se transcribió.</div> }
+  }
+
+  <div class="cuerpo">
+    <section class="col-izq">
+      @if (tr.resumen; as r) {
+        <div class="bloque">
+          <h3><mat-icon>summarize</mat-icon> Resumen</h3>
+          <p class="resumen">{{ r.resumen }}</p>
+          @if (r.temas.length) { <div class="temas">@for (x of r.temas; track x) { <span>{{ x }}</span> }</div> }
+        </div>
+        @if (r.decisiones.length) {
+          <div class="bloque"><h3><mat-icon>gavel</mat-icon> Decisiones</h3>
+            <ul>@for (x of r.decisiones; track x) { <li>{{ x }}</li> }</ul></div>
+        }
+        @if (r.pendientes.length) {
+          <div class="bloque"><h3><mat-icon>help_outline</mat-icon> Pendientes</h3>
+            <ul>@for (x of r.pendientes; track x) { <li>{{ x }}</li> }</ul></div>
+        }
+      }
+      @if (momentos().length) {
+        <div class="bloque">
+          <h3><mat-icon>bookmarks</mat-icon> Momentos <small>{{ momentos().length }}</small></h3>
+          <div class="momentos">
+            @for (m of momentos(); track m.id) {
+              <div class="momento" [class.ia]="m.origen === 'IA'">
+                <div class="m-cab">
+                  <mat-icon>{{ m.origen === 'IA' ? 'auto_awesome' : 'bookmark' }}</mat-icon>
+                  <button type="button" class="t" (click)="irAMomentoGuardado(m)" matTooltip="Ver en la transcripción">{{ tiempo(m.momento_ms) }}</button>
+                  @if (m.tipo) { <span class="tipo">{{ etiquetaTipo(m.tipo) }}</span> }
+                  <small>{{ m.origen === 'IA' ? 'Detectado por la IA' : 'Guardado por ' + m.creado_por_nombre }}</small>
+                </div>
+                <strong>{{ m.titulo || 'Momento' }}</strong>
+                @if (m.nota) { <p class="m-nota">{{ m.nota }}</p> }
+                @if (m.imagen_url) {
+                  <a [href]="api.absoluta(m.imagen_url)" target="_blank" rel="noopener"><img [src]="api.absoluta(m.imagen_url)" alt="Lo que se mostraba" loading="lazy" /></a>
+                }
+                @if (m.video_url) { <video [src]="api.absoluta(m.video_url)" controls preload="metadata"></video> }
+                @else if (m.audio_url) { <audio [src]="api.absoluta(m.audio_url)" controls preload="none"></audio> }
+                @else if (m.audio_estado === 'PENDIENTE') { <small class="tenue">Preparando el clip…</small> }
+                @if (m.extracto) { <details><summary>Lo que se dijo en ese tramo</summary><pre>{{ m.extracto }}</pre></details> }
+              </div>
+            }
+          </div>
+        </div>
+      }
+      <div class="bloque">
+        <h3><mat-icon>task_alt</mat-icon> Compromisos <small>{{ tr.compromisos.length }}</small></h3>
+        <div class="comps">
+          @for (c of tr.compromisos; track c.id) {
+            <app-com-compromiso [c]="c" [personas]="personas()" [mostrarOrigen]="c.momento_ms != null" [mostrarConversacion]="false"
+              (cambio)="actualizarCompromiso($event)" (borrado)="quitarCompromiso($event)" (irOrigen)="irAMomento($event)" />
+          } @empty { <p class="tenue">Sin compromisos registrados.</p> }
+        </div>
+        <div class="nuevo">
+          <input #nuevo type="text" placeholder="Agregar un compromiso…" (keydown.enter)="nuevoCompromiso(nuevo)" />
+          <button type="button" (click)="nuevoCompromiso(nuevo)"><mat-icon>add</mat-icon></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="col-der">
+      <div class="vista-der" role="tablist" aria-label="Transcripción o asistente">
+        <button type="button" role="tab" [class.on]="vistaDer() === 'transcripcion'" (click)="vistaDer.set('transcripcion')">
+          <mat-icon>record_voice_over</mat-icon> {{ hayChat() ? 'Transcripción y chat' : 'Transcripción' }}</button>
+        <button type="button" role="tab" [class.on]="vistaDer() === 'ia'" (click)="vistaDer.set('ia')"><mat-icon>auto_awesome</mat-icon> Asistente IA</button>
+      </div>
+      @if (vistaDer() === 'ia') {
+        <app-com-asistente-panel class="asis-acta" [llamadaId]="llamadaId()" [momentos]="momentos()" [puedeUsar]="false"
+          (verMomento)="irAMomentoGuardado($event)" />
+      } @else {
+      <div class="trans-cab">
+        <h3 class="oculto-h"><mat-icon>record_voice_over</mat-icon> {{ hayChat() ? 'Transcripción y chat' : 'Transcripción' }}</h3>
+        <label class="buscar"><mat-icon>search</mat-icon><input type="search" [placeholder]="hayChat() ? 'Buscar en lo que se dijo y se escribió' : 'Buscar en lo que se dijo'"
+          [value]="filtro()" (input)="filtro.set($any($event.target).value)" /></label>
+      </div>
+      <div class="segs">
+        @for (e of linea(); track e.clave) {
+          @if (e.voz; as s) {
+            <div class="seg" [id]="'seg-' + s.id" [class.sonando]="sonando() === s.id" [style.--c]="color(s.usuario_id)">
+              <button type="button" class="t" (click)="escuchar(s)" [disabled]="!pistaDe(s)" [matTooltip]="pistaDe(s) ? 'Escuchar este momento' : ''">
+                <mat-icon>{{ sonando() === s.id ? 'volume_up' : 'play_arrow' }}</mat-icon>{{ tiempo(s.inicio_ms) }}
+              </button>
+              <div class="seg-txt"><strong>{{ s.nombre }}</strong> {{ s.texto }}</div>
+            </div>
+          } @else if (e.chat; as m) {
+            <div class="seg escrito" [style.--c]="color(m.autor_id)">
+              <span class="t" matTooltip="Escrito en el chat de la llamada"><mat-icon>chat_bubble_outline</mat-icon>{{ tiempo(m.momento_ms) }}</span>
+              <div class="seg-txt"><strong>{{ m.autor_nombre }}</strong> <em class="en-chat">escribió</em>
+                @if (m.texto) { <span [innerHTML]="html(m)"></span> }
+                @for (a of m.adjuntos; track a.id) {
+                  <a class="adj" [href]="abs(a.descarga_url || a.url)" target="_blank" rel="noopener"><mat-icon>{{ icono(a.clase, a.mime) }}</mat-icon>{{ a.nombre }}</a>
+                }
+              </div>
+            </div>
+          }
+        } @empty {
+          <p class="tenue">{{ procesando() ? 'La transcripción aparecerá aquí.' : (filtro() ? 'Nada coincide con la búsqueda.' : 'No hay transcripción.') }}</p>
+        }
+      </div>
+      }
+    </section>
+  </div>
+}

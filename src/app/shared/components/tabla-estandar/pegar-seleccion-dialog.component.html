@@ -1,0 +1,101 @@
+<h2 mat-dialog-title class="ps-titulo">
+  <mat-icon fontSet="material-symbols-outlined">content_paste_go</mat-icon>
+  Cambio masivo — pegar desde Excel
+</h2>
+
+<mat-dialog-content class="ps-cuerpo">
+  @if (!resultado()) {
+    <p class="ps-nota">
+      Copia la columna desde Excel y pégala aquí. Se busca cada valor en
+      <strong>{{ datos.titulo }}</strong> y se marcan las filas que existan, para aplicarles una
+      acción masiva. Puedes pegar el bloque completo con encabezados: se ignora lo que no case.
+    </p>
+
+    @if (datos.columnas.length) {
+      <p class="ps-nota">
+        Se probará contra: <strong>{{ datos.columnas.join(' · ') }}</strong>.
+      </p>
+    }
+
+    <mat-form-field appearance="outline" class="ps-campo">
+      <mat-label>Pega aquí (Ctrl+V)</mat-label>
+      <textarea matInput rows="9" [ngModel]="texto()" (ngModelChange)="texto.set($event)"
+                placeholder="1234567&#10;7654321&#10;X1122334"></textarea>
+    </mat-form-field>
+
+    <div class="ps-resumen">
+      <span class="ps-chip"><strong>{{ lineas() }}</strong> línea(s) pegada(s)</span>
+      <span class="ps-chip ps-chip--neutro">{{ datos.filasCargadas }} fila(s) en la tabla</span>
+    </div>
+
+    @if (datos.modoServidor) {
+      <p class="ps-aviso">
+        <mat-icon fontSet="material-symbols-outlined">info</mat-icon>
+        Esta tabla trae los datos por páginas: solo se puede marcar lo que ya está cargado.
+        Filtra o amplía la página para incluir el resto.
+      </p>
+    }
+  } @else {
+    @if (resultado()!.columna) {
+      <p class="ps-nota">Casado por la columna <strong>{{ resultado()!.columna }}</strong>.</p>
+    }
+
+    <div class="ps-cuentas">
+      <div class="ps-cuenta ps-cuenta--ok">
+        <span class="ps-cuenta__n">{{ resultado()!.encontradas.length }}</span>
+        <span class="ps-cuenta__t">encontradas</span>
+      </div>
+      <div class="ps-cuenta" [class.ps-cuenta--mal]="resultado()!.noEncontradas.length > 0">
+        <span class="ps-cuenta__n">{{ resultado()!.noEncontradas.length }}</span>
+        <span class="ps-cuenta__t">sin encontrar</span>
+      </div>
+      @if (resultado()!.duplicadas > 0) {
+        <div class="ps-cuenta">
+          <span class="ps-cuenta__n">{{ resultado()!.duplicadas }}</span>
+          <span class="ps-cuenta__t">repetidas en el pegado</span>
+        </div>
+      }
+    </div>
+
+    @if (resultado()!.noEncontradas.length > 0) {
+      <div class="ps-faltantes">
+        <div class="ps-faltantes__cab">
+          <span>No están en la tabla</span>
+          <button type="button" mat-stroked-button (click)="copiarFaltantes()">
+            <mat-icon fontSet="material-symbols-outlined">{{ copiado() ? 'check' : 'content_copy' }}</mat-icon>
+            {{ copiado() ? 'Copiadas' : 'Copiar' }}
+          </button>
+        </div>
+        <ul class="ps-faltantes__lista">
+          @for (f of resultado()!.noEncontradas.slice(0, 60); track f) { <li>{{ f }}</li> }
+        </ul>
+        @if (resultado()!.noEncontradas.length > 60) {
+          <p class="ps-nota">… y {{ resultado()!.noEncontradas.length - 60 }} más (usa «Copiar»).</p>
+        }
+      </div>
+    } @else {
+      <p class="ps-nota ps-nota--ok">
+        <mat-icon fontSet="material-symbols-outlined">task_alt</mat-icon>
+        Todos los registros pegados están en la tabla.
+      </p>
+    }
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions class="ps-acciones">
+  <button type="button" mat-button (click)="cerrar()">Cancelar</button>
+  <span class="ps-espacio"></span>
+  @if (!resultado()) {
+    <button type="button" mat-flat-button color="primary" [disabled]="lineas() === 0" (click)="buscar()">
+      <mat-icon fontSet="material-symbols-outlined">search</mat-icon>
+      Buscar en la tabla
+    </button>
+  } @else {
+    <button type="button" mat-button (click)="volver()">Volver a pegar</button>
+    <button type="button" mat-flat-button color="primary"
+            [disabled]="resultado()!.encontradas.length === 0" (click)="marcar()">
+      <mat-icon fontSet="material-symbols-outlined">check_box</mat-icon>
+      Marcar {{ resultado()!.encontradas.length }} fila(s)
+    </button>
+  }
+</mat-dialog-actions>

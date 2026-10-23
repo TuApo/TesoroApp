@@ -1,0 +1,113 @@
+:host { display: block; }
+
+.sistema {
+  margin: .5rem auto; max-width: 85%; text-align: center; font-size: .75rem; color: var(--muted);
+  background: var(--surface-3); border-radius: 999px; padding: .2rem .75rem; width: fit-content;
+}
+
+/* ─── Burbujas ─────────────────────────────────────────────── */
+.fila { display: flex; align-items: flex-end; gap: .35rem; margin-top: .55rem; position: relative; padding: 0 .25rem; }
+.fila.cont { margin-top: .12rem; }
+.fila.mio { flex-direction: row-reverse; }
+.av { width: 28px; flex: none; }
+.col { display: flex; flex-direction: column; max-width: min(78%, 520px); min-width: 0; }
+.fila.mio .col { align-items: flex-end; }
+.autor { font-size: .72rem; font-weight: 700; color: var(--text-2); margin: 0 0 .15rem .6rem; }
+
+.burbuja {
+  position: relative; background: var(--surface-3); color: var(--text); border-radius: 16px;
+  padding: .45rem .65rem .3rem; font-size: .9rem; line-height: 1.38; word-wrap: break-word; overflow-wrap: anywhere; min-width: 64px;
+}
+.fila:not(.mio) .burbuja { border-top-left-radius: 6px; }
+.fila.cont:not(.mio) .burbuja { border-top-left-radius: 16px; border-bottom-left-radius: 6px; }
+.fila.mio .burbuja { background: #DCE7FF; border-top-right-radius: 6px; }
+.fila.mio.cont .burbuja { border-top-right-radius: 16px; border-bottom-right-radius: 6px; }
+:host-context(html[data-theme='dark']) .fila.mio .burbuja { background: #22325E; }
+.burbuja.error { outline: 1px solid var(--danger-border); }
+.burbuja.solo-media { padding: 3px; background: transparent !important; }
+.burbuja.solo-media .meta { position: absolute; right: 10px; bottom: 8px; color: #fff; background: rgba(0,0,0,.45);
+  border-radius: 999px; padding: 0 .4rem; }
+.texto :where(a) { color: var(--link, var(--primary)); word-break: break-all; }
+
+.meta { display: flex; align-items: center; justify-content: flex-end; gap: 2px; font-size: .66rem; color: var(--muted);
+  margin-top: .1rem; white-space: nowrap; }
+.est { font-size: 14px; width: 14px; height: 14px; }
+.est.visto { color: var(--primary); }
+.est.err { color: var(--danger); }
+.borrado { display: inline-flex; align-items: center; gap: .3rem; font-style: italic; color: var(--muted); }
+.borrado mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.fallo { font-size: .72rem; color: var(--danger-fg); margin-top: .15rem; }
+.fallo button { border: 0; background: none; color: var(--primary); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+
+.cita { display: flex; flex-direction: column; border-left: 3px solid var(--primary); background: rgba(var(--surface-rgb), .55);
+  border-radius: 6px; padding: .2rem .45rem; margin-bottom: .3rem; font-size: .76rem; color: var(--text-2); }
+.cita span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.fotos { display: grid; gap: 3px; margin-bottom: .2rem; border-radius: 12px; overflow: hidden; }
+.fotos.varias { grid-template-columns: 1fr 1fr; }
+.fotos img { width: 100%; max-height: 260px; object-fit: cover; cursor: zoom-in; display: block; background: var(--surface-4); min-height: 80px; }
+.fotos:not(.varias) img { max-width: 280px; }
+video { width: 100%; max-width: 320px; border-radius: 10px; margin-bottom: .2rem; background: #000; }
+audio { width: 250px; max-width: 100%; margin-bottom: .2rem; }
+
+.doc { display: flex; align-items: center; gap: .5rem; width: 100%; min-width: 200px; text-align: left; border: 1px solid var(--border);
+  background: var(--surface); border-radius: 10px; padding: .4rem .45rem; margin-bottom: .25rem; cursor: pointer; font: inherit; color: inherit; }
+.doc:hover { border-color: var(--border-strong); }
+.doc mat-icon { color: var(--primary); }
+.doc mat-icon.escaneo { color: var(--lime-ink, #4E8A12); }
+.doc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.doc-t strong { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-t small { font-size: .7rem; color: var(--muted); }
+.doc a { color: var(--muted); display: inline-flex; }
+
+.mas { opacity: 0; border: 0; background: transparent; color: var(--muted); width: 28px; height: 28px; border-radius: 50%;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; align-self: center; flex: none; }
+.mas mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.fila:hover .mas, .mas:focus-visible { opacity: 1; }
+.mas:hover { background: var(--surface-3); }
+@media (hover: none) { .mas { opacity: .6; } }
+
+/* ─── Tarjeta de llamada ───────────────────────────────────── */
+.llamada { display: flex; gap: .6rem; margin: .6rem auto; max-width: 92%; width: 360px; border: 1px solid var(--border);
+  background: var(--surface); border-radius: 14px; padding: .6rem .7rem; box-shadow: var(--shadow-sm); }
+.ll-ico { width: 38px; height: 38px; border-radius: 50%; background: var(--ok-bg); color: var(--ok-fg); display: flex;
+  align-items: center; justify-content: center; flex: none; }
+.llamada.perdida .ll-ico { background: var(--danger-bg); color: var(--danger-fg); }
+.ll-txt { display: flex; flex-direction: column; gap: .15rem; min-width: 0; font-size: .85rem; }
+.ll-txt small { color: var(--muted); font-size: .72rem; }
+.tr { display: inline-flex; align-items: center; gap: .25rem; font-size: .75rem; color: var(--text-2); }
+.tr mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.tr.err { color: var(--danger-fg); }
+.tit { font-weight: 700; font-size: .82rem; margin-top: .2rem; }
+.res { font-size: .78rem; color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ll-acc { display: flex; gap: .4rem; margin-top: .3rem; flex-wrap: wrap; }
+.unirse, .link { display: inline-flex; align-items: center; gap: .25rem; border-radius: 999px; font: inherit; font-size: .78rem;
+  cursor: pointer; padding: .25rem .65rem; }
+.unirse { background: #16A34A; color: #fff; border: 0; font-weight: 700; }
+.link { background: var(--surface-2); border: 1px solid var(--border); color: var(--primary); }
+.unirse mat-icon, .link mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.gira { animation: gira 1.2s linear infinite; }
+@keyframes gira { to { transform: rotate(360deg); } }
+
+.autor { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.autor small { font-weight: 500; color: var(--muted); margin-left: .2rem; }
+.burbuja.asistente { background: var(--com-ia-burbuja); }
+.texto.md :first-child { margin-top: 0; }
+.texto.md :last-child { margin-bottom: 0; }
+.texto.md p { margin: 0 0 .35rem; }
+.texto.md ul, .texto.md ol { margin: .2rem 0 .35rem; padding-left: 1.15rem; }
+.texto.md li { margin: .1rem 0; }
+.doc-ia { margin-top: .3rem; max-width: 100%; }
+.acciones-ia { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .35rem; }
+.acciones-ia button, .acciones-ia a { display: inline-flex; align-items: center; gap: .25rem; border: 1px solid var(--com-verde-txt); color: var(--com-verde-txt);
+  background: var(--surface); border-radius: 999px; padding: .25rem .65rem; font: inherit; font-size: .76rem; font-weight: 700;
+  cursor: pointer; text-decoration: none; }
+.acciones-ia button:hover, .acciones-ia a:hover { background: var(--com-verde-suave); }
+.acciones-ia mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.acciones-ia .persona { border-color: var(--border); color: var(--text-2); }
+.sugerencias { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .45rem; }
+.sugerencias button { border: 1px solid var(--info-border); background: var(--info-bg); color: var(--info-fg); border-radius: 12px;
+  padding: .3rem .6rem; font: inherit; font-size: .76rem; cursor: pointer; text-align: left; }
+.sugerencias button:hover { filter: brightness(.97); }
+/* Escrito durante una llamada (queda también en el acta). */
+.meta .en-llamada { font-size: 12px; width: 12px; height: 12px; margin-right: 2px; opacity: .8; }

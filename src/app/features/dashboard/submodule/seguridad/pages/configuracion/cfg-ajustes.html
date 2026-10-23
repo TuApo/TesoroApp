@@ -1,0 +1,93 @@
+@if (error(); as e) { <div class="sg-aviso danger"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+
+@if (ajustes(); as a) {
+  @if (modo() === 'privacidad') {
+    <div class="sg-aviso"><mat-icon aria-hidden="true">gavel</mat-icon>
+      <span>Ley 1581 de 2012, Decreto 1377 de 2013 y Guía de la SIC sobre videovigilancia: la imagen y la biometría son datos personales (la biometría,
+        sensible). Se recolectan con finalidad de seguridad, con aviso visible, por el tiempo mínimo necesario, y cada acceso a video queda auditado.</span></div>
+    <section class="tarjetas-ajustes">
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">face</mat-icon>Reconocimiento facial</h3>
+        <span [class]="'sg-chip ' + (a.rostros_habilitado ? 'info' : 'neutro')">{{ a.rostros_habilitado ? 'Encendido' : 'Apagado' }}</span>
+        <small>Umbral de similitud: <b class="sg-mono">{{ a.umbral_rostro }}</b></small>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">diversity_3</mat-icon>Demografía</h3>
+        <span [class]="'sg-chip ' + (a.demografia_habilitada ? 'warn' : 'neutro')">{{ a.demografia_habilitada ? 'Encendida (solo totales)' : 'Apagada' }}</span>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">auto_delete</mat-icon>Retención</h3>
+        <small>Capturas {{ a.retencion_capturas_dias }} d · eventos {{ a.retencion_eventos_dias }} d · grabación {{ a.retencion_grabacion_dias }} d</small>
+      </article>
+      <article class="sg-tarjeta bloque ancho">
+        <h3><mat-icon aria-hidden="true">campaign</mat-icon>Aviso de videovigilancia</h3>
+        <p class="sg-nota pre">{{ a.aviso_privacidad || 'Sin texto: escriba el aviso que se publica en las sedes.' }}</p>
+      </article>
+    </section>
+    <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editar('privacidad')"><mat-icon aria-hidden="true">edit</mat-icon>Editar privacidad</button></div>
+    <p class="sg-nota">La auditoría de quién vio qué cámara, quién exportó video y quién abrió qué puerta está en la pestaña Auditoría.</p>
+  } @else {
+    <section class="tarjetas-ajustes">
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">tune</mat-icon>Retención y palabras clave</h3>
+        <small>Capturas {{ a.retencion_capturas_dias }} d · eventos {{ a.retencion_eventos_dias }} d · grabación {{ a.retencion_grabacion_dias }} d</small>
+        <small>{{ a.palabras_clave.length ? a.palabras_clave.join(', ') : 'Sin palabras clave' }}</small>
+        <button type="button" class="sg-boton" (click)="editar('general')"><mat-icon aria-hidden="true">edit</mat-icon>Editar</button>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">videocam</mat-icon>Direcciones y video</h3>
+        <small>App: {{ a.url_publica || '—' }}</small><small>WHEP: {{ a.whep_base || '—' }}</small><small>HLS: {{ a.hls_base || '—' }}</small>
+        <button type="button" class="sg-boton" (click)="editar('video')"><mat-icon aria-hidden="true">edit</mat-icon>Editar</button>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">send</mat-icon>Telegram <span class="sg-chip info sg-sub">Principal</span></h3>
+        @if (a.telegram.configurado) { <span class="sg-chip ok"><mat-icon aria-hidden="true">check_circle</mat-icon>Configurado</span> }
+        @else { <span class="sg-chip warn"><mat-icon aria-hidden="true">warning</mat-icon>Sin configurar</span> }
+        @if (a.telegram.bot_usuario) { <small>Bot {{ '@' + a.telegram.bot_usuario }}</small> }
+        @if (a.telegram.ultimo_contacto) { <small>Último contacto {{ f.hace(a.telegram.ultimo_contacto) }}</small> }
+        <div class="sg-fila">
+          <button type="button" class="sg-boton" (click)="editar('telegram')"><mat-icon aria-hidden="true">key</mat-icon>Token del bot</button>
+          <button type="button" class="sg-boton" (click)="probar('TELEGRAM')" [disabled]="!a.telegram.configurado"><mat-icon aria-hidden="true">science</mat-icon>Probar</button>
+        </div>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">chat</mat-icon>WhatsApp</h3>
+        <span [class]="'sg-chip ' + (a.whatsapp.configurado ? 'ok' : 'neutro')">{{ a.whatsapp.proveedor === 'NINGUNO' ? 'Sin proveedor' : a.whatsapp.proveedor }}</span>
+        @if (a.whatsapp.origen) { <small>{{ a.whatsapp.origen }}</small> }
+        <small class="sg-tenue">La granja de celulares actual no sirve para alarmas (solo despacha campañas de 7 a 20 h).</small>
+        <div class="sg-fila">
+          <button type="button" class="sg-boton" (click)="editar('whatsapp')"><mat-icon aria-hidden="true">edit</mat-icon>Configurar</button>
+          <button type="button" class="sg-boton" (click)="probar('WHATSAPP')" [disabled]="!a.whatsapp.configurado"><mat-icon aria-hidden="true">science</mat-icon>Probar</button>
+        </div>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">call</mat-icon>Llamadas (Twilio)</h3>
+        <span [class]="'sg-chip ' + (a.twilio.configurado ? 'ok' : 'neutro')">{{ a.twilio.configurado ? 'Configurado' : 'Sin configurar' }}</span>
+        @if (a.twilio.origen_voz) { <small>Origen {{ a.twilio.origen_voz }}</small> }
+        <div class="sg-fila">
+          <button type="button" class="sg-boton" (click)="editar('twilio')"><mat-icon aria-hidden="true">key</mat-icon>Credenciales</button>
+          <button type="button" class="sg-boton" (click)="probar('LLAMADA')" [disabled]="!a.twilio.configurado"><mat-icon aria-hidden="true">science</mat-icon>Probar</button>
+        </div>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">webhook</mat-icon>Webhook</h3>
+        <small>{{ a.webhook.url || 'Sin URL' }}</small>
+        <div class="sg-fila">
+          <button type="button" class="sg-boton" (click)="editar('webhook')"><mat-icon aria-hidden="true">edit</mat-icon>Configurar</button>
+          <button type="button" class="sg-boton" (click)="probar('WEBHOOK')" [disabled]="!a.webhook.url"><mat-icon aria-hidden="true">science</mat-icon>Probar</button>
+        </div>
+      </article>
+      <article class="sg-tarjeta bloque">
+        <h3><mat-icon aria-hidden="true">mail</mat-icon>Correo</h3>
+        <span [class]="'sg-chip ' + (a.email.habilitado ? 'ok' : 'neutro')">{{ a.email.habilitado ? 'Habilitado' : 'Apagado' }}</span>
+        @if (a.email.remitente) { <small>{{ a.email.remitente }}</small> }
+        <div class="sg-fila">
+          <button type="button" class="sg-boton" (click)="editar('email')"><mat-icon aria-hidden="true">edit</mat-icon>Configurar</button>
+          <button type="button" class="sg-boton" (click)="probar('EMAIL')" [disabled]="!a.email.habilitado"><mat-icon aria-hidden="true">science</mat-icon>Probar</button>
+        </div>
+      </article>
+    </section>
+  }
+} @else if (!error()) {
+  <p class="sg-tenue">Cargando…</p>
+}

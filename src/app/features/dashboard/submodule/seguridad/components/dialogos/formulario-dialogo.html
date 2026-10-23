@@ -1,0 +1,113 @@
+<div class="dlg">
+  <header class="dlg-cab">
+    @if (data.icono) { <mat-icon aria-hidden="true" [class.peligro]="data.tono === 'peligro'">{{ data.icono }}</mat-icon> }
+    <h2 mat-dialog-title>{{ data.titulo }}</h2>
+  </header>
+
+  <mat-dialog-content class="dlg-cuerpo">
+    @if (data.descripcion) { <p class="dlg-desc">{{ data.descripcion }}</p> }
+    @if (data.aviso; as a) {
+      <div class="dlg-aviso" [class]="'dlg-aviso ' + a.tono"><mat-icon aria-hidden="true">info</mat-icon><span>{{ a.texto }}</span></div>
+    }
+
+    <form class="dlg-form" (ngSubmit)="aceptar()" autocomplete="off">
+      @for (c of data.campos; track c.clave) {
+        @if (visible(c)) {
+          @if (c.seccion) { <h3 class="dlg-seccion">{{ c.seccion }}</h3> }
+          @switch (c.tipo) {
+            @case ('booleano') {
+              <div class="dlg-bool" [class.ancho]="c.ancho">
+                <mat-slide-toggle [(ngModel)]="valores[c.clave]" [name]="c.clave" (ngModelChange)="cambio()">{{ c.etiqueta }}</mat-slide-toggle>
+                @if (c.ayuda) { <small>{{ c.ayuda }}</small> }
+              </div>
+            }
+            @case ('seleccion') {
+              <mat-form-field appearance="outline" [class.ancho]="c.ancho">
+                <mat-label>{{ c.etiqueta }}</mat-label>
+                <mat-select [(ngModel)]="valores[c.clave]" [name]="c.clave" [required]="requerido(c)" (ngModelChange)="cambio()">
+                  @if (!requerido(c)) { <mat-option [value]="null">— Ninguno —</mat-option> }
+                  @for (o of c.opciones ?? []; track $index) { <mat-option [value]="o.valor">{{ o.texto }}</mat-option> }
+                </mat-select>
+                @if (c.ayuda) { <mat-hint>{{ c.ayuda }}</mat-hint> }
+              </mat-form-field>
+            }
+            @case ('multiple') {
+              <mat-form-field appearance="outline" [class.ancho]="c.ancho">
+                <mat-label>{{ c.etiqueta }}</mat-label>
+                <mat-select multiple [(ngModel)]="valores[c.clave]" [name]="c.clave" [required]="requerido(c)" (ngModelChange)="cambio()">
+                  @for (o of c.opciones ?? []; track $index) { <mat-option [value]="o.valor">{{ o.texto }}</mat-option> }
+                </mat-select>
+                @if (c.ayuda) { <mat-hint>{{ c.ayuda }}</mat-hint> }
+              </mat-form-field>
+            }
+            @case ('area') {
+              <mat-form-field appearance="outline" class="ancho">
+                <mat-label>{{ c.etiqueta }}</mat-label>
+                <textarea matInput rows="3" [(ngModel)]="valores[c.clave]" [name]="c.clave" [required]="requerido(c)"
+                          [placeholder]="c.placeholder ?? ''" (ngModelChange)="cambio()"></textarea>
+                @if (c.ayuda) { <mat-hint>{{ c.ayuda }}</mat-hint> }
+              </mat-form-field>
+            }
+            @case ('clave') {
+              <mat-form-field appearance="outline" [class.ancho]="c.ancho">
+                <mat-label>{{ c.etiqueta }}</mat-label>
+                <input matInput [type]="verClave()[c.clave] ? 'text' : 'password'" [(ngModel)]="valores[c.clave]" [name]="c.clave"
+                       autocomplete="new-password" [required]="requerido(c) && !c.guardado"
+                       [placeholder]="c.guardado ? 'Guardada · déjela vacía para no cambiarla' : (c.placeholder ?? '')" (ngModelChange)="cambio()" />
+                <button mat-icon-button matSuffix type="button" class="dlg-ojo" (click)="alternarClave(c.clave)"
+                        [attr.aria-label]="verClave()[c.clave] ? 'Ocultar' : 'Mostrar'">
+                  <mat-icon>{{ verClave()[c.clave] ? 'visibility_off' : 'visibility' }}</mat-icon>
+                </button>
+                <mat-hint>{{ c.ayuda || 'Solo se escribe: nunca se vuelve a mostrar.' }}</mat-hint>
+              </mat-form-field>
+            }
+            @case ('chips') {
+              <div class="dlg-chips ancho">
+                <label [attr.for]="'chip-' + c.clave">{{ c.etiqueta }}@if (requerido(c)) { * }</label>
+                <div class="lista">
+                  @for (x of valores[c.clave] ?? []; track x) {
+                    <span class="chip">{{ x }}<button type="button" (click)="quitarChip(c, x)" [attr.aria-label]="'Quitar ' + x"><mat-icon>close</mat-icon></button></span>
+                  }
+                  <input [id]="'chip-' + c.clave" [(ngModel)]="borradorChip[c.clave]" [name]="'chip-' + c.clave"
+                         [placeholder]="c.placeholder ?? 'Escriba y presione Enter'" (keydown.enter)="agregarChip(c, $event)" (blur)="agregarChip(c)" />
+                </div>
+                @if (c.ayuda) { <small>{{ c.ayuda }}</small> }
+              </div>
+            }
+            @case ('rango') {
+              <div class="dlg-rango" [class.ancho]="c.ancho">
+                <label [attr.for]="'rg-' + c.clave">{{ c.etiqueta }} <b class="sg-mono">{{ valores[c.clave] }}</b></label>
+                <input type="range" [id]="'rg-' + c.clave" [min]="c.min ?? 0" [max]="c.max ?? 100" [step]="c.paso ?? 1"
+                       [(ngModel)]="valores[c.clave]" [name]="c.clave" (ngModelChange)="cambio()" />
+                @if (c.ayuda) { <small>{{ c.ayuda }}</small> }
+              </div>
+            }
+            @default {
+              <mat-form-field appearance="outline" [class.ancho]="c.ancho">
+                <mat-label>{{ c.etiqueta }}</mat-label>
+                <input matInput [(ngModel)]="valores[c.clave]" [name]="c.clave" [required]="requerido(c)"
+                       [type]="c.tipo === 'numero' ? 'number' : c.tipo === 'fecha' ? 'date' : c.tipo === 'fechaHora' ? 'datetime-local' : c.tipo === 'hora' ? 'time' : c.tipo === 'color' ? 'color' : 'text'"
+                       [attr.min]="c.min ?? null" [attr.max]="c.max ?? null" [attr.step]="c.paso ?? null"
+                       [placeholder]="c.placeholder ?? ''" (ngModelChange)="cambio()" />
+                @if (c.ayuda) { <mat-hint>{{ c.ayuda }}</mat-hint> }
+              </mat-form-field>
+            }
+          }
+        }
+      }
+      <button type="submit" hidden aria-hidden="true" tabindex="-1"></button>
+    </form>
+
+    @if (error(); as e) {
+      <div class="dlg-aviso danger" role="alert"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div>
+    }
+  </mat-dialog-content>
+
+  @if (guardando()) { <mat-progress-bar mode="indeterminate" /> }
+  <mat-dialog-actions align="end" class="dlg-acciones">
+    <button mat-stroked-button type="button" (click)="ref.close()" [disabled]="guardando()">Cancelar</button>
+    <button mat-flat-button type="button" [class.peligro]="data.tono === 'peligro'" (click)="aceptar()" [disabled]="guardando()">
+      {{ data.textoGuardar ?? 'Guardar' }}
+    </button>
+  </mat-dialog-actions>
+</div>

@@ -1,0 +1,191 @@
+@if (error(); as e) { <div class="sg-aviso danger"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+<audio #escucha autoplay class="oculto"></audio>
+
+<!-- ── Parlantes ────────────────────────────────────────────────────── -->
+<section class="sg-fila sg-fila--entre">
+  <h3 class="sg-titulo-seccion"><mat-icon aria-hidden="true">speaker_group</mat-icon>Parlantes</h3>
+  <button type="button" class="sg-boton sg-boton--primario" (click)="editarParlante(null)"><mat-icon aria-hidden="true">add</mat-icon>Nuevo parlante</button>
+</section>
+<div class="parlantes">
+  @for (p of parlantes(); track p.id) {
+    <article class="parlante sg-tarjeta" [class.apagado]="!p.activo">
+      <header>
+        <label class="elegir" [attr.aria-label]="'Enviar a ' + p.nombre">
+          <input type="checkbox" [checked]="destinos().has(p.id)" (change)="alternarDestino(p.id)" />
+        </label>
+        <span class="nom"><b>{{ p.nombre }}</b><small>{{ p.sede_nombre }} · {{ nombreTipoParlante[p.tipo] }}</small></span>
+        @if (enLinea(p)) { <span class="sg-chip ok"><mat-icon aria-hidden="true">wifi</mat-icon>En línea</span> }
+        @else { <span class="sg-chip warn" [matTooltip]="p.ultima_conexion ? 'Última conexión ' + f.hace(p.ultima_conexion) : 'Nunca se ha conectado'"><mat-icon aria-hidden="true">wifi_off</mat-icon>Fuera de línea</span> }
+      </header>
+      <div class="sg-fila meta">
+        <span class="sg-chip neutro"><mat-icon aria-hidden="true">volume_up</mat-icon>{{ p.volumen }}%</span>
+        @if (p.microfono) { <span class="sg-chip info"><mat-icon aria-hidden="true">mic</mat-icon>Micrófono</span> }
+        @if (p.transcribir) { <span class="sg-chip violet"><mat-icon aria-hidden="true">subtitles</mat-icon>Transcribe</span> }
+      </div>
+      <sg-ptt-boton [parlanteId]="p.id" [etiqueta]="'Mantener para hablar'" [deshabilitado]="!p.activo" />
+      <div class="sg-fila">
+        @if (p.microfono) {
+          <button type="button" class="sg-boton" [class.sg-boton--ok]="escuchando() === p.id" (click)="escuchar(p)" [disabled]="conectandoEscucha() === p.id"
+                  [attr.aria-pressed]="escuchando() === p.id">
+            <mat-icon aria-hidden="true">{{ escuchando() === p.id ? 'hearing_disabled' : 'hearing' }}</mat-icon>
+            {{ conectandoEscucha() === p.id ? 'Conectando…' : escuchando() === p.id ? 'Dejar de escuchar' : 'Escuchar' }}
+          </button>
+          <button type="button" class="sg-boton" (click)="verTranscripciones(p)"><mat-icon aria-hidden="true">subtitles</mat-icon>Transcripciones</button>
+        }
+        <button type="button" class="sg-boton" (click)="detener(p)"><mat-icon aria-hidden="true">stop</mat-icon>Detener</button>
+      </div>
+      <footer>
+        @if (p.tipo === 'NAVEGADOR') {
+          <button type="button" class="sg-boton" (click)="enlace(p)"><mat-icon aria-hidden="true">qr_code_2</mat-icon>Enlace del parlante</button>
+        }
+        <span class="sg-espaciador"></span>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarParlante(p)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarParlante(p)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </footer>
+    </article>
+  } @empty {
+    <div class="sg-tarjeta sg-vacio"><mat-icon aria-hidden="true">speaker</mat-icon>
+      {{ cargando() ? 'Cargando…' : 'Aún no hay parlantes. Cualquier PC o TV de la sede sirve: cree uno tipo "Navegador" y abra su enlace allá.' }}</div>
+  }
+</div>
+
+<!-- ── Enviar a parlantes ───────────────────────────────────────────── -->
+<section class="sg-tarjeta envio">
+  <h3><mat-icon aria-hidden="true">campaign</mat-icon>Reproducir en parlantes
+    <span class="sg-sub">{{ destinos().size }} elegido(s) arriba</span></h3>
+  <div class="sg-form">
+    <label class="sg-campo-nativo">Audio de la biblioteca
+      <select [(ngModel)]="audioAEnviar" name="audioAEnviar">
+        <option [ngValue]="null">— Ninguno (leer texto) —</option>
+        @for (a of audios(); track a.id) { <option [ngValue]="a.id">{{ a.nombre }} · {{ nombreTipoAudio[a.tipo] }}</option> }
+      </select>
+    </label>
+    <label class="sg-campo-nativo ancho">…o un texto para leer con voz IA
+      <textarea rows="2" [(ngModel)]="textoAEnviar" name="textoAEnviar" placeholder="Atención: esta zona está siendo grabada."></textarea>
+    </label>
+    <label class="sg-campo-nativo">Repetir
+      <input type="number" min="1" max="20" [(ngModel)]="repetir" name="repetir" />
+    </label>
+    <label class="sg-campo-nativo">Volumen {{ volumenEnvio() == null ? '(el del parlante)' : volumenEnvio() + '%' }}
+      <input type="range" min="0" max="100" step="5" [ngModel]="volumenEnvio() ?? 80" (ngModelChange)="volumenEnvio.set(+$event)" name="volumenEnvio" />
+    </label>
+  </div>
+  <div class="sg-fila">
+    <button type="button" class="sg-boton sg-boton--primario sg-boton--grande" (click)="enviar()" [disabled]="enviando() || !destinos().size">
+      <mat-icon aria-hidden="true">play_arrow</mat-icon>{{ enviando() ? 'Enviando…' : 'Reproducir ahora' }}
+    </button>
+    @if (volumenEnvio() != null) { <button type="button" class="sg-boton" (click)="volumenEnvio.set(null)">Usar el volumen de cada parlante</button> }
+  </div>
+</section>
+
+<div class="sg-rejilla--2">
+  <!-- ── Creador de locución IA ──────────────────────────────────────── -->
+  <section class="sg-tarjeta creador">
+    <h3><mat-icon aria-hidden="true">record_voice_over</mat-icon>Crear locución con IA</h3>
+    <label class="sg-campo-nativo">Texto
+      <textarea rows="4" [(ngModel)]="texto" name="texto" maxlength="2000"
+                placeholder="Atención: la persona de chaqueta negra está siendo grabada. La policía ya fue avisada."></textarea>
+    </label>
+    <div class="sg-form">
+      <label class="sg-campo-nativo">Voz
+        <select [(ngModel)]="vozId" name="vozId">
+          @for (v of voces(); track v.voice_id) { <option [ngValue]="v.voice_id">{{ v.nombre }}@if (v.idioma) { ({{ v.idioma }}) }</option> }
+          @if (!voces().length) { <option [ngValue]="null">Voz por defecto</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Nombre en la biblioteca
+        <input type="text" [(ngModel)]="nombre" name="nombre" placeholder="Opcional" />
+      </label>
+      <label class="sg-campo-nativo ancho">Efecto de sonido antes de la voz (opcional)
+        <input type="text" [(ngModel)]="efectoPrompt" name="efectoPrompt" placeholder="Ej.: alarm beep three times" />
+      </label>
+      <label class="sg-campo-nativo">Fondo
+        <select [(ngModel)]="fondoId" name="fondoId">
+          <option [ngValue]="null">Sin fondo</option>
+          @for (a of fondos(); track a.id) { <option [ngValue]="a.id">{{ a.nombre }}</option> }
+        </select>
+      </label>
+      @if (fondoId) {
+        <label class="sg-campo-nativo">Volumen del fondo {{ (volumenFondo() * 100).toFixed(0) }}%
+          <input type="range" min="0" max="1" step="0.05" [ngModel]="volumenFondo()" (ngModelChange)="volumenFondo.set(+$event)" name="volumenFondo" />
+        </label>
+      }
+    </div>
+    <label class="check"><input type="checkbox" [(ngModel)]="guardarEnBiblioteca" name="guardar" /> Guardar en la biblioteca</label>
+    <div class="sg-fila">
+      <button type="button" class="sg-boton sg-boton--primario" (click)="generarLocucion()" [disabled]="generando()">
+        <mat-icon aria-hidden="true">auto_awesome</mat-icon>{{ generando() ? 'Generando…' : 'Generar y escuchar' }}
+      </button>
+      @if (ultimoGenerado(); as a) {
+        <button type="button" class="sg-boton" (click)="preescuchar(a)"><mat-icon aria-hidden="true">{{ sonando() === a.id ? 'stop' : 'play_arrow' }}</mat-icon>Escuchar otra vez</button>
+        <button type="button" class="sg-boton" (click)="usarEnEnvio(a)"><mat-icon aria-hidden="true">campaign</mat-icon>Enviar a parlantes</button>
+      }
+    </div>
+
+    <h4>Solo un efecto de sonido</h4>
+    <div class="sg-form">
+      <label class="sg-campo-nativo ancho">Descripción
+        <input type="text" [(ngModel)]="efectoSolo" name="efectoSolo" placeholder="Ej.: loud police siren, close" />
+      </label>
+      <label class="sg-campo-nativo">Nombre <input type="text" [(ngModel)]="efectoNombre" name="efectoNombre" placeholder="Opcional" /></label>
+      <label class="sg-campo-nativo">Duración (s) <input type="number" min="1" max="22" [(ngModel)]="efectoDuracion" name="efectoDuracion" placeholder="Auto" /></label>
+    </div>
+    <button type="button" class="sg-boton" (click)="generarEfecto()" [disabled]="generando()"><mat-icon aria-hidden="true">graphic_eq</mat-icon>Generar efecto</button>
+
+    @if (errorCreador(); as e) { <div class="sg-aviso danger" role="alert"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+  </section>
+
+  <!-- ── Biblioteca ─────────────────────────────────────────────────── -->
+  <section class="sg-tarjeta biblioteca">
+    <h3><mat-icon aria-hidden="true">library_music</mat-icon>Biblioteca
+      <label class="sg-boton sg-sub subir"><mat-icon aria-hidden="true">upload</mat-icon>Subir
+        <input type="file" accept="audio/*" (change)="subir($event)" hidden /></label></h3>
+    <div class="sg-segmentos" role="group" aria-label="Tipo de audio">
+      <button type="button" [attr.aria-pressed]="filtroTipo() === null" (click)="filtroTipo.set(null)">Todos</button>
+      @for (t of tiposAudio; track t) { <button type="button" [attr.aria-pressed]="filtroTipo() === t" (click)="filtroTipo.set(t)">{{ nombreTipoAudio[t] }}</button> }
+    </div>
+    <ul class="sg-lista">
+      @for (a of audiosFiltrados(); track a.id) {
+        <li>
+          <button type="button" class="sg-boton sg-boton--icono" (click)="preescuchar(a)" [attr.aria-label]="(sonando() === a.id ? 'Detener ' : 'Escuchar ') + a.nombre">
+            <mat-icon>{{ sonando() === a.id ? 'stop' : 'play_arrow' }}</mat-icon>
+          </button>
+          <div class="cuerpo">
+            <div class="t">{{ a.nombre }}</div>
+            <div class="d">{{ nombreTipoAudio[a.tipo] }}@if (a.duracion_seg) { · {{ f.cronometro(a.duracion_seg) }} } · {{ f.fechaHora(a.creado_en) }}</div>
+            @if (a.texto) { <div class="d">“{{ a.texto }}”</div> }
+          </div>
+          <button type="button" class="sg-boton sg-boton--icono" (click)="usarEnEnvio(a)" matTooltip="Enviar a parlantes" aria-label="Enviar a parlantes"><mat-icon>campaign</mat-icon></button>
+          <button type="button" class="sg-boton sg-boton--icono" (click)="borrarAudio(a)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+        </li>
+      } @empty { <li class="sg-tenue">Sin audios.</li> }
+    </ul>
+  </section>
+</div>
+
+<!-- Transcripciones -->
+@if (transcDe(); as p) {
+  <div class="velo" (click)="transcDe.set(null)" aria-hidden="true"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" [attr.aria-label]="'Transcripciones de ' + p.nombre">
+    <header class="cab-cajon">
+      <h2>Transcripciones · {{ p.nombre }}</h2>
+      <span>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="verTranscripciones(p)" aria-label="Actualizar"><mat-icon>refresh</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="transcDe.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+      </span>
+    </header>
+    <ul class="sg-lista">
+      @for (t of transcripciones(); track t.id) {
+        <li [class.alerta]="t.alertas.length">
+          <div class="cuerpo">
+            <div class="t">{{ t.texto }}</div>
+            @if (t.alertas.length) {
+              <div class="sg-fila">@for (a of t.alertas; track a) { <span class="sg-chip danger"><mat-icon aria-hidden="true">warning</mat-icon>{{ a }}</span> }</div>
+            }
+          </div>
+          <span class="cuando">{{ f.fechaHora(t.inicio) }}</span>
+        </li>
+      } @empty { <li class="sg-tenue">{{ cargandoTransc() ? 'Cargando…' : 'Sin transcripciones.' }}</li> }
+    </ul>
+  </aside>
+}

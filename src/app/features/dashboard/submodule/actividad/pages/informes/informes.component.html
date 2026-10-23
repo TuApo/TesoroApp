@@ -1,0 +1,144 @@
+<div class="ap inf">
+  <aside class="inf-lado">
+    <button mat-flat-button class="ap-btn inf-nuevo" (click)="nuevo()"><mat-icon>auto_awesome</mat-icon>Nuevo informe o pregunta</button>
+    <div class="inf-filtros">
+      <select [ngModel]="filtroTipo()" (ngModelChange)="filtroTipo.set($event); cargarHistorial()" aria-label="Tipo">
+        <option value="">Todos</option><option value="PERSONA">Personas</option><option value="EQUIPO">Equipos</option><option value="PLATAFORMA">Plataforma</option>
+      </select>
+      @if (alcance()?.supervisa) {
+        <label class="inf-check"><input type="checkbox" [ngModel]="mios()" (ngModelChange)="mios.set($event); cargarHistorial()" /> Solo los míos</label>
+      }
+    </div>
+    <h3 class="inf-h">Histórico ({{ totalHistorial() }})</h3>
+    <ul class="inf-hist">
+      @for (i of historial(); track i.id) {
+        <li>
+          <button type="button" [class.on]="actual()?.id === i.id" (click)="abrir(i.id)">
+            <span class="inf-hist-t">
+              <mat-icon>{{ i.tipo === 'PERSONA' ? 'person' : i.tipo === 'EQUIPO' ? 'groups' : 'public' }}</mat-icon>
+              <span class="inf-ellipsis">{{ i.sujeto_nombre }}</span>
+              @if (i.estado !== 'LISTO') { <span class="chip" [attr.data-tono]="i.estado === 'ERROR' ? 'peligro' : 'info'">{{ i.estado === 'ERROR' ? 'error' : 'escribiendo…' }}</span> }
+            </span>
+            @if (i.enfoque) { <span class="inf-hist-e">«{{ i.enfoque }}»</span> }
+            <small class="muted">{{ i.desde }} a {{ i.hasta }} · {{ hace(i.creado_en) }} · {{ i.programado ? 'automático' : i.creado_por_nombre }}
+              @if ((i.preguntas ?? 0) > 0) { · {{ i.preguntas }} pregunta(s) }</small>
+          </button>
+        </li>
+      } @empty { <li class="muted inf-vacio">Aún no hay informes.</li> }
+    </ul>
+  </aside>
+
+  <section class="inf-main">
+    @if (formAbierto()) {
+      <form class="tarjeta inf-form" (submit)="$event.preventDefault(); crear()">
+        <h2><mat-icon>auto_awesome</mat-icon>Pregúntale a la IA sobre la actividad</h2>
+        <div class="inf-tipos" role="radiogroup">
+          <label [class.on]="tipo === 'PERSONA'"><input type="radio" name="tipo" value="PERSONA" [(ngModel)]="tipo" /><mat-icon>person</mat-icon>Una persona</label>
+          @if (alcance()?.supervisa) {
+            <label [class.on]="tipo === 'EQUIPO'"><input type="radio" name="tipo" value="EQUIPO" [(ngModel)]="tipo" /><mat-icon>groups</mat-icon>Un equipo</label>
+          }
+          @if (alcance()?.total) {
+            <label [class.on]="tipo === 'PLATAFORMA'"><input type="radio" name="tipo" value="PLATAFORMA" [(ngModel)]="tipo" /><mat-icon>public</mat-icon>Toda la plataforma</label>
+          }
+        </div>
+
+        @if (tipo === 'PERSONA') {
+          @if (sujeto) {
+            <div class="inf-sujeto"><mat-icon>person</mat-icon><b>{{ sujeto.nombre }}</b>
+              @if (alcance()?.supervisa) { <button mat-button type="button" (click)="sujeto = null">Cambiar</button> }</div>
+          } @else {
+            <div class="inf-buscar">
+              <label class="ap-buscar"><mat-icon>search</mat-icon>
+                <input name="persona" placeholder="Busca la persona por nombre, correo o documento" [ngModel]="buscarPersona" (ngModelChange)="buscar($event)" autocomplete="off" /></label>
+              @if (candidatos().length) {
+                <ul class="inf-cand">
+                  @for (c of candidatos(); track c.usuario_id) {
+                    <li><button type="button" (click)="elegirPersona(c)"><b>{{ c.nombre }}</b><small class="muted">{{ c.rol }} · {{ c.sede }}</small></button></li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+        } @else if (tipo === 'EQUIPO') {
+          <div class="inf-fila">
+            <select name="rol" [(ngModel)]="rol" aria-label="Rol"><option value="">Todos los roles</option>@for (r of roles(); track r) { <option [value]="r">{{ r }}</option> }</select>
+            <select name="sede" [(ngModel)]="sede" aria-label="Sede"><option value="">Todas las sedes</option>@for (s of sedes(); track s) { <option [value]="s">{{ s }}</option> }</select>
+          </div>
+        }
+
+        <div class="ap-periodo">
+          @for (p of [{ c: '7', e: '7 días' }, { c: '30', e: '30 días' }, { c: '90', e: '90 días' }]; track p.c) {
+            <button type="button" [class.on]="periodo === p.c" (click)="elegirPeriodo(p.c)">{{ p.e }}</button>
+          }
+          <input type="date" name="desde" [(ngModel)]="desde" (change)="periodo = 'rango'" aria-label="Desde" />
+          <input type="date" name="hasta" [(ngModel)]="hasta" (change)="periodo = 'rango'" aria-label="Hasta" />
+        </div>
+
+        <label class="inf-enfoque">
+          <span>¿Qué quieres saber? <small class="muted">(vacío = informe general)</small></span>
+          <textarea name="enfoque" rows="3" [(ngModel)]="enfoque" placeholder="Ej.: ¿Respondió a tiempo los correos de los clientes? ¿Qué hizo el martes?"></textarea>
+        </label>
+        <div class="inf-sug">
+          @for (s of sugerencias; track s) { <button type="button" (click)="usarSugerencia(s)">{{ s }}</button> }
+        </div>
+        <div class="inf-pie">
+          <small class="muted"><mat-icon>info</mat-icon>La IA solo usa los datos de actividad registrados en la plataforma; cada informe queda guardado con esos datos.</small>
+          <button mat-flat-button class="ap-btn" type="submit" [disabled]="!puedeCrear() || creando()">
+            @if (creando()) { <mat-spinner diameter="18" /> } Generar
+          </button>
+        </div>
+      </form>
+    }
+
+    @if (cargandoActual()) { <div class="ap-centro"><mat-spinner diameter="36" /></div> }
+    @if (actual(); as a) {
+      <article class="tarjeta inf-doc">
+        <header class="inf-doc-cab">
+          <div>
+            <h2>{{ a.titulo }}</h2>
+            <p class="muted">{{ etiquetaTipo(a.tipo) }} · {{ a.desde }} a {{ a.hasta }} · pedido por {{ a.programado ? 'la programación semanal' : a.creado_por_nombre }}
+              {{ fechaHora(a.creado_en) }}@if (a.modelo) { · {{ a.modelo }} }</p>
+            @if (a.enfoque) { <p class="inf-preg"><mat-icon>help</mat-icon>{{ a.enfoque }}</p> }
+          </div>
+          <div class="inf-doc-acc">
+            @if (a.tipo === 'PERSONA' && a.sujeto_id) {
+              <a mat-stroked-button class="ap-btn" [routerLink]="['/dashboard/actividad/personas', a.sujeto_id]" [queryParams]="{ desde: a.desde, hasta: a.hasta }"><mat-icon>timeline</mat-icon>Ver actividad</a>
+            }
+            <button mat-stroked-button class="ap-btn" (click)="actualizar()" [disabled]="creando() || a.estado !== 'LISTO'" matTooltip="Nuevo informe con el mismo enfoque, hasta hoy"><mat-icon>refresh</mat-icon>Actualizar</button>
+            <button mat-icon-button (click)="copiar()" matTooltip="Copiar texto" aria-label="Copiar"><mat-icon>content_copy</mat-icon></button>
+            <button mat-icon-button (click)="eliminar()" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+          </div>
+        </header>
+        @if (a.versiones.length) {
+          <div class="inf-versiones">Otras versiones:
+            @for (v of a.versiones; track v.id) { <button type="button" (click)="abrir(v.id)">{{ v.desde }} a {{ v.hasta }} ({{ hace(v.creado_en) }})</button> }
+          </div>
+        }
+        @switch (a.estado) {
+          @case ('LISTO') { <app-markdown-message [content]="a.contenido ?? ''" /> }
+          @case ('ERROR') { <p class="inf-err"><mat-icon>error</mat-icon>No se pudo escribir: {{ a.error }}</p> }
+          @default { <div class="inf-esc"><mat-spinner diameter="30" /><p>La IA está leyendo la actividad y escribiendo el informe…</p></div> }
+        }
+
+        @if (a.estado === 'LISTO') {
+          <section class="inf-chat">
+            <h3><mat-icon>forum</mat-icon>Preguntas sobre este informe</h3>
+            @for (m of a.mensajes; track m.id) {
+              <div class="inf-msj" [class.inf-msj--yo]="m.rol === 'USUARIO'">
+                @if (m.rol === 'USUARIO') { <p>{{ m.contenido }}</p> }
+                @else if (m.estado === 'PENDIENTE') { <div class="inf-esc"><mat-spinner diameter="20" /><span>Pensando…</span></div> }
+                @else { <app-markdown-message [content]="m.contenido ?? ''" /> }
+              </div>
+            }
+            <form class="inf-pregunta" (submit)="$event.preventDefault(); preguntar()">
+              <input name="pregunta" [(ngModel)]="pregunta" placeholder="Pregunta algo más sobre estos datos…" autocomplete="off" />
+              <button mat-flat-button class="ap-btn" type="submit" [disabled]="!pregunta.trim() || preguntando()"><mat-icon>send</mat-icon></button>
+            </form>
+          </section>
+        }
+      </article>
+    } @else if (!formAbierto() && !cargandoActual()) {
+      <div class="tarjeta inf-vacio"><mat-icon>description</mat-icon><p>Elige un informe del histórico o pide uno nuevo.</p></div>
+    }
+  </section>
+</div>

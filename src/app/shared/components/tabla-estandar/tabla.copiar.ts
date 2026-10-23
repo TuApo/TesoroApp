@@ -42,15 +42,28 @@ function escaparHtml(valor: string): string {
 }
 
 /**
+ * Números que Excel estropea al pegarlos: más de 11 dígitos (cuentas, tarjetas) pasan a
+ * notación científica y pierden los últimos dígitos; con cero a la izquierda pierden el cero.
+ */
+const NUMERO_COMO_TEXTO = /^(?:\d{12,}|0\d+)$/;
+
+/**
  * Excel respeta el HTML del portapapeles: el pegado conserva los encabezados y
- * no rompe los valores con comas o tildes.
+ * no rompe los valores con comas o tildes. Las celdas de NUMERO_COMO_TEXTO van con
+ * formato de texto (mso-number-format) para que se peguen tal cual.
  */
 export function aHTML(bloque: BloqueCopiado): string {
   const thead = bloque.encabezados.length
     ? `<thead><tr>${bloque.encabezados.map((h) => `<th>${escaparHtml(celdaPlana(h))}</th>`).join('')}</tr></thead>`
     : '';
+  const td = (c: string) => {
+    const v = celdaPlana(c);
+    return NUMERO_COMO_TEXTO.test(v)
+      ? `<td style="mso-number-format:'\\@'">${escaparHtml(v)}</td>`
+      : `<td>${escaparHtml(v)}</td>`;
+  };
   const tbody = `<tbody>${bloque.filas
-    .map((fila) => `<tr>${fila.map((c) => `<td>${escaparHtml(celdaPlana(c))}</td>`).join('')}</tr>`)
+    .map((fila) => `<tr>${fila.map(td).join('')}</tr>`)
     .join('')}</tbody>`;
   return `<table border="1">${thead}${tbody}</table>`;
 }

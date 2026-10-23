@@ -1,0 +1,265 @@
+<div class="sg-fila sg-fila--entre">
+  <div class="sg-segmentos" role="tablist" aria-label="Secciones de domótica">
+    <button type="button" role="tab" [attr.aria-pressed]="vista() === 'dispositivos'" [attr.aria-selected]="vista() === 'dispositivos'" (click)="ir('dispositivos')">Dispositivos</button>
+    <button type="button" role="tab" [attr.aria-pressed]="vista() === 'accesos'" [attr.aria-selected]="vista() === 'accesos'" (click)="ir('accesos')">Marcaciones de acceso</button>
+    <button type="button" role="tab" [attr.aria-pressed]="vista() === 'plano'" [attr.aria-selected]="vista() === 'plano'" (click)="ir('plano')">Plano 3D</button>
+    <button type="button" role="tab" [attr.aria-pressed]="vista() === 'asistente'" [attr.aria-selected]="vista() === 'asistente'" (click)="ir('asistente')">Agregar integración</button>
+  </div>
+  <button type="button" class="sg-boton sg-boton--primario" (click)="ir('asistente')"><mat-icon aria-hidden="true">add_link</mat-icon>Agregar integración</button>
+</div>
+
+@if (error(); as e) { <div class="sg-aviso danger"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+
+@switch (vista()) {
+  <!-- ── Dispositivos ──────────────────────────────────────────────── -->
+  @case ('dispositivos') {
+    <section class="sg-lecturas" aria-label="Resumen de dispositivos">
+      <div class="sg-lectura"><span class="et">Dispositivos</span><span class="va">{{ resumen().total }}</span></div>
+      <div class="sg-lectura" [class.danger]="resumen().alarma > 0"><span class="et">En alarma</span><span class="va">{{ resumen().alarma }}</span></div>
+      <div class="sg-lectura" [class.warn]="resumen().abiertos > 0"><span class="et">Abiertos</span><span class="va">{{ resumen().abiertos }}</span></div>
+      <div class="sg-lectura" [class.warn]="resumen().fuera > 0"><span class="et">Sin conexión</span><span class="va">{{ resumen().fuera }}</span></div>
+    </section>
+
+    <div class="filtros sg-tarjeta">
+      <label class="sg-campo-nativo">Buscar <input type="search" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" placeholder="Nombre, sede…" /></label>
+      <label class="sg-campo-nativo">Sede
+        <select [ngModel]="sedeId()" (ngModelChange)="sedeId.set($event)">
+          <option [ngValue]="null">Todas</option>
+          @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Tipo
+        <select [ngModel]="tipo()" (ngModelChange)="tipo.set($event)">
+          <option [ngValue]="null">Todos</option>
+          @for (t of tipos; track t) { <option [ngValue]="t">{{ nombreTipo[t] }}</option> }
+        </select>
+      </label>
+      <button type="button" class="sg-boton" (click)="nuevoManual()"><mat-icon aria-hidden="true">add</mat-icon>Manual</button>
+    </div>
+
+    @for (g of porSede(); track g.sede) {
+      <section class="grupo">
+        <h3 class="sg-titulo-seccion"><mat-icon aria-hidden="true">location_on</mat-icon>{{ g.sede }}</h3>
+        <div class="tarjetas">
+          @for (d of g.items; track d.id) {
+            <article class="disp sg-tarjeta" [class.alarma]="estado(d) === 'ALARMA'" [class.apagado]="!d.activo">
+              <header>
+                <span class="icono" [class]="'icono ' + f.tono(estado(d))"><mat-icon aria-hidden="true">{{ iconoTipo[d.tipo] }}</mat-icon></span>
+                <span class="nom"><b>{{ d.nombre }}</b><small>{{ nombreTipo[d.tipo] }} · {{ d.integracion }}</small></span>
+              </header>
+              <div class="estado">
+                <span [class]="'sg-chip ' + f.tono(estado(d))"><mat-icon aria-hidden="true">{{ estado(d) === 'ALARMA' ? 'warning' : 'sensors' }}</mat-icon>{{ nombreEstado[estado(d)] }}</span>
+                @if (enLinea(d)) { <span class="sg-chip ok"><mat-icon aria-hidden="true">wifi</mat-icon>En línea</span> }
+                @else { <span class="sg-chip warn"><mat-icon aria-hidden="true">wifi_off</mat-icon>Sin conexión</span> }
+                @if (bateria(d) != null) {
+                  <span [class]="'sg-chip ' + ((bateria(d) ?? 100) < 20 ? 'danger' : 'neutro')"><mat-icon aria-hidden="true">battery_std</mat-icon>{{ bateria(d) }}%</span>
+                }
+                @if (d.requiere_confirmacion) { <span class="sg-chip violet" matTooltip="Pide motivo antes de accionarlo"><mat-icon aria-hidden="true">gpp_maybe</mat-icon>Con motivo</span> }
+              </div>
+              @if (d.estado_en) { <small class="sg-tenue">Último cambio {{ f.hace(d.estado_en) }}</small> }
+              @if (d.acciones_disponibles?.length) {
+                <div class="mandos">
+                  @for (a of d.acciones_disponibles; track a) {
+                    <button type="button" class="sg-boton" [class.sg-boton--peligro]="a === 'ABRIR' || a === 'DESBLOQUEAR' || (d.tipo === 'SIRENA' && a === 'ACTIVAR')"
+                            [disabled]="enMando() === d.id + '|' + a || !d.activo" (click)="mandar(d, a)">
+                      <mat-icon aria-hidden="true">{{ iconoAccion[a] }}</mat-icon>{{ enMando() === d.id + '|' + a ? 'Enviando…' : nombreAccion[a] }}
+                    </button>
+                  }
+                </div>
+              }
+              <footer>
+                <button type="button" class="sg-boton sg-boton--icono" (click)="verHistorial(d)" matTooltip="Historial de acciones" aria-label="Historial de acciones"><mat-icon>history</mat-icon></button>
+                @if (d.webhook_url) {
+                  <button type="button" class="sg-boton sg-boton--icono" (click)="copiarWebhook(d)" matTooltip="Copiar dirección del webhook" aria-label="Copiar webhook"><mat-icon>webhook</mat-icon></button>
+                }
+                <span class="sg-espaciador"></span>
+                <button type="button" class="sg-boton sg-boton--icono" (click)="editar(d)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+                <button type="button" class="sg-boton sg-boton--icono" (click)="borrar(d)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+              </footer>
+            </article>
+          }
+        </div>
+      </section>
+    } @empty {
+      <div class="sg-tarjeta sg-vacio">
+        <mat-icon aria-hidden="true">door_sensor</mat-icon>
+        @if (cargando()) { Cargando… } @else if (dispositivos().length) { Ningún dispositivo con esos filtros. }
+        @else { Aún no hay dispositivos. Use "Agregar integración": el asistente explica paso a paso cómo conectar cada equipo. }
+      </div>
+    }
+  }
+
+  <!-- ── Marcaciones ───────────────────────────────────────────────── -->
+  @case ('accesos') {
+    <div class="filtros sg-tarjeta">
+      <label class="sg-campo-nativo">Lector
+        <select [ngModel]="filtroDisp()" (ngModelChange)="filtroDisp.set($event); filtrarAccesos()">
+          <option [ngValue]="null">Todos</option>
+          @for (d of lectores(); track d.id) { <option [ngValue]="d.id">{{ d.sede_nombre }} · {{ d.nombre }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Desde <input type="date" [ngModel]="filtroDesde()" (ngModelChange)="filtroDesde.set($event); filtrarAccesos()" /></label>
+      <label class="sg-campo-nativo">Hasta <input type="date" [ngModel]="filtroHasta()" (ngModelChange)="filtroHasta.set($event); filtrarAccesos()" /></label>
+      <button type="button" class="sg-boton" (click)="cargarAccesos()"><mat-icon aria-hidden="true">refresh</mat-icon>Actualizar</button>
+    </div>
+    <app-tabla-estandar id="seguridad-accesos" titulo="Marcaciones de acceso" modulo="Seguridad" [datos]="accesos()" [columnas]="columnasAccesos"
+                        [filaId]="idAcceso" [cargando]="cargandoAccesos()" [seleccionable]="false" [pegable]="false"
+                        [totalServidor]="totalAccesos()" [paginaServidor]="paginaAccesos()" (paginaCambio)="paginarAccesos($event)"
+                        vacio="Sin marcaciones con esos filtros. Los lectores ZKTeco envían sus marcaciones por ADMS (push)." />
+  }
+
+  <!-- ── Plano 3D ──────────────────────────────────────────────────── -->
+  @case ('plano') {
+    <div class="filtros sg-tarjeta">
+      <label class="sg-campo-nativo">Sede
+        <select [ngModel]="sedePlano()" (ngModelChange)="cargarPlano($event)">
+          @for (s of sedesConPlano(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+        </select>
+      </label>
+      @if (pisos().length > 1) {
+        <label class="sg-campo-nativo">Piso
+          <select [ngModel]="pisoId()" (ngModelChange)="pisoId.set($event)">
+            @for (p of pisos(); track p.id) { <option [ngValue]="p.id">{{ p.nombre }}</option> }
+          </select>
+        </label>
+      }
+      <div class="leyenda" aria-label="Colores del plano">
+        <span><i class="c ok"></i>Cerrado / en línea</span><span><i class="c warn"></i>Abierto</span><span><i class="c danger"></i>Alarma</span><span><i class="c gris"></i>Sin señal</span>
+      </div>
+    </div>
+    @if (!sedesConPlano().length) {
+      <div class="sg-aviso"><mat-icon aria-hidden="true">map</mat-icon>
+        <span>Ninguna sede está ligada a una oficina con croquis. En Configuración → Sedes elija la oficina de cada sede; el plano se dibuja en Turnos → Oficinas
+          (las cámaras se ubican con el elemento "Cámara" y su referencia = id de la cámara de seguridad).</span></div>
+    } @else if (errorPlano(); as e) {
+      <div class="sg-aviso warn"><mat-icon aria-hidden="true">warning</mat-icon><span>{{ e }}</span></div>
+    } @else if (sin3d(); as s) {
+      <div class="sg-aviso warn"><mat-icon aria-hidden="true">view_in_ar</mat-icon><span>Este equipo no puede mostrar el plano en 3D ({{ s }}).</span></div>
+    } @else if (cargandoPlano()) {
+      <p class="sg-tenue">Cargando el croquis…</p>
+    } @else if (pisos().length) {
+      <div class="plano">
+        <app-plano-3d modo="vista" [pisos]="pisos()" [areas]="areas()" [meta]="meta()" [escala]="escala()" [pisoId]="pisoId()"
+                      [estadosSeguridad]="estadosPlano()" [paredesBajas]="true" (elegirCamara)="camaraVista.set($event.ref)" (fallo)="sin3d.set($event)" />
+      </div>
+      <p class="sg-nota">Toque una cámara del plano para ver su video. Puertas y ventanas cambian de color con su estado en vivo.</p>
+    }
+  }
+
+  <!-- ── Asistente de integración ──────────────────────────────────── -->
+  @case ('asistente') {
+    <ol class="pasos-asistente" aria-label="Pasos del asistente">
+      <li [class.activo]="paso() === 1" [class.hecho]="paso() > 1"><b>1</b>Elegir el equipo</li>
+      <li [class.activo]="paso() === 2" [class.hecho]="paso() > 2"><b>2</b>Prepararlo</li>
+      <li [class.activo]="paso() === 3"><b>3</b>Registrarlo</li>
+    </ol>
+
+    @if (paso() === 1) {
+      <div class="sg-fila">
+        <div class="sg-segmentos" role="group" aria-label="Categoría">
+          <button type="button" [attr.aria-pressed]="categoriaFiltro() === null" (click)="categoriaFiltro.set(null)">Todas</button>
+          @for (c of categorias(); track c) {
+            <button type="button" [attr.aria-pressed]="categoriaFiltro() === c" (click)="categoriaFiltro.set(c)">{{ nombreCategoria[c] ?? c }}</button>
+          }
+        </div>
+      </div>
+      <div class="integraciones">
+        @for (i of integracionesFiltradas(); track i.id) {
+          <button type="button" class="integ sg-tarjeta" (click)="elegirIntegracion(i)">
+            <span class="cab"><b>{{ i.nombre }}</b><span [class]="'sg-chip ' + (i.dificultad === 'FACIL' ? 'ok' : i.dificultad === 'MEDIA' ? 'warn' : 'danger')">{{ nombreDificultad[i.dificultad] }}</span></span>
+            <span class="desc">{{ i.descripcion }}</span>
+            <span class="tipos">@for (t of i.tipos_dispositivo; track t) { <i>{{ nombreTipo[t] }}</i> }</span>
+          </button>
+        } @empty {
+          <div class="sg-vacio"><mat-icon aria-hidden="true">extension</mat-icon>{{ cargandoIntegraciones() ? 'Cargando el catálogo…' : 'El catálogo de integraciones está vacío.' }}</div>
+        }
+      </div>
+    }
+
+    @if (paso() === 2) {
+      @if (integracion(); as i) {
+        <section class="sg-tarjeta guia">
+          <h3><mat-icon aria-hidden="true">menu_book</mat-icon>{{ i.nombre }}
+            <span [class]="'sg-chip sg-sub ' + (i.dificultad === 'FACIL' ? 'ok' : i.dificultad === 'MEDIA' ? 'warn' : 'danger')">{{ nombreDificultad[i.dificultad] }}</span></h3>
+          <p class="sg-nota">{{ i.descripcion }}</p>
+          <ol class="lista-pasos">
+            @for (p of i.pasos; track $index; let k = $index) {
+              <li [class.hecho]="pasosHechos().has(k)">
+                <button type="button" class="check" (click)="marcarPaso(k)" [attr.aria-pressed]="pasosHechos().has(k)" [attr.aria-label]="'Marcar paso ' + (k + 1) + ' como hecho'">
+                  <mat-icon>{{ pasosHechos().has(k) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                </button>
+                <span><b>Paso {{ k + 1 }}.</b> {{ p }}</span>
+              </li>
+            }
+          </ol>
+          @if (i.enlaces?.length) {
+            <h4>Enlaces útiles</h4>
+            <ul class="enlaces">
+              @for (e of i.enlaces; track e.url) {
+                <li><a [href]="e.url" target="_blank" rel="noopener noreferrer"><mat-icon aria-hidden="true">open_in_new</mat-icon>{{ e.titulo }}</a></li>
+              }
+            </ul>
+          }
+          @if (i.acciones?.length) {
+            <p class="sg-nota">Acciones que podrá hacer desde aquí: @for (a of i.acciones; track a; let ul = $last) { {{ nombreAccion[a] }}@if (!ul) {, } }.</p>
+          }
+          <div class="sg-fila">
+            <button type="button" class="sg-boton" (click)="reiniciarAsistente()"><mat-icon aria-hidden="true">arrow_back</mat-icon>Elegir otro</button>
+            <button type="button" class="sg-boton sg-boton--primario" (click)="paso.set(3); crearDesdeIntegracion()">
+              <mat-icon aria-hidden="true">arrow_forward</mat-icon>Ya lo preparé: registrarlo
+            </button>
+          </div>
+        </section>
+      }
+    }
+
+    @if (paso() === 3) {
+      @if (integracion(); as i) {
+        <section class="sg-tarjeta">
+          <h3><mat-icon aria-hidden="true">edit_note</mat-icon>Registrar {{ i.nombre }}</h3>
+          <p class="sg-nota">Complete el formulario con los datos del equipo. Si lo cerró sin guardar, ábralo de nuevo.</p>
+          <div class="sg-fila">
+            <button type="button" class="sg-boton" (click)="paso.set(2)"><mat-icon aria-hidden="true">arrow_back</mat-icon>Ver la guía</button>
+            <button type="button" class="sg-boton sg-boton--primario" (click)="crearDesdeIntegracion()"><mat-icon aria-hidden="true">edit</mat-icon>Abrir el formulario</button>
+          </div>
+        </section>
+      }
+    }
+  }
+}
+
+<!-- Historial de acciones -->
+@if (historialDe(); as d) {
+  <div class="velo" (click)="historialDe.set(null)" aria-hidden="true"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" [attr.aria-label]="'Historial de ' + d.nombre">
+    <header class="cab-cajon">
+      <h2>Historial · {{ d.nombre }}</h2>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="historialDe.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+    <ul class="sg-lista">
+      @for (h of historial(); track h.id) {
+        <li>
+          <mat-icon aria-hidden="true" [class.mal]="h.resultado === 'ERROR'">{{ iconoAccion[h.accion] }}</mat-icon>
+          <div class="cuerpo">
+            <div class="t">{{ nombreAccion[h.accion] }} · <span [class]="'sg-chip ' + (h.resultado === 'OK' ? 'ok' : h.resultado === 'ERROR' ? 'danger' : 'warn')">{{ h.resultado }}</span></div>
+            <div class="d">{{ h.usuario_nombre ?? 'Sistema' }}@if (h.motivo) { — “{{ h.motivo }}” }</div>
+            @if (h.detalle) { <div class="d">{{ h.detalle }}</div> }
+          </div>
+          <span class="cuando">{{ f.fechaHora(h.creado_en) }}</span>
+        </li>
+      } @empty { <li class="sg-tenue">{{ cargandoHistorial() ? 'Cargando…' : 'Sin acciones registradas.' }}</li> }
+    </ul>
+  </aside>
+}
+
+<!-- Video de una cámara elegida en el plano -->
+@if (camaraVista(); as id) {
+  <div class="velo" (click)="camaraVista.set(null)" aria-hidden="true"></div>
+  <aside class="cajon ancho" role="dialog" aria-modal="true" aria-label="Video de la cámara">
+    <header class="cab-cajon">
+      <h2>{{ mapaCamaras().get(id)?.nombre ?? 'Cámara' }}</h2>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="camaraVista.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+    <div class="visor"><sg-visor-camara [camaraId]="id" [camara]="mapaCamaras().get(id) ?? null" /></div>
+  </aside>
+}

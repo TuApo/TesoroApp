@@ -1,0 +1,172 @@
+@if (error()) { <div class="if-aviso danger"><mat-icon>error</mat-icon><div>{{ error() }}</div></div> }
+
+@if (!id()) {
+  <section class="if-tarjeta no-imprimir">
+    <h3><mat-icon>summarize</mat-icon> Generar un informe ahora</h3>
+    <p class="if-nota">Se generan solos: el diario a las 6:00, el semanal los lunes a las 6:30 y el mensual el día 1 a las 7:00 (hora de Bogotá).
+      Cada informe queda guardado y se puede imprimir o guardar como PDF.</p>
+    <div class="if-fila">
+      @for (r of ['24h', '7d', '30d']; track r) {
+        <button type="button" class="if-boton" [class.if-boton--primario]="r === '24h'" [disabled]="generando() !== null" (click)="generar($any(r))">
+          <mat-icon>{{ generando() === r ? 'hourglass_top' : 'add_chart' }}</mat-icon>{{ generando() === r ? 'Generando…' : nombreRango($any(r)) }}
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="if-tarjeta">
+    <h3><mat-icon>folder_open</mat-icon> Informes guardados <span class="if-sub">{{ lista().length }}</span></h3>
+    @if (lista().length === 0) { <div class="if-vacio">Todavía no hay informes. Genere el primero arriba.</div> }
+    <ul class="if-lista">
+      @for (m of lista(); track m.id) {
+        <li>
+          <span class="puntaje" [class]="'puntaje ' + m.estado">{{ m.puntaje }}</span>
+          <div class="cuerpo">
+            <a class="t enlace" [routerLink]="[m.id]">{{ nombreRango(m.rango) }} · {{ f.fecha(m.generado_en) }}</a>
+            <div class="d">{{ m.titular }}</div>
+          </div>
+          <span class="cuando">{{ m.generado_por === 'programado' ? 'automático' : 'a pedido' }}</span>
+        </li>
+      }
+    </ul>
+  </section>
+} @else if (informe(); as inf) {
+  <article class="informe">
+    <div class="if-fila if-fila--entre no-imprimir">
+      <a class="if-boton" routerLink=".."><mat-icon>arrow_back</mat-icon> Todos los informes</a>
+      <button type="button" class="if-boton if-boton--primario" (click)="imprimir()"><mat-icon>print</mat-icon> Imprimir o guardar PDF</button>
+    </div>
+
+    <header class="portada">
+      <div>
+        <span class="eyebrow">Informe de infraestructura · {{ nombreRango(inf.rango) }}</span>
+        <h1>TuApo · {{ f.fecha(inf.generado_en) }}</h1>
+        <p class="if-tenue">Generado {{ inf.generado_por === 'programado' ? 'automáticamente' : 'a pedido' }} por ms-infra con datos de Prometheus, Docker, K3s, Caddy, Loki y Kafka.</p>
+      </div>
+      <div class="sello" [class]="'sello ' + inf.estado"><span class="n">{{ inf.puntaje }}</span><span class="de">/100</span>
+        <span class="c">{{ inf.conteo['critico'] }} críticos · {{ inf.conteo['serio'] }} serios · {{ inf.conteo['atencion'] }} atención</span></div>
+    </header>
+
+    <section class="bloque">
+      <h2>Resumen</h2>
+      <ul class="resumen">@for (r of inf.resumen; track $index) { <li>{{ r }}</li> }</ul>
+    </section>
+
+    <section class="bloque">
+      <h2>Hallazgos</h2>
+      <ul class="if-lista">
+        @for (h of inf.hallazgos; track h.id) {
+          <li>
+            <span class="if-chip" [class]="'if-chip ' + h.severidad"><mat-icon>{{ icono[h.severidad] }}</mat-icon>{{ nombreSev[h.severidad] }}</span>
+            <div class="cuerpo"><div class="t">{{ h.titulo }}</div>
+              @if (h.detalle) { <div class="d">{{ h.detalle }}</div> }
+              @if (h.recomendacion) { <div class="r"><mat-icon>build</mat-icon><span>{{ h.recomendacion }}</span></div> }
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="bloque">
+      <h2>Servidor</h2>
+      <table class="if-tabla-simple">
+        <tbody>
+          <tr><td>CPU media / pico</td><td class="num">{{ f.pct(inf.host['cpu_medio'] ?? undefined, 1) }} / {{ f.pct(inf.host['cpu_max'] ?? undefined, 1) }}</td></tr>
+          <tr><td>RAM media / pico</td><td class="num">{{ f.pct(inf.host['mem_media'] ?? undefined, 1) }} / {{ f.pct(inf.host['mem_max'] ?? undefined, 1) }}</td></tr>
+          <tr><td>Temperatura CPU media / máxima</td><td class="num">{{ f.num(inf.host['temp_media'] ?? undefined, 0) }} °C / {{ f.num(inf.host['temp_max'] ?? undefined, 0) }} °C</td></tr>
+          <tr><td>Carga máxima (1 min)</td><td class="num">{{ f.num(inf.host['carga_max'] ?? undefined, 1) }}</td></tr>
+          <tr><td>Reinicios del servidor</td><td class="num">{{ inf.host['reinicios_host'] ?? '—' }}</td></tr>
+          <tr><td>Red LAN recibido / enviado</td><td class="num">{{ f.bytes(inf.host['red_entrada_bytes'] ?? undefined) }} / {{ f.bytes(inf.host['red_salida_bytes'] ?? undefined) }}</td></tr>
+          <tr><td>Disco leído / escrito</td><td class="num">{{ f.bytes(inf.host['disco_leido_bytes'] ?? undefined) }} / {{ f.bytes(inf.host['disco_escrito_bytes'] ?? undefined) }}</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="bloque">
+      <h2>Uso por servicio</h2>
+      <div class="if-scroll-x">
+        <table class="if-tabla-simple">
+          <thead><tr><th>Servicio</th><th>Zona</th><th class="num">Peticiones</th><th class="num">5xx</th><th class="num">Media</th>
+            <th class="num">CPU media</th><th class="num">RAM pico / límite</th><th>Uso</th></tr></thead>
+          <tbody>
+            @for (s of inf.uso.servicios; track s.contenedor) {
+              @if (s.grupo !== 'pruebas') {
+                <tr><td class="if-mono">{{ s.servicio }}</td><td>{{ nombreGrupo[s.grupo] }}</td><td class="num">{{ f.compacto(s.peticiones) }}</td>
+                  <td class="num">{{ s.err_pct != null ? f.pct(s.err_pct, 2) : '—' }}</td><td class="num">{{ f.ms(s.lat_media_ms) }}</td>
+                  <td class="num">{{ f.pct(s.cpu_medio, 1) }}</td>
+                  <td class="num">{{ f.bytes(s.mem_max) }} / {{ s.mem_limite ? f.bytes(s.mem_limite) : '∞' }}</td>
+                  <td>{{ s.eficiencia === 'ocioso' ? 'Casi sin uso' : s.eficiencia === 'sobredimensionado' ? 'Le sobra' : s.eficiencia === 'al-limite' ? 'Al límite' : 'Ajustado' }}</td></tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (conSugerencias().length) {
+        <h3>Sugerencias</h3>
+        <ul class="resumen">
+          @for (s of conSugerencias(); track s.contenedor) {
+            <li><b class="if-mono">{{ s.servicio }}</b>: {{ s.recomendaciones!.join(' ') }}</li>
+          }
+        </ul>
+      }
+    </section>
+
+    <section class="bloque">
+      <h2>Rutas más usadas del gateway</h2>
+      <table class="if-tabla-simple">
+        <thead><tr><th>Ruta</th><th>Servicio</th><th class="num">Peticiones</th><th class="num">4xx</th><th class="num">5xx</th><th class="num">Media</th></tr></thead>
+        <tbody>
+          @for (r of inf.uso.rutas.slice(0, 15); track r.ruta) {
+            <tr><td class="if-mono">{{ r.ruta }}</td><td>{{ r.servicio }}</td><td class="num">{{ f.compacto(r.peticiones) }}</td>
+              <td class="num">{{ f.compacto(r.err4xx) }}</td><td class="num">{{ f.compacto(r.err5xx) }}</td><td class="num">{{ f.ms(r.lat_media_ms) }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </section>
+
+    <section class="bloque">
+      <h2>Sitios <span class="if-tenue nota-h">(tráfico de los registros de Caddy: como máximo las últimas 48 h)</span></h2>
+      <table class="if-tabla-simple">
+        <thead><tr><th>Sitio</th><th>Estado</th><th class="num">Peticiones</th><th class="num">IP distintas</th><th class="num">p95</th><th class="num">5xx</th><th>Certificado</th></tr></thead>
+        <tbody>
+          @for (s of inf.sitios; track s.dominio) {
+            <tr><td class="if-mono">{{ s.dominio }}</td><td>{{ s.estado === 'ok' ? 'Responde' : s.estado === 'caido' ? 'NO responde' : s.estado }}{{ s.dns === 'sin DNS' ? ' · sin DNS' : '' }}</td>
+              <td class="num">{{ f.compacto(s.peticiones) }}</td><td class="num">{{ f.compacto(s.visitantes) }}</td><td class="num">{{ f.ms(s.p95_ms) }}</td>
+              <td class="num">{{ f.compacto(s.err5xx) }}</td><td>{{ s.cert_dias != null ? s.cert_dias + ' días' : '—' }}</td></tr>
+          }
+        </tbody>
+      </table>
+    </section>
+
+    <section class="bloque">
+      <h2>Datos y respaldos</h2>
+      <table class="if-tabla-simple">
+        <tbody>
+          <tr><td>MySQL</td><td>{{ inf.datos.mysql.conexiones }} conexiones · {{ f.num(inf.datos.mysql.consultas_s, 0) }} consultas/s · {{ inf.datos.mysql.lentas_24h ?? 0 }} lentas en 24 h</td></tr>
+          <tr><td>Redis</td><td>{{ f.bytes(inf.datos.redis.memoria_bytes) }} · {{ f.num(inf.datos.redis.ops_s, 1) }} ops/s</td></tr>
+          @if (inf.datos.kafka; as k) {
+            <tr><td>Kafka</td><td>{{ k.topicos }} tópicos · retraso total {{ f.compacto(k.lag_total) }}
+              @for (g of k.grupos; track g.grupo) { @if (g.lag > 0) { · {{ g.grupo }}: {{ g.lag }} } }</td></tr>
+          }
+          <tr><td>OCR</td><td>{{ inf.datos.ocr.completados_24h ?? '—' }} completados en 24 h</td></tr>
+          @for (r of inf.datos.respaldos; track r.ruta) {
+            <tr><td>Respaldo</td><td>{{ r.descripcion }}: último hace {{ r.horas != null ? f.num(r.horas / 24, 1) + ' días' : '—' }} ({{ r.ultimo_archivo }})</td></tr>
+          }
+        </tbody>
+      </table>
+    </section>
+
+    @if (inf.eventos.length) {
+      <section class="bloque">
+        <h2>Cambios del periodo</h2>
+        <ul class="if-lista">
+          @for (e of inf.eventos.slice(0, 60); track e.id) {
+            <li><span class="cuando">{{ f.fecha(e.ts) }}</span><div class="cuerpo"><div class="d">{{ e.mensaje }}</div></div></li>
+          }
+        </ul>
+      </section>
+    }
+  </article>
+} @else {
+  <div class="if-vacio">Cargando el informe…</div>
+}

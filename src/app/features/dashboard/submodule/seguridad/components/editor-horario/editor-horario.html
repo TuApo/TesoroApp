@@ -1,0 +1,69 @@
+@if (!soloLectura()) {
+  <div class="presets" role="group" aria-label="Horarios rápidos">
+    <span class="et">Rápido:</span>
+    <button type="button" class="chip" (click)="presetFueraLaboral()">
+      <mat-icon aria-hidden="true">nights_stay</mat-icon>Fuera de horario laboral (19:00–06:00 + fines de semana)
+    </button>
+    <button type="button" class="chip" (click)="preset247()"><mat-icon aria-hidden="true">all_inclusive</mat-icon>24/7</button>
+    <button type="button" class="chip" (click)="presetLaboral()"><mat-icon aria-hidden="true">work</mat-icon>Solo horario laboral (L–V 07–19)</button>
+  </div>
+}
+
+@if (siempre()) {
+  <div class="siempre"><mat-icon aria-hidden="true">all_inclusive</mat-icon>Sin tramos: la regla está <b>armada siempre (24/7)</b>.</div>
+}
+
+<div class="semana" role="table" aria-label="Horario de armado por día">
+  <div class="fila cab" role="row">
+    <span role="columnheader" class="dia"></span>
+    <div class="eje" role="columnheader">
+      @for (h of marcas; track h) { <span [style.left.%]="h / 24 * 100">{{ h }}h</span> }
+    </div>
+    <span class="mas"></span>
+  </div>
+  @for (d of dias; track d.n) {
+    <div class="fila" role="row">
+      <span class="dia" role="rowheader" [attr.aria-label]="d.largo">{{ d.corto }}</span>
+      <div class="pista" role="cell">
+        @for (s of segmentos().get(d.n) ?? []; track $index) {
+          <i class="seg" [class.arrastre]="s.arrastre" [style.left.%]="s.izq" [style.width.%]="s.ancho" [matTooltip]="s.texto"></i>
+        }
+        @if (siempre()) { <i class="seg siempre-seg" style="left:0;width:100%"></i> }
+      </div>
+      @if (!soloLectura()) {
+        <button type="button" class="mas" (click)="preparar(d.n)" [attr.aria-label]="'Agregar tramo el ' + d.largo" matTooltip="Agregar un tramo este día">
+          <mat-icon>add</mat-icon>
+        </button>
+      } @else { <span class="mas"></span> }
+    </div>
+  }
+</div>
+
+@if (horario().length) {
+  <ul class="tramos">
+    @for (t of horario(); track $index; let i = $index) {
+      <li>
+        <mat-icon aria-hidden="true">schedule</mat-icon>
+        <span>{{ descripcion(t) }}</span>
+        @if (!soloLectura()) {
+          <button type="button" class="quitar" (click)="quitar(i)" [attr.aria-label]="'Quitar ' + descripcion(t)"><mat-icon>delete</mat-icon></button>
+        }
+      </li>
+    }
+  </ul>
+}
+
+@if (!soloLectura()) {
+  <div class="nuevo">
+    <div class="dias" role="group" aria-label="Días del tramo">
+      @for (d of dias; track d.n) {
+        <button type="button" class="dia-b" [attr.aria-pressed]="diasNuevo().includes(d.n)" (click)="alternarDia(d.n)" [attr.aria-label]="d.largo">{{ d.corto }}</button>
+      }
+    </div>
+    <label class="hora">Desde <input type="time" [(ngModel)]="desde" name="desde" /></label>
+    <label class="hora">Hasta <input type="time" [(ngModel)]="hasta" name="hasta" /></label>
+    <button type="button" class="agregar" (click)="agregar()"><mat-icon aria-hidden="true">add</mat-icon>Agregar tramo</button>
+  </div>
+  <p class="nota">Si "hasta" es menor que "desde", el tramo sigue hasta el día siguiente (ej.: lunes 19:00 → martes 06:00).</p>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+}

@@ -1,4 +1,5 @@
 import { NgTemplateOutlet, isPlatformBrowser } from '@angular/common';
+import { ImagenAmpliableComponent } from '../imagen-ampliable/imagen-ampliable.component';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -24,11 +25,15 @@ import {
   viewChild,
 } from '@angular/core';
 import { SelectionModel } from '@angular/cdk/collections';
+import { HerramientasPantallaService } from '../../../core/services/operador/herramientas-pantalla.service';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 
 import { getLocalStorageItem, setLocalStorageItem } from '../../../core/utils/safe-storage';
+import { NavegacionService } from '../../../core/services/navegacion.service';
 import { FiltroColumnaComponent } from './filtro-columna.component';
 import { copiarBloque, descargarExcel, registrarCopia } from './tabla.copiar';
+import { casarPegado, normalizarClave, partirBloque, type ResultadoPegado } from './tabla.pegado';
 import {
   TablaAccionesDirective,
   TablaCeldaDirective,
@@ -37,6 +42,7 @@ import {
   TablaVacioDirective,
 } from './tabla-plantillas.directive';
 import {
+  AccionMasiva,
   BadgeCelda,
   BloqueCopiado,
   ColumnaTabla,
@@ -47,16 +53,19 @@ import {
   OrdenTabla,
   PieTabla,
   RangoSeleccion,
+  ResultadoAccionMasiva,
   RolTarjeta,
   TipoFecha,
   ValorCelda,
   Vista,
   textoDeValor,
+  type SugerenciaBusqueda,
 } from './tabla.tipos';
 import { aFecha, escribirFecha, limiteDelRango, tipoDeFechas } from './tabla.fechas';
+import { fichaDeRegistro } from './tabla.revision';
 
 type Tamano = 'xs' | 'sm' | 'lg';
-type Origen = 'seleccion' | 'todo';
+type Origen = 'seleccion' | 'todo' | 'marcadas';
 
 const OPCIONES_PAGINA = [25, 50, 100, 250, 0];
 /** Aire que se deja entre la celda activa y el borde al seguir la selección. */
@@ -120,7 +129,7 @@ function desplazarVertical(vertical: HTMLElement | null, delta: number) {
 @Component({
   selector: 'app-tabla-estandar',
   standalone: true,
-  imports: [NgTemplateOutlet, MatIconModule, FiltroColumnaComponent],
+  imports: [NgTemplateOutlet, MatIconModule, FiltroColumnaComponent, ImagenAmpliableComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { '[class.te-completa]': 'pantallaCompleta()' },
   templateUrl: './tabla-estandar.component.html',
@@ -177,8 +186,27 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   /**
    * Selección de filas con casillas (acciones masivas). La pantalla crea el
    * `SelectionModel` y lo conserva: así lo lee o lo limpia cuando quiera.
+   * Si no pasa ninguno, la tabla usa el suyo: marcar filas y pegar una lista
+   * de Excel son parte del estándar, no algo que cada pantalla deba montar.
    */
   readonly seleccion = input<SelectionModel<T> | null>(null);
+  /** Apaga las casillas en tablas donde marcar filas no significa nada. */
+  readonly seleccionable = input(true);
+  /**
+   * Columna por la que se casa lo que se pega desde Excel (id de columna). Sin
+   * declararla se toma la que parezca documento, cédula o código.
+   */
+  readonly claveMasiva = input<string | null>(null);
+  /** Apaga «Pegar lista» en pantallas que ya traen su propio pegado masivo. */
+  readonly pegable = input(true);
+  /**
+   * Acciones sobre lo marcado, declaradas (ver `AccionMasiva`). La tabla pone
+   * el botón con el conteo, la confirmación con el carrusel de registros, la
+   * ejecución uno a uno y el cierre: la pantalla solo dice qué hace con cada
+   * fila. Lo que se proyecte en `[tablaAccionesSeleccion]` se sigue pintando
+   * al lado, para casos que no quepan en el contrato.
+   */
+  readonly accionesMasivas = input<AccionMasiva<T, any>[] | null>(null);
   /**
    * Modo servidor: página (base 0) que la pantalla pidió al backend. Cuando un
    * filtro de negocio devuelve la pantalla a la primera página, la tabla se
@@ -187,13 +215,26 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   readonly paginaServidor = input<number | null>(null);
   /** Tamaños ofrecidos en el paginador. Por defecto 25/50/100/250/Todas. */
   readonly opcionesPorPagina = input<number[] | null>(null);
+  /**
+   * Sugerencias bajo el buscador. Con un array (aunque vacío) la tabla emite
+   * `busquedaCambio` también en modo cliente, para que la pantalla las pida al
+   * backend, y muestra la lista para elegir con clic o con ↑ ↓ Enter.
+   * null (por defecto) = buscador normal, sin lista.
+   */
+  readonly sugerencias = input<SugerenciaBusqueda[] | null>(null);
 
   // ── Salidas ─────────────────────────────────────────────────────────────────
   /** Botón «Ver», doble clic en la fila o clic en la tarjeta. */
   @Output() readonly filaClick = new EventEmitter<T>();
   readonly paginaCambio = output<{ pagina: number; porPagina: number }>();
   readonly busquedaCambio = output<string>();
+  /** Se eligió una sugerencia del buscador (la búsqueda se vacía sola). */
+  readonly sugerenciaElegida = output<SugerenciaBusqueda>();
   readonly ordenCambio = output<OrdenTabla | null>();
+  /** Resultado de pegar una lista: lo que se marcó y lo que no apareció. */
+  readonly pegadoMasivo = output<{ encontradas: number; noEncontradas: string[] }>();
+  /** Terminó una acción masiva declarada (ya se llamó a su `alTerminar`). */
+  readonly loteTerminado = output<{ accion: string; hechos: number; fallidos: number; cancelado: boolean }>();
 
   // ── Plantillas proyectadas ──────────────────────────────────────────────────
   private readonly celdasTpl = contentChildren(TablaCeldaDirective, { descendants: true });
@@ -215,12 +256,30 @@ export class TablaEstandarComponent<T = any> implements OnInit {
 
   private readonly contenedor = viewChild<ElementRef<HTMLElement>>('contenedor');
   private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly navegacion = inject(NavegacionService);
+
+  /** A pantalla completa se dice de dónde es la tabla: módulo y nombre. Si la
+   *  pantalla no los declara, se toman de la barra superior. */
+  readonly moduloVisible = computed(() => {
+    const propio = this.modulo();
+    if (propio && propio !== 'Sistema') return propio;
+    return this.navegacion.modulo() || this.navegacion.titulo() || 'Tu Apo';
+  });
+
+  readonly tituloVisible = computed(() => {
+    const propio = this.titulo();
+    if (propio && propio !== 'Tabla') return propio;
+    return this.navegacion.titulo() || 'Tabla';
+  });
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   readonly montado = signal(false);
   readonly tamano = signal<Tamano>('lg');
   readonly vista = signal<Vista>('tabla');
   readonly q = signal('');
+  /** Lista de sugerencias abierta y la resaltada con el teclado. */
+  readonly sugerenciasAbiertas = signal(false);
+  readonly sugerenciaActiva = signal(0);
   readonly filtros = signal<Record<string, FiltroColumna>>({});
   readonly orden = signal<OrdenTabla | null>(null);
   readonly pagina = signal(0);
@@ -228,6 +287,8 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   readonly sel = signal<RangoSeleccion | null>(null);
   readonly aviso = signal('');
   readonly descargando = signal(false);
+  /** Una acción masiva corriendo: los botones de lo marcado se bloquean. */
+  readonly loteEnCurso = signal(false);
   /** La tabla ocupa toda la ventana (sin API de fullscreen: así los menús de
    *  filtro y los diálogos, que viven en el overlay del CDK, se siguen viendo). */
   readonly pantallaCompleta = signal(false);
@@ -273,11 +334,24 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   /** El SelectionModel no es una señal: se cuenta cada cambio para repintar. */
   readonly versionSeleccion = signal(0);
 
+  /** Selección de la propia tabla, para las pantallas que no traen la suya. */
+  private readonly selPropia = new SelectionModel<T>(true, []);
+
+  /** El modelo que manda: el de la pantalla si lo hay, si no el de la tabla. */
+  readonly modeloSeleccion = computed<SelectionModel<T> | null>(() =>
+    this.seleccionable() ? (this.seleccion() ?? this.selPropia) : null);
+
+  private readonly dialogo = inject(MatDialog);
+  private readonly herramientasPantalla = inject(HerramientasPantallaService);
+
+  /** Tablas vivas que ofrecen herramientas al asistente: la primera es «tabla», las demás «tabla2», «tabla3»… */
+  private static readonly numerosEnUso = new Set<number>();
+
   constructor() {
     // Casillas: repintar cuando cambie la selección (también si la limpia la
     // pantalla) y soltar las filas que ya no están en los datos.
     effect((onCleanup) => {
-      const sm = this.seleccion();
+      const sm = this.modeloSeleccion();
       if (!sm) return;
       const sub = sm.changed.subscribe(() => this.versionSeleccion.update((v) => v + 1));
       onCleanup(() => sub.unsubscribe());
@@ -287,7 +361,7 @@ export class TablaEstandarComponent<T = any> implements OnInit {
       if (p !== null && p >= 0) untracked(() => this.pagina.set(p));
     });
     effect(() => {
-      const sm = this.seleccion();
+      const sm = this.modeloSeleccion();
       const filas = this.filas();
       if (!sm || !sm.selected.length) return;
       const vivas = new Set(filas);
@@ -305,7 +379,7 @@ export class TablaEstandarComponent<T = any> implements OnInit {
     effect(() => {
       this.vista();
       this.filasPagina();
-      this.seleccion();
+      this.modeloSeleccion();
       this.pantallaCompleta();
       afterNextRender(() => this.ajustarFijas(), { injector: this.injector });
     });
@@ -332,10 +406,87 @@ export class TablaEstandarComponent<T = any> implements OnInit {
     });
   }
 
+  /**
+   * Herramientas de pantalla (estilo WebMCP) para el asistente IA: buscar, leer lo visible,
+   * limpiar filtros y cambiar de página. Ninguna cambia datos, así que no piden confirmación.
+   * Si la pantalla tiene varias tablas, la primera es «tabla_*» y las demás «tabla2_*», «tabla3_*».
+   */
+  private ofrecerHerramientas(): void {
+    let n = 1;
+    while (TablaEstandarComponent.numerosEnUso.has(n)) n++;
+    TablaEstandarComponent.numerosEnUso.add(n);
+    this.destroyRef.onDestroy(() => TablaEstandarComponent.numerosEnUso.delete(n));
+    const p = n === 1 ? 'tabla' : `tabla${n}`;
+    const cual = () => `la tabla «${this.titulo()}»`;
+    const lectura = { readOnlyHint: true };
+    this.herramientasPantalla.registrarEnPantalla(this.destroyRef, [
+      {
+        name: `${p}_buscar`, title: `Buscar en ${this.titulo()}`, annotations: lectura,
+        description: `Escribe un texto en el buscador de ${cual()} y la filtra (nombre, cédula, código…). Vacío = quitar la búsqueda.`,
+        inputSchema: { type: 'object', properties: { texto: { type: 'string', description: 'Lo que se busca' } }, required: ['texto'] },
+        execute: (i) => {
+          this.buscar(String(i['texto'] ?? ''));
+          return this.modoServidor()
+            ? { ok: true, nota: 'La búsqueda se envió al servidor; usa la herramienta de leer en un momento para ver las filas.' }
+            : { ok: true, filas: this.totalFiltradas() };
+        },
+      },
+      {
+        name: `${p}_leer`, title: `Leer ${this.titulo()}`, annotations: lectura,
+        description: `Devuelve lo que se ve en ${cual()}: columnas, las filas de la página actual (como texto) y el total con los filtros aplicados.`,
+        inputSchema: { type: 'object', properties: { max: { type: 'integer', minimum: 1, maximum: 50, description: 'Filas a devolver (por defecto 20)' } } },
+        execute: (i) => this.resumenParaIa(Math.min(Math.max(Number(i['max']) || 20, 1), 50)),
+      },
+      {
+        name: `${p}_limpiar_filtros`, title: `Limpiar filtros de ${this.titulo()}`, annotations: lectura,
+        description: `Quita la búsqueda, los filtros por columna y el orden de ${cual()}.`,
+        inputSchema: { type: 'object', properties: {} },
+        execute: () => { this.limpiarTodo(); return { ok: true }; },
+      },
+      {
+        name: `${p}_ir_a_pagina`, title: `Cambiar de página en ${this.titulo()}`, annotations: lectura,
+        description: `Va a una página de ${cual()} (la primera es 1).`,
+        inputSchema: { type: 'object', properties: { pagina: { type: 'integer', minimum: 1 } }, required: ['pagina'] },
+        execute: (i) => {
+          this.irAPagina((Number(i['pagina']) || 1) - 1);
+          return { ok: true, pagina: this.paginaActual() + 1, paginas: this.totalPaginas() };
+        },
+      },
+    ]);
+    // Contexto de pantalla: el asistente siempre sabe qué muestra esta tabla (15 filas visibles).
+    this.herramientasPantalla.contextoEnPantalla(this.destroyRef, p, () => this.resumenParaIa(15));
+  }
+
+  /** Lo que se ve en la tabla, como texto: columnas, filas de la página, total, búsqueda y marcadas. */
+  private resumenParaIa(max: number): Record<string, unknown> {
+    const cols = this.columnasVisibles();
+    const filas = this.filasPagina().slice(0, max).map((f) => {
+      const o: Record<string, string> = {};
+      for (const c of cols) o[c.header || c.id] = this.textoCelda(c, f);
+      return o;
+    });
+    return {
+      tabla: this.titulo(), columnas: cols.map((c) => c.header || c.id), filas,
+      total: this.totalFiltradas(), pagina: this.paginaActual() + 1, paginas: this.totalPaginas(),
+      busqueda: this.q() || null, hayFiltros: this.hayFiltros(), marcadas: this.marcadas(),
+    };
+  }
+
+  /** Si la pantalla se destruye con la tabla fuera de su sitio, se devuelve. */
+  private registrarLimpieza(): void {
+    this.destroyRef.onDestroy(() => {
+      this.devolverASuSitio();
+      for (const el of this.ancestrosSoltados) el.classList.remove('te-sin-marco');
+      this.ancestrosSoltados = [];
+    });
+  }
+
   ngOnInit(): void {
+    this.registrarLimpieza();
     this.conOyenteDetalle.set(this.filaClick.observed);
     if (!this.isBrowser) return;
     this.montado.set(true);
+    this.ofrecerHerramientas();
     const fmt = getLocalStorageItem('tabla:formatoFecha');
     if (fmt === 'dd/mm/aaaa' || fmt === 'mm/dd/aaaa' || fmt === 'aaaa-mm-dd') this.formatoFecha.set(fmt);
     const guardada = getLocalStorageItem(`tabla:${this.id()}:vista`);
@@ -388,6 +539,14 @@ export class TablaEstandarComponent<T = any> implements OnInit {
       return textoDeValor(c.valor(f));
     }));
   });
+  /** Una fecha suelta con el formato elegido; null si el valor no es fecha. */
+  private textoDeFecha(v: ValorCelda): string | null {
+    const f = aFecha(v);
+    if (!f) return null;
+    const conHora = !!(f.getHours() || f.getMinutes() || f.getSeconds());
+    return escribirFecha(f, this.formatoFecha(), conHora ? 'fecha-hora' : 'fecha');
+  }
+
   private readonly textosBusqueda = computed(() => this.matriz().map((r) => r.join(' ').toLowerCase()));
   private readonly indiceColumna = computed(() => new Map(this.columnas().map((c, i) => [c.id, i])));
 
@@ -517,10 +676,39 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   buscar(texto: string): void {
     this.q.set(texto);
     this.reiniciar();
-    if (this.modoServidor()) {
+    if (this.modoServidor() || this.sugerencias() !== null) {
       if (this.temporizadorBusqueda) clearTimeout(this.temporizadorBusqueda);
       this.temporizadorBusqueda = setTimeout(() => this.busquedaCambio.emit(texto.trim()), 350);
     }
+    this.sugerenciasAbiertas.set(true);
+    this.sugerenciaActiva.set(0);
+  }
+
+  elegirSugerencia(s: SugerenciaBusqueda): void {
+    this.sugerenciasAbiertas.set(false);
+    this.buscar('');
+    this.sugerenciaElegida.emit(s);
+  }
+
+  /** ↑ ↓ recorren la lista, Enter elige, Escape la cierra. */
+  teclaBuscador(ev: KeyboardEvent): void {
+    const lista = this.sugerencias() ?? [];
+    if (!lista.length || !this.sugerenciasAbiertas()) return;
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      const paso = ev.key === 'ArrowDown' ? 1 : -1;
+      this.sugerenciaActiva.set((this.sugerenciaActiva() + paso + lista.length) % lista.length);
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      this.elegirSugerencia(lista[Math.min(this.sugerenciaActiva(), lista.length - 1)]);
+    } else if (ev.key === 'Escape') {
+      this.sugerenciasAbiertas.set(false);
+    }
+  }
+
+  /** Al salir del buscador la lista se cierra (tras dejar pasar el clic en ella). */
+  cerrarSugerencias(): void {
+    setTimeout(() => this.sugerenciasAbiertas.set(false), 150);
   }
 
   cambiarFiltro(colId: string, f: FiltroColumna): void {
@@ -600,8 +788,136 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   private oyenteScrollFijas?: () => void;
 
   alternarPantallaCompleta(): void {
-    this.pantallaCompleta.update((v) => !v);
-    afterNextRender(() => this.soltarAncestros(this.pantallaCompleta()), { injector: this.injector });
+    const activar = !this.pantallaCompleta();
+    this.pantallaCompleta.set(activar);
+    // La clase se aplica también a mano: si la pantalla tiene un error de JS, la
+    // detección de cambios se queda atascada y el `host` binding no llega a
+    // pintarse; entonces el botón «parecía» no hacer nada.
+    this.hostRef.nativeElement.classList.toggle('te-completa', activar);
+    this.soltarAncestros(activar);
+    if (!activar) this.devolverASuSitio();
+    afterNextRender(() => {
+      this.hostRef.nativeElement.classList.toggle('te-completa', this.pantallaCompleta());
+      this.soltarAncestros(this.pantallaCompleta());
+      if (this.pantallaCompleta()) {
+        this.asegurarQueCubre();
+        this.hacerTirasArrastrables();
+      }
+      this.respaldoDeCabecera(this.pantallaCompleta());
+      this.ajustarFijas();
+    }, { injector: this.injector });
+  }
+
+  /**
+   * Respaldo para pantallas rotas: si la detección de cambios está atascada por
+   * un error ajeno, la cabecera «módulo · tabla» y el botón de salir no llegan a
+   * pintarse y la tabla se queda ocupando todo sin salida visible. Cuando falta,
+   * se pintan a mano.
+   */
+  private respaldoDeCabecera(activar: boolean): void {
+    if (!this.isBrowser) return;
+    const host = this.hostRef.nativeElement;
+    const puesto = host.querySelector<HTMLElement>('.te-donde--respaldo');
+    if (!activar) { puesto?.remove(); return; }
+    if (puesto || host.querySelector('.te-donde')) return;
+    const caja = document.createElement('div');
+    caja.className = 'te-donde te-donde--respaldo';
+    const modulo = document.createElement('span');
+    modulo.className = 'te-donde__modulo';
+    modulo.textContent = this.moduloVisible();
+    const sep = document.createElement('span');
+    sep.className = 'te-donde__sep';
+    sep.textContent = '·';
+    const titulo = document.createElement('span');
+    titulo.className = 'te-donde__titulo';
+    titulo.textContent = this.tituloVisible();
+    const salir = document.createElement('button');
+    salir.type = 'button';
+    salir.className = 'te-btn te-donde__salir';
+    salir.textContent = 'Salir de pantalla completa';
+    salir.addEventListener('click', () => this.salirDePantallaCompleta());
+    caja.append(modulo, sep, titulo, salir);
+    host.prepend(caja);
+  }
+
+  /**
+   * A pantalla completa, la barra de herramientas y la de lo marcado van en
+   * UNA línea y se desplazan de lado. Con el dedo ya deslizan solas; con ratón
+   * se arrastran y la rueda las mueve. Se escucha en el host (y no en cada
+   * tira) porque la barra de lo marcado aparece y desaparece con la selección.
+   */
+  private tirasArrastrables = false;
+  private static readonly TIRAS = '.te-barra__der, .te-masivas';
+
+  private hacerTirasArrastrables(): void {
+    if (this.tirasArrastrables || !this.isBrowser) return;
+    this.tirasArrastrables = true;
+    const host = this.hostRef.nativeElement;
+    const tiraDe = (e: Event): HTMLElement | null => {
+      if (!this.pantallaCompleta()) return null;
+      const t = (e.target as HTMLElement | null)?.closest<HTMLElement>(TablaEstandarComponent.TIRAS) ?? null;
+      return t && t.scrollWidth > t.clientWidth ? t : null;
+    };
+    let tira: HTMLElement | null = null;
+    let x0 = 0;
+    let scroll0 = 0;
+    host.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      const t = tiraDe(e);
+      if (!t || (e.target as HTMLElement).closest('button, a, input, select, textarea, label')) return;
+      tira = t;
+      x0 = e.clientX;
+      scroll0 = t.scrollLeft;
+      t.classList.add('te-tira--arrastrando');
+      t.setPointerCapture(e.pointerId);
+    });
+    host.addEventListener('pointermove', (e) => {
+      if (tira) tira.scrollLeft = scroll0 - (e.clientX - x0);
+    });
+    const soltar = (e: PointerEvent) => {
+      if (!tira) return;
+      tira.classList.remove('te-tira--arrastrando');
+      try { tira.releasePointerCapture(e.pointerId); } catch { /* ya soltado */ }
+      tira = null;
+    };
+    host.addEventListener('pointerup', soltar);
+    host.addEventListener('pointercancel', soltar);
+    // La rueda vertical mueve la tira: es lo natural cuando no cabe de ancho.
+    host.addEventListener('wheel', (e) => {
+      const t = tiraDe(e);
+      if (!t || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      t.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }, { passive: false });
+  }
+
+  /** Dónde estaba la tabla antes de sacarla al cuerpo de la página. */
+  private anclaOriginal: Comment | null = null;
+
+  /**
+   * Último recurso: si tras neutralizar los ancestros la caja sigue sin cubrir
+   * la ventana (hay pantallas con contenedores que siguen haciendo de marco),
+   * la tabla se cuelga del `body` y se deja una marca para devolverla al salir.
+   */
+  private asegurarQueCubre(): void {
+    if (!this.isBrowser || this.anclaOriginal) return;
+    const host = this.hostRef.nativeElement;
+    const r = host.getBoundingClientRect();
+    const cubre = Math.abs(r.left) <= 1 && Math.abs(r.top) <= 1
+      && Math.abs(r.width - window.innerWidth) <= 2 && Math.abs(r.height - window.innerHeight) <= 2;
+    if (cubre) return;
+    const ancla = document.createComment('tabla-estandar a pantalla completa');
+    host.parentNode?.insertBefore(ancla, host);
+    this.anclaOriginal = ancla;
+    document.body.appendChild(host);
+  }
+
+  private devolverASuSitio(): void {
+    const ancla = this.anclaOriginal;
+    if (!ancla) return;
+    this.anclaOriginal = null;
+    ancla.parentNode?.insertBefore(this.hostRef.nativeElement, ancla);
+    ancla.remove();
   }
 
   /** Ancestros neutralizados mientras la tabla está a pantalla completa. */
@@ -637,7 +953,10 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   salirDePantallaCompleta(): void {
     if (!this.pantallaCompleta()) return;
     this.pantallaCompleta.set(false);
+    this.hostRef.nativeElement.classList.remove('te-completa');
     this.soltarAncestros(false);
+    this.devolverASuSitio();
+    this.respaldoDeCabecera(false);
   }
 
   /**
@@ -689,7 +1008,7 @@ export class TablaEstandarComponent<T = any> implements OnInit {
     this.orden.set(null);
     this.reiniciar();
     if (habiaOrden) this.ordenCambio.emit(null);
-    if (this.modoServidor() && habiaBusqueda) this.busquedaCambio.emit('');
+    if ((this.modoServidor() || this.sugerencias() !== null) && habiaBusqueda) this.busquedaCambio.emit('');
   }
 
   /** Cambiar búsqueda, filtros, orden o filas por página vuelve a la página 1.
@@ -808,6 +1127,18 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   private armarBloque(origen: Origen): BloqueCopiado | null {
     const filas = this.filas();
     const sel = this.sel();
+    // Casillas marcadas: van completas y en el orden en que se ven.
+    if (origen === 'marcadas') {
+      const sm = this.modeloSeleccion();
+      const cols = this.columnasCopiables();
+      if (!sm || !cols.length) return null;
+      const elegidas = this.ordenadas().map((i) => filas[i]).filter((f) => sm.isSelected(f));
+      if (!elegidas.length) return null;
+      return {
+        encabezados: cols.map((c) => c.header),
+        filas: elegidas.map((f) => cols.map((c) => this.textoParaCopiar(c, f))),
+      };
+    }
     if (origen === 'todo' || !sel) {
       const cols = this.columnasCopiables();
       const ord = this.ordenadas();
@@ -839,6 +1170,9 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   async copiar(origen: Origen): Promise<void> {
     const bloque = this.armarBloque(origen);
     if (!bloque) return;
+    // «Copiar marcadas» lleva solo el contenido de las filas (para pegar bajo un
+    // encabezado que ya existe); el Excel de lo marcado sí conserva el encabezado.
+    if (origen === 'marcadas') bloque.encabezados = [];
     const ok = await copiarBloque(bloque);
     if (!ok) {
       this.anunciar('No se pudo copiar');
@@ -855,8 +1189,8 @@ export class TablaEstandarComponent<T = any> implements OnInit {
     });
   }
 
-  async descargar(): Promise<void> {
-    const bloque = this.armarBloque('todo');
+  async descargar(soloMarcadas = false): Promise<void> {
+    const bloque = this.armarBloque(soloMarcadas ? 'marcadas' : 'todo');
     if (!bloque) return;
     this.descargando.set(true);
     try {
@@ -1077,21 +1411,243 @@ export class TablaEstandarComponent<T = any> implements OnInit {
     this.autoScroll = requestAnimationFrame(paso);
   }
 
+  // ── Pegado masivo (traer una lista de Excel y marcar esas filas) ────────────
+  /**
+   * Columnas por las que tiene sentido casar un pegado, en orden de preferencia:
+   * primero la que declare la pantalla, luego las que parecen identificar a
+   * alguien (cédula, documento) y después códigos, placas o radicados.
+   */
+  readonly columnasClave = computed<ColumnaTabla<T>[]>(() => {
+    const cols = this.columnas().filter((c) => c.copiable !== false);
+    if (!cols.length) return [];
+    const pedida = this.claveMasiva() ? cols.find((c) => c.id === this.claveMasiva()) : null;
+    const persona = /c[eé]dula|documento|identificaci|n[uú]m.*doc|nit/i;
+    const codigo = /c[oó]digo|codigo|placa|serial|radicado|consecutivo|^id$/i;
+    const casa = (c: ColumnaTabla<T>, re: RegExp) => re.test(c.id) || re.test(c.header);
+    const orden = [
+      ...(pedida ? [pedida] : []),
+      ...cols.filter((c) => casa(c, persona)),
+      ...cols.filter((c) => casa(c, codigo)),
+      ...cols,
+    ];
+    return [...new Set(orden)];
+  });
+
+  /** La columna que encabeza el botón «Pegar lista». */
+  readonly columnaClave = computed<ColumnaTabla<T> | null>(() => this.columnasClave()[0] ?? null);
+
+  /** Índice clave → fila de una columna, sobre TODO lo cargado. */
+  private indiceDe(col: ColumnaTabla<T>): Map<string, T> {
+    const mapa = new Map<string, T>();
+    for (const fila of this.filas()) {
+      const clave = normalizarClave(col.valor(fila));
+      if (clave && !mapa.has(clave)) mapa.set(clave, fila);
+    }
+    return mapa;
+  }
+
+  /** Filas que quedaron casadas en el último pegado, listas para marcar. */
+  private filasPegadas: T[] = [];
+
+  /**
+   * Casa el bloque pegado contra la tabla. No se adivina la columna: se prueban
+   * las candidatas y gana la que más registros encuentre, así da igual si lo
+   * que pegaron son cédulas o códigos.
+   */
+  private casarTexto(texto: string): ResultadoPegado {
+    const lineas = partirBloque(texto);
+    const vacio: ResultadoPegado = { encontradas: [], noEncontradas: [], duplicadas: 0, leidas: lineas.length };
+    if (!lineas.length) { this.filasPegadas = []; this.ultimasNoEncontradas = []; return vacio; }
+    let mejor: { res: ResultadoPegado; indice: Map<string, T>; col: ColumnaTabla<T> } | null = null;
+    for (const col of this.columnasClave()) {
+      const indice = this.indiceDe(col);
+      if (!indice.size) continue;
+      const res = casarPegado(lineas, new Set(indice.keys()));
+      if (!mejor || res.encontradas.length > mejor.res.encontradas.length) mejor = { res, indice, col };
+      if (res.noEncontradas.length === 0) break;
+    }
+    if (!mejor) { this.filasPegadas = []; this.ultimasNoEncontradas = []; return vacio; }
+    this.filasPegadas = mejor.res.encontradas
+      .map((c) => mejor!.indice.get(c))
+      .filter((f): f is T => !!f);
+    this.ultimasNoEncontradas = mejor.res.noEncontradas;
+    return { ...mejor.res, columna: mejor.col.header };
+  }
+
+  /**
+   * Abre el diálogo de pegar desde Excel. Lo que aparezca en la tabla se marca
+   * (sumándose a lo que ya estuviera marcado) y lo que no, se informa.
+   */
+  async abrirPegadoMasivo(): Promise<void> {
+    const sm = this.modeloSeleccion();
+    if (!sm || !this.columnasClave().length) return;
+    const { PegarSeleccionDialogComponent } = await import('./pegar-seleccion-dialog.component');
+    const ref = this.dialogo.open(PegarSeleccionDialogComponent, {
+      data: {
+        titulo: this.tituloVisible(),
+        columnas: this.columnasClave().slice(0, 4).map((c) => c.header),
+        filasCargadas: this.filas().length,
+        modoServidor: this.modoServidor(),
+        casar: (texto: string) => this.casarTexto(texto),
+      },
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+    });
+    ref.afterClosed().subscribe((aceptado?: boolean) => {
+      const filas = this.filasPegadas;
+      this.filasPegadas = [];
+      if (!aceptado || !filas.length) return;
+      sm.select(...filas);
+      this.versionSeleccion.update((v) => v + 1);
+      this.anunciar(`${filas.length} fila(s) marcadas desde el pegado`);
+      this.pegadoMasivo.emit({ encontradas: filas.length, noEncontradas: this.ultimasNoEncontradas });
+      this.ultimasNoEncontradas = [];
+    });
+  }
+
+  /** Lo que no apareció en el último pegado (se pasa a la pantalla al aceptar). */
+  private ultimasNoEncontradas: string[] = [];
+
+  /**
+   * Abre la vista estándar de revisión: el detalle completo de cada registro
+   * marcado (fotos, documentos y todos sus campos) con un carrusel para pasar
+   * de uno a otro. Lo que se descarte ahí sale de la selección.
+   */
+  async abrirRevisionSeleccion(): Promise<void> {
+    const sm = this.modeloSeleccion();
+    if (!sm?.selected.length) return;
+    // El orden de la tabla manda: revisar salta como se ve, no como se marcó.
+    const filas = this.filas();
+    const enOrden = this.ordenadas().map((i) => filas[i]).filter((f) => sm.isSelected(f));
+    const marcadas = enOrden.length ? enOrden : [...sm.selected];
+    const { RevisarSeleccionDialogComponent } = await import('./revisar-seleccion-dialog.component');
+    const ref = this.dialogo.open(RevisarSeleccionDialogComponent, {
+      data: {
+        titulo: this.tituloVisible(),
+        modulo: this.moduloVisible(),
+        filas: marcadas,
+        columnas: this.columnas(),
+        formatoFecha: (v: ValorCelda) => this.textoDeFecha(v),
+        acciones: this.accionesMasivas() ?? [],
+      },
+      panelClass: ['te-panel', 'te-revision-panel'],
+      maxWidth: '96vw',
+      autoFocus: true,
+      restoreFocus: true,
+    });
+    ref.afterClosed().subscribe((r?: { descartadas: T[]; accion?: string }) => {
+      if (r?.descartadas.length) {
+        sm.deselect(...r.descartadas);
+        this.versionSeleccion.update((v) => v + 1);
+        this.anunciar(`${r.descartadas.length} fila(s) fuera de la selección`);
+      }
+      // «Revisar → aplicar»: la acción elegida en la ficha arranca con lo que quedó.
+      const accion = r?.accion ? this.accionesMasivas()?.find((a) => a.id === r.accion) : null;
+      if (accion) void this.correrAccionMasiva(accion);
+    });
+  }
+
+  // ── Acciones masivas declaradas ─────────────────────────────────────────────
+  /**
+   * Las acciones con algo sobre lo que actuar, en el orden declarado. El
+   * rótulo de grupo («Pasar a:») va solo en la primera de cada grupo.
+   */
+  readonly accionesVisibles = computed(() => {
+    this.versionSeleccion();
+    const sm = this.modeloSeleccion();
+    const acciones = this.accionesMasivas();
+    if (!sm || !acciones?.length || !sm.selected.length) return [];
+    const lista: { accion: AccionMasiva<T, any>; cuantas: number; grupo: string | null }[] = [];
+    let grupoAnterior: string | undefined;
+    for (const accion of acciones) {
+      const cuantas = accion.aplicaA ? sm.selected.filter(accion.aplicaA).length : sm.selected.length;
+      if (!cuantas) continue;
+      const grupo = accion.grupo && accion.grupo !== grupoAnterior ? accion.grupo : null;
+      grupoAnterior = accion.grupo;
+      lista.push({ accion, cuantas, grupo });
+    }
+    return lista;
+  });
+
+  /** Las marcadas en el orden en que se ven, filtradas por `aplicaA`. */
+  private filasPara(accion: AccionMasiva<T, any>, base?: T[]): T[] {
+    const sm = this.modeloSeleccion();
+    if (!sm) return [];
+    let filas = base;
+    if (!filas) {
+      const todas = this.filas();
+      const enOrden = this.ordenadas().map((i) => todas[i]).filter((f) => sm.isSelected(f));
+      filas = enOrden.length ? enOrden : [...sm.selected];
+    }
+    return accion.aplicaA ? filas.filter(accion.aplicaA) : filas;
+  }
+
+  /**
+   * Corre una acción masiva con el flujo estándar: `preparar` → confirmación
+   * con el carrusel de registros → uno a uno con avance y parada → cierre con
+   * lo que salió y lo que no. Es pública para que una pantalla pueda lanzarla
+   * desde un botón propio (o sobre unas filas concretas) sin montar nada más.
+   */
+  async correrAccionMasiva(accion: AccionMasiva<T, any>, filasBase?: T[]): Promise<void> {
+    const sm = this.modeloSeleccion();
+    if (!sm || this.loteEnCurso()) return;
+    const filas = this.filasPara(accion, filasBase);
+    if (!filas.length) return;
+    let datos: unknown;
+    if (accion.preparar) {
+      datos = await accion.preparar(filas);
+      if (datos === undefined) return;
+    }
+    const columnas = this.columnas();
+    const fichas = filas.map((f) => {
+      const ficha = fichaDeRegistro(f, columnas, (v) => this.textoDeFecha(v));
+      return { nombre: ficha.nombre, id: ficha.id, portada: ficha.portada };
+    });
+    this.loteEnCurso.set(true);
+    const { AccionMasivaDialogComponent } = await import('./accion-masiva-dialog.component');
+    const ref = this.dialogo.open(AccionMasivaDialogComponent, {
+      data: { accion, filas, fichas, titulo: this.tituloVisible(), modulo: this.moduloVisible(), datos },
+      panelClass: ['te-panel', 'te-lote-panel'],
+      maxWidth: '96vw',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+    });
+    ref.afterClosed().subscribe((r?: ResultadoAccionMasiva<T> & { mantenerFallidas: boolean }) => {
+      this.loteEnCurso.set(false);
+      if (!r) return;
+      // Lo procesado sale de la selección; lo que no se alcanzó (si se paró) se
+      // queda marcado para seguir. «Dejar marcados los que fallaron» deja solo esos.
+      if (r.mantenerFallidas && r.fallidos.length) {
+        sm.clear();
+        sm.select(...r.fallidos);
+      } else {
+        sm.deselect(...r.hechos, ...r.fallidos);
+      }
+      this.versionSeleccion.update((v) => v + 1);
+      const verbo = accion.verbo ?? 'procesada(s)';
+      this.anunciar(`${r.hechos.length} ${verbo}${r.fallidos.length ? ` · ${r.fallidos.length} sin poder` : ''}`);
+      accion.alTerminar?.(r);
+      this.loteTerminado.emit({
+        accion: accion.id, hechos: r.hechos.length, fallidos: r.fallidos.length, cancelado: r.cancelado,
+      });
+    });
+  }
+
   // ── Selección de filas (casillas) ───────────────────────────────────────────
   estaMarcada(fila: T): boolean {
     this.versionSeleccion();
-    return this.seleccion()?.isSelected(fila) ?? false;
+    return this.modeloSeleccion()?.isSelected(fila) ?? false;
   }
 
   alternarFila(fila: T, ev?: Event): void {
     ev?.stopPropagation();
-    this.seleccion()?.toggle(fila);
+    this.modeloSeleccion()?.toggle(fila);
   }
 
   /** Estado de la casilla del encabezado sobre TODO lo filtrado (todas las páginas). */
   readonly estadoMarcaTodas = computed<'todas' | 'algunas' | 'ninguna'>(() => {
     this.versionSeleccion();
-    const sm = this.seleccion();
+    const sm = this.modeloSeleccion();
     if (!sm || !sm.selected.length) return 'ninguna';
     const filas = this.filas();
     const visibles = this.ordenadas().map((i) => filas[i]);
@@ -1102,16 +1658,16 @@ export class TablaEstandarComponent<T = any> implements OnInit {
   /** Cuántas filas hay marcadas (la selección la lleva la pantalla). */
   readonly marcadas = computed(() => {
     this.versionSeleccion();
-    return this.seleccion()?.selected.length ?? 0;
+    return this.modeloSeleccion()?.selected.length ?? 0;
   });
 
   soltarSeleccion(): void {
-    this.seleccion()?.clear();
+    this.modeloSeleccion()?.clear();
     this.versionSeleccion.update((v) => v + 1);
   }
 
   alternarTodas(): void {
-    const sm = this.seleccion();
+    const sm = this.modeloSeleccion();
     if (!sm) return;
     const filas = this.filas();
     const visibles = this.ordenadas().map((i) => filas[i]);

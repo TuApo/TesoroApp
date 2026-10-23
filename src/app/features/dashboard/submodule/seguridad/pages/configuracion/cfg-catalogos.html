@@ -1,0 +1,112 @@
+@switch (seccion()) {
+  @case ('sedes') {
+    <p class="sg-nota">Cada sede es una oficina física: agrupa sus grabadores, cámaras, dispositivos y parlantes. Ligarla a la oficina de Turnos permite ver
+      sus cámaras y puertas en el plano 3D.</p>
+    <app-tabla-estandar id="seguridad-cfg-sedes" titulo="Sedes" modulo="Seguridad" [datos]="sedes()" [columnas]="colSedes" [filaId]="porId"
+                        [cargando]="cargando()" [seleccionable]="false" vacio="Aún no hay sedes." (filaClick)="editarSede($event)">
+      <ng-template tablaAcciones let-s>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarSede(s)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarSede(s)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editarSede(null)"><mat-icon aria-hidden="true">add_location_alt</mat-icon>Nueva sede</button></div>
+  }
+
+  @case ('agentes') {
+    <p class="sg-nota">Solo hace falta si la sede no es alcanzable desde el servidor (lo normal cuando el DVR se ve por la app del fabricante). El agente hace
+      solo conexiones de salida: no hay que abrir puertos en el router de la sede.</p>
+    <app-tabla-estandar id="seguridad-cfg-agentes" titulo="Agentes de sitio" modulo="Seguridad" [datos]="agentes()" [columnas]="colAgentes" [filaId]="porId"
+                        [cargando]="cargando()" [seleccionable]="false" vacio="Sin agentes de sitio.">
+      <ng-template tablaAcciones let-a>
+        <button type="button" class="sg-boton" (click)="instalarAgente(a)" [disabled]="ocupado() === a.id"><mat-icon aria-hidden="true">download</mat-icon>Token e instalación</button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="verDescubiertos(a)" matTooltip="Equipos vistos en su red" aria-label="Equipos vistos"><mat-icon>lan</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarAgente(a)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarAgente(a)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    @for (a of agentes(); track a.id) {
+      @if (a.descubiertos.length) {
+        <section class="sg-tarjeta">
+          <h3><mat-icon aria-hidden="true">lan</mat-icon>Equipos en la red de {{ a.nombre }} <span class="sg-sub">{{ a.sede_nombre }}</span></h3>
+          <div class="sg-scroll-x">
+            <table class="sg-tabla-simple">
+              <thead><tr><th>IP</th><th>Marca</th><th>MAC</th><th>Puertos</th><th></th></tr></thead>
+              <tbody>
+                @for (e of a.descubiertos; track e.ip) {
+                  <tr>
+                    <td class="sg-mono">{{ e.ip }}</td><td>{{ e.marca ?? '—' }}</td><td class="sg-mono">{{ e.mac ?? '—' }}</td>
+                    <td class="sg-mono">{{ e.puertos.join(', ') || '—' }}</td>
+                    <td><button type="button" class="sg-boton" (click)="grabadorDesde(a, e)"><mat-icon aria-hidden="true">add</mat-icon>Agregar como grabador</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+    }
+    <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editarAgente(null)"><mat-icon aria-hidden="true">add</mat-icon>Nuevo agente</button></div>
+  }
+
+  @case ('grabadores') {
+    <p class="sg-nota">DVR/NVR o cámaras IP sueltas. Use "Probar" para comprobar usuario, clave y red, y "Crear cámaras" para sacar una cámara por canal.</p>
+    <app-tabla-estandar id="seguridad-cfg-grabadores" titulo="Grabadores" modulo="Seguridad" [datos]="grabadores()" [columnas]="colGrabadores" [filaId]="porId"
+                        [cargando]="cargando()" [seleccionable]="false" vacio="Aún no hay grabadores." (filaClick)="editarGrabador($event)">
+      <ng-template tablaAcciones let-g>
+        <button type="button" class="sg-boton" (click)="probar(g)" [disabled]="ocupado() === g.id"><mat-icon aria-hidden="true">network_check</mat-icon>{{ ocupado() === g.id ? 'Probando…' : 'Probar' }}</button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="descubrir(g)" [disabled]="ocupado() === g.id" matTooltip="Crear cámaras por canal" aria-label="Crear cámaras por canal"><mat-icon>video_call</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarGrabador(g)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarGrabador(g)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editarGrabador(null)"><mat-icon aria-hidden="true">add</mat-icon>Nuevo grabador</button></div>
+  }
+
+  @case ('camaras') {
+    <div class="filtros-cfg">
+      <label class="sg-campo-nativo">Sede
+        <select [ngModel]="filtroSedeCam()" (ngModelChange)="filtroSedeCam.set($event)">
+          <option [ngValue]="null">Todas</option>
+          @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Grupo
+        <select [ngModel]="filtroGrupoCam()" (ngModelChange)="filtroGrupoCam.set($event)">
+          <option [ngValue]="null">Todos</option>
+          @for (g of grupos(); track g.id) { <option [ngValue]="g.id">{{ g.nombre }}</option> }
+        </select>
+      </label>
+    </div>
+    <app-tabla-estandar id="seguridad-cfg-camaras" titulo="Cámaras" modulo="Seguridad" [datos]="camarasFiltradas()" [columnas]="colCamaras" [filaId]="porId"
+                        [cargando]="cargando()" [seleccionable]="false" vacio="Sin cámaras. Cree un grabador y use 'Crear cámaras'." (filaClick)="editarCamara($event)">
+      <ng-template tablaAcciones let-c>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="irAZonas.emit(c.id)" matTooltip="Zonas y líneas" aria-label="Zonas y líneas"><mat-icon>pentagon</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarCamara(c)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarCamara(c)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editarCamara(null)"><mat-icon aria-hidden="true">add</mat-icon>Nueva cámara</button></div>
+  }
+
+  @case ('grupos') {
+    <app-tabla-estandar id="seguridad-cfg-grupos" titulo="Grupos de cámaras" modulo="Seguridad" [datos]="grupos()" [columnas]="colGrupos" [filaId]="porId"
+                        [cargando]="cargando()" [seleccionable]="false" vacio="Sin grupos." (filaClick)="editarGrupo($event)">
+      <ng-template tablaAcciones let-g>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarGrupo(g)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarGrupo(g)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editarGrupo(null)"><mat-icon aria-hidden="true">add</mat-icon>Nuevo grupo</button></div>
+  }
+
+  @case ('mosaicos') {
+    <app-tabla-estandar id="seguridad-cfg-mosaicos" titulo="Mosaicos" modulo="Seguridad" [datos]="mosaicos()" [columnas]="colMosaicos" [filaId]="porId"
+                        [cargando]="cargando()" [seleccionable]="false" vacio="Sin mosaicos. Se arman en el Centro de monitoreo." (filaClick)="editarMosaico($event)">
+      <ng-template tablaAcciones let-m>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarMosaico(m)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarMosaico(m)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editarMosaico(null)"><mat-icon aria-hidden="true">add</mat-icon>Nuevo mosaico</button></div>
+  }
+}

@@ -1,0 +1,240 @@
+@if (!s()) {
+  <div class="if-vacio">Leyendo la infraestructura…</div>
+} @else {
+  @if (fuentesCaidas().length) {
+    <div class="if-aviso warn">
+      <mat-icon>sensors_off</mat-icon>
+      <div>
+        <strong>Hay fuentes que no se pueden leer:</strong>
+        @for (fu of fuentesCaidas(); track fu.id) {
+          <span> {{ fu.nombre }} ({{ fu.error }}){{ $last ? '.' : ';' }}</span>
+        }
+        Lo que dependa de ellas muestra el último dato conocido.
+      </div>
+    </div>
+  }
+
+  <!-- Lecturas del servidor, como un tablero de instrumentos. -->
+  <section class="if-lecturas" aria-label="Lecturas del servidor">
+    <div class="if-lectura">
+      <span class="et">CPU</span>
+      <span class="va">{{ f.num(k()?.cpu_pct) }}<small>%</small></span>
+      <svg class="pulso" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline [attr.points]="pulso('cpu')" /></svg>
+      <span class="ay">{{ host()?.nucleos }} hilos · carga {{ f.num(host()?.carga1, 2) }}</span>
+    </div>
+    <div class="if-lectura">
+      <span class="et">Memoria</span>
+      <span class="va">{{ f.num(k()?.mem_pct) }}<small>%</small></span>
+      <svg class="pulso" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline [attr.points]="pulso('mem')" /></svg>
+      <span class="ay">{{ f.bytes(host()?.mem_usada) }} de {{ f.bytes(host()?.mem_total) }}</span>
+    </div>
+    <div class="if-lectura">
+      <span class="et">Temperatura CPU</span>
+      <span class="va" [class.caliente]="(k()?.temp_c ?? 0) >= 80">{{ f.num(k()?.temp_c, 0) }}<small>°C</small></span>
+      <span class="ay" [title]="host()?.detalle ?? ''">{{ host()?.detalle ?? 'Sin sensores' }}</span>
+    </div>
+    <div class="if-lectura">
+      <span class="et">Red LAN</span>
+      <span class="va">{{ f.bps(k()?.red_rx_bps) }}</span>
+      <svg class="pulso" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline [attr.points]="pulso('rx')" /></svg>
+      <span class="ay">entra · sale {{ f.bps(k()?.red_tx_bps) }}</span>
+    </div>
+    <div class="if-lectura">
+      <span class="et">Peticiones al API</span>
+      <span class="va">{{ f.num(k()?.req_s, 2) }}<small>/s</small></span>
+      <svg class="pulso" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polyline [attr.points]="pulso('req')" /></svg>
+      <span class="ay">5xx {{ f.pct(k()?.err5xx_pct, 2) }} · media {{ f.ms(k()?.lat_media_ms) }}</span>
+    </div>
+    <div class="if-lectura">
+      <span class="et">Visitas a los sitios</span>
+      <span class="va">{{ f.num(k()?.visitas_min, 0) }}<small>/min</small></span>
+      <span class="ay">{{ k()!.sitios - k()!.sitios_caidos }} de {{ k()?.sitios }} sitios responden</span>
+    </div>
+    <div class="if-lectura">
+      <span class="et">Contenedores</span>
+      <span class="va">{{ k()?.contenedores_activos }}<small>/ {{ k()?.contenedores }}</small></span>
+      <span class="ay">{{ k()?.microservicios_up }}/{{ k()?.microservicios }} microservicios · {{ k()?.contenedores_fuera }} fuera de prod.</span>
+    </div>
+    <div class="if-lectura">
+      <span class="et">Encendido hace</span>
+      <span class="va">{{ f.duracionCorta(host()?.uptime_seg) }}</span>
+      <span class="ay">{{ k()?.nodos_listos }}/{{ k()?.nodos }} nodos K3s · {{ k()?.pods_activos }} pods</span>
+    </div>
+  </section>
+
+  <div class="principal">
+    <!-- Lo que hay que arreglar primero -->
+    <section class="if-tarjeta hallazgos" aria-labelledby="t-hallazgos">
+      <div class="if-fila if-fila--entre">
+        <h2 class="if-titulo-seccion" id="t-hallazgos"><mat-icon>checklist</mat-icon> Qué arreglar primero</h2>
+        <div class="filtros" role="group" aria-label="Filtrar por gravedad">
+          @for (sev of severidades; track sev) {
+            <button type="button" class="if-chip" [class]="'if-chip ' + sev" [attr.aria-pressed]="filtroSev() === sev"
+                    (click)="filtrar(sev)">
+              <mat-icon>{{ iconoSev[sev] }}</mat-icon>{{ conteoSev()[sev] }} {{ nombreSev[sev] | lowercase }}
+            </button>
+          }
+        </div>
+      </div>
+      @if (hallazgos().length === 0) {
+        <div class="if-vacio"><mat-icon>verified</mat-icon><br>Nada pendiente. Todo lo que se mide está dentro de lo normal.</div>
+      } @else {
+        <ul class="if-lista">
+          @for (h of hallazgos(); track h.id) {
+            <li class="hallazgo" [class]="'hallazgo ' + h.severidad">
+              <mat-icon class="ico" [attr.aria-label]="nombreSev[h.severidad]">{{ iconoSev[h.severidad] }}</mat-icon>
+              <div class="cuerpo">
+                <button type="button" class="titulo-btn" (click)="alternar(h)" [attr.aria-expanded]="abiertos().has(h.id)">
+                  <span class="t">{{ h.titulo }}</span>
+                  <span class="cat">{{ h.categoria }}</span>
+                </button>
+                @if (h.detalle) { <div class="d">{{ h.detalle }}</div> }
+                @if (h.recomendacion && (abiertos().has(h.id) || h.severidad === 'critico')) {
+                  <div class="r"><mat-icon>build</mat-icon><span>{{ h.recomendacion }}</span></div>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+
+    <div class="lateral">
+      <section class="if-tarjeta" aria-labelledby="t-rack">
+        <h3 id="t-rack"><mat-icon>view_column</mat-icon> Contenedores <span class="if-sub">clic para ver uno</span></h3>
+        <app-infra-rack [contenedores]="s()!.contenedores" (elegido)="elegido.set($event)" />
+        @if (detalle(); as c) {
+          <div class="ficha">
+            <div class="if-fila if-fila--entre">
+              <strong class="if-mono">{{ c.nombre }}</strong>
+              <button type="button" class="if-boton" (click)="elegido.set(null)" aria-label="Cerrar ficha"><mat-icon>close</mat-icon></button>
+            </div>
+            <div class="if-fila">
+              <span class="if-chip" [class]="'if-chip ' + estado(c).tono">{{ estado(c).texto }}</span>
+              <span class="if-tenue">{{ nombreGrupo[c.grupo] }} · {{ c.imagen }}</span>
+            </div>
+            <dl class="datos">
+              <dt>CPU</dt><dd>{{ f.num(c.cpu_pct) }} % de un núcleo</dd>
+              <dt>Memoria</dt><dd>{{ f.bytes(c.mem_bytes) }}{{ c.mem_limite ? ' de ' + f.bytes(c.mem_limite) : '' }}</dd>
+              @if (c.req_s != null) { <dt>Peticiones</dt><dd>{{ f.num(c.req_s, 2) }}/s · {{ f.ms(c.lat_ms) }} · 5xx {{ f.pct(c.err_pct, 1) }}</dd> }
+              @if (c.heap_pct != null) { <dt>Heap Java</dt><dd>{{ f.pct(c.heap_pct) }}</dd> }
+              @if (c.db_max) { <dt>Pool BD</dt><dd>{{ c.db_activas }} de {{ c.db_max }} conexiones</dd> }
+              <dt>Reinicios</dt><dd>{{ c.reinicios ?? '—' }}</dd>
+              <dt>Arrancó</dt><dd>{{ c.inicio ? f.hace(c.inicio * 1000) : '—' }}</dd>
+              @if (c.eureka) { <dt>Eureka</dt><dd>{{ c.eureka }}</dd> }
+              @if (c.puertos?.length) { <dt>Puertos</dt><dd class="if-mono">{{ c.puertos!.join('  ') }}</dd> }
+            </dl>
+            @if (c.estado === 'running') {
+              <app-infra-grafica clave="contenedor.cpu" [objeto]="c.nombre" rango="6h" [alto]="140" titulo="CPU 6 h" />
+              <app-infra-grafica clave="contenedor.mem" [objeto]="c.nombre" rango="6h" [alto]="140" titulo="Memoria 6 h" />
+            }
+          </div>
+        }
+      </section>
+
+      @if (almacenamiento().length) {
+        <section class="if-tarjeta" aria-labelledby="t-discos">
+          <h3 id="t-discos"><mat-icon>storage</mat-icon> {{ almacenamiento().length > 1 ? 'Almacenamiento por equipo' : 'Discos de ' + almacenamiento()[0].nombre }}
+            @if (almacenamiento().length > 1) { <a class="if-sub" routerLink="../cluster">ver clúster</a> }</h3>
+          @for (h of almacenamiento(); track h.id) {
+            @if (almacenamiento().length > 1) { <div class="equipo-discos if-mono">{{ h.nombre }} <span class="if-tenue">· {{ h.ip }}</span></div> }
+            @for (d of h.discos ?? []; track d.dispositivo) {
+              <div class="if-medidor" [title]="d.dispositivo + ' (' + d.tipo + ') · ' + f.bytes(d.total)">
+                <span class="nombre">{{ d.montaje }}</span>
+                <span class="if-barra"><i [class]="tonoDisco(d.pct)" [style.width.%]="d.pct"></i></span>
+                <span class="valor">{{ f.pct(d.pct) }} · {{ f.bytes(d.libre) }} libres</span>
+              </div>
+            }
+          }
+        </section>
+      }
+
+      @if (conGpu().length) {
+        <section class="if-tarjeta" aria-labelledby="t-gpus">
+          <h3 id="t-gpus"><mat-icon>memory</mat-icon> Tarjetas gráficas <a class="if-sub" routerLink="../cluster">ver detalle</a></h3>
+          @for (h of conGpu(); track h.id) {
+            <div class="equipo-discos if-mono">{{ h.nombre }} <span class="if-tenue">· {{ h.ip }}</span></div>
+            <div class="gpus">
+              @for (g of h.gpus ?? []; track g.pci) { <app-infra-gpu [gpu]="g" [compacta]="true" /> }
+            </div>
+          }
+        </section>
+      }
+
+      @if (ubicaciones(); as ub) {
+        <section class="if-tarjeta" aria-labelledby="t-ubicaciones">
+          <h3 id="t-ubicaciones"><mat-icon>travel_explore</mat-icon> Ubicaciones <a class="if-sub" routerLink="../ubicaciones">ver todo</a></h3>
+          <div class="if-tenue">{{ ub.en_linea }}/{{ ub.equipos }} equipos en línea{{ ub.caidos ? ' · ' + ub.caidos + ' sin responder' : '' }}
+            · respaldos {{ ub.respaldos - ub.respaldos_con_problema }}/{{ ub.respaldos }} al día</div>
+          <ul class="if-lista compacta">
+            @for (u of ub.lista; track u.ubicacion.id) {
+              <li>
+                <span class="if-chip" [class]="'if-chip ' + tonoUbicacion(u.estado)">
+                  <mat-icon>{{ u.estado === 'ok' ? 'check' : u.estado === 'sin-equipos' ? 'hourglass_empty' : 'warning' }}</mat-icon>{{ u.en_linea }}/{{ u.equipos }}</span>
+                <div class="cuerpo"><div class="t">{{ u.ubicacion.nombre }}</div>
+                  <div class="d">{{ u.caidos ? u.caidos + ' sin responder · ' : '' }}respaldos {{ u.respaldos_al_dia }}/{{ u.respaldos.length }}</div></div>
+              </li>
+            }
+          </ul>
+          @for (r of respaldosMalos(); track r.ubicacion + r.equipo + r.nombre) {
+            <div class="respaldo-malo"><mat-icon>report</mat-icon><span><strong>{{ r.nombre }}</strong> ({{ r.equipo }}, {{ r.ubicacion }}):
+              {{ r.estado === 'vencido' ? 'vencido' : r.estado === 'fallo' ? 'falló' : 'sin datos' }}</span></div>
+          }
+        </section>
+      }
+
+      <section class="if-tarjeta" aria-labelledby="t-sitios">
+        <h3 id="t-sitios"><mat-icon>language</mat-icon> Sitios <a class="if-sub" routerLink="../sitios">ver tráfico</a></h3>
+        <ul class="if-lista compacta">
+          @for (st of sitios(); track st.dominio) {
+            <li>
+              <span class="if-chip" [class]="'if-chip ' + tonoSitio(st)">
+                <mat-icon>{{ st.estado === 'ok' ? 'check' : st.estado === 'caido' ? 'close' : 'help' }}</mat-icon>{{ st.codigo ?? '—' }}
+              </span>
+              <div class="cuerpo"><div class="t">{{ st.dominio }}</div>
+                <div class="d">{{ st.estado === 'caido' ? st.error : (st.peticiones != null ? f.num(st.peticiones, 0) + ' peticiones en 24 h' : (st.latencia_ms != null ? f.ms(st.latencia_ms) : '')) }}</div>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <section class="if-tarjeta" aria-labelledby="t-equipos">
+        <h3 id="t-equipos"><mat-icon>router</mat-icon> Otros equipos de la red</h3>
+        <ul class="if-lista compacta">
+          @for (e of equipos(); track e.id) {
+            <li>
+              <span class="if-chip" [class]="'if-chip ' + (e.estado === 'ok' ? 'ok' : e.estado === 'critico' ? 'danger' : 'neutro')">
+                <mat-icon>{{ e.estado === 'ok' ? 'check' : 'close' }}</mat-icon>{{ e.latencia_ms != null ? f.num(e.latencia_ms, 1) + ' ms' : '—' }}
+              </span>
+              <div class="cuerpo"><div class="t">{{ e.nombre }}</div><div class="d">{{ e.rol }} · {{ e.ip }}</div></div>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <div class="if-rejilla--2">
+    <section class="if-tarjeta">
+      <h3><mat-icon>speed</mat-icon> CPU y memoria del servidor <span class="if-sub">últimas 24 h</span></h3>
+      <app-infra-grafica clave="host.cpu" rango="24h" [alto]="200" titulo="CPU del servidor" />
+      <app-infra-grafica clave="host.mem" rango="24h" [alto]="160" titulo="Memoria del servidor" />
+    </section>
+    <section class="if-tarjeta bitacora" aria-labelledby="t-bitacora">
+      <h3 id="t-bitacora"><mat-icon>history</mat-icon> Bitácora en vivo <a class="if-sub" routerLink="../alertas">ver todo</a></h3>
+      @if (vivo.eventos().length === 0) {
+        <div class="if-vacio">Sin cambios registrados todavía. Cuando un contenedor muera, un nodo entre o salte una alerta, aparecerá aquí.</div>
+      }
+      <ul class="if-lista">
+        @for (e of vivo.eventos().slice(0, 14); track e.id) {
+          <li>
+            <mat-icon class="ico-ev" [class]="'ico-ev ' + e.severidad">{{ iconoSev[e.severidad] }}</mat-icon>
+            <div class="cuerpo"><div class="t ev">{{ e.mensaje }}</div></div>
+            <span class="cuando" [title]="f.hora(e.ts)">{{ f.hace(e.ts) }}</span>
+          </li>
+        }
+      </ul>
+    </section>
+  </div>
+}

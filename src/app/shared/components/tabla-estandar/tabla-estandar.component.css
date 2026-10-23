@@ -45,6 +45,19 @@
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .te-buscar input::placeholder { color: var(--text-faint); }
+.te-sugerencias {
+  position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0;
+  margin: 0; padding: 4px; list-style: none; max-height: 320px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .12);
+}
+.te-sugerencias li {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 10px;
+  border-radius: 8px; cursor: pointer;
+}
+.te-sugerencias li.te-sugerencia--activa { background: var(--surface-2); }
+.te-sugerencia__texto { font: 600 13px var(--font-sans); color: var(--text); }
+.te-sugerencia__detalle { font: 12px var(--font-sans); color: var(--text-faint); }
 .te-buscar input:focus { border-color: var(--lime); box-shadow: 0 0 0 3px rgba(140, 213, 10, .18); }
 
 .te-cuenta { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
@@ -65,6 +78,25 @@
 :host ::ng-deep .te-btn--aviso:hover:not(:disabled) { background: var(--warn-bg); filter: brightness(.97); }
 :host ::ng-deep .te-btn--excel { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-fg); }
 :host ::ng-deep .te-btn--excel:hover:not(:disabled) { background: var(--ok-bg); filter: brightness(.97); }
+/* Tonos de las acciones: por clase (lo que cuelga la pantalla) o por
+   `data-tono` (las acciones masivas declaradas). Mismo aspecto en ambos. */
+:host ::ng-deep :is(.te-btn--primario, .te-btn[data-tono='primario']) {
+  background: var(--te-marca); border-color: transparent; color: var(--te-sobre-marca);
+}
+:host ::ng-deep :is(.te-btn--primario, .te-btn[data-tono='primario']):hover:not(:disabled) {
+  background: var(--te-marca); filter: brightness(1.08);
+}
+:host ::ng-deep .te-btn[data-tono='aviso'] {
+  background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg);
+}
+:host ::ng-deep .te-btn[data-tono='aviso']:hover:not(:disabled) { background: var(--warn-bg); filter: brightness(.97); }
+:host ::ng-deep :is(.te-btn--peligro, .te-btn[data-tono='peligro']) {
+  background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-fg);
+}
+:host ::ng-deep :is(.te-btn--peligro, .te-btn[data-tono='peligro']):hover:not(:disabled) {
+  background: var(--danger-bg); filter: brightness(.97);
+}
+:host ::ng-deep .te-btn .mat-icon { color: inherit; }
 @media (max-width: 639px) { .te-btn__texto { display: none; } .te-btn { padding: 0 10px; } }
 
 .te-aviso {
@@ -295,6 +327,13 @@
 :host(.te-completa) {
   position: fixed;
   inset: 0;
+  /* Sin esto, un margen puesto por la pantalla desplaza la caja fija (salía a
+     14-20 px del borde y con menos alto del que hay). */
+  margin: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  width: auto !important;
+  height: auto !important;
   z-index: 900;
   display: flex;
   flex-direction: column;
@@ -303,6 +342,59 @@
   overflow: hidden;
 }
 :host(.te-completa) .te-barra { flex: 0 0 auto; }
+
+/* A pantalla completa la barra es UNA fila: el buscador a la izquierda y las
+   acciones arriba a la derecha, aunque la ventana sea estrecha (sin esto, bajo
+   1024 px se apilaban y las acciones caían a la izquierda). En móvil de verdad
+   se sigue apilando. */
+@media (min-width: 640px) {
+  :host(.te-completa) .te-barra {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 10px;
+  }
+  :host(.te-completa) .te-barra__izq { flex: 1 1 auto; min-width: 0; }
+  /* `flex-shrink: 1` + `min-width: 0` es lo que deja que la tira se encoja y
+     aparezca su scroll en vez de empujar el ancho de la barra. */
+  /* Sin `justify-content: flex-end`: en un contenedor con scroll, lo que
+     desborda por el lado del inicio queda INALCANZABLE (el scroll no llega).
+     `margin-left: auto` ya pega la tira a la derecha y su contenido desborda
+     hacia el lado que sí se puede scrollear. */
+  :host(.te-completa) .te-barra__der { flex: 0 1 auto; margin-left: auto; }
+}
+
+/* La fila de acciones no se parte en varias líneas: se desplaza de lado
+   (rueda, dedo o arrastre), que es lo que se espera de una barra llena. */
+:host(.te-completa) .te-barra__der {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  max-width: 100%;
+  padding-bottom: 2px;
+  /* Nada de mask-image para difuminar los extremos: en el WebView de Android
+     deja texto fantasma en las tiras que scrollean de lado. La barra fina y el
+     arrastre ya dicen que hay más botones. */
+}
+:host(.te-completa) .te-barra__der::-webkit-scrollbar { height: 6px; }
+:host(.te-completa) .te-barra__der::-webkit-scrollbar-thumb {
+  background: var(--border); border-radius: 999px;
+}
+:host(.te-completa) .te-barra__der > * { flex: 0 0 auto; }
+/* La salida de pantalla completa no se esconde con el scroll: se queda pegada
+   al borde derecho mientras el resto de la tira se desplaza por debajo. */
+:host(.te-completa) .te-barra__der .te-btn--pantalla {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  box-shadow: -10px 0 10px -6px var(--bg);
+}
+
+:host(.te-completa) .te-tira--arrastrando { cursor: grabbing; scroll-behavior: auto; }
+:host(.te-completa) .te-tira--arrastrando * { pointer-events: none; }
+
 :host(.te-completa) .te-contenedor,
 :host(.te-completa) .te-tarjetas { flex: 1 1 auto; overflow: auto; min-height: 0; }
 :host(.te-completa) .te-paginador { flex: 0 0 auto; }
@@ -355,7 +447,36 @@
 }
 .te-masivas__cuenta { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
 .te-masivas__cuenta strong { color: var(--text); }
-.te-masivas__soltar { margin-left: auto; }
+.te-masivas__soltar { margin-left: 4px; }
+/* Empuja a la derecha lo genérico (copiar/Excel/soltar) y deja a la izquierda
+   las acciones propias de la pantalla. */
+.te-masivas__sep { flex: 1 1 auto; }
+/* Todos los botones de la barra a la misma altura: mezclaba 38 y 32 px. */
+:host ::ng-deep .te-masivas .te-btn { height: 34px; }
+.te-masivas__accion strong { font-weight: 800; }
+/* Rótulo antes de un grupo de acciones («Pasar a:»). */
+.te-masivas__grupo {
+  margin-left: 6px; font: 700 11px var(--font-sans); letter-spacing: .04em;
+  text-transform: uppercase; color: var(--muted); white-space: nowrap;
+}
+
+/* A pantalla completa la barra de lo marcado es UNA línea que se desplaza de
+   lado, igual que la barra de herramientas: los botones no se apilan y no
+   roban alto a la tabla. */
+:host(.te-completa) .te-masivas {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  padding-bottom: 8px;
+}
+:host(.te-completa) .te-masivas::-webkit-scrollbar { height: 6px; }
+:host(.te-completa) .te-masivas::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
+:host(.te-completa) .te-masivas > * { flex: 0 0 auto; }
+:host ::ng-deep :host(.te-completa) .te-masivas .bulk-acciones > * { flex: 0 0 auto; }
+:host(.te-completa) .te-masivas__sep { flex: 1 0 12px; }
 
 /* Lo que la pantalla cuelga en la barra o en las acciones masivas se alinea
    con lo de la tabla, sin que cada pantalla repita estilos. */
@@ -364,3 +485,32 @@
 :host ::ng-deep .te-masivas .bulk-field { width: 170px; }
 :host ::ng-deep .te-masivas .bulk-nota { width: 220px; }
 :host ::ng-deep .te-masivas .bulk-acciones { display: contents; }
+/* Una etiqueta suelta entre los botones («Pasar a:»). */
+:host ::ng-deep .te-masivas .bulk-etiqueta { font-size: 13px; color: var(--text-2); }
+
+/* ── A pantalla completa: de dónde es esta tabla ───────────────────────── */
+.te-donde {
+  display: none;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+:host(.te-completa) .te-donde { display: flex; }
+/* El respaldo se pinta a mano cuando la pantalla tiene la detección de cambios
+   atascada: lleva su propio botón de salida, porque el de la barra tampoco se
+   habrá pintado. */
+.te-donde__salir { margin-left: auto; }
+.te-donde__modulo {
+  font: 700 11px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.te-donde__sep { color: var(--text-faint); }
+.te-donde__titulo { font: 800 17px var(--font-sans); color: var(--text); letter-spacing: -0.01em; }
+
+/* Celda con foto: miniatura reconocible + texto; la foto se amplía al tocarla. */
+.te-con-imagen { display: inline-flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.te-con-imagen__texto { min-width: 0; overflow-wrap: anywhere; }

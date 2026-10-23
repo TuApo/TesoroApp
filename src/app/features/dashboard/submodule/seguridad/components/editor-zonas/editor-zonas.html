@@ -1,0 +1,71 @@
+@if (!soloLectura()) {
+  <div class="herr" role="toolbar" aria-label="Herramientas de dibujo">
+    <button type="button" class="sg-boton" [attr.aria-pressed]="modo() === 'ZONA'" (click)="empezar('ZONA')">
+      <mat-icon aria-hidden="true">pentagon</mat-icon>Nueva zona
+    </button>
+    <button type="button" class="sg-boton" [attr.aria-pressed]="modo() === 'LINEA'" (click)="empezar('LINEA')">
+      <mat-icon aria-hidden="true">horizontal_rule</mat-icon>Nueva línea de conteo
+    </button>
+    @if (modo() !== 'ver') {
+      <button type="button" class="sg-boton sg-boton--primario" (click)="terminar()"
+              [disabled]="(modo() === 'ZONA' && borrador().length < 3) || (modo() === 'LINEA' && borrador().length < 2)">
+        <mat-icon aria-hidden="true">check</mat-icon>Terminar
+      </button>
+      <button type="button" class="sg-boton" (click)="cancelar()"><mat-icon aria-hidden="true">close</mat-icon>Cancelar</button>
+    }
+    @if (verticeElegido() !== null && modo() === 'ver') {
+      <button type="button" class="sg-boton" (click)="quitarVertice()"><mat-icon aria-hidden="true">remove_circle</mat-icon>Quitar punto</button>
+    }
+  </div>
+}
+@if (ayuda()) { <p class="ayuda" aria-live="polite">{{ ayuda() }}</p> }
+
+<div class="lienzo" #lienzo tabindex="0" [class.dibujando]="modo() !== 'ver'"
+     (click)="clicLienzo($event)" (dblclick)="dobleClic($event)" (pointermove)="mover($event)"
+     (pointerup)="soltar()" (pointercancel)="soltar()" (pointerleave)="puntero.set(null)" (keydown)="tecla($event)"
+     aria-label="Lienzo de zonas sobre la imagen de la cámara">
+  <sg-imagen class="fondo" [src]="fondo()" alt="Imagen de la cámara" ajuste="cover" iconoVacio="videocam_off" />
+  <svg [attr.viewBox]="'0 0 ' + ancho() + ' ' + alto()" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <marker id="sg-flecha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#fff" />
+      </marker>
+    </defs>
+    @for (z of zonas(); track $index; let i = $index) {
+      <g [class.elegida]="seleccion() === i" [style.--c]="color(z, i)">
+        @if (z.tipo === 'ZONA') {
+          <polygon class="forma" [attr.points]="puntosSvg(z.puntos)" (pointerdown)="tomarForma($event, i)" (click)="$event.stopPropagation()" />
+        } @else if (z.puntos.length >= 2) {
+          <line class="trazo-fondo" [attr.x1]="px(z.puntos[0])[0]" [attr.y1]="px(z.puntos[0])[1]" [attr.x2]="px(z.puntos[1])[0]" [attr.y2]="px(z.puntos[1])[1]"
+                (pointerdown)="tomarForma($event, i)" (click)="$event.stopPropagation()" />
+          <line class="trazo" [attr.x1]="px(z.puntos[0])[0]" [attr.y1]="px(z.puntos[0])[1]" [attr.x2]="px(z.puntos[1])[0]" [attr.y2]="px(z.puntos[1])[1]" />
+          @for (f of flechas(z); track $index) {
+            <line class="flecha" [attr.x1]="f.x1" [attr.y1]="f.y1" [attr.x2]="f.x2" [attr.y2]="f.y2" marker-end="url(#sg-flecha)" />
+          }
+          @if (ladosLinea(z); as l) {
+            <text class="lado" [attr.x]="l.a[0]" [attr.y]="l.a[1]">A</text>
+            <text class="lado" [attr.x]="l.b[0]" [attr.y]="l.b[1]">B</text>
+          }
+        }
+        <text class="rotulo" [attr.x]="centro(z)[0]" [attr.y]="centro(z)[1]">{{ z.nombre }}</text>
+        @if (seleccion() === i && !soloLectura()) {
+          @for (m of medios(z); track $index) {
+            <circle class="medio" [attr.cx]="px(m.p)[0]" [attr.cy]="px(m.p)[1]" r="5" (pointerdown)="agregarVertice($event, i, m.i, m.p)" (click)="$event.stopPropagation()" />
+          }
+          @for (p of z.puntos; track $index; let k = $index) {
+            <circle class="vertice" [class.activo]="verticeElegido() === k" [attr.cx]="px(p)[0]" [attr.cy]="px(p)[1]" r="7"
+                    (pointerdown)="tomarVertice($event, i, k)" (click)="$event.stopPropagation()" />
+          }
+        }
+      </g>
+    }
+    @if (modo() !== 'ver' && borrador().length) {
+      <g class="borrador">
+        <polyline [attr.points]="trazoBorrador()" />
+        @for (p of borrador(); track $index; let k = $index) {
+          <circle [attr.cx]="px(p)[0]" [attr.cy]="px(p)[1]" [attr.r]="k === 0 ? 8 : 5" [class.primero]="k === 0" />
+        }
+      </g>
+    }
+  </svg>
+</div>
