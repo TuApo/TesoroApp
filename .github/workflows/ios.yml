@@ -1,0 +1,222 @@
+# Compila TesoroApp para iPhone con Capacitor en un runner macOS.
+#
+#  - destino=simulador (por defecto): build sin firma para el simulador de iOS.
+#    No necesita cuenta de Apple; sirve para comprobar que el proyecto compila.
+#    Deja App.app (zip) como artefacto.
+#  - destino=testflight (o push de un tag ios-v*): archive firmado + subida a
+#    TestFlight. Necesita estos secretos del repo (Settings › Secrets › Actions):
+#      IOS_CERT_P12_BASE64          certificado "Apple Distribution" exportado a .p12, en base64
+#      IOS_CERT_PASSWORD            contraseña del .p12
+#      IOS_PROVISION_PROFILE_BASE64 perfil "App Store" de com.apoyolaboral.gestiontesoreria, en base64
+#      APPLE_TEAM_ID                Team ID de la cuenta de Apple Developer (10 caracteres)
+#      APPSTORE_KEY_ID              Key ID de la API key de App Store Connect
+#      APPSTORE_ISSUER_ID           Issuer ID de esa API key
+#      APPSTORE_API_KEY_P8_BASE64   el AuthKey_XXXX.p8 en base64
+#    En macOS: base64 -i archivo | pbcopy
+#
+# Ojo con los minutos: en repos privados cada minuto de macOS cuenta x10.
+name: iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      destino:
+        description: 'simulador = build sin firma; testflight = firmado y subido a TestFlight'
+        type: choice
+        options: [simulador, testflight]
+        default: simulador
+  push:
+    tags: ['ios-v*']
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      DESTINO: ${{ github.event_name == 'push' && 'testflight' || inputs.destino }}
+      # electron y su binario no hacen falta para la app móvil.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependencias
+        # No hay package-lock.json en el repo (está en .gitignore), por eso npm install y no npm ci.
+        run: npm install --no-audit --no-fund
+
+      - name: Versión de la app desde package.json
+        id: version
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          echo "marketing=$VER" >> "$GITHUB_OUTPUT"
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          # Igual que build-android.sh: la app muestra environment.appVersion.
+          for f in src/environments/environment.ts src/environments/environment.development.ts; do
+            sed -i '' -E "s/appVersion:[[:space:]]*'[^']*'/appVersion: '$VER'/" "$f"
+          done
+
+      - name: Build Angular
+        run: |
+          npx ng build --configuration production
+          # Build SSR: Capacitor exige index.html en el webDir.
+          B=dist/tesoreria/browser
+          if [ ! -f "$B/index.html" ] && [ -f "$B/index.csr.html" ]; then cp "$B/index.csr.html" "$B/index.html"; fi
+
+      - name: Capacitor sync (copia web + pod install)
+        run: npx cap sync ios
+
+      # ── Simulador ──────────────────────────────────────────────
+      - name: Compilar para simulador
+        if: env.DESTINO == 'simulador'
+        run: |
+          xcodebuild build \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/ios \
+            MARKETING_VERSION=${{ steps.version.outputs.marketing }} \
+            CURRENT_PROJECT_VERSION=${{ steps.version.outputs.build }} \
+            CODE_SIGNING_ALLOWED=NO
+          cd build/ios/Build/Products/Debug-iphonesimulator
+          ditto -c -k --keepParent App.app "$GITHUB_WORKSPACE/TesoroApp-simulador.zip"
+
+      - name: Subir App.app de simulador
+        if: env.DESTINO == 'simulador'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TesoroApp-simulador-${{ steps.version.outputs.marketing }}
+          path: TesoroApp-simulador.zip
+          retention-days: 14
+
+      # ── TestFlight ─────────────────────────────────────────────
+      - name: Verificar secretos de firma
+        if: env.DESTINO == 'testflight'
+        env:
+          IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_P8_BASE64: ${{ secrets.APPSTORE_API_KEY_P8_BASE64 }}
+        run: |
+          faltan=""
+          for v in IOS_CERT_P12_BASE64 IOS_CERT_PASSWORD IOS_PROVISION_PROFILE_BASE64 APPLE_TEAM_ID APPSTORE_KEY_ID APPSTORE_ISSUER_ID APPSTORE_API_KEY_P8_BASE64; do
+            [ -z "${!v}" ] && faltan="$faltan $v"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan secretos para firmar:$faltan. Cárgalos o corre el workflow con destino=simulador."
+            exit 1
+          fi
+
+      - name: Instalar certificado y perfil
+        if: env.DESTINO == 'testflight'
+        id: firma
+        env:
+          IOS_CERT_P12_BASE64: ${{ secrets.IOS_CERT_P12_BASE64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROVISION_PROFILE_BASE64: ${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/firma.keychain-db"
+          KEYCHAIN_PASS=$(uuidgen)
+          echo "$IOS_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          echo "$IOS_PROVISION_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/perfil.mobileprovision"
+
+          security create-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASS" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$IOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASS" "$KEYCHAIN"
+          # shellcheck disable=SC2046 # a propósito: cada llavero existente es un argumento
+          security list-keychain -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          security cms -D -i "$RUNNER_TEMP/perfil.mobileprovision" > "$RUNNER_TEMP/perfil.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/perfil.plist")
+          # Xcode 16 lee la carpeta nueva; la vieja se deja por compatibilidad.
+          for d in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+            mkdir -p "$d"; cp "$RUNNER_TEMP/perfil.mobileprovision" "$d/$UUID.mobileprovision"
+          done
+          echo "uuid=$UUID" >> "$GITHUB_OUTPUT"
+          echo "keychain=$KEYCHAIN" >> "$GITHUB_OUTPUT"
+
+      - name: Archive firmado
+        if: env.DESTINO == 'testflight'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PERFIL_UUID: ${{ steps.firma.outputs.uuid }}
+        run: |
+          # Firma manual solo en el target App. Pasar estos ajustes por línea de
+          # comandos los aplicaría también a los targets de Pods, que no aceptan perfil.
+          sed -i '' "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual; DEVELOPMENT_TEAM = $APPLE_TEAM_ID; PROVISIONING_PROFILE_SPECIFIER = \"$PERFIL_UUID\"; \"CODE_SIGN_IDENTITY[sdk=iphoneos*]\" = \"Apple Distribution\";/" \
+            ios/App/App.xcodeproj/project.pbxproj
+          xcodebuild archive \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/TesoroApp.xcarchive" \
+            MARKETING_VERSION=${{ steps.version.outputs.marketing }} \
+            CURRENT_PROJECT_VERSION=${{ steps.version.outputs.build }}
+
+      - name: Exportar .ipa
+        if: env.DESTINO == 'testflight'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PERFIL_UUID: ${{ steps.firma.outputs.uuid }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.apoyolaboral.gestiontesoreria</key><string>$PERFIL_UUID</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/TesoroApp.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/ipa
+
+      - name: Subir a TestFlight
+        if: env.DESTINO == 'testflight'
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_API_KEY_P8_BASE64: ${{ secrets.APPSTORE_API_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          echo "$APPSTORE_API_KEY_P8_BASE64" | base64 --decode > "$HOME/.appstoreconnect/private_keys/AuthKey_$APPSTORE_KEY_ID.p8"
+          xcrun altool --upload-app -t ios -f build/ipa/*.ipa \
+            --apiKey "$APPSTORE_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID"
+
+      - name: Guardar .ipa
+        if: env.DESTINO == 'testflight'
+        uses: actions/upload-artifact@v4
+        with:
+          name: TesoroApp-ios-${{ steps.version.outputs.marketing }}-${{ steps.version.outputs.build }}
+          path: build/ipa/*.ipa
+          retention-days: 30
+
+      - name: Limpiar llavero y llave
+        if: always() && env.DESTINO == 'testflight'
+        run: |
+          security delete-keychain "${{ steps.firma.outputs.keychain }}" 2>/dev/null || true
+          rm -rf "$HOME/.appstoreconnect" "$RUNNER_TEMP"/cert.p12 "$RUNNER_TEMP"/perfil.*
