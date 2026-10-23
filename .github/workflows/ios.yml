@@ -50,7 +50,8 @@ jobs:
 
       - name: Instalar dependencias
         # No hay package-lock.json en el repo (está en .gitignore), por eso npm install y no npm ci.
-        run: npm install --no-audit --no-fund
+        # Sin lockfile, npm se cae resolviendo peers ("reading 'edgesOut'"): --legacy-peer-deps.
+        run: npm install --no-audit --no-fund --legacy-peer-deps
 
       - name: Versión de la app desde package.json
         id: version
