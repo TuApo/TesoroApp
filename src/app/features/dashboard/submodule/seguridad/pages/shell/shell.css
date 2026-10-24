@@ -1,0 +1,37 @@
+.shell { gap: 12px; }
+.cabecera { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; justify-content: space-between; }
+.marca h1 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 800; letter-spacing: -0.015em; color: var(--text); }
+.marca h1 mat-icon { color: var(--brand-blue); }
+.marca p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.estado { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+
+.alarma { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 12px; font-size: 13px; font-weight: 700;
+  text-decoration: none; background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }
+.alarma.critica { background: #d0302f; color: #fff; border-color: #d0302f; animation: pulso 1.4s infinite; }
+.alarma b { font-family: var(--font-mono); font-size: 15px; }
+@keyframes pulso { 0%, 100% { box-shadow: 0 0 0 0 rgb(208 48 47 / .5); } 50% { box-shadow: 0 0 0 8px rgb(208 48 47 / 0); } }
+
+.canal { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--text-2);
+  font-family: var(--font-mono); padding: 6px 10px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
+.canal .punto { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.canal.ok .punto { background: #0ca30c; }
+.canal.warn .punto { background: #fab219; }
+.canal.danger .punto { background: #d03b3b; }
+
+.pestanas { display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--border); scrollbar-width: thin; max-width: 100%; }
+.pestana { display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; font-size: 13px; font-weight: 700;
+  color: var(--text-2); text-decoration: none; border-bottom: 2px solid transparent; white-space: nowrap; border-radius: 8px 8px 0 0; }
+.pestana mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.pestana:hover { background: var(--surface-2); color: var(--text); }
+.pestana:focus-visible { outline: none; box-shadow: inset var(--ring); }
+.pestana.activa { color: var(--brand-blue); border-bottom-color: var(--brand-blue); }
+:host-context(html[data-theme='dark']) .pestana.activa { color: var(--lime); border-bottom-color: var(--lime); }
+.contador { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #d0302f; color: #fff; font-size: 11px;
+  display: inline-grid; place-items: center; font-family: var(--font-mono); }
+
+@media (max-width: 600px) {
+  .marca h1 { font-size: 19px; }
+  .pestana span { display: none; }
+  .pestana.activa span { display: inline; }
+}
+@media (prefers-reduced-motion: reduce) { .alarma.critica { animation: none; } }

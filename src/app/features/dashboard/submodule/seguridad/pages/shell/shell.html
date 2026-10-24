@@ -1,0 +1,43 @@
+<div class="sg-pagina shell">
+  <header class="cabecera" data-acciones="propias">
+    <div class="marca">
+      <h1><mat-icon aria-hidden="true">security</mat-icon> Seguridad</h1>
+      <p>Una alarma no termina hasta que una persona la reconoce.</p>
+    </div>
+    <div class="estado">
+      @if (vivo.sinReconocer().length; as n) {
+        <a class="alarma" routerLink="monitoreo" [class.critica]="vivo.criticosSinReconocer().length > 0"
+           matTooltip="Abrir el centro de monitoreo para reconocerlas">
+          <mat-icon aria-hidden="true">notifications_active</mat-icon>
+          <b>{{ n }}</b> {{ n === 1 ? 'alarma sin reconocer' : 'alarmas sin reconocer' }}
+        </a>
+      } @else if (vivo.incidentes().length) {
+        <span class="sg-chip info"><mat-icon aria-hidden="true">pending_actions</mat-icon>{{ vivo.incidentes().length }} en atención</span>
+      } @else {
+        <span class="sg-chip ok"><mat-icon aria-hidden="true">verified_user</mat-icon>Sin alarmas abiertas</span>
+      }
+      <span [class]="'canal ' + canalTono()" role="status" aria-live="polite">
+        <i class="punto" aria-hidden="true"></i>{{ canalTexto() }}
+      </span>
+    </div>
+  </header>
+
+  <nav class="pestanas" aria-label="Secciones de seguridad">
+    @for (p of pestanas; track p.ruta) {
+      <a [routerLink]="p.ruta" routerLinkActive="activa" [routerLinkActiveOptions]="{ exact: false }" class="pestana">
+        <mat-icon aria-hidden="true">{{ p.icono }}</mat-icon><span>{{ p.texto }}</span>
+        @if (p.ruta === 'monitoreo' && vivo.sinReconocer().length) { <b class="contador">{{ vivo.sinReconocer().length }}</b> }
+      </a>
+    }
+  </nav>
+
+  @if (vivo.sinPermiso()) {
+    <div class="sg-aviso danger">
+      <mat-icon aria-hidden="true">lock</mat-icon>
+      <div>Su rol no puede ver el módulo de Seguridad. Lo usan los operadores de seguridad (ADMIN, GERENCIA, COORDINADOR y SEGURIDAD
+        por defecto). Si lo necesita, pídaselo a un administrador.</div>
+    </div>
+  } @else {
+    <router-outlet />
+  }
+</div>

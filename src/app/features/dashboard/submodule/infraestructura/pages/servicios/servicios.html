@@ -1,0 +1,130 @@
+<div class="if-fila if-fila--entre">
+  <p class="if-nota">Uso real de cada contenedor en el periodo. Las peticiones cuentan todo lo que entra por HTTP (también entre
+    servicios), sin los chequeos de salud. La columna <b>Uso de recursos</b> resume si lo que tiene reservado le sobra o le falta.</p>
+  <div class="if-segmentos" role="group" aria-label="Periodo">
+    @for (r of rangos; track r) {
+      <button type="button" [attr.aria-pressed]="rango() === r" (click)="rango.set(r)">{{ r }}</button>
+    }
+  </div>
+</div>
+
+@if (error()) { <div class="if-aviso danger"><mat-icon>error</mat-icon><div>{{ error() }}</div></div> }
+
+@if (datos(); as d) {
+  <section class="if-lecturas" aria-label="Totales del periodo">
+    <div class="if-lectura"><span class="et">Peticiones HTTP</span><span class="va">{{ f.compacto(d.totales.peticiones) }}</span>
+      <span class="ay">{{ f.compacto(d.totales.peticiones_gateway) }} entraron por el gateway</span></div>
+    <div class="if-lectura"><span class="et">Errores 5xx</span><span class="va">{{ f.compacto(d.totales.err_5xx) }}</span>
+      <span class="ay">{{ f.pct(d.totales.peticiones ? 100 * d.totales.err_5xx / d.totales.peticiones : 0, 2) }} del total</span></div>
+    <div class="if-lectura"><span class="et">CPU de todos</span><span class="va">{{ f.num((d.totales.cpu_total_medio ?? 0) / 100, 1) }}<small>núcleos</small></span>
+      <span class="ay">en promedio, de 24 hilos</span></div>
+    <div class="if-lectura"><span class="et">RAM usada / reservada</span>
+      <span class="va">{{ f.bytes(d.totales.mem_total_media) }}</span>
+      <span class="ay">de {{ f.bytes(d.totales.mem_limites) }} en límites</span></div>
+    <div class="if-lectura"><span class="et">Límite sin usar</span><span class="va">{{ f.bytes(memoriaRecuperable()) }}</span>
+      <span class="ay">en los sobredimensionados (techo, no RAM perdida)</span></div>
+    <div class="if-lectura"><span class="et">Sin tráfico</span><span class="va">{{ d.totales.servicios_sin_trafico ?? 0 }}</span>
+      <span class="ay">microservicios con 0 peticiones</span></div>
+  </section>
+
+  @if (conRecomendacion().length) {
+    <section class="if-tarjeta" aria-labelledby="t-recs">
+      <h3 id="t-recs"><mat-icon>tips_and_updates</mat-icon> Sugerencias de capacidad y uso <span class="if-sub">{{ conRecomendacion().length }} servicios</span></h3>
+      <div class="recs">
+        @for (s of recsVisibles(); track s.contenedor) {
+          <button type="button" class="rec" (click)="abrir(s)">
+            <span class="rec-nombre">{{ s.servicio }}</span>
+            @for (r of s.recomendaciones; track $index) { <span class="rec-texto">{{ r }}</span> }
+          </button>
+        }
+      </div>
+      @if (conRecomendacion().length > 8) {
+        <button type="button" class="if-boton ver-todas" (click)="verTodas.set(!verTodas())">
+          <mat-icon>{{ verTodas() ? 'expand_less' : 'expand_more' }}</mat-icon>{{ verTodas() ? 'Ver menos' : 'Ver las ' + conRecomendacion().length }}
+        </button>
+      }
+    </section>
+  }
+
+  <div class="if-fila">
+    <span class="if-tenue">Zona:</span>
+    <div class="if-segmentos" role="group" aria-label="Filtrar por zona">
+      <button type="button" [attr.aria-pressed]="grupoFiltro() === 'todos'" (click)="grupoFiltro.set('todos')">Producción</button>
+      @for (g of grupos(); track g) {
+        <button type="button" [attr.aria-pressed]="grupoFiltro() === g" (click)="grupoFiltro.set(g)">{{ nombreGrupo[g] }}</button>
+      }
+    </div>
+  </div>
+
+  <app-tabla-estandar id="infra-servicios-uso" titulo="Uso por servicio" modulo="Infraestructura"
+    [datos]="filas()" [columnas]="columnas" [filaId]="idFila" [cargando]="cargando()" [seleccionable]="false"
+    [filaClase]="claseFila" (filaClick)="abrir($event)" vacio="Sin servicios en esta zona." />
+
+  @if (elegido(); as s) {
+    <section class="if-tarjeta detalle" id="infra-detalle-servicio" aria-labelledby="t-det">
+      <div class="if-fila if-fila--entre">
+        <h2 class="if-titulo-seccion" id="t-det"><mat-icon>insights</mat-icon> {{ s.servicio }} <span class="if-tenue if-mono">{{ s.contenedor }}</span></h2>
+        <button type="button" class="if-boton" (click)="elegido.set(null)"><mat-icon>close</mat-icon> Cerrar</button>
+      </div>
+      @if (s.recomendaciones?.length) {
+        <ul class="if-lista">
+          @for (r of s.recomendaciones; track $index) { <li><mat-icon class="ico-rec">tips_and_updates</mat-icon><div class="cuerpo"><div class="t">{{ r }}</div></div></li> }
+        </ul>
+      }
+      @if (s.rutas?.length) { <p class="if-nota">Rutas del gateway que llegan aquí: <span class="if-mono">{{ s.rutas!.join(', ') }}</span></p> }
+      <div class="if-rejilla--2">
+        <div><h4>CPU (% de un núcleo)</h4><app-infra-grafica clave="contenedor.cpu" [objeto]="s.contenedor" [rango]="rangoSerie()" [alto]="190" /></div>
+        <div><h4>Memoria</h4><app-infra-grafica clave="contenedor.mem" [objeto]="s.contenedor" [rango]="rangoSerie()" [alto]="190" /></div>
+        @if (s.lat_media_ms != null || s.peticiones > 0) {
+          <div><h4>Peticiones por segundo</h4><app-infra-grafica clave="servicio.rps" [objeto]="s.servicio" [rango]="rangoSerie()" [alto]="190" /></div>
+          <div><h4>Respuesta media</h4><app-infra-grafica clave="servicio.lat" [objeto]="s.servicio" [rango]="rangoSerie()" [alto]="190" /></div>
+        }
+      </div>
+      <div class="if-fila">
+        <h4 class="logs-tit">Logs (últimas 24 h)</h4>
+        <div class="if-segmentos" role="group" aria-label="Nivel de log">
+          <button type="button" [attr.aria-pressed]="logs() && logsNivel() === 'error'" (click)="verLogs('error')">Errores</button>
+          <button type="button" [attr.aria-pressed]="logs() && logsNivel() === 'warn'" (click)="verLogs('warn')">Avisos</button>
+          <button type="button" [attr.aria-pressed]="logs() && logsNivel() === 'todo'" (click)="verLogs('todo')">Todo</button>
+        </div>
+      </div>
+      @if (logsCargando()) { <div class="if-vacio">Leyendo Loki…</div> }
+      @else if (logs(); as ls) {
+        @if (ls.length === 0) { <div class="if-vacio">Nada de ese nivel en las últimas 24 horas.</div> }
+        @else {
+          <pre class="logs">@for (l of ls; track $index) {<span class="ts">{{ f.fecha(l.ts) }}</span> {{ l.linea }}
+}</pre>
+        }
+      }
+    </section>
+  }
+
+  <section class="if-tarjeta" aria-labelledby="t-rutas">
+    <h3 id="t-rutas"><mat-icon>alt_route</mat-icon> Rutas del gateway <span class="if-sub">qué pide la gente, en {{ d.rango }}</span></h3>
+    <div class="if-scroll-x">
+      <table class="if-tabla-simple">
+        <thead><tr><th>Ruta</th><th>Servicio</th><th class="num">Peticiones</th><th></th><th class="num">4xx</th><th class="num">5xx</th><th class="num">Media</th></tr></thead>
+        <tbody>
+          @for (r of d.rutas; track r.ruta) {
+            <tr>
+              <td class="if-mono">{{ r.ruta }}</td>
+              <td>{{ r.servicio }}</td>
+              <td class="num">{{ f.compacto(r.peticiones) }}</td>
+              <td class="barra-celda"><span class="if-barra"><i [style.width.%]="anchoRuta(r)"></i></span></td>
+              <td class="num">{{ f.compacto(r.err4xx) }}</td>
+              <td class="num" [class.malo]="r.err5xx > 0">{{ f.compacto(r.err5xx) }}</td>
+              <td class="num">{{ f.ms(r.lat_media_ms) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="if-tarjeta">
+    <h3><mat-icon>stacked_line_chart</mat-icon> Respuestas del gateway por tipo <span class="if-sub">2xx · 4xx · 5xx</span></h3>
+    <app-infra-grafica clave="gateway.estados" [rango]="rangoSerie()" [alto]="230" />
+  </section>
+} @else if (cargando()) {
+  <div class="if-vacio">Calculando el uso de cada servicio…</div>
+}

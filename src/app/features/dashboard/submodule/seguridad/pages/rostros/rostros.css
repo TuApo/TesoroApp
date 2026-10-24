@@ -1,0 +1,28 @@
+:host { display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; }
+
+.disposicion { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .disposicion { grid-template-columns: minmax(0, 1fr); } }
+.personas { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.mini { width: 44px; height: 44px; border-radius: 50%; }
+.captura { width: 88px; height: 56px; border-radius: 8px; }
+
+.ficha { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 8px; }
+.ficha h3 .sg-sub { margin-left: auto; }
+.enrolar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.enrolar label { cursor: pointer; }
+.enrolar label.inactivo { opacity: .55; pointer-events: none; }
+
+.camara { position: relative; display: flex; flex-direction: column; gap: 8px; }
+.camara video { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 12px; background: #05070c; transform: scaleX(-1); }
+.camara .guia { position: absolute; left: 50%; top: 8%; width: 46%; aspect-ratio: 3 / 4; transform: translateX(-50%); border: 3px dashed rgb(255 255 255 / .7);
+  border-radius: 50%; pointer-events: none; }
+
+.rostros { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
+.rostros li { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--border); border-radius: 12px; padding: 8px; position: relative; }
+.rostros li.vacio { grid-column: 1 / -1; border: 0; }
+.rostros .foto { width: 100%; aspect-ratio: 1; border-radius: 8px; }
+.rostros .meta { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--muted); }
+.rostros li > button { position: absolute; top: 12px; right: 12px; background: var(--surface); }
+
+.filtros .campos { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); }

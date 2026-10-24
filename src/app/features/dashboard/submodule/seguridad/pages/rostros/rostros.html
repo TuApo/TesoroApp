@@ -1,0 +1,114 @@
+@if (ajustes(); as a) {
+  @if (!a.rostros_habilitado) {
+    <div class="sg-aviso warn"><mat-icon aria-hidden="true">face_retouching_off</mat-icon>
+      <span>El reconocimiento facial está <b>apagado</b> en Configuración → Privacidad. Puede registrar personas y rostros, pero las cámaras no las reconocerán hasta que se encienda.</span></div>
+  }
+}
+<div class="sg-aviso"><mat-icon aria-hidden="true">gavel</mat-icon>
+  <span>La biometría es un dato sensible (Ley 1581 de 2012 y Decreto 1377 de 2013). Solo se enrolan personas con <b>consentimiento registrado</b>
+    (empleados, visitantes, VIP) o, para la <b>lista de alerta</b>, con soporte legal (denuncia o incidente) aprobado. Los rostros de desconocidos
+    no se guardan.</span></div>
+
+@if (error(); as e) { <div class="sg-aviso danger"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+
+<div class="disposicion">
+  <section class="personas">
+    <app-tabla-estandar id="seguridad-personas" titulo="Personas" modulo="Seguridad" [datos]="personas()" [columnas]="columnas"
+                        [filaId]="idPersona" [cargando]="cargando()" [seleccionable]="false" vacio="Aún no hay personas registradas."
+                        (filaClick)="elegir($event.id)">
+      <ng-template tablaCelda="foto" let-p>
+        <sg-imagen class="mini" [src]="p.foto_url" [alt]="'Foto de ' + p.nombre" iconoVacio="face" />
+      </ng-template>
+      <ng-template tablaAcciones let-p>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="elegir(p.id)" aria-label="Rostros" matTooltip="Rostros"><mat-icon>face</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editar(p)" aria-label="Editar" matTooltip="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="verAvistamientosDe(p)" aria-label="Avistamientos" matTooltip="Ver avistamientos"><mat-icon>visibility</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrar(p)" aria-label="Borrar" matTooltip="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    <div class="sg-fila">
+      <button type="button" class="sg-boton sg-boton--primario" (click)="editar(null)"><mat-icon aria-hidden="true">person_add</mat-icon>Nueva persona</button>
+    </div>
+  </section>
+
+  <aside class="sg-tarjeta ficha" aria-label="Rostros de la persona">
+    @if (elegida(); as p) {
+      <h3><mat-icon aria-hidden="true">face</mat-icon>{{ p.nombre }}
+        <button type="button" class="sg-boton sg-boton--icono sg-sub" (click)="elegir(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button></h3>
+      <p class="sg-nota">{{ nombreTipo[p.tipo] }}@if (p.documento) { · {{ p.documento }} } · {{ textoLegal(p) }}</p>
+
+      @if (faltaLegal(); as m) {
+        <div class="sg-aviso danger"><mat-icon aria-hidden="true">block</mat-icon>
+          <span>{{ m }} <button type="button" class="sg-boton" (click)="editar(p)">Completar datos</button></span></div>
+      } @else {
+        <div class="enrolar">
+          <label class="sg-boton sg-boton--primario" [class.inactivo]="enrolando()">
+            <mat-icon aria-hidden="true">upload</mat-icon>Subir foto
+            <input type="file" accept="image/jpeg,image/png,image/webp" (change)="subirArchivo($event)" [disabled]="enrolando()" hidden />
+          </label>
+          @if (!camaraAbierta()) {
+            <button type="button" class="sg-boton" (click)="abrirCamara()" [disabled]="enrolando()"><mat-icon aria-hidden="true">photo_camera</mat-icon>Tomar foto</button>
+          }
+          @if (enrolando()) { <span class="sg-chip info"><mat-icon aria-hidden="true">hourglass_top</mat-icon>Analizando el rostro…</span> }
+        </div>
+        @if (camaraAbierta()) {
+          <div class="camara">
+            <video #video autoplay playsinline muted aria-label="Vista previa de la cámara"></video>
+            <i class="guia" aria-hidden="true"></i>
+            <div class="sg-fila">
+              <button type="button" class="sg-boton sg-boton--primario sg-boton--grande" (click)="tomarFoto()"><mat-icon aria-hidden="true">camera</mat-icon>Capturar</button>
+              <button type="button" class="sg-boton" (click)="cerrarCamara()">Cancelar</button>
+            </div>
+          </div>
+        }
+        <p class="sg-nota">Una sola cara, de frente, con buena luz y sin gafas oscuras. Tres o cuatro fotos con distintos ángulos mejoran el reconocimiento.</p>
+      }
+      @if (errorEnrolar(); as e) { <div class="sg-aviso danger" role="alert"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+
+      <ul class="rostros">
+        @for (r of rostros(); track r.id) {
+          <li>
+            <sg-imagen class="foto" [src]="r.foto_url" alt="Rostro enrolado" iconoVacio="face" />
+            <span class="meta">
+              @if (r.calidad != null) { <span class="sg-chip neutro">Calidad {{ f.num(r.calidad * (r.calidad <= 1 ? 100 : 1)) }}%</span> }
+              <small>{{ f.soloFecha(r.creado_en) }}</small>
+            </span>
+            <button type="button" class="sg-boton sg-boton--icono" (click)="borrarRostro(r)" aria-label="Borrar rostro" matTooltip="Borrar"><mat-icon>delete</mat-icon></button>
+          </li>
+        } @empty {
+          <li class="sg-tenue vacio">{{ cargandoRostros() ? 'Cargando…' : 'Sin rostros enrolados.' }}</li>
+        }
+      </ul>
+    } @else {
+      <div class="sg-vacio"><mat-icon aria-hidden="true">touch_app</mat-icon>Elija una persona de la lista para ver y enrolar sus rostros.</div>
+    }
+  </aside>
+</div>
+
+<!-- ── Avistamientos ────────────────────────────────────────────────── -->
+<section class="sg-tarjeta filtros" aria-label="Filtros de avistamientos">
+  <h3><mat-icon aria-hidden="true">visibility</mat-icon>Avistamientos</h3>
+  <div class="campos">
+    <label class="sg-campo-nativo">Persona
+      <select [ngModel]="filtroPersona()" (ngModelChange)="filtroPersona.set($event); filtrarAvistamientos()">
+        <option [ngValue]="null">Todas</option>
+        @for (p of personas(); track p.id) { <option [ngValue]="p.id">{{ p.nombre }}</option> }
+      </select>
+    </label>
+    <label class="sg-campo-nativo">Cámara
+      <select [ngModel]="filtroCamara()" (ngModelChange)="filtroCamara.set($event); filtrarAvistamientos()">
+        <option [ngValue]="null">Todas</option>
+        @for (c of camaras(); track c.id) { <option [ngValue]="c.id">{{ c.sede_nombre }} · {{ c.nombre }}</option> }
+      </select>
+    </label>
+    <label class="sg-campo-nativo">Desde <input type="date" [ngModel]="filtroDesde()" (ngModelChange)="filtroDesde.set($event); filtrarAvistamientos()" /></label>
+    <label class="sg-campo-nativo">Hasta <input type="date" [ngModel]="filtroHasta()" (ngModelChange)="filtroHasta.set($event); filtrarAvistamientos()" /></label>
+  </div>
+</section>
+<app-tabla-estandar id="seguridad-avistamientos" titulo="Avistamientos" modulo="Seguridad" [datos]="avistamientos()" [columnas]="columnasAvist"
+                    [filaId]="idAvist" [cargando]="cargandoAvist()" [seleccionable]="false" [pegable]="false"
+                    [totalServidor]="totalAvist()" [paginaServidor]="paginaAvist()" (paginaCambio)="paginar($event)" vacio="Sin avistamientos con esos filtros.">
+  <ng-template tablaCelda="captura" let-a>
+    <sg-imagen class="captura" [src]="a.captura_url" [alt]="'Captura de ' + (a.persona_nombre ?? 'persona')" />
+  </ng-template>
+</app-tabla-estandar>

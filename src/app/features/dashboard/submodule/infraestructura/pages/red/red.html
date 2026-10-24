@@ -1,0 +1,95 @@
+<div class="if-fila if-fila--entre">
+  <p class="if-nota">Tráfico del servidor por interfaz y por contenedor. Los que usan la red del host (voz y video) no tienen
+    contador propio: su tráfico va dentro de la tarjeta física.</p>
+  <div class="if-segmentos" role="group" aria-label="Periodo">
+    @for (r of rangos; track r) { <button type="button" [attr.aria-pressed]="rango() === r" (click)="rango.set(r)">{{ r }}</button> }
+  </div>
+</div>
+
+<section class="if-tarjeta">
+  <h3><mat-icon>lan</mat-icon> Tarjeta de red física (LAN) <span class="if-sub">entrada y salida</span></h3>
+  <app-infra-grafica clave="host.red" [rango]="rango()" [alto]="240" />
+</section>
+
+<div class="if-rejilla--2">
+  <section class="if-tarjeta">
+    <h3><mat-icon>settings_ethernet</mat-icon> Interfaces ahora</h3>
+    <table class="if-tabla-simple">
+      <thead><tr><th>Interfaz</th><th class="num">Entra</th><th class="num">Sale</th></tr></thead>
+      <tbody>
+        @for (n of nicsVivas(); track n.nombre) {
+          <tr><td><span class="if-mono">{{ n.nombre }}</span><br><span class="if-tenue">{{ nombreNic(n.nombre) }}</span></td>
+            <td class="num">{{ f.bps(n.rx_bps) }}</td><td class="num">{{ f.bps(n.tx_bps) }}</td></tr>
+        }
+      </tbody>
+    </table>
+  </section>
+
+  @if (datos(); as d) {
+    <section class="if-tarjeta">
+      <h3><mat-icon>data_usage</mat-icon> Total del periodo por interfaz <span class="if-sub">{{ d.rango }}</span></h3>
+      <table class="if-tabla-simple">
+        <thead><tr><th>Interfaz</th><th class="num">Recibido</th><th class="num">Enviado</th><th class="num">Errores</th></tr></thead>
+        <tbody>
+          @for (n of d.interfaces; track n.interfaz) {
+            @if (n.rx_bytes + n.tx_bytes > 0) {
+              <tr><td>{{ n.nombre }}<br><span class="if-tenue if-mono">{{ n.interfaz }}</span></td>
+                <td class="num">{{ f.bytes(n.rx_bytes) }}</td><td class="num">{{ f.bytes(n.tx_bytes) }}</td>
+                <td class="num" [class.malo]="n.errores + n.descartados > 0">{{ n.errores + n.descartados }}</td></tr>
+            }
+          }
+        </tbody>
+      </table>
+    </section>
+  }
+</div>
+
+@if (datos(); as d) {
+  <div class="if-rejilla--2">
+    <section class="if-tarjeta">
+      <h3><mat-icon>swap_vert</mat-icon> Quién mueve más datos <span class="if-sub">contenedores, {{ d.rango }}</span></h3>
+      @for (c of d.contenedores; track c.contenedor) {
+        <div class="if-medidor fila-ctr">
+          <span class="nombre if-mono" [title]="c.contenedor">{{ c.contenedor.replace('tuapo-', '') }}</span>
+          <span class="doble">
+            <span class="if-barra"><i [style.width.%]="100 * c.rx_bytes / maxCtr()"></i></span>
+            <span class="if-barra"><i class="warn" [style.width.%]="100 * c.tx_bytes / maxCtr()"></i></span>
+          </span>
+          <span class="valor">↓ {{ f.bytes(c.rx_bytes) }} · ↑ {{ f.bytes(c.tx_bytes) }}</span>
+        </div>
+      }
+      @if (d.red_host.length) {
+        <p class="if-nota">Con la red del host (sin contador propio): {{ d.red_host.join(', ') }}.</p>
+      }
+    </section>
+
+    <div class="lateral">
+      <section class="if-tarjeta">
+        <h3><mat-icon>router</mat-icon> Equipos de la red</h3>
+        <ul class="if-lista">
+          @for (e of d.equipos; track e.id) {
+            <li>
+              <span class="if-chip" [class]="'if-chip ' + (e.ok ? 'ok' : 'danger')"><mat-icon>{{ e.ok ? 'check' : 'close' }}</mat-icon>{{ e.ok ? f.num(e.latencia_ms, 1) + ' ms' : 'caído' }}</span>
+              <div class="cuerpo"><div class="t">{{ e.nombre }}</div><div class="d">{{ e.rol }} · <span class="if-mono">{{ e.destino }}</span>{{ e.error ? ' · ' + e.error : '' }}</div></div>
+            </li>
+          }
+        </ul>
+      </section>
+      <section class="if-tarjeta">
+        <h3><mat-icon>account_tree</mat-icon> Redes internas de Docker</h3>
+        <table class="if-tabla-simple">
+          <thead><tr><th>Red</th><th>Subred</th><th class="num">Contenedores</th></tr></thead>
+          <tbody>
+            @for (r of d.redes_docker; track r.nombre) {
+              <tr><td class="if-mono">{{ r.nombre }}</td><td class="if-mono">{{ r.subred ?? '—' }}</td><td class="num">{{ r.contenedores }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </section>
+      <section class="if-tarjeta">
+        <h3><mat-icon>videocam</mat-icon> Voz y video en curso</h3>
+        <p class="if-nota">{{ d.tiempo_real.salas ?? 0 }} salas abiertas · {{ d.tiempo_real.participantes ?? 0 }} participantes (LiveKit).</p>
+      </section>
+    </div>
+  </div>
+}

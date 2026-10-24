@@ -1,0 +1,174 @@
+<div class="am" [attr.data-paso]="paso()">
+
+  <!-- ── Cabecera ──────────────────────────────────────────────────────── -->
+  <header class="am-cab">
+    <span class="am-cab__icono" [attr.data-tono]="accion.tono || 'neutro'">
+      <mat-icon fontSet="material-symbols-outlined">{{ accion.icono || 'checklist' }}</mat-icon>
+    </span>
+    <div class="am-cab__textos">
+      <h2 class="am-cab__titulo">{{ titulo() }}</h2>
+      <p class="am-cab__donde">{{ datos.modulo }} · {{ datos.titulo }}</p>
+    </div>
+    @if (paso() !== 'corriendo') {
+      <button type="button" mat-icon-button class="am-cab__cerrar" (click)="paso() === 'resultado' ? terminar() : cancelar()"
+              aria-label="Cerrar" matTooltip="Cerrar (Esc)">
+        <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+      </button>
+    }
+  </header>
+
+  <!-- ── 1. Confirmar: qué se va a tocar ───────────────────────────────── -->
+  @if (paso() === 'confirmar') {
+    <div class="am-cuerpo">
+      @if (explicacion()) {
+        <p class="am-nota-previa" [attr.data-icono]="confirmacion?.icono || 'info'">
+          <mat-icon fontSet="material-symbols-outlined">
+            {{ confirmacion?.icono === 'warning' ? 'warning' : confirmacion?.icono === 'question' ? 'help' : 'info' }}
+          </mat-icon>
+          <span>{{ explicacion() }}</span>
+        </p>
+      }
+
+      <section class="am-bloque">
+        <h3>
+          <mat-icon fontSet="material-symbols-outlined">frame_person</mat-icon>
+          Se aplicará a {{ total() }} registro(s)
+          <span class="am-bloque__ayuda">· pasa el ratón y usa la ✕ para dejar alguno fuera</span>
+        </h3>
+        <div class="am-tira" role="list" aria-label="Registros sobre los que se aplicará">
+          @for (it of items(); track $index) {
+            <span class="am-chip" role="listitem" [title]="it.ficha.nombre + (it.ficha.id ? ' · ' + it.ficha.id : '')">
+              <span class="am-chip__foto">
+                @if (it.ficha.portada) {
+                  <img [src]="it.ficha.portada" [alt]="it.ficha.nombre" loading="lazy" />
+                } @else {
+                  <span class="am-chip__iniciales">{{ iniciales(it.ficha.nombre) }}</span>
+                }
+              </span>
+              <span class="am-chip__textos">
+                <span class="am-chip__nombre">{{ it.ficha.nombre }}</span>
+                @if (it.ficha.id) { <span class="am-chip__id">{{ it.ficha.id }}</span> }
+              </span>
+              <button type="button" class="am-chip__quitar" (click)="quitar($index)"
+                      [attr.aria-label]="'Dejar fuera a ' + it.ficha.nombre" title="Dejar fuera">
+                <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+              </button>
+            </span>
+          }
+        </div>
+      </section>
+
+      @if (opciones().length) {
+        <label class="am-campo">
+          <span class="am-campo__etiqueta">{{ confirmacion?.opciones?.etiqueta }}</span>
+          <select [ngModel]="opcion()" (ngModelChange)="opcion.set($event)">
+            @for (o of opciones(); track o.valor) {
+              <option [value]="o.valor">{{ o.texto }}</option>
+            }
+          </select>
+        </label>
+      }
+
+      @if (confirmacion?.nota) {
+        <label class="am-campo am-nota" [class.am-campo--falta]="notaFaltante()">
+          <span class="am-campo__etiqueta">
+            {{ confirmacion?.nota }}
+            @if (!confirmacion?.notaObligatoria) { <em>(opcional)</em> }
+          </span>
+          <textarea rows="2" [ngModel]="nota()" (ngModelChange)="nota.set($event); notaFaltante.set(false)"
+                    placeholder="Queda registrado en todos"></textarea>
+          @if (notaFaltante()) { <span class="am-campo__error">Hace falta escribirlo.</span> }
+        </label>
+      }
+    </div>
+
+    <footer class="am-pie">
+      <button type="button" class="te-btn" (click)="cancelar()">Cancelar</button>
+      <span class="am-espacio"></span>
+      <button type="button" class="te-btn" [attr.data-tono]="accion.tono || 'primario'" (click)="empezar()"
+              [disabled]="!total()">
+        @if (accion.icono) { <mat-icon fontSet="material-symbols-outlined">{{ accion.icono }}</mat-icon> }
+        {{ textoBoton() }}
+      </button>
+    </footer>
+  }
+
+  <!-- ── 2. Corriendo: uno a uno ───────────────────────────────────────── -->
+  @if (paso() === 'corriendo') {
+    <div class="am-cuerpo am-cuerpo--centrado" aria-live="polite">
+      <div class="am-progreso" role="progressbar" [attr.aria-valuenow]="porcentaje()" aria-valuemin="0" aria-valuemax="100">
+        <div class="am-progreso__barra" [style.width.%]="porcentaje()"></div>
+      </div>
+      <p class="am-progreso__texto">
+        <strong>{{ avance().hechos + avance().fallidos }}</strong> de {{ avance().total }}
+        @if (avance().fallidos) { <span class="am-progreso__fallos">· {{ avance().fallidos }} sin poder</span> }
+      </p>
+      @if (avance().actual && !parando()) {
+        <p class="am-progreso__actual">Ahora: {{ avance().actual }}</p>
+      }
+      @if (parando()) {
+        <p class="am-progreso__actual">Parando al terminar el registro en curso…</p>
+      }
+    </div>
+    <footer class="am-pie">
+      <span class="am-espacio"></span>
+      <button type="button" class="te-btn te-btn--aviso" (click)="parar()" [disabled]="parando()">
+        <mat-icon fontSet="material-symbols-outlined">stop_circle</mat-icon> Detener
+      </button>
+    </footer>
+  }
+
+  <!-- ── 3. Resultado: qué salió y qué no ──────────────────────────────── -->
+  @if (paso() === 'resultado') {
+    @let r = resultado()!;
+    <div class="am-cuerpo">
+      <div class="am-resumen" [attr.data-estado]="r.fallidos.length ? (r.hechos ? 'parcial' : 'mal') : (r.cancelado ? 'parado' : 'ok')">
+        <mat-icon fontSet="material-symbols-outlined">
+          {{ r.fallidos.length ? (r.hechos ? 'report' : 'error') : (r.cancelado ? 'stop_circle' : 'task_alt') }}
+        </mat-icon>
+        <div>
+          <p class="am-resumen__linea"><strong>{{ r.hechos }}</strong> {{ verbo }}</p>
+          @if (r.fallidos.length) {
+            <p class="am-resumen__sub">No se pudo con {{ r.fallidos.length }}.</p>
+          }
+          @if (r.cancelado) {
+            <p class="am-resumen__sub">Se detuvo antes de terminar: {{ total() - r.hechos - r.fallidos.length }} sin tocar.</p>
+          }
+        </div>
+      </div>
+
+      @if (fallidasResumen().length) {
+        <section class="am-bloque am-bloque--fallidas">
+          <h3>
+            <mat-icon fontSet="material-symbols-outlined">error</mat-icon> Sin poder ({{ fallidasResumen().length }})
+            <button type="button" class="te-btn am-bloque__accion" (click)="copiarFallidas()">
+              <mat-icon fontSet="material-symbols-outlined">{{ copiado() ? 'check' : 'content_copy' }}</mat-icon>
+              {{ copiado() ? 'Copiadas' : 'Copiar' }}
+            </button>
+          </h3>
+          <div class="am-tira">
+            @for (f of fallidasResumen(); track $index) {
+              <span class="am-chip am-chip--mal" [title]="f.nombre + (f.id ? ' · ' + f.id : '')">
+                <span class="am-chip__textos">
+                  <span class="am-chip__nombre">{{ f.nombre }}</span>
+                  @if (f.id) { <span class="am-chip__id">{{ f.id }}</span> }
+                </span>
+              </span>
+            }
+          </div>
+        </section>
+      }
+    </div>
+
+    <footer class="am-pie">
+      @if (r.fallidos.length) {
+        <button type="button" class="te-btn" (click)="terminar(true)"
+                matTooltip="Volver a la tabla con solo esos registros marcados, para intentarlo otra vez">
+          <mat-icon fontSet="material-symbols-outlined">replay</mat-icon> Dejar marcados los que fallaron
+        </button>
+      }
+      <span class="am-espacio"></span>
+      <button type="button" class="te-btn" data-tono="primario" (click)="terminar()">Listo</button>
+    </footer>
+  }
+</div>

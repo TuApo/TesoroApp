@@ -1,3 +1,12 @@
+<!-- ── A pantalla completa: de dónde es esta tabla ───────────────────────── -->
+@if (pantallaCompleta()) {
+  <div class="te-donde">
+    <span class="te-donde__modulo">{{ moduloVisible() }}</span>
+    <span class="te-donde__sep">·</span>
+    <span class="te-donde__titulo">{{ tituloVisible() }}</span>
+  </div>
+}
+
 <!-- ── Barra de herramientas ─────────────────────────────────────────────── -->
 <div class="te-barra">
   <div class="te-barra__izq">
@@ -5,7 +14,22 @@
       <label class="te-buscar">
         <mat-icon fontSet="material-symbols-outlined">search</mat-icon>
         <input type="search" [placeholder]="placeholderBusqueda()" [value]="q()"
-               (input)="buscar($any($event.target).value)" [attr.aria-label]="placeholderBusqueda()" />
+               (input)="buscar($any($event.target).value)" [attr.aria-label]="placeholderBusqueda()"
+               (keydown)="teclaBuscador($event)" (focus)="sugerenciasAbiertas.set(true)"
+               (blur)="cerrarSugerencias()" autocomplete="off" />
+        @if (sugerenciasAbiertas() && q() && sugerencias()?.length) {
+          <ul class="te-sugerencias" role="listbox">
+            @for (s of sugerencias(); track s.id; let i = $index) {
+              <li role="option" [class.te-sugerencia--activa]="i === sugerenciaActiva()"
+                  [attr.aria-selected]="i === sugerenciaActiva()"
+                  (mousedown)="$event.preventDefault(); elegirSugerencia(s)"
+                  (mouseenter)="sugerenciaActiva.set(i)">
+                <span class="te-sugerencia__texto">{{ s.texto }}</span>
+                @if (s.detalle) { <span class="te-sugerencia__detalle">{{ s.detalle }}</span> }
+              </li>
+            }
+          </ul>
+        }
       </label>
     }
     <span class="te-cuenta">
@@ -55,7 +79,14 @@
         <span class="te-btn__texto">{{ descargando() ? 'Generando…' : 'Excel' }}</span>
       </button>
     }
-    <button type="button" class="te-btn" [class.te-btn--activo]="pantallaCompleta()"
+    @if (pegable() && modeloSeleccion() && columnaClave()) {
+      <button type="button" class="te-btn" (click)="abrirPegadoMasivo()"
+              [title]="'Pegar una lista desde Excel (' + columnaClave()!.header + ', código…) y marcar esas filas'">
+        <mat-icon fontSet="material-symbols-outlined">content_paste_go</mat-icon>
+        <span class="te-btn__texto">Pegar lista</span>
+      </button>
+    }
+    <button type="button" class="te-btn te-btn--pantalla" [class.te-btn--activo]="pantallaCompleta()"
             (click)="alternarPantallaCompleta()"
             [title]="pantallaCompleta() ? 'Salir de pantalla completa (Esc)' : 'Ver la tabla en pantalla completa'"
             [attr.aria-pressed]="pantallaCompleta()">
@@ -85,7 +116,38 @@
       <mat-icon fontSet="material-symbols-outlined">checklist</mat-icon>
       <strong>{{ marcadas() }}</strong> marcada(s)
     </span>
+    <button type="button" class="te-btn" (click)="abrirRevisionSeleccion()" [disabled]="loteEnCurso()"
+            title="Ver uno a uno lo marcado: fotos, documentos y todos sus datos">
+      <mat-icon fontSet="material-symbols-outlined">frame_person</mat-icon>
+      <span class="te-btn__texto">Revisar {{ marcadas() }}</span>
+    </button>
+    <!-- Acciones declaradas por la pantalla (`accionesMasivas`): cada botón
+         lleva cuántas de las marcadas le tocan y corre el flujo estándar. -->
+    @for (a of accionesVisibles(); track a.accion.id) {
+      @if (a.grupo) { <span class="te-masivas__grupo">{{ a.grupo }}</span> }
+      <button type="button" class="te-btn te-masivas__accion" [attr.data-tono]="a.accion.tono || 'neutro'"
+              [disabled]="loteEnCurso()" (click)="correrAccionMasiva(a.accion)"
+              [title]="a.accion.etiqueta + ' ' + a.cuantas + ' de ' + marcadas() + ' marcada(s)'">
+        @if (a.accion.icono) { <mat-icon fontSet="material-symbols-outlined">{{ a.accion.icono }}</mat-icon> }
+        {{ a.accion.etiqueta }} <strong>{{ a.cuantas }}</strong>
+      </button>
+    }
     <ng-content select="[tablaAccionesSeleccion]" />
+    <span class="te-masivas__sep"></span>
+    @if (copiable()) {
+      <button type="button" class="te-btn" (click)="copiar('marcadas')"
+              title="Copiar al portapapeles solo las filas marcadas">
+        <mat-icon fontSet="material-symbols-outlined">content_copy</mat-icon>
+        <span class="te-btn__texto">Copiar marcadas</span>
+      </button>
+    }
+    @if (descargable()) {
+      <button type="button" class="te-btn te-btn--excel" (click)="descargar(true)" [disabled]="descargando()"
+              title="Descargar solo las filas marcadas como Excel (.xlsx)">
+        <mat-icon fontSet="material-symbols-outlined">download</mat-icon>
+        <span class="te-btn__texto">Excel de lo marcado</span>
+      </button>
+    }
     <button type="button" class="te-btn te-masivas__soltar" (click)="soltarSeleccion()">
       <mat-icon fontSet="material-symbols-outlined">close</mat-icon> Quitar selección
     </button>
@@ -105,6 +167,13 @@
 <ng-template #contenidoCelda let-col="col" let-fila="fila" let-i="i">
   @if (plantillaCelda().get(col.id); as tpl) {
     <ng-container [ngTemplateOutlet]="tpl" [ngTemplateOutletContext]="contexto(fila, i)" />
+  } @else if (col.imagen || col.imagenes) {
+    <span class="te-con-imagen">
+      <app-imagen-ampliable [doc]="col.imagen ? col.imagen(fila) : null"
+                            [docs]="col.imagenes ? (col.imagenes(fila) ?? null) : null"
+                            [nombre]="textoCelda(col, fila)" [tamano]="col.tamanoImagen ?? 52" />
+      <span class="te-con-imagen__texto">{{ textoCelda(col, fila) }}</span>
+    </span>
   } @else if (badgeDe(col, fila); as b) {
     <span class="te-chip" [attr.data-tono]="b.tono || 'neutro'"
           [style.color]="b.color || null" [style.background]="b.fondo || null">
@@ -141,7 +210,7 @@
       } @else {
         <article class="te-tarjeta" [class]="claseFila(fila)" [class.te-tarjeta--clic]="conDetalle()"
                  [class.te-tarjeta--marcada]="estaMarcada(fila)" (click)="abrirDetalle(fila)">
-          @if (seleccion()) {
+          @if (modeloSeleccion()) {
             <label class="te-tarjeta__marca" (click)="detener($event)">
               <input type="checkbox" class="te-casilla" [checked]="estaMarcada(fila)" (change)="alternarFila(fila)" />
               <span>Marcar</span>
@@ -216,7 +285,7 @@
       <thead>
         <tr>
           <th class="te-num te-num--esquina" (click)="seleccionarTodo()" title="Seleccionar toda la página (Ctrl+A)">#</th>
-          @if (seleccion()) {
+          @if (modeloSeleccion()) {
             <th class="te-marca">
               <input type="checkbox" class="te-casilla" aria-label="Marcar todas las filas filtradas"
                      [checked]="estadoMarcaTodas() === 'todas'" [indeterminate]="estadoMarcaTodas() === 'algunas'"
@@ -262,7 +331,7 @@
               [class.te-fila--marcada]="estaMarcada(fila)"
               (dblclick)="abrirDetalle(fila)">
             <td class="te-num" (click)="seleccionarFila(ri)" title="Seleccionar la fila">{{ desdeFila() + ri + 1 }}</td>
-            @if (seleccion()) {
+            @if (modeloSeleccion()) {
               <td class="te-marca" (mousedown)="detener($event)" (dblclick)="detener($event)">
                 <input type="checkbox" class="te-casilla" [checked]="estaMarcada(fila)"
                        (change)="alternarFila(fila)" aria-label="Marcar fila" />
@@ -293,7 +362,7 @@
         <tfoot>
           <tr>
             <td class="te-num"></td>
-            @if (seleccion()) { <td class="te-marca"></td> }
+            @if (modeloSeleccion()) { <td class="te-marca"></td> }
             @if (hayAcciones()) { <td class="te-td"></td> }
             @for (c of columnasVisibles(); track c.id) {
               <td class="te-td" [attr.data-align]="c.align || 'left'">{{ pv[c.id] ?? '' }}</td>

@@ -1,0 +1,66 @@
+<section class="if-tarjeta" aria-labelledby="t-alertas">
+  <h3 id="t-alertas"><mat-icon>notifications_active</mat-icon> Alertas activas (Alertmanager)</h3>
+  @if ((vivo.snapshot()?.alertas ?? []).length === 0) {
+    <div class="if-vacio">Ninguna alerta activa.</div>
+  } @else {
+    <p class="if-nota">Hoy Alertmanager no logra enviar correos, así que estas alertas solo se ven aquí y en Grafana.</p>
+    <ul class="if-lista">
+      @for (a of vivo.snapshot()!.alertas; track a.nombre + (a.objeto ?? '')) {
+        <li>
+          <span class="if-chip" [class]="'if-chip ' + a.severidad"><mat-icon>{{ icono[a.severidad] }}</mat-icon>{{ nombreSev[a.severidad] }}</span>
+          <div class="cuerpo"><div class="t">{{ a.nombre }} @if (a.objeto) { <span class="if-mono if-tenue">· {{ a.objeto }}</span> }</div>
+            <div class="d">{{ a.resumen }}</div></div>
+          <span class="cuando">desde {{ f.hace((a.desde ?? 0) * 1000) }}</span>
+        </li>
+      }
+    </ul>
+  }
+</section>
+
+<div class="if-rejilla--2">
+  <section class="if-tarjeta" aria-labelledby="t-bitacora">
+    <h3 id="t-bitacora"><mat-icon>history</mat-icon> Bitácora de cambios <span class="if-sub">{{ eventos().length }} eventos</span></h3>
+    <div class="if-fila filtros">
+      <select [ngModel]="filtroSev()" (ngModelChange)="filtroSev.set($event)" aria-label="Gravedad">
+        <option value="">Todas</option><option value="critico">Críticos</option><option value="serio">Serios</option>
+        <option value="atencion">Atención</option><option value="info">Informativos</option>
+      </select>
+      <input type="search" placeholder="Buscar en la bitácora…" [ngModel]="filtroTexto()" (ngModelChange)="filtroTexto.set($event)" aria-label="Buscar" />
+    </div>
+    <ul class="if-lista bitacora">
+      @for (e of eventos(); track e.id) {
+        <li>
+          <mat-icon class="ico" [class]="'ico ' + e.severidad">{{ icono[e.severidad] }}</mat-icon>
+          <div class="cuerpo"><div class="t">{{ e.mensaje }}</div><div class="d if-mono">{{ e.tipo }}</div></div>
+          <span class="cuando" [title]="f.fecha(e.ts)">{{ f.hace(e.ts) }}</span>
+        </li>
+      } @empty {
+        <li class="if-vacio">Sin eventos con ese filtro.</li>
+      }
+    </ul>
+  </section>
+
+  <section class="if-tarjeta" aria-labelledby="t-logs">
+    <h3 id="t-logs"><mat-icon>receipt_long</mat-icon> Logs de un contenedor <span class="if-sub">últimas 24 h, de Loki</span></h3>
+    <div class="if-fila filtros">
+      <select [ngModel]="contenedorLogs()" (ngModelChange)="contenedorLogs.set($event)" aria-label="Contenedor">
+        <option value="">Elija un contenedor…</option>
+        @for (c of contenedores(); track c) { <option [value]="c">{{ c }}</option> }
+      </select>
+      <div class="if-segmentos" role="group" aria-label="Nivel">
+        <button type="button" [attr.aria-pressed]="nivel() === 'error'" (click)="nivel.set('error')">Errores</button>
+        <button type="button" [attr.aria-pressed]="nivel() === 'warn'" (click)="nivel.set('warn')">Avisos</button>
+        <button type="button" [attr.aria-pressed]="nivel() === 'todo'" (click)="nivel.set('todo')">Todo</button>
+      </div>
+      <button type="button" class="if-boton if-boton--primario" (click)="leerLogs()" [disabled]="!contenedorLogs() || cargandoLogs()">
+        <mat-icon>search</mat-icon> Leer</button>
+    </div>
+    @if (errorLogs()) { <div class="if-aviso danger"><mat-icon>error</mat-icon><div>{{ errorLogs() }}</div></div> }
+    @if (cargandoLogs()) { <div class="if-vacio">Leyendo Loki…</div> }
+    @else if (logs(); as ls) {
+      @if (ls.length === 0) { <div class="if-vacio">Nada de ese nivel en las últimas 24 horas.</div> }
+      @else { <pre class="logs">@for (l of ls; track $index) {<span class="ts">{{ f.fecha(l.ts) }}</span> {{ l.linea }}
+}</pre> }
+    }
+  </section>
+</div>

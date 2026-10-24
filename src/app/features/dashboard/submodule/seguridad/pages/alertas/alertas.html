@@ -1,0 +1,233 @@
+<nav class="sg-segmentos" role="tablist" aria-label="Secciones de alertas">
+  <button type="button" role="tab" [attr.aria-pressed]="pestana() === 'incidentes'" [attr.aria-selected]="pestana() === 'incidentes'" (click)="ir('incidentes')">
+    Alarmas @if (vivo.sinReconocer().length) { <b class="contador">{{ vivo.sinReconocer().length }}</b> }</button>
+  <button type="button" role="tab" [attr.aria-pressed]="pestana() === 'eventos'" [attr.aria-selected]="pestana() === 'eventos'" (click)="ir('eventos')">Eventos</button>
+  <button type="button" role="tab" [attr.aria-pressed]="pestana() === 'contactos'" [attr.aria-selected]="pestana() === 'contactos'" (click)="ir('contactos')">Contactos</button>
+  <button type="button" role="tab" [attr.aria-pressed]="pestana() === 'protocolos'" [attr.aria-selected]="pestana() === 'protocolos'" (click)="ir('protocolos')">Protocolos</button>
+  <button type="button" role="tab" [attr.aria-pressed]="pestana() === 'canales'" [attr.aria-selected]="pestana() === 'canales'" (click)="ir('canales')">Canales</button>
+</nav>
+
+@switch (pestana()) {
+  <!-- ── Alarmas ───────────────────────────────────────────────────── -->
+  @case ('incidentes') {
+    <div class="filtros sg-tarjeta">
+      <div class="sg-campo-nativo">Estado
+        <div class="sg-segmentos" role="group" aria-label="Estado">
+          <button type="button" [attr.aria-pressed]="filtroEstado() === 'activos'" (click)="filtroEstado.set('activos'); filtrarIncidentes()">Activas</button>
+          <button type="button" [attr.aria-pressed]="filtroEstado() === 'CERRADO'" (click)="filtroEstado.set('CERRADO'); filtrarIncidentes()">Cerradas</button>
+          <button type="button" [attr.aria-pressed]="filtroEstado() === 'FALSA_ALARMA'" (click)="filtroEstado.set('FALSA_ALARMA'); filtrarIncidentes()">Falsas</button>
+          <button type="button" [attr.aria-pressed]="filtroEstado() === 'todos'" (click)="filtroEstado.set('todos'); filtrarIncidentes()">Todas</button>
+        </div>
+      </div>
+      <label class="sg-campo-nativo">Sede
+        <select [ngModel]="filtroSede()" (ngModelChange)="filtroSede.set($event); filtrarIncidentes()">
+          <option [ngValue]="null">Todas</option>
+          @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Severidad
+        <select [ngModel]="filtroSev()" (ngModelChange)="filtroSev.set($event); filtrarIncidentes()">
+          <option [ngValue]="null">Todas</option>
+          @for (s of severidades; track s) { <option [ngValue]="s">{{ nombreSev[s] }}</option> }
+        </select>
+      </label>
+      <button type="button" class="sg-boton" (click)="cargarIncidentes()"><mat-icon aria-hidden="true">refresh</mat-icon>Actualizar</button>
+    </div>
+    <app-tabla-estandar id="seguridad-incidentes" titulo="Alarmas" modulo="Seguridad" [datos]="incidentes()" [columnas]="columnasInc"
+                        [filaId]="idInc" [cargando]="cargandoInc()" [seleccionable]="false" [pegable]="false"
+                        [totalServidor]="totalInc()" [paginaServidor]="paginaInc()" (paginaCambio)="paginarInc($event)"
+                        (filaClick)="abrirIncidente($event.id)" vacio="Sin alarmas con esos filtros.">
+      <ng-template tablaCelda="captura" let-i>
+        <sg-imagen class="captura" [class]="'captura sev-' + i.severidad" [src]="i.captura_url" [alt]="i.titulo" />
+      </ng-template>
+      <ng-template tablaAcciones let-i>
+        <button type="button" class="sg-boton" (click)="abrirIncidente(i.id)"><mat-icon aria-hidden="true">open_in_full</mat-icon>Ver</button>
+      </ng-template>
+    </app-tabla-estandar>
+  }
+
+  <!-- ── Eventos ───────────────────────────────────────────────────── -->
+  @case ('eventos') {
+    <div class="filtros sg-tarjeta">
+      <label class="sg-campo-nativo">Sede
+        <select [ngModel]="evSede()" (ngModelChange)="evSede.set($event); evCamara.set(null); filtrarEventos()">
+          <option [ngValue]="null">Todas</option>
+          @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Cámara
+        <select [ngModel]="evCamara()" (ngModelChange)="evCamara.set($event); filtrarEventos()">
+          <option [ngValue]="null">Todas</option>
+          @for (c of camarasEv(); track c.id) { <option [ngValue]="c.id">{{ c.nombre }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Tipo <input type="text" [ngModel]="evTipo()" (ngModelChange)="evTipo.set($event)" (keydown.enter)="filtrarEventos()" placeholder="INTRUSION, PUERTA…" /></label>
+      <label class="sg-campo-nativo">Severidad
+        <select [ngModel]="evSev()" (ngModelChange)="evSev.set($event); filtrarEventos()">
+          <option [ngValue]="null">Todas</option>
+          @for (s of severidades; track s) { <option [ngValue]="s">{{ nombreSev[s] }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Desde <input type="date" [ngModel]="evDesde()" (ngModelChange)="evDesde.set($event); filtrarEventos()" /></label>
+      <label class="sg-campo-nativo">Hasta <input type="date" [ngModel]="evHasta()" (ngModelChange)="evHasta.set($event); filtrarEventos()" /></label>
+      <button type="button" class="sg-boton" (click)="filtrarEventos()"><mat-icon aria-hidden="true">search</mat-icon>Buscar</button>
+    </div>
+    <app-tabla-estandar id="seguridad-eventos" titulo="Eventos" modulo="Seguridad" [datos]="eventos()" [columnas]="columnasEv"
+                        [filaId]="idEv" [cargando]="cargandoEv()" [seleccionable]="false" [pegable]="false"
+                        [totalServidor]="totalEv()" [paginaServidor]="paginaEv()" (paginaCambio)="paginarEv($event)"
+                        (filaClick)="clicEvento($event)" vacio="Sin eventos con esos filtros.">
+      <ng-template tablaCelda="captura" let-e>
+        <sg-imagen class="captura" [src]="e.captura_url" [alt]="e.titulo" />
+      </ng-template>
+      <ng-template tablaAcciones let-e>
+        @if (e.incidente_id) {
+          <button type="button" class="sg-boton" (click)="abrirIncidente(e.incidente_id)"><mat-icon aria-hidden="true">notifications_active</mat-icon>Alarma</button>
+        }
+      </ng-template>
+    </app-tabla-estandar>
+  }
+
+  <!-- ── Contactos ─────────────────────────────────────────────────── -->
+  @case ('contactos') {
+    @if (ajustes(); as a) {
+      @if (!a.telegram.configurado) {
+        <div class="sg-aviso warn"><mat-icon aria-hidden="true">send</mat-icon>
+          <span>El bot de Telegram aún no está configurado: los contactos no podrán vincularse. Se configura en Configuración → Ajustes y canales.</span></div>
+      } @else {
+        <div class="sg-aviso ok"><mat-icon aria-hidden="true">send</mat-icon>
+          <span>Telegram es el canal principal: la alarma llega con la foto y los botones "Recibido, voy", "Lo estoy viendo" y "Falsa alarma".
+            @if (a.telegram.bot_usuario) { Bot: <b>{{ '@' + a.telegram.bot_usuario }}</b>. }</span></div>
+      }
+    }
+    <app-tabla-estandar id="seguridad-contactos" titulo="Contactos de alarma" modulo="Seguridad" [datos]="contactos()" [columnas]="columnasContactos"
+                        [filaId]="idContacto" [cargando]="cargandoContactos()" [seleccionable]="false" vacio="Aún no hay contactos."
+                        (filaClick)="editarContacto($event)">
+      <ng-template tablaAcciones let-c>
+        @if (c.telegram_vinculado || c.telegram_chat) {
+          <button type="button" class="sg-boton sg-boton--icono" (click)="desvincularTelegram(c)" matTooltip="Desvincular Telegram" aria-label="Desvincular Telegram"><mat-icon>link_off</mat-icon></button>
+        } @else {
+          <button type="button" class="sg-boton" (click)="vincularTelegram(c)"><mat-icon aria-hidden="true">send</mat-icon>Vincular</button>
+        }
+        <button type="button" class="sg-boton sg-boton--icono" (click)="probarContacto(c)" matTooltip="Enviar prueba" aria-label="Enviar prueba"><mat-icon>science</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="editarContacto(c)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="borrarContacto(c)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+      </ng-template>
+    </app-tabla-estandar>
+    <div class="sg-fila">
+      <button type="button" class="sg-boton sg-boton--primario" (click)="editarContacto(null)"><mat-icon aria-hidden="true">person_add</mat-icon>Nuevo contacto</button>
+      <button type="button" class="sg-boton" (click)="cargarContactos()"><mat-icon aria-hidden="true">refresh</mat-icon>Actualizar</button>
+    </div>
+  }
+
+  <!-- ── Protocolos ────────────────────────────────────────────────── -->
+  @case ('protocolos') {
+    @if (editando(); as e) {
+      <section class="sg-tarjeta editor">
+        <h3><mat-icon aria-hidden="true">account_tree</mat-icon>{{ e.id ? 'Editar protocolo' : 'Nuevo protocolo' }}</h3>
+        <div class="sg-form">
+          <label class="sg-campo-nativo">Nombre
+            <input type="text" [ngModel]="e.nombre" (ngModelChange)="campoProt('nombre', $event)" placeholder="Ej.: Intrusión fuera de horario" />
+          </label>
+          <label class="sg-campo-nativo ancho">Descripción
+            <input type="text" [ngModel]="e.descripcion" (ngModelChange)="campoProt('descripcion', $event)" />
+          </label>
+          <label class="check"><input type="checkbox" [ngModel]="e.repetir_ultimo" (ngModelChange)="campoProt('repetir_ultimo', $event)" />
+            Repetir el último paso hasta que alguien la reconozca</label>
+          <label class="check"><input type="checkbox" [ngModel]="e.activo" (ngModelChange)="campoProt('activo', $event)" /> Activo</label>
+        </div>
+        <sg-editor-protocolo [(pasos)]="pasosEdit" [contactos]="contactos()" [parlantes]="parlantes()" [dispositivos]="dispositivos()" [audios]="audios()" />
+        @if (errorProt(); as m) { <div class="sg-aviso danger" role="alert"><mat-icon aria-hidden="true">error</mat-icon><span>{{ m }}</span></div> }
+        <div class="sg-fila">
+          <button type="button" class="sg-boton sg-boton--primario sg-boton--grande" (click)="guardarProtocolo()" [disabled]="guardandoProt()">
+            <mat-icon aria-hidden="true">save</mat-icon>{{ guardandoProt() ? 'Guardando…' : 'Guardar protocolo' }}</button>
+          <button type="button" class="sg-boton" (click)="editando.set(null)">Cancelar</button>
+        </div>
+      </section>
+    } @else {
+      <p class="sg-nota">Un protocolo dice a quién avisar, por dónde y cuánto esperar antes de subir el tono. La alarma no termina hasta que alguien la reconoce:
+        si nadie responde, sigue con el siguiente paso (más contactos, sirena, parlante, policía).</p>
+      <div class="protocolos">
+        @for (p of protocolos(); track p.id) {
+          <article class="sg-tarjeta prot" [class.apagado]="!p.activo">
+            <header><b>{{ p.nombre }}</b>@if (!p.activo) { <span class="sg-chip neutro">Inactivo</span> }</header>
+            @if (p.descripcion) { <p class="sg-nota">{{ p.descripcion }}</p> }
+            <ol class="linea">
+              @for (x of p.pasos; track $index) {
+                <li><span class="sg-mono">+{{ x.espera_seg }} s</span> {{ x.canales.map(nombreCanalDe).join(' + ') || 'sin canales' }}</li>
+              }
+            </ol>
+            <small class="sg-tenue">{{ p.pasos.length }} pasos · escala completa en {{ totalProtocolo(p) }}@if (p.repetir_ultimo) { · repite el último }</small>
+            <footer>
+              <button type="button" class="sg-boton" (click)="editarProtocolo(p)"><mat-icon aria-hidden="true">edit</mat-icon>Editar</button>
+              <button type="button" class="sg-boton sg-boton--icono" (click)="borrarProtocolo(p)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+            </footer>
+          </article>
+        } @empty {
+          <div class="sg-tarjeta sg-vacio"><mat-icon aria-hidden="true">account_tree</mat-icon>Aún no hay protocolos. Cree uno: viene con un ejemplo de escalamiento para ajustar.</div>
+        }
+      </div>
+      <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editarProtocolo(null)"><mat-icon aria-hidden="true">add</mat-icon>Nuevo protocolo</button></div>
+    }
+  }
+
+  <!-- ── Canales ───────────────────────────────────────────────────── -->
+  @case ('canales') {
+    @if (ajustes(); as a) {
+      <section class="canales">
+        <div class="sg-tarjeta canal"><b><mat-icon aria-hidden="true">send</mat-icon>Telegram</b>
+          @if (a.telegram.configurado) { <span class="sg-chip ok">Configurado</span> } @else { <span class="sg-chip warn">Sin configurar</span> }
+          @if (a.telegram.bot_usuario) { <small>{{ '@' + a.telegram.bot_usuario }}</small> }
+          @if (a.telegram.ultimo_contacto) { <small>Último contacto {{ f.hace(a.telegram.ultimo_contacto) }}</small> }</div>
+        <div class="sg-tarjeta canal"><b><mat-icon aria-hidden="true">mail</mat-icon>Correo</b>
+          @if (a.email.habilitado) { <span class="sg-chip ok">Habilitado</span> } @else { <span class="sg-chip neutro">Apagado</span> }
+          @if (a.email.remitente) { <small>{{ a.email.remitente }}</small> }</div>
+        <div class="sg-tarjeta canal"><b><mat-icon aria-hidden="true">chat</mat-icon>WhatsApp</b>
+          @if (a.whatsapp.configurado) { <span class="sg-chip ok">{{ a.whatsapp.proveedor }}</span> } @else { <span class="sg-chip neutro">Sin proveedor</span> }
+          @if (a.whatsapp.origen) { <small>{{ a.whatsapp.origen }}</small> }</div>
+        <div class="sg-tarjeta canal"><b><mat-icon aria-hidden="true">call</mat-icon>Llamadas (Twilio)</b>
+          @if (a.twilio.configurado) { <span class="sg-chip ok">Configurado</span> } @else { <span class="sg-chip neutro">Sin configurar</span> }
+          @if (a.twilio.origen_voz) { <small>{{ a.twilio.origen_voz }}</small> }</div>
+        <div class="sg-tarjeta canal"><b><mat-icon aria-hidden="true">webhook</mat-icon>Webhook</b>
+          @if (a.webhook.url) { <span class="sg-chip ok">Configurado</span><small>{{ a.webhook.url }}</small> } @else { <span class="sg-chip neutro">Sin configurar</span> }</div>
+      </section>
+      <p class="sg-nota">Las credenciales de cada canal se configuran en Configuración → Ajustes y canales.</p>
+    }
+    <section class="sg-tarjeta">
+      <h3><mat-icon aria-hidden="true">science</mat-icon>Probar un canal</h3>
+      <div class="sg-form">
+        <label class="sg-campo-nativo">Canal
+          <select [(ngModel)]="canalPrueba" name="canalPrueba">
+            @for (c of canalesPrueba; track c) { <option [ngValue]="c">{{ nombreCanal[c] }}</option> }
+          </select>
+        </label>
+        <label class="sg-campo-nativo ancho">Destino
+          <input type="text" [(ngModel)]="destinoPrueba" name="destinoPrueba" [placeholder]="ayudaDestino()" (keydown.enter)="probar()" />
+        </label>
+      </div>
+      <div class="sg-fila">
+        <button type="button" class="sg-boton sg-boton--primario" (click)="probar()" [disabled]="probando()"><mat-icon aria-hidden="true">send</mat-icon>{{ probando() ? 'Enviando…' : 'Enviar prueba' }}</button>
+        @if (resultadoPrueba(); as r) {
+          <span [class]="'sg-chip ' + (r.ok ? 'ok' : 'danger')"><mat-icon aria-hidden="true">{{ r.ok ? 'check_circle' : 'error' }}</mat-icon>{{ r.mensaje || (r.ok ? 'Enviado' : 'Falló') }}</span>
+        }
+      </div>
+    </section>
+  }
+}
+
+@if (incidenteAbierto(); as id) {
+  <div class="velo" (click)="cerrarDetalle()" aria-hidden="true"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" aria-label="Detalle de la alarma">
+    <sg-detalle-incidente [incidenteId]="id" (cerrar)="cerrarDetalle()" (verCamara)="verCamara($event)" />
+  </aside>
+}
+
+@if (camaraVista(); as id) {
+  <div class="velo arriba" (click)="camaraVista.set(null)" aria-hidden="true"></div>
+  <aside class="cajon ancho arriba" role="dialog" aria-modal="true" aria-label="Video de la cámara">
+    <header class="cab-cajon">
+      <h2>{{ mapaCamaras().get(id)?.nombre ?? 'Cámara' }}</h2>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="camaraVista.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+    <div class="visor"><sg-visor-camara [camaraId]="id" [camara]="mapaCamaras().get(id) ?? null" /></div>
+  </aside>
+}

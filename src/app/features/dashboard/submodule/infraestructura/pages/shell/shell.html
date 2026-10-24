@@ -1,0 +1,38 @@
+<div class="if-pagina shell">
+  <header class="cabecera" data-acciones="propias">
+    <div class="marca">
+      <h1><mat-icon aria-hidden="true">dns</mat-icon> Infraestructura</h1>
+      <p>Servidor, contenedores, clúster, sitios y red, leídos en vivo.</p>
+    </div>
+    <div class="estado">
+      @if (salud(); as s) {
+        <span class="puntaje" [class]="'puntaje ' + s.estado"
+              [matTooltip]="'Salud calculada con ' + s.hallazgos.length + ' hallazgos (los críticos restan más)'">
+          <span class="num">{{ s.puntaje }}</span><span class="de">/100</span>
+          <span class="txt">{{ s.estado === 'ok' ? 'Todo en orden' : s.estado === 'atencion' ? 'Hay que revisar' : 'Hay fallas' }}</span>
+        </span>
+      }
+      <span class="canal" [class]="'canal ' + canalTono()" role="status" aria-live="polite">
+        <i class="punto" aria-hidden="true"></i>{{ canalTexto() }}
+      </span>
+    </div>
+  </header>
+
+  <nav class="pestanas" aria-label="Secciones de infraestructura">
+    @for (p of pestanas; track p.ruta) {
+      <a [routerLink]="p.ruta" routerLinkActive="activa" [routerLinkActiveOptions]="{ exact: false }" class="pestana">
+        <mat-icon aria-hidden="true">{{ p.icono }}</mat-icon><span>{{ p.texto }}</span>
+      </a>
+    }
+  </nav>
+
+  @if (vivo.sinPermiso()) {
+    <div class="if-aviso danger">
+      <mat-icon>lock</mat-icon>
+      <div>Su rol no puede ver la infraestructura. Este módulo enseña IPs, puertos y fallos internos: solo lo ven los roles
+        autorizados (ADMIN por defecto). Si lo necesita, pídalo a un administrador.</div>
+    </div>
+  } @else {
+    <router-outlet />
+  }
+</div>

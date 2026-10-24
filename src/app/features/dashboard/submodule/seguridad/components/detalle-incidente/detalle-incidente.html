@@ -1,0 +1,92 @@
+<header class="cab">
+  <h2>Detalle de la alarma</h2>
+  <button type="button" class="sg-boton sg-boton--icono" (click)="cerrar.emit()" aria-label="Cerrar detalle"><mat-icon>close</mat-icon></button>
+</header>
+
+@if (error(); as e) { <div class="sg-aviso danger"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+
+@if (detalle(); as d) {
+  <section [class]="'resumen sev-' + d.severidad">
+    <div class="titulo">
+      <span [class]="'sg-chip ' + f.tonoSeveridad(d.severidad)">{{ nombreSev[d.severidad] }}</span>
+      <span class="sg-chip neutro">{{ nombreEstado[d.estado] }}</span>
+    </div>
+    <h3>{{ d.titulo }}</h3>
+    <p class="meta">{{ d.sede_nombre }} · abierta {{ f.fechaHora(d.creado_en) }}
+      @if (activo()) { · hace <b class="sg-mono">{{ f.cronometro(desde(d.creado_en)) }}</b> }</p>
+
+    @if (d.captura_url) {
+      <sg-imagen class="captura" [src]="d.captura_url" [alt]="'Captura de ' + d.titulo" ajuste="contain" />
+    }
+
+    @if (activo() && d.pasos_total) {
+      <div class="escala">
+        <span>Paso <b>{{ d.paso_actual ?? 0 }}</b> de <b>{{ d.pasos_total }}</b>@if (d.protocolo_nombre) { · {{ d.protocolo_nombre }} }</span>
+        @if (sinReconocer() && hasta(d.proximo_paso_en); as s) {
+          <span class="prox">Siguiente aviso en <b class="sg-mono">{{ s > 0 ? f.cronometro(s) : 'un momento' }}</b></span>
+        }
+      </div>
+    }
+    @if (d.reconocido_por_nombre) {
+      <p class="ok"><mat-icon aria-hidden="true">task_alt</mat-icon>Reconocida por <b>{{ d.reconocido_por_nombre }}</b> · {{ f.fechaHora(d.reconocido_en) }}</p>
+    }
+    @if (d.cerrado_por_nombre) {
+      <p class="ok"><mat-icon aria-hidden="true">check_circle</mat-icon>Cerrada por <b>{{ d.cerrado_por_nombre }}</b> · {{ f.fechaHora(d.cerrado_en) }}
+        @if (d.cierre_nota) { — “{{ d.cierre_nota }}” }</p>
+    }
+
+    <div class="acciones">
+      @if (sinReconocer()) {
+        <button type="button" class="sg-boton sg-boton--grande sg-boton--primario" (click)="reconocer()"><mat-icon aria-hidden="true">task_alt</mat-icon>Reconocer</button>
+      }
+      @if (activo()) {
+        <button type="button" class="sg-boton" (click)="escalar()"><mat-icon aria-hidden="true">trending_up</mat-icon>Escalar</button>
+        <button type="button" class="sg-boton" (click)="cerrarIncidente()"><mat-icon aria-hidden="true">check_circle</mat-icon>Cerrar</button>
+      }
+      <button type="button" class="sg-boton" (click)="comentar()"><mat-icon aria-hidden="true">edit_note</mat-icon>Comentar</button>
+      @if (d.camara_id) {
+        <button type="button" class="sg-boton" (click)="verCamara.emit(d.camara_id)"><mat-icon aria-hidden="true">videocam</mat-icon>Ver cámara</button>
+      }
+    </div>
+  </section>
+
+  <section>
+    <h4><mat-icon aria-hidden="true">bolt</mat-icon>Eventos ({{ d.eventos.length }})</h4>
+    <ul class="eventos">
+      @for (e of d.eventos; track e.id) {
+        <li>
+          <sg-imagen class="mini" [src]="e.captura_url" [alt]="e.titulo" />
+          <div class="cuerpo">
+            <div class="t">{{ e.titulo }}</div>
+            <div class="d">{{ f.hora(e.ocurrido_en) }} · {{ nombreOrigen[e.origen] }}@if (e.camara_nombre) { · {{ e.camara_nombre }} }@if (e.dispositivo_nombre) { · {{ e.dispositivo_nombre }} }</div>
+            @if (e.descripcion) { <div class="d">{{ e.descripcion }}</div> }
+          </div>
+          @if (e.camara_id) {
+            <button type="button" class="sg-boton sg-boton--icono" (click)="verCamara.emit(e.camara_id)" aria-label="Ver cámara" matTooltip="Ver cámara"><mat-icon>videocam</mat-icon></button>
+          }
+        </li>
+      } @empty { <li class="sg-tenue">Sin eventos asociados.</li> }
+    </ul>
+  </section>
+
+  <section>
+    <h4><mat-icon aria-hidden="true">history</mat-icon>Bitácora</h4>
+    <ol class="linea">
+      @for (b of bitacora(); track b.id) {
+        <li [class.mal]="b.estado === 'ERROR' || b.estado === 'SIN_RESPUESTA' || b.tipo === 'SIN_RESPUESTA'">
+          <mat-icon aria-hidden="true">{{ icono(b.tipo) }}</mat-icon>
+          <div class="cuerpo">
+            <div class="t">{{ b.detalle || b.tipo }}</div>
+            <div class="d">
+              <span class="sg-mono">{{ f.hora(b.creado_en) }}</span>
+              @if (b.canal) { · {{ b.canal }} }@if (b.destino) { → {{ b.destino }} }@if (b.estado) { · {{ b.estado }} }
+              @if (b.usuario_nombre) { · {{ b.usuario_nombre }} }
+            </div>
+          </div>
+        </li>
+      } @empty { <li class="sg-tenue">Sin movimientos todavía.</li> }
+    </ol>
+  </section>
+} @else if (!error()) {
+  <p class="sg-tenue">Cargando…</p>
+}

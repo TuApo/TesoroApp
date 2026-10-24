@@ -1,0 +1,118 @@
+@if (habilitado()) {
+  @if (dock.compacto()) {
+    @if (!enPaginaChat()) {
+      <!-- Móvil: pestaña lateral abajo a la derecha (como en escritorio); al tocarla se despliega
+           la lista de chats con lo pendiente, y al elegir uno se abre a pantalla completa. -->
+      <button type="button" class="pestana pestana--movil chat" [class.activa]="dock.listaAbierta()"
+              [class.alerta]="store.chatsSinLeer() > 0 && !dock.listaAbierta()" (click)="alternarLista()"
+              [attr.aria-expanded]="dock.listaAbierta()" [attr.aria-label]="tooltipChat()">
+        <mat-icon>forum</mat-icon>
+        <span class="txt">Chat</span>
+        @if (store.chatsSinLeer() > 0) { <b class="noti">{{ store.chatsSinLeer() > 99 ? '99+' : store.chatsSinLeer() }}</b> }
+        @if (store.estadoCanal() === 'reconectando') { <mat-icon class="red">cloud_off</mat-icon> }
+      </button>
+      @if (conPestanaIa() && !dock.listaAbierta()) {
+        <button type="button" class="pestana pestana--movil pestana--movil-ia ia" [class.activa-ia]="operador.abierto()"
+                [class.escuchando]="operador.estadoVoz() === 'escuchando'" [class.pensando]="operador.estadoVoz() === 'pensando'"
+                [class.hablando]="operador.estadoVoz() === 'hablando'"
+                (click)="alternarIa()" [attr.aria-expanded]="operador.abierto()" [attr.aria-label]="tooltipIa()">
+          <span class="ia-onda" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span class="txt">IA</span>
+          @if (operador.noLeidos() > 0) { <b class="noti">{{ operador.noLeidos() > 99 ? '99+' : operador.noLeidos() }}</b> }
+        </button>
+      }
+      @if (dock.listaAbierta()) {
+        <section class="roster roster--movil" aria-label="Lista de chats" animate.enter="expandir" animate.leave="contraer">
+          <header (click)="alternarLista()">
+            <mat-icon class="logo">forum</mat-icon>
+            <strong>Chat</strong>
+            @if (store.chatsSinLeer() > 0) { <b class="badge">{{ store.chatsSinLeer() }}</b> }
+            <span class="sp"></span>
+            <button type="button" (click)="$event.stopPropagation(); soporte()" aria-label="Soporte"><mat-icon>support_agent</mat-icon></button>
+            <button type="button" (click)="$event.stopPropagation(); nuevo()" aria-label="Nuevo chat"><mat-icon>edit_square</mat-icon></button>
+            <button type="button" (click)="$event.stopPropagation(); irAPagina()" aria-label="Abrir Comunicaciones"><mat-icon>open_in_full</mat-icon></button>
+            <button type="button" aria-label="Minimizar"><mat-icon>expand_more</mat-icon></button>
+          </header>
+          <div class="roster-cuerpo"><app-com-lista-chats (elegir)="abrirEnMovil($event)" /></div>
+        </section>
+      }
+    }
+  } @else if (!enPaginaChat()) {
+    <!-- Pestañas laterales abajo a la derecha: Chat (abajo) y encima una por conversación abierta. -->
+    <nav class="pestanas" aria-label="Chats abiertos" [style.--com-barra.px]="barraDer()">
+      <button type="button" class="pestana chat" [class.activa]="dock.listaAbierta()"
+              [class.alerta]="store.chatsSinLeer() > 0 && !dock.listaAbierta()" (click)="alternarLista()"
+              [matTooltip]="tooltipChat()" matTooltipPosition="left"
+              [attr.aria-expanded]="dock.listaAbierta()" [attr.aria-label]="tooltipChat()">
+        <mat-icon>forum</mat-icon>
+        <span class="txt">Chat</span>
+        @if (store.chatsSinLeer() > 0) { <b class="noti">{{ store.chatsSinLeer() > 99 ? '99+' : store.chatsSinLeer() }}</b> }
+        @if (store.estadoCanal() === 'reconectando') { <mat-icon class="red">cloud_off</mat-icon> }
+      </button>
+      <!-- Asistente IA (operador), pegado a la pestaña de Chat. -->
+      @if (conPestanaIa()) {
+        <button type="button" class="pestana ia" [class.activa]="operador.abierto()" [class.alerta-ia]="operador.noLeidos() > 0 && !operador.abierto()"
+                [class.escuchando]="operador.estadoVoz() === 'escuchando'" [class.pensando]="operador.estadoVoz() === 'pensando'"
+                [class.hablando]="operador.estadoVoz() === 'hablando'"
+                (click)="alternarIa()" [matTooltip]="tooltipIa()" matTooltipPosition="left"
+                [attr.aria-expanded]="operador.abierto()" [attr.aria-label]="tooltipIa()">
+          <span class="ia-onda" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span class="txt">IA</span>
+          @if (operador.noLeidos() > 0) { <b class="noti">{{ operador.noLeidos() > 99 ? '99+' : operador.noLeidos() }}</b> }
+        </button>
+      }
+      @for (v of dock.pestanas(); track v.conversacionId) {
+        @if (conv(v.conversacionId); as c) {
+          <button type="button" class="pestana" [class.activa]="!v.minimizada" [class.alerta]="v.resaltada || (v.minimizada && c.no_leidos > 0 && !c.silenciada)"
+                  (click)="dock.alternar(c.id)" [matTooltip]="c.nombre" matTooltipPosition="left"
+                  [attr.aria-label]="(v.minimizada ? 'Abrir chat con ' : 'Minimizar chat con ') + c.nombre" [attr.aria-expanded]="!v.minimizada">
+            <app-com-avatar [usuarioId]="c.otro_usuario_id" [nombre]="c.nombre" [tieneFoto]="foto(c)" [grupo]="c.tipo === 'GRUPO'"
+              [icono]="icono(c)" [color]="c.color" [tam]="22" [presencia]="c.tipo === 'DIRECTA' ? enLinea(c) : null" />
+            <span class="txt">{{ corto(c) }}</span>
+            @if (c.no_leidos > 0) { <b class="noti">{{ c.no_leidos > 99 ? '99+' : c.no_leidos }}</b> }
+          </button>
+        }
+      }
+      @if (dock.pestanasOcultas().length) {
+        <button type="button" class="pestana mas" [class.alerta]="ocultasConNoLeidos() > 0" [matMenuTriggerFor]="menuMas"
+                [matTooltip]="dock.pestanasOcultas().length + ' chats más'" matTooltipPosition="left">
+          <span class="txt">+{{ dock.pestanasOcultas().length }}</span>
+        </button>
+        <mat-menu #menuMas="matMenu" xPosition="before">
+          @for (v of dock.pestanasOcultas(); track v.conversacionId) {
+            <button mat-menu-item (click)="dock.abrir(v.conversacionId)">
+              <mat-icon>chat_bubble_outline</mat-icon> {{ nombre(v.conversacionId) }}
+              @if (noLeidos(v.conversacionId)) { <b class="badge en-menu">{{ noLeidos(v.conversacionId) }}</b> }
+            </button>
+          }
+          <button mat-menu-item (click)="dock.cerrarTodas()"><mat-icon>close</mat-icon> Cerrar todos los chats</button>
+        </mat-menu>
+      }
+    </nav>
+
+    <!-- Lo desplegado: la lista y las ventanas, abajo a la derecha junto a las pestañas. -->
+    <div class="dock" [style.--com-barra.px]="barraDer()">
+      @if (dock.listaAbierta()) {
+        <section class="roster" aria-label="Lista de chats" animate.enter="expandir" animate.leave="contraer">
+          <header (click)="alternarLista()">
+            <mat-icon class="logo">forum</mat-icon>
+            <strong>Chat</strong>
+            @if (store.chatsSinLeer() > 0) { <b class="badge" [matTooltip]="tooltipChat()">{{ store.chatsSinLeer() }}</b> }
+            <span class="sp"></span>
+            <button type="button" (click)="$event.stopPropagation(); soporte()" matTooltip="Soporte (asistente con IA)" aria-label="Soporte"><mat-icon>support_agent</mat-icon></button>
+            <button type="button" (click)="$event.stopPropagation(); nuevo()" matTooltip="Nuevo chat o grupo" aria-label="Nuevo chat"><mat-icon>edit_square</mat-icon></button>
+            <button type="button" (click)="$event.stopPropagation(); irAPagina()" matTooltip="Abrir Comunicaciones" aria-label="Pantalla completa"><mat-icon>open_in_full</mat-icon></button>
+            <button type="button" aria-label="Minimizar"><mat-icon>remove</mat-icon></button>
+          </header>
+          <div class="roster-cuerpo"><app-com-lista-chats (elegir)="abrir($event)" /></div>
+        </section>
+      }
+      <!-- La más reciente queda junto a la lista. -->
+      @for (v of dock.expandidas().slice().reverse(); track v.conversacionId) {
+        <app-com-ventana [v]="v" animate.enter="expandir" animate.leave="contraer" />
+      }
+    </div>
+  }
+  <app-com-llamada-entrante />
+  <app-com-llamada-panel />
+}

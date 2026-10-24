@@ -1,0 +1,153 @@
+<!-- ── Aforo en vivo ─────────────────────────────────────────────────── -->
+<section class="sg-tarjeta">
+  <h3><mat-icon aria-hidden="true">groups</mat-icon>Aforo en vivo
+    <span class="sg-sub"><b class="sg-mono">{{ totalPersonas() }}</b> personas en las sedes ·
+      @if (vivo.canal() === 'conectado') { en vivo } @else { sin canal en vivo }</span></h3>
+  @if (errorAforo(); as e) { <div class="sg-aviso warn"><mat-icon aria-hidden="true">cloud_off</mat-icon><span>{{ e }}</span></div> }
+  <div class="aforo">
+    @for (s of aforoVivo(); track s.sede_id) {
+      <article class="sede">
+        <header>
+          <h4>{{ s.sede_nombre }}</h4>
+          <span [class]="'sg-chip ' + tonoAforo(s)">
+            <mat-icon aria-hidden="true">person</mat-icon>
+            <b class="sg-mono">{{ s.ocupacion }}</b>@if (s.capacidad) { / {{ s.capacidad }} }
+          </span>
+        </header>
+        @if (porcentaje(s); as p) {
+          <div class="medidor" role="meter" [attr.aria-valuenow]="p" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Ocupación de ' + s.sede_nombre">
+            <i [class]="tonoAforo(s)" [style.width.%]="p"></i>
+          </div>
+        }
+        <ul class="zonas">
+          @for (z of s.zonas; track z.zona_id) {
+            <li>
+              <span class="nom"><b>{{ z.nombre }}</b><small>{{ z.camara_nombre }} · {{ f.hace(z.actualizado_en) }}</small></span>
+              <span [class]="'sg-chip ' + tonoAforo(z)"><b class="sg-mono">{{ z.ocupacion }}</b>@if (z.capacidad) { / {{ z.capacidad }} }</span>
+            </li>
+          } @empty { <li class="sg-tenue">Sin zonas con conteo. Dibuje zonas o líneas en Configuración → Zonas.</li> }
+        </ul>
+      </article>
+    } @empty {
+      @if (aforo()) {
+        <div class="sg-vacio"><mat-icon aria-hidden="true">sensor_occupied</mat-icon>Aún no hay conteo de personas. Active la analítica en las cámaras y dibuje zonas o líneas de conteo.</div>
+      } @else { <p class="sg-tenue">Cargando…</p> }
+    }
+  </div>
+</section>
+
+<!-- ── Conteos ───────────────────────────────────────────────────────── -->
+<section class="sg-tarjeta filtros" aria-label="Filtros de conteos">
+  <label class="sg-campo-nativo">Sede
+    <select [ngModel]="sedeId()" (ngModelChange)="ponerSede($event)">
+      <option [ngValue]="null">Todas</option>
+      @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+    </select>
+  </label>
+  <label class="sg-campo-nativo">Cámara
+    <select [ngModel]="camaraId()" (ngModelChange)="camaraId.set($event); cargar()">
+      <option [ngValue]="null">Todas</option>
+      @for (c of camarasSede(); track c.id) { <option [ngValue]="c.id">{{ c.nombre }}</option> }
+    </select>
+  </label>
+  <div class="sg-campo-nativo">Periodo
+    <div class="sg-segmentos" role="group" aria-label="Periodo">
+      <button type="button" [attr.aria-pressed]="rango() === 'hoy'" (click)="ponerRango('hoy')">Hoy</button>
+      <button type="button" [attr.aria-pressed]="rango() === 'ayer'" (click)="ponerRango('ayer')">Ayer</button>
+      <button type="button" [attr.aria-pressed]="rango() === '7d'" (click)="ponerRango('7d')">7 días</button>
+      <button type="button" [attr.aria-pressed]="rango() === '30d'" (click)="ponerRango('30d')">30 días</button>
+      <button type="button" [attr.aria-pressed]="rango() === 'otro'" (click)="ponerRango('otro')">Otro</button>
+    </div>
+  </div>
+  @if (rango() === 'otro') {
+    <label class="sg-campo-nativo">Desde <input type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" /></label>
+    <label class="sg-campo-nativo">Hasta <input type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" /></label>
+  }
+  <div class="sg-campo-nativo">Agrupar
+    <div class="sg-segmentos" role="group" aria-label="Agrupar por">
+      <button type="button" [attr.aria-pressed]="agrupar() === 'hora'" (click)="agrupar.set('hora'); cargar()">Por hora</button>
+      <button type="button" [attr.aria-pressed]="agrupar() === 'dia'" (click)="agrupar.set('dia'); cargar()">Por día</button>
+    </div>
+  </div>
+  @if (rango() === 'otro') {
+    <button type="button" class="sg-boton sg-boton--primario" (click)="cargar()"><mat-icon aria-hidden="true">search</mat-icon>Consultar</button>
+  }
+</section>
+
+@if (error(); as e) { <div class="sg-aviso warn"><mat-icon aria-hidden="true">warning</mat-icon><span>{{ e }}</span></div> }
+
+@if (conteos(); as c) {
+  <section class="sg-lecturas" aria-label="Totales del periodo">
+    <div class="sg-lectura"><span class="et">Entradas</span><span class="va">{{ f.num(c.totales.entradas) }}</span></div>
+    <div class="sg-lectura"><span class="et">Salidas</span><span class="va">{{ f.num(c.totales.salidas) }}</span></div>
+    <div class="sg-lectura"><span class="et">Personas distintas</span><span class="va">{{ f.num(c.totales.personas) }}</span></div>
+    <div class="sg-lectura"><span class="et">Pico de ocupación</span><span class="va">{{ f.num(c.totales.pico) }}</span>
+      <span class="ay">{{ c.totales.pico_en ? f.fechaHora(c.totales.pico_en) : '—' }}</span></div>
+  </section>
+}
+
+<section class="sg-tarjeta">
+  <h3><mat-icon aria-hidden="true">bar_chart</mat-icon>Entradas y salidas
+    <span class="sg-sub">@if (cargando()) { cargando… } @else { {{ agrupar() === 'hora' ? 'por hora' : 'por día' }} }</span></h3>
+  @if (barras().length) {
+    <div class="leyenda" aria-hidden="true">
+      <span><i class="cuadro entradas"></i>Entradas</span><span><i class="cuadro salidas"></i>Salidas</span><span><i class="linea-ley"></i>Ocupación máxima</span>
+    </div>
+    <svg class="sg-grafica" [attr.viewBox]="'0 0 ' + g.w + ' ' + g.h" preserveAspectRatio="xMidYMid meet" role="img"
+         [attr.aria-label]="'Gráfico de entradas y salidas, ' + barras().length + ' periodos. Los datos están en la tabla de abajo.'">
+      @for (m of marcasY(); track m.v) {
+        <line class="rejilla" [attr.x1]="g.izq" [attr.x2]="g.w - g.der" [attr.y1]="m.y" [attr.y2]="m.y" />
+        <text class="eje-y" [attr.x]="g.izq - 6" [attr.y]="m.y + 4">{{ m.v }}</text>
+      }
+      @for (b of barras(); track $index; let i = $index) {
+        <g>
+          <title>{{ b.etiqueta }}: {{ b.p.entradas }} entradas, {{ b.p.salidas }} salidas, ocupación máx. {{ b.p.ocupacion_max }}</title>
+          <rect class="entradas" [attr.x]="b.x - b.w - 1" [attr.y]="b.yE" [attr.width]="b.w" [attr.height]="b.hE" rx="2" />
+          <rect class="salidas" [attr.x]="b.x + 1" [attr.y]="b.yS" [attr.width]="b.w" [attr.height]="b.hS" rx="2" />
+          @if (i % pasoEtiqueta() === 0) {
+            <text class="eje-x" [attr.x]="b.x" [attr.y]="g.h - 10">{{ b.etiqueta }}</text>
+          }
+        </g>
+      }
+      <polyline class="ocupacion" [attr.points]="lineaOcupacion()" />
+    </svg>
+  } @else if (!cargando()) {
+    <div class="sg-vacio"><mat-icon aria-hidden="true">query_stats</mat-icon>Sin conteos en ese periodo.</div>
+  }
+</section>
+
+<div class="sg-rejilla--2 abajo">
+  <section class="tabla">
+    <app-tabla-estandar id="seguridad-conteos" titulo="Detalle del periodo" modulo="Seguridad" [datos]="serie()" [columnas]="columnas"
+                        [filaId]="idPunto" [cargando]="cargando()" [seleccionable]="false" [pegable]="false" vacio="Sin datos." />
+  </section>
+
+  <section class="sg-tarjeta">
+    <h3><mat-icon aria-hidden="true">diversity_3</mat-icon>Demografía (agregada)</h3>
+    @if (demografia(); as d) {
+      @if (!d.habilitada) {
+        <div class="sg-aviso"><mat-icon aria-hidden="true">privacy_tip</mat-icon>
+          <span>La estimación de edad y género está apagada. Es opcional y requiere aprobación del área jurídica; se activa en
+            Configuración → Privacidad. Solo se guardan totales, nunca datos de una persona.</span></div>
+      } @else if (!d.total) {
+        <div class="sg-vacio"><mat-icon aria-hidden="true">diversity_3</mat-icon>Sin datos demográficos en el periodo.</div>
+      } @else {
+        <p class="sg-nota">{{ f.num(d.total) }} detecciones en el periodo.</p>
+        <div class="leyenda" aria-hidden="true"><span><i class="cuadro hombres"></i>Hombres</span><span><i class="cuadro mujeres"></i>Mujeres</span><span><i class="cuadro sin"></i>Sin dato</span></div>
+        <ul class="demo">
+          @for (r of d.rangos; track r.rango) {
+            <li>
+              <span class="rango sg-mono">{{ r.rango }}</span>
+              <span class="barra" [attr.aria-label]="r.rango + ': ' + r.hombres + ' hombres, ' + r.mujeres + ' mujeres, ' + r.sin_dato + ' sin dato'">
+                <i class="hombres" [style.width.%]="anchoDemo(r.hombres)"></i><i class="mujeres" [style.width.%]="anchoDemo(r.mujeres)"></i><i class="sin" [style.width.%]="anchoDemo(r.sin_dato)"></i>
+              </span>
+              <span class="tot sg-mono">{{ r.hombres + r.mujeres + r.sin_dato }}</span>
+            </li>
+          }
+        </ul>
+      }
+    } @else {
+      <p class="sg-tenue">Sin información de demografía.</p>
+    }
+  </section>
+</div>

@@ -1,0 +1,132 @@
+<!-- Línea de tiempo acumulada -->
+@if (pasos().length) {
+  <ol class="linea" aria-label="Línea de tiempo del escalamiento">
+    @for (l of linea(); track l.i) {
+      <li><span class="t sg-mono">{{ l.etiqueta }}</span><span class="flecha" aria-hidden="true">→</span><span class="x">{{ l.texto }}</span></li>
+    }
+  </ol>
+} @else {
+  <div class="vacio">
+    <mat-icon aria-hidden="true">timeline</mat-icon>
+    <p>Sin pasos todavía. Un protocolo dice a quién avisar y cada cuánto subir el tono si nadie reconoce la alarma.</p>
+    <button type="button" class="b primario" (click)="sugeridos()"><mat-icon aria-hidden="true">auto_fix_high</mat-icon>Usar el protocolo sugerido</button>
+  </div>
+}
+
+@for (p of pasos(); track $index; let i = $index) {
+  <section class="paso" [attr.aria-label]="'Paso ' + p.orden">
+    <header>
+      <span class="num">{{ p.orden }}</span>
+      <label class="espera">
+        Esperar
+        <input type="number" min="0" step="5" [ngModel]="p.espera_seg" (ngModelChange)="campo(i, 'espera_seg', +$event || 0)" [name]="'espera' + i" />
+        s {{ i === 0 ? 'desde que se abre la alarma' : 'después del paso anterior' }}
+      </label>
+      <span class="sp"></span>
+      <button type="button" class="ic" (click)="mover(i, -1)" [disabled]="i === 0" aria-label="Subir paso" matTooltip="Subir"><mat-icon>arrow_upward</mat-icon></button>
+      <button type="button" class="ic" (click)="mover(i, 1)" [disabled]="i === pasos().length - 1" aria-label="Bajar paso" matTooltip="Bajar"><mat-icon>arrow_downward</mat-icon></button>
+      <button type="button" class="ic" (click)="duplicar(i)" aria-label="Duplicar paso" matTooltip="Duplicar"><mat-icon>content_copy</mat-icon></button>
+      <button type="button" class="ic peligro" (click)="quitar(i)" aria-label="Quitar paso" matTooltip="Quitar"><mat-icon>delete</mat-icon></button>
+    </header>
+
+    <div class="canales" role="group" aria-label="Canales del paso">
+      @for (c of canales; track c) {
+        <button type="button" class="canal" [attr.aria-pressed]="p.canales.includes(c)" (click)="alternarCanal(i, c)">
+          <mat-icon aria-hidden="true">{{ iconoCanal[c] }}</mat-icon>{{ nombreCanal[c] }}
+        </button>
+      }
+    </div>
+
+    @if (usa(p, 'APP', 'EMAIL', 'WHATSAPP', 'TELEGRAM', 'LLAMADA', 'WEBHOOK')) {
+      <div class="rejilla">
+        <mat-form-field appearance="outline">
+          <mat-label>Contactos</mat-label>
+          <mat-select multiple [ngModel]="p.contactos" (ngModelChange)="campo(i, 'contactos', $event)" [name]="'contactos' + i">
+            @for (c of contactos(); track c.id) {
+              <mat-option [value]="c.id">{{ nombreContacto(c) }}@if (c.telegram_vinculado) { · Telegram ✓ }</mat-option>
+            }
+          </mat-select>
+          <mat-hint>Personas o grupos a los que llega este paso.</mat-hint>
+        </mat-form-field>
+        <div class="roles">
+          <label [attr.for]="'rol' + i">Roles de la plataforma (opcional)</label>
+          <div class="lista">
+            @for (r of p.roles; track r) {
+              <span class="chip">{{ r }}<button type="button" (click)="quitarRol(i, r)" [attr.aria-label]="'Quitar ' + r"><mat-icon>close</mat-icon></button></span>
+            }
+            <input [id]="'rol' + i" [(ngModel)]="borradorRol[i]" [name]="'rol' + i" placeholder="COORDINADOR + Enter" (keydown.enter)="agregarRol(i, $event)" (blur)="agregarRol(i)" />
+          </div>
+          <small>Avisa en la app a todos los usuarios con ese rol.</small>
+        </div>
+        <mat-form-field appearance="outline" class="ancho">
+          <mat-label>Mensaje</mat-label>
+          <textarea matInput rows="2" [ngModel]="p.mensaje" (ngModelChange)="campo(i, 'mensaje', $event)" [name]="'mensaje' + i"></textarea>
+          <mat-hint>Variables: {{ variables }}. Vacío = mensaje estándar con la captura y el enlace para reconocer.</mat-hint>
+        </mat-form-field>
+      </div>
+    }
+
+    @if (usa(p, 'PARLANTE')) {
+      <div class="rejilla bloque">
+        <h4 class="ancho"><mat-icon aria-hidden="true">campaign</mat-icon>Parlante</h4>
+        <mat-form-field appearance="outline">
+          <mat-label>Qué dice</mat-label>
+          <mat-select [ngModel]="p.parlante_modo" (ngModelChange)="campo(i, 'parlante_modo', $event)" [name]="'pmodo' + i">
+            @for (m of modosParlante; track m.valor) { <mat-option [value]="m.valor">{{ m.texto }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline">
+          <mat-label>Parlantes</mat-label>
+          <mat-select multiple [ngModel]="p.parlantes" (ngModelChange)="campo(i, 'parlantes', $event)" [name]="'parl' + i">
+            @for (pa of parlantes(); track pa.id) { <mat-option [value]="pa.id">{{ pa.nombre }} · {{ pa.sede_nombre }}</mat-option> }
+          </mat-select>
+          <mat-hint>Vacío = los parlantes de la sede del incidente.</mat-hint>
+        </mat-form-field>
+        @if (p.parlante_modo === 'TEXTO') {
+          <mat-form-field appearance="outline" class="ancho">
+            <mat-label>Texto a locutar</mat-label>
+            <textarea matInput rows="2" [ngModel]="p.parlante_texto" (ngModelChange)="campo(i, 'parlante_texto', $event)" [name]="'ptexto' + i"></textarea>
+          </mat-form-field>
+        }
+        @if (p.parlante_modo === 'AUDIO') {
+          <mat-form-field appearance="outline" class="ancho">
+            <mat-label>Audio</mat-label>
+            <mat-select [ngModel]="p.audio_id" (ngModelChange)="campo(i, 'audio_id', $event)" [name]="'paudio' + i">
+              @for (a of audios(); track a.id) { <mat-option [value]="a.id">{{ a.nombre }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+        }
+        @if (p.parlante_modo === 'DESCRIPCION_IA') {
+          <p class="nota ancho">La IA describe a la persona de la captura ("la persona de chaqueta negra junto a la caja…") y la voz lo anuncia como disuasión.</p>
+        }
+      </div>
+    }
+
+    @if (usa(p, 'SIRENA', 'DISPOSITIVO')) {
+      <div class="bloque">
+        <h4><mat-icon aria-hidden="true">settings_remote</mat-icon>Dispositivos a accionar</h4>
+        @if (usa(p, 'SIRENA') && !p.dispositivos.length) {
+          <p class="nota">Sin dispositivos elegidos se activan las sirenas de la sede del incidente.</p>
+        }
+        @for (d of p.dispositivos; track $index; let k = $index) {
+          <div class="disp">
+            <select [ngModel]="d.id" (ngModelChange)="cambiarDispositivo(i, k, { id: $event })" [name]="'disp' + i + '-' + k" aria-label="Dispositivo">
+              @for (x of dispositivos(); track x.id) { <option [value]="x.id">{{ x.nombre }} · {{ x.sede_nombre }}</option> }
+            </select>
+            <select [ngModel]="d.accion" (ngModelChange)="cambiarDispositivo(i, k, { accion: $event })" [name]="'acc' + i + '-' + k" aria-label="Acción">
+              @for (a of acciones; track a) { <option [value]="a">{{ nombreAccion[a] }}</option> }
+            </select>
+            <button type="button" class="ic peligro" (click)="quitarDispositivo(i, k)" aria-label="Quitar dispositivo"><mat-icon>close</mat-icon></button>
+          </div>
+        }
+        <button type="button" class="b" (click)="agregarDispositivo(i)" [disabled]="!dispositivos().length">
+          <mat-icon aria-hidden="true">add</mat-icon>Agregar dispositivo
+        </button>
+      </div>
+    }
+  </section>
+}
+
+<div class="pie">
+  <button type="button" class="b" (click)="agregar()"><mat-icon aria-hidden="true">add</mat-icon>Agregar paso</button>
+</div>

@@ -1,0 +1,115 @@
+@if (borrador(); as b) {
+  <section class="sg-tarjeta editor-regla">
+    <h3><mat-icon aria-hidden="true">rule</mat-icon>{{ b.id ? 'Editar regla' : 'Nueva regla' }}</h3>
+    <div class="sg-form">
+      <label class="sg-campo-nativo">Nombre
+        <input type="text" [ngModel]="b.nombre" (ngModelChange)="campo('nombre', $event)" placeholder="Ej.: Intrusión caja fuera de horario" />
+      </label>
+      <label class="sg-campo-nativo">Qué vigila
+        <select [ngModel]="b.tipo" (ngModelChange)="campo('tipo', $event)">
+          @for (t of tipos; track t) { <option [ngValue]="t">{{ nombreTipo[t] }}</option> }
+        </select>
+      </label>
+      <p class="sg-nota ancho">{{ ayudaTipo[b.tipo] }}</p>
+
+      <label class="sg-campo-nativo">Sede
+        <select [ngModel]="b.sede_id" (ngModelChange)="campo('sede_id', $event)">
+          <option [ngValue]="null">Todas</option>
+          @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+        </select>
+      </label>
+      @if (usaCamara()) {
+        <label class="sg-campo-nativo">Cámara
+          <select [ngModel]="b.camara_id" (ngModelChange)="campo('camara_id', $event)">
+            <option [ngValue]="null">— Elija —</option>
+            @for (c of camarasSede(); track c.id) { <option [ngValue]="c.id">{{ c.nombre }}@if (!c.analitica_activa) { (sin IA) }</option> }
+          </select>
+        </label>
+      }
+      @if (usaZona() && b.camara_id) {
+        <label class="sg-campo-nativo">{{ b.tipo === 'CRUCE_LINEA' ? 'Línea' : 'Zona' }}
+          <select [ngModel]="b.zona_id" (ngModelChange)="campo('zona_id', $event)">
+            <option [ngValue]="null">{{ b.tipo === 'AFORO' || b.tipo === 'AGLOMERACION' || b.tipo === 'VEHICULO' ? 'Toda la imagen' : '— Elija —' }}</option>
+            @for (z of zonasValidas(); track z.id) { <option [ngValue]="z.id">{{ z.nombre }}@if (z.capacidad) { (cap. {{ z.capacidad }}) }</option> }
+          </select>
+        </label>
+        @if (!zonasValidas().length) { <p class="sg-nota">Esta cámara no tiene {{ b.tipo === 'CRUCE_LINEA' ? 'líneas' : 'zonas' }}: dibújelas en la pestaña Zonas.</p> }
+      }
+
+      @if (usaClases()) {
+        <div class="sg-campo-nativo ancho">Detectar
+          <div class="chips" role="group" aria-label="Qué detectar">
+            @for (c of clases; track c.v) {
+              <button type="button" class="chip" [attr.aria-pressed]="b.clases.includes(c.v)" (click)="alternarClase(c.v)">{{ c.t }}</button>
+            }
+          </div>
+        </div>
+      }
+      @if (usaCamara() && b.tipo !== 'SIN_SENAL') {
+        <label class="sg-campo-nativo">Confianza mínima {{ (b.confianza * 100).toFixed(0) }}%
+          <input type="range" min="0.2" max="0.95" step="0.05" [ngModel]="b.confianza" (ngModelChange)="campo('confianza', +$event)" />
+        </label>
+      }
+      @if (b.tipo === 'AFORO') {
+        <label class="sg-campo-nativo">Capacidad <input type="number" min="1" [ngModel]="b.capacidad" (ngModelChange)="campo('capacidad', $event === '' ? null : +$event)" placeholder="La de la zona" /></label>
+      }
+      @if (b.tipo === 'AGLOMERACION') {
+        <label class="sg-campo-nativo">Personas <input type="number" min="2" [ngModel]="b.personas" (ngModelChange)="campo('personas', $event === '' ? null : +$event)" /></label>
+      }
+      @if (b.tipo === 'MERODEO' || b.tipo === 'SIN_SENAL') {
+        <label class="sg-campo-nativo">Segundos <input type="number" min="5" [ngModel]="b.segundos" (ngModelChange)="campo('segundos', $event === '' ? null : +$event)" /></label>
+      }
+      @if (b.tipo === 'DISPOSITIVO') {
+        <label class="sg-campo-nativo">Dispositivo
+          <select [ngModel]="b.dispositivo_id" (ngModelChange)="campo('dispositivo_id', $event)">
+            <option [ngValue]="null">— Elija —</option>
+            @for (d of dispositivosSede(); track d.id) { <option [ngValue]="d.id">{{ d.nombre }}</option> }
+          </select>
+        </label>
+        <label class="sg-campo-nativo">Cuando pase a
+          <select [ngModel]="b.estado" (ngModelChange)="campo('estado', $event)">
+            <option [ngValue]="null">— Elija —</option>
+            @for (e of estadosDisp; track e) { <option [ngValue]="e">{{ nombreEstadoDisp[e] }}</option> }
+          </select>
+        </label>
+      }
+
+      <label class="sg-campo-nativo">Severidad
+        <select [ngModel]="b.severidad" (ngModelChange)="campo('severidad', $event)">
+          @for (s of severidades; track s) { <option [ngValue]="s">{{ nombreSev[s] }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">Protocolo de aviso
+        <select [ngModel]="b.protocolo_id" (ngModelChange)="campo('protocolo_id', $event)">
+          <option [ngValue]="null">El de la sede / por defecto</option>
+          @for (p of protocolos(); track p.id) { <option [ngValue]="p.id">{{ p.nombre }}</option> }
+        </select>
+      </label>
+      <label class="sg-campo-nativo">No repetir antes de (s)
+        <input type="number" min="0" [ngModel]="b.enfriamiento_seg" (ngModelChange)="campo('enfriamiento_seg', +$event)" />
+      </label>
+      <label class="check"><input type="checkbox" [ngModel]="b.activo" (ngModelChange)="campo('activo', $event)" /> Regla activa</label>
+    </div>
+
+    <h4 class="sub"><mat-icon aria-hidden="true">schedule</mat-icon>¿Cuándo está armada?</h4>
+    <sg-editor-horario [(horario)]="horario" />
+
+    @if (error(); as e) { <div class="sg-aviso danger" role="alert"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+    <div class="sg-fila">
+      <button type="button" class="sg-boton sg-boton--primario sg-boton--grande" (click)="guardar()" [disabled]="guardando()">
+        <mat-icon aria-hidden="true">save</mat-icon>{{ guardando() ? 'Guardando…' : 'Guardar regla' }}</button>
+      <button type="button" class="sg-boton" (click)="borrador.set(null)">Cancelar</button>
+    </div>
+  </section>
+} @else {
+  <app-tabla-estandar id="seguridad-cfg-reglas" titulo="Reglas" modulo="Seguridad" [datos]="reglas()" [columnas]="columnas" [filaId]="porId"
+                      [cargando]="cargando()" [seleccionable]="false" vacio="Sin reglas. Una regla dice qué dispara una alarma y a qué horas." (filaClick)="editar($event)">
+    <ng-template tablaAcciones let-r>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="alternar(r)" [matTooltip]="r.activo ? 'Apagar' : 'Encender'" [attr.aria-label]="r.activo ? 'Apagar' : 'Encender'">
+        <mat-icon>{{ r.activo ? 'toggle_on' : 'toggle_off' }}</mat-icon></button>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="editar(r)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+      <button type="button" class="sg-boton sg-boton--icono" (click)="borrar(r)" matTooltip="Borrar" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+    </ng-template>
+  </app-tabla-estandar>
+  <div class="sg-fila"><button type="button" class="sg-boton sg-boton--primario" (click)="editar(null)"><mat-icon aria-hidden="true">add</mat-icon>Nueva regla</button></div>
+}

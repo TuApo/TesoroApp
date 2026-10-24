@@ -1,0 +1,102 @@
+:host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); color: var(--text); }
+.estado-vacio { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); gap: .4rem; }
+.cab { display: flex; gap: .8rem; padding: 1.1rem 3.5rem .8rem 1.2rem; border-bottom: 1px solid var(--border); }
+.ico { width: 44px; height: 44px; border-radius: 12px; background: var(--ok-bg); color: var(--ok-fg); display: flex; align-items: center;
+  justify-content: center; flex: none; }
+.ico.video { background: var(--info-bg); color: var(--info-fg); }
+.cab-txt { flex: 1; min-width: 0; }
+.cab-txt h2 { margin: 0; font-size: 1.15rem; line-height: 1.25; }
+.cab-txt p { margin: .15rem 0 .4rem; color: var(--muted); font-size: .8rem; text-transform: none; }
+.asistentes { display: flex; flex-wrap: wrap; gap: .3rem; }
+.asis { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; padding: .1rem .5rem .1rem .15rem; border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 30%, transparent); }
+.cab-acc { display: flex; gap: .3rem; align-items: flex-start; }
+.cab-acc button { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; width: 36px; height: 36px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--text-2); }
+.aviso { display: flex; align-items: center; gap: .5rem; margin: .7rem 1.2rem 0; padding: .55rem .8rem; border-radius: 10px;
+  background: var(--info-bg); color: var(--info-fg); font-size: .82rem; }
+.aviso.err { background: var(--danger-bg); color: var(--danger-fg); }
+.aviso button { border: 0; background: var(--surface); border-radius: 999px; padding: .2rem .7rem; cursor: pointer; font: inherit; font-weight: 700; }
+.cuerpo { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 0; }
+.col-izq, .col-der { min-height: 0; overflow-y: auto; padding: .9rem 1.2rem 1.2rem; }
+.col-der { border-left: 1px solid var(--border); background: var(--surface-2); display: flex; flex-direction: column; overflow: hidden; }
+.bloque { margin-bottom: 1.1rem; }
+h3 { display: flex; align-items: center; gap: .35rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-2);
+  margin: 0 0 .5rem; }
+h3 mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--primary); }
+h3 small { background: var(--surface-3); border-radius: 999px; padding: 0 .45rem; font-size: .7rem; }
+.resumen { margin: 0; font-size: .9rem; line-height: 1.55; white-space: pre-line; }
+.temas { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
+.temas span { background: var(--surface-3); border-radius: 999px; padding: .1rem .55rem; font-size: .75rem; color: var(--text-2); }
+ul { margin: 0; padding-left: 1.1rem; font-size: .87rem; line-height: 1.5; }
+.comps { display: flex; flex-direction: column; gap: .4rem; }
+.tenue { color: var(--muted); font-size: .82rem; }
+.nuevo { display: flex; gap: .3rem; margin-top: .5rem; }
+.nuevo input { flex: 1; border: 1px dashed var(--border-strong); border-radius: 10px; padding: .4rem .6rem; font: inherit; font-size: .85rem;
+  background: var(--surface); color: var(--text); }
+.nuevo button { border: 0; background: var(--primary); color: #fff; border-radius: 10px; width: 36px; cursor: pointer; }
+.trans-cab { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.trans-cab h3 { margin: 0; flex: 1; }
+.buscar { display: flex; align-items: center; gap: .3rem; border: 1px solid var(--border); border-radius: 999px; padding: .15rem .6rem;
+  background: var(--surface); }
+.buscar mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--muted); }
+.buscar input { border: 0; outline: 0; font: inherit; font-size: .8rem; background: transparent; color: var(--text); width: 180px; }
+.segs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .15rem; padding-right: .2rem; }
+.seg { display: flex; gap: .5rem; padding: .35rem .4rem; border-radius: 8px; border-left: 3px solid var(--c); background: var(--surface); }
+.seg.sonando { background: color-mix(in srgb, var(--c) 12%, var(--surface)); }
+.t { display: inline-flex; align-items: center; gap: .1rem; border: 0; background: transparent; color: var(--muted); font: inherit;
+  font-size: .72rem; font-variant-numeric: tabular-nums; cursor: pointer; padding: 0 .2rem 0 0; flex: none; height: 22px; }
+.t mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.t:disabled { cursor: default; opacity: .6; }
+.seg-txt { font-size: .86rem; line-height: 1.45; }
+.seg-txt strong { color: var(--c); margin-right: .2rem; }
+.gira { animation: gira 1.2s linear infinite; }
+@keyframes gira { to { transform: rotate(360deg); } }
+@media (max-width: 900px) {
+  /* En el celular el acta es UNA sola columna que se desplaza entera. */
+  :host { overflow-y: auto; height: auto; min-height: 100%; display: block; }
+  .cab { position: relative; padding: .8rem 6.6rem .7rem .8rem; gap: .6rem; }
+  .ico { width: 36px; height: 36px; border-radius: 10px; }
+  .cab-txt h2 { font-size: 1rem; }
+  .cab-acc { position: absolute; top: .7rem; right: .7rem; }
+  .asis { font-size: .7rem; }
+  .cuerpo { display: block; }
+  .col-izq, .col-der { overflow: visible; padding: .8rem; }
+  .col-der { border-left: 0; border-top: 1px solid var(--border); display: block; }
+  .segs { overflow: visible; }
+  .buscar input { width: 100%; }
+  .trans-cab .buscar { flex: 1 1 100%; }
+}
+/* Lo escrito en el chat durante la llamada, intercalado con lo dicho. */
+.seg.escrito { border-left-style: dashed; background: color-mix(in srgb, var(--c) 6%, var(--surface)); }
+.seg.escrito .t { cursor: default; }
+.en-chat { font-style: normal; font-size: .72rem; color: var(--muted); margin-right: .25rem; }
+.seg-txt .adj { display: inline-flex; align-items: center; gap: .2rem; margin-left: .35rem; font-size: .8rem; color: var(--primary); }
+.seg-txt .adj mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.seg-txt :is(a) { overflow-wrap: anywhere; }
+
+/* Momentos (clips) y el asistente de IA del acta. */
+.momentos { display: flex; flex-direction: column; gap: .5rem; }
+.momento { border: 1px solid color-mix(in srgb, #F59E0B 45%, transparent); background: color-mix(in srgb, #F59E0B 7%, var(--surface));
+  border-radius: 12px; padding: .55rem .65rem; display: flex; flex-direction: column; gap: .35rem; }
+.momento.ia { border-color: color-mix(in srgb, var(--primary) 40%, transparent); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.m-cab { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; font-size: .74rem; color: var(--muted); }
+.m-cab mat-icon { font-size: 17px; width: 17px; height: 17px; color: #D97706; }
+.momento.ia .m-cab mat-icon { color: var(--primary); }
+.m-cab .t { height: auto; color: var(--primary); font-weight: 700; }
+.m-cab .tipo { font-size: .64rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; background: var(--surface-3); color: var(--text-2);
+  padding: .05rem .4rem; border-radius: 999px; }
+.momento strong { font-size: .88rem; }
+.m-nota { margin: 0; font-size: .8rem; color: var(--text-2); }
+.momento img { display: block; width: 100%; max-height: 220px; object-fit: contain; background: #000; border-radius: 8px; }
+.momento video { width: 100%; max-height: 240px; border-radius: 8px; background: #000; }
+.momento audio { width: 100%; height: 34px; }
+.momento details summary { cursor: pointer; font-size: .75rem; color: var(--muted); }
+.momento details pre { margin: .3rem 0 0; white-space: pre-wrap; font: inherit; font-size: .78rem; max-height: 180px; overflow-y: auto; }
+.vista-der { display: flex; gap: .3rem; margin-bottom: .5rem; }
+.vista-der button { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  border-radius: 999px; padding: .3rem .75rem; font: inherit; font-size: .8rem; cursor: pointer; min-height: 0 !important; }
+.vista-der button.on { background: var(--info-bg); border-color: var(--info-border); color: var(--info-fg); font-weight: 700; }
+.vista-der mat-icon { font-size: 17px; width: 17px; height: 17px; }
+.oculto-h { display: none; }
+.asis-acta { flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: 12px; }

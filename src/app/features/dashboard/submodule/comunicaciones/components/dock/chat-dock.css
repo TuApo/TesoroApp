@@ -1,0 +1,117 @@
+:host { display: contents; }
+
+/* ─── Pestañas laterales (escritorio) ───────────────────────────────────────
+   Como la pestaña del menú en el borde izquierdo: delgadas, pegadas al borde derecho,
+   semitransparentes mientras no se usan; crecen al pasar el mouse. La de Chat va arriba
+   y debajo una por cada conversación abierta, con su primer nombre en vertical. */
+/* Abajo a la derecha: la de Chat en la base y las conversaciones encima (la más reciente más cerca). */
+.pestanas { position: fixed; right: var(--com-barra, 0px); bottom: 14px; z-index: 1150; display: flex; flex-direction: column-reverse;
+  align-items: flex-end; gap: 6px; pointer-events: none; }
+.pestana { pointer-events: auto; position: relative; width: 26px; min-height: 58px; max-height: 132px; padding: 7px 0 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; border: 1px solid var(--border); border-right: 0;
+  border-radius: 12px 0 0 12px; background: var(--surface); color: var(--text-2); box-shadow: -4px 0 14px rgba(15, 23, 42, .16);
+  font: inherit; cursor: pointer; opacity: .55;
+  transition: width .18s ease, opacity .18s ease, background-color .18s ease, box-shadow .18s ease; }
+.pestana:hover, .pestana:focus-visible { opacity: 1; width: 34px; outline: none; }
+/* Desplegada: se ve completa y con la marca de "abierta" hacia el lado del panel. */
+.pestana.activa { opacity: 1; width: 34px; box-shadow: inset 3px 0 0 var(--primary), -4px 0 14px rgba(15, 23, 42, .18); }
+/* Llegó algo: completa y en color, aunque no se esté usando. */
+.pestana.alerta { opacity: 1; width: 34px; background: var(--brand-blue, #2B59F0); color: #fff; border-color: transparent;
+  animation: latido-lateral 1.6s ease-in-out infinite; }
+.pestana .txt { writing-mode: vertical-rl; font-size: .74rem; font-weight: 700; letter-spacing: .01em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-height: 84px; line-height: 1; }
+.pestana mat-icon { font-size: 18px; width: 18px; height: 18px; flex: none; }
+.pestana app-com-avatar { flex: none; }
+.pestana.chat { background: var(--navy, #21263C); color: #fff; border-color: transparent; }
+.pestana.chat mat-icon { color: var(--lime, #9BD441); }
+.pestana.chat mat-icon.red { color: #FCD34D; font-size: 15px; width: 15px; height: 15px; }
+.pestana.chat.alerta { background: var(--brand-blue, #2B59F0); }
+.pestana.mas { min-height: 40px; }
+.pestana .badge { min-width: 17px; height: 17px; font-size: .6rem; padding: 0 .2rem; flex: none; }
+/* Notificación: cuántos chats (en la de Chat) o mensajes (en una conversación) sin leer. */
+.noti { position: absolute; top: -8px; left: -9px; min-width: 20px; height: 20px; padding: 0 .3rem; border-radius: 999px; background: #EF4444;
+  color: #fff; font-size: .68rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid var(--surface, #fff); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); line-height: 1; }
+
+@keyframes latido-lateral { 0%, 100% { box-shadow: -4px 0 14px rgba(15, 23, 42, .18); }
+  50% { box-shadow: inset 3px 0 0 var(--lime, #9BD441), -4px 0 22px rgba(43, 89, 240, .5); } }
+
+/* ─── Lo desplegado: lista y ventanas, abajo a la derecha junto a las pestañas ─── */
+/* Se abre expandiéndose de lado desde la pestaña y al minimizar vuelve a ella. */
+@keyframes expandir-lateral {
+  from { clip-path: inset(0 0 0 100% round 12px 12px 0 0); opacity: .35; transform: translateX(14px); }
+  to { clip-path: inset(0 0 0 0 round 12px 12px 0 0); opacity: 1; transform: none; }
+}
+@keyframes contraer-lateral {
+  from { clip-path: inset(0 0 0 0 round 12px 12px 0 0); opacity: 1; transform: none; }
+  to { clip-path: inset(0 0 0 100% round 12px 12px 0 0); opacity: .2; transform: translateX(14px); }
+}
+.expandir { animation: expandir-lateral .28s cubic-bezier(.2, .8, .2, 1) both; }
+.contraer { animation: contraer-lateral .2s cubic-bezier(.4, 0, 1, 1) both; }
+.dock { position: fixed; right: calc(46px + var(--com-barra, 0px)); bottom: 0; z-index: 1150; display: flex; flex-direction: row-reverse; align-items: flex-end;
+  gap: 12px; pointer-events: none; max-width: calc(100vw - var(--app-menu-w, 0px) - 60px); }
+.dock > * { pointer-events: auto; }
+
+.roster { width: 380px; height: min(640px, calc(100vh - 90px)); background: var(--surface); border: 1px solid var(--border); border-bottom: 0;
+  border-radius: 12px 12px 0 0; box-shadow: 0 -2px 24px rgba(15, 23, 42, .22); overflow: hidden; display: flex; flex-direction: column; }
+.roster header { display: flex; align-items: center; gap: .45rem; padding: 0 .3rem 0 .8rem; height: 48px; background: var(--navy, #21263C);
+  color: #fff; cursor: pointer; user-select: none; flex: none; }
+.roster header strong { font-size: 1rem; }
+.roster header .logo { color: var(--lime, #9BD441); }
+.roster header .sp { flex: 1; }
+.roster header button { border: 0; background: transparent; color: rgba(255,255,255,.85); width: 34px; height: 34px; border-radius: 50%;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.roster header button:hover { background: rgba(255,255,255,.14); color: #fff; }
+.roster header button mat-icon { font-size: 20px; width: 20px; height: 20px; }
+.roster-cuerpo { flex: 1; min-height: 0; }
+
+.badge { background: var(--lime, #9BD441); color: #0F1B2D; font-weight: 800; font-size: .7rem; border-radius: 999px; min-width: 20px;
+  height: 20px; display: inline-flex; align-items: center; justify-content: center; padding: 0 .35rem; }
+.badge.en-menu { margin-left: .4rem; background: var(--brand-blue, #2B59F0); color: #fff; }
+
+/* Móvil: un botón redondo sobre la barra inferior, a la izquierda del tutor. */
+.flotante { position: fixed; right: 5rem; bottom: calc(var(--mobile-bottombar-h, 68px) + env(safe-area-inset-bottom) + 12px); z-index: 1150;
+  width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--navy, #21263C); color: var(--lime, #9BD441);
+  box-shadow: 0 6px 18px rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.flotante .badge { position: absolute; top: -4px; right: -4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pestana { transition: none; }
+  .pestana.alerta, .expandir, .contraer { animation: none; }
+}
+/* Móvil: la misma pestaña lateral de escritorio, fija abajo a la derecha sobre la barra inferior;
+   la lista se despliega como hoja sobre la barra y ocupa el ancho de la pantalla. */
+.pestana--movil { position: fixed; right: 0; bottom: calc(var(--mobile-bottombar-h, 68px) + env(safe-area-inset-bottom) + 14px); z-index: 1150;
+  opacity: .8; width: 30px; min-height: 64px; }
+.pestana--movil.activa { opacity: 1; }
+/* Con la hoja abierta la pestaña taparía las filas de la lista: se cierra con la flecha del encabezado. */
+.pestana--movil.activa { display: none; }
+.roster--movil { position: fixed; left: 0; right: 0; bottom: calc(var(--mobile-bottombar-h, 68px) + env(safe-area-inset-bottom)); z-index: 1149;
+  width: auto; height: min(70vh, 560px); border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(15, 23, 42, .35); }
+.roster--movil header { height: 50px; }
+
+/* ─── Pestaña «IA» (asistente operador), pegada a la de Chat ───
+   Misma familia que las demás (delgada, al borde) pero con el degradado violeta del asistente
+   y una onda que se mueve cuando escucha, piensa o habla. Fondo opaco (WebView del APK). */
+.pestana.ia { opacity: .9; color: #fff; border-color: transparent;
+  background: linear-gradient(180deg, #7C3AED 0%, #4F46E5 55%, #2B59F0 100%); }
+.pestana.ia:hover, .pestana.ia.activa { opacity: 1; width: 34px; }
+.pestana.ia.activa { box-shadow: inset 3px 0 0 var(--lime, #9BD441), -4px 0 18px rgba(124, 58, 237, .45); }
+.pestana.ia.alerta-ia { opacity: 1; width: 34px; animation: latido-ia 1.6s ease-in-out infinite; }
+.ia-onda { display: inline-flex; align-items: center; gap: 2px; height: 18px; flex: none; }
+.ia-onda i { width: 3px; height: 6px; border-radius: 2px; background: currentColor; opacity: .95; transition: height .2s ease; }
+.ia-onda i:nth-child(2) { height: 11px; } .ia-onda i:nth-child(3) { height: 14px; } .ia-onda i:nth-child(4) { height: 8px; }
+.pestana.ia.escuchando .ia-onda i, .pestana.ia.hablando .ia-onda i { animation: onda-ia .8s ease-in-out infinite; }
+.pestana.ia.pensando .ia-onda i { animation: onda-ia 1.3s ease-in-out infinite; opacity: .7; }
+.ia-onda i:nth-child(2) { animation-delay: .12s !important; } .ia-onda i:nth-child(3) { animation-delay: .24s !important; }
+.ia-onda i:nth-child(4) { animation-delay: .36s !important; }
+.pestana.ia.escuchando { background: linear-gradient(180deg, #DB2777 0%, #7C3AED 100%); opacity: 1; width: 34px; }
+@keyframes onda-ia { 0%, 100% { transform: scaleY(.45); } 50% { transform: scaleY(1.25); } }
+@keyframes latido-ia { 0%, 100% { box-shadow: -4px 0 14px rgba(15, 23, 42, .18); }
+  50% { box-shadow: inset 3px 0 0 var(--lime, #9BD441), -4px 0 22px rgba(124, 58, 237, .6); } }
+/* Móvil: encima de la pestaña de Chat. */
+.pestana--movil-ia { bottom: calc(var(--mobile-bottombar-h, 68px) + env(safe-area-inset-bottom) + 86px); opacity: .95; }
+.pestana--movil-ia.activa-ia { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .pestana.ia .ia-onda i, .pestana.ia.alerta-ia { animation: none !important; }
+}

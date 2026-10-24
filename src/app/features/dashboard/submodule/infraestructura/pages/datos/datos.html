@@ -1,0 +1,82 @@
+@if (error()) { <div class="if-aviso danger"><mat-icon>error</mat-icon><div>No se pudieron leer los datos. Reintentando cada 30 s.</div></div> }
+
+@if (datos(); as d) {
+  <!-- Respaldos primero: es lo que más duele cuando falla -->
+  <section class="if-tarjeta" aria-labelledby="t-resp">
+    <h3 id="t-resp"><mat-icon>backup</mat-icon> Respaldos</h3>
+    @for (r of d.respaldos; track r.ruta) {
+      <div class="respaldo" [class]="'respaldo ' + tonoRespaldo(r.horas)">
+        <mat-icon>{{ tonoRespaldo(r.horas) === 'ok' ? 'verified' : 'report' }}</mat-icon>
+        <div>
+          <div class="t">{{ r.descripcion ?? r.ruta }}</div>
+          @if (r.accesible) {
+            <div class="d">Último archivo: <span class="if-mono">{{ r.ultimo_archivo ?? '—' }}</span> ({{ f.bytes(r.ultimo_bytes) }}),
+              {{ r.horas != null ? 'hace ' + f.duracion(r.horas * 3600) : '—' }} · {{ r.archivos }} archivos en la carpeta.</div>
+          } @else {
+            <div class="d">{{ r.error }}</div>
+          }
+        </div>
+      </div>
+    }
+  </section>
+
+  <div class="if-rejilla--2">
+    <section class="if-tarjeta" aria-labelledby="t-mysql">
+      <h3 id="t-mysql"><mat-icon>storage</mat-icon> MySQL
+        <span class="if-sub">{{ d.mysql.arriba ? 'arriba hace ' + f.duracion(d.mysql.uptime_seg) : 'CAÍDO' }}</span></h3>
+      <div class="if-lecturas">
+        <div class="if-lectura"><span class="et">Conexiones</span><span class="va">{{ d.mysql.conexiones ?? '—' }}<small>/ {{ d.mysql.conexiones_max }}</small></span><span class="ay">{{ d.mysql.hilos_activos }} ejecutando</span></div>
+        <div class="if-lectura"><span class="et">Consultas</span><span class="va">{{ f.num(d.mysql.consultas_s, 0) }}<small>/s</small></span><span class="ay">{{ d.mysql.lentas_24h ?? 0 }} lentas en 24 h</span></div>
+        <div class="if-lectura"><span class="et">Buffer pool</span><span class="va">{{ f.pct(d.mysql.buffer_pool_uso_pct) }}</span><span class="ay">de {{ f.bytes(d.mysql.buffer_pool_bytes) }}</span></div>
+        <div class="if-lectura"><span class="et">Tráfico</span><span class="va va-chica">↓ {{ f.bps(d.mysql.recibido_bps) }}</span><span class="ay">↑ {{ f.bps(d.mysql.enviado_bps) }}</span></div>
+      </div>
+      <app-infra-grafica clave="mysql.qps" rango="24h" [alto]="170" />
+      <h4>Tamaño por base <span class="if-tenue">({{ f.bytes(totalEsquemas()) }} visibles para el usuario de la app)</span></h4>
+      @for (e of d.mysql.esquemas; track e.nombre) {
+        <div class="if-medidor"><span class="nombre if-mono">{{ e.nombre }}</span>
+          <span class="if-barra"><i [style.width.%]="100 * e.bytes / maxEsquema()"></i></span>
+          <span class="valor">{{ f.bytes(e.bytes) }} · {{ f.compacto(e.filas) }} filas</span></div>
+      }
+    </section>
+
+    <div class="lateral">
+      <section class="if-tarjeta" aria-labelledby="t-kafka">
+        <h3 id="t-kafka"><mat-icon>dynamic_feed</mat-icon> Kafka
+          @if (d.kafka; as k) { <span class="if-sub">{{ k.brokers }} broker · {{ k.topicos }} tópicos · {{ k.particiones }} particiones</span> }</h3>
+        @if (d.kafka; as k) {
+          <p class="if-nota">El <b>retraso</b> son los mensajes que un consumidor aún no ha procesado. Si no baja, el consumidor está atascado.</p>
+          <table class="if-tabla-simple">
+            <thead><tr><th>Consumidor</th><th>Estado</th><th class="num">Miembros</th><th class="num">Retraso</th></tr></thead>
+            <tbody>
+              @for (g of k.grupos; track g.grupo) {
+                <tr><td class="if-mono">{{ g.grupo }}<br><span class="if-tenue">{{ topicos(g.lag_por_topico) }}</span></td>
+                  <td>{{ g.estado }}</td><td class="num">{{ g.miembros }}</td>
+                  <td class="num"><span class="if-chip" [class]="'if-chip ' + tonoLag(g.lag, g.miembros)">{{ f.compacto(g.lag) }}</span></td></tr>
+              }
+            </tbody>
+          </table>
+        } @else { <div class="if-vacio">Sin lectura de Kafka.</div> }
+      </section>
+
+      <section class="if-tarjeta" aria-labelledby="t-ocr">
+        <h3 id="t-ocr"><mat-icon>document_scanner</mat-icon> OCR de documentos</h3>
+        <div class="if-lecturas">
+          <div class="if-lectura"><span class="et">Completados 24 h</span><span class="va" [class.malo]="d.ocr.completados_24h === 0">{{ d.ocr.completados_24h ?? '—' }}</span></div>
+          <div class="if-lectura"><span class="et">Fallidos 24 h</span><span class="va">{{ d.ocr.fallidos_24h ?? '—' }}</span></div>
+          <div class="if-lectura"><span class="et">Pendientes</span><span class="va">{{ d.ocr.pendientes ?? '—' }}</span></div>
+        </div>
+      </section>
+
+      <section class="if-tarjeta" aria-labelledby="t-redis">
+        <h3 id="t-redis"><mat-icon>memory</mat-icon> Redis <span class="if-sub">{{ d.redis.arriba ? 'arriba' : 'CAÍDO' }}</span></h3>
+        <div class="if-lecturas">
+          <div class="if-lectura"><span class="et">Memoria</span><span class="va va-chica">{{ f.bytes(d.redis.memoria_bytes) }}</span><span class="ay">de {{ f.bytes(d.redis.memoria_max_bytes) }}</span></div>
+          <div class="if-lectura"><span class="et">Operaciones</span><span class="va">{{ f.num(d.redis.ops_s, 1) }}<small>/s</small></span><span class="ay">{{ d.redis.clientes }} clientes</span></div>
+          <div class="if-lectura"><span class="et">Aciertos</span><span class="va">{{ f.pct(d.redis.aciertos_pct) }}</span><span class="ay">{{ f.compacto(d.redis.llaves) }} llaves</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+} @else {
+  <div class="if-vacio">Leyendo MySQL, Redis y Kafka…</div>
+}

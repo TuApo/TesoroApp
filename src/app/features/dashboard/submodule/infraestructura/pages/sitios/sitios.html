@@ -1,0 +1,88 @@
+<div class="if-fila if-fila--entre">
+  <p class="if-nota">Cada sitio se prueba cada 30 s desde dentro (HTTPS con su nombre real) y su tráfico se cuenta en los
+    registros de acceso de Caddy, la única puerta de entrada. No se guardan direcciones completas ni parámetros de las URL.</p>
+  <div class="if-segmentos" role="group" aria-label="Periodo">
+    @for (r of rangos; track r) { <button type="button" [attr.aria-pressed]="rango() === r" (click)="rango.set(r)">{{ r }}</button> }
+  </div>
+</div>
+
+@if (datos(); as d) {
+  @if (!d.historia_lista) { <div class="if-aviso"><mat-icon>hourglass_top</mat-icon><div>Todavía se están leyendo los registros históricos de Caddy; las cifras irán subiendo.</div></div> }
+  @if (d.error) { <div class="if-aviso warn"><mat-icon>warning</mat-icon><div>{{ d.error }}</div></div> }
+
+  <div class="tablero">
+    @for (s of d.sitios; track s.dominio) {
+      <button type="button" class="sitio" [class.activo]="abierto() === s.dominio" (click)="abierto.set(s.dominio)" [attr.aria-pressed]="abierto() === s.dominio">
+        <span class="if-chip" [class]="'if-chip ' + tono(s)">
+          <mat-icon>{{ tono(s) === 'ok' ? 'check_circle' : tono(s) === 'danger' ? 'cancel' : 'error' }}</mat-icon>{{ textoEstado(s) }}
+        </span>
+        <span class="dominio">{{ s.dominio }}</span>
+        <span class="cifras">
+          @if (s.peticiones != null) { <span><b>{{ f.compacto(s.peticiones) }}</b> peticiones</span><span><b>{{ f.compacto(s.visitantes) }}</b> IP</span> }
+          @else if (s.latencia_ms != null) { <span>responde en <b>{{ f.ms(s.latencia_ms) }}</b></span> }
+        </span>
+      </button>
+    }
+  </div>
+
+  @if (conTrafico().length) {
+    <section class="if-tarjeta">
+      <h3><mat-icon>show_chart</mat-icon> Peticiones por minuto <span class="if-sub">{{ d.rango }}</span></h3>
+      <div echarts [options]="grafica()" class="if-grafica if-grafica--alta" role="img" aria-label="Peticiones por minuto de cada sitio"></div>
+    </section>
+  }
+
+  @for (s of d.sitios; track s.dominio) {
+    @if (abierto() === s.dominio) {
+      <section class="if-tarjeta ficha" [attr.aria-label]="'Detalle de ' + s.dominio">
+        <div class="if-fila if-fila--entre">
+          <h2 class="if-titulo-seccion"><mat-icon>language</mat-icon> {{ s.dominio }}</h2>
+          <span class="if-chip" [class]="'if-chip ' + tono(s)">{{ textoEstado(s) }}</span>
+        </div>
+        @if (s.error) { <div class="if-aviso danger"><mat-icon>error</mat-icon><div>{{ s.error }}</div></div> }
+
+        <div class="if-lecturas">
+          <div class="if-lectura"><span class="et">DNS</span><span class="va va-chica">{{ s.dns ?? '—' }}</span><span class="ay">{{ s.destino ? 'detrás: ' + s.destino : (s.descripcion ?? '') }}</span></div>
+          <div class="if-lectura"><span class="et">Certificado</span><span class="va va-chica">{{ s.cert_dias != null && !(s.cert_emisor ?? '').includes('Local') ? s.cert_dias + ' días' : '—' }}</span><span class="ay">{{ certTexto(s) }}</span></div>
+          <div class="if-lectura"><span class="et">Sonda</span><span class="va">{{ f.ms(s.latencia_ms) }}</span><span class="ay">HTTP {{ s.codigo ?? '—' }}</span></div>
+          @if (s.peticiones != null) {
+            <div class="if-lectura"><span class="et">Peticiones</span><span class="va">{{ f.compacto(s.peticiones) }}</span><span class="ay">{{ f.num(s.rpm, 1) }}/min de media</span></div>
+            <div class="if-lectura"><span class="et">Tiempo de respuesta</span><span class="va">{{ f.ms(s.p95_ms) }}</span><span class="ay">p95 · mediana {{ f.ms(s.p50_ms) }}</span></div>
+            <div class="if-lectura"><span class="et">Errores</span><span class="va">{{ errPct(s, s.err5xx) }}</span><span class="ay">5xx · 4xx {{ errPct(s, s.err4xx) }} · cortadas {{ f.compacto(s.abortadas) }}</span></div>
+            <div class="if-lectura"><span class="et">Datos enviados</span><span class="va">{{ f.bytes(s.bytes) }}</span><span class="ay">{{ f.pct(s.bots) }} bots y scripts</span></div>
+          }
+        </div>
+
+        @if (s.peticiones) {
+          <div class="if-rejilla--3">
+            <div>
+              <h4>Lo más pedido</h4>
+              @for (r of s.top_rutas ?? []; track r.clave) {
+                <div class="if-medidor top"><span class="nombre if-mono" [title]="r.clave">{{ r.clave }}</span>
+                  <span class="if-barra"><i [style.width.%]="anchoTop(s.top_rutas, r.n)"></i></span><span class="valor">{{ f.compacto(r.n) }}</span></div>
+              }
+            </div>
+            <div>
+              <h4>Quién pide (IP)</h4>
+              @for (r of s.top_ips ?? []; track r.clave) {
+                <div class="if-medidor top"><span class="nombre if-mono">{{ r.clave }}</span>
+                  <span class="if-barra"><i class="warn" [style.width.%]="anchoTop(s.top_ips, r.n)"></i></span><span class="valor">{{ f.compacto(r.n) }}</span></div>
+              }
+            </div>
+            <div>
+              <h4>Con qué (navegador / script)</h4>
+              @for (r of s.top_agentes ?? []; track r.clave) {
+                <div class="if-medidor top"><span class="nombre" [title]="r.clave">{{ r.clave }}</span>
+                  <span class="if-barra"><i class="ok" [style.width.%]="anchoTop(s.top_agentes, r.n)"></i></span><span class="valor">{{ f.compacto(r.n) }}</span></div>
+              }
+            </div>
+          </div>
+        } @else if (s.peticiones === 0 || s.peticiones == null) {
+          <p class="if-nota">Sin tráfico registrado en los logs de Caddy para este nombre en el periodo{{ s.origen === 'externo' ? ' (es un sitio externo: su tráfico no pasa por este servidor)' : '' }}.</p>
+        }
+      </section>
+    }
+  }
+} @else if (cargando()) {
+  <div class="if-vacio">Probando los sitios y leyendo su tráfico…</div>
+}

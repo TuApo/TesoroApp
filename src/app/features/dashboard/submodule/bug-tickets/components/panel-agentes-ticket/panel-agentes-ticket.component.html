@@ -1,0 +1,109 @@
+@if (disponible()) {
+  <section class="pat">
+    <h3 class="pat-titulo">
+      <mat-icon>smart_toy</mat-icon> Resolver con agentes
+      @if (cargando()) { <mat-spinner diameter="16"></mat-spinner> }
+    </h3>
+
+    @if (!caso()) {
+      <p class="pat-ayuda">
+        Los agentes primero analizan el ticket y hacen un plan con su costo estimado. Si es un arreglo
+        acotado lo resuelven ellos y dejan un commit para revisar; si cuesta demasiado, es arriesgado o es
+        una mejora, el plan pasa a un desarrollador.
+      </p>
+      <div class="pat-elegir" role="radiogroup" aria-label="Quién lo resuelve">
+        <label [class.on]="resolucion === 'auto'">
+          <input type="radio" name="pat-res" value="auto" [(ngModel)]="resolucion">
+          <b>Automático</b><small>Deciden los agentes según el plan</small>
+        </label>
+        <label [class.on]="resolucion === 'agentes'">
+          <input type="radio" name="pat-res" value="agentes" [(ngModel)]="resolucion">
+          <b>Agentes</b><small>Aunque la estimación sea alta (nunca BD ni despliegue)</small>
+        </label>
+        <label [class.on]="resolucion === 'desarrollador'">
+          <input type="radio" name="pat-res" value="desarrollador" [(ngModel)]="resolucion">
+          <b>Desarrollador</b><small>Los agentes solo dejan el plan</small>
+        </label>
+      </div>
+      <button mat-flat-button color="primary" (click)="enviar()" [disabled]="trabajando()">
+        <mat-icon>send</mat-icon> Enviar
+      </button>
+    } @else {
+      @let c = caso()!;
+      <div class="pat-fase" [attr.data-tono]="fase()?.tono">
+        <mat-icon>{{ fase()?.icono }}</mat-icon>
+        <span>{{ fase()?.etiqueta }}</span>
+        @if (enMarcha()) { <mat-spinner diameter="16"></mat-spinner> }
+      </div>
+
+      @if (c.decision) { <p class="pat-motivo">{{ c.decision.motivo }}</p> }
+
+      @if (c.triaje; as tr) {
+        <dl class="pat-datos">
+          <div><dt>Tipo</dt><dd>{{ tr.tipo }}</dd></div>
+          <div><dt>Complejidad</dt><dd>{{ tr.complejidad }}</dd></div>
+          <div><dt>Riesgo</dt><dd>{{ tr.riesgo }}</dd></div>
+          @if (c.proyeccion) {
+            <div><dt>Estimado</dt><dd>~{{ c.proyeccion.minutos }} min · US${{ c.proyeccion.usd | number:'1.2-2' }}</dd></div>
+          }
+          <div><dt>Gastado</dt><dd>US${{ c.costeRealUsd | number:'1.2-2' }}</dd></div>
+        </dl>
+        @if (tr.causa) { <p class="pat-causa"><b>Causa probable:</b> {{ tr.causa }}</p> }
+        @if (tr.archivos.length) {
+          <p class="pat-archivos">@for (a of tr.archivos; track a) { <code>{{ a }}</code> }</p>
+        }
+      }
+
+      @if (c.plan) {
+        <button class="pat-toggle" type="button" (click)="verPlan.set(!verPlan())">
+          <mat-icon>{{ verPlan() ? 'expand_less' : 'expand_more' }}</mat-icon> Plan de solución
+        </button>
+        @if (verPlan()) { <pre class="pat-plan">{{ c.plan }}</pre> }
+      }
+
+      @if (c.commits.length) {
+        <div class="pat-commits">
+          <b>Commits para revisar (rama agentes/trabajo):</b>
+          @for (k of c.commits; track k.hash) {
+            <div><code>{{ k.repo }} {{ k.hash }}</code> {{ k.asunto }} <small>{{ k.resumen }}</small></div>
+          }
+        </div>
+      }
+      @if (c.resultado && c.fase !== 'resolviendo') {
+        <details class="pat-resultado"><summary>Resumen de los agentes</summary><pre>{{ c.resultado }}</pre></details>
+      }
+
+      <div class="pat-acciones">
+        @switch (c.fase) {
+          @case ('esperando_autorizacion') {
+            <button mat-flat-button color="primary" (click)="hacer('autorizar')" [disabled]="trabajando()"><mat-icon>check</mat-icon> Autorizar a los agentes</button>
+            <button mat-stroked-button (click)="hacer('tomar')" [disabled]="trabajando()"><mat-icon>engineering</mat-icon> Lo hago yo</button>
+            <button mat-button (click)="hacer('descartar')" [disabled]="trabajando()">Descartar</button>
+          }
+          @case ('para_desarrollador') {
+            <button mat-stroked-button (click)="hacer('tomar')" [disabled]="trabajando()"><mat-icon>engineering</mat-icon> Lo tomo yo</button>
+            @if (c.plan) {
+              <button mat-button (click)="hacer('autorizar')" [disabled]="trabajando()"><mat-icon>smart_toy</mat-icon> Que lo intenten los agentes</button>
+            }
+            <button mat-button (click)="hacer('repetir')" [disabled]="trabajando()">Repetir análisis</button>
+          }
+          @case ('triaje') {
+            <button mat-stroked-button (click)="hacer('tomar')" [disabled]="trabajando()"><mat-icon>engineering</mat-icon> Lo tomo yo</button>
+          }
+          @case ('resolviendo') {
+            <button mat-stroked-button (click)="hacer('tomar')" [disabled]="trabajando()"><mat-icon>pan_tool</mat-icon> Detener y tomarlo yo</button>
+          }
+          @default {
+            <button mat-button (click)="hacer('repetir')" [disabled]="trabajando()">Repetir análisis</button>
+          }
+        }
+      </div>
+
+      <ol class="pat-eventos">
+        @for (e of c.eventos; track e.ts) {
+          <li><small>{{ e.ts | date:'dd/MM HH:mm' }}</small> {{ etiquetaFase(e.fase) }}@if (e.nota) { — {{ e.nota }} } <i>({{ e.por }})</i></li>
+        }
+      </ol>
+    }
+  </section>
+}
