@@ -1,3 +1,5 @@
+import { obtenerUsuarioActual } from '../utils/usuario-actual';
+import { ArchivosNativos } from '../nativo/archivos-nativos';
 import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import Swal from 'sweetalert2';
@@ -25,6 +27,11 @@ export class SesionService {
     // Tiene que ser el mismo que usa la cola, o el logout no borraría nada fuera
     // del escritorio y el siguiente usuario del equipo heredaría la caché.
     const electronApi = puenteOffline();
+    // Lo que el teléfono guardó para trabajar sin señal es de ESTA persona: la lista de su
+    // personal (datos personales de terceros) sale siempre al cerrar sesión; sus envíos
+    // pendientes se quedan, igual que la cola, salvo «Borrar y salir».
+    const usuario = obtenerUsuarioActual().id;
+    if (usuario) await ArchivosNativos.borrar(usuario, 'personal/mi-personal.json').catch(() => null);
 
     if (pendientes > 0) {
       const result = await Swal.fire({
@@ -50,6 +57,7 @@ export class SesionService {
         // acceso rápido guardado. El logout normal NO lo toca, porque su razón
         // de ser es sobrevivir al cierre de sesión.
         await this.quickAccess.olvidar().catch(() => null);
+        if (usuario) await ArchivosNativos.borrarUsuario(usuario).catch(() => null);
         const wipe: Promise<any> = electronApi?.db?.clearUserData
           ? electronApi.db.clearUserData().catch(() => null)
           : Promise.resolve();

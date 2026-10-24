@@ -6,13 +6,15 @@ import { filter } from 'rxjs/operators';
 import { NetworkStatusService } from '../../../../../core/services/network-status.service';
 import { obtenerUsuarioActual } from '../../../../../core/utils/usuario-actual';
 import { ChatStoreService } from '../../comunicaciones/service/chat-store.service';
+import { CicloNativoService } from '../../../../../core/nativo/ciclo-nativo.service';
+import { infoDispositivo, notificarLocal } from '../../../../../core/nativo/nativo';
 import {
   ElementoCola, Finca, FuenteUbicacion, Marcacion, MarcacionPendiente, Paquete, TipoMarcacion, Visita,
 } from '../campo.models';
 import { CampoApiService } from './campo-api.service';
 import { CampoLocal } from './campo-local';
 import {
-  bateria, dentro, descripcionDispositivo, distanciaM, leerQr, plataforma, posicionActual, red, sha256Hex, uuid,
+  bateria, dentro, distanciaM, leerQr, plataforma, posicionActual, red, sha256Hex, uuid,
 } from './dispositivo';
 
 /** Resultado de validar un QR en el teléfono (también sin señal). */
@@ -36,6 +38,7 @@ export class CampoService {
   private readonly api = inject(CampoApiService);
   private readonly red = inject(NetworkStatusService);
   private readonly chat = inject(ChatStoreService);
+  private readonly ciclo = inject(CicloNativoService);
 
   readonly paquete = signal<Paquete | null>(null);
   readonly cargando = signal(false);
@@ -55,7 +58,8 @@ export class CampoService {
   /** Marcaciones que llegaron al servidor en esta sesión (para ver su validación de rostro). */
   readonly recientes = signal<Marcacion[]>([]);
 
-  readonly enLinea = computed(() => this.red.onlineStatus());
+  /** Con red según el sistema (plugin Network en el APK) Y según el latido al servidor. */
+  readonly enLinea = computed(() => this.red.onlineStatus() && this.ciclo.conRed());
   readonly canalVivo = computed(() => this.chat.estadoCanal() === 'conectado');
   readonly perfil = computed(() => this.paquete()?.perfil ?? 'COORDINADOR');
   readonly supervisa = computed(() => this.perfil() !== 'COORDINADOR');
@@ -101,7 +105,10 @@ export class CampoService {
       this.eventos$.next(e);
       if (e.nombre === 'campo-agenda' || (e.nombre === 'campo-tarea' && e.datos?.asignado_a === this.usuario)) this.refrescar();
     });
-    // Al volver la señal: primero la cola, después el paquete fresco.
+    // Al volver la señal o al volver la app a primer plano (eventos nativos en el APK):
+    // primero la cola, después el paquete fresco.
+    this.ciclo.iniciar();
+    this.ciclo.momentoDeSincronizar$.subscribe(() => { void this.sincronizar(); void this.reportarPosicion(); });
     this.red.isOnline$.subscribe(enLinea => { if (enLinea) void this.sincronizar(); });
     this.relojCola = setInterval(() => { if (this.enLinea()) void this.sincronizar(); }, 60_000);
     window.addEventListener('online', () => void this.sincronizar());
@@ -174,7 +181,7 @@ export class CampoService {
     const datos: MarcacionPendiente = {
       id: uuid(), finca_id: o.finca?.id ?? null, tipo: o.tipo, qr_contenido: o.qr, lat: o.lat, lon: o.lon,
       precision_m: o.precision, fuente_ubicacion: o.lat == null ? 'NINGUNA' : o.fuente, capturado_ms: o.capturadoMs ?? Date.now(),
-      sin_conexion: !this.enLinea(), dispositivo: descripcionDispositivo(), bateria: await bateria(), nota: o.nota,
+      sin_conexion: !this.enLinea(), dispositivo: (await infoDispositivo()).descripcion, bateria: await bateria(), nota: o.nota,
       finca_nombre: o.finca?.nombre ?? null, distancia_m: ev.distancia, dentro: ev.dentro, qr_ok_local: o.qrOk,
     };
     const e: ElementoCola = { id: datos.id, tipo: 'marcacion', creado_ms: Date.now(), intentos: 0, datos, selfie: o.selfie ?? undefined };
@@ -205,7 +212,7 @@ export class CampoService {
   }
 
   async descartar(id: string): Promise<void> {
-    await CampoLocal.quitar(id);
+    await CampoLocal.quitar(id, this.usuario);
     this.cola.update(l => l.filter(x => x.id !== id));
   }
 
@@ -213,12 +220,16 @@ export class CampoService {
   async sincronizar(): Promise<void> {
     if (!this.iniciado || this.sincronizando() || !this.enLinea()) return;
     this.sincronizando.set(true);
+    let enviados = 0;
     try {
       for (const e of await CampoLocal.cola(this.usuario)) {
         if (e.error && e.intentos >= 3) continue;
         const ok = await this.enviar(e);
+        if (ok && Date.now() - e.creado_ms > 120_000) enviados++;
         if (!ok && !this.enLinea()) break;
       }
+      // Lo que se guardó sin señal y por fin salió: aviso en la bandeja del teléfono.
+      if (enviados) void notificarLocal('TuApo · campo', `${enviados} registro(s) guardados sin señal ya se enviaron.`);
       await this.enviarPuntosGuardados();
       this.ultimaSincronizacion.set(Date.now());
     } finally {
@@ -239,7 +250,7 @@ export class CampoService {
       } else {
         await firstValueFrom(this.api.transmitir(e.datos.canal_id, e.audio, e.id, e.datos.duracion_ms, e.datos.grabado_ms));
       }
-      await CampoLocal.quitar(e.id);
+      await CampoLocal.quitar(e.id, this.usuario);
       this.cola.update(l => l.filter(x => x.id !== e.id));
       return true;
     } catch (err) {

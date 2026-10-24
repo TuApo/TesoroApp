@@ -9,6 +9,7 @@ import { CamaraCampoComponent } from '../../components/camara-campo/camara-campo
 import { CirculoMapa, MapaCampoComponent, MarcadorMapa } from '../../components/mapa-campo/mapa-campo.component';
 import { CampoService, horaCorta } from '../../services/campo.service';
 import { posicionActual, vibrar } from '../../services/dispositivo';
+import { esNativo as esNativoCampo, fotoNativa, leerQrNativo } from '../../../../../../core/nativo/nativo';
 
 type Paso = 'qr' | 'finca' | 'ubicacion' | 'selfie' | 'confirmar' | 'listo';
 
@@ -116,7 +117,7 @@ export class MarcarComponent {
     const q = this.ruta.snapshot.queryParamMap;
     if (q.get('tipo') === 'SALIDA' || q.get('tipo') === 'ENTRADA') this.tipo.set(q.get('tipo') as TipoMarcacion);
     const f = q.get('f'), t = q.get('t');
-    if (!f) this.camara.set('qr');
+    if (!f) void this.escanear();
     // El paquete guardado en el teléfono puede tardar un instante en cargar: sin él no se valida el QR.
     void this.campo.esperar().then(() => {
       // ¿Hay una entrada abierta? Entonces lo natural es marcar la salida de esa finca.
@@ -163,9 +164,16 @@ export class MarcarComponent {
     this.paso.set(this.finca() ? 'ubicacion' : 'finca');
   }
 
-  escanear(): void {
+  /** En el APK, el lector de QR nativo (ML Kit); si no hay, el visor web. */
+  async escanear(): Promise<void> {
     this.qrMotivo.set(null);
-    this.camara.set('qr');
+    try {
+      const nativo = await leerQrNativo();
+      if (nativo === undefined) { this.camara.set('qr'); return; }
+      if (nativo) void this.alLeerQr(nativo);
+    } catch (e: any) {
+      this.qrMotivo.set(e?.message || 'No se pudo abrir el lector de QR');
+    }
   }
 
   elegirFinca(f: Finca): void {
@@ -220,7 +228,7 @@ export class MarcarComponent {
 
   continuarASelfie(): void {
     this.paso.set('selfie');
-    if (!this.selfie() && !this.sinSelfie()) this.camara.set('selfie');
+    if (!this.selfie() && !this.sinSelfie()) void this.repetirSelfie();
   }
 
   // ─── Selfie ─────────────────────────────────────────────────────────────
@@ -234,7 +242,16 @@ export class MarcarComponent {
     this.paso.set('confirmar');
   }
 
-  repetirSelfie(): void { this.camara.set('selfie'); }
+  /** En el APK, la cámara frontal del sistema; si no es nativo, el visor web. */
+  async repetirSelfie(): Promise<void> {
+    try {
+      const b = await fotoNativa({ frontal: true, maxLado: 900, calidad: 80 });
+      if (b) { this.alFoto(b); return; }
+      if (!esNativoCampo()) this.camara.set('selfie');
+    } catch {
+      this.camara.set('selfie');
+    }
+  }
 
   seguirSinSelfie(): void {
     this.sinSelfie.set(true);
@@ -282,7 +299,7 @@ export class MarcarComponent {
     this.nota.set('');
     this.tipo.set(this.tipo() === 'ENTRADA' ? 'SALIDA' : 'ENTRADA');
     this.paso.set('qr');
-    this.camara.set('qr');
+    void this.escanear();
   }
 
   cambiarTipo(t: TipoMarcacion): void { this.tipo.set(t); }

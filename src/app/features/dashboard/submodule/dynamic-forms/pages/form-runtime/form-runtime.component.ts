@@ -7,7 +7,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Title } from '@angular/platform-browser';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Observable, finalize } from 'rxjs';
+import { Observable, catchError, finalize, from, throwError } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { FieldRendererComponent } from '@/app/shared/components/forms/field-renderer/field-renderer.component';
@@ -30,6 +30,7 @@ import { FormDesignService } from '../../services/form-design.service';
 import { SubmissionService } from '../../services/submission.service';
 import { MediaOffloadService } from '../../services/media-offload.service';
 import { PlacementService } from '../../services/placement.service';
+import { FormulariosOfflineService, refsLocales } from '../../services/formularios-offline.service';
 
 /** Estado de carga de la estructura del formulario. */
 type EstadoCarga = 'cargando' | 'listo' | 'error';
@@ -93,6 +94,10 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
   readonly enviando = signal(false);
   readonly guardandoBorrador = signal(false);
   readonly enviado = signal(false);
+  /** Se envió SIN SEÑAL: quedó en el teléfono y sale sola al volver la conexión. */
+  readonly enCola = signal(false);
+  /** Al abrir se recuperó lo que se llevaba escrito (borrador del teléfono). */
+  readonly restaurado = signal(false);
   /** Id del borrador ya persistido; los siguientes guardados/envíos lo reutilizan. */
   readonly draftId = signal<number | null>(null);
   /** Subidas de media EN VUELO (bloquean envío y borrador para no perder referencias). */
@@ -181,21 +186,48 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
   @ViewChild('zonaScroll') private zonaScroll?: ElementRef<HTMLElement>;
 
   private formId = 0;
+  private readonly offline = inject(FormulariosOfflineService);
+  private relojBorrador: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Id de ESTA respuesta (uno por llenado). Va en cada envío: si la red se corta a mitad y el
+   * envío se repite —desde aquí, desde la cola del teléfono o desde la cola genérica—, el
+   * servidor devuelve la misma respuesta en vez de duplicarla.
+   */
+  private idEnvio = crypto.randomUUID();
 
-  /** Sube a ms-documents y lleva la cuenta de subidas en vuelo (fail-closed en submit). */
+  /**
+   * Sube a ms-documents y lleva la cuenta de subidas en vuelo (fail-closed en submit).
+   * Sin señal —o si la red se cae a mitad—, el archivo queda en el teléfono (Filesystem
+   * nativo) con una referencia local que se sube al sincronizar.
+   */
   readonly uploadFn = (file: File): Observable<DocumentRef> => {
     this.subiendo.update(n => n + 1);
-    return this.media
-      .upload(file, this.formId)
-      .pipe(finalize(() => this.subiendo.update(n => Math.max(0, n - 1))));
+    const local = () => from(this.offline.adjuntoLocal(file));
+    const subida = this.offline.enLinea()
+      ? this.media.upload(file, this.formId).pipe(
+          catchError(err => (err?.status === 0 || err?.status >= 500) ? local() : throwError(() => err)))
+      : local();
+    return subida.pipe(finalize(() => this.subiendo.update(n => Math.max(0, n - 1))));
   };
 
-  readonly downloadUrlFn = (ref: DocumentRef): string => this.media.downloadUrl(ref);
+  readonly downloadUrlFn = (ref: DocumentRef): string => this.offline.urlLocal(ref) ?? this.media.downloadUrl(ref);
 
   /** Etiqueta del menú (para el título de página); la trae el placement/resolve. */
   private menuLabel: string | null = null;
 
   constructor() {
+    this.offline.iniciar();
+    // Lo que se va escribiendo queda en el teléfono (no se pierde si la app se cierra o se
+    // va la señal). Se guarda un instante después de dejar de escribir.
+    effect(() => {
+      const v = this.values();
+      const paso = this.paso();
+      const st = this.structure();
+      if (!st || this.enviado() || !Object.keys(v).length) return;
+      if (this.relojBorrador) clearTimeout(this.relojBorrador);
+      this.relojBorrador = setTimeout(() => void this.offline.guardarBorrador(st.form_id,
+        { version_id: st.version.id, values: v as any, paso, guardado_ms: Date.now() }).catch(() => undefined), 800);
+    });
     // El tema se aplica como custom properties en el HOST: así cascadean a los campos
     // (app-field-renderer y sus hijos), no solo a la página. Se hace por API del DOM
     // porque el binding [style] de Angular no fija propiedades personalizadas.
@@ -331,11 +363,23 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
         next: st => {
           this.structure.set(st);
           this.estado.set('listo');
+          void this.offline.guardarEstructura(st).catch(() => undefined);
+          void this.restaurarBorrador(st);
           // Título de página = etiqueta del menú, o el nombre del formulario como respaldo
           // (salvo que el host ya gobierne el título).
           if (!this.menuLabel && !this.tituloExterno && st.form_name) this.titleService.setTitle(st.form_name);
         },
-        error: (err: HttpErrorResponse) => {
+        error: async (err: HttpErrorResponse) => {
+          // Sin señal: la estructura guardada en el teléfono (de la última vez con red).
+          if (err.status === 0 || err.status >= 500) {
+            const guardada = await this.offline.estructuraGuardada(this.formId).catch(() => null);
+            if (guardada) {
+              this.structure.set(guardada);
+              this.estado.set('listo');
+              void this.restaurarBorrador(guardada);
+              return;
+            }
+          }
           const p = this.comoProblema(err);
           this.errorCarga.set(
             p.detail ?? 'No se pudo cargar el formulario. Verifica que esté publicado e intenta de nuevo.',
@@ -447,6 +491,12 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
       });
       return;
     }
+    // Sin señal (o con archivos que aún viven en el teléfono) el borrador queda en el teléfono.
+    if (!this.offline.enLinea() || refsLocales(this.values()).length) {
+      void this.offline.guardarBorrador(st.form_id, { version_id: st.version.id, values: this.values() as any, paso: this.paso(), guardado_ms: Date.now() })
+        .then(() => this.snack.open('Borrador guardado en el teléfono', 'Cerrar', { duration: 3000 }));
+      return;
+    }
     const req: SubmissionCreateRequest = { status: 'DRAFT', payload: this.construirPayload(st) };
     this.guardandoBorrador.set(true);
     const id = this.draftId();
@@ -500,7 +550,12 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const req: SubmissionCreateRequest = { status: 'SUBMITTED', payload: this.construirPayload(st) };
+    const req: SubmissionCreateRequest = { status: 'SUBMITTED', payload: this.construirPayload(st), client_request_id: this.idEnvio };
+    // Sin señal, o con fotos/firmas que se tomaron sin señal: a la cola del teléfono.
+    if (!this.offline.enLinea() || refsLocales(req.payload).length) {
+      void this.enviarSinSenal(st, req);
+      return;
+    }
     this.enviando.set(true);
     const id = this.draftId();
     // Un borrador existente se COMPLETA (updateDraft con SUBMITTED), no se duplica.
@@ -512,13 +567,42 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
         this.enviando.set(false);
         this.draftId.set(null);
         this.enviado.set(true);
+        void this.offline.borrarBorrador(st.form_id);
         this.scrollArriba();
       },
       error: (err: HttpErrorResponse) => {
         this.enviando.set(false);
+        // La red se cayó a mitad del envío: queda en el teléfono en vez de perderse.
+        if (err.status === 0 && id == null) { void this.enviarSinSenal(st, req); return; }
         this.mostrarErrorApi('No se pudo enviar la respuesta', err, () => this.enviar());
       },
     });
+  }
+
+  private async enviarSinSenal(st: FormStructure, req: SubmissionCreateRequest): Promise<void> {
+    this.enviando.set(true);
+    try {
+      await this.offline.encolar(st, req.payload, this.idEnvio);
+      await this.offline.borrarBorrador(st.form_id);
+      this.enCola.set(true);
+      this.enviado.set(true);
+      this.scrollArriba();
+    } catch {
+      this.snack.open('No se pudo guardar la respuesta en el teléfono. Intenta de nuevo.', 'Cerrar', { duration: 5000 });
+    } finally {
+      this.enviando.set(false);
+    }
+  }
+
+  /** Si había algo a medio llenar de esta misma versión, se recupera. */
+  private async restaurarBorrador(st: FormStructure): Promise<void> {
+    const b = await this.offline.borrador(st.form_id).catch(() => null);
+    if (!b || b.version_id !== st.version.id || Object.keys(this.values()).length) return;
+    this.values.set(b.values as any);
+    this.paso.set(Math.min(b.paso ?? 0, Math.max(0, st.sections.length - 1)));
+    this.restaurado.set(true);
+    this.snack.open('Recuperamos lo que llevabas escrito en este formulario', 'Empezar de cero', { duration: 6000 })
+      .onAction().subscribe(() => { void this.offline.borrarBorrador(st.form_id); this.reiniciar(); });
   }
 
   /** Pantalla de gracias → limpiar todo y permitir otra respuesta del mismo formulario. */
@@ -546,6 +630,9 @@ export class FormRuntimeComponent implements OnInit, OnDestroy {
     this.paso.set(0);
     this.showErrors.set(false);
     this.enviado.set(false);
+    this.enCola.set(false);
+    this.restaurado.set(false);
+    this.idEnvio = crypto.randomUUID();
     this.enviando.set(false);
     this.guardandoBorrador.set(false);
     this.draftId.set(null);
