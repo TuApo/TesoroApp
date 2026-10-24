@@ -81,13 +81,26 @@ export async function fotoNativa(opc: { frontal?: boolean; maxLado?: number; cal
 }
 
 /**
- * Lector de QR nativo: hoy NO se usa. El de ML Kit trae una biblioteca de cámara que no cumple
- * la alineación de 16 KB que exige Google Play; la app lee el QR con el detector de códigos del
- * sistema dentro de la WebView (BarcodeDetector, con jsQR de respaldo), sin bibliotecas nativas.
- * `undefined` = que la pantalla use su visor.
+ * Lee un QR con el lector nativo de ML Kit (pantalla completa del sistema, enfoque y linterna
+ * del teléfono). `undefined` = no es nativo o no hay lector (la pantalla usa su visor web);
+ * `null` = la persona canceló. CameraX va forzada a 1.4.x en android/variables.gradle para
+ * cumplir la alineación de 16 KB de Google Play.
  */
 export async function leerQrNativo(): Promise<string | null | undefined> {
-  return undefined;
+  if (!esNativo()) return undefined;
+  try {
+    const { BarcodeScanner, BarcodeFormat } = await import('@capacitor-mlkit/barcode-scanning');
+    const { supported } = await BarcodeScanner.isSupported();
+    if (!supported) return undefined;
+    const perm = await BarcodeScanner.requestPermissions();
+    if (perm.camera !== 'granted' && perm.camera !== 'limited') throw new Error('Permiso de cámara denegado. Actívalo en los ajustes del teléfono.');
+    const r = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode] });
+    return r.barcodes?.[0]?.rawValue ?? null;
+  } catch (e: any) {
+    if (/cancel/i.test(String(e?.message ?? e))) return null;
+    if (/permiso/i.test(String(e?.message))) throw e;
+    return undefined;
+  }
 }
 
 // ─── Vibración, dispositivo, notificaciones ─────────────────────────────────

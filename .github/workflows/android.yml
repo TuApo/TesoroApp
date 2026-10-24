@@ -170,7 +170,7 @@ jobs:
           sed -i -E "s/versionCode [0-9]+/versionCode ${{ steps.version.outputs.code }}/; s/versionName \"[^\"]*\"/versionName \"${{ steps.version.outputs.name }}\"/" android/app/build.gradle
           grep -E 'applicationId|versionCode|versionName' android/app/build.gradle
 
-      - name: Compilar .aab firmado
+      - name: Compilar .aab y .apk firmados
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -180,18 +180,22 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
           cd android
           chmod +x gradlew
-          ./gradlew bundleRelease --no-daemon \
+          # .aab para Google Play y .apk para instalar a mano o repartir fuera de la tienda.
+          ./gradlew bundleRelease assembleRelease --no-daemon \
             -Pandroid.injected.signing.store.file="$RUNNER_TEMP/upload.jks" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
           cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/TesoroApp-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}.aab"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/TesoroApp-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}.apk"
 
-      - name: Guardar .aab
+      - name: Guardar .aab y .apk
         uses: actions/upload-artifact@v4
         with:
           name: TesoroApp-android-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
-          path: TesoroApp-*.aab
+          path: |
+            TesoroApp-*.aab
+            TesoroApp-*.apk
           retention-days: 30
 
       - name: Subir a Google Play (prueba interna)
