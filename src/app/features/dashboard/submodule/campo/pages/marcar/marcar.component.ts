@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { CoordinadoresFormulariosService } from '../../../coordinadores/services/coordinadores-formularios.service';
 import { ETIQUETA_ROSTRO, Finca, FuenteUbicacion, Marcacion, TipoMarcacion } from '../../campo.models';
+import { AvisoUbicacionComponent } from '../../components/aviso-ubicacion/aviso-ubicacion.component';
 import { CamaraCampoComponent } from '../../components/camara-campo/camara-campo.component';
 import { CirculoMapa, MapaCampoComponent, MarcadorMapa } from '../../components/mapa-campo/mapa-campo.component';
 import { CampoService, horaCorta } from '../../services/campo.service';
@@ -25,7 +26,7 @@ type Paso = 'qr' | 'finca' | 'ubicacion' | 'selfie' | 'confirmar' | 'listo';
 @Component({
   selector: 'app-campo-marcar',
   standalone: true,
-  imports: [MatIconModule, RouterLink, CamaraCampoComponent, MapaCampoComponent],
+  imports: [MatIconModule, RouterLink, CamaraCampoComponent, MapaCampoComponent, AvisoUbicacionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './marcar.component.html',
   styleUrls: ['../../campo-ui.css', './marcar.component.css'],
@@ -133,7 +134,7 @@ export class MarcarComponent {
       }
     });
     // Ubicación en paralelo desde ya: cuando llegue al paso, ya la tiene.
-    void this.tomarUbicacion(true);
+    if (this.campo.consentimientoUbicacion() === true) void this.tomarUbicacion(true);
     this.formularios.formulariosDelMenu().formularios
       .filter(x => x.grupo === 'visitas' && /finca|visita/i.test(x.nombre))
       .slice(0, 1).forEach(x => this.planillaRuta.set(x.ruta));
@@ -175,6 +176,7 @@ export class MarcarComponent {
   // ─── Ubicación ──────────────────────────────────────────────────────────
 
   async tomarUbicacion(silencioso = false): Promise<void> {
+    if (this.campo.consentimientoUbicacion() !== true) return;
     this.buscandoGps.set(true);
     if (!silencioso) this.errorGps.set(null);
     try {
@@ -191,6 +193,15 @@ export class MarcarComponent {
     } finally {
       this.buscandoGps.set(false);
     }
+  }
+
+  alResponderUbicacion(acepta: boolean): void {
+    if (acepta) void this.tomarUbicacion();
+  }
+
+  compartirUbicacion(): void {
+    this.campo.responderUbicacion(true);
+    void this.tomarUbicacion();
   }
 
   elegirEnMapa(): void {

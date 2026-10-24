@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import {  Component, Inject, OnDestroy, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { SharedModule } from '../../../../shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
@@ -240,6 +241,12 @@ export class SidebarComponent implements OnDestroy {
   irAIdentificar(): void {
     this.router.navigate(['/dashboard/carnet/identificar']);
   }
+
+  /**
+   * Dentro de la app instalada desde Google Play no se ofrece descargar el APK ni el .exe:
+   * Play prohíbe que una app se actualice o se reinstale por fuera de la tienda.
+   */
+  readonly enAppNativa = (() => { try { return Capacitor.isNativePlatform(); } catch { return false; } })();
 
   /** Instaladores (.exe / APK) e instrucciones para iPhone, sin salir de la pantalla. */
   abrirDescargas(): void {

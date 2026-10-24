@@ -46,6 +46,12 @@ export class CampoService {
   readonly ultimaSincronizacion = signal<number | null>(null);
   readonly ultimaPosicion = signal<{ lat: number; lon: number; precision_m: number | null; capturado_ms: number } | null>(null);
   readonly errorUbicacion = signal<string | null>(null);
+  /**
+   * Consentimiento del aviso de ubicación (política de datos de usuario de Google Play):
+   * null = aún no ha respondido, true = acepta, false = no acepta. Sin un sí, la app no
+   * toma ni manda la posición; la marcación sigue funcionando, sin ubicación.
+   */
+  readonly consentimientoUbicacion = signal<boolean | null>(leerConsentimiento());
   /** Marcaciones que llegaron al servidor en esta sesión (para ver su validación de rostro). */
   readonly recientes = signal<Marcacion[]>([]);
 
@@ -249,9 +255,15 @@ export class CampoService {
 
   // ─── Posición ───────────────────────────────────────────────────────────
 
+  responderUbicacion(acepta: boolean): void {
+    try { localStorage.setItem(CLAVE_CONSENTIMIENTO, acepta ? 'si' : 'no'); } catch { /* sin storage */ }
+    this.consentimientoUbicacion.set(acepta);
+    if (acepta) void this.reportarPosicion();
+  }
+
   /** Toma la posición y la manda (o la guarda sin señal). Silenciosa: no pide permisos de golpe. */
   async reportarPosicion(): Promise<void> {
-    if (!this.iniciado) return;
+    if (!this.iniciado || this.consentimientoUbicacion() !== true) return;
     try {
       const perm = await (navigator as any).permissions?.query?.({ name: 'geolocation' }).catch(() => null);
       if (perm && perm.state === 'denied') { this.errorUbicacion.set('Ubicación bloqueada en este dispositivo'); return; }
@@ -286,6 +298,15 @@ export class CampoService {
       this.puntosPendientes.set(await CampoLocal.contarPuntos(this.usuario));
     }
   }
+}
+
+const CLAVE_CONSENTIMIENTO = 'tuapo.campo.ubicacion.consentimiento.v1';
+
+function leerConsentimiento(): boolean | null {
+  try {
+    const v = localStorage.getItem(CLAVE_CONSENTIMIENTO);
+    return v === 'si' ? true : v === 'no' ? false : null;
+  } catch { return null; }
 }
 
 export function hoyIso(): string {

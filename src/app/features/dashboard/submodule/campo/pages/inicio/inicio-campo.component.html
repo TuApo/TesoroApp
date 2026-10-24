@@ -18,6 +18,8 @@
       <button type="button" class="boton" (click)="actualizar()">Reintentar</button></div>
   }
 
+  @if (campo.consentimientoUbicacion() === null) { <app-aviso-ubicacion /> }
+
   <!-- La acción principal: llegar o salir -->
   <section class="accion" [class.dentro]="!!abierta()">
     @if (abierta(); as a) {
@@ -166,8 +168,13 @@
         Fincas, agenda y tareas guardadas {{ campo.paquete() ? '(' + paqueteHace() + ')' : '' }}</li>
       <li [class.ok]="mapaListo()"><mat-icon>{{ mapaListo() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
         Mapa de tus fincas descargado {{ mosaicos() ? '(' + mosaicos() + ' partes)' : '' }}</li>
-      <li [class.ok]="!campo.errorUbicacion()"><mat-icon>{{ campo.errorUbicacion() ? 'location_disabled' : 'check_circle' }}</mat-icon>
-        {{ campo.errorUbicacion() || 'GPS disponible' }}</li>
+      @if (campo.consentimientoUbicacion() === false) {
+        <li><mat-icon>location_disabled</mat-icon> No compartes tu ubicación
+          <button type="button" class="boton chico" (click)="campo.responderUbicacion(true)">Compartir</button></li>
+      } @else {
+        <li [class.ok]="!campo.errorUbicacion()"><mat-icon>{{ campo.errorUbicacion() ? 'location_disabled' : 'check_circle' }}</mat-icon>
+          {{ campo.errorUbicacion() || 'GPS disponible' }}</li>
+      }
       <li [class.ok]="!pendientesCola()"><mat-icon>{{ pendientesCola() ? 'schedule_send' : 'check_circle' }}</mat-icon>
         {{ pendientesCola() ? pendientesCola() + ' registro(s) esperando señal' : 'Nada pendiente por enviar' }}
         @if (campo.puntosPendientes()) { · {{ campo.puntosPendientes() }} posiciones guardadas }</li>

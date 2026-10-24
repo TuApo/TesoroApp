@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { ETIQUETA_ROSTRO, ETIQUETA_VISITA, Tablero, Tarea, Visita } from '../../campo.models';
+import { AvisoUbicacionComponent } from '../../components/aviso-ubicacion/aviso-ubicacion.component';
 import { MapaCampoComponent } from '../../components/mapa-campo/mapa-campo.component';
 import { CampoApiService } from '../../services/campo-api.service';
 import { CampoService, haceCuanto, horaCorta, mensajeDe } from '../../services/campo.service';
@@ -37,7 +38,7 @@ const ACCESOS: readonly Acceso[] = [
 @Component({
   selector: 'app-inicio-campo',
   standalone: true,
-  imports: [MatIconModule, RouterLink, DecimalPipe, MapaCampoComponent],
+  imports: [MatIconModule, RouterLink, DecimalPipe, MapaCampoComponent, AvisoUbicacionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './inicio-campo.component.html',
   styleUrls: ['../../campo-ui.css', './inicio-campo.component.css'],
