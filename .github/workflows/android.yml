@@ -148,6 +148,13 @@ jobs:
             appId: '$APP_ID',
             appName: '$APP_NAME',
             webDir: '$WEB_DIR',
+            // La app se sirve dentro del teléfono como https://tesoro.tuapo.co: es un origen que
+            // el gateway y Caddy ya aceptan (CORS). Con el https://localhost por defecto, el API
+            // respondía 403 a todo y el login mostraba «problema de conexión».
+            server: {
+              hostname: 'tesoro.tuapo.co',
+              androidScheme: 'https',
+            },
             android: {
               // targetSdk 35 (Android 15) obliga a dibujar de borde a borde: sin esto la
               // WebView queda debajo de la barra de estado y de la de navegación.
