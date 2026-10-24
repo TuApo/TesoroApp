@@ -1,0 +1,324 @@
+<div class="pagina ancha">
+  <header class="cabecera">
+    <div class="titulo">
+      <h1>Mapa en vivo</h1>
+      <p>
+        @if (cargando() && !tablero()) { Cargando el equipo de campo… }
+        @else if (ultimaCarga()) { Se actualiza solo · última carga {{ hace(ultimaCarga()) }} }
+        @else { Ubicación del equipo de campo y sus fincas }
+      </p>
+    </div>
+    <span class="chip" [class.ok]="campo.canalVivo()" [class.aviso]="!campo.canalVivo()">
+      <span class="punto" [class.EN_LINEA]="campo.canalVivo()"></span>
+      {{ campo.canalVivo() ? 'En vivo' : 'Reconectando' }}
+    </span>
+    <button type="button" class="boton" (click)="cargar()" [disabled]="cargando()">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+  </header>
+
+  @if (error()) {
+    <div class="tarjeta error">
+      <mat-icon>error_outline</mat-icon>
+      <div>
+        <strong>{{ error() }}</strong>
+        @if (fincas().length) { <small>Mostrando solo las fincas de tu paquete.</small> }
+      </div>
+      <button type="button" class="boton chico" (click)="cargar()">Reintentar</button>
+    </div>
+  }
+
+  @if (tablero()) {
+    <section class="kpis kpis-vivo" aria-label="Resumen del día">
+      <button type="button" class="kpi clic" [class.activo]="conexion() === 'EN_LINEA'" (click)="alternarConexion('EN_LINEA')">
+        <b class="verde">{{ kpis().enLinea }}</b><span>En línea</span>
+      </button>
+      <button type="button" class="kpi clic" [class.activo]="conexion() === 'SIN_SENAL'" (click)="alternarConexion('SIN_SENAL')">
+        <b class="rojo">{{ kpis().sinSenal }}</b><span>Sin señal</span>
+      </button>
+      <div class="kpi"><b>{{ kpis().enFinca }}</b><span>En una finca</span></div>
+      <div class="kpi"><b>{{ kpis().visitasCumplidas }}<small>/{{ kpis().visitasHoy }}</small></b><span>Visitas cumplidas hoy</span></div>
+      <a class="kpi clic" routerLink="/dashboard/campo/revision">
+        <b [class.rojo]="kpis().alertasRostro > 0">{{ kpis().alertasRostro }}</b><span>Alertas de rostro</span>
+      </a>
+      <a class="kpi clic" routerLink="/dashboard/campo/fincas">
+        <b [class.ambar]="kpis().fincasSinUbicar > 0">{{ kpis().fincasSinUbicar }}</b><span>Fincas sin ubicar</span>
+      </a>
+    </section>
+  }
+
+  <section class="filtros">
+    <div class="barra">
+      <select class="selector" aria-label="Zona" [value]="zonaId() ?? ''" (change)="cambiarZona(leerTexto($event))">
+        <option value="">Todas las zonas</option>
+        @for (z of zonas(); track z.id) { <option [value]="z.id">{{ z.nombre }}</option> }
+      </select>
+      <input class="buscador" type="search" placeholder="Buscar por nombre o finca" aria-label="Buscar persona"
+             [value]="busqueda()" (input)="busqueda.set(leerTexto($event))" />
+    </div>
+    <nav class="pestanas" aria-label="Filtrar por conexión">
+      @for (t of pestanasConexion; track t.valor) {
+        <button type="button" [class.activa]="conexion() === t.valor" (click)="conexion.set(t.valor)">
+          @if (t.valor !== 'TODAS') { <span class="punto" [class]="'punto ' + t.valor"></span> }
+          {{ t.nombre }} <span class="cuenta">{{ conteoConexion()[t.valor] }}</span>
+        </button>
+      }
+    </nav>
+  </section>
+
+  <div class="distribucion">
+    <div class="columna-mapa">
+      <div class="mapa-vivo-mapa">
+        <app-mapa-campo class="lienzo"
+                        [tilesUrl]="tilesUrl()" [atribucion]="atribucion()"
+                        [marcadores]="marcadores()" [circulos]="circulos()" [lineas]="lineas()"
+                        [encuadrar]="encuadre()" [mostrarCentrar]="true"
+                        (clicMarcador)="alClicMarcador($event)" (centrar)="encuadrarTodo()" />
+        @if (rastroResumen(); as r) {
+          <div class="banda-rastro">
+            <mat-icon>timeline</mat-icon>
+            <span>
+              Recorrido de hoy · {{ r.puntos }} puntos
+              @if (r.desde) { · {{ r.desde }} a {{ r.hasta }} }
+              · {{ r.marcaciones }} marcaciones
+            </span>
+            <button type="button" class="boton chico" (click)="ocultarRecorrido()">Ocultar</button>
+          </div>
+        }
+      </div>
+      <div class="leyenda" aria-hidden="true">
+        <span><i style="background:#16A34A"></i>En línea</span>
+        <span><i style="background:#84CC16"></i>Con señal</span>
+        <span><i style="background:#F87171"></i>Sin señal</span>
+        <span><mat-icon>location_on</mat-icon>Finca (color de su zona)</span>
+      </div>
+    </div>
+
+    <aside class="lateral tarjeta">
+      @if (escritorio() && (personaSel() || fincaSel())) {
+        <button type="button" class="boton chico volver" (click)="cerrar()">
+          <mat-icon>arrow_back</mat-icon> Volver a la lista
+        </button>
+        <ng-container [ngTemplateOutlet]="detalle" />
+      } @else {
+        <h2><mat-icon>groups</mat-icon> Equipo <span class="cuenta">{{ personasFiltradas().length }}</span></h2>
+        @if (cargando() && !personas().length) {
+          <div class="vacio"><mat-icon>hourglass_empty</mat-icon>Cargando…</div>
+        } @else if (!personasFiltradas().length) {
+          <div class="vacio">
+            <mat-icon>person_search</mat-icon>
+            @if (personas().length) { Nadie coincide con los filtros. } @else { Aún no hay personas en tu equipo de campo. }
+          </div>
+        } @else {
+          <ul class="lista personas">
+            @for (p of personasFiltradas(); track p.usuario_id) {
+              <li>
+                <button type="button" class="fila clic persona" [class.sel]="personaSel()?.usuario_id === p.usuario_id"
+                        (click)="elegirPersona(p.usuario_id)">
+                  <span class="avatar" [style.background]="colorConexion(p.conexion)">{{ iniciales(p.nombre) }}</span>
+                  <span class="cuerpo">
+                    <strong>{{ p.nombre }}</strong>
+                    <small class="linea">
+                      <span class="punto" [class]="'punto ' + p.conexion"></span>
+                      {{ etiquetaConexion[p.conexion] }} · {{ hace(p.recibido_ms) }}
+                    </small>
+                    <small class="linea">
+                      @if (p.finca_actual_nombre) { <mat-icon>location_on</mat-icon> {{ p.finca_actual_nombre }} }
+                      @else if (p.lat == null) { Sin posición }
+                      @else { Fuera de finca }
+                    </small>
+                    <span class="datos">
+                      @if (p.bateria != null) {
+                        <span class="dato" [class]="'dato ' + claseBateria(p.bateria)">
+                          <mat-icon>{{ iconoBateria(p.bateria) }}</mat-icon>{{ p.bateria }} %
+                        </span>
+                      }
+                      @if (p.red) { <span class="dato"><mat-icon>{{ iconoRed(p.red) }}</mat-icon>{{ etiquetaRed(p.red) }}</span> }
+                      @if (p.visitas_hoy) {
+                        <span class="dato"><mat-icon>event_available</mat-icon>{{ p.visitas_cumplidas_hoy }}/{{ p.visitas_hoy }}</span>
+                      }
+                    </span>
+                  </span>
+                  @if (p.alertas > 0) {
+                    <span class="chip mal" [attr.aria-label]="p.alertas + ' alertas'"><mat-icon>warning</mat-icon>{{ p.alertas }}</span>
+                  }
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      }
+    </aside>
+  </div>
+</div>
+
+<!-- En el teléfono el detalle sale como hoja inferior. -->
+@if (!escritorio() && (personaSel() || fincaSel())) {
+  <div class="panel-flotante" (click)="cerrar()">
+    <div class="hoja" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <ng-container [ngTemplateOutlet]="detalle" />
+    </div>
+  </div>
+}
+
+<ng-template #detalle>
+  @if (personaSel(); as p) {
+    <div class="detalle">
+      <div class="det-cabeza">
+        <span class="avatar grande" [style.background]="colorConexion(p.conexion)">{{ iniciales(p.nombre) }}</span>
+        <div class="cuerpo">
+          <h3>{{ p.nombre }}</h3>
+          <small>{{ p.cargo_campo || 'Coordinador' }} · {{ zonaNombre(p.zona_id) }}</small>
+        </div>
+        <button type="button" class="cerrar" aria-label="Cerrar" (click)="cerrar()"><mat-icon>close</mat-icon></button>
+      </div>
+
+      <div class="chips">
+        <span class="chip"><span class="punto" [class]="'punto ' + p.conexion"></span>{{ etiquetaConexion[p.conexion] }} · {{ hace(p.recibido_ms) }}</span>
+        @if (p.bateria != null) {
+          <span class="chip" [class]="'chip ' + claseBateria(p.bateria)"><mat-icon>{{ iconoBateria(p.bateria) }}</mat-icon>{{ p.bateria }} %</span>
+        }
+        @if (p.red) { <span class="chip"><mat-icon>{{ iconoRed(p.red) }}</mat-icon>{{ etiquetaRed(p.red) }}</span> }
+        @if (p.precision_m != null) { <span class="chip">± {{ distancia(p.precision_m) }}</span> }
+      </div>
+
+      <dl class="ficha">
+        <div><dt>Finca actual</dt><dd>{{ p.finca_actual_nombre || 'Ninguna' }}</dd></div>
+        <div><dt>Visitas hoy</dt><dd>{{ p.visitas_cumplidas_hoy }} de {{ p.visitas_hoy }} cumplidas</dd></div>
+        <div><dt>Tareas pendientes</dt><dd>{{ p.tareas_pendientes }}</dd></div>
+        <div><dt>Alertas</dt><dd [class.rojo]="p.alertas > 0">{{ p.alertas }}</dd></div>
+        @if (p.posicion_ms) { <div><dt>Posición tomada</dt><dd>{{ hora(p.posicion_ms) }} ({{ hace(p.posicion_ms) }})</dd></div> }
+      </dl>
+
+      @if (p.ultima_marcacion; as m) {
+        <section class="marcacion">
+          <h4>Última marcación</h4>
+          <div class="marc-cuerpo">
+            @if (selfie(m); as src) {
+              <a [href]="src" target="_blank" rel="noopener" class="selfie">
+                <img [src]="src" [alt]="'Selfie de ' + p.nombre" loading="lazy" />
+              </a>
+            } @else {
+              <div class="selfie sin"><mat-icon>no_photography</mat-icon></div>
+            }
+            <div class="marc-datos">
+              <strong>
+                <span class="chip" [class.ok]="m.tipo === 'ENTRADA'" [class.info]="m.tipo === 'SALIDA'">
+                  {{ m.tipo === 'ENTRADA' ? 'Entrada' : 'Salida' }}
+                </span>
+                {{ hora(m.capturado_ms) }}
+              </strong>
+              <small>{{ m.finca_nombre || 'Sin finca' }}</small>
+              @if (m.distancia_m != null) {
+                <small>A {{ distancia(m.distancia_m) }} · {{ m.dentro ? 'dentro de la geocerca' : m.dentro === false ? 'fuera de la geocerca' : '' }}</small>
+              }
+              <span class="chip" [class]="'chip ' + claseRostro(m.rostro_estado)">
+                <mat-icon>face</mat-icon>{{ etiquetaRostro[m.rostro_estado] }}
+                @if (m.rostro_confianza != null) { · {{ confianza(m.rostro_confianza) }} }
+              </span>
+            </div>
+          </div>
+          @if (m.alertas.length) {
+            <div class="chips">
+              @for (a of m.alertas; track a) { <span class="chip mal">{{ etiquetaAlerta[a] || a }}</span> }
+            </div>
+          }
+        </section>
+      } @else {
+        <p class="nota">Todavía no ha marcado.</p>
+      }
+
+      @if (aviso()) { <p class="aviso-det">{{ aviso() }}</p> }
+
+      <div class="acciones-det">
+        @if (!esYo(p.usuario_id)) {
+          <button type="button" class="boton oscuro" (click)="chatear(p.usuario_id)" [disabled]="abriendoChat()">
+            <mat-icon>chat</mat-icon> Chatear
+          </button>
+          <button type="button" class="boton" (click)="llamar(p.usuario_id)" [disabled]="abriendoChat()">
+            <mat-icon>call</mat-icon> Llamar
+          </button>
+        }
+        <button type="button" class="boton" [class.primario]="rastro()?.usuario_id === p.usuario_id"
+                (click)="verRecorrido(p)" [disabled]="cargandoRastro()">
+          <mat-icon>timeline</mat-icon>
+          @if (cargandoRastro()) { Cargando… }
+          @else if (rastro()?.usuario_id === p.usuario_id) { Ocultar recorrido }
+          @else { Ver recorrido de hoy }
+        </button>
+        @if (p.lat != null) {
+          <button type="button" class="boton" (click)="centrarEn(p)"><mat-icon>my_location</mat-icon> Ver en el mapa</button>
+        }
+      </div>
+    </div>
+  } @else if (fincaSel(); as f) {
+    <div class="detalle">
+      <div class="det-cabeza">
+        <span class="avatar grande finca" [style.background]="f.zona_color || '#475569'"><mat-icon>agriculture</mat-icon></span>
+        <div class="cuerpo">
+          <h3>{{ f.nombre }}</h3>
+          <small>{{ f.zona_nombre || 'Sin zona' }}@if (f.direccion) { · {{ f.direccion }} }</small>
+        </div>
+        <button type="button" class="cerrar" aria-label="Cerrar" (click)="cerrar()"><mat-icon>close</mat-icon></button>
+      </div>
+
+      <div class="chips">
+        @if (f.lat != null) { <span class="chip">Geocerca de {{ distancia(f.radio_m) }}</span> }
+        @else { <span class="chip aviso">Sin ubicar</span> }
+      </div>
+
+      <section>
+        <h4>Ahora en la finca</h4>
+        @if (enFincaSel().length) {
+          <ul class="lista">
+            @for (p of enFincaSel(); track p.usuario_id) {
+              <li>
+                <button type="button" class="fila clic persona" (click)="elegirPersona(p.usuario_id)">
+                  <span class="avatar" [style.background]="colorConexion(p.conexion)">{{ iniciales(p.nombre) }}</span>
+                  <span class="cuerpo">
+                    <strong>{{ p.nombre }}</strong>
+                    <small>Entró {{ hora(p.ultima_marcacion?.capturado_ms) }}</small>
+                  </span>
+                  <mat-icon>chevron_right</mat-icon>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="nota">Nadie ha marcado entrada aquí.</p>
+        }
+      </section>
+
+      <section>
+        <h4>Coordinadores asignados</h4>
+        @if (f.coordinadores.length) {
+          <div class="chips">
+            @for (c of f.coordinadores; track c.id) {
+              <button type="button" class="chip clic" (click)="elegirPersona(c.id)">{{ c.nombre }}</button>
+            }
+          </div>
+        } @else {
+          <p class="nota">Sin coordinadores asignados.</p>
+        }
+      </section>
+
+      @if (visitasFincaSel().length) {
+        <section>
+          <h4>Visitas de hoy</h4>
+          <ul class="lista">
+            @for (v of visitasFincaSel(); track v.id) {
+              <li class="fila">
+                <span class="cuerpo">
+                  <strong>{{ v.coordinador_nombre }}</strong>
+                  <small>{{ v.hora_inicio || 'Sin hora' }}@if (v.objetivo) { · {{ v.objetivo }} }</small>
+                </span>
+                <span class="chip" [class.ok]="v.estado === 'CUMPLIDA'" [class.info]="v.estado === 'EN_CURSO'"
+                      [class.mal]="v.estado === 'INCUMPLIDA'">{{ etiquetaVisita[v.estado] }}</span>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    </div>
+  }
+</ng-template>

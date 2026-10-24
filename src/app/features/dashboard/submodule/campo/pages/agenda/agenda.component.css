@@ -1,0 +1,63 @@
+.titulo { flex: 1; min-width: 200px; }
+.titulo h1 { margin: 0; }
+.tenue { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+.aviso { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--ok-bg);
+         color: var(--success); font: 600 14px var(--font-sans); }
+.aviso.mal { background: var(--danger-bg); color: var(--danger); }
+.aviso span { flex: 1; }
+.aviso .cerrar { border: 0; background: none; color: inherit; cursor: pointer; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+
+.controles { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.navegacion { display: flex; align-items: center; gap: 8px; }
+.boton.icono { min-width: 44px; padding: 0; }
+.rango { font: 700 16px var(--font-sans); min-width: 130px; text-align: center; text-transform: capitalize; }
+.selector { min-height: 44px; border-radius: 12px; border: 1px solid var(--border-strong, var(--border)); background: var(--surface);
+            color: var(--text); padding: 0 12px; font: 14px var(--font-sans); max-width: 100%; }
+.resumen { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+
+/* Teléfono: un día debajo del otro. Escritorio ancho: siete columnas. */
+.semana { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1100px) { .semana { grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: start; } }
+
+.dia { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg, 14px); padding: 10px;
+       display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dia.hoy { border-color: var(--brand-blue); box-shadow: 0 0 0 1px var(--brand-blue); }
+.dia.pasado { background: var(--surface-2); }
+@media (min-width: 1100px) { .dia { min-height: 220px; } }
+@media (max-width: 1099px) { .dia.sin-visitas.pasado { display: none; } }
+
+.dia-cab { display: flex; align-items: center; gap: 8px; }
+.dia-nombre { font: 700 14px var(--font-sans); text-transform: capitalize; }
+.dia-num { font: 800 18px var(--font-sans); flex: 1; }
+.dia-num small { font: 600 12px var(--font-sans); color: var(--muted); }
+.agregar { border: 1px dashed var(--border-strong, var(--border)); background: none; color: var(--muted); border-radius: 10px;
+           min-width: 44px; min-height: 44px; display: grid; place-items: center; cursor: pointer; }
+
+.visita { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; width: 100%; min-height: 44px;
+          padding: 10px; border-radius: 12px; border: 1px solid var(--border); border-left: 4px solid var(--slate-400);
+          background: var(--surface-2); color: var(--text); font: 14px var(--font-sans); cursor: pointer; }
+.visita.ok { border-left-color: var(--success); }
+.visita.info { border-left-color: var(--brand-blue); }
+.visita.mal { border-left-color: var(--danger); }
+.visita.cancelada { opacity: .6; }
+.visita.cancelada .finca, .visita.cancelada .hora { text-decoration: line-through; }
+.hora { font: 700 13px var(--font-sans); color: var(--muted); }
+.finca { font-weight: 700; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.quien, .real span { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); }
+.quien mat-icon, .real mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.pie, .real { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip.cancelada { text-decoration: line-through; }
+.nada { margin: 0; color: var(--muted); font-size: 13px; }
+
+.detalle { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.formulario .ancho { grid-column: 1 / -1; }
+.horas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.elegida { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px; }
+.elegida strong { flex: 1; }
+.buscador { box-sizing: border-box; width: 100%; }
+.sugerencias { max-height: 260px; overflow-y: auto; margin-top: 6px; }
+.sugerencias > .tenue { padding: 8px 4px; }
+.ficha { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; }
+.ficha dt { color: var(--muted); font-weight: 600; }
+.ficha dd { margin: 0; }
