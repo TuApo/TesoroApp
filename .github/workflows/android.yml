@@ -6,6 +6,12 @@
 # - destino=interna (o push de un tag android-v*): además sube el .aab a la
 #   pista de prueba interna con la cuenta de servicio github-play-deploy.
 #   Mientras la app no esté publicada, Play solo acepta estado=draft.
+# - Despliegue continuo: cada push a main que toque la app compila y sube a
+#   prueba interna. Si aún no existe el secreto PLAY_SERVICE_ACCOUNT_JSON, no
+#   falla: deja el .aab como artefacto. El estado de esas subidas lo da la
+#   variable del repo PLAY_ESTADO (draft por defecto; completed cuando la app
+#   ya esté publicada, para que llegue sola a los verificadores).
+#   El versionCode es el número de corrida: siempre crece.
 #
 # El repo no trae /android, capacitor.config.ts ni src/environments
 # (están en .gitignore), así que el workflow los reconstruye:
@@ -38,6 +44,14 @@ on:
         default: draft
   push:
     tags: ['android-v*']
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'android/**'
+      - 'package.json'
+      - 'angular.json'
+      - '.github/workflows/android.yml'
 
 concurrency:
   group: android-${{ github.ref }}
@@ -54,7 +68,7 @@ jobs:
     timeout-minutes: 45
     env:
       DESTINO: ${{ github.event_name == 'push' && 'interna' || inputs.destino }}
-      ESTADO: ${{ github.event_name == 'push' && 'draft' || inputs.estado }}
+      ESTADO: ${{ github.event_name == 'push' && (vars.PLAY_ESTADO || 'draft') || inputs.estado }}
       # electron y su binario no hacen falta para la app móvil.
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       NODE_OPTIONS: --max-old-space-size=6144
@@ -80,6 +94,12 @@ jobs:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
           requeridos="ANGULAR_ENVIRONMENTS_TGZ_BASE64 ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD"
+          # Push a main sin la cuenta de servicio todavía: se construye igual y queda como artefacto.
+          if [ "$DESTINO" = "interna" ] && [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "::warning::Sin PLAY_SERVICE_ACCOUNT_JSON: el .aab queda como artefacto y no se sube a Play"
+            echo "DESTINO=artefacto" >> "$GITHUB_ENV"
+            DESTINO=artefacto
+          fi
           [ "$DESTINO" = "interna" ] && requeridos="$requeridos PLAY_SERVICE_ACCOUNT_JSON"
           faltan=""
           for v in $requeridos; do
