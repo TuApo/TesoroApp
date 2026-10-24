@@ -81,7 +81,7 @@ function urlMosaico(plantilla: string, z: number, x: number, y: number): string 
         }
       </svg>
       @for (m of marcadoresPx(); track m.id) {
-        <button type="button" class="marca" [class]="'marca ' + m.tipo" [class.tenue]="m.tenue" [class.sel]="m.seleccionado"
+        <button type="button" class="marca" [class]="'marca tipo-' + m.tipo" [class.tenue]="m.tenue" [class.sel]="m.seleccionado"
                 [style.left.px]="m.x" [style.top.px]="m.y" [style.--c]="m.color || '#2563EB'"
                 [attr.aria-label]="m.etiqueta || m.id" [title]="m.etiqueta || ''"
                 (pointerdown)="$event.stopPropagation()" (click)="clicMarcador.emit(m.id); $event.stopPropagation()">
@@ -116,9 +116,12 @@ function urlMosaico(plantilla: string, z: number, x: number, y: number): string 
     .mosaico.vacio { visibility: hidden; }
     .vector { position: absolute; inset: 0; pointer-events: none; }
     .marca { position: absolute; transform: translate(-50%, -50%); border: 0; background: none; padding: 0; cursor: pointer;
-             display: grid; place-items: center; color: var(--c); z-index: 2; }
-    .marca.finca { transform: translate(-50%, -92%); }
-    .marca.finca mat-icon { font-size: 34px; width: 34px; height: 34px; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
+             display: grid; place-items: center; color: var(--c); z-index: 2;
+             /* sin heredar alturas mínimas de los botones globales (estiraban el punto en óvalo) */
+             min-height: 0; min-width: 0; height: auto; width: auto; margin: 0; line-height: 0; }
+    .yo, .punto, .bola { flex: none; box-sizing: content-box; }
+    .marca.tipo-finca { transform: translate(-50%, -92%); }
+    .marca.tipo-finca mat-icon { font-size: 34px; width: 34px; height: 34px; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .35)); }
     .marca.sel { z-index: 4; }
     .marca.sel .bola, .marca.sel mat-icon { outline: 3px solid #111827; outline-offset: 2px; border-radius: 50%; }
     .bola { width: 34px; height: 34px; border-radius: 50%; background: var(--c); color: #fff; font: 700 12px/34px var(--font-sans, system-ui);
