@@ -1,0 +1,392 @@
+// Inicio de Coordinadores. Solo tokens semánticos de src/theme/tokens.css: el modo oscuro
+// sale solo. Pensado primero para el teléfono (APK): una columna, botones de 48 px y nada
+// que dependa de hover. Sin backdrop-filter ni mask-image (fantasmas en el WebView).
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.inicio {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  color: var(--text);
+}
+
+// ── Encabezado ───────────────────────────────────────────────────────────
+.cabecera {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 18px;
+  border-radius: var(--r-lg, 14px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+
+  &__icono {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--lime);
+    color: var(--ink);
+  }
+  &__texto { min-width: 0; }
+  &__saludo {
+    margin: 0;
+    font-size: 12px;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  &__nombre {
+    margin: 2px 0 0;
+    font-size: clamp(20px, 5vw, 26px);
+    line-height: 1.2;
+    color: var(--navy-ink);
+  }
+  &__detalle {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--text-2);
+    overflow-wrap: anywhere;
+  }
+  .rol { font-weight: 600; }
+}
+
+// Alcance real de las cifras (lo calcula ms-forms).
+.alcance__icono {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+  vertical-align: -3px;
+}
+.cabecera__detalle.alcance--aviso { color: var(--danger-fg, #B91C1C); font-weight: 600; }
+
+.oficinas, .chips-estado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  color: var(--text-2);
+  white-space: nowrap;
+
+  mat-icon { width: 16px; height: 16px; font-size: 16px; }
+
+  &--oficina { background: var(--info-bg); border-color: var(--info-border); color: var(--info-fg); }
+  &--info    { background: var(--info-bg); border-color: var(--info-border); color: var(--info-fg); }
+  &--ok      { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-fg); }
+  &--aviso   { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg); }
+  &--peligro { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-fg); }
+  &--neutro, &--vacio { background: var(--surface-3); color: var(--muted); }
+}
+
+// ── KPIs ─────────────────────────────────────────────────────────────────
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: 10px;
+
+  &--compactos { margin-bottom: 10px; }
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--r-md, 10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  min-width: 0;
+
+  &__valor {
+    font-size: 24px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--navy-ink);
+  }
+  &__etiqueta {
+    font-size: 12px;
+    color: var(--muted);
+    em { font-style: normal; font-weight: 700; margin-left: 4px; }
+    .sube { color: var(--danger-fg); }   // más incapacidades = peor
+    .baja { color: var(--ok-fg); }
+  }
+  &--alerta {
+    border-color: var(--danger-border);
+    background: var(--danger-bg);
+    .kpi__valor { color: var(--danger-fg); }
+  }
+}
+
+.bloque .kpi { background: var(--surface-2); }
+
+// ── Bloques ──────────────────────────────────────────────────────────────
+.bloque {
+  padding: 16px;
+  border-radius: var(--r-lg, 14px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  min-width: 0;
+
+  &__titulo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+    margin-bottom: 12px;
+
+    h2 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 17px;
+      color: var(--navy-ink);
+      mat-icon { color: var(--lime-ink); }
+    }
+  }
+  &__nota { font-size: 12px; color: var(--muted); }
+  &__nota--pie { display: block; margin-top: 10px; }
+}
+
+// ── Tarjetas de formulario ───────────────────────────────────────────────
+.rejilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  gap: 12px;
+}
+
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--r-md, 10px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  min-width: 0;
+
+  &__cabeza {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    h3 { margin: 0; font-size: 15px; line-height: 1.25; overflow-wrap: anywhere; }
+  }
+  &__icono {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--blue-soft);
+    color: var(--brand-blue);
+  }
+  &__ultimo { margin: 0; font-size: 11.5px; color: var(--muted); }
+}
+
+.cifras {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+
+  div { min-width: 0; }
+  dt { font-size: 11px; color: var(--muted); }
+  dd {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.estados {
+  &__titulo { display: block; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  li {
+    display: grid;
+    grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  &__nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+  &__barra { height: 8px; border-radius: 4px; background: var(--surface-4); overflow: hidden; }
+  &__relleno {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--info-fg);
+    &--ok { background: var(--ok-fg); }
+    &--aviso { background: var(--warn-fg); }
+    &--peligro { background: var(--danger-fg); }
+    &--neutro, &--vacio { background: var(--slate-400); }
+  }
+  &__n { font-variant-numeric: tabular-nums; font-weight: 600; }
+}
+
+.linea { min-width: 0; }
+
+// ── Botones (enlaces) ───────────────────────────────────────────────────
+.acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+
+  &__secundarias {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    > .boton { flex: 1 1 0; min-width: 0; }
+  }
+  &--fila {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    > .boton { flex: 1 1 200px; }
+  }
+}
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border-radius: var(--r-md, 10px);
+  font-weight: 600;
+  font-size: 13.5px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  -webkit-tap-highlight-color: transparent;
+
+  &:focus-visible { outline: 2px solid var(--ring, var(--brand-blue)); outline-offset: 2px; }
+
+  &--principal {
+    min-height: 48px;          // objetivo táctil cómodo en el teléfono
+    font-size: 15px;
+    background: var(--brand-blue);
+    color: #fff;
+    &:hover { background: var(--brand-blue-strong); }
+  }
+  &--secundario {
+    background: var(--surface);
+    border-color: var(--border-strong);
+    color: var(--text);
+    &:hover { background: var(--surface-3); }
+    mat-icon { color: var(--brand-blue); }
+  }
+}
+
+.enlace {
+  margin-top: 8px;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--link);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+// ── Pendientes ───────────────────────────────────────────────────────────
+.pendientes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.pendiente {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 10px;
+  border-radius: var(--r-md, 10px);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover { background: var(--surface-3); }
+  &__texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    small { color: var(--muted); }
+  }
+}
+
+// ── Estados vacíos y carga ───────────────────────────────────────────────
+.vacio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.cargando {
+  display: grid;
+  gap: 8px;
+  &--rejilla { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
+}
+
+.esqueleto {
+  display: block;
+  height: 14px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  animation: pulso 1.2s ease-in-out infinite;
+
+  &--tarjeta { height: 180px; border-radius: var(--r-md, 10px); }
+}
+
+@keyframes pulso {
+  50% { opacity: .5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .esqueleto { animation: none; }
+}
+
+// ── Pantallas angostas (teléfono) ────────────────────────────────────────
+@media (max-width: 599px) {
+  .inicio { padding: 10px; gap: 12px; }
+  .cabecera { padding: 14px; }
+  .bloque { padding: 12px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi__valor { font-size: 20px; }
+  .estados li { grid-template-columns: minmax(0, 7.5em) minmax(0, 1fr) auto; }
+}

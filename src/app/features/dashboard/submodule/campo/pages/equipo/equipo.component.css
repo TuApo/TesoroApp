@@ -1,0 +1,32 @@
+.titulo { flex: 1; min-width: 200px; }
+.titulo h1 { margin: 0; }
+.tenue { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+
+.aviso { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--ok-bg);
+         color: var(--success); font: 600 14px var(--font-sans); }
+.aviso.mal { background: var(--danger-bg); color: var(--danger); }
+.aviso span { flex: 1; }
+.aviso .cerrar { border: 0; background: none; color: inherit; cursor: pointer; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+
+.personas { margin-top: 12px; }
+.fila.anidada { border-left: 3px solid var(--border); margin-left: calc(var(--nivel, 0) * 22px); }
+.fila .chip.foto { flex: none; }
+.plegar { border: 0; background: var(--surface); color: var(--text); border-radius: 10px; min-width: 44px; min-height: 44px;
+          display: grid; place-items: center; cursor: pointer; flex: none; }
+.plegar-espacio { width: 44px; flex: none; }
+.avatar.inactivo { background: var(--slate-400); }
+
+.interruptor { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font: 600 14px var(--font-sans); cursor: pointer; }
+.interruptor input { width: 20px; height: 20px; accent-color: var(--navy); }
+.buscador { box-sizing: border-box; }
+.buscador.ancho { width: 100%; }
+.resultados { max-height: 300px; overflow-y: auto; margin-top: 8px; }
+.resultados > .tenue { padding: 8px 4px; }
+
+/* En el teléfono la sangría del árbol se reduce y los chips bajan de línea. */
+@media (max-width: 599px) {
+  .fila { flex-wrap: wrap; }
+  .fila .cuerpo { flex-basis: calc(100% - 110px); }
+  .fila.anidada { margin-left: calc(var(--nivel, 0) * 10px); }
+  .fila .chip.foto { margin-left: 52px; }
+}

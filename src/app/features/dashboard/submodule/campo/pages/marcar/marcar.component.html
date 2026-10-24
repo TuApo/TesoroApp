@@ -1,0 +1,207 @@
+@if (camara(); as modo) {
+  <app-camara-campo [modo]="modo" (leido)="alLeerQr($event)" (foto)="alFoto($event)"
+                    (cerrar)="modo === 'qr' ? sinQr() : seguirSinSelfie()" (sinQr)="sinQr()" />
+}
+
+<div class="pagina marcar">
+  <header class="cabecera">
+    <button type="button" class="boton chico" (click)="volver()" aria-label="Volver"><mat-icon>arrow_back</mat-icon></button>
+    <h1>{{ tipo() === 'ENTRADA' ? 'Registrar llegada' : 'Registrar salida' }}</h1>
+    <span class="estado-red" [class.con]="campo.enLinea()" [class.sin]="!campo.enLinea()">
+      <mat-icon>{{ campo.enLinea() ? 'cloud_done' : 'cloud_off' }}</mat-icon>
+      {{ campo.enLinea() ? 'Con señal' : 'Sin señal' }}
+    </span>
+  </header>
+
+  @if (paso() !== 'listo') {
+    <div class="tipo" role="radiogroup" aria-label="Tipo de marcación">
+      <button type="button" role="radio" [attr.aria-checked]="tipo() === 'ENTRADA'" [class.activa]="tipo() === 'ENTRADA'"
+              (click)="cambiarTipo('ENTRADA')"><mat-icon>login</mat-icon> Llegada</button>
+      <button type="button" role="radio" [attr.aria-checked]="tipo() === 'SALIDA'" [class.activa]="tipo() === 'SALIDA'"
+              (click)="cambiarTipo('SALIDA')"><mat-icon>logout</mat-icon> Salida</button>
+    </div>
+
+    <ol class="pasos" aria-label="Pasos">
+      <li [class.hecho]="!!finca() || paso() !== 'qr'" [class.actual]="paso() === 'qr' || paso() === 'finca'"><mat-icon>qr_code_scanner</mat-icon><span>Finca</span></li>
+      <li [class.hecho]="lat() != null && (paso() === 'selfie' || paso() === 'confirmar')" [class.actual]="paso() === 'ubicacion'"><mat-icon>my_location</mat-icon><span>Ubicación</span></li>
+      <li [class.hecho]="(!!selfie() || sinSelfie()) && paso() === 'confirmar'" [class.actual]="paso() === 'selfie'"><mat-icon>face</mat-icon><span>Selfie</span></li>
+      <li [class.actual]="paso() === 'confirmar'"><mat-icon>task_alt</mat-icon><span>Enviar</span></li>
+    </ol>
+  }
+
+  @switch (paso()) {
+    @case ('qr') {
+      <section class="tarjeta centro">
+        <mat-icon class="grande">qr_code_2</mat-icon>
+        <h2>Escanea el QR pegado en la finca</h2>
+        @if (qrMotivo()) { <p class="chip mal">{{ qrMotivo() }}</p> }
+        <p class="ayuda">Funciona sin internet. Si no hay cartel o la cámara no lo lee, elige la finca de la lista: quedará marcada "sin QR" para tu supervisor.</p>
+        <button type="button" class="boton primario bloque grande-btn" (click)="escanear()"><mat-icon>qr_code_scanner</mat-icon> Abrir cámara</button>
+        <button type="button" class="boton bloque" (click)="sinQr()"><mat-icon>list</mat-icon> Elegir la finca de la lista</button>
+      </section>
+    }
+
+    @case ('finca') {
+      <section class="tarjeta">
+        <h2><mat-icon>agriculture</mat-icon> ¿En qué finca estás?</h2>
+        <input class="buscador" type="search" placeholder="Buscar finca o zona" [value]="buscar()" (input)="buscar.set($any($event.target).value)" />
+        <ul class="lista fincas">
+          @for (f of fincasFiltradas(); track f.id) {
+            <li class="fila clic" (click)="elegirFinca(f)" (keydown.enter)="elegirFinca(f)" tabindex="0">
+              <span class="avatar" [style.background]="f.zona_color || 'var(--navy)'"><mat-icon>location_on</mat-icon></span>
+              <span class="cuerpo">
+                <strong>{{ f.nombre }}</strong>
+                <small>{{ f.zona_nombre || 'Sin zona' }}{{ f.mia ? ' · tuya' : '' }}{{ f.lat == null ? ' · sin ubicar' : '' }}</small>
+              </span>
+              <mat-icon>chevron_right</mat-icon>
+            </li>
+          } @empty {
+            <li class="vacio"><mat-icon>search_off</mat-icon>
+              {{ campo.fincas().length ? 'Ninguna finca coincide' : 'Aún no se ha descargado tu lista de fincas: conéctate una vez para tenerla sin señal.' }}</li>
+          }
+        </ul>
+      </section>
+    }
+
+    @case ('ubicacion') {
+      <section class="tarjeta">
+        <div class="finca-elegida">
+          <div>
+            <small>Finca</small>
+            <strong>{{ finca()?.nombre || 'Finca del QR (se confirma con señal)' }}</strong>
+          </div>
+          @if (qrTexto()) {
+            <span class="chip" [class.ok]="qrOk()" [class.aviso]="!qrOk()"><mat-icon>{{ qrOk() ? 'verified' : 'help' }}</mat-icon>
+              {{ qrOk() ? 'QR válido' : 'QR por confirmar' }}</span>
+          } @else {
+            <span class="chip aviso"><mat-icon>edit_location</mat-icon> Sin QR</span>
+          }
+        </div>
+        @if (qrMotivo() && !qrOk()) { <p class="ayuda">{{ qrMotivo() }}</p> }
+
+        <div class="mapa-paso">
+          <app-mapa-campo [tilesUrl]="campo.paquete()?.config?.tiles_url || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'"
+                          [atribucion]="campo.paquete()?.config?.tiles_atribucion || '© OpenStreetMap'"
+                          [marcadores]="marcadores()" [circulos]="circulos()" [encuadrar]="encuadre()"
+                          [elegirPunto]="eligiendoEnMapa()" (clicMapa)="alTocarMapa($event)" />
+          @if (eligiendoEnMapa()) { <div class="indicacion">Toca en el mapa el punto donde estás</div> }
+        </div>
+
+        @if (buscandoGps()) {
+          <p class="estado"><mat-icon class="gira">sync</mat-icon> Buscando tu posición con el GPS…</p>
+        } @else if (lat() != null) {
+          <div class="medida">
+            <div><small>{{ textoPrecision() }}</small>
+              @if (evaluacion().distancia != null) {
+                <strong>A {{ evaluacion().distancia }} m de la finca</strong>
+              } @else if (finca() && finca()!.lat == null) {
+                <strong>Esta finca aún no está ubicada en el mapa</strong>
+              }
+            </div>
+            @if (evaluacion().dentro === true) { <span class="chip ok"><mat-icon>check_circle</mat-icon> Estás en la finca</span> }
+            @if (evaluacion().dentro === false) { <span class="chip mal"><mat-icon>wrong_location</mat-icon> Fuera de la finca</span> }
+          </div>
+          @if (evaluacion().dentro === false) {
+            <p class="ayuda">Puedes registrar igual: tu supervisor verá la distancia. Si el GPS está impreciso, espera unos segundos a cielo abierto y vuelve a intentar.</p>
+          }
+        } @else if (errorGps()) {
+          <p class="chip mal bloque-chip">{{ errorGps() }}</p>
+        }
+
+        <div class="barra">
+          <button type="button" class="boton" (click)="tomarUbicacion()" [disabled]="buscandoGps()"><mat-icon>gps_fixed</mat-icon> {{ lat() != null ? 'Actualizar GPS' : 'Reintentar GPS' }}</button>
+          @if (!eligiendoEnMapa()) {
+            <button type="button" class="boton" (click)="elegirEnMapa()"><mat-icon>touch_app</mat-icon> Elegir en el mapa</button>
+          }
+        </div>
+        <button type="button" class="boton primario bloque grande-btn" (click)="continuarASelfie()" [disabled]="buscandoGps() && lat() == null">
+          Continuar <mat-icon>arrow_forward</mat-icon>
+        </button>
+        @if (lat() == null && !buscandoGps()) { <p class="ayuda">Sin ubicación también puedes seguir; quedará marcado "sin ubicación".</p> }
+      </section>
+    }
+
+    @case ('selfie') {
+      <section class="tarjeta centro">
+        <mat-icon class="grande">face</mat-icon>
+        <h2>Selfie de confirmación</h2>
+        <p class="ayuda">Cuando haya señal, la IA la compara con tu foto de referencia para confirmar que eres tú.
+          @if (campo.paquete()?.rostro_referencia !== 'APROBADA') { Esta primera selfie la revisará tu supervisor como tu foto de referencia. }</p>
+        <button type="button" class="boton primario bloque grande-btn" (click)="repetirSelfie()"><mat-icon>photo_camera</mat-icon> Tomar selfie</button>
+        <button type="button" class="boton bloque" (click)="seguirSinSelfie()">Seguir sin selfie</button>
+      </section>
+    }
+
+    @case ('confirmar') {
+      <section class="tarjeta">
+        <h2><mat-icon>fact_check</mat-icon> Revisa y envía</h2>
+        <div class="resumen">
+          @if (selfieUrl()) {
+            <button type="button" class="foto" (click)="repetirSelfie()" aria-label="Repetir selfie"><img [src]="selfieUrl()" alt="Tu selfie" /><span>Repetir</span></button>
+          } @else {
+            <div class="foto vacia"><mat-icon>no_photography</mat-icon><span>Sin selfie</span></div>
+          }
+          <dl>
+            <dt>{{ tipo() === 'ENTRADA' ? 'Llegada a' : 'Salida de' }}</dt><dd>{{ finca()?.nombre || 'Finca del QR' }}</dd>
+            <dt>Verificación</dt><dd>{{ qrTexto() ? (qrOk() ? 'QR válido' : 'QR por confirmar') : 'Sin QR' }}</dd>
+            <dt>Ubicación</dt>
+            <dd>
+              @if (lat() != null) {
+                {{ evaluacion().distancia != null ? evaluacion().distancia + ' m de la finca' : 'Tomada' }}
+                {{ evaluacion().dentro === false ? '· fuera' : evaluacion().dentro ? '· dentro' : '' }}
+                {{ fuente() === 'MAPA' ? '· elegida en el mapa' : '' }}
+              } @else { Sin ubicación }
+            </dd>
+          </dl>
+        </div>
+        <div class="campo">
+          <label for="nota">Nota (opcional)</label>
+          <textarea id="nota" rows="2" maxlength="500" placeholder="Ej.: llegué tarde por el bus, el QR está dañado…"
+                    [value]="nota()" (input)="nota.set($any($event.target).value)"></textarea>
+        </div>
+        @if (errorEnvio()) { <p class="chip mal bloque-chip">{{ errorEnvio() }}</p> }
+        <button type="button" class="boton primario bloque grande-btn" (click)="registrar()" [disabled]="enviando()">
+          <mat-icon>{{ campo.enLinea() ? 'send' : 'save' }}</mat-icon>
+          {{ enviando() ? 'Guardando…' : (tipo() === 'ENTRADA' ? 'Registrar llegada' : 'Registrar salida') }}
+        </button>
+        @if (!campo.enLinea()) { <p class="ayuda">Sin señal: se guarda en el teléfono con la hora de ahora y se envía sola al volver la conexión.</p> }
+      </section>
+    }
+
+    @case ('listo') {
+      <section class="tarjeta centro listo">
+        <span class="check" [class.cola]="resultado()?.enCola"><mat-icon>{{ resultado()?.enCola ? 'schedule_send' : 'check' }}</mat-icon></span>
+        <h2>{{ tipo() === 'ENTRADA' ? 'Llegada registrada' : 'Salida registrada' }}</h2>
+        <p><strong>{{ finca()?.nombre || resultado()?.enviada?.finca_nombre || 'Finca' }}</strong> · {{ horaCorta(resultado()?.enviada?.capturado_ms || capturadoMs() || 0) || 'ahora' }}</p>
+        @if (resultado()?.enCola) {
+          <p class="chip aviso">Guardada en el teléfono: se enviará sola cuando haya señal</p>
+        } @else if (resultado()?.enviada; as m) {
+          <p class="chip" [class.ok]="m.rostro_estado === 'VALIDADA'" [class.info]="m.rostro_estado === 'PENDIENTE'">{{ etiquetaRostro[m.rostro_estado] }}</p>
+          @if (m.alertas.length) { <p class="ayuda">Tu supervisor verá: {{ m.alertas.length }} observación(es) en esta marcación.</p> }
+        }
+
+        @if (tipo() === 'ENTRADA') {
+          @if (tareasDeLaFinca().length) {
+            <div class="tareas">
+              <h3>Tareas en esta finca</h3>
+              <ul class="lista">
+                @for (t of tareasDeLaFinca(); track t.id) {
+                  <li class="fila"><mat-icon>task</mat-icon><span class="cuerpo"><strong>{{ t.titulo }}</strong>@if (t.detalle) {<small>{{ t.detalle }}</small>}</span></li>
+                }
+              </ul>
+            </div>
+          }
+          @if (planillaRuta()) {
+            <a class="boton bloque" [routerLink]="planillaRuta()"><mat-icon>edit_note</mat-icon> Llenar novedades de la visita</a>
+          }
+        }
+        <div class="barra fin">
+          <a class="boton" routerLink="/dashboard/coordinadores"><mat-icon>home</mat-icon> Inicio</a>
+          <button type="button" class="boton oscuro" (click)="otraVez()">
+            <mat-icon>{{ tipo() === 'ENTRADA' ? 'logout' : 'login' }}</mat-icon> {{ tipo() === 'ENTRADA' ? 'Marcar salida' : 'Nueva llegada' }}
+          </button>
+        </div>
+      </section>
+    }
+  }
+</div>

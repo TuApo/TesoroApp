@@ -1,0 +1,185 @@
+<div class="pagina">
+  <header class="cabecera">
+    <div class="titulo">
+      <h1>Revisión de marcaciones</h1>
+      <p>Entradas y salidas con su selfie, ubicación y alertas. Resuelve las que el sistema no pudo validar.</p>
+    </div>
+    <button type="button" class="boton" (click)="cargar()" [disabled]="cargando()">
+      <mat-icon>refresh</mat-icon> Actualizar
+    </button>
+  </header>
+
+  <section class="tarjeta filtros">
+    <div class="fechas">
+      <div class="campo">
+        <label for="rev-desde">Desde</label>
+        <input id="rev-desde" type="date" [value]="desde()" [max]="hoy" (change)="cambiarDesde(leerTexto($event))" />
+      </div>
+      <div class="campo">
+        <label for="rev-hasta">Hasta</label>
+        <input id="rev-hasta" type="date" [value]="hasta()" [max]="hoy" (change)="cambiarHasta(leerTexto($event))" />
+      </div>
+      <div class="atajos">
+        <button type="button" class="boton chico" (click)="atajo(1)">Hoy</button>
+        <button type="button" class="boton chico" (click)="atajo(7)">7 días</button>
+        <button type="button" class="boton chico" (click)="atajo(30)">30 días</button>
+      </div>
+    </div>
+
+    <nav class="pestanas" aria-label="Estado del rostro">
+      @for (t of pestanas; track t.valor) {
+        <button type="button" [class.activa]="pestana() === t.valor" (click)="elegirPestana(t.valor)">
+          {{ t.nombre }}
+          @if (t.valor === 'POR_REVISAR' && porRevisar() > 0 && pestana() !== 'SIN_SELFIE') {
+            <span class="cuenta">{{ porRevisar() }}</span>
+          }
+        </button>
+      }
+    </nav>
+
+    <div class="barra">
+      <input class="buscador" type="search" placeholder="Buscar por persona o finca" aria-label="Buscar"
+             [value]="busqueda()" (input)="busqueda.set(leerTexto($event))" />
+      <label class="interruptor">
+        <input type="checkbox" [checked]="soloAlertas()" (change)="soloAlertas.set(leerMarca($event))" />
+        <span>Solo con alertas</span>
+      </label>
+    </div>
+  </section>
+
+  @if (error()) {
+    <div class="tarjeta error">
+      <mat-icon>error_outline</mat-icon>
+      <strong>{{ error() }}</strong>
+      <button type="button" class="boton chico" (click)="cargar()">Reintentar</button>
+    </div>
+  }
+
+  @if (!cargando() && marcaciones().length >= limite) {
+    <p class="nota">Se muestran las {{ limite }} marcaciones más recientes del rango. Acorta las fechas para ver las demás.</p>
+  }
+
+  @if (cargando() && !marcaciones().length) {
+    <div class="vacio"><mat-icon>hourglass_empty</mat-icon>Cargando marcaciones…</div>
+  } @else if (!visibles().length && !error()) {
+    <div class="tarjeta vacio">
+      @if (pestana() === 'POR_REVISAR' && marcaciones().length) {
+        <mat-icon>task_alt</mat-icon>
+        <strong>Todo al día</strong>
+        <span>No hay marcaciones pendientes de revisar en este rango.</span>
+      } @else {
+        <mat-icon>fact_check</mat-icon>
+        <strong>No hay marcaciones</strong>
+        <span>Prueba con otro rango de fechas u otro filtro.</span>
+      }
+    </div>
+  } @else {
+    <p class="resumen">{{ visibles().length }} de {{ marcaciones().length }} marcaciones</p>
+    <ul class="tarjetas">
+      @for (m of visibles(); track m.id) {
+        <li class="tarjeta marca" [class.pendiente]="pideRevision(m)">
+          <div class="foto">
+            @if (selfie(m); as src) {
+              <a [href]="src" target="_blank" rel="noopener" [attr.aria-label]="'Abrir selfie de ' + m.usuario_nombre">
+                <img [src]="src" [alt]="'Selfie de ' + m.usuario_nombre" loading="lazy" />
+              </a>
+            } @else {
+              <div class="sin-foto"><mat-icon>no_photography</mat-icon><span>Sin selfie</span></div>
+            }
+            <span class="tipo" [class.salida]="m.tipo === 'SALIDA'">{{ m.tipo === 'ENTRADA' ? 'Entrada' : 'Salida' }}</span>
+          </div>
+
+          <div class="info">
+            <div class="quien">
+              <span class="avatar">{{ iniciales(m.usuario_nombre) }}</span>
+              <div class="cuerpo">
+                <strong>{{ m.usuario_nombre }}</strong>
+                <small>{{ m.finca_nombre || 'Sin finca' }}</small>
+              </div>
+              <div class="cuando">
+                <strong>{{ hora(m.capturado_ms) }}</strong>
+                @if (variosDias()) { <small>{{ fecha(m.capturado_ms) }}</small> }
+              </div>
+            </div>
+
+            @if (m.sin_conexion) {
+              <p class="linea aviso-linea">
+                <mat-icon>signal_cellular_off</mat-icon>
+                Marcó sin señal → llegó {{ retraso(m) }} después ({{ hora(m.recibido_ms) }})
+              </p>
+            }
+
+            <div class="chips">
+              <span class="chip" [class]="'chip ' + claseRostro(m.rostro_estado)">
+                <mat-icon>face</mat-icon>{{ etiquetaRostro[m.rostro_estado] }}
+                @if (m.rostro_confianza != null) { · {{ confianza(m.rostro_confianza) }} }
+              </span>
+              @if (m.dentro === true) { <span class="chip ok"><mat-icon>check_circle</mat-icon>Dentro de la finca</span> }
+              @else if (m.dentro === false) { <span class="chip mal"><mat-icon>wrong_location</mat-icon>Fuera de la finca</span> }
+              <span class="chip" [class.ok]="m.qr_ok" [class.aviso]="!m.qr_ok">
+                <mat-icon>qr_code_2</mat-icon>{{ m.metodo === 'QR' ? (m.qr_ok ? 'QR válido' : 'QR no válido') : 'Manual' }}
+              </span>
+            </div>
+
+            <dl class="detalles">
+              <div>
+                <dt>Ubicación</dt>
+                <dd>
+                  {{ etiquetaFuente[m.fuente_ubicacion] }}
+                  @if (m.precision_m != null && m.fuente_ubicacion !== 'NINGUNA') { · ± {{ distancia(m.precision_m) }} }
+                </dd>
+              </div>
+              @if (m.distancia_m != null) {
+                <div><dt>Distancia a la finca</dt><dd>{{ distancia(m.distancia_m) }}</dd></div>
+              }
+              @if (m.bateria != null) {
+                <div><dt>Batería</dt><dd>{{ m.bateria }} %</dd></div>
+              }
+            </dl>
+
+            @if (m.rostro_motivo) { <p class="motivo"><mat-icon>info</mat-icon>{{ m.rostro_motivo }}</p> }
+            @if (m.nota) { <p class="motivo"><mat-icon>notes</mat-icon>{{ m.nota }}</p> }
+
+            @if (m.alertas.length) {
+              <div class="chips">
+                @for (a of m.alertas; track a) { <span class="chip mal"><mat-icon>warning</mat-icon>{{ etiquetaAlerta[a] || a }}</span> }
+              </div>
+            }
+
+            @if (errores()[m.id]; as err) { <p class="error-linea">{{ err }}</p> }
+
+            @if (m.selfie_url && m.rostro_estado !== 'PENDIENTE') {
+              <div class="acciones">
+                @if (confirmando() === m.id) {
+                  <span class="pregunta">¿Seguro que no es {{ m.usuario_nombre }}?</span>
+                  <button type="button" class="boton peligro" (click)="revisar(m, false)" [disabled]="enProceso().has(m.id)">
+                    <mat-icon>person_off</mat-icon> Sí, no es la persona
+                  </button>
+                  <button type="button" class="boton" (click)="confirmando.set(null)">Cancelar</button>
+                } @else if (pideRevision(m)) {
+                  @if (m.rostro_estado === 'SIN_REFERENCIA') {
+                    <button type="button" class="boton primario" (click)="revisar(m, true, true)" [disabled]="enProceso().has(m.id)">
+                      <mat-icon>add_a_photo</mat-icon> Aprobar y usar como foto de referencia
+                    </button>
+                  }
+                  <button type="button" class="boton" [class.primario]="m.rostro_estado !== 'SIN_REFERENCIA'"
+                          (click)="revisar(m, true)" [disabled]="enProceso().has(m.id)">
+                    <mat-icon>check</mat-icon> Aprobar
+                  </button>
+                  <button type="button" class="boton peligro" (click)="confirmando.set(m.id)" [disabled]="enProceso().has(m.id)">
+                    <mat-icon>person_off</mat-icon> No es la persona
+                  </button>
+                } @else if (validada(m)) {
+                  <button type="button" class="boton chico" (click)="confirmando.set(m.id)" [disabled]="enProceso().has(m.id)">
+                    <mat-icon>person_off</mat-icon> No es la persona
+                  </button>
+                }
+                @if (enProceso().has(m.id)) { <span class="guardando">Guardando…</span> }
+              </div>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>

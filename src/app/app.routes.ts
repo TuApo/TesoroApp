@@ -28,5 +28,13 @@ export const routes: Routes = [
         loadChildren: () =>
             import('./features/publico-turnos/routes').then((m) => m.routesAgenda),
     },
+    // El QR pegado en cada finca es una URL (/campo/qr?f=&t=): leído con la cámara del
+    // sistema abre la app y lleva directo a marcar con ese QR (el login, si hace falta, lo
+    // pide el dashboard).
+    {
+        path: 'campo/qr',
+        loadComponent: () =>
+            import('./features/dashboard/submodule/campo/pages/qr-entrada/qr-entrada.component').then((m) => m.QrEntradaComponent),
+    },
     { path: '**', redirectTo: '' },
 ];

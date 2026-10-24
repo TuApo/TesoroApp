@@ -1,0 +1,96 @@
+/* Mapa en vivo: lo común sale de campo-ui.css; aquí solo la distribución mapa + lateral. */
+.titulo { flex: 1; min-width: 200px; }
+.titulo h1 { flex: none; }
+
+.error { display: flex; align-items: center; gap: 12px; border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
+.error > div { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.error small { color: var(--text); }
+
+/* KPIs: 2 columnas en el teléfono, 3 en tableta, 6 en escritorio. */
+.kpis-vivo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .kpis-vivo { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1100px) { .kpis-vivo { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.kpi.clic { cursor: pointer; text-align: left; color: var(--text); text-decoration: none; font: inherit; min-height: 44px; }
+.kpi.clic.activo { border-color: var(--navy); box-shadow: inset 0 0 0 1px var(--navy); }
+.kpi b small { font-size: 15px; color: var(--muted); font-weight: 700; }
+.verde { color: var(--success); }
+.rojo { color: var(--danger); }
+.ambar { color: #B45309; }
+
+.filtros { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.selector { min-height: 44px; border-radius: 12px; border: 1px solid var(--border-strong, var(--border)); background: var(--surface);
+            color: var(--text); padding: 0 12px; font: 15px var(--font-sans); min-width: 180px; flex: 0 1 240px; }
+.pestanas button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.cuenta { font-size: 12px; font-weight: 700; padding: 0 7px; border-radius: 999px; background: var(--surface-2); color: var(--muted); line-height: 20px; }
+.pestanas button.activa .cuenta { background: rgb(255 255 255 / .2); color: #fff; }
+
+/* Distribución: en el teléfono una columna (mapa 60vh, lista debajo); en escritorio mapa + lateral. */
+.distribucion { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.columna-mapa { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mapa-vivo-mapa { position: relative; height: 60vh; min-height: 320px; border-radius: var(--r-lg, 14px); overflow: hidden;
+                  border: 1px solid var(--border); isolation: isolate; scroll-margin-top: 12px; }
+.lienzo { position: absolute; inset: 0; }
+.lateral { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+@media (min-width: 1000px) {
+  .distribucion { grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); align-items: start; }
+  .mapa-vivo-mapa { height: calc(100vh - 300px); min-height: 480px; }
+  .lateral { height: calc(100vh - 300px); min-height: 480px; overflow-y: auto; }
+}
+
+.banda-rastro { position: absolute; left: 10px; right: 60px; bottom: 22px; z-index: 6; display: flex; align-items: center; gap: 8px;
+                background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+                padding: 6px 8px 6px 12px; box-shadow: var(--shadow-sm); font: 600 13px/1.3 var(--font-sans); }
+.banda-rastro mat-icon { color: #2563EB; flex: none; }
+.banda-rastro span { flex: 1; min-width: 0; }
+
+.leyenda { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 12px; padding: 0 4px; }
+.leyenda span { display: inline-flex; align-items: center; gap: 5px; }
+.leyenda i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.leyenda mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+/* Filas como botones: toda la fila es el objetivo táctil. */
+.lista li { list-style: none; min-width: 0; }
+button.fila { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; min-height: 56px; }
+.fila .linea { display: flex; align-items: center; gap: 6px; }
+.fila .linea mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.datos { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 2px; }
+.dato { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--muted); }
+.dato mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.dato.mal { color: var(--danger); }
+.dato.aviso { color: #B45309; }
+.volver { align-self: flex-start; }
+
+/* Detalle (en el lateral o en la hoja inferior). */
+.detalle { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.det-cabeza { display: flex; align-items: center; gap: 12px; }
+.det-cabeza .cuerpo { flex: 1; min-width: 0; }
+.det-cabeza h3 { margin: 0; font: 800 18px/1.25 var(--font-sans); overflow-wrap: anywhere; }
+.det-cabeza small { color: var(--muted); }
+.avatar.grande { width: 52px; height: 52px; font-size: 17px; }
+.avatar.finca mat-icon { color: #fff; }
+.cerrar { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+          display: grid; place-items: center; cursor: pointer; flex: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip.clic { cursor: pointer; min-height: 36px; font: 600 13px var(--font-sans); }
+
+.ficha { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin: 0; }
+.ficha div { background: var(--surface-2); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+.ficha dt { color: var(--muted); font-size: 12px; }
+.ficha dd { margin: 2px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+
+.detalle h4 { margin: 0 0 8px; font: 700 14px var(--font-sans); color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.marcacion { display: flex; flex-direction: column; gap: 10px; }
+.marc-cuerpo { display: flex; gap: 12px; align-items: flex-start; }
+.selfie { width: 110px; height: 140px; border-radius: 12px; overflow: hidden; flex: none; background: var(--surface-2);
+          display: grid; place-items: center; border: 1px solid var(--border); }
+.selfie img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.selfie.sin mat-icon { color: var(--muted); font-size: 32px; width: 32px; height: 32px; }
+.marc-datos { display: flex; flex-direction: column; gap: 6px; min-width: 0; align-items: flex-start; }
+.marc-datos strong { display: flex; align-items: center; gap: 8px; font-size: 16px; }
+.marc-datos small { color: var(--muted); }
+
+.nota { margin: 0; color: var(--muted); }
+.aviso-det { margin: 0; padding: 8px 12px; border-radius: 10px; background: #FEF3C7; color: #92400E; font-weight: 600; font-size: 14px; }
+.acciones-det { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.acciones-det .boton { width: 100%; white-space: normal; text-align: center; }

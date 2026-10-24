@@ -57,6 +57,12 @@ export const routes: Routes = [
       // La ruta coincide con db_admin.modulo (ms-auth-admin V140).
       { path: 'seguridad', loadChildren: () => import('./submodule/seguridad/seguridad.routes').then(m => m.routes) },
       { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
+      // Trabajo de campo de los coordinadores (marcar con QR, mapa en vivo, agenda, radio…).
+      { path: 'campo', loadChildren: () => import('./submodule/campo/campo.routes').then(m => m.routes) },
+      // Inicio de Coordinadores: SOLO la raíz (pathMatch 'full'). Sus formularios
+      // (coordinadores/<grupo>/<slug>) siguen resolviéndose en el comodín de formularios
+      // dinámicos de abajo; con un match por prefijo esta rama los interceptaría.
+      { path: 'coordinadores', pathMatch: 'full', loadChildren: () => import('./submodule/coordinadores/coordinadores.routes').then(m => m.routes) },
       { path: 'reuniones', loadChildren: () => import('./submodule/reuniones/reuniones.routes').then(m => m.routes) },
       // Capacitaciones del colaborador (learning-ms). Vive aquí y no solo en Tu-Apo-Web:
       // el menú lo pinta esta app, y mandar a la persona a otro dominio la sacaba de su sesión.
