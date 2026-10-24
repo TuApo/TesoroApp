@@ -28,6 +28,7 @@ const ACCESOS: readonly Acceso[] = [
   { ruta: '/dashboard/campo/revision', icono: 'how_to_reg', nombre: 'Revisión', detalle: 'Selfies y alertas de marcación', soloSupervisa: true },
   { ruta: '/dashboard/campo/equipo', icono: 'account_tree', nombre: 'Equipo', detalle: 'Jerarquía y zonas', soloSupervisa: true },
   { ruta: '/dashboard/campo/fincas', icono: 'agriculture', nombre: 'Fincas y QR', detalle: 'Ubicación, geocerca y carteles', soloSupervisa: true },
+  { ruta: '/dashboard/campo/historico', icono: 'history', nombre: 'Histórico de visitas', detalle: 'Informes diarios desde 2023' },
   { ruta: '/dashboard/campo/indicadores', icono: 'insights', nombre: 'Formularios', detalle: 'Indicadores y pendientes' },
 ];
 

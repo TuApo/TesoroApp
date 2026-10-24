@@ -103,6 +103,19 @@ export interface MarcacionPendiente {
 
 export interface Punto { lat: number; lon: number; precision_m: number | null; capturado_ms: number; sin_conexion?: boolean }
 
+export interface VisitaHistorica {
+  id: number; submission_id: number; fecha: string; coordinador_nombre: string; coordinador_id: string | null;
+  oficina: string | null; tipo: 'FINCA' | 'OFICINA' | 'CONVOCATORIA'; finca_texto: string; finca_id: number | null;
+  finca_nombre: string | null; evidencia_documento_id: number | null; resumen_json: string | null; origen: 'GOOGLE_FORMS' | 'PLATAFORMA';
+}
+
+export interface ConteoHistorico { clave: string; nombre: string; visitas: number; ultima: string }
+
+export interface Historico {
+  total: number; pagina: number; tamano: number; filas: VisitaHistorica[];
+  por_finca: ConteoHistorico[]; por_coordinador: ConteoHistorico[]; por_mes: ConteoHistorico[];
+}
+
 export const ETIQUETA_ALERTA: Record<string, string> = {
   QR_INVALIDO: 'QR inválido',
   SIN_QR: 'Sin QR',
