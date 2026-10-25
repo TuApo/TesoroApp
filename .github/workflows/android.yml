@@ -1,0 +1,238 @@
+# Compila TesoroApp para Android con Capacitor y la publica en Google Play.
+#
+# - destino=artefacto (por defecto): genera el .aab firmado y lo deja como
+#   artefacto del run. Úsalo para la PRIMERA subida, que se hace a mano en
+#   Play Console › Gestión Tesorería › Prueba interna › Crear versión.
+# - destino=interna (o push de un tag android-v*): además sube el .aab a la
+#   pista de prueba interna con la cuenta de servicio github-play-deploy.
+#   Mientras la app no esté publicada, Play solo acepta estado=draft.
+# - Despliegue continuo: cada push a main que toque la app compila y sube a
+#   prueba interna. Si aún no existe el secreto PLAY_SERVICE_ACCOUNT_JSON, no
+#   falla: deja el .aab como artefacto. El estado de esas subidas lo da la
+#   variable del repo PLAY_ESTADO (draft por defecto; completed cuando la app
+#   ya esté publicada, para que llegue sola a los verificadores).
+#   El versionCode es el número de corrida: siempre crece.
+#
+# El repo no trae /android, capacitor.config.ts ni src/environments
+# (están en .gitignore), así que el workflow los reconstruye:
+#   - src/environments sale de un secreto (tar.gz en base64).
+#   - capacitor.config.ts se genera si no existe.
+#   - /android se crea con `npx cap add android`.
+#
+# Secretos del repo (Settings › Secrets and variables › Actions):
+#   ANGULAR_ENVIRONMENTS_TGZ_BASE64  tar -czf - src/environments | base64 -w0
+#   ANDROID_KEYSTORE_BASE64          base64 -w0 upload-keystore.jks
+#   ANDROID_KEYSTORE_PASSWORD        contraseña de la keystore
+#   ANDROID_KEY_ALIAS                alias de la llave (ej. upload)
+#   ANDROID_KEY_PASSWORD             contraseña de la llave
+#   PLAY_SERVICE_ACCOUNT_JSON        contenido completo del .json de la cuenta de servicio
+#                                    (solo hace falta para destino=interna)
+name: Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      destino:
+        description: 'artefacto = solo .aab firmado; interna = sube a prueba interna de Play'
+        type: choice
+        options: [artefacto, interna]
+        default: artefacto
+      estado:
+        description: 'Estado de la versión en Play (draft mientras la app no esté publicada)'
+        type: choice
+        options: [draft, completed]
+        default: draft
+  push:
+    tags: ['android-v*']
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'android/**'
+      - 'package.json'
+      - 'angular.json'
+      - '.github/workflows/android.yml'
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ID: com.apoyolaboral.gestiontesoreria
+  APP_NAME: Gestión Tesorería
+  WEB_DIR: dist/tesoreria/browser
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DESTINO: ${{ github.event_name == 'push' && 'interna' || inputs.destino }}
+      ESTADO: ${{ github.event_name == 'push' && (vars.PLAY_ESTADO || 'draft') || inputs.estado }}
+      # electron y su binario no hacen falta para la app móvil.
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Verificar secretos
+        env:
+          ANGULAR_ENVIRONMENTS_TGZ_BASE64: ${{ secrets.ANGULAR_ENVIRONMENTS_TGZ_BASE64 }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          requeridos="ANGULAR_ENVIRONMENTS_TGZ_BASE64 ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD"
+          # Push a main sin la cuenta de servicio todavía: se construye igual y queda como artefacto.
+          if [ "$DESTINO" = "interna" ] && [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "::warning::Sin PLAY_SERVICE_ACCOUNT_JSON: el .aab queda como artefacto y no se sube a Play"
+            echo "DESTINO=artefacto" >> "$GITHUB_ENV"
+            DESTINO=artefacto
+          fi
+          [ "$DESTINO" = "interna" ] && requeridos="$requeridos PLAY_SERVICE_ACCOUNT_JSON"
+          faltan=""
+          for v in $requeridos; do
+            [ -z "${!v}" ] && faltan="$faltan $v"
+          done
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan secretos:$faltan"
+            exit 1
+          fi
+
+      - name: Restaurar src/environments
+        env:
+          ANGULAR_ENVIRONMENTS_TGZ_BASE64: ${{ secrets.ANGULAR_ENVIRONMENTS_TGZ_BASE64 }}
+        run: |
+          echo "$ANGULAR_ENVIRONMENTS_TGZ_BASE64" | base64 --decode | tar -xzf -
+          ls src/environments
+
+      - name: Instalar dependencias
+        # No hay package-lock.json en el repo, por eso npm install y no npm ci.
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Versión de la app desde package.json
+        id: version
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          echo "name=$VER" >> "$GITHUB_OUTPUT"
+          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          for f in src/environments/environment.ts src/environments/environment.development.ts; do
+            [ -f "$f" ] && sed -i -E "s/appVersion:[[:space:]]*'[^']*'/appVersion: '$VER'/" "$f"
+          done
+
+      - name: Build Angular
+        run: |
+          npx ng build --configuration production
+          # Build SSR: Capacitor exige index.html en el webDir.
+          B="$WEB_DIR"
+          if [ ! -f "$B/index.html" ] && [ -f "$B/index.csr.html" ]; then cp "$B/index.csr.html" "$B/index.html"; fi
+
+      - name: capacitor.config.ts
+        run: |
+          if [ ! -f capacitor.config.ts ]; then
+            cat > capacitor.config.ts <<EOF
+          import type { CapacitorConfig } from '@capacitor/cli';
+
+          const config: CapacitorConfig = {
+            appId: '$APP_ID',
+            appName: '$APP_NAME',
+            webDir: '$WEB_DIR',
+            // La app se sirve dentro del teléfono como https://tesoro.tuapo.co: es un origen que
+            // el gateway y Caddy ya aceptan (CORS). Con el https://localhost por defecto, el API
+            // respondía 403 a todo y el login mostraba «problema de conexión».
+            server: {
+              hostname: 'tesoro.tuapo.co',
+              androidScheme: 'https',
+            },
+            android: {
+              // targetSdk 35 (Android 15) obliga a dibujar de borde a borde: sin esto la
+              // WebView queda debajo de la barra de estado y de la de navegación.
+              adjustMarginsForEdgeToEdge: 'auto',
+            },
+          };
+
+          export default config;
+          EOF
+          fi
+          cat capacitor.config.ts
+
+      - name: Crear proyecto Android y sincronizar
+        run: |
+          [ -d android ] || npx cap add android
+          npx cap sync android
+
+      - name: Versión en build.gradle
+        run: |
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ steps.version.outputs.code }}/; s/versionName \"[^\"]*\"/versionName \"${{ steps.version.outputs.name }}\"/" android/app/build.gradle
+          grep -E 'applicationId|versionCode|versionName' android/app/build.gradle
+
+      - name: Compilar .aab y .apk firmados
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          cd android
+          chmod +x gradlew
+          # .aab para Google Play y .apk para instalar a mano o repartir fuera de la tienda.
+          ./gradlew bundleRelease assembleRelease --no-daemon \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/upload.jks" \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+          cp app/build/outputs/bundle/release/app-release.aab "$GITHUB_WORKSPACE/TesoroApp-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}.aab"
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/TesoroApp-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}.apk"
+
+      - name: Guardar .aab y .apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: TesoroApp-android-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
+          path: |
+            TesoroApp-*.aab
+            TesoroApp-*.apk
+          retention-days: 30
+
+      - name: Verificar integridad (Play)
+        # Firma, targetSdk, 16 KB, permisos sensibles y origen de Capacitor. Si algo
+        # falla no se sube a Play; el informe lo muestra Infraestructura › DevOps.
+        run: |
+          python3 .github/scripts/verificar-android.py \
+            TesoroApp-*.apk TesoroApp-*.aab \
+            android/app/src/main/assets/capacitor.config.json verificacion.json
+
+      - name: Guardar verificación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verificacion-android-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
+          path: verificacion.json
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Subir a Google Play (prueba interna)
+        if: env.DESTINO == 'interna'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.APP_ID }}
+          releaseFiles: TesoroApp-*.aab
+          releaseName: ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})
+          track: internal
+          status: ${{ env.ESTADO }}
+
+      - name: Limpiar keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks"
