@@ -1205,18 +1205,57 @@ export class DocumentosPaqueteComponent {
       this.solicitandoFirma.set(false);
       return;
     }
-    Swal.fire({ title: 'Generando y enviando los documentos…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    // ms-templates genera con Chromium cada PDF dentro de la misma petición: con 8 documentos son
+    // ~30 s (prueba e2e del 2026-10-25). Sin decir cuánto falta, la gente recargaba o volvía a
+    // pulsar, y la segunda solicitud anula el enlace que ya le había llegado al candidato.
+    const n = ef.documentos.length;
+    const estimado = Math.max(10, n * 4);
+    const inicio = Date.now();
+    const idAnterior = ef.ultima?.id ?? null;
+    let reloj: ReturnType<typeof setInterval> | undefined;
+    const noSalir = (ev: BeforeUnloadEvent) => { ev.preventDefault(); ev.returnValue = ''; };
+    const terminar = () => {
+      clearInterval(reloj);
+      if (typeof window !== 'undefined') window.removeEventListener('beforeunload', noSalir);
+      this.solicitandoFirma.set(false);
+    };
+    if (typeof window !== 'undefined') window.addEventListener('beforeunload', noSalir);
+    Swal.fire({
+      title: 'Generando y enviando los documentos…',
+      html: `<div style="font-size:.9rem">Se están preparando <b>${n} documento${n === 1 ? '' : 's'}</b>; suele tardar
+        unos <b>${estimado} s</b>.<br>No cierres ni recargues la página: una segunda solicitud anula el enlace de la primera.
+        <p style="margin-top:.6rem;color:#6b7280">Tiempo transcurrido: <b id="dp-firma-seg">0 s</b></p></div>`,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        Swal.showLoading();
+        reloj = setInterval(() => {
+          const el = document.getElementById('dp-firma-seg');
+          if (el) el.textContent = `${Math.round((Date.now() - inicio) / 1000)} s`;
+        }, 1000);
+      },
+    });
     this.docsParametrizados.solicitarFirma(ced, centroCostoId, valores, this.usuarioSesion())
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (r) => {
-          this.solicitandoFirma.set(false);
+          terminar();
           Swal.fire('Solicitud enviada', `Se enviaron ${r.documentos} documento(s) a ${r.correo}. El enlace vence el ${r.expira_en}.`, 'success');
           this.cargarEstadoFirma(ced);
         },
-        error: (e) => {
-          this.solicitandoFirma.set(false);
-          Swal.fire('No se pudo solicitar la firma', e?.error?.error || e?.error?.message || 'Intenta de nuevo.', 'error');
+        error: async (e) => {
+          // Una respuesta perdida (red, gateway) no dice que el correo no saliera. Antes de invitar
+          // a reintentar se mira si ya existe una solicitud nueva: reintentar anularía su enlace.
+          const despues = await firstValueFrom(this.docsParametrizados.estadoFirma(ced)).catch(() => null);
+          terminar();
+          const nueva = despues?.ultima;
+          if (nueva && nueva.id !== idAnterior && nueva.estado === 'PENDIENTE') {
+            Swal.fire('La solicitud sí se envió',
+              `No llegó la respuesta, pero la solicitud quedó registrada y el correo salió a ${nueva.correo}. ` +
+              `El enlace vence el ${nueva.expira_en}. No la vuelvas a solicitar.`, 'success');
+          } else {
+            Swal.fire('No se pudo solicitar la firma', e?.error?.error || e?.error?.message || 'Intenta de nuevo.', 'error');
+          }
           this.cargarEstadoFirma(ced);
         },
       });

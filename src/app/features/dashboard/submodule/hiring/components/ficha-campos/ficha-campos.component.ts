@@ -16,6 +16,7 @@ import { Observable, of } from 'rxjs';
 import { SharedModule } from '@/app/shared/shared.module';
 import { CatalogValue } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { SaludAdres, detalleExcepcion } from '../../shared/salud-adres.util';
+import { CampoCotejoCedulaDirective } from '../form-entrevista/cotejo-cedula';
 
 /**
  * Las secciones en las que se agrupan los datos de la persona.
@@ -85,6 +86,8 @@ const FORMATO_FECHA = {
   selector: 'app-ficha-campos',
   standalone: true,
   imports: [
+    // Amarillo/rojo de la entrevista; sin CotejoCedulaEstado (fuera de ella) no pinta nada.
+    CampoCotejoCedulaDirective,
     SharedModule, ReactiveFormsModule,
     MatDatepickerModule, MatMomentDateModule, MatIconModule,
   ],

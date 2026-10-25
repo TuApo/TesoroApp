@@ -33,3 +33,30 @@ export function detalleExcepcion(rx: RegimenExcepcionAdres | null | undefined): 
     rx.estado ? `Estado: ${rx.estado}` : '',
   ].filter(Boolean).join(' · ');
 }
+
+/**
+ * ¿El PDF de ADRES trae, en el recuadro "Observaciones", la nota de régimen de
+ * excepción o especial? Es lo único que ADRES pone para esas personas (no hay
+ * tabla de afiliación), así que hay que leerlo del documento:
+ *
+ *   "…presentan a la fecha inconsistencia con una entidad del Regimen de
+ *    Excepcion o Especial, se sugiere dirigirse a la entidad…"
+ *
+ * Se busca solo entre "Observaciones" y el pie ("La información registrada…"):
+ * el pie habla de "Régimen Subsidiado y Régimen Contributivo" en TODOS los PDFs.
+ * Sin el título (texto partido raro) se busca en todo el texto: el pie no dice
+ * "excepción", así que no da falsos positivos.
+ */
+export function observacionExcepcionAdres(texto: string | null | undefined): boolean {
+  const t = (texto ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ');
+  if (!t) return false;
+  const ini = t.indexOf('OBSERVACIONES');
+  let zona = t;
+  if (ini >= 0) {
+    const fin = t.indexOf('LA INFORMACION REGISTRADA', ini);
+    zona = t.slice(ini, fin > ini ? fin : ini + 1200);
+  }
+  return /REGIMEN ?DE ?EXCEPCION|EXCEPCION ?O ?ESPECIAL/.test(zona);
+}

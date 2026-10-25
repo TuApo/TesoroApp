@@ -1,4 +1,9 @@
 import {
+  CAMPO_FECHA_EXAMEN,
+  CAMPO_PDF,
+  CAMPO_RESTRICCIONES,
+  faltantesExamenParaArl,
+  textoFaltantesArl,
   CAMPO_IPS,
   CAMPO_LISTA_EXAMENES,
   PRIMERO_CARGA_EXAMEN,
@@ -187,5 +192,37 @@ describe('resultado por examen en el título del soporte', () => {
   it('resultadosMarcados ignora los exámenes sin marcar', () => {
     expect(resultadosMarcados(['A', 'B'], [{ aptoStatus: 'NO APTO' }, {}]))
       .toEqual([{ examen: 'A', resultado: 'NO APTO' }]);
+  });
+});
+
+describe('faltantesExamenParaArl', () => {
+  const completo = {
+    ips: 'IPS X', examenes: ['Examen Médico'], pdfCargado: true,
+    concepto: 'APTO' as const, restricciones: '', fechaExamen: '2026-10-20',
+  };
+
+  it('completo: no falta nada y la ARL se abre', () => {
+    expect(faltantesExamenParaArl(completo)).toEqual([]);
+    expect(textoFaltantesArl([])).toBeNull();
+  });
+
+  it('sin fecha de realización no se abre la ARL', () => {
+    expect(faltantesExamenParaArl({ ...completo, fechaExamen: '' })).toEqual([CAMPO_FECHA_EXAMEN]);
+  });
+
+  it('apto con restricciones exige el texto', () => {
+    expect(faltantesExamenParaArl({ ...completo, concepto: 'APTO_CON_RESTRICCIONES', restricciones: ' ' }))
+      .toEqual([CAMPO_RESTRICCIONES]);
+  });
+
+  it('vacío: lista todos los obligatorios', () => {
+    const f = faltantesExamenParaArl({
+      ips: '', examenes: [], pdfCargado: false, concepto: null, restricciones: '', fechaExamen: null,
+    });
+    expect(f).toContain(CAMPO_IPS);
+    expect(f).toContain(CAMPO_LISTA_EXAMENES);
+    expect(f).toContain(CAMPO_PDF);
+    expect(f).toContain(CAMPO_FECHA_EXAMEN);
+    expect(f.length).toBe(5);
   });
 });

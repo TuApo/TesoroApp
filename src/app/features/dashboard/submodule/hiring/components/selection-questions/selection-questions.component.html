@@ -35,6 +35,24 @@
         <span class="tarjeta-punto" [attr.data-estado]="estadoTarjeta(fld)"></span>
       </div>
 
+      <!-- El documento a la vista: primera página del PDF; clic = abrirlo. -->
+      <app-miniatura-pdf class="tarjeta-mini"
+        [fuente]="$any(uploadedFiles)[fld.key]?.file"
+        [cargando]="!!$any(uploadedFiles)[fld.key]?.loading"
+        [titulo]="fld.label"
+        (abrir)="verArchivo(fld.key)"
+        (texto)="alLeerPdf(fld, $event)" />
+
+      <!-- Por qué la tarjeta está amarilla o roja, en palabras. -->
+      @if (motivosTarjeta(fld); as motivos) {
+        @if (motivos.length) {
+          <div class="tarjeta-motivos" [attr.data-estado]="estadoTarjeta(fld)">
+            <mat-icon class="tarjeta-motivos-icon">{{ estadoTarjeta(fld) === 'advertencia' ? 'error' : 'warning_amber' }}</mat-icon>
+            <span>{{ motivos.join(' · ') }}</span>
+          </div>
+        }
+      }
+
       <mat-form-field appearance="outline" class="example-full-width">
         @switch (fld.type) {
           <!-- ===== ESTADO ===== -->
@@ -178,8 +196,8 @@
             </div>
           }
           <!-- Pedido #6: salud según ADRES, solo en la tarjeta EPS. Informa, no bloquea. -->
-          @if (fld.key === 'eps' && saludAdres) {
-            @if (saludAdres.excepcion; as rx) {
+          @if (fld.key === 'eps' && (saludAdres || excepcionPdfAdres)) {
+            @if (saludAdres?.excepcion; as rx) {
               <div class="adres-salud adres-salud--excepcion" role="note">
                 <mat-icon class="adres-salud-icon">health_and_safety</mat-icon>
                 <span>
@@ -187,7 +205,15 @@
                   @if (detalleExcepcion(rx); as det) { <span class="adres-salud-det">{{ det }}</span> }
                 </span>
               </div>
-            } @else if (saludAdres.sinRegistro) {
+            } @else if (excepcionPdfAdres) {
+              <div class="adres-salud adres-salud--excepcion" role="note">
+                <mat-icon class="adres-salud-icon">health_and_safety</mat-icon>
+                <span>
+                  <span class="adres-salud-chip">Régimen especial/excepción</span>
+                  <span class="adres-salud-det">Según la observación del PDF de ADRES</span>
+                </span>
+              </div>
+            } @else if (saludAdres?.sinRegistro) {
               <div class="adres-salud adres-salud--verificar" role="note"
                    matTooltip="Puede ser de un régimen especial o de excepción, que no reporta a ADRES">
                 <mat-icon class="adres-salud-icon">info</mat-icon>

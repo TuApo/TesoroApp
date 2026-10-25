@@ -868,6 +868,9 @@ export class HelpInformationComponent implements OnInit {
       // dejó la pestaña limpia. (El fallback anterior era código muerto: leía
       // proceso.publicacion cuando `proceso` ya se sabía falsy.)
     }
+    // El reset de arriba no emite: sin esto, el avance (que cierra Exámenes de
+    // ingreso hasta tener la remisión completa) se quedaba con el de la persona anterior.
+    this.publicarAvanceRemision();
   }
 
   onVacanteIdChange(id: number | string): void {

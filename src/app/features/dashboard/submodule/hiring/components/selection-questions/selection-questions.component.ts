@@ -17,13 +17,14 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import type { AntecedentesPayload } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { RobotsService } from '../../service/robots/robots.service';
 import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
+import { MiniaturaPdfComponent } from '../miniatura-pdf/miniatura-pdf.component';
 import type { EstadoColaAntecedentes, ResultadosAntecedentes } from '../../service/robots/robots.service';
 import { contratoEnCurso, filtroOtroContrato, procesoDeAntecedentes } from '../../pages/recruitment-pipeline/contrato.rules';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 import { avanceDeForm } from '../../shared/progreso.util';
 import { AutoGuardado } from '../../shared/auto-guardado';
 import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
-import { SaludAdres, detalleExcepcion, saludAdresDe } from '../../shared/salud-adres.util';
+import { SaludAdres, detalleExcepcion, observacionExcepcionAdres, saludAdresDe } from '../../shared/salud-adres.util';
 
 /* ===================== Tipos ===================== */
 type UploadedFileInfo = {
@@ -126,7 +127,7 @@ const MAP_NOMBRE_TO_KEY: Record<string, FormPatchKeys> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-selection-questions',
   standalone: true,
-  imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule, AutoGuardadoEstadoComponent],
+  imports: [SharedModule, MatTabsModule, MatDatepickerModule, MatNativeDateModule, AutoGuardadoEstadoComponent, MiniaturaPdfComponent],
   templateUrl: './selection-questions.component.html',
   styleUrls: ['./selection-questions.component.css'],
 } )
@@ -337,6 +338,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
         // nuevo falla o demora, sus tarjetas mostrarían los valores del otro.
         this.resultadosRobot = {};
         this.saludAdres = null;
+        this.excepcionPdfAdres = false;
         this.camposDesdeRobot.clear();
         // Lo pendiente era de la anterior; lo que se pinte ahora no es edición.
         this.autoAntecedentes.cancelar();
@@ -470,32 +472,58 @@ export class SelectionQuestionsComponent implements OnDestroy {
   trackByIndex(index: number): number { return index; }
 
   /**
-   * Estado GENERAL de un antecedente, para pintar la tarjeta.
+   * Semáforo de la tarjeta: el BORDE dice de un vistazo cómo va el antecedente.
    *
-   * Resume en una palabra las tres señales que hoy hay que leer por separado
-   * (el valor del campo, si llegó el documento y en qué va la cola del robot),
-   * para poder darle un color a la tarjeta y que se vea de un vistazo cuál
-   * falta y cuál está lista.
+   *   'listo'       verde    — hay resultado Y está el PDF
+   *   'falta'       amarillo — falta el resultado o falta el PDF (incluye el
+   *                            robot todavía en cola / consultando)
+   *   'advertencia' rojo     — hay algo que mirar: NO CUMPLE, el robot se
+   *                            rindió, documento vencido, el robot devolvió algo
+   *                            que no encaja, ADRES sin registro, error de carga
    *
-   *   'listo'     verde  — hay valor y documento
-   *   'progreso'  ámbar  — el robot está trabajando o está en cola
-   *   'alerta'    rojo   — dice NO CUMPLE
-   *   'falta'     gris   — sin valor y sin documento
-   *   'bloqueado' pizarra— el robot lo intentó y no pudo: toca a mano
+   * Lo rojo gana a lo amarillo: un NO CUMPLE sin PDF sigue siendo, ante todo,
+   * un NO CUMPLE. El motivo sale en la tarjeta (`motivosTarjeta`).
    */
-  estadoTarjeta(fld: FieldDef): 'listo' | 'progreso' | 'alerta' | 'falta' | 'bloqueado' {
+  estadoTarjeta(fld: FieldDef): 'listo' | 'falta' | 'advertencia' {
+    if (this.advertenciasTarjeta(fld).length) return 'advertencia';
+    return this.faltantesTarjeta(fld).length ? 'falta' : 'listo';
+  }
+
+  /** Lo que falta para que la tarjeta quede en verde. */
+  faltantesTarjeta(fld: FieldDef): string[] {
+    const out: string[] = [];
     const valor = String(this.antecedentes.get(this.controlName(fld))?.value ?? '').trim();
-    if (valor.toUpperCase() === 'NO CUMPLE') return 'alerta';
-
     const cola = this.queueDetailFor(fld);
-    const tieneDoc = !!this.uploadedFiles[fld.key]?.file;
+    if (cola?.enProgreso) out.push('Robot consultando');
+    else if (cola && !cola.finalizado && !cola.bloqueado && cola.faltan !== null) out.push('En cola del robot');
+    if (!valor || valor.toUpperCase() === 'SIN BUSCAR') out.push('Falta el resultado');
+    if (!this.uploadedFiles[fld.key]?.file && !this.uploadedFiles[fld.key]?.loading) out.push('Falta el PDF');
+    return out;
+  }
 
-    if (valor && (tieneDoc || cola?.finalizado)) return 'listo';
-    // Antes de 'progreso': un BLOQUEADO cumple `cola && !cola.finalizado` y se
-    // pintaba ambar, o sea "el robot esta trabajando". No lo esta.
-    if (cola?.bloqueado) return 'bloqueado';
-    if (cola?.enProgreso || (cola && !cola.finalizado)) return 'progreso';
-    return valor ? 'listo' : 'falta';
+  /** Lo que pinta la tarjeta de rojo. */
+  advertenciasTarjeta(fld: FieldDef): string[] {
+    const out: string[] = [];
+    const valor = String(this.antecedentes.get(this.controlName(fld))?.value ?? '').trim();
+    if (valor.toUpperCase() === 'NO CUMPLE') out.push('No cumple');
+    if (fld.key === 'medidasCorrectivas' && Number(valor) > 0) out.push(`${valor} medida(s) correctiva(s)`);
+    if (this.queueDetailFor(fld)?.bloqueado) out.push('El robot no pudo: verificar a mano');
+    if (this.uploadedFiles[fld.key]?.error) out.push('Error al cargar el documento');
+    if (this.uploadedFiles[fld.key]?.file && this.isOlderThan(fld.key, 15)) out.push('Documento vencido');
+    // El robot trajo algo que no cuadra con lo guardado. Si no lo supo leer
+    // (sin `valor`) y alguien ya eligió a mano, eso ya es la revisión.
+    if (this.crudoRobot(fld) && !this.vieneDelRobot(fld) && (this.robotValor(fld) != null || !valor)) {
+      out.push('Revisar lo que trajo el robot');
+    }
+    if (fld.key === 'eps' && this.excepcionAdres()) out.push('Régimen de excepción o especial (ADRES)');
+    else if (fld.key === 'eps' && this.saludAdres?.sinRegistro) out.push('ADRES sin registro');
+    return out;
+  }
+
+  /** Motivos que se muestran en la tarjeta (advertencias primero). */
+  motivosTarjeta(fld: FieldDef): string[] {
+    const adv = this.advertenciasTarjeta(fld);
+    return adv.length ? adv : this.faltantesTarjeta(fld);
   }
 
   /** Nombre del archivo, o el aviso de que falta. */
@@ -654,6 +682,27 @@ export class SelectionQuestionsComponent implements OnDestroy {
    * o el aviso suave "ADRES sin registro". Sale de la misma respuesta del robot.
    */
   saludAdres: SaludAdres | null = null;
+  /**
+   * El PDF de ADRES de la tarjeta EPS dice, en Observaciones, "Regimen de
+   * Excepcion o Especial". Se lee en el navegador (la miniatura ya tiene el PDF):
+   * el backend debería mandarlo en `regimen_excepcion`, pero busca el PDF con un
+   * código de tipo que ms-documents no reconoce y nunca lo encuentra.
+   */
+  excepcionPdfAdres = false;
+
+  /** ¿Régimen de excepción, por el robot o por la observación del PDF? */
+  excepcionAdres(): boolean {
+    return !!this.saludAdres?.excepcion || this.excepcionPdfAdres;
+  }
+
+  /** La miniatura de la tarjeta EPS terminó de leer su PDF. */
+  alLeerPdf(fld: FieldDef, texto: string): void {
+    if (fld.key !== 'eps') return;
+    const dice = observacionExcepcionAdres(texto);
+    if (dice === this.excepcionPdfAdres) return;
+    this.excepcionPdfAdres = dice;
+    this.cdr.markForCheck();
+  }
   readonly detalleExcepcion = detalleExcepcion;
 
   /** Campos que quedaron diligenciados por el robot en esta carga. */
@@ -783,6 +832,14 @@ export class SelectionQuestionsComponent implements OnDestroy {
     const entry = Object.entries(this.robotKeyToControl).find(([, c]) => c === control);
     if (!entry) return null;
     return (this.resultadosRobot as any)[entry[0]]?.crudo ?? null;
+  }
+
+  /** Valor normalizado que devolvió el robot (null si no lo supo leer). */
+  private robotValor(fld: FieldDef): unknown {
+    const control = fld.control ?? fld.key;
+    const entry = Object.entries(this.robotKeyToControl).find(([, c]) => c === control);
+    const v = entry ? (this.resultadosRobot as any)[entry[0]]?.valor : null;
+    return v === undefined || v === '' ? null : v;
   }
 
   /** ¿Este campo lo llenó el robot en esta carga? */

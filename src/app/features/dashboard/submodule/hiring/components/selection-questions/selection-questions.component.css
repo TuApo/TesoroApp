@@ -356,7 +356,7 @@ mat-form-field.example-full-width {
   opacity: .85;
 }
 
-/* Pedido #6: salud según ADRES en la tarjeta EPS (chip ámbar / aviso gris). */
+/* Pedido #6: salud según ADRES en la tarjeta EPS (chip rojo = advertencia, 10-25 / aviso gris). */
 .adres-salud {
   display: flex;
   align-items: flex-start;
@@ -366,15 +366,15 @@ mat-form-field.example-full-width {
   line-height: 1.35;
 }
 .adres-salud-icon { font-size: 14px; width: 14px; height: 14px; line-height: 14px; flex: 0 0 auto; }
-.adres-salud--excepcion { color: light-dark(#92400e, #f5bc99); }
+.adres-salud--excepcion { color: light-dark(#991b1b, #fca5a5); }
 .adres-salud--verificar { color: var(--muted); }
 .adres-salud-chip {
   display: inline-block;
   margin-right: 4px;
   padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid light-dark(#fde68a, #6a5d1c);
-  background: light-dark(#fef3c7, #373625);
+  border: 1px solid light-dark(#fecaca, #7f1d1d);
+  background: light-dark(#fee2e2, #3b1d1d);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -471,14 +471,49 @@ mat-form-field.example-full-width {
   border-radius: 14px 14px 0 0;
   background: var(--surface-4);
 }
-.seccion > .input-container[data-estado="listo"]::before    { background: #16a34a; }
-.seccion > .input-container[data-estado="progreso"]::before { background: #f59e0b; }
-.seccion > .input-container[data-estado="alerta"]::before   { background: #dc2626; }
-.seccion > .input-container[data-estado="falta"]::before    { background: var(--surface-4); }
-/* Pizarra, no ambar: ambar ya significa "el robot esta trabajando" y esto es
-   justo lo contrario — se rindio y hay que hacerlo a mano. El texto de la
-   pildora lleva el significado; el color solo acompana. */
-.seccion > .input-container[data-estado="bloqueado"]::before { background: #475569; }
+/* Semáforo (pedido 10-25): el BORDE entero lleva el color, no solo la franja.
+   verde = resultado + PDF · amarillo = falta algo · rojo = advertencia. */
+.seccion > .input-container[data-estado="listo"]::before       { background: #16a34a; }
+.seccion > .input-container[data-estado="falta"]::before       { background: #eab308; }
+.seccion > .input-container[data-estado="advertencia"]::before { background: #dc2626; }
+
+.seccion > .input-container[data-estado="listo"] {
+  border: 2px solid rgba(22, 163, 74, .55) !important;
+}
+.seccion > .input-container[data-estado="falta"] {
+  border: 2px solid #eab308 !important;
+  background: color-mix(in srgb, #eab308 5%, var(--surface)) !important;
+}
+.seccion > .input-container[data-estado="advertencia"] {
+  border: 2px solid #dc2626 !important;
+  background: color-mix(in srgb, #dc2626 5%, var(--surface)) !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, .10) !important;
+}
+
+/* Miniatura del documento */
+.tarjeta-mini { margin: 0 0 10px; }
+
+/* Motivo del color, en palabras (quien no distingue colores lo lee aquí). */
+.tarjeta-motivos {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.tarjeta-motivos-icon { font-size: 15px; width: 15px; height: 15px; flex: 0 0 auto; }
+.tarjeta-motivos[data-estado="falta"] {
+  background: rgba(234, 179, 8, .14);
+  color: #854d0e; color: light-dark(#854d0e, #fde68a);
+}
+.tarjeta-motivos[data-estado="advertencia"] {
+  background: rgba(220, 38, 38, .12);
+  color: #991b1b; color: light-dark(#991b1b, #fca5a5);
+}
 
 /* ───────────── Encabezado ───────────── */
 .tarjeta-head {
@@ -515,10 +550,9 @@ mat-form-field.example-full-width {
   background: var(--border-strong);
   box-shadow: 0 0 0 3px rgba(203, 213, 225, .25);
 }
-.tarjeta-punto[data-estado="listo"]    { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .18); }
-.tarjeta-punto[data-estado="progreso"] { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .18); }
-.tarjeta-punto[data-estado="alerta"]   { background: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .18); }
-.tarjeta-punto[data-estado="bloqueado"] { background: #475569; box-shadow: 0 0 0 3px rgba(71, 85, 105, .18); }
+.tarjeta-punto[data-estado="listo"]       { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .18); }
+.tarjeta-punto[data-estado="falta"]       { background: #eab308; box-shadow: 0 0 0 3px rgba(234, 179, 8, .22); }
+.tarjeta-punto[data-estado="advertencia"] { background: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, .18); }
 
 /* ───────────── El campo ───────────── */
 .seccion > .input-container .mat-mdc-form-field {

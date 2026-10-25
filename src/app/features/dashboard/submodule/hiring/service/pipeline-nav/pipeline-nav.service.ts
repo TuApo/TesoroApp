@@ -8,6 +8,18 @@ export interface BiometriaResumen {
   huella: string | null;
 }
 
+/**
+ * Lo mínimo para abrir la Entrevista: cédula cargada, correo comprobado, huella
+ * y foto. Es el 100 % del paso Cédula & Huella; firma y WhatsApp son opcionales.
+ *
+ * `resuelto` es falso mientras se pregunta al servidor si la cédula y la huella
+ * ya están en el expediente: sin eso, cada persona nueva parpadeaba bloqueada.
+ */
+export interface RequisitosIdentidad {
+  resuelto: boolean;
+  faltantes: readonly string[];
+}
+
 /** Lo que la ficha muestra de la vacante remitida. */
 export interface VacanteAsignadaResumen {
   id: number;
@@ -122,6 +134,13 @@ export class PipelineNavService {
   readonly biometria = signal<BiometriaResumen>({ foto: null, firma: null, huella: null });
 
   /**
+   * Qué falta de la identidad para abrir la Entrevista. Lo publica el paso
+   * Cédula & Huella, que es quien sabe si la cédula y la huella están guardadas;
+   * el rail del pipeline lo usa para cerrar el paso.
+   */
+  readonly requisitosIdentidad = signal<RequisitosIdentidad>({ resuelto: false, faltantes: [] });
+
+  /**
    * ¿Se puede generar la documentación, y si no, por qué?
    *
    * La puerta de la generación es la MISMA de siempre —hay candidato y "Pago y
@@ -211,6 +230,7 @@ export class PipelineNavService {
     this.edicionFicha.set(null);
     this.vacanteAsignada.set(null);
     this.biometria.set({ foto: null, firma: null, huella: null });
+    this.requisitosIdentidad.set({ resuelto: false, faltantes: [] });
     this.avanceFicha.set({});
     this.generacion.set({ puede: false, motivo: '' });
   }

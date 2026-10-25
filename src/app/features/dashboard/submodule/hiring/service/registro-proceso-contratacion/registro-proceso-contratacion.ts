@@ -172,6 +172,23 @@ export interface CandidatoUpsertResponse {
 
 
 // ===== Listado y filtros generales =====
+/** Respuesta de /cedula-lectura (ms-hr, contratacion/identidad). Siempre 200: se mira `estado`. */
+export interface LecturaCedula {
+  estado: 'LEIDA' | 'NO_ES_CEDULA' | 'SIN_CEDULA' | 'SIN_IMAGEN' | 'ILEGIBLE' | 'IA_NO_DISPONIBLE';
+  mensaje?: string | null;
+  documento_id?: number | null;
+  version_id?: number | null;
+  modelo_cedula?: 'AMARILLA' | 'DIGITAL' | 'OTRO' | null;
+  confianza?: number | null;
+  observaciones?: string | null;
+  /** Fechas en YYYY-MM-DD; textos en mayúsculas; null = no se ve o no se leyó. */
+  campos?: Partial<Record<
+    'numero_documento' | 'primer_apellido' | 'segundo_apellido' | 'primer_nombre' | 'segundo_nombre'
+    | 'apellidos' | 'nombres' | 'fecha_nacimiento' | 'municipio_nacimiento' | 'departamento_nacimiento'
+    | 'sexo' | 'rh' | 'estatura' | 'fecha_expedicion' | 'municipio_expedicion' | 'departamento_expedicion'
+    | 'fecha_expiracion', string | null>>;
+}
+
 /** Respuesta de /biometria/cotejo-cedula (ms-hr, contratacion/cotejo). */
 export interface CotejoHuellaCedula {
   ok: boolean;
@@ -1320,6 +1337,16 @@ export class RegistroProcesoContratacion {
     return this.http
       .get<CotejoHuellaCedula>(this.url(`biometria/cotejo-cedula/${encodeURIComponent(String(numero_documento))}`),
               { params: new HttpParams().set('empresa', empresa) })
+      .pipe(this.handle$());
+  }
+
+  /**
+   * Datos impresos en la cédula cargada, leídos con IA en ms-hr (contratacion/identidad).
+   * La lectura se recuerda por versión del documento; `forzar` la repite.
+   */
+  leerCedula(numero_documento: string | number, forzar = false) {
+    const url = this.url(`cedula-lectura/${encodeURIComponent(String(numero_documento))}`);
+    return (forzar ? this.http.post<LecturaCedula>(url, null) : this.http.get<LecturaCedula>(url))
       .pipe(this.handle$());
   }
 

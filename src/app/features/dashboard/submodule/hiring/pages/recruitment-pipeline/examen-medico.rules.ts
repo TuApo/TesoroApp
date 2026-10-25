@@ -249,6 +249,43 @@ export function resultadosMarcados(
   });
 }
 
+export const CAMPO_PDF = 'PDF del examen cargado';
+export const CAMPO_CONCEPTO = 'Concepto APTO o APTO CON RESTRICCIONES';
+export const CAMPO_RESTRICCIONES = 'Restricciones';
+export const CAMPO_FECHA_EXAMEN = 'Fecha realización del examen';
+
+export interface DatosExamenArl {
+  readonly ips: unknown;
+  readonly examenes: unknown;
+  readonly pdfCargado: boolean;
+  readonly concepto: ConceptoExamen | null | undefined;
+  readonly restricciones: unknown;
+  readonly fechaExamen: unknown;
+}
+
+/**
+ * Obligatorios de Salud ocupacional que faltan para abrir la ARL: los de cargar
+ * el examen, el PDF, un concepto que deja contratar (con sus restricciones) y
+ * la fecha de realización. A diferencia de `evaluarExamen`, no mira la fecha de
+ * corte: la ARL no se registra sin el examen completo.
+ */
+export function faltantesExamenParaArl(d: DatosExamenArl): string[] {
+  const faltan = faltantesParaCargarExamen(d.ips, d.examenes);
+  if (!d.pdfCargado) faltan.push(CAMPO_PDF);
+  if (!conceptoPermiteContratar(d.concepto)) faltan.push(CAMPO_CONCEPTO);
+  else if (d.concepto === 'APTO_CON_RESTRICCIONES' && !String(d.restricciones ?? '').trim()) {
+    faltan.push(CAMPO_RESTRICCIONES);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}/.test(String(d.fechaExamen ?? '').trim())) faltan.push(CAMPO_FECHA_EXAMEN);
+  return faltan;
+}
+
+/** "Para abrir la ARL falta del examen médico: …" (null si no falta nada). */
+export function textoFaltantesArl(faltan: readonly string[]): string | null {
+  if (!faltan.length) return null;
+  return `Para abrir la ARL falta del examen médico: ${unirConY(faltan)} (Selección → Exámenes de ingreso).`;
+}
+
 /** "Para cargar el examen falta: IPS principal y Lista de exámenes." ('' si no falta nada). */
 export function textoFaltantesCarga(faltan: readonly string[]): string {
   if (!faltan.length) return '';
