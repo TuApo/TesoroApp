@@ -4,6 +4,7 @@ import { environment } from '@/environments/environment';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { NetworkStatusService } from '../../../core/services/network-status.service';
+import { modoDemoActivo } from '../../../core/demo/modo-demo';
 
 @Injectable({ providedIn: 'root' })
 export class LoginService {
@@ -22,6 +23,10 @@ export class LoginService {
 
   // Login (correo o documento)
   async login(login: string, password: string): Promise<{ token: string; user: any }> {
+    // Demostración (revisión de Play): fuera de Colombia el heartbeat marca la app sin red a los
+    // ~40 s en la pantalla de login, y la cuenta de revisión caería en el login sin red y fallaría.
+    // En demo quien contesta es el sandbox, que siempre está «en línea».
+    if (modoDemoActivo()) this.networkStatus.markOnline();
     if (!this.networkStatus.isOnline) {
       const local = await this.loginSinRed(login, password);
       if (local) return local;

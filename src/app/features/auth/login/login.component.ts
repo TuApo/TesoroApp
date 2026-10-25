@@ -226,6 +226,10 @@ export class LoginComponent implements OnInit {
 
     const { login, password } = this.loginForm.value;
 
+    // Una marca de demostración que quedó puesta (la app se cerró sin logout) haría que el
+    // sandbox contestara también este login real: solo la cuenta de revisión la conserva.
+    if (!esCuentaDeRevision(login, password)) removeLocalStorageItem(CLAVE_MODO_DEMO);
+
     if (esCuentaDeRevision(login, password)) {
       // Revisión de Google Play: desde aquí la app no sale al API y trabaja con datos
       // ficticios (ver core/demo/modo-demo.ts). El login sigue el camino normal.
@@ -247,6 +251,8 @@ export class LoginComponent implements OnInit {
     password: string,
     origen: 'formulario' | 'acceso-rapido' | 'demo',
   ): Promise<void> {
+    // El acceso rápido nunca guarda la cuenta de revisión: es siempre un login real.
+    if (origen === 'acceso-rapido') removeLocalStorageItem(CLAVE_MODO_DEMO);
     this.loading.set(true);
     try {
       const resp = await this.loginS.login(login, password);

@@ -57,11 +57,25 @@ export function instalarSandboxDemo(apiUrl: string): void {
     });
   };
 
+  // XHR (la app casi no lo usa: HttpClient va por fetch): la petición al API nunca sale y termina
+  // como un fallo de red. Nada de `data:` URLs, que la CSP (connect-src) rechazaría de todos modos.
+  const xhrDemo = new WeakSet<XMLHttpRequest>();
   const openReal = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...resto: any[]) {
-    const destino = interceptar(url) ? 'data:application/json,%5B%5D' : url;
-    return (openReal as any).call(this, method, destino, ...resto);
+    if (interceptar(url)) xhrDemo.add(this); else xhrDemo.delete(this);
+    return (openReal as any).call(this, method, url, ...resto);
   } as typeof XMLHttpRequest.prototype.open;
+  const sendReal = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function (this: XMLHttpRequest, cuerpo?: Document | XMLHttpRequestBodyInit | null) {
+    if (!xhrDemo.has(this)) return sendReal.call(this, cuerpo);
+    const xhr = this;
+    setTimeout(() => {
+      Object.defineProperty(xhr, 'readyState', { value: 4, configurable: true });
+      for (const tipo of ['readystatechange', 'error', 'loadend']) {
+        xhr.dispatchEvent(tipo === 'readystatechange' ? new Event(tipo) : new ProgressEvent(tipo));
+      }
+    }, 0);
+  };
 
   if (typeof navigator.sendBeacon === 'function') {
     const beaconReal = navigator.sendBeacon.bind(navigator);
