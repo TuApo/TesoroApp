@@ -2,6 +2,7 @@ import { bootstrapApplication } from '@angular/platform-browser';
 import { appConfig } from './app/app.config';
 import { AppComponent } from './app/app.component';
 import { instalarDescargasNativas } from './app/core/nativo/descargas-nativas';
+import { prepararModoDemo } from './app/core/demo/modo-demo';
 
 // 👇 Agrega estas 2 líneas antes del bootstrap
 import { registerLocaleData } from '@angular/common';
@@ -17,5 +18,8 @@ if (typeof window !== 'undefined' && /\/campo\/qr\/?$/.test(window.location.path
   window.location.replace('/#/campo/qr' + window.location.search);
 }
 
-bootstrapApplication(AppComponent, appConfig)
-  .catch((err) => console.error(err));
+// Revisión de Google Play: si quedó abierta una sesión de demostración, el sandbox de red tiene
+// que estar puesto antes de la primera petición (ver core/demo/modo-demo.ts).
+prepararModoDemo()
+  .catch((err) => console.error(err))
+  .finally(() => bootstrapApplication(AppComponent, appConfig).catch((err) => console.error(err)));
