@@ -227,8 +227,10 @@ export class DocumentacionService {
     formData.append('file', file, filename);
     if (contract_number) formData.append('contract_number', contract_number);
 
+    // Misma carga validada que contratación: un documento de contratación que no está chuleado
+    // para la requisición de la persona no se vuelve a subir (409 con el motivo).
     return this.http
-      .post(`${this.apiUrl}/gestion_documental/documentos/`, formData)
+      .post(`${this.apiUrl}/plantillas/excel/documentos/cargar`, formData)
       .pipe(
         map((response: any) => response),
         catchError(this.handleError)

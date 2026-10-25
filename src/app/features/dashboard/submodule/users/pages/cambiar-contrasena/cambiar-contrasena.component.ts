@@ -51,7 +51,7 @@ export class CambiarContrasenaComponent implements OnInit {
     this.myForm = this.fb.group(
       {
         oldPassword: ['', Validators.required],
-        newPassword: ['', [Validators.required, Validators.minLength(6)]],
+        newPassword: ['', [Validators.required]],
         confirmNewPassword: ['', Validators.required]
       },
       { validators: this.passwordsMatchValidator }

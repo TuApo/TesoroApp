@@ -21,9 +21,9 @@
         <span>Añadir Vacante</span>
       </button>
 
-      <button mat-menu-item (click)="fileInput.click()">
+      <button mat-menu-item (click)="abrirCargaMasiva()">
         <mat-icon>upload_file</mat-icon>
-        <span>Subir Excel Vacantes</span>
+        <span>Carga masiva de vacantes (Excel)</span>
       </button>
 
       <button mat-menu-item (click)="descargarExcelVacantes($event)">
@@ -37,7 +37,6 @@
       </button>
     </mat-menu>
 
-    <input type="file" #fileInput (change)="onFileSelected($event)" hidden />
   </mat-card-header>
   <mat-card-content class="card-content">
 
@@ -127,7 +126,7 @@
 
       <!-- Salario con currency -->
       <ng-template appCellTemplate="salario" let-row>
-        {{ row.salario | currency }}
+        {{ row.salario | currency:'COP':'symbol-narrow':'1.0-0' }}
       </ng-template>
 
       <!-- Municipio: chip si son más de 2; nombres si son 2 o menos -->

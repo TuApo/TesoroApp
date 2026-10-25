@@ -16,7 +16,7 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 
 import Swal from 'sweetalert2';
 
-import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { NominaService, CentroCostoAdmin, Client } from '../../service/nomina/nomina.service';
 import { CentroCostoFormDialogComponent } from './centro-costo-form-dialog.component';
 
@@ -85,6 +85,41 @@ export class CentrosCostoComponent implements OnInit {
 
   readonly idCentro = (c: CentroCostoAdmin) => c.id_ceco;
   readonly claseFila = (c: CentroCostoAdmin) => (c.active ? '' : 'te-fila--atenuada');
+
+  /**
+   * Acciones sobre lo marcado (estándar de la tabla): desactivar o reactivar
+   * varios de una vez. Cada una actúa solo sobre los que están en el estado
+   * contrario; la tabla pone el botón con el conteo, la confirmación con el
+   * carrusel de registros, la ejecución uno a uno y el cierre.
+   */
+  readonly accionesMasivas: AccionMasiva<CentroCostoAdmin>[] = [
+    {
+      id: 'desactivar', etiqueta: 'Desactivar', icono: 'block', tono: 'aviso',
+      aplicaA: (c) => !!c.active,
+      confirmar: {
+        icono: 'warning',
+        texto: (centros) => {
+          const conContratos = centros.filter((c) => c.contratos_count > 0).length;
+          return 'Ninguno se elimina: quedan inactivos y no aparecerán para nuevas operaciones. '
+            + 'Los contratos existentes conservan su relación.'
+            + (conContratos ? ` ${conContratos} de ellos tienen contratos asociados.` : '');
+        },
+      },
+      ejecutar: (c) => this.nominaService.desactivarCentroCosto(c.id_ceco),
+      etiquetaFila: (c) => c.nombre,
+      verbo: 'desactivado(s)',
+      alTerminar: () => this.cargar(),
+    },
+    {
+      id: 'reactivar', etiqueta: 'Reactivar', icono: 'check_circle', tono: 'primario',
+      aplicaA: (c) => !c.active,
+      confirmar: { icono: 'question', texto: 'Vuelven a estar disponibles para nuevas operaciones de nómina.' },
+      ejecutar: (c) => this.nominaService.reactivarCentroCosto(c.id_ceco),
+      etiquetaFila: (c) => c.nombre,
+      verbo: 'reactivado(s)',
+      alTerminar: () => this.cargar(),
+    },
+  ];
 
   constructor(
     private nominaService: NominaService,

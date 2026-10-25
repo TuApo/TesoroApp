@@ -47,6 +47,20 @@ function getExperienciasOrdenadas(experiencias: AnyObj[]): AnyObj[] {
   });
 }
 
+/**
+ * Rango de educación superior de un `nivel` (0 = no es superior). La media
+ * técnica ("BACHILLER TÉCNICO", "EDUCACIÓN MEDIA TÉCNICA") no cuenta.
+ */
+function rangoSuperior(nivel: any): number {
+  const n = s(nivel).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  if (/MEDIA|BACH/.test(n)) return 0;
+  if (/POSGRADO|POSTGRADO|ESPECIALIZ|MAESTR|DOCTOR/.test(n)) return 4;
+  if (/PROFESIONAL|UNIVERSIT|PREGRADO/.test(n)) return 3;
+  if (/TECNOLOG/.test(n)) return 2;
+  if (/TECNIC/.test(n)) return 1;
+  return 0;
+}
+
 /** Devuelve la formación que coincida con `niveles` (lista de strings, case-insensitive, contains). */
 function findFormacion(formaciones: AnyObj[], niveles: string[]): AnyObj | null {
   if (!Array.isArray(formaciones)) return null;
@@ -63,20 +77,23 @@ function getFamiliar(familiares: AnyObj[], tipo: string): AnyObj | null {
   return familiares.find(f => s(f?.tipo).toUpperCase() === tipo) || null;
 }
 
-/** Splits texto largo en N líneas con corte por palabra. */
+/**
+ * Splits texto largo en N líneas con corte por palabra. El último renglón se
+ * llena hasta `lineLen` como los demás; lo que no cabe ahí se descarta. (Antes
+ * cortaba al empezar el último renglón y este quedaba con una sola palabra.)
+ */
 function splitInLines(text: string, lines: number, lineLen = 110): string[] {
   const out: string[] = [];
-  if (!text) return Array(lines).fill('');
-  const words = text.split(/\s+/);
   let cur = '';
-  for (const w of words) {
+  for (const w of (text || '').split(/\s+/).filter(Boolean)) {
     const tentative = cur ? `${cur} ${w}` : w;
-    if (tentative.length <= lineLen) {
+    if (tentative.length <= lineLen || !cur) {
       cur = tentative;
-    } else {
+    } else if (out.length < lines - 1) {
       out.push(cur);
       cur = w;
-      if (out.length >= lines - 1) break;
+    } else {
+      break;
     }
   }
   if (cur) out.push(cur);
@@ -148,6 +165,7 @@ export function fillMinervaPdf(
   const experiencias: AnyObj[] = Array.isArray(cand.experiencias) ? cand.experiencias : [];
   const hijos: AnyObj[] = Array.isArray(cand.hijos) ? cand.hijos : [];
   const entrevista: AnyObj = (Array.isArray(cand.entrevistas) && cand.entrevistas[0]) || {};
+  const expsOrdenadas = getExperienciasOrdenadas(experiencias);
 
   const conyuge = getFamiliar(familiares, 'CONYUGUE');
   const padre = getFamiliar(familiares, 'PADRE');
@@ -195,7 +213,14 @@ export function fillMinervaPdf(
   setT(1, 12, 'Colombiana');
 
   // Profesión, ocupación u oficio | Estado civil | Años exp.
-  const profesion = s(formaciones[0]?.titulo_obtenido || expRes.area_experiencia);
+  // Un título de educación superior si lo hay; si no, el cargo del empleo más
+  // reciente. Tomar el título de la PRIMERA formación ponía "Básica primaria".
+  const tituloSuperior = formaciones
+    .filter(f => rangoSuperior(f?.nivel) > 0 && s(f?.titulo_obtenido).trim())
+    .sort((a, b) => rangoSuperior(b.nivel) - rangoSuperior(a.nivel))[0];
+  const profesion = s(tituloSuperior?.titulo_obtenido)
+    || s(expsOrdenadas[0]?.cargo)
+    || s(expRes.area_experiencia);
   setT(1, 13, profesion);
   setT(1, 14, s(cand.estado_civil));
   setT(1, 15, s(expRes.anios_experiencia ?? expRes.tiempo_experiencia_texto));
@@ -360,149 +385,96 @@ export function fillMinervaPdf(
   // ════════════════════════════════════════════════════════════════════
   // PÁGINA 3 — 3 últimas experiencias laborales
   // ════════════════════════════════════════════════════════════════════
-  const expsOrdenadas = getExperienciasOrdenadas(experiencias);
-
+  // Índices verificados escribiendo el número de cada campo dentro del PDF y
+  // renderizándolo. El molde no sigue un orden por bloque (el año de ingreso del
+  // bloque 1 es [43]), por eso cada bloque lleva su mapa completo.
+  // Quedan vacíos a propósito: sueldos, cargos desempeñados y logros (no hay
+  // dato) y "Verificación" ([20], [22], [45]), que es del entrevistador.
   type ExpBlock = {
     empresa: number;
     direccion: number;
     telefono: number;
     cargo: number;
     jefe: number;
-    fechaIngresoD: number; fechaIngresoM: number; fechaIngresoA: number;
-    fechaRetiroD: number;  fechaRetiroM: number;  fechaRetiroA: number;
+    ingreso: [number, number, number]; // D, M, A
+    retiro: [number, number, number];  // D, M, A
     totalTiempo: number;
-    sueldoInicial: number;
-    sueldoFinal: number;
-    logros: number;
+    funciones: [number, number];       // dos renglones
     motivoRetiro: number;
   };
   const blocks: ExpBlock[] = [
     {
-      empresa: 0, direccion: 1, telefono: 2,
-      cargo: 3, jefe: 4,
-      fechaIngresoD: 5, fechaIngresoM: 6, fechaIngresoA: 10,
-      fechaRetiroD: 8, fechaRetiroM: 9, fechaRetiroA: 43,
-      totalTiempo: 11, sueldoInicial: 12, sueldoFinal: 13,
-      logros: 17, motivoRetiro: 16,
+      empresa: 0, direccion: 1, telefono: 2, cargo: 3, jefe: 4,
+      ingreso: [5, 6, 43], retiro: [8, 9, 10],
+      totalTiempo: 11, funciones: [15, 16], motivoRetiro: 19,
     },
     {
-      empresa: 41, direccion: 41, telefono: 40, // empresa[0] no, [41] dirección, [40] tel — hay solo nombre+dir+tel en bloque 2
-      // (los campos del bloque 2 son: nombre→[?], dirección→[41], teléfono→[40], cargo→[38], jefe→[39],
-      //  fecha_ingreso D/M/A → [37,36,?], fecha_retiro D/M/A → [35,34,33], total → [32], $ inicial → [31], $ final → [30],
-      //  logros → [26], $ algo → [27,28]
-      cargo: 38, jefe: 39,
-      fechaIngresoD: 37, fechaIngresoM: 36, fechaIngresoA: 33,
-      fechaRetiroD: 35, fechaRetiroM: 34, fechaRetiroA: 33,
-      totalTiempo: 32, sueldoInicial: 31, sueldoFinal: 30,
-      logros: 26, motivoRetiro: 27,
+      empresa: 21, direccion: 41, telefono: 40, cargo: 38, jefe: 39,
+      ingreso: [37, 36, 42], retiro: [35, 34, 33],
+      totalTiempo: 32, funciones: [28, 27], motivoRetiro: 23,
     },
     {
-      empresa: 65, direccion: 65, telefono: 64,
-      cargo: 62, jefe: 63,
-      fechaIngresoD: 61, fechaIngresoM: 60, fechaIngresoA: 56,
-      fechaRetiroD: 58, fechaRetiroM: 57, fechaRetiroA: 56,
-      totalTiempo: 55, sueldoInicial: 54, sueldoFinal: 53,
-      logros: 49, motivoRetiro: 50,
+      empresa: 44, direccion: 65, telefono: 64, cargo: 62, jefe: 63,
+      ingreso: [61, 60, 59], retiro: [58, 57, 56],
+      totalTiempo: 55, funciones: [51, 50], motivoRetiro: 46,
     },
   ];
 
-  // Bloque 1 — campos especiales fuera del molde
-  const exp1 = expsOrdenadas[0];
-  if (exp1) {
-    const fi = fechaPartes(exp1.fecha_ingreso || exp1.fechaIngreso);
-    const fr = fechaPartes(exp1.fecha_retiro);
-    setT(3, 0, s(exp1.empresa));
-    setT(3, 1, s(exp1.direccion));
-    setT(3, 2, s(exp1.telefonos));
-    setT(3, 3, s(exp1.cargo));
-    setT(3, 4, s(exp1.nombre_jefe));
-    setT(3, 5, fi.d); setT(3, 6, fi.m); setT(3, 10, fi.a);
-    setT(3, 8, fr.d); setT(3, 9, fr.m); setT(3, 43, fr.a);
-    setT(3, 11, s(exp1.tiempo_trabajado));
-    setT(3, 17, s(exp1.labores_principales || exp1.labores_realizadas));
-    setT(3, 16, s(exp1.motivo_retiro));
-  }
-
-  // Bloque 2
-  const exp2 = expsOrdenadas[1];
-  if (exp2) {
-    const fi = fechaPartes(exp2.fecha_ingreso || exp2.fechaIngreso);
-    const fr = fechaPartes(exp2.fecha_retiro);
-    // Nombre de la empresa (col1) — el campo del molde no existe explícito;
-    // usamos [41]=Dirección, así que ponemos empresa+dirección concatenados al campo Dirección si la empresa
-    // no tiene un campo propio en este bloque.
-    setT(3, 41, [s(exp2.empresa), s(exp2.direccion)].filter(Boolean).join(' — '));
-    setT(3, 40, s(exp2.telefonos));
-    setT(3, 38, s(exp2.cargo));
-    setT(3, 39, s(exp2.nombre_jefe));
-    setT(3, 37, fi.d); setT(3, 36, fi.m);
-    setT(3, 35, fr.d); setT(3, 34, fr.m); setT(3, 33, fr.a);
-    setT(3, 32, s(exp2.tiempo_trabajado));
-    setT(3, 26, s(exp2.labores_principales || exp2.labores_realizadas));
-    setT(3, 27, s(exp2.motivo_retiro));
-  }
-
-  // Bloque 3
-  const exp3 = expsOrdenadas[2];
-  if (exp3) {
-    const fi = fechaPartes(exp3.fecha_ingreso || exp3.fechaIngreso);
-    const fr = fechaPartes(exp3.fecha_retiro);
-    setT(3, 65, [s(exp3.empresa), s(exp3.direccion)].filter(Boolean).join(' — '));
-    setT(3, 64, s(exp3.telefonos));
-    setT(3, 62, s(exp3.cargo));
-    setT(3, 63, s(exp3.nombre_jefe));
-    setT(3, 61, fi.d); setT(3, 60, fi.m); setT(3, 56, fi.a);
-    setT(3, 58, fr.d); setT(3, 57, fr.m);
-    setT(3, 55, s(exp3.tiempo_trabajado));
-    setT(3, 49, s(exp3.labores_principales || exp3.labores_realizadas));
-    setT(3, 50, s(exp3.motivo_retiro));
-  }
-  void blocks; // estructura conservada para documentación; el llenado va arriba.
+  blocks.forEach((b, i) => {
+    const exp = expsOrdenadas[i];
+    if (!exp) return;
+    const fi = fechaPartes(exp.fecha_ingreso || exp.fechaIngreso);
+    const fr = fechaPartes(exp.fecha_retiro);
+    setT(3, b.empresa, s(exp.empresa));
+    setT(3, b.direccion, s(exp.direccion));
+    setT(3, b.telefono, s(exp.telefonos));
+    setT(3, b.cargo, s(exp.cargo));
+    setT(3, b.jefe, s(exp.nombre_jefe));
+    setT(3, b.ingreso[0], fi.d); setT(3, b.ingreso[1], fi.m); setT(3, b.ingreso[2], fi.a);
+    setT(3, b.retiro[0], fr.d); setT(3, b.retiro[1], fr.m); setT(3, b.retiro[2], fr.a);
+    setT(3, b.totalTiempo, s(exp.tiempo_trabajado));
+    const [f1, f2] = splitInLines(s(exp.labores_principales || exp.labores_realizadas), 2, 110);
+    setT(3, b.funciones[0], f1);
+    setT(3, b.funciones[1], f2);
+    setT(3, b.motivoRetiro, s(exp.motivo_retiro));
+  });
 
   // ════════════════════════════════════════════════════════════════════
   // PÁGINA 4 — Referencias + Familiar de contacto + Firma
   // ════════════════════════════════════════════════════════════════════
 
-  // Referencias personales/laborales (3 filas)
+  // Referencias personales/laborales: el molde trae DOS filas.
   // Fila 1: [0]=Nombre, [4]=Ocupación, [6]=Dirección, [9]=Teléfono
   // Fila 2: [1]=Nombre, [3]=Ocupación, [7]=Dirección, [10]=Teléfono
-  // Fila 3: [2]=Nombre, [5]=Ocupación, [8]=Dirección, [11]=Teléfono
   // PERSONAL/PERSONAL1/PERSONAL2 y FAMILIAR/FAMILIAR1/FAMILIAR2 conviven en BD.
   const { personales: refsP, familiares: refsF } = separarReferencias(referencias);
   const refRows: { nombre: number; ocupacion: number; direccion: number; telefono: number }[] = [
     { nombre: 0, ocupacion: 4, direccion: 6, telefono: 9 },
     { nombre: 1, ocupacion: 3, direccion: 7, telefono: 10 },
-    { nombre: 2, ocupacion: 5, direccion: 8, telefono: 11 },
   ];
-  for (let i = 0; i < refRows.length && i < refsP.length; i++) {
+  refRows.forEach((row, i) => {
     const r = refsP[i];
-    const row = refRows[i];
+    if (!r) return;
     setT(4, row.nombre, s(r.nombre));
     setT(4, row.ocupacion, s(r.ocupacion));
     setT(4, row.direccion, s(r.direccion));
     setT(4, row.telefono, s(r.telefono));
-  }
-
-  // Familiar de contacto (3 filas) — usamos: emergencia, familiares[FAMILIAR1], familiares[FAMILIAR2]
-  // Solo tenemos 1 EMERGENCIA en el modelo + referencias[].tipo='FAMILIAR'
-  const familiarRows = [
-    emergencia,
-    refsF[0] || null,
-    refsF[1] || null,
-  ];
-  // Cada celda completa va al campo único [12], [13], [14] (línea ancha)
-  // formato: "Nombre | Parentesco | Tel | Dirección"
-  familiarRows.forEach((fam, i) => {
-    if (!fam) return;
-    const partes = [
-      norm([s(fam.nombre), s(fam.apellido)].filter(Boolean).join(' ')),
-      s(fam.parentesco),
-      s(fam.telefono),
-      s(fam.direccion),
-    ].filter(Boolean);
-    setT(4, 12 + i, partes.join('  ·  '));
   });
 
-  // Firma del solicitante — C.C.
-  setT(4, 15, `C.C. ${s(cand.numero_documento)}`);
+  // Fila 3 — "un familiar que podamos contactar": el contacto de emergencia o, si
+  // no hay, la primera referencia familiar. Sin columna de parentesco en el molde,
+  // va junto al nombre. Los renglones de "Verificación" ([12]-[14]) son del
+  // entrevistador y no se llenan.
+  const familiarContacto = emergencia || refsF[0] || null;
+  if (familiarContacto) {
+    const nombreFam = norm([s(familiarContacto.nombre), s(familiarContacto.apellido)].filter(Boolean).join(' '));
+    const parentesco = s(familiarContacto.parentesco);
+    setT(4, 2, parentesco ? `${nombreFam} (${parentesco})` : nombreFam);
+    setT(4, 5, s(familiarContacto.ocupacion));
+    setT(4, 8, s(familiarContacto.direccion));
+    setT(4, 11, s(familiarContacto.telefono));
+  }
+
+  // Firma del solicitante: el molde ya imprime "C.C." delante del campo.
+  setT(4, 15, s(cand.numero_documento));
 }

@@ -1,0 +1,134 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <a class="enlace-atras" [routerLink]="volverA()"><mat-icon>arrow_back</mat-icon> {{ desde() === 'cola' ? 'Cola de alistamiento' : 'Pedidos' }}</a>
+      <h1 class="tienda-titulo"><mat-icon>inventory</mat-icon> Alistar pedido @if (datos(); as d) { <span class="num">{{ d.numero }}</span> }</h1>
+      <p class="tienda-subtitulo">Marque cada artículo cuando lo empaque, diga en cuántos bultos sale e imprima un sticker por bulto, la orden y el formato de mercado que el cliente firma al recibir.</p>
+    </div>
+    <app-impresora />
+  </div>
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (datos(); as d) {
+    <div class="rejilla">
+      <section class="tienda-tarjeta">
+        <div class="cabeza">
+          <h2>Artículos <small>{{ listos() }} de {{ total() }}</small></h2>
+          @if (editable() && !deOtro()) { <app-escaner-codigo modo="continuo" etiqueta="Escanear" titulo="Alistar escaneando" [procesar]="procesarAlistado" /><button type="button" class="boton secundario" (click)="todos()">Marcar todo</button> }
+        </div>
+        <div class="progreso"><span [style.width.%]="total() ? listos() / total() * 100 : 0"></span></div>
+        <ul class="lineas">
+          @for (i of d.items; track i.id) {
+            <li [class.hecho]="marcados().has(i.id)" (click)="alternar(i.id)">
+              <mat-icon>{{ marcados().has(i.id) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+              <span class="foto-prod" (click)="$event.stopPropagation()">
+                <app-imagen-ampliable [doc]="i.imagen" [nombre]="i.descripcion" icono="inventory_2" [tamano]="64" />
+              </span>
+              <div>
+                <b>{{ +i.cantidad }} × {{ i.descripcion }}</b>
+                <small>{{ i.sku }}@if (i.codigo_barras) { · {{ i.codigo_barras }} } @if (i.disponibilidad === 'BAJO_PEDIDO') { · <em>por encargo</em> }</small>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+
+      <aside class="tienda-tarjeta lado">
+        <h2>Despacho</h2>
+        @if (deOtro()) {
+          <div class="tienda-error"><mat-icon>person</mat-icon> Lo está alistando {{ d.alistador_nombre }}.</div>
+        } @else if (editable() && !d.alistador_id) {
+          <button type="button" class="boton" [disabled]="guardando()" (click)="tomar()"><mat-icon>pan_tool</mat-icon> Tomar este pedido</button>
+        }
+        <dl>
+          <div><dt>Estado</dt><dd><span class="insignia">{{ d.estado }}</span></dd></div>
+          <div><dt>Entrega</dt><dd>{{ d.tipo_entrega === 'DOMICILIO' ? 'Domicilio' : d.tipo_entrega === 'RECOGE_OFICINA' ? 'Recoge en oficina' : 'Recoge en tienda' }}</dd></div>
+          <div><dt>Cliente</dt><dd>{{ d.cliente_nombre }} @if (d.cliente_telefono) { · {{ d.cliente_telefono }} }</dd></div>
+          @if (d.direccion_texto) { <div><dt>Dirección</dt><dd>{{ d.direccion_texto }}</dd></div> }
+          @if (d.indicaciones) { <div><dt>Indicaciones</dt><dd>{{ d.indicaciones }}</dd></div> }
+          @if (d.observacion) { <div><dt>Nota</dt><dd>{{ d.observacion }}</dd></div> }
+          <div><dt>Total</dt><dd>{{ pesos(d.total) }}</dd></div>
+          @if (d.alistador_nombre) { <div><dt>Alista</dt><dd>{{ d.es_mio ? 'Usted' : d.alistador_nombre }}</dd></div> }
+          @if (compromiso(); as c) { <div><dt>Compromiso</dt><dd class="comp" [attr.data-t]="c.tono">{{ c.texto }}</dd></div> }
+          @if (d.tipo_entrega === 'DOMICILIO') { <div><dt>Hora</dt><dd>{{ franja() || 'Sin confirmar con la persona' }}</dd></div> }
+          @if (+d.por_cobrar > 0) { <div><dt>Cobrar al entregar</dt><dd class="cobrar">{{ pesos(d.por_cobrar) }}</dd></div> }
+        </dl>
+        <div class="bultos">
+          <span>Bultos</span>
+          <div class="stepper">
+            <button type="button" (click)="cambiarBultos(-1)" [disabled]="bultos() <= 1 || !editable()">−</button>
+            <b>{{ bultos() }}</b>
+            <button type="button" (click)="cambiarBultos(1)" [disabled]="!editable()">+</button>
+          </div>
+        </div>
+        @if (d.prestamo_numero) {
+          <div class="spb" [class.firmada]="d.prestamo_estado !== 'PENDIENTE_FIRMA'">
+            <mat-icon>draw</mat-icon>
+            <span>
+              <b>Formato de mercado (autorización de libranza) {{ d.prestamo_numero }}</b>
+              {{ d.prestamo_estado === 'PENDIENTE_FIRMA'
+                ? 'Imprímalo y entréguelo al domiciliario con la orden: el cliente lo firma con huella al recibir y el domiciliario lo escanea y lo devuelve firmado a la tienda.'
+                : 'Ya está firmado electrónicamente; si lo imprime, es la copia para la persona.' }}
+            </span>
+          </div>
+        }
+        <button type="button" class="boton secundario" [disabled]="guardando() || deOtro()" (click)="paquete()">
+          <mat-icon>picture_as_pdf</mat-icon> {{ d.prestamo_numero ? 'Imprimir orden y formato de mercado' : 'Imprimir orden (hoja de alistamiento)' }}
+        </button>
+        @if (d.prestamo_numero) {
+          <div class="dos">
+            <button type="button" class="boton secundario" [disabled]="guardando()" (click)="formatoMercado()"><mat-icon>description</mat-icon> Solo el formato</button>
+            @if (imp.lista()) { <button type="button" class="boton secundario" [disabled]="guardando()" (click)="formatoPortatil()"><mat-icon>print</mat-icon> Formato en la portátil</button> }
+          </div>
+        }
+        @if (d.paquete_impreso_en) { <small class="muted">Paquete impreso {{ utc(d.paquete_impreso_en) | date:'short' }}</small> }
+        <!-- Evidencia del empaque: lo que se revisa si llega una PQRS sobre el pedido -->
+        <div class="evidencia">
+          <b><mat-icon>videocam</mat-icon> Evidencia del empaque</b>
+          <small class="muted">Grabe un video corto mostrando cada producto al empacarlo y, al final, la foto del pedido cerrado.</small>
+          @if (!deOtro() && d.estado !== 'EN_RUTA' && d.estado !== 'ENTREGADO') {
+            <app-grabar-video (video)="subirEvidencia('VIDEO_ALISTAMIENTO', $event.blob, $event.nombre)" />
+            <label class="foto-final" [class.lista]="fotos().length">
+              <mat-icon>{{ fotos().length ? 'check_circle' : 'add_a_photo' }}</mat-icon>
+              {{ subiendo() === 'FOTO_ALISTAMIENTO' ? 'Subiendo…' : fotos().length ? 'Foto final tomada (tocar para otra)' : 'Foto final del pedido empacado (obligatoria)' }}
+              <input type="file" accept="image/*" capture="environment" hidden (change)="fotoFinal($event)" />
+            </label>
+            @if (subiendo() === 'VIDEO_ALISTAMIENTO') { <small class="muted">Subiendo el video…</small> }
+          }
+          @for (e of d.evidencias ?? []; track e.doc_id) {
+            <button type="button" class="ev" (click)="ver(e.doc_id)">
+              <mat-icon>{{ e.tipo === 'VIDEO_ALISTAMIENTO' ? 'play_circle' : 'image' }}</mat-icon>
+              {{ e.tipo === 'VIDEO_ALISTAMIENTO' ? 'Video' : 'Foto' }} · {{ utc(e.creado_en) | date:'shortTime' }} · <span class="mono">#{{ e.sha256.slice(0, 10) }}</span>
+            </button>
+          }
+        </div>
+        <button type="button" class="boton secundario" (click)="casoAbierto.set(true)"><mat-icon>manage_search</mat-icon> Caso del pedido</button>
+        @if (editable() && !deOtro()) {
+          <button type="button" class="boton" [disabled]="!puedeTerminar() || guardando()" (click)="guardar(true)">
+            <mat-icon>print</mat-icon> Terminar e imprimir stickers
+          </button>
+          <button type="button" class="boton secundario" [disabled]="guardando()" (click)="guardar(false)">Guardar avance</button>
+          @if (!completo()) { <small class="muted">Marque todos los artículos para terminar.</small> }
+          @else if (!fotos().length) { <small class="muted">Falta la foto final del pedido empacado.</small> }
+        } @else {
+          <button type="button" class="boton" (click)="imprimir()" [disabled]="deOtro()"><mat-icon>print</mat-icon> {{ imp.lista() ? 'Stickers en la impresora portátil' : 'Reimprimir stickers' }}</button>
+          @if (d.etiqueta_impresa_en) { <small class="muted">Stickers impresos {{ utc(d.etiqueta_impresa_en) | date:'short' }}</small> }
+          @if (d.tipo_entrega === 'DOMICILIO' && d.estado === 'LISTO') { <small class="muted">Está en la bolsa: el domiciliario que lo tome lo recoge escaneando cada sticker en <b>Domicilios</b>.</small> }
+          @if (desde() === 'cola') { <a class="boton secundario" routerLink="/dashboard/tienda/alistamiento"><mat-icon>list</mat-icon> Siguiente pedido</a> }
+        }
+      </aside>
+    </div>
+  } @else if (!error()) {
+    <div class="tienda-vacio">Cargando…</div>
+  }
+</div>
+
+@if (casoAbierto() && datos(); as d) {
+  <div class="capa-caso" (click)="casoAbierto.set(false)">
+    <div class="capa-cuerpo" (click)="$event.stopPropagation()">
+      <app-caso-pedido [pedidoId]="d.id" (cerrar)="casoAbierto.set(false)" />
+    </div>
+  </div>
+}

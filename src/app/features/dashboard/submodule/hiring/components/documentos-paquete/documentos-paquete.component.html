@@ -6,18 +6,12 @@
       <h3 class="dp-title">Todos los documentos</h3>
       <p class="dp-sub">
         El expediente completo: lo que genera la plataforma y lo que hay que
-        subir. Puedes subirlo aquí mismo.
+        subir. Todo se diligencia y se sube aquí mismo.
       </p>
     </div>
     <span class="dp-spacer"></span>
     <button type="button" class="dp-btn dp-btn-ghost" (click)="recargar()" [disabled]="cargando()">
       <mat-icon>refresh</mat-icon> Actualizar
-    </button>
-    <button type="button" class="dp-btn" (click)="irAGenerar()"
-            [disabled]="!cedulaEfectiva() || !generacion().puede"
-            [matTooltip]="generacion().motivo"
-            matTooltipClass="tooltip-faltantes">
-      <mat-icon>open_in_new</mat-icon> Generar y subir
     </button>
   </header>
 
@@ -33,6 +27,45 @@
 
     @if (errorParametrizado()) {
       <div class="dp-error" role="alert"><mat-icon>rule_folder</mat-icon> Documentos parametrizados: {{ errorParametrizado() }}</div>
+    }
+
+    <!-- Regla del parametrizador: aquí solo se genera y se sube lo chuleado para la requisición.
+         La valida también el servidor (ms-templates), así que ninguna otra pantalla la salta. -->
+    @if (restringido()) {
+      @if (permitidos(); as p) {
+        @if (p.estado === 'ERROR') {
+          <div class="dp-error" role="alert">
+            <mat-icon>gpp_bad</mat-icon>
+            No se puede generar ni subir documentos mientras no se valide la parametrización: {{ p.mensaje }}
+          </div>
+        } @else if (avisoParamAbierto()) {
+          <div class="dp-aviso dp-aviso-param">
+            <mat-icon>verified_user</mat-icon>
+            <span>
+              Solo se generan y se suben los documentos chuleados en el parametrizador para la requisición
+              @if (p.requisicion?.publicacion_id) { <b>#{{ p.requisicion?.publicacion_id }}</b> }
+              · <b>{{ p.requisicion?.empresa || 'empresa usuaria' }}</b>
+              @if (p.requisicion?.finca) { · {{ p.requisicion?.finca }} }
+              @if (p.requisicion?.cargo) { · {{ p.requisicion?.cargo }} }.
+            </span>
+            <button type="button" class="dp-aviso-cerrar" matTooltip="Ocultar el aviso"
+                    aria-label="Ocultar el aviso de la parametrización"
+                    (click)="avisoParam(false)">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        } @else {
+          <!-- Plegado: una línea con la requisición que manda, para volver a abrirlo. -->
+          <button type="button" class="dp-aviso-mini" (click)="avisoParam(true)"
+                  matTooltip="De qué requisición salen los documentos">
+            <mat-icon>verified_user</mat-icon>
+            <span>Requisición
+              @if (p.requisicion?.publicacion_id) { #{{ p.requisicion?.publicacion_id }} }
+              · {{ p.requisicion?.empresa || 'empresa usuaria' }}</span>
+            <mat-icon class="dp-aviso-mini-chevron">expand_more</mat-icon>
+          </button>
+        }
+      }
     }
 
     <!-- Paquete de ingreso según la parametrización documental de la empresa usuaria.
@@ -164,23 +197,6 @@
       </div>
     }
 
-    <!-- ══ LA PUERTA DE LA GENERACIÓN ══
-         Generar los documentos del contrato no depende de este módulo: depende
-         de que "Pago y Transporte" esté GUARDADO y completo, porque el
-         generador arma cada PDF con esos datos (forma de pago, centro de
-         costos, fechas…). Antes el botón llevaba igual y la otra pantalla
-         rechazaba el trabajo sin decir por qué; ahora el motivo y el camino
-         están aquí. -->
-    @if (!generacion().puede && cedulaEfectiva()) {
-      <div class="dp-puerta">
-        <mat-icon>lock</mat-icon>
-        <span class="dp-puerta-txt">{{ generacion().motivo }}</span>
-        <button type="button" class="dp-btn dp-btn-ghost dp-aviso-btn" (click)="irAPagoTransporte()">
-          <mat-icon>payments</mat-icon> Ir a Pago y Transporte
-        </button>
-      </div>
-    }
-
     <!-- ══ El paquete por ramas del árbol documental ══
          Mismo reparto que la pantalla de generación (SECCION_LABELS /
          getDocSeccion), para que un documento caiga en la misma rama se mire
@@ -199,7 +215,7 @@
         </div>
 
         <ul class="dp-lista">
-          @for (d of r.items; track d.titulo) {
+          @for (d of r.items; track d.typeId ?? d.titulo) {
             <!-- Se puede soltar un archivo encima de cada documento: es el gesto
                  natural cuando se tienen los PDF en una carpeta al lado. El
                  botón sigue ahí para quien prefiera el diálogo. -->
@@ -220,7 +236,7 @@
                     [attr.role]="esDiligenciable(d) ? 'button' : null"
                     [attr.tabindex]="esDiligenciable(d) ? 0 : null"
                     (click)="diligenciar(d)" (keydown.enter)="diligenciar(d)">
-                <span class="dp-item-txt">{{ d.titulo }}</span>
+                <span class="dp-item-txt">{{ d.nombre || d.titulo }}</span>
                 @if (arrastrando() === d.titulo) {
                   <span class="dp-item-estado dp-item-soltar-txt">Suelta el archivo aquí</span>
                 }
@@ -234,7 +250,8 @@
                   } @else {
                     Se genera
                   }
-                  @if (!d.delPaquete) { · fuera del paquete }
+                  @if (d.noAplica) { · {{ d.noAplica }} } @else if (d.bloqueado) { · {{ d.listo ? 'fuera de la parametrización (solo lectura)' : d.bloqueado }} } @else if (!d.delPaquete) { · fuera del paquete }
+                  @if (d.deRobot) { · {{ d.listo ? 'lo trajo el robot' : 'lo trae el robot' }} }
                 </span>
               </span>
 
@@ -247,9 +264,19 @@
                 <mat-icon class="dp-item-spin">progress_activity</mat-icon>
               } @else {
                 @if (esDiligenciable(d)) {
-                  <button type="button" class="dp-accion" matTooltip="Generar y diligenciar lo que falta"
+                  <button type="button" class="dp-accion"
+                          [matTooltip]="d.bloqueado ? d.bloqueado : 'Generar y diligenciar lo que falta'"
+                          [disabled]="!!d.bloqueado"
                           (click)="diligenciar(d)">
                     <mat-icon>edit_document</mat-icon>
+                  </button>
+                }
+                @if (puedeFirmar(d)) {
+                  <button type="button" class="dp-accion"
+                          [matTooltip]="d.bloqueado ? d.bloqueado : 'Firmar en este equipo (el trabajador firma aquí y queda consolidado)'"
+                          [disabled]="!!d.bloqueado || solicitandoFirma()"
+                          (click)="firmarPresencial(d)">
+                    <mat-icon>draw</mat-icon>
                   </button>
                 }
                 @if (d.fileUrl) {
@@ -265,8 +292,10 @@
                 <input type="file" hidden accept="application/pdf,image/*"
                        #f (change)="subir($event, d)" />
                 <button type="button" class="dp-accion"
-                        [matTooltip]="d.listo ? 'Reemplazar el documento' : 'Subir el documento'"
-                        [disabled]="!!subiendo()"
+                        [matTooltip]="d.bloqueado ? d.bloqueado
+                          : (d.listo ? (d.deRobot ? 'Reemplazar lo que trajo el robot' : 'Reemplazar el documento')
+                                     : 'Subir el documento')"
+                        [disabled]="!!subiendo() || !!d.bloqueado"
                         (click)="f.click()">
                   <mat-icon>{{ d.listo ? 'swap_horiz' : 'upload_file' }}</mat-icon>
                 </button>
@@ -276,13 +305,30 @@
         </ul>
       </section>
     }
+
+    <!-- Firma electrónica del candidato, al final de Documentos: los documentos chuleados con
+         "Requiere firma del empleado" se le envían al correo; al aceptar, se consolidan en el
+         expediente. Siempre habilitado: si no hay nada que firmar, al pulsar se explica por qué. -->
+    @let ef = estadoFirma();
+    <section class="dp-firma" [class.dp-firma-ok]="ef?.ultima?.estado === 'FIRMADA'">
+      <mat-icon class="dp-firma-icon">{{ ef?.ultima?.estado === 'FIRMADA' ? 'verified' : 'draw' }}</mat-icon>
+      <div class="dp-firma-txt">
+        <strong>Firma del candidato</strong>
+        <span>{{ ef ? firmaTexto(ef) : 'Consultando los documentos que requieren firma…' }}</span>
+      </div>
+      <button type="button" class="dp-btn" (click)="solicitarFirma()" [disabled]="solicitandoFirma()"
+              matTooltip="Enviar al correo del candidato los documentos que requieren su firma">
+        <mat-icon>{{ solicitandoFirma() ? 'progress_activity' : 'forward_to_inbox' }}</mat-icon>
+        {{ ef?.ultima?.estado === 'PENDIENTE' ? 'Reenviar solicitud de firma' : 'Solicitar firma' }}
+      </button>
+    </section>
   }
 </div>
 
 <!-- Visor: el documento se revisa aquí mismo. Abrirlo fuera hacía perder el
      sitio en mitad de la revisión del paquete. -->
 @if (visorSrc(); as src) {
-  <div class="dp-visor" (click)="cerrarVisor()">
+  <div #visorEl class="dp-visor" (click)="cerrarVisor()">
     <div class="dp-visor-caja" (click)="$event.stopPropagation()">
       <header class="dp-visor-head">
         <mat-icon>description</mat-icon>

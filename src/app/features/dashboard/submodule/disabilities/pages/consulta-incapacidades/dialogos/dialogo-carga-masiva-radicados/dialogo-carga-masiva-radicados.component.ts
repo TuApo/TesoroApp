@@ -38,26 +38,38 @@ export const EXTENSIONES_ACEPTADAS = ['.xlsx', '.csv'] as const;
 /** Tope de tamano del archivo: 5 MB. */
 export const TAMANO_MAXIMO_ARCHIVO = 5 * 1024 * 1024;
 
-/** Cabeceras de la plantilla, en el orden que espera el backend. */
+/**
+ * Cabeceras de la plantilla, en el orden que espera el backend. La incapacidad se
+ * identifica por CODIGO UNICO (el de oficina o el general); el backend sigue aceptando
+ * los archivos viejos con Cedula + Fecha inicio.
+ */
 const CABECERAS_PLANTILLA = [
-  'Cedula',
-  'Fecha inicio',
+  'Codigo unico',
   'Numero radicado',
   'Fecha radicado',
   'Donde se radico',
 ] as const;
 
-/** Fila de ejemplo de la plantilla (fechas en dd/mm/aaaa, como pide el backend). */
+/** Fila de ejemplo de la plantilla: codigo de oficina y fecha en dd/mm/aaaa. */
 const FILA_EJEMPLO = [
-  '1070982591',
-  '12/08/2026',
+  'TASB018',
   'RAD-000123',
   '18/08/2026',
   'pagina',
 ] as const;
 
 /** Anchos de columna (en caracteres) para las hojas que genera el dialogo. */
-const ANCHOS_PLANTILLA = [14, 14, 18, 14, 18];
+const ANCHOS_PLANTILLA = [18, 18, 14, 18];
+
+/** Cabeceras del Excel de fallidos (el codigo va primero, como en la plantilla). */
+export const CABECERAS_FALLIDOS = [
+  'Fila',
+  'Código',
+  'Cédula',
+  'Fecha inicio',
+  'Número radicado',
+  'Motivo',
+] as const;
 
 /** `20260818-1435` para nombrar archivos sin pisarse entre descargas. */
 function marcaDeTiempo(): string {
@@ -74,7 +86,8 @@ function marcaDeTiempo(): string {
  *
  * Flujo:
  *   1. El usuario descarga la plantilla (o trae su propio .xlsx/.csv con las
- *      columnas Cedula + Fecha inicio + Numero radicado).
+ *      columnas Codigo unico + Numero radicado; los archivos viejos con
+ *      Cedula + Fecha inicio los sigue aceptando el backend).
  *   2. Elige el archivo (clic o arrastrar) y pulsa "Procesar".
  *   3. El backend radica FILA A FILA y responde el detalle completo: aqui se
  *      pintan los contadores y la tabla de resultados, y los fallidos se pueden
@@ -161,7 +174,8 @@ export class DialogoCargaMasivaRadicadosComponent implements OnDestroy {
 
   readonly columnasResultado: ColumnaTabla<FilaCargaMasivaRadicados>[] = [
     { id: 'fila', header: 'Fila', valor: (f) => f.fila, align: 'right', ancho: '60px', tarjeta: 'meta' },
-    { id: 'cedula', header: 'Cedula', valor: (f) => f.cedula, tarjeta: 'titulo' },
+    { id: 'codigo', header: 'Código', valor: (f) => f.codigo ?? '', tarjeta: 'titulo' },
+    { id: 'cedula', header: 'Cédula', valor: (f) => f.cedula, tarjeta: 'meta' },
     { id: 'fechaInicio', header: 'Fecha inicio', valor: (f) => f.fechaInicio, tarjeta: 'meta' },
     { id: 'radicado', header: 'Radicado', valor: (f) => f.numeroRadicado, tarjeta: 'subtitulo' },
     { id: 'resultado', header: 'Resultado', valor: (f) => f.mensaje, tarjeta: 'cuerpo', minAncho: '200px' },
@@ -179,7 +193,12 @@ export class DialogoCargaMasivaRadicadosComponent implements OnDestroy {
     hoja['!cols'] = ANCHOS_PLANTILLA.map((wch) => ({ wch }));
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, 'Radicados');
-    XLSX.writeFile(libro, 'plantilla-carga-radicados.xlsx');
+    this.guardarLibro(libro, 'plantilla-carga-radicados.xlsx');
+  }
+
+  /** Envoltura de `XLSX.writeFile` separada para poder espiarla en las pruebas. */
+  guardarLibro(libro: XLSX.WorkBook, nombre: string): void {
+    XLSX.writeFile(libro, nombre);
   }
 
   // ── Seleccion de archivo ──────────────────────────────────────────────
@@ -197,7 +216,7 @@ export class DialogoCargaMasivaRadicadosComponent implements OnDestroy {
       return;
     }
     if (archivo.size > TAMANO_MAXIMO_ARCHIVO) {
-      this.error.set('El archivo supera el tamano maximo de 5 MB.');
+      this.error.set('El archivo supera el tamaño máximo de 5 MB.');
       return;
     }
 
@@ -263,18 +282,19 @@ export class DialogoCargaMasivaRadicadosComponent implements OnDestroy {
   /** Traduce el fallo HTTP a algo accionable; el dialogo NO se cierra. */
   private mensajeDeError(err: HttpErrorResponse): string {
     if (err.status === 0) {
-      return 'No hay conexion con el servidor. Revisa tu red e intentalo de nuevo.';
+      return 'No hay conexión con el servidor. Revisa tu red e inténtalo de nuevo.';
     }
     if (err.status === 413) {
-      return 'El servidor rechazo el archivo por tamano. Divide el archivo e intentalo de nuevo.';
+      return 'El servidor rechazó el archivo por tamaño. Divide el archivo e inténtalo de nuevo.';
     }
-    const detalle =
-      typeof err.error?.message === 'string' && err.error.message.trim()
-        ? ` Detalle: ${err.error.message.trim()}`
-        : '';
+    // ms-hr responde {"error": "..."} (p. ej. las columnas que espera); `message` por compatibilidad.
+    const motivo = [err.error?.error, err.error?.message].find(
+      (m): m is string => typeof m === 'string' && m.trim() !== '',
+    );
+    const detalle = motivo ? ` Detalle: ${motivo.trim()}` : '';
     return (
       `No se pudo procesar el archivo (HTTP ${err.status}). ` +
-      `Corrige el archivo o intentalo de nuevo; no se radico ninguna fila.${detalle}`
+      `Corrige el archivo o inténtalo de nuevo; no se radicó ninguna fila.${detalle}`
     );
   }
 
@@ -285,20 +305,20 @@ export class DialogoCargaMasivaRadicadosComponent implements OnDestroy {
     const fallidas = this.filasFallidas();
     if (fallidas.length === 0) return;
 
-    const cabeceras = ['Fila', 'Cedula', 'Fecha inicio', 'Numero radicado', 'Motivo'];
-    const datos = fallidas.map((f) => ({
-      Fila: f.fila,
-      Cedula: f.cedula,
-      'Fecha inicio': f.fechaInicio,
-      'Numero radicado': f.numeroRadicado,
-      Motivo: f.mensaje,
-    }));
+    const filas = fallidas.map((f) => [
+      f.fila,
+      f.codigo ?? '',
+      f.cedula,
+      f.fechaInicio,
+      f.numeroRadicado,
+      f.mensaje,
+    ]);
 
-    const hoja = XLSX.utils.json_to_sheet(datos, { header: cabeceras });
-    hoja['!cols'] = [6, 14, 14, 18, 60].map((wch) => ({ wch }));
+    const hoja = XLSX.utils.aoa_to_sheet([[...CABECERAS_FALLIDOS], ...filas]);
+    hoja['!cols'] = [6, 18, 14, 14, 18, 60].map((wch) => ({ wch }));
     const libro = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(libro, hoja, 'Fallidos');
-    XLSX.writeFile(libro, `radicados-fallidos-${marcaDeTiempo()}.xlsx`);
+    this.guardarLibro(libro, `radicados-fallidos-${marcaDeTiempo()}.xlsx`);
   }
 
   // ── Cierre ────────────────────────────────────────────────────────────

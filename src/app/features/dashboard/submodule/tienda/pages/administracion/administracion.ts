@@ -1,3 +1,4 @@
+import { FichaTiendaComponent } from '../../components/ficha-tienda/ficha-tienda';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -29,7 +30,7 @@ interface FilaArbol {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-tienda-administracion',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, FichaTiendaComponent],
   templateUrl: './administracion.html',
   styleUrls: ['../../styles/tienda-comun.css', './administracion.css'],
 })
@@ -109,7 +110,7 @@ export class Administracion implements OnInit {
     this.api.rolesDeTienda().subscribe({
       next: r => this.rolesTienda.set(r.map(x => String(x['codigo']))),
       error: () => this.rolesTienda.set(
-        ['ADMIN_NEGOCIO', 'ADMIN_TIENDA', 'TENDERO', 'BODEGUERO', 'DOMICILIARIO', 'AUDITOR']),
+        ['ADMIN_NEGOCIO', 'ADMIN_TIENDA', 'TENDERO', 'BODEGUERO', 'ALISTADOR', 'DOMICILIARIO', 'AUDITOR']),
     });
   }
 

@@ -58,6 +58,7 @@ import {
   mensajeDeError,
   tonoDeChip,
 } from '../informes-incapacidades/informes-incapacidades.component';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Clase del chip por tipo de alerta (color = gravedad). */
 export function claseTipoAlerta(tipo: TipoAlertaIncapacidad): string {
@@ -84,6 +85,7 @@ export function claseEstadoAlerta(estado: EstadoAlertaIncapacidad): string {
   selector: 'app-alertas-incapacidades',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     PanelUmbralesComponent,
     DatePipe,
     DecimalPipe,

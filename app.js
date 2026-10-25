@@ -7,7 +7,7 @@ const http = require('http');
 const { execFile } = require('child_process');
 const log = require('electron-log');
 const { initDatabase, closeDatabase } = require('./electron-db');
-const { initEndpointAgent, isActive: endpointActivo } = require('./endpoint-agent');
+const { initEndpointAgent, isActive: endpointActivo, stop: detenerEndpointAgent } = require('./endpoint-agent');
 const {
   isSafeExternalUrl,
   openExternalIfSafe,
@@ -37,6 +37,8 @@ if (!gotTheLock) {
 }
 
 let mainWindow = null;
+// true desde before-quit: a partir de ahí cerrar la ventana la destruye en vez de esconderla.
+let saliendo = false;
 
 // Utilidad: enviar al renderer solo si la ventana sigue viva.
 function sendToRenderer(channel, payload) {
@@ -166,6 +168,21 @@ function createWindow() {
     }
   });
 
+  // Con el agente activo, cerrar la ventana la esconde en la bandeja en vez de destruirla: Angular
+  // sigue vivo y su ciclo de sincronización (offline-sync.service) sube la cola y descarga registros
+  // aunque nadie la tenga abierta. Al salir de verdad (bandeja → Salir, actualización, apagado de
+  // Windows) `saliendo` ya está en true y cierra normal.
+  mainWindow.on('close', (event) => {
+    let agente = false;
+    try { agente = endpointActivo(); } catch { /* noop */ }
+    if (!saliendo && agente) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+  // Windows cerrando sesión o apagándose: no retener la ventana o el apagado se queda esperando.
+  mainWindow.on('session-end', () => { saliendo = true; });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -213,8 +230,20 @@ ipcMain.handle('env:get', (event) => {
 });
 
 ipcMain.on('restart-app', () => {
-  getAutoUpdater().quitAndInstall();
+  liberarRecursos();
+  // Silencioso y relanzando la app al terminar: sin ventana del instalador ni avisos que esperen al usuario.
+  getAutoUpdater().quitAndInstall(true, true);
 });
+
+// Capturas de huella en curso. Si la app se cerraba a mitad de una, el ejecutable del lector quedaba
+// huérfano con resources\csharp en uso y el instalador no podía reemplazar la carpeta.
+const procesosHuella = new Set();
+function terminarProcesosHuella() {
+  for (const p of procesosHuella) {
+    try { p.kill(); } catch { /* ya terminó */ }
+  }
+  procesosHuella.clear();
+}
 
 ipcMain.handle('fingerprint:get', async (event) => {
   assertAllowedIpcSender(event);
@@ -230,7 +259,8 @@ ipcMain.handle('fingerprint:get', async (event) => {
       return;
     }
 
-    execFile(csharpAppPath, (error, stdout, stderr) => {
+    const hijo = execFile(csharpAppPath, (error, stdout, stderr) => {
+      procesosHuella.delete(hijo);
       if (error) {
         reject({ error: stderr || error.message });
         return;
@@ -242,6 +272,7 @@ ipcMain.handle('fingerprint:get', async (event) => {
         reject({ error: 'No se recibió una imagen en Base64.' });
       }
     });
+    procesosHuella.add(hijo);
   });
 });
 
@@ -264,12 +295,10 @@ function registerAutoUpdaterListeners() {
   au.on('update-downloaded', () => {
     sendToRenderer('update-downloaded');
     setTimeout(() => {
-      // Libera handles antes de que NSIS reemplace el exe: si Acrobat tiene el
-      // PDF temporal abierto, el watcher lo mantiene bloqueado y el update falla.
-      try { cleanupPdfContext(); } catch (e) { console.error('cleanupPdfContext:', e); }
-      try { cleanupViewerWindows(); } catch (e) { console.error('cleanupViewerWindows:', e); }
-      try { closeDatabase(); } catch (e) { console.error('closeDatabase:', e); }
-      try { au.quitAndInstall(); } catch (e) { console.error('quitAndInstall:', e); }
+      liberarRecursos();
+      // Silencioso + relanzar: el instalador no muestra ventanas que esperen al usuario
+      // (en /S sus avisos toman la opción por defecto y siguen).
+      try { au.quitAndInstall(true, true); } catch (e) { console.error('quitAndInstall:', e); }
     }, 3000);
   });
   au.on('error', (error) => {
@@ -621,11 +650,20 @@ function cleanupViewerWindows() {
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────
-app.on('second-instance', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+// Trae la ventana al frente, o la recrea si se cerró y la app quedó viva en la bandeja (agente activo).
+function mostrarVentana() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
   }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+// Abrir el acceso directo con la app en la bandeja cae aquí: sin recrear la ventana no pasaba nada.
+app.on('second-instance', () => {
+  mostrarVentana();
 });
 
 // Al arrancar limpiamos los directorios temporales de PDFs. Si la app se cerró
@@ -652,7 +690,7 @@ app.whenReady().then(() => {
   if (!isDev) registerAutoUpdaterListeners();
   // Agente de monitoreo de endpoints: vive en la bandeja aunque se cierre la ventana. No debe tumbar
   // la app si falla (su init ya atrapa todo), pero lo envolvemos por si acaso.
-  try { initEndpointAgent({ app, ipcMain, logger: log, assertSender: assertAllowedIpcSender }); } catch (e) { log.warn('endpoint-agent: ' + e.message); }
+  try { initEndpointAgent({ app, ipcMain, logger: log, assertSender: assertAllowedIpcSender, abrirVentana: mostrarVentana }); } catch (e) { log.warn('endpoint-agent: ' + e.message); }
   createWindow();
 
   app.on('activate', () => {
@@ -669,10 +707,25 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !agente) app.quit();
 });
 
+// Suelta todo lo que puede dejar ficheros de la instalación en uso: se llama al salir y antes de que
+// NSIS reemplace la app en una actualización. Si Acrobat tiene el PDF temporal abierto, el watcher lo
+// mantiene bloqueado; un lector de huella a medias bloquea resources\csharp.
+function liberarRecursos() {
+  try { cleanupPdfContext(); } catch (e) { console.error('cleanupPdfContext:', e); }
+  try { cleanupViewerWindows(); } catch (e) { console.error('cleanupViewerWindows:', e); }
+  try { terminarProcesosHuella(); } catch (e) { console.error('terminarProcesosHuella:', e); }
+  try { closeDatabase(); } catch (e) { console.error('closeDatabase:', e); }
+}
+
 app.on('before-quit', () => {
-  cleanupPdfContext();
-  cleanupViewerWindows();
-  closeDatabase();
+  saliendo = true;
+  liberarRecursos();
+});
+
+// Sin app.exit(): app.quit() ya termina el proceso al cerrar las ventanas, y exit() se saltaría
+// before-quit/will-quit, que es justo donde se libera todo esto.
+app.on('will-quit', () => {
+  try { detenerEndpointAgent(); } catch (e) { log.warn('endpoint-agent stop: ' + e.message); }
 });
 
 // Endurece TODOS los webContents creados (incluye ventanas hijas del visor).

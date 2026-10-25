@@ -1,0 +1,66 @@
+@if (sinPermiso()) {
+  <div class="vacio"><mat-icon>lock</mat-icon><p><strong>Solo el equipo de Marketing administra los cumpleaños.</strong></p></div>
+} @else {
+  <ol class="ia-pasos" aria-label="Cómo se personaliza un cumpleaños">
+    <li><mat-icon>link</mat-icon><span><b>1. Comparte el enlace</b>El equipo elige etiquetas que lo describen</span></li>
+    <li><mat-icon>edit_note</mat-icon><span><b>2. Su jefe escribe</b>Un mensaje libre, firmado, por el mismo enlace</span></li>
+    <li><mat-icon>auto_awesome</mat-icon><span><b>3. Higgsfield lo hace</b>Su fondo propio, horizontal y vertical</span></li>
+    <li><mat-icon>verified</mat-icon><span><b>4. Marketing aprueba</b>Solo lo aprobado sale en la celebración</span></li>
+  </ol>
+
+  @if (!cal()) {
+    <p class="sub">Cargando…</p>
+  } @else if (!total()) {
+    <div class="vacio"><mat-icon>event_busy</mat-icon>
+      <p><strong>No hay cumpleañeros en los próximos 45 días.</strong></p>
+      <a class="btn btn--primario" routerLink="../calendario"><mat-icon>person_add</mat-icon> Agregar en el calendario</a>
+    </div>
+  } @else {
+    <div class="ia-tablero">
+      @for (c of columnas; track c.id) {
+        <section class="ia-col" [class]="'ia-col ia-col--' + c.id" [attr.aria-label]="c.nombre">
+          <header>
+            <mat-icon>{{ c.icono }}</mat-icon>
+            <h3>{{ c.nombre }} <span class="ia-n">{{ tarjetas()[c.id].length }}</span></h3>
+            <small>{{ c.ayuda }}</small>
+          </header>
+          @for (t of tarjetas()[c.id]; track t.persona.id) {
+            <button type="button" class="ia-tarjeta" (click)="personalizando.set(t.persona)" [title]="'Personalizar a ' + t.persona.nombre">
+              <span class="ia-cara">
+                @if (t.persona.foto_url) {
+                  <img [src]="url(t.persona.foto_url)" alt="" [style.object-position]="t.persona.enfoque_x + '% ' + t.persona.enfoque_y + '%'" />
+                } @else { {{ iniciales(t.persona.nombre) }} }
+              </span>
+              <span class="ia-datos">
+                <b>{{ t.persona.nombre }}</b>
+                <small>{{ relativo(t.dia.fecha) }} · {{ fecha(t.dia.fecha) }}</small>
+                <span class="ia-senales">
+                  <span [class.on]="t.persona.etiquetas?.length" [title]="t.persona.etiquetas?.length ? 'El equipo ya eligió etiquetas' : 'Sin etiquetas del equipo'">
+                    <mat-icon>sell</mat-icon>
+                    @if (t.persona.etiquetas?.length) { @for (e of t.persona.etiquetas; track e.nombre) {{{ e.emoji }}} } @else { — }
+                  </span>
+                  <span [class.on]="t.persona.mensaje_jefe" [title]="t.persona.mensaje_jefe ? 'Su jefe ya escribió' : 'Sin mensaje del jefe'">
+                    <mat-icon>{{ t.persona.mensaje_jefe ? 'mark_chat_read' : 'chat_bubble_outline' }}</mat-icon>
+                    {{ t.persona.mensaje_jefe ? 'Jefe' : (t.persona.jefe_nombre ? 'Esperando' : 'Sin jefe') }}
+                  </span>
+                </span>
+              </span>
+              <mat-icon class="ia-ir">chevron_right</mat-icon>
+            </button>
+          } @empty {
+            <p class="ia-vacia">Nadie aquí.</p>
+          }
+        </section>
+      }
+    </div>
+  }
+}
+
+@if (personalizando(); as pz) {
+  <app-cumpleanos-personalizacion [persona]="pz" (cerrar)="personalizando.set(null); cargar()" (cambio)="cargar()"
+                                  (probar)="probarPersona(pz)" />
+}
+
+@if (probando(); as pr) {
+  <app-celebracion-probador [base]="pr.base" [plantillas]="plantillas()" [textosDia]="pr.textos" (cerrar)="probando.set(null)" />
+}

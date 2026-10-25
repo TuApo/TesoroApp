@@ -1,0 +1,96 @@
+/* Avatar Agent: organigrama de personajes y su editor. Base visual: automatizaciones-ia.css (clases aia-*). */
+
+.ava-hero .aia-hero-txt app-avatar-agente { flex: none; }
+
+.ava-presidente { max-width: 520px; }
+.ava-rama { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.ava-asesor { position: relative; margin-left: 22px; }
+.ava-asesor::before {
+  content: ''; position: absolute; left: -14px; top: -8px; width: 12px; height: 36px;
+  border-left: 2px solid var(--border); border-bottom: 2px solid var(--border); border-bottom-left-radius: 8px;
+}
+
+.ava-card::before { background: var(--ava-c, #4F46E5); }
+.ava-card .aia-card-cab { align-items: center; }
+.ava-card .aia-card-tit { min-width: 0; }
+.ava-inactivo { opacity: .6; }
+.aia-estado.apagado { background: var(--surface-3, #eef1f6); color: var(--text-2); }
+.ava-modulos { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--text-2); min-width: 0; }
+.ava-modulos mat-icon { width: 16px; height: 16px; font-size: 16px; flex: none; }
+.ava-modulos span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ava-medios { display: inline-flex; gap: 2px; color: var(--ava-c, var(--text-2)); }
+.ava-medios mat-icon { width: 18px; height: 18px; font-size: 18px; }
+
+/* Editor */
+.ava-dialogo { width: min(820px, calc(100vw - 24px)); }
+.ava-dialogo header app-avatar-agente { flex: none; }
+.ava-pestanas { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.ava-pestanas button {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 7px 12px; border-radius: 10px; border: 0;
+  background: none; color: var(--text-2); font: inherit; font-size: .84rem; font-weight: 700; cursor: pointer;
+}
+.ava-pestanas button mat-icon { width: 18px; height: 18px; font-size: 18px; }
+.ava-pestanas button.sel { background: color-mix(in srgb, var(--ava-c, #4F46E5) 12%, var(--surface)); color: var(--ava-c, #4F46E5); }
+.ava-pestanas button:disabled { opacity: .45; cursor: default; }
+.ava-cuerpo { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+
+.ava-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ava-tres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ava-tres input[type='color'] { padding: 2px; height: 38px; }
+.ava-check { flex-direction: row !important; align-items: center; align-self: end; gap: 8px !important; }
+.ava-check input { width: auto; }
+.ava-dialogo code { font-size: .78rem; }
+
+.ava-colegas { display: flex; flex-wrap: wrap; gap: 6px; }
+.ava-colegas button {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: .8rem; cursor: pointer;
+}
+.ava-colegas button.sel { border-color: var(--ava-c, #4F46E5); background: color-mix(in srgb, var(--ava-c, #4F46E5) 10%, var(--surface)); font-weight: 700; }
+
+.ava-muestra { border: 1px dashed var(--border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.ava-muestra > small { color: var(--text-2); font-size: .76rem; font-weight: 700; }
+.ava-muestra-fila { display: flex; gap: 8px; align-items: flex-start; }
+.ava-muestra-burbuja { flex: 1; min-width: 0; font-size: .86rem; }
+.ava-muestra-burbuja p { margin: 4px 0; }
+
+.ava-escenario {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 12px; border-radius: 16px;
+  background: color-mix(in srgb, var(--ava-c, #4F46E5) 7%, var(--surface));
+}
+.ava-estados { display: inline-flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
+.ava-estados button { border: 0; border-radius: 999px; padding: 5px 12px; background: none; color: var(--text-2); font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.ava-estados button.sel { background: var(--ava-c, #4F46E5); color: #fff; }
+
+.ava-generar { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.ava-generar label { width: 110px; }
+.ava-subir {
+  display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 4px !important; margin-left: 10px;
+  color: var(--link, #2B59F0) !important; cursor: pointer; font-size: .8rem !important;
+}
+.ava-subir mat-icon { width: 16px; height: 16px; font-size: 16px; }
+
+.ava-galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.ava-asset { margin: 0; border: 2px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--surface-2, var(--surface)); display: flex; flex-direction: column; }
+.ava-asset.sel { border-color: var(--ava-c, #4F46E5); }
+.ava-asset.error { border-color: var(--danger, #d93025); }
+.ava-asset img, .ava-asset video { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: #0001; }
+.ava-asset-msg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; aspect-ratio: 1; padding: 8px; text-align: center; font-size: .78rem; color: var(--text-2); }
+.ava-asset figcaption { display: flex; align-items: center; gap: 2px; padding: 4px 6px; flex-wrap: wrap; }
+.ava-sel { display: inline-flex; align-items: center; gap: 3px; font-size: .76rem; font-weight: 800; color: var(--ava-c, #4F46E5); }
+.ava-sel mat-icon { width: 16px; height: 16px; font-size: 16px; }
+.ava-cargando {
+  display: inline-block; width: 22px; height: 22px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--ava-c, #4F46E5); animation: ava-girar .9s linear infinite;
+}
+.ava-prompt {
+  margin: 0; padding: 12px; border-radius: 12px; background: var(--surface-2, #f6f7f9); border: 1px solid var(--border);
+  white-space: pre-wrap; word-break: break-word; font-size: .78rem; line-height: 1.5; max-height: 55dvh; overflow: auto;
+}
+@keyframes ava-girar { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ava-cargando { animation: none; } }
+
+@media (max-width: 640px) {
+  .ava-dos, .ava-tres { grid-template-columns: minmax(0, 1fr); }
+  .ava-asesor { margin-left: 14px; }
+}

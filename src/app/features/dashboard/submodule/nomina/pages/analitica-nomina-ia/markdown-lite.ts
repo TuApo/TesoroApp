@@ -22,21 +22,35 @@ export function escapeHtml(s: string): string {
 
 /** Transforma marcas en línea sobre texto YA escapado. */
 function inline(text: string): string {
-  let t = text;
-  // código en línea `x`
-  t = t.replace(/`([^`]+)`/g, (_m, c) => `<code>${c}</code>`);
+  // código en línea `x`: se aparta antes que nada para que lo de dentro no se
+  // lea como marcas (`vivienda.responsable_hijos` salía con cursivas).
+  const codigos: string[] = [];
+  let t = text.replace(/`([^`]+)`/g, (_m, c) => `\u0000${codigos.push(c) - 1}\u0000`);
   // enlaces [texto](url)  (solo http/https/mailto)
   t = t.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g,
     (_m, txt, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${txt}</a>`);
+  // enlaces a pantallas de la app [texto](/dashboard/...): los abre el Router (clic en
+  // MarkdownMessageComponent), nunca una pestaña nueva. Solo rutas que empiezan por una barra.
+  t = t.replace(/\[([^\]]+)\]\((\/(?!\/)[^\s)]*)\)/g,
+    (_m, txt, ruta) => `<a href="${ruta}" class="md-int">${txt}</a>`);
   // negrita **x** o __x__
   t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   t = t.replace(/__([^_]+)__/g, '<strong>$1</strong>');
-  // itálica *x* o _x_
+  // itálica *x* o _x_; la de guion bajo solo entre palabras enteras, como en
+  // CommonMark: `personas_con_quien_convive` es un nombre, no un énfasis.
   t = t.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-  t = t.replace(/(^|[^_])_([^_\n]+)_/g, '$1<em>$2</em>');
+  t = t.replace(/(^|[^\w_])_([^_\n]+)_(?![\w_])/g, '$1<em>$2</em>');
   // tachado ~~x~~
   t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>');
-  return t;
+  return t.replace(/\u0000(\d+)\u0000/g, (_m, i) => `<code>${codigos[+i]}</code>`);
+}
+
+/**
+ * Marcas en línea (negrita, cursiva, código, enlaces) de un texto suelto, para
+ * los sitios donde un párrafo entero sobra: una tarjeta, una pastilla.
+ */
+export function inlineMarkdownToHtml(text: string): string {
+  return inline(escapeHtml(text ?? ''));
 }
 
 function isTableSep(line: string): boolean {
@@ -133,7 +147,13 @@ export function markdownToHtml(md: string): string {
       while (i < lines.length && /^\s*[-*+]\s+/.test(lines[i])) {
         items.push(lines[i].replace(/^\s*[-*+]\s+/, '')); i++;
       }
-      out.push('<ul>' + items.map((it) => `<li>${inline(escapeHtml(it))}</li>`).join('') + '</ul>');
+      // Listas de tareas: - [ ] pendiente / - [x] hecha.
+      out.push('<ul>' + items.map((it) => {
+        const tarea = /^\[( |x|X)\]\s+(.*)$/.exec(it);
+        if (!tarea) return `<li>${inline(escapeHtml(it))}</li>`;
+        const hecha = tarea[1] !== ' ';
+        return `<li class="md-task${hecha ? ' hecha' : ''}"><span class="md-check">${hecha ? '✔' : ''}</span>${inline(escapeHtml(tarea[2]))}</li>`;
+      }).join('') + '</ul>');
       continue;
     }
 

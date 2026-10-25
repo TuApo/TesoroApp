@@ -28,8 +28,9 @@ const BUSQUEDA: ResultadoBusquedaCodigos = {
       { id: 2, codigoOficina: 'TASB019', codigoUnico: '200', numeroRadicado: 'VIEJO-1', estado: 'RADICADA' },
     ),
     encontradoPrueba(
-      { codigo: '300', puedeRadicar: false, motivo: 'Debe validarse antes de radicar' },
-      { id: 3, codigoOficina: null, codigoUnico: '300', estado: 'RECIBIDA' },
+      // Desde la respuesta 1 de la funcional (2026-10-07) RECIBIDA si se radica: la bloqueada es una cancelada.
+      { codigo: '300', puedeRadicar: false, motivo: 'La incapacidad está cancelada.' },
+      { id: 3, codigoOficina: null, codigoUnico: '300', estado: 'CANCELADA' },
     ),
     encontradoPrueba({ codigo: '400', ambiguo: true }, { id: 4, codigoOficina: null, codigoUnico: '400' }),
     encontradoPrueba({ codigo: '400', ambiguo: true }, { id: 5, codigoOficina: null, codigoUnico: '400-2' }),
@@ -115,7 +116,7 @@ describe('PanelCodigosComponent', () => {
       expect(componente.avisoDe(lista).tono).toBe('ok');
       expect(componente.avisoDe(corregir).texto).toContain('VIEJO-1');
       expect(componente.avisoDe(corregir).texto).toContain('corrección');
-      expect(componente.avisoDe(bloqueada)).toEqual(jasmine.objectContaining({ tono: 'peligro', texto: 'Debe validarse antes de radicar' }));
+      expect(componente.avisoDe(bloqueada)).toEqual(jasmine.objectContaining({ tono: 'peligro', texto: 'La incapacidad está cancelada.' }));
       expect(componente.avisoDe(ambigua).tono).toBe('aviso');
     });
 

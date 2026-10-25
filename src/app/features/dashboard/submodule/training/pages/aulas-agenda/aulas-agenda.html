@@ -1,0 +1,134 @@
+<section class="ag">
+  <header class="ag-hero">
+    <div>
+      <span class="ag-eyebrow"><span class="ag-punto"></span> Capacitaciones en vivo</span>
+      <h1>Aulas en vivo</h1>
+      <p>Clases, talleres y webinars con video para muchas personas: pantallas compartidas, pizarra, código que se
+        ejecuta, trabajo en equipos, encuestas y asistencia automática.</p>
+    </div>
+    <form class="ag-codigo" (ngSubmit)="entrarConCodigo()">
+      <label for="cod">¿Te compartieron un código?</label>
+      <div>
+        <input id="cod" name="cod" [(ngModel)]="codigo" placeholder="Ej.: 7KQ2PM" maxlength="12" autocomplete="off" />
+        <button type="submit" [disabled]="!codigo.trim()"><mat-icon>login</mat-icon> Entrar</button>
+      </div>
+    </form>
+  </header>
+
+  @if (puedeCrear()) {
+    <div class="ag-crear">
+      <button type="button" class="ag-btn ag-btn--primario" (click)="abrirFormulario()">
+        <mat-icon>{{ formAbierto() ? 'expand_less' : 'add' }}</mat-icon> Crear un aula
+      </button>
+    </div>
+    @if (formAbierto()) {
+      <form class="ag-form" (ngSubmit)="crear(true)">
+        <div class="ag-tipos">
+          @for (t of tipos; track t.valor) {
+            <label [class.activo]="f.tipo === t.valor">
+              <input type="radio" name="tipo" [value]="t.valor" [(ngModel)]="f.tipo" />
+              <mat-icon>{{ t.icono }}</mat-icon><strong>{{ t.nombre }}</strong><em>{{ t.ayuda }}</em>
+            </label>
+          }
+        </div>
+        <div class="ag-grid">
+          <label class="ag-campo ag-campo--ancho"><span>Título *</span><input name="titulo" [(ngModel)]="f.titulo" maxlength="300" required placeholder="Ej.: Taller de Python — funciones" /></label>
+          <label class="ag-campo ag-campo--ancho"><span>Descripción</span><textarea name="desc" rows="2" [(ngModel)]="f.descripcion"></textarea></label>
+          <label class="ag-campo"><span>¿Quién puede entrar?</span>
+            <select name="acceso" [(ngModel)]="f.acceso">
+              <option value="LIBRE">Cualquiera de la plataforma</option>
+              <option value="GRUPO">Un grupo del curso</option>
+              <option value="INVITADOS">Solo invitados</option>
+            </select></label>
+          <label class="ag-campo"><span>Contexto</span>
+            <select name="contexto" [(ngModel)]="f.contexto"><option value="CORPORATIVO">Corporativo</option><option value="EDUCATIVO">Educativo</option></select></label>
+          @if (f.acceso === 'GRUPO') {
+            <label class="ag-campo ag-campo--ancho"><span>Grupo (se pasa lista sola al finalizar)</span>
+              <select name="grupo" [(ngModel)]="f.group_id">
+                <option [ngValue]="null">Elige el grupo…</option>
+                @for (g of opciones()?.grupos ?? []; track g.id) { <option [ngValue]="g.id">{{ g.nombre }} · {{ g.curso_nombre }}</option> }
+              </select></label>
+          }
+          @if (f.acceso === 'INVITADOS') {
+            <label class="ag-campo ag-campo--ancho"><span>Cédulas invitadas (separadas por coma o espacio)</span>
+              <textarea name="inv" rows="2" [(ngModel)]="f.invitados_texto"></textarea></label>
+          }
+          <label class="ag-campo"><span>Curso (opcional)</span>
+            <select name="curso" [ngModel]="cursoElegido()" (ngModelChange)="elegirCurso($event)">
+              <option [ngValue]="null">Sin curso</option>
+              @for (c of opciones()?.cursos ?? []; track c.id) { <option [ngValue]="c.id">{{ c.nombre }}</option> }
+            </select></label>
+          <label class="ag-campo"><span>Clase del curso que se verá</span>
+            <select name="leccion" [(ngModel)]="f.lesson_id" [disabled]="!cursoElegido()">
+              <option [ngValue]="null">Ninguna</option>
+              @for (l of leccionesDelCurso(); track l.id) { <option [ngValue]="l.id">{{ l.modulo }} · {{ l.nombre }}</option> }
+            </select></label>
+          <label class="ag-campo"><span>Fecha y hora (para programarla)</span><input type="datetime-local" name="ini" [(ngModel)]="f.inicio_local" /></label>
+          <label class="ag-campo"><span>Duración (min)</span><input type="number" name="dur" min="10" max="600" [(ngModel)]="f.duracion_min" /></label>
+          <label class="ag-campo"><span>Máximo que hablan a la vez</span><input type="number" name="max" min="2" max="200" [(ngModel)]="f.max_participantes" /></label>
+          <label class="ag-campo"><span>Minutos para contar asistencia</span><input type="number" name="asis" min="1" [(ngModel)]="f.minutos_asistencia" placeholder="La mitad de la duración" /></label>
+          <label class="ag-sw"><input type="checkbox" name="esp" [(ngModel)]="f.permite_espectadores" /> Admitir espectadores cuando se llene</label>
+        </div>
+        <div class="ag-form__acc">
+          <button type="button" class="ag-btn" [disabled]="guardando() || !f.titulo.trim() || !f.inicio_local" (click)="crear(false)"><mat-icon>event</mat-icon> Programar</button>
+          <button type="submit" class="ag-btn ag-btn--lima" [disabled]="guardando() || !f.titulo.trim()"><mat-icon>videocam</mat-icon> Crear y abrir ahora</button>
+        </div>
+      </form>
+    }
+  }
+
+  @if (cargando()) {
+    <p class="ag-tenue">Cargando…</p>
+  } @else {
+    <h2 class="ag-titulo"><span class="ag-vivo"></span> En vivo ahora</h2>
+    <div class="ag-lista">
+      @for (a of enVivo(); track a.id) {
+        <article class="ag-aula ag-aula--vivo">
+          <div class="ag-aula__cab"><span class="ag-badge ag-badge--vivo">EN VIVO</span><span class="ag-tipo">{{ tipoNombre(a.tipo) }}</span></div>
+          <h3>{{ a.titulo }}</h3>
+          <p>{{ a.anfitrion_nombre }}@if (a.curso_nombre) { · {{ a.curso_nombre }} } · {{ a.conectados }} conectados</p>
+          <button type="button" class="ag-btn ag-btn--lima" (click)="abrir(a)" [disabled]="!a.mi_rol"><mat-icon>login</mat-icon> Entrar</button>
+        </article>
+      } @empty { <p class="ag-tenue">No hay aulas en vivo en este momento.</p> }
+    </div>
+
+    <h2 class="ag-titulo">Próximas</h2>
+    <div class="ag-lista">
+      @for (a of proximas(); track a.id) {
+        <article class="ag-aula">
+          <div class="ag-aula__cab"><span class="ag-badge">{{ a.inicio_programado ? (a.inicio_programado | date: 'EEE d MMM · h:mm a') : 'Sin fecha' }}</span><span class="ag-tipo">{{ tipoNombre(a.tipo) }}</span></div>
+          <h3>{{ a.titulo }}</h3>
+          <p>{{ a.anfitrion_nombre }}@if (a.curso_nombre) { · {{ a.curso_nombre }} } · {{ a.duracion_min }} min · código {{ a.codigo }}</p>
+          <button type="button" class="ag-btn" (click)="abrir(a)"><mat-icon>{{ a.mi_rol === 'ANFITRION' ? 'play_circle' : 'meeting_room' }}</mat-icon> {{ a.mi_rol === 'ANFITRION' ? 'Abrir' : 'Sala previa' }}</button>
+        </article>
+      } @empty { <p class="ag-tenue">No hay aulas programadas.</p> }
+    </div>
+
+    @if (recientes().length) {
+      <h2 class="ag-titulo">Recientes</h2>
+      <div class="ag-lista ag-lista--compacta">
+        @for (a of recientes(); track a.id) {
+          <article class="ag-aula ag-aula--pasada" (click)="abrir(a)">
+            <strong>{{ a.titulo }}</strong><span>{{ a.estado === 'CANCELADA' ? 'Cancelada' : 'Finalizada' }} · {{ tipoNombre(a.tipo) }}</span>
+          </article>
+        }
+      </div>
+    }
+
+    <h2 class="ag-titulo"><mat-icon>school</mat-icon> Capacitaciones libres</h2>
+    <p class="ag-tenue">Cursos abiertos: te inscribes cuando quieras y avanzas a tu ritmo.</p>
+    <div class="ag-lista">
+      @for (c of libres(); track c.id) {
+        <article class="ag-curso">
+          <span class="ag-tipo">{{ c.contexto === 'EDUCATIVO' ? 'Educativo' : 'Corporativo' }}</span>
+          <h3>{{ c.nombre }}</h3>
+          @if (c.descripcion) { <p class="ag-desc">{{ c.descripcion }}</p> }
+          <p class="ag-tenue">{{ c.lecciones }} clases@if (c.intensidad_horas) { · {{ c.intensidad_horas }} h }</p>
+          <button type="button" class="ag-btn" [class.ag-btn--primario]="!c.mi_matricula_id" (click)="inscribirme(c)">
+            <mat-icon>{{ c.mi_matricula_id ? 'play_arrow' : 'how_to_reg' }}</mat-icon> {{ c.mi_matricula_id ? 'Continuar' : 'Inscribirme' }}
+          </button>
+        </article>
+      } @empty { <p class="ag-tenue">Todavía no hay cursos libres publicados.</p> }
+    </div>
+  }
+</section>

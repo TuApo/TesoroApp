@@ -1,0 +1,252 @@
+<div #raiz class="cel" [class]="clases()" [style]="vars()" tabindex="-1"
+     role="dialog" aria-modal="true" aria-labelledby="cel-titulo" aria-describedby="cel-mensaje"
+     (click)="tocarFondo()">
+
+  <!-- ── Fondo animado (video generado con Higgsfield) ───────────────────── -->
+  @if (medio(); as m) {
+    <div class="cel-medio" aria-hidden="true">
+      <img class="cel-medio__poster" [src]="m.imagen" alt="" decoding="async" draggable="false" />
+      @if (!reducido && m.video) {
+        <video #video class="cel-medio__video" [class.cel-medio__video--on]="videoListo()" [src]="m.video" [muted]="true"
+               autoplay loop playsinline preload="auto" disablepictureinpicture
+               (loadeddata)="alCargarVideo(video)" (playing)="videoListo.set(true)"></video>
+      }
+    </div>
+  }
+
+  <!-- Varias personas: el fondo propio de cada una aparece durante su turno. -->
+  @for (f of fondosTurno(); track f.i) {
+    <div class="cel-medio cel-medio--persona" [class.cel-medio--on]="fondoActivo() === f.i" aria-hidden="true">
+      <img class="cel-medio__poster" [src]="f.imagen" alt="" decoding="async" draggable="false" />
+      @if (!reducido && f.video && fondoActivo() === f.i) {
+        <video #videoP class="cel-medio__video cel-medio__video--on" [src]="f.video" [muted]="true" autoplay loop playsinline
+               (loadeddata)="alCargarVideo(videoP)"></video>
+      }
+    </div>
+  }
+
+  <!-- ── Fondo de cada motor ─────────────────────────────────────────────── -->
+  <div class="cel-fondo" aria-hidden="true">
+    @switch (anim()) {
+      @case ('CONFETI') {
+        <div class="cf-rayos"></div>
+        <div class="cf-foco"></div>
+      }
+      @case ('GLOBOS') {
+        @for (n of nubes; track $index) {
+          <span class="gl-nube" [style.top.%]="n.top" [style.--escala]="n.escala" [style.animation-delay.s]="n.retraso"
+                [style.animation-duration.s]="n.vuelta"></span>
+        }
+      }
+      @case ('FUEGOS') {
+        @for (e of estrellas; track $index) {
+          <span class="fu-estrella" [style.left.%]="e.x" [style.top.%]="e.y" [style.--t]="e.t + 'px'"
+                [style.animation-delay.s]="e.retraso"></span>
+        }
+        <svg class="fu-ciudad" viewBox="0 0 1000 160" preserveAspectRatio="none">
+          <path [attr.d]="ciudad.silueta" />
+          @for (v of ciudad.ventanas; track $index) {
+            <rect class="fu-ventana" [attr.x]="v.x" [attr.y]="v.y" width="5" height="6" [style.animation-delay.s]="v.retraso" />
+          }
+        </svg>
+      }
+      @case ('GALA') {
+        <div class="ga-rayos"></div>
+        <div class="ga-marco"><span></span></div>
+        @for (e of esquinas; track e) {
+          <svg class="ga-esquina" [class]="'ga-esquina ga-esquina--' + e" viewBox="0 0 100 100">
+            <path pathLength="1" d="M4 96 V30 Q4 4 30 4 H96" />
+            <path pathLength="1" d="M14 96 V36 Q14 14 36 14 H96" />
+            <path pathLength="1" d="M4 30 L30 4 M24 50 A26 26 0 0 1 50 24 M36 52 A16 16 0 0 1 52 36" />
+          </svg>
+        }
+      }
+      @case ('POLAROID') {
+        <div class="po-textura"></div>
+        <svg class="po-garabato po-garabato--a" viewBox="0 0 120 120">
+          <path pathLength="1" d="M60 100 C10 70 18 24 46 28 C56 30 60 40 60 46 C60 40 64 30 74 28 C102 24 110 70 60 100 Z" />
+        </svg>
+        <svg class="po-garabato po-garabato--b" viewBox="0 0 120 120">
+          <path pathLength="1" d="M60 10 L70 46 L108 46 L77 68 L88 104 L60 82 L32 104 L43 68 L12 46 L50 46 Z" />
+        </svg>
+        <svg class="po-garabato po-garabato--c" viewBox="0 0 160 80">
+          <path pathLength="1" d="M8 60 C30 10 50 10 56 40 C62 70 84 70 92 40 C100 10 124 10 152 52" />
+        </svg>
+        <svg class="po-garabato po-garabato--d" viewBox="0 0 120 120">
+          <path pathLength="1" d="M60 14 V106 M14 60 H106 M28 28 L92 92 M92 28 L28 92" />
+        </svg>
+      }
+      @case ('PASTEL') {
+        <svg class="pa-banderines" viewBox="0 0 1000 120" preserveAspectRatio="none">
+          <path class="pa-cuerda" d="M-10 18 Q250 70 500 22 T1010 18" />
+          @for (b of banderines; track $index) {
+            <path class="pa-bandera" [attr.d]="b.d" [style.fill]="'var(--g' + (b.i % 5) + ')'" [style.animation-delay.s]="b.retraso" />
+          }
+        </svg>
+        <div class="pa-luz"></div>
+      }
+    }
+  </div>
+
+  @if (anim() === 'GLOBOS') {
+    <div class="gl-globos gl-globos--atras" aria-hidden="true">
+      @for (g of globosAtras; track $index) {
+        <span class="gl-globo" [style.left.%]="g.x" [style.--tam]="g.tam + 'cqmin'" [style.animation-delay.s]="g.retraso"
+              [style.animation-duration.s]="g.subida" [style.opacity]="g.opacidad">
+          <svg class="gl-globo__svg" viewBox="0 0 60 124" [style.animation-delay.s]="g.vaiven" [style.--color]="'var(--g' + g.color + ')'">
+            <path class="gl-cuerpo" d="M30 3C14 3 4 17 4 34c0 21 16 37 26 41 10-4 26-20 26-41C56 17 46 3 30 3Z" />
+            <path class="gl-sombra" d="M44 12c8 7 9 22 4 34-4 10-12 19-18 22 13-12 18-38 14-56Z" />
+            <ellipse class="gl-brillo" cx="19" cy="21" rx="5.5" ry="9.5" transform="rotate(-24 19 21)" />
+            <path class="gl-nudo" d="M26 75h8l-4 6Z" />
+            <path class="gl-hilo" d="M30 81c-5 10 6 18 0 28s5 12 0 15" />
+          </svg>
+        </span>
+      }
+    </div>
+  }
+
+  <canvas #lienzo class="cel-lienzo" [class.cel-lienzo--frente]="lienzoAlFrente()" aria-hidden="true"></canvas>
+
+  <!-- ── Contenido: titular, personas y mensaje ─────────────────────────── -->
+  <div class="cel-contenido" (click)="$event.stopPropagation()">
+    @if (anim() === 'PASTEL') {
+      <div class="pa-pastel" [class.pa-pastel--soplado]="soplado()" aria-hidden="true">
+        <div class="pa-deseo">Pide un deseo… ✨</div>
+        <svg viewBox="0 0 300 300">
+          <ellipse class="pa-plato" cx="150" cy="282" rx="138" ry="13" />
+          <g class="pa-piso pa-piso--1">
+            <rect x="34" y="200" width="232" height="78" rx="12" />
+            <path class="pa-crema" d="M34 214c0-8 6-14 14-14h204c8 0 14 6 14 14v4c-7 0-7 14-14 14s-7-10-14-10-7 18-15 18-7-14-15-14-7 8-15 8-7-16-15-16-7 12-15 12-7-8-15-8-7 18-15 18-7-14-15-14-7 10-15 10-7-12-15-12-7 8-14 8-7-10-14-10Z" />
+            @for (s of granas[0]; track $index) { <rect class="pa-grana" [attr.x]="s.x" [attr.y]="s.y" width="7" height="2.6" rx="1.3" [attr.transform]="'rotate(' + s.r + ' ' + s.x + ' ' + s.y + ')'" [style.fill]="'var(--g' + s.c + ')'" /> }
+          </g>
+          <g class="pa-piso pa-piso--2">
+            <rect x="66" y="140" width="168" height="64" rx="11" />
+            <path class="pa-crema" d="M66 153c0-7 5-13 12-13h144c7 0 12 6 12 13v3c-6 0-6 12-12 12s-6-9-12-9-6 15-13 15-6-12-13-12-6 7-13 7-6-14-13-14-6 10-13 10-6-7-13-7-6 15-13 15-6-12-13-12-6 9-12 9-6-11-12-11Z" />
+            @for (s of granas[1]; track $index) { <rect class="pa-grana" [attr.x]="s.x" [attr.y]="s.y" width="6" height="2.4" rx="1.2" [attr.transform]="'rotate(' + s.r + ' ' + s.x + ' ' + s.y + ')'" [style.fill]="'var(--g' + s.c + ')'" /> }
+          </g>
+          <g class="pa-piso pa-piso--3">
+            <rect x="98" y="92" width="104" height="52" rx="10" />
+            <path class="pa-crema" d="M98 104c0-7 5-12 12-12h80c7 0 12 5 12 12v2c-5 0-5 11-10 11s-5-8-10-8-5 13-11 13-5-10-11-10-5 6-11 6-5-12-11-12-5 9-11 9-5-7-10-7-5 10-9 10Z" />
+            <circle class="pa-cereza" cx="150" cy="90" r="7" />
+          </g>
+          @for (v of velas; track v.x) {
+            <g class="pa-vela" [style.animation-delay.s]="v.retraso">
+              <rect class="pa-vela__cuerpo" [attr.x]="v.x - 4" y="56" width="8" height="38" rx="2" />
+              <path class="pa-vela__raya" [attr.d]="'M' + (v.x - 4) + ' 64l8 -5M' + (v.x - 4) + ' 74l8 -5M' + (v.x - 4) + ' 84l8 -5'" />
+              <path class="pa-mecha" [attr.d]="'M' + v.x + ' 56v-5'" />
+              <g class="pa-llama" [attr.data-x]="v.x">
+                <circle class="pa-llama__halo" [attr.cx]="v.x" cy="40" r="15" />
+                <path class="pa-llama__fuera" [attr.d]="'M' + v.x + ' 24c6 9 9 14 9 19a9 9 0 0 1-18 0c0-5 3-10 9-19Z'" />
+                <path class="pa-llama__dentro" [attr.d]="'M' + v.x + ' 33c3 5 4.5 8 4.5 10.5a4.5 4.5 0 0 1-9 0c0-2.5 1.5-5.5 4.5-10.5Z'" />
+              </g>
+            </g>
+          }
+        </svg>
+      </div>
+    }
+
+    <div class="cel-texto">
+      <p class="cel-ceja"><span class="cel-ceja__txt">@if (ceja().pre) {<span class="cel-ceja__pre">{{ ceja().pre }}</span>}{{ ceja().texto }}</span></p>
+      <h2 id="cel-titulo" class="cel-titular">
+        @for (p of palabrasTitulo(); track $index) {
+          <span class="cel-palabra" [style.--i]="$index">{{ p }}</span>{{ ' ' }}
+        }
+      </h2>
+
+      <ul class="cel-personas" [attr.aria-label]="'Cumpleañeros: ' + nombresAccesibles()">
+        @for (p of personas(); track p.id; let i = $index) {
+          <li class="cel-persona" [class.cel-persona--usted]="p.es_usted" [style.--i]="i" [style.--inclina]="inclinacion(i) + 'deg'">
+            <div class="cel-marco">
+              @if (fotoUrl(p); as url) {
+                <img [src]="url" [alt]="'Foto de ' + p.nombre" [style.object-position]="p.enfoque_x + '% ' + p.enfoque_y + '%'"
+                     decoding="async" draggable="false" />
+              } @else {
+                <span class="cel-iniciales" aria-hidden="true">{{ iniciales(p.nombre) }}</span>
+              }
+            </div>
+            <div class="cel-pie">
+              @if (grupo() === 'n1' && !reducido) {
+                <strong class="cel-nombre cel-nombre--letras" [attr.aria-label]="p.nombre">
+                  @for (w of palabrasNombre(); track $index) {
+                    <span class="cel-nombre__palabra" aria-hidden="true">@for (x of w; track $index) {<span [style.--l]="x.i">{{ x.l }}</span>}</span>{{ ' ' }}
+                  }
+                </strong>
+              } @else {
+                <strong class="cel-nombre">{{ p.nombre }}</strong>
+              }
+              @if (p.cargo) { <span class="cel-cargo">{{ p.cargo }}</span> }
+              @if (p.etiquetas?.length) {
+                <span class="cel-etiquetas" [class.cel-etiquetas--compactas]="personas().length > 1">
+                  @for (e of p.etiquetas; track e.nombre) {
+                    <span class="cel-etiqueta" [title]="e.nombre"><span aria-hidden="true">{{ e.emoji }}</span>@if (personas().length === 1) { {{ e.nombre }} }</span>
+                  }
+                </span>
+              }
+              @if (p.mensaje_jefe && personas().length === 1) {
+                <blockquote class="cel-jefe"><p>“{{ p.mensaje_jefe }}”</p>@if (p.mensaje_jefe_firma) { <cite>— {{ p.mensaje_jefe_firma }}</cite> }</blockquote>
+              } @else if (p.dedicatoria && personas().length <= 3) { <em class="cel-dedicatoria">«{{ p.dedicatoria }}»</em> }
+            </div>
+          </li>
+        }
+      </ul>
+
+      @if (mensaje()) { <p id="cel-mensaje" class="cel-mensaje">{{ mensaje() }}</p> }
+    </div>
+  </div>
+
+  <!-- Varias personas: la que tiene su momento al centro. -->
+  @for (t of turnoLista(); track t.i) {
+    <div class="cel-turno" [class.cel-turno--usted]="t.p.es_usted" [style.--inclina]="inclinacion(t.i) + 'deg'"
+         (click)="$event.stopPropagation()">
+      <span class="cel-turno__halo" aria-hidden="true"></span>
+      <div class="cel-marco">
+        @if (fotoUrl(t.p); as url) {
+          <img [src]="url" alt="" [style.object-position]="t.p.enfoque_x + '% ' + t.p.enfoque_y + '%'" decoding="async" draggable="false" />
+        } @else {
+          <span class="cel-iniciales" aria-hidden="true">{{ iniciales(t.p.nombre) }}</span>
+        }
+      </div>
+      <div class="cel-turno__pie">
+        <strong class="cel-nombre">{{ t.p.nombre }}</strong>
+        @if (t.p.cargo) { <span class="cel-cargo">{{ t.p.cargo }}</span> }
+        @if (t.p.etiquetas?.length) {
+          <span class="cel-etiquetas">
+            @for (e of t.p.etiquetas; track e.nombre) { <span class="cel-etiqueta"><span aria-hidden="true">{{ e.emoji }}</span> {{ e.nombre }}</span> }
+          </span>
+        }
+        @if (t.p.mensaje_jefe) {
+          <blockquote class="cel-jefe"><p>“{{ t.p.mensaje_jefe }}”</p>@if (t.p.mensaje_jefe_firma) { <cite>— {{ t.p.mensaje_jefe_firma }}</cite> }</blockquote>
+        } @else if (t.p.dedicatoria) { <em class="cel-dedicatoria">«{{ t.p.dedicatoria }}»</em> }
+      </div>
+    </div>
+  }
+
+  @if (anim() === 'GLOBOS') {
+    <div class="gl-globos gl-globos--frente" aria-hidden="true">
+      @for (g of globosFrente; track $index) {
+        <span class="gl-globo" [style.left.%]="g.x" [style.--tam]="g.tam + 'cqmin'" [style.animation-delay.s]="g.retraso"
+              [style.animation-duration.s]="g.subida">
+          <svg class="gl-globo__svg" viewBox="0 0 60 124" [style.animation-delay.s]="g.vaiven" [style.--color]="'var(--g' + g.color + ')'">
+            <path class="gl-cuerpo" d="M30 3C14 3 4 17 4 34c0 21 16 37 26 41 10-4 26-20 26-41C56 17 46 3 30 3Z" />
+            <path class="gl-sombra" d="M44 12c8 7 9 22 4 34-4 10-12 19-18 22 13-12 18-38 14-56Z" />
+            <ellipse class="gl-brillo" cx="19" cy="21" rx="5.5" ry="9.5" transform="rotate(-24 19 21)" />
+            <path class="gl-nudo" d="M26 75h8l-4 6Z" />
+            <path class="gl-hilo" d="M30 81c-5 10 6 18 0 28s5 12 0 15" />
+          </svg>
+        </span>
+      }
+    </div>
+  }
+
+  <button #cerrarBtn type="button" class="cel-cerrar" (click)="cerrar(true); $event.stopPropagation()"
+          aria-label="Cerrar la celebración">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+    <span class="cel-cerrar__txt">Cerrar</span>
+  </button>
+
+  @if (terminado() && modo() === 'marco') {
+    <button type="button" class="cel-repetir" (click)="repetir.emit(); $event.stopPropagation()">↻ Repetir</button>
+  }
+
+  <div class="cel-progreso" aria-hidden="true"><span></span></div>
+</div>

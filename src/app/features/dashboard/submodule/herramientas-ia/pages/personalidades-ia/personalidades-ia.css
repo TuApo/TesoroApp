@@ -1,0 +1,49 @@
+/* Personalidades IA: lo propio de la página. La base (tarjetas, diálogo, botones) es la de Automatizaciones IA. */
+.pia-hero { --aia-grad: linear-gradient(135deg, #DB2777 0%, #7C3AED 55%, #4F46E5 100%); }
+.pia-activa { font-size: 1rem !important; max-width: 140px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.pia-card::before { background: var(--pia-color, #7C3AED) !important; }
+.pia-ico { background: var(--pia-color, #7C3AED) !important; }
+.pia-activa-card { box-shadow: 0 0 0 2px var(--pia-color, #7C3AED), 0 10px 24px rgb(15 27 45 / .1); }
+.pia-ico-suave { color: var(--pia-color, #7C3AED) !important; background: color-mix(in srgb, var(--pia-color, #7C3AED) 12%, var(--surface, #fff)) !important; }
+.pia-pre .aia-card-acc { margin-top: 6px; }
+
+.pia-dlg-ico { background: var(--pia-color, #7C3AED) !important; transition: background .25s; }
+.pia-segmentos { display: flex; flex-wrap: wrap; gap: 6px; }
+.pia-segmentos button {
+  min-height: 34px !important; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; transition: transform .2s var(--aia-resorte), background .15s;
+}
+.pia-segmentos button.sel { background: var(--pia-color, #7C3AED); border-color: var(--pia-color, #7C3AED); color: #fff; transform: scale(1.04); }
+.pia-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.pia-ejemplos { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.pia-ejemplos .aia-chip { font-size: .74rem; min-height: 28px !important; }
+.pia-probar { display: flex; flex-direction: column; gap: 4px; }
+.pia-iconos { display: flex; flex-wrap: wrap; gap: 4px; }
+.pia-iconos button {
+  min-height: 36px !important; width: 36px; height: 36px; padding: 0; border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-2); display: grid; place-items: center; cursor: pointer;
+}
+.pia-iconos button.sel { border-color: var(--pia-color, #7C3AED); color: var(--pia-color, #7C3AED); box-shadow: inset 0 0 0 1px var(--pia-color, #7C3AED); }
+.pia-colores { display: flex; gap: 6px; }
+.pia-colores button {
+  min-height: 28px !important; width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--surface); cursor: pointer;
+  box-shadow: 0 0 0 1px var(--border-strong); transition: transform .2s var(--aia-resorte);
+}
+.pia-colores button.sel { transform: scale(1.18); box-shadow: 0 0 0 2px var(--text); }
+
+.pia-preview {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 14px; background: var(--surface-2);
+  border: 1px dashed color-mix(in srgb, var(--pia-color, #7C3AED) 45%, transparent); animation: aia-aparecer .35s var(--aia-resorte) both;
+}
+.pia-preview-ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff; background: var(--pia-color, #7C3AED); }
+.pia-preview-ico mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.pia-preview small { color: var(--text-2); font-size: .74rem; }
+.pia-preview p { margin: 3px 0 0; font-size: .88rem; line-height: 1.45; }
+
+@media (max-width: 720px) {
+  .pia-dos { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pia-preview, .pia-segmentos button, .pia-colores button { animation: none; transition: none; }
+}

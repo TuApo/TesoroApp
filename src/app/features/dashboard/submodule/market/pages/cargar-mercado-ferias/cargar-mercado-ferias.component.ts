@@ -6,6 +6,7 @@ import { SharedModule } from '../../../../../../shared/shared.module';
 import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { ComercializadoraService } from '../../../merchandise/service/comercializadora/comercializadora.service';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
@@ -73,6 +74,8 @@ export class CargarMercadoFeriasComponent implements OnInit {
 
   rolUsuario: string = '';
   correoUsuario: string = '';
+
+  private sedeScope = inject(SedeScopeService);
 
   constructor(
     private fb: FormBuilder,
@@ -161,6 +164,11 @@ export class CargarMercadoFeriasComponent implements OnInit {
       return;
     }
 
+    // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) se elige la oficina a la que
+    // pertenece el registro, para que no quede etiquetado con esa sede.
+    const oficina = await this.sedeScope.oficinaParaRegistrar({ que: 'donde se entrega el mercado' });
+    if (!oficina && this.sedeScope.trabajaDesdeTransversal()) return;
+
     // 2. Mostrar Swal de carga
     Swal.fire({
       title: 'Procesando...',
@@ -177,7 +185,7 @@ export class CargarMercadoFeriasComponent implements OnInit {
       const conceptoForm = this.myForm.get('concepto')?.value;
       const doc = this.datosOperario.numero_documento;
       const userName = `${this.usuario.datos_basicos.nombres} ${this.usuario.datos_basicos.apellidos}`;
-      const sedeAutorizacion = this.usuario?.sede?.nombre || '';
+      const sedeAutorizacion = oficina || '';
 
       // 3. Calcular saldo y verificar condiciones
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);

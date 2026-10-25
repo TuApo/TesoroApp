@@ -1,0 +1,428 @@
+/* ==========================================================================
+   LÍNEA DE TIEMPO DE LA PERSONA
+   Los filtros quedan quietos arriba y lo que se desplaza es la lista. Solo
+   tokens semánticos (--surface, --muted, --ok-*…): así funciona igual en el
+   tema oscuro sin reglas propias.
+   ========================================================================== */
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.lt {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+}
+
+.lt-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 2px 8px;
+}
+
+/* ── Chips de filtro ──────────────────────────────────────────────────────── */
+.lt-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: none;
+}
+
+.lt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 32px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.lt-chip mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.lt-chip:hover { background: var(--surface-3); }
+
+.lt-chip:focus-visible,
+.lt-boton:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Azul de marca y no navy: en el tema oscuro el navy casi no se separa del fondo. */
+.lt-chip-activo,
+.lt-chip-activo:hover {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.lt-chip-n {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: .7rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.lt-chip-activo .lt-chip-n {
+  background: rgba(255, 255, 255, .18);
+  color: #fff;
+}
+
+/* ── Avisos (fuente que no se pudo leer) ─────────────────────────────────── */
+.lt-aviso {
+  display: flex;
+  gap: 8px;
+  flex: none;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: .8rem;
+}
+
+.lt-aviso > mat-icon { flex: none; font-size: 20px; width: 20px; height: 20px; }
+.lt-aviso p { margin: 0; }
+.lt-aviso-pie { opacity: .8; }
+
+/* ── Días ─────────────────────────────────────────────────────────────────── */
+.lt-dias,
+.lt-eventos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lt-dia + .lt-dia { margin-top: 6px; }
+
+/* Pegado arriba al desplazar: siempre se sabe de qué día es lo que se lee. */
+.lt-dia-titulo {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 0 8px 46px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.lt-dia-futuro { color: var(--info-fg); }
+
+.lt-tag {
+  padding: 1px 8px;
+  border: 1px solid var(--info-border);
+  border-radius: 999px;
+  background: var(--info-bg);
+  color: var(--info-fg);
+  font-size: .64rem;
+  letter-spacing: .04em;
+}
+
+/* ── Hitos ────────────────────────────────────────────────────────────────── */
+.lt-evento {
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 10px;
+}
+
+/* El hilo que une un hito con el siguiente. */
+.lt-evento::before {
+  content: "";
+  position: absolute;
+  top: 34px;
+  bottom: 0;
+  left: 16px;
+  width: 2px;
+  background: var(--border);
+}
+
+.lt-evento:last-child::before { display: none; }
+
+.lt-punto {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-2);
+}
+
+.lt-punto mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.lt-evento[data-nivel='POSITIVO'] .lt-punto {
+  border-color: var(--ok-border);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.lt-evento[data-nivel='NEGATIVO'] .lt-punto {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+.lt-evento[data-nivel='ADVERTENCIA'] .lt-punto {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.lt-tarjeta {
+  min-width: 0;
+  padding: 9px 12px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.lt-cab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lt-titulo {
+  min-width: 0;
+  color: var(--text);
+  font-size: .88rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.lt-hora {
+  flex: none;
+  color: var(--muted);
+  font-size: .74rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.lt-detalle {
+  margin: 3px 0 0;
+  color: var(--text-2);
+  font-size: .82rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.lt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: .72rem;
+}
+
+.lt-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lt-meta mat-icon { flex: none; font-size: 14px; width: 14px; height: 14px; }
+
+.lt-meta-proceso { font-variant-numeric: tabular-nums; }
+
+/* El grupo, con su color: se reconoce de un vistazo sin leer. */
+.lt-meta > .lt-meta-tipo {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-weight: 700;
+}
+
+.lt-meta-tipo[data-tipo='SELECCION'] { border-color: var(--info-border); background: var(--info-bg); color: var(--info-fg); }
+.lt-meta-tipo[data-tipo='PRUEBA'],
+.lt-meta-tipo[data-tipo='EXAMEN'] { border-color: var(--violet-border); background: var(--violet-bg); color: var(--violet-fg); }
+.lt-meta-tipo[data-tipo='CONTRATO'] { border-color: var(--ok-border); background: var(--ok-bg); color: var(--ok-fg); }
+.lt-meta-tipo[data-tipo='VETO'] { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-fg); }
+.lt-meta-tipo[data-tipo='INCAPACIDAD'] { border-color: var(--warn-border); background: var(--warn-bg); color: var(--warn-fg); }
+
+/* ── Pie: cargar más ──────────────────────────────────────────────────────── */
+.lt-pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 6px;
+  padding: 10px 0 0 46px;
+  border-top: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: .76rem;
+}
+
+.lt-fin { font-style: italic; }
+
+.lt-error-mas { flex-basis: 100%; color: var(--danger-fg); }
+
+.lt-boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lt-boton:hover:not(:disabled) { background: var(--surface-3); }
+.lt-boton:disabled { opacity: .6; cursor: progress; }
+.lt-boton mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+/* ── Vacío / error ────────────────────────────────────────────────────────── */
+.lt-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 16px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.lt-vacio > mat-icon { font-size: 40px; width: 40px; height: 40px; color: var(--text-faint); }
+.lt-error > mat-icon { color: var(--danger-fg); }
+.lt-vacio-titulo { margin: 0; color: var(--text-2); font-size: .9rem; font-weight: 700; }
+.lt-vacio-sub { margin: 0; font-size: .8rem; }
+
+/* ── Cargando ─────────────────────────────────────────────────────────────── */
+.lt-esqueleto { display: flex; flex-direction: column; gap: 14px; padding-top: 8px; }
+
+.lt-esq-fila { display: grid; grid-template-columns: 34px 1fr; gap: 12px; }
+
+.lt-esq-punto,
+.lt-esq-linea {
+  background: linear-gradient(90deg, var(--surface-3) 0%, var(--surface-4) 50%, var(--surface-3) 100%);
+  background-size: 200% 100%;
+  animation: lt-brillo 1.3s ease-in-out infinite;
+}
+
+.lt-esq-punto { width: 34px; height: 34px; border-radius: 50%; }
+
+.lt-esq-tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.lt-esq-linea { height: 10px; border-radius: 6px; }
+.lt-esq-corta { width: 45%; height: 12px; }
+
+@keyframes lt-brillo {
+  from { background-position: 100% 0; }
+  to   { background-position: -100% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-esq-punto, .lt-esq-linea { animation: none; }
+}
+
+/* ── Notas (lo que se deja fuera a propósito) ─────────────────────────────── */
+.lt-notas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: .72rem;
+  list-style: none;
+}
+
+.lt-notas li { display: flex; align-items: flex-start; gap: 6px; }
+.lt-notas mat-icon { flex: none; font-size: 14px; width: 14px; height: 14px; margin-top: 1px; }
+
+/* ── Tamaños ──────────────────────────────────────────────────────────────── */
+/* `styles.css` sube todo <button> a 48px (objetivo táctil). Con mouse, los
+   chips y botones de aquí recuperan su alto; en táctil y móvil se quedan en
+   44px, que sigue siendo cómodo para el dedo. */
+.lt-chip,
+.lt-boton {
+  min-height: 0 !important;
+}
+
+@media (pointer: coarse), (max-width: 600px) {
+  .lt-chip,
+  .lt-boton {
+    height: auto;
+    min-height: 40px !important;
+  }
+}
+
+/* Teléfono: los chips se deslizan de lado en vez de ocupar media pantalla, y
+   el hilo se estrecha para dejarle ancho a la tarjeta. */
+@media (max-width: 600px) {
+  .lt-filtros {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+  }
+
+  .lt-chip { flex: none; }
+
+  .lt-evento { grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
+  .lt-evento::before { top: 28px; left: 13px; }
+  .lt-punto { width: 28px; height: 28px; }
+  .lt-punto mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+  .lt-dia-titulo,
+  .lt-pie { padding-left: 36px; }
+
+  .lt-cab { flex-direction: column; gap: 1px; }
+  .lt-tarjeta { padding: 8px 10px; }
+}

@@ -1,6 +1,8 @@
-import { ChangeDetectionStrategy, Component, inject, Input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, inject, Input, Output, signal } from '@angular/core';
 import {
   ControlContainer,
+  AbstractControl,
+  FormArray,
   FormGroup,
   FormGroupDirective,
   ReactiveFormsModule,
@@ -13,6 +15,7 @@ import { Observable, of } from 'rxjs';
 
 import { SharedModule } from '@/app/shared/shared.module';
 import { CatalogValue } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
+import { SaludAdres, detalleExcepcion } from '../../shared/salud-adres.util';
 
 /**
  * Las secciones en las que se agrupan los datos de la persona.
@@ -119,6 +122,14 @@ export class FichaCamposComponent {
   }
 
   @Input() ciudades: readonly string[] = [];
+
+  /**
+   * Afiliación a salud según ADRES (pedido #6): chip "Régimen especial/excepción" o el
+   * aviso suave de "ADRES sin registro". Lo resuelve `form-entrevista` con el mismo dato
+   * del aviso ámbar del pipeline (`/Robots/resultados-antecedentes`); `null` = nada.
+   */
+  @Input() saludAdres: SaludAdres | null = null;
+  readonly detalleExcepcion = detalleExcepcion;
   /** Qué secciones se pintan. Por defecto, las de la hoja de entrevista. */
   @Input() secciones: readonly SeccionFicha[] = SECCIONES_FICHA.map((s) => s.id);
 
@@ -137,6 +148,115 @@ export class FichaCamposComponent {
   @Input() estadoCivil$: Observable<CatalogValue[]> = of([]);
   @Input() parentescos$: Observable<CatalogValue[]> = of([]);
   @Input() ocupaciones$: Observable<CatalogValue[]> = of([]);
+  /** Catálogos del bloque de hijos (los del formulario de la vacante). */
+  @Input() sexo$: Observable<CatalogValue[]> = of([]);
+  @Input() tipoDocHijo$: Observable<CatalogValue[]> = of([]);
+  @Input() custodiaHijo$: Observable<CatalogValue[]> = of([]);
+
+  /**
+   * Agregar y quitar hijos los resuelve el formulario dueño del FormArray: es
+   * él quien arma el grupo de cada hijo y lleva el conteo de "Cuántos hijos".
+   */
+  @Output() agregarHijo = new EventEmitter<void>();
+  @Output() quitarHijo = new EventEmitter<number>();
+
+  get hijosFA(): FormArray | null {
+    return (this.form?.get('hijos') as FormArray) ?? null;
+  }
+
+  /**
+   * Tarjetas de hijo desplegadas. Cerradas por defecto: con varios hijos, los
+   * diecisiete campos de cada uno tapaban el resto de la ficha. Se guarda el
+   * control (no el índice) para que quitar un hijo no abra el siguiente.
+   */
+  private readonly hijosAbiertos = new WeakSet<AbstractControl>();
+
+  hijoAbierto(g: AbstractControl): boolean {
+    return this.hijosAbiertos.has(g);
+  }
+
+  alternarHijo(g: AbstractControl): void {
+    if (this.hijosAbiertos.has(g)) this.hijosAbiertos.delete(g);
+    else this.hijosAbiertos.add(g);
+  }
+
+  /** El hijo recién agregado llega abierto: es para llenarlo. */
+  onAgregarHijo(): void {
+    this.agregarHijo.emit();
+    const fa = this.hijosFA;
+    if (fa?.length) this.hijosAbiertos.add(fa.at(fa.length - 1));
+  }
+
+  /** Lo que se ve con la tarjeta cerrada: documento, o lo que le falta para guardarse. */
+  resumenHijo(i: number): string {
+    const h = this.hijosFA?.at(i)?.value ?? {};
+    const doc = String(h.numero_de_documento ?? '').trim();
+    if (!doc) return 'sin documento: no se guarda';
+    if (!h.fecha_nac) return 'sin fecha de nacimiento: no se guarda';
+    return `${h.tipo_documento || 'Doc.'} ${doc}`;
+  }
+
+  /** "Juan Pérez" o "Hijo 2" mientras no tenga nombre. */
+  tituloHijo(i: number): string {
+    const h = this.hijosFA?.at(i)?.value ?? {};
+    const n = [h.primer_nombre, h.segundo_nombre, h.primer_apellido, h.segundo_apellido]
+      .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ');
+    return n || `Hijo ${i + 1}`;
+  }
+
+  /** Años cumplidos del hijo de la fila, o null sin fecha válida. */
+  private aniosHijo(i: number): number | null {
+    const f = this.aFecha(this.hijosFA?.at(i)?.get('fecha_nac')?.value);
+    if (!f) return null;
+    const hoy = new Date();
+    let a = hoy.getFullYear() - f.getFullYear();
+    if (hoy.getMonth() < f.getMonth() || (hoy.getMonth() === f.getMonth() && hoy.getDate() < f.getDate())) a--;
+    return a < 0 ? null : a;
+  }
+
+  /** La edad como se dice en la entrevista: meses por debajo del año. */
+  edadHijo(i: number): string {
+    const f = this.aFecha(this.hijosFA?.at(i)?.get('fecha_nac')?.value);
+    if (!f) return 'sin fecha de nacimiento';
+    const hoy = new Date();
+    let meses = (hoy.getFullYear() - f.getFullYear()) * 12 + (hoy.getMonth() - f.getMonth());
+    if (hoy.getDate() < f.getDate()) meses--;
+    if (meses < 0) return 'sin fecha de nacimiento';
+    if (meses === 0) return 'menos de un mes';
+    if (meses < 12) return meses === 1 ? '1 mes' : `${meses} meses`;
+    const anios = Math.floor(meses / 12);
+    return anios === 1 ? '1 año' : `${anios} años`;
+  }
+
+  /**
+   * Nivel educativo del hijo (ficha técnica, req. 13). Distinto de "Curso" (TERCERO, 5B…).
+   * Sin tildes: el guardado las quita (`uppercaseDeepExcept`) y el valor no volvería a casar.
+   */
+  readonly nivelesEducativosHijo = ['PREESCOLAR', 'PRIMARIA', 'SECUNDARIA', 'TECNICO O TECNOLOGO', 'UNIVERSITARIO', 'NINGUNO'];
+
+  /**
+   * RF-047, igual que en el formulario de la vacante: la ocupación se recorta por
+   * la edad (`edad_minima` / `edad_maxima` del catálogo). Sin fecha, todas.
+   */
+  ocupacionesHijo(ops: CatalogValue[] | null, i: number): CatalogValue[] {
+    const base = ops ?? [];
+    const edad = this.aniosHijo(i);
+    if (edad === null) return base;
+    const num = (x: any) => (x === null || x === undefined || x === '' ? null : Number(x));
+    return base.filter((o: any) => {
+      const min = num(o['edad_minima']), max = num(o['edad_maxima']);
+      if (min !== null && Number.isFinite(min) && edad < min) return false;
+      if (max !== null && Number.isFinite(max) && edad > max) return false;
+      return true;
+    });
+  }
+
+  /** Date, Moment o 'YYYY-MM-DD' → Date (o null). */
+  private aFecha(v: any): Date | null {
+    if (!v) return null;
+    const d = v instanceof Date ? v : typeof v?.toDate === 'function' ? v.toDate() : new Date(v);
+    return d instanceof Date && !isNaN(d.getTime()) ? d : null;
+  }
 
   /** Municipios filtrados por lo que se va escribiendo. */
   readonly ciudadesExpedicion = signal<readonly string[]>([]);

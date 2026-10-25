@@ -26,6 +26,8 @@
 @import "./theme/tokens.css";
 @import "./theme/vendors-dark.css";
 @import "./theme/acciones-pagina.css";
+/* Temporadas (Halloween, Navidad…): solo aplican con <html data-temporada>. */
+@import "./theme/temporadas/halloween.css";
 
 /* ======================
    Reset / normalize
@@ -162,6 +164,16 @@ app-dashboard > .dashboard-container > .dashboard-content {
    a la izquierda y con un hueco a la derecha. */
 .dashboard-page-wrapper > app-recruitment-pipeline {
   width: auto;
+}
+
+/* En móvil el pipeline también se sale 1rem a los lados (el relleno de
+   `.dashboard-content`) para ir de borde a borde, pero el `overflow: auto` del
+   wrapper recortaba justo esa franja. El pipeline ya mide exactamente el alto
+   disponible y desplaza por dentro, así que aquí el wrapper no necesita scroll. */
+@media (max-width: 900px) {
+  .dashboard-page-wrapper:has(> app-recruitment-pipeline) {
+    overflow: visible;
+  }
 }
 
 /* Gráficas ECharts: el canvas lleva un ancho fijo en px y, sin contención, ese
@@ -1170,3 +1182,84 @@ html.swal2-shown.swal2-shown {
   contain: none !important;
   will-change: auto !important;
 }
+
+
+/* ── Diálogos de la tabla estándar (revisar la selección, acción masiva) ──
+   Viven en el overlay del CDK, fuera del componente de la tabla, así que sus
+   botones necesitan los estilos aquí. Mismos tonos que dentro de la tabla. */
+.te-panel .mat-mdc-dialog-surface { padding: 14px 16px 12px; border-radius: 14px; }
+.te-panel .te-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 36px;
+  padding: 0 12px; border-radius: 10px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--border); background: var(--surface-2, var(--surface));
+  color: var(--text); font: 600 13px var(--font-sans);
+  transition: background-color .15s ease, border-color .15s ease, filter .15s ease;
+}
+.te-panel .te-btn:hover:not(:disabled) { border-color: var(--brand-blue); }
+.te-panel .te-btn:disabled { opacity: .5; cursor: default; }
+.te-panel .te-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.te-panel .te-btn .mat-icon { font-size: 17px; width: 17px; height: 17px; color: inherit; }
+.te-panel :is(.te-btn--primario, .te-btn[data-tono='primario']) {
+  background: var(--brand-blue); border-color: transparent; color: #fff;
+}
+.te-panel :is(.te-btn--primario, .te-btn[data-tono='primario']):hover:not(:disabled) {
+  border-color: transparent; filter: brightness(1.08);
+}
+.te-panel :is(.te-btn--aviso, .te-btn[data-tono='aviso']) {
+  background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg);
+}
+.te-panel :is(.te-btn--peligro, .te-btn[data-tono='peligro']) {
+  background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-fg);
+}
+.te-panel :is(.te-btn--aviso, .te-btn--peligro, .te-btn[data-tono='aviso'], .te-btn[data-tono='peligro']):hover:not(:disabled) {
+  border-color: currentColor; filter: brightness(.97);
+}
+@media (max-width: 720px) {
+  .cdk-overlay-pane.te-panel { max-width: 100vw !important; }
+}
+
+/* ─── Comunicaciones (chat y llamadas) ─────────────────────────────────────
+   Colores de acento del módulo, con su versión para el tema oscuro (un fondo claro
+   fijo con texto blanco encima no se lee). */
+:root {
+  --com-ambar-bg: #FEF3C7; --com-ambar-borde: #FDE68A; --com-ambar-txt: #92400E;
+  --com-verde-bg: #D1FAE5; --com-verde-suave: #ECFDF5; --com-verde-txt: #0B6B58; --com-ok-txt: #15803D;
+  --com-ia-burbuja: #E6F6EF;
+}
+html[data-theme='dark'] {
+  --com-ambar-bg: rgba(245, 158, 11, .16); --com-ambar-borde: rgba(245, 158, 11, .5); --com-ambar-txt: #FCD34D;
+  --com-verde-bg: rgba(16, 185, 129, .2); --com-verde-suave: rgba(16, 185, 129, .12); --com-verde-txt: #6EE7B7; --com-ok-txt: #4ADE80;
+  --com-ia-burbuja: rgba(16, 185, 129, .14);
+}
+/* Paneles de diálogo del módulo: el visor de adjuntos y la cámara van sin marco
+   ni fondo (el componente pinta su propio fondo oscuro). */
+.com-visor-panel .mat-mdc-dialog-surface,
+.com-dialogo-oscuro .mat-mdc-dialog-surface { background: transparent !important; box-shadow: none !important; border-radius: 0 !important; padding: 0 !important; }
+.com-visor-panel .mat-mdc-dialog-container,
+.com-dialogo-oscuro .mat-mdc-dialog-container { padding: 0 !important; }
+.com-acta-panel .mat-mdc-dialog-surface { border-radius: 18px !important; overflow: hidden; }
+.com-dialogo .mat-mdc-dialog-surface { border-radius: 18px !important; overflow: hidden; }
+.com-emojis.mat-mdc-menu-panel { max-width: none !important; }
+/* En Capacitaciones está la burbuja del tutor abajo a la derecha: las pestañas del chat suben. */
+body:has(app-ai-tutor .tutor) app-chat-dock nav.pestanas { bottom: 84px; }
+@media (max-width: 900px) {
+  .com-acta-panel { max-width: 100vw !important; width: 100vw !important; height: 100vh !important; }
+  .com-acta-panel .mat-mdc-dialog-surface { border-radius: 0 !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Editor de plantillas EPS a pantalla completa
+   panelClass: editor-plantilla-panel (PlantillaEditorComponent)
+   Va en global: los estilos del componente no llegan al panel del CDK.
+   ───────────────────────────────────────────────────────────────────── */
+.mat-mdc-dialog-panel.editor-plantilla-panel .mat-mdc-dialog-surface {
+  height: 100%;
+  padding: 0;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+/* Ficha de persona de Métricas de Contratación: panel lateral a toda altura, sin esquinas a la derecha. */
+.ficha-contratacion-panel .mat-mdc-dialog-surface { border-radius: 20px 0 0 20px !important; overflow: hidden; }
+.ficha-contratacion-panel .mat-mdc-dialog-container { --mat-dialog-container-max-height: 100vh; }
+@media (max-width: 600px) { .ficha-contratacion-panel .mat-mdc-dialog-surface { border-radius: 0 !important; } }

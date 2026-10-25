@@ -1,0 +1,203 @@
+<div class="dm-consola">
+  <header class="dm-head">
+    <div>
+      <h1>Gestión de Equipos</h1>
+      <p class="dm-sub">Supervisión transparente de equipos corporativos · el colaborador siempre lo sabe</p>
+    </div>
+    <div class="dm-cuenta" *ngIf="cuenta() as c">
+      <span class="chip">Plan {{ c.plan }}</span>
+      <span class="chip">Equipos {{ cupoTexto() }}</span>
+      <button mat-stroked-button (click)="recargar()"><mat-icon>refresh</mat-icon> Actualizar</button>
+    </div>
+  </header>
+
+  <!-- Tablero -->
+  <section class="dm-tablero" *ngIf="tablero() as t">
+    <div class="kpi"><span class="num">{{ t.total }}</span><span class="lbl">Equipos</span></div>
+    <div class="kpi ok"><span class="num">{{ t.activos }}</span><span class="lbl">Activos</span></div>
+    <div class="kpi warn"><span class="num">{{ t.bloqueados }}</span><span class="lbl">Bloqueados</span></div>
+    <div class="kpi bad"><span class="num">{{ t.robados }}</span><span class="lbl">Robados</span></div>
+    <div class="kpi warn"><span class="num">{{ t.incumplen }}</span><span class="lbl">Incumplen</span></div>
+    <div class="kpi"><span class="num">{{ t.sin_latido_24h }}</span><span class="lbl">Sin latido 24h</span></div>
+    <div class="kpi bad"><span class="num">{{ t.alertas_sin_ver }}</span><span class="lbl">Alertas</span></div>
+  </section>
+
+  <mat-tab-group animationDuration="0ms">
+    <!-- ───────────── Flota ───────────── -->
+    <mat-tab label="Flota">
+      <div class="dm-alta">
+        <input type="text" placeholder="Etiqueta del equipo" [ngModel]="nuevoEtiqueta()" (ngModelChange)="nuevoEtiqueta.set($event)">
+        <select [ngModel]="nuevoPlataforma()" (ngModelChange)="nuevoPlataforma.set($event)">
+          <option value="ANDROID">Android</option><option value="IOS">iOS</option>
+          <option value="WINDOWS">Windows</option><option value="MACOS">macOS</option><option value="LINUX">Linux</option>
+        </select>
+        <button mat-flat-button color="primary" (click)="crearDispositivo()"><mat-icon>add</mat-icon> Agregar equipo</button>
+      </div>
+
+      <div class="dm-pin" *ngIf="pinReciente() as p">
+        <mat-icon>vpn_key</mat-icon>
+        <div>
+          <strong>PIN de enrolamiento para “{{ p.etiqueta }}”: <span class="pin">{{ p.pin }}</span></strong>
+          <div class="dm-sub">Dicta este PIN en la app del equipo para enrolarlo. Caduca: {{ p.expira }}. Se muestra una sola vez.</div>
+        </div>
+        <button mat-icon-button (click)="pinReciente.set(null)"><mat-icon>close</mat-icon></button>
+      </div>
+
+      <table class="dm-tabla">
+        <thead><tr><th>Equipo</th><th>Plataforma</th><th>Estado</th><th>Cumple</th><th>Supervisado</th><th>Último latido</th><th></th></tr></thead>
+        <tbody>
+          <tr *ngFor="let d of flota()" (click)="seleccionar(d)" class="fila">
+            <td>{{ d.etiqueta }}<div class="dm-sub">{{ d.modelo || d.plataforma }}</div></td>
+            <td>{{ d.plataforma }}</td>
+            <td><span class="badge" [class.badge-ok]="d.estado==='ACTIVO'" [class.badge-bad]="d.estado==='BLOQUEADO'||d.estado==='ROBADO'">{{ d.estado }}</span></td>
+            <td><mat-icon class="mini" [class.si]="d.cumple" [class.no]="!d.cumple">{{ d.cumple ? 'check_circle' : 'error' }}</mat-icon></td>
+            <td><mat-icon class="mini si" title="Siempre visible para el colaborador">visibility</mat-icon></td>
+            <td>{{ d.ultimo_latido_en || '—' }}</td>
+            <td><button mat-icon-button (click)="$event.stopPropagation(); seleccionar(d)"><mat-icon>chevron_right</mat-icon></button></td>
+          </tr>
+          <tr *ngIf="!flota().length && !cargando()"><td colspan="7" class="vacio">Aún no hay equipos. Agrega el primero arriba.</td></tr>
+        </tbody>
+      </table>
+    </mat-tab>
+
+    <!-- ───────────── Políticas ───────────── -->
+    <mat-tab label="Políticas">
+      <div class="dm-alta col">
+        <input placeholder="Nombre de la política" [ngModel]="pNombre()" (ngModelChange)="pNombre.set($event)">
+        <input placeholder="Apps bloqueadas (paquetes separados por coma)" [ngModel]="pBloqueadas()" (ngModelChange)="pBloqueadas.set($event)">
+        <label class="chk"><input type="checkbox" [ngModel]="pBloqueo()" (ngModelChange)="pBloqueo.set($event)"> Exigir bloqueo de pantalla</label>
+        <label class="chk"><input type="checkbox" [ngModel]="pCifrado()" (ngModelChange)="pCifrado.set($event)"> Exigir cifrado</label>
+        <button mat-flat-button color="primary" (click)="crearPolitica()"><mat-icon>add</mat-icon> Crear política</button>
+      </div>
+      <table class="dm-tabla">
+        <thead><tr><th>Nombre</th><th>Bloqueo</th><th>Cifrado</th><th>Apps bloqueadas</th><th>v</th></tr></thead>
+        <tbody>
+          <tr *ngFor="let p of politicas()">
+            <td>{{ p.nombre }}</td>
+            <td>{{ p.requiere_bloqueo ? 'Sí' : 'No' }}</td>
+            <td>{{ p.requiere_cifrado ? 'Sí' : 'No' }}</td>
+            <td>{{ p.apps_bloqueadas.join(', ') || '—' }}</td>
+            <td>{{ p.version }}</td>
+          </tr>
+          <tr *ngIf="!politicas().length"><td colspan="5" class="vacio">Sin políticas todavía.</td></tr>
+        </tbody>
+      </table>
+    </mat-tab>
+
+    <!-- ───────────── Geocercas ───────────── -->
+    <mat-tab label="Geocercas">
+      <div class="dm-alta col">
+        <input placeholder="Nombre de la zona" [ngModel]="gNombre()" (ngModelChange)="gNombre.set($event)">
+        <div class="row">
+          <input type="number" placeholder="Latitud" [ngModel]="gLat()" (ngModelChange)="gLat.set($event)">
+          <input type="number" placeholder="Longitud" [ngModel]="gLon()" (ngModelChange)="gLon.set($event)">
+          <input type="number" placeholder="Radio (m)" [ngModel]="gRadio()" (ngModelChange)="gRadio.set($event)">
+          <select [ngModel]="gTipo()" (ngModelChange)="gTipo.set($event)">
+            <option value="PERMITIDA">Permitida (alerta al salir)</option>
+            <option value="PROHIBIDA">Prohibida (alerta al entrar)</option>
+          </select>
+        </div>
+        <button mat-flat-button color="primary" (click)="crearGeocerca()"><mat-icon>add_location</mat-icon> Crear geocerca</button>
+      </div>
+      <table class="dm-tabla">
+        <thead><tr><th>Zona</th><th>Centro</th><th>Radio</th><th>Tipo</th><th></th></tr></thead>
+        <tbody>
+          <tr *ngFor="let g of geocercas()">
+            <td>{{ g.nombre }}</td><td>{{ g.centro_lat }}, {{ g.centro_lon }}</td><td>{{ g.radio_m }} m</td><td>{{ g.tipo }}</td>
+            <td><button mat-icon-button (click)="eliminarGeocerca(g)"><mat-icon>delete</mat-icon></button></td>
+          </tr>
+          <tr *ngIf="!geocercas().length"><td colspan="5" class="vacio">Sin geocercas.</td></tr>
+        </tbody>
+      </table>
+    </mat-tab>
+
+    <!-- ───────────── Alertas ───────────── -->
+    <mat-tab label="Alertas">
+      <table class="dm-tabla">
+        <thead><tr><th>Severidad</th><th>Tipo</th><th>Equipo</th><th>Cuándo</th><th></th></tr></thead>
+        <tbody>
+          <tr *ngFor="let a of alertas()">
+            <td><span class="sev" [ngClass]="severidadClase(a.severidad)">{{ a.severidad }}</span></td>
+            <td>{{ a.tipo }}</td>
+            <td class="mono">{{ a.dispositivo_id.slice(0,8) }}</td>
+            <td>{{ a.creado_en }}</td>
+            <td><button mat-button (click)="marcarVisto(a)">Visto</button></td>
+          </tr>
+          <tr *ngIf="!alertas().length"><td colspan="5" class="vacio">Sin alertas pendientes 🎉</td></tr>
+        </tbody>
+      </table>
+    </mat-tab>
+  </mat-tab-group>
+
+  <!-- ───────────── Detalle del dispositivo ───────────── -->
+  <aside class="dm-detalle" *ngIf="sel() as d">
+    <div class="dm-detalle-head">
+      <div><h2>{{ d.etiqueta }}</h2><span class="dm-sub">{{ d.modelo }} · {{ d.plataforma }} · {{ d.estado }}</span></div>
+      <button mat-icon-button (click)="cerrarDetalle()"><mat-icon>close</mat-icon></button>
+    </div>
+
+    <div class="dm-aviso">
+      <mat-icon>verified_user</mat-icon>
+      Equipo supervisado de forma transparente. Las acciones de abajo son visibles para el colaborador.
+    </div>
+
+    <div class="dm-acciones">
+      <button *ngFor="let c of comandosAntirobo" mat-stroked-button
+              [class.critico]="c.critico" (click)="comando(c.tipo)">
+        <mat-icon>{{ c.icon }}</mat-icon> {{ c.label }}
+      </button>
+      <button mat-stroked-button color="warn" (click)="retirar(d)"><mat-icon>logout</mat-icon> Retirar</button>
+    </div>
+
+    <div class="dm-grid">
+      <div class="card" *ngIf="selTelemetria() as t">
+        <h3>Estado</h3>
+        <ul>
+          <li>Batería: {{ t.bateria_pct ?? '—' }}% {{ t.cargando ? '⚡' : '' }}</li>
+          <li>Almacenamiento libre: {{ t.almacen_libre_mb ?? '—' }} MB</li>
+          <li>Red: {{ t.red_tipo || '—' }} {{ t.ssid ? '(' + t.ssid + ')' : '' }}</li>
+          <li>Bloqueo pantalla: {{ t.bloqueo_pantalla ? 'Sí' : 'No' }} · Cifrado: {{ t.cifrado ? 'Sí' : 'No' }}</li>
+          <li>Cumple política: {{ t.cumple ? 'Sí' : 'No' }}</li>
+        </ul>
+      </div>
+
+      <div class="card" *ngIf="d.ultima_ubicacion">
+        <h3>Última ubicación</h3>
+        <iframe *ngIf="mapaUrl() as m" [src]="m" class="mapa" loading="lazy"></iframe>
+        <div class="dm-sub">{{ d.ultima_ubicacion.lat }}, {{ d.ultima_ubicacion.lon }} · {{ d.ultima_ubicacion.capturado_en }}</div>
+      </div>
+
+      <div class="card">
+        <h3>Política</h3>
+        <select (change)="asignarPolitica(d, $any($event.target).value)">
+          <option value="">— Asignar política —</option>
+          <option *ngFor="let p of politicas()" [value]="p.id">{{ p.nombre }}</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <h3>Apps ({{ selApps().length }})</h3>
+        <ul class="scroll">
+          <li *ngFor="let a of selApps()">{{ a.nombre || a.paquete }} <span class="dm-sub">{{ a.estado }}</span></li>
+          <li *ngIf="!selApps().length" class="dm-sub">Sin inventario aún.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Comandos recientes</h3>
+        <ul class="scroll">
+          <li *ngFor="let c of selComandos()">{{ c.tipo }} <span class="dm-sub">{{ c.estado }} · {{ c.creado_en }}</span></li>
+          <li *ngIf="!selComandos().length" class="dm-sub">Sin comandos.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Eventos</h3>
+        <ul class="scroll">
+          <li *ngFor="let e of selEventos()"><span class="sev" [ngClass]="severidadClase(e.severidad)">{{ e.severidad }}</span> {{ e.tipo }} <span class="dm-sub">{{ e.creado_en }}</span></li>
+          <li *ngIf="!selEventos().length" class="dm-sub">Sin eventos.</li>
+        </ul>
+      </div>
+    </div>
+  </aside>
+</div>

@@ -271,11 +271,30 @@
         @if (rad.archivos.length === 0) {
           <div class="det-vacio">
             <mat-icon>picture_as_pdf</mat-icon>
-            <span>
-              Aun no se ha generado el paquete de radicacion. Al pasar a "Pendiente de
-              radicacion" se generan los PDF con el nombre exacto que exige
-              {{ rad.epsDestino || 'la entidad' }}.
-            </span>
+            @if (yaRadicada()) {
+              <!-- Ya tiene radicado y no hay paquete: ms-hr no frena el radicado si el paquete falla
+                   (lo normal en una RECIBIDA con soportes incompletos). Decir "al registrar el
+                   radicado se generan" justo despues de registrarlo confundia. -->
+              <span>
+                Esta incapacidad quedó radicada sin el paquete de PDF de radicación (por ejemplo,
+                porque al radicarla aún faltaban soportes).
+              </span>
+            } @else if (!puedePasarAPendiente() && puedeRadicar()) {
+              <!-- RECIBIDA no pasa a pendiente: el paquete sale al registrar el radicado, si ya
+                   estan todos los soportes (sin ellos ms-hr radica igual, sin paquete). -->
+              <span>
+                Aún no se ha generado el paquete de radicación. Al registrar el radicado se generan
+                los PDF con el nombre exacto que exige {{ rad.epsDestino || 'la entidad' }}, si ya
+                están todos los soportes; si falta alguno, el radicado se registra igual, sin el
+                paquete.
+              </span>
+            } @else {
+              <span>
+                Aún no se ha generado el paquete de radicación. Al pasar a "Pendiente de
+                radicación" se generan los PDF con el nombre exacto que exige
+                {{ rad.epsDestino || 'la entidad' }}.
+              </span>
+            }
           </div>
         } @else {
           <ul class="det-soportes">
@@ -393,7 +412,8 @@
           </div>
         }
 
-        <!-- Acciones de radicacion -->
+        <!-- Acciones de radicacion (los niveles 1 y 4 no radican, reunion 2026-10-20) -->
+        @if (!datos.sinRadicacion) {
         <div class="rad-acciones">
           @if (puedePasarAPendiente()) {
             <button
@@ -435,6 +455,7 @@
             <mat-spinner diameter="22"></mat-spinner>
           }
         </div>
+        }
       }
     </section>
   }
@@ -513,6 +534,12 @@
                 <span class="det-salud-meta">{{ metaPago(pago) }}</span>
                 @if (pago.anulado) {
                   <span class="det-salud-chip det-salud-chip-anulado">Anulado</span>
+                }
+                @if (causalPago(pago); as causal) {
+                  <span class="det-salud-causal">
+                    <span class="det-salud-causal-etiqueta">Causal EPS (días no reconocidos):</span>
+                    {{ causal }}
+                  </span>
                 }
               </li>
             }
@@ -619,6 +646,7 @@
 
   <span class="det-espaciador"></span>
 
+  @if (!datos.soloLectura) {
   <button
     type="button"
     mat-stroked-button
@@ -641,4 +669,5 @@
     <mat-icon>edit</mat-icon>
     <span>Editar</span>
   </button>
+  }
 </mat-dialog-actions>

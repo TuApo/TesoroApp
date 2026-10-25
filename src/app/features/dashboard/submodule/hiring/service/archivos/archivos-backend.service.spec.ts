@@ -1,5 +1,5 @@
 import { provideZonelessChangeDetection } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import {
   HttpTestingController,
@@ -77,6 +77,42 @@ describe('ArchivosBackendService', () => {
     expect(srv.visible(ruta)).toBeNull();
     http.expectNone(`${environment.apiUrl}${ruta}`);
   });
+
+  it('un fallo pasajero se reintenta con espera y luego se da por perdido', fakeAsync(() => {
+    const ruta = '/gestion_contratacion/biometria/file/123/huella?empresa=apoyo-laboral';
+    const abs = `${environment.apiUrl}${ruta}`;
+    const falla = () => http.expectOne(abs).error(new ProgressEvent('error'), { status: 503, statusText: 'x' });
+
+    srv.visible(ruta);
+    falla();
+    tick(2_000);
+    srv.visible(ruta);
+    falla();
+    tick(8_000);
+    srv.visible(ruta);
+    falla();
+    tick(30_000);
+    expect(srv.fallida(ruta)).toBeFalse();
+
+    // Cuarto intento: esta vez llega.
+    srv.visible(ruta);
+    http.expectOne(abs).flush(new Blob(['x'], { type: 'image/png' }));
+    expect(srv.visible(ruta)).toMatch(/^blob:/);
+    expect(srv.fallida(ruta)).toBeFalse();
+  }));
+
+  it('tras agotar los reintentos dice que falló en vez de "cargando"', fakeAsync(() => {
+    const ruta = '/api/v1/documents/7/download';
+    const abs = `${environment.apiUrl}${ruta}`;
+    for (const espera of [2_000, 8_000, 30_000, 0]) {
+      srv.visible(ruta);
+      http.expectOne(abs).error(new ProgressEvent('error'), { status: 404, statusText: 'x' });
+      tick(espera);
+    }
+    expect(srv.fallida(ruta)).toBeTrue();
+    srv.visible(ruta);
+    http.expectNone(abs);
+  }));
 
   it('invalidar suelta la copia para que la nueva firma se vea', () => {
     const ruta = '/gestion_contratacion/biometria/file/123/firma';

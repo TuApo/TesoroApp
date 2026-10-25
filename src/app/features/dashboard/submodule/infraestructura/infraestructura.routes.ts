@@ -20,6 +20,8 @@ export const routes: Routes = [
       { path: 'ubicaciones', loadComponent: () => import('./pages/ubicaciones/ubicaciones').then((m) => m.InfraUbicaciones), data: { title: 'Ubicaciones' } },
       { path: 'cluster', loadComponent: () => import('./pages/cluster/cluster').then((m) => m.InfraCluster), data: { title: 'Clúster' } },
       { path: 'alertas', loadComponent: () => import('./pages/alertas/alertas').then((m) => m.InfraAlertas), data: { title: 'Alertas y logs' } },
+      { path: 'devops', redirectTo: 'devops/resumen', pathMatch: 'full' },
+      { path: 'devops/:seccion', loadComponent: () => import('./pages/devops/devops').then((m) => m.InfraDevops), data: { title: 'DevOps' } },
       { path: 'informes', loadComponent: () => import('./pages/informes/informes').then((m) => m.InfraInformes), data: { title: 'Informes' } },
       { path: 'informes/:id', loadComponent: () => import('./pages/informes/informes').then((m) => m.InfraInformes), data: { title: 'Informe' } },
       { path: '**', redirectTo: 'resumen' },

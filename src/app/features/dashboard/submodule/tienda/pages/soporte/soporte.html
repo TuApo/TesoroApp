@@ -1,0 +1,142 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>support_agent</mat-icon> Soporte EconomiAPP</h1>
+      <p class="tienda-subtitulo">Tickets de las personas, clasificados por MatIA o por quien los abrió. Responda, reasigne el área o resuélvalos.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  <div class="estados">
+    @for (e of ['ACTIVOS', 'ABIERTO', 'EN_PROCESO', 'ESPERANDO_CLIENTE', 'RESUELTO', 'CERRADO']; track e) {
+      <button type="button" [class.activo]="estado() === e" (click)="estado.set(e)">
+        {{ e === 'ACTIVOS' ? 'Activos' : ESTADOS[e] }} <span>{{ conteo()[e] ?? 0 }}</span>
+      </button>
+    }
+  </div>
+
+  <div class="rejilla" [class.con-detalle]="sel()">
+    <section class="lista">
+      <div class="filtros">
+        <input class="campo-texto" placeholder="Buscar número, asunto, cédula" [ngModel]="q()" (ngModelChange)="buscar($event)" />
+        <select class="campo-texto" [ngModel]="area()" (ngModelChange)="area.set($event)" aria-label="Área">
+          <option value="">Todas las áreas</option>
+          @for (a of LISTA_AREAS; track a) { <option [value]="a">{{ AREAS[a].nombre }}</option> }
+        </select>
+        <select class="campo-texto" [ngModel]="prioridad()" (ngModelChange)="prioridad.set($event)" aria-label="Prioridad">
+          <option value="">Toda prioridad</option>
+          @for (p of PRIORIDADES; track p) { <option [value]="p">{{ p }}</option> }
+        </select>
+        <label class="chk"><input type="checkbox" [ngModel]="mios()" (ngModelChange)="mios.set($event)" /> Míos</label>
+      </div>
+      @if (!bandeja()?.tickets?.length) {
+        <div class="tienda-vacio">{{ cargando() ? 'Cargando…' : 'No hay tickets con estos filtros.' }}</div>
+      }
+      <ul class="tickets">
+        @for (t of bandeja()?.tickets ?? []; track t.id) {
+          <li [class.activo]="sel()?.id === t.id" (click)="abrir(t.id)">
+            <div class="t-fila">
+              <span class="area"><mat-icon>{{ AREAS[t.area]?.icono }}</mat-icon> {{ AREAS[t.area]?.nombre }}</span>
+              <span class="prio" [class]="'prio p-' + t.prioridad.toLowerCase()">{{ t.prioridad }}</span>
+            </div>
+            <b>{{ t.asunto }}</b>
+            <small>{{ t.numero }} · {{ t.nombre || t.cedula }} @if (t.tienda) { · {{ t.tienda }} }</small>
+            <div class="t-fila pie">
+              <span class="est" [class]="'est s-' + t.estado.toLowerCase()">{{ ESTADOS[t.estado] }}</span>
+              @if (t.origen === 'TENDERO') { <span class="ia"><mat-icon>smart_toy</mat-icon> MatIA</span> }
+              <small [class.vencido]="+t.vencido">{{ vence(t) }}</small>
+            </div>
+          </li>
+        }
+      </ul>
+    </section>
+
+    @if (sel(); as t) {
+      <section class="tienda-tarjeta detalle">
+        <div class="d-cabeza">
+          <button type="button" class="atras-movil" (click)="cerrarDetalle()" aria-label="Volver"><mat-icon>arrow_back</mat-icon></button>
+          <div class="d-titulo">
+            <small>{{ t.numero }} · {{ categoria(t.categoria) }} · {{ t.creado_en | date:'short' }}</small>
+            <h2>{{ t.asunto }}</h2>
+          </div>
+        </div>
+
+        <div class="controles">
+          <label>Estado
+            <select class="campo-texto" [ngModel]="t.estado" (ngModelChange)="cambiar({ estado: $event })">
+              @for (e of ['ABIERTO','EN_PROCESO','ESPERANDO_CLIENTE','RESUELTO','CERRADO']; track e) { <option [value]="e">{{ ESTADOS[e] }}</option> }
+            </select>
+          </label>
+          <label>Área
+            <select class="campo-texto" [ngModel]="t.area" (ngModelChange)="cambiar({ area: $event })">
+              @for (a of LISTA_AREAS; track a) { <option [value]="a">{{ AREAS[a].nombre }}</option> }
+            </select>
+          </label>
+          <label>Prioridad
+            <select class="campo-texto" [ngModel]="t.prioridad" (ngModelChange)="cambiar({ prioridad: $event })">
+              @for (p of PRIORIDADES; track p) { <option [value]="p">{{ p }}</option> }
+            </select>
+          </label>
+          <div class="asignado">
+            <span>{{ t.asignado_nombre ? 'Atiende ' + t.asignado_nombre : 'Sin asignar' }}</span>
+            <button type="button" class="boton secundario" (click)="cambiar({ asignarme: true })">Tomarlo</button>
+          </div>
+        </div>
+
+        <dl class="ficha">
+          <div><dt>Persona</dt><dd>{{ t.nombre || '—' }} · {{ t.cedula }} @if (t.telefono) { · {{ t.telefono }} }</dd></div>
+          @if (t.pedido; as p) {
+            <div><dt>Pedido</dt><dd><a [routerLink]="['/dashboard/tienda/pedidos']">{{ p.numero }}</a> · {{ p.estado }} · {{ p.tipo_entrega }} · ${{ +p.total | number:'1.0-0' }}</dd></div>
+          }
+          @if (t.tienda) { <div><dt>Tienda</dt><dd>{{ t.tienda }}</dd></div> }
+          <div><dt>SLA</dt><dd [class.vencido]="+t.vencido">{{ vence(t) || '—' }} @if (t.primera_respuesta_en) { · 1ª respuesta {{ t.primera_respuesta_en | date:'short' }} }</dd></div>
+          @if (t.calificacion) { <div><dt>Calificación</dt><dd>{{ '★'.repeat(t.calificacion) }}{{ '☆'.repeat(5 - t.calificacion) }}</dd></div> }
+        </dl>
+
+        @if (t.resumen_ia) {
+          <div class="resumen-ia">
+            <b><mat-icon>smart_toy</mat-icon> Análisis de MatIA</b>
+            <p>{{ t.resumen_ia }}</p>
+            @if (datos()?.herramientas_usadas?.length) { <small>Verificó: {{ datos().herramientas_usadas.join(', ') }}</small> }
+          </div>
+        }
+
+        <ol class="hilo">
+          @for (m of t.mensajes; track m.id) {
+            <li [class]="'m-' + m.autor_tipo.toLowerCase()" [class.interno]="+m.interno">
+              <div class="m-cabeza">
+                <b>{{ m.autor_tipo === 'CLIENTE' ? (m.autor_nombre || 'Persona') : m.autor_tipo === 'IA' ? 'MatIA (nota)' : m.autor_tipo === 'SISTEMA' ? 'Sistema' : (m.autor_nombre || 'Soporte') }}</b>
+                @if (+m.interno) { <span class="nota">Nota interna</span> }
+                <small>{{ m.creado_en | date:'short' }}</small>
+              </div>
+              <p>{{ m.texto }}</p>
+            </li>
+          }
+        </ol>
+
+        @if (t.estado !== 'CERRADO') {
+          <div class="responder" [class.interno]="interno()">
+            <textarea rows="3" class="campo-texto" [placeholder]="interno() ? 'Nota interna (la persona no la ve)' : 'Respuesta para la persona (le llega como notificación)'"
+                      [ngModel]="respuesta()" (ngModelChange)="respuesta.set($event)"></textarea>
+            <div class="r-acciones">
+              <label class="chk"><input type="checkbox" [ngModel]="interno()" (ngModelChange)="interno.set($event)" /> Nota interna</label>
+              <span class="esp"></span>
+              @if (!interno()) {
+                <button type="button" class="boton secundario" [disabled]="!respuesta().trim() || enviando()" (click)="responder('ESPERANDO_CLIENTE')">Enviar y esperar respuesta</button>
+                <button type="button" class="boton secundario" [disabled]="!respuesta().trim() || enviando()" (click)="responder('RESUELTO')">Enviar y resolver</button>
+              }
+              <button type="button" class="boton" [disabled]="!respuesta().trim() || enviando()" (click)="responder()"><mat-icon>send</mat-icon> Enviar</button>
+            </div>
+          </div>
+        }
+      </section>
+    } @else {
+      <section class="tienda-tarjeta vacio-detalle">
+        <mat-icon>forum</mat-icon>
+        <p>Seleccione un ticket para ver la conversación.</p>
+      </section>
+    }
+  </div>
+</div>

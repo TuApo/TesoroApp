@@ -60,6 +60,7 @@
       [columnas]="columnas"
       [filaId]="idTicket"
       [cargando]="loading"
+      [accionesMasivas]="accionesMasivas"
       (filaClick)="verDetalle($event)">
 
       <ng-template tablaCelda="titulo" let-t>
@@ -226,6 +227,9 @@
                   <pre class="console-logs">{{ ticketSeleccionado.console_logs }}</pre>
                 </div>
               }
+
+              <!-- Resolver con agentes (solo ADMIN: para el resto no se pinta) -->
+              <app-panel-agentes-ticket [ticket]="ticketSeleccionado" />
 
               <!-- Analisis de IA -->
               @if (ticketSeleccionado.ai_analisis || ticketSeleccionado.ai_sugerencia) {

@@ -1,7 +1,7 @@
 <div class="ges-contenedor">
   <div class="ges-contenido">
     <mat-card class="disab-card">
-      <div class="disab-hero disab-hero-radicacion">
+      <div class="disab-hero disab-hero-radicacion" data-acciones="propias">
         <div class="disab-hero-icon"><mat-icon>assignment_turned_in</mat-icon></div>
         <div class="disab-hero-texts">
           <h1 class="disab-hero-title">Radicación</h1>
@@ -27,11 +27,11 @@
       </div>
 
       <div class="ges-cuerpo">
-        <div #bloquePanel class="rad-bloque">
+        <div #bloquePanel class="rad-bloque" data-guia="codigos">
           <app-panel-codigos-radicado modo="RADICACION" (guardado)="alGuardar()" />
         </div>
 
-        <mat-tab-group class="rad-tabs" [selectedIndex]="tab()" (selectedIndexChange)="cambiarTab($event)" animationDuration="150ms">
+        <mat-tab-group class="rad-tabs" data-guia="pendientes" [selectedIndex]="tab()" (selectedIndexChange)="cambiarTab($event)" animationDuration="150ms">
           <!-- ════════ PENDIENTES POR RADICAR ════════ -->
           <mat-tab>
             <ng-template mat-tab-label>
@@ -39,7 +39,7 @@
             </ng-template>
             <ng-template matTabContent>
               <p class="ges-nota">
-                Incapacidades validadas que aún no tienen radicado. Márquelas y use <strong>Agregar a radicar</strong>
+                Incapacidades validadas o recibidas que aún no tienen radicado. Márquelas y use <strong>Agregar a radicar</strong>
                 para llevarlas al bloque de arriba sin volver a escribir sus códigos.
               </p>
               <div class="ges-filtros ges-filtros-inline">
@@ -181,3 +181,6 @@
     </mat-card>
   </div>
 </div>
+
+<!-- Reunion 2026-10-20: instructivo dentro del programa -->
+<app-guia-salud />

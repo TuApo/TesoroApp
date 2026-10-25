@@ -9,6 +9,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { MatSlideToggle } from '@angular/material/slide-toggle';
 import { MatTabGroup } from '@angular/material/tabs';
 import { of } from 'rxjs';
@@ -28,6 +29,7 @@ function tipo(over: Partial<NotificationType> = {}): NotificationType {
     color: '#2563eb',
     urgencia_default: 'INFO',
     modulo_id: null,
+    modulo_nombre: null,
     agrupable: false,
     activo: true,
     orden: 1,
@@ -66,6 +68,7 @@ describe('Notificaciones — render de las tablas', () => {
   let fixture: ComponentFixture<NotificacionesComponent>;
   let componente: NotificacionesComponent;
   let alternarActivo: jasmine.Spy;
+  let navegar: jasmine.Spy;
 
   const tipos = [
     tipo({ id: 'tipo-1' }),
@@ -82,6 +85,7 @@ describe('Notificaciones — render de las tablas', () => {
   beforeEach(async () => {
     alternarActivo = jasmine.createSpy('alternarActivo')
       .and.callFake((id: string, activo: boolean) => of(regla({ id, activo })));
+    navegar = jasmine.createSpy('navigate').and.resolveTo(true);
 
     const servicio: Partial<NotificacionesConfigService> = {
       listarTipos: () => of(tipos),
@@ -92,7 +96,14 @@ describe('Notificaciones — render de las tablas', () => {
 
     await TestBed.configureTestingModule({
       imports: [NotificacionesComponent, NoopAnimationsModule],
-      providers: [{ provide: NotificacionesConfigService, useValue: servicio }],
+      providers: [
+        { provide: NotificacionesConfigService, useValue: servicio },
+        // El componente lee la pestaña de la URL (`:pestana`) y la refleja al
+        // cambiarla. Sin ruta montada arranca en la primera; la navegación se
+        // espía para no exigir un árbol de rutas real en la prueba.
+        { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({}) } } },
+        { provide: Router, useValue: { navigate: navegar } },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(NotificacionesComponent);
@@ -133,6 +144,14 @@ describe('Notificaciones — render de las tablas', () => {
       const ids = cols.map((c) => c.id);
       expect(new Set(ids).size).toBe(ids.length);
     }
+  });
+
+  it('cambiar de pestaña la refleja en la URL sin apilar historial', async () => {
+    await abrirPestana(1);
+    expect(navegar).toHaveBeenCalledWith(
+      ['/dashboard/gestion-del-programa/notificaciones', 'tipos'],
+      { replaceUrl: true },
+    );
   });
 
   it('pinta una fila por tipo', async () => {

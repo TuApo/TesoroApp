@@ -139,6 +139,26 @@ describe('RadicacionComponent', () => {
     expect(componente.clasePendiente(PEND_A)).toBe('te-fila--info');
   });
 
+  // Respuesta 1 de la funcional (2026-10-07): se puede radicar en estado RECIBIDA.
+  it('una RECIBIDA pendiente se lleva al bloque y queda lista para radicar, como las validadas', () => {
+    const recibida = refPrueba({ id: 23, codigoUnico: '2320260103', codigoOficina: 'APSB023', estado: 'RECIBIDA', estadoEtiqueta: 'Recibida' });
+    pendientes().flush(paginaPrueba([PEND_A, recibida], 2));
+    fixture.detectChanges();
+    const nota = (fixture.nativeElement as HTMLElement).querySelector('.ges-nota')?.textContent ?? '';
+    expect(nota).toContain('validadas o recibidas');
+
+    componente.seleccionPendientes.select(recibida);
+    componente.agregarSeleccion();
+    httpMock.expectOne(`${BASE}/radicacion/buscar`).flush({
+      encontrados: [encontradoPrueba({ codigo: '2320260103' }, recibida)],
+      noEncontrados: [],
+    });
+
+    const panel = componente.panel()!;
+    expect(panel.cantidadMarcadas()).toBe(1);
+    expect(panel.avisoDe(panel.encontrados()[0])).toEqual(jasmine.objectContaining({ tono: 'ok', texto: 'Lista para radicar.' }));
+  });
+
   it('al guardar en el bloque se recargan pendientes (y recientes si ya se abrieron)', () => {
     pendientes().flush(paginaPrueba([PEND_A], 1));
     componente.cambiarTab(TAB_RECIENTES);

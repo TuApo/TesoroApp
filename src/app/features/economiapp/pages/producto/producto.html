@@ -1,0 +1,202 @@
+<div class="pagina">
+  <button type="button" class="enlace atras" (click)="atras()"><mat-icon>arrow_back</mat-icon> Seguir comprando</button>
+
+  @if (cargando()) {
+    <div class="ficha">
+      <div class="esqueleto galeria-esq"></div>
+      <div class="esqueleto"></div>
+    </div>
+  } @else if (error()) {
+    <div class="estado-vacio">
+      <mat-icon>inventory_2</mat-icon>
+      <h2>Producto no disponible</h2>
+      <p>{{ error() }}</p>
+      <a class="eco-btn" routerLink="/economiapp">Ir al inicio</a>
+    </div>
+  } @else if (vista(); as p) {
+    <div class="ficha">
+      <!-- Galería -->
+      <section class="galeria" aria-roledescription="carrusel" [attr.aria-label]="'Fotos de ' + p.nombre">
+        <div class="foto-principal">
+          <div class="pista" #pista (scroll)="alDesplazar(pista)" tabindex="0" (keydown.arrowRight)="mover(1, pista)" (keydown.arrowLeft)="mover(-1, pista)">
+            @for (img of imagenes(); track $index) {
+              <div class="diapositiva" [attr.aria-label]="'Foto ' + ($index + 1) + ' de ' + imagenes().length">
+                <eco-imagen [doc]="img" [nombre]="p.nombre" [icono]="iconoCat()" />
+              </div>
+            }
+          </div>
+          @if (p.es_global) { <span class="sello-global"><mat-icon>public</mat-icon> Catálogo global</span> }
+          @if (imagenes().length > 1) {
+            <button type="button" class="flecha izq" (click)="mover(-1, pista)" [disabled]="foto() === 0" aria-label="Foto anterior"><mat-icon>chevron_left</mat-icon></button>
+            <button type="button" class="flecha der" (click)="mover(1, pista)" [disabled]="foto() >= imagenes().length - 1" aria-label="Foto siguiente"><mat-icon>chevron_right</mat-icon></button>
+            <span class="contador">{{ foto() + 1 }} / {{ imagenes().length }}</span>
+            <div class="puntos">
+              @for (img of imagenes(); track $index) {
+                <button type="button" [class.activo]="$index === foto()" (click)="ir($index, pista)" [attr.aria-label]="'Ir a la foto ' + ($index + 1)"></button>
+              }
+            </div>
+          }
+        </div>
+        @if (imagenes().length > 1) {
+          <div class="miniaturas">
+            @for (img of imagenes(); track $index) {
+              <button type="button" [class.activa]="$index === foto()" (click)="ir($index, pista)" [attr.aria-label]="'Foto ' + ($index + 1)">
+                <eco-imagen [doc]="img" [nombre]="p.nombre" [icono]="iconoCat()" />
+              </button>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- Información -->
+      <section class="info">
+        @if (ruta().length) {
+          <nav class="migas" aria-label="Familia">
+            @for (r of ruta(); track r.id; let ultimo = $last) {
+              <a routerLink="/economiapp/explorar" [queryParams]="{ categoria: r.id }">{{ r.nombre }}</a>
+              @if (!ultimo) { <mat-icon>chevron_right</mat-icon> }
+            }
+          </nav>
+        }
+        <div class="marca-fila">
+          @if (p.marca) { <span class="marca">{{ p.marca }}</span> }
+          @if (ficha()?.ficha?.condicion; as cond) {
+            @if (cond !== 'Nuevo') { <span class="cond">{{ cond }}</span> }
+          }
+        </div>
+        <h1>{{ p.nombre }}</h1>
+        <span class="precio-grande">{{ pesos(p.precio) }}</span>
+        @if (ahorro()) {
+          <span class="ref-comercio">En el comercio <s>{{ pesos(p.precio_referencia) }}</s> · usted ahorra <b>{{ pesos(ahorro()) }}</b></span>
+        }
+        <span class="muted unidad">Precio por {{ p.unidad || 'unidad' }}</span>
+        @if (p.vendedor_nombre) {
+          <span class="vendedor"><mat-icon>verified</mat-icon> Vendido y despachado por <b>{{ p.vendedor_nombre }}</b></span>
+        }
+
+        <!-- Cuándo lo tiene -->
+        @if (p.tipo === 'SERVICIO' || p.tipo === 'BONO') {
+          <div class="llegada servicio">
+            <mat-icon>{{ p.tipo === 'BONO' ? 'card_giftcard' : 'confirmation_number' }}</mat-icon>
+            <div>
+              <b>{{ p.tipo === 'BONO' ? 'Bono' : 'Servicio' }}: se activa al pedirlo</b>
+              <small>Le damos un código para reclamarlo en {{ store.tienda()?.nombre }} durante {{ p.dias_vigencia_reclamo || 30 }} días.
+                Al reclamarlo verificamos su identidad (o la de quien usted autorice) y ahí se descuenta de su bono mercado.</small>
+              @if (p.instrucciones_reclamo) { <small><b>Cómo reclamarlo:</b> {{ p.instrucciones_reclamo }}</small> }
+            </div>
+          </div>
+        } @else if (p.disponibilidad === 'EN_STOCK') {
+          <div class="llegada hoy">
+            <mat-icon>bolt</mat-icon>
+            <div>
+              <b>Disponible hoy en {{ store.tienda()?.nombre }}</b>
+              <small>{{ p.existencias }} en tienda · lo aparta al confirmar y lo recoge hoy o se lo llevan</small>
+            </div>
+          </div>
+        } @else if (p.disponibilidad === 'BAJO_PEDIDO') {
+          <div class="llegada encargo">
+            <mat-icon>local_shipping</mat-icon>
+            <div>
+              <b>{{ llegada(p) }}</b>
+              @if (fechaLlegada(p.dias_entrega)) { <small>Si lo pide hoy, estaría en su tienda el <b>{{ fechaLlegada(p.dias_entrega) }}</b></small> }
+              <small>
+                @if (ficha()?.tienda_origen_nombre) { Sale desde {{ ficha()?.tienda_origen_nombre }} hasta su tienda. }
+                @else { Lo pedimos al proveedor y se lo traemos. }
+                Su bono mercado se aparta al confirmar y se descuenta solo cuando lo recibe.
+              </small>
+            </div>
+          </div>
+        } @else {
+          <div class="llegada no"><mat-icon>block</mat-icon><b>No disponible en esta tienda</b></div>
+        }
+
+        <!-- Variantes -->
+        @if (ficha()?.variantes?.length) {
+          <div class="variantes">
+            <span class="etiqueta">Opciones</span>
+            <div class="variantes-lista">
+              @for (v of ficha()!.variantes; track v.id) {
+                <button type="button" class="variante" [class.activa]="v.id === varianteId()"
+                        [disabled]="v.disponibilidad === 'NO_DISPONIBLE'" (click)="varianteId.set(v.id); cantidad.set(1)">
+                  <b>{{ v.nombre }}</b>
+                  <small>{{ pesos(v.precio) }} · {{ llegada(v) }}</small>
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        @if (p.descripcion) {
+          <div class="descripcion">
+            <span class="etiqueta">Descripción</span>
+            <p>{{ p.descripcion }}</p>
+          </div>
+        }
+
+        @if (ficha()?.ficha; as ft) {
+          @if (ft.caracteristicas?.length) {
+            <div class="descripcion">
+              <span class="etiqueta">Ficha técnica</span>
+              <dl class="ficha-tecnica">
+                @for (c of ft.caracteristicas; track c.nombre) {
+                  <div><dt>{{ c.nombre }}</dt><dd>{{ c.valor }}</dd></div>
+                }
+              </dl>
+              @if (ft.ficha_verificada === false) {
+                <small class="muted"><mat-icon>info</mat-icon> Algunos datos están por confirmar con el fabricante.</small>
+              }
+            </div>
+          }
+          @if (ft.garantia || ft.origen) {
+            <ul class="garantias">
+              @if (ft.garantia) { <li><mat-icon>verified_user</mat-icon> Garantía: {{ ft.garantia }}</li> }
+              @if (ft.origen) { <li><mat-icon>flight_land</mat-icon> {{ ft.origen }}</li> }
+            </ul>
+          }
+        }
+
+        <!-- Cómo lo recibe -->
+        <div class="recibe">
+          <span class="etiqueta">Cómo lo recibe</span>
+          <ul>
+            @if (store.tienda()?.permite_recogida !== false) {
+              <li><mat-icon>storefront</mat-icon> Recoge en {{ store.tienda()?.nombre }}</li>
+              <li><mat-icon>apartment</mat-icon> Recoge en su oficina</li>
+            }
+            @if (store.tienda()?.permite_domicilio) {
+              <li><mat-icon>two_wheeler</mat-icon> Domicilio{{ store.tienda()?.costo_domicilio ? ' · ' + pesos(store.tienda()?.costo_domicilio) : '' }}</li>
+            }
+            <li><mat-icon>account_balance_wallet</mat-icon>
+              @if (store.motivoSinCupo()) { Pago en efectivo en la tienda ({{ store.motivoSinCupo() }}) }
+              @else { Con su bono mercado o en efectivo }
+            </li>
+          </ul>
+        </div>
+
+        <!-- Comprar (fijo abajo en el celular) -->
+        @if (p.disponibilidad !== 'NO_DISPONIBLE') {
+          <div class="comprar">
+            <div class="stepper-grande">
+              <button type="button" (click)="cambiar(-1)" [disabled]="cantidad() <= 1" aria-label="Menos"><mat-icon>remove</mat-icon></button>
+              <span>{{ cantidad() }}</span>
+              <button type="button" (click)="cambiar(1)" [disabled]="cantidad() >= maximo()" aria-label="Más"><mat-icon>add</mat-icon></button>
+            </div>
+            <button type="button" class="eco-btn agregar" (click)="agregar()" [disabled]="agregando() || p.precio == null">
+              <mat-icon>add_shopping_cart</mat-icon>
+              Agregar · {{ pesos(total()) }}
+            </button>
+          </div>
+          @if (alcanzaCupo() === false) {
+            <p class="aviso warn"><mat-icon>info</mat-icon> Con lo que ya lleva en el carrito, esto supera su bono mercado disponible. Puede pagar la diferencia en efectivo.</p>
+          }
+          @if (enCarrito() > 0) {
+            <p class="en-carrito">
+              <mat-icon>shopping_cart</mat-icon> Ya tiene {{ enCarrito() }} en su carrito ·
+              <a class="enlace" routerLink="/economiapp/carrito">Ir a pagar</a>
+            </p>
+          }
+        }
+      </section>
+    </div>
+  }
+</div>

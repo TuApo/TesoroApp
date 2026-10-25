@@ -16,6 +16,7 @@ import { ComercializadoraService } from '../../../merchandise/service/comerciali
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { HistorialService } from '../../../history/service/historial/historial.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { SharedModule } from '../../../../../../shared/shared.module'; // si lo usas
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
@@ -69,6 +70,8 @@ export class MercadoComercializadoraComponent implements OnInit {
   correoUsuario: string = '';
   fechaIngreso: string = '';
   limiteDisponible: number = 0;
+
+  private sedeScope = inject(SedeScopeService);
 
   constructor(
     private fb: FormBuilder,
@@ -323,6 +326,11 @@ export class MercadoComercializadoraComponent implements OnInit {
         return;
       }
 
+      // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) se elige la oficina a la que
+      // pertenece el registro, para que no quede etiquetado con esa sede.
+      const oficina = await this.sedeScope.oficinaParaRegistrar({ que: 'donde se entrega la compra' });
+      if (!oficina && this.sedeScope.trabajaDesdeTransversal()) return;
+
       this.sumaPrestamos = this.autorizacionesService.traerSaldoPendiente(this.datosOperario);
       let valorTotal = 0;
       let concepto = 'Compra tienda respecto a: ';
@@ -333,7 +341,7 @@ export class MercadoComercializadoraComponent implements OnInit {
         concepto += `${item.concepto} (x${item.cantidadSeleccionada}), `;
       });
 
-      concepto = concepto.slice(0, -2) + ' en ' + this.utilityServiceService.getUser().sede.nombre;
+      concepto = concepto.slice(0, -2) + ' en ' + (oficina || '');
 
       // Calcular monto total de las autorizaciones seleccionadas
       const montoTotal = codigosSeleccionados.reduce((total: number, item: { monto: string; }) => total + parseFloat(item.monto), 0);
@@ -361,7 +369,7 @@ export class MercadoComercializadoraComponent implements OnInit {
       const user = this.utilityServiceService.getUser();
       const nombreUsuario = `${user?.datos_basicos?.nombres || ''} ${user?.datos_basicos?.apellidos || ''}`.trim()
         || user?.correo_electronico || 'Usuario';
-      const sedeEjecucion = user?.sede?.nombre || '';
+      const sedeEjecucion = oficina || '';
 
       // Armar ventas de lotes
       const ventas = inventarioSeleccionados.map((item: any) => ({

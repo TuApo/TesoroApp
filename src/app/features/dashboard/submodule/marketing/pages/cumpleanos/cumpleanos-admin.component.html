@@ -1,0 +1,464 @@
+@if (sinPermiso()) {
+  <div class="vacio">
+    <mat-icon>lock</mat-icon>
+    <p><strong>Solo el equipo de Marketing programa los cumpleaños.</strong></p>
+  </div>
+} @else {
+  @if (vista === 'calendario') {
+  <div class="cab">
+    <p class="sub">Cuando alguien cumple años, a <strong>todo el que entra a la plataforma</strong> le sale una celebración de 5 a 10
+      segundos con su foto — una sola vez al día, la primera vez que entra, en computador y en celular. Se puede cerrar. Si ese día
+      cumplen varios, salen juntos en la misma animación.</p>
+    <div class="cu-acciones">
+      <button type="button" class="btn btn--primario" (click)="nueva()"><mat-icon>person_add</mat-icon> Agregar cumpleañero</button>
+      <button type="button" class="btn btn--fantasma" (click)="probarHoy()"><mat-icon>play_circle</mat-icon> Probar la de hoy</button>
+      <button type="button" class="btn btn--fantasma" (click)="simularIngreso()"
+              title="Olvida que ya la viste hoy y la vuelve a lanzar como en tu primer ingreso del día">
+        <mat-icon>replay</mat-icon> Simular mi primer ingreso</button>
+    </div>
+  </div>
+
+  @if (hoyDia(); as h) {
+    @if (h.personas.length) {
+      <div class="cu-hoy">
+        <mat-icon>cake</mat-icon>
+        <span><strong>Hoy celebramos a {{ h.personas.length === 1 ? h.personas[0].nombre : h.personas.length + ' personas' }}.</strong>
+          {{ h.vistas }} {{ h.vistas === 1 ? 'persona la ha visto' : 'personas la han visto' }}@if (h.cerradas_antes) {; {{ h.cerradas_antes }} la cerraron antes de terminar}.</span>
+      </div>
+    }
+  }
+
+  @if (padron()?.disponible) {
+    @if (activosPadron() === 0) {
+      <div class="cu-aviso-correo">
+        <mat-icon>unsubscribe</mat-icon>
+        <span><strong>El padrón de correos está vacío:</strong> a nadie le llega el correo de cumpleaños. Sube el Excel con
+          cédula, nombre, fecha de nacimiento y correo, y aquí verás de cada día quién cumple y si le llegó.</span>
+        <a class="btn btn--fantasma" routerLink="../correos"><mat-icon>upload_file</mat-icon> Subir el padrón</a>
+      </div>
+    } @else if (cfgCorreo() && !cfgCorreo()!.auto_activo) {
+      <div class="cu-aviso-correo">
+        <mat-icon>mail</mat-icon>
+        <span><strong>El envío automático de correos está apagado:</strong> los saludos solo salen si alguien los manda a mano.</span>
+        <a class="btn btn--fantasma" routerLink="../correos"><mat-icon>settings</mat-icon> Configurar</a>
+      </div>
+    }
+  }
+
+  <section class="cu-seccion">
+    <header class="cu-seccion__cab">
+      <h3>Calendario</h3>
+      @if (pasados()) {
+        <button type="button" class="link" (click)="verPasados.set(!verPasados())">
+          {{ verPasados() ? 'Ocultar los días pasados' : 'Ver los ' + pasados() + ' días pasados' }}</button>
+      }
+    </header>
+
+    @if (cargando() && !calendario()) {
+      <p class="sub">Cargando…</p>
+    }
+
+    <div class="cu-dias">
+      @for (d of dias(); track d.fecha) {
+        <article class="cu-dia" [class.cu-dia--hoy]="d.es_hoy" [class.cu-dia--pasado]="d.pasado">
+          <header class="cu-dia__cab">
+            <div class="cu-dia__fecha">
+              <span class="cu-dia__rel">{{ relativo(d.fecha) }}</span>
+              <strong>{{ fechaLarga(d.fecha) }}</strong>
+            </div>
+            <div class="cu-dia__anim">
+              <label class="campo cu-dia__sel"><span>Animación del día</span>
+                <select [ngModel]="d.plantilla_id ?? ''" (ngModelChange)="elegirPlantilla(d, $event)" [disabled]="d.pasado">
+                  <option value="">Automática (rota cada día){{ d.rotacion && d.plantilla_efectiva ? ' · toca ' + d.plantilla_efectiva.nombre : '' }}</option>
+                  @for (p of plantillasActivas(); track p.id) { <option [value]="p.id">{{ p.nombre }}</option> }
+                </select>
+              </label>
+              <button type="button" class="btn btn--fantasma cu-probar" (click)="probarDia(d)" [disabled]="!d.personas.length">
+                <mat-icon>play_arrow</mat-icon> Probar</button>
+            </div>
+          </header>
+
+          <ul class="cu-gente">
+            @for (p of d.personas; track p.id) {
+              <li class="cu-persona">
+                <span class="cu-persona__foto">
+                  @if (p.foto_url) {
+                    <img [src]="urlFoto(p.foto_url)" [alt]="p.nombre" [style.object-position]="p.enfoque_x + '% ' + p.enfoque_y + '%'" />
+                  } @else {
+                    <span class="cu-persona__ini">{{ iniciales(p.nombre) }}</span>
+                  }
+                </span>
+                <span class="cu-persona__datos">
+                  <strong>{{ p.nombre }}</strong>
+                  @if (p.cargo) { <small>{{ p.cargo }}</small> }
+                  <span class="cu-chips">
+                    @if (p.etiquetas?.length) { <span class="cu-chip cu-chip--etq" [title]="'Lo que eligió el equipo'">
+                      @for (e of p.etiquetas; track e.nombre) { <span [title]="e.nombre">{{ e.emoji || '•' }}</span> }</span> }
+                    @if (p.estado_ia) { <span class="cu-chip" [class.cu-chip--ok]="p.estado_ia === 'APROBADA'" [class.cu-chip--aviso]="p.estado_ia === 'LISTA'">
+                      <mat-icon>auto_awesome</mat-icon> {{ estadosIa[p.estado_ia] }}</span> }
+                    @if (p.mensaje_jefe) { <span class="cu-chip" title="Su jefe ya le escribió"><mat-icon>mail</mat-icon> Mensaje del jefe</span> }
+                    @if (!p.foto_url) { <span class="cu-chip cu-chip--aviso"><mat-icon>no_photography</mat-icon> Sin foto</span> }
+                    @if (p.documento) { <span class="cu-chip" title="Le sale un saludo personal y los banners de cumpleaños">
+                      <mat-icon>badge</mat-icon> Saludo personal</span> }
+                    @if (correoDe(p, d.fecha); as co) {
+                      <span class="cu-chip cu-chip--correo" [class]="'cu-chip cu-chip--correo cu-chip--c-' + co.clase" [title]="co.ayuda">
+                        <mat-icon>{{ co.icono }}</mat-icon> {{ co.texto }}</span>
+                      @if (co.accion === 'agregar') {
+                        <button type="button" class="cu-chip cu-chip--accion" (click)="abrirAlta(p, d.fecha, co)"
+                                title="Agregarla al padrón de correos con su correo y su fecha de nacimiento: así también le llega el correo">
+                          <mat-icon>person_add</mat-icon> Agregar al padrón</button>
+                      } @else if (co.accion === 'corregir') {
+                        <button type="button" class="cu-chip cu-chip--accion" (click)="abrirAlta(p, d.fecha, co)"
+                                title="Corregir o quitar su alta manual en el padrón de correos">
+                          <mat-icon>edit</mat-icon> Padrón</button>
+                      }
+                    }
+                  </span>
+                </span>
+                @if (!d.pasado) {
+                  <span class="cu-persona__acc">
+                    <button type="button" class="mini cu-personalizar" (click)="personalizando.set(p)" title="Personalizar: etiquetas del equipo, mensaje del jefe y fondo con IA">
+                      <mat-icon>auto_awesome</mat-icon></button>
+                    <button type="button" class="mini" (click)="editar(p)" title="Editar"><mat-icon>edit</mat-icon></button>
+                    <button type="button" class="mini" (click)="quitar(p)" title="Quitar"><mat-icon>delete</mat-icon></button>
+                  </span>
+                }
+              </li>
+            } @empty {
+              <li class="sub cu-gente__vacio">{{ padronDe(d.fecha) ? 'Nadie programado en la plataforma este día.' : 'Nadie todavía este día.' }}</li>
+            }
+          </ul>
+
+          @if (padronDe(d.fecha); as pd) {
+            <div class="cu-padron" [class.cu-padron--on]="padronAbiertos().has(d.fecha)">
+              <button type="button" class="cu-padron__cab" (click)="alternarPadron(d.fecha)" [attr.aria-expanded]="padronAbiertos().has(d.fecha)">
+                <mat-icon>groups</mat-icon>
+                <span><b>{{ pd.total }} {{ pd.total === 1 ? 'cumple' : 'cumplen' }} según el padrón de correos</b>
+                  <small>{{ resumenPadron(d.fecha) }}</small></span>
+                <mat-icon class="cu-padron__flecha">{{ padronAbiertos().has(d.fecha) ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if (padronAbiertos().has(d.fecha)) {
+                @if (detallesPadron()[d.fecha]; as det) {
+                  <ul class="cu-padron__lista">
+                    @for (q of det.personas; track q.id) {
+                      <li>
+                        <span class="cu-padron__ini">{{ iniciales(nombrePadron(q)) }}</span>
+                        <span class="cu-padron__datos">
+                          <strong>{{ nombrePadron(q) }}</strong>
+                          <small>{{ cargoPadron(q) || 'Sin finca ni temporal' }} ·
+                            @if (q.correo) { <span title="{{ q.correo }}">✉️ con correo</span> } @else { <span class="cu-padron__sin">sin correo</span> }
+                            @if (q.origen === 'MANUAL') { · <span title="La agregó Marketing a mano: el Excel de RRHH no la toca">alta manual</span> }</small>
+                        </span>
+                        @if (yaCelebrado(d, q)) {
+                          <span class="cu-chip cu-chip--ok cu-padron__ya" title="Ya sale en la celebración de ese día"><mat-icon>celebration</mat-icon> Celebrada</span>
+                        } @else if (!d.pasado) {
+                          <button type="button" class="btn btn--fantasma cu-celebrar" (click)="celebrar(q, d)"
+                                  [disabled]="!q.nombre || celebrando() !== null" title="Sale en la celebración de la plataforma ese día">
+                            <mat-icon>celebration</mat-icon> {{ celebrando() === q.cedula ? 'Agregando…' : 'Celebrar' }}</button>
+                        }
+                      </li>
+                    } @empty {
+                      <li class="sub">Nadie del padrón activo cumple este día.</li>
+                    }
+                  </ul>
+                  @if (!d.pasado && porCelebrar(d).length > 1) {
+                    <button type="button" class="link cu-padron__todos" (click)="celebrarTodos(d)" [disabled]="celebrando() !== null">
+                      Celebrar a los {{ porCelebrar(d).length }} en la plataforma</button>
+                  }
+                } @else if (consultado(d.fecha)) {
+                  <p class="sub">No se pudo consultar el padrón. Intenta de nuevo en un momento.</p>
+                } @else {
+                  <p class="sub">Consultando el padrón…</p>
+                }
+              }
+            </div>
+          }
+
+          <footer class="cu-dia__pie">
+            @if (!d.pasado) {
+              <button type="button" class="link" (click)="nueva(d.fecha)">+ Agregar a alguien este día</button>
+              <button type="button" class="link" (click)="abrirTextos(d)">
+                {{ d.titulo || d.mensaje ? 'Textos propios del día ✓' : 'Cambiar los textos del día' }}</button>
+            }
+            @if ((d.es_hoy || d.pasado) && d.personas.length) {
+              <button type="button" class="cu-metrica cu-metrica--btn" (click)="viendoVistas.set(d)" [disabled]="!d.vistas"
+                      [title]="d.vistas ? 'Ver quién la vio' : 'Todavía nadie la ha visto'">
+                <mat-icon>visibility</mat-icon> {{ d.vistas }} la vieron
+                @if (d.cerradas_antes) { · {{ d.cerradas_antes }} la cerraron antes }
+                @if (d.vistas) { <mat-icon class="cu-metrica__ir">chevron_right</mat-icon> }
+              </button>
+            }
+          </footer>
+
+          @if (textosAbiertos() === d.fecha) {
+            <div class="cu-textos">
+              <label class="campo"><span>Título <em>(vacío = el de la plantilla)</em></span>
+                <input [ngModel]="textoTitulo()" (ngModelChange)="textoTitulo.set($event)" maxlength="90" placeholder="¡Feliz cumpleaños!" /></label>
+              <label class="campo"><span>Mensaje para todos <em>— <code ngNonBindable>{{nombres}}</code> = los nombres de quienes cumplen</em></span>
+                <input [ngModel]="textoMensaje()" (ngModelChange)="textoMensaje.set($event)" maxlength="240"
+                       placeholder="Hoy celebramos a {{ '{' }}{{ '{' }}nombres{{ '}' }}{{ '}' }}. ¡Que sea un gran día!" /></label>
+              <div class="pie">
+                <button type="button" class="btn btn--fantasma" (click)="textosAbiertos.set(null)">Cancelar</button>
+                <button type="button" class="btn btn--primario" (click)="guardarTextos(d)">Guardar textos</button>
+              </div>
+            </div>
+          }
+        </article>
+      } @empty {
+        @if (!cargando()) {
+          <div class="cu-vacio">
+            <span class="cu-vacio__icono"><mat-icon>cake</mat-icon></span>
+            <p><strong>Todavía no hay cumpleaños programados.</strong></p>
+            <p class="sub">Agrega a la primera persona con su foto. Puedes probar cómo se ve antes de que salga.</p>
+            <button type="button" class="btn btn--primario" (click)="nueva()"><mat-icon>person_add</mat-icon> Agregar cumpleañero</button>
+          </div>
+        }
+      }
+    </div>
+  </section>
+  }
+
+  @if (vista === 'plantillas') {
+  <section class="cu-seccion">
+    <header class="cu-seccion__cab">
+      <h3>Plantillas de animación</h3>
+      <p class="sub">Cada plantilla es una animación con sus colores, su letra y sus textos. Si un día no eliges ninguna, rotan
+        solas. Puedes crear variantes (otros colores u otros textos) y apagar las que no quieras que salgan.</p>
+    </header>
+    <div class="cu-galeria">
+      @for (p of plantillas(); track p.id) {
+        <article class="cu-pl" [class.cu-pl--off]="!p.activo">
+          <div class="cu-pl__muestra" [class]="'cu-pl__muestra cu-pl__muestra--' + p.animacion.toLowerCase()" [style]="muestra(p)">
+            <mat-icon class="cu-pl__icono">{{ motores[p.animacion].icono }}</mat-icon>
+            <span class="cu-pl__avatar"><span>AM</span></span>
+            <span class="cu-pl__titulo">{{ p.titulo }}</span>
+            <span class="cu-pl__puntos"><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
+          <div class="cu-pl__info">
+            <strong>{{ p.nombre }}</strong>
+            <span class="cu-chips">
+              <span class="cu-chip">{{ motores[p.animacion].nombre }}</span>
+              <span class="cu-chip">{{ p.duracion_segundos }} s</span>
+              @if (!p.activo) { <span class="cu-chip cu-chip--aviso">Apagada</span> }
+              @if (!p.sistema) { <span class="cu-chip">Propia</span> }
+            </span>
+            @if (p.descripcion) { <small>{{ p.descripcion }}</small> }
+          </div>
+          <div class="cu-pl__acc">
+            <button type="button" class="btn btn--primario cu-probar" (click)="probarPlantilla(p)"><mat-icon>play_arrow</mat-icon> Probar</button>
+            <button type="button" class="mini" (click)="editarPlantilla(p)" title="Editar"><mat-icon>tune</mat-icon></button>
+            <button type="button" class="mini" (click)="nuevaPlantilla(p)" title="Crear una variante"><mat-icon>content_copy</mat-icon></button>
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+  }
+}
+
+<!-- ── Persona ──────────────────────────────────────────────────────────── -->
+@if (persona(); as f) {
+  <div class="telon" (click)="cerrarPersona()">
+    <form class="panel panel--ancho" (click)="$event.stopPropagation()" (ngSubmit)="guardarPersona()">
+      <h3>{{ f.id ? 'Editar cumpleañero' : 'Agregar cumpleañero' }}</h3>
+      <div class="cu-form">
+        <div class="cu-form__datos">
+          <div class="fila">
+            <label class="campo"><span>Día de la celebración</span>
+              <input type="date" name="fecha" [ngModel]="f.fecha" (ngModelChange)="campo('fecha', $event)" [min]="hoy()" required /></label>
+            <label class="campo"><span>Cédula <em>(opcional)</em></span>
+              <input name="doc" inputmode="numeric" [ngModel]="f.documento" (ngModelChange)="campo('documento', $event)" maxlength="20"
+                     placeholder="Para el saludo personal" /></label>
+          </div>
+          <label class="campo"><span>Nombre, como quieres que se vea</span>
+            <input name="nombre" [ngModel]="f.nombre" (ngModelChange)="campo('nombre', $event)" required maxlength="120"
+                   placeholder="Ana María Rojas" /></label>
+          <label class="campo"><span>Cargo o área <em>(opcional)</em></span>
+            <input name="cargo" [ngModel]="f.cargo" (ngModelChange)="campo('cargo', $event)" maxlength="120"
+                   placeholder="Analista de nómina · Sede Funza" /></label>
+          <div class="fila">
+            <label class="campo"><span>Su jefe <em>(opcional)</em></span>
+              <input name="jn" [ngModel]="f.jefe_nombre" (ngModelChange)="campo('jefe_nombre', $event)" maxlength="120" placeholder="Carlos Pérez" /></label>
+            <label class="campo"><span>Cédula del jefe <em>(para que escriba su mensaje)</em></span>
+              <input name="jd" inputmode="numeric" [ngModel]="f.jefe_documento" (ngModelChange)="campo('jefe_documento', $event)" maxlength="20" /></label>
+          </div>
+          <label class="campo"><span>Dedicatoria <em>(opcional, sale debajo de su nombre)</em></span>
+            <input name="ded" [ngModel]="f.dedicatoria" (ngModelChange)="campo('dedicatoria', $event)" maxlength="200"
+                   placeholder="Gracias por tu alegría de todos los días" /></label>
+          @if (f.documento) {
+            <p class="sub cu-nota"><mat-icon>badge</mat-icon> Con la cédula, cuando {{ f.nombre.split(' ')[0] || 'la persona' }} entre ese día verá
+              «Hoy es tu día» y un mensaje para ella, y le saldrán los banners del carrusel segmentados por «Cumpleaños».</p>
+          }
+        </div>
+
+        <div class="cu-form__foto">
+          <span class="cu-form__rotulo">Foto</span>
+          @if (fotoForm(f); as url) {
+            <div class="cu-foto">
+              <div class="cu-foto__caja">
+                <div class="cu-foto__completa" (click)="enfocar($event)" title="Toca la cara para centrarla">
+                  <img [src]="url" alt="Foto completa" draggable="false" />
+                  <span class="cu-foto__mira" [style.left.%]="f.enfoque_x" [style.top.%]="f.enfoque_y"></span>
+                </div>
+              </div>
+              <div class="cu-foto__marcos">
+                <span class="cu-foto__circulo"><img [src]="url" alt="" [style.object-position]="f.enfoque_x + '% ' + f.enfoque_y + '%'" /></span>
+                <span class="cu-foto__arco"><img [src]="url" alt="" [style.object-position]="f.enfoque_x + '% ' + f.enfoque_y + '%'" /></span>
+                <small>Toca la cara en la foto grande para centrarla en los marcos.</small>
+              </div>
+            </div>
+            <div class="cu-foto__acc">
+              <label class="btn btn--fantasma"><mat-icon>image</mat-icon> Cambiar
+                <input type="file" accept="image/jpeg,image/png,image/webp" (change)="elegirFoto($event)" hidden /></label>
+              <button type="button" class="btn btn--fantasma" (click)="campo('quitar_foto', true); campo('archivo', null)">
+                <mat-icon>hide_image</mat-icon> Quitar</button>
+            </div>
+          } @else {
+            <label class="cu-soltar" (dragover)="$event.preventDefault()" (drop)="elegirFoto($event)">
+              <mat-icon>add_a_photo</mat-icon>
+              <strong>Sube o arrastra su foto</strong>
+              <small>JPG, PNG o WEBP · mínimo {{ catalogo()?.limites?.min_lado_foto ?? 320 }} px · máx. {{ catalogo()?.limites?.max_foto_mb ?? 8 }} MB.
+                Mejor de frente, con buena luz y la cara centrada.</small>
+              <input type="file" accept="image/jpeg,image/png,image/webp" (change)="elegirFoto($event)" hidden />
+            </label>
+            <small class="sub">Sin foto sale con sus iniciales sobre los colores de la plantilla.</small>
+          }
+        </div>
+      </div>
+      <div class="pie">
+        <button type="button" class="btn btn--fantasma" (click)="cerrarPersona()">Cancelar</button>
+        <button type="submit" class="btn btn--primario" [disabled]="!f.nombre.trim() || !f.fecha || guardando()">
+          <mat-icon>{{ guardando() ? 'hourglass_top' : 'check' }}</mat-icon> {{ guardando() ? 'Guardando…' : 'Guardar' }}</button>
+      </div>
+    </form>
+  </div>
+}
+
+<!-- ── Agregar al padrón de correos (alta manual en ms-payroll) ──────────── -->
+@if (alta(); as a) {
+  <div class="telon" (click)="alta.set(null)">
+    <form class="panel" (click)="$event.stopPropagation()" (ngSubmit)="guardarAlta()">
+      <h3>{{ a.existente ? 'Su alta en el padrón de correos' : 'Agregar al padrón de correos' }}</h3>
+      <p class="sub">Así a {{ a.nombre.split(' ')[0] }} también le llega el correo de felicitación el día de su cumpleaños.
+        Queda como <b>alta manual de Marketing</b>: el Excel de RRHH no la modifica ni la saca cuando lo vuelvan a subir.</p>
+      <div class="fila">
+        <label class="campo"><span>Cédula</span>
+          <input name="ced" [value]="a.cedula" readonly /></label>
+        <label class="campo"><span>Fecha de nacimiento</span>
+          <input type="date" name="nac" [ngModel]="a.fecha_nacimiento" (ngModelChange)="campoAlta('fecha_nacimiento', $event)"
+                 [max]="hoy()" min="1900-01-01" required /></label>
+      </div>
+      <label class="campo"><span>Nombre, como sale en el correo</span>
+        <input name="nom" [ngModel]="a.nombre" (ngModelChange)="campoAlta('nombre', $event)" required maxlength="190" /></label>
+      <label class="campo"><span>Correo</span>
+        <input type="email" name="correo" inputmode="email" autocomplete="off" [ngModel]="a.correo" (ngModelChange)="campoAlta('correo', $event)"
+               required maxlength="320" placeholder="nombre@empresa.com" /></label>
+      <div class="fila">
+        <label class="campo"><span>Temporal <em>(decide la plantilla del correo)</em></span>
+          <select name="emp" [ngModel]="a.empresa" (ngModelChange)="campoAlta('empresa', $event)">
+            <option value="">Sin temporal (plantilla por defecto)</option>
+            <option value="APOYO_LABORAL">Apoyo Laboral TS</option>
+            <option value="ALIANZA">Tu Alianza</option>
+          </select></label>
+        <label class="campo"><span>Finca o área <em>(opcional)</em></span>
+          <input name="finca" [ngModel]="a.finca" (ngModelChange)="campoAlta('finca', $event)" maxlength="190" placeholder="Oficina principal" /></label>
+      </div>
+      @if (a.correo.trim() && !correoValido(a.correo)) {
+        <p class="sub cu-nota cu-nota--aviso"><mat-icon>error</mat-icon> Ese correo no parece válido.</p>
+      }
+      @if (proximoCorreo(a); as cuando) {
+        <p class="sub cu-nota"><mat-icon>schedule_send</mat-icon>
+          <span>El correo le sale el <b>{{ fechaLarga(cuando) }}</b>{{ cfgCorreo()?.auto_activo === false ? ', si para entonces el envío automático está prendido (hoy está apagado).' : '.' }}
+            @if (otroDia(a)) { La celebración en la plataforma es el {{ fechaLarga(a.celebracion) }}: el correo va el día de su cumpleaños. }</span></p>
+      }
+      <div class="pie">
+        @if (a.existente) {
+          <button type="button" class="btn btn--fantasma cu-sacar" (click)="quitarAlta()" [disabled]="guardandoAlta()">
+            <mat-icon>person_remove</mat-icon> Sacar del padrón</button>
+        }
+        <button type="button" class="btn btn--fantasma" (click)="alta.set(null)">Cancelar</button>
+        <button type="submit" class="btn btn--primario"
+                [disabled]="!a.nombre.trim() || !a.fecha_nacimiento || !correoValido(a.correo) || guardandoAlta()">
+          <mat-icon>{{ guardandoAlta() ? 'hourglass_top' : 'person_add' }}</mat-icon>
+          {{ guardandoAlta() ? 'Guardando…' : (a.existente ? 'Guardar cambios' : 'Agregar al padrón') }}</button>
+      </div>
+    </form>
+  </div>
+}
+
+<!-- ── Plantilla ─────────────────────────────────────────────────────────── -->
+@if (plantillaForm(); as p) {
+  <div class="telon" (click)="plantillaForm.set(null)">
+    <form class="panel panel--ancho" (click)="$event.stopPropagation()" (ngSubmit)="guardarPlantilla()">
+      <h3>{{ p.nueva ? 'Nueva variante' : 'Editar plantilla' }}</h3>
+      <div class="cu-form">
+        <div class="cu-form__datos">
+          <label class="campo"><span>Nombre</span>
+            <input name="n" [ngModel]="p.nombre" (ngModelChange)="campoPlantilla('nombre', $event)" required maxlength="120" /></label>
+          <div class="fila">
+            <label class="campo"><span>Animación</span>
+              <select name="a" [ngModel]="p.animacion" (ngModelChange)="campoPlantilla('animacion', $event)">
+                @for (m of listaMotores; track m) { <option [value]="m">{{ motores[m].nombre }}</option> }
+              </select></label>
+            <label class="campo"><span>Letra del título</span>
+              <select name="t" [ngModel]="p.tipografia" (ngModelChange)="campoPlantilla('tipografia', $event)">
+                @for (t of listaTipografias; track t) { <option [value]="t">{{ tipografias[t] }}</option> }
+              </select></label>
+          </div>
+          @if (p.animacion) { <p class="sub">{{ motores[p.animacion].ayuda }}</p> }
+          <label class="campo"><span>Fondo animado <em>(video en bucle hecho con IA; «ninguno» = solo el decorado dibujado)</em></span>
+            <select name="fo" [ngModel]="p.fondo_nombre ?? ''" (ngModelChange)="campoPlantilla('fondo_nombre', $event || null)">
+              <option value="">Ninguno</option>
+              @for (f of catalogo()?.fondos ?? []; track f) { <option [value]="f">{{ etiquetaFondo(f) }}</option> }
+            </select></label>
+          <div class="colores">
+            <label class="color"><input type="color" name="c1" [ngModel]="p.color_fondo" (ngModelChange)="campoPlantilla('color_fondo', $event)" /> Fondo</label>
+            <label class="color"><input type="color" name="c2" [ngModel]="p.color_fondo_2" (ngModelChange)="campoPlantilla('color_fondo_2', $event)" /> Fondo 2</label>
+            <label class="color"><input type="color" name="c3" [ngModel]="p.color_texto" (ngModelChange)="campoPlantilla('color_texto', $event)" /> Texto</label>
+            <label class="color"><input type="color" name="c4" [ngModel]="p.color_acento" (ngModelChange)="campoPlantilla('color_acento', $event)" /> Acento</label>
+            <label class="color"><input type="color" name="c5" [ngModel]="p.color_acento_2" (ngModelChange)="campoPlantilla('color_acento_2', $event)" /> Acento 2</label>
+          </div>
+          <label class="campo"><span>Título</span>
+            <input name="ti" [ngModel]="p.titulo" (ngModelChange)="campoPlantilla('titulo', $event)" required maxlength="90" /></label>
+          <label class="campo"><span>Mensaje para todos <em>— <code ngNonBindable>{{nombres}}</code> = quienes cumplen</em></span>
+            <input name="me" [ngModel]="p.mensaje" (ngModelChange)="campoPlantilla('mensaje', $event)" maxlength="240" /></label>
+          <label class="campo"><span>Mensaje para quien cumple <em>— <code ngNonBindable>{{nombre}}</code> = su primer nombre</em></span>
+            <input name="mp" [ngModel]="p.mensaje_personal" (ngModelChange)="campoPlantilla('mensaje_personal', $event)" maxlength="240" /></label>
+          <label class="campo rango"><span>Duración: <strong>{{ p.duracion_segundos }} segundos</strong></span>
+            <input type="range" name="du" min="5" max="10" step="1" [ngModel]="p.duracion_segundos"
+                   (ngModelChange)="campoPlantilla('duracion_segundos', +$event)" /></label>
+          <label class="check"><input type="checkbox" name="ac" [ngModel]="p.activo" (ngModelChange)="campoPlantilla('activo', $event)" />
+            Activa (entra en la rotación y se puede elegir)</label>
+        </div>
+        <div class="cu-form__foto">
+          <span class="cu-form__rotulo">Así se ve</span>
+          <div class="cu-pl__muestra cu-pl__muestra--grande" [class]="'cu-pl__muestra cu-pl__muestra--grande cu-pl__muestra--' + (p.animacion || 'CONFETI').toLowerCase()" [style]="muestra(p)">
+            <mat-icon class="cu-pl__icono">{{ motores[p.animacion || 'CONFETI'].icono }}</mat-icon>
+            <span class="cu-pl__avatar"><span>AM</span></span>
+            <span class="cu-pl__titulo">{{ p.titulo }}</span>
+            <span class="cu-pl__puntos"><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
+          <button type="button" class="btn btn--fantasma" (click)="probarPlantilla(p)"><mat-icon>play_arrow</mat-icon> Probar sin guardar</button>
+        </div>
+      </div>
+      <div class="pie">
+        <button type="button" class="btn btn--fantasma" (click)="plantillaForm.set(null)">Cancelar</button>
+        <button type="submit" class="btn btn--primario" [disabled]="!p.nombre || !p.titulo || guardando()">Guardar</button>
+      </div>
+    </form>
+  </div>
+}
+
+@if (viendoVistas(); as dv) {
+  <app-cumpleanos-vistas [fecha]="dv.fecha" [personas]="dv.personas" (cerrar)="viendoVistas.set(null)" />
+}
+
+@if (personalizando(); as pz) {
+  <app-cumpleanos-personalizacion [persona]="pz" (cerrar)="personalizando.set(null); cargar()" (cambio)="cargar()"
+                                  (probar)="probarPersona(pz)" />
+}
+
+@if (probando(); as pr) {
+  <app-celebracion-probador [base]="pr.base" [plantillas]="listaProbador() ?? plantillas()" [textosDia]="pr.textos"
+                            (cerrar)="probando.set(null)" />
+}

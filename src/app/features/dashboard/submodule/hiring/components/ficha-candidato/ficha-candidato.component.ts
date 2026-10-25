@@ -1,7 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDialog } from '@angular/material/dialog';
 import { EtiquetaAtencionRemota } from '../../../turnos/components/etiqueta-atencion-remota/etiqueta-atencion-remota';
+import { abrirLineaTiempoPersona } from '../linea-tiempo-persona/linea-tiempo-persona.dialog';
+import { CedulaCamaraComponent } from '../cedula-camara/cedula-camara.component';
 import { VacanteAsignadaResumen } from '../../service/pipeline-nav/pipeline-nav.service';
 import { Avance, pctDe, sumarAvances } from '../../shared/progreso.util';
 
@@ -26,7 +29,7 @@ interface Fila {
 @Component({
   selector: 'app-ficha-candidato',
   standalone: true,
-  imports: [SharedModule, MatIconModule, EtiquetaAtencionRemota],
+  imports: [SharedModule, MatIconModule, EtiquetaAtencionRemota, CedulaCamaraComponent],
   templateUrl: './ficha-candidato.component.html',
   styleUrls: ['./ficha-candidato.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -66,6 +69,19 @@ export class FichaCandidatoComponent {
    */
   reenviarAcceso = output<void>();
 
+  private readonly dialog = inject(MatDialog);
+
+  /**
+   * Todo lo que ha pasado con la persona (procesos, pruebas, exámenes, contratos,
+   * vetos, incapacidades, cambios de datos) en orden. Es de solo lectura, así
+   * que la ficha lo abre sola: no hace falta que el pipeline haga nada.
+   */
+  abrirLineaTiempo(): void {
+    const documento = this.documento() ?? this.txt(this.documentoBuscado());
+    if (!documento) return;
+    abrirLineaTiempoPersona(this.dialog, { documento, nombre: this.nombre() });
+  }
+
   private readonly plegados = signal<ReadonlySet<string>>(new Set<string>());
 
   /** % de un bloque; `null` cuando ese bloque no tiene nada que medir. */
@@ -103,6 +119,15 @@ export class FichaCandidatoComponent {
     if (pct === null) return 'rgba(255, 255, 255, .16)';
     return `conic-gradient(var(--lime, #8CD50A) ${pct}%, rgba(255, 255, 255, .2) 0)`;
   }
+
+  /**
+   * En pantallas angostas la ficha va encima del panel de trabajo y se muestra
+   * plegada a su cabecera (nombre y documento); desplegada entera no dejaba
+   * sitio al formulario. En escritorio no tiene efecto: la ficha es su columna.
+   */
+  readonly abierta = signal(false);
+
+  alternarAbierta(): void { this.abierta.update((v) => !v); }
 
   plegado(b: string): boolean { return this.plegados().has(b); }
 

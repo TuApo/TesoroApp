@@ -1,0 +1,302 @@
+<div class="em-pagina">
+
+  <!-- ════════ Cabecera ════════ -->
+  <header class="em-hero">
+    <div class="em-hero-icono"><mat-icon>drive_folder_upload</mat-icon></div>
+    <div class="em-hero-textos">
+      <h1 class="em-hero-titulo">Carga masiva de exámenes médicos</h1>
+      <p class="em-hero-sub">
+        Sube los PDF que manda la IPS (uno por persona o un ZIP), revisa a quién corresponde cada uno
+        y registra el concepto. Cada examen queda en el expediente y en el proceso de la persona.
+      </p>
+    </div>
+    <a mat-stroked-button class="em-volver" routerLink="/dashboard/hiring/recruitment-pipeline">
+      <mat-icon>arrow_back</mat-icon> Proceso de contratación
+    </a>
+  </header>
+
+  <!-- ════════ 1. Archivos ════════ -->
+  <section class="em-bloque">
+    <header class="em-bloque-cabecera">
+      <span class="em-paso">1</span>
+      <h2 class="em-bloque-titulo">Archivos de la IPS</h2>
+      @if (lote(); as l) {
+        <span class="em-lote">Lote #{{ l.id }} · {{ filas().length }} archivo(s)</span>
+      }
+    </header>
+
+    <p class="em-nota">
+      La <strong>cédula va en el nombre del archivo</strong> (por ejemplo <code>1122415324.pdf</code>,
+      <code>EXAMEN 1122415324 JUAN PEREZ.pdf</code> o <code>X975576.pdf</code> para extranjeros).
+      Un PDF por persona, de máximo {{ TAM_MAX_TEXTO }}. Un ZIP se abre aquí mismo y se toman solo sus PDF.
+      Un PDF con varias personas juntas <strong>no</strong> se puede partir todavía.
+    </p>
+
+    <div class="em-fila-campos">
+      <label class="em-campo">
+        <span class="em-campo-etiqueta">IPS (opcional)</span>
+        <select class="em-control" [disabled]="bloqueada() || !!lote()"
+                (change)="ips.set($any($event.target).value)">
+          <option value="" [selected]="!ips()">—</option>
+          @for (o of IPS_OPCIONES; track o) { <option [value]="o" [selected]="o === ips()">{{ o }}</option> }
+        </select>
+      </label>
+    </div>
+
+    <input #inputArchivos type="file" class="em-oculto" multiple
+           accept="application/pdf,.pdf,.zip,application/zip,application/x-zip-compressed"
+           (change)="alSeleccionar($event)" />
+
+    <div class="em-dropzone"
+         [class.em-dropzone-activa]="arrastrando()"
+         [class.em-dropzone-bloqueada]="bloqueada()"
+         (dragover)="alArrastrarEncima($event)"
+         (dragleave)="alSalirArrastre($event)"
+         (drop)="alSoltar($event)"
+         (click)="!bloqueada() && inputArchivos.click()"
+         (keydown.enter)="!bloqueada() && inputArchivos.click()"
+         role="button" tabindex="0" aria-label="Elegir los PDF o el ZIP de exámenes">
+      @if (fase() === 'leyendo') {
+        <mat-icon class="em-dropzone-icono em-girando">autorenew</mat-icon>
+        <p class="em-dropzone-texto">Leyendo archivos y buscando a cada persona…</p>
+      } @else {
+        <mat-icon class="em-dropzone-icono">cloud_upload</mat-icon>
+        <p class="em-dropzone-texto">
+          Arrastra aquí los PDF o el ZIP, o <strong>haz clic para buscarlos</strong>
+        </p>
+        <p class="em-dropzone-ayuda">
+          {{ filas().length ? 'Se agregan al lote actual' : 'PDF o ZIP · máximo 500 archivos por lote' }}
+        </p>
+      }
+    </div>
+
+    @if (avisosLectura().length) {
+      <div class="em-aviso em-aviso-warn" role="status">
+        <mat-icon>warning_amber</mat-icon>
+        <div class="em-aviso-cuerpo">
+          <strong>{{ avisosLectura().length }} archivo(s) no entraron al lote:</strong>
+          <ul>
+            @for (a of avisosLectura(); track $index) { <li>{{ a }}</li> }
+          </ul>
+        </div>
+        <button mat-icon-button type="button" (click)="limpiarAvisos()" matTooltip="Ocultar" aria-label="Ocultar avisos">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
+
+    @if (error()) {
+      <div class="em-aviso em-aviso-error" role="alert">
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ error() }}</span>
+      </div>
+    }
+
+    @if (!filas().length && recientes().length) {
+      <details class="em-recientes">
+        <summary>Lotes recientes ({{ recientes().length }})</summary>
+        <ul>
+          @for (r of recientes(); track r.id) {
+            <li>
+              <strong>#{{ r.id }}</strong>
+              · {{ r.created_at | date:'dd/MM/yyyy HH:mm' }}
+              · {{ r.creado_por || '—' }}
+              @if (r.ips) { · {{ r.ips }} }
+              · {{ r.subidos }}/{{ r.total }} subidos
+              @if (r.fallidos) { · <span class="em-rojo">{{ r.fallidos }} con error</span> }
+            </li>
+          }
+        </ul>
+      </details>
+    }
+  </section>
+
+  <!-- ════════ 2. Revisión ════════ -->
+  @if (filas().length) {
+    <section class="em-bloque">
+      <header class="em-bloque-cabecera">
+        <span class="em-paso">2</span>
+        <h2 class="em-bloque-titulo">Revisa y registra el concepto</h2>
+      </header>
+
+      <div class="em-kpis">
+        <span class="em-kpi em-kpi-ok"><mat-icon>task_alt</mat-icon> {{ porSubir().length - incompletas().length }} listas</span>
+        <span class="em-kpi em-kpi-warn"><mat-icon>edit_note</mat-icon> {{ incompletas().length }} por completar</span>
+        <span class="em-kpi em-kpi-danger"><mat-icon>person_off</mat-icon> {{ sinCruce() }} sin cruzar</span>
+        <span class="em-kpi em-kpi-info"><mat-icon>cloud_done</mat-icon> {{ subidas() }} subidas</span>
+        @if (fallidas()) {
+          <span class="em-kpi em-kpi-danger"><mat-icon>cloud_off</mat-icon> {{ fallidas() }} con error</span>
+        }
+      </div>
+
+      <p class="em-nota">
+        El concepto <strong>no viene puesto</strong>: elígelo por fila o márcalas y usa
+        <em>Poner concepto</em>. <strong>No apto</strong> rechaza el proceso (901 examen);
+        <strong>Aplazado</strong> lo deja en espera. Las filas en rojo no se cruzaron con un proceso
+        abierto: corrige la cédula si se leyó mal o quítalas.
+      </p>
+
+      <app-tabla-estandar
+        id="hiring-examenes-masivos"
+        titulo="Examenes masivos"
+        modulo="Contratación"
+        [datos]="filas()"
+        [columnas]="columnas"
+        [filaId]="idFila"
+        [filaClase]="claseFila"
+        [accionesMasivas]="acciones"
+        [filasPorPagina]="100"
+        [cargando]="fase() === 'leyendo'"
+        vacio="Sin archivos en el lote">
+
+        <div tablaHerramientas class="em-herramientas">
+          <select class="em-control em-control-chico"
+                  [disabled]="bloqueada()" aria-label="Concepto para todas"
+                  (change)="conceptoParaTodas.set($any($event.target).value || null)">
+            <option value="" [selected]="!conceptoParaTodas()">Concepto para todas…</option>
+            @for (o of CONCEPTOS; track o.valor) {
+              <option [value]="o.valor" [selected]="o.valor === conceptoParaTodas()">{{ o.etiqueta }}</option>
+            }
+          </select>
+          <input class="em-control em-control-chico" type="date" [max]="hoy" [value]="fechaParaTodas()"
+                 [disabled]="bloqueada()" aria-label="Fecha realización del examen para todas"
+                 (change)="fechaParaTodas.set($any($event.target).value)" />
+          <button mat-stroked-button type="button" [disabled]="bloqueada() || (!conceptoParaTodas() && !fechaParaTodas())"
+                  (click)="aplicarATodas()" matTooltip="Solo donde aún no hay concepto o fecha: no pisa lo ya elegido">
+            <mat-icon>done_all</mat-icon> Aplicar a las vacías
+          </button>
+        </div>
+
+        <ng-template tablaCelda="cedula" let-f>
+          @if (corregible(f)) {
+            <input class="em-control em-control-cedula" type="text" inputmode="text"
+                   [value]="f.cedula ?? ''" placeholder="Cédula" [disabled]="f.corrigiendo"
+                   matTooltip="Escribe la cédula y pulsa Enter para volver a cruzar"
+                   (keydown.enter)="corregirCedula(f, $any($event.target).value)"
+                   (change)="corregirCedula(f, $any($event.target).value)" />
+          } @else {
+            <span class="em-cedula">{{ f.cedula || '—' }}</span>
+          }
+        </ng-template>
+
+        <ng-template tablaCelda="archivo" let-f>
+          <span class="em-archivo" [title]="f.archivo">
+            <mat-icon>picture_as_pdf</mat-icon>
+            <span class="em-archivo-nombre">{{ f.archivo }}</span>
+            <span class="em-archivo-tam">{{ tamanoLegible(f.tamano) }}</span>
+          </span>
+        </ng-template>
+
+        <ng-template tablaCelda="concepto" let-f>
+          @if (editable(f)) {
+            <select class="em-control"
+                    [class.em-control-falta]="!f.concepto"
+                    [attr.aria-label]="'Concepto de ' + (f.nombre || f.archivo)"
+                    (change)="cambiarConcepto(f, $any($event.target).value)">
+              <option value="" [selected]="!f.concepto">Elegir…</option>
+              @for (o of CONCEPTOS; track o.valor) {
+                <option [value]="o.valor" [selected]="o.valor === f.concepto">{{ o.etiqueta }}</option>
+              }
+            </select>
+          } @else {
+            <span>{{ f.concepto ? etiquetaConcepto(f.concepto) : '—' }}</span>
+          }
+        </ng-template>
+
+        <ng-template tablaCelda="restricciones" let-f>
+          @if (editable(f) && f.concepto === 'APTO_CON_RESTRICCIONES') {
+            <input class="em-control" type="text" [value]="f.restricciones ?? ''"
+                   [class.em-control-falta]="!f.restricciones" placeholder="Obligatorio"
+                   (change)="cambiarRestricciones(f, $any($event.target).value)" />
+          } @else {
+            <span class="em-tenue">{{ f.restricciones || '—' }}</span>
+          }
+        </ng-template>
+
+        <ng-template tablaCelda="fecha" let-f>
+          @if (editable(f)) {
+            <input class="em-control" type="date" [max]="hoy" [value]="f.fecha_examen ?? ''"
+                   (change)="cambiarFecha(f, $any($event.target).value)" />
+          } @else {
+            <span>{{ f.fecha_examen ? (f.fecha_examen | date:'dd/MM/yyyy') : '—' }}</span>
+          }
+        </ng-template>
+
+        <ng-template tablaAcciones let-f>
+          <button mat-icon-button type="button" (click)="verPdf(f)" [disabled]="!f.archivoLocal"
+                  matTooltip="Ver el PDF" aria-label="Ver el PDF">
+            <mat-icon>visibility</mat-icon>
+          </button>
+          @if (f.estado_carga !== 'SUBIDO') {
+            @if (f.excluida) {
+              <button mat-icon-button type="button" (click)="incluir(f)" [disabled]="bloqueada()"
+                      matTooltip="Volver a incluir" aria-label="Volver a incluir">
+                <mat-icon>add_circle_outline</mat-icon>
+              </button>
+            } @else {
+              <button mat-icon-button type="button" (click)="excluir(f)" [disabled]="bloqueada()"
+                      matTooltip="Quitar del lote" aria-label="Quitar del lote">
+                <mat-icon>remove_circle_outline</mat-icon>
+              </button>
+            }
+          }
+        </ng-template>
+      </app-tabla-estandar>
+    </section>
+
+    <!-- ════════ 3. Subida ════════ -->
+    <section class="em-bloque">
+      <header class="em-bloque-cabecera">
+        <span class="em-paso">3</span>
+        <h2 class="em-bloque-titulo">Confirma y sube</h2>
+      </header>
+
+      @if (fase() === 'subiendo' || fase() === 'fin') {
+        <div class="em-progreso" aria-live="polite">
+          <div class="em-progreso-texto">
+            <span>{{ progreso().hechos }} de {{ progreso().total }} procesados</span>
+            <span>{{ pct() }}%</span>
+          </div>
+          <mat-progress-bar mode="determinate" [value]="pct()"></mat-progress-bar>
+        </div>
+      }
+
+      @if (fase() === 'fin') {
+        <div class="em-aviso" [class.em-aviso-ok]="!fallidas()" [class.em-aviso-warn]="fallidas()">
+          <mat-icon>{{ fallidas() ? 'warning_amber' : 'task_alt' }}</mat-icon>
+          <span>
+            Subidos: <strong>{{ subidas() }}</strong>
+            @if (fallidas()) { · Con error: <strong>{{ fallidas() }}</strong> (el motivo está en la columna Carga) }
+            @if (deteniendo()) { · Se detuvo antes de terminar. }
+          </span>
+        </div>
+      }
+
+      <div class="em-acciones">
+        @if (fase() === 'subiendo') {
+          <button mat-stroked-button type="button" (click)="detenerSubida()" [disabled]="deteniendo()">
+            <mat-icon>stop_circle</mat-icon> {{ deteniendo() ? 'Deteniendo…' : 'Detener tras esta tanda' }}
+          </button>
+        } @else {
+          <button mat-stroked-button type="button" (click)="nuevoLote()">
+            <mat-icon>restart_alt</mat-icon> Empezar otro lote
+          </button>
+          @if (fallidas()) {
+            <button mat-stroked-button type="button" (click)="reintentarFallidas()">
+              <mat-icon>replay</mat-icon> Reintentar las {{ fallidas() }} con error
+            </button>
+          }
+          <button mat-flat-button type="button" class="em-btn-subir"
+                  [disabled]="bloqueada() || !porSubir().length"
+                  (click)="subir()">
+            <mat-icon>cloud_upload</mat-icon>
+            Subir {{ porSubir().length }} examen(es)
+          </button>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- ════════ Verificación de identidad (todos los exámenes, también los del legacy) ════════ -->
+  <app-examen-identidad-bandeja />
+</div>

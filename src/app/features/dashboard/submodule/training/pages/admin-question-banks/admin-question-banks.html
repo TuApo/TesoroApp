@@ -116,6 +116,7 @@
               <option value="EMPAREJAR">Emparejar</option>
               <option value="TEXTO_ABIERTO">Respuesta escrita</option>
               <option value="NUMERO">Un número</option>
+              <option value="PROGRAMACION">Programación (código con pruebas)</option>
             </select>
           </label>
           <label>
@@ -174,7 +175,14 @@
              La corrige el analizador compartido con Formularios Dinámicos: la misma regla
              juzga esta respuesta esté en un examen de selección o en la evaluación de un
              curso. Sin criterio no se guarda: nadie podría aprobarla. -->
-        @if (esAbierta() && f.criterio; as c) {
+        @if (f.tipo === 'PROGRAMACION') {
+          <!-- ── Se responde programando ─────────────────────────────────────
+               La califican sus casos de prueba en el servidor (Piston): nota parcial por el
+               peso de los casos que pasan. El enunciado de arriba es lo que tiene que hacer. -->
+          <h3 class="titulo-opciones">Ejercicio y pruebas</h3>
+          <app-ejercicio-editor [ejercicio]="f.ejercicio" (ejercicioChange)="editarForm({ ejercicio: $event })"
+                                [enunciado]="f.enunciado + '\n' + (f.cuerpo_html || '')" />
+        } @else if (esAbierta() && f.criterio; as c) {
           <h3 class="titulo-opciones">Cómo se corrige</h3>
 
           <div class="campos">
@@ -309,7 +317,7 @@
             <div>
               <strong>{{ p.enunciado }}</strong>
               <div class="pregunta-meta">
-                {{ etiquetaTipo(p.tipo) }} · {{ p.opciones.length }} opción(es)
+                {{ etiquetaTipo(p.tipo) }} · @if (p.tipo === 'PROGRAMACION') { {{ p.ejercicio?.casos?.length ?? 0 }} caso(s) de prueba } @else { {{ p.opciones.length }} opción(es) }
                 @if (!p.activa) { · <span class="texto-retirada">retirada</span> }
                 @if (p.ya_respondida) { · ya respondida }
               </div>

@@ -1,0 +1,142 @@
+<section class="tienda-tarjeta il">
+  <h2 class="titulo-seccion"><mat-icon>move_down</mat-icon> Importar catálogo desde Logis</h2>
+  <p class="nota">
+    Trae productos, precios, costos, códigos de barras, familias, marcas, existencias, mínimos, paquetes (six pack) y
+    qué se vende sin control de existencias, tal como estaban en Logis. Se puede repetir: lo ya importado se actualiza, no se duplica.
+  </p>
+  @if (error()) { <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div> }
+
+  <div class="il-campos">
+    <div class="campo"><label>Negocio</label>
+      <select [ngModel]="negocio" (ngModelChange)="elegirNegocio($event)" name="il-neg">
+        <option value="">Elija…</option>
+        @for (n of negocios(); track n.id) { <option [value]="n.codigo">{{ n.nombre }}</option> }
+      </select></div>
+    <div class="campo"><label>Tienda (existencias y vitrina)</label>
+      <select [(ngModel)]="tienda" name="il-tienda">
+        <option value="">Solo catálogo, sin tienda</option>
+        @for (t of tiendasDelNegocio(); track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+      </select></div>
+    <div class="campo"><label>Prefijo de SKU</label>
+      <input [(ngModel)]="prefijo" name="il-pref" maxlength="10" placeholder="MF" /></div>
+  </div>
+
+  <div class="il-archivos">
+    <label class="il-archivo" [class.ok]="maestro()">
+      <mat-icon>{{ maestro() ? 'task' : 'upload_file' }}</mat-icon>
+      <span><b>Maestro de productos</b> (obligatorio)<small>{{ maestro()?.name || '…_productos_maestro.xlsx' }}</small></span>
+      <input type="file" accept=".xlsx" (change)="archivo('maestro', $event)" hidden />
+    </label>
+    <label class="il-archivo" [class.ok]="catalogo()">
+      <mat-icon>{{ catalogo() ? 'task' : 'storefront' }}</mat-icon>
+      <span><b>Catálogo de la tienda</b> (qué publicar)<small>{{ catalogo()?.name || '…_catalogo_tienda.xlsx o .csv' }}</small></span>
+      <input type="file" accept=".xlsx,.csv" (change)="archivo('catalogo', $event)" hidden />
+    </label>
+    <label class="il-archivo" [class.ok]="resumen()">
+      <mat-icon>{{ resumen() ? 'task' : 'leaderboard' }}</mat-icon>
+      <span><b>Resumen de ventas</b> (lo más vendido primero)<small>{{ resumen()?.name || '…_resumen_ventas.xlsx' }}</small></span>
+      <input type="file" accept=".xlsx" (change)="archivo('resumen', $event)" hidden />
+    </label>
+  </div>
+
+  <div class="il-opciones">
+    <label class="chk"><input type="checkbox" [(ngModel)]="stockInicial" name="il-stock" /> Cargar existencias como saldo inicial (solo productos que aún no tengan movimientos en la tienda)</label>
+    <label class="chk"><input type="checkbox" [(ngModel)]="publicarTodo" name="il-pub" /> Publicar todo lo activo en EconomiAPP</label>
+  </div>
+
+  <details class="il-vendedores">
+    <summary>Varias tiendas en una: qué aliado vende cada categoría (opcional)</summary>
+    <p class="nota">Ej.: los productos de la categoría o familia «LUBRAN» los vende y despacha el negocio Lubran.</p>
+    @for (v of vendedores; track $index; let i = $index) {
+      <div class="il-fila">
+        <input [(ngModel)]="v.categoria" [name]="'vc' + i" placeholder="Categoría o familia de Logis" />
+        <select [(ngModel)]="v.negocio" [name]="'vn' + i">
+          <option value="">Negocio…</option>
+          @for (n of negocios(); track n.id) { <option [value]="n.codigo">{{ n.nombre }}</option> }
+        </select>
+        <button type="button" class="boton secundario" (click)="quitarVendedor(i)"><mat-icon>delete</mat-icon></button>
+      </div>
+    }
+    <button type="button" class="boton secundario" (click)="agregarVendedor()"><mat-icon>add</mat-icon> Agregar</button>
+  </details>
+
+  <div class="tienda-barra">
+    <button type="button" class="boton" (click)="previsualizar()" [disabled]="ocupado() || !maestro() || !negocio">
+      <mat-icon>{{ ocupado() ? 'hourglass_top' : 'preview' }}</mat-icon> Revisar archivo
+    </button>
+    @if (informe()) {
+      <button type="button" class="boton" (click)="aplicar()" [disabled]="ocupado() || (avance()?.estado === 'EN_CURSO')">
+        <mat-icon>cloud_upload</mat-icon> Importar {{ informe()!.productos | number }} productos
+      </button>
+    }
+  </div>
+
+  @if (avance(); as a) {
+    <div class="il-avance" [class.listo]="a.estado === 'TERMINADA'" [class.mal]="a.estado === 'FALLIDA'">
+      <strong>{{ a.estado === 'EN_CURSO' ? 'Importando…' : a.estado === 'TERMINADA' ? 'Importación terminada' : 'La importación falló' }}</strong>
+      <div class="il-barra"><span [style.width.%]="a.estado === 'TERMINADA' ? 100 : pct()"></span></div>
+      <span>{{ a.procesados ?? 0 | number }} de {{ a.productos | number }} · {{ a.creados ?? 0 | number }} nuevos · {{ a.actualizados ?? 0 | number }} actualizados</span>
+      @if (a.estado === 'TERMINADA') {
+        <span>{{ a.compuestos_armados }} paquetes armados · {{ a.con_stock_inicial }} con saldo inicial · {{ a.codigos_agregados | number }} códigos · {{ a.total_fallas }} fallas</span>
+        @for (f of a.fallas ?? []; track $index) { <small class="mal">{{ f }}</small> }
+      }
+      @if (a.error) { <small class="mal">{{ a.error }}</small> }
+    </div>
+  }
+
+  @if (informe(); as r) {
+    <div class="il-informe">
+      <div class="il-datos">
+        <span class="dato"><b>{{ r.productos | number }}</b> productos</span>
+        <span class="dato ok"><b>{{ r.nuevos | number }}</b> nuevos</span>
+        @if (r.ya_importados) { <span class="dato"><b>{{ r.ya_importados | number }}</b> se actualizan</span> }
+        <span class="dato"><b>{{ r.a_publicar_en_economiapp | number }}</b> a EconomiAPP</span>
+        <span class="dato"><b>{{ r.con_stock | number }}</b> con existencias</span>
+        <span class="dato"><b>{{ r.sin_control_de_existencias | number }}</b> sin control de existencias</span>
+        <span class="dato"><b>{{ r.compuestos }}</b> paquetes</span>
+        <span class="dato"><b>{{ r.con_historial_de_ventas | number }}</b> con historial de ventas</span>
+        <span class="dato neutro"><b>{{ r.inactivos }}</b> inactivos</span>
+        <span class="dato warn"><b>{{ r.sin_codigo_barras }}</b> sin código de barras</span>
+      </div>
+
+      <h3>Calidad de los datos</h3>
+      <div class="il-datos">
+        @for (k of claves(r.totales_calidad); track k) {
+          <span class="dato" [class.warn]="r.totales_calidad![k] > 0"><b>{{ r.totales_calidad![k] }}</b> {{ k.replaceAll('_', ' ') }}</span>
+        }
+      </div>
+      <details><summary>Ver detalle de calidad</summary>
+        <div class="il-calidad">
+          @for (bloque of [['Sin precio (se importan inactivos)', r.sin_precio], ['Código de barras repetido', r.barras_repetidas], ['Código ya usado por otro producto', r.barras_de_otro_producto], ['Stock negativo (queda en 0)', r.stock_negativo], ['IVA atípico', r.iva_atipico], ['Separadores omitidos', r.omitidos_separadores]]; track $index) {
+            @if ($any(bloque[1])?.length) {
+              <div><h4>{{ bloque[0] }}</h4>
+                <ul>@for (x of $any(bloque[1]); track $index) { <li>{{ x.codigo }} · {{ x.nombre }}@if (x.barras) { · {{ x.barras }} }@if (x.stock != null) { · {{ x.stock }} }@if (x.iva != null) { · IVA {{ x.iva }} }@if (x.ya_en) { · ya en {{ x.ya_en }} }</li> }</ul>
+              </div>
+            }
+          }
+        </div>
+      </details>
+
+      <h3>Departamentos (Departamento › Familia › Subfamilia)</h3>
+      <p class="nota">Así queda la vitrina, como en un gran almacén. Cambie el departamento de cualquier familia antes de importar.</p>
+      <div class="il-familias">
+        @for (f of familias(); track f) {
+          <div class="il-familia">
+            <span>{{ f }} <small>({{ r.familias![f] }})</small></span>
+            <select [ngModel]="departamentoDe(f)" (ngModelChange)="cambiarDepartamento(f, $event)" [name]="'dep-' + f">
+              @for (d of LISTA_DEPARTAMENTOS; track d) { <option [value]="d">{{ d }}</option> }
+            </select>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  @if (historial().length) {
+    <details class="il-historial"><summary>Importaciones anteriores</summary>
+      <ul>@for (h of historial(); track $any(h)['id']) {
+        <li>{{ $any(h)['creado_en'] | date:'d MMM y, h:mm a' }} · {{ $any(h)['archivo'] }} · {{ $any(h)['estado'] }} · {{ $any(h)['creados'] ?? 0 }} nuevos / {{ $any(h)['actualizados'] ?? 0 }} actualizados · {{ $any(h)['usuario'] }}</li>
+      }</ul>
+    </details>
+  }
+</section>

@@ -1,0 +1,152 @@
+<div class="pe">
+  <div class="pz-tarjeta pe-chat">
+    <div class="pe-chat__cab">
+      <div>
+        <h2>Entrevista</h2>
+        <p class="pz-ayuda">Una pregunta a la vez. Responde como te salga: escribiendo, tocando una opción o hablando.</p>
+      </div>
+      <span class="pz-estado pz-estado--neutro">{{ diseno.preguntas_hechas }} / {{ diseno.max_preguntas }} preguntas</span>
+    </div>
+
+    <div class="pe-hilo" #hilo>
+      @if (!diseno.conversacion.length && !ocupado) {
+        <div class="pz-vacio">
+          <mat-icon>forum</mat-icon>
+          @if (diseno.mapa) {
+            <p>La IA ya leyó tu material. Pídele la primera pregunta.</p>
+          } @else {
+            <p>La IA todavía no ha leído tu material.</p>
+          }
+          <button type="button" class="pz-btn pz-btn--primario" (click)="empezar()" [disabled]="!diseno.ia_disponible">
+            <mat-icon>auto_awesome</mat-icon> Empezar la entrevista
+          </button>
+        </div>
+      }
+      @for (t of diseno.conversacion; track t.id) {
+        @if (t.rol === 'IA') {
+          <div class="pe-msg pe-msg--ia" [class.pe-msg--listo]="t.tema === 'LISTO'">
+            <span class="pe-avatar" aria-hidden="true"><mat-icon>auto_awesome</mat-icon></span>
+            <div class="pe-burbuja">
+              @if (t.tema && t.tema !== 'LISTO') { <span class="pe-tema">{{ etiquetasTema[t.tema] || t.tema }}</span> }
+              <p>{{ t.texto }}</p>
+              @if (t.pide_material && pendiente()?.id === t.id) {
+                <label class="pz-btn pz-btn--chico pe-adjuntar">
+                  <input type="file" multiple (change)="adjuntar($event)" hidden />
+                  <mat-icon>attach_file</mat-icon> {{ adjuntando() ? 'Subiendo…' : 'Adjuntar el documento' }}
+                </label>
+              }
+              @if (t.sugerencias.length && pendiente()?.id === t.id) {
+                <div class="pe-sugerencias">
+                  @for (s of t.sugerencias; track s) {
+                    <button type="button" class="pe-sug" (click)="usarSugerencia(s)">{{ s }}</button>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+        } @else {
+          <div class="pe-msg pe-msg--yo">
+            <div class="pe-burbuja">
+              <p>{{ t.texto }}</p>
+              @if (t.via === 'VOZ') { <span class="pe-via"><mat-icon>mic</mat-icon> dictado</span> }
+            </div>
+          </div>
+        }
+      }
+      @if (ocupado) {
+        <div class="pe-msg pe-msg--ia">
+          <span class="pe-avatar" aria-hidden="true"><mat-icon>auto_awesome</mat-icon></span>
+          <div class="pe-burbuja pe-escribiendo" aria-label="La IA está pensando"><i></i><i></i><i></i></div>
+        </div>
+      }
+    </div>
+
+    @if (diseno.entrevista_lista) {
+      <div class="pe-listo">
+        <mat-icon>task_alt</mat-icon>
+        <div><strong>Ya tengo lo necesario para proponer la estructura.</strong>
+          <em>Si quieres agregar algo más, escríbelo abajo antes de seguir.</em></div>
+        <button type="button" class="pz-btn pz-btn--lima" [disabled]="ocupado" (click)="estructurar()">
+          <mat-icon>account_tree</mat-icon> Armar la estructura
+        </button>
+      </div>
+    }
+
+    <div class="pe-composer" [class.pe-composer--off]="ocupado">
+      <textarea rows="3" [(ngModel)]="respuesta" (keydown)="teclado($event)" [disabled]="ocupado || enviando()"
+        [placeholder]="pendiente() ? 'Tu respuesta… (Ctrl+Enter para enviar)' : 'Algo más que quieras decirle a la IA…'"
+        aria-label="Tu respuesta"></textarea>
+      <div class="pe-composer__acc">
+        <app-grabadora-voz [compacta]="true" etiqueta="Dictar la respuesta" [maximoSeg]="180"
+          [deshabilitada]="ocupado || transcribiendo() || !diseno.dictado_disponible" (grabado)="dictado($event)" />
+        <label class="pz-btn pz-btn--icono" title="Adjuntar material" [class.pe-off]="ocupado || adjuntando()">
+          <input type="file" multiple (change)="adjuntar($event)" hidden [disabled]="ocupado || adjuntando()" />
+          <mat-icon>attach_file</mat-icon>
+        </label>
+        @if (transcribiendo()) { <span class="pe-nota"><span class="pz-punto"></span> Transcribiendo…</span> }
+        <span class="pe-espacio"></span>
+        @if (pendiente()) {
+          <button type="button" class="pz-btn pz-btn--chico" [disabled]="ocupado || enviando()" (click)="enviar(true)" title="La IA supondrá lo más sensato">Saltar</button>
+        }
+        <button type="button" class="pz-btn pz-btn--primario" [disabled]="ocupado || enviando() || !respuesta.trim()" (click)="enviar()">
+          <mat-icon>send</mat-icon> Enviar
+        </button>
+      </div>
+    </div>
+
+    @if (!diseno.entrevista_lista && respuestas() >= 2) {
+      <div class="pe-atajo">
+        <span>¿Ya le dijiste lo importante?</span>
+        <button type="button" class="pz-btn pz-btn--chico" [disabled]="ocupado" (click)="estructurar()">
+          <mat-icon>fast_forward</mat-icon> Armar la estructura ya
+        </button>
+      </div>
+    }
+  </div>
+
+  <aside class="pe-lado">
+    <div class="pz-tarjeta">
+      <h3><mat-icon>psychology</mat-icon> Lo que entendí del material</h3>
+      @if (diseno.mapa; as m) {
+        @if (m.resumen) { <p class="pe-resumen">{{ m.resumen }}</p> }
+        @if (m.muestreado) { <p class="pe-aviso"><mat-icon>info</mat-icon> El material es muy extenso: se leyó una muestra repartida.</p> }
+        <ol class="pe-temas">
+          @for (t of m.temas ?? []; track t.clave) {
+            <li>
+              <button type="button" (click)="alternarTema(t.clave)" [attr.aria-expanded]="temaAbierto() === t.clave">
+                <span>{{ t.titulo }}</span>
+                <mat-icon>{{ temaAbierto() === t.clave ? 'expand_less' : 'expand_more' }}</mat-icon>
+              </button>
+              @if (temaAbierto() === t.clave && t.puntos?.length) {
+                <ul>@for (p of t.puntos; track $index) { <li>{{ p }}</li> }</ul>
+              }
+            </li>
+          }
+        </ol>
+        @if (m.vacios?.length) {
+          <div class="pe-vacios"><strong>Lo que falta</strong>
+            <ul>@for (v of m.vacios; track $index) { <li>{{ v }}</li> }</ul></div>
+        }
+        @if (diseno.mapa_desactualizado) {
+          <p class="pe-aviso"><mat-icon>update</mat-icon> Llegó material nuevo: se tendrá en cuenta al armar la estructura.</p>
+        }
+      } @else {
+        <p class="pz-ayuda">Aparecerá cuando la IA lea el material.</p>
+      }
+    </div>
+
+    <div class="pz-tarjeta">
+      <h3><mat-icon>checklist</mat-icon> Decisiones hasta ahora</h3>
+      @if (diseno.decisiones?.objetivos?.length) {
+        <div class="pe-dec"><span>Objetivos</span>
+          <ul>@for (o of diseno.decisiones.objetivos; track $index) { <li>{{ o }}</li> }</ul></div>
+      }
+      @for (c of camposDecision; track c.clave) {
+        @if (valor(c.clave); as v) { <div class="pe-dec"><span>{{ c.etiqueta }}</span><p>{{ v }}</p></div> }
+      }
+      @if (!diseno.decisiones?.publico && !diseno.decisiones?.objetivos?.length) {
+        <p class="pz-ayuda">Se irán llenando con tus respuestas.</p>
+      }
+    </div>
+  </aside>
+</div>

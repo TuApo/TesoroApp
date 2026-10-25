@@ -32,6 +32,7 @@ export class InfraShell {
     { ruta: 'ubicaciones', texto: 'Ubicaciones', icono: 'travel_explore' },
     { ruta: 'alertas', texto: 'Alertas y logs', icono: 'notifications_active' },
     { ruta: 'informes', texto: 'Informes', icono: 'summarize' },
+    { ruta: 'devops', texto: 'DevOps', icono: 'rocket_launch' },
   ];
 
   readonly salud = computed(() => this.vivo.snapshot()?.salud ?? null);

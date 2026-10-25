@@ -4,7 +4,7 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { MatIconModule } from '@angular/material/icon';
 
 import { Aviso, Bloque, Croquis, Media, Turno, TurnosService, Vista } from '../../service/turnos.service';
-import { CroquisSvg } from '../croquis-svg/croquis-svg';
+import { PlanoOficina } from '../plano-oficina/plano-oficina';
 import { idYoutube } from '../../service/media.util';
 
 /** Lo que una vista necesita del mundo para pintarse: cola, piezas, croquis y hora. */
@@ -71,7 +71,7 @@ export const ICONO_BLOQUE: Record<Bloque['tipo'], string> = {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-vista-render',
-  imports: [CommonModule, MatIconModule, CroquisSvg],
+  imports: [CommonModule, MatIconModule, PlanoOficina],
   templateUrl: './vista-render.html',
   styleUrl: './vista-render.css',
 })
@@ -106,6 +106,14 @@ export class VistaRender implements OnInit {
   });
   readonly turnoGrande = computed<Turno | null>(() => this.datos().llamado ?? this.datos().en_curso[0] ?? null);
   readonly areaResaltada = computed(() => this.turnoGrande()?.area_id ?? null);
+  /** Hay un turno cantándose ahora: el plano ilumina su puesto. */
+  readonly llamando = computed(() => !!this.datos().llamado);
+  /** Plano del bloque: 3D en el televisor; las miniaturas (sin animar) siempre en 2D. */
+  modoPlano(b: Bloque): 'auto' | '3d' | '2d' {
+    if (!this.animar()) return '2d';
+    const m = String(this.prop(b, 'modo', 'auto'));
+    return m === '2d' || m === '3d' ? m : 'auto';
+  }
 
   ngOnInit(): void {
     const el = this.host.nativeElement;

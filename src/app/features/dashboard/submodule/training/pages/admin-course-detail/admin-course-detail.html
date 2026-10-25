@@ -12,13 +12,28 @@
         <mat-icon>arrow_back</mat-icon>
       </button>
       <div class="titulo">
+        <p class="miga">
+          Catálogo
+          @if (version(); as v) {
+            · v{{ v.version }}
+            <span class="chip-estado" [class.chip-estado--borrador]="v.estado === 'BORRADOR'"
+                  [class.chip-estado--publicada]="v.estado === 'PUBLICADA'">{{ v.estado }}</span>
+          }
+        </p>
         <h1>{{ c.nombre }}</h1>
         <p class="subtitulo">
           <span class="mono">{{ c.codigo }}</span>
           · {{ c.modalidad_default }}
           · {{ c.vigencia_meses ? 'vence a los ' + c.vigencia_meses + ' meses' : 'no vence' }}
+          @if (c.intensidad_horas) { · {{ c.intensidad_horas }} h }
         </p>
       </div>
+      @if (versiones().length > 0) {
+        <button type="button" class="btn-secundario" (click)="previsualizar()"
+                title="Recorrer el curso tal como lo verá quien lo curse">
+          <mat-icon>visibility</mat-icon> Vista previa
+        </button>
+      }
     </header>
 
     <!-- ── Versiones ── -->
@@ -69,23 +84,286 @@
       </p>
     }
 
+    <!-- ── Calificación y requisitos ──────────────────────────────────────
+         Aquí se decide cuánto pesa cada módulo, con qué nota se aprueba y qué más se
+         exige (asistencia, actividades, todos los módulos). Va ANTES del contenido porque
+         es lo que le da sentido a los pesos que se ponen abajo, quiz por quiz. -->
+    @if (versiones().length > 0) {
+      <section class="calif" [class.calif-abierta]="califAbierta()">
+        <button type="button" class="calif-cab" (click)="califAbierta.set(!califAbierta())"
+                [attr.aria-expanded]="califAbierta()">
+          <mat-icon>{{ califAbierta() ? 'expand_less' : 'expand_more' }}</mat-icon>
+          <mat-icon class="calif-icono">grading</mat-icon>
+          <span class="calif-tit">Calificación y requisitos</span>
+          <em class="calif-resumen">{{ resumenCalificacion() }}</em>
+          @if (esquema()?.advertencias?.length) {
+            <span class="calif-alerta" title="Hay algo que no cuadra">
+              <mat-icon>warning</mat-icon>{{ esquema()!.advertencias.length }}
+            </span>
+          }
+        </button>
+
+        @if (califAbierta()) {
+          <div class="calif-cuerpo">
+            @if (esquema(); as e) {
+
+              <!-- Requisitos -->
+              <div class="calif-requisitos">
+                <h3>Para aprobar el curso hace falta…</h3>
+                @if (reqForm(); as f) {
+                  <div class="calif-campos">
+                    <label>
+                      <span>Nota mínima</span>
+                      <div class="calif-num">
+                        <input type="number" min="0" max="100" step="1" [(ngModel)]="f.nota_minima"
+                               [disabled]="!editable()" placeholder="70" />
+                        <span>/ 100</span>
+                      </div>
+                      <small>
+                        @if (e.hay_calificables) {
+                          Vacío = 70. Se aplica al promedio ponderado de los módulos.
+                        } @else {
+                          Este curso no tiene nada calificable todavía: no aplica.
+                        }
+                      </small>
+                    </label>
+                    <label>
+                      <span>Asistencia mínima</span>
+                      <div class="calif-num">
+                        <input type="number" min="0" max="100" step="5" [(ngModel)]="f.asistencia_minima"
+                               [disabled]="!editable()" placeholder="no se exige" />
+                        <span>%</span>
+                      </div>
+                      <small>Solo aplica a quien esté en un grupo con lista de asistencia.</small>
+                    </label>
+                  </div>
+                  <div class="calif-checks">
+                    <label class="calif-check">
+                      <input type="checkbox" [(ngModel)]="f.exige_contenido_completo" [disabled]="!editable()" />
+                      <span>Terminar las lecciones obligatorias</span>
+                    </label>
+                    <label class="calif-check">
+                      <input type="checkbox" [(ngModel)]="f.exige_actividades_aprobadas" [disabled]="!editable()" />
+                      <span>Tener aprobadas las actividades obligatorias</span>
+                    </label>
+                    <label class="calif-check">
+                      <input type="checkbox" [(ngModel)]="f.exige_todos_modulos" [disabled]="!editable()" />
+                      <span>Aprobar cada módulo por separado, no solo el promedio</span>
+                    </label>
+                    @if (e.requisitos.tiene_examen_formal) {
+                      <p class="calif-fijo">
+                        <mat-icon>lock</mat-icon>
+                        Esta versión tiene evaluación formal: aprobarla sigue siendo obligatorio,
+                        además de lo de arriba.
+                      </p>
+                    }
+                  </div>
+                  @if (editable()) {
+                    <div class="calif-acciones">
+                      <button type="button" class="btn-primario pequeno" [disabled]="guardandoReq()"
+                              (click)="guardarRequisitos()">
+                        {{ guardandoReq() ? 'Guardando…' : 'Guardar requisitos' }}
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+
+              <!-- Esquema -->
+              <div class="calif-esquema">
+                <h3>Cómo se reparte la nota</h3>
+                @if (!e.hay_calificables) {
+                  <p class="calif-vacio">
+                    Ningún quiz ni actividad cuenta en la nota todavía. Abre un bloque de quiz o
+                    de actividad y marca «cuenta en la nota».
+                  </p>
+                } @else {
+                  <p class="ayuda">
+                    Cada quiz o actividad vale 0 a 100 dentro de su módulo; el módulo pondera sus
+                    items por peso y el curso pondera sus módulos. Sin peso, se reparte por igual.
+                    Lo que no se ha presentado cuenta como cero.
+                  </p>
+                }
+
+                @for (a of e.advertencias; track a) {
+                  <p class="calif-advertencia"><mat-icon>warning</mat-icon>{{ a }}</p>
+                }
+
+                <table class="calif-tabla">
+                  <thead>
+                    <tr>
+                      <th>Módulo / item</th>
+                      <th class="num">Peso</th>
+                      <th class="num">Efectivo</th>
+                      <th class="num">Mínimo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (m of e.modulos; track m.module_id) {
+                      <tr class="calif-modulo" [class.sin-nota]="!m.tiene_calificables">
+                        <td>
+                          <strong>{{ m.nombre }}</strong>
+                          @if (!m.tiene_calificables) { <em>· sin nada calificable</em> }
+                        </td>
+                        <td class="num">
+                          @if (editable() && m.tiene_calificables) {
+                            <input class="calif-inline" type="number" min="0" max="100" step="1"
+                                   [ngModel]="pesoModulo(m.module_id)"
+                                   (ngModelChange)="editarPesoModulo(m.module_id, $event)"
+                                   (blur)="guardarModuloCalificacion(m.module_id)"
+                                   placeholder="igual" title="Peso del módulo en el curso" />
+                          } @else {
+                            {{ m.peso != null ? m.peso + ' %' : '—' }}
+                          }
+                        </td>
+                        <td class="num">{{ m.peso_efectivo != null ? pct(m.peso_efectivo) + ' %' : '—' }}</td>
+                        <td class="num">
+                          @if (editable() && m.tiene_calificables) {
+                            <input class="calif-inline" type="number" min="0" max="100" step="1"
+                                   [ngModel]="minimoModulo(m.module_id)"
+                                   (ngModelChange)="editarMinimoModulo(m.module_id, $event)"
+                                   (blur)="guardarModuloCalificacion(m.module_id)"
+                                   placeholder="la del curso" title="Nota mínima propia del módulo" />
+                          } @else {
+                            {{ m.nota_minima != null ? m.nota_minima : '—' }}
+                          }
+                        </td>
+                      </tr>
+                      @for (it of m.items; track it.id) {
+                        <tr class="calif-item" [class.no-cuenta]="!it.calificable">
+                          <td>
+                            <mat-icon>{{ it.tipo_item === 'QUIZ' ? iconoTipoQuiz(it.tipo) : 'assignment_turned_in' }}</mat-icon>
+                            <span>{{ it.titulo }}</span>
+                            <small>
+                              {{ it.tipo_item === 'QUIZ' ? nombreTipoQuiz(it.tipo) : 'Actividad' }}
+                              · {{ it.lesson_nombre }}
+                              @if (!it.calificable) { · no cuenta }
+                            </small>
+                          </td>
+                          <td class="num">{{ it.calificable ? (it.peso != null ? it.peso + ' %' : 'igual') : '—' }}</td>
+                          <td class="num">{{ it.peso_efectivo != null ? pct(it.peso_efectivo) + ' %' : '—' }}</td>
+                          <td class="num">{{ it.nota_minima != null ? it.nota_minima : '—' }}</td>
+                        </tr>
+                      }
+                    } @empty {
+                      <tr><td colspan="4" class="calif-vacio">Todavía no hay módulos.</td></tr>
+                    }
+                  </tbody>
+                </table>
+                <p class="ayuda">
+                  El peso y el mínimo de cada quiz o actividad se editan en su propio bloque, dentro
+                  de la lección.
+                </p>
+              </div>
+            } @else {
+              <p class="cargando">Cargando la calificación…</p>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    <div class="ce-cuerpo">
+    <!-- ── Temario del editor ─────────────────────────────────────────────────
+         El mismo mapa que ve el alumno, pero para quien arma: salta al módulo o a la
+         lección que toca editar sin recorrer toda la página. -->
+    <aside class="ce-temario">
+      <div class="ce-temario__cab">
+        <h2>Estructura</h2>
+        <p>{{ contenido()?.modulos?.length ?? 0 }} módulo(s) · {{ totalLecciones() }} lección(es) · {{ totalBloques() }} bloque(s)</p>
+      </div>
+      <ol class="ce-temario__modulos">
+        @for (m of contenido()?.modulos ?? []; track m.id; let mi = $index) {
+          <li>
+            <button type="button" class="ce-temario__modulo" (click)="irA('modulo-' + m.id)">
+              <span class="ce-num">{{ mi + 1 }}</span>
+              <span class="ce-temario__texto">
+                <strong>{{ m.nombre }}</strong>
+                <small>
+                  {{ m.lecciones?.length ?? 0 }} lección(es)
+                  @if (pesoEfectivoDe(m.id); as pe) { · {{ pe }} % }
+                </small>
+              </span>
+            </button>
+            <ol class="ce-temario__lecciones">
+              @for (l of m.lecciones ?? []; track l.id; let li = $index) {
+                <li>
+                  <button type="button" class="ce-temario__leccion" (click)="irA('leccion-' + l.id)">
+                    <mat-icon>{{ iconoDe(l.tipo) }}</mat-icon>
+                    <span>{{ mi + 1 }}.{{ li + 1 }} {{ l.nombre }}</span>
+                    <small>{{ bloquesDe(l).length }}</small>
+                  </button>
+                </li>
+              }
+            </ol>
+          </li>
+        } @empty {
+          <li class="ce-temario__vacio">Todavía no hay módulos.</li>
+        }
+      </ol>
+      @if (editable()) {
+        <button type="button" class="btn-secundario pequeno ancho" (click)="abrirNuevoModulo(); irA('nuevo-modulo')">
+          <mat-icon>add</mat-icon> Módulo
+        </button>
+      }
+    </aside>
+
+    <main class="ce-contenido">
     <!-- ── Contenido ── -->
     <div class="resumen">
       <span><strong>{{ contenido()?.modulos?.length ?? 0 }}</strong> módulo(s)</span>
       <span><strong>{{ totalLecciones() }}</strong> lección(es)</span>
+      <span><strong>{{ totalBloques() }}</strong> bloque(s)</span>
+      <span class="resumen-acciones">
+        <button type="button" class="btn-texto" (click)="plegarTodo(false)">Desplegar todo</button>
+        <button type="button" class="btn-texto" (click)="plegarTodo(true)">Plegar todo</button>
+      </span>
     </div>
 
-    @for (m of contenido()?.modulos ?? []; track m.id) {
-      <div class="modulo">
+    @for (m of contenido()?.modulos ?? []; track m.id; let mi = $index) {
+      <div class="modulo" [class.modulo--plegado]="plegado(m.id)" [attr.id]="'modulo-' + m.id">
         <div class="modulo-cabecera">
-          <div>
-            <h2>{{ m.nombre }}</h2>
-            @if (m.descripcion) { <p class="modulo-desc">{{ m.descripcion }}</p> }
+          <button type="button" class="btn-icono plegar" [attr.aria-expanded]="!plegado(m.id)"
+                  (click)="alternarPliegue(m.id)" [title]="plegado(m.id) ? 'Desplegar' : 'Plegar'">
+            <mat-icon>{{ plegado(m.id) ? 'expand_more' : 'expand_less' }}</mat-icon>
+          </button>
+          <span class="modulo-num">{{ mi + 1 }}</span>
+          <div class="modulo-titulo">
+            @if (editandoModulo()?.id === m.id) {
+              <div class="form-inline form-modulo">
+                <label class="ancho-completo">
+                  <span>Nombre del módulo *</span>
+                  <input type="text" [(ngModel)]="editandoModulo()!.nombre" />
+                </label>
+                <label class="ancho-completo">
+                  <span>Descripción</span>
+                  <input type="text" [(ngModel)]="editandoModulo()!.descripcion" />
+                </label>
+                <div class="form-acciones">
+                  <button type="button" class="btn-secundario pequeno" (click)="editandoModulo.set(null)">Cancelar</button>
+                  <button type="button" class="btn-primario pequeno" [disabled]="ocupado()" (click)="guardarEdicionModulo()">Guardar</button>
+                </div>
+              </div>
+            } @else {
+              <h2>
+                {{ m.nombre }}
+                @if (pesoEfectivoDe(m.id); as pe) {
+                  <span class="chip chip-peso" title="Peso del módulo en la nota del curso">{{ pe }} % de la nota</span>
+                }
+              </h2>
+              <p class="modulo-desc">
+                {{ m.lecciones?.length ?? 0 }} lección(es)
+                @if (m.descripcion) { · {{ m.descripcion }} }
+              </p>
+            }
           </div>
           @if (editable()) {
             <div class="modulo-acciones">
               <button type="button" class="btn-secundario pequeno" (click)="abrirNuevaLeccion(m)">
                 <mat-icon>add</mat-icon> Lección
+              </button>
+              <button type="button" class="btn-icono" title="Editar el módulo" (click)="editarModulo(m)">
+                <mat-icon>edit</mat-icon>
               </button>
               <button type="button" class="btn-icono peligro" title="Eliminar módulo"
                       (click)="eliminarModulo(m)">
@@ -94,6 +372,8 @@
             </div>
           }
         </div>
+
+        @if (!plegado(m.id)) {
 
         @if (nuevaLeccion(); as nl) {
           @if (nl.moduleId === m.id) {
@@ -135,22 +415,40 @@
           <p class="modulo-vacio">Este módulo todavía no tiene lecciones.</p>
         }
 
-        @for (l of m.lecciones ?? []; track l.id) {
-          <div class="leccion">
+        @for (l of m.lecciones ?? []; track l.id; let li = $index) {
+          <div class="leccion" [class.leccion--plegada]="plegado(l.id)" [attr.id]="'leccion-' + l.id">
+            <button type="button" class="btn-icono plegar" [attr.aria-expanded]="!plegado(l.id)"
+                    (click)="alternarPliegue(l.id)" [title]="plegado(l.id) ? 'Desplegar' : 'Plegar'">
+              <mat-icon>{{ plegado(l.id) ? 'chevron_right' : 'expand_more' }}</mat-icon>
+            </button>
             <div class="leccion-info">
               <mat-icon>{{ iconoDe(l.tipo) }}</mat-icon>
               <div>
-                <strong>{{ l.nombre }}</strong>
+                <strong>{{ mi + 1 }}.{{ li + 1 }} {{ l.nombre }}</strong>
                 <div class="leccion-meta">
                   {{ l.tipo }}
                   @if (l.duracion_min) { · {{ l.duracion_min }} min }
                   @if (l.obligatoria) { · obligatoria }
+                  · {{ bloquesDe(l).length }} bloque(s)
+                  @if (l.revision && l.revision > 1) { · <span class="chip chip-rev" title="Veces que esta clase se ha versionado">rev. {{ l.revision }}</span> }
+                  @if (l.comentarios) { · <mat-icon class="mini">forum</mat-icon> {{ l.comentarios }} }
                 </div>
               </div>
             </div>
 
-            @if (editable()) {
-              <div class="leccion-acciones">
+            <div class="leccion-acciones">
+              <button type="button" class="btn-icono btn-ia-medios" title="Medios con IA: fichas, audio, podcast, clips, YouTube"
+                      (click)="abrirMedios(l)">
+                <mat-icon>auto_awesome</mat-icon>
+              </button>
+              <button type="button" class="btn-icono" title="Historial de esta clase en las versiones del curso"
+                      (click)="verHistorial(l)">
+                <mat-icon>history</mat-icon>
+              </button>
+              @if (editable()) {
+                <button type="button" class="btn-icono" title="Editar la lección" (click)="editarLeccion(l)">
+                  <mat-icon>edit</mat-icon>
+                </button>
                 <!-- Ya no hay "Subir archivo" suelto aquí: todo el contenido entra como
                      bloque. Con las dos vías conviviendo, un archivo subido por la de arriba
                      no aparecía en el recorrido y quedaba invisible en el editor. -->
@@ -158,9 +456,43 @@
                         (click)="eliminarLeccion(l)">
                   <mat-icon>delete</mat-icon>
                 </button>
-              </div>
-            }
+              }
+            </div>
           </div>
+
+          @if (editandoLeccion()?.id === l.id) {
+            <div class="form-inline">
+              <label>
+                <span>Nombre de la lección *</span>
+                <input type="text" [(ngModel)]="editandoLeccion()!.nombre" />
+              </label>
+              <label>
+                <span>Tipo</span>
+                <select [(ngModel)]="editandoLeccion()!.tipo">
+                  <option value="VIDEO">Vídeo</option>
+                  <option value="PDF">PDF</option>
+                  <option value="TEXTO">Texto</option>
+                  <option value="ENLACE">Enlace externo</option>
+                </select>
+              </label>
+              <label>
+                <span>Duración (min)</span>
+                <input type="number" min="1" [(ngModel)]="editandoLeccion()!.duracion_min" />
+              </label>
+              <label class="check-inline">
+                <input type="checkbox" [(ngModel)]="editandoLeccion()!.obligatoria" />
+                <span>Obligatoria para terminar el curso</span>
+              </label>
+              <div class="form-acciones">
+                <button type="button" class="btn-secundario" (click)="editandoLeccion.set(null)">Cancelar</button>
+                <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarEdicionLeccion()">
+                  Guardar lección
+                </button>
+              </div>
+            </div>
+          }
+
+          @if (!plegado(l.id)) {
 
           <!-- ── Recorrido de la lección ─────────────────────────────────
                El orden es el que eligió quien armó la clase: "lee esto, mira el
@@ -203,11 +535,7 @@
               @if (menuBloques() === l.id) {
                 <div class="menu-bloques">
                   @for (t of tiposDeBloque; track t.tipo) {
-                    <button type="button" class="tipo-bloque"
-                            [disabled]="t.tipo === 'QUIZ' && yaTieneQuiz(l)"
-                            [title]="t.tipo === 'QUIZ' && yaTieneQuiz(l)
-                                     ? 'Esta lección ya tiene su quiz'
-                                     : t.ayuda"
+                    <button type="button" class="tipo-bloque" [title]="t.ayuda"
                             (click)="agregarBloque(l, t.tipo)">
                       <mat-icon>{{ t.icono }}</mat-icon>
                       <span>
@@ -274,13 +602,15 @@
               </button>
             </div>
           }
+          }
+        }
         }
       </div>
     }
 
     @if (editable()) {
       @if (nuevoModulo(); as nm) {
-        <div class="form-inline">
+        <div class="form-inline" id="nuevo-modulo">
           <label class="ancho-completo">
             <span>Nombre del módulo *</span>
             <input type="text" [(ngModel)]="nm.nombre" placeholder="Ej: Riesgo de caída" />
@@ -297,10 +627,17 @@
           </div>
         </div>
       } @else {
-        <button type="button" class="btn-secundario ancho" (click)="abrirNuevoModulo()">
+        <button type="button" class="btn-secundario ancho" id="nuevo-modulo" (click)="abrirNuevoModulo()">
           <mat-icon>add</mat-icon> Agregar módulo
         </button>
       }
     }
+    </main>
+    </div>
   }
 </section>
+
+@if (mediosDe(); as ml) {
+  <app-panel-medios-leccion [lessonId]="ml.id" [lessonNombre]="ml.nombre" [editable]="editable()"
+                            (cerrar)="mediosDe.set(null)" (insertado)="recargarTrasMedios()" />
+}

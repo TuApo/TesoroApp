@@ -65,12 +65,19 @@ const NEVER_QUEUE_PATHS = [
   '/gestion_admin/auth/logout/',
   '/gestion_admin/auth/register/',
 
+  // Infraestructura: generar un informe tarde (al volver la red) no sirve de nada.
+  '/api/v1/infra/',
+
   // Descargas binarias (ZIP, Excel, PDF generados): se devuelve Blob.
   '/gestion_documental/descargar-zip',
   '/EstadosRobots/descargar-zip',
   '/Robots/excel-antecedentes',
   '/Robots/full',                       // export
   '/gestion_documental/exportar',       // patrón genérico
+
+  // Verificación de la foto por IA: la respuesta decide si se puede continuar
+  // ya mismo; encolarla y devolver un 200 falso la daría por aprobada.
+  '/biometria/foto/validar',
 
   // Salud (reunión 2026-10-05): radicados, recobros y liquidación de incapacidades. Reproducirlos
   // tarde desde la cola pisaría correcciones hechas mientras tanto (un radicado, una carga anulada):
@@ -79,6 +86,26 @@ const NEVER_QUEUE_PATHS = [
   '/Incapacidades/v2/radicados/',
   '/Incapacidades/v2/recobros',
   '/Incapacidades/v2/liquidacion/',
+  // Radicar desde el detalle (también en RECIBIDA desde 2026-10-07) y el paquete PDF: el diálogo
+  // necesita la respuesta real; un 200 falso de la cola no trae `archivos` y lo rompería.
+  '/radicar',
+  '/pendiente-radicacion',
+  '/radicacion/regenerar',
+
+  // Seguridad: abrir una puerta, disparar una sirena, reconocer una alarma o hablar por un parlante
+  // NUNCA se reproduce más tarde desde la cola (una puerta que se abre sola horas después). Sin red,
+  // falla y el operador lo ve. Lo público (parlante, acuse) tampoco.
+  '/api/v1/seguridad/',
+  '/api/v1/public/seguridad/',
+
+  // Tienda: la caja necesita la respuesta real (total, vueltas, aprobación de la pasarela) y
+  // reproducir tarde un cobro, una autorización de bono mercado o una importación de catálogo
+  // cobraría dos veces o pisaría cambios. Sin red, falla a la vista y se repite a conciencia.
+  '/api/v1/store/ventas',
+  '/api/v1/store/personas/',
+  '/api/v1/store/cargas/',
+  // MatIA: una pregunta, nota de voz o archivo respondido tarde ya no sirve.
+  '/api/v1/store/tienda/asesor/',
   // Trabajo de campo: tiene SU propia cola (submodule/campo, con la hora real de la marcación,
   // selfie y audio en el teléfono). Si este interceptor también la encolara, una marcación
   // quedaría en dos colas y el 200 falso la sacaría de la buena.
@@ -413,6 +440,13 @@ export const offlineInterceptor: HttpInterceptorFn = (
         if (req.method === 'GET') {
           return handleOfflineRead(req);
         }
+      }
+
+      // Backend caído o reiniciándose (502/503/504 del gateway): la red está bien, así que no se
+      // marca offline ni se encolan escrituras, pero una lectura puede salir de la caché local.
+      // Sin copia en caché se devuelve el error original, no el de "sin conexión".
+      if (req.method === 'GET' && [502, 503, 504].includes(error.status)) {
+        return handleOfflineRead(req).pipe(catchError(() => throwError(() => error)));
       }
 
       return throwError(() => error);

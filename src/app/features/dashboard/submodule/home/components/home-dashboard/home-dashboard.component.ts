@@ -72,7 +72,7 @@ export class HomeDashboardComponent implements OnInit {
   kpis: KpiTile[] = [];
 
   quickLinks: QuickLink[] = [
-    { label: 'Pipeline', icon: 'account_tree', route: '/dashboard/hiring/recruitment-pipeline', color: '#3b82f6', desc: 'Selección y contratación' },
+    { label: 'Proceso de contratación', icon: 'account_tree', route: '/dashboard/hiring/recruitment-pipeline', color: '#3b82f6', desc: 'Selección y contratación' },
     { label: 'Métricas', icon: 'bar_chart', route: '/dashboard/metricas', color: '#8b5cf6', desc: 'Dashboards analíticos' },
     { label: 'Afiliaciones', icon: 'people_alt', route: '/dashboard/afiliaciones', color: '#10b981', desc: 'Confirmación de ingresos' },
     { label: 'Vacantes', icon: 'work_outline', route: '/dashboard/vacancies', color: '#f59e0b', desc: 'Publicación de vacantes' },

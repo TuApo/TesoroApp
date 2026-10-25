@@ -326,8 +326,9 @@
               <mat-icon>library_add_check</mat-icon>
               <span>Generar Lote TA (Masivo)</span>
             </button>
-            <!-- Paquete unido: exclusivo de la oficina de Soacha. -->
-            @if (esOficinaSoacha) {
+            <!-- Paquete unido: exclusivo de la oficina de Soacha. Con la parametrización en ON no se
+                 ofrece: arma documentos fijos sin mirar lo chuleado para la requisición. -->
+            @if (esOficinaSoacha && !documentosParametrizadosActivos) {
               <button mat-stroked-button color="primary" class="w-100 mt-2"
                 (click)="descargarPaqueteSoacha()"
                 matTooltip="Ficha Técnica, Cédula, ARL, Ficha Social, Exámenes y hoja 1 del Contrato en un solo PDF"
@@ -336,8 +337,8 @@
                 <span>Descargar paquete Soacha</span>
               </button>
             }
-            <!-- Paquetes unidos de Faca Primera: Finca Usuarios y Finca. -->
-            @if (esOficinaFacaPrimera) {
+            <!-- Paquetes unidos de Faca Primera: Finca Usuarios y Finca (no en ON, igual que Soacha). -->
+            @if (esOficinaFacaPrimera && !documentosParametrizadosActivos) {
               <button mat-stroked-button color="primary" class="w-100 mt-2"
                 (click)="descargarPaqueteFincaUsuarios()"
                 [matTooltip]="'Ficha Técnica, Cédula, ARL, Ficha Social, Contrato, Manejo de Imagen, '

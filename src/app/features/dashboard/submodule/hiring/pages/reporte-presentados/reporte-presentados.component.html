@@ -1,0 +1,126 @@
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">how_to_reg</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Reporte de presentados</mat-card-title>
+        <mat-card-subtitle class="subtitulo">
+          Personal que se presentó en la temporal: aplica, no aplica o en espera de vacante.
+          Una fila por entrevista, fechada el día en que la persona se presentó.
+        </mat-card-subtitle>
+      </div>
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+    <div class="rp-page">
+
+      <!-- Filtros de negocio: van al backend. -->
+      <form class="rp-filtros" (ngSubmit)="buscar()">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="rp-campo">
+          <mat-label>Desde</mat-label>
+          <input matInput type="date" name="desde" [(ngModel)]="filtros.desde" required>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="rp-campo">
+          <mat-label>Hasta</mat-label>
+          <input matInput type="date" name="hasta" [(ngModel)]="filtros.hasta" required>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="rp-campo">
+          <mat-label>Oficina</mat-label>
+          <mat-select name="oficina" [(ngModel)]="filtros.oficina" (selectionChange)="buscar()">
+            <mat-option value="">Todas las de mi alcance</mat-option>
+            @for (o of oficinas(); track o) {
+              <mat-option [value]="o">{{ o }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="rp-campo rp-campo--ancho">
+          <mat-label>Cédula o nombre</mat-label>
+          <input matInput name="q" [(ngModel)]="filtros.q" autocomplete="off">
+        </mat-form-field>
+        <div class="rp-acciones">
+          <button mat-flat-button type="submit" [disabled]="cargando()">
+            <mat-icon>search</mat-icon> Consultar
+          </button>
+          <button mat-stroked-button type="button" (click)="descargarExcel()" [disabled]="descargando() || cargando()">
+            <mat-icon>download</mat-icon> {{ descargando() ? 'Generando…' : 'Excel' }}
+          </button>
+        </div>
+      </form>
+
+      @if (error()) {
+        <div class="rp-aviso rp-aviso--error" role="alert">
+          <mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+        </div>
+      }
+
+      <!-- Chips por estado: conteo del rango (sin el filtro de estado) y filtro de la tabla. -->
+      <div class="rp-chips" role="group" aria-label="Filtrar por estado">
+        <button type="button" class="rp-chip" [class.rp-chip--activo]="!estadoActivo()" (click)="filtrarEstado('')">
+          <mat-icon>groups</mat-icon>
+          <span class="rp-chip-txt">Todos</span>
+          <span class="rp-chip-n">{{ kpis()?.total ?? 0 | number }}</span>
+        </button>
+        @for (e of estados; track e.id) {
+          <button type="button" [class]="'rp-chip rp-chip--' + e.tono"
+                  [class.rp-chip--activo]="estadoActivo() === e.id" (click)="filtrarEstado(e.id)"
+                  [attr.aria-pressed]="estadoActivo() === e.id">
+            <mat-icon>{{ e.icono }}</mat-icon>
+            <span class="rp-chip-txt">{{ e.etiqueta }}</span>
+            <span class="rp-chip-n">{{ conteo(e.id) | number }}</span>
+            <span class="rp-chip-pct">{{ pct(conteo(e.id), kpis()?.total ?? 0) }}%</span>
+          </button>
+        }
+      </div>
+
+      @if (!cargando() && (kpis()?.total ?? 0) === 0 && !error()) {
+        <div class="rp-aviso" role="note">
+          <mat-icon>info</mat-icon>
+          <span>
+            No hay entrevistas registradas en la plataforma para este rango. Desde agosto casi no se
+            registran entrevistas aquí; mientras se lleven por fuera, el reporte saldrá casi vacío.
+          </span>
+        </div>
+      }
+
+      <app-tabla-estandar
+        id="hiring-reporte-presentados"
+        titulo="Reporte de presentados"
+        modulo="Contratación"
+        vacio="Sin presentados con estos filtros."
+        [busqueda]="false"
+        [seleccionable]="false"
+        [datos]="filas()"
+        [columnas]="columnas"
+        [filaId]="idFila"
+        [cargando]="cargando()"
+        [totalServidor]="total()"
+        [paginaServidor]="page()"
+        [filasPorPagina]="size()"
+        [opcionesPorPagina]="[25, 50, 100, 250, 500]"
+        (paginaCambio)="paginar($event)">
+      </app-tabla-estandar>
+
+      <h3 class="rp-subtitulo">
+        <mat-icon>store</mat-icon> Por oficina
+        <span class="rp-subtitulo-nota">(del rango, sin el filtro de estado)</span>
+      </h3>
+      <app-tabla-estandar
+        id="hiring-reporte-presentados-oficinas"
+        titulo="Presentados por oficina"
+        modulo="Contratación"
+        vacio="Sin datos por oficina."
+        [busqueda]="false"
+        [seleccionable]="false"
+        [datos]="porOficina()"
+        [columnas]="columnasOficina"
+        [filaId]="idOficina"
+        [pie]="pieOficina"
+        [filasPorPagina]="0"
+        [cargando]="cargando()">
+      </app-tabla-estandar>
+    </div>
+  </mat-card-content>
+</mat-card>

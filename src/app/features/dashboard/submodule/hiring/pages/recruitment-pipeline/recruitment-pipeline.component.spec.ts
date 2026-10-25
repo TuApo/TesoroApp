@@ -25,6 +25,7 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import { HiringService } from '../../service/hiring.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { ElectronWindowService } from '@/app/core/services/electron-window.service';
+import Swal from 'sweetalert2';
 
 describe('RecruitmentPipelineComponent', () => {
   let fixture: ComponentFixture<RecruitmentPipelineComponent>;
@@ -212,6 +213,305 @@ describe('RecruitmentPipelineComponent', () => {
   });
 
   // ─────────────────────────────────────────────────────────────
+  describe('aviso de edición forzada', () => {
+    it('arranca visible y se puede cerrar sin apagar el override', () => {
+      comp.activarModificacionForzada();
+      expect(comp.modificacionForzada()).toBeTrue();
+      expect(comp.avisoForzadaOculto()).toBeFalse();
+
+      comp.ocultarAvisoForzada();
+      expect(comp.avisoForzadaOculto()).toBeTrue();
+      // Cerrar el aviso NO devuelve el bloqueo: se sigue pudiendo editar.
+      expect(comp.modificacionForzada()).toBeTrue();
+    });
+
+    it('vuelve a mostrarse al reactivar el override', () => {
+      comp.activarModificacionForzada();
+      comp.ocultarAvisoForzada();
+      comp.activarModificacionForzada();
+      expect(comp.avisoForzadaOculto()).toBeFalse();
+    });
+
+    it('se reinicia al cambiar de candidato', () => {
+      comp.activarModificacionForzada();
+      comp.ocultarAvisoForzada();
+      comp.onCandidatoSeleccionado({ numero_documento: '2', entrevistas: [] });
+      expect(comp.avisoForzadaOculto()).toBeFalse();
+      expect(comp.modificacionForzada()).toBeFalse();
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Pedido #10: la pestaña Contratación espera el examen médico (PDF de este
+  // proceso + concepto apto), solo en procesos desde la fecha de corte.
+  describe('examen médico requerido para contratar', () => {
+    const conProceso = (proceso: any) => ({
+      numero_documento: '100', tipo_doc: 'CC',
+      entrevistas: [{ id: 1, proceso: { id: 55, created_at: '2026-09-29T15:00:00Z', ...proceso } }],
+    });
+
+    it('un proceso nuevo sin PDF ni concepto cierra Contratación', () => {
+      comp.candidatoSeleccionado.set(conProceso({ examen_bloqueo: { aplica: true, salto: null } }));
+      expect(comp.deshabilitarContratacion()).toBeTrue();
+      expect(comp.estadoExamen().faltantes.length).toBe(2);
+    });
+
+    it('con el PDF enlazado y el concepto APTO en pantalla se abre', () => {
+      comp.candidatoSeleccionado.set(conProceso({
+        examen_bloqueo: { aplica: true, salto: null },
+        examen_medico: { documento_id: 900 },
+      }));
+      comp.formGroup3.get('concepto')!.setValue('APTO');
+      expect(comp.conceptoForm()).toBe('APTO');
+      expect(comp.deshabilitarContratacion()).toBeFalse();
+    });
+
+    it('APLAZADO deja el proceso en espera y cerrado para contratar', () => {
+      comp.candidatoSeleccionado.set(conProceso({
+        examen_bloqueo: { aplica: true, salto: null },
+        examen_medico: { documento_id: 900 },
+      }));
+      comp.formGroup3.get('concepto')!.setValue('APLAZADO');
+      expect(comp.examenAplazado()).toBeTrue();
+      expect(comp.deshabilitarContratacion()).toBeTrue();
+    });
+
+    it('un proceso de antes del corte no se bloquea', () => {
+      comp.candidatoSeleccionado.set(conProceso({ examen_bloqueo: { aplica: false } }));
+      expect(comp.deshabilitarContratacion()).toBeFalse();
+    });
+
+    it('el salto de un ADMIN abre la pestaña', () => {
+      comp.candidatoSeleccionado.set(conProceso({
+        examen_bloqueo: { aplica: true, salto: { por: 'admin@x.co', motivo: 'IPS caída', at: null } },
+      }));
+      expect(comp.deshabilitarContratacion()).toBeFalse();
+    });
+
+    it('marcar un examen NO APTO a mano propone el concepto NO APTO (con el examen cargado)', () => {
+      comp.candidatoSeleccionado.set(conProceso({ examen_medico: { documento_id: 900 } }));
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Exámen Ingreso']);
+      const fila = (comp.formGroup3.get('selectedExamsArray') as any).at(0);
+      expect(fila.get('aptoStatus').value).toBeNull(); // sin APTO por defecto
+      fila.get('aptoStatus').setValue('NO APTO');
+      fila.markAsDirty();
+      fila.get('aptoStatus').setValue('NO APTO');
+      expect(comp.formGroup3.get('concepto')!.value).toBe('NO_APTO');
+    });
+  });
+
+  // Orden estricto de Salud ocupacional: IPS + lista → «Cargar examen» → concepto.
+  describe('orden: obligatorios → cargar examen → concepto', () => {
+    const conProceso = (proceso: any) => ({
+      numero_documento: '100', tipo_doc: 'CC',
+      entrevistas: [{ id: 1, proceso: { id: 55, created_at: '2026-09-29T15:00:00Z', ...proceso } }],
+    });
+    const pdf = () => new File([new Uint8Array([37, 80, 68, 70])], 'audio.pdf', { type: 'application/pdf' });
+
+    it('sin IPS ni lista de exámenes no se puede adjuntar y dice qué falta', () => {
+      comp.candidatoSeleccionado.set(conProceso({}));
+      expect(comp.puedeAdjuntarExamen()).toBeFalse();
+      expect(comp.textoFaltantesCargaExamen()).toContain('IPS principal');
+      expect(comp.textoFaltantesCargaExamen()).toContain('Lista de exámenes');
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría']);
+      expect(comp.puedeAdjuntarExamen()).toBeTrue();
+    });
+
+    it('el concepto está cerrado hasta que el PDF de ESTE proceso esté cargado', () => {
+      comp.candidatoSeleccionado.set(conProceso({}));
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría']);
+      expect(comp.conceptoHabilitado()).toBeFalse();
+      expect(comp.motivoConceptoBloqueado()).toContain('Primero carga el examen');
+
+      comp.candidatoSeleccionado.set(conProceso({ examen_medico: { documento_id: 900 } }));
+      expect(comp.conceptoHabilitado()).toBeTrue();
+      expect(comp.motivoConceptoBloqueado()).toBeNull();
+    });
+
+    it('con PDF pero sin los obligatorios el concepto sigue cerrado', () => {
+      comp.candidatoSeleccionado.set(conProceso({ examen_medico: { documento_id: 900 } }));
+      comp.formGroup3.get('ips')!.setValue('');
+      expect(comp.conceptoHabilitado()).toBeFalse();
+    });
+
+    it('sin el examen cargado, un NO APTO por examen no propone concepto', () => {
+      comp.candidatoSeleccionado.set(conProceso({}));
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Exámen Ingreso']);
+      const fila = (comp.formGroup3.get('selectedExamsArray') as any).at(0);
+      fila.markAsDirty();
+      fila.get('aptoStatus').setValue('NO APTO');
+      expect(comp.formGroup3.get('concepto')!.value).toBeNull();
+    });
+
+    it('adjuntar un PDF no sube nada ni toca el concepto', () => {
+      const docs = TestBed.inject(GestionDocumentalService) as any;
+      spyOn(docs, 'guardarDocumento').and.callThrough();
+      comp.candidatoSeleccionado.set(conProceso({}));
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría']);
+      comp.onFileSelected({ target: { files: [pdf()], value: 'x' } }, 0);
+      expect(comp.examFilesAdjuntos()).toBe(1);
+      expect(docs.guardarDocumento).not.toHaveBeenCalled();
+      expect(comp.formGroup3.get('concepto')!.value).toBeNull();
+    });
+
+    it('«Cargar examen» sube el PDF y lo enlaza al proceso sin mandar concepto', async () => {
+      const docs = TestBed.inject(GestionDocumentalService) as any;
+      spyOn(docs, 'guardarDocumento').and.returnValue(of({ id: 777 }));
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true } as any));
+      spyOn(Swal, 'update');
+      spyOn(Swal, 'close');
+      (comp as any).pdfSvc = {
+        isPdf: () => true,
+        mergePdfs: (fs: File[], name: string) => Promise.resolve(new File([fs[0]], name, { type: 'application/pdf' })),
+        unirExamenesConResultados: (items: { file: File }[], _r: unknown, _p: unknown, name: string) =>
+          Promise.resolve(new File([items[0].file], name, { type: 'application/pdf' })),
+      };
+      (comp as any).nextFrame = () => Promise.resolve();
+      (comp as any).yyyymmdd = () => '20261014';
+      comp.candidatoSeleccionado.set(conProceso({}));
+      (comp as any).cedulaAtendida = '100';
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría']);
+      (comp.formGroup3.get('selectedExamsArray') as any).at(0).get('aptoStatus').setValue('APTO');
+      comp.formGroup3.markAsPristine();
+      comp.onFileSelected({ target: { files: [pdf()], value: 'x' } }, 0);
+      expect(comp.conceptoHabilitado()).toBeFalse();
+
+      await comp.cargarExamen();
+
+      expect(docs.guardarDocumento).toHaveBeenCalled();
+      const args = docs.guardarDocumento.calls.mostRecent().args;
+      expect(args[2]).toBe(32);
+      expect(args[6]).toBe(55);
+      const body: any = registro.updateProcesoByDocumento.calls.mostRecent().args[0];
+      expect(body.proceso_id).toBe(55);
+      expect(body.examen_medico).toEqual({ documento_id: 777 });
+      expect(body.contratado).toBeUndefined();
+      expect(comp.formGroup3.get('concepto')!.value).toBeNull();
+      expect(comp.conceptoHabilitado()).toBeTrue();
+      expect(comp.examFilesAdjuntos()).toBe(0);
+    });
+
+    const prepararCarga = () => {
+      const docs = TestBed.inject(GestionDocumentalService) as any;
+      spyOn(docs, 'guardarDocumento').and.returnValue(of({ id: 777 }));
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true } as any));
+      spyOn(Swal, 'update');
+      spyOn(Swal, 'close');
+      (comp as any).pdfSvc = {
+        isPdf: () => true,
+        mergePdfs: (fs: File[], name: string) => Promise.resolve(new File([fs[0]], name, { type: 'application/pdf' })),
+        unirExamenesConResultados: (items: { file: File }[], _r: unknown, _p: unknown, name: string) =>
+          Promise.resolve(new File([items[0].file], name, { type: 'application/pdf' })),
+      };
+      (comp as any).nextFrame = () => Promise.resolve();
+      (comp as any).yyyymmdd = () => '20261015';
+      comp.candidatoSeleccionado.set(conProceso({}));
+      (comp as any).cedulaAtendida = '100';
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría', 'Optometría']);
+      comp.onFileSelected({ target: { files: [pdf()], value: 'x' } }, 0);
+      return docs;
+    };
+
+    it('el APTO / NO APTO de cada examen se puede marcar ANTES de cargar el PDF', () => {
+      comp.candidatoSeleccionado.set(conProceso({}));
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría']);
+      expect(comp.conceptoHabilitado()).toBeFalse();
+      expect(comp.puedeAdjuntarExamen()).toBeTrue();
+      expect(comp.examenesSinResultadoMarcado()).toEqual(['Audiometría']);
+      (comp.formGroup3.get('selectedExamsArray') as any).at(0).get('aptoStatus').setValue('APTO');
+      expect(comp.examenesSinResultadoMarcado()).toEqual([]);
+    });
+
+    it('«Cargar examen» sin APTO / NO APTO en todos los exámenes no sube nada', async () => {
+      const docs = prepararCarga();
+      (comp.formGroup3.get('selectedExamsArray') as any).at(0).get('aptoStatus').setValue('APTO');
+      await comp.cargarExamen();
+      expect(docs.guardarDocumento).not.toHaveBeenCalled();
+      expect((Swal.fire as any).calls.mostRecent().args[0].text).toContain('Optometría');
+    });
+
+    it('un examen NO APTO marcado antes de cargar propone el concepto NO APTO al cargar', async () => {
+      const docs = prepararCarga();
+      const arr = comp.formGroup3.get('selectedExamsArray') as any;
+      arr.at(0).get('aptoStatus').setValue('APTO');
+      arr.at(1).markAsDirty();
+      arr.at(1).get('aptoStatus').setValue('NO APTO');
+      expect(comp.formGroup3.get('concepto')!.value).toBeNull(); // aún sin PDF
+      await comp.cargarExamen();
+      expect(docs.guardarDocumento).toHaveBeenCalled();
+      expect(comp.formGroup3.get('concepto')!.value).toBe('NO_APTO');
+    });
+
+    it('el soporte cargado queda con el resultado de cada examen y la tarjeta lo muestra', async () => {
+      const docs = prepararCarga();
+      const arr = comp.formGroup3.get('selectedExamsArray') as any;
+      arr.at(0).get('aptoStatus').setValue('APTO');
+      arr.at(1).get('aptoStatus').setValue('NO APTO');
+      await comp.cargarExamen();
+      const titulo: string = docs.guardarDocumento.calls.mostRecent().args[0];
+      expect(titulo).toContain('[Audiometría=APTO; Optometría=NO APTO]');
+      expect(titulo.endsWith('.pdf')).toBeTrue();
+      const tarjeta = { id: 777, title: titulo } as any;
+      expect(comp.resultadosDoc(tarjeta)).toEqual([
+        { examen: 'Audiometría', resultado: 'APTO' },
+        { examen: 'Optometría', resultado: 'NO APTO' },
+      ]);
+      expect(comp.nombreDoc(tarjeta)).toBe('EXAMENES_MEDICOS_100_20261015.pdf');
+    });
+
+    it('un soporte viejo sin resultados en el título usa lo guardado si es el enlazado al proceso', () => {
+      comp.candidatoSeleccionado.set(conProceso({ examen_medico: {
+        documento_id: 50, examenes: '["Ingreso"]', resultados: '[{"aptoStatus":"APTO"}]' } }));
+      expect(comp.resultadosDoc({ id: 50, title: 'EXAMENES.pdf' } as any))
+        .toEqual([{ examen: 'Ingreso', resultado: 'APTO' }]);
+      expect(comp.resultadosDoc({ id: 51, title: 'OTRO.pdf' } as any)).toEqual([]);
+    });
+
+    it('«Cargar examen» sin los obligatorios no sube nada', async () => {
+      const docs = TestBed.inject(GestionDocumentalService) as any;
+      spyOn(docs, 'guardarDocumento').and.callThrough();
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true } as any));
+      comp.candidatoSeleccionado.set(conProceso({}));
+      await comp.cargarExamen();
+      expect(docs.guardarDocumento).not.toHaveBeenCalled();
+      expect(registro.updateProcesoByDocumento).not.toHaveBeenCalled();
+    });
+
+    it('el guardado del formulario no manda concepto si el examen no está cargado', async () => {
+      comp.candidatoSeleccionado.set(conProceso({}));
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría']);
+      comp.formGroup3.get('concepto')!.markAsDirty();
+      comp.formGroup3.get('concepto')!.setValue('APTO');
+      await comp.imprimirSaludOcupacional({ silencioso: true });
+      const body: any = registro.updateProcesoByDocumento.calls.mostRecent().args[0];
+      expect('concepto' in body.examen_medico).toBeFalse();
+    });
+
+    it('con el examen cargado, elegir el concepto lo manda y no sube documentos', async () => {
+      const docs = TestBed.inject(GestionDocumentalService) as any;
+      spyOn(docs, 'guardarDocumento').and.callThrough();
+      comp.candidatoSeleccionado.set(conProceso({ examen_medico: { documento_id: 900 } }));
+      comp.formGroup3.get('ips')!.setValue('IPS X');
+      comp.formGroup3.get('selectedExams')!.setValue(['Audiometría']);
+      comp.onFileSelected({ target: { files: [pdf()], value: 'x' } }, 0);
+      comp.formGroup3.get('concepto')!.markAsDirty();
+      comp.formGroup3.get('concepto')!.setValue('APTO');
+      await comp.imprimirSaludOcupacional({ silencioso: true });
+      const body: any = registro.updateProcesoByDocumento.calls.mostRecent().args[0];
+      expect(body.examen_medico.concepto).toBe('APTO');
+      expect(docs.guardarDocumento).not.toHaveBeenCalled();
+    });
+  });
+
   describe('borrado de un proceso del historial', () => {
 
     it('manda el id de ESA fila, no el del más reciente', fakeAsync(() => {

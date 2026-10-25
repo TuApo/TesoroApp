@@ -91,6 +91,55 @@
 
 <div class="cfg-card">
   <div class="cfg-card__head">
+    <h2 class="cfg-card__title">Firma digital</h2>
+    <p class="cfg-card__hint">Tu firma personal, guardada en tu cuenta. Dibújala o sube una imagen escaneada.</p>
+  </div>
+
+  <div class="firma">
+    <div class="firma__preview" [class.firma__preview--vacia]="!firma">
+      @if (firmaCargando) {
+        <span class="firma__vacia">Cargando…</span>
+      } @else if (firma) {
+        <img [src]="firma" alt="Tu firma digital" class="firma__img" />
+      } @else {
+        <mat-icon fontSet="material-symbols-outlined" class="firma__vacia-icon">signature</mat-icon>
+        <span class="firma__vacia">Aún no tienes una firma registrada</span>
+      }
+    </div>
+
+    <div class="firma__side">
+      @if (firma && !firmaCargando) {
+        <span class="action-row__desc">
+          {{ firmaOrigen === 'IMAGEN' ? 'Subida desde una imagen' : 'Dibujada en la plataforma' }}
+          @if (firmaFechaTexto) { · actualizada el {{ firmaFechaTexto }} }
+        </span>
+      }
+      <div class="qa-acciones">
+        <button type="button" class="btn btn--primary" [disabled]="firmaCargando || firmaGuardando" (click)="dibujarFirma()">
+          <mat-icon fontSet="material-symbols-outlined">draw</mat-icon>
+          {{ firma ? 'Volver a dibujar' : 'Dibujar firma' }}
+        </button>
+        <button type="button" class="btn btn--ghost" [disabled]="firmaCargando || firmaGuardando" (click)="firmaInput.click()">
+          <mat-icon fontSet="material-symbols-outlined">upload</mat-icon>
+          Subir imagen
+        </button>
+        @if (firma) {
+          <button type="button" class="btn btn--danger" [disabled]="firmaGuardando" (click)="quitarFirma()">
+            <mat-icon fontSet="material-symbols-outlined">delete</mat-icon>
+            Quitar
+          </button>
+        }
+      </div>
+      @if (firmaGuardando) { <span class="action-row__desc">Guardando…</span> }
+      @if (firmaError) { <span class="profile__error">{{ firmaError }}</span> }
+    </div>
+  </div>
+
+  <input #firmaInput type="file" accept="image/png,image/jpeg,image/webp" hidden (change)="onFirmaSeleccionada($event)" />
+</div>
+
+<div class="cfg-card">
+  <div class="cfg-card__head">
     <h2 class="cfg-card__title">Seguridad</h2>
     <p class="cfg-card__hint">Actualiza tu contraseña y gestiona el acceso de este dispositivo.</p>
   </div>

@@ -3,6 +3,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { getLocalStorageItem, setLocalStorageItem } from '../../../../../../core/utils/safe-storage';
+import { sedeOfrecidaEnSeleccion } from '../../../../../../shared/utils/sedes-seleccion';
 import {
   OpcionesFiltro,
   VacancyFilters,
@@ -95,17 +96,19 @@ export class VacancyFiltersService {
     const user = this.util.getUser();
     this.sede = this.sedeScope.activa() || user?.sede?.nombre || '';
     this.permitido = this.isManager(user);
-    this.sinLimiteSede = this.sedeScope.sinLimite();
+    // Jefe de área ve todas las vacantes (solo aquí: en el resto se recorta por sede),
+    // igual que decide ms-automation al servir el listado.
+    this.sinLimiteSede = this.sedeScope.sinLimite() || this.sedeScope.tieneRol('JEFE-DE-AREA');
     this.sedesAlcance = this.sedeScope.nombres();
     // Multi-sede (V62): el selector de oficina se abre para quien no se recorta por
     // sede (Gerencia/Admin) Y para quien tiene varias asignadas; con una sola el
     // filtro queda anclado, igual que antes de existir el multi-sede.
-    this.puedeElegirOficina = this.sedeScope.puedeElegirOficina();
+    this.puedeElegirOficina = this.sinLimiteSede || this.sedeScope.puedeElegirOficina();
 
     if (this.puedeElegirOficina) {
       // "" = todas las oficinas de su alcance (todo el catálogo si no se recorta).
       const guardada = typeof window !== 'undefined' ? getLocalStorageItem('vacantes:oficina') : null;
-      this.filtros.oficina = guardada && this.sedeScope.alcanza(guardada) ? guardada : '';
+      this.filtros.oficina = guardada && (this.sinLimiteSede || this.sedeScope.alcanza(guardada)) ? guardada : '';
       this.cargarOficinas();
     } else {
       this.filtros.oficina = this.sede;
@@ -117,13 +120,15 @@ export class VacancyFiltersService {
     this.util.traerSucursales().subscribe({
       next: (data: any) => {
         const arr = Array.isArray(data) ? data : (data?.results ?? []);
+        // Solo sedes que Selección ofrece (V129 `opera_seleccion`): ANDES y
+        // MONTE_VERDE siguen activas para otros módulos pero salen del filtro.
         const catalogo = arr
-          .filter((s: any) => s?.activa !== false)
+          .filter((s: any) => sedeOfrecidaEnSeleccion(s))
           .map((s: any) => String(s?.nombre ?? '').trim())
           .filter((n: string) => !!n)
           .sort((a: string, b: string) => a.localeCompare(b));
         // Quien se recorta por sede solo puede elegir entre las suyas.
-        const propias = this.sedeScope.opciones(catalogo);
+        const propias = this.sinLimiteSede ? [...catalogo] : this.sedeScope.opciones(catalogo);
         this._oficinas.set(propias);
 
         // La oficina recordada puede haberse borrado del catálogo: si ya no

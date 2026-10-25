@@ -326,7 +326,15 @@ export class Disenos implements OnInit {
   // ── Vista previa ───────────────────────────────────────────────────────
 
   simularLlamado(): void {
-    this.llamadoPrueba.set(turnoMuestra({ id: `ll-${Date.now()}`, codigo: `A-0${Math.floor(Math.random() * 90) + 10}`, estado: 'LLAMADO', punto_nombre: 'Módulo 2' }));
+    // Con un puesto real del plano, la vista previa ilumina en el croquis a dónde iría la persona.
+    const areas = (this.croquis()?.areas ?? []).filter(x => x.activa !== false && (x.puestos?.length ?? 0) > 0);
+    const area = areas.length ? areas[Math.floor(Math.random() * areas.length)] : null;
+    const puesto = area?.puestos?.length ? area.puestos[Math.floor(Math.random() * area.puestos.length)] : null;
+    this.llamadoPrueba.set(turnoMuestra({
+      id: `ll-${Date.now()}`, codigo: `A-0${Math.floor(Math.random() * 90) + 10}`, estado: 'LLAMADO',
+      punto_nombre: puesto?.nombre ?? 'Módulo 2', punto_id: puesto?.id ?? null, punto_tipo: puesto?.tipo ?? 'FIJO',
+      area_id: area?.id ?? null, area_nombre: area?.nombre ?? 'Contratación', area_referencia: area?.referencia ?? null,
+    }));
     setTimeout(() => this.llamadoPrueba.set(null), 12_000);
   }
 

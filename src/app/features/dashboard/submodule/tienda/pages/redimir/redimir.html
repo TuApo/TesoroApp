@@ -1,0 +1,121 @@
+<div class="tienda-pagina">
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>qr_code_scanner</mat-icon> Redimir servicios, bonos y premios</h1>
+      <p class="tienda-subtitulo">Teclee o escanee el código que la persona trae en EconomiAPP. Servicios y bonos: verifique quién
+        reclama y redima (se descuenta de su cupo). Premios por puntos: compruebe la cédula y entregue.</p>
+    </div>
+  </header>
+
+  <form class="buscar tienda-tarjeta" (ngSubmit)="buscar()">
+    <div class="campo">
+      <label for="codigo">Código</label>
+      <span class="con-escaner">
+        <input id="codigo" name="codigo" autocomplete="off" placeholder="ABCD 2345" maxlength="12"
+               [ngModel]="codigo()" (ngModelChange)="codigo.set($event)" />
+        <app-escaner-codigo formatoMira="qr" titulo="Escanear el código de EconomiAPP" (leido)="codigo.set($event); buscar()" />
+      </span>
+    </div>
+    <button type="submit" class="boton" [disabled]="ocupado() || codigo().replace(' ', '').length < 6"><mat-icon>search</mat-icon> Buscar</button>
+  </form>
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div> }
+  @if (hecho()) {
+    <div class="hecho"><mat-icon>check_circle</mat-icon><span>{{ hecho() }}</span>
+      <button type="button" class="boton secundario" (click)="reiniciar()">Siguiente código</button></div>
+  }
+
+  @if (canje(); as k) {
+    <section class="tienda-tarjeta canje-premio">
+      <div class="cp-cabeza">
+        <span class="cp-icono"><mat-icon>redeem</mat-icon></span>
+        <div><h2>{{ k.premio_nombre }}</h2><small>Premio por puntos · {{ k.puntos | number: '1.0-0' }} puntos</small></div>
+        <span class="insignia" [attr.data-estado]="k.estado">{{ +k.vencido ? 'VENCIDO' : k.estado }}</span>
+      </div>
+      <dl>
+        <div><dt>Código</dt><dd class="cod">{{ k.codigo }}</dd></div>
+        <div><dt>Titular</dt><dd>{{ k.nombre || 'Colaborador' }} · {{ k.cedula }}</dd></div>
+        <div><dt>Se reclama en</dt><dd>{{ k.tienda_nombre || 'Cualquier tienda' }}</dd></div>
+        <div><dt>Vence</dt><dd>{{ k.vence_en | date: 'd MMM y, h:mm a' : undefined : 'es-CO' }}</dd></div>
+        @if (k.entregado_en) { <div><dt>Entregado</dt><dd>{{ k.entregado_en | date: 'd MMM y, h:mm a' : undefined : 'es-CO' }} · {{ k.entregado_por_nombre }}</dd></div> }
+      </dl>
+      @if (k.estado === 'SOLICITADO' && !+k.vencido) {
+        <label class="campo-cedula">Cédula que le presentan <small>(si la escribe, debe ser la del titular)</small>
+          <input class="campo-texto" inputmode="numeric" autocomplete="off" [ngModel]="cedulaPresentada()" (ngModelChange)="cedulaPresentada.set($event)" name="cedulaCanje" />
+        </label>
+        <button type="button" class="boton" (click)="entregarCanje()" [disabled]="ocupado()"><mat-icon>check_circle</mat-icon> Entregar premio</button>
+      } @else if (k.estado === 'SOLICITADO') {
+        <p class="nota">Este canje venció: los puntos se le devuelven a la persona automáticamente.</p>
+      }
+    </section>
+  }
+
+  @if (datos(); as d) {
+    <div class="columnas">
+      <section class="tienda-tarjeta">
+        <h2>{{ d.activacion.descripcion }}</h2>
+        <dl>
+          <div><dt>Código</dt><dd class="cod">{{ d.activacion.codigo }}</dd></div>
+          <div><dt>Tipo</dt><dd>{{ d.activacion.tipo === 'BONO' ? 'Bono' : 'Servicio' }}</dd></div>
+          <div><dt>Valor</dt><dd>{{ d.activacion.valor | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</dd></div>
+          <div><dt>Titular</dt><dd>{{ d.pedido.cliente_nombre || d.pedido.cliente_cedula }} · {{ d.pedido.cliente_cedula }}</dd></div>
+          <div><dt>Pedido</dt><dd>{{ d.pedido.numero }}</dd></div>
+          <div><dt>Vence</dt><dd>{{ d.activacion.vence_en | date: 'd MMM y, h:mm a' : undefined : 'es-CO' }}</dd></div>
+          <div><dt>Estado</dt><dd><span class="insignia" [attr.data-estado]="d.activacion.estado">{{ d.activacion.estado }}</span></dd></div>
+        </dl>
+        @if (d.activacion.estado === 'REDIMIDA') {
+          <p class="nota">Redimido el {{ d.activacion.redimida_en | date: 'd MMM y, h:mm a' : undefined : 'es-CO' }} por
+            {{ d.activacion.redimida_por_nombre }}; lo reclamó la cédula {{ d.activacion.reclamada_por_cedula }}.</p>
+        }
+        @if (d.vencida && d.activacion.estado === 'ACTIVA') { <p class="tienda-error"><mat-icon>schedule</mat-icon> El código venció.</p> }
+      </section>
+
+      @if (redimible() && !hecho()) {
+        <section class="tienda-tarjeta pasos">
+          <h3>1. ¿Quién lo reclama?</h3>
+          <div class="opciones">
+            <label [class.activa]="quien() === 'TITULAR'"><input type="radio" name="quien" [checked]="quien() === 'TITULAR'" (change)="quien.set('TITULAR'); verificacion.set(null)" />
+              El titular <small>{{ d.pedido.cliente_cedula }}</small></label>
+            @for (t of d.terceros; track t.id) {
+              <label [class.activa]="quien() === t.id"><input type="radio" name="quien" [checked]="quien() === t.id" (change)="quien.set(t.id); verificacion.set(null)" />
+                {{ t.nombre }} <small>autorizado · C.C. {{ t.cedula }}{{ t.parentesco ? ' · ' + t.parentesco : '' }}</small></label>
+            }
+          </div>
+
+          <h3>2. Verificar su identidad</h3>
+          <div class="vias">
+            <button type="button" class="boton" [class.secundario]="via() !== 'rostro'" (click)="via.set('rostro'); verificacion.set(null)"><mat-icon>face</mat-icon> Con rostro</button>
+            <button type="button" class="boton" [class.secundario]="via() !== 'cedula'" (click)="via.set('cedula'); verificacion.set(null)"><mat-icon>badge</mat-icon> Con cédula (sin biometría)</button>
+          </div>
+
+          @if (via() === 'rostro') {
+            <div class="texto-legal">{{ textoConsentimiento() }}</div>
+            <label class="check"><input type="checkbox" [checked]="acepta()" (change)="acepta.set($any($event.target).checked)" />
+              La persona leyó (o se le leyó) la autorización y la acepta.</label>
+            @if (acepta() && !verificacion()?.aprueba) {
+              @if (ocupado()) { <p class="nota"><mat-icon>hourglass_top</mat-icon> Comparando…</p> }
+              @else { <eco-captura-rostro [frontal]="false" [conVivacidad]="true" [permitirArchivo]="true" (capturado)="conRostro($event)" /> }
+            }
+          } @else {
+            <div class="campo"><label>Cédula que presenta</label>
+              <input type="text" inputmode="numeric" [ngModel]="cedulaPresentada()" (ngModelChange)="cedulaPresentada.set($event)" /></div>
+            <div class="campo"><label>Qué verificó</label>
+              <textarea rows="2" placeholder="Cédula original, la foto coincide con la persona…" [ngModel]="comentario()" (ngModelChange)="comentario.set($event)"></textarea></div>
+            <button type="button" class="boton" (click)="conCedula()" [disabled]="ocupado() || !cedulaPresentada().trim() || !comentario().trim()">
+              <mat-icon>fact_check</mat-icon> Registrar verificación</button>
+          }
+
+          @if (verificacion(); as v) {
+            @if (v.aprueba) {
+              <p class="verificado"><mat-icon>verified</mat-icon>
+                {{ v.via === 'BIOMETRIA' ? 'Coincide (' + ((v.puntaje ?? 0) * 100 | number: '1.0-0') + '%)' : 'Verificado con cédula' }}</p>
+              <h3>3. Redimir</h3>
+              <button type="button" class="boton redimir" (click)="redimir()" [disabled]="ocupado()">
+                <mat-icon>redeem</mat-icon> Redimir y descontar {{ d.activacion.valor | currency: 'COP' : 'symbol-narrow' : '1.0-0' }}</button>
+            }
+          }
+        </section>
+      }
+    </div>
+  }
+</div>

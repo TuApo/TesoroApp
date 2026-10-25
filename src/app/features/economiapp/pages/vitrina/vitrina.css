@@ -1,0 +1,206 @@
+/* =============================================================================
+   Vitrina especial (Tecnología, Importados…). Primero el celular: portada de borde a
+   borde, todo corre de lado con el dedo y los botones quedan a la mano. Los colores de
+   la vitrina llegan como variables (--v-fondo, --v-fondo2, --v-acento, --v-tinta).
+   ========================================================================== */
+
+.vitrina-pagina { max-width: 1280px; margin: 0 auto; padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 22px; }
+
+/* ── Portada ──────────────────────────────────────────────────────────── */
+.portada {
+  position: relative; overflow: hidden; border-radius: 28px; isolation: isolate;
+  aspect-ratio: 21 / 9; min-height: 380px; max-height: 560px;
+  background: radial-gradient(120% 120% at 80% 30%, var(--v-fondo2), var(--v-fondo));
+  color: #fff;
+}
+.portada picture, .portada img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.portada img { object-fit: cover; object-position: right center; }
+.por-velo {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--v-fondo) 92%, transparent) 0%, color-mix(in srgb, var(--v-fondo) 60%, transparent) 34%, transparent 62%);
+}
+.por-texto {
+  position: relative; z-index: 2; height: 100%; max-width: min(560px, 52%);
+  display: flex; flex-direction: column; justify-content: center; gap: 12px;
+  padding: clamp(20px, 4vw, 52px);
+}
+.por-volver {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px;
+  color: rgba(255,255,255,.85); text-decoration: none; font-weight: 700; font-size: 13px;
+}
+.por-volver mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.por-etq {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 800; letter-spacing: .01em;
+  background: color-mix(in srgb, var(--v-acento) 26%, rgba(255,255,255,.08)); border: 1px solid color-mix(in srgb, var(--v-acento) 55%, transparent);
+  backdrop-filter: blur(6px);
+}
+.por-etq mat-icon { font-size: 16px; width: 16px; height: 16px; color: var(--v-acento); }
+.portada h1 {
+  font-size: clamp(30px, 4.2vw, 54px); line-height: 1.02; font-weight: 800; letter-spacing: -.03em;
+  text-wrap: balance; text-shadow: 0 4px 24px rgba(0,0,0,.35);
+}
+.portada p { font-size: clamp(14px, 1.35vw, 17px); line-height: 1.45; color: rgba(255,255,255,.88); max-width: 46ch; }
+.por-acciones { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.por-cta, .por-matia {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 50px !important; padding: 0 22px; border-radius: 999px; font: inherit; font-weight: 800; font-size: 15px;
+  text-decoration: none; cursor: pointer; margin: 0 !important; transition: transform .12s ease, filter .15s ease;
+}
+.por-cta { border: 0; background: var(--v-acento); color: var(--v-tinta); box-shadow: 0 12px 30px color-mix(in srgb, var(--v-acento) 45%, transparent); }
+.por-matia { border: 1px solid rgba(255,255,255,.35); background: rgba(255,255,255,.1); color: #fff; backdrop-filter: blur(6px); }
+.por-cta:hover, .por-matia:hover { filter: brightness(1.08); }
+.por-cta:active, .por-matia:active { transform: scale(.98); }
+.por-cta mat-icon, .por-matia mat-icon { font-size: 20px; width: 20px; height: 20px; }
+.por-datos { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; font-size: 13px; color: rgba(255,255,255,.8); }
+.por-datos b { color: #fff; font-weight: 800; }
+
+/* Leyenda legal (licores, medicamentos): visible, sin gritar. */
+.aviso-legal {
+  display: flex; align-items: flex-start; gap: 8px; margin: -6px 0 0; padding: 10px 14px; border-radius: 14px;
+  font-size: 12.5px; font-weight: 700; line-height: 1.4; color: var(--text);
+  background: color-mix(in srgb, var(--v-acento) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--v-acento) 40%, transparent);
+}
+.aviso-legal mat-icon { flex: none; font-size: 18px; width: 18px; height: 18px; color: var(--v-fondo2); }
+
+/* ── Cuerpo ───────────────────────────────────────────────────────────── */
+.cuerpo { display: flex; flex-direction: column; gap: 26px; }
+.pad { padding: 0 2px; }
+.tit-icono { font-size: 22px; width: 22px; height: 22px; vertical-align: -4px; color: var(--v-acento); }
+
+/* Mosaico de subcategorías */
+.mosaico { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.tesela {
+  position: relative; display: block; aspect-ratio: 1 / 1; padding: 0; margin: 0 !important; border: 0; min-height: 0 !important;
+  border-radius: 20px; overflow: hidden; cursor: pointer; text-align: left; font: inherit; color: #fff;
+  background: linear-gradient(145deg, var(--v-fondo2), var(--v-fondo));
+  box-shadow: 0 8px 20px rgba(2, 6, 23, .12); transition: transform .18s ease, box-shadow .18s ease;
+}
+.tesela:hover { transform: translateY(-3px); box-shadow: 0 16px 30px rgba(2, 6, 23, .2); }
+.tesela:active { transform: scale(.98); }
+.tesela-foto { position: absolute; inset: 0; display: grid; place-items: center; }
+.tesela-foto img, .tesela-foto eco-imagen { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
+.tesela:hover .tesela-foto img { transform: scale(1.06); }
+.tesela-foto eco-imagen.de-producto { background: #fff; padding: 10% 10% 26%; box-sizing: border-box; }
+.tesela-foto mat-icon { font-size: 54px; width: 54px; height: 54px; opacity: .85; }
+.tesela-nombre {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 26px 12px 11px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 6px;
+  font-weight: 800; font-size: 14.5px; line-height: 1.15; letter-spacing: -.01em;
+  background: linear-gradient(0deg, rgba(2, 6, 23, .82), rgba(2, 6, 23, 0));
+}
+.tesela-nombre small { flex: none; font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.2); backdrop-filter: blur(4px); }
+
+/* Marcas */
+.marcas { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.marcas::-webkit-scrollbar { display: none; }
+.marca {
+  flex: none; display: inline-flex; align-items: center; gap: 8px; min-height: 46px !important; margin: 0 !important;
+  padding: 0 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; cursor: pointer; transition: border-color .15s ease, transform .12s ease;
+}
+.marca:hover { border-color: var(--v-acento); transform: translateY(-1px); }
+.marca b { font-size: 14.5px; font-weight: 800; }
+.marca small { font-size: 11.5px; font-weight: 700; color: var(--muted); }
+
+/* Bandas con el color de la vitrina (ofertas, ahorro) */
+.banda {
+  padding: 18px; border-radius: 24px; color: #fff;
+  background: radial-gradient(140% 140% at 90% 0%, var(--v-fondo2), var(--v-fondo));
+}
+.banda .seccion-cabeza p { color: rgba(255,255,255,.75); }
+.banda .riel { scrollbar-color: rgba(255,255,255,.3) transparent; }
+
+/* Beneficios */
+.beneficios { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.beneficio {
+  display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 18px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.beneficio mat-icon {
+  flex: none; width: 40px; height: 40px; font-size: 22px; display: grid; place-items: center; border-radius: 12px;
+  background: color-mix(in srgb, var(--v-acento) 14%, transparent); color: color-mix(in srgb, var(--v-acento) 70%, var(--text));
+}
+.beneficio span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.beneficio b { font-size: 14px; font-weight: 800; }
+.beneficio small { font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+
+/* Secciones por subcategoría */
+.secciones { display: flex; flex-direction: column; gap: 26px; }
+.sub { scroll-margin-top: 140px; }
+.sub-tit { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sub-icono {
+  flex: none; width: 48px; height: 48px; border-radius: 14px; overflow: hidden; display: grid; place-items: center;
+  background: linear-gradient(145deg, var(--v-fondo2), var(--v-fondo)); color: #fff;
+}
+.sub-icono img { width: 100%; height: 100%; object-fit: cover; }
+.sub-tit p { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.ver { flex: none; white-space: nowrap; }
+
+/* MatIA */
+.matia {
+  display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 22px; text-decoration: none; color: #fff;
+  background: linear-gradient(120deg, #4C1D95, #7C3AED 55%, #DB2777); box-shadow: 0 14px 30px rgba(124, 58, 237, .28);
+}
+.matia-icono { flex: none; width: 48px; height: 48px; border-radius: 16px; display: grid; place-items: center; background: rgba(255,255,255,.18); }
+.matia-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.matia-texto b { font-size: 17px; font-weight: 800; }
+.matia-texto small { font-size: 13px; opacity: .9; line-height: 1.35; }
+
+/* Otras vitrinas */
+.otras { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.otra {
+  position: relative; display: block; aspect-ratio: 16 / 7; border-radius: 22px; overflow: hidden; text-decoration: none; color: #fff;
+  background: var(--o-fondo);
+}
+.otra img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: right center; }
+.otra span {
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 18px; max-width: 62%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--o-fondo) 92%, transparent), transparent);
+}
+.otra i { font-style: normal; font-size: 12px; font-weight: 800; opacity: .8; text-transform: uppercase; letter-spacing: .06em; }
+.otra b { font-size: 20px; font-weight: 800; line-height: 1.1; }
+.otra small { font-size: 12.5px; opacity: .88; }
+
+/* ── Tableta ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .beneficios { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .por-texto { max-width: 70%; }
+}
+
+/* ── Celular ──────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .vitrina-pagina { padding: 0 0 32px; gap: 18px; }
+  .portada { border-radius: 0 0 28px 28px; aspect-ratio: 4 / 5; min-height: 440px; max-height: 86svh; }
+  .portada img { object-position: center bottom; }
+  .por-velo { background: linear-gradient(180deg, color-mix(in srgb, var(--v-fondo) 94%, transparent) 0%, color-mix(in srgb, var(--v-fondo) 70%, transparent) 38%, transparent 62%); }
+  .por-texto { max-width: none; justify-content: flex-start; gap: 10px; padding: 16px 18px; }
+  .portada h1 { font-size: clamp(28px, 8.4vw, 38px); }
+  .portada p { font-size: 14px; }
+  .por-acciones { position: absolute; left: 16px; right: 16px; bottom: 16px; }
+  .por-cta { flex: 1 1 auto; }
+  .por-matia { flex: 0 0 auto; padding: 0 16px; }
+  .por-datos { display: none; }
+  .cuerpo { padding: 0 16px; gap: 22px; }
+  .pad { padding: 0 16px; }
+
+  .mosaico {
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 40%;
+    overflow-x: auto; scroll-snap-type: x mandatory; margin: 0 -16px; padding: 2px 16px 6px; scroll-padding-left: 16px; scrollbar-width: none;
+  }
+  .mosaico::-webkit-scrollbar { display: none; }
+  .tesela { scroll-snap-align: start; border-radius: 18px; }
+  .tesela-nombre { font-size: 13.5px; }
+  .marcas { margin: 0 -16px; padding: 0 16px 4px; }
+  .banda { margin: 0 -16px; border-radius: 0; padding: 18px 16px; }
+  .riel { margin: 0 -16px; padding-left: 16px; padding-right: 16px; scroll-padding-left: 16px; }
+  .banda .riel { margin: 0 -16px; }
+  .beneficio { padding: 12px; }
+  .beneficio mat-icon { width: 36px; height: 36px; font-size: 20px; }
+  .sub-icono { width: 42px; height: 42px; }
+  .otra { aspect-ratio: 16 / 8; }
+}
+@media (max-width: 380px) {
+  .por-matia span, .por-matia { font-size: 0; gap: 0; }
+  .por-matia mat-icon { font-size: 22px; }
+}

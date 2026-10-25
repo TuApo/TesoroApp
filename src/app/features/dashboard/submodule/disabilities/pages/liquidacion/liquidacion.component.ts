@@ -86,6 +86,7 @@ import {
   resumenVigente,
   tonoDeChip,
 } from './liquidacion.utils';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Filtro rapido de la tabla de revision. */
 export type FiltroFilas = 'TODAS' | ResultadoFilaLiquidacion | 'SIN_HOMOLOGAR';
@@ -94,6 +95,7 @@ export type FiltroFilas = 'TODAS' | ResultadoFilaLiquidacion | 'SIN_HOMOLOGAR';
   selector: 'app-liquidacion',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     NgTemplateOutlet,
     RouterLink,
     MatButtonModule,
@@ -249,6 +251,9 @@ export class LiquidacionComponent implements OnInit {
     { id: 'diasAutorizados', header: 'Días aut.', align: 'right', prioridad: 3, tarjeta: 'meta', valor: (f) => f.diasAutorizados },
     { id: 'numeroEps', header: 'N° EPS', prioridad: 3, tarjeta: 'meta', valor: (f) => f.numeroIncapacidadEps ?? '', formato: (f) => f.numeroIncapacidadEps || '—' },
     { id: 'soporte', header: 'Soporte contable', prioridad: 3, tarjeta: 'meta', valor: (f) => f.soporteContable ?? '', formato: (f) => f.soporteContable || '—' },
+    // V64_2: causal de los dias que la EPS no reconocio. Sin prioridad (respuesta 2 de la
+    // funcional 2026-10-07: siempre debe aparecer), aunque las vecinas se oculten.
+    { id: 'causalEps', header: 'Causal EPS', tarjeta: 'cuerpo', minAncho: '200px', valor: (f) => f.causalTexto ?? '' },
     this.colCodigo,
   ];
 

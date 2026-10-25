@@ -1,0 +1,206 @@
+<div class="tienda-pagina">
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>drive_folder_upload</mat-icon> Cargas masivas</h1>
+      <p class="tienda-subtitulo">Fotos por ZIP, catálogo y precios por Excel, existencias por Excel. Primero se revisa y después se aplica.</p>
+    </div>
+  </header>
+
+  <nav class="pestanas" role="tablist">
+    <button type="button" role="tab" [class.activa]="pestana() === 'fotos'" (click)="cambiar('fotos')" [disabled]="ocupado()"><mat-icon>photo_library</mat-icon> Fotos de productos</button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'catalogo'" (click)="cambiar('catalogo')" [disabled]="ocupado()"><mat-icon>table_view</mat-icon> Catálogo y precios</button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'existencias'" (click)="cambiar('existencias')" [disabled]="ocupado()"><mat-icon>inventory</mat-icon> Existencias</button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'familias'" (click)="cambiar('familias')" [disabled]="ocupado()"><mat-icon>account_tree</mat-icon> Fotos de familias</button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'logis'" (click)="cambiar('logis')" [disabled]="ocupado()"><mat-icon>move_down</mat-icon> Importar de Logis</button>
+  </nav>
+
+  @if (aviso()) { <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div> }
+  @if (error()) { <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div> }
+
+  <!-- ═════════ FOTOS (productos y familias) ═════════ -->
+  @if (pestana() === 'fotos' || pestana() === 'familias') {
+    <section class="tienda-tarjeta">
+      @if (pestana() === 'fotos') {
+        <h2 class="titulo-seccion">Fotos de productos</h2>
+        <p class="nota">
+          Suba el <b>ZIP</b> (o varias fotos sueltas). El nombre de cada foto dice de qué producto es y en qué orden va:
+          <code>P-0052_iphone-15-pro-max_01.jpg</code> → producto <b>P-0052</b>, foto <b>1</b> (la principal).
+          El código puede ser el del catálogo del proveedor (P-0052, TV-0065) o el SKU. JPG, PNG o WebP de hasta 8 MB.
+        </p>
+      } @else {
+        <h2 class="titulo-seccion">Fotos de familias</h2>
+        <p class="nota">
+          Una foto por familia, nombrada con el <b>código</b> (<code>GLB-CEL.jpg</code>) o el <b>nombre</b> (<code>Celulares.jpg</code>).
+          Horizontal, ideal 1200 × 600 px. Reemplaza la foto que tenga.
+        </p>
+      }
+      <div class="tienda-barra">
+        <label class="boton" [class.deshabilitado]="ocupado()">
+          <mat-icon>upload_file</mat-icon> Elegir ZIP o fotos
+          <input type="file" hidden multiple accept=".zip,image/jpeg,image/png,image/webp" (change)="elegirFotos($event)" [disabled]="ocupado()" />
+        </label>
+        @if (pestana() === 'fotos' && grupos().length) {
+          <label class="casilla"><input type="checkbox" [(ngModel)]="reemplazar" [disabled]="ocupado()" />
+            Reemplazar las fotos que ya tenga cada producto (si no, se agregan al final)</label>
+          <label class="casilla"><input type="checkbox" [(ngModel)]="mejorar" [disabled]="ocupado()" />
+            Mejorar luz, color y nitidez antes de subir</label>
+          <label class="casilla"><input type="checkbox" [(ngModel)]="conIa" [disabled]="ocupado()" />
+            Además, generar con IA una versión con el estilo de la tienda (queda para revisar)</label>
+          @if (ctx.tiendaId()) {
+            <button type="button" class="boton secundario" (click)="verEstilo.set(!verEstilo())">{{ verEstilo() ? 'Ocultar estilo' : 'Estilo de fotos de la tienda' }}</button>
+          }
+        }
+        @if (pestana() === 'fotos' && verEstilo() && ctx.tiendaId()) {
+          <div style="flex: 1 1 100%"><app-config-fotos-tienda [tiendaId]="ctx.tiendaId()!" /></div>
+        }
+      </div>
+
+      @if (ocupado() && !grupos().length) { <p class="nota"><mat-icon class="girando">progress_activity</mat-icon> Abriendo el archivo…</p> }
+
+      @if (grupos().length) {
+        <div class="resumen">
+          <span class="dato ok"><b>{{ listos().length }}</b> {{ pestana() === 'familias' ? 'familias' : 'productos' }} reconocidos · {{ totalFotos() }} fotos</span>
+          @if (sinDestino().length) { <span class="dato warn"><b>{{ sinDestino().length }}</b> códigos sin destino</span> }
+          @if (ignorados().length) { <span class="dato neutro" [title]="ignorados().join('\n')"><b>{{ ignorados().length }}</b> archivos ignorados</span> }
+        </div>
+
+        @if (progreso().total) {
+          <div class="barra"><span [style.width.%]="progreso().hechas / progreso().total * 100"></span></div>
+          <p class="nota">{{ progreso().hechas }} de {{ progreso().total }} fotos subidas</p>
+        }
+
+        <div class="tienda-barra">
+          <button type="button" class="boton" (click)="subirFotos()" [disabled]="ocupado() || !listos().length">
+            <mat-icon>cloud_upload</mat-icon> Subir {{ totalFotos() }} fotos
+          </button>
+          @if (fallidos()) {
+            <button type="button" class="boton secundario" (click)="subirFotos(true)" [disabled]="ocupado()"><mat-icon>replay</mat-icon> Reintentar {{ fallidos() }}</button>
+          }
+        </div>
+
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead><tr><th>Código</th><th>Destino</th><th class="num">Fotos</th><th class="num">Tiene</th><th>Estado</th></tr></thead>
+            <tbody>
+              @for (g of grupos(); track g.codigo) {
+                <tr [class.atenuada]="!!g.problema">
+                  <td class="mono">{{ g.codigo }}</td>
+                  <td>{{ g.destinoNombre || '—' }}@if (g.problema) { <small class="mal">{{ g.problema }}</small> }</td>
+                  <td class="num" [title]="g.archivos.map(a => a.nombre).join('\n')">{{ g.archivos.length }}</td>
+                  <td class="num">{{ g.actuales }}</td>
+                  <td><span class="estado" [attr.data-e]="g.estado">{{ g.estado === 'pendiente' ? (g.problema ? 'No se sube' : 'Listo para subir') : g.estado === 'subiendo' ? 'Subiendo…' : g.estado === 'ok' ? 'Hecho' : g.estado === 'omitido' ? 'Agrupado' : 'Error' }}</span>
+                    @if (g.detalle) { <small>{{ g.detalle }}</small> }</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ═════════ CATÁLOGO ═════════ -->
+  @if (pestana() === 'logis') { <app-importar-logis /> }
+
+  @if (pestana() === 'catalogo') {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Catálogo y precios desde Excel</h2>
+      <p class="nota">
+        Una fila por <b>opción</b> (capacidad, color, SIM). Las filas con el mismo <code>codigo_producto</code> son el mismo producto.
+        Si el código ya existe se actualiza; si no, se crea. Los precios solo cambian si son distintos (el anterior queda en el histórico).
+        Se revisa todo antes: si una fila tiene error, no se aplica ninguna.
+      </p>
+      <div class="tienda-barra">
+        <button type="button" class="boton secundario" (click)="descargarPlantillaCatalogo()"><mat-icon>download</mat-icon> Plantilla</button>
+        <label class="boton" [class.deshabilitado]="ocupado()">
+          <mat-icon>upload_file</mat-icon> Elegir Excel o CSV
+          <input type="file" hidden accept=".xlsx,.xls,.csv" (change)="elegirCatalogo($event)" [disabled]="ocupado()" />
+        </label>
+      </div>
+      @if (ocupado()) { <p class="nota"><mat-icon class="girando">progress_activity</mat-icon> Revisando…</p> }
+
+      @if (resultado(); as r) {
+        <div class="resumen">
+          <span class="dato ok"><b>{{ r.productos }}</b> productos · {{ filasCatalogo().length }} filas</span>
+          @if (r.errores) { <span class="dato mal"><b>{{ r.errores }}</b> filas con error</span> } @else { <span class="dato ok">Sin errores</span> }
+          @if (r.categorias_nuevas.length) { <span class="dato warn" [title]="r.categorias_nuevas.join('\n')"><b>{{ r.categorias_nuevas.length }}</b> categorías nuevas</span> }
+          @if (r.aplicado) { <span class="dato ok"><mat-icon>task_alt</mat-icon> Aplicado</span> }
+        </div>
+        @if (r.categorias_nuevas.length) {
+          <p class="nota">Se crearán: {{ r.categorias_nuevas.join(' · ') }}</p>
+        }
+        <div class="tienda-barra">
+          @if (!r.aplicado) {
+            <button type="button" class="boton" (click)="aplicarCatalogo()" [disabled]="ocupado() || r.errores > 0">
+              <mat-icon>done_all</mat-icon> Aplicar {{ r.productos }} productos
+            </button>
+          }
+          <label class="casilla"><input type="checkbox" [ngModel]="soloErrores()" (ngModelChange)="soloErrores.set($event)" /> Ver solo errores</label>
+        </div>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead><tr><th class="num">Fila</th><th>Código</th><th>SKU opción</th><th>Acción</th><th>Detalle</th></tr></thead>
+            <tbody>
+              @for (f of filasVisibles(); track $index) {
+                <tr>
+                  <td class="num">{{ f.fila }}</td><td class="mono">{{ f.codigo }}</td><td class="mono">{{ f.sku || '—' }}</td>
+                  <td><span class="estado" [attr.data-e]="f.accion === 'ERROR' ? 'error' : f.accion === 'ACTUALIZAR' ? 'pendiente' : 'ok'">{{ f.accion }}</span></td>
+                  <td>{{ f.mensaje }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ═════════ EXISTENCIAS ═════════ -->
+  @if (pestana() === 'existencias') {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Existencias desde Excel</h2>
+      <p class="nota">
+        Cada fila entra al <b>kardex</b> como movimiento (no se sobrescribe el saldo): tienda, código, cantidad, costo, tipo y motivo.
+        Sirve para el inventario inicial de una bodega (por ejemplo la de Tu Afiliación) o para una compra grande.
+        Necesita rol de bodeguero o administración en cada tienda.
+      </p>
+      <div class="tienda-barra">
+        <button type="button" class="boton secundario" (click)="descargarPlantillaStock()"><mat-icon>download</mat-icon> Plantilla</button>
+        <label class="boton" [class.deshabilitado]="ocupado()">
+          <mat-icon>upload_file</mat-icon> Elegir Excel o CSV
+          <input type="file" hidden accept=".xlsx,.xls,.csv" (change)="elegirStock($event)" [disabled]="ocupado()" />
+        </label>
+      </div>
+      @if (filasStock().length) {
+        <div class="resumen">
+          <span class="dato ok"><b>{{ stockListas().length }}</b> filas listas</span>
+          @if (filasStock().length - stockListas().length) { <span class="dato mal"><b>{{ filasStock().length - stockListas().length }}</b> con problema (no se cargan)</span> }
+        </div>
+        @if (progreso().total) {
+          <div class="barra"><span [style.width.%]="progreso().hechas / progreso().total * 100"></span></div>
+        }
+        <div class="tienda-barra">
+          <button type="button" class="boton" (click)="aplicarStock()" [disabled]="ocupado() || !stockListas().length">
+            <mat-icon>done_all</mat-icon> Registrar {{ stockListas().length }} movimientos
+          </button>
+        </div>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead><tr><th class="num">Fila</th><th>Tienda</th><th>Código</th><th>Producto</th><th class="num">Cantidad</th><th>Tipo</th><th>Estado</th></tr></thead>
+            <tbody>
+              @for (f of filasStock(); track f.fila) {
+                <tr [class.atenuada]="!!f.problema">
+                  <td class="num">{{ f.fila }}</td><td>{{ f.tienda }}</td><td class="mono">{{ f.codigo }}</td>
+                  <td>{{ f.producto || '—' }}@if (f.problema) { <small class="mal">{{ f.problema }}</small> }</td>
+                  <td class="num">{{ f.cantidad }}</td><td>{{ f.tipo }}</td>
+                  <td><span class="estado" [attr.data-e]="f.estado">{{ f.estado === 'ok' ? 'Hecho' : f.estado === 'error' ? 'Error' : f.problema ? 'No se carga' : 'Listo' }}</span>
+                    @if (f.detalle) { <small>{{ f.detalle }}</small> }</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</div>

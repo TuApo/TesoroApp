@@ -1,0 +1,205 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>receipt</mat-icon> Ventas y devoluciones</h1>
+      <p class="tienda-subtitulo">Consulte cada venta del mostrador, registre devoluciones con su reembolso y verifique contra el extracto los pagos por transferencia, Nequi o QR.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (ctx.tiendaId()) {
+    <div class="segmentos">
+      <button type="button" [class.activo]="vista() === 'ventas'" (click)="vista.set('ventas')">Ventas</button>
+      <button type="button" [class.activo]="vista() === 'caja'" (click)="vista.set('caja')">Estadísticas de caja</button>
+      <button type="button" [class.activo]="vista() === 'pagos'" (click)="vista.set('pagos')">Por verificar @if (bandeja().length) { <span class="burbuja">{{ bandeja().length }}</span> }</button>
+      <button type="button" [class.activo]="vista() === 'saldos'" (click)="vista.set('saldos')">Por cobrar @if (saldos().length) { <span class="burbuja">{{ saldos().length }}</span> }</button>
+      <button type="button" [class.activo]="vista() === 'devoluciones'" (click)="vista.set('devoluciones')">Devoluciones</button>
+    </div>
+
+    @switch (vista()) {
+      @case ('caja') {
+        <app-estadisticas-caja [tiendaId]="ctx.tiendaId()!" />
+      }
+      @case ('ventas') {
+        <div class="rejilla">
+          <section class="tienda-tarjeta">
+            <div class="cabeza-lista">
+              <span class="con-escaner"><input class="campo-texto" placeholder="Buscar por número, nombre o cédula" [ngModel]="filtro()" (ngModelChange)="filtro.set($event)" /><app-escaner-codigo titulo="Buscar venta" (leido)="filtro.set($event)" /></span>
+              <button type="button" class="boton secundario" (click)="cargar(ctx.tiendaId())" aria-label="Actualizar"><mat-icon>refresh</mat-icon></button>
+            </div>
+            <ul class="lista-ventas">
+              @for (v of filtradas(); track v.id) {
+                <li>
+                  <button type="button" class="venta" [class.activa]="sel()?.id === v.id" (click)="abrir(v)">
+                    <span class="v1"><b>{{ v.numero }}</b><span class="estado" [attr.data-e]="v.estado">{{ ESTADO[v.estado] || v.estado }}</span></span>
+                    <span class="v2"><span>{{ v.cliente_nombre || 'Cliente de mostrador' }}</span><b>{{ pesos(v.total) }}</b></span>
+                    <small>{{ (v.confirmada_en || v.creado_en) | date:'short' }}@if (v.canal === 'VIRTUAL') { · EconomiAPP }</small>
+                  </button>
+                </li>
+              } @empty { <li class="vacio">No hay ventas.</li> }
+            </ul>
+            @if (totalVentas() > 50) {
+              <div class="pie">
+                <button type="button" class="boton secundario" [disabled]="pagina() === 0" (click)="irPagina(-1)">Anteriores</button>
+                <span class="muted">Página {{ pagina() + 1 }} de {{ paginas() }}</span>
+                <button type="button" class="boton secundario" [disabled]="(pagina() + 1) * 50 >= totalVentas()" (click)="irPagina(1)">Siguientes</button>
+              </div>
+            }
+          </section>
+
+          <section class="tienda-tarjeta detalle">
+            @if (sel(); as v) {
+              <div class="m-fila"><h3>Venta {{ v.numero }}</h3><button type="button" class="boton secundario" (click)="cerrarDetalle()" aria-label="Cerrar"><mat-icon>close</mat-icon></button></div>
+              <small class="muted">{{ v.cliente_nombre || 'Cliente de mostrador' }}@if (v.cliente_cedula) { · CC {{ v.cliente_cedula }} } · {{ ESTADO[v.estado] || v.estado }}</small>
+
+              @if (!devolviendo()) {
+                <div class="tabla"><table>
+                  <tr><th>Producto</th><th class="n">Cant.</th><th class="n">Total</th></tr>
+                  @for (l of lineas(); track l.id) { <tr><td class="desc">{{ l.descripcion }}</td><td class="n">{{ +l.cantidad }}</td><td class="n">{{ pesos(l.total) }}</td></tr> }
+                  <tr class="total"><td>Total</td><td></td><td class="n">{{ pesos(v.total) }}</td></tr>
+                </table></div>
+
+                <h4>Pagos</h4>
+                <ul class="movs">
+                  @for (p of pagos(); track p.id) {
+                    <li><div class="m-fila"><span>{{ METODO[p.metodo] || p.metodo }}@if (p.referencia) { · {{ p.referencia }} }</span><b>{{ pesos(p.monto) }}</b></div>
+                      <small><span class="estado" [attr.data-e]="p.estado">{{ ESTADO[p.estado] || p.estado }}</span>
+                        @if (p.evidencia_doc_id) { · <button type="button" class="enlace" (click)="verSoporte(p.evidencia_doc_id)">ver soporte</button> }</small></li>
+                  } @empty { <li class="vacio">Sin pagos.</li> }
+                </ul>
+
+                @if (devVenta().length) {
+                  <h4>Devoluciones de esta venta</h4>
+                  <ul class="movs">
+                    @for (d of devVenta(); track d.id) {
+                      <li [class.nueva]="ultimaDev() === d.id"><div class="m-fila"><span><b>{{ d.numero }}</b> · {{ d.motivo }}</span><b class="sale">−{{ pesos(d.total) }}</b></div>
+                        <small>{{ d.creado_en | date:'short' }} · {{ ESTADO[d.estado] || d.estado }}</small>
+                        <app-fotos-evidencia entidadTipo="DEVOLUCION" [entidadId]="d.id" etiqueta="Fotos del producto devuelto" /></li>
+                    }
+                  </ul>
+                }
+
+                @if (pendiente() > 0 && puedeDevolver()) {
+                  <div class="saldo">
+                    <div class="m-fila"><span><mat-icon>warning</mat-icon> <b>Falta por cobrar</b></span><b class="sale">{{ pesos(pendiente()) }}</b></div>
+                    <small class="muted">Un pago se rechazó al conciliar. Cobre el saldo: en efectivo entra al turno abierto ahora; por otro medio vuelve a «Por verificar».</small>
+                    <div class="tipos">
+                      @for (m of METODOS_SALDO; track m) { <button type="button" class="tipo" [class.activo]="metodoSaldo() === m" (click)="metodoSaldo.set(m)">{{ METODO[m] || m }}</button> }
+                    </div>
+                    <div class="fila-form">
+                      <label class="col">Monto<input class="campo-texto" type="number" min="0" [max]="pendiente()" [ngModel]="montoSaldo()" (ngModelChange)="montoSaldo.set($event)" /></label>
+                      @if (metodoSaldo() !== 'EFECTIVO') {
+                        <label class="col">Referencia<input class="campo-texto" [ngModel]="refSaldo()" (ngModelChange)="refSaldo.set($event)" placeholder="N.º de la transacción" /></label>
+                      }
+                      <button type="button" class="boton" [disabled]="ocupado() || !montoSaldo()" (click)="cobrarSaldo()"><mat-icon>payments</mat-icon> Cobrar</button>
+                    </div>
+                  </div>
+                }
+
+                @if (puedeDevolver()) {
+                  <button type="button" class="boton" (click)="empezarDevolucion()"><mat-icon>undo</mat-icon> Registrar devolución</button>
+                }
+              } @else {
+                <h4>¿Qué devuelve?</h4>
+                <ul class="dev-lineas">
+                  @for (l of lineas(); track l.id) {
+                    <li>
+                      <span class="desc">{{ l.descripcion }} <small class="muted">(vendió {{ +l.cantidad }})</small></span>
+                      <input class="campo-texto cant" type="number" min="0" [max]="+l.cantidad" step="1" placeholder="0"
+                             [value]="cant()[l.id] || ''" (input)="ponerCant(l.id, $any($event.target).value, +l.cantidad)" [attr.aria-label]="'Cantidad a devolver de ' + l.descripcion" />
+                      <select class="campo-texto" [ngModel]="destino()[l.id]" (ngModelChange)="ponerDestino(l.id, $event)" [attr.aria-label]="'Destino de ' + l.descripcion">
+                        @for (d of DESTINOS; track d.v) { <option [value]="d.v">{{ d.n }}</option> }
+                      </select>
+                    </li>
+                  }
+                </ul>
+                <label class="col">Motivo<input class="campo-texto" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)" placeholder="Ej. producto vencido, talla equivocada" /></label>
+                <span class="col">¿Cómo se le devuelve el dinero?</span>
+                <div class="tipos">
+                  @for (m of METODOS_REEMBOLSO; track m) {
+                    <button type="button" class="tipo" [class.activo]="reembolso() === m" (click)="reembolso.set(m)">{{ METODO[m] || m }}</button>
+                  }
+                </div>
+                <small class="muted">
+                  @switch (reembolso()) {
+                    @case ('EFECTIVO') { Sale del cajón: necesita la caja abierta y queda como reembolso en el cuadre del turno. }
+                    @case ('NOMINA') { Vuelve al bono mercado: queda pendiente de reversar en tesorería. }
+                    @default { Se devuelve por fuera de la caja; anote la referencia en el motivo. }
+                  }
+                </small>
+                <div class="resultado ok"><div><span>A devolver</span><b>{{ pesos(totalDevolver()) }}</b></div></div>
+                <div class="pie">
+                  <button type="button" class="boton secundario" (click)="devolviendo.set(false)">Cancelar</button>
+                  <button type="button" class="boton" [disabled]="ocupado() || !totalDevolver()" (click)="devolver()"><mat-icon>undo</mat-icon> Devolver</button>
+                </div>
+              }
+            } @else {
+              <div class="tienda-vacio">Elija una venta para ver el detalle o registrar una devolución.</div>
+            }
+          </section>
+        </div>
+      }
+
+      @case ('pagos') {
+        <section class="tienda-tarjeta">
+          <h3>Pagos por verificar · {{ pesos(porVerificarTotal()) }}</h3>
+          <p class="muted">Busque cada pago en el extracto del banco o en la app de Nequi/Daviplata. Si está, verifíquelo; si no llegó, recháselo con el motivo.</p>
+          <ul class="movs">
+            @for (p of bandeja(); track p.id) {
+              <li>
+                <div class="m-fila"><span><b>{{ METODO[p.metodo] || p.metodo }}</b> · {{ p.venta_numero }} · {{ p.cliente_nombre || 'Cliente de mostrador' }}</span><b>{{ pesos(p.monto) }}</b></div>
+                <small>{{ p.creado_en | date:'short' }}@if (p.referencia) { · Ref. {{ p.referencia }} }
+                  @if (p.evidencia_doc_id) { · <button type="button" class="enlace" (click)="verSoporte(p.evidencia_doc_id)">ver comprobante</button> }
+                  · <button type="button" class="enlace" (click)="abrir(p.venta_id)">ver venta</button></small>
+                @if (rechazando() === p.id) {
+                  <div class="fila-form">
+                    <label class="col">Motivo del rechazo<input class="campo-texto" [ngModel]="motivoRechazo()" (ngModelChange)="motivoRechazo.set($event)" placeholder="Ej. no aparece en el extracto" /></label>
+                    <button type="button" class="boton secundario" (click)="rechazando.set(null)">Cancelar</button>
+                    <button type="button" class="boton peligro" [disabled]="ocupado()" (click)="verificar(p, 'RECHAZADO')">Rechazar</button>
+                  </div>
+                } @else {
+                  <div class="pie">
+                    <button type="button" class="boton secundario" (click)="rechazando.set(p.id); motivoRechazo.set('')"><mat-icon>block</mat-icon> No llegó</button>
+                    <button type="button" class="boton" [disabled]="ocupado()" (click)="verificar(p, 'VERIFICADO')"><mat-icon>verified</mat-icon> Sí llegó</button>
+                  </div>
+                }
+              </li>
+            } @empty { <li class="vacio">No hay pagos pendientes de verificar. 🎉</li> }
+          </ul>
+        </section>
+      }
+
+      @case ('saldos') {
+        <section class="tienda-tarjeta">
+          <h3>Ventas con saldo por cobrar</h3>
+          <p class="muted">Ventas entregadas a las que se les rechazó un pago. Ábrala y cobre lo que falta.</p>
+          <ul class="movs">
+            @for (v of saldos(); track v.id) {
+              <li>
+                <div class="m-fila"><span><b>{{ v.numero }}</b> · {{ v.cliente_nombre || 'Cliente de mostrador' }}@if (v.cliente_cedula) { · CC {{ v.cliente_cedula }} }</span><b class="sale">{{ pesos(v.pendiente) }}</b></div>
+                <small>{{ v.creado_en | date:'short' }} · total {{ pesos(v.total) }} · rechazado {{ pesos(v.rechazado) }} · <button type="button" class="enlace" (click)="abrir(v.id)">cobrar</button></small>
+              </li>
+            } @empty { <li class="vacio">No hay ventas con saldo pendiente.</li> }
+          </ul>
+        </section>
+      }
+
+      @case ('devoluciones') {
+        <section class="tienda-tarjeta">
+          <h3>Devoluciones de la tienda</h3>
+          <div class="tabla"><table>
+            <tr><th>Fecha</th><th>Número</th><th>Venta</th><th>Cliente</th><th>Motivo</th><th>Reembolso</th><th class="n">Total</th><th>Estado</th></tr>
+            @for (d of devoluciones(); track d.id) {
+              <tr><td>{{ d.creado_en | date:'short' }}</td><td>{{ d.numero }}</td>
+                <td><button type="button" class="enlace" (click)="abrir(d.venta_id)">{{ d.venta_numero }}</button></td>
+                <td>{{ d.cliente_nombre }}</td><td class="desc">{{ d.motivo }}</td><td>{{ METODO[d.reembolso_metodo || ''] || d.reembolso_metodo || '—' }}</td>
+                <td class="n">{{ pesos(d.total) }}</td><td><span class="estado" [attr.data-e]="d.estado">{{ ESTADO[d.estado] || d.estado }}</span></td></tr>
+            } @empty { <tr><td colspan="8" class="vacio">Sin devoluciones.</td></tr> }
+          </table></div>
+        </section>
+      }
+    }
+  } @else { <div class="tienda-vacio">Elija una tienda.</div> }
+</div>

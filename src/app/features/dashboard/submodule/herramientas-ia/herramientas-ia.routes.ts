@@ -22,6 +22,24 @@ export const routes: Routes = [
       ),
   },
   {
+    // Automatizaciones personales del Asistente IA (operador): horarios, ganchos y plantillas.
+    path: 'automatizaciones',
+    loadComponent: () =>
+      import('./pages/automatizaciones-ia/automatizaciones-ia').then((m) => m.AutomatizacionesIa),
+  },
+  {
+    // Personalidades del Asistente IA: estilos predefinidos y propios (tono, longitud, indicaciones, voz).
+    path: 'personalidades',
+    loadComponent: () =>
+      import('./pages/personalidades-ia/personalidades-ia').then((m) => m.PersonalidadesIa),
+  },
+  {
+    // Avatar Agent: el elenco de personajes del chat (presidente y directores por módulo) y sus avatares. Solo administración.
+    path: 'avatar-agent',
+    loadComponent: () =>
+      import('./pages/avatar-agent/avatar-agent').then((m) => m.AvatarAgent),
+  },
+  {
     path: 'desarrollo',
     loadComponent: () =>
       import('./pages/agentes-desarrollo/agentes-desarrollo.component').then(

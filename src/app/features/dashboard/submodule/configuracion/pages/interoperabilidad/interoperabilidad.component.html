@@ -1,0 +1,113 @@
+<section class="io">
+  <header class="io-cab">
+    <div>
+      <h2>Interoperabilidad</h2>
+      <p class="io-sub">Servicios externos que usan Capacitaciones y las aulas en vivo: la voz, los clips de video,
+        la búsqueda en YouTube, el servidor de videollamadas y el compilador de código. Las llaves se guardan cifradas
+        y no se vuelven a mostrar.</p>
+    </div>
+    <button type="button" class="io-btn" (click)="cargar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon> Actualizar</button>
+  </header>
+
+  @if (error()) {
+    <p class="io-error"><mat-icon>error_outline</mat-icon> {{ error() }}</p>
+  } @else if (datos(); as d) {
+    <div class="io-resumen">
+      <div class="io-tile" [class.ok]="d.ia_texto">
+        <mat-icon>psychology</mat-icon>
+        <div><strong>IA de texto (ms-ai)</strong>
+          <em>{{ d.ia_texto ? 'Conectada: entrevista, estructura, clases y medios' : 'Sin canal interno: el diseñador no puede trabajar' }}</em></div>
+      </div>
+      <div class="io-tile" [class.ok]="d.puede_guardar_secretos">
+        <mat-icon>lock</mat-icon>
+        <div><strong>Cifrado de llaves</strong>
+          <em>{{ d.puede_guardar_secretos ? 'Activo (AES-GCM)' : 'Falta LEARNING_INTEGRACIONES_CLAVE: solo valen las llaves del .env' }}</em></div>
+      </div>
+      <a class="io-tile io-tile--enlace" routerLink="/dashboard/configuracion/conectores">
+        <mat-icon>hub</mat-icon>
+        <div><strong>Conectores MCP</strong><em>Herramientas externas para los agentes de IA (Higgsfield MCP, etc.)</em></div>
+        <mat-icon class="io-ir">chevron_right</mat-icon>
+      </a>
+    </div>
+
+    <div class="io-grid">
+      @for (p of d.proveedores; track p.proveedor) {
+        <article class="io-prov" [class.io-prov--off]="!p.habilitado">
+          <header class="io-prov__cab">
+            <span class="io-prov__icono"><mat-icon>{{ iconos[p.proveedor] }}</mat-icon></span>
+            <div class="io-prov__titulo">
+              <h3>{{ p.nombre }}</h3>
+              <span class="io-estado" [attr.data-e]="estado(p).clase">{{ estado(p).texto }}</span>
+            </div>
+            <label class="io-switch" title="Habilitar / apagar">
+              <input type="checkbox" [checked]="p.habilitado" (change)="guardar(p, !p.habilitado)" [disabled]="ocupado() === p.proveedor" />
+              <span></span>
+            </label>
+          </header>
+          <p class="io-desc">{{ p.descripcion }}</p>
+          @if (p.usos.length) {
+            <ul class="io-usos">@for (u of p.usos; track u) { <li><mat-icon>check</mat-icon>{{ u }}</li> }</ul>
+          }
+
+          @if (p.lleva_secreto) {
+            <div class="io-llave">
+              <div class="io-llave__estado">
+                <mat-icon>key</mat-icon>
+                <span>{{ origen(p) }} @if (p.pista) { · <code>…{{ p.pista }}</code> }</span>
+                @if (p.origen === 'GUARDADA') { <button type="button" class="io-link" (click)="borrarLlave(p)">Quitar</button> }
+              </div>
+              @if (p.origen !== 'ENTORNO') {
+                <label class="io-campo">
+                  <span>{{ p.origen === 'GUARDADA' ? 'Reemplazar la llave' : 'Llave' }} <em>({{ p.formato_secreto }})</em></span>
+                  <input type="password" autocomplete="off" [(ngModel)]="secretos[p.proveedor]" [placeholder]="p.formato_secreto || ''"
+                         [disabled]="!d.puede_guardar_secretos" />
+                </label>
+              } @else {
+                <p class="io-nota">La fija el servidor en <code>{{ p.variable_entorno }}</code>. Para cambiarla, edita el .env.</p>
+              }
+            </div>
+          }
+
+          @if (p.ajustes_disponibles.length) {
+            <div class="io-ajustes">
+              @for (a of p.ajustes_disponibles; track a) {
+                <label class="io-campo">
+                  <span>{{ etiquetasAjuste[a] || a }} @if (fijado(p, a)) { <em>(del servidor)</em> }</span>
+                  @if ((a === 'voz_narrador' || a === 'voz_segunda') && voces().length) {
+                    <select [(ngModel)]="ajustes[p.proveedor][a]" [disabled]="fijado(p, a)">
+                      <option value="">Por defecto</option>
+                      @for (v of voces(); track v.voz_id) { <option [value]="v.voz_id">{{ v.nombre }}{{ v.acento ? ' · ' + v.acento : '' }}{{ v.genero ? ' · ' + v.genero : '' }}</option> }
+                    </select>
+                  } @else if (opciones[a]) {
+                    <select [(ngModel)]="ajustes[p.proveedor][a]" [disabled]="fijado(p, a)">
+                      <option value="">Por defecto</option>
+                      @for (o of opciones[a]; track o.valor) { <option [value]="o.valor">{{ o.etiqueta }}</option> }
+                    </select>
+                  } @else {
+                    <input [(ngModel)]="ajustes[p.proveedor][a]" [disabled]="fijado(p, a)" />
+                  }
+                </label>
+              }
+            </div>
+          }
+
+          @if (p.estado_prueba !== 'SIN_PROBAR' && p.mensaje_prueba) {
+            <p class="io-prueba" [class.mal]="p.estado_prueba === 'ERROR'">
+              <mat-icon>{{ p.estado_prueba === 'OK' ? 'task_alt' : 'error_outline' }}</mat-icon>
+              <span>{{ p.mensaje_prueba }} @if (p.probado_at) { <em>· {{ p.probado_at | date: 'd MMM, h:mm a' }}</em> }</span>
+            </p>
+          }
+
+          <footer class="io-pie">
+            @if (p.documentacion) { <a class="io-link" [href]="p.documentacion" target="_blank" rel="noopener">Obtener la llave <mat-icon>open_in_new</mat-icon></a> }
+            <span class="io-espacio"></span>
+            <button type="button" class="io-btn" [disabled]="ocupado() === p.proveedor || !p.configurado" (click)="probar(p)"><mat-icon>network_check</mat-icon> Probar</button>
+            <button type="button" class="io-btn io-btn--primario" [disabled]="ocupado() === p.proveedor" (click)="guardar(p)"><mat-icon>save</mat-icon> Guardar</button>
+          </footer>
+        </article>
+      }
+    </div>
+  } @else {
+    <p class="io-sub">Cargando…</p>
+  }
+</section>

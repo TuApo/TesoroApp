@@ -1,5 +1,6 @@
-<!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador) -->
-@if (bloqueado()) {
+<!-- Bloqueo: candidato EN ESPERA de vacante o NO APLICA (observación del evaluador).
+     No toca a Cédula & Huella (sub-pestaña 4): es de Selección y se toma siempre. -->
+@if (bloqueado() && subIdx() !== 4) {
   <div class="bloqueo-espera-banner">
     <mat-icon>hourglass_top</mat-icon>
     <div>
@@ -18,7 +19,7 @@
 
 <!-- Sin animación propia: la del cambio de módulo la pone el pipeline. -->
 <mat-tab-group class="tab-group" animationDuration="0ms"
-  [class.bloqueado-espera]="bloqueado()"
+  [class.bloqueado-espera]="bloqueado() && subIdx() !== 4"
   [selectedIndex]="subIdx()" (selectedIndexChange)="subIdx.set($event)">
 
   <!-- TAB 1 ▸ Pago y Transporte -->
@@ -99,6 +100,57 @@
             <input matInput formControlName="otraFormaPago">
           </mat-form-field>
         }
+        <!-- ══ Davivienda cta ahorros: identificación de la tarjeta + cuenta ══════
+             La identificación se comprueba CONTRA EL SERVIDOR (existe en el
+             parametrizador y no la tiene otra persona). El número de cuenta no se
+             teclea: lo rellena la tarjeta correspondiente. -->
+        @if (esDavivienda()) {
+          <mat-form-field appearance="outline" class="example-full-width"
+            [class.campo-completo]="campoCompleto('numeroIdentificacion')">
+            <mat-label>Número de identificación</mat-label>
+            <input matInput formControlName="numeroIdentificacion" inputmode="numeric"
+                   placeholder="El de la tarjeta, como está en el parametrizador">
+            @if (verificandoTarjeta()) {
+              <mat-hint>Comprobando…</mat-hint>
+            } @else if (resolucionTarjeta()?.estado === 'DISPONIBLE' || resolucionTarjeta()?.estado === 'YA_ES_SUYA') {
+              <mat-hint class="hint-ok">{{ mensajeTarjeta() }}</mat-hint>
+            }
+            @if (pagoTransporteForm.controls['numeroIdentificacion'].hasError('required')) {
+              <mat-error>Obligatorio.</mat-error>
+            }
+            @if (pagoTransporteForm.controls['numeroIdentificacion'].hasError('identificacionNoExiste')
+              || pagoTransporteForm.controls['numeroIdentificacion'].hasError('tarjetaAsignada')
+              || pagoTransporteForm.controls['numeroIdentificacion'].hasError('variasTarjetas')
+              || pagoTransporteForm.controls['numeroIdentificacion'].hasError('poolNoDisponible')) {
+              <mat-error>{{ mensajeTarjeta() }}</mat-error>
+            }
+          </mat-form-field>
+
+          @if (resolucionTarjeta()?.estado === 'VARIAS_DISPONIBLES') {
+            <mat-form-field appearance="outline" class="example-full-width">
+              <mat-label>Elige la tarjeta física</mat-label>
+              <mat-select [value]="pagoTransporteForm.get('numeroPagos')?.value"
+                          (selectionChange)="elegirCuentaTarjeta($event.value)">
+                @for (cuenta of resolucionTarjeta()?.cuentas_disponibles ?? []; track cuenta) {
+                  <mat-option [value]="cuenta">{{ cuenta }}</mat-option>
+                }
+              </mat-select>
+              <mat-hint>Esta identificación tiene varias tarjetas libres.</mat-hint>
+            </mat-form-field>
+          }
+
+          <mat-form-field appearance="outline" class="example-full-width"
+            [class.campo-completo]="campoCompleto('numeroPagos')">
+            <mat-label>Número de cuenta</mat-label>
+            <input matInput formControlName="numeroPagos" readonly
+                   placeholder="Se llena solo con el número de identificación">
+            <mat-hint>Sale de la tarjeta; no se escribe a mano.</mat-hint>
+            @if (pagoTransporteForm.controls['numeroPagos'].hasError('required')) {
+              <mat-error>Escribe primero una identificación válida.</mat-error>
+            }
+          </mat-form-field>
+        } @else {
+
         <mat-form-field appearance="outline" class="example-full-width"
           [class.campo-completo]="campoCompleto('numeroPagos')">
           <mat-label>
@@ -121,6 +173,7 @@
             </mat-error>
           }
         </mat-form-field>
+        }
         <mat-form-field appearance="outline" class="example-full-width"
           [class.campo-completo]="campoCompleto('seguroFunerario')">
           <mat-label>Seguro Funerario</mat-label>
@@ -230,12 +283,30 @@
           <mat-label>Clasificador 4 · Sublabor</mat-label>
           <input matInput formControlName="sublabor">
         </mat-form-field>
+        <!-- Auxilio de transporte y ruta (pedido 2026-10-14): los dos SI/NO se cambian aquí;
+             la vacante (auxilio) y el centro de costo (ruta) solo los proponen. Con SI aparece
+             al lado el valor mensual del auxilio de transporte del año del contrato (SOLO
+             LECTURA, sin formControl: no viaja en el guardado). El valor de la ruta se quitó
+             de la pantalla a pedido del usuario (2026-10-16): no reponerlo. -->
         <mat-form-field appearance="outline" class="example-full-width"
           [class.campo-completo]="campoCompleto('auxilio_transporte')">
           <mat-label>Auxilio de Transporte</mat-label>
-          <input matInput formControlName="auxilio_transporte" type="text">
-          <mat-hint>Auxilio legal. Lo dice la vacante; no es el valor de la ruta.</mat-hint>
+          <mat-select formControlName="auxilio_transporte"
+                      (selectionChange)="elegirAuxilio($event.value)">
+            <mat-option value="Sí">SI</mat-option>
+            <mat-option value="No">NO</mat-option>
+          </mat-select>
+          <mat-hint>Lo propone la vacante; se puede cambiar.</mat-hint>
         </mat-form-field>
+        @if (muestraValorAuxilio) {
+          <mat-form-field appearance="outline" class="example-full-width hq-valor-solo-lectura">
+            <mat-label>Valor auxilio de transporte mensual</mat-label>
+            <input matInput readonly tabindex="-1" data-testid="valor-auxilio"
+                   [value]="textoValorAuxilio" aria-readonly="true">
+            <mat-icon matSuffix>lock</mat-icon>
+            <mat-hint>Auxilio legal del año. No se edita.</mat-hint>
+          </mat-form-field>
+        }
         <mat-form-field appearance="outline" class="example-full-width"
           [class.campo-completo]="campoCompleto('usaRuta')">
           <mat-label>¿Usa ruta?</mat-label>
@@ -245,32 +316,44 @@
           </mat-select>
           <mat-hint>Se propone desde el centro de costo. Es por persona.</mat-hint>
         </mat-form-field>
-        @if (pagoTransporteForm.get('usaRuta')?.value === true) {
-          <mat-form-field appearance="outline" class="example-full-width"
-            [class.campo-completo]="campoCompleto('valorTransporte')">
-            <mat-label>Valor del transporte</mat-label>
-            <input matInput formControlName="valorTransporte" thousandSeparator>
-            <mat-hint>Valor de la ruta del centro de costo. Ajustable.</mat-hint>
-          </mat-form-field>
-        }
+        <!-- AFC de la ficha técnica (req. 6, 2026-10-22). Se propone desde la AFP de Selección. -->
         <mat-form-field appearance="outline" class="example-full-width"
-          [class.campo-completo]="campoCompleto('porcentajeHorasExtras')">
-          <mat-label>Porcentaje horas extras</mat-label>
-          <input matInput formControlName="porcentajeHorasExtras" type="text">
-          <mat-icon matSuffix
-                    matTooltip="Recargo pactado de horas extras. No tiene relación con el porcentaje de ARL.">
-            info_outline
-          </mat-icon>
-          <mat-hint>Recargo pactado (%). Distinto del porcentaje ARL.</mat-hint>
+          [class.campo-completo]="campoCompleto('cesantias')">
+          <mat-label>Fondo de cesantías (AFC)</mat-label>
+          <mat-select formControlName="cesantias" data-testid="fondo-cesantias">
+            @for (f of opcionesCesantias(); track f) {
+              <mat-option [value]="f">{{ f }}</mat-option>
+            }
+          </mat-select>
+          <mat-hint>Se propone con el fondo de pensión (AFP); Colpensiones no maneja cesantías.</mat-hint>
         </mat-form-field>
         </div>
 
 
-      <!-- Sin botón "Cargar": cada respuesta se guarda sola. Completo, además,
-           marca contratado y pide el código de contrato. -->
+      <!-- Cada respuesta se guarda sola, pero NO contrata: eso lo hace solo el
+           botón "Contratar" (marca contratado y pide el código de contrato). -->
       <app-auto-guardado-estado style="margin-top: 24px;"
         [estado]="autoPago.estado()" [error]="autoPago.error()"
         (reintentar)="autoPago.ahora()" />
+
+      <div class="hq-contratar">
+        @if (yaContratado()) {
+          <span class="hq-contratado">
+            <mat-icon>verified</mat-icon>
+            Contratado{{ codigoContratoActual() ? ' · contrato ' + codigoContratoActual() : '' }}
+          </span>
+        } @else {
+          <p class="hq-contratar-nota">
+            Lo que llenes se guarda solo, pero la persona <b>no queda contratada</b>
+            hasta que pulses "Contratar".
+          </p>
+          <button mat-flat-button color="primary" type="button"
+                  (click)="contratar()" [disabled]="contratando() || bloqueado()">
+            <mat-icon>how_to_reg</mat-icon>
+            {{ contratando() ? 'Contratando…' : 'Contratar' }}
+          </button>
+        }
+      </div>
     </div>
     </ng-template>
   </mat-tab>
@@ -648,19 +731,40 @@
                                 </span>
                                 @if (cedulaDocumentoId() !== null) {
                                   <button type="button" class="bio-prev bio-prev-doc"
+                                          [class.bio-prev-doc-mini]="!!cedulaMiniatura()"
+                                          title="Ver documento"
                                           (click)="verDocumentoIdentidad()">
-                                    <mat-icon>visibility</mat-icon>
-                                    <span>Ver documento</span>
+                                    @if (cedulaMiniatura(); as mini) {
+                                      <img [src]="mini" alt="Miniatura del documento de identidad" />
+                                      <span class="bio-prev-doc-ver"><mat-icon>visibility</mat-icon> Ver</span>
+                                    } @else {
+                                      <mat-icon>visibility</mat-icon>
+                                      <span>Ver documento</span>
+                                    }
                                   </button>
                                 }
                                 <input type="file" hidden accept="application/pdf,image/*"
                                        #cedulaInput (change)="subirCedula($event)" />
-                                <button type="button" class="bio-btn"
-                                        [disabled]="subiendoCedula()"
-                                        (click)="cedulaInput.click()">
-                                  <mat-icon>{{ subiendoCedula() ? 'hourglass_empty' : 'upload_file' }}</mat-icon>
-                                  {{ cedulaSubida() ? 'Reemplazar' : 'Subir documento' }}
-                                </button>
+                                <!-- Dos caminos: la cámara (frente + reverso → el servidor
+                                     arma la hoja carta al 150 %) o un archivo ya escaneado,
+                                     que se guarda tal cual. -->
+                                <div class="bio-acciones">
+                                  @if (cedulaConCamara()) {
+                                    <app-cedula-camara
+                                      [cedula]="cedulaDocs() || null"
+                                      [nombreDocumento]="nombreDocumento()"
+                                      [deshabilitado]="subiendoCedula()"
+                                      (ocupado)="subiendoCedula.set($event)"
+                                      (listo)="alTomarCedulaConCamara($event)" />
+                                  }
+                                  <button type="button" class="bio-btn"
+                                          [class.bio-btn-sec]="cedulaConCamara()"
+                                          [disabled]="subiendoCedula()"
+                                          (click)="cedulaInput.click()">
+                                    <mat-icon>{{ subiendoCedula() ? 'hourglass_empty' : 'upload_file' }}</mat-icon>
+                                    {{ cedulaSubida() ? 'Reemplazar' : 'Subir documento' }}
+                                  </button>
+                                </div>
                               </div>
 
                               <!-- Comprobar que el correo y el WhatsApp EXISTEN:
@@ -669,9 +773,10 @@
                                    avance del paso: un contrato con un correo que
                                    no existe es un contrato sin forma de avisarle
                                    nada a la persona. -->
-                              <div class="bio-card" [class.bio-lista]="correoConfirmado()">
+                              <div class="bio-card" [class.bio-lista]="correoConfirmado() && !correoRebote()?.invalida"
+                                   [class.bio-rebote]="correoRebote()?.invalida">
                                 <span class="bio-icono">
-                                  <mat-icon>{{ correoConfirmado() ? 'mark_email_read' : 'mail' }}</mat-icon>
+                                  <mat-icon>{{ correoRebote()?.invalida ? 'unsubscribe' : correoConfirmado() ? 'mark_email_read' : 'mail' }}</mat-icon>
                                 </span>
                                 <span class="bio-txt">
                                   <strong>Correo</strong>
@@ -679,6 +784,12 @@
                                   <small class="bio-estado">
                                     {{ correoConfirmado() ? 'Comprobado' : 'Sin comprobar' }}
                                   </small>
+                                  @if (textoRebote(); as aviso) {
+                                    <small class="bio-aviso-rebote" [class.leve]="!correoRebote()?.invalida"
+                                           [attr.title]="correoRebote()?.ultimo_detalle || null">
+                                      <mat-icon>error</mat-icon>{{ aviso }}
+                                    </small>
+                                  }
                                 </span>
                                 <button type="button" class="bio-btn"
                                         [disabled]="!correoDe()"
@@ -758,7 +869,11 @@
                                       <!-- La imagen va por el gateway con token: tarda un
                                            instante en llegar. Sin este hueco la tarjeta
                                            parpadeaba de vacía a llena. -->
-                                      <div class="huella-cargando">Cargando huella…</div>
+                                      @if (huellaGuardadaFallida('apoyo-laboral')) {
+                                        <div class="huella-cargando">No se pudo cargar la imagen. Recarga la página.</div>
+                                      } @else {
+                                        <div class="huella-cargando">Cargando huella…</div>
+                                      }
                                     }
                                     <button type="button" class="huella-quitar" (click)="borrarHuella('apoyo-laboral')"
                                             title="Quitar la huella del expediente"
@@ -770,6 +885,9 @@
                                     <mat-icon style="font-size:16px;width:16px;height:16px;vertical-align:middle">verified</mat-icon>
                                     Huella guardada en el expediente. Captura de nuevo solo si quieres reemplazarla.
                                   </p>
+                                }
+                                @if (fingerprintImageApoyo || tieneHuellaGuardada('apoyo-laboral')) {
+                                  <ng-container *ngTemplateOutlet="cotejoCedulaTpl; context: { $implicit: 'apoyo-laboral', color: 'primary' }"></ng-container>
                                 }
                                 @if (fingerprintImageApoyo) {
                                   <button mat-stroked-button color="primary" class="view-docs-btn"
@@ -827,7 +945,11 @@
                                     @if (huellaGuardadaDe('tu-alianza'); as guardada) {
                                       <img [src]="guardada" alt="Huella guardada en el expediente">
                                     } @else {
-                                      <div class="huella-cargando">Cargando huella…</div>
+                                      @if (huellaGuardadaFallida('tu-alianza')) {
+                                        <div class="huella-cargando">No se pudo cargar la imagen. Recarga la página.</div>
+                                      } @else {
+                                        <div class="huella-cargando">Cargando huella…</div>
+                                      }
                                     }
                                     <button type="button" class="huella-quitar" (click)="borrarHuella('tu-alianza')"
                                             title="Quitar la huella del expediente"
@@ -840,6 +962,9 @@
                                     Huella guardada en el expediente. Captura de nuevo solo si quieres reemplazarla.
                                   </p>
                                 }
+                                @if (fingerprintImageTuAlianza || tieneHuellaGuardada('tu-alianza')) {
+                                  <ng-container *ngTemplateOutlet="cotejoCedulaTpl; context: { $implicit: 'tu-alianza', color: 'accent' }"></ng-container>
+                                }
                                 @if (fingerprintImageTuAlianza) {
                                   <button mat-stroked-button color="accent" class="view-docs-btn"
                                     (click)="generarPreviewsHuella('tu-alianza')">
@@ -849,6 +974,62 @@
                               </mat-card-content>
                               </mat-card>
                             </div>
+                          </ng-template>
+                          <!-- Cotejo huella del lector ↔ huella impresa en la cédula. Solo informa:
+                               un resultado bajo suele ser la fotocopia (o se capturó otro dedo). -->
+                          <ng-template #cotejoCedulaTpl let-slug let-color="color">
+                            <!-- Sin referencia (ni cédula con huella ni huella de una contratación
+                                 anterior) el backend responde mostrar=false: no se pinta nada. -->
+                            @if (!cotejoOculto(slug)) {
+                            <div class="cotejo-cedula" [attr.data-resultado]="cotejoDe(slug)?.resultado ?? 'PENDIENTE'">
+                              @if (estaCotejando(slug)) {
+                                <p class="cotejo-cedula__estado">
+                                  <mat-icon>hourglass_top</mat-icon> Cotejando la huella…
+                                </p>
+                              } @else if (estaCargandoCotejo(slug)) {
+                                <p class="cotejo-cedula__estado">
+                                  <mat-icon>hourglass_empty</mat-icon> Cargando el cotejo…
+                                </p>
+                              } @else if (cotejoDe(slug); as c) {
+                                @if (cotejoDesactualizado(slug)) {
+                                  <p class="cotejo-cedula__aviso"><mat-icon>update</mat-icon> Hay datos nuevos, vuelve a cotejar.</p>
+                                }
+                                <p class="cotejo-cedula__estado">
+                                  <mat-icon>{{ c.coincide ? 'verified_user' : (c.resultado === 'NO_CONFIRMADO' ? 'help' : 'info') }}</mat-icon>
+                                  <span>
+                                    <strong>{{ c.origen_referencia === 'HUELLA_ANTERIOR' ? 'Cotejo con una contratación anterior:' : 'Cotejo con la cédula:' }}</strong> {{ c.mensaje }}
+                                    @if (c.puntaje !== null) {
+                                      <span class="cotejo-cedula__puntaje">Puntaje {{ c.puntaje }} (coincide desde {{ c.umbral }}).</span>
+                                    }
+                                  </span>
+                                </p>
+                                @if (imagenReferencia(c); as ref) {
+                                  <div class="cotejo-cedula__par">
+                                    <figure>
+                                      <img [src]="ref" [alt]="rotuloReferencia(c)">
+                                      <figcaption>{{ rotuloReferencia(c) }}</figcaption>
+                                    </figure>
+                                    @if (huellaParaCotejo(slug); as lector) {
+                                      <figure>
+                                        <img [src]="lector" alt="Huella capturada">
+                                        <figcaption>Capturada</figcaption>
+                                      </figure>
+                                    }
+                                  </div>
+                                }
+                                <button mat-button [color]="color" type="button" (click)="cotejarHuella(slug)">
+                                  <mat-icon>compare</mat-icon> Volver a cotejar
+                                </button>
+                              } @else {
+                                @if (cotejoDesactualizado(slug)) {
+                                  <p class="cotejo-cedula__aviso"><mat-icon>update</mat-icon> Hay datos nuevos, vuelve a cotejar.</p>
+                                }
+                                <button mat-button [color]="color" type="button" (click)="cotejarHuella(slug)">
+                                  <mat-icon>compare</mat-icon> Cotejar huella
+                                </button>
+                              }
+                            </div>
+                            }
                           </ng-template>
                           </mat-tab>
 

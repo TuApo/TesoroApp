@@ -1,0 +1,116 @@
+.juegos { max-width: 960px; }
+.torneo-esq { height: 420px; border-radius: 28px; }
+.fila-esq { height: 140px; border-radius: 20px; }
+
+/* ── Torneo ──────────────────────────────────────────────────────────── */
+.torneo {
+  position: relative; overflow: hidden; border-radius: 28px; padding: 20px 18px 18px; color: #fff;
+  display: flex; flex-direction: column; gap: 14px;
+  background: radial-gradient(130% 90% at 50% 0%, #0E9F6E 0%, #065F46 55%, #022C22 100%);
+  box-shadow: 0 18px 40px rgba(2, 6, 23, .2);
+}
+.torneo.halloween { background: radial-gradient(130% 90% at 50% 0%, #EA580C 0%, #6B21A8 55%, #1B0A36 100%); }
+.t-cabeza { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.t-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: #FDE047; color: #422006; font-weight: 900; font-size: 12.5px; }
+.t-chip mat-icon, .t-reloj mat-icon { font-size: 17px; width: 17px; height: 17px; }
+.t-reloj { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; opacity: .95; }
+.t-reloj b { font-variant-numeric: tabular-nums; }
+.t-juego { display: flex; align-items: center; gap: 12px; }
+.t-icono { flex: none; width: 58px; height: 58px; border-radius: 18px; display: grid; place-items: center; background: rgba(255, 255, 255, .16); }
+.t-icono mat-icon { font-size: 34px; width: 34px; height: 34px; }
+.t-juego h1 { margin: 0; font-size: clamp(22px, 6vw, 30px); font-weight: 900; letter-spacing: -.02em; }
+.t-juego p { margin: 2px 0 0; font-size: 13px; opacity: .88; line-height: 1.35; }
+
+.pozo { border-radius: 20px; padding: 14px; background: rgba(0, 0, 0, .22); display: flex; flex-direction: column; gap: 10px; }
+.pozo-premios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pozo-premios span { display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 16px; background: rgba(255, 255, 255, .1); }
+.pozo-premios i { font-style: normal; font-size: 26px; line-height: 1; }
+.pozo-premios b { font-size: 26px; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.pozo-premios small { font-size: 11px; opacity: .8; font-weight: 700; }
+.pozo-barra .barra { height: 10px; border-radius: 999px; background: rgba(255, 255, 255, .18); overflow: hidden; }
+.pozo-barra .barra i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #FDE047, #F97316); transition: width .6s ease; }
+.pozo-barra p { margin: 6px 0 0; font-size: 13px; line-height: 1.4; }
+.pozo-equivale { margin: 0; font-size: 12px; opacity: .85; text-align: center; }
+
+.podio { display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 8px; margin-top: 4px; }
+.escalon { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; min-width: 0; }
+.avatar { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 20px;
+  background: #fff; color: #065F46; border: 3px solid #FDE047; box-shadow: 0 6px 14px rgba(0, 0, 0, .25); }
+.escalon.p1 .avatar { width: 60px; height: 60px; font-size: 24px; }
+.avatar.vacio { background: rgba(255, 255, 255, .15); color: #fff; border-style: dashed; }
+.escalon.yo .avatar { border-color: #F97316; }
+.p-nombre { font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.escalon small { font-size: 11.5px; opacity: .85; }
+.bloque { width: 100%; margin-top: 6px; border-radius: 14px 14px 6px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .28), rgba(255, 255, 255, .1)); }
+.bloque i { font-style: normal; font-size: 26px; }
+.bloque small { font-weight: 900; color: #FDE047; opacity: 1; }
+.p1 .bloque { height: 96px; } .p2 .bloque { height: 74px; } .p3 .bloque { height: 58px; }
+.mi-puesto { margin: 0; text-align: center; font-size: 14px; }
+.torneo .jugar { min-height: 54px; font-size: 17px; background: #FDE047; color: #422006; border: 0; }
+.torneo .jugar mat-icon { font-size: 26px; width: 26px; height: 26px; }
+
+/* ── Ruleta ──────────────────────────────────────────────────────────── */
+.ruleta-tarjeta {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 !important; padding: 14px 16px; border-radius: 22px; border: 0; cursor: pointer;
+  text-align: left; font: inherit; color: #fff; background: linear-gradient(120deg, #6D28D9, #DB2777);
+  box-shadow: 0 12px 28px rgba(109, 40, 217, .25);
+}
+.r-rueda { font-size: 38px; animation: girito 6s linear infinite; }
+.r-texto { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.r-texto b { font-size: 17px; }
+.r-texto small { font-size: 12.5px; opacity: .9; }
+.r-cta { flex: none; padding: 8px 16px; border-radius: 999px; background: #FDE047; color: #3B0D6B; font-weight: 900; }
+@keyframes girito { to { rotate: 360deg; } }
+
+/* ── Más juegos ──────────────────────────────────────────────────────── */
+.juegos-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.juego { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--border); }
+.j-icono { flex: none; width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #7C3AED, #312E81); }
+.juego.j-precio .j-icono { background: linear-gradient(135deg, #0284C7, #0C4A6E); }
+.juego.j-atrapa .j-icono { background: linear-gradient(135deg, #0E9F6E, #065F46); }
+.j-icono mat-icon { font-size: 30px; width: 30px; height: 30px; }
+.j-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.j-texto > b { font-size: 16px; }
+.j-texto > small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.j-marcas { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.j-marcas b { color: var(--text); }
+.j-acciones { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.j-acciones .eco-btn { min-height: 42px; padding: 0 14px; }
+
+/* ── Ranking ─────────────────────────────────────────────────────────── */
+.pestanas { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.pestanas::-webkit-scrollbar { display: none; }
+.t-mini { font-style: normal; }
+.tabla { list-style: none; margin: 0; padding: 0; border-radius: 18px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); }
+.tabla li { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.tabla li:first-child { border-top: 0; }
+.tabla li.podio { background: color-mix(in srgb, #FDE047 10%, var(--surface)); }
+.tabla li.yo { background: var(--eco-soft); font-weight: 800; }
+.pos { width: 36px; text-align: center; font-weight: 900; color: var(--muted); }
+.podio .pos { font-size: 20px; }
+.nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pun { font-weight: 900; font-variant-numeric: tabular-nums; }
+.fuera, .record, .vacio { margin: 0; font-size: 13.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.record mat-icon { color: #CA8A04; }
+
+/* ── Podios y salón de la fama ───────────────────────────────────────── */
+.mis-podios { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; }
+.mi-podio { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 16px; background: #FEF3C7; color: #78350F; }
+.mi-podio i { font-style: normal; font-size: 26px; }
+.mi-podio span { display: flex; flex-direction: column; }
+.mi-podio small { font-size: 11.5px; }
+.salon { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.semana { padding: 12px 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+.semana header { display: flex; flex-direction: column; margin-bottom: 4px; }
+.semana header small { color: var(--muted); font-size: 12px; }
+.semana p { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.semana p i { font-style: normal; }
+.semana p span { margin-left: auto; color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  .torneo { border-radius: 24px; padding: 18px 14px 16px; }
+  .juego { flex-wrap: wrap; }
+  .j-acciones { flex-direction: row; width: 100%; justify-content: space-between; }
+}
+@media (prefers-reduced-motion: reduce) { .r-rueda { animation: none; } }

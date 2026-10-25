@@ -1,0 +1,179 @@
+@if (cargando() && !detalle()) {
+  <div class="kbd-cargando"><mat-progress-spinner mode="indeterminate" diameter="36"></mat-progress-spinner></div>
+} @else if (doc(); as d) {
+  <div class="kbd">
+
+    @if (error()) {
+      <div class="kbd-error">
+        <mat-icon>error_outline</mat-icon> {{ error() }}
+        <button mat-icon-button (click)="error.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+      </div>
+    }
+
+    <!-- ── Cabecera ───────────────────────────────────────────────────── -->
+    <section class="kbd-cabecera">
+      <div class="kbd-titulo">
+        @if (editandoNombre()) {
+          <input class="kbd-nombre-input" [ngModel]="nombreEdit()" (ngModelChange)="nombreEdit.set($event)"
+                 (keydown.enter)="guardarNombre()" (keydown.escape)="editandoNombre.set(false)" (blur)="guardarNombre()"
+                 aria-label="Nombre de la base">
+        } @else {
+          <h3 (dblclick)="empezarRenombrar()">{{ d.nombre }}</h3>
+          <button mat-icon-button matTooltip="Renombrar" (click)="empezarRenombrar()" aria-label="Renombrar">
+            <mat-icon>edit</mat-icon>
+          </button>
+        }
+      </div>
+
+      <div class="kbd-estado" [class]="'kbd-estado est-' + (d.estado ?? 'LISTO')">
+        @switch (d.estado) {
+          @case ('PROCESANDO') {
+            <mat-progress-spinner mode="indeterminate" diameter="14"></mat-progress-spinner>
+            <span>{{ d.estadoDetalle || 'Procesando…' }}</span>
+          }
+          @case ('ERROR') { <mat-icon>error</mat-icon><span>{{ d.estadoDetalle || 'Falló el procesamiento' }}</span> }
+          @default {
+            <mat-icon>check_circle</mat-icon><span>Lista para la IA</span>
+            @if (d.estadoDetalle) { <span class="kbd-aviso" [matTooltip]="d.estadoDetalle">· {{ d.estadoDetalle }}</span> }
+          }
+        }
+      </div>
+
+      @if (d.resumen) {
+        <p class="kbd-resumen">{{ d.resumen }}</p>
+      }
+
+      <dl class="kbd-ficha">
+        <div><dt>Origen</dt><dd>{{ etiquetaOrigen(d.origen) }}</dd></div>
+        <div><dt>Texto con</dt><dd>
+          @if (d.motor === 'docling') { <span class="kbd-pill pill-ok"><mat-icon>auto_awesome</mat-icon>Docling</span> }
+          @else { {{ etiquetaMotor(d.motor) }} }
+        </dd></div>
+        @if (d.archivoNombre) { <div><dt>Archivo</dt><dd [matTooltip]="d.archivoNombre">{{ d.archivoNombre }} · {{ bytes(d.archivoBytes) }}</dd></div> }
+        @if (d.paginas) { <div><dt>Páginas</dt><dd>{{ d.paginas }}</dd></div> }
+        <div><dt>Texto</dt><dd>{{ bytes(d.longitud) }}</dd></div>
+        <div><dt>Fragmentos</dt><dd>{{ d.fragmentos ?? 0 | number }}</dd></div>
+        <div><dt>Conceptos</dt><dd>{{ detalle()?.conceptos?.length ?? 0 }}</dd></div>
+        <div><dt>Búsqueda</dt><dd>
+          @if (d.vectorizado) { <span class="kbd-pill pill-ok" matTooltip="Por palabras y por significado (qdrant)">Palabras + significado</span> }
+          @else { <span class="kbd-pill" matTooltip="Solo por palabras (FULLTEXT). Reprocesa para vectorizarla.">Solo palabras</span> }
+        </dd></div>
+        <div><dt>Creada</dt><dd>{{ d.createdAt | date: 'dd/MM/yyyy HH:mm' }}</dd></div>
+      </dl>
+
+      <div class="kbd-modulos">
+        <span class="kbd-label">La usa la IA de:</span>
+        <div class="kbd-chips">
+          @for (m of modulos(); track m.clave) {
+            <button type="button" class="kbd-chip" [class.on]="moduloActivo(m.clave)" [disabled]="procesando()"
+                    (click)="toggleModulo(m.clave)" [attr.aria-pressed]="moduloActivo(m.clave)"
+                    [matTooltip]="m.chat ? 'Su chat de IA consulta esta base' : 'Parte de la base sin chat propio'">
+              <mat-icon>{{ moduloActivo(m.clave) ? 'check' : m.icono }}</mat-icon>{{ m.nombre }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="kbd-acciones">
+        @if (d.origen === 'fuente') {
+          <span class="kbd-pill" matTooltip="Se rehace sola desde su fuente: edítala en la pestaña Fuentes externas">
+            <mat-icon>travel_explore</mat-icon> Mantenida por una fuente externa</span>
+        } @else {
+          <button mat-stroked-button (click)="seguirConstruyendo()" [disabled]="procesando()">
+            <mat-icon>forum</mat-icon> Seguir construyendo con IA
+          </button>
+        }
+        <button mat-stroked-button (click)="reprocesar()" [disabled]="procesando() || ocupado()"
+                matTooltip="Rehace fragmentos, vectores y red semántica">
+          <mat-icon>autorenew</mat-icon> Reprocesar
+        </button>
+        <span class="kbd-espacio"></span>
+        <button mat-button color="warn" (click)="eliminar()"><mat-icon>delete</mat-icon> Eliminar</button>
+      </div>
+    </section>
+
+    <!-- ── Vistas ─────────────────────────────────────────────────────── -->
+    <mat-button-toggle-group class="kbd-vistas" [value]="vista()" (change)="cambiarVista($event.value)" aria-label="Vista de la base">
+      <mat-button-toggle value="red"><mat-icon>hub</mat-icon> Red semántica</mat-button-toggle>
+      <mat-button-toggle value="contenido"><mat-icon>article</mat-icon> Contenido</mat-button-toggle>
+      <mat-button-toggle value="fragmentos"><mat-icon>view_agenda</mat-icon> Fragmentos</mat-button-toggle>
+      <mat-button-toggle value="conceptos"><mat-icon>label</mat-icon> Conceptos</mat-button-toggle>
+    </mat-button-toggle-group>
+
+    @switch (vista()) {
+      @case ('red') {
+        <section class="kbd-panel">
+          <p class="kbd-ayuda">
+            La base al centro, sus secciones (rombos) y los conceptos que trata. En lila, otras bases que
+            comparten conceptos con esta: así se integra con el resto. Clic en una sección para ver sus fragmentos;
+            en una base relacionada para abrirla.
+          </p>
+          <app-grafo-kb [grafo]="grafo()" [alto]="540" [nombresModulo]="nombresModulo()" (nodo)="alClicNodo($event)"
+                        [mensajeVacio]="procesando() ? 'La red aparece cuando termine el procesamiento.' : 'Sin red todavía: usa «Reprocesar» para extraer los conceptos.'" />
+        </section>
+      }
+      @case ('contenido') {
+        <section class="kbd-panel">
+          <p class="kbd-ayuda">Así quedó el documento después de {{ d.motor === 'docling' ? 'Docling' : 'la extracción' }}: este es el texto que lee la IA.</p>
+          @if (detalle()?.contenido) {
+            <div class="kbd-md" [innerHTML]="html()"></div>
+          } @else {
+            <p class="kbd-vacio">Aún no hay texto.</p>
+          }
+        </section>
+      }
+      @case ('fragmentos') {
+        <section class="kbd-panel">
+          <div class="kbd-filtro">
+            <mat-icon>search</mat-icon>
+            <input placeholder="Filtrar fragmentos por texto o sección" [ngModel]="filtroFrag()" (ngModelChange)="filtroFrag.set($event)">
+            @if (filtroFrag()) { <button mat-icon-button (click)="filtroFrag.set('')" aria-label="Limpiar"><mat-icon>close</mat-icon></button> }
+          </div>
+          @if (fragmentos() === null) {
+            <div class="kbd-cargando"><mat-progress-spinner mode="indeterminate" diameter="28"></mat-progress-spinner></div>
+          } @else {
+            <p class="kbd-ayuda">{{ fragmentosFiltrados().length }} de {{ fragmentos()!.length }} fragmentos. Cada uno es lo que el buscador le entrega a la IA.</p>
+            <ol class="kbd-frags">
+              @for (f of fragmentosFiltrados(); track f.id) {
+                <li>
+                  <div class="kbd-frag-cab"><span class="kbd-frag-n">#{{ f.posicion + 1 }}</span>{{ f.seccion || 'Sin sección' }}</div>
+                  <pre>{{ f.contenido }}</pre>
+                </li>
+              }
+            </ol>
+          }
+        </section>
+      }
+      @case ('conceptos') {
+        <section class="kbd-panel">
+          @if ((detalle()?.conceptos?.length ?? 0) === 0) {
+            <p class="kbd-vacio">Sin conceptos extraídos. «Reprocesar» los saca con la IA.</p>
+          } @else {
+            <div class="kbd-grupos">
+              @for (g of conceptosPorTipo(); track g.tipo) {
+                <div class="kbd-grupo">
+                  <h4><span class="kbd-punto" [style.background]="g.color"></span>{{ g.nombre }} <small>{{ g.items.length }}</small></h4>
+                  <ul>
+                    @for (c of g.items; track c.clave) {
+                      <li><b>{{ c.nombre }}</b><span class="kbd-peso">{{ '●'.repeat(c.peso) }}</span>
+                        @if (c.descripcion) { <p>{{ c.descripcion }}</p> }
+                      </li>
+                    }
+                  </ul>
+                </div>
+              }
+            </div>
+            @if (detalle()!.relaciones.length) {
+              <h4 class="kbd-subt">Relaciones</h4>
+              <ul class="kbd-rels">
+                @for (r of detalle()!.relaciones; track $index) {
+                  <li>{{ nombreConcepto().get(r.origen) ?? r.origen }} <em>{{ r.tipo }}</em> {{ nombreConcepto().get(r.destino) ?? r.destino }}</li>
+                }
+              </ul>
+            }
+          }
+        </section>
+      }
+    }
+  </div>
+}

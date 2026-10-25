@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
+  DoCheck,
   Component,
   EventEmitter,
   Input,
@@ -56,7 +57,7 @@ interface Fragmento {
   templateUrl: './smart-select.component.html',
   styleUrl: './smart-select.component.css',
 })
-export class SmartSelectComponent implements ControlValueAccessor {
+export class SmartSelectComponent implements ControlValueAccessor, DoCheck {
   @Input() label = '';
   @Input() opciones: readonly any[] = [];
   @Input() multiple = false;
@@ -110,6 +111,21 @@ export class SmartSelectComponent implements ControlValueAccessor {
     // puede LEER el control (errores, touched) y pintar el mensaje él mismo, en
     // vez de obligar a repetir el `mat-error` en cada sitio donde se usa.
     if (this.ngControl) this.ngControl.valueAccessor = this;
+  }
+
+  /**
+   * El componente es OnPush y `markAllAsTouched()` del formulario padre no le avisa:
+   * al pulsar Guardar con el campo vacío no se pintaba nada. El padre sí llama a
+   * `ngDoCheck` en cada ciclo, así que aquí se detecta el cambio de estado y se
+   * repinta solo cuando cambia.
+   */
+  private invalidoPrevio = false;
+  ngDoCheck(): void {
+    const ahora = this.invalido;
+    if (ahora !== this.invalidoPrevio) {
+      this.invalidoPrevio = ahora;
+      this.cdr.markForCheck();
+    }
   }
 
   // ── ControlValueAccessor ────────────────────────────────────────────────

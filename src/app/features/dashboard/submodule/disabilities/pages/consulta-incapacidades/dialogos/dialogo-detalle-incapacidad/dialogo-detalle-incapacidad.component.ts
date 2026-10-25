@@ -68,6 +68,13 @@ export interface DatosDialogoDetalle {
   id: number;
   /** Fila del listado: se pinta al instante mientras llega el detalle. */
   resumen?: IncapacidadResumenExtendido;
+  /**
+   * Reunion 2026-10-20: nivel 4 = "solo consulta". Ve y descarga, pero no edita, valida ni
+   * elimina. Sin el campo, como siempre.
+   */
+  soloLectura?: boolean;
+  /** Reunion 2026-10-20: los niveles 1 y 4 no radican (eso es del modulo Radicacion). */
+  sinRadicacion?: boolean;
 }
 
 /** Lo que devuelve al cerrarse (la pagina ejecuta la accion). */
@@ -190,6 +197,8 @@ const DONDES_RESPALDO: { codigo: DondeRadicado; etiqueta: string }[] = [
  */
 @Component({
   selector: 'app-dialogo-detalle-incapacidad',
+  // Ancla de la guia de Consulta: el recorrido resalta el dialogo entero y lo cierra con .det-cerrar.
+  host: { 'data-guia': 'detalle' },
   standalone: true,
   imports: [
     MatDialogModule,
@@ -595,10 +604,14 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
     () => this.detalle()?.estado ?? this.datos.resumen?.estado ?? '',
   );
 
-  /** La seccion solo aplica desde VALIDADA en adelante (o si ya hay archivos). */
+  /**
+   * La seccion aplica desde RECIBIDA (respuesta 1 de la funcional 2026-10-07: se puede radicar sin
+   * validar) en adelante, o si ya hay archivos.
+   */
   readonly muestraRadicacion = computed(() => {
     const e = this.estadoActual();
     return (
+      e === 'RECIBIDA' ||
       e === 'VALIDADA' ||
       e === 'PENDIENTE_RADICACION' ||
       e === 'RADICADA' ||
@@ -607,11 +620,16 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
     );
   });
 
+  /** El paquete de PDF sigue saliendo solo de VALIDADA (pasar a pendiente no cambio). */
   readonly puedePasarAPendiente = computed(() => this.estadoActual() === 'VALIDADA');
 
+  /**
+   * RECIBIDA tambien: ms-hr la deja RADICADA e intenta generar el paquete si aun no existe (si
+   * faltan soportes queda radicada sin paquete; el aviso de la seccion lo explica).
+   */
   readonly puedeRadicar = computed(() => {
     const e = this.estadoActual();
-    return e === 'VALIDADA' || e === 'PENDIENTE_RADICACION' || e === 'RADICADA';
+    return e === 'RECIBIDA' || e === 'VALIDADA' || e === 'PENDIENTE_RADICACION' || e === 'RADICADA';
   });
 
   readonly yaRadicada = computed(() => !!this.radicacion()?.numeroRadicado);
@@ -821,6 +839,14 @@ export class DialogoDetalleIncapacidadComponent implements OnInit, OnDestroy {
     return [fecha ? `Respuesta del ${fecha}` : '', this.accionNegacion(n)]
       .filter((x) => !!x && x !== VACIO)
       .join(' · ');
+  }
+
+  /**
+   * Causal que mando la EPS para los dias que no reconocio en ese pago (V64_2). Vacio si no la trajo
+   * (o si ms-hr aun no la envia): la fila no pinta la linea.
+   */
+  causalPago(p: PagoItem): string {
+    return (p.causalTexto ?? '').trim();
   }
 
   /** Causal homologada si la hay; si no, el texto que mando la EPS. */

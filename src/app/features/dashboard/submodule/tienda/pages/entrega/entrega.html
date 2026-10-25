@@ -41,9 +41,12 @@
   <form class="buscador tienda-tarjeta" (ngSubmit)="buscar()">
     <label class="campo crecer">
       <span>Cédula de quien reclama</span>
-      <input type="text" inputmode="numeric" autocomplete="off" autofocus
-             placeholder="Número de la cédula o de la fotocopia"
-             [ngModel]="cedula()" (ngModelChange)="cedula.set($event)" name="cedula" />
+      <span class="con-escaner">
+        <input type="text" inputmode="numeric" autocomplete="off" autofocus
+               placeholder="Número de la cédula o de la fotocopia"
+               [ngModel]="cedula()" (ngModelChange)="cedula.set($event)" name="cedula" />
+        <app-escaner-codigo titulo="Leer el código de la cédula" (leido)="cedulaLeida($event)" />
+      </span>
     </label>
     <button type="submit" class="boton principal" [disabled]="buscando() || !cedula().trim()">
       {{ buscando() ? 'Buscando…' : 'Buscar' }}
@@ -164,6 +167,37 @@
         @if (seleccionado(); as p) {
           <section class="tienda-tarjeta decision">
             <h2><mat-icon>fact_check</mat-icon> Decisión sobre {{ p.numero }}</h2>
+
+            <div class="rostro">
+              @if (!rostroAbierto()) {
+                <button type="button" class="boton principal" (click)="rostroAbierto.set(true)">
+                  <mat-icon>face_retouching_natural</mat-icon> Verificar con rostro (recomendado)
+                </button>
+                <span class="nota">Compara la cara de {{ p.tercero ? p.tercero.nombre : 'la persona' }} con
+                  {{ p.tercero ? 'la foto que registró el titular' : 'su foto de contratación' }}. Si no autoriza, use la cédula abajo.</span>
+              } @else {
+                <div class="texto-legal">{{ p.tercero ? TEXTO_TERCERO : TEXTO_TITULAR }}</div>
+                <label class="check">
+                  <input type="checkbox" [checked]="aceptaRostro()" (change)="aceptaRostro.set($any($event.target).checked)" />
+                  La persona leyó (o se le leyó) la autorización y la acepta.
+                </label>
+                @if (aceptaRostro()) {
+                  @if (verificandoRostro()) {
+                    <p class="nota"><mat-icon>hourglass_top</mat-icon> Comparando…</p>
+                  } @else {
+                    <eco-captura-rostro [frontal]="false" [conVivacidad]="true" [permitirArchivo]="true" (capturado)="verificarRostro($event)" />
+                  }
+                }
+                @if (resultadoRostro(); as r) {
+                  @if (!r.aprueba) {
+                    <p class="tienda-error"><mat-icon>error</mat-icon>
+                      <span>{{ r.resultado === 'DUDOSA' ? 'No hay certeza de que sea la misma persona.' : 'No coincide con la foto de referencia.' }}
+                        Repita la foto o verifique con la cédula y, si duda, márquelo como «Parece falso».</span></p>
+                  }
+                }
+                <button type="button" class="boton secundario" (click)="rostroAbierto.set(false)">Cerrar</button>
+              }
+            </div>
 
             <label class="campo">
               <span>¿Qué le presentaron?</span>

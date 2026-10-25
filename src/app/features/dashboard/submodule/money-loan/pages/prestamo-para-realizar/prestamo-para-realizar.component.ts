@@ -1,9 +1,10 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 import { HistorialService } from '../../../history/service/historial/historial.service';
@@ -28,6 +29,8 @@ export class PrestamoParaRealizarComponent implements OnInit {
 
   user: any;
   rolUsuario: string = '';
+
+  private sedeScope = inject(SedeScopeService);
 
   constructor(
     private fb: FormBuilder,
@@ -187,6 +190,11 @@ export class PrestamoParaRealizarComponent implements OnInit {
 
     if (!confirmar.isConfirmed) return;
 
+    // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) se elige la oficina a la que
+    // pertenece el registro, para que no quede etiquetado con esa sede.
+    const oficina = await this.sedeScope.oficinaParaRegistrar({ que: 'de este préstamo' });
+    if (!oficina && this.sedeScope.trabajaDesdeTransversal()) return;
+
     Swal.fire({
       title: 'Procesando...', icon: 'info', text: 'Generando el préstamo...',
       allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
@@ -195,7 +203,7 @@ export class PrestamoParaRealizarComponent implements OnInit {
 
     try {
       const userName = `${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`;
-      const sedeAutorizacion = this.user?.sede?.nombre || '';
+      const sedeAutorizacion = oficina || '';
       const doc = this.datosOperario.numero_documento;
 
       // 1. Autorizar (crea transacción PENDIENTE)

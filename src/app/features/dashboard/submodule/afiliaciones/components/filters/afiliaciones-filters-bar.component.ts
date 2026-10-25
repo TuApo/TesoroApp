@@ -35,7 +35,7 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
       <mat-card-content class="filters-content">
         <div class="filters-group">
           <mat-icon class="filters-icon">assignment</mat-icon>
-          <span class="filters-title">Consolidado Contrataci\u00f3n 2.0</span>
+          <span class="filters-title">{{ titulo }}</span>
         </div>
 
         <div class="filters-actions">
@@ -43,8 +43,8 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
             <mat-label>Filtrar por</mat-label>
             <mat-select [(ngModel)]="baseSel" name="base"
                         (selectionChange)="onBaseChange($event.value)">
-              <mat-option value="firma">Fecha de firma de contrato</mat-option>
               <mat-option value="ingreso">Fecha de ingreso</mat-option>
+              <mat-option value="firma">Fecha de firma de contrato</mat-option>
               <mat-option value="registro">Fecha de registro</mat-option>
             </mat-select>
           </mat-form-field>
@@ -54,6 +54,7 @@ import { BaseFecha } from '../../services/afiliaciones-dashboard.service';
             <button mat-stroked-button color="primary" [class.active-range]="activeRange === 'ayer'" (click)="setRange('ayer')">Ayer</button>
             <button mat-stroked-button color="primary" [class.active-range]="activeRange === 'semana'" (click)="setRange('semana')">Esta Semana</button>
             <button mat-stroked-button color="primary" [class.active-range]="activeRange === 'estemes'" (click)="setRange('estemes')">Este Mes</button>
+            <button mat-stroked-button color="primary" [class.active-range]="activeRange === '30dias'" (click)="setRange('30dias')">Últimos 30 días</button>
           </div>
 
           <form class="date-range-form" #f="ngForm" (ngSubmit)="applyCustomRange()">
@@ -268,6 +269,19 @@ export class AfiliacionesFiltersBarComponent implements OnInit {
   /** Vacío = el selector de empresa usuaria no se muestra. */
   @Input() empresasUsuarias: EmpresaUsuariaOpcion[] = [];
 
+  /** Título de la tarjeta: cada pantalla que reusa la barra dice lo que es. */
+  @Input() titulo = 'Consolidado Contratación 2.0';
+  /**
+   * Rango con el que arranca. Confirmación de ingresos parte de los últimos 30 días: a
+   * principio de mes «Este Mes» deja fuera a quien ingresó la semana pasada y sigue pendiente.
+   */
+  @Input() rangoInicial: 'hoy' | 'ayer' | 'semana' | 'estemes' | '30dias' = 'estemes';
+  /**
+   * Base de fecha que tiene el servicio de la pantalla. Sin esto el selector mostraba
+   * «firma» mientras el servicio filtraba por ingreso.
+   */
+  @Input() set base(v: BaseFecha | null | undefined) { if (v) this.baseSel = v; }
+
   activeRange = 'estemes';
   customStart: Date | null = null;
   customEnd: Date | null = null;
@@ -281,7 +295,7 @@ export class AfiliacionesFiltersBarComponent implements OnInit {
 
   ngOnInit() {
     // Arranca en "Este Mes" para que las gráficas temporales tengan varios días.
-    this.setRange('estemes');
+    this.setRange(this.rangoInicial);
   }
 
   setRange(type: string) {
@@ -298,6 +312,9 @@ export class AfiliacionesFiltersBarComponent implements OnInit {
       end = today.clone().subtract(1, 'days').endOf('day').toDate();
     } else if (type === 'semana') {
       start = today.clone().startOf('isoWeek').toDate();
+      end = moment().endOf('day').toDate();
+    } else if (type === '30dias') {
+      start = today.clone().subtract(29, 'days').toDate();
       end = moment().endOf('day').toDate();
     } else if (type === 'estemes') {
       start = today.clone().startOf('month').toDate();

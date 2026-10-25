@@ -59,8 +59,15 @@ export const DOCUMENTOS_PAQUETE: readonly string[] = [
   'Carnet',
   // Plantillas HTML de Apoyo sin generador propio: se diligencian desde Documentos
   'Autorización Derechos de Imagen',
-  'Ficha Afiliación S.S.',
   'Referenciación Trabajador en Misión',
+  // Entrega de documentos de Apoyo (AL CO-RE-6): mismo tipo 27 que las "Inducción ..." de Tu Alianza.
+  'Entrega de Documentos y Autorizaciones',
+  // Cláusula de foráneos de Apoyo: mismo tipo 105 que el "Auxilio Alimentación" del generador.
+  'Auxilio Extralegal de Alimentación y Hospedaje',
+  // Condiciones del programa de foráneos de Apoyo (A4, plantilla propia).
+  'Programa Foráneos',
+  // Cláusula adicional al contrato de Apoyo: jornada flexible (plantilla propia).
+  'Cláusula Jornada Flexible',
   // Subir manual: identidad / vinculación
   'Cédula',
   'ARL',
@@ -110,10 +117,15 @@ export const TYPE_ID_POR_TITULO: Readonly<Record<string, number>> = {
   // resubir, aunque el tipo llevaba tiempo creado.
   'Carnet': 102,
   // Tipos creados por ms-documents V19 para las plantillas HTML de Apoyo (códigos
-  // AUTORIZACION_DERECHOS_IMAGEN, FICHA_AFILIACION_SS, REFERENCIACION).
+  // AUTORIZACION_DERECHOS_IMAGEN, REFERENCIACION).
   'Autorización Derechos de Imagen': 245,
-  'Ficha Afiliación S.S.': 246,
   'Referenciación Trabajador en Misión': 243,
+  'Entrega de Documentos y Autorizaciones': 27,
+  'Auxilio Extralegal de Alimentación y Hospedaje': 105,
+  // PROGRAMA_FORANEOS: creado en ms-documents el 2026-09-21 (types/asegurar, el mismo enlace del catálogo).
+  'Programa Foráneos': 247,
+  // CLAUSULA_JORNADA_FLEXIBLE (Apoyo): creado en ms-documents el 2026-10-08 por el enlace del catálogo.
+  'Cláusula Jornada Flexible': 248,
   // Existentes
   'Contrato': 25,
   'Autorización de Datos': 26,
@@ -222,8 +234,42 @@ const SOLO_SUBIR = new Set<string>(DOCUMENTOS_SOLO_SUBIR);
  */
 export const SOLO_PLANTILLA_HTML: ReadonlySet<string> = new Set([
   'Autorización Derechos de Imagen',
-  'Ficha Afiliación S.S.',
   'Referenciación Trabajador en Misión',
+  'Entrega de Documentos y Autorizaciones',
+  'Auxilio Extralegal de Alimentación y Hospedaje',
+  'Programa Foráneos',
+  'Cláusula Jornada Flexible',
+]);
+
+/**
+ * Documentos que SOLO existen como plantilla HTML de Tu Alianza (grupo `alianza` de ms-templates).
+ * Igual que SOLO_PLANTILLA_HTML pero al revés: el generador PDF no sabe hacerlos y no aplican a
+ * vacantes de Apoyo (ms-templates además rechaza llenarlos con una temporal que no sea la suya).
+ */
+export const SOLO_PLANTILLA_HTML_ALIANZA: ReadonlySet<string> = new Set<string>([
+  // Vacío hoy: la Cláusula Jornada Flexible nació aquí y pasó a Apoyo (2026-10-08).
+]);
+
+/**
+ * Títulos cuyo tipo de gestión documental NO existía y se crea al darlo de alta en el catálogo
+ * (enlace automático ms-auth-admin → ms-documents): su id no se conoce de antemano, así que se
+ * toma por CÓDIGO de la resolución documental (`tipo.tipo_documento_ref`).
+ */
+export const CODIGO_POR_TITULO: Readonly<Record<string, string>> = {
+  // Vacío hoy: Programa Foráneos ya tiene id (247). Úsalo para el próximo tipo que nazca en el catálogo.
+};
+
+/**
+ * En Apoyo la Entrega de documentos (tipo 27) es UNA plantilla HTML con su propio título: las
+ * "Inducción ..." son los nombres del mismo tipo en el generador de Tu Alianza y en Apoyo solo
+ * repetirían ese documento once veces.
+ */
+export const SUSTITUIDOS_EN_APOYO: ReadonlySet<string> = new Set([
+  ...Object.entries(TYPE_ID_POR_TITULO)
+    .filter(([titulo, tipo]) => tipo === 27 && titulo !== 'Entrega de Documentos y Autorizaciones')
+    .map(([titulo]) => titulo),
+  // Igual con el tipo 105: en Apoyo es la cláusula "Auxilio Extralegal de Alimentación y Hospedaje".
+  'Auxilio Alimentación',
 ]);
 
 /** ¿Este documento hay que subirlo a mano? */

@@ -1,0 +1,53 @@
+/* Panel de Tarjetas. Se pinta dentro de una pestaña, asi que no lleva marco propio. */
+
+.tp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0 4px;
+}
+
+.tp-barra,
+.tp-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.tp-filtro {
+  min-width: 190px;
+}
+
+.tp-filtro--corto {
+  min-width: 120px;
+  max-width: 140px;
+}
+
+/* Los campos los crea MatFormField en SU plantilla: sin ::ng-deep la regla no los alcanza. */
+:host ::ng-deep .tp-filtros .mat-mdc-form-field-subscript-wrapper {
+  display: none;
+}
+
+.tp-usuario {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.tp-lote {
+  min-width: 0;
+  padding: 0 6px;
+}
+
+.tp-sin-lote {
+  color: rgba(0, 0, 0, .4);
+}
+
+.tp-acciones {
+  display: flex;
+  gap: 2px;
+}

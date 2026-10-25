@@ -1,11 +1,11 @@
 import {
-  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, effect, inject, signal, viewChild
+  Component, ChangeDetectionStrategy, ChangeDetectorRef, OnDestroy, inject, signal
 } from '@angular/core';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
-import { Observable } from 'rxjs';
+import { Observable, firstValueFrom } from 'rxjs';
 
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
@@ -20,9 +20,10 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatMenuModule } from '@angular/material/menu';
 
 import {
-  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent
+  ColumnaTabla, TABLA_ESTANDAR
 } from '../../../../../../shared/components/tabla-estandar';
 import { AfiliacionesFiltersBarComponent } from '../../components/filters/afiliaciones-filters-bar.component';
 import { SelectionModel } from '@angular/cdk/collections';
@@ -30,7 +31,14 @@ import { PegadoMasivoDialogComponent } from '../../components/pegado-masivo/pega
 import { DatosAfiliacionDialogComponent } from '../../components/datos-afiliacion/datos-afiliacion-dialog.component';
 import { AfiliacionesGestionService, BaseFechaGestion } from '../../services/afiliaciones-gestion.service';
 import { AfiliacionPdfService } from '../../services/afiliacion-pdf.service';
+import { etiquetaRegimenAdres, regimenAdresClass } from '../../models/regimen-adres';
 import { PlantillaEpsService } from '../../services/plantilla-eps.service';
+import { DiagnosticoGeneracion, EstadoDocumentoEps } from '../../models/plantilla-eps.models';
+import { TramiteEpsService, EtapaTramite } from '../../services/tramite-eps.service';
+import { TramiteEpsPanelComponent } from '../../components/tramite-eps/tramite-eps-panel.component';
+import {
+  DiagnosticoEpsDialogComponent, DiagnosticoEpsDialogData, DiagnosticoEpsDialogResult
+} from '../../components/diagnostico-eps/diagnostico-eps-dialog.component';
 import {
   ContratacionRow, CasoDetalle, CedulaDoc, MasivoResult, Validador, Canal,
   Expediente, DocumentoExpediente, GrupoDoc
@@ -86,8 +94,8 @@ interface PreviewDoc {
     MatCheckboxModule, MatButtonModule, MatIconModule, MatChipsModule,
     MatTooltipModule, MatSelectModule, MatFormFieldModule, MatInputModule,
     MatSlideToggleModule, MatButtonToggleModule, MatSnackBarModule, MatProgressBarModule,
-    MatDialogModule,
-    AfiliacionesFiltersBarComponent,
+    MatDialogModule, MatMenuModule,
+    AfiliacionesFiltersBarComponent, TramiteEpsPanelComponent,
     ...TABLA_ESTANDAR
   ],
   templateUrl: './confirmacion-ingresos.html',
@@ -97,6 +105,7 @@ export class ConfirmacionIngresos implements OnDestroy {
   private svc = inject(AfiliacionesGestionService);
   private pdf = inject(AfiliacionPdfService);
   private plantillaSvc = inject(PlantillaEpsService);
+  private tramiteSvc = inject(TramiteEpsService);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private sanitizer = inject(DomSanitizer);
@@ -144,17 +153,10 @@ export class ConfirmacionIngresos implements OnDestroy {
   // en tarjetas. El backend pagina y filtra, pero no ordena por columna ni busca por texto
   // desde la tabla (la búsqueda está en la barra de filtros), así que ninguna columna ordena.
 
-  private readonly tabla = viewChild(TablaEstandarComponent);
-  private readonly paginaServicio = toSignal(this.svc.page$);
-
-  /**
-   * En modo servidor la tabla lleva su propio número de página: cuando el servicio vuelve a
-   * la primera (cambio de filtro), se le avisa para que el paginador no se quede atrás.
-   */
-  private readonly sincronizarPagina = effect(() => {
-    const p = this.paginaServicio()?.page ?? 0;
-    this.tabla()?.pagina.set(p);
-  });
+  // La página la sincroniza la propia tabla con el input `paginaServidor` (lo aplica con
+  // `untracked` para no realimentarse). Antes se hacía desde aquí, con un effect que escribía
+  // en el signo interno `pagina` de la tabla en CADA emisión de `page$`: dos dueños para el
+  // mismo estado, y el paginador se quedaba clavado en la primera página.
 
   readonly columnas: ColumnaTabla<ContratacionRow>[] = sinOrden<ContratacionRow>([
     { id: 'numero_documento', header: 'Documento', valor: r => r.numero_documento ?? '',
@@ -169,8 +171,13 @@ export class ConfirmacionIngresos implements OnDestroy {
       formato: r => fechaCorta(r.fecha_firma_contrato), prioridad: 2 },
     { id: 'fecha_ingreso', header: 'Ingreso', valor: r => aFecha(r.fecha_ingreso),
       formato: r => fechaCorta(r.fecha_ingreso) },
+    // EPS del contrato: es la que decide qué formato de afiliación se genera. La de ADRES,
+    // que ya estaba, dice dónde figura la persona HOY y puede no coincidir.
+    { id: 'eps', header: 'EPS', valor: r => r.eps ?? '', formato: r => r.eps || '-', prioridad: 2 },
+    { id: 'afp', header: 'AFP', valor: r => r.afp ?? '', formato: r => r.afp || '-', prioridad: 3 },
     { id: 'adres_eps', header: 'EPS (ADRES)', valor: r => r.adres_eps ?? '', formato: r => r.adres_eps || '-', prioridad: 3 },
     { id: 'adres_estado', header: 'Estado (ADRES)', valor: r => r.adres_estado ?? '', prioridad: 3 },
+    { id: 'adres_regimen', header: 'Régimen (ADRES)', valor: r => etiquetaRegimenAdres(r.adres_regimen), prioridad: 3 },
     { id: 'traslado', header: 'Traslado EPS', prioridad: 3,
       valor: r => (r.resumen?.traslado_codigo ? (r.resumen.traslado_estado || 'Sin estado') : '') },
     { id: 'docs', header: 'Docs', prioridad: 3,
@@ -212,7 +219,113 @@ export class ConfirmacionIngresos implements OnDestroy {
       this.filasEnPantalla = new Map(
         (p.rows || []).filter(r => r.candidato_id != null).map(r => [r.candidato_id!, r]));
       this.repescarSeleccion(p.rows || []);
+      this.refrescarEstadoEps((p.rows || []).map(r => r.id).filter(id => id != null));
     });
+  }
+
+  // ── Estado del documento EPS por fila: rojo / amarillo / verde ─────────
+
+  /** proceso_id → estado. Se pide por página visible y se refresca tras generar. */
+  readonly estadoEps = signal(new Map<number, EstadoDocumentoEps>());
+
+  refrescarEstadoEps(ids: number[]) {
+    if (!ids.length) return;
+    this.plantillaSvc.estadoDocumentos(ids).subscribe({
+      next: lista => {
+        const m = new Map(this.estadoEps());
+        for (const e of lista) m.set(e.procesoId, e);
+        this.estadoEps.set(m);
+        this.cdr.markForCheck();
+      },
+      error: () => { /* sin estado: el botón queda en su color neutro */ },
+    });
+  }
+
+  /**
+   * Color del botón: mientras no hay trámite, el del documento (rojo / amarillo / verde);
+   * con trámite abierto, el de su etapa (azul remitido, naranja con respuesta, verde oscuro
+   * afiliado, rojo oscuro rechazado). "Por remitir" conserva el verde del documento.
+   */
+  claseDocEps(row: ContratacionRow): string {
+    const e = this.estadoEps().get(row.id);
+    if (!e) return 'doc-eps';
+    if (e.tramiteEstado && e.tramiteEstado !== 'POR_ENVIAR') return 'doc-eps doc-eps--t-' + e.tramiteEstado.toLowerCase().replace('_', '-');
+    return 'doc-eps doc-eps--' + e.estado.toLowerCase().replace('_', '-');
+  }
+
+  private static readonly ETIQUETA_TRAMITE: Record<string, string> = {
+    POR_ENVIAR: 'trámite abierto, por remitir', RADICADA: 'remitido a la EPS', CON_RESPUESTA: 'con respuesta de la EPS',
+    CONFIRMADA: 'afiliado', RECHAZADA: 'rechazado por la EPS',
+  };
+
+  tooltipDocEps(row: ContratacionRow): string {
+    const e = this.estadoEps().get(row.id);
+    if (!e) return 'Generar documento EPS (plantilla parametrizada)';
+    const tram = e.tramiteEstado ? ` · Trámite: ${ConfirmacionIngresos.ETIQUETA_TRAMITE[e.tramiteEstado] ?? e.tramiteEstado} (detalle en «Ver»)` : '';
+    return this.tooltipDocumento(e) + tram;
+  }
+
+  private tooltipDocumento(e: EstadoDocumentoEps): string {
+    if (e.estado === 'GENERADO') {
+      const fecha = e.generadoAt ? formatDate(e.generadoAt, 'dd/MM/yyyy HH:mm', 'es-CO') : '';
+      return `Documento EPS generado${e.veces > 1 ? ` ${e.veces} veces` : ''} · último ${fecha}`
+        + (e.generadoPor ? ` por ${e.generadoPor}` : '')
+        + (e.puedeGenerar ? '. Clic para generarlo de nuevo.' : `. Hoy no se puede regenerar: ${e.motivo}`);
+    }
+    if (e.estado === 'PUEDE') return `Listo para generar (${e.plantillaNombre})`;
+    return `No se puede generar: ${e.motivo}`;
+  }
+
+  // ── Soportes EPS en lote ────────────────────────────────────────────────
+
+  etapaLote: EtapaTramite = 'REMISION';
+
+  /**
+   * Sube varios archivos a la vez a los trámites de los contratos marcados: cada archivo va al
+   * de la cédula que trae en el nombre. En tandas de 12 MB (tope de ms-hr por petición).
+   */
+  async subirLote(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const archivos = Array.from(input.files ?? []);
+    input.value = '';
+    if (!archivos.length) return;
+    if (!this.selected.size) { this.snack.open('Marca primero los contratos del lote', 'Cerrar', { duration: 4000 }); return; }
+    this.pdfGenerando = true;
+    this.cdr.markForCheck();
+    try {
+      const rows = await firstValueFrom(this.svc.cargarFilas(this.selectedIds, this.filasEnPantalla));
+      const procesos = rows.map(r => r.id).filter(id => id != null);
+      let cargados = 0;
+      const detalles: string[] = [];
+      for (const tanda of TramiteEpsService.tandas(archivos)) {
+        const r = await firstValueFrom(this.tramiteSvc.subirLote(procesos, this.etapaLote, tanda, null, true));
+        cargados += r.cargados;
+        detalles.push(...r.detalles);
+      }
+      this.refrescarEstadoEps(procesos);
+      this.snack.open(`${cargados} de ${archivos.length} soporte(s) cargado(s)`
+        + (detalles.length ? ` · ${detalles.slice(0, 3).join(' · ')}${detalles.length > 3 ? ` (+${detalles.length - 3})` : ''}` : ''),
+        'Cerrar', { duration: detalles.length ? 12000 : 4000 });
+      if (detalles.length) console.warn('[soportes EPS en lote]', detalles);
+    } catch (err) {
+      const e = (err as { error?: { error?: string } })?.error?.error;
+      this.snack.open(e || 'No se pudieron subir los soportes', 'Cerrar', { duration: 6000 });
+    } finally {
+      this.pdfGenerando = false;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /** Cuántos de los marcados están en cada estado (para el botón masivo). */
+  resumenEstadoSeleccion(): { rojo: number; amarillo: number; verde: number } {
+    const r = { rojo: 0, amarillo: 0, verde: 0 };
+    for (const row of this.filasEnPantalla.values()) {
+      if (row.candidato_id == null || !this.selected.has(row.candidato_id)) continue;
+      const e = this.estadoEps().get(row.id);
+      if (!e) continue;
+      if (e.estado === 'NO_PUEDE') r.rojo++; else if (e.estado === 'PUEDE') r.amarillo++; else r.verde++;
+    }
+    return r;
   }
 
   /** Formato de una persona: la fila ya trae todo, no hace falta ir al servidor. */
@@ -277,33 +390,121 @@ export class ConfirmacionIngresos implements OnDestroy {
   docEpsGenerando: number | null = null;
 
   /**
-   * Genera el documento de afiliación según la plantilla configurada para la EPS/temporal/sexo
-   * del candidato. El PDF lo produce el servidor con flying-saucer y se abre en nueva pestaña.
+   * Documento EPS de una persona según la plantilla de su EPS / temporal / sexo. Primero se
+   * pide el diagnóstico: si no se puede, el diálogo dice exactamente por qué (EPS sin
+   * plantilla, contrato sin EPS, plantilla desactivada…) en vez de un "no hay plantilla" mudo.
    */
   generarDocEps(row: ContratacionRow) {
     if (this.docEpsGenerando) return;
     const procesoId = row.id;
     this.docEpsGenerando = procesoId;
     this.cdr.markForCheck();
+    const fin = () => { this.docEpsGenerando = null; this.cdr.markForCheck(); };
 
-    this.plantillaSvc.generarPdf(procesoId).subscribe({
-      next: blob => {
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => URL.revokeObjectURL(url), 30_000);
-        this.snack.open('Documento EPS generado ✓', 'Cerrar', { duration: 3000 });
-        this.docEpsGenerando = null;
-        this.cdr.markForCheck();
+    this.plantillaSvc.diagnosticar([procesoId]).subscribe({
+      next: ([d]) => {
+        if (!d?.puedeGenerar) {
+          fin();
+          this.mostrarDiagnostico(d ? [d] : [], true);
+          return;
+        }
+        this.plantillaSvc.generarPdf(procesoId).subscribe({
+          next: blob => {
+            this.abrirPdf(blob);
+            this.refrescarEstadoEps([procesoId]);
+            const avisos = d.avisos?.length ? ' — ' + d.avisos.join(' ') : '';
+            this.snack.open(`Documento EPS generado (${d.plantillaNombre})${avisos}`, 'Cerrar',
+              { duration: avisos ? 9000 : 3000 });
+            fin();
+          },
+          error: err => { fin(); this.errorDocEps(err); }
+        });
       },
-      error: (err) => {
-        const msg = err.status === 404
-          ? 'No hay plantilla configurada para esta EPS / temporal / sexo'
-          : 'Error generando el documento';
-        this.snack.open(msg, 'Cerrar', { duration: 5000 });
-        this.docEpsGenerando = null;
-        this.cdr.markForCheck();
+      error: err => { fin(); this.errorDocEps(err); }
+    });
+  }
+
+  /** Documento EPS de lo marcado en la tabla: diagnóstico de todos, y un PDF con los que se puedan. */
+  generarDocEpsSeleccion() {
+    if (!this.selected.size || this.pdfGenerando) return;
+    const tope = PlantillaEpsService.MAX_MASIVO;
+    const ids = this.selectedIds.slice(0, tope);
+    if (this.selected.size > tope) {
+      this.snack.open(`Se seleccionaron ${this.selected.size}; el documento EPS se arma con los primeros ${tope}`,
+        'Cerrar', { duration: 6000 });
+    }
+    this.pdfGenerando = true;
+    this.cdr.markForCheck();
+    const fin = () => { this.pdfGenerando = false; this.cdr.markForCheck(); };
+
+    this.svc.cargarFilas(ids, this.filasEnPantalla).subscribe({
+      next: rows => {
+        const procesos = rows.map(r => r.id).filter(id => id != null);
+        if (!procesos.length) {
+          fin();
+          this.snack.open('No se pudo resolver ninguna de las personas seleccionadas', 'Cerrar', { duration: 5000 });
+          return;
+        }
+        this.plantillaSvc.diagnosticar(procesos).subscribe({
+          next: diags => {
+            fin();
+            this.mostrarDiagnostico(diags, false);
+          },
+          error: err => { fin(); this.errorDocEps(err); }
+        });
+      },
+      error: () => {
+        fin();
+        this.snack.open('No se pudieron cargar los datos de la selección', 'Cerrar', { duration: 4000 });
       }
     });
+  }
+
+  /** Diálogo con el diagnóstico; si el usuario sigue, genera (individual o masivo). */
+  private mostrarDiagnostico(diags: DiagnosticoGeneracion[], individual: boolean) {
+    const ref = this.dialog.open<DiagnosticoEpsDialogComponent, DiagnosticoEpsDialogData, DiagnosticoEpsDialogResult>(
+      DiagnosticoEpsDialogComponent, { data: { diagnosticos: diags, individual }, autoFocus: false });
+    ref.afterClosed().subscribe(ok => {
+      if (!ok?.length) return;
+      this.pdfGenerando = true;
+      this.cdr.markForCheck();
+      this.plantillaSvc.generarMasivo(ok).subscribe({
+        next: blob => {
+          this.abrirPdf(blob, 'documentos_eps.pdf');
+          this.refrescarEstadoEps(ok);
+          this.snack.open(`Documento EPS generado (${ok.length} personas)`, 'Cerrar', { duration: 4000 });
+          this.pdfGenerando = false;
+          this.cdr.markForCheck();
+        },
+        error: err => { this.pdfGenerando = false; this.cdr.markForCheck(); this.errorDocEps(err); }
+      });
+    });
+  }
+
+  /** El servidor responde 422 con el diagnóstico: se muestra el motivo exacto. */
+  private async errorDocEps(err: unknown) {
+    const d = await PlantillaEpsService.leerDiagnostico(err);
+    const lista = Array.isArray(d) ? d : d ? [d] : [];
+    if (lista.length && lista.some(x => x?.motivo)) {
+      this.mostrarDiagnostico(lista, lista.length === 1);
+      return;
+    }
+    const status = (err as { status?: number })?.status;
+    const msg = status === 0 ? 'Sin conexión con el servidor: no se pudo generar el documento EPS'
+      : status === 403 ? 'No tienes permiso para generar documentos EPS'
+      : `Error del servidor generando el documento EPS (HTTP ${status ?? '?'})`;
+    this.snack.open(msg, 'Cerrar', { duration: 6000 });
+  }
+
+  private abrirPdf(blob: Blob, nombre?: string) {
+    const url = URL.createObjectURL(blob);
+    if (nombre) {
+      const a = document.createElement('a');
+      a.href = url; a.download = nombre; a.click();
+    } else {
+      window.open(url, '_blank');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
   }
 
   /** Nombre del operador para el pie del PDF; si no se puede leer, el pie va sin él. */
@@ -318,6 +519,10 @@ export class ConfirmacionIngresos implements OnDestroy {
     }
   }
 
+  /** Régimen en ADRES (V65): etiqueta corta y clase del chip; excepción resaltada. */
+  readonly etiquetaRegimenAdres = etiquetaRegimenAdres;
+  readonly regimenAdresClass = regimenAdresClass;
+
   /** Clase de color para el chip de estado ADRES. */
   adresEstadoClass(estado?: string): string {
     const e = (estado || '').toUpperCase();
@@ -328,6 +533,98 @@ export class ConfirmacionIngresos implements OnDestroy {
   }
 
   validadores: Validador[] = ['AFILIACIONES', 'COORDINADOR', 'NOMINA', 'PAGO_SEGURIDAD'];
+
+  // ── Seguimiento de la afiliación ───────────────────────────────────
+  //
+  // El trámite estaba repartido por toda la ficha: las fechas en «Datos», los cuatro
+  // validadores en un bloque, el radicado escondido dentro de la tarjeta del traslado y el
+  // estado de los documentos en ningún sitio. Aquí se arma la línea de avance que permite
+  // responder «¿en qué va esta persona?» sin leer la ficha entera.
+
+  private static readonly ESTADO_AFILIACION: Record<string, { txt: string; cls: string }> = {
+    PENDIENTE:  { txt: 'Pendiente',  cls: 'seg-estado--pend' },
+    EN_PROCESO: { txt: 'En proceso', cls: 'seg-estado--curso' },
+    AFILIADO:   { txt: 'Afiliado',   cls: 'seg-estado--ok' },
+    RECHAZADO:  { txt: 'Rechazado',  cls: 'seg-estado--mal' },
+  };
+
+  estadoAfiliacion(r: ContratacionRow): { txt: string; cls: string } {
+    return ConfirmacionIngresos.ESTADO_AFILIACION[(r.estado_afiliacion || '').toUpperCase()]
+        ?? { txt: r.estado_afiliacion || 'Sin estado', cls: 'seg-estado--pend' };
+  }
+
+  /** Radicado del traslado vigente; es el número con el que se reclama a la EPS. */
+  radicadoTraslado(): { radicado: string; estado: string; eps: string } | null {
+    const ts = (this.expediente?.traslados || []).filter(t => t.activo !== false);
+    const con = ts.find(t => !!t.radicado) ?? ts[0];
+    if (!con) return null;
+    return {
+      radicado: con.radicado || 'sin radicar',
+      estado: con.estado || 'Sin estado',
+      eps: con.eps_a_trasladar || con.eps_trasladada || '',
+    };
+  }
+
+  /**
+   * Pasos del trámite en orden. `estado`: hecho | curso | pendiente.
+   * El ingreso cuenta como «en curso» mientras la fecha no haya llegado: no es un pendiente
+   * de nadie, es que todavía no toca.
+   */
+  pasosSeguimiento(r: ContratacionRow): Array<{ titulo: string; estado: string; detalle: string }> {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    const ingreso = r.fecha_ingreso ? new Date(r.fecha_ingreso + 'T00:00:00') : null;
+    const futuro = !!ingreso && ingreso.getTime() > hoy.getTime();
+    const val = (ok: unknown, canal?: string | null, at?: string | null) => ({
+      estado: ok ? 'hecho' : 'pendiente',
+      detalle: ok ? [canal, at ? formatDate(at, 'dd/MM/yy', 'es-CO') : null].filter(Boolean).join(' · ') || 'confirmado'
+                  : 'sin confirmar',
+    });
+    const tr = this.radicadoTraslado();
+    const pasos = [
+      { titulo: 'Contratación', estado: r.fecha_firma_contrato ? 'hecho' : 'pendiente',
+        detalle: r.fecha_firma_contrato ? fechaCorta(r.fecha_firma_contrato) : 'sin fecha' },
+      { titulo: 'Ingreso', estado: !ingreso ? 'pendiente' : (futuro ? 'curso' : 'hecho'),
+        detalle: ingreso ? fechaCorta(r.fecha_ingreso) + (futuro ? ' (aún no llega)' : '') : 'sin fecha' },
+      { titulo: 'Afiliaciones', ...val(r.ingreso_confirmado, r.ingreso_confirmado_canal, r.ingreso_confirmado_at) },
+      { titulo: 'Coordinador', ...val(r.coord_confirmado) },
+      { titulo: 'Nómina', ...val(r.nomina_confirmado) },
+      { titulo: 'Pago seguridad', ...val(r.pago_confirmado) },
+    ];
+    pasos.push(tr
+      ? { titulo: 'Traslado EPS', estado: tr.radicado === 'sin radicar' ? 'curso' : 'hecho',
+          detalle: `${tr.estado}${tr.eps ? ' · ' + tr.eps : ''}` }
+      : { titulo: 'Traslado EPS', estado: 'pendiente', detalle: 'sin solicitud registrada' });
+    return pasos;
+  }
+
+  /**
+   * Estado documental por grupo, leído de gestión documental (ms-documents).
+   * Interesa si existe, de cuándo es y si la versión que se vería al descargar es la vigente:
+   * el robot sube versiones sin marcarlas, y bajar la equivocada ya ha pasado.
+   */
+  estadoDocumental(): Array<{ grupo: GrupoDoc; etiqueta: string; total: number; detalle: string; estado: string }> {
+    const grupos: Array<{ g: GrupoDoc; etiqueta: string }> = [
+      { g: 'CEDULA', etiqueta: 'Cédula' },
+      { g: 'ADRES', etiqueta: 'ADRES' },
+      { g: 'TRASLADO', etiqueta: 'Traslado EPS' },
+    ];
+    return grupos.map(({ g, etiqueta }) => {
+      const docs = this.docsDe(g);
+      const total = this.totalDe(g);
+      if (!docs.length) {
+        return { grupo: g, etiqueta, total: 0, detalle: 'no cargado', estado: 'falta' };
+      }
+      const ultimo = [...docs].sort((a, b) =>
+        (b.subido_en || '').localeCompare(a.subido_en || ''))[0];
+      const fecha = ultimo.subido_en ? formatDate(ultimo.subido_en, 'dd/MM/yy', 'es-CO') : 's/f';
+      const vig = ultimo.vigente === false ? 'no vigente' : 'vigente';
+      return {
+        grupo: g, etiqueta, total,
+        detalle: `v${ultimo.version ?? 1} · ${vig} · ${fecha}`,
+        estado: ultimo.vigente === false ? 'aviso' : 'ok',
+      };
+    });
+  }
   canales: Canal[] = ['LLAMADA', 'CORREO', 'WHATSAPP'];
   resultados = ['CONTACTADO', 'NO_CONTESTA', 'PENDIENTE', 'RECHAZADO'];
 
@@ -503,7 +800,11 @@ export class ConfirmacionIngresos implements OnDestroy {
   expedienteCargando = false;
   /** Grupo de documentos que se está mostrando en la ficha. */
   grupoDoc: GrupoDoc = 'CEDULA';
-  grupos: GrupoDoc[] = ['CEDULA', 'ADRES', 'TRASLADO'];
+  grupos: GrupoDoc[] = ['CEDULA', 'ADRES', 'TRASLADO', 'OTROS'];
+  /** Documentos de cualquier otro tipo (contrato, exámenes, ARL, policivos…). */
+  otrosDocs: DocumentoExpediente[] = [];
+  otrosCargando = false;
+  private otrosPedidosPara: string | null = null;
 
   /**
    * Vistas previas ya descargadas, por documento+versión. Se cachean porque el binario viaja
@@ -513,15 +814,47 @@ export class ConfirmacionIngresos implements OnDestroy {
   private previews = new Map<string, PreviewDoc>();
 
   grupoLabel(g: GrupoDoc): string {
-    return g === 'CEDULA' ? 'Cédula' : g === 'ADRES' ? 'ADRES' : 'Traslado EPS';
+    return g === 'CEDULA' ? 'Cédula' : g === 'ADRES' ? 'ADRES'
+         : g === 'TRASLADO' ? 'Traslado EPS' : 'Otros';
   }
   grupoIcono(g: GrupoDoc): string {
-    return g === 'CEDULA' ? 'badge' : g === 'ADRES' ? 'health_and_safety' : 'swap_horiz';
+    return g === 'CEDULA' ? 'badge' : g === 'ADRES' ? 'health_and_safety'
+         : g === 'TRASLADO' ? 'swap_horiz' : 'folder_open';
+  }
+
+  /** Cambiar de pestaña; «Otros» se pide a gestión documental la primera vez que se abre. */
+  verGrupo(g: GrupoDoc): void {
+    this.grupoDoc = g;
+    if (g === 'OTROS') this.cargarOtros();
+  }
+
+  /**
+   * Todo lo que la persona tiene en gestión documental, menos lo que ya muestran las otras
+   * pestañas. Se pide una sola vez por cédula y solo si el usuario abre «Otros»: son hasta
+   * 20 tipos por persona y no hace falta traerlos para quien solo viene a confirmar.
+   */
+  private cargarOtros(): void {
+    const cedula = this.expediente?.cedula || this.detailRow?.numero_documento || '';
+    if (!cedula || this.otrosPedidosPara === cedula) return;
+    this.otrosPedidosPara = cedula;
+    this.otrosCargando = true;
+    this.otrosDocs = [];
+    this.svc.documentosDelDueno(cedula).subscribe(docs => {
+      const yaVistos = new Set(['CEDULA', 'ADRES', 'SOLICITUD_TRASLADO_EPS', 'TRASLADOS']);
+      this.otrosDocs = docs
+        .filter(d => !yaVistos.has((d.tipo || '').toUpperCase()))
+        .sort((a, b) => (a.tipo || '').localeCompare(b.tipo || ''));
+      this.otrosCargando = false;
+      this.cdr.markForCheck();
+    });
   }
 
   private cargarExpediente(candidatoId: number) {
     this.expedienteCargando = true;
     this.expediente = null;
+    this.otrosDocs = [];
+    this.otrosPedidosPara = null;
+    this.docEnVista = null;
     this.liberarPreviews();
     this.svc.getExpediente(candidatoId).subscribe({
       next: exp => {
@@ -546,15 +879,28 @@ export class ConfirmacionIngresos implements OnDestroy {
 
   /** Documentos de un grupo, ya ordenados por el backend (más recientes primero). */
   docsDe(grupo: GrupoDoc): DocumentoExpediente[] {
+    if (grupo === 'OTROS') return this.otrosDocs;
     return (this.expediente?.documentos || []).filter(d => d.grupo === grupo);
   }
 
   /** Cuántos documentos tiene la persona en ese grupo (el listado puede venir topado). */
   totalDe(grupo: GrupoDoc): number {
+    if (grupo === 'OTROS') return this.otrosDocs.length;
     return this.expediente?.conteos?.find(c => c.grupo === grupo)?.total ?? this.docsDe(grupo).length;
   }
   hayMasDe(grupo: GrupoDoc): number {
     return Math.max(0, this.totalDe(grupo) - this.docsDe(grupo).length);
+  }
+
+  /**
+   * Documento que se está viendo en el panel de la derecha. El visor dejó de ir debajo de
+   * cada tarjeta —una tira ancha que empujaba la lista hacia abajo— y pasó a ser un panel
+   * fijo: se elige en la lista y se ve al lado, sin perder de vista el resto del expediente.
+   */
+  docEnVista: DocumentoExpediente | null = null;
+
+  esEnVista(d: DocumentoExpediente): boolean {
+    return !!this.docEnVista && this.claveDoc(this.docEnVista) === this.claveDoc(d);
   }
 
   private claveDoc(d: DocumentoExpediente): string {
@@ -572,13 +918,22 @@ export class ConfirmacionIngresos implements OnDestroy {
    */
   togglePreview(d: DocumentoExpediente) {
     const clave = this.claveDoc(d);
-    const actual = this.previews.get(clave);
-    if (actual) {
-      actual.abierto = !actual.abierto;
+    // Volver a pulsar el que ya se está viendo lo cierra; pulsar otro cambia el panel.
+    if (this.esEnVista(d)) {
+      const abierta = this.previews.get(clave);
+      if (abierta) abierta.abierto = false;
+      this.docEnVista = null;
       this.cdr.markForCheck();
       return;
     }
-    if (!d.document_id) return;
+    this.docEnVista = d;
+    const actual = this.previews.get(clave);
+    if (actual) {
+      actual.abierto = true;
+      this.cdr.markForCheck();
+      return;
+    }
+    if (!d.document_id) { this.docEnVista = null; return; }
 
     const entrada: PreviewDoc = { abierto: true, cargando: true, mime: d.mime || '', kind: this.kindDe(d) };
     this.previews.set(clave, entrada);

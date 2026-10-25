@@ -93,6 +93,8 @@
                     <span class="stat-label">Páginas</span>
                 </div>
             </div>
+            <!-- Con salida en imágenes no hay PDF: el OCR no aplica. -->
+            @if (!salidaImagenes) {
             <div class="stat-divider"></div>
             <div class="stat-card ocr-card">
                 <div class="stat-icon-bg" [class.active]="enableOcr"><mat-icon>text_snippet</mat-icon></div>
@@ -104,6 +106,7 @@
                     </mat-slide-toggle>
                 </div>
             </div>
+            }
         </div>
 
         @if (scannedDocs.length === 0) {
@@ -111,7 +114,10 @@
             <div class="empty-icon-circle"><mat-icon>document_scanner</mat-icon></div>
             <h3 class="empty-title">{{ esCedula ? 'Escanear cédula' : 'Escáner profesional' }}</h3>
             <p class="empty-subtitle">
-                @if (esCedula) {
+                @if (salidaImagenes) {
+                Captura el frente y el reverso con el documento horizontal; con las dos caras
+                se arma la hoja carta al 150 %.
+                } @else if (esCedula) {
                 Captura el frente y el reverso; ambas caras quedan en un mismo PDF.
                 } @else {
                 Detección automática de bordes, recorte perspectivo, filtros B/N y OCR.
@@ -168,6 +174,17 @@
 
         <!-- Status chip -->
         <div class="capture-status">
+            <!-- Cédula: qué cara toca, y aviso de voltearla tras capturar una. -->
+            @if (esCedula && caraEnCaptura) {
+            <span class="status-chip loading">
+                <mat-icon>badge</mat-icon> Cara: {{ caraEnCaptura }}
+            </span>
+            }
+            @if (esCedula && esperandoRetiro && caraEnCaptura) {
+            <span class="status-chip warn">
+                <mat-icon>flip</mat-icon> Voltea el documento (o toca LISTO)
+            </span>
+            }
             @if (isCvLoading) {
             <span class="status-chip loading">
                 <mat-spinner diameter="14" color="accent"></mat-spinner>
@@ -326,8 +343,12 @@
                 <img [src]="(currentDocPages[selectedPageIndex] || currentDocPages[0]).processed" alt="Vista previa">
 
                 <div class="preview-actions-overlay">
+                    <button mat-mini-fab color="primary" (click)="rotarPaginaActual()"
+                        matTooltip="Girar 90°" aria-label="Girar la página 90 grados" [disabled]="isProcessingCrop">
+                        <mat-icon>rotate_right</mat-icon>
+                    </button>
                     <button mat-mini-fab color="primary" (click)="reCropPage()"
-                        matTooltip="Recortar de nuevo" [disabled]="isProcessingCrop">
+                        matTooltip="Recortar de nuevo" aria-label="Recortar de nuevo" [disabled]="isProcessingCrop">
                         <mat-icon>crop</mat-icon>
                     </button>
                 </div>

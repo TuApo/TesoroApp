@@ -48,6 +48,13 @@ export const routes: Routes = [
           ),
       },
       {
+        // Solo administradores: proveedores externos de Capacitaciones y aulas (ElevenLabs,
+        // Higgsfield, YouTube, LiveKit, Piston). Las llaves se guardan cifradas en learning-ms.
+        path: 'interoperabilidad',
+        loadComponent: () =>
+          import('./pages/interoperabilidad/interoperabilidad.component').then((m) => m.InteroperabilidadComponent),
+      },
+      {
         path: 'acerca',
         loadComponent: () =>
           import('./pages/acerca/acerca.component').then((m) => m.AcercaConfigComponent),

@@ -11,7 +11,7 @@
   </header>
 
   <!-- ── Entrada: un codigo o varios pegados ───────────────────────────── -->
-  <div class="pc-entrada">
+  <div class="pc-entrada" data-guia="entrada">
     <mat-form-field appearance="outline" class="pc-campo" subscriptSizing="dynamic">
       <mat-label>Código único</mat-label>
       <mat-icon matPrefix>search</mat-icon>
@@ -115,6 +115,7 @@
     </div>
 
     <app-tabla-estandar
+      data-guia="lista"
       [id]="esRecobro() ? 'incapacidades-recobro-codigos' : 'incapacidades-radicacion-codigos'"
       [titulo]="esRecobro() ? 'Recobro por código' : 'Radicación por código'"
       modulo="Incapacidades"
@@ -183,7 +184,7 @@
   }
 
   <!-- El formulario se oculta (no se destruye) sin lista: asi conserva fecha y canal entre lotes. -->
-  <div class="pc-formulario" [hidden]="!encontrados().length">
+  <div class="pc-formulario" [hidden]="!encontrados().length" data-guia="datos">
     <h3 class="ges-seccion-titulo"><mat-icon>edit_document</mat-icon>{{ esRecobro() ? 'Datos del radicado de recobro' : 'Datos del radicado' }}</h3>
     <app-formulario-radicado
       [cantidad]="cantidadMarcadas()"

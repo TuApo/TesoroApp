@@ -1,0 +1,217 @@
+<section class="pantalla">
+  <header class="cabecera">
+    <div class="titulo-con-volver">
+      <button type="button" class="btn-icono" (click)="volver()" aria-label="Volver al tablero">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div>
+        <h1>Plantillas de certificado</h1>
+        <p class="subtitulo">
+          Cómo se ve el diploma de cada curso. Se eligen la base de diseño de la empresa, los
+          colores, los textos, el logo y las firmas; el PDF lo pinta el servidor. Cada curso elige
+          su plantilla en el catálogo; los que no eligen usan la predeterminada.
+        </p>
+      </div>
+    </div>
+    @if (!editando()) {
+      <button type="button" class="btn-primario" (click)="nuevo()">
+        <mat-icon>add</mat-icon> Nueva plantilla
+      </button>
+    }
+  </header>
+
+  @if (editando(); as f) {
+    <div class="editor">
+      <div class="panel">
+        <h2>{{ f.id ? 'Editar plantilla' : 'Nueva plantilla' }}</h2>
+
+        <div class="campos">
+          <label>
+            <span>Nombre *</span>
+            <input type="text" [ngModel]="f.nombre" (ngModelChange)="campo('nombre', $event)"
+                   placeholder="Ej: Alturas · con firmas del ARL" />
+          </label>
+          <label>
+            <span>Descripción</span>
+            <input type="text" [ngModel]="f.descripcion" (ngModelChange)="campo('descripcion', $event)"
+                   placeholder="Para qué cursos es" />
+          </label>
+        </div>
+
+        <h3>Base de diseño</h3>
+        <div class="bases">
+          @for (b of bases; track b.valor) {
+            <button type="button" class="base" [class.elegida]="f.base === b.valor" (click)="campo('base', b.valor)">
+              <mat-icon>{{ b.icono }}</mat-icon>
+              <strong>{{ b.nombre }}</strong>
+              <em>{{ b.ayuda }}</em>
+            </button>
+          }
+        </div>
+
+        <div class="campos campos-4">
+          <label>
+            <span>Color principal</span>
+            <div class="color">
+              <input type="color" [ngModel]="f.color_primario || '#194262'" (ngModelChange)="campo('color_primario', $event)" />
+              <input type="text" [ngModel]="f.color_primario" (ngModelChange)="campo('color_primario', $event)" placeholder="#194262" maxlength="7" />
+            </div>
+          </label>
+          <label>
+            <span>Color de acento</span>
+            <div class="color">
+              <input type="color" [ngModel]="f.color_secundario || '#2d6a4f'" (ngModelChange)="campo('color_secundario', $event)" />
+              <input type="text" [ngModel]="f.color_secundario" (ngModelChange)="campo('color_secundario', $event)" placeholder="#2d6a4f" maxlength="7" />
+            </div>
+          </label>
+          <label>
+            <span>Orientación</span>
+            <select [ngModel]="f.orientacion" (ngModelChange)="campo('orientacion', $event)">
+              <option value="HORIZONTAL">Horizontal</option>
+              <option value="VERTICAL">Vertical</option>
+            </select>
+          </label>
+          <label>
+            <span>Logo</span>
+            @if (f.logo_document_id) {
+              <div class="imagen-puesta">
+                <mat-icon>image</mat-icon><span>Logo propio</span>
+                <button type="button" class="btn-icono pequeno peligro" title="Volver al logo de la empresa" (click)="quitarImagen('logo_document_id')"><mat-icon>close</mat-icon></button>
+              </div>
+            } @else {
+              <label class="btn-secundario pequeno subir">
+                <mat-icon>upload</mat-icon> {{ subiendo() === 'logo_document_id' ? 'Subiendo…' : 'Subir logo' }}
+                <input type="file" hidden accept="image/png,image/jpeg" [disabled]="!!subiendo()" (change)="subirImagen('logo_document_id', $event)" />
+              </label>
+              <small>Vacío = el logo de la empresa.</small>
+            }
+          </label>
+        </div>
+
+        <h3>Textos</h3>
+        <div class="campos">
+          <label>
+            <span>Título</span>
+            <input type="text" [ngModel]="f.titulo" (ngModelChange)="campo('titulo', $event)" placeholder="CERTIFICADO DE FORMACIÓN" />
+          </label>
+          <label>
+            <span>Subtítulo</span>
+            <input type="text" [ngModel]="f.subtitulo" (ngModelChange)="campo('subtitulo', $event)" placeholder="Vacío = la entidad capacitadora" />
+          </label>
+          <label class="ancho-completo">
+            <span>Texto principal</span>
+            <textarea rows="4" [ngModel]="f.texto_principal" (ngModelChange)="campo('texto_principal', $event)"></textarea>
+            <small>
+              Admite <code>&lt;strong&gt;</code>, <code>&lt;em&gt;</code> y <code>&lt;br&gt;</code>. Marcadores:
+              @for (m of marcadores; track m[0]) { <code [title]="m[1]">{{ m[0] }}</code> }
+            </small>
+          </label>
+          <label class="ancho-completo">
+            <span>Pie</span>
+            <textarea rows="2" [ngModel]="f.texto_pie" (ngModelChange)="campo('texto_pie', $event)"></textarea>
+          </label>
+        </div>
+
+        <h3>Firmas</h3>
+        <div class="campos campos-firmas">
+          @for (n of [1, 2]; track n) {
+            <div class="firma">
+              <strong>Firma {{ n }}</strong>
+              <input type="text" placeholder="Nombre" [ngModel]="n === 1 ? f.firma1_nombre : f.firma2_nombre"
+                     (ngModelChange)="campo(n === 1 ? 'firma1_nombre' : 'firma2_nombre', $event)" />
+              <input type="text" placeholder="Cargo" [ngModel]="n === 1 ? f.firma1_cargo : f.firma2_cargo"
+                     (ngModelChange)="campo(n === 1 ? 'firma1_cargo' : 'firma2_cargo', $event)" />
+              @if (n === 1 ? f.firma1_document_id : f.firma2_document_id) {
+                <div class="imagen-puesta">
+                  <mat-icon>draw</mat-icon><span>Imagen de la firma</span>
+                  <button type="button" class="btn-icono pequeno peligro" title="Quitar la imagen"
+                          (click)="quitarImagen(n === 1 ? 'firma1_document_id' : 'firma2_document_id')"><mat-icon>close</mat-icon></button>
+                </div>
+              } @else {
+                <label class="btn-secundario pequeno subir">
+                  <mat-icon>upload</mat-icon>
+                  {{ subiendo() === (n === 1 ? 'firma1_document_id' : 'firma2_document_id') ? 'Subiendo…' : 'Imagen de la firma' }}
+                  <input type="file" hidden accept="image/png,image/jpeg" [disabled]="!!subiendo()"
+                         (change)="subirImagen(n === 1 ? 'firma1_document_id' : 'firma2_document_id', $event)" />
+                </label>
+              }
+              <small>Sin imagen se imprime una línea para firmar a mano.</small>
+            </div>
+          }
+        </div>
+
+        <h3>Qué se imprime</h3>
+        <div class="checks">
+          <label class="check"><input type="checkbox" [ngModel]="f.mostrar_nota" (ngModelChange)="campo('mostrar_nota', $event)" /><span>Calificación</span></label>
+          <label class="check"><input type="checkbox" [ngModel]="f.mostrar_horas" (ngModelChange)="campo('mostrar_horas', $event)" /><span>Intensidad en horas</span></label>
+          <label class="check"><input type="checkbox" [ngModel]="f.mostrar_vigencia" (ngModelChange)="campo('mostrar_vigencia', $event)" /><span>Vigencia</span></label>
+          <label class="check"><input type="checkbox" [ngModel]="f.mostrar_qr" (ngModelChange)="campo('mostrar_qr', $event)" /><span>QR de verificación</span></label>
+        </div>
+
+        <div class="acciones-panel">
+          <button type="button" class="btn-secundario" (click)="cerrar()">Cancelar</button>
+          <button type="button" class="btn-secundario" [disabled]="previewCargando()" (click)="previsualizar()">
+            <mat-icon>visibility</mat-icon> {{ previewCargando() ? 'Generando…' : 'Vista previa' }}
+          </button>
+          <button type="button" class="btn-primario" [disabled]="guardando()" (click)="guardar()">
+            {{ guardando() ? 'Guardando…' : 'Guardar plantilla' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="preview">
+        <h2>Vista previa</h2>
+        @if (previewUrl(); as url) {
+          <iframe [src]="url" title="Muestra del certificado"></iframe>
+        } @else {
+          <div class="preview-vacia">
+            <mat-icon>picture_as_pdf</mat-icon>
+            <p>Pulsa <strong>Vista previa</strong> para ver un PDF de muestra con datos ficticios.</p>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  @if (cargando()) {
+    <p class="cargando">Cargando plantillas…</p>
+  } @else if (error()) {
+    <div class="aviso-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+      <button type="button" class="btn-primario" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (!editando()) {
+    <ul class="lista">
+      @for (p of plantillas(); track p.id) {
+        <li class="tarjeta">
+          <div class="tarjeta-cab">
+            <div>
+              <h2>{{ p.nombre }}</h2>
+              @if (p.descripcion) { <p class="desc">{{ p.descripcion }}</p> }
+            </div>
+            <div class="muestra-color" [style.background]="p.color_primario || '#194262'" [style.border-color]="p.color_secundario || '#2d6a4f'"></div>
+          </div>
+          <div class="chips">
+            <span class="chip">{{ nombreBase(p.base) }}</span>
+            <span class="chip">{{ p.orientacion === 'VERTICAL' ? 'Vertical' : 'Horizontal' }}</span>
+            @if (p.predeterminada) { <span class="chip chip-ok">Predeterminada</span> }
+            <span class="chip chip-gris">{{ p.cursos_que_la_usan }} curso(s)</span>
+          </div>
+          <div class="tarjeta-acciones">
+            <button type="button" class="btn-secundario pequeno" (click)="editar(p)"><mat-icon>edit</mat-icon> Editar</button>
+            @if (!p.predeterminada) {
+              <button type="button" class="btn-secundario pequeno" (click)="predeterminar(p)" title="Usarla en los cursos sin plantilla">
+                <mat-icon>star</mat-icon> Predeterminar
+              </button>
+              <button type="button" class="btn-icono peligro" title="Borrar" (click)="eliminar(p)"><mat-icon>delete</mat-icon></button>
+            }
+          </div>
+        </li>
+      } @empty {
+        <li class="vacio">
+          <mat-icon>workspace_premium</mat-icon>
+          <p>Todavía no hay plantillas. Crea la primera: será la predeterminada.</p>
+        </li>
+      }
+    </ul>
+  }
+</section>

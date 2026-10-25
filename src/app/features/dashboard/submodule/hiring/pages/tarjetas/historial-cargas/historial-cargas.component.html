@@ -1,0 +1,48 @@
+<p class="hc-ayuda">
+  Cada carga deja constancia: quién la hizo, con qué archivo, a qué hora y qué pasó fila a fila.
+  Las <strong>simulaciones</strong> también aparecen — son la prueba de que se revisó antes de escribir.
+</p>
+
+<app-tabla-estandar
+  id="contratacion-tarjetas-historial"
+  titulo="Historial de cargas"
+  modulo="Contratación"
+  entidad="carga"
+  textoDetalle="Ver detalle"
+  vacio="Todavía no se ha cargado ningún archivo de tarjetas"
+  [datos]="lotes()"
+  [columnas]="columnas"
+  [cargando]="cargando()"
+  [totalServidor]="total()"
+  [paginaServidor]="pagina()"
+  [filasPorPagina]="tamano()"
+  [filaClase]="claseFila"
+  [seleccionable]="false"
+  (paginaCambio)="alCambiarPagina($event)"
+  (filaClick)="abrirDetalle($event)">
+
+  <ng-template tablaCelda="estado" let-l>
+    <span class="hc-estado" [class.hc-estado--ok]="l.estado === 'COMPLETADO'"
+          [class.hc-estado--sim]="l.estado === 'SIMULADO'"
+          [class.hc-estado--aviso]="l.estado === 'COMPLETADO_CON_ERRORES'"
+          [class.hc-estado--mal]="l.estado === 'FALLIDO' || l.estado === 'PROCESANDO'"
+          [matTooltip]="l.mensaje_error || l.codigo_error || ''">
+      {{ l.estado }}
+    </span>
+  </ng-template>
+
+  <ng-template tablaAcciones let-l>
+    <button mat-icon-button (click)="abrirDetalle(l); $event.stopPropagation()" matTooltip="Ver el detalle fila a fila">
+      <mat-icon>list_alt</mat-icon>
+    </button>
+    <button mat-icon-button (click)="descargar(l, false); $event.stopPropagation()" matTooltip="Descargar el resultado en Excel">
+      <mat-icon>download</mat-icon>
+    </button>
+    @if (l.total_rechazadas > 0) {
+      <button mat-icon-button color="warn" (click)="descargar(l, true); $event.stopPropagation()"
+              matTooltip="Descargar solo las filas que fallaron">
+        <mat-icon>rule</mat-icon>
+      </button>
+    }
+  </ng-template>
+</app-tabla-estandar>

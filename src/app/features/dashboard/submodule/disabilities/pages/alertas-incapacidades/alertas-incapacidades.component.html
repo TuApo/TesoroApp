@@ -1,7 +1,7 @@
 <div class="ges-contenedor">
   <div class="ges-contenido">
     <mat-card class="disab-card">
-      <div class="disab-hero disab-hero-alertas">
+      <div class="disab-hero disab-hero-alertas" data-acciones="propias">
         <div class="disab-hero-icon"><mat-icon>notification_important</mat-icon></div>
         <div class="disab-hero-texts">
           <h1 class="disab-hero-title">Alertas de incapacidades</h1>
@@ -18,7 +18,7 @@
       </div>
 
       @if (resumen(); as r) {
-        <div class="kpi-fila">
+        <div class="kpi-fila" data-guia="kpis">
           <button type="button" class="kpi-tarjeta kpi-clic" (click)="filtroRapido('', '')" matTooltip="Todas las pendientes"><span class="kpi-icono"><mat-icon>inbox</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientes | number }}</span><span class="kpi-etiqueta">Pendientes</span></span></button>
           <button type="button" class="kpi-tarjeta kpi-alerta kpi-clic" (click)="filtroRapido('INCAPACIDAD_FALSA', 'CONTRATACION')" matTooltip="Falsedad: quedan para contratacion (bloqueo pendiente de coordinar)"><span class="kpi-icono"><mat-icon>gpp_bad</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientesFalsedad | number }}</span><span class="kpi-etiqueta">Falsedad → contratacion</span></span></button>
           <button type="button" class="kpi-tarjeta kpi-aviso kpi-clic" (click)="filtroRapido('MAS_DE_180_DIAS', '')" matTooltip="180 / 540 dias"><span class="kpi-icono"><mat-icon>flag</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.pendientes180 | number }}</span><span class="kpi-etiqueta">180 / 540 dias</span></span></button>
@@ -28,7 +28,7 @@
       }
 
       <div class="ges-cuerpo">
-        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)" animationDuration="150ms">
+        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)" animationDuration="150ms" data-guia="bandeja">
           <mat-tab label="Bandeja">
             <ng-template matTabContent>
               <div class="ges-aviso ges-aviso-info">
@@ -139,3 +139,6 @@
     </mat-card>
   </div>
 </div>
+
+<!-- Reunion 2026-10-20: instructivo dentro del programa -->
+<app-guia-salud />

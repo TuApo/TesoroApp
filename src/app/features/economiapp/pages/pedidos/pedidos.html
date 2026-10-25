@@ -1,0 +1,73 @@
+<div class="pagina">
+  <header class="cabeza">
+    <h1>Mis pedidos</h1>
+    <button type="button" class="icono-btn" (click)="cargar()" aria-label="Actualizar" [disabled]="cargando()"><mat-icon>refresh</mat-icon></button>
+  </header>
+
+  <div class="filtros" role="tablist">
+    <button type="button" role="tab" class="eco-filtro" [class.activo]="pestana() === 'curso'" (click)="pestana.set('curso')">
+      En curso @if (enCurso().length) { <span class="cuenta">{{ enCurso().length }}</span> }
+    </button>
+    <button type="button" role="tab" class="eco-filtro" [class.activo]="pestana() === 'historial'" (click)="pestana.set('historial')">
+      Historial
+    </button>
+  </div>
+
+  @if (cargando() && !pedidos().length) {
+    @for (i of [1,2,3]; track i) { <div class="esqueleto corto"></div> }
+  } @else if (error()) {
+    <div class="estado-vacio">
+      <mat-icon>cloud_off</mat-icon><p>{{ error() }}</p>
+      <button type="button" class="eco-btn" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (!lista().length) {
+    <div class="estado-vacio">
+      <mat-icon>receipt_long</mat-icon>
+      <h2>{{ pestana() === 'curso' ? 'No tiene pedidos en curso' : 'Aún no tiene historial' }}</h2>
+      <p>Lo que pida en EconomiAPP aparece aquí, con su seguimiento y el estado de su bono mercado.</p>
+      <a class="eco-btn" routerLink="/economiapp">Ir a comprar</a>
+    </div>
+  } @else {
+    <ul class="lista">
+      @for (d of lista(); track d.pedido.id) {
+        <li>
+          <a class="pedido" [routerLink]="['/economiapp/pedidos', d.pedido.id]">
+            <div class="fila">
+              <span class="icono-estado" [attr.data-tono]="ESTADO[d.pedido.estado]?.tono || 'neutro'">
+                <mat-icon>{{ ESTADO[d.pedido.estado]?.icono || 'local_mall' }}</mat-icon>
+              </span>
+              <div class="texto">
+                <b>{{ ESTADO[d.pedido.estado]?.texto || d.pedido.estado }}</b>
+                <small>Pedido {{ d.pedido.numero }} · {{ d.pedido.creado_en | date: 'd MMM, h:mm a' : undefined : 'es-CO' }}</small>
+              </div>
+              <span class="total">{{ pesos(d.pedido.total) }}</span>
+            </div>
+
+            @if (pestana() === 'curso') {
+              <div class="barra"><span [style.width.%]="avance(d.pedido.estado)"></span></div>
+            }
+
+            <div class="chips">
+              <span class="chip"><mat-icon>{{ ENTREGA[d.pedido.tipo_entrega]?.icono || 'storefront' }}</mat-icon>{{ ENTREGA[d.pedido.tipo_entrega]?.texto || d.pedido.tipo_entrega }}</span>
+              @if (d.pedido.programado_en) {
+                <span class="chip info"><mat-icon>event</mat-icon>{{ d.pedido.programado_en | date: 'EEE d MMM, h:mm a' : undefined : 'es-CO' }}</span>
+              } @else if (d.pedido.bajo_pedido && d.pedido.fecha_estimada) {
+                <span class="chip warn"><mat-icon>local_shipping</mat-icon>Llega aprox. {{ d.pedido.fecha_estimada | date: 'EEE d MMM' : undefined : 'es-CO' }}</span>
+              }
+              @if (d.grupo) { <span class="chip"><mat-icon>apartment</mat-icon>Pedido de oficina {{ d.grupo.numero }}</span> }
+              @if (d.activaciones?.length) {
+                <span class="chip codigo"><mat-icon>qr_code_2</mat-icon>{{ d.activaciones!.length }} código{{ d.activaciones!.length === 1 ? '' : 's' }}</span>
+              }
+              @if (d.cupo_bloqueado) {
+                <span class="chip" [class.ok]="d.cupo_bloqueado.estado === 'LIBERADO'" [class.warn]="d.cupo_bloqueado.estado === 'BLOQUEADO'"
+                      [class.danger]="d.cupo_bloqueado.estado === 'FALLIDO'">
+                  <mat-icon>account_balance_wallet</mat-icon>{{ CUPO[d.cupo_bloqueado.estado] || d.cupo_bloqueado.estado }}
+                </span>
+              }
+            </div>
+          </a>
+        </li>
+      }
+    </ul>
+  }
+</div>

@@ -57,7 +57,23 @@
     </div>
   }
 
-  @if (poolSinSesion()) {
+  @if (estado()?.salud; as salud) {
+    @for (a of alertasVisibles(); track a.codigo + a.mensaje) {
+      <div class="ag-aviso ag-alerta" [class.malo]="a.nivel === 'critica' || a.nivel === 'alta'"
+           [class.ojo]="a.nivel === 'media'" [class.leve]="a.nivel === 'baja'">
+        <mat-icon>{{ a.nivel === 'critica' ? 'error' : a.nivel === 'alta' ? 'report' : a.nivel === 'media' ? 'warning' : 'info' }}</mat-icon>
+        <span>
+          {{ a.mensaje }}
+          @if (a.accion) { <small class="ag-alerta-accion">{{ a.accion }}</small> }
+        </span>
+      </div>
+    }
+    @if (alertasLevesOcultas()) {
+      <button mat-button class="ag-alertas-mas" (click)="verAlertasLeves.set(true)">
+        <mat-icon>expand_more</mat-icon> {{ alertasLevesOcultas() }} aviso(s) leve(s) más
+      </button>
+    }
+  } @else if (poolSinSesion()) {
     <div class="ag-aviso ojo">
       <mat-icon>key_off</mat-icon>
       <span>

@@ -145,7 +145,17 @@
           </div>
         }
         @case ('CROQUIS') {
-          <div class="ev__grupo"><span class="ev__grupo-titulo">Mini-mapa</span><p class="ev__nota">Muestra el croquis publicado de la oficina y resalta el área del turno que se está cantando.</p></div>
+          <div class="ev__grupo">
+            <span class="ev__grupo-titulo">Plano de la oficina</span>
+            <label class="ev__campo"><span>Cómo se ve</span>
+              <select [ngModel]="prop(b, 'modo', 'auto')" (ngModelChange)="propSet('modo', $event)">
+                <option value="auto">3D (si el televisor no puede, 2D)</option>
+                <option value="3d">3D</option>
+                <option value="2d">2D (plano dibujado)</option>
+              </select>
+            </label>
+            <p class="ev__nota">Muestra el plano publicado y, cuando se canta un turno, ilumina el puesto exacto a donde debe ir la persona (baliza y luces del área parpadeando). Necesita «Mostrar plano» activado en la configuración de la pantalla.</p>
+          </div>
         }
       }
 

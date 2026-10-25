@@ -13,9 +13,9 @@
  *     en minúsculas). Datos correctos en la base, campo en blanco en pantalla.
  *  3. El campo Barrio estaba duplicado acá y en la pestaña de Entrevista.
  */
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { ComponentFixture, TestBed, discardPeriodicTasks, fakeAsync, flush, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { of, throwError } from 'rxjs';
+import { of, throwError, NEVER } from 'rxjs';
 
 import { SelectionQuestionsComponent } from './selection-questions.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -54,8 +54,11 @@ describe('SelectionQuestionsComponent', () => {
     rpc.upsertCandidatoByDocumento.and.returnValue(of({}));
 
     const robots = jasmine.createSpyObj('RobotsService',
-      ['getResultadosAntecedentes', 'forzarConsultaFuente']);
+      ['getResultadosAntecedentes', 'forzarConsultaFuente', 'getEstadoColaAntecedentes',
+        'registrarForzado', 'fuentesForzadas', 'atenderForzado'],
+      { forzadoCambio$: NEVER });
     robots.getResultadosAntecedentes.and.returnValue(of({ encontrado: false, campos: {} }));
+    robots.fuentesForzadas.and.returnValue([]);
 
     await TestBed.configureTestingModule({
       imports: [SelectionQuestionsComponent, NoopAnimationsModule],
@@ -324,6 +327,94 @@ describe('SelectionQuestionsComponent', () => {
       tick();
 
       expect(rpc.upsertCandidatoByDocumento).not.toHaveBeenCalled();
+    }));
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  describe('re-consulta forzada: PDF y dato de HOY', () => {
+
+    it('muestra el PDF MÁS RECIENTE de cada tipo (el backend lista del más nuevo al más viejo)', fakeAsync(() => {
+      docsSrv.getDocumentosDeCandidato.and.returnValue(of([
+        { id: 20, type: 3, title: 'Procuraduria hoy', file_url: '/nuevo.pdf', uploaded_at: '2026-09-23T12:00:00Z' },
+        { id: 10, type: 3, title: 'Procuraduria abril', file_url: '/viejo.pdf', uploaded_at: '2026-04-25T00:00:00Z' },
+      ]));
+
+      abrirCandidato(candidatoCon([]));
+      tick();
+
+      expect(comp.uploadedFiles.procuraduria.file).toBe('/nuevo.pdf');
+      flush();
+    }));
+
+    it('cuando la fuente forzada vuelve FINALIZADO, el dato nuevo PISA el anterior y se recarga el PDF', fakeAsync(() => {
+      const robots = TestBed.inject(RobotsService) as jasmine.SpyObj<RobotsService>;
+      let pendientes = ['procuraduria'];
+      robots.fuentesForzadas.and.callFake(() => [...pendientes]);
+      robots.atenderForzado.and.callFake((_c: string, f: string[]) => {
+        pendientes = pendientes.filter((x) => !f.includes(x));
+      });
+      robots.getEstadoColaAntecedentes.and.returnValue(of({ estado_procuraduria: 'FINALIZADO' } as any));
+      let llamadas = 0;
+      robots.getResultadosAntecedentes.and.callFake(() => of((++llamadas === 1
+        ? { encontrado: false, campos: {} }
+        : { cedula: '1082490391', encontrado: true, campos: { procuraduria: { valor: 'CUMPLE' } } }) as any));
+
+      // Lo de la consulta anterior: NO CUMPLE guardado.
+      abrirCandidato(candidatoCon([{ nombre: 'PROCURADURIA', observacion: 'NO CUMPLE' }]));
+      tick();
+      expect(comp.antecedentes.get('procuraduria')!.value).toBe('NO CUMPLE');
+      docsSrv.getDocumentosDeCandidato.calls.reset();
+
+      tick(10_000);   // una vuelta de la vigilancia
+
+      expect(comp.antecedentes.get('procuraduria')!.value).toBe('CUMPLE');
+      expect(docsSrv.invalidarDocumentos).toHaveBeenCalledWith('1082490391');
+      expect(docsSrv.getDocumentosDeCandidato).toHaveBeenCalledWith(
+        '1082490391', jasmine.objectContaining({ force: true }));
+      expect(pendientes).toEqual([]);
+      discardPeriodicTasks();
+      flush();
+    }));
+  });
+  // ─────────────────────────────────────────────────────────────
+  describe('salud según ADRES en la tarjeta EPS (pedido #6)', () => {
+
+    it('régimen de excepción: chip en la tarjeta EPS', fakeAsync(() => {
+      const robots = TestBed.inject(RobotsService) as jasmine.SpyObj<RobotsService>;
+      robots.getResultadosAntecedentes.and.returnValue(of({
+        cedula: '1082490391', encontrado: true, campos: {},
+        regimen_excepcion: { regimen: 'ESPECIAL', entidad: 'FOMAG', estado: null, fecha: null },
+      } as any));
+
+      abrirCandidato(candidatoCon([]));
+      tick();
+      fixture.detectChanges();
+
+      const chips = fixture.nativeElement.querySelectorAll('.adres-salud--excepcion');
+      expect(chips.length).withContext('solo en la tarjeta EPS').toBe(1);
+      expect((chips[0] as HTMLElement).textContent).toContain('Régimen especial/excepción');
+      expect((chips[0] as HTMLElement).textContent).toContain('FOMAG');
+    }));
+
+    it('ADRES sin registro: aviso de verificar la afiliación', fakeAsync(() => {
+      const robots = TestBed.inject(RobotsService) as jasmine.SpyObj<RobotsService>;
+      robots.getResultadosAntecedentes.and.returnValue(of({
+        cedula: '1082490391', encontrado: true, campos: {}, regimen_excepcion: null, adres_sin_registro: true,
+      } as any));
+
+      abrirCandidato(candidatoCon([]));
+      tick();
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement.querySelector('.adres-salud--verificar') as HTMLElement;
+      expect(el?.textContent).toContain('Verificar afiliación: ADRES sin registro');
+    }));
+
+    it('sin nada que avisar no pinta nada', fakeAsync(() => {
+      abrirCandidato(candidatoCon([]));
+      tick();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('.adres-salud')).toBeNull();
     }));
   });
 });

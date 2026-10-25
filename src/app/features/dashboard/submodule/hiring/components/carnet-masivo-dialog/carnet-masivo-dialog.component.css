@@ -172,6 +172,62 @@
 /* Bloque de volteo de la hoja (compartido con la generación individual). */
 .cm-impresion { display: block; margin-top: 12px; }
 
+/* ── Carnets por hoja ── */
+.cm-por-hoja {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.cm-por-hoja-texto { flex: 1; min-width: 0; }
+.cm-por-hoja-texto h3 {
+  display: flex; align-items: center; gap: 6px;
+  margin: 0; font-size: .9rem; font-weight: 700;
+  color: var(--azul); color: light-dark(var(--azul), var(--text));
+}
+.cm-por-hoja-texto h3 mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.cm-por-hoja-texto p { margin: 2px 0 0; font-size: .76rem; color: var(--muted); }
+
+.cm-por-hoja-opciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cm-por-hoja-op {
+  min-width: 34px; height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit; font-weight: 600;
+  cursor: pointer;
+}
+.cm-por-hoja-op:hover:not(:disabled) { border-color: var(--azul); }
+.cm-por-hoja-op.activa {
+  background: var(--azul); border-color: var(--azul); color: #fff;
+}
+.cm-por-hoja-op:disabled { opacity: .5; cursor: default; }
+.cm-por-hoja-op:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
+.cm-por-hoja-cuenta { margin-top: 6px !important; color: inherit !important; }
+
+/* Hoja en miniatura: siempre la grilla de 3x3, con las celdas que se llenan. */
+.cm-mini-hoja {
+  display: grid;
+  grid-template-columns: repeat(3, 22px);
+  grid-template-rows: repeat(3, 14px);
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  flex: none;
+}
+.cm-mini-celda { border: 1px dashed var(--border); border-radius: 2px; }
+.cm-mini-celda.llena { background: var(--azul); border-style: solid; border-color: var(--azul); }
+
+@media (max-width: 600px) {
+  .cm-por-hoja { flex-direction: column; align-items: flex-start; }
+}
+
 /* ── Acciones ── */
 .cm-actions {
   display: flex;

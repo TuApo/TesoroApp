@@ -11,20 +11,24 @@
   </div>
 
   <!-- Main Content Area -->
-  <div class="viewport">
+  <!-- `en-revision`: la foto procesada es 3:4 y se muestra ENTERA (contain),
+       con la barra de controles debajo y no encima: si no, el encabezado le
+       tapa la cabeza y los botones los hombros. -->
+  <div class="viewport" [class.en-revision]="!!procesada && !!previewUrl">
 
     <!-- MODE: UPLOAD -->
     @if (isUploadMode) {
       <div class="upload-area">
-        @if (!previewUrl) {
+        @if (!previewUrl && fase !== 'procesando') {
           <div class="upload-placeholder" (click)="fileInput.click()">
             <mat-icon>cloud_upload</mat-icon>
             <span>Toca para seleccionar archivo</span>
+            <small class="upload-ayuda">Una foto de la persona sola, de frente y con la cara visible</small>
           </div>
         }
         <input #fileInput type="file" accept="image/*" class="hidden-input" (change)="onFileSelected($event)">
         @if (previewUrl) {
-          <img [src]="previewUrl" class="preview-image" alt="Vista previa">
+          <ng-container [ngTemplateOutlet]="fotoRevision" />
         }
       </div>
     } @else {
@@ -33,7 +37,7 @@
         <video #videoEl playsinline muted [class.mirror]="isMirror" [class.hidden]="!!previewUrl"></video>
         <!-- Captured Image Preview (in place of video) -->
         @if (previewUrl) {
-          <img [src]="previewUrl" class="preview-image" alt="Captura">
+          <ng-container [ngTemplateOutlet]="fotoRevision" />
         }
         <!-- Loading Spinner -->
         @if (loadingCamera) {
@@ -55,7 +59,7 @@
              encaja, la cuenta atrás dentro del óvalo avisa de que la foto va
              a salir sola: sin ese aviso el disparo automático se siente como
              una aplicación que hace cosas por su cuenta. -->
-        @if (!previewUrl && !cameraError && pasoRostro !== 'sin-validador') {
+        @if (!previewUrl && !cameraError && pasoRostro !== 'sin-validador' && fase !== 'procesando') {
           <div class="rostro-guia" [class.rostro-ok]="pasoRostro === 'listo'">
             <div #ovaloEl class="rostro-ovalo">
               @if (cuenta > 0) {
@@ -87,17 +91,78 @@
       </div>
     }
 
-    <!-- MODE: CAMERA -->
+    <!-- Recortando / poniendo el fondo blanco: tapa la cámara para que nadie
+         crea que tiene que seguir quieto. -->
+    @if (fase === 'procesando') {
+      <div class="procesando" role="status" aria-live="polite">
+        <mat-spinner diameter="42" mode="indeterminate"></mat-spinner>
+        <span>{{ pasoProceso }}</span>
+      </div>
+    }
 
     <!-- Bottom Control Bar (Overlay) -->
     <div class="controls-overlay">
 
+      <!-- Algo impidió usar la foto (un adjunto sin cara, un fallo al prepararla). -->
+      @if (errorFoto && !previewUrl) {
+        <div class="foto-error" role="alert">
+          <mat-icon>error_outline</mat-icon>
+          <span>{{ errorFoto }}</span>
+        </div>
+      }
+
       <!-- STATE: PREVIEW (Captured or Uploaded) -->
       @if (previewUrl) {
-        <!-- La foto salió sola: hay que preguntar de forma explícita si se ve
-             bien, porque nadie pulsó nada para tomarla. -->
         <div class="revision">
-          <span class="revision-pregunta">¿Se ve bien?</span>
+          @if (procesada) {
+            <!-- ══ VEREDICTO DE LA IA ══
+                 Lo que decide si se puede continuar. Si la IA no contesta, se
+                 dice y se deja seguir: una IA caída no deja a nadie sin foto. -->
+            @switch (estadoIa) {
+              @case ('verificando') {
+                <div class="ia-estado ia-verificando" role="status" aria-live="polite">
+                  <mat-spinner diameter="18" mode="indeterminate"></mat-spinner>
+                  <span>Verificando con IA…</span>
+                </div>
+              }
+              @case ('apta') {
+                <div class="ia-estado ia-apta" role="status" aria-live="polite">
+                  <mat-icon>verified</mat-icon>
+                  <span>La IA confirmó que la foto quedó bien. Ya puedes continuar.</span>
+                </div>
+              }
+              @case ('no-apta') {
+                <div class="ia-estado ia-no-apta" role="alert">
+                  <mat-icon>report</mat-icon>
+                  <div>
+                    <strong>La foto todavía no sirve:</strong>
+                    <ul>
+                      @for (m of ia?.motivos ?? []; track $index) {
+                        <li>{{ m }}</li>
+                      }
+                    </ul>
+                  </div>
+                </div>
+              }
+              @case ('sin-ia') {
+                <div class="ia-estado ia-sin" role="status" aria-live="polite">
+                  <mat-icon>info</mat-icon>
+                  <span>No se pudo verificar con IA. Revisa tú que se vea bien antes de continuar.</span>
+                </div>
+              }
+            }
+            @if (mostrarAvisosLocales) {
+              <div class="avisos-locales">
+                @for (a of avisosLocales; track a) {
+                  <span class="aviso-chip"><mat-icon>warning_amber</mat-icon>{{ a }}</span>
+                }
+              </div>
+            }
+          } @else {
+            <!-- La foto salió sola: hay que preguntar de forma explícita si se ve
+                 bien, porque nadie pulsó nada para tomarla. -->
+            <span class="revision-pregunta">¿Se ve bien?</span>
+          }
           @if (personaVerificada) {
             <span class="revision-sello">
               <mat-icon>verified_user</mat-icon>
@@ -106,23 +171,34 @@
           }
         </div>
         <div class="controls-row">
-          <button mat-flat-button color="warn" (click)="clearSelection()">
-            <mat-icon>refresh</mat-icon> {{ isUploadMode ? 'Otra' : 'Repetir' }}
-          </button>
+          @if (estadoIa === 'no-apta') {
+            <!-- Rechazada: lo primero es volver a tomarla. -->
+            <button mat-flat-button color="primary" (click)="clearSelection()">
+              <mat-icon>refresh</mat-icon> {{ isUploadMode ? 'Elegir otra' : 'Volver a tomar' }}
+            </button>
+          } @else {
+            <button mat-flat-button color="warn" (click)="clearSelection()">
+              <mat-icon>refresh</mat-icon> {{ isUploadMode ? 'Otra' : 'Repetir' }}
+            </button>
+          }
           <!-- El dialogo abre en previsualizacion cuando ya hay foto, y antes
                esta era la unica barra visible: no habia forma de llegar a
                "Adjuntar" sin pulsar Repetir primero. -->
           <button mat-stroked-button (click)="adjuntarDesdePreview()">
             <mat-icon>attach_file</mat-icon> Adjuntar
           </button>
-          <button mat-flat-button color="primary" (click)="confirm()">
-            <mat-icon>check</mat-icon> Confirmar
-          </button>
+          <!-- El span lleva el tooltip: un botón deshabilitado no recibe el
+               ratón y el motivo nunca se vería. -->
+          <span [matTooltip]="motivoSinConfirmar" [matTooltipDisabled]="puedeConfirmar || !motivoSinConfirmar">
+            <button mat-flat-button color="primary" (click)="confirm()" [disabled]="!puedeConfirmar">
+              <mat-icon>check</mat-icon> Confirmar
+            </button>
+          </span>
         </div>
       }
 
       <!-- STATE: CAMERA ACTIVE (No preview) -->
-      @if (!previewUrl && !isUploadMode) {
+      @if (!previewUrl && !isUploadMode && fase !== 'procesando') {
         <div class="controls-row camera-controls">
           <!-- Left: Upload Toggle -->
           <button mat-icon-button class="secondary-btn" (click)="toggleUploadMode()" matTooltip="Adjuntar archivo">
@@ -153,7 +229,7 @@
       }
 
       <!-- STATE: UPLOAD ACTIVE (No preview) -->
-      @if (!previewUrl && isUploadMode) {
+      @if (!previewUrl && isUploadMode && fase !== 'procesando') {
         <div class="controls-row">
           <button mat-stroked-button (click)="toggleUploadMode()">
             <mat-icon>camera_alt</mat-icon> Usar Cámara
@@ -164,3 +240,21 @@
     </div>
   </div>
 </div>
+
+<!-- ══ LA FOTO EN REVISIÓN ══
+     Misma pieza para la cámara y para el adjunto. Con foto procesada se
+     puede comparar el recorte original con el de fondo blanco. -->
+<ng-template #fotoRevision>
+  <figure class="foto-revision" [class.foto-3x4]="!!procesada">
+    <img [src]="imagenVisible" class="preview-image" [class.foto-3x4]="!!procesada"
+         [alt]="verAntes ? 'Foto antes del fondo blanco' : 'Vista previa de la foto'">
+    @if (procesada?.urlAntes) {
+      <div class="antes-despues" role="group" aria-label="Comparar la foto">
+        <button type="button" [class.activo]="verAntes" [attr.aria-pressed]="verAntes"
+                (click)="mostrarAntes(true)">Antes</button>
+        <button type="button" [class.activo]="!verAntes" [attr.aria-pressed]="!verAntes"
+                (click)="mostrarAntes(false)">Fondo blanco</button>
+      </div>
+    }
+  </figure>
+</ng-template>

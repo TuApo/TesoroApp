@@ -1,3 +1,4 @@
+import { PanelMediosLeccion } from '../../components/panel-medios-leccion/panel-medios-leccion';
 import {
   Component, ChangeDetectionStrategy, OnInit, OnDestroy, inject, signal, computed
 } from '@angular/core';
@@ -9,7 +10,8 @@ import { BlockCard, TIPOS_DE_BLOQUE, metaDeBloque } from '../../components/block
 import Swal from 'sweetalert2';
 import {
   TrainingAdminService, Curso, Version, ContenidoVersion, Modulo, Leccion,
-  VersionIa, LeccionIa, MaterialIa, EtiquetaIa, Bloque, BloqueRequest, TipoBloque, Banco
+  VersionIa, LeccionIa, MaterialIa, EtiquetaIa, Bloque, BloqueRequest, TipoBloque, Banco,
+  EsquemaCalificacion, RequisitosRequest
 } from '../../service/training-admin.service';
 
 /**
@@ -23,7 +25,7 @@ import {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-course-detail',
-  imports: [CommonModule, FormsModule, MatIconModule, BlockCard],
+  imports: [CommonModule, FormsModule, MatIconModule, BlockCard, PanelMediosLeccion],
   templateUrl: './admin-course-detail.html',
   styleUrl: './admin-course-detail.css'
 })
@@ -56,6 +58,132 @@ export class AdminCourseDetail implements OnInit, OnDestroy {
 
   /** Formularios abiertos. null = cerrado. */
   readonly nuevoModulo = signal<{ nombre: string; descripcion: string } | null>(null);
+  readonly editandoModulo = signal<{ id: string; nombre: string; descripcion: string } | null>(null);
+  readonly editandoLeccion = signal<{ id: string; nombre: string; tipo: string;
+                                      duracion_min?: number | null; obligatoria: boolean } | null>(null);
+
+  /** Módulos y lecciones plegados, por id. Lo que no está aquí se ve desplegado. */
+  readonly plegados = signal<ReadonlySet<string>>(new Set());
+
+  plegado(id: string): boolean {
+    return this.plegados().has(id);
+  }
+
+  alternarPliegue(id: string): void {
+    this.plegados.update(s => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  plegarTodo(plegar: boolean): void {
+    if (!plegar) { this.plegados.set(new Set()); return; }
+    const ids: string[] = [];
+    for (const m of this.contenido()?.modulos ?? []) {
+      ids.push(m.id);
+      for (const l of m.lecciones ?? []) ids.push(l.id);
+    }
+    this.plegados.set(new Set(ids));
+  }
+
+  /** Salta al módulo o a la lección desde el temario del editor. */
+  irA(id: string): void {
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
+  }
+
+  readonly totalBloques = computed(() =>
+    (this.contenido()?.modulos ?? []).reduce((n, m) =>
+      n + (m.lecciones ?? []).reduce((k, l) => k + (l.bloques?.length ?? 0), 0), 0));
+
+  /** El curso tal como lo verá quien lo curse: el reproductor en modo vista previa. */
+  previsualizar(): void {
+    const v = this.versionActivaId();
+    if (!v) return;
+    this.router.navigate(['/dashboard/capacitaciones/catalogo', this.courseId, 'vista-previa', v]);
+  }
+
+  editarModulo(m: Modulo): void {
+    this.editandoModulo.set({ id: m.id, nombre: m.nombre, descripcion: m.descripcion ?? '' });
+  }
+
+  async guardarEdicionModulo(): Promise<void> {
+    const f = this.editandoModulo();
+    const m = this.contenido()?.modulos.find(x => x.id === f?.id);
+    if (!f || !m || !f.nombre.trim()) return;
+    this.ocupado.set(true);
+    try {
+      await this.api.actualizarModulo(m.id, {
+        nombre: f.nombre.trim(), descripcion: f.descripcion, orden: m.orden,
+        peso: m.peso ?? null, nota_minima: m.nota_minima ?? null, asistencia_minima: m.asistencia_minima ?? null,
+      });
+      this.editandoModulo.set(null);
+      await this.cargarContenido(this.versionActivaId()!);
+    } catch (e: any) {
+      Swal.fire('No se pudo guardar el módulo', e?.error?.message ?? '', 'error');
+    } finally {
+      this.ocupado.set(false);
+    }
+  }
+
+  editarLeccion(l: Leccion): void {
+    this.editandoLeccion.set({ id: l.id, nombre: l.nombre, tipo: l.tipo,
+      duracion_min: l.duracion_min ?? null, obligatoria: l.obligatoria });
+  }
+
+  async guardarEdicionLeccion(): Promise<void> {
+    const f = this.editandoLeccion();
+    if (!f || !f.nombre.trim()) return;
+    const l = (this.contenido()?.modulos ?? []).flatMap(m => m.lecciones ?? []).find(x => x.id === f.id);
+    if (!l) return;
+    this.ocupado.set(true);
+    try {
+      await this.api.actualizarLeccion(l.id, {
+        nombre: f.nombre.trim(), tipo: f.tipo, contenido: l.contenido,
+        duracion_min: f.duracion_min ?? undefined, obligatoria: f.obligatoria, orden: l.orden,
+      });
+      this.editandoLeccion.set(null);
+      await this.cargarContenido(this.versionActivaId()!);
+    } catch (e: any) {
+      Swal.fire('No se pudo guardar la lección', e?.error?.message ?? '', 'error');
+    } finally {
+      this.ocupado.set(false);
+    }
+  }
+
+  /**
+   * La misma clase a lo largo de las versiones del curso. Cada versión la clona; el linaje
+   * las une, y aquí se ve cuándo cambió y en qué versión vive cada revisión.
+   */
+  async verHistorial(l: Leccion): Promise<void> {
+    try {
+      const filas = await this.api.historialDeLeccion(l.id);
+      const esc = (s: string | null | undefined) => (s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!));
+      const html = `
+        <table style="width:100%;border-collapse:collapse;font-size:.9rem;text-align:left">
+          <thead><tr>
+            <th style="padding:6px;border-bottom:1px solid #ccc">Versión</th>
+            <th style="padding:6px;border-bottom:1px solid #ccc">Rev.</th>
+            <th style="padding:6px;border-bottom:1px solid #ccc">Nombre</th>
+            <th style="padding:6px;border-bottom:1px solid #ccc">Bloques</th>
+            <th style="padding:6px;border-bottom:1px solid #ccc">Estado</th>
+          </tr></thead>
+          <tbody>${filas.map(f => `<tr style="${f.actual ? 'font-weight:700' : ''}">
+            <td style="padding:6px">v${f.version}${f.publicada_at ? ' · ' + new Date(f.publicada_at).toLocaleDateString() : ''}</td>
+            <td style="padding:6px">${f.revision}</td>
+            <td style="padding:6px">${esc(f.nombre)}${f.duracion_min ? ' · ' + f.duracion_min + ' min' : ''}</td>
+            <td style="padding:6px">${f.bloques}</td>
+            <td style="padding:6px">${f.estado}${f.actual ? ' (esta)' : ''}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+        <p style="font-size:.82rem;color:#666;margin:10px 0 0">
+          Cada versión publicada del curso congela su copia de la clase; los comentarios siguen a la clase de versión en versión.
+        </p>`;
+      await Swal.fire({ title: `Historial · ${l.nombre}`, html, width: 720, confirmButtonText: 'Cerrar' });
+    } catch (e: any) {
+      Swal.fire('No se pudo cargar el historial', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    }
+  }
   readonly nuevaLeccion = signal<{ moduleId: string; nombre: string; tipo: string;
                                    contenido: string; duracion_min?: number } | null>(null);
 
@@ -123,7 +251,147 @@ export class AdminCourseDetail implements OnInit, OnDestroy {
 
   private async cargarContenido(versionId: string): Promise<void> {
     this.contenido.set(await this.api.contenido(this.courseId, versionId));
-    await this.cargarIa(versionId);
+    await Promise.all([this.cargarIa(versionId), this.cargarCalificacion(versionId)]);
+  }
+
+  // ── Calificación y requisitos ─────────────────────────────────────────────
+
+  /** Cómo se reparte la nota y qué se exige. null = todavía no se ha leído. */
+  readonly esquema = signal<EsquemaCalificacion | null>(null);
+  readonly califAbierta = signal(false);
+  readonly guardandoReq = signal(false);
+  /** Los requisitos en edición. Se rellena al leer el esquema. */
+  readonly reqForm = signal<RequisitosRequest | null>(null);
+  /** Pesos y mínimos de módulo en edición, por id. Se guardan al salir del campo. */
+  private readonly moduloEdits = new Map<string, { peso?: number | null; nota_minima?: number | null }>();
+
+  /** Una frase con lo que se exige, para verlo con la sección plegada. */
+  readonly resumenCalificacion = computed(() => {
+    const e = this.esquema();
+    if (!e) return '';
+    if (!e.hay_calificables) return 'nada calificable todavía · se aprueba terminando el contenido';
+    const r = e.requisitos;
+    const partes = [`nota mínima ${r.nota_minima_efectiva ?? 70}`];
+    if (r.asistencia_minima != null) partes.push(`asistencia ${r.asistencia_minima} %`);
+    if (r.exige_todos_modulos) partes.push('cada módulo aprobado');
+    if (r.tiene_examen_formal) partes.push('evaluación formal');
+    const conPeso = e.modulos.filter(m => m.tiene_calificables).length;
+    partes.push(`${conPeso} módulo(s) con nota`);
+    return partes.join(' · ');
+  });
+
+  /** Falla en silencio: sin esto, el curso se sigue armando igual. */
+  private async cargarCalificacion(versionId: string): Promise<void> {
+    try {
+      const e = await this.api.esquemaCalificacion(versionId);
+      this.esquema.set(e);
+      this.reqForm.set({
+        nota_minima: e.requisitos.nota_minima,
+        asistencia_minima: e.requisitos.asistencia_minima,
+        exige_todos_modulos: e.requisitos.exige_todos_modulos,
+        exige_contenido_completo: e.requisitos.exige_contenido_completo,
+        exige_actividades_aprobadas: e.requisitos.exige_actividades_aprobadas,
+      });
+      this.moduloEdits.clear();
+    } catch {
+      this.esquema.set(null);
+    }
+  }
+
+  async guardarRequisitos(): Promise<void> {
+    const f = this.reqForm();
+    const v = this.versionActivaId();
+    if (!f || !v) return;
+    this.guardandoReq.set(true);
+    try {
+      await this.api.guardarRequisitos(v, {
+        ...f,
+        nota_minima: this.numeroONull(f.nota_minima),
+        asistencia_minima: this.numeroONull(f.asistencia_minima),
+      });
+      await this.cargarCalificacion(v);
+      Swal.fire('Requisitos guardados', 'Se aplican a quien curse esta versión.', 'success');
+    } catch (e: any) {
+      Swal.fire('No se pudo guardar', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    } finally {
+      this.guardandoReq.set(false);
+    }
+  }
+
+  pesoModulo(moduleId: string): number | null {
+    const edit = this.moduloEdits.get(moduleId);
+    if (edit && 'peso' in edit) return edit.peso ?? null;
+    return this.esquema()?.modulos.find(m => m.module_id === moduleId)?.peso ?? null;
+  }
+
+  minimoModulo(moduleId: string): number | null {
+    const edit = this.moduloEdits.get(moduleId);
+    if (edit && 'nota_minima' in edit) return edit.nota_minima ?? null;
+    return this.esquema()?.modulos.find(m => m.module_id === moduleId)?.nota_minima ?? null;
+  }
+
+  editarPesoModulo(moduleId: string, v: unknown): void {
+    this.moduloEdits.set(moduleId, { ...(this.moduloEdits.get(moduleId) ?? {}), peso: this.numeroONull(v) });
+  }
+
+  editarMinimoModulo(moduleId: string, v: unknown): void {
+    this.moduloEdits.set(moduleId, { ...(this.moduloEdits.get(moduleId) ?? {}), nota_minima: this.numeroONull(v) });
+  }
+
+  /**
+   * Guarda el peso y el mínimo del módulo al salir del campo. Manda el módulo completo
+   * (nombre, descripción, orden) porque el endpoint es un PUT, no un parche.
+   */
+  async guardarModuloCalificacion(moduleId: string): Promise<void> {
+    const edit = this.moduloEdits.get(moduleId);
+    const m = this.contenido()?.modulos.find(x => x.id === moduleId);
+    const v = this.versionActivaId();
+    if (!edit || !m || !v) return;
+    const peso = 'peso' in edit ? edit.peso ?? null : m.peso ?? null;
+    const nota_minima = 'nota_minima' in edit ? edit.nota_minima ?? null : m.nota_minima ?? null;
+    if (peso === (m.peso ?? null) && nota_minima === (m.nota_minima ?? null)) return;
+    try {
+      await this.api.actualizarModulo(moduleId, {
+        nombre: m.nombre, descripcion: m.descripcion, orden: m.orden,
+        peso, nota_minima, asistencia_minima: m.asistencia_minima ?? null,
+      });
+      this.moduloEdits.delete(moduleId);
+      await this.cargarContenido(v);
+    } catch (e: any) {
+      Swal.fire('No se pudo guardar el peso', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    }
+  }
+
+  /** El peso efectivo del módulo, para el chip de su cabecera. Null = no tiene nada calificable. */
+  pesoEfectivoDe(moduleId: string): string | null {
+    const pe = this.esquema()?.modulos.find(m => m.module_id === moduleId)?.peso_efectivo;
+    return pe == null ? null : this.pct(pe);
+  }
+
+  pct(n: number): string {
+    return Number.isInteger(n) ? String(n) : n.toFixed(1).replace(/\.0$/, '');
+  }
+
+  nombreTipoQuiz(tipo: string): string {
+    switch (tipo) {
+      case 'EXAMEN_FINAL': return 'Examen final';
+      case 'PRACTICA':     return 'Práctica';
+      default:             return 'Quiz';
+    }
+  }
+
+  iconoTipoQuiz(tipo: string): string {
+    switch (tipo) {
+      case 'EXAMEN_FINAL': return 'workspace_premium';
+      case 'PRACTICA':     return 'sports_esports';
+      default:             return 'quiz';
+    }
+  }
+
+  private numeroONull(v: unknown): number | null {
+    if (v === '' || v === null || v === undefined) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
   }
 
   /**
@@ -449,11 +717,6 @@ export class AdminCourseDetail implements OnInit, OnDestroy {
     return metaDeBloque(tipo);
   }
 
-  /** El quiz es uno por lección: si ya está puesto, el menú lo muestra deshabilitado. */
-  yaTieneQuiz(l: Leccion): boolean {
-    return this.bloquesDe(l).some(b => b.tipo === 'QUIZ');
-  }
-
   abrirMenuBloques(l: Leccion): void {
     this.menuBloques.set(this.menuBloques() === l.id ? null : l.id);
   }
@@ -468,10 +731,22 @@ export class AdminCourseDetail implements OnInit, OnDestroy {
    *
    * Los archivos son la excepción porque el bloque no existe sin su document_id.
    */
+  /** Clase cuyo panel de medios con IA está abierto. */
+  readonly mediosDe = signal<{ id: string; nombre: string } | null>(null);
+
+  abrirMedios(l: Leccion): void {
+    this.mediosDe.set({ id: l.id, nombre: l.nombre });
+  }
+
+  async recargarTrasMedios(): Promise<void> {
+    const v = this.versionActivaId();
+    if (v) await this.cargarContenido(v);
+  }
+
   async agregarBloque(l: Leccion, tipo: TipoBloque): Promise<void> {
     this.menuBloques.set(null);
     const necesitaArchivo = tipo === 'VIDEO' || tipo === 'DOCUMENTO'
-                         || tipo === 'PRESENTACION' || tipo === 'IMAGEN';
+                         || tipo === 'PRESENTACION' || tipo === 'IMAGEN' || tipo === 'AUDIO';
     if (necesitaArchivo) return this.pedirArchivo(l, tipo);
     await this.crearBloque(l, { tipo });
   }
@@ -523,6 +798,7 @@ export class AdminCourseDetail implements OnInit, OnDestroy {
     switch (tipo) {
       case 'VIDEO':        return 'video/*,audio/*';
       case 'IMAGEN':       return 'image/*';
+      case 'AUDIO':        return 'audio/*';
       case 'PRESENTACION': return '.ppt,.pptx,.odp,application/pdf';
       default:             return '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,application/pdf';
     }

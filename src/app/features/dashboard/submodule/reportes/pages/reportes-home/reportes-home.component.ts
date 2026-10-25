@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -18,6 +18,7 @@ import { ReportesApiService } from '../../services/reportes-api.service';
 import { descargar, nombreArchivo } from '../../services/descargas.util';
 import { CompartirDialogComponent } from '../../components/compartir-dialog.component';
 import { ReporteResumen, TableroResumen } from '../../models/reportes.models';
+import { HerramientasPantallaService } from '../../../../../../core/services/operador/herramientas-pantalla.service';
 
 /**
  * Pantalla principal de Reportes y Analítica (§3).
@@ -42,6 +43,8 @@ export class ReportesHomeComponent implements OnInit {
   private api = inject(ReportesApiService);
   private router = inject(Router);
   private dialog = inject(MatDialog);
+  private destroyRef = inject(DestroyRef);
+  private herramientas = inject(HerramientasPantallaService);
 
   readonly cargando = signal(true);
   readonly cargandoTableros = signal(false);
@@ -90,6 +93,77 @@ export class ReportesHomeComponent implements OnInit {
     this.api.categorias().subscribe({ next: c => this.categorias.set(c), error: () => {} });
     this.api.reportesRecientes(6).subscribe({ next: r => this.recientes.set(r), error: () => {} });
     this.cargar();
+    this.ofrecerHerramientas();
+  }
+
+  /**
+   * Herramientas de pantalla (estilo WebMCP) para el asistente IA. Buscar y abrir no cambian
+   * datos: no piden confirmación.
+   */
+  private ofrecerHerramientas(): void {
+    const pestanas: Record<string, 'TODOS' | 'MIOS' | 'COMPARTIDOS' | 'FAVORITOS' | 'TABLEROS'> = {
+      todos: 'TODOS', mios: 'MIOS', compartidos: 'COMPARTIDOS', favoritos: 'FAVORITOS', tableros: 'TABLEROS',
+    };
+    const resumen = (r: ReporteResumen) => ({ id: r.id, nombre: r.nombre, descripcion: r.descripcion, categoria: r.categoria,
+      tipo: r.tipo, estado: this.rotuloEstado(r.estado) });
+    // La lista llega por HTTP: se espera a que termine de cargar (máx. 8 s) antes de leerla.
+    const esperar = () => new Promise<void>(res => {
+      const hasta = Date.now() + 8000;
+      const paso = () => (!this.cargando() && !this.cargandoTableros()) || Date.now() > hasta ? res() : setTimeout(paso, 150);
+      setTimeout(paso, 120);
+    });
+    this.herramientas.registrarEnPantalla(this.destroyRef, [
+      {
+        name: 'reportes_buscar', title: 'Buscar reportes', annotations: { readOnlyHint: true },
+        description: 'Filtra la pantalla de Reportes (por texto, categoría y pestaña: todos, mios, compartidos, favoritos o tableros) y devuelve lo que quedó en la lista (id, nombre, categoría).',
+        inputSchema: { type: 'object', properties: {
+          texto: { type: 'string', description: 'Palabras del nombre o la descripción' },
+          categoria: { type: 'string', description: `Categoría exacta (${this.categorias().slice(0, 12).join(', ') || 'opcional'})` },
+          pestana: { type: 'string', enum: Object.keys(pestanas) },
+        } },
+        execute: async (i) => {
+          if (typeof i['texto'] === 'string') this.texto = i['texto'];
+          if (typeof i['categoria'] === 'string') this.categoria = i['categoria'];
+          const p = pestanas[String(i['pestana'] ?? '').toLowerCase()];
+          if (p) this.pestana.set(p);
+          this.cargar();
+          await esperar();
+          if (this.pestana() === 'TABLEROS') {
+            return { pestana: 'tableros', total: this.total(), tableros: this.tableros().slice(0, 30).map(t => ({ id: t.id, nombre: t.nombre })) };
+          }
+          return { pestana: this.pestana().toLowerCase(), total: this.total(), reportes: this.reportes().slice(0, 30).map(resumen) };
+        },
+      },
+      {
+        name: 'reportes_abrir', title: 'Abrir un reporte', annotations: { readOnlyHint: true },
+        description: 'Abre un reporte (o tablero) de la lista por su id o por su nombre; la pantalla cambia al visor del reporte.',
+        inputSchema: { type: 'object', properties: {
+          id: { type: 'string', description: 'Id del reporte o tablero (de reportes_buscar)' },
+          nombre: { type: 'string', description: 'Nombre o parte del nombre, si no hay id' },
+        } },
+        execute: (i) => {
+          const id = typeof i['id'] === 'string' ? i['id'] : '';
+          const nombre = typeof i['nombre'] === 'string' ? i['nombre'].toLowerCase() : '';
+          const t = this.tableros().find(x => x.id === id || (!!nombre && x.nombre.toLowerCase().includes(nombre)));
+          if (this.pestana() === 'TABLEROS' && t) { this.abrirTablero(t); return { ok: true, abierto: t.nombre }; }
+          const r = [...this.reportes(), ...this.recientes()].find(x => x.id === id || (!!nombre && x.nombre.toLowerCase().includes(nombre)));
+          if (r) { this.abrir(r); return { ok: true, abierto: r.nombre }; }
+          if (id) { this.router.navigate(['/dashboard/reportes/constructor', id]); return { ok: true, abierto: id }; }
+          throw new Error('No encuentro ese reporte en la lista: búscalo primero con reportes_buscar.');
+        },
+      },
+    ]);
+    // Contexto de pantalla: la pestaña, los filtros y lo que hay en la lista ahora.
+    this.herramientas.contextoEnPantalla(this.destroyRef, 'reportes', () => ({
+      pestana: this.pestana().toLowerCase(),
+      filtros: { texto: this.texto || null, categoria: this.categoria || null, tipo: this.tipo || null, estado: this.estado || null },
+      total: this.total(),
+      cargando: this.cargando() || this.cargandoTableros(),
+      lista: this.pestana() === 'TABLEROS'
+        ? this.tableros().slice(0, 15).map(t => ({ id: t.id, nombre: t.nombre }))
+        : this.reportes().slice(0, 15).map(resumen),
+      recientes: this.recientes().slice(0, 4).map(r => r.nombre),
+    }));
   }
 
   alEscribir(v: string): void { this.texto = v; this.busqueda$.next(v); }

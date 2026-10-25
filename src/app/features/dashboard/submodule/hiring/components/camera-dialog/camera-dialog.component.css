@@ -348,6 +348,224 @@ video.mirror {
   height: 16px;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   FOTO TIPO DOCUMENTO
+   La foto procesada es 3:4 y se muestra ENTERA: con `cover`, como el vídeo,
+   se comía la cabeza y los hombros, que es justo lo que hay que revisar. En
+   revisión la barra de controles pasa debajo de la foto (no encima) y la foto
+   baja lo que mide el encabezado.
+   ══════════════════════════════════════════════════════════════════════════ */
+.viewport.en-revision {
+  padding-top: 76px;
+}
+
+.viewport.en-revision .camera-area,
+.viewport.en-revision .upload-area {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.viewport.en-revision .controls-overlay {
+  position: static;
+  background: #0b0b0b;
+  padding: 12px 16px 16px;
+  gap: 10px;
+}
+
+.foto-revision {
+  margin: 0;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.foto-revision.foto-3x4 {
+  padding: 8px 12px;
+}
+
+.preview-image.foto-3x4 {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .55);
+}
+
+/* Antes / Fondo blanco: arriba y al centro, sobre la foto. */
+.antes-despues {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .78);
+  backdrop-filter: blur(2px);
+}
+
+.antes-despues button {
+  /* La regla global de 48 px para botones táctiles haría esta píldora enorme. */
+  min-height: 34px !important;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, .8);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.antes-despues button.activo {
+  background: #fff;
+  color: #0f172a;
+}
+
+.antes-despues button:focus-visible {
+  outline: 2px solid #8CD50A;
+  outline-offset: 2px;
+}
+
+/* Recortando / poniendo el fondo blanco. */
+.procesando {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(0, 0, 0, .72);
+  color: #fff;
+  font-size: .95rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 0 24px;
+}
+
+/* ── Veredicto de la IA ─────────────────────────────────────────────────── */
+.ia-estado {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  max-width: 520px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: .88rem;
+  line-height: 1.35;
+  text-align: left;
+  color: #fff;
+}
+
+.ia-estado mat-icon {
+  flex: none;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.ia-estado mat-spinner {
+  flex: none;
+}
+
+.ia-verificando {
+  align-items: center;
+  background: rgba(30, 41, 59, .9);
+}
+
+.ia-apta {
+  background: rgba(52, 105, 10, .9);
+}
+
+.ia-no-apta {
+  background: rgba(153, 27, 27, .92);
+}
+
+.ia-no-apta ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.ia-no-apta li + li {
+  margin-top: 2px;
+}
+
+.ia-sin {
+  background: rgba(146, 64, 14, .92);
+}
+
+/* Avisos de luz y nitidez medidos en el equipo. */
+.avisos-locales {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.aviso-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, .16);
+  color: #fde68a;
+  font-size: .76rem;
+  font-weight: 600;
+}
+
+.aviso-chip mat-icon {
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+/* Un adjunto sin cara, o una foto que no se pudo preparar. */
+.foto-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 520px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(153, 27, 27, .92);
+  color: #fff;
+  font-size: .88rem;
+  line-height: 1.35;
+}
+
+.foto-error mat-icon {
+  flex: none;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.upload-ayuda {
+  max-width: 260px;
+  text-align: center;
+  font-size: .78rem;
+  opacity: .8;
+}
+
+/* Celular: tres botones no caben en fila con el espacio de escritorio. */
+@media (max-width: 600px) {
+  .viewport.en-revision .controls-row {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+}
+
 /* Nada de esto se mueve para quien pidió que no se muevan las cosas. */
 @media (prefers-reduced-motion: reduce) {
   .rostro-cuenta {

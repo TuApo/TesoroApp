@@ -2,9 +2,7 @@ import { ChangeDetectionStrategy, Component, LOCALE_ID, OnInit, inject, signal, 
 import { CommonModule, formatDate } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import Swal from 'sweetalert2';
-import {
-  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
-} from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent } from '../../../../../../shared/components/tabla-estandar';
 import {
   CambioDetalle, CambioPendiente, CambiosPendientesService,
 } from '../../services/cambios-pendientes.service';
@@ -42,6 +40,36 @@ export class BandejaComponent implements OnInit {
   /** Tamaño de página que se pide al backend: la tabla está en modo servidor. */
   readonly porPagina = signal(25);
   private readonly tabla = viewChild(TablaEstandarComponent);
+
+  /**
+   * Acciones sobre lo marcado (estándar de la tabla): aplicar o descartar en
+   * bloque, solo sobre lo que sigue pendiente (con «Pegar lista» se traen los
+   * documentos desde un Excel). Uno por uno: el backend no tiene endpoint de
+   * lote y así un registro que falle no arrastra a los demás.
+   */
+  readonly accionesMasivas: AccionMasiva<CambioPendiente>[] = [
+    {
+      id: 'aplicar', etiqueta: 'Aplicar', icono: 'task_alt', tono: 'primario',
+      aplicaA: (f) => f.estado === 'PENDIENTE',
+      confirmar: {
+        icono: 'warning',
+        texto: 'Se escribirán en la ficha de cada persona, uno por uno. No se puede deshacer.',
+      },
+      ejecutar: (f) => this.api.aprobar(f.id),
+      etiquetaFila: (f) => f.numero_documento || String(f.id),
+      verbo: 'aplicado(s)',
+      alTerminar: () => void this.cargar(),
+    },
+    {
+      id: 'descartar', etiqueta: 'Descartar', icono: 'block', tono: 'aviso',
+      aplicaA: (f) => f.estado === 'PENDIENTE',
+      confirmar: { nota: 'Motivo (queda registrado en todos)' },
+      ejecutar: (f, ctx) => this.api.rechazar(f.id, ctx.nota || undefined),
+      etiquetaFila: (f) => f.numero_documento || String(f.id),
+      verbo: 'descartado(s)',
+      alTerminar: () => void this.cargar(),
+    },
+  ];
 
   /**
    * El backend pagina y no ordena ni busca por texto: las columnas no se ordenan

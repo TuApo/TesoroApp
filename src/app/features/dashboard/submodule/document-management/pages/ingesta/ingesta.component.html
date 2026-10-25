@@ -1,0 +1,430 @@
+@if (!esNavegador) {
+  <div class="ssr-fallback">
+    <mat-icon>folder_shared</mat-icon>
+    <p>La mesa de ingesta solo está disponible en el navegador.</p>
+  </div>
+} @else {
+
+<div class="mesa" (dragover)="alArrastrar($event, true)" (dragleave)="alArrastrar($event, false)"
+     (drop)="alSoltar($event)" [class.arrastrando]="arrastrando()">
+
+  <!-- ══ Encabezado ══════════════════════════════════════════════════════ -->
+  <header class="mesa-head">
+    <div class="head-titulo">
+      <span class="head-ico"><mat-icon>inventory_2</mat-icon></span>
+      <div>
+        <h1>Mesa de ingesta documental</h1>
+        <p>Trae los documentos, revisa a quién pertenecen y qué desplazan, y regístralos sin salir de esta vista.</p>
+      </div>
+    </div>
+
+    <div class="head-origenes" role="group" aria-label="Origen de los documentos">
+      <button type="button" class="origen" [class.activo]="origen() === 'archivos'"
+              (click)="elegirOrigen('archivos')">
+        <mat-icon>upload_file</mat-icon>
+        <span class="o-nombre">Archivos</span>
+        <span class="o-ayuda">PDF sueltos o arrastrados</span>
+      </button>
+      <button type="button" class="origen" [class.activo]="origen() === 'escaner'"
+              (click)="elegirOrigen('escaner')">
+        <mat-icon>document_scanner</mat-icon>
+        <span class="o-nombre">Escanear</span>
+        <span class="o-ayuda">Cámara con recorte de bordes</span>
+      </button>
+      <button type="button" class="origen" [class.activo]="origen() === 'zip'"
+              (click)="elegirOrigen('zip')">
+        <mat-icon>folder_zip</mat-icon>
+        <span class="o-nombre">Lote ZIP</span>
+        <span class="o-ayuda">Se abre aquí, antes de subir</span>
+      </button>
+      <button type="button" class="origen" [class.activo]="origen() === 'paquete'"
+              (click)="elegirOrigen('paquete')">
+        <mat-icon>call_split</mat-icon>
+        <span class="o-nombre">PDF por paquetes</span>
+        <span class="o-ayuda">Se separa por cédula</span>
+      </button>
+    </div>
+
+    <input #entradaArchivos type="file" multiple accept=".pdf" hidden (change)="alElegirArchivos($event)">
+    <input #entradaZip type="file" accept=".zip" hidden (change)="alElegirZip($event)">
+    <input #entradaPaquete type="file" accept=".pdf" hidden (change)="alElegirPaquete($event)">
+  </header>
+
+  @if (trabajando()) {
+    <div class="cinta-trabajo">
+      <mat-icon class="girando">autorenew</mat-icon> {{ trabajando() }}
+    </div>
+  }
+
+  <!-- ══ Cuerpo: destinatario · fichas · detalle ═════════════════════════ -->
+  <div class="mesa-cuerpo">
+
+    <!-- ── Columna 1: a quién le estamos cargando ───────────────────────── -->
+    <aside class="col-personas">
+      <section class="panel">
+        <h2 class="panel-tit"><mat-icon>badge</mat-icon> Destinatario</h2>
+        <mat-form-field appearance="outline" class="ancho" subscriptSizing="dynamic">
+          <mat-label>Cédula por defecto</mat-label>
+          <input matInput inputmode="numeric" autocomplete="off" [ngModel]="cedulaDestino()"
+                 (ngModelChange)="cambiarDestino($event)" placeholder="Escribe una cédula para ver su expediente">
+          <mat-icon matSuffix>person_search</mat-icon>
+        </mat-form-field>
+        <button mat-stroked-button class="btn-sec ancho" [disabled]="!cedulaDestino().trim()"
+                (click)="aplicarDestinoATodas()">
+          <mat-icon>how_to_reg</mat-icon> Asignar a los que no tienen
+        </button>
+        <p class="nota">
+          Los nombres tipo <code>cedula_tipo.pdf</code> se leen solos; esta cédula cubre los que no la traen
+          y, al escribirla, ya muestra abajo el expediente de esa persona.
+        </p>
+      </section>
+
+      @if (personas().length) {
+        <section class="panel">
+          <h2 class="panel-tit"><mat-icon>groups</mat-icon> Personas en esta tanda</h2>
+          @for (p of personas(); track p.cedula) {
+            <article class="persona" [class.desconocida]="!p.existe && !p.cargando">
+              <div class="p-cabecera">
+                @if (p.cargando) {
+                  <mat-icon class="girando">autorenew</mat-icon>
+                  <span class="p-nombre">Consultando {{ p.cedula }}…</span>
+                } @else if (p.existe) {
+                  <mat-icon class="ok">verified_user</mat-icon>
+                  <span class="p-nombre">{{ p.nombre || 'Sin nombre registrado' }}</span>
+                } @else {
+                  <mat-icon class="mal">person_off</mat-icon>
+                  <span class="p-nombre">No figura en contratación</span>
+                }
+              </div>
+              <p class="p-cedula">{{ p.cedula }}</p>
+
+              @if (!p.cargando && p.existe) {
+                <ul class="p-datos">
+                  @if (p.finca) { <li><mat-icon>apartment</mat-icon> {{ p.finca }}</li> }
+                  @if (p.fechaIngreso) { <li><mat-icon>event</mat-icon> Ingreso {{ p.fechaIngreso }}</li> }
+                  <li><mat-icon>description</mat-icon> {{ p.documentos.length }} documento(s) en el expediente</li>
+                  @if (p.faltantes.length) {
+                    <li class="falta" [matTooltip]="p.faltantes.join(', ')">
+                      <mat-icon>rule</mat-icon> Le faltan {{ p.faltantes.length }} exigido(s)
+                    </li>
+                  }
+                </ul>
+              }
+              @if (p.aviso) { <p class="p-aviso">{{ p.aviso }}</p> }
+            </article>
+          }
+        </section>
+      }
+    </aside>
+
+    <!-- ── Columna 2: lo que se va a registrar ──────────────────────────── -->
+    <section class="col-fichas">
+      <div class="fichas-head">
+        <h2>Lo que vas a registrar @if (fichas().length) { <span class="cuenta">{{ fichas().length }}</span> }</h2>
+        @if (fichas().length) {
+          <div class="fichas-acciones">
+            <mat-form-field appearance="outline" class="sel-masivo" subscriptSizing="dynamic">
+              <mat-label>Tipo para los que no tienen</mat-label>
+              <mat-select (selectionChange)="aplicarTipoAFaltantes($event.value)">
+                @for (g of grupos(); track g.padre) {
+                  <mat-optgroup [label]="g.padre">
+                    @for (h of g.hijos; track h.id) {
+                      <mat-option [value]="h.id">{{ h.name }}</mat-option>
+                    }
+                  </mat-optgroup>
+                }
+              </mat-select>
+            </mat-form-field>
+            <button mat-icon-button class="btn-peligro" matTooltip="Vaciar la mesa"
+                    [disabled]="registrando()" (click)="vaciar()">
+              <mat-icon>delete_sweep</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+
+      @if (!fichas().length) {
+        <div class="vacio">
+          <div class="vacio-ico"><mat-icon>drive_folder_upload</mat-icon></div>
+          <h3>La mesa está vacía</h3>
+          <p>Arrastra aquí tus PDF (o un ZIP) y aparecerán como fichas listas para revisar.</p>
+        </div>
+      } @else {
+        <div class="lista" role="list">
+          @for (f of fichas(); track f.id) {
+            <article class="ficha" role="listitem" [class.sel]="f.id === seleccionadaId()"
+                     [ngClass]="'estado-' + f.estado" (click)="seleccionar(f)">
+
+              <header class="f-head">
+                <mat-icon class="f-ico">picture_as_pdf</mat-icon>
+                <div class="f-id">
+                  <span class="f-nombre" [matTooltip]="f.procedencia || f.nombre">{{ f.nombre }}</span>
+                  <span class="f-meta">
+                    {{ tamanoLegible(f.tamano) }}
+                    @if (f.lectura?.paginas) { · {{ f.lectura?.paginas }} pág. }
+                    @if (f.procedencia) { · {{ f.procedencia }} }
+                  </span>
+                </div>
+                <span class="chip chip-{{ f.estado }}">{{ etiquetaEstado[f.estado] }}</span>
+                <button mat-icon-button class="btn-peligro" [disabled]="registrando()"
+                        matTooltip="Quitar de la mesa" (click)="quitar(f); $event.stopPropagation()">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </header>
+
+              <div class="f-campos" (click)="$event.stopPropagation()">
+                <mat-form-field appearance="outline" class="campo-cedula" subscriptSizing="dynamic">
+                  <mat-label>Cédula</mat-label>
+                  <input matInput inputmode="numeric" autocomplete="off" [ngModel]="f.cedula"
+                         (ngModelChange)="cambiarCedula(f, $event)" [disabled]="registrando()">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="campo-tipo" subscriptSizing="dynamic">
+                  <mat-label>Tipo documental</mat-label>
+                  <mat-select [ngModel]="f.typeId" (ngModelChange)="cambiarTipo(f, $event)"
+                              [disabled]="registrando()" placeholder="Sin asignar">
+                    @for (g of grupos(); track g.padre) {
+                      <mat-optgroup [label]="g.padre">
+                        @for (h of g.hijos; track h.id) {
+                          <mat-option [value]="h.id">{{ h.name }}</mat-option>
+                        }
+                      </mat-optgroup>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                @if (requiereContrato(f.typeId)) {
+                  <mat-form-field appearance="outline" class="campo-contrato" subscriptSizing="dynamic">
+                    <mat-label>Contrato</mat-label>
+                    <mat-select [ngModel]="f.contrato" (ngModelChange)="cambiarContrato(f, $event)"
+                                [disabled]="registrando()" placeholder="Sin asignar">
+                      <mat-option [value]="''">Sin contrato</mat-option>
+                      @for (c of contratosDe(f.cedula); track c.procesoId) {
+                        @if (c.codigoContrato) {
+                          <mat-option [value]="c.codigoContrato">
+                            {{ c.codigoContrato }}
+                            @if (c.empresaUsuaria) { · {{ c.empresaUsuaria }} }
+                          </mat-option>
+                        }
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                }
+              </div>
+
+              <footer class="f-pie">
+                <span class="motivo">
+                  <mat-icon>{{ f.estado === 'listo' ? 'check_circle' : f.estado === 'error' ? 'error' : 'info' }}</mat-icon>
+                  {{ f.motivo }}
+                </span>
+
+                @if (f.sugerencia && f.typeId !== f.sugerencia.typeId && f.estado !== 'registrado') {
+                  <button mat-button class="btn-sugerencia" (click)="aplicarSugerencia(f); $event.stopPropagation()">
+                    <mat-icon>auto_fix_high</mat-icon>
+                    Usar «{{ f.sugerencia.typeName }}»
+                    <span class="conf">{{ f.sugerencia.confianza * 100 | number:'1.0-0' }}%</span>
+                  </button>
+                }
+                @if (f.lectura?.esFactura) {
+                  <span class="chip chip-factura" matTooltip="Se registrará y pasará a la cola de lectura automática del servidor">
+                    <mat-icon>receipt_long</mat-icon> Factura · cola IA
+                  </span>
+                }
+                @if (f.documentId) {
+                  <span class="chip chip-doc">#{{ f.documentId }}</span>
+                }
+                @if (f.estado !== 'registrado' && f.estado !== 'subiendo') {
+                  <button mat-button class="btn-omitir" (click)="alternarOmitido(f); $event.stopPropagation()">
+                    {{ f.estado === 'omitido' ? 'Reincorporar' : 'Omitir' }}
+                  </button>
+                }
+              </footer>
+            </article>
+          }
+        </div>
+      }
+    </section>
+
+    <!-- ── Columna 3: el documento y cómo va a quedar ───────────────────── -->
+    <aside class="col-detalle">
+      @if (modoVisor() === 'nada' && !seleccionada()) {
+        <div class="detalle-vacio">
+          <mat-icon>visibility</mat-icon>
+          <p>Elige una ficha para ver el documento, lo que dice y qué desplaza.</p>
+        </div>
+      }
+
+      @if (bytesVisor()) {
+        <div class="visor">
+          <ngx-extended-pdf-viewer [src]="bytesVisor()!" [height]="'100%'" [zoom]="'page-width'"
+            [language]="'es'" [textLayer]="true" [showToolbar]="true" [showSidebarButton]="false"
+            [showFindButton]="false" [showOpenFileButton]="false" [showPrintButton]="false"
+            [showDownloadButton]="false" [showPropertiesButton]="false" [showPresentationModeButton]="false"
+            [showRotateButton]="true" [showSecondaryToolbarButton]="false"
+            [backgroundColor]="'transparent'" (pdfLoaded)="alCargarPdf($event)">
+          </ngx-extended-pdf-viewer>
+        </div>
+      }
+
+      @if (seleccionada(); as f) {
+        <section class="panel detalle">
+          <h2 class="panel-tit"><mat-icon>fact_check</mat-icon> Cómo va a quedar registrado</h2>
+
+          <mat-form-field appearance="outline" class="ancho" subscriptSizing="dynamic">
+            <mat-label>Título en el expediente</mat-label>
+            <input matInput [ngModel]="f.titulo" (ngModelChange)="cambiarTitulo(f, $event)"
+                   [disabled]="registrando()" autocomplete="off">
+          </mat-form-field>
+
+          <dl class="registro">
+            <div><dt>Persona</dt><dd>
+              {{ contextoSeleccionado()?.nombre || 'Sin nombre' }}
+              <span class="ced">{{ f.cedula || 'sin cédula' }}</span>
+            </dd></div>
+            <div><dt>Tipo</dt><dd>{{ nombreTipo(f.typeId) || 'Sin asignar' }}</dd></div>
+            <div><dt>Contrato</dt><dd>{{ f.contrato || 'Sin contrato' }}</dd></div>
+            <div><dt>Origen</dt><dd>{{ f.origen }}</dd></div>
+            <div><dt>Lectura</dt><dd>
+              @if (f.lectura?.requiereOcr) { Sin capa de texto · irá a la cola OCR del servidor }
+              @else if (f.lectura) { Texto leído en el navegador }
+              @else { Pendiente de abrir }
+            </dd></div>
+          </dl>
+
+          @if (f.reemplazaA; as prev) {
+            <div class="reemplazo">
+              <mat-icon>swap_horiz</mat-icon>
+              <div>
+                <strong>Desplaza a un documento que ya está</strong>
+                <p>
+                  «{{ prev.titulo || prev.typeName }}» del {{ fecha(prev.subidoEn) }} (#{{ prev.documentId }}).
+                  No se borra: queda en el histórico del expediente.
+                </p>
+                @if (prev.fileUrl) {
+                  <button mat-button class="btn-ver" (click)="abrirDocumento(prev.fileUrl)">
+                    <mat-icon>open_in_new</mat-icon> Ver el actual
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </section>
+
+        <section class="panel detalle">
+          <h2 class="panel-tit">
+            <mat-icon>auto_awesome</mat-icon> Lectura automática
+            @if (leyendo()) { <mat-icon class="girando mini">autorenew</mat-icon> }
+          </h2>
+
+          @if (!f.lectura && !leyendo()) {
+            <p class="nota">Se lee al abrir el documento en el visor.</p>
+          }
+
+          @if (f.lectura; as l) {
+            @if (l.requiereOcr) {
+              <p class="nota aviso">
+                Este PDF no trae texto (está escaneado). El servidor lo pasará por OCR al registrarlo
+                y entonces será buscable; aquí no hay nada que resumir todavía.
+              </p>
+            } @else {
+              @if (l.resumen.length) {
+                <ul class="resumen">
+                  @for (frase of l.resumen; track frase) { <li>{{ frase }}</li> }
+                </ul>
+              } @else {
+                <p class="nota">El texto es demasiado corto para resumirlo.</p>
+              }
+            }
+
+            @if (l.datos.length) {
+              <div class="datos">
+                @for (d of l.datos; track d.etiqueta) {
+                  <span class="dato"><b>{{ d.etiqueta }}</b> {{ d.valor }}</span>
+                }
+              </div>
+            }
+
+            @if (l.cedulasDetectadas.length) {
+              <div class="cedulas-detectadas">
+                <span class="nota">Cédulas dentro del documento:</span>
+                @for (c of l.cedulasDetectadas; track c) {
+                  <button mat-button class="btn-cedula" [class.actual]="c === f.cedula"
+                          (click)="usarCedulaDetectada(f, c)">{{ c }}</button>
+                }
+              </div>
+            }
+
+            <p class="pie-lectura">
+              Texto extraído del propio archivo en este equipo. No sustituye la revisión: confirma el tipo antes de registrar.
+            </p>
+          }
+        </section>
+      }
+    </aside>
+  </div>
+
+  <!-- ══ Barra de registro ═══════════════════════════════════════════════ -->
+  <footer class="mesa-pie">
+    <div class="contadores">
+      <span class="cont c-nuevo"><b>{{ resumen().nuevos }}</b> nuevos</span>
+      <span class="cont c-reemplaza"><b>{{ resumen().reemplazos }}</b> reemplazan</span>
+      <span class="cont c-dup"><b>{{ resumen().duplicados }}</b> ya existen</span>
+      <span class="cont c-bloq"><b>{{ resumen().bloqueados }}</b> sin resolver</span>
+      @if (resumen().errores) { <span class="cont c-err"><b>{{ resumen().errores }}</b> con error</span> }
+    </div>
+
+    @if (registrando()) {
+      <div class="barra-progreso">
+        <mat-progress-bar mode="determinate" [value]="progreso()"></mat-progress-bar>
+        <span>{{ progreso() }}%</span>
+      </div>
+    }
+
+    <button mat-flat-button class="btn-registrar" [disabled]="!puedeRegistrar" (click)="registrar()">
+      <mat-icon>task_alt</mat-icon>
+      {{ registrando() ? 'Registrando…' : 'Registrar ' + resumen().registrables + ' documento(s)' }}
+    </button>
+  </footer>
+
+  <!-- ══ Acta ════════════════════════════════════════════════════════════ -->
+  @if (acta(); as lineas) {
+    <div class="acta-velo" (click)="cerrarActa()"></div>
+    <section class="acta" role="dialog" aria-label="Acta de registro">
+      <header class="acta-head">
+        <div>
+          <h2>Acta de registro</h2>
+          <p>{{ lineas.length }} documento(s) procesados en esta tanda</p>
+        </div>
+        <div class="acta-botones">
+          <button mat-stroked-button class="btn-sec" (click)="copiarActa()">
+            <mat-icon>content_copy</mat-icon> Copiar
+          </button>
+          <button mat-flat-button class="btn-registrar" (click)="cerrarActa()">Cerrar</button>
+        </div>
+      </header>
+
+      <div class="acta-cuerpo">
+        <table class="acta-tabla">
+          <thead>
+            <tr><th>Documento</th><th>Persona</th><th>Tipo</th><th>Contrato</th><th>Resultado</th></tr>
+          </thead>
+          <tbody>
+            @for (l of lineas; track l.nombre + l.cedula) {
+              <tr [class.fila-error]="l.resultado === 'error'">
+                <td>
+                  <span class="a-nombre">{{ l.nombre }}</span>
+                  @if (l.documentId) { <span class="a-id">#{{ l.documentId }}</span> }
+                </td>
+                <td>{{ l.persona }}<span class="ced">{{ l.cedula }}</span></td>
+                <td>{{ l.tipo }}</td>
+                <td>{{ l.contrato }}</td>
+                <td><span class="chip chip-{{ l.resultado }}">{{ l.resultado }}</span><span class="a-detalle">{{ l.detalle }}</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>
+}

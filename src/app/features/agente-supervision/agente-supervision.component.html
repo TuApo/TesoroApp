@@ -1,0 +1,50 @@
+<div class="agente">
+  <!-- Indicador de supervisión SIEMPRE visible -->
+  <div class="indicador">
+    <span class="punto"></span> EQUIPO SUPERVISADO · gestionado por tu empresa (transparente)
+  </div>
+
+  <!-- Enrolamiento -->
+  <section *ngIf="fase() === 'enrolar'" class="tarjeta">
+    <h1>Activar supervisión del equipo</h1>
+    <p>Este equipo es corporativo. Escribe el <strong>PIN de enrolamiento</strong> que te dio tu empresa.</p>
+    <input class="pin-input" placeholder="PIN" [ngModel]="pin()" (ngModelChange)="pin.set($event)" autocapitalize="characters">
+    <button class="btn primario" (click)="enrolar()">Activar</button>
+    <p class="estado">{{ estado() }}</p>
+  </section>
+
+  <!-- Consentimiento -->
+  <section *ngIf="fase() === 'consentimiento'" class="tarjeta">
+    <h1>Aviso de supervisión</h1>
+    <pre class="aviso">{{ aviso() || avisoPorDefecto }}</pre>
+    <label class="nombre">Tu nombre o identificación:
+      <input [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" placeholder="Nombre">
+    </label>
+    <div class="acciones">
+      <button class="btn primario" (click)="aceptar()">Acepto la supervisión</button>
+      <button class="btn secundario" (click)="rechazar()">No acepto</button>
+    </div>
+    <p class="estado">{{ estado() }}</p>
+  </section>
+
+  <!-- Activo -->
+  <section *ngIf="fase() === 'activo'" class="tarjeta">
+    <h1>Supervisión activa</h1>
+    <p>Este equipo está gestionado de forma transparente. Puedes ver y desinstalar esta app por los canales normales.</p>
+    <ul class="info">
+      <li>Estado: <strong>reportando</strong></li>
+      <li>Último reporte: {{ ultimoReporte() || '—' }}</li>
+      <li>Se reportan metadatos de estado y ubicación, según la política de tu empresa.</li>
+    </ul>
+    <p class="nota">No se accede a tu micrófono, cámara ni al contenido de tus mensajes. Nunca.</p>
+  </section>
+
+  <!-- Overlay de comando administrativo VISIBLE -->
+  <div class="overlay" *ngIf="overlay() as ov">
+    <div class="overlay-caja">
+      <h2>{{ ov.tipo }}</h2>
+      <p>{{ ov.texto }}</p>
+      <button class="btn primario" (click)="cerrarOverlay()">Entendido</button>
+    </div>
+  </div>
+</div>

@@ -82,6 +82,7 @@ import {
   DialogoEquivalenciaComponent,
   ResultadoDialogoEquivalencia,
 } from './dialogos/dialogo-equivalencia.component';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Pestanas de la pantalla. */
 export const TAB_NEGACIONES = 0;
@@ -121,6 +122,7 @@ export function mensajeReaplicar(negaciones: number, incapacidades: number): str
   selector: 'app-liquidacion-negaciones',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     FormsModule,
     RouterLink,
     MatButtonModule,

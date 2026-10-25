@@ -1,0 +1,235 @@
+<div class="ah">
+
+  <!-- Encabezado + búsqueda por cédula -->
+  <section class="ah-cabecera">
+    <div class="ah-titulo">
+      <h2>Archivo histórico de afiliaciones</h2>
+      <p>
+        Certificados de EPS, caja de compensación y fondo de pensiones de Tu Alianza y Apoyo Laboral,
+        @if (kpis(); as k) { del {{ k.desde | date:'d MMM y' }} al 16 oct 2026, }
+        cruzados con la contratación de la plataforma hasta hoy.
+      </p>
+    </div>
+    <form class="ah-buscar" (ngSubmit)="buscarPersona()">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Buscar persona por cédula</mat-label>
+        <input matInput name="cedula" inputmode="numeric" autocomplete="off" [(ngModel)]="cedulaBuscada" placeholder="1012345678">
+        <mat-icon matSuffix>person_search</mat-icon>
+      </mat-form-field>
+      <button mat-flat-button color="primary" type="submit" [disabled]="cargandoFicha()">Consultar</button>
+    </form>
+  </section>
+
+  <!-- Ficha de la persona -->
+  @if (cargandoFicha()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+  @if (errorFicha()) { <div class="ah-aviso ah-aviso-error"><mat-icon>error_outline</mat-icon>{{ errorFicha() }}</div> }
+  @if (ficha(); as f) {
+    <section class="ah-ficha">
+      <header class="ah-ficha-cab">
+        <div>
+          <h3>{{ f.persona?.nombre || 'Persona sin registro en la plataforma' }}</h3>
+          <span class="ah-sub">{{ f.persona?.tipo_doc || 'CC' }} {{ f.cedula }} · {{ f.contratos.length }} contrato(s) · {{ f.documentos.length }} documento(s) en el archivo</span>
+        </div>
+        <button mat-icon-button type="button" (click)="cerrarFicha()" aria-label="Cerrar ficha"><mat-icon>close</mat-icon></button>
+      </header>
+      <div class="ah-ficha-cuerpo">
+        <div class="ah-ficha-col">
+          <h4>Contratos en la plataforma</h4>
+          @for (c of f.contratos; track c.proceso_id) {
+            <div class="ah-item">
+              <div>
+                <strong>{{ etiquetaEmpresa(c.empresa) }}</strong>
+                <span class="ah-sub">Ingreso {{ c.fecha_ingreso ? (c.fecha_ingreso | date:'d MMM y') : 'sin fecha' }}{{ c.codigo_contrato ? ' · ' + c.codigo_contrato : '' }}{{ c.eps ? ' · ' + c.eps : '' }}</span>
+              </div>
+              @if (contratoSinSoporte(f, c.fecha_ingreso, c.empresa)) {
+                <span class="ah-chip ah-chip-warn" matTooltip="No hay certificado EPS de esta empresa entre 30 días antes y 90 después del ingreso"><mat-icon>warning_amber</mat-icon>Sin certificado EPS</span>
+              } @else if (c.fecha_ingreso && c.fecha_ingreso >= '2023-07-01' && c.fecha_ingreso <= '2026-10-16') {
+                <span class="ah-chip ah-chip-ok"><mat-icon>check_circle</mat-icon>Con soporte</span>
+              }
+            </div>
+          } @empty { <p class="ah-vacio">Sin contratos registrados.</p> }
+        </div>
+        <div class="ah-ficha-col">
+          <h4>Documentos del archivo</h4>
+          @for (d of f.documentos; track d.id) {
+            <button type="button" class="ah-item ah-item-doc" (click)="ver(d)">
+              <mat-icon>{{ d.extension === 'pdf' ? 'picture_as_pdf' : 'insert_drive_file' }}</mat-icon>
+              <div>
+                <strong>{{ etiquetaTramite(d.tramite) }}{{ d.entidad ? ' · ' + d.entidad.replace('_', ' ') : '' }}</strong>
+                <span class="ah-sub">{{ etiquetaEmpresa(d.empresa) }} · {{ d.fecha ? (d.fecha | date:'d MMM y') : (d.anio + '-' + d.mes) }}{{ d.ubicacion !== 'ARCHIVO' ? ' · ' + d.ubicacion.replace('_', ' ').toLowerCase() : '' }}</span>
+              </div>
+              <mat-icon class="ah-item-ir">visibility</mat-icon>
+            </button>
+          } @empty { <p class="ah-vacio">Esta cédula no tiene documentos en el archivo histórico.</p> }
+        </div>
+      </div>
+    </section>
+  }
+
+  <!-- Filtros: una sola fila, encima de todo lo que filtran -->
+  <section class="ah-filtros" aria-label="Filtros del archivo">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Empresa</mat-label>
+      <mat-select [value]="empresa()" (selectionChange)="cambiarFiltro(empresa, $event.value)">
+        <mat-option [value]="null">Todas</mat-option>
+        @for (e of empresas; track e) { <mat-option [value]="e">{{ etiquetaEmpresa(e) }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Año</mat-label>
+      <mat-select [value]="anio()" (selectionChange)="cambiarFiltro(anio, $event.value)">
+        <mat-option [value]="null">Todos</mat-option>
+        @for (a of anios; track a) { <mat-option [value]="a">{{ a }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Trámite</mat-label>
+      <mat-select [value]="tramite()" (selectionChange)="cambiarFiltro(tramite, $event.value)">
+        <mat-option [value]="null">Todos</mat-option>
+        @for (t of tramites; track t) { <mat-option [value]="t">{{ etiquetaTramite(t) }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Entidad</mat-label>
+      <mat-select [value]="entidad()" (selectionChange)="cambiarFiltro(entidad, $event.value)">
+        <mat-option [value]="null">Todas</mat-option>
+        @for (e of entidades(); track e) { <mat-option [value]="e">{{ e.replace('_', ' ') }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+    @if (hayFiltros()) {
+      <button mat-button type="button" (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon> Limpiar</button>
+    }
+  </section>
+
+  @if (error()) { <div class="ah-aviso ah-aviso-error"><mat-icon>error_outline</mat-icon>{{ error() }}</div> }
+  @if (cargandoResumen()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+
+  <!-- Indicadores -->
+  @if (kpis(); as k) {
+    <section class="ah-kpis">
+      <div class="ah-kpi">
+        <span class="ah-kpi-etq">Documentos</span>
+        <strong class="ah-kpi-num">{{ k.documentos | number }}</strong>
+        <span class="ah-sub">{{ gb(k.bytes) }} · {{ k.duplicados | number }} copias repetidas omitidas</span>
+      </div>
+      <div class="ah-kpi">
+        <span class="ah-kpi-etq">Personas</span>
+        <strong class="ah-kpi-num">{{ k.cedulas | number }}</strong>
+        <span class="ah-sub">cédulas distintas</span>
+      </div>
+      <div class="ah-kpi">
+        <span class="ah-kpi-etq">Afiliaciones EPS</span>
+        <strong class="ah-kpi-num">{{ k.eps | number }}</strong>
+        <span class="ah-sub">{{ pct(k.extemporaneas, k.eps) }} extemporáneas</span>
+      </div>
+      <div class="ah-kpi">
+        <span class="ah-kpi-etq">Caja · Pensión</span>
+        <strong class="ah-kpi-num">{{ k.caja | number }} · {{ k.pension | number }}</strong>
+        <span class="ah-sub">certificados</span>
+      </div>
+      <div class="ah-kpi">
+        <span class="ah-kpi-etq">Contratos con certificado EPS</span>
+        <strong class="ah-kpi-num">{{ coberturaGlobal().pct === null ? '—' : (coberturaGlobal().pct | number:'1.1-1') + '%' }}</strong>
+        <span class="ah-sub">{{ coberturaGlobal().conEps | number }} de {{ coberturaGlobal().contratos | number }} ingresos jul-2023 → sep-2026</span>
+      </div>
+      <div class="ah-kpi" [class.ah-kpi-alerta]="k.por_revisar > 0">
+        <span class="ah-kpi-etq">Por revisar</span>
+        <strong class="ah-kpi-num">{{ k.por_revisar | number }}</strong>
+        <span class="ah-sub">casos dudosos que decide una persona</span>
+      </div>
+    </section>
+  }
+
+  <!-- Gráficas -->
+  <section class="ah-graficas">
+    <app-chart-card class="ah-ancho" title="Documentos radicados por mes"
+      [subtitle]="dimSerie() === 'empresa' ? 'Certificados del archivo por empresa' : 'Certificados del archivo por trámite'"
+      [loading]="cargandoResumen()">
+      <div actions>
+        <mat-button-toggle-group [value]="dimSerie()" (change)="dimSerie.set($event.value)" hideSingleSelectionIndicator>
+          <mat-button-toggle value="empresa">Por empresa</mat-button-toggle>
+          <mat-button-toggle value="tramite">Por trámite</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+      @if (opcionSerie(); as o) { <div echarts class="ah-chart ah-chart-alto" [options]="o"></div> } @else { <p class="ah-vacio">Sin datos con estos filtros.</p> }
+    </app-chart-card>
+
+    <app-chart-card title="Cobertura del archivo sobre la contratación"
+      subtitle="% de contratos, por mes de ingreso, con certificado EPS de la misma empresa (de 30 días antes a 90 después)"
+      [loading]="cargandoResumen()">
+      @if (opcionCobertura(); as o) { <div echarts class="ah-chart" [options]="o"></div> } @else { <p class="ah-vacio">Sin cruce calculado todavía.</p> }
+    </app-chart-card>
+
+    <app-chart-card title="Contratación en la plataforma hasta hoy"
+      [subtitle]="'Contratos por mes de ingreso' + (contratosDespues() ? ' · ' + (contratosDespues() | number) + ' desde oct-2026, después del backup' : '')"
+      [loading]="cargandoResumen()">
+      @if (opcionContratos(); as o) { <div echarts class="ah-chart" [options]="o"></div> } @else { <p class="ah-vacio">Sin datos.</p> }
+    </app-chart-card>
+
+    <app-chart-card title="Por trámite" subtitle="Documentos sin duplicados" [loading]="cargandoResumen()">
+      @if (opcionTramite(); as o) { <div echarts class="ah-chart" [options]="o"></div> } @else { <p class="ah-vacio">Sin datos.</p> }
+    </app-chart-card>
+
+    <app-chart-card title="Por entidad" subtitle="Solo los documentos que vienen en carpeta de entidad (EPS o caja)" [loading]="cargandoResumen()">
+      @if (opcionEntidad(); as o) { <div echarts class="ah-chart" [options]="o"></div> } @else { <p class="ah-vacio">Sin entidades con estos filtros.</p> }
+    </app-chart-card>
+
+    <app-chart-card title="Volumen por año y mes" subtitle="Más oscuro = más documentos" [loading]="cargandoResumen()">
+      @if (opcionCalor(); as o) { <div echarts class="ah-chart" [options]="o"></div> } @else { <p class="ah-vacio">Sin datos.</p> }
+    </app-chart-card>
+
+    <app-chart-card title="Día de radicación" subtitle="Documentos con día exacto, por día de la semana" [loading]="cargandoResumen()">
+      @if (opcionDiaSemana(); as o) { <div echarts class="ah-chart" [options]="o"></div> } @else { <p class="ah-vacio">Sin datos.</p> }
+    </app-chart-card>
+
+    <app-chart-card title="Estado de la carpeta original" subtitle="Lo que decía la carpeta: OK, subido, radicado, pendiente…" [loading]="cargandoResumen()">
+      @if (opcionEstado(); as o) { <div echarts class="ah-chart" [options]="o"></div> } @else { <p class="ah-vacio">Sin estados con estos filtros.</p> }
+    </app-chart-card>
+  </section>
+
+  <!-- Tabla de documentos (paginada en el servidor) -->
+  <section class="ah-tabla">
+    <div class="ah-tabla-filtros">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Cédula (empieza por)</mat-label>
+        <input matInput inputmode="numeric" autocomplete="off" [ngModel]="cedulaTabla()" (ngModelChange)="cedulaTabla.set($event); filtrarTabla()">
+      </mat-form-field>
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>Ubicación</mat-label>
+        <mat-select [value]="ubicacion()" (selectionChange)="ubicacion.set($event.value); filtrarTabla()">
+          <mat-option [value]="null">Archivo, compartido y por revisar</mat-option>
+          @for (u of ubicaciones; track u) { <mat-option [value]="u">{{ u === 'POR_REVISAR' ? 'Por revisar' : u === 'DUPLICADO' ? 'Copias duplicadas' : u === 'COMPARTIDO' ? 'Compartido' : 'Archivo' }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+    </div>
+    <app-tabla-estandar
+      id="afiliaciones-archivo-historico"
+      titulo="Documentos del archivo histórico"
+      modulo="Afiliaciones"
+      vacio="No hay documentos con estos filtros."
+      [busqueda]="false"
+      [pegable]="false"
+      [seleccionable]="false"
+      [datos]="pagina()?.rows ?? []"
+      [columnas]="columnas"
+      [filaId]="idDocumento"
+      [cargando]="cargandoTabla()"
+      [totalServidor]="pagina()?.total ?? 0"
+      [paginaServidor]="paginaIdx()"
+      [filasPorPagina]="porPagina()"
+      [opcionesPorPagina]="[25, 50, 100, 200]"
+      (paginaCambio)="paginar($event)">
+      <ng-template tablaAcciones let-d>
+        <button mat-icon-button type="button" (click)="ver(d)" matTooltip="Ver documento" aria-label="Ver documento"><mat-icon>visibility</mat-icon></button>
+        @if (d.cedula) {
+          <button mat-icon-button type="button" (click)="buscarPersona(d.cedula)" matTooltip="Ficha de la persona" aria-label="Ficha de la persona"><mat-icon>badge</mat-icon></button>
+        }
+      </ng-template>
+    </app-tabla-estandar>
+  </section>
+
+  <p class="ah-nota">
+    <mat-icon>lock</mat-icon>
+    Datos personales y de salud (Ley 1581 de 2012). Cada documento que se abre o descarga queda registrado con tu usuario.
+  </p>
+</div>

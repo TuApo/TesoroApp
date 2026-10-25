@@ -24,6 +24,11 @@ export interface DatosRemision {
   fecha: string;
   empresaUsuaria: string;
   cargo: string;
+  /**
+   * Cargo específico del proceso (`vacante_detalle_cargo`, V61: "Operario de corte"
+   * dentro de una vacante de "Operario"). Se imprime junto al cargo.
+   */
+  cargoEspecifico?: string;
   /** 'SI' | 'NO' | '' */
   experienciaSector: string;
   tiempoExperiencia: string;
@@ -63,6 +68,17 @@ const OFICINAS =
   + 'PBX: 7444002- EXT 1010-1050 WhatsApp: 3126469000';
 
 const s = (v: unknown) => String(v ?? '').trim();
+
+/**
+ * Lo que va en la casilla "Cargo:" del formato: "X — Cargo específico: Y".
+ * Sin específico (o si repite el cargo) queda el cargo solo, como siempre.
+ */
+export function textoCargoRemision(cargo: unknown, especifico: unknown): string {
+  const c = s(cargo);
+  const e = s(especifico);
+  if (!e || e.toUpperCase() === c.toUpperCase()) return c;
+  return c ? `${c} — Cargo específico: ${e}` : `Cargo específico: ${e}`;
+}
 
 /**
  * Media carta: el mismo ancho de una carta (215.9 mm) con la mitad del alto
@@ -151,6 +167,30 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
   const valor = (txt: string, x: number, yy: number, size = 10) => {
     doc.setFont('helvetica', 'normal').setFontSize(fz(size)).text(s(txt), x, yy);
   };
+  /**
+   * Un valor en una casilla angosta (el cargo con su cargo específico): baja la letra
+   * hasta 7 pt para que quepa en una línea y, si ni así, lo parte en dos (la segunda,
+   * justo debajo de la línea). Nunca se sale del formato.
+   */
+  const valorAjustado = (txt: string, x: number, yy: number, maxW: number, size = 10) => {
+    const t = s(txt);
+    doc.setFont('helvetica', 'normal');
+    for (let pt = size; pt >= 7; pt -= 0.5) {
+      doc.setFontSize(fz(pt));
+      if (doc.getTextWidth(t) <= maxW) {
+        doc.text(t, x, yy);
+        return;
+      }
+    }
+    doc.setFontSize(fz(7));
+    const lineas: string[] = doc.splitTextToSize(t, maxW);
+    doc.text(lineas[0] ?? '', x, yy);
+    if (lineas.length > 1) {
+      const resto = lineas.slice(1).join(' ');
+      const segunda = doc.splitTextToSize(resto, maxW)[0] ?? '';
+      doc.text(segunda, x, yy + v(4.2));
+    }
+  };
   /** Línea sobre la que se escribe (queda visible aunque no haya dato). */
   const linea = (x1: number, x2: number, yy: number) => {
     doc.setDrawColor(90).setLineWidth(0.2).line(x1, yy + v(1.4), x2, yy + v(1.4));
@@ -174,7 +214,7 @@ export function buildRemisionPdf(d: DatosRemision): Blob {
   valor(d.empresaUsuaria, mL + 48, y);
   linea(mL + 46, mL + 118, y);
   etiqueta('Cargo:', mL + 122, y);
-  valor(d.cargo, mL + 138, y);
+  valorAjustado(textoCargoRemision(d.cargo, d.cargoEspecifico), mL + 138, y, (mR - 2) - (mL + 138));
   linea(mL + 136, mR - 2, y);
 
   y += v(11);

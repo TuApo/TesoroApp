@@ -1,7 +1,7 @@
 import {
   AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, inject, signal, ViewChild,
 } from '@angular/core';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
 import { SharedModule } from '@/app/shared/shared.module';
 
@@ -25,6 +25,8 @@ import { SharedModule } from '@/app/shared/shared.module';
 })
 export class FirmaDialogComponent implements AfterViewInit {
   private readonly ref = inject<MatDialogRef<FirmaDialogComponent, File | undefined>>(MatDialogRef);
+  /** Textos opcionales: la firma propia (Cuenta > Perfil) no es "de la persona". */
+  readonly datos = inject<{ titulo?: string; pista?: string } | null>(MAT_DIALOG_DATA, { optional: true });
 
   @ViewChild('lienzo') private lienzo?: ElementRef<HTMLCanvasElement>;
 

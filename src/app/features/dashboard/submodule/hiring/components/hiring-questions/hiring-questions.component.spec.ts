@@ -10,8 +10,9 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideHttpClient } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { of, throwError } from 'rxjs';
+import { provideHttpClientTesting, HttpTestingController } from '@angular/common/http/testing';
+import { of, throwError, Subject } from 'rxjs';
+import Swal from 'sweetalert2';
 
 import { HiringQuestionsComponent } from './hiring-questions.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -22,6 +23,14 @@ import { TarjetasService } from '../../service/tarjetas.service';
 import { PositionsService } from '../../../positions/services/positions/positions.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { CedulaCamaraService } from '../cedula-camara/cedula-camara.service';
+import { SalarioMinimoService } from '../../service/salario-minimo/salario-minimo.service';
+
+/** Lo que sirve `db_admin.salario_minimo_vigencia` (2025 y 2026 reales). */
+const VIGENCIAS = [
+  { anio: 2025, salario_minimo: '1423500.00', auxilio_transporte: '200000.00' },
+  { anio: 2026, salario_minimo: '1750905.00', auxilio_transporte: '249095.00' },
+];
 
 function candidato(contrato: any = {}) {
   return {
@@ -41,6 +50,9 @@ describe('HiringQuestionsComponent', () => {
   let comp: HiringQuestionsComponent;
   let procesos: jasmine.SpyObj<RegistroProcesoContratacion>;
   let docs: jasmine.SpyObj<GestionDocumentalService>;
+  /** Vigencias que devuelve el mock; una prueba puede vaciarlas antes de crear el componente. */
+  let vigencias: any[] = VIGENCIAS;
+  const salarioMinimoMock = { vigencias: () => of(vigencias) };
 
   beforeEach(async () => {
     procesos = jasmine.createSpyObj('RegistroProcesoContratacion',
@@ -72,6 +84,7 @@ describe('HiringQuestionsComponent', () => {
         { provide: TarjetasService, useValue: { list: () => of([]), listar: () => of([]) } },
         { provide: PositionsService, useValue: { list: () => of([]) } },
         { provide: UtilityServiceService, useValue: { getUser: () => Promise.resolve({}) } },
+        { provide: SalarioMinimoService, useValue: salarioMinimoMock },
       ],
     }).compileComponents();
 
@@ -82,6 +95,15 @@ describe('HiringQuestionsComponent', () => {
   function abrir(cand: any) {
     fixture.componentRef.setInput('candidatoSeleccionado', cand);
     fixture.detectChanges();
+  }
+
+  /** Deja válidos todos los obligatorios de "Pago y Transporte". */
+  function llenarCompleto() {
+    comp.pagoTransporteForm.patchValue({
+      formaPago: 'Daviplata', numeroPagos: '3001234567', seguroFunerario: false,
+      Ccostos: 'CC-1', porcentajeARL: 0.522, cesantias: 'PORVENIR', horasExtras: false,
+      fechaIngreso: '2026-09-01', fechaContrato: '2026-09-01',
+    });
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -187,18 +209,31 @@ describe('HiringQuestionsComponent', () => {
       expect(body.contrato_detalle.forma_de_pago).toBe('Daviplata');
     }));
 
-    it('completo marca contratado y pide el código, sin abrir avisos', fakeAsync(() => {
+    it('completo TAMPOCO contrata (eso es del botón), pero sí guarda la fecha de ingreso', fakeAsync(() => {
       abrir(candidato());
-      comp.pagoTransporteForm.patchValue({
-        formaPago: 'Daviplata', numeroPagos: '3001234567', seguroFunerario: false,
-        Ccostos: 'CC-1', porcentajeARL: 0.522, cesantias: 'PORVENIR', horasExtras: false,
-        fechaIngreso: '2026-09-01', fechaContrato: '2026-09-01',
-      });
+      llenarCompleto();
+      expect(comp.pagoTransporteForm.valid).toBeTrue();
       comp.cargarPagoTransporte({ silencioso: true });
       tick();
       const body = procesos.updateProcesoByDocumento.calls.mostRecent().args[0] as any;
-      expect(body.contratado).toBeTrue();
-      expect(body.contrato.generar_codigo).toBeTrue();
+      expect(body.contratado).toBeUndefined();
+      expect(body.contrato).toBeUndefined();
+      // La piden los documentos de contratación, que se generan antes de contratar.
+      expect(body.contrato_detalle.fecha_ingreso).toBe('2026-09-01');
+      expect(body.contrato_detalle.forma_de_pago).toBe('Daviplata');
+      expect(body.contrato_detalle.fecha_contrato).toBe('2026-09-01');
+    }));
+
+    it('ya contratado, corregir la fecha de ingreso no vuelve a contratar', fakeAsync(() => {
+      const cand = candidato();
+      (cand.entrevistas[0].proceso as any).contratado = true;
+      abrir(cand);
+      llenarCompleto();
+      comp.cargarPagoTransporte({ silencioso: true });
+      tick();
+      const body = procesos.updateProcesoByDocumento.calls.mostRecent().args[0] as any;
+      expect(body.contratado).toBeUndefined();
+      expect(body.contrato_detalle.fecha_ingreso).toBe('2026-09-01');
     }));
 
     it('un fallo del backend llega al indicador en vez de a un aviso', fakeAsync(() => {
@@ -208,6 +243,136 @@ describe('HiringQuestionsComponent', () => {
       comp.cargarPagoTransporte({ silencioso: true }).catch(e => (error = e));
       tick();
       expect(error).toEqual({ status: 500 });
+    }));
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  describe('botón "Contratar"', () => {
+
+    it('con obligatorios vacíos dice qué falta y no escribe nada', fakeAsync(() => {
+      abrir(candidato());
+      const fire = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }) as any);
+      procesos.updateProcesoByDocumento.calls.reset();
+      comp.pagoTransporteForm.patchValue({ formaPago: 'Daviplata', numeroPagos: '' });
+
+      comp.contratar();
+      tick();
+
+      expect(procesos.updateProcesoByDocumento).not.toHaveBeenCalled();
+      // La carga del candidato abre su propio "Cargando…": se busca el aviso concreto.
+      const opts = fire.calls.allArgs().map(a => a[0] as any)
+        .find(o => o?.title === 'Faltan datos para contratar');
+      expect(opts).toBeTruthy();
+      expect(opts.html).toContain('Fecha de contrato');
+      expect(opts.html).toContain('Número de cuenta');
+    }));
+
+    it('si se cancela la confirmación no contrata', fakeAsync(() => {
+      abrir(candidato());
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: false }) as any);
+      procesos.updateProcesoByDocumento.calls.reset();
+      llenarCompleto();
+
+      comp.contratar();
+      tick();
+
+      expect(procesos.updateProcesoByDocumento).not.toHaveBeenCalled();
+    }));
+
+    it('confirmado: marca contratado, fija la fecha de ingreso y pide el código', fakeAsync(() => {
+      abrir(candidato());
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }) as any);
+      procesos.updateProcesoByDocumento.calls.reset();
+      llenarCompleto();
+
+      comp.contratar();
+      tick();
+
+      expect(procesos.updateProcesoByDocumento).toHaveBeenCalledTimes(1);
+      const body = procesos.updateProcesoByDocumento.calls.mostRecent().args[0] as any;
+      expect(body.contratado).toBeTrue();
+      expect(body.contrato.generar_codigo).toBeTrue();
+      expect(body.contrato_detalle.fecha_ingreso).toBe('2026-09-01');
+      expect(comp.contratando()).toBeFalse();
+    }));
+
+    it('ya contratado: muestra el estado en vez del botón y no vuelve a contratar', fakeAsync(() => {
+      const cand = candidato();
+      (cand.entrevistas[0].proceso as any).contratado = true;
+      abrir(cand);
+      const fire = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }) as any);
+      procesos.updateProcesoByDocumento.calls.reset();
+
+      expect(comp.yaContratado()).toBeTrue();
+      expect(comp.codigoContratoActual()).toBe('180005');
+      comp.contratar();
+      tick();
+
+      const titulos = fire.calls.allArgs().map(a => (a[0] as any)?.title);
+      expect(titulos).not.toContain('¿Contratar a esta persona?');
+      expect(titulos).not.toContain('Faltan datos para contratar');
+      expect(procesos.updateProcesoByDocumento).not.toHaveBeenCalled();
+      fixture.detectChanges();
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(texto).toContain('Contratado · contrato 180005');
+    }));
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Cada guardado automático hace que el pipeline recargue a la persona y le
+  // pase una referencia NUEVA. Eso abría "Cargando…" con cada campo (parpadeo) y
+  // cerraba cualquier Swal visible, también la confirmación de "Contratar".
+  describe('recarga tras un guardado automático', () => {
+
+    const titulos = (fire: jasmine.Spy) => fire.calls.allArgs().map(a => (a[0] as any)?.title);
+
+    it('al abrir a la persona sí muestra "Cargando…"', fakeAsync(() => {
+      const fire = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({}) as any);
+      abrir(candidato());
+      tick();
+      expect(titulos(fire)).toContain('Cargando…');
+    }));
+
+    it('la recarga de la misma persona no abre ningún diálogo', fakeAsync(() => {
+      const cand = candidato();
+      abrir(cand);
+      tick();
+      const fire = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({}) as any);
+
+      abrir({ ...cand });   // lo que hace `recargarCandidato` tras guardar
+      tick();
+
+      expect(docs.getDocumentosDeCandidato).toHaveBeenCalled();
+      expect(titulos(fire)).not.toContain('Cargando…');
+    }));
+
+    it('no cierra un diálogo ajeno que esté abierto (p. ej. la confirmación)', fakeAsync(() => {
+      const cand = candidato();
+      abrir(cand);
+      tick();
+      const ajeno = document.createElement('div');
+      spyOn(Swal, 'isVisible').and.returnValue(true);
+      spyOn(Swal, 'getPopup').and.returnValue(ajeno);
+      const close = spyOn(Swal, 'close');
+
+      abrir({ ...cand });
+      tick();
+
+      expect(close).not.toHaveBeenCalled();
+    }));
+
+    it('sí cierra su propio "Cargando…"', fakeAsync(() => {
+      const propio = document.createElement('div');
+      propio.classList.add('hq-cargando-docs');
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({}) as any);
+      spyOn(Swal, 'isVisible').and.returnValue(true);
+      spyOn(Swal, 'getPopup').and.returnValue(propio);
+      const close = spyOn(Swal, 'close');
+
+      abrir(candidato());
+      tick();
+
+      expect(close).toHaveBeenCalled();
     }));
   });
 
@@ -261,9 +426,248 @@ describe('HiringQuestionsComponent', () => {
       expect(comp.cedulaSubida()).toBeFalse();
       expect(comp.cedulaDocumentoId()).toBeNull();
     });
+
+    it('"Tomar con cámara" deja la hoja al 150 % en la tarjeta y avisa al pipeline', () => {
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any));
+      abrir(candidato());
+      let avisos = 0;
+      comp.guardado.subscribe(() => avisos++);
+
+      comp.alTomarCedulaConCamara({ cedula: '1082490391', id: 130, estado: 'CREADA' });
+
+      expect(comp.cedulaSubida()).toBeTrue();
+      expect(comp.cedulaDocumentoId()).toBe(130);
+      expect(avisos).toBe(1);
+    });
+
+    it('la hoja tomada para OTRA persona no se pinta en esta tarjeta', () => {
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({} as any));
+      abrir(candidato());
+      comp.alTomarCedulaConCamara({ cedula: '999', id: 131, estado: 'CREADA' });
+      expect(comp.cedulaDocumentoId()).toBeNull();
+    });
+
+    it('se refresca si la foto se tomó desde otro sitio (la ficha en Selección)', () => {
+      abrir(candidato());
+      const camara = TestBed.inject(CedulaCamaraService);
+
+      camara.ultimaArmada.set({ cedula: '1082490391', id: 140, estado: 'YA_ESTABA' });
+      fixture.detectChanges();
+      expect(comp.cedulaDocumentoId()).toBe(140);
+
+      camara.ultimaArmada.set({ cedula: '5555', id: 141, estado: 'CREADA' });
+      fixture.detectChanges();
+      expect(comp.cedulaDocumentoId()).toBe(140);
+    });
+
+    it('con pasaporte no ofrece la cámara (no es una tarjeta de dos caras)', () => {
+      abrir({ ...candidato(), tipo_doc: 'PA' });
+      expect(comp.cedulaConCamara()).toBeFalse();
+      abrir({ ...candidato(), tipo_doc: 'PPT' });
+      expect(comp.cedulaConCamara()).toBeTrue();
+    });
   });
 
   // ─────────────────────────────────────────────────────────────
+  // Tras capturar, la X había que pulsarla dos veces: la primera solo
+  // descartaba la captura local porque la imagen guardada no estaba descargada.
+  describe('quitar la huella (X)', () => {
+    const RUTA = '/gestion_contratacion/biometria/file/1082490391/huella?empresa=apoyo-laboral';
+    let biometria: jasmine.Spy;
+    let eliminar: jasmine.Spy;
+
+    beforeEach(() => {
+      const p = procesos as any;
+      biometria = p.getBiometriaPorCedula = jasmine.createSpy('getBiometriaPorCedula')
+        .and.returnValue(of({ huellas: {} }));
+      eliminar = p.eliminarHuella = jasmine.createSpy('eliminarHuella').and.returnValue(of({}));
+      p.ultimoCotejoHuellaCedula = jasmine.createSpy('ultimoCotejoHuellaCedula')
+        .and.returnValue(throwError(() => ({ status: 404 })));
+      spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true }) as any);
+    });
+
+    it('recién capturada y ya guardada: una sola X la quita también del expediente', async () => {
+      biometria.and.returnValue(of({ huellas: { 'apoyo-laboral': { file_url: RUTA, updated_at: 't1' } } }));
+      abrir(candidato());
+      await fixture.whenStable();
+      comp.fingerprintImageApoyo = 'data:image/png;base64,AAA';
+
+      biometria.and.returnValue(of({ huellas: {} }));
+      await comp.borrarHuella('apoyo-laboral');
+
+      expect(eliminar).toHaveBeenCalledOnceWith('1082490391', 'apoyo-laboral');
+      expect(comp.fingerprintImageApoyo).toBeNull();
+      expect(comp.tieneHuellaGuardada('apoyo-laboral')).toBeFalse();
+    });
+
+    it('si la relectura tras subir aún no llegó, la espera antes de decidir', async () => {
+      abrir(candidato());
+      await fixture.whenStable();
+      comp.fingerprintImageApoyo = 'data:image/png;base64,AAA';
+
+      // El servidor ya la tiene, pero el mapa local sigue vacío.
+      biometria.and.returnValue(of({ huellas: { 'apoyo-laboral': { file_url: RUTA, updated_at: 't1' } } }));
+      eliminar.and.callFake(() => { biometria.and.returnValue(of({ huellas: {} })); return of({}); });
+      await comp.borrarHuella('apoyo-laboral');
+
+      expect(eliminar).toHaveBeenCalledTimes(1);
+      expect(comp.tieneHuellaGuardada('apoyo-laboral')).toBeFalse();
+    });
+
+    it('captura que no llegó a guardarse: se descarta sin llamar al servidor', async () => {
+      abrir(candidato());
+      await fixture.whenStable();
+      comp.fingerprintImageApoyo = 'data:image/png;base64,AAA';
+
+      await comp.borrarHuella('apoyo-laboral');
+
+      expect(eliminar).not.toHaveBeenCalled();
+      expect(comp.fingerprintImageApoyo).toBeNull();
+    });
+  });
+
+  // El backend elige la referencia (cédula con huella o contratación anterior) y
+  // dice con `mostrar` si hay algo que pintar.
+  describe('cotejo de la huella', () => {
+    const base = {
+      ok: true, id: 1, coincide: false, mensaje: 'x', detalle: null, puntaje: null, umbral: null,
+      empresa: 'apoyo-laboral', usuario: null, created_at: null,
+    };
+
+    beforeEach(() => {
+      const p = procesos as any;
+      p.getBiometriaPorCedula = jasmine.createSpy().and.returnValue(of({ huellas: {} }));
+      p.ultimoCotejoHuellaCedula = jasmine.createSpy().and.returnValue(throwError(() => ({ status: 404 })));
+      p.cotejarHuellaCedula = jasmine.createSpy();
+    });
+
+    it('sin referencia no muestra nada: ni bloque ni botón', async () => {
+      (procesos as any).cotejarHuellaCedula.and.returnValue(of({
+        ...base, resultado: 'SIN_REFERENCIA', mostrar: false, origen_referencia: 'NINGUNA',
+      }));
+      abrir(candidato());
+      await comp.cotejarHuella('apoyo-laboral');
+
+      expect(comp.cotejoOculto('apoyo-laboral')).toBeTrue();
+      expect(comp.cotejoDe('apoyo-laboral')).toBeNull();
+    });
+
+    it('contra la cédula conserva el rótulo de siempre', async () => {
+      (procesos as any).cotejarHuellaCedula.and.returnValue(of({
+        ...base, resultado: 'COINCIDE', coincide: true, mostrar: true, origen_referencia: 'CEDULA',
+        puntaje: 41, umbral: 30, imagen_referencia: 'data:image/png;base64,AAA', recorte_cedula: 'data:image/png;base64,AAA',
+      }));
+      abrir(candidato());
+      await comp.cotejarHuella('apoyo-laboral');
+
+      const c = comp.cotejoDe('apoyo-laboral')!;
+      expect(comp.rotuloReferencia(c)).toBe('En la cédula');
+      expect(comp.imagenReferencia(c)).toBe('data:image/png;base64,AAA');
+    });
+
+    it('contra una contratación anterior lo rotula con la fecha', async () => {
+      (procesos as any).cotejarHuellaCedula.and.returnValue(of({
+        ...base, resultado: 'NO_CONFIRMADO', mostrar: true, origen_referencia: 'HUELLA_ANTERIOR',
+        referencia_fecha: '2026-03-10T15:00:00Z', puntaje: 12, umbral: 40,
+        imagen_referencia: 'data:image/png;base64,BBB', recorte_cedula: null,
+      }));
+      abrir(candidato());
+      await comp.cotejarHuella('apoyo-laboral');
+
+      const c = comp.cotejoDe('apoyo-laboral')!;
+      expect(comp.rotuloReferencia(c)).toBe('Contratación anterior — 10/03/2026');
+      expect(comp.imagenReferencia(c)).toBe('data:image/png;base64,BBB');
+      expect(comp.cotejoOculto('apoyo-laboral')).toBeFalse();
+    });
+
+    describe('al recargar (F5, volver al paso, otro funcionario)', () => {
+      const RUTA = '/gestion_contratacion/biometria/file/1082490391/huella?empresa=apoyo-laboral';
+      beforeEach(() => {
+        (procesos as any).getBiometriaPorCedula.and.returnValue(of({
+          huellas: { 'apoyo-laboral': { file_url: RUTA, updated_at: 't1' } },
+        }));
+      });
+
+      it('lee el último cotejo del backend sin volver a cotejar', async () => {
+        (procesos as any).ultimoCotejoHuellaCedula.and.returnValue(of({
+          ...base, id: 33, resultado: 'COINCIDE', coincide: true, mostrar: true, origen_referencia: 'CEDULA',
+          puntaje: 44, umbral: 30, desactualizado: false,
+        }));
+        abrir(candidato());
+        await fixture.whenStable();
+
+        expect((procesos as any).cotejarHuellaCedula).not.toHaveBeenCalled();
+        const c = comp.cotejoDe('apoyo-laboral')!;
+        expect(c.puntaje).toBe(44);
+        expect(comp.estaCargandoCotejo('apoyo-laboral')).toBeFalse();
+        // La imagen se pide al backend, que la regenera desde el documento usado.
+        const http = TestBed.inject(HttpTestingController);
+        comp.imagenReferencia(c);
+        expect(http.match(r => r.url.includes('/cotejo-cedula/1082490391/referencia') && r.url.includes('id=33')).length)
+          .toBe(1);
+      });
+
+      it('mientras llega el GET muestra "cargando", no el estado vacío', async () => {
+        const pendiente = new Subject<any>();
+        (procesos as any).ultimoCotejoHuellaCedula.and.returnValue(pendiente.asObservable());
+        abrir(candidato());
+        await new Promise(r => setTimeout(r));
+
+        expect(comp.estaCargandoCotejo('apoyo-laboral')).toBeTrue();
+        pendiente.next({ ...base, resultado: 'NO_CONFIRMADO', mostrar: true, origen_referencia: 'CEDULA' });
+        pendiente.complete();
+        await fixture.whenStable();
+        expect(comp.estaCargandoCotejo('apoyo-laboral')).toBeFalse();
+      });
+
+      it('con datos nuevos muestra el resultado anterior con el aviso', async () => {
+        (procesos as any).ultimoCotejoHuellaCedula.and.returnValue(of({
+          ...base, resultado: 'NO_CONFIRMADO', mostrar: true, origen_referencia: 'CEDULA', desactualizado: true,
+        }));
+        abrir(candidato());
+        await fixture.whenStable();
+
+        expect(comp.cotejoDe('apoyo-laboral')).not.toBeNull();
+        expect(comp.cotejoDesactualizado('apoyo-laboral')).toBeTrue();
+        expect((procesos as any).cotejarHuellaCedula).not.toHaveBeenCalled();
+      });
+
+      it('sin referencia tampoco aparece nada al recargar', async () => {
+        (procesos as any).ultimoCotejoHuellaCedula.and.returnValue(of({
+          ...base, resultado: 'SIN_REFERENCIA', mostrar: false, origen_referencia: 'NINGUNA', desactualizado: false,
+        }));
+        abrir(candidato());
+        await fixture.whenStable();
+        expect(comp.cotejoOculto('apoyo-laboral')).toBeTrue();
+      });
+
+      it('sin referencia pero con una cédula nueva ofrece volver a cotejar', async () => {
+        (procesos as any).ultimoCotejoHuellaCedula.and.returnValue(of({
+          ...base, resultado: 'SIN_REFERENCIA', mostrar: false, origen_referencia: 'NINGUNA', desactualizado: true,
+        }));
+        abrir(candidato());
+        await fixture.whenStable();
+        expect(comp.cotejoOculto('apoyo-laboral')).toBeFalse();
+        expect(comp.cotejoDe('apoyo-laboral')).toBeNull();   // → botón "Cotejar huella" con el aviso
+      });
+    });
+
+    it('si el POST falla, queda ERROR y no un resultado que luego desaparece', async () => {
+      (procesos as any).cotejarHuellaCedula.and.returnValue(throwError(() => ({ status: 500 })));
+      abrir(candidato());
+      await comp.cotejarHuella('apoyo-laboral');
+      expect(comp.cotejoDe('apoyo-laboral')!.resultado).toBe('ERROR');
+      expect(comp.imagenReferencia(comp.cotejoDe('apoyo-laboral')!)).toBeNull();
+    });
+
+    it('un backend sin el campo `mostrar` se sigue viendo', async () => {
+      (procesos as any).cotejarHuellaCedula.and.returnValue(of({ ...base, resultado: 'NO_CONFIRMADO' }));
+      abrir(candidato());
+      await comp.cotejarHuella('apoyo-laboral');
+      expect(comp.cotejoDe('apoyo-laboral')).not.toBeNull();
+    });
+  });
+
   describe('guardado de datos de obra', () => {
 
     it('no llama al backend si no hay candidato', fakeAsync(() => {
@@ -465,6 +869,7 @@ describe('HiringQuestionsComponent', () => {
           { provide: TarjetasService, useValue: { list: () => of([]), listar: () => of([]) } },
           { provide: PositionsService, useValue: { list: () => of([]) } },
           { provide: UtilityServiceService, useValue: { getUser: () => Promise.resolve({}) } },
+        { provide: SalarioMinimoService, useValue: salarioMinimoMock },
         ],
       }).compileComponents();
       fixture = TestBed.createComponent(HiringQuestionsComponent);
@@ -484,6 +889,77 @@ describe('HiringQuestionsComponent', () => {
       fechadeIngreso: '2026-09-15',
       finca: 'GUAYMARAL',
     };
+
+    // ── Auxilio de transporte y ruta (pedido 2026-10-14) ──
+    const valorEnPantalla = (testid: string): string | null => {
+      fixture.detectChanges();
+      const el = fixture.nativeElement.querySelector(`[data-testid="${testid}"]`) as HTMLInputElement | null;
+      return el ? el.value : null;
+    };
+
+    it('la vacante PROPONE el auxilio, pero se puede cambiar aquí', async () => {
+      await abrirConVacante(VACANTE);
+      const ctrl = comp.pagoTransporteForm.get('auxilio_transporte')!;
+
+      expect(ctrl.value).toBe('Sí');
+      expect(ctrl.enabled).withContext('ya no viene bloqueado por la vacante').toBeTrue();
+      ctrl.setValue('No');
+      expect(ctrl.valid).toBeTrue();
+    });
+
+    it('auxilio SI muestra el valor mensual del año, en pesos y de solo lectura', async () => {
+      await abrirConVacante(VACANTE); // fecha de ingreso 2026-09-15
+
+      expect(valorEnPantalla('valor-auxilio')).toBe('$ 249.095');
+      const input = fixture.nativeElement.querySelector('[data-testid="valor-auxilio"]') as HTMLInputElement;
+      expect(input.readOnly).toBeTrue();
+    });
+
+    it('auxilio NO esconde el valor', async () => {
+      await abrirConVacante(VACANTE);
+      comp.pagoTransporteForm.get('auxilio_transporte')!.setValue('No');
+
+      expect(valorEnPantalla('valor-auxilio')).toBeNull();
+    });
+
+    it('el año del contrato decide el valor (2025 → $ 200.000)', async () => {
+      await abrirConVacante(VACANTE, { fecha_contrato: '2025-11-03', fecha_ingreso: '2025-11-03' });
+
+      expect(valorEnPantalla('valor-auxilio')).toBe('$ 200.000');
+    });
+
+    it('ruta SI no muestra ningún valor de ruta (se quitó de la pantalla)', async () => {
+      await abrirConVacante(VACANTE);
+      comp.pagoTransporteForm.get('usaRuta')!.setValue(true);
+      expect(valorEnPantalla('valor-ruta')).toBeNull();
+    });
+
+    it('sin vigencias configuradas dice "Sin configurar" sin romper', async () => {
+      vigencias = [];
+      try {
+        await abrirConVacante(VACANTE);
+        comp.pagoTransporteForm.get('usaRuta')!.setValue(true);
+
+        expect(valorEnPantalla('valor-auxilio')).toBe('Sin configurar');
+      } finally {
+        vigencias = VIGENCIAS;
+      }
+    });
+
+    it('los valores son informativos: no viajan en el guardado', fakeAsync(() => {
+      abrir(candidato());
+      llenarCompleto();
+      comp.pagoTransporteForm.patchValue({ auxilio_transporte: 'Sí', usaRuta: true, valorTransporte: null });
+
+      comp.cargarPagoTransporte({ silencioso: true });
+      tick();
+
+      const det = (procesos.updateProcesoByDocumento.calls.mostRecent().args[0] as any).contrato_detalle;
+      expect('auxilio_transporte' in det).toBeFalse();
+      // `valor_transporte` sigue siendo lo que había en el contrato (aquí nada), no el auxilio.
+      expect(det.valor_transporte).toBeNull();
+      expect(det.usa_ruta).toBeTrue();
+    }));
 
     it('cargo y temporal se llenan solos desde la vacante', async () => {
       await abrirConVacante(VACANTE);

@@ -5,6 +5,20 @@ import { firstValueFrom, Observable, throwError } from 'rxjs';
 import { catchError, shareReplay } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
+/** Firma digital propia (Cuenta > Perfil). */
+export interface MiFirma {
+  firma: string | null;
+  origen: 'DIBUJO' | 'IMAGEN' | null;
+  actualizado_en: string | null;
+}
+
+export interface MiFirmaGuardada {
+  ok: boolean;
+  tiene_firma: boolean;
+  origen: 'DIBUJO' | 'IMAGEN' | null;
+  actualizado_en: string | null;
+}
+
 /** Asignación de rol (multi-rol V40). `vigente_hasta` null = indefinido. */
 export interface RolAsignado {
   id: string;
@@ -188,6 +202,16 @@ export class AdminService {
     return this.http.put<{ ok: boolean; tiene_foto: boolean }>(
       `${this.apiUrl}/gestion_admin/usuarios/${id}/foto/`, { foto }
     );
+  }
+
+  /** Firma digital del usuario logueado (siempre la propia: el backend usa el sub del JWT). */
+  obtenerMiFirma(): Observable<MiFirma> {
+    return this.http.get<MiFirma>(`${this.apiUrl}/gestion_admin/usuarios/me/firma/`);
+  }
+
+  /** `firma` = data-URL PNG con fondo transparente; null la quita. */
+  guardarMiFirma(firma: string | null, origen: 'DIBUJO' | 'IMAGEN' = 'DIBUJO'): Observable<MiFirmaGuardada> {
+    return this.http.put<MiFirmaGuardada>(`${this.apiUrl}/gestion_admin/usuarios/me/firma/`, { firma, origen });
   }
 
   /** Baja/alta reversible: conserva la fila y su historial, solo conmuta estado_solicitudes. */

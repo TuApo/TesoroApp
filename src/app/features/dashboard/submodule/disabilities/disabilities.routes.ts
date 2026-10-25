@@ -12,6 +12,18 @@ export const routes: Routes = [
     { path: 'total', component: VistaTotalIncapacidadesComponent },
     { path: 'subir', component: SubidaArchivosIncapacidadesComponent },
 
+    // ── Inicio del modulo (2026-10-23) ──────────────────────────────────
+    // Todas las estadisticas recortadas por el alcance del usuario + accesos
+    // rapidos a los submodulos de su menu. NO es la ruta por defecto ('' sigue
+    // en 'formulario').
+    {
+      path: 'inicio',
+      loadComponent: () =>
+        import('./pages/inicio-incapacidades/inicio-incapacidades.component').then(
+          (m) => m.InicioIncapacidadesComponent,
+        ),
+    },
+
     // ── Incapacidades v2 ────────────────────────────────────────────────
     // Rutas HERMANAS de las viejas: los 4 componentes de arriba siguen
     // vivos hasta que la funcional valide los nuevos. Se cargan con

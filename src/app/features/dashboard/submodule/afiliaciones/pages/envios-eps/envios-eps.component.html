@@ -1,0 +1,228 @@
+<div class="ee">
+  <header class="ee-cabecera">
+    <div class="ee-titulo">
+      <h2>Envíos a EPS</h2>
+      <p>Afiliación del personal activo por EPS: confirme los datos, envíe el lote al tramitador (o regístrelo en la
+        plataforma) y siga el radicado hasta la confirmación.</p>
+    </div>
+    @if (bandeja(); as b) {
+      @if (b.modo_envio !== 'activo') {
+        <span class="ee-modo" matTooltip="Los correos salen al buzón de pruebas y nadie cambia de estado al enviar">
+          <mat-icon>science</mat-icon> Correo en modo {{ b.modo_envio }}
+        </span>
+      }
+    }
+  </header>
+
+  <mat-tab-group [selectedIndex]="pestana()" (selectedIndexChange)="cambiarPestana($event)" animationDuration="0ms">
+
+    <!-- ═══════════════════════ Bandeja ═══════════════════════ -->
+    <mat-tab label="Bandeja">
+      <div class="ee-pestana">
+        <div class="ee-filtros">
+          <mat-form-field appearance="outline">
+            <mat-label>Ingreso desde</mat-label>
+            <input matInput type="date" [(ngModel)]="desde">
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Hasta</mat-label>
+            <input matInput type="date" [(ngModel)]="hasta">
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Empresa</mat-label>
+            <mat-select [(ngModel)]="empresaBandeja">
+              <mat-option value="">Todas</mat-option>
+              <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+              <mat-option value="TU_ALIANZA">Tu Alianza</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button mat-flat-button (click)="cargarBandeja()" [disabled]="cargandoBandeja()">
+            <mat-icon>refresh</mat-icon> Consultar
+          </button>
+        </div>
+
+        @if (cargandoBandeja()) { <mat-progress-bar mode="indeterminate" /> }
+        @if (errorBandeja()) { <p class="ee-aviso ee-aviso-error" role="alert"><mat-icon>error</mat-icon> {{ errorBandeja() }}</p> }
+
+        @if (bandeja(); as b) {
+          <div class="ee-kpis">
+            <div class="ee-kpi"><span class="ee-kpi-etq">Personas en la bandeja</span><span class="ee-kpi-num">{{ b.total }}</span></div>
+            <div class="ee-kpi"><span class="ee-kpi-etq">EPS con personas</span><span class="ee-kpi-num">{{ b.grupos.length }}</span></div>
+            <div class="ee-kpi" [class.ee-kpi-alerta]="b.sin_eps > 0">
+              <span class="ee-kpi-etq">Sin EPS válida en el contrato</span><span class="ee-kpi-num">{{ b.sin_eps }}</span>
+            </div>
+            <div class="ee-kpi"><span class="ee-kpi-etq">De EPS inactivas</span><span class="ee-kpi-num">{{ b.eps_inactiva }}</span></div>
+          </div>
+
+          <p class="ee-nota"><mat-icon>info</mat-icon>
+            Marque a las personas cuyos datos ya revisó y pulse «Confirmar datos»: pasan a «listas». El envío sale con las
+            listas marcadas o, si no marca ninguna, con todas las listas de esa EPS.</p>
+
+          <mat-accordion multi>
+            @for (g of b.grupos; track g.eps_key) {
+              <mat-expansion-panel>
+                <mat-expansion-panel-header>
+                  <mat-panel-title>
+                    <span class="ee-grupo-nombre">{{ g.eps_nombre }}</span>
+                  </mat-panel-title>
+                  <mat-panel-description class="ee-grupo-desc">
+                    @if (g.canal) {
+                      <span class="ee-chip ee-chip-canal"><mat-icon>{{ iconoCanal[g.canal] }}</mat-icon>{{ etiquetaCanal[g.canal] }}</span>
+                    }
+                    <span class="ee-chip ee-chip-warn">{{ g.pendientes_datos }} por confirmar</span>
+                    <span class="ee-chip ee-chip-ok">{{ g.listos }} listas</span>
+                    @if (!g.configurado) { <span class="ee-chip ee-chip-error"><mat-icon>settings</mat-icon> Sin configurar</span> }
+                  </mat-panel-description>
+                </mat-expansion-panel-header>
+
+                <ng-template matExpansionPanelContent>
+                  @if (g.aviso_configuracion) {
+                    <p class="ee-aviso ee-aviso-warn"><mat-icon>warning</mat-icon> {{ g.aviso_configuracion }}
+                      <button mat-button (click)="configurar(g.eps_key)">Configurar</button></p>
+                  }
+                  <div class="ee-acciones">
+                    <button mat-stroked-button (click)="confirmarDatos(g)"
+                            matTooltip="Las marcadas, o todas las que tienen los datos completos si no marca ninguna">
+                      <mat-icon>fact_check</mat-icon> Confirmar datos
+                    </button>
+                    <button mat-flat-button (click)="abrirEnvio(g)" [disabled]="!g.listos">
+                      <mat-icon>{{ g.canal === 'CORREO' ? 'send' : 'task_alt' }}</mat-icon>
+                      {{ g.canal === 'CORREO' ? 'Ver correo y enviar' : 'Registrar como radicadas' }}
+                    </button>
+                    <button mat-button (click)="configurar(g.eps_key)"><mat-icon>tune</mat-icon> Datos de la EPS</button>
+                  </div>
+
+                  @if (resultadoGrupo()[g.eps_key]; as r) {
+                    @if (r.detalles.length) {
+                      <div class="ee-detalles">
+                        <p>{{ r.omitidos }} persona(s) no pasaron:</p>
+                        <ul>@for (d of r.detalles; track $index) { <li>{{ d }}</li> }</ul>
+                        <button mat-button (click)="confirmarDatos(g, true)"
+                                matTooltip="Solo las marcadas: confírmelas aunque les falten datos">
+                          Confirmar igual las marcadas con datos incompletos
+                        </button>
+                      </div>
+                    }
+                  }
+
+                  <app-tabla-estandar
+                    [id]="'afiliaciones-envios-eps-' + g.eps_key"
+                    [titulo]="'Bandeja ' + g.eps_nombre"
+                    modulo="Afiliaciones"
+                    [datos]="g.personas"
+                    [columnas]="columnasBandeja"
+                    [filaId]="idPersona"
+                    [seleccion]="seleccion(g)"
+                    [filasPorPagina]="25" />
+                </ng-template>
+              </mat-expansion-panel>
+            } @empty {
+              @if (!cargandoBandeja()) { <p class="ee-vacio">No hay personal activo con ingreso en ese rango.</p> }
+            }
+          </mat-accordion>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ═══════════════════════ Seguimiento ═══════════════════════ -->
+    <mat-tab label="Seguimiento">
+      <div class="ee-pestana">
+        <div class="ee-filtros">
+          <mat-form-field appearance="outline">
+            <mat-label>Estado</mat-label>
+            <mat-select [(ngModel)]="estadoFiltro" (selectionChange)="cargarTramites()">
+              <mat-option value="">Todos</mat-option>
+              @for (e of estados; track e) { <mat-option [value]="e">{{ etiquetaEstado[e] }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>EPS</mat-label>
+            <mat-select [(ngModel)]="epsFiltro" (selectionChange)="cargarTramites()">
+              <mat-option value="">Todas</mat-option>
+              @for (c of canales(); track c.eps_key) { <mat-option [value]="c.eps_key">{{ c.nombre }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Empresa</mat-label>
+            <mat-select [(ngModel)]="empresaFiltro" (selectionChange)="cargarTramites()">
+              <mat-option value="">Todas</mat-option>
+              <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+              <mat-option value="TU_ALIANZA">Tu Alianza</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Cédula o nombre</mat-label>
+            <input matInput [(ngModel)]="q" (keyup.enter)="cargarTramites()">
+          </mat-form-field>
+          <button mat-flat-button (click)="cargarTramites()"><mat-icon>search</mat-icon> Buscar</button>
+        </div>
+
+        <div class="ee-acciones">
+          <span class="ee-marcados">{{ marcados().length }} marcado(s)</span>
+          <button mat-stroked-button (click)="accion('radicar')" [disabled]="!marcados().length"><mat-icon>receipt_long</mat-icon> Radicado</button>
+          <button mat-stroked-button (click)="accion('confirmar')" [disabled]="!marcados().length"><mat-icon>verified</mat-icon> Confirmar</button>
+          <button mat-stroked-button (click)="accion('rechazar')" [disabled]="!marcados().length"><mat-icon>undo</mat-icon> Devuelta</button>
+          <button mat-stroked-button (click)="accion('reabrir')" [disabled]="!marcados().length"><mat-icon>restart_alt</mat-icon> Reabrir</button>
+        </div>
+
+        <app-tabla-estandar
+          id="afiliaciones-envios-eps-seguimiento"
+          titulo="Seguimiento afiliaciones EPS"
+          modulo="Afiliaciones"
+          [datos]="tramites()"
+          [columnas]="columnasTramites"
+          [filaId]="idTramite"
+          [seleccion]="seleccionTramites"
+          [cargando]="cargandoTramites()"
+          vacio="No hay trámites con esos filtros."
+          (filaClick)="verTramite($event)" />
+      </div>
+    </mat-tab>
+
+    <!-- ═══════════════════════ Envíos ═══════════════════════ -->
+    <mat-tab label="Envíos">
+      <div class="ee-pestana">
+        <p class="ee-nota"><mat-icon>info</mat-icon> Los últimos 200 envíos y registros. «Ver» abre el correo exactamente como salió.</p>
+        <app-tabla-estandar
+          id="afiliaciones-envios-eps-historial"
+          titulo="Envíos a EPS"
+          modulo="Afiliaciones"
+          [datos]="envios()"
+          [columnas]="columnasEnvios"
+          [filaId]="idEnvio"
+          [cargando]="cargandoEnvios()"
+          [seleccionable]="false"
+          vacio="Todavía no se ha enviado nada."
+          (filaClick)="verCorreo($event)" />
+      </div>
+    </mat-tab>
+
+    <!-- ═══════════════════════ Parametrización ═══════════════════════ -->
+    <mat-tab label="Parametrización">
+      <div class="ee-pestana">
+        <div class="ee-acciones">
+          <span class="ee-marcados">{{ activas() }} de {{ canales().length }} EPS activas</span>
+          <button mat-flat-button (click)="configurar(null)"><mat-icon>add</mat-icon> Agregar EPS</button>
+        </div>
+        <app-tabla-estandar
+          id="afiliaciones-envios-eps-canales"
+          titulo="Parametrización EPS"
+          modulo="Afiliaciones"
+          [datos]="canales()"
+          [columnas]="columnasCanales"
+          [filaId]="idCanal"
+          [filaClase]="claseCanal"
+          [cargando]="cargandoCanales()"
+          [seleccionable]="false"
+          [filasPorPagina]="0"
+          textoDetalle="Editar"
+          (filaClick)="configurar($event.eps_key)">
+          <ng-template tablaCelda="activa" let-c>
+            <mat-slide-toggle [checked]="c.activa" (change)="alternarActiva(c, $event.checked)"
+                              [attr.aria-label]="'Activa ' + c.nombre" />
+          </ng-template>
+        </app-tabla-estandar>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

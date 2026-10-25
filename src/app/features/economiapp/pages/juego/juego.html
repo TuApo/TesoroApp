@@ -1,0 +1,111 @@
+<div class="pagina juego-pagina">
+  @if (cargando()) {
+    <div class="esqueleto alto"></div>
+  } @else if (!info()) {
+    <div class="estado-vacio">
+      <mat-icon>sports_esports</mat-icon>
+      <h2>Ese juego no está disponible</h2>
+      @if (error()) { <p>{{ error() }}</p> }
+      <a class="eco-btn" routerLink="/economiapp/juegos">Ver los juegos</a>
+    </div>
+  } @else if (info(); as j) {
+    @if (fase() === 'intro' || fase() === 'fin') {
+      <a class="volver" routerLink="/economiapp/juegos"><mat-icon>arrow_back</mat-icon> Juegos</a>
+
+      @if (fase() === 'fin' && resultado(); as r) {
+        <section class="resultado" [class.ok]="r.aceptada">
+          @if (r.nuevo_record || r.mejor_semana) { <eco-confeti /> }
+          <small class="res-titulo">{{ r.aceptada ? 'Su puntaje' : 'Partida sin contar' }}</small>
+          <span class="res-puntos">{{ r.puntaje }}</span>
+          @if (!r.aceptada) {
+            <p class="motivo"><mat-icon>info</mat-icon> {{ r.motivo }}</p>
+          } @else {
+            @if (r.nuevo_record) { <b class="insignia oro"><mat-icon>emoji_events</mat-icon> ¡Nuevo récord de todos los tiempos!</b> }
+            @else if (r.mejor_semana) { <b class="insignia"><mat-icon>trending_up</mat-icon> ¡Su mejor marca de la semana!</b> }
+            @if (r.yo) {
+              <p class="puesto">Va <b>#{{ r.yo.puesto }}</b> de {{ r.participantes }} esta semana con <b>{{ r.yo.puntaje }}</b> puntos.
+                @if (j.torneo && r.yo.puesto <= 3) { <span class="podio-ya">¡Está en el podio! Defiéndalo hasta el domingo.</span> }
+              </p>
+            }
+          }
+        </section>
+      }
+
+      <section class="intro" [class]="'intro j-' + j.codigo.toLowerCase()">
+        <span class="icono"><mat-icon>{{ j.icono }}</mat-icon></span>
+        @if (j.torneo) { <span class="torneo-chip">🏆 Torneo de la semana</span> }
+        <h1>{{ j.nombre }}</h1>
+        <p>{{ j.descripcion }}</p>
+        <div class="marcas">
+          <div><small>Mi mejor de la semana</small><b>{{ j.mi_mejor_semana ?? '—' }}</b></div>
+          <div><small>Mi récord</small><b>{{ j.mi_record ?? '—' }}</b></div>
+          <div><small>Récord de todos</small><b>{{ j.record?.puntaje ?? '—' }}</b>@if (j.record) { <i>{{ j.record.nombre }}</i> }</div>
+        </div>
+        @if (premios(); as p) {
+          <p class="premio"><mat-icon>redeem</mat-icon> El domingo a medianoche el podio gana 🥇 {{ p.primero }} · 🥈 {{ p.segundo }} · 🥉 {{ p.tercero }} puntos.</p>
+        }
+      </section>
+
+      @if (error()) { <p class="error"><mat-icon>error</mat-icon> {{ error() }}</p> }
+
+      <div class="acciones">
+        <button type="button" class="eco-btn jugar" (click)="jugar()" [disabled]="quedan() === 0">
+          <mat-icon>play_arrow</mat-icon> {{ fase() === 'fin' ? 'Jugar otra vez' : 'Jugar' }}
+        </button>
+        <a class="eco-btn secundario" routerLink="/economiapp/juegos" [queryParams]="{ ranking: j.codigo }"><mat-icon>leaderboard</mat-icon> Ranking</a>
+      </div>
+      <p class="quedan">{{ quedan() === 0 ? 'Ya jugó todas las partidas de hoy. ¡Mañana sigue!' : 'Le quedan ' + quedan() + ' partidas hoy. Cuenta su mejor puntaje de la semana.' }}</p>
+
+      <section class="tarjeta como">
+        <h2><mat-icon>help</mat-icon> Cómo se juega</h2>
+        @switch (j.codigo) {
+          @case ('ATRAPA') {
+            <ul>
+              <li>Arrastre el dedo (o el mouse, o las flechas) para mover la canasta.</li>
+              <li>Cada producto suma 10; atrapar 5 seguidos sube el multiplicador hasta ×5.</li>
+              <li>⭐ vale 50. {{ halloween() ? '👻' : '💣' }} le quita una vida: con 3 se acaba.</li>
+            </ul>
+          }
+          @case ('MEMORIA') {
+            <ul>
+              <li>Voltee dos cartas: si son iguales, se quedan y suman 50 (+10 por cada acierto seguido).</li>
+              <li>Al limpiar el tablero gana 200 y sale otro. Tiene {{ j.duracion_seg }} segundos.</li>
+            </ul>
+          }
+          @case ('PRECIO') {
+            <ul>
+              <li>Salen dos productos de su tienda: toque el que cuesta menos.</li>
+              <li>Cada acierto suma 100 y la racha suma hasta +200 más. Tiene {{ j.duracion_seg }} segundos.</li>
+            </ul>
+          }
+        }
+      </section>
+    } @else {
+      <div class="escenario" [class.halloween]="halloween()">
+        <button type="button" class="salir" (click)="salir()" aria-label="Salir del juego" data-sin-sonido><mat-icon>close</mat-icon></button>
+        @if (partida(); as p) {
+          @switch (j.codigo) {
+            @case ('ATRAPA') {
+              <juego-atrapa [semilla]="p.semilla" [duracion]="p.duracion_seg" [halloween]="halloween()" [activo]="fase() === 'jugando'"
+                            (listo)="alEstarListo()" (fin)="alTerminar($event)" />
+            }
+            @case ('MEMORIA') {
+              <juego-memoria [semilla]="p.semilla" [duracion]="p.duracion_seg" [halloween]="halloween()" [activo]="fase() === 'jugando'"
+                             (listo)="alEstarListo()" (fin)="alTerminar($event)" />
+            }
+            @case ('PRECIO') {
+              <juego-precio [semilla]="p.semilla" [duracion]="p.duracion_seg" [halloween]="halloween()" [activo]="fase() === 'jugando'"
+                            (listo)="alEstarListo()" (fin)="alTerminar($event)" />
+            }
+          }
+        }
+        @if (fase() === 'cuenta') {
+          <!-- Un elemento por número: así la animación arranca de nuevo con el 2 y el 1. -->
+          <div class="capa-cuenta">@for (n of [cuenta()]; track n) { <span class="numero">{{ n }}</span> }</div>
+        }
+        @if (fase() === 'preparando') { <div class="capa-cuenta"><small>Preparando el juego…</small></div> }
+        @if (fase() === 'enviando') { <div class="capa-cuenta"><small>Guardando su puntaje…</small></div> }
+      </div>
+    }
+  }
+</div>

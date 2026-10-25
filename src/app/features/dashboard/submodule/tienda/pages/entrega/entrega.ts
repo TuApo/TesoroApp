@@ -2,10 +2,18 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
+import { firstValueFrom } from 'rxjs';
+
+import { CapturaRostro, EcoCapturaRostro } from '../../../../../economiapp/components/eco-captura-rostro';
+import {
+  CONSENTIMIENTO_VERSION, TEXTO_TERCERO, TEXTO_TITULAR, huellaDelTexto,
+} from '../../../../../economiapp/consentimiento-biometrico';
 
 import {
   Expediente, PedidoParaEntregar, TiendaService, ValidacionReclamo,
 } from '../../service/tienda.service';
+import { EscanerCodigoComponent } from '@/app/shared/components/escaner-codigo/escaner-codigo.component';
+import { cedulaDesdeCodigo } from '@/app/shared/components/escaner-codigo/cedula-desde-codigo';
 
 /**
  * La pantalla de quien entrega los mercados.
@@ -20,7 +28,7 @@ import {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-entrega',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, EcoCapturaRostro, EscanerCodigoComponent],
   templateUrl: './entrega.html',
   styleUrls: ['../../styles/tienda-comun.css', './entrega.css'],
 })
@@ -41,7 +49,22 @@ export class Entrega {
 
   /** Lo que el revisor decide, con su motivo. */
   readonly medio = signal<'CEDULA' | 'FOTOCOPIA' | 'DIGITAL'>('CEDULA');
+
+  // Verificación con rostro (recomendada). La decisión manual queda como alternativa para
+  // quien no autoriza la biometría o cuando no hay foto con qué comparar.
+  readonly rostroAbierto = signal(false);
+  readonly aceptaRostro = signal(false);
+  readonly verificandoRostro = signal(false);
+  readonly resultadoRostro = signal<{ resultado: string; aprueba: boolean; puntaje: number | null } | null>(null);
+  readonly TEXTO_TERCERO = TEXTO_TERCERO;
+  readonly TEXTO_TITULAR = TEXTO_TITULAR;
   readonly comentario = signal('');
+
+  /** El escáner lee el código del documento; el número queda en el campo para confirmarlo. */
+  cedulaLeida(texto: string): void {
+    const c = cedulaDesdeCodigo(texto);
+    if (c) this.cedula.set(c);
+  }
 
   buscar(): void {
     const doc = this.cedula().trim();
@@ -71,6 +94,9 @@ export class Entrega {
   elegir(p: PedidoParaEntregar): void {
     this.seleccionado.set(p);
     this.comentario.set('');
+    this.rostroAbierto.set(false);
+    this.aceptaRostro.set(false);
+    this.resultadoRostro.set(null);
     this.api.validacionesDe(p.id).subscribe({
       next: v => this.validaciones.set(v),
       error: () => this.validaciones.set([]),
@@ -115,6 +141,32 @@ export class Entrega {
         this.error.set(this.mensaje(err, 'No se pudo registrar la decisión'));
       },
     });
+  }
+
+  /**
+   * Foto de quien reclama contra su referencia (la del tercero que cargó el titular, o la de
+   * contratación). Si coincide, el servidor deja el acta APROBADA y se puede entregar.
+   */
+  async verificarRostro(c: CapturaRostro): Promise<void> {
+    const p = this.seleccionado();
+    if (!p) return;
+    this.verificandoRostro.set(true);
+    this.error.set(null);
+    try {
+      const texto = p.tercero ? TEXTO_TERCERO : TEXTO_TITULAR;
+      const r = await firstValueFrom(this.api.verificarRostroPedido(p.id, c.blob, c.vivacidad, p.tercero?.id ?? null,
+        { version: CONSENTIMIENTO_VERSION, sha256: await huellaDelTexto(texto) }));
+      this.resultadoRostro.set(r);
+      if (r.aprueba) {
+        this.aviso.set(`Identidad verificada (coincidencia ${Math.round((r.puntaje ?? 0) * 100)}%). Ya puede entregar.`);
+        this.rostroAbierto.set(false);
+        this.buscar();
+      }
+    } catch (e) {
+      this.error.set(this.mensaje(e, 'No se pudo verificar con el rostro; use la verificación con cédula'));
+    } finally {
+      this.verificandoRostro.set(false);
+    }
   }
 
   abrirBandeja(): void {

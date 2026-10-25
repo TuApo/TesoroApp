@@ -17,12 +17,13 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import type { AntecedentesPayload } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { RobotsService } from '../../service/robots/robots.service';
 import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
-import type { ResultadosAntecedentes } from '../../service/robots/robots.service';
-import { procesoDeAntecedentes } from '../../pages/recruitment-pipeline/contrato.rules';
+import type { EstadoColaAntecedentes, ResultadosAntecedentes } from '../../service/robots/robots.service';
+import { contratoEnCurso, filtroOtroContrato, procesoDeAntecedentes } from '../../pages/recruitment-pipeline/contrato.rules';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
 import { avanceDeForm } from '../../shared/progreso.util';
 import { AutoGuardado } from '../../shared/auto-guardado';
 import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
+import { SaludAdres, detalleExcepcion, saludAdresDe } from '../../shared/salud-adres.util';
 
 /* ===================== Tipos ===================== */
 type UploadedFileInfo = {
@@ -134,6 +135,13 @@ export class SelectionQuestionsComponent implements OnDestroy {
   candidatoSeleccionado = input<any | null>(null);
   /** Avisa al pipeline que se guardaron antecedentes, para que recargue el candidato. */
   guardado = output<void>();
+  /**
+   * "Actualizar antecedentes": el pipeline re-abre las 8 fuentes con la MISMA
+   * función que su acceso rápido "Forzar antecedentes" (forzarAntecedentesRapido).
+   */
+  actualizarAntecedentes = output<void>();
+  /** Mientras el pipeline está forzando: apaga el botón y muestra el reloj. */
+  actualizandoAntecedentes = input<boolean>(false);
   /**
    * Override "Modificar de todas formas" (pipeline con contrato activo): al guardar,
    * marca la edición como pura sobre el proceso EXISTENTE y sella la auditoría
@@ -295,6 +303,12 @@ export class SelectionQuestionsComponent implements OnDestroy {
       .pipe(startWith(null), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.publicarAvance());
 
+    // Una consulta forzada (desde aquí o desde el pipeline) de ESTA persona:
+    // vigilar la cola para traer el PDF y el dato nuevos cuando el robot pase.
+    this.robots.forzadoCambio$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((ced) => { if (ced === this.cedula) this.vigilarForzadas(this._ctx); });
+
     // Reacciona al candidato seleccionado
     effect(() => {
       const candidato = this.candidatoSeleccionado();
@@ -322,6 +336,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
         // La "procedencia robot" es de la persona anterior: si la consulta del
         // nuevo falla o demora, sus tarjetas mostrarían los valores del otro.
         this.resultadosRobot = {};
+        this.saludAdres = null;
         this.camposDesdeRobot.clear();
         // Lo pendiente era de la anterior; lo que se pinte ahora no es edición.
         this.autoAntecedentes.cancelar();
@@ -351,6 +366,9 @@ export class SelectionQuestionsComponent implements OnDestroy {
         this.loadDataDocumentos(ctx)
           .then(() => this.maybeScheduleDocPolling(ctx, 0))
           .catch((err) => console.error('[selection] Error cargando documentos:', err));
+        // Forzadas que siguen esperando robot (p. ej. pedidas desde el pipeline
+        // antes de abrir esta pestaña): retomar la vigilancia.
+        this.vigilarForzadas(ctx);
 
         // Prellenado con lo que ya consultó el robot. Va después del patch de
         // antecedentes guardados para que estos tengan prioridad. Solo cuando
@@ -379,6 +397,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.cancelDocPolling();
+    if (this.forzadasTimer) clearTimeout(this.forzadasTimer);
   }
 
   /* ===================== Auto-refresco de documentos ===================== */
@@ -630,6 +649,13 @@ export class SelectionQuestionsComponent implements OnDestroy {
   /** Resultados del robot para el candidato actual (para mostrar procedencia). */
   resultadosRobot: ResultadosAntecedentes['campos'] = {};
 
+  /**
+   * Pedido #6: salud según ADRES para la tarjeta EPS — chip "Régimen especial/excepción"
+   * o el aviso suave "ADRES sin registro". Sale de la misma respuesta del robot.
+   */
+  saludAdres: SaludAdres | null = null;
+  readonly detalleExcepcion = detalleExcepcion;
+
   /** Campos que quedaron diligenciados por el robot en esta carga. */
   camposDesdeRobot = new Set<string>();
 
@@ -673,6 +699,8 @@ export class SelectionQuestionsComponent implements OnDestroy {
       if (ctx !== this._ctx) return;
 
       this.resultadosRobot = res?.campos ?? {};
+      // Sin fila del robot puede venir igual el régimen de excepción leído del PDF.
+      this.saludAdres = saludAdresDe(res);
       if (!res?.encontrado) {
         this.camposDesdeRobot.clear();
         // El robot AÚN no tiene resultados: no sellar, para que el próximo
@@ -704,7 +732,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
    * lo acaba de llenar o si ya dice lo mismo que el robot (guardado tal cual).
    * Si alguien guardó otra cosa, deja de decir "autocompletado".
    */
-  private aplicarResultadosRobot(): void {
+  private aplicarResultadosRobot(sobrescribir: ReadonlySet<string> = new Set()): void {
     this.camposDesdeRobot.clear();
 
     // Índice control -> campo, para saber contra qué catálogo alinear.
@@ -725,7 +753,12 @@ export class SelectionQuestionsComponent implements OnDestroy {
         : (fld ? this.getOptions(fld) : []);
       const alineado = this.alinearConCatalogo(valor, opciones) as string | number;
 
-      if (this.estaVacio(control)) {
+      // `sobrescribir`: controles cuya fuente se FORZÓ y el robot ya respondió.
+      // Ahí el dato de hoy reemplaza al anterior aunque la tarjeta tuviera valor:
+      // para eso se pidió volver a consultar.
+      const reemplazar = sobrescribir.has(control)
+        && claveComparable(this.antecedentes.get(control)?.value) !== claveComparable(alineado);
+      if (this.estaVacio(control) || reemplazar) {
         patch[control] = alineado;
         this.camposDesdeRobot.add(control);
       } else if (claveComparable(this.antecedentes.get(control)?.value) === claveComparable(alineado)) {
@@ -786,9 +819,12 @@ export class SelectionQuestionsComponent implements OnDestroy {
       // contratación vía caché por cédula. El polling (resetFirst=false) fuerza
       // ir al servidor: su razón de ser es ver documentos NUEVOS del robot.
       const docs: any[] = await firstValueFrom(
-        this.docsSrv.getDocumentosDeCandidato(this.cedula, { force: !resetFirst })
+        this.docsSrv.getDocumentosDeCandidato(this.cedula, { force: !resetFirst, tipoDoc: this.tipoDocumento })
       );
       if (ctx !== this._ctx || !Array.isArray(docs)) return tocados;
+      // Los antecedentes del contrato anterior no valen para el proceso en curso: se vuelven
+      // a consultar con la fecha más reciente.
+      const esDeOtroContrato = filtroOtroContrato(contratoEnCurso(this.candidatoSeleccionado()), docs);
 
       // Un fetch que sí respondió limpia el rastro de un fallo anterior: lo
       // que no venga en la respuesta es "sin documento", no "error". Sin esto
@@ -817,6 +853,12 @@ export class SelectionQuestionsComponent implements OnDestroy {
         // Find which key corresponds to this doc type
         const typeKey = (Object.keys(this.typeMap) as DocKey[]).find(k => this.typeMap[k] === d.type);
         if (!typeKey) continue;
+        if (esDeOtroContrato(d)) continue;
+        // El backend lista del MÁS NUEVO al más viejo y no versiona: cada consulta
+        // del robot deja otro documento del mismo tipo. Gana el primero; sin esto
+        // cada vuelta pisaba al anterior y la tarjeta terminaba mostrando el PDF
+        // MÁS VIEJO (una re-consulta de hoy seguía enseñando el de abril).
+        if (tocados.has(typeKey)) continue;
 
         // No pisar un PDF que el usuario ya adjuntó y todavía no ha guardado:
         // el refresco por polling llegaría a borrarle el archivo pendiente.
@@ -1144,6 +1186,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
         // `reabierto:false` no es un fallo: la fila ya estaba abierta y el robot
         // la va a tomar igual. Se cuenta como pedida.
         (r ? pedidas : fallidas).push(etiquetas.join(' y '));
+        if (r) this.robots.registrarForzado(doc, [fuente]);
       } catch (err) {
         console.error('[antecedentes] no se pudo pedir', fuente, err);
         fallidas.push(etiquetas.join(' y '));
@@ -1159,8 +1202,8 @@ export class SelectionQuestionsComponent implements OnDestroy {
         // No se promete un resultado: hoy varias fuentes vuelven BLOQUEADO en
         // segundos porque no hay robot que las consulte. Decir "en unos minutos
         // estará puesto" dejaba al operador esperando algo que no iba a llegar.
-        + '<p style="margin:0;">Recarga la ficha para ver en qué quedó cada una. '
-        + 'Si aparece <b>BLOQUEADO · verificar a mano</b>, el robot no pudo: '
+        + '<p style="margin:0;">Cuando el robot responda, el PDF y el dato de cada una '
+        + 'se actualizan solos en esta ficha. Si aparece <b>BLOQUEADO · verificar a mano</b>, el robot no pudo: '
         + 'toca consultarla manualmente.</p>',
       confirmButtonColor: '#111827',
     });
@@ -1200,6 +1243,7 @@ export class SelectionQuestionsComponent implements OnDestroy {
         tipo_doc: this.tipoDocumento,
         fuente,
       }));
+      this.robots.registrarForzado(doc, [fuente]);
       await Swal.fire({
         icon: resp?.reabierto ? 'success' : 'info',
         title: resp?.reabierto ? 'Re-consulta pedida' : 'Sin cambios',
@@ -1217,6 +1261,104 @@ export class SelectionQuestionsComponent implements OnDestroy {
     } finally {
       this.forzandoFuente = null;
       this.cdr.markForCheck();
+    }
+  }
+
+  /* ===================== Vigilancia de consultas forzadas ===================== */
+
+  private forzadasTimer: any = null;
+  /** Cada 10 s durante 20 min: ADRES tarda ~1 min por consulta y hay cola de otras personas. */
+  private static readonly FORZADAS_INTERVALO_MS = 10_000;
+  private static readonly FORZADAS_MAX_INTENTOS = 120;
+
+  /** Controles del formulario que llena cada fuente del robot. */
+  private static readonly CONTROLES_POR_FUENTE: Partial<Record<ColaKey, string[]>> = {
+    adress: ['eps'],
+    policivo: ['policivos'],
+    ofac: ['ofac'],
+    contraloria: ['contraloria'],
+    sisben: ['sisben'],
+    procuraduria: ['procuraduria'],
+    fondo_pension: ['afp'],
+    medidas_correctivas: ['medidasCorrectivas'],
+  };
+
+  /** Agenda la próxima revisión mientras queden fuentes forzadas sin respuesta. */
+  private vigilarForzadas(ctx: number, intento = 0): void {
+    if (this.forzadasTimer) {
+      clearTimeout(this.forzadasTimer);
+      this.forzadasTimer = null;
+    }
+    if (ctx !== this._ctx || !this.cedula) return;
+    if (!this.robots.fuentesForzadas(this.cedula).length) return;
+    if (intento >= SelectionQuestionsComponent.FORZADAS_MAX_INTENTOS) return;
+    this.forzadasTimer = setTimeout(
+      () => void this.revisarForzadas(ctx, intento),
+      SelectionQuestionsComponent.FORZADAS_INTERVALO_MS,
+    );
+  }
+
+  /**
+   * Mira la cola y, por cada fuente forzada que el robot ya resolvió, trae el
+   * PDF nuevo y el dato de hoy. BLOQUEADO también cierra la espera (el robot no
+   * pudo): se pinta tal cual y no se toca lo que había.
+   */
+  private async revisarForzadas(ctx: number, intento: number): Promise<void> {
+    this.forzadasTimer = null;
+    const ced = this.cedula;
+    if (ctx !== this._ctx || !ced) return;
+
+    let cola: EstadoColaAntecedentes | null = null;
+    try {
+      cola = await firstValueFrom(this.robots.getEstadoColaAntecedentes(ced));
+    } catch (err) {
+      console.warn('[antecedentes] sondeo de forzadas falló', err);
+    }
+    if (ctx !== this._ctx) return;
+
+    if (cola) {
+      const resueltas: string[] = [];
+      const finalizadas: ColaKey[] = [];
+      for (const f of this.robots.fuentesForzadas(ced) as ColaKey[]) {
+        const est = String((cola as Record<string, any>)[`estado_${f}`] ?? '').toUpperCase();
+        if (!est || est === 'SIN_CONSULTAR' || est === 'EN_PROGRESO') continue;
+        resueltas.push(f);
+        if (est === 'FINALIZADO') finalizadas.push(f);
+        this.colaRaw = {
+          ...(this.colaRaw ?? {}),
+          [f]: { ...(this.colaRaw?.[f] ?? { faltan_antes: null }), estado: est },
+        };
+      }
+      if (resueltas.length) {
+        this.robots.atenderForzado(ced, resueltas);
+        if (finalizadas.length) await this.refrescarTrasConsulta(ctx, finalizadas);
+        this.cdr.markForCheck();
+      }
+    }
+    this.vigilarForzadas(ctx, intento + 1);
+  }
+
+  /** PDF más reciente + resultados del robot, pisando las tarjetas de esas fuentes. */
+  private async refrescarTrasConsulta(ctx: number, fuentes: ColaKey[]): Promise<void> {
+    if (!this.cedula) return;
+    // El PDF se sube ANTES del sello FINALIZADO: ya está en el expediente.
+    this.docsSrv.invalidarDocumentos(this.cedula);
+    await this.loadDataDocumentos(ctx, false);
+    if (ctx !== this._ctx) return;
+    try {
+      const res = await firstValueFrom(
+        this.robots.getResultadosAntecedentes(this.cedula, this.tipoDocumento)
+      );
+      if (ctx !== this._ctx || !res?.encontrado) return;
+      this.resultadosRobot = res.campos ?? {};
+      this.saludAdres = saludAdresDe(res);
+      this.cedulaRobotConsultada = this.claveRobot();
+      const controles = new Set(
+        fuentes.flatMap((f) => SelectionQuestionsComponent.CONTROLES_POR_FUENTE[f] ?? [])
+      );
+      this.aplicarResultadosRobot(controles);
+    } catch (err) {
+      console.warn('[antecedentes] no se pudieron traer los resultados nuevos', err);
     }
   }
 

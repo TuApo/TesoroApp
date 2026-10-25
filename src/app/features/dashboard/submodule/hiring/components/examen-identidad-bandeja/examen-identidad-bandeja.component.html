@@ -1,0 +1,86 @@
+<section class="eib">
+  <header class="eib-cabecera">
+    <mat-icon class="eib-icono">how_to_reg</mat-icon>
+    <div class="eib-textos">
+      <h2 class="eib-titulo">Exámenes por revisar</h2>
+      <p class="eib-sub">
+        El sistema lee el nombre y la cédula de cada examen cargado (también los que llegan del sistema anterior)
+        y los compara con el trabajador. Aquí quedan los que no coinciden o no se pudieron leer.
+      </p>
+    </div>
+    <div class="eib-acciones">
+      <button mat-stroked-button type="button" (click)="alternarRevisados()">
+        <mat-icon>{{ verRevisados() ? 'visibility_off' : 'history' }}</mat-icon>
+        {{ verRevisados() ? 'Solo pendientes' : 'Ver revisados' }}
+      </button>
+      <button mat-icon-button type="button" (click)="cargar()" matTooltip="Actualizar" aria-label="Actualizar">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </header>
+
+  @if (cargando()) { <mat-progress-bar mode="indeterminate" /> }
+
+  <div class="eib-contadores">
+    <span class="eib-chip eib-chip--alerta"><mat-icon>person_off</mat-icon> {{ noCoinciden() }} parecen de otra persona</span>
+    <span class="eib-chip"><mat-icon>help_outline</mat-icon> {{ ilegibles() }} sin leer (escaneo)</span>
+  </div>
+
+  @if (error(); as e) {
+    <p class="eib-error">{{ e }}</p>
+  } @else if (!cargando() && !items().length) {
+    <p class="eib-vacio"><mat-icon>check_circle</mat-icon> No hay exámenes por revisar.</p>
+  } @else {
+    <div class="eib-tabla-wrap">
+      <table class="eib-tabla">
+        <thead>
+          <tr>
+            <th>Trabajador</th>
+            <th>Documento</th>
+            <th>Resultado</th>
+            <th>Cargado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (i of items(); track i.document_id) {
+            <tr [class.eib-fila--alerta]="i.resultado === 'NO_COINCIDE' && !i.revision">
+              <td>
+                <div class="eib-nombre">{{ i.nombre_trabajador || '—' }}</div>
+                <div class="eib-meta">CC {{ i.owner_id }}</div>
+              </td>
+              <td>
+                <div class="eib-doc" [matTooltip]="i.title">{{ i.title }}</div>
+                <div class="eib-meta">#{{ i.document_id }}</div>
+              </td>
+              <td>
+                @if (i.resultado === 'NO_COINCIDE') {
+                  <span class="eib-badge eib-badge--alerta">No coincide</span>
+                  @if (i.cedula_leida) { <div class="eib-meta">El documento dice CC {{ i.cedula_leida }}</div> }
+                  @if (i.nombre_leido) { <div class="eib-meta">Nombre leído: {{ i.nombre_leido }}</div> }
+                } @else {
+                  <span class="eib-badge">No se pudo leer</span>
+                }
+                <div class="eib-meta">{{ i.detalle }}</div>
+                @if (i.revision) {
+                  <div class="eib-revision">
+                    <mat-icon>task_alt</mat-icon>
+                    {{ etiquetaRevision(i.revision) }} · {{ i.revisado_por || '—' }} · {{ i.revisado_at | date: 'd MMM y, HH:mm' }}
+                    <div class="eib-meta">«{{ i.justificacion }}»</div>
+                  </div>
+                }
+              </td>
+              <td>{{ i.cargado_at | date: 'd MMM y' }}</td>
+              <td class="eib-botones">
+                @if (!i.revision) {
+                  <button mat-stroked-button type="button" (click)="revisar(i, 'ES_DEL_TRABAJADOR')">Es del trabajador</button>
+                  <button mat-stroked-button type="button" class="eib-btn-alerta" (click)="revisar(i, 'ES_DE_OTRA_PERSONA')">Es de otra persona</button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

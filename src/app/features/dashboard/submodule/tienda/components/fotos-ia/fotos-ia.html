@@ -1,0 +1,118 @@
+<div class="ia">
+  @if (iaConfigurada() === false) {
+    <div class="msg aviso"><mat-icon>key_off</mat-icon>
+      <span>La IA de imágenes aún no tiene llave activa: puede preparar y pedir versiones, quedan en cola y se generan solas cuando se configure.</span></div>
+  }
+  @if (error()) { <div class="msg mal"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="msg bien"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <section class="paso">
+    <h4><span class="num">1</span> Foto de partida</h4>
+    <div class="bases">
+      @for (d of opcionesBase(); track d) {
+        <button type="button" class="base" [class.activa]="base() === d" (click)="base.set(d)" [attr.aria-pressed]="base() === d">
+          <app-imagen-ampliable [doc]="d" [tamano]="84" />
+          @if (base() === d) { <span class="marca-ok"><mat-icon>check</mat-icon></span> }
+        </button>
+      }
+      <label class="base tomar" [class.ocupado]="subiendoBase()">
+        <mat-icon>{{ subiendoBase() ? 'hourglass_top' : 'photo_camera' }}</mat-icon>
+        <span>{{ subiendoBase() ? 'Subiendo…' : 'Tomar foto' }}</span>
+        <input type="file" accept="image/*" capture="environment" hidden (change)="tomarBase($event)" />
+      </label>
+    </div>
+    <p class="nota">La IA parte de esta foto real y conserva empaque, etiqueta y textos. Mientras más nítida, mejor.</p>
+  </section>
+
+  <section class="paso">
+    <h4><span class="num">2</span> Estilos <small>(puede elegir varios)</small></h4>
+    <div class="estilos">
+      @for (e of estilos(); track e.codigo) {
+        <button type="button" class="estilo" [class.activo]="elegidos().includes(e.codigo)" (click)="alternarEstilo(e.codigo)">
+          <span class="muestra" [attr.data-e]="e.codigo" [style.--marca]="cfg()?.color_fondo || '#0b6b58'"><mat-icon>inventory_2</mat-icon></span>
+          <b>{{ e.nombre }}</b><small>{{ e.descripcion }}</small>
+          @if (cfg()?.estilo === e.codigo) { <span class="sello-t">de la tienda</span> }
+        </button>
+      }
+    </div>
+    <h4 class="sub">Ángulos</h4>
+    <div class="chips">
+      @for (a of angulosDisponibles(); track a) {
+        <button type="button" class="chip" [class.activo]="angulos().includes(a)" (click)="alternarAngulo(a)">{{ nombreAngulo(a) }}</button>
+      }
+    </div>
+    <p class="nota">Los ángulos que no salen en la foto los recrea la IA a partir del frente: revíselos con cuidado.</p>
+  </section>
+
+  <section class="paso">
+    <h4><span class="num">3</span> Instrucción</h4>
+    <label class="campo">Detalle extra (opcional, en español o inglés)
+      <input type="text" maxlength="300" [ngModel]="extra()" (ngModelChange)="extra.set($event)" placeholder="Ej.: sin sombra, con hojas de cilantro al lado" />
+    </label>
+    @if (unaSola()) {
+      <label class="campo">Lo que se le pide a la IA (puede editarlo)
+        <textarea rows="4" [ngModel]="prompt()" (ngModelChange)="editarPrompt($event)"></textarea>
+      </label>
+      @if (promptEditado()) { <button type="button" class="enlace" (click)="restaurarPrompt()"><mat-icon>undo</mat-icon> Volver a la instrucción del estilo</button> }
+    } @else if (total() > 1) {
+      <p class="nota">Con varias combinaciones cada versión usa la instrucción de su estilo y ángulo. Elija una sola para editarla.</p>
+    }
+  </section>
+
+  <div class="pie">
+    <span class="nota">{{ total() }} versión(es){{ total() > 8 ? ' · máximo 8' : '' }}</span>
+    <button type="button" class="boton" [disabled]="enviando() || !base() || !total() || total() > 8" (click)="generar()">
+      <mat-icon>auto_awesome</mat-icon> {{ enviando() ? 'Enviando…' : 'Generar' }}
+    </button>
+  </div>
+
+  @if (visibles().length) {
+    <section class="paso">
+      <h4><span class="num">4</span> Revisar <small>original a la izquierda, versión IA a la derecha</small>
+        @if (enCurso()) { <span class="girando"><mat-icon>autorenew</mat-icon> generando</span> }
+      </h4>
+      <div class="resultados">
+        @for (t of visibles(); track t.id) {
+          <article class="res" [attr.data-tono]="estado(t).tono">
+            <header>
+              <b>{{ nombreEstilo(t.estilo) }}</b><span>· {{ nombreAngulo(t.angulo) }}</span>
+              <span class="estado">{{ estado(t).texto }}</span>
+            </header>
+            <div class="par">
+              <figure><app-imagen-ampliable [doc]="t.doc_origen" [tamano]="140" /><figcaption>Original</figcaption></figure>
+              <figure>
+                @if (t.doc_resultado) { <app-imagen-ampliable [doc]="t.doc_resultado" [docs]="[t.doc_origen]" [tamano]="140" /> }
+                @else if (t.estado === 'ERROR') { <span class="hueco mal"><mat-icon>broken_image</mat-icon></span> }
+                @else { <span class="hueco"><mat-icon class="gira">autorenew</mat-icon></span> }
+                <figcaption>Con IA</figcaption>
+              </figure>
+            </div>
+            @if (t.error) { <p class="err">{{ t.error }}</p> }
+            <div class="acc">
+              @if (t.estado === 'LISTO') {
+                <button type="button" class="boton" (click)="aprobar(t, true)"><mat-icon>star</mat-icon> Principal</button>
+                <button type="button" class="boton secundario" (click)="aprobar(t, false)"><mat-icon>add</mat-icon> Agregar</button>
+              }
+              @if (t.estado === 'LISTO' || t.estado === 'ERROR' || t.estado === 'APROBADO') {
+                <button type="button" class="boton secundario" (click)="regenerar(t)"><mat-icon>refresh</mat-icon> Otra</button>
+              }
+              @if (t.estado !== 'APROBADO') {
+                <button type="button" class="boton secundario" (click)="descartar(t)" aria-label="Descartar"><mat-icon>delete</mat-icon></button>
+              }
+            </div>
+          </article>
+        }
+      </div>
+      @if (trabajos().some(t => t.estado === 'ERROR')) {
+        <button type="button" class="enlace" (click)="reintentar()"><mat-icon>replay</mat-icon> Reintentar las que fallaron</button>
+      }
+    </section>
+  }
+
+  @if (puedeConfigurar() && tiendaId()) {
+    <button type="button" class="enlace" (click)="verConfig.set(!verConfig())">
+      <mat-icon>{{ verConfig() ? 'expand_less' : 'palette' }}</mat-icon> Estilo de fotos de la tienda
+    </button>
+    @if (verConfig()) { <app-config-fotos-tienda [tiendaId]="tiendaId()!" (guardada)="configGuardada($event)" /> }
+  }
+</div>

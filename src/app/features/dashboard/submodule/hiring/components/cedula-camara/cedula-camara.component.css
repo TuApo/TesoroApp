@@ -1,0 +1,85 @@
+/* ==========================================================================
+   BOTÓN "TOMAR CON CÁMARA" DEL DOCUMENTO DE IDENTIDAD
+   `boton`: mismo lenguaje que `.bio-btn` de Contratación (ancho completo,
+   fondo tinta). `compacto`: icono cuadrado como los de la ficha.
+   ========================================================================== */
+:host {
+  display: block;
+  width: 100%;
+}
+
+:host(.cc-host-compacto) {
+  display: inline-block;
+  width: auto;
+}
+
+.cc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: #21263C;
+  color: #fff;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cc-btn:hover:not(:disabled) { background: #2E3552; }
+.cc-btn:focus-visible { outline: 2px solid #4F46E5; outline-offset: 2px; }
+.cc-btn:disabled { opacity: .5; cursor: not-allowed; }
+.cc-btn.cc-trabajando:disabled { opacity: .85; cursor: progress; }
+.cc-btn mat-icon { font-size: 17px; width: 17px; height: 17px; flex: none; }
+
+.cc-texto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compacto: `styles.css` sube todo <button> a 48px; aquí es un icono en una fila. */
+.cc-btn.cc-compacto {
+  width: 26px;
+  height: 26px;
+  min-height: 0 !important;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.cc-btn.cc-compacto:hover:not(:disabled) { background: var(--surface-4); color: var(--navy-ink); }
+.cc-btn.cc-compacto mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+.cc-gira { animation: cc-giro 1s linear infinite; }
+@keyframes cc-giro { to { transform: rotate(360deg); } }
+
+.cc-progreso {
+  height: 4px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: #E2E8F0;
+  background: light-dark(#E2E8F0, #1e293b);
+  overflow: hidden;
+}
+.cc-progreso span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #4F46E5;
+  transition: width .3s ease;
+}
+
+.cc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

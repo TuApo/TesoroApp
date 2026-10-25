@@ -15,6 +15,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/plantillas-eps/plantillas-eps.component').then(m => m.PlantillasEpsComponent)
   },
   {
+    path: 'envios-eps',
+    loadComponent: () => import('./pages/envios-eps/envios-eps.component').then(m => m.EnviosEpsComponent)
+  },
+  {
     path: 'config-temporales',
     loadComponent: () => import('./pages/config-temporales/config-temporales.component').then(m => m.ConfigTemporales)
   }

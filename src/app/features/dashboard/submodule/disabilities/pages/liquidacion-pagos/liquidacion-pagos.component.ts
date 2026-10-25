@@ -52,6 +52,7 @@ import {
   quedoEnCola,
   traerTodasLasPaginas,
 } from '../liquidacion/liquidacion.utils';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Filtros del formulario (las fechas como `Date` del datepicker). */
 export interface FormularioPagos {
@@ -78,6 +79,7 @@ export function filtrosDePagos(f: FormularioPagos, cargaId: number | null): Filt
   selector: 'app-liquidacion-pagos',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     FormsModule,
     RouterLink,
     MatButtonModule,
@@ -145,6 +147,10 @@ export class LiquidacionPagosComponent implements OnInit {
       valor: (p) => p.numeroIncapacidadEps ?? '', formato: (p) => p.numeroIncapacidadEps || '—' },
     { id: 'soporte', header: 'Soporte contable', ordenable: false, prioridad: 2, tarjeta: 'meta',
       valor: (p) => p.soporteContable ?? '', formato: (p) => p.soporteContable || '—' },
+    // Respuesta 2 de la funcional (2026-10-07): la causal de los dias que la EPS no reconocio
+    // SIEMPRE debe verse, por eso no se oculta en pantallas medianas (sin prioridad).
+    { id: 'causalEps', header: 'Causal EPS', ordenable: false, tarjeta: 'cuerpo', minAncho: '180px',
+      valor: (p) => p.causalTexto ?? '', formato: (p) => p.causalTexto || '—' },
     { id: 'carga', header: 'Carga', ordenable: false, prioridad: 3, tarjeta: 'meta', valor: (p) => (p.cargaId ? `#${p.cargaId}` : '—') },
     { id: 'usuario', header: 'Usuario', ordenable: false, prioridad: 3, tarjeta: 'meta', valor: (p) => p.creadoPor ?? '', formato: (p) => p.creadoPor || '—' },
   ];
@@ -259,7 +265,7 @@ export class LiquidacionPagosComponent implements OnInit {
         next: (pagos) => {
           this.exportando.set(false);
           this.guardarLibro(
-            libroDeFilas('Pagos', pagos.map((p) => filaExcelPago(p)), [12, 18, 14, 34, 20, 12, 14, 10, 10, 12, 20, 20, 30, 8, 24, 16, 9]),
+            libroDeFilas('Pagos', pagos.map((p) => filaExcelPago(p)), [12, 18, 14, 34, 20, 12, 14, 10, 10, 12, 20, 20, 40, 30, 8, 24, 16, 9]),
             `pagos_incapacidades_${marcaDeTiempo()}.xlsx`,
           );
           if (this.total() > TAMANO_PAGINA_EXPORT * MAX_PAGINAS_EXPORT) {
@@ -298,6 +304,7 @@ export function filaExcelPago(p: PagoItem): Record<string, unknown> {
     'Fecha de pago': fechaCorta(p.fechaPago),
     'N° incapacidad EPS': p.numeroIncapacidadEps ?? '',
     'Soporte contable': p.soporteContable ?? '',
+    'Causal EPS': p.causalTexto ?? '',
     Observaciones: p.observaciones ?? '',
     Carga: p.cargaId ?? '',
     Usuario: p.creadoPor ?? '',

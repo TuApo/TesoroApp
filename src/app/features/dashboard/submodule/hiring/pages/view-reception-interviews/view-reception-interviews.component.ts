@@ -1,5 +1,5 @@
 import { isPlatformBrowser } from '@angular/common';
-import {  Component, DestroyRef, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, DestroyRef, Inject, OnInit, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs/operators';
@@ -14,6 +14,8 @@ import { StandardFilterTable } from '@/app/shared/components/standard-filter-tab
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
+import { SedesSeleccionService } from '@/app/shared/services/sedes-seleccion/sedes-seleccion.service';
+import { filtrarOficinasSeleccion } from '@/app/shared/utils/sedes-seleccion';
 import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
 
 type FlatRow = Record<string, any>;
@@ -41,6 +43,9 @@ export class ViewReceptionInterviewsComponent implements OnInit {
   oficinasDisponibles: string[] = [];
   /** true si hay más de una: entonces se muestra el selector de oficina. */
   puedeElegirOficina = false;
+
+  private readonly sedesSeleccion = inject(SedesSeleccionService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   private readonly EXPORT_COLS: ExportCol[] = [
     { header: 'Entrevista - Fecha/Hora (última)', key: 'entrevista_fecha_ultima', width: 26 },
@@ -144,6 +149,17 @@ export class ViewReceptionInterviewsComponent implements OnInit {
       const activa = this.sedeScope.activa()
         || String(this.utilityService.getUser?.()?.sede?.nombre ?? '');
       this.oficina = String(activa).trim();
+
+      // Pedido #3: las sedes que Selección ya no ofrece (V129 `opera_seleccion = 0`:
+      // ANDES, MONTE_VERDE) salen del selector. Se conserva la oficina activa del
+      // usuario para no dejar el selector en blanco a quien todavía está en una.
+      this.sedesSeleccion.clavesFuera()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((fuera) => {
+          this.oficinasDisponibles = filtrarOficinasSeleccion(this.sedeScope.nombres(), fuera, this.oficina);
+          this.puedeElegirOficina = this.oficinasDisponibles.length > 1;
+          this.cdr.markForCheck();
+        });
     }
     this.loadInterviewsToday();
   }

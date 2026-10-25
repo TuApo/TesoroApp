@@ -10,6 +10,15 @@ export const routes: Routes = [
   { path: 'company-docs-access', component: CompanyDocsAccessComponent },
   { path: 'create-doc-structure', component: CreateDocStructureComponent },
   { path: 'search-documents', component: SearchDocumentsComponent },
-  { path: 'upload-documents', component: UploadDocumentsComponent },
+  // La ruta del menú no cambia: lo que cambia es la pantalla que sirve. La mesa
+  // carga en diferido porque arrastra el visor de PDF (pdf.js), que pesa más que
+  // todo el resto del submódulo junto y no hace falta hasta que alguien entra.
+  {
+    path: 'upload-documents',
+    loadComponent: () => import('./pages/ingesta/ingesta.component').then(m => m.IngestaComponent),
+  },
+  // La pantalla anterior sigue accesible mientras la mesa se asienta en campo:
+  // si algo no cuadra, el personal tiene a dónde volver sin esperar un despliegue.
+  { path: 'upload-documents-clasico', component: UploadDocumentsComponent },
   { path: 'withholding-table', component: RetencionComponent }
 ];

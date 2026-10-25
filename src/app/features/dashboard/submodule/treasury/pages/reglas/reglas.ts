@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import Swal from 'sweetalert2';
 
-import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import {
   AjusteRegla, CambioDeRegla, CatalogoReglas, ConceptoRegla, ParametroTesoreria,
   Regla, SeveridadRegla, TesoreriaApiService, TipoDeRegla, TramoRegla,
@@ -56,6 +56,40 @@ export class ReglasTesoreria implements OnInit {
   /** Regla en edición. `null` = ninguna; con `codigo` vacío = alta nueva. */
   readonly editando = signal<Regla | null>(null);
   readonly viendoHistorialDe = signal<string | null>(null);
+
+  /**
+   * Acciones sobre lo marcado (estándar de la tabla): encender o apagar
+   * varias reglas a la vez. El motivo se escribe una vez y queda en el
+   * historial de cada regla, igual que cuando se cambia una sola.
+   */
+  readonly accionesMasivas: AccionMasiva<Regla>[] = [
+    {
+      id: 'apagar', etiqueta: 'Apagar', icono: 'toggle_off', tono: 'aviso',
+      aplicaA: (r) => !!r.activa,
+      confirmar: {
+        icono: 'warning',
+        texto: 'Dejarán de evaluarse. Nadie será rechazado por estas condiciones.',
+        nota: '¿Por qué? Queda en el historial de todas',
+      },
+      ejecutar: (r, ctx) => this.api.cambiarEstadoRegla(r.codigo, false, ctx.nota || undefined),
+      etiquetaFila: (r) => r.nombre,
+      verbo: 'apagada(s)',
+      alTerminar: () => this.cargarTodo(),
+    },
+    {
+      id: 'encender', etiqueta: 'Encender', icono: 'toggle_on', tono: 'primario',
+      aplicaA: (r) => !r.activa,
+      confirmar: {
+        icono: 'question',
+        texto: 'A partir de ahora estas condiciones se evaluarán en cada solicitud.',
+        nota: '¿Por qué? Queda en el historial de todas',
+      },
+      ejecutar: (r, ctx) => this.api.cambiarEstadoRegla(r.codigo, true, ctx.nota || undefined),
+      etiquetaFila: (r) => r.nombre,
+      verbo: 'encendida(s)',
+      alTerminar: () => this.cargarTodo(),
+    },
+  ];
 
   ngOnInit(): void {
     this.cargarTodo();

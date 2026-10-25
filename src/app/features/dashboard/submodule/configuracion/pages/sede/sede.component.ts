@@ -58,6 +58,8 @@ export class SedeConfigComponent implements OnInit, OnDestroy {
   /** Alcance del usuario tal como lo devolvió el backend (fuente de la verdad). */
   esAdmin = false;
   alcanceEsTodas = false;
+  /** Sede transversal (ADMINISTRATIVOS, VIRTUAL) que le da el alcance total, si es el caso. */
+  sedeTransversal: string | null = null;
 
   /** Selección en curso: ids marcados + cuál queda activa. */
   seleccion = new Set<string>();
@@ -177,6 +179,7 @@ export class SedeConfigComponent implements OnInit, OnDestroy {
   private aplicarAlcance(alcance: AlcanceSedes): void {
     this.esAdmin = !!alcance?.es_admin;
     this.alcanceEsTodas = !!alcance?.todas;
+    this.sedeTransversal = alcance?.sede_transversal ?? null;
 
     this.seleccion = new Set<string>();
     this.meta = new Map();
@@ -369,6 +372,8 @@ export class SedeConfigComponent implements OnInit, OnDestroy {
       ? { id: principal.id, nombre: principal.nombre, activa: principal.activa }
       : null;
     user.sedes = alcance?.sedes ?? [];
+    user.todas_sedes = !!alcance?.todas;
+    user.sede_transversal = alcance?.sede_transversal ?? null;
     try {
       setLocalStorageItem('user', JSON.stringify(user));
     } catch {

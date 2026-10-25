@@ -163,3 +163,38 @@ export function dibujarCaraReverso(
     interno.write('Q');
   }
 }
+
+// ───────── Carnets por hoja ─────────
+
+/** Lo que cabe en la grilla de 3x3 de los dos formatos: más se desborda. */
+export const CARNETS_POR_HOJA_MAX = 9;
+
+const CLAVE_POR_HOJA = 'carnet.impresion.por_hoja';
+
+/**
+ * Cuántos carnets van en cada hoja del lote, acotado a 1..`max`. Lo que no sea
+ * un entero válido vuelve al máximo (la hoja llena, que es lo de siempre).
+ */
+export function normalizarPorHoja(n: unknown, max = CARNETS_POR_HOJA_MAX): number {
+  const v = Math.trunc(Number(n));
+  if (!Number.isFinite(v) || v < 1) return max;
+  return Math.min(v, max);
+}
+
+/** Preferencia del puesto, igual que el volteo: se elige una vez y se recuerda. */
+export function leerPorHoja(): number {
+  try {
+    const crudo = localStorage.getItem(CLAVE_POR_HOJA);
+    return normalizarPorHoja(crudo === null ? null : Number(crudo));
+  } catch {
+    return CARNETS_POR_HOJA_MAX;
+  }
+}
+
+export function guardarPorHoja(n: number): void {
+  try {
+    localStorage.setItem(CLAVE_POR_HOJA, String(normalizarPorHoja(n)));
+  } catch {
+    /* sin localStorage (modo privado): se pierde la preferencia, no es crítico */
+  }
+}

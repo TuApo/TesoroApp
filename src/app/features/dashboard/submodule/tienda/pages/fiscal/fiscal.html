@@ -1,0 +1,72 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>account_balance</mat-icon> Fiscal y contabilidad</h1>
+      <p class="tienda-subtitulo">IVA, costo de ventas y margen de cada local; libros de ventas y compras para el contador y lo que pasa a la contabilidad (FinCore), donde se emite la factura electrónica DIAN.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <div class="periodo">
+    <button type="button" class="boton secundario" (click)="mes(-1)" aria-label="Mes anterior"><mat-icon>chevron_left</mat-icon></button>
+    <label>Desde<input class="campo-texto" type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" /></label>
+    <label>Hasta<input class="campo-texto" type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" /></label>
+    <button type="button" class="boton secundario" (click)="mes(1)" aria-label="Mes siguiente"><mat-icon>chevron_right</mat-icon></button>
+    <span class="esp"></span>
+    <button type="button" class="boton secundario" (click)="exportar()"><mat-icon>download</mat-icon> Excel para el contador</button>
+  </div>
+
+  @if (resumen(); as r) {
+    <div class="kpis">
+      <div class="kpi"><span>Ventas</span><b>{{ pesos(r.ventas_total) }}</b><small>{{ r.documentos_venta }} documentos · base {{ pesos(r.ventas_base) }}</small></div>
+      <div class="kpi"><span>IVA generado</span><b>{{ pesos(r.iva_generado) }}</b><small>@for (t of tarifas(); track t[0]) { {{ t[0] }}%: {{ pesos(t[1]) }} }</small></div>
+      <div class="kpi"><span>IVA descontable</span><b>{{ pesos(r.iva_descontable) }}</b><small>compras {{ pesos(r.compras_total) }}</small></div>
+      <div class="kpi destacado"><span>{{ +r.iva_a_pagar_estimado < 0 ? 'Saldo a favor de IVA (estimado)' : 'IVA a pagar (estimado)' }}</span>
+        <b>{{ pesos(+r.iva_a_pagar_estimado < 0 ? -r.iva_a_pagar_estimado : r.iva_a_pagar_estimado) }}</b><small>generado − descontable del periodo</small></div>
+      <div class="kpi" [class.alerta]="r.costo_incompleto"><span>Margen bruto</span><b>{{ r.costo_incompleto ? '—' : pesos(r.margen_bruto) }}</b>
+        <small>@if (r.costo_incompleto) { Falta el costo de compra de productos vendidos: cargue las compras } @else if (r.margen_pct == null) { sin ventas en el periodo } @else { costo {{ pesos(r.costo_ventas) }} · {{ r.margen_pct }}% }</small></div>
+      <div class="kpi"><span>Mermas y ajustes</span><b>{{ pesos(+r.mermas + +r.ajustes_neg - +r.ajustes_pos) }}</b><small>a costo</small></div>
+    </div>
+  }
+
+  <div class="pestanas">
+    <button type="button" [class.activa]="pestana() === 'ventas'" (click)="pestana.set('ventas')">Libro de ventas</button>
+    <button type="button" [class.activa]="pestana() === 'compras'" (click)="pestana.set('compras')">Libro de compras</button>
+    <button type="button" [class.activa]="pestana() === 'cola'" (click)="pestana.set('cola')">Para contabilidad
+      @if (cuenta('PENDIENTE')) { <span class="cuenta">{{ cuenta('PENDIENTE') }}</span> }</button>
+  </div>
+
+  <div class="tabla-marco">
+    <table>
+      @if (pestana() === 'ventas') {
+        <tr><th>Fecha</th><th>Documento</th><th>Tienda</th><th>Cliente</th><th>Tarifa</th><th class="n">Base</th><th class="n">IVA</th><th class="n">Total</th></tr>
+        @for (f of filas(); track $index) { <tr><td>{{ f.fecha | date:'shortDate' }}</td><td>{{ f.numero }} <small>{{ f.canal }}</small></td><td>{{ f.tienda }}</td><td>{{ f.cliente_nombre || f.cliente_doc || '—' }}</td><td>{{ +f.tarifa }}%</td><td class="n">{{ pesos(f.base) }}</td><td class="n">{{ pesos(f.iva) }}</td><td class="n">{{ pesos(f.total) }}</td></tr> }
+      } @else if (pestana() === 'compras') {
+        <tr><th>Recibida</th><th>Factura</th><th>Proveedor</th><th>NIT</th><th class="n">Base</th><th class="n">IVA desc.</th><th class="n">Total</th><th>CUFE</th></tr>
+        @for (f of filas(); track $index) { <tr><td>{{ f.fecha | date:'shortDate' }}</td><td>{{ f.factura_numero || f.numero }}</td><td>{{ f.proveedor || '—' }}</td><td>{{ f.proveedor_nit || '—' }}</td><td class="n">{{ pesos(f.base) }}</td><td class="n">{{ pesos(f.iva) }}</td><td class="n">{{ pesos(f.total) }}</td><td class="cufe">{{ f.cufe || '—' }}</td></tr> }
+      } @else {
+        <tr><th>Fecha</th><th>Tipo</th><th>Documento</th><th>Tercero</th><th class="n">Total</th><th>Estado</th></tr>
+        @for (f of filas(); track $index) { <tr><td>{{ f.fecha | date:'shortDate' }}</td><td>{{ f.tipo === 'COMPRA' ? 'Compra' : f.tipo === 'VENTA_POS' ? 'Venta mostrador' : 'Venta pedido' }}</td><td>{{ f.numero_origen }}</td><td>{{ f.tercero_nombre || f.tercero_doc || '—' }}</td><td class="n">{{ pesos(f.total) }}</td><td><span class="est" [attr.data-e]="f.estado">{{ f.estado === 'NO_APLICA' ? 'No aplica' : f.estado === 'PENDIENTE' ? 'Pendiente' : f.estado === 'ENVIADO' ? 'Enviado' : 'Error' }}</span></td></tr> }
+      }
+      @if (!filas().length) { <tr><td colspan="8" class="vacio">Sin movimientos en el periodo.</td></tr> }
+    </table>
+  </div>
+
+  @if (pestana() === 'cola') {
+    <section class="tienda-tarjeta config">
+      <h3><mat-icon>tune</mat-icon> Configuración fiscal del negocio</h3>
+      @if (config(); as c) {
+        <p class="muted">{{ c.razon_social || c.nombre }} · NIT {{ c.nit }}{{ c.dv ? '-' + c.dv : '' }} · {{ c.tipo_contribuyente || 'tipo de contribuyente sin definir' }}</p>
+        <label class="chk"><input type="checkbox" [checked]="!!+c.responsable_iva" (change)="guardarConfig({ responsable_iva: $any($event.target).checked })" /> Responsable de IVA</label>
+        <label class="chk"><input type="checkbox" [checked]="!!+c.factura_electronica" (change)="guardarConfig({ factura_electronica: $any($event.target).checked })" /> Cada venta sale con factura electrónica (la emite FinCore con la resolución DIAN)</label>
+        <label class="col">Empresa en FinCore (contabilidad)
+          <div class="fila-in"><input class="campo-texto" [ngModel]="c.fincore_empresa" #fe placeholder="Ej. TU_ALIANZA" />
+            <button type="button" class="boton secundario" (click)="guardarConfig({ fincore_empresa: fe.value })">Guardar</button></div></label>
+        <p class="nota"><mat-icon>info</mat-icon> Los documentos quedan en cola (Pendiente) y pasan a FinCore cuando su conexión esté activa. Mientras tanto, los libros de este módulo son la fuente para el contador.</p>
+      } @else { <p class="muted">Elija una tienda arriba para ver la configuración de su negocio.</p> }
+      <button type="button" class="boton secundario" (click)="sincronizar()"><mat-icon>sync</mat-icon> Actualizar la cola ahora</button>
+    </section>
+  }
+</div>

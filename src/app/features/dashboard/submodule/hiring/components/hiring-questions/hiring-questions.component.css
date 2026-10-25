@@ -876,6 +876,15 @@ button {
 .bio-lista .bio-estado { color: #166534; color: light-dark(#166534, #a3ebbe); }
 .bio-lista .bio-txt small { color: #166534; color: light-dark(#166534, #a3ebbe); }
 
+/* El correo rebotó: el servidor de destino dijo que la dirección no existe. */
+.bio-card.bio-rebote { border-color: #fca5a5; background: #fef2f2; background: light-dark(#fef2f2, #3b1414); }
+.bio-txt small.bio-aviso-rebote {
+  display: flex; gap: 4px; align-items: flex-start; margin-top: 4px;
+  font-weight: 600; color: #b91c1c; color: light-dark(#b91c1c, #fca5a5);
+}
+.bio-txt small.bio-aviso-rebote.leve { color: #b45309; color: light-dark(#b45309, #fcd34d); }
+.bio-aviso-rebote mat-icon { font-size: 15px; width: 15px; height: 15px; flex: none; }
+
 /* Vista previa de lo capturado: se confirma sin abrir nada. */
 .bio-prev {
   width: 100%;
@@ -907,6 +916,36 @@ button {
 .bio-prev-doc:hover { background: #DCFCE7; background: light-dark(#DCFCE7, #123b33); }
 .bio-prev-doc mat-icon { font-size: 26px; width: 26px; height: 26px; }
 
+/* Con miniatura: la hoja se ve de arriba (la cara frontal) y el "Ver" flota. */
+.bio-prev-doc-mini {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  border-style: solid;
+  background: #fff;
+}
+.bio-prev-doc-mini img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+.bio-prev-doc-ver {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, .78);
+  color: #fff;
+  font-size: .72rem;
+}
+.bio-prev-doc-ver mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.bio-prev-doc-mini:hover { background: #fff; }
+
 .bio-btn {
   display: inline-flex;
   align-items: center;
@@ -927,6 +966,25 @@ button {
 
 .bio-btn:disabled { opacity: .5; cursor: not-allowed; }
 .bio-btn mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+/* Documento de identidad: cámara arriba (el camino recomendado) y archivo debajo.
+   El grupo es el que se pega al fondo de la tarjeta, no cada botón. */
+.bio-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-top: auto;
+}
+.bio-acciones .bio-btn { margin-top: 0; }
+
+/* Con la cámara al lado, subir un archivo pasa a ser la opción secundaria. */
+.bio-btn-sec {
+  background: transparent;
+  color: var(--navy-ink);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.bio-btn-sec:hover:not(:disabled) { background: var(--surface-2); }
 
 @media (max-width: 600px) {
   .bio-grid { grid-template-columns: minmax(0, 1fr); }
@@ -1143,3 +1201,86 @@ button {
   overflow-y: auto !important;
   overscroll-behavior: contain;
 }
+
+
+/*──────────  BOTÓN "CONTRATAR"  ──────────
+ * El guardado automático no contrata: esto es lo único que lo hace, así que va
+ * al final del tab, separado del indicador de guardado. */
+.hq-contratar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(127, 127, 127, .25);
+}
+.hq-contratar-nota {
+  margin: 0;
+  font-size: .85rem;
+  opacity: .8;
+  max-width: 60ch;
+}
+.hq-contratado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: #2e7d32; color: light-dark(#2e7d32, #81c784);
+}
+:host-context(html[data-theme='dark']) .hq-contratado { color: #81c784; }
+
+/* Valores informativos (auxilio de transporte / ruta): solo lectura y que se note. */
+.hq-valor-solo-lectura ::ng-deep .mat-mdc-text-field-wrapper {
+  background: rgba(0, 0, 0, 0.04);
+}
+.hq-valor-solo-lectura input {
+  cursor: default;
+  font-weight: 600;
+}
+.hq-valor-solo-lectura .mat-icon {
+  opacity: 0.6;
+  font-size: 18px;
+}
+:host-context(html[data-theme='dark']) .hq-valor-solo-lectura ::ng-deep .mat-mdc-text-field-wrapper {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/*─────────────────────  COTEJO CON LA CÉDULA  ───────────────*/
+.cotejo-cedula {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.cotejo-cedula[data-resultado="COINCIDE"] { border-left-color: #2e7d32; border-left-color: light-dark(#2e7d32, #8fd694); }
+.cotejo-cedula[data-resultado="NO_CONFIRMADO"] { border-left-color: #b26a00; border-left-color: light-dark(#b26a00, #f2c26b); }
+.cotejo-cedula__estado {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+.cotejo-cedula__estado mat-icon { flex: 0 0 auto; font-size: 20px; width: 20px; height: 20px; }
+.cotejo-cedula__aviso {
+  display: flex; align-items: center; gap: 6px; margin: 0 0 6px;
+  font-size: 13px; color: #8a5300; color: light-dark(#8a5300, #f2c26b);
+}
+.cotejo-cedula__aviso mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.cotejo-cedula__puntaje { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+.cotejo-cedula__par { display: flex; gap: 12px; flex-wrap: wrap; margin: 6px 0; }
+.cotejo-cedula__par figure { margin: 0; text-align: center; }
+.cotejo-cedula__par img {
+  height: 150px;
+  max-width: 140px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.cotejo-cedula__par figcaption { font-size: 11.5px; color: var(--muted); margin-top: 2px; }

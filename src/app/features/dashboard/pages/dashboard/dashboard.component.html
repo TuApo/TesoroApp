@@ -1,22 +1,51 @@
 <!-- Contenedor principal -->
+<!-- Modo EMBEBIDO (la app dentro de una ventana flotante de otra pantalla, p. ej. Atención
+     remota): sin menú, barra, panel de turnos, tutor ni chat; solo la pantalla. -->
 <div class="dashboard-container">
   <!-- Menú lateral principal -->
-  <app-navbar [class.sidebar-hidden]="isSidebarHidden"></app-navbar>
+  @if (!embebido) {
+    <app-navbar [class.sidebar-hidden]="isSidebarHidden"></app-navbar>
+  }
 
   <!-- Contenido del dashboard (resto de la app) -->
-  <div class="dashboard-content">
-    <app-sidebar></app-sidebar>
-    <!-- Panel plegable de turnos: pegado bajo la barra superior, en cualquier pantalla.
-         Izquierda = control del turno en curso; derecha = casos abiertos (varias personas a
-         la vez). Se pinta solo para quien puede leer el panel de atención. -->
-    <app-panel-atencion></app-panel-atencion>
-    <div class="dashboard-page-wrapper">
+  <div class="dashboard-content" [style.margin-left]="embebido ? '0px' : null" [style.padding]="embebido ? '0px' : null">
+    @if (!embebido) {
+      <app-sidebar></app-sidebar>
+      <!-- Panel plegable de turnos: pegado bajo la barra superior, en cualquier pantalla.
+           Izquierda = control del turno en curso; derecha = casos abiertos (varias personas a
+           la vez). Se pinta solo para quien puede leer el panel de atención. -->
+      <app-panel-atencion></app-panel-atencion>
+    }
+    <!-- cdkScrollable: es el que desplaza la página. Sin registrarlo, los arrastres del CDK
+         (cdkDropList) no se auto-desplazan al llegar al borde y, si se gira la rueda mientras
+         se arrastra, siguen calculando con las posiciones de antes del scroll. -->
+    <div class="dashboard-page-wrapper" cdkScrollable [style.padding]="embebido ? '12px 14px 24px' : null">
       <router-outlet></router-outlet>
     </div>
   </div>
 
-  <!-- Tutor de capacitaciones. Cuelga del shell y no de una pantalla concreta porque la
-       pregunta llega en cualquier momento, no solo con el curso abierto. Se pinta a sí mismo
-       solo si esta persona tiene cursos con material que consultar. -->
-  <app-ai-tutor></app-ai-tutor>
+  @if (!embebido) {
+    <!-- Tutor de capacitaciones. Cuelga del shell y no de una pantalla concreta porque la
+         pregunta llega en cualquier momento, no solo con el curso abierto. Se pinta a sí mismo
+         solo si esta persona tiene cursos con material que consultar. -->
+    <app-ai-tutor></app-ai-tutor>
+
+    <!-- Asistente operador: se habla o se escribe y opera la plataforma con los permisos de
+         quien lo usa (lleva a pantallas, consulta, anota tareas, automatiza). Alt+A lo abre. -->
+    <app-operador app="tesoro" />
+
+    <!-- Chat tipo Google Chat: ventanas acopladas abajo que se minimizan a pestañas y se
+         resaltan con mensajes nuevos, más el aviso de llamada entrante y la llamada en curso.
+         Se carga cuando el navegador queda libre: no retrasa la primera pantalla. -->
+    @defer (on idle) {
+      <app-chat-dock />
+    }
+
+    <!-- Celebración de cumpleaños (Marketing › Carrusel del home › Cumpleaños): la primera
+         vez que cada persona entra en el día, 5 a 10 s con la foto de quien cumple. Diferida:
+         el código de la escena solo se baja cuando el navegador queda libre. -->
+    @defer (on idle) {
+      <app-celebracion-lanzador />
+    }
+  }
 </div>

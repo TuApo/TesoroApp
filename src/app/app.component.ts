@@ -1,6 +1,9 @@
 import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, signal, computed, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ThemeService } from './core/services/theme.service';
+import { TemporadaService } from './core/services/temporada.service';
+import { DesplazamientoRutasService } from './core/services/desplazamiento-rutas.service';
+import { AdornosTemporadaComponent } from './shared/components/adornos-temporada/adornos-temporada.component';
 
 
 declare global {
@@ -80,7 +83,7 @@ type UpdaterState = 'idle' | 'checking' | 'available' | 'downloading' | 'ready';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, AdornosTemporadaComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
@@ -90,6 +93,13 @@ export class AppComponent implements OnInit, OnDestroy {
   // Se inyecta aquí para que el tema quede aplicado (y escuchando el modo del
   // sistema, si esa es la preferencia) desde el arranque, en cualquier ruta.
   private readonly theme = inject(ThemeService);
+
+  // Temporada (Halloween, Navidad…): pone <html data-temporada> según la fecha para que la
+  // paleta y los adornos de src/theme/temporadas apliquen en toda la plataforma.
+  private readonly temporada = inject(TemporadaService);
+  // Al cambiar de pantalla la nueva empieza arriba (y «atrás» vuelve al punto donde estaba).
+  private readonly desplazamiento = inject(DesplazamientoRutasService);
+  constructor() { this.temporada.iniciar(); this.desplazamiento.iniciar(); }
 
   // ─── Updater overlay state ───────────────────────────────────────────────
   // Mostrar el overlay desde el segundo cero bloquea login y navegación hasta

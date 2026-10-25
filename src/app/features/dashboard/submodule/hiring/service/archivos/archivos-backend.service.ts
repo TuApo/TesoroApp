@@ -36,8 +36,19 @@ export class ArchivosBackendService {
   private readonly listos = signal<ReadonlyMap<string, string>>(new Map());
   /** Descargas en vuelo, para no pedir dos veces el mismo archivo. */
   private readonly enCurso = new Set<string>();
-  /** Rutas que fallaron: sin esto el `<img>` reintentaría en cada repintado. */
-  private readonly fallidas = new Set<string>();
+  /**
+   * Intentos fallidos por ruta. Sin esto el `<img>` reintentaría en cada
+   * repintado; pero un fallo tampoco puede ser PARA SIEMPRE: el servicio vive
+   * lo que dura la pestaña, y un error pasajero —el gateway reiniciándose, un
+   * corte de red— dejaba la huella en "Cargando…" hasta recargar la página.
+   * Se reintenta con espera creciente y solo después se da por perdida.
+   */
+  private readonly fallos = new Map<string, number>();
+  /** Rutas esperando su próximo reintento. */
+  private readonly enEspera = new Set<string>();
+  private static readonly ESPERAS_MS = [2_000, 8_000, 30_000];
+  /** Cambia cuando vence una espera o se agotan los intentos: repinta a quien leyó. */
+  private readonly reintentos = signal(0);
 
   /** `data:` y `blob:` ya son pintables; no hay nada que resolver. */
   private esDirecta(u: string): boolean {
@@ -75,8 +86,21 @@ export class ArchivosBackendService {
     const abs = this.absoluta(s)!;
     const ya = this.listos().get(abs);
     if (ya) return ya;
-    if (!this.fallidas.has(abs)) this.descargar(abs);
+    this.reintentos();
+    if (!this.enEspera.has(abs) && !this.agotada(abs)) this.descargar(abs);
     return null;
+  }
+
+  /** ¿Se dejó de intentar? Para decir "no se pudo cargar" en vez de "Cargando…". */
+  fallida(u: string | null | undefined): boolean {
+    const abs = this.absoluta(u);
+    if (!abs || this.esDirecta(abs)) return false;
+    this.reintentos();
+    return !this.listos().has(abs) && this.agotada(abs);
+  }
+
+  private agotada(abs: string): boolean {
+    return (this.fallos.get(abs) ?? 0) > ArchivosBackendService.ESPERAS_MS.length;
   }
 
   /**
@@ -106,17 +130,39 @@ export class ArchivosBackendService {
   private descargar(abs: string): void {
     if (this.enCurso.has(abs)) return;
     this.enCurso.add(abs);
+    let llego = false;
     this.http.get(abs, { responseType: 'blob' }).pipe(take(1)).subscribe({
       next: (b) => {
+        llego = true;
         this.enCurso.delete(abs);
-        if (!b || b.size === 0) { this.fallidas.add(abs); return; }
+        if (!b || b.size === 0) { this.fallo(abs); return; }
+        this.fallos.delete(abs);
         this.listos.update((m) => new Map(m).set(abs, URL.createObjectURL(b)));
       },
       error: () => {
         this.enCurso.delete(abs);
-        this.fallidas.add(abs);
+        this.fallo(abs);
+      },
+      // Un interceptor que corta sin emitir (EMPTY) dejaba la ruta "en curso"
+      // para siempre: nunca se volvía a pedir.
+      complete: () => {
+        if (llego) return;
+        this.enCurso.delete(abs);
+        this.fallo(abs);
       },
     });
+  }
+
+  private fallo(abs: string): void {
+    const n = (this.fallos.get(abs) ?? 0) + 1;
+    this.fallos.set(abs, n);
+    const espera = ArchivosBackendService.ESPERAS_MS[n - 1];
+    if (espera === undefined) { this.reintentos.update((v) => v + 1); return; }
+    this.enEspera.add(abs);
+    setTimeout(() => {
+      this.enEspera.delete(abs);
+      this.reintentos.update((v) => v + 1);
+    }, espera);
   }
 
   /** El archivo en crudo, para quien necesita los bytes (unir PDFs). */
@@ -160,7 +206,8 @@ export class ArchivosBackendService {
     if (!abs) {
       for (const url of mapa.values()) URL.revokeObjectURL(url);
       this.listos.set(new Map());
-      this.fallidas.clear();
+      this.fallos.clear();
+      this.enEspera.clear();
       return;
     }
     const url = mapa.get(abs);
@@ -168,6 +215,7 @@ export class ArchivosBackendService {
     const nuevo = new Map(mapa);
     nuevo.delete(abs);
     this.listos.set(nuevo);
-    this.fallidas.delete(abs);
+    this.fallos.delete(abs);
+    this.enEspera.delete(abs);
   }
 }

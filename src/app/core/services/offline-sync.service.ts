@@ -1,10 +1,14 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, Injector, PLATFORM_ID, inject } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
+import { CatalogPreloadService } from './catalog-preload.service';
+import { PipelinePreloadService } from './pipeline-preload.service';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { getLocalStorageItem } from '../utils/safe-storage';
 import { entryHostMatchesCurrent, fromCacheKey } from '../utils/cache-key';
+import { tokenVigente } from '../utils/sesion-vigente';
 import { puenteOffline } from '../offline/puente-offline';
 
 interface SyncQueueItem {
@@ -48,6 +52,21 @@ export class OfflineSyncService {
   private readonly http = inject(HttpClient);
   private readonly networkService = inject(NetworkStatusService);
   private readonly permissions = inject(PermissionsService);
+  private readonly injector = inject(Injector);
+  private readonly platformId = inject(PLATFORM_ID);
+
+  /**
+   * Ciclo en segundo plano. Antes todo colgaba de la TRANSICIÓN offline→online: una fila que
+   * daba 5xx dejaba la cola bloqueada hasta el siguiente corte de red, y con la red estable no
+   * se volvía a descargar nada. Ahora cada minuto se sube lo pendiente y, en escritorio, cada
+   * 10 minutos se re-descargan la caché reciente, los catálogos (con su propio TTL) y el
+   * pipeline, para que el equipo tenga datos frescos si la red se cae.
+   */
+  private static readonly CICLO_MS = 60_000;
+  private static readonly CICLO_DESCARGA_MS = 10 * 60_000;
+  private ultimaDescarga = 0;
+  /** Listados borrados de la caché por un replay: se vuelven a bajar al terminar la cola. */
+  private readonly porRedescargar = new Set<string>();
 
   constructor() {
     this.networkService.isOnline$.subscribe(async isOnline => {
@@ -59,6 +78,32 @@ export class OfflineSyncService {
 
     this.updatePendingCount();
     this.updateFailedCount();
+
+    // En SSR no: un setInterval mantendría vivo el proceso del servidor.
+    if (isPlatformBrowser(this.platformId)) {
+      setInterval(() => { void this.tickCiclo(); }, OfflineSyncService.CICLO_MS);
+    }
+  }
+
+  /** Escritorio = Electron con su SQLite. En web la descarga periódica cargaría al servidor por pestaña. */
+  private get esEscritorio(): boolean {
+    return typeof window !== 'undefined' && !!(window as any).electron?.db;
+  }
+
+  private async tickCiclo(): Promise<void> {
+    if (!this.networkService.isOnline || !this.getCurrentUserId() || !tokenVigente()) return;
+
+    await this.updatePendingCount();
+    if (this.pendingCount$.value > 0) await this.syncQueue();
+
+    if (!this.esEscritorio) return;
+    if (Date.now() - this.ultimaDescarga < OfflineSyncService.CICLO_DESCARGA_MS) return;
+    this.ultimaDescarga = Date.now();
+
+    await this.refreshCache();
+    // Por el injector y no en el constructor: así no se instancian antes de hacer falta.
+    try { await this.injector.get(CatalogPreloadService).preload(); } catch { /* lo reintenta el próximo ciclo */ }
+    try { await this.injector.get(PipelinePreloadService).preloadPipelineData(); } catch { /* ídem */ }
   }
 
   private getCurrentUserId(): string | null {
@@ -236,6 +281,7 @@ export class OfflineSyncService {
       if (synced > 0 || failed > 0) {
         console.log(`[Sync] Resultado: ${synced} sincronizadas, ${failed} fallidas de ${total} total.`);
       }
+      if (synced > 0) void this.redescargarInvalidadas();
     } finally {
       this.isSyncing = false;
       this.syncProgress$.next(null);
@@ -319,10 +365,34 @@ export class OfflineSyncService {
     if (parentSegments.length === 0) return;
 
     const prefix = '/' + parentSegments.join('/') + '/';
+    // Apuntar qué listados se van a borrar para volver a bajarlos: refreshCache sale de la
+    // propia caché, así que un listado borrado no volvía hasta que alguien abriera la vista
+    // con red, y offline esa vista quedaba vacía.
+    try {
+      const urls: string[] = (await this.electron.db.cacheGetAllUrls?.()) || [];
+      for (const u of urls) {
+        if (typeof u === 'string' && u.includes(prefix) && (u.startsWith('/') || u.startsWith('http'))) {
+          this.porRedescargar.add(u);
+        }
+      }
+    } catch { /* sin lista, solo se pierde la re-descarga */ }
     try {
       await this.electron.db.cacheInvalidatePrefix(prefix);
     } catch (e) {
       console.warn('[Cache] cacheInvalidatePrefix falló:', e);
+    }
+  }
+
+  /** Vuelve a bajar (y con ello a cachear) los listados que invalidó el último replay. */
+  private async redescargarInvalidadas(): Promise<void> {
+    if (this.porRedescargar.size === 0 || !this.networkService.isOnline || !tokenVigente()) return;
+    const urls = [...this.porRedescargar].slice(0, 30);
+    this.porRedescargar.clear();
+    for (let i = 0; i < urls.length; i += 3) {
+      if (!this.networkService.isOnline) break;
+      await Promise.allSettled(
+        urls.slice(i, i + 3).map(u => firstValueFrom(this.http.get(fromCacheKey(u))).catch(() => null))
+      );
     }
   }
 
@@ -332,6 +402,8 @@ export class OfflineSyncService {
    */
   async refreshCache(): Promise<void> {
     if (this.isRefreshing || !this.electron?.db) return;
+    // Con el token vencido, la primera respuesta 401 borraría la caché entera.
+    if (!tokenVigente()) return;
     this.isRefreshing = true;
 
     try {

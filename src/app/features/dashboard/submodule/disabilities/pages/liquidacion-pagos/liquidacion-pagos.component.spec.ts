@@ -196,4 +196,44 @@ describe('LiquidacionPagosComponent', () => {
     expect(filas[0]['Fecha de pago']).toBe('03/07/2026');
     expect(filas[0]['Soporte contable']).toBe('DOC-072');
   });
+
+  // Respuesta 2 de la funcional (2026-10-07): la causal de lo no reconocido siempre debe verse.
+  it('muestra la causal EPS de cada pago en la tabla y raya si no la trae', () => {
+    crear();
+    peticionPagos().flush(
+      paginaPagos([pagoItem({ causalTexto: 'DIAS 1 Y 2 NO RECONOCIDOS POR LA EPS' }), pagoItem({ id: 6 })], 2, 700368),
+    );
+    fixture.detectChanges();
+
+    const columna = componente.columnas.find((c) => c.id === 'causalEps')!;
+    expect(columna.header).toBe('Causal EPS');
+    // Sin prioridad: no se esconde en pantallas medianas.
+    expect(columna.prioridad).toBeUndefined();
+    const celdas = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.celda-causal')).map((c) => c.textContent?.trim());
+    expect(celdas).toEqual(['DIAS 1 Y 2 NO RECONOCIDOS POR LA EPS', '—']);
+  });
+
+  it('el Excel lleva la causal EPS entre el soporte contable y las observaciones', () => {
+    crear();
+    peticionPagos().flush(paginaPagos([pagoItem()], 2, 700368));
+    const guardar = spyOn(componente, 'guardarLibro');
+
+    componente.exportar();
+    peticionPagos().flush(
+      paginaPagos([pagoItem({ causalTexto: 'NO RECONOCE DIAS 1 Y 2', observaciones: 'Pago parcial' }), pagoItem({ id: 6 })], 2, 700368),
+    );
+
+    const [libro] = guardar.calls.mostRecent().args;
+    const filas = XLSX.utils.sheet_to_json<Record<string, unknown>>(libro.Sheets['Pagos'], { defval: '' });
+    const columnas = Object.keys(filas[0]);
+    expect(columnas.slice(columnas.indexOf('Soporte contable'), columnas.indexOf('Soporte contable') + 3)).toEqual([
+      'Soporte contable',
+      'Causal EPS',
+      'Observaciones',
+    ]);
+    expect(filas[0]['Causal EPS']).toBe('NO RECONOCE DIAS 1 Y 2');
+    // Un pago sin causal (o de un ms-hr anterior a la V64_2) sale en blanco, sin romper.
+    expect(filas[1]['Causal EPS']).toBe('');
+    expect(libro.Sheets['Pagos']['!cols']?.length).toBe(columnas.length);
+  });
 });

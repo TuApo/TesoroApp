@@ -1,0 +1,239 @@
+/* Informe de tesorería. Lo común (tarjetas, cifras, alertas, botones) viene de tesoreria-comun.css. */
+
+.selector-corte {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--tsr-gris);
+}
+
+.selector-corte select {
+  padding: 7px 10px;
+  border: 1px solid var(--tsr-borde);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.pie-corte {
+  margin: -6px 0 14px;
+  font-size: 13px;
+  color: var(--tsr-gris);
+}
+
+.pestanas {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0 16px;
+  border-bottom: 1px solid var(--tsr-borde);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.pestanas button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--tsr-gris);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pestanas button.activa {
+  color: var(--tsr-verde);
+  border-bottom-color: var(--tsr-verde);
+}
+
+.pestanas button:focus-visible {
+  outline: 2px solid var(--tsr-verde);
+  outline-offset: -2px;
+}
+
+.dos-columnas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+}
+
+.graficas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.graficas .ancha {
+  grid-column: 1 / -1;
+}
+
+.grafica {
+  width: 100%;
+  height: 320px;
+}
+
+.grafica.alta {
+  height: 400px;
+}
+
+.explica {
+  margin: -4px 0 10px;
+  font-size: 13px;
+  color: var(--tsr-gris);
+}
+
+/* Anular pendientes viejas (solo ADMIN y GERENCIA) */
+.anular-viejas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.anular-viejas p {
+  flex: 1 1 320px;
+  max-width: 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--tsr-gris);
+}
+
+.tsr-cifra.destacada {
+  border: 1px solid var(--tsr-verde);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--tsr-verde-suave);
+  background: light-dark(var(--tsr-verde-suave), rgba(11, 107, 88, 0.16));
+}
+
+.tsr-cifra.destacada .tsr-boton {
+  margin-top: 8px;
+  align-self: flex-start;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.filtros .tsr-campo {
+  margin: 0;
+  min-width: 150px;
+  max-width: 100%;
+}
+
+.rapidos {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.chip {
+  padding: 8px 14px;
+  min-height: 40px;
+  border: 1px solid var(--tsr-borde);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.chip.activo {
+  background: var(--tsr-verde);
+  border-color: var(--tsr-verde);
+  color: #fff;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--tsr-verde);
+  outline-offset: 2px;
+}
+
+.motivo {
+  max-width: 420px;
+}
+
+.girando {
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to { transform: rotate(360deg); }
+}
+
+/* Ficha lateral: la misma ficha 360 de Consulta, sin salir del informe. */
+.panel-fondo {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1000;
+}
+
+.panel-ficha {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(760px, 100vw);
+  overflow-y: auto;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.2);
+  z-index: 1001;
+  padding: 0 16px 24px;
+}
+
+.panel-ficha > header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0;
+  background: var(--surface);
+  font-weight: 600;
+  z-index: 1;
+}
+
+/*
+ * Alertas en tema oscuro. El estilo común pinta el fondo suave claro en los dos temas y el
+ * texto claro en oscuro: quedaba texto claro sobre fondo claro. Aquí el fondo también
+ * cambia con el tema (solo en esta pantalla, para no mover las demás de tesorería).
+ */
+.tsr-alerta.critica { background: light-dark(var(--tsr-rojo-suave), rgba(163, 51, 40, 0.22)); }
+.tsr-alerta.aviso   { background: light-dark(var(--tsr-ambar-suave), rgba(201, 137, 26, 0.18)); }
+.tsr-alerta.info    { background: light-dark(var(--tsr-azul-suave), rgba(21, 101, 192, 0.22)); }
+.tsr-alerta.critica > mat-icon { color: light-dark(var(--tsr-rojo), #e9aba5); }
+.tsr-alerta.aviso > mat-icon   { color: light-dark(var(--tsr-ambar), #ead1a4); }
+.tsr-alerta.info > mat-icon    { color: light-dark(var(--tsr-azul), #9ac4f4); }
+
+@media (max-width: 600px) {
+  .grafica { height: 280px; }
+  .grafica.alta { height: 340px; }
+  .rapidos { margin-left: 0; }
+
+  /* Dos columnas fijas; la última cifra impar ocupa la fila entera en vez de dejar un hueco gris. */
+  .tsr-cifras { grid-template-columns: 1fr 1fr; }
+  .tsr-cifras > .tsr-cifra:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}

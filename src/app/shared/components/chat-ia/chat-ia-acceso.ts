@@ -4,7 +4,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 import { ContextoChatIa } from './chat-ia.modelos';
 import { ChatIa } from './chat-ia';
-import { ChatIaRobot } from './chat-ia-robot';
+import { AvatarAgente } from '../avatar-agente/avatar-agente';
+import { AvatarAgenteService } from '../avatar-agente/avatar-agente.service';
 import { ChatIaService } from './chat-ia.service';
 
 /**
@@ -18,18 +19,13 @@ import { ChatIaService } from './chat-ia.service';
 @Component({
   selector: 'app-chat-ia-acceso',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatIconModule, MatTooltipModule, ChatIa, ChatIaRobot],
+  imports: [MatIconModule, MatTooltipModule, ChatIa, AvatarAgente],
   template: `
-    @if (!servicio()) {
-      <!-- Sin el servicio de chat (p. ej. ms-ai sin desplegar) no se pinta nada. -->
-    } @else if (variante() === 'boton') {
+    <!-- El botón flotante del robot («Preguntar a la IA») se retiró el 22-oct-2026: duplicaba la
+         pestaña IA del chat lateral y confundía. Solo queda la variante 'boton' dentro de una barra. -->
+    @if (servicio() && variante() === 'boton') {
       <button type="button" class="ciaa-boton" (click)="abrir()" [attr.aria-expanded]="abierto()" aria-haspopup="dialog">
-        <app-chat-ia-robot [tam]="22" /><span>{{ etiqueta() }}</span>
-      </button>
-    } @else if (!abierto()) {
-      <button type="button" class="ciaa-flotante" (click)="abrir()" [matTooltip]="'Pregúntale a la IA sobre ' + contexto().moduloNombre"
-              matTooltipPosition="left" aria-haspopup="dialog" [attr.aria-label]="etiqueta()">
-        <app-chat-ia-robot [tam]="30" /><span class="ciaa-flotante-txt">{{ etiqueta() }}</span>
+        <app-avatar-agente [personaje]="director()" [tam]="24" [animado]="false" [conTitulo]="false" /><span>{{ etiqueta() }}</span>
       </button>
     }
     @if (abierto()) {
@@ -45,11 +41,6 @@ import { ChatIaService } from './chat-ia.service';
   `,
   styles: [`
     :host { display: contents; }
-    .ciaa-flotante { position: fixed; z-index: 1140; right: calc(var(--com-barra, 0px) + 64px); bottom: 18px; display: flex; align-items: center; gap: 8px;
-      padding: 6px 16px 6px 8px; border: 0; border-radius: 999px; cursor: pointer; font: 600 .86rem var(--font-sans); color: #fff;
-      background: linear-gradient(135deg, #2B59F0, #1E3A9E); box-shadow: 0 6px 18px rgb(30 58 158 / .35); transition: transform .15s, box-shadow .15s; }
-    .ciaa-flotante:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgb(30 58 158 / .42); }
-    .ciaa-flotante:focus-visible { outline: 3px solid #7DD3FC; outline-offset: 2px; }
     .ciaa-boton { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px 5px 6px; border-radius: 999px; cursor: pointer;
       border: 1px solid color-mix(in srgb, var(--brand-blue) 35%, var(--border)); background: color-mix(in srgb, var(--brand-blue) 7%, var(--surface));
       color: var(--brand-blue); font: 600 .84rem var(--font-sans); white-space: nowrap; }
@@ -66,8 +57,6 @@ import { ChatIaService } from './chat-ia.service';
     @keyframes ciaa-aparecer { from { opacity: 0; } }
     @media (max-width: 900px) { .ciaa-ancho { display: none; } .ciaa-panel--ancho { width: 100vw; } }
     @media (max-width: 600px) {
-      .ciaa-flotante { right: auto; left: 12px; bottom: calc(var(--mobile-bottombar-h, 68px) + env(safe-area-inset-bottom) + 12px); padding: 6px; }
-      .ciaa-flotante-txt { display: none; }
       .ciaa-panel { width: 100vw; top: env(safe-area-inset-top); }
     }
     @media (prefers-reduced-motion: reduce) { .ciaa-panel, .ciaa-fondo { animation: none; } }
@@ -83,11 +72,15 @@ export class ChatIaAcceso {
   readonly servicio = signal(false);
   readonly ancho = signal(false);
   readonly conversacionId = signal<number | null>(null);
-  readonly etiqueta = computed(() => this.texto() ?? 'Preguntar a la IA');
+  private avatares = inject(AvatarAgenteService);
+  /** Avatar Agent: el director del módulo (el presidente si no tiene). */
+  readonly director = computed(() => this.avatares.deModulo(this.contexto().modulo));
+  readonly etiqueta = computed(() => this.texto() ?? `Preguntar a ${this.director().nombreCorto}`);
 
   private readonly clave = computed(() => `tuapo.chatia.conv.${this.contexto().modulo}.${this.contexto().tiendaId ?? 'todas'}`);
 
   constructor() {
+    this.avatares.cargar();
     inject(ChatIaService).estado().subscribe({ next: () => this.servicio.set(true), error: () => this.servicio.set(false) });
     // Al cambiar de módulo o de tienda se retoma la última conversación de ESE contexto.
     effect(() => {

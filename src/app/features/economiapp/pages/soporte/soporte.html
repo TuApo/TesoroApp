@@ -1,0 +1,114 @@
+<div class="pagina angosta">
+  @if (ticket(); as t) {
+    <!-- Conversación -->
+    <a class="enlace atras" routerLink="/economiapp/soporte"><mat-icon>arrow_back</mat-icon> Mis solicitudes</a>
+    <header class="t-cabeza">
+      <span class="icono-area"><mat-icon>{{ areaDe(t.area)?.icono || 'help' }}</mat-icon></span>
+      <div>
+        <small>{{ t.numero }} · {{ t.creado_en | date:'d MMM, h:mm a' }}</small>
+        <h1>{{ t.asunto }}</h1>
+        <span class="estado" [attr.data-tono]="ESTADO[t.estado]?.tono">{{ ESTADO[t.estado]?.texto || t.estado }}</span>
+      </div>
+    </header>
+
+    <ol class="hilo">
+      @for (m of t.mensajes; track m.id) {
+        <li [class]="'m-' + m.autor_tipo.toLowerCase()">
+          @if (m.autor_tipo !== 'SISTEMA') { <b>{{ m.autor_tipo === 'CLIENTE' ? 'Usted' : 'Soporte EconomiAPP' }}</b> }
+          <p>{{ m.texto }}</p>
+          <small>{{ m.creado_en | date:'d MMM, h:mm a' }}</small>
+        </li>
+      }
+    </ol>
+
+    @if (t.estado === 'RESUELTO' || (t.estado === 'CERRADO' && !t.calificacion)) {
+      <div class="tarjeta calificar">
+        <b>¿Cómo lo atendimos?</b>
+        <div class="estrellas">
+          @for (n of [1,2,3,4,5]; track n) { <button type="button" (click)="calificar(n)" [attr.aria-label]="n + ' estrellas'"><mat-icon>star</mat-icon></button> }
+        </div>
+        @if (t.estado === 'RESUELTO') { <small class="muted">Si no quedó resuelto, respóndanos abajo y lo retomamos.</small> }
+      </div>
+    } @else if (t.calificacion) {
+      <p class="muted centro">Usted calificó con {{ t.calificacion }} de 5 estrellas.</p>
+    }
+
+    @if (t.estado !== 'CERRADO') {
+      <form class="responder" (submit)="$event.preventDefault(); responder()">
+        <textarea rows="2" [ngModel]="respuesta()" (ngModelChange)="respuesta.set($event)" name="r" placeholder="Escriba su mensaje"></textarea>
+        <button type="submit" class="eco-btn" [disabled]="!respuesta().trim() || enviando()" aria-label="Enviar"><mat-icon>send</mat-icon></button>
+      </form>
+    } @else {
+      <p class="muted centro">Esta solicitud está cerrada. Si el problema sigue, <a class="enlace" routerLink="/economiapp/asesor" [queryParams]="{ q: 'Sigo con el problema de la solicitud ' + t.numero }">cuénteselo a MatIA</a>.</p>
+    }
+  } @else {
+    <header class="cabeza">
+      <h1>Ayuda y solicitudes</h1>
+      @if (!nuevo()) { <button type="button" class="eco-btn secundario" (click)="nuevo.set(true)"><mat-icon>add</mat-icon> Nueva</button> }
+    </header>
+
+    <a class="tarjeta tendero" routerLink="/economiapp/asesor" [queryParams]="{ q: 'Tengo un problema' }">
+      <span class="avatar"><mat-icon>storefront</mat-icon></span>
+      <div>
+        <b>Cuénteselo a MatIA</b>
+        <small>Le ayuda al instante y, si hace falta una persona, deja la solicitud lista con todos los datos.</small>
+      </div>
+      <mat-icon>chevron_right</mat-icon>
+    </a>
+
+    @if (nuevo()) {
+      <section class="tarjeta formulario">
+        <div class="f-cabeza"><h2>Nueva solicitud</h2><button type="button" class="icono-btn" (click)="nuevo.set(false)" aria-label="Cerrar"><mat-icon>close</mat-icon></button></div>
+        <span class="etiqueta">¿Sobre qué es?</span>
+        <div class="areas">
+          @for (a of AREAS; track a.codigo) {
+            <button type="button" class="area" [class.activa]="area() === a.codigo" (click)="area.set(a.codigo)">
+              <mat-icon>{{ a.icono }}</mat-icon>
+              <span><b>{{ a.nombre }}</b><small>{{ a.ayuda }}</small></span>
+            </button>
+          }
+        </div>
+        @if (pedidos().length && area() !== 'PLATAFORMA') {
+          <label class="campo">
+            <span>Pedido relacionado</span>
+            <select [ngModel]="pedidoId()" (ngModelChange)="pedidoId.set($event)" name="ped">
+              <option [ngValue]="null">Ninguno</option>
+              @for (d of pedidos(); track d.pedido.id) { <option [ngValue]="d.pedido.id">{{ d.pedido.numero }} · {{ d.pedido.creado_en | date:'d MMM' }}</option> }
+            </select>
+          </label>
+        }
+        <label class="campo"><span>Asunto</span><input [ngModel]="asunto()" (ngModelChange)="asunto.set($event)" name="as" maxlength="160" placeholder="Ej. El celular llegó con la pantalla rayada" /></label>
+        <label class="campo"><span>Cuéntenos qué pasó</span><textarea rows="4" [ngModel]="descripcion()" (ngModelChange)="descripcion.set($event)" name="de" placeholder="Qué pasó, cuándo, y qué espera que hagamos"></textarea></label>
+        <button type="button" class="eco-btn" [disabled]="!puedeEnviar()" (click)="enviar()">{{ enviando() ? 'Enviando…' : 'Enviar solicitud' }}</button>
+      </section>
+    }
+
+    @if (cargando()) {
+      @for (i of [1,2]; track i) { <div class="esqueleto corto"></div> }
+    } @else if (error()) {
+      <div class="estado-vacio"><mat-icon>cloud_off</mat-icon><p>{{ error() }}</p><button type="button" class="eco-btn" (click)="cargar()">Reintentar</button></div>
+    } @else if (!tickets().length && !nuevo()) {
+      <div class="estado-vacio">
+        <mat-icon>support_agent</mat-icon>
+        <h2>No tiene solicitudes</h2>
+        <p>Si algo sale mal con un pedido, un producto o un pago, aquí ve cómo va su caso.</p>
+      </div>
+    } @else {
+      <ul class="lista">
+        @for (t of tickets(); track t.id) {
+          <li>
+            <a class="ticket" [routerLink]="['/economiapp/soporte', t.id]">
+              <span class="icono-area"><mat-icon>{{ areaDe(t.area)?.icono || 'help' }}</mat-icon></span>
+              <div class="texto">
+                <b>{{ t.asunto }}</b>
+                <small>{{ t.numero }} · {{ t.actualizado_en | date:'d MMM' }}</small>
+                @if ($any(t).ultimo) { <small class="ultimo">{{ $any(t).ultimo }}</small> }
+              </div>
+              <span class="estado" [attr.data-tono]="ESTADO[t.estado]?.tono">{{ ESTADO[t.estado]?.texto || t.estado }}</span>
+            </a>
+          </li>
+        }
+      </ul>
+    }
+  }
+</div>

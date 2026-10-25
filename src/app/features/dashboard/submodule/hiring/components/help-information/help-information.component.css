@@ -522,3 +522,168 @@ h3 {
   line-height: 1.2;
   color: var(--muted);
 }
+
+/* ========== Desplegable de vacantes compacto (una línea por vacante) ========== */
+.buscador-vacantes {
+  padding: 6px 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--mat-select-panel-background, var(--surface, #fff));
+  border-bottom: 1px solid rgb(var(--ink-rgb, 0 0 0) / 0.08);
+}
+
+.grupo-empresa ::ng-deep .mat-mdc-optgroup-label {
+  min-height: 28px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #1976d2;
+  color: light-dark(#1976d2, #8fc1f5);
+}
+
+.opcion-compacta.mat-mdc-option {
+  min-height: 32px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.opcion-sin-vacante {
+  color: #b71c1c;
+  font-weight: 600;
+}
+
+.icono-sin-vacante {
+  color: #b71c1c;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.opcion-oculta.mat-mdc-option {
+  display: none;
+}
+
+.vacante-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.abrev {
+  display: inline-block;
+  min-width: 6ch;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  background: #ede9fe;
+  background: light-dark(#ede9fe, #2e2350);
+  color: #5b21b6;
+  color: light-dark(#5b21b6, #cbb8fb);
+  margin-right: 4px;
+}
+
+.abrev.abrev-vacia {
+  background: transparent;
+  color: var(--text-2, #94a3b8);
+  font-weight: 400;
+}
+
+.vacante-fila .finca {
+  font-weight: 700;
+  flex: 0 1 auto;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vacante-fila .cargo {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  color: var(--text-2, #475569);
+}
+
+.vacante-fila .fecha {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text-2, #94a3b8);
+  white-space: nowrap;
+}
+
+.vacante-fila .fecha-ingreso {
+  font-weight: 600;
+  color: var(--text-1, #334155);
+}
+
+.vacante-fila .spacer {
+  display: none;
+}
+
+.vacante-fila .badges-row {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 3px;
+}
+
+.vacante-fila .badges-row .pill {
+  padding: 0 5px;
+  font-size: 10.5px;
+  line-height: 18px;
+}
+
+/* En pantallas angostas se quitan las píldoras de proceso; quedan Req/Falt/Firm. */
+@media (max-width: 900px) {
+  .vacante-fila .badges-row .pill-neutral {
+    display: none;
+  }
+}
+
+.opcion-compacta ::ng-deep .mdc-list-item__primary-text {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Contador del detalle del cargo (informativo, no restrictivo). */
+.detalle-cargo-opcion {
+  font-size: 12px;
+  color: var(--mat-sys-on-surface-variant, #5f6368);
+}
+.detalle-cargo-opcion--excedido {
+  color: #b26a00;
+}
+.detalle-cargo-contador {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -4px 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  background: #eef4fb;
+  color: #1f4e79;
+}
+.detalle-cargo-contador mat-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+.detalle-cargo-contador--excedido {
+  background: #fff4e5;
+  color: #8a4b00;
+}

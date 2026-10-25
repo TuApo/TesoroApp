@@ -10,7 +10,7 @@
  */
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { of } from 'rxjs';
+import { of, NEVER } from 'rxjs';
 
 import { SelectionQuestionsComponent } from './selection-questions.component';
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
@@ -38,8 +38,11 @@ describe('SelectionQuestions — uso torpe', () => {
       of({ message: 'updated', proceso_id: 1, procesoSeleccion: {} as any }));
 
     const robots = jasmine.createSpyObj('RobotsService',
-      ['getResultadosAntecedentes', 'forzarConsultaFuente']);
+      ['getResultadosAntecedentes', 'forzarConsultaFuente', 'getEstadoColaAntecedentes',
+        'registrarForzado', 'fuentesForzadas', 'atenderForzado'],
+      { forzadoCambio$: NEVER });
     robots.getResultadosAntecedentes.and.returnValue(of({ encontrado: false, campos: {} }));
+    robots.fuentesForzadas.and.returnValue([]);
 
     await TestBed.configureTestingModule({
       imports: [SelectionQuestionsComponent, NoopAnimationsModule],

@@ -16,14 +16,14 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDividerModule } from '@angular/material/divider';
-import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { PlantillaEpsService } from '../../services/plantilla-eps.service';
 import {
   PlantillaResumen, PlantillaDetalle, PlantillaRequest,
   CampoDisponible, CampoRequest,
   FUENTES_CAMPO, TIPOS_RENDER
 } from '../../models/plantilla-eps.models';
-import { PlantillaDialogComponent } from './plantilla-dialog.component';
+import { PlantillaEditorComponent, PlantillaEditorData } from './plantilla-editor/plantilla-editor.component';
 
 /**
  * Página de administración de plantillas de documentos EPS.
@@ -71,11 +71,35 @@ export class PlantillasEpsComponent implements OnInit {
     { id: 'sexo', header: 'Sexo', valor: p => this.labelSexo(p.sexo), prioridad: 2, tarjeta: 'meta' },
     { id: 'nombre', header: 'Nombre plantilla', valor: p => p.nombrePlantilla, tarjeta: 'subtitulo' },
     { id: 'campos', header: 'Campos', valor: p => p.totalCampos, prioridad: 2, tarjeta: 'meta' },
+    { id: 'paginas', header: 'Hojas', valor: p => p.totalPaginas, prioridad: 2, tarjeta: 'meta' },
     { id: 'activa', header: 'Estado', valor: p => (p.activa ? 'Activa' : 'Inactiva'), tarjeta: 'badge' },
+    // Por qué está inactiva (archivo dañado, formato equivocado…) o de dónde salió.
+    { id: 'notas', header: 'Notas', valor: p => p.notas || '', prioridad: 3, tarjeta: 'meta', minAncho: '220px' },
   ];
 
   readonly idPlantilla = (p: PlantillaResumen) => p.id;
   readonly claseFila = (p: PlantillaResumen) => (p.activa ? '' : 'te-fila--atenuada');
+
+  /**
+   * Acción sobre lo marcado (estándar de la tabla): desactivar varias de una
+   * vez. No hay reactivar en bloque: para volver a encender una plantilla hay
+   * que editarla, y la confirmación lo dice.
+   */
+  readonly accionesMasivas: AccionMasiva<PlantillaResumen>[] = [
+    {
+      id: 'desactivar', etiqueta: 'Desactivar', icono: 'block', tono: 'aviso',
+      aplicaA: (p) => p.activa,
+      confirmar: {
+        icono: 'warning',
+        texto: 'No se borran: dejan de usarse para documentos nuevos. Volver a encenderlas '
+          + 'hay que hacerlo una por una, desde editar.',
+      },
+      ejecutar: (p) => this.svc.desactivarPlantilla(p.id),
+      etiquetaFila: (p) => p.nombrePlantilla,
+      verbo: 'desactivada(s)',
+      alTerminar: () => this.cargar(),
+    },
+  ];
 
   constructor(
     private svc: PlantillaEpsService,
@@ -110,27 +134,14 @@ export class PlantillasEpsComponent implements OnInit {
     });
   }
 
+  /** Editor a pantalla completa: guarda por su cuenta y avisa si hubo cambios para recargar. */
   private abrirDialog(detalle: PlantillaDetalle | null) {
-    const ref = this.dialog.open(PlantillaDialogComponent, {
-      width: '98vw',
-      maxWidth: '1500px',
-      maxHeight: '95vh',
+    const ref = this.dialog.open<PlantillaEditorComponent, PlantillaEditorData, boolean>(PlantillaEditorComponent, {
+      width: '100vw', height: '100vh', maxWidth: '100vw', maxHeight: '100vh',
+      panelClass: 'editor-plantilla-panel', autoFocus: false,
       data: { detalle, camposDisponibles: this.camposDisponibles() },
-      panelClass: 'plantilla-dialog',
     });
-    ref.afterClosed().subscribe((req: PlantillaRequest | null) => {
-      if (!req) return;
-      const obs = detalle
-        ? this.svc.actualizarPlantilla(detalle.id, req)
-        : this.svc.crearPlantilla(req);
-      obs.subscribe({
-        next: saved => {
-          this.snack.open(detalle ? 'Plantilla actualizada ✓' : 'Plantilla creada ✓', '', { duration: 3000 });
-          this.cargar();
-        },
-        error: () => this.snack.open('Error guardando plantilla', '', { duration: 3000 })
-      });
-    });
+    ref.afterClosed().subscribe(guardo => { if (guardo) this.cargar(); });
   }
 
   desactivar(p: PlantillaResumen) {

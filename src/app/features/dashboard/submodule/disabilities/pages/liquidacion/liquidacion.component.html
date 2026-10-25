@@ -1,7 +1,7 @@
 <div class="ges-contenedor">
   <div class="ges-contenido">
     <mat-card class="disab-card">
-      <div class="disab-hero disab-hero-liquidacion">
+      <div class="disab-hero disab-hero-liquidacion" data-acciones="propias">
         <div class="disab-hero-icon"><mat-icon>request_quote</mat-icon></div>
         <div class="disab-hero-texts">
           <h1 class="disab-hero-title">Liquidación de incapacidades</h1>
@@ -10,7 +10,7 @@
             cuántas filas cruzan con una incapacidad; nada se registra hasta que apliques la carga.
           </p>
         </div>
-        <div class="hero-acciones">
+        <div class="hero-acciones" data-guia="plantilla">
           <button type="button" mat-flat-button class="hero-btn hero-btn-primario" (click)="descargarPlantilla()" [disabled]="descargandoPlantilla()">
             <mat-icon>download</mat-icon><span>Descargar plantilla</span>
           </button>
@@ -27,6 +27,7 @@
         <input #inputArchivo type="file" class="liq-input-oculto" accept=".xlsx" (change)="alSeleccionarArchivo($event)" />
         <div
           class="liq-dropzone"
+          data-guia="cargar"
           [class.liq-dropzone-activa]="arrastrando()"
           [class.liq-dropzone-compacta]="!!detalle()"
           (dragover)="alArrastrarEncima($event)"
@@ -57,7 +58,7 @@
 
         <!-- ════════ 2. Revision de la carga ════════ -->
         @if (detalle(); as d) {
-          <section class="liq-revision" aria-label="Revisión de la carga">
+          <section class="liq-revision" aria-label="Revisión de la carga" data-guia="revision">
             <header class="liq-revision-cabecera">
               <div class="liq-revision-titulo">
                 <mat-icon>fact_check</mat-icon>
@@ -133,7 +134,7 @@
 
             <div class="liq-acciones">
               @if (editable()) {
-                <button type="button" mat-flat-button color="primary" (click)="aplicar()" [disabled]="aplicando() || filasAplicables().length === 0 || filaOcupada() !== null">
+                <button type="button" mat-flat-button color="primary" data-guia="aplicar" (click)="aplicar()" [disabled]="aplicando() || filasAplicables().length === 0 || filaOcupada() !== null">
                   <mat-icon>done_all</mat-icon> Aplicar {{ filasAplicables().length }} {{ filasAplicables().length === 1 ? 'fila' : 'filas' }}
                 </button>
                 <button type="button" mat-stroked-button color="warn" (click)="descartar()" [disabled]="aplicando()"><mat-icon>delete_sweep</mat-icon> Descartar</button>
@@ -214,6 +215,7 @@
                 [filaClase]="claseFila"
                 [filasPorPagina]="50">
                 <ng-template tablaCelda="resultado" let-f><ng-container [ngTemplateOutlet]="celdaResultado" [ngTemplateOutletContext]="{ $implicit: f }" /></ng-template>
+                <ng-template tablaCelda="causalEps" let-f><span class="celda-causal">{{ f.causalTexto || '—' }}</span></ng-template>
                 <ng-template tablaCelda="incapacidad" let-f><ng-container [ngTemplateOutlet]="celdaIncapacidad" [ngTemplateOutletContext]="{ $implicit: f }" /></ng-template>
               </app-tabla-estandar>
             } @else {
@@ -250,7 +252,7 @@
         }
 
         <!-- ════════ 3. Historial de cargas ════════ -->
-        <h2 class="ges-seccion-titulo liq-historial-titulo"><mat-icon>history</mat-icon> Historial de cargas</h2>
+        <h2 class="ges-seccion-titulo liq-historial-titulo" data-guia="historial"><mat-icon>history</mat-icon> Historial de cargas</h2>
         @if (errorCargas()) {
           <div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ errorCargas() }}</span></div>
         }
@@ -284,3 +286,6 @@
     </mat-card>
   </div>
 </div>
+
+<!-- Reunion 2026-10-20: instructivo dentro del programa -->
+<app-guia-salud />

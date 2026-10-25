@@ -34,6 +34,9 @@ import { Router, RouterLink } from '@angular/router';
 import { Observable, Subject, Subscription, forkJoin, of } from 'rxjs';
 import { catchError, debounceTime, map, switchMap, tap } from 'rxjs/operators';
 import Swal from 'sweetalert2';
+import { entidadDeCobro } from '../../utils/entidad-cobro';
+import { alcanceSalud, nivelSalud } from '../../utils/nivel-salud';
+import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
 
 import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
@@ -94,6 +97,7 @@ import {
   DialogoInformeUmbralComponent,
 } from './dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
 import { indicadorSoportes, soportesCompletos } from './exportacion-incapacidades';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 // Los KPI se pintan con separador de miles colombiano (1.234, no 1,234).
 // `main.ts` registra el locale pero NO provee `LOCALE_ID`, asi que el pipe lo
@@ -201,6 +205,7 @@ function numeroONulo(valor: unknown): number | null {
   selector: 'app-consulta-incapacidades',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     DecimalPipe,
     ReactiveFormsModule,
     RouterLink,
@@ -226,6 +231,18 @@ function numeroONulo(valor: unknown): number | null {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
+  /**
+   * Reunion funcional 2026-10-20: coordinadores de finca con alcance (hoy Andes y Monteverde). El
+   * servidor ya recorta lo que ven; aqui solo se avisa para que nadie piense que faltan registros.
+   */
+  readonly alcanceFinca = alcanceSalud(obtenerUsuarioActual().roles);
+
+  private readonly nivelUsuario = nivelSalud(obtenerUsuarioActual().roles);
+  /** Nivel 4 = "solo consulta" (reunion 2026-10-20): ve y descarga; no edita, valida ni elimina. */
+  readonly soloLectura = this.nivelUsuario === 'N4';
+  /** Los niveles 1 y 4 no radican desde el detalle: eso es del modulo Radicacion. */
+  readonly sinRadicacion = this.nivelUsuario === 'N1' || this.nivelUsuario === 'N4';
+
   private readonly srv = inject(IncapacidadV2Service);
   private readonly dialogo = inject(MatDialog);
   private readonly router = inject(Router);
@@ -1071,7 +1088,12 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
   // ── Acciones de fila ──────────────────────────────────────────────────
 
   verDetalle(fila: FilaTabla): void {
-    const datos: DatosDialogoDetalle = { id: fila.id, resumen: fila.origen };
+    const datos: DatosDialogoDetalle = {
+      id: fila.id,
+      resumen: fila.origen,
+      soloLectura: this.soloLectura,
+      sinRadicacion: this.sinRadicacion,
+    };
 
     const ref = this.dialogo.open<
       DialogoDetalleIncapacidadComponent,
@@ -1285,8 +1307,9 @@ export class ConsultaIncapacidadesComponent implements OnInit, OnDestroy {
       dias: numeroONulo(r.dias),
       diasEmpresa: numeroONulo(r.diasEmpresa),
       diasEntidad: numeroONulo(r.diasEntidad),
-      // La EPS llega con espacios finales ("NUEVA EPS ", "SURA ").
-      eps: textoOVacio(r.eps),
+      // La EPS llega con espacios finales ("NUEVA EPS ", "SURA "). Reunion 2026-10-20: la columna
+      // dice A QUIEN SE COBRA — un accidente de trabajo va a la ARL aunque el trabajador tenga EPS.
+      eps: textoOVacio(entidadDeCobro(r.tipoIncapacidad, r.eps)),
       responsablePago: etiquetaDeCatalogo(cat.responsablesPago, r.responsablePago) || VACIO,
       estado: etiquetaDeCatalogo(cat.estados, r.estado) || VACIO,
       estadoDocumento: etiquetaDeCatalogo(cat.estadosDocumento, r.estadoDocumento) || VACIO,

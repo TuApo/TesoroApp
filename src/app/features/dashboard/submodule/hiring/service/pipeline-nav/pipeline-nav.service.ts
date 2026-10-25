@@ -34,6 +34,8 @@ export type ClaveAvance =
   | 'antecedentes'
   | 'remision'
   | 'examenes'
+  /** ARL · certificado de afiliación (paso de Selección tras Exámenes). */
+  | 'arl'
   | 'pago'
   | 'obra'
   | 'referencias'

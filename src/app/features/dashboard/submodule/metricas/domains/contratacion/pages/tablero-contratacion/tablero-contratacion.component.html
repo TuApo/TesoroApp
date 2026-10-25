@@ -1,0 +1,450 @@
+<div class="mc">
+  <!-- ═══ Barra superior compacta: vista y acciones ═══ -->
+  <header class="mc-barra-sup">
+    <div class="mc-modo" role="tablist" aria-label="Vista">
+      <button type="button" role="tab" [class.on]="modo() === 'diario'" [attr.aria-selected]="modo() === 'diario'" (click)="cambiarModo('diario')"><mat-icon>today</mat-icon> Informe diario</button>
+      <button type="button" role="tab" [class.on]="modo() === 'analisis'" [attr.aria-selected]="modo() === 'analisis'" (click)="cambiarModo('analisis')"><mat-icon>insights</mat-icon> Análisis</button>
+    </div>
+    @if (modo() === 'analisis') {
+      @if (t(); as d) {
+        <span class="mc-barra-txt">{{ fechaCorta(d.desde) }} – {{ fechaCorta(d.hasta) }} · vs. {{ fechaCorta(d.periodo_anterior.desde) }} – {{ fechaCorta(d.periodo_anterior.hasta) }} · {{ d.generado | date: 'h:mm a' }}</span>
+      }
+      <span class="mc-espacio"></span>
+      <button mat-stroked-button (click)="recargar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon> Actualizar</button>
+      <button mat-flat-button color="primary" [matMenuTriggerFor]="menuExportar" [disabled]="descargando()"><mat-icon>download</mat-icon> Exportar</button>
+      <mat-menu #menuExportar="matMenu" xPosition="before">
+        <button mat-menu-item (click)="exportar('presentaciones')"><mat-icon>table_view</mat-icon> Excel · procesos de selección</button>
+        <button mat-menu-item (click)="exportar('ingresos')"><mat-icon>badge</mat-icon> Excel · ingresos (contratos)</button>
+        <button mat-menu-item (click)="imprimir()"><mat-icon>picture_as_pdf</mat-icon> Imprimir / guardar PDF</button>
+      </mat-menu>
+    }
+  </header>
+
+  @if (modo() === 'diario') {
+    <app-informe-diario />
+  } @else {
+
+  <!-- ═══ Filtros (fijos al hacer scroll) ═══ -->
+  <section class="mc-filtros">
+    <div class="mc-fila">
+      <div class="mc-seg" role="group" aria-label="Periodo">
+        @for (p of presets; track p.id) {
+          <button type="button" [class.on]="preset() === p.id" (click)="elegirPreset(p.id)">{{ p.texto }}</button>
+        }
+      </div>
+      <mat-form-field appearance="outline" class="mc-ff mc-ff-fecha" subscriptSizing="dynamic">
+        <mat-label>Rango</mat-label>
+        <mat-date-range-input [rangePicker]="rp">
+          <input matStartDate [value]="desde()" placeholder="Desde" (dateChange)="rangoInicio = $event.value">
+          <input matEndDate [value]="hasta()" placeholder="Hasta" (dateChange)="cambioFechas(rangoInicio ?? desde(), $event.value)">
+        </mat-date-range-input>
+        <mat-datepicker-toggle matIconSuffix [for]="rp" />
+        <mat-date-range-picker #rp />
+      </mat-form-field>
+      <div class="mc-seg mc-seg-temp" role="group" aria-label="Temporal">
+        <button type="button" [class.on]="!temporal()" (click)="set('temporal', null)">Todas</button>
+        <button type="button" [class.on]="temporal() === 'AL'" (click)="set('temporal', 'AL')"><i class="pt al"></i>Apoyo Laboral</button>
+        <button type="button" [class.on]="temporal() === 'TA'" (click)="set('temporal', 'TA')"><i class="pt ta"></i>Tu Alianza</button>
+      </div>
+    </div>
+    <div class="mc-fila">
+      <mat-form-field appearance="outline" class="mc-ff" subscriptSizing="dynamic">
+        <mat-label>Oficinas</mat-label>
+        <mat-select multiple [value]="oficinas()" (selectionChange)="setOficinas($event.value)">
+          @for (o of opcionesCon(t()?.opciones?.oficinas, oficinas()); track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="mc-ff mc-ff-ancho" subscriptSizing="dynamic">
+        <mat-label>Finca</mat-label>
+        <mat-select multiple [value]="fincas()" (selectionChange)="setLista('fincas', $event.value)" placeholder="Todas">
+          @for (o of opcionesCon(t()?.opciones?.fincas, fincas()); track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="mc-ff" subscriptSizing="dynamic">
+        <mat-label>Medio de llegada</mat-label>
+        <mat-select [value]="medio()" (selectionChange)="set('medio', $event.value)">
+          <mat-option [value]="null">Todos</mat-option>
+          @for (o of t()?.opciones?.medios ?? []; track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="mc-ff" subscriptSizing="dynamic">
+        <mat-label>Usuario (evaluó / contrató)</mat-label>
+        <mat-select multiple [value]="usuarios()" (selectionChange)="setLista('usuarios', $event.value)" placeholder="Todos">
+          @for (o of opcionesCon(t()?.opciones?.usuarios, usuarios()); track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="mc-ff mc-ff-ancho" subscriptSizing="dynamic">
+        <mat-label>Cargo</mat-label>
+        <mat-select [value]="cargo()" (selectionChange)="set('cargo', $event.value)">
+          <mat-option [value]="null">Todos</mat-option>
+          @for (o of t()?.opciones?.cargos ?? []; track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+    </div>
+    @if (filtrosActivos().length) {
+      <div class="mc-chips">
+        @for (f of filtrosActivos(); track f.id) {
+          <button type="button" class="mc-chip" (click)="quitarFiltro(f.id)">{{ f.texto }} <mat-icon>close</mat-icon></button>
+        }
+        <button type="button" class="mc-chip mc-chip-limpiar" (click)="limpiarFiltros()">Limpiar todo</button>
+      </div>
+    }
+    @if (cargando()) { <mat-progress-bar mode="indeterminate" class="mc-barra" /> }
+  </section>
+
+  <app-resumen-ia titulo="Resumen con IA del análisis" [clave]="claveResumen()" [fuente]="fuenteResumen" />
+
+  <!-- Índice de secciones -->
+  <nav class="mc-nav" aria-label="Secciones">
+    @for (s of secciones; track s.id) {
+      <button type="button" (click)="irA(s.id)">{{ s.texto }}</button>
+    }
+  </nav>
+
+  @if (error()) {
+    <div class="mc-error"><mat-icon>error_outline</mat-icon> {{ error() }} <button mat-button (click)="recargar()">Reintentar</button></div>
+  }
+
+  @if (!t() && cargando()) {
+    <div class="mc-kpis">
+      @for (i of [1,2,3,4,5,6,7,8,9]; track i) { <div class="mc-kpi mc-esqueleto"></div> }
+    </div>
+  }
+
+  @if (t(); as d) {
+    <!-- ═══ Resumen ═══ -->
+    <section id="sec-resumen" class="mc-kpis">
+      @for (c of tarjetas(); track c.clave) {
+        <article class="mc-kpi" [attr.data-tono]="c.tono">
+          <div class="mc-kpi-top">
+            <span class="mc-kpi-ico"><mat-icon>{{ c.icono }}</mat-icon></span>
+            <span class="mc-kpi-tit">{{ c.titulo }}</span>
+          </div>
+          <div class="mc-kpi-val">
+            {{ c.valor == null ? '—' : (c.valor | number: '1.0-1') }}<small>{{ c.valor == null ? '' : c.sufijo }}</small>
+          </div>
+          @if (variacion(c); as v) {
+            <div class="mc-delta" [class]="'mc-delta ' + v.clase" [matTooltip]="'Periodo anterior: ' + (c.anterior | number: '1.0-1') + (c.sufijo ?? '')">
+              <mat-icon>{{ v.icono }}</mat-icon>{{ v.texto }} <span>vs. anterior</span>
+            </div>
+          }
+          <div class="mc-kpi-det">{{ c.detalle }}</div>
+          @if (sparkline(c.serie); as path) {
+            <svg class="mc-spark" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><path [attr.d]="path" /></svg>
+          }
+        </article>
+      }
+    </section>
+
+    <!-- ═══ Flujo del proceso ═══ -->
+    <section id="sec-flujo" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>Flujo del proceso</h3>
+        <p>De las personas que se presentaron en el periodo: hasta dónde llegaron y dónde se quedaron. El contrato se cuenta aunque llegue después por el informe diario.</p>
+      </div>
+      <div class="mc-grid mc-g-5-7">
+        <div class="mc-card">
+          <h4>Embudo de selección</h4>
+          <ol class="mc-embudo">
+            @for (e of embudo(); track e.etapa; let i = $index) {
+              <li>
+                <div class="mc-emb-lab"><span>{{ e.nombre }}</span><b>{{ fmt(e.valor) }}</b></div>
+                <div class="mc-emb-bar"><div [style.width.%]="e.ancho" [style.opacity]="1 - i * 0.11"></div></div>
+                <div class="mc-emb-pct">
+                  {{ pct(e.pct_total) }} del total
+                  @if (e.pct_anterior != null) { <span>· {{ pct(e.pct_anterior) }} de la etapa anterior</span> }
+                </div>
+              </li>
+            }
+          </ol>
+        </div>
+        <div class="mc-card">
+          <h4>¿Dónde se quedaron? <small>clic para ver las personas</small></h4>
+          <div class="mc-donut-lista">
+            @if (chartResultados(); as o) {
+              <div echarts [options]="o" class="mc-ch mc-ch-donut" (chartClick)="clicResultado($event)"></div>
+            }
+            <ul class="mc-leyenda">
+              @for (r of resultadosLista(); track r.clave) {
+                <li (click)="verResultado(r.clave)" tabindex="0" (keydown.enter)="verResultado(r.clave)">
+                  <i [style.background]="r.color"></i><span>{{ r.texto }}</span><b>{{ fmt(r.valor) }}</b><em>{{ r.pct | number: '1.0-0' }}%</em>
+                </li>
+              }
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Día a día ═══ -->
+    <section id="sec-dia" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>Día a día</h3>
+        <p>Presentaciones, evaluaciones e ingresos por fecha. Ingresos = contratos con fecha de ingreso ese día.</p>
+      </div>
+      <div class="mc-grid mc-g-8-4">
+        <div class="mc-card">
+          <h4>{{ d.serie_diaria.modo === 'hora' ? 'Cómo va el día (por hora)' : 'Tendencia diaria' }}</h4>
+          @if (chartDiario(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-alto"></div> } @else { <p class="mc-vacio">Sin datos en el periodo.</p> }
+        </div>
+        <div class="mc-card">
+          <h4>¿A qué hora llegan?</h4>
+          @if (chartHoras(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-alto"></div> } @else { <p class="mc-vacio">Sin presentaciones.</p> }
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Oficinas ═══ -->
+    <section id="sec-oficinas" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>Oficinas</h3>
+        <p>Comparación entre oficinas: volumen, conversión y ritmo diario. Clic en una oficina para filtrar todo el tablero.</p>
+      </div>
+      <div class="mc-card">
+        <div class="mc-card-cab">
+          <h4>{{ t()?.serie_oficinas?.modo === 'hora' ? 'Línea de tiempo del día por oficina (llegadas por hora)' : 'Líneas de comparación por oficina' }}</h4>
+          <div class="mc-seg mc-seg-sm">
+            <button type="button" [class.on]="metricaOficinas() === 'ingresos'" (click)="metricaOficinas.set('ingresos')">Ingresos</button>
+            <button type="button" [class.on]="metricaOficinas() === 'presentados'" (click)="metricaOficinas.set('presentados')">Presentados</button>
+          </div>
+        </div>
+        @if (chartOficinasLineas(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-alto"></div> } @else { <p class="mc-vacio">Sin datos.</p> }
+        <p class="mc-nota">Se muestran las 6 oficinas con más movimiento; activa las demás en la leyenda.</p>
+      </div>
+
+      <div class="mc-card mc-scroll-x">
+        <h4>Tablero por oficina</h4>
+        <table class="mc-tabla">
+          <thead>
+            <tr>
+              <th>Oficina</th><th class="n">Se presentaron</th><th class="n">Evaluados</th><th class="n">Aplican</th>
+              <th class="n">En espera</th><th class="n">No aplican</th><th class="n">Remitidos</th><th class="n">Ingresos</th>
+              <th class="n">AL / TA</th><th class="n">Conversión</th><th class="n">Días a ingreso</th><th class="n">Retiro &lt;30 d</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (o of oficinasTabla(); track o.oficina) {
+              <tr (click)="filtrarOficina(o.oficina)" tabindex="0" (keydown.enter)="filtrarOficina(o.oficina)">
+                <td class="mc-of">{{ o.oficina }}</td>
+                <td class="n"><div class="mc-celda-bar"><i [style.width.%]="o.barP"></i><span>{{ fmt(o.presentados) }}</span></div></td>
+                <td class="n">{{ fmt(o.evaluados) }} <small>{{ pct(o.tasa_evaluacion) }}</small></td>
+                <td class="n">{{ fmt(o.aplica) }} <small>{{ pct(o.tasa_aplica) }}</small></td>
+                <td class="n warn">{{ fmt(o.en_espera) }}</td>
+                <td class="n bad">{{ fmt(o.no_aplica) }}</td>
+                <td class="n">{{ fmt(o.remitidos) }}</td>
+                <td class="n"><div class="mc-celda-bar verde"><i [style.width.%]="o.barI"></i><span>{{ fmt(o.ingresos) }}</span></div></td>
+                <td class="n"><small>{{ o.ingresos_al }} / {{ o.ingresos_ta }}</small></td>
+                <td class="n"><span class="mc-pill" [class.alta]="(o.tasa_conversion ?? 0) >= 20" [class.baja]="o.tasa_conversion != null && o.tasa_conversion < 8">{{ pct(o.tasa_conversion) }}</span></td>
+                <td class="n">{{ o.dias_a_ingreso ?? '—' }}</td>
+                <td class="n" [class.bad]="o.retiro_temprano > 0">{{ o.retiro_temprano }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mc-grid mc-g-6-6">
+        <div class="mc-card">
+          <h4>Presentados, aplican e ingresos</h4>
+          @if (chartOficinasComparativo(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-xl" (chartClick)="clicOficina($event)"></div> }
+        </div>
+        <div class="mc-card">
+          <h4>¿Qué días llega más gente? <small>presentaciones por oficina y día</small></h4>
+          @if (chartCalor(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-xl"></div> }
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Fincas y vacantes ═══ -->
+    <section id="sec-fincas" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>Fincas, temporales y vacantes</h3>
+        <p>Dónde ingresó la gente (finca = centro de costo del contrato) y cuánto de lo solicitado en las vacantes se cubrió.</p>
+      </div>
+      <div class="mc-grid mc-g-8-4">
+        <div class="mc-card">
+          <h4>Ingresos por finca <small>top 15 · clic para filtrar</small></h4>
+          @if (chartFincas(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-xl" (chartClick)="clicFinca($event)"></div> } @else { <p class="mc-vacio">Sin ingresos.</p> }
+        </div>
+        <div class="mc-card">
+          <h4>Por temporal</h4>
+          @if (chartTemporal(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-medio" (chartClick)="clicTemporal($event)"></div> }
+          <ul class="mc-mini">
+            @for (x of d.por_temporal; track x.temporal) {
+              <li><span>{{ x.nombre }}</span><b>{{ fmt(x.ingresos) }}</b><em>{{ fmt(x.vacantes) }} vac. · {{ fmt(x.solicitadas) }} sol.</em></li>
+            }
+          </ul>
+          <h4 class="mc-mt">Cargos más contratados</h4>
+          @if (chartCargos(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-medio"></div> }
+        </div>
+      </div>
+      <div class="mc-card">
+        <app-tabla-estandar id="metricas-contratacion-vacantes" titulo="Vacantes del periodo" modulo="Métricas de contratación"
+          [datos]="vacantes()" [columnas]="columnasVacantes" [filaId]="idVacante" [filasPorPagina]="10"
+          [seleccionable]="false" vacio="No hay vacantes publicadas o activas en el periodo." />
+        <p class="mc-nota">Remitidos y contratados cuentan los procesos enlazados a la vacante; los contratos que llegan por el informe diario no traen la vacante.</p>
+      </div>
+    </section>
+
+    <!-- ═══ Motivos ═══ -->
+    <section id="sec-motivos" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>¿Por qué no pasaron?</h3>
+        <p>Motivos de la evaluación agrupados, y caídas en prueba técnica y exámenes médicos.</p>
+      </div>
+      @if (etapasCaidas().length) {
+        <div class="mc-caidas">
+          @for (e of etapasCaidas(); track e.etapa + e.resultado) {
+            <div class="mc-caida"><b>{{ fmt(e.valor) }}</b><span>{{ e.texto }} · {{ e.etapa }}</span></div>
+          }
+        </div>
+      }
+      <div class="mc-grid mc-g-6-6">
+        <div class="mc-card">
+          <h4>No aplican · {{ fmt(d.kpis.no_aplica) }}</h4>
+          @if (chartNoAplica(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-medio"></div> } @else { <p class="mc-vacio">Nadie quedó en no aplica.</p> }
+          @if (motivosTexto().noAplica.length) {
+            <details class="mc-det"><summary>Motivos tal como se escribieron</summary>
+              <ul class="mc-mini">@for (m of motivosTexto().noAplica; track m.nombre) { <li><span>{{ m.nombre }}</span><b>{{ m.valor }}</b></li> }</ul>
+            </details>
+          }
+        </div>
+        <div class="mc-card">
+          <h4>En espera · {{ fmt(d.kpis.en_espera) }}</h4>
+          @if (chartEspera(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-medio"></div> } @else { <p class="mc-vacio">Nadie quedó en espera.</p> }
+          @if (motivosTexto().espera.length) {
+            <details class="mc-det"><summary>Motivos tal como se escribieron</summary>
+              <ul class="mc-mini">@for (m of motivosTexto().espera; track m.nombre) { <li><span>{{ m.nombre }}</span><b>{{ m.valor }}</b></li> }</ul>
+            </details>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Medios ═══ -->
+    <section id="sec-medios" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>¿Por dónde llegaron?</h3>
+        <p>El medio que la persona dijo en la entrevista, y cuántos de cada medio terminaron contratados (el % en verde).</p>
+      </div>
+      <div class="mc-card">
+        @if (chartMedios(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-xl" (chartClick)="clicMedio($event)"></div> } @else { <p class="mc-vacio">Sin datos.</p> }
+      </div>
+    </section>
+
+    <!-- ═══ Equipo ═══ -->
+    <section id="sec-equipo" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>Quién hizo qué</h3>
+        <p>Contratos firmados por usuario, evaluaciones por evaluador y vacantes publicadas.</p>
+      </div>
+      <div class="mc-grid mc-g-6-6">
+        <div class="mc-card">
+          <h4>Contrataron</h4>
+          <ul class="mc-lider">
+            @for (c of contratadores(); track c.nombre; let i = $index) {
+              <li (click)="solo('usuarios', c.nombre)" tabindex="0" (keydown.enter)="solo('usuarios', c.nombre)">
+                <span class="mc-av">{{ c.iniciales }}</span>
+                <div class="mc-lider-txt">
+                  <div><b>{{ c.nombre }}</b><em>{{ fmt(c.ingresos) }}</em></div>
+                  <div class="mc-lider-bar"><i class="al" [style.width.%]="c.ancho * (c.al / (c.ingresos || 1))"></i><i class="ta" [style.width.%]="c.ancho * (c.ta / (c.ingresos || 1))"></i></div>
+                  <small>{{ c.oficinas }}</small>
+                </div>
+              </li>
+            } @empty { <li class="mc-vacio">Sin contratos en el periodo.</li> }
+          </ul>
+        </div>
+        <div class="mc-card">
+          <h4>Evaluaron</h4>
+          <table class="mc-tabla mc-tabla-sm">
+            <thead><tr><th>Evaluador</th><th class="n">Evaluados</th><th class="n">Aplica</th><th class="n">Espera</th><th class="n">No aplica</th></tr></thead>
+            <tbody>
+              @for (e of evaluadores(); track e.nombre) {
+                <tr><td>{{ e.nombre }}</td><td class="n">{{ fmt(e.evaluados) }}</td><td class="n ok">{{ e.aplica }}</td><td class="n warn">{{ e.en_espera }}</td><td class="n bad">{{ e.no_aplica }}</td></tr>
+              } @empty { <tr><td colspan="5" class="mc-vacio">Sin evaluaciones.</td></tr> }
+            </tbody>
+          </table>
+          <p class="mc-nota">Las evaluaciones sincronizadas desde el sistema anterior no traen el evaluador: aparecen como «Sin registrar».</p>
+          @if (publicadores().length) {
+            <h4 class="mc-mt">Publicaron vacantes</h4>
+            <ul class="mc-mini">@for (p of publicadores(); track p.nombre) { <li><span>{{ p.nombre }}</span><b>{{ p.valor }}</b></li> }</ul>
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Perfil ═══ -->
+    <section id="sec-perfil" class="mc-sec">
+      <div class="mc-sec-tit">
+        <h3>Perfil y tiempos</h3>
+        <p>Quién se presenta frente a quién ingresa, y cuánto tarda la contratación.</p>
+      </div>
+      <div class="mc-grid mc-g-3">
+        <div class="mc-card">
+          <h4>Sexo <small>anillo interno: se presentaron · externo: ingresaron</small></h4>
+          @if (chartSexo(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-medio"></div> }
+        </div>
+        <div class="mc-card">
+          <h4>Edad</h4>
+          @if (chartEdad(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-medio"></div> }
+          <div class="mc-exp">
+            @for (x of experiencia(); track x.nombre) {
+              <span [style.flex-grow]="x.valor" [matTooltip]="x.nombre + ': ' + x.valor">{{ x.pct > 12 ? x.nombre : '' }}</span>
+            }
+          </div>
+          <p class="mc-nota">Barra: experiencia en flores declarada.</p>
+        </div>
+        <div class="mc-card">
+          <h4>De presentarse a ingresar</h4>
+          @if (chartTiempos(); as o) { <div echarts [options]="o" class="mc-ch mc-ch-medio"></div> } @else { <p class="mc-vacio">Nadie ingresó aún.</p> }
+          <p class="mc-nota">Promedio: <b>{{ d.kpis.dias_a_ingreso ?? '—' }} días</b> · {{ d.tiempos.retiros_30_dias }} retiros antes de 30 días.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Detalle ═══ -->
+    <section id="sec-detalle" class="mc-sec">
+      <div class="mc-sec-tit mc-sec-tit-acc">
+        <div>
+          <h3>Detalle de contratación</h3>
+          <p>Los datos reales, persona por persona. Clic en «Ver» o doble clic para abrir su ficha con los documentos.</p>
+        </div>
+        <div class="mc-seg">
+          <button type="button" [class.on]="vista() === 'procesos'" (click)="vista.set('procesos')">Procesos de selección <b>{{ fmt(procesos().length) }}</b></button>
+          <button type="button" [class.on]="vista() === 'ingresos'" (click)="vista.set('ingresos')">Ingresos <b>{{ fmt(ingresos().length) }}</b></button>
+        </div>
+      </div>
+      @if (truncado()) {
+        <div class="mc-aviso"><mat-icon>info</mat-icon> El rango es muy grande: la tabla muestra las primeras 30.000 filas. El Excel de «Exportar» trae todas.</div>
+      }
+      @if (vista() === 'procesos') {
+        <div class="mc-chips mc-chips-res">
+          <button type="button" class="mc-chip" [class.on]="!filtroResultado()" (click)="filtroResultado.set(null)">Todos</button>
+          @for (r of conteoResultados(); track r.clave) {
+            <button type="button" class="mc-chip" [class.on]="filtroResultado() === r.clave" (click)="filtroResultado.set(r.clave)">
+              <i [style.background]="r.color"></i>{{ r.texto }} <b>{{ r.n }}</b>
+            </button>
+          }
+        </div>
+        <app-tabla-estandar id="metricas-contratacion-procesos" titulo="Procesos de selección" modulo="Métricas de contratación"
+          [datos]="procesosFiltrados()" [columnas]="columnasProcesos" [filaId]="idProceso" [cargando]="cargandoDetalle()"
+          [filasPorPagina]="50" [seleccionable]="false" textoDetalle="Ver ficha"
+          vacio="No hay procesos con estos filtros." (filaClick)="abrirFicha($event)">
+          <div tablaAccionesBarra>
+            <button mat-stroked-button (click)="exportar('presentaciones')" [disabled]="descargando()"><mat-icon>download</mat-icon> Excel completo</button>
+          </div>
+        </app-tabla-estandar>
+      } @else {
+        <app-tabla-estandar id="metricas-contratacion-ingresos" titulo="Ingresos" modulo="Métricas de contratación"
+          [datos]="ingresos()" [columnas]="columnasIngresos" [filaId]="idIngreso" [cargando]="cargandoDetalle()"
+          [filasPorPagina]="50" [seleccionable]="false" textoDetalle="Ver ficha"
+          vacio="No hay ingresos con estos filtros." (filaClick)="abrirFicha($event)">
+          <div tablaAccionesBarra>
+            <button mat-stroked-button (click)="exportar('ingresos')" [disabled]="descargando()"><mat-icon>download</mat-icon> Excel completo</button>
+          </div>
+        </app-tabla-estandar>
+      }
+    </section>
+  }
+  }
+</div>

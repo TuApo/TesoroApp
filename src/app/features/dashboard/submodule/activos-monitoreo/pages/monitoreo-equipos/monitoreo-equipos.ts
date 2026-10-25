@@ -31,6 +31,7 @@ function puenteEndpoint(): PuenteEndpoint | null {
         <h1><mat-icon>devices</mat-icon> Monitoreo de equipos</h1>
         <span class="mon__flex"></span>
         <button class="btn" (click)="irAActividad()"><mat-icon>insights</mat-icon> Actividad</button>
+        <button class="btn" (click)="irAProcesos()"><mat-icon>hub</mat-icon> Procesos</button>
         <button class="btn" (click)="irAEtiquetas()"><mat-icon>qr_code_2</mat-icon> Etiquetas</button>
         <button class="btn" (click)="generarPin()"><mat-icon>vpn_key</mat-icon> Generar PIN</button>
         <button class="btn" (click)="cargar()"><mat-icon>refresh</mat-icon></button>
@@ -82,10 +83,36 @@ function puenteEndpoint(): PuenteEndpoint | null {
           <aside class="mon__detalle">
             <h2>{{ e.hostname || e.machineUid }}</h2>
             <p class="meta">{{ e.so }} {{ e.soVersion }} · {{ e.cpu }} · {{ ram(e) }}</p>
-            <p class="meta">Usuario: {{ e.usuarioActivo || '—' }} · IP: {{ e.ipLan || '—' }} ·
+            <p class="meta">Usuario del equipo (sesión): {{ e.usuarioActivo || '—' }} · IP: {{ e.ipLan || '—' }} ·
               Último latido: {{ e.ultimoLatido ? (e.ultimoLatido | date:'short') : 'nunca' }}</p>
 
+            <!-- Ficha: foto del equipo + a qué usuario de la plataforma pertenece -->
+            <div class="ficha">
+              <label class="foto" title="Subir/cambiar foto del equipo">
+                @if (fotoUrl()) { <img [src]="fotoUrl()" alt="equipo"> } @else { <div class="foto__ph"><mat-icon>photo_camera</mat-icon></div> }
+                <input type="file" accept="image/*" hidden (change)="onFoto($event, e)">
+                <span class="foto__cam"><mat-icon>add_a_photo</mat-icon></span>
+              </label>
+              <div class="ficha__due">
+                <span class="ficha__lbl">Dueño (usuario de la plataforma)</span>
+                @if (e.responsableNombre) {
+                  <div class="ficha__user"><mat-icon>person</mat-icon> <b>{{ e.responsableNombre }}</b>@if (e.responsableDoc) { <small> · {{ e.responsableDoc }}</small> }
+                    <button class="x" (click)="quitarDue(e)" title="Quitar dueño"><mat-icon>close</mat-icon></button>
+                  </div>
+                } @else { <span class="ficha__sin">Sin asignar</span> }
+                <input type="text" class="ficha__buscar" [(ngModel)]="qUsuario" (ngModelChange)="buscarUsuarios($event)" placeholder="Asignar a usuario…">
+                @if (usuarios().length) {
+                  <div class="ficha__res">
+                    @for (u of usuarios(); track $index) {
+                      <button (click)="elegirUsuario(e, u)"><mat-icon>person</mat-icon> {{ nombreU(u) }} <small>{{ correoU(u) }}</small></button>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+
             <div class="acciones">
+              <button class="btn btn--primario" (click)="irAReporte(e)"><mat-icon>summarize</mat-icon> Ver reporte completo</button>
               <button class="btn" (click)="comando(e, 'INVENTARIO')"><mat-icon>inventory_2</mat-icon> Inventario</button>
               <button class="btn" (click)="comando(e, 'PROCESOS')"><mat-icon>list_alt</mat-icon> Procesos</button>
               <button class="btn" (click)="comando(e, 'CAPTURA')"><mat-icon>photo_camera</mat-icon> Captura</button>
@@ -150,6 +177,23 @@ function puenteEndpoint(): PuenteEndpoint | null {
     .punto--inactivo { background: #f59e0b; } .punto--alerta { background: #ef4444; }
     .mon__detalle { width: 380px; background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 14px; }
     .mon__detalle h2 { margin: 0 0 2px; font-size: 16px; } .mon__detalle h3 { font-size: 13px; margin: 14px 0 6px; }
+    .ficha { display: flex; gap: 12px; margin: 10px 0; padding: 10px; background: var(--muted, #f8fafc); border-radius: 10px; }
+    .foto { position: relative; width: 84px; height: 84px; flex: none; border-radius: 10px; overflow: hidden; cursor: pointer; border: 1px solid var(--border, #e2e8f0); }
+    .foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .foto__ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #e2e8f0; color: #94a3b8; }
+    .foto__cam { position: absolute; right: 2px; bottom: 2px; background: var(--brand-blue, #2b59f0); color: #fff; border-radius: 50%; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+    .foto__cam mat-icon { font-size: 15px; width: 15px; height: 15px; }
+    .ficha__due { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .ficha__lbl { font-size: 11px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
+    .ficha__user { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+    .ficha__user mat-icon { font-size: 16px; width: 16px; height: 16px; color: var(--brand-blue, #2b59f0); }
+    .ficha__user .x { margin-left: auto; border: 0; background: transparent; color: #ef4444; cursor: pointer; }
+    .ficha__sin { font-size: 13px; color: #94a3b8; }
+    .ficha__buscar { padding: 6px 8px; border: 1px solid var(--border, #cbd5e1); border-radius: 8px; font-size: 12px; }
+    .ficha__res { background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 8px; max-height: 160px; overflow: auto; }
+    .ficha__res button { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-bottom: 1px solid var(--border, #f1f5f9); background: transparent; padding: 7px 8px; cursor: pointer; font-size: 12px; text-align: left; }
+    .ficha__res button:hover { background: var(--muted, #f1f5f9); } .ficha__res small { color: #94a3b8; margin-left: auto; }
+    .ficha__res mat-icon { font-size: 15px; width: 15px; height: 15px; color: #94a3b8; }
     .meta { font-size: 12px; color: #64748b; margin: 2px 0; }
     .acciones { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
     .aud { border-left: 3px solid #cbd5e1; padding: 4px 8px; margin: 6px 0; background: #f8fafc; border-radius: 0 8px 8px 0; font-size: 12px; }
@@ -179,6 +223,9 @@ export class MonitoreoEquipos implements OnInit {
   readonly pin = signal<{ pin: string; expira: string } | null>(null);
   readonly aviso = signal<string | null>(null);
   readonly activando = signal(false);
+  readonly fotoUrl = signal<string | null>(null);
+  readonly usuarios = signal<Array<Record<string, unknown>>>([]);
+  qUsuario = '';
   private readonly esteId = signal<number | null>(null);
 
   readonly esteEquipoEnrolado = computed(() => this.esteId() != null);
@@ -200,8 +247,59 @@ export class MonitoreoEquipos implements OnInit {
 
   elegir(e: EndpointMon): void {
     this.sel.set(e);
+    this.usuarios.set([]); this.qUsuario = '';
+    this.fotoUrl.set(null);
+    if (e.tieneFoto) this.api.foto(e.id).subscribe({ next: r => this.fotoUrl.set(r.data_url), error: () => {} });
     this.api.auditoriasDe(e.id).subscribe({ next: a => this.auditorias.set(a), error: () => this.auditorias.set([]) });
     this.api.comandos(e.id).subscribe({ next: c => this.comandos.set(c), error: () => this.comandos.set([]) });
+  }
+
+  // ── Foto + dueño ────────────────────────────────────────────────────
+  onFoto(ev: Event, e: EndpointMon): void {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    this.api.subirFoto(e.id, file).subscribe({
+      next: ep => { this.reemplazar(ep); this.fotoUrl.set(null); this.api.foto(ep.id).subscribe({ next: r => this.fotoUrl.set(r.data_url), error: () => {} }); this.flash('Foto guardada'); },
+      error: () => this.flash('No se pudo subir la foto'),
+    });
+    input.value = '';
+  }
+
+  buscarUsuarios(q: string): void {
+    if (!q || q.trim().length < 2) { this.usuarios.set([]); return; }
+    this.api.buscarUsuarios(q.trim()).subscribe({ next: l => this.usuarios.set(Array.isArray(l) ? l.slice(0, 8) : []), error: () => this.usuarios.set([]) });
+  }
+
+  elegirUsuario(e: EndpointMon, u: Record<string, unknown>): void {
+    const ref = String(u['id'] ?? '');
+    this.api.asignarResponsable(e.id, ref, this.nombreU(u), this.docU(u)).subscribe({
+      next: ep => { this.reemplazar(ep); this.usuarios.set([]); this.qUsuario = ''; this.flash('Dueño asignado'); },
+      error: () => this.flash('No se pudo asignar'),
+    });
+  }
+
+  quitarDue(e: EndpointMon): void {
+    this.api.asignarResponsable(e.id, null, null, null).subscribe({ next: ep => this.reemplazar(ep), error: () => {} });
+  }
+
+  nombreU(u: Record<string, unknown>): string {
+    const g = (...k: string[]) => { for (const x of k) { const v = u[x]; if (v) return String(v); } return ''; };
+    const n = g('nombre_completo', 'nombreCompleto', 'nombre', 'nombres', 'primer_nombre');
+    const a = g('apellidos', 'apellido', 'primer_apellido');
+    return (n + ' ' + a).trim() || this.correoU(u) || 'Usuario';
+  }
+  correoU(u: Record<string, unknown>): string {
+    for (const k of ['correo_electronico', 'correoElectronico', 'correo', 'email']) { const v = u[k]; if (v) return String(v); }
+    return '';
+  }
+  private docU(u: Record<string, unknown>): string | null {
+    for (const k of ['numero_de_documento', 'numeroDeDocumento', 'documento', 'cedula']) { const v = u[k]; if (v) return String(v); }
+    return null;
+  }
+  private reemplazar(ep: EndpointMon): void {
+    this.sel.set(ep);
+    this.endpoints.update(l => l.map(x => x.id === ep.id ? ep : x));
   }
 
   comando(e: EndpointMon, tipo: string): void {
@@ -247,6 +345,8 @@ export class MonitoreoEquipos implements OnInit {
 
   irAEtiquetas(): void { this.router.navigate(['/dashboard/monitoreo-equipos/etiquetas']); }
   irAActividad(): void { this.router.navigate(['/dashboard/monitoreo-equipos/actividad']); }
+  irAProcesos(): void { this.router.navigate(['/dashboard/monitoreo-equipos/procesos']); }
+  irAReporte(e: EndpointMon): void { this.router.navigate(['/dashboard/monitoreo-equipos/reporte', e.id]); }
 
   ram(e: EndpointMon): string { return e.ramMb ? Math.round(e.ramMb / 1024) + ' GB RAM' : ''; }
 

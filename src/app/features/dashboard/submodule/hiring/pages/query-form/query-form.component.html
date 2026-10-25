@@ -6,39 +6,36 @@
       </div>
       <div class="header-text">
         <mat-card-title class="titulo">Consulta de Formularios</mat-card-title>
-        <mat-card-subtitle class="subtitulo">Búsqueda de registros detallados por cédula.</mat-card-subtitle>
+        <mat-card-subtitle class="subtitulo">Búsqueda de registros detallados por cédula o nombre.</mat-card-subtitle>
       </div>
     </div>
   </mat-card-header>
   <mat-card-content class="card-content">
 
-    <!-- Campo de entrada para filtrar por cédula -->
-    <mat-form-field class="example-full-width">
-      <mat-label>Buscar por Cédula</mat-label>
-      <input matInput (input)="onCedulaInput($event)" placeholder="Ingrese número de cédula">
-    </mat-form-field>
-
-
-    <!-- Botón para buscar por cédula -->
-    <button mat-flat-button class="btn-managerial" style="margin-left: 20px; margin-right: 20px;" (click)="buscarPorCedula()">
-      <mat-icon>search</mat-icon> Buscar
-    </button>
-
-    <!-- Botón para copiar tabla -->
-    <button mat-raised-button color="primary" (click)="copyTableToClipboard()">
-      <mat-icon>content_copy</mat-icon> Copiar Tabla
-    </button>
-
-    <!-- Resultados en la tabla estándar. «Copiar Tabla» (arriba) sigue copiando
-         en el orden de la plantilla de Excel, con sus columnas vacías. -->
-    <div class="table-container">
+    <!-- El buscador de la tabla sugiere candidatos (cédula o nombre) mientras se
+         escribe; al elegir uno reemplaza lo mostrado, salvo las filas marcadas.
+         Pegar varias cédulas (Ctrl+V en el buscador o el botón «Pegar cédulas»)
+         las trae todas de una vez. El «Pegar lista» de la tabla se apaga: solo
+         marca filas ya cargadas y aquí la tabla empieza vacía. -->
+    <div class="table-container" (paste)="alPegar($event)">
       <app-tabla-estandar
         id="contratacion-consulta-formularios"
         titulo="Consulta de formularios"
         modulo="Contratación"
-        vacio="Busque una cédula para ver sus formularios."
+        busqueda="Buscar por cédula o nombre…"
+        vacio="Escriba una cédula o un nombre en el buscador y elija de la lista, o pegue varias cédulas."
         [datos]="filas()"
-        [columnas]="columnas">
+        [columnas]="columnas"
+        [cargando]="cargando()"
+        [seleccion]="seleccion"
+        [pegable]="false"
+        [sugerencias]="sugerencias()"
+        (busquedaCambio)="pedirSugerencias($event)"
+        (sugerenciaElegida)="agregar($event.id)">
+        <button tablaAccionesBarra mat-stroked-button type="button" (click)="pegarCedulas()"
+                [disabled]="cargando()" title="Pegar varias cédulas (una columna de Excel) y traer sus formularios">
+          <mat-icon>content_paste_search</mat-icon> Pegar cédulas
+        </button>
       </app-tabla-estandar>
     </div>
 

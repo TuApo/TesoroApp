@@ -73,6 +73,12 @@ export class AsistenteIaComponent implements OnInit {
    * siguiente cuando el texto es el mismo.
    */
   preguntaInicial = input<{ texto: string; seq: number } | null>(null);
+  /**
+   * Texto libre que la pantalla anfitriona sabe y el expediente no (p. ej. lo que se está
+   * hablando en una videollamada). Solo embebido; viaja como `contexto` en cada turno y
+   * ms-ai lo entrega al modelo como "CONTEXTO ADICIONAL" (lo recorta a 4000 caracteres).
+   */
+  contextoExtra = input<string | null>(null);
 
   /** Carpeta de la persona; hasta que exista, las conversaciones no se filtran. */
   private readonly folderPersona = signal<number | null>(null);
@@ -420,6 +426,7 @@ export class AsistenteIaComponent implements OnInit {
     // conversaciones viejas —abiertas antes de que esto existiera— queden
     // apuntando a quien se tiene delante.
     const ced = (this.cedulaContexto() ?? '').trim();
+    const extra = (this.contextoExtra() ?? '').trim();
     const body = {
       contenido: texto || '(archivo adjunto)',
       modulos: this.modulosActivos(),
@@ -427,6 +434,7 @@ export class AsistenteIaComponent implements OnInit {
       webSearch: this.webSearchOn(),
       cedulaContexto: this.embebido() && ced ? ced : undefined,
       nombreContexto: this.embebido() ? (this.nombreContexto()?.trim() || undefined) : undefined,
+      contexto: this.embebido() && extra ? extra.slice(0, 4000) : undefined,
     };
     this.draft.set('');
     this.adjuntos.set([]);

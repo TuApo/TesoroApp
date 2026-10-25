@@ -1,0 +1,181 @@
+<div class="aia">
+  <header class="aia-hero">
+    <div class="aia-hero-txt">
+      <span class="aia-hero-ico"><mat-icon>bolt</mat-icon></span>
+      <div>
+        <h1>Automatizaciones IA</h1>
+        <p>El Asistente IA hace solo lo que le pidas: por horario, al entrar a la plataforma o al abrir una pantalla.
+          Es personal y corre <b>con tus permisos</b>; cada resultado queda en tus Conversaciones IA.</p>
+      </div>
+    </div>
+    <div class="aia-hero-datos">
+      <div><b>{{ activas() }}</b><small>activas</small></div>
+      <div><b>{{ automatizaciones().length }}</b><small>en total</small></div>
+      <div><b>{{ ejecuciones() }}</b><small>ejecuciones</small></div>
+    </div>
+    <div class="aia-hero-acc">
+      <button type="button" class="aia-primario" (click)="nueva()"><mat-icon>add</mat-icon> Nueva automatización</button>
+      <a class="aia-hero-link" routerLink="/dashboard/herramientas-ia/personalidades"><mat-icon>psychology</mat-icon> Personalidades del asistente</a>
+    </div>
+  </header>
+
+  @if (aviso()) {
+    <div class="aia-aviso" role="status"><mat-icon>info</mat-icon><span>{{ aviso() }}</span>
+      <button type="button" class="aia-x" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button></div>
+  }
+  @if (error()) {
+    <div class="aia-aviso error" role="alert"><mat-icon>error</mat-icon><span>{{ error() }}</span>
+      <button type="button" class="aia-secundario" (click)="cargar()">Reintentar</button></div>
+  }
+
+  <section class="aia-seccion">
+    <h2><mat-icon>auto_mode</mat-icon> Mis automatizaciones</h2>
+    @if (cargando() && !automatizaciones().length) {
+      <div class="aia-grid">@for (i of [1, 2, 3]; track i) { <div class="aia-card esqueleto"></div> }</div>
+    } @else if (!automatizaciones().length) {
+      <div class="aia-vacio">
+        <mat-icon>smart_toy</mat-icon>
+        <p>Aún no tienes automatizaciones. Elige una plantilla abajo o pídesela al asistente: «cada lunes a las 8 mándame el resumen de ventas».</p>
+      </div>
+    } @else {
+      <div class="aia-grid">
+        @for (a of automatizaciones(); track a.id) {
+          <article class="aia-card" [class]="'aia-card est-' + estadoClase(a)">
+            <div class="aia-card-cab">
+              <span class="aia-card-ico"><mat-icon>{{ iconoDisparador(a.disparador) }}</mat-icon></span>
+              <div class="aia-card-tit">
+                <b>{{ a.nombre }}</b>
+                <small>{{ etiquetaDisparador(a) }}</small>
+              </div>
+              <span class="aia-estado">{{ !a.activa ? 'Pausada' : a.ultimoEstado === 'ERROR' ? 'Con error' : a.ultimoEstado === 'EN_CURSO' ? 'Corriendo' : 'Activa' }}</span>
+            </div>
+            <p class="aia-instr">{{ a.instruccion }}</p>
+            <div class="aia-meta">
+              @if (a.proximaEjecucion && a.activa) { <span><mat-icon>event</mat-icon>Próxima {{ a.proximaEjecucion | date: 'EEE d MMM, h:mm a' }}</span> }
+              @if (a.ultimaEjecucion) { <span><mat-icon>history</mat-icon>Última {{ a.ultimaEjecucion | date: 'd MMM, h:mm a' }}</span> }
+              <span><mat-icon>repeat</mat-icon>{{ a.ejecuciones }} {{ a.ejecuciones === 1 ? 'vez' : 'veces' }}</span>
+            </div>
+            @if (a.ultimoResultado) { <p class="aia-resultado">{{ a.ultimoResultado }}</p> }
+            <div class="aia-card-acc">
+              <button type="button" class="aia-btn" (click)="ejecutar(a)" [disabled]="ocupada(a.id)" matTooltip="Ejecutar ahora"><mat-icon>play_arrow</mat-icon> Ejecutar</button>
+              @if (a.conversacionId) {
+                <button type="button" class="aia-btn" (click)="verConversacion(a.conversacionId)" matTooltip="Ver resultados en el asistente"><mat-icon>forum</mat-icon> Resultados</button>
+              }
+              <span class="aia-sp"></span>
+              <button type="button" class="aia-ico" (click)="alternar(a)" [disabled]="ocupada(a.id)" [matTooltip]="a.activa ? 'Pausar' : 'Activar'"
+                      [attr.aria-label]="a.activa ? 'Pausar' : 'Activar'"><mat-icon>{{ a.activa ? 'pause_circle' : 'play_circle' }}</mat-icon></button>
+              <button type="button" class="aia-ico" (click)="editar(a)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+              <button type="button" class="aia-ico peligro" (click)="eliminar(a)" [disabled]="ocupada(a.id)" matTooltip="Eliminar" aria-label="Eliminar"><mat-icon>delete</mat-icon></button>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="aia-seccion">
+    <h2><mat-icon>dashboard_customize</mat-icon> Plantillas</h2>
+    @if (categorias().length > 1) {
+      <div class="aia-chips">
+        <button type="button" class="aia-chip" [class.activo]="!categoria()" (click)="categoria.set(null)">Todas</button>
+        @for (c of categorias(); track c) {
+          <button type="button" class="aia-chip" [class.activo]="categoria() === c" (click)="categoria.set(categoria() === c ? null : c)">{{ c }}</button>
+        }
+      </div>
+    }
+    <div class="aia-grid plantillas">
+      @for (p of plantillasFiltradas(); track p.id) {
+        <article class="aia-plantilla">
+          <span class="aia-plantilla-ico"><mat-icon>{{ p.icono || 'bolt' }}</mat-icon></span>
+          <div class="aia-plantilla-txt">
+            <small>{{ p.categoria }}</small>
+            <b>{{ p.nombre }}</b>
+            <p>{{ p.descripcion }}</p>
+            <span class="aia-plantilla-cuando"><mat-icon>{{ iconoDisparador(p.disparador) }}</mat-icon>{{ horarioPlantilla(p) }}</span>
+          </div>
+          <button type="button" class="aia-secundario" (click)="usar(p)"><mat-icon>add</mat-icon> Usar</button>
+        </article>
+      } @empty {
+        @if (!cargando()) { <p class="aia-nada">No hay plantillas para tus pantallas.</p> }
+      }
+    </div>
+  </section>
+
+  <section class="aia-seccion">
+    <h2><mat-icon>receipt_long</mat-icon> Historial de ejecuciones
+      <button type="button" class="aia-link" (click)="verEnBandeja(null)">Ver todas las conversaciones del asistente</button></h2>
+    @if (!historial().length) {
+      <p class="aia-nada">Todavía no hay ejecuciones.</p>
+    } @else {
+      <ul class="aia-historial">
+        @for (t of historial(); track t.id) {
+          <li [class]="'est-' + t.estado.toLowerCase()">
+            <span class="aia-punto"></span>
+            <div>
+              <b>{{ t.titulo }}</b>
+              @if (t.resultado) { <small>{{ t.resultado }}</small> }
+              <small class="meta">{{ t.creadoEn | date: 'EEE d MMM, h:mm a' }} · {{ t.estado === 'HECHA' ? 'Terminó' : t.estado === 'EN_CURSO' ? 'Corriendo' : t.estado === 'ERROR' ? 'Con error' : t.estado }}</small>
+            </div>
+            @if (t.conversacionId) {
+              <button type="button" class="aia-ico" (click)="verConversacion(t.conversacionId)" matTooltip="Ver resultado" aria-label="Ver resultado"><mat-icon>forum</mat-icon></button>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</div>
+
+@if (borrador(); as b) {
+  <div class="aia-fondo" (click)="borrador.set(null)" animate.enter="aia-fundir"></div>
+  <div class="aia-dialogo" role="dialog" aria-modal="true" [attr.aria-label]="b.id ? 'Editar automatización' : 'Nueva automatización'" animate.enter="aia-surgir">
+    <header>
+      <mat-icon>bolt</mat-icon>
+      <div>
+        <h3>{{ b.id ? 'Editar automatización' : 'Nueva automatización' }}</h3>
+        @if (b.plantilla) { <small>Desde la plantilla «{{ b.plantilla }}»: ajústala a tu gusto.</small> }
+      </div>
+      <button type="button" class="aia-ico" (click)="borrador.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+    <label>Nombre
+      <input type="text" [ngModel]="b.nombre" (ngModelChange)="cambiar('nombre', $event)" maxlength="120" placeholder="Resumen de ventas de los lunes" />
+    </label>
+    <label>¿Qué debe hacer el asistente?
+      <textarea rows="4" [ngModel]="b.instruccion" (ngModelChange)="cambiar('instruccion', $event)" maxlength="4000"
+                placeholder="Dilo como se lo dirías: «consulta las ventas de la semana pasada de mis tiendas y dame el total, el ticket promedio y una gráfica por día»."></textarea>
+    </label>
+    <div class="aia-cuando">
+      <span>¿Cuándo?</span>
+      <div class="aia-disparadores">
+        @for (d of ['HORARIO', 'AL_INGRESAR', 'AL_ABRIR_RUTA', 'MANUAL']; track d) {
+          <button type="button" [class.sel]="b.disparador === d" [disabled]="!!b.id && b.disparador !== d" (click)="cambiar('disparador', $any(d))">
+            <mat-icon>{{ iconoDisparador($any(d)) }}</mat-icon>
+            {{ d === 'HORARIO' ? 'Por horario' : d === 'AL_INGRESAR' ? 'Al entrar' : d === 'AL_ABRIR_RUTA' ? 'Al abrir una pantalla' : 'A mano' }}
+          </button>
+        }
+      </div>
+    </div>
+    @if (b.disparador === 'HORARIO') {
+      <div class="aia-horario">
+        <input type="time" [ngModel]="b.hora" (ngModelChange)="cambiar('hora', $event)" aria-label="Hora" />
+        <div class="aia-dias">
+          @for (d of diasSemana; track d) {
+            <button type="button" [class.sel]="b.dias.includes(d)" (click)="alternarDia(d)" [attr.aria-pressed]="b.dias.includes(d)" [attr.aria-label]="d">{{ nombresDia[d] }}</button>
+          }
+        </div>
+      </div>
+    }
+    @if (b.disparador === 'AL_ABRIR_RUTA') {
+      <select [ngModel]="b.ruta" (ngModelChange)="cambiar('ruta', $event)" aria-label="Pantalla">
+        <option value="">Elija la pantalla…</option>
+        @for (d of destinos(); track d.ruta) { <option [value]="d.ruta">{{ d.jerarquia ? d.jerarquia + ' › ' : '' }}{{ d.nombre }}</option> }
+      </select>
+    }
+    @if (b.id) { <small class="aia-nota">El tipo de disparador no se cambia: si necesitas otro, crea una nueva.</small> }
+    @if (aviso()) { <p class="aia-dlg-aviso" role="alert">{{ aviso() }}</p> }
+    <footer>
+      <button type="button" class="aia-secundario" (click)="borrador.set(null)">Cancelar</button>
+      <button type="button" class="aia-primario" (click)="guardar()" [disabled]="guardando()"><mat-icon>check</mat-icon> {{ b.id ? 'Guardar cambios' : 'Crear' }}</button>
+    </footer>
+  </div>
+}

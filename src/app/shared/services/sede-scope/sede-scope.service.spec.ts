@@ -96,4 +96,34 @@ describe('SedeScopeService', () => {
     expect(s.activa()).toBe('ANDES');
     expect(s.tieneVarias()).toBeFalse();
   });
+
+  it('ve todas las oficinas si el backend lo resolvió así (sede transversal), aunque su rol no sea ADMIN', () => {
+    usuario = {
+      rol: { nombre: 'TRASLADOS' }, todas_sedes: true, sede_transversal: 'ADMINISTRATIVOS',
+      sede: sede('ADMINISTRATIVOS', true), sedes: [sede('ADMINISTRATIVOS', true), sede('BOSA'), sede('FUNZA')],
+    };
+    const s = crear();
+
+    expect(s.sinLimite()).toBeTrue();
+    expect(s.alcanza('MADRID')).toBeTrue();
+    expect(s.opciones(['BOSA', 'FUNZA', 'MADRID'])).toEqual(['BOSA', 'FUNZA', 'MADRID']);
+  });
+
+  it('distingue las sedes transversales ignorando tildes y mayúsculas', () => {
+    usuario = { rol: { nombre: 'ESPECIAL' }, sede: sede('Virtual', true), sedes: [sede('Virtual', true)] };
+    const s = crear();
+
+    expect(s.esTransversal('ADMINISTRATIVOS')).toBeTrue();
+    expect(s.esTransversal('virtual')).toBeTrue();
+    expect(s.esTransversal('FACA_PRIMERA')).toBeFalse();
+    expect(s.trabajaDesdeTransversal()).toBeTrue();
+  });
+
+  it('desde una oficina normal el registro lleva su sede activa sin preguntar', async () => {
+    usuario = { rol: { nombre: 'TESORERIA' }, sede: sede('SUBA', true), sedes: [sede('SUBA', true)] };
+    const s = crear();
+
+    expect(s.trabajaDesdeTransversal()).toBeFalse();
+    expect(await s.oficinaParaRegistrar()).toBe('SUBA');
+  });
 });

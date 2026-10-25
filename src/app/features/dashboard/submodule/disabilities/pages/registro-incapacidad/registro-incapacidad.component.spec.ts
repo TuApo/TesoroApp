@@ -25,6 +25,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { Subject, of } from 'rxjs';
 
 import { RegistroIncapacidadComponent, cargoDeContratacion } from './registro-incapacidad.component';
+import Swal from 'sweetalert2';
 import {
   CatalogosIncapacidad,
   DatosContratacionResponse,
@@ -176,6 +177,12 @@ describe('RegistroIncapacidadComponent', () => {
   let fixture: ComponentFixture<RegistroIncapacidadComponent>;
   let comp: RegistroIncapacidadComponent;
   let http: HttpTestingController;
+  /**
+   * Ventana del radicado (reunion 2026-10-20): espiada para que ningun guardado de estas pruebas
+   * deje un SweetAlert real abierto en el DOM (es un singleton y le cambiaba el estado a las pruebas
+   * de otras pantallas que tambien lo usan).
+   */
+  let ventanaSwal: jasmine.Spy;
 
   /** Matriz de EPS minima (V43): la lista CERRADA que puebla el selector. */
   const EPS_MATRIZ = [
@@ -253,6 +260,7 @@ describe('RegistroIncapacidadComponent', () => {
   }
 
   beforeEach(async () => {
+    ventanaSwal = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true } as never));
     // El usuario logueado con sede evita el GET de oficinas y deja
     // Oficina / Nombre de quien recibe en solo lectura.
     localStorage.setItem(
@@ -322,6 +330,25 @@ describe('RegistroIncapacidadComponent', () => {
     resolverCargaInicial();
     expect(comp.form.controls.personal.controls.arl.value).toBe('ARL SURA');
     http.verify();
+  });
+
+  it('accidente de trabajo: la casilla de la incapacidad muestra la ARL y la EPS deja de ser obligatoria', () => {
+    resolverCargaInicial();
+    const eps = comp.form.controls.incapacidad.controls.eps;
+    eps.setValue('');
+    expect(eps.hasError('required')).toBeTrue();
+
+    comp.form.controls.incapacidad.controls.tipoIncapacidad.setValue('ACCIDENTE_TRABAJO');
+    fixture.detectChanges();
+    expect(comp.cobraArl()).toBeTrue();
+    expect(eps.valid).toBeTrue();
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('ARL (a quien se cobra)');
+
+    comp.form.controls.incapacidad.controls.tipoIncapacidad.setValue('ENFERMEDAD_GENERAL');
+    fixture.detectChanges();
+    expect(comp.cobraArl()).toBeFalse();
+    expect(eps.hasError('required')).toBeTrue();
   });
 
   it('sin :id en la ruta arranca en modo alta y no consulta ninguna incapacidad', () => {
@@ -1048,6 +1075,41 @@ describe('RegistroIncapacidadComponent', () => {
       flush();
     }));
 
+    it('al guardar abre la ventana central con el numero de radicado y el codigo unico (reunion 2026-10-20)', fakeAsync(() => {
+      const ventana = ventanaSwal;
+      ventana.calls.reset();
+      elegirPdf('INCAPACIDAD_MEDICA');
+      tick(400);
+      for (const req of http.match((r) => r.url.endsWith('/Incapacidades/v2/validar'))) {
+        req.flush(validacionBase());
+      }
+      guardarYFlushValidar(false);
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2'))
+        .flush({ id: 55, codigoUnico: '1001_20250110', codigoConsecutivo: 'APCH001' });
+      http
+        .expectOne((r) => r.method === 'POST' && r.url.endsWith('/Incapacidades/v2/55/soportes'))
+        .flush(soporteSubido('INCAPACIDAD_MEDICA'), { status: 201, statusText: 'Created' });
+      http
+        .expectOne((r) => r.method === 'GET' && r.url.endsWith('/Incapacidades/v2/55'))
+        .flush({
+          id: 55,
+          codigoUnico: '1001_20250110',
+          codigoConsecutivo: 'APCH001',
+          cedula: '1001',
+          nombreCompleto: 'PEREZ ANA',
+          soportesCargados: ['INCAPACIDAD_MEDICA'],
+        });
+
+      expect(ventana).toHaveBeenCalledTimes(1);
+      const opciones = ventana.calls.mostRecent().args[0] as unknown as { title: string; html: string };
+      expect(opciones.title).toContain('radicada con éxito');
+      expect(opciones.html).toContain('APCH001');
+      expect(opciones.html).toContain('100120250110');
+      expect(opciones.html).toContain('RECIBIDA');
+      flush();
+    }));
+
     it('crea la incapacidad y sube los soportes por el endpoint v2 anclado en el id', fakeAsync(() => {
       elegirPdf('INCAPACIDAD_MEDICA');
       tick(400);
@@ -1450,3 +1512,121 @@ function eventoDeArchivo(archivo: File): Event {
   Object.defineProperty(input, 'files', { value: [archivo], configurable: true });
   return { target: input } as unknown as Event;
 }
+
+describe('RegistroIncapacidadComponent · nivel 1 (reunion 2026-10-20)', () => {
+  let fixture: ComponentFixture<RegistroIncapacidadComponent>;
+  let comp: RegistroIncapacidadComponent;
+  let http: HttpTestingController;
+
+  beforeEach(async () => {
+    localStorage.setItem(
+      'user',
+      JSON.stringify({
+        id: 'u-9',
+        email: 'persona.prueba@example.com',
+        datos_basicos: { nombres: 'CESAR', apellidos: 'CAMPOS' },
+        sede: { id: 3, nombre: 'CHIA' },
+        rol: { id: 9, nombre: 'COORDINADOR' },
+        roles: [{ nombre: 'COORDINADOR' }, { nombre: 'SALUD-N1-SUBE' }, { nombre: 'SALUD-ALCANCE-ANDES-MONTEVERDE' }],
+      }),
+    );
+    localStorage.setItem('token', 'Bearer token-de-prueba');
+    await TestBed.configureTestingModule({
+      imports: [RegistroIncapacidadComponent],
+      providers: [
+        provideZonelessChangeDetection(),
+        provideNoopAnimations(),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+      ],
+    }).compileComponents();
+    fixture = TestBed.createComponent(RegistroIncapacidadComponent);
+    comp = fixture.componentInstance;
+    http = TestBed.inject(HttpTestingController);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/catalogos')).flush(CATALOGOS);
+    http.expectOne((r) => r.url.endsWith('/Incapacidades/v2/eps-matriz')).flush([]);
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('token');
+  });
+
+  function etiquetas(): string[] {
+    return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('mat-label')).map(
+      (l) => (l.textContent ?? '').trim(),
+    );
+  }
+
+  it('usa el formulario simplificado: nombre en un solo campo, sin edad, sexo, fondo, documento ni panel', () => {
+    expect(comp.simplificado).toBeTrue();
+    const e = etiquetas();
+    expect(e).toContain('Apellidos y nombres');
+    for (const oculto of ['Primer apellido', 'Primer nombre', 'Numero de documento', 'Fondo de pensiones', 'Sexo']) {
+      expect(e).not.toContain(oculto);
+    }
+    const html = fixture.nativeElement as HTMLElement;
+    expect(html.querySelector('.reg-panel')).toBeNull();
+    expect(html.querySelector('.reg-layout--sin-panel')).not.toBeNull();
+    expect(html.querySelector('.reg-calculado--edad')).toBeNull();
+    // Lo que si queda: contacto, EPS/ARL y los datos de la incapacidad.
+    expect(e).toContain('Celular');
+    expect(e).toContain('Tipo de incapacidad');
+  });
+
+  it('lo escrito en el campo unico se reparte en los cuatro campos, apellidos primero', () => {
+    comp.alCambiarNombreUnificado('quintero ramirez luisa fernanda');
+    const p = comp.form.controls.personal.getRawValue();
+    expect([p.primerApellido, p.segundoApellido, p.primerNombre, p.segundoNombre]).toEqual([
+      'QUINTERO',
+      'RAMIREZ',
+      'LUISA',
+      'FERNANDA',
+    ]);
+    expect(comp.nombreUnificado()).toBe('QUINTERO RAMIREZ LUISA FERNANDA');
+  });
+
+  it('la simulación de la guía limpia, bloquea Guardar y al terminar muestra el radicado de ejemplo', async () => {
+    const ventana = spyOn(Swal, 'fire').and.returnValue(Promise.resolve({ isConfirmed: true } as never));
+    const limpiar = spyOn(comp, 'limpiar').and.callThrough();
+    const orden = (detail: object): boolean => document.dispatchEvent(new CustomEvent('tuapo-guia', { detail }));
+
+    // Una orden para otra pantalla no le toca.
+    orden({ accion: 'inicio-simulacion', pantalla: 'consulta' });
+    expect(comp.simulando()).toBeFalse();
+
+    orden({ accion: 'inicio-simulacion', pantalla: 'registro' });
+    expect(comp.simulando()).toBeTrue();
+    expect(limpiar).toHaveBeenCalledTimes(1);
+    comp.guardar(false);
+    expect(comp.errorGuardado()).toContain('simulación');
+    http.expectNone((r) => r.url.endsWith('/Incapacidades/v2/validar'));
+    http.expectNone((r) => r.url.endsWith('/Incapacidades/v2'));
+
+    orden({ accion: 'fin-simulacion', pantalla: 'registro', completado: true });
+    expect(comp.simulando()).toBeFalse();
+    expect(ventana).toHaveBeenCalledTimes(1);
+    const config = ventana.calls.mostRecent().args[0] as { title?: string; html?: string };
+    expect(config.title).toContain('Ejemplo');
+    expect(config.html).toContain('APFPR001');
+    expect(config.html).toContain('no se guardó nada');
+    await fixture.whenStable();
+    expect(limpiar).toHaveBeenCalledTimes(2);
+
+    // Si la persona sale a mitad de camino, solo se limpia (sin ventana).
+    orden({ accion: 'inicio-simulacion', pantalla: 'registro' });
+    orden({ accion: 'fin-simulacion', pantalla: 'registro', completado: false });
+    await fixture.whenStable();
+    expect(ventana).toHaveBeenCalledTimes(1);
+    expect(comp.simulando()).toBeFalse();
+  });
+
+  it('avisa que el usuario solo trabaja con su finca', () => {
+    expect(comp.alcanceFinca).toBe('Andes y Monteverde');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Tu usuario trabaja solo con Andes y Monteverde');
+  });
+});

@@ -1,0 +1,108 @@
+<section class="caso">
+  <header class="cab">
+    <div>
+      <small>Caso del pedido</small>
+      <h3>{{ datos()?.numero || '…' }} @if (datos(); as d) { <span class="insignia">{{ d.estado.toLowerCase().replace('_', ' ') }}</span> }</h3>
+    </div>
+    <button type="button" class="x" (click)="cerrar.emit()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+  </header>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  @if (datos(); as d) {
+    <div class="resumen">
+      <span><mat-icon>person</mat-icon> {{ d.cliente_nombre }} · C.C. {{ d.cliente_cedula }}</span>
+      @if (d.direccion_texto) { <span><mat-icon>place</mat-icon> {{ d.direccion_texto }}</span> }
+      @if (compromiso(); as c) { <span class="chip" [attr.data-t]="c.tono"><mat-icon>event</mat-icon> {{ c.texto }}</span> }
+      @if (franja(); as f) { <span class="chip ok"><mat-icon>event_available</mat-icon> Hora acordada: {{ f }}</span> }
+      @else if (d.tipo_entrega === 'DOMICILIO') { <span class="chip" data-t="hoy"><mat-icon>schedule</mat-icon> Hora de entrega sin confirmar</span> }
+    </div>
+
+    <!-- Casos -->
+    <div class="bloque">
+      <div class="fila">
+        <b>Casos @if (abiertos()) { <span class="cuenta">{{ abiertos() }} abiertos</span> }</b>
+        @if (!abriendo()) { <button type="button" class="boton secundario" (click)="abriendo.set(true)"><mat-icon>add</mat-icon> Abrir caso</button> }
+      </div>
+      @if (abriendo()) {
+        <div class="nuevo">
+          <select [ngModel]="categoria()" (ngModelChange)="categoria.set($event)" aria-label="Qué pasa">
+            @for (c of categorias(); track c) { <option [value]="c">{{ nombreCategoria(c) }}</option> }
+          </select>
+          <div class="segmentos">
+            @for (p of ['BAJA', 'MEDIA', 'ALTA', 'URGENTE']; track p) {
+              <button type="button" [class.activo]="prioridad() === p" (click)="prioridad.set(p)">{{ p.toLowerCase() }}</button>
+            }
+          </div>
+          <textarea rows="3" placeholder="Qué está pasando, qué se intentó, qué falta averiguar" [ngModel]="descripcion()" (ngModelChange)="descripcion.set($event)"></textarea>
+          <label class="foto" [class.lista]="foto()"><mat-icon>{{ foto() ? 'check_circle' : 'add_a_photo' }}</mat-icon> {{ foto() ? 'Foto adjunta' : 'Adjuntar foto (opcional)' }}
+            <input type="file" accept="image/*" capture="environment" hidden (change)="subirFoto($event)" /></label>
+          <div class="acciones">
+            <button type="button" class="boton secundario" (click)="abriendo.set(false)">Cancelar</button>
+            <button type="button" class="boton" [disabled]="!descripcion().trim() || ocupado()" (click)="abrir()">Abrir caso</button>
+          </div>
+        </div>
+      }
+      @for (c of d.casos; track c.id) {
+        <article class="caso-item" [attr.data-e]="c.estado">
+          <div class="fila">
+            <b>{{ c.numero }} · {{ nombreCategoria(c.categoria) }}</b>
+            <span class="insignia">{{ c.estado.toLowerCase().replace('_', ' ') }} · {{ c.prioridad.toLowerCase() }}</span>
+          </div>
+          @if (!+c.interno) { <small class="muted">Abierto por la persona desde EconomiAPP</small> }
+          <ul class="mensajes">
+            @for (m of c.mensajes; track $index) {
+              <li><small>{{ utc(m.creado_en) | date:'short' }} · {{ m.autor_nombre || m.autor_tipo.toLowerCase() }}</small><span>{{ m.texto }}</span>
+                @if (m.adjunto_doc_id) { <button type="button" class="enlace" (click)="ver(m.adjunto_doc_id)"><mat-icon>image</mat-icon> Ver adjunto</button> }</li>
+            }
+          </ul>
+          @if (c.estado !== 'RESUELTO' && c.estado !== 'CERRADO') {
+            <div class="responder">
+              <input placeholder="Nota: qué se averiguó o qué se hizo" [ngModel]="notas()[c.id] || ''" (ngModelChange)="ponerNota(c.id, $event)" />
+              <button type="button" class="boton secundario" [disabled]="ocupado() || !(notas()[c.id] || '').trim()" (click)="nota(c.id)">Anotar</button>
+              <button type="button" class="boton" [disabled]="ocupado() || !(notas()[c.id] || '').trim()" (click)="nota(c.id, true)" title="La nota queda como resolución">Resolver</button>
+            </div>
+          }
+        </article>
+      } @empty {
+        @if (!abriendo()) { <p class="muted">Sin casos. Si algo no cuadra, abra uno: queda con su seguimiento en Soporte.</p> }
+      }
+    </div>
+
+    <!-- Evidencias -->
+    @if (d.evidencias.length) {
+      <div class="bloque">
+        <b>Fotos y videos ({{ d.evidencias.length }})</b>
+        <div class="evid">
+          @for (e of d.evidencias; track e.doc_id) {
+            <button type="button" class="ev" (click)="ver(e.doc_id)">
+              <mat-icon>{{ esVideo(e) ? 'videocam' : 'image' }}</mat-icon>
+              <span>{{ e.tipo.toLowerCase().replace('_', ' ').replace('_', ' ') }}</span>
+              <small>{{ utc(e.creado_en) | date:'short' }}{{ e.tomado_por_nombre ? ' · ' + e.tomado_por_nombre : '' }}</small>
+              <small class="mono">#{{ e.sha256.slice(0, 12) }}</small>
+            </button>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- Línea de tiempo -->
+    <div class="bloque">
+      <b>Todo lo que pasó</b>
+      <ol class="linea">
+        @for (p of d.linea; track $index) {
+          <li [attr.data-t]="p.tipo">
+            <mat-icon>{{ ICONOS[p.tipo] || 'circle' }}</mat-icon>
+            <div>
+              <span class="t">{{ p.titulo }}</span>
+              @if (p.detalle) { <span class="d">{{ p.detalle }}</span> }
+              <small>{{ utc(p.cuando) | date:'short' }}{{ p.quien ? ' · ' + p.quien : '' }}</small>
+              @if (p.doc_id) { <button type="button" class="enlace" (click)="ver(p.doc_id)"><mat-icon>open_in_new</mat-icon> Ver</button> }
+            </div>
+          </li>
+        }
+      </ol>
+    </div>
+  } @else if (!error()) {
+    <p class="muted">Cargando…</p>
+  }
+</section>

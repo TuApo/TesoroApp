@@ -26,6 +26,7 @@ import {
 
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
+import { sedeOfrecidaEnSeleccion } from '@/app/shared/utils/sedes-seleccion';
 import { isOfflineQueued } from '@/app/core/utils/offline-response';
 import { environment } from '@/environments/environment';
 import { HiringService } from '../../service/hiring.service';
@@ -427,8 +428,10 @@ export class HiringReportComponent implements OnInit, OnDestroy {
     try {
       const data: any = await firstValueFrom(this.utilityService.traerSucursales());
       if (Array.isArray(data)) {
+        // Solo sedes que Selección ofrece (V129 `opera_seleccion`): ANDES y MONTE_VERDE
+        // siguen activas para otros módulos, pero ya no se cierra reporte con ellas.
         const activas = data
-          .filter(s => s.activa)
+          .filter(s => sedeOfrecidaEnSeleccion(s))
           .sort((a, b) => a.nombre.localeCompare(b.nombre));
         // Multi-sede (V62): el reporte solo puede cerrarse sobre una oficina del
         // alcance del usuario. ADMIN/GERENCIA no se recortan; el resto ve las suyas.

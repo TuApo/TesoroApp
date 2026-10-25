@@ -189,6 +189,16 @@ export class AgentesDesarrolloComponent implements OnInit, OnDestroy {
   );
 
   hayPool = computed(() => (this.estado()?.pool.cuentas ?? 0) > 0);
+  /** Alertas que calcula el puente, de la mas grave a la mas leve. */
+  alertasPool = computed(() => this.estado()?.salud?.alertas ?? []);
+  /** Las leves (copias atrasadas, ranura en pausa) se pliegan para no tapar el panel. */
+  verAlertasLeves = signal(false);
+  alertasVisibles = computed(() => {
+    const todas = this.alertasPool();
+    return this.verAlertasLeves() ? todas : todas.filter((a) => a.nivel !== 'baja');
+  });
+  alertasLevesOcultas = computed(() =>
+    this.verAlertasLeves() ? 0 : this.alertasPool().filter((a) => a.nivel === 'baja').length);
   poolSinSesion = computed(() => {
     const p = this.estado()?.pool;
     return !!p && p.cuentas > 0 && p.cuentas === p.sinSesion;

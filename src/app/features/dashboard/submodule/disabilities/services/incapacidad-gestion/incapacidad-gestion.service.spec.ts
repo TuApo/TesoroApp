@@ -70,6 +70,32 @@ describe('IncapacidadGestionService', () => {
     cuerpo.flush('<p>hola</p>');
   });
 
+  it('resumen del dia (INMEDIATO): previsualiza con fecha opcional y envia con el actor', () => {
+    servicio.previsualizarResumen().subscribe();
+    const sinFecha = http.expectOne((r) => r.url === `${base}/correos/resumen/previsualizar`);
+    expect(sinFecha.request.method).toBe('GET');
+    expect(sinFecha.request.params.keys()).toEqual([]);
+    sinFecha.flush({});
+
+    servicio.previsualizarResumen('2026-10-07').subscribe();
+    const conFecha = http.expectOne((r) => r.url === `${base}/correos/resumen/previsualizar`);
+    expect(conFecha.request.params.get('fecha')).toBe('2026-10-07');
+    conFecha.flush({});
+
+    servicio.enviarResumenAhora().subscribe();
+    const post = http.expectOne(`${base}/correos/resumen/enviar`);
+    expect(post.request.method).toBe('POST');
+    expect(post.request.body).toEqual({ actor: 'daniel@tuapo.co' });
+    post.flush({});
+  });
+
+  it('la configuracion viaja con resumenDiario (camelCase)', () => {
+    servicio.actualizarCorreoConfig({ envioModo: 'INMEDIATO', resumenDiario: false }).subscribe();
+    const put = http.expectOne(`${base}/correos/config`);
+    expect(put.request.body).toEqual({ envioModo: 'INMEDIATO', resumenDiario: false, actor: 'daniel@tuapo.co' });
+    put.flush({});
+  });
+
   it('informes, alertas y SST usan las rutas nuevas', () => {
     servicio.informeGlobal({ desde: '2026-01-01', hasta: '', grupo: 'APOYO' }).subscribe();
     const g = http.expectOne((r) => r.url === `${base}/informes/global`);

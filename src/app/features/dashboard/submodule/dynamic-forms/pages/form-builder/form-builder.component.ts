@@ -47,6 +47,7 @@ import { FormImportService } from '../../services/form-import.service';
 import { ImportedForm } from '../../models/form-import.models';
 import { leerUsuarioCrudo } from '@/app/core/utils/usuario-actual';
 import { getLocalStorageItem, setLocalStorageItem } from '@/app/core/utils/safe-storage';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 
 /**
  * Deriva el slug en cliente (solo para la vista previa; la ruta canónica la
@@ -127,6 +128,7 @@ export class FormBuilderComponent {
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private destroyRef = inject(DestroyRef);
+  private sedeScope = inject(SedeScopeService);
 
   private static readonly RUTA_LISTADO = '/dashboard/gestion-del-programa/formularios-dinamicos';
 
@@ -1265,7 +1267,8 @@ export class FormBuilderComponent {
     this.http.get<unknown>(`${apiUrl}/gestion_admin/usuarios/${userId}/`)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: resp => { setLocalStorageItem('user', JSON.stringify(resp)); ir(); },
+        // El detalle del usuario no trae el alcance de sedes: se repone después.
+        next: resp => { setLocalStorageItem('user', JSON.stringify(resp)); void this.sedeScope.sincronizar(); ir(); },
         error: () => ir(),
       });
   }

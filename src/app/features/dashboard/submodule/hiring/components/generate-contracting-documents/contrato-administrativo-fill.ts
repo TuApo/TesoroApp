@@ -15,7 +15,7 @@
 
 import jsPDF from 'jspdf';
 import { sanitizedString, sanitizeWinAnsi } from './winansi.util';
-import { salarioContratoCO, SMMLV_VIGENTE } from './salario.util';
+import { salarioAcordado, salarioContratoCO, salarioDelContrato, SMMLV_VIGENTE } from './salario.util';
 
 export type Empresa = 'APOYO LABORAL SAS' | 'TU ALIANZA SAS';
 
@@ -36,7 +36,8 @@ export interface BuildContratoAdministrativoOpts {
   nombreCompletoLogin: string;
   /**
    * Salario minimo del año de creacion del contrato (Parametrizacion de vacantes ›
-   * Salario minimo). Si llega, es el salario impreso; `null` = sin configuracion.
+   * Salario minimo): respaldo cuando no hay salario acordado y referencia del rotulo
+   * "S.M.M.L.V"; `null` = sin configuracion.
    */
   salarioMinimo?: number | null;
 }
@@ -535,15 +536,16 @@ function renderDatosBasicos(
   const cargo = cargoDeVacante(o.vacante) || s(o.vacante?.cargo);
   // El salario se imprime en cifra + letras ("$ 2.500.000 DOS MILLONES ... PESOS
   // M/C"): antes salia el valor crudo del serializer ("1750905.00"). Manda el
-  // minimo del año del contrato (2026-09-16); sin configuracion, el de la vacante
-  // y, si esta no trae salario, el minimo legal, que es el piso de ley.
-  const salario = o.salarioMinimo != null
-    ? salarioContratoCO(o.salarioMinimo, 'M/C', o.salarioMinimo)
-    : salarioContratoCO(
-      o.vacante?.salario ??
-        o.candidato?.entrevistas?.[0]?.proceso?.vacante_salario ??
-        o.candidato?.entrevistas?.[0]?.proceso?.contrato?.salario
-    ) || salarioContratoCO(SMMLV_VIGENTE);
+  // ACORDADO (2026-10-14: el del proceso puesto al remitir, el de la vacante o el
+  // del contrato) y, sin el, el minimo del año del contrato; "S.M.M.L.V" solo si
+  // el valor es ese minimo.
+  const proceso = o.candidato?.entrevistas?.[0]?.proceso;
+  const minimoAnio = o.salarioMinimo ?? null;
+  const salario = salarioContratoCO(
+    salarioDelContrato(salarioAcordado(proceso?.vacante_salario, o.vacante?.salario, proceso?.contrato?.salario), minimoAnio),
+    'M/C',
+    minimoAnio ?? SMMLV_VIGENTE,
+  );
 
   // fecha de iniciación: viene del proceso/contrato o de la vacante
   const fechaIngresoISO =

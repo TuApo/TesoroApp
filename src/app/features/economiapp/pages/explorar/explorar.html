@@ -1,0 +1,160 @@
+<div class="pagina explorar">
+  <header class="cabeza">
+    <div class="cabeza-texto">
+      @if (ruta().length > 1) {
+        <nav class="migas" aria-label="Ruta">
+          @for (r of ruta(); track r.id; let ultimo = $last) {
+            @if (!ultimo) { <button type="button" class="enlace" (click)="filtrar({ categoria: r.id })">{{ r.nombre }}</button><mat-icon>chevron_right</mat-icon> }
+          }
+        </nav>
+      } @else if (categoria()) {
+        <button type="button" class="enlace volver-todas" (click)="filtrar({ categoria: null })"><mat-icon>arrow_back</mat-icon> Todas las categorías</button>
+      }
+      <h1>{{ titulo() }}</h1>
+      <p class="muted">{{ store.etiquetaAmbito() }}@if (!cargando()) { · {{ visibles().length }} producto{{ visibles().length === 1 ? '' : 's' }} }</p>
+    </div>
+    <label class="orden">
+      <mat-icon>sort</mat-icon>
+      <select [value]="orden()" (change)="orden.set($any($event.target).value)" aria-label="Ordenar">
+        <option value="relevancia">Relevancia</option>
+        <option value="menor">Menor precio</option>
+        <option value="mayor">Mayor precio</option>
+        <option value="rapido">Llega más rápido</option>
+      </select>
+    </label>
+  </header>
+
+  @if (vitrinaActual(); as v) {
+    <a class="a-vitrina" [routerLink]="['/economiapp/vitrina', v.slug]" [style.--vf]="v.tema.fondo" [style.--va]="v.tema.acento" [style.--vt]="v.tema.acentoTinta">
+      <img [src]="v.carrusel.chico" alt="" loading="lazy" decoding="async" />
+      <span><b>{{ v.promo.titulo }}</b><small>{{ v.promo.texto }}</small></span>
+      <i>Ver vitrina <mat-icon>arrow_forward</mat-icon></i>
+    </a>
+    @if (v.aviso) { <p class="a-aviso" role="note"><mat-icon>info</mat-icon> {{ v.aviso }}</p> }
+  }
+
+  <!-- Celular: una sola fila compacta; los filtros completos van en una hoja -->
+  <div class="barra-filtros solo-movil">
+    <button type="button" class="eco-filtro filtros-btn" [class.activo]="totalElegidos() || ver() !== 'todo'" (click)="hojaFiltros.set(true)">
+      <mat-icon>tune</mat-icon> Filtros @if (totalElegidos() + (ver() !== 'todo' ? 1 : 0)) { <span class="n">{{ totalElegidos() + (ver() !== 'todo' ? 1 : 0) }}</span> }
+    </button>
+    @if (!categoria()) {
+      @for (c of store.familias(); track c.id) {
+        <button type="button" class="eco-filtro" (click)="filtrar({ categoria: c.id })"><mat-icon>{{ icono(c.nombre, c.icono) }}</mat-icon> {{ c.nombre }}</button>
+      }
+    } @else {
+      @if (padreSub(); as ps) {
+        <button type="button" class="eco-filtro" [class.activo]="categoria() === ps.id" (click)="filtrar({ categoria: ps.id })">Todo</button>
+      }
+      @for (c of subcategorias(); track c.id) {
+        <button type="button" class="eco-filtro" [class.activo]="categoria() === c.id" (click)="filtrar({ categoria: c.id })">{{ c.nombre }}</button>
+      }
+    }
+  </div>
+
+  @if (totalElegidos() || ver() !== 'todo' || texto()) {
+    <div class="activos" aria-label="Filtros activos">
+      @if (texto()) { <button type="button" class="chip-activo" (click)="filtrar({ q: null })">“{{ texto() }}” <mat-icon>close</mat-icon></button> }
+      @if (ver() !== 'todo') { <button type="button" class="chip-activo" (click)="filtrar({ ver: 'todo' })">{{ nombreVer() }} <mat-icon>close</mat-icon></button> }
+      @for (fa of facetas(); track fa.clave) {
+        @for (v of elegidos()[fa.clave] ?? []; track v) {
+          <button type="button" class="chip-activo" (click)="alternar(fa.clave, v)">{{ v }} <mat-icon>close</mat-icon></button>
+        }
+      }
+      @if (totalElegidos() > 1) { <button type="button" class="enlace" (click)="quitarFiltros()">Quitar todo</button> }
+    </div>
+  }
+
+  <div class="disposicion">
+    <!-- Panel de filtros: columna en escritorio, hoja en el celular -->
+    @if (hojaFiltros()) { <div class="velo solo-movil" (click)="hojaFiltros.set(false)"></div> }
+    <aside class="panel-filtros" [class.abierta]="hojaFiltros()" aria-label="Filtros">
+      <header class="hoja-cabeza solo-movil">
+        <b>Filtros</b>
+        <button type="button" class="icono-btn" (click)="hojaFiltros.set(false)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+      </header>
+
+      <section class="grupo">
+        <h3>Disponibilidad</h3>
+        @for (o of opcionesVer; track o.valor) {
+          <label class="opcion-filtro"><input type="radio" name="ver" [checked]="ver() === o.valor" (change)="filtrar({ ver: o.valor })" />
+            <mat-icon>{{ o.icono }}</mat-icon> {{ o.nombre }}</label>
+        }
+      </section>
+
+      <section class="grupo">
+        <h3>Categoría</h3>
+        @if (categoria()) {
+          @if (padreSub(); as ps) {
+            <button type="button" class="opcion-cat" [class.activa]="categoria() === ps.id" (click)="filtrar({ categoria: ps.id })">Todo {{ ps.nombre }}</button>
+          }
+          @for (c of subcategorias(); track c.id) {
+            <button type="button" class="opcion-cat" [class.activa]="categoria() === c.id" (click)="filtrar({ categoria: c.id })">{{ c.nombre }}</button>
+          }
+          <button type="button" class="opcion-cat otra" (click)="filtrar({ categoria: null })"><mat-icon>apps</mat-icon> Todas las categorías</button>
+        } @else {
+          @for (c of store.familias(); track c.id) {
+            <button type="button" class="opcion-cat" (click)="filtrar({ categoria: c.id })"><mat-icon>{{ icono(c.nombre, c.icono) }}</mat-icon> {{ c.nombre }}</button>
+          }
+        }
+      </section>
+
+      @for (fa of facetas(); track fa.clave) {
+        <section class="grupo">
+          <h3>{{ fa.nombre }} @if (elegidos()[fa.clave]?.length) { <button type="button" class="enlace" (click)="quitarFiltros(fa.clave)">Quitar</button> }</h3>
+          @for (v of (expandida() === fa.clave ? fa.valores : fa.valores.slice(0, 7)); track v.valor) {
+            <label class="opcion-filtro"><input type="checkbox" [checked]="marcado(fa.clave, v.valor)" (change)="alternar(fa.clave, v.valor)" />
+              <span>{{ v.valor }}</span><small>{{ v.cantidad }}</small></label>
+          }
+          @if (fa.valores.length > 7) {
+            <button type="button" class="enlace mas-valores" (click)="expandida.set(expandida() === fa.clave ? null : fa.clave)">
+              {{ expandida() === fa.clave ? 'Ver menos' : 'Ver ' + (fa.valores.length - 7) + ' más' }}</button>
+          }
+        </section>
+      }
+
+      <footer class="hoja-pie solo-movil">
+        <button type="button" class="eco-btn secundario" (click)="quitarFiltros(); filtrar({ ver: 'todo' })">Limpiar</button>
+        <button type="button" class="eco-btn" (click)="hojaFiltros.set(false)">Ver {{ visibles().length }} producto{{ visibles().length === 1 ? '' : 's' }}</button>
+      </footer>
+    </aside>
+
+    <div class="resultados">
+    @if (ver() === 'encargo') {
+      <p class="aviso warn">
+        <mat-icon>local_shipping</mat-icon>
+        <span>Estos productos no están en la tienda ahora: se los traemos. Cada uno dice en cuántos días llega; su bono mercado se aparta al
+          confirmar y se descuenta solo cuando se lo entregan.</span>
+      </p>
+    }
+
+    @if (cargando() && articulos().length === 0) {
+      <div class="rejilla">
+        @for (i of [1,2,3,4,5,6,7,8]; track i) { <div class="esqueleto"></div> }
+      </div>
+    } @else if (error()) {
+      <div class="estado-vacio">
+        <mat-icon>cloud_off</mat-icon>
+        <p>{{ error() }}</p>
+      </div>
+    } @else if (visibles().length === 0) {
+      <div class="estado-vacio">
+        <mat-icon>search_off</mat-icon>
+        <h2>No encontramos {{ texto() ? '“' + texto() + '”' : 'productos con esos filtros' }}</h2>
+        <p>Pruebe con otra palabra o quite filtros. Su búsqueda queda registrada para que la tienda sepa qué le interesa.</p>
+        <button type="button" class="eco-btn secundario" (click)="filtrar({ ver: 'todo', categoria: null, q: null })">Ver todo</button>
+      </div>
+    } @else {
+      <div class="rejilla">
+        @for (a of visibles(); track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" /> }
+      </div>
+      @if (pagina() + 1 < totalPaginas()) {
+        <button type="button" class="eco-btn secundario mas" (click)="masResultados()" [disabled]="cargando()">
+          {{ cargando() ? 'Cargando…' : 'Ver más productos' }}
+        </button>
+      }
+    }
+
+    </div>
+  </div>
+</div>

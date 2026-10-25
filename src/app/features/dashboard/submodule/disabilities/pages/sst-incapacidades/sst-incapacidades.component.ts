@@ -44,6 +44,7 @@ import {
   mensajeDeError,
 } from '../informes-incapacidades/informes-incapacidades.component';
 import { DialogoInvestigacionSstComponent } from './dialogo-investigacion-sst.component';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 export function claseEstadoInvestigacion(f: FilaSst): string {
   if (f.investigacion.estado === 'COMPLETA') return 'ges-chip-ok';
@@ -56,6 +57,7 @@ export function claseEstadoInvestigacion(f: FilaSst): string {
   selector: 'app-sst-incapacidades',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     DatePipe, DecimalPipe, FormsModule, MatButtonModule, MatCardModule, MatFormFieldModule, MatIconModule,
     MatInputModule, MatProgressSpinnerModule, MatSelectModule, MatTooltipModule, ...TABLA_ESTANDAR,
   ],

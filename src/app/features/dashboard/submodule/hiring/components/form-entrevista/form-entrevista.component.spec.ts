@@ -20,6 +20,8 @@ import { RegistroProcesoContratacion } from '../../service/registro-proceso-cont
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { SedesSeleccionService } from '@/app/shared/services/sedes-seleccion/sedes-seleccion.service';
+import { RobotsService } from '../../service/robots/robots.service';
 
 /** Opciones que devuelven los catálogos del backend. */
 const CATALOGO = [
@@ -77,6 +79,13 @@ describe('FormEntrevistaComponent', () => {
         { provide: GestionParametrizacionService, useValue: catalogos },
         // `SeleccionEstadoService` es solo signals, sin HTTP: se usa el REAL.
         { provide: UtilityServiceService, useValue: { getUser: () => Promise.resolve({}) } },
+        // Oficinas de Selección (`/gestion_admin/sedes/?seleccion=1`): sin ANDES ni MONTE_VERDE.
+        { provide: SedesSeleccionService, useValue: { nombres: () => of(['BOSA', 'SUBA']) } },
+        // Chip de salud según ADRES: sin régimen de excepción ni "sin registro".
+        {
+          provide: RobotsService,
+          useValue: { getResultadosAntecedentes: () => of({ cedula: '', encontrado: false, campos: {} }) },
+        },
         {
           // El componente lee `queryParamMap` para preasignar la oficina.
           provide: ActivatedRoute,

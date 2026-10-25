@@ -60,9 +60,19 @@
 
 /* El rojo aparece SOLO cuando el campo se tocó y quedó vacío. Que un formulario
    recién abierto muestre media docena de marcas rojas no avisa de nada. */
-:host ::ng-deep .ss-field.mat-form-field-invalid .mat-mdc-text-field-wrapper {
-  border-color: #dc2626;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, .10);
+:host ::ng-deep .ss-field.mat-form-field-invalid .mat-mdc-text-field-wrapper,
+:host ::ng-deep .ss-field.ss-invalido .mat-mdc-text-field-wrapper {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
+}
+:host ::ng-deep .ss-field.ss-invalido .mdc-floating-label,
+:host ::ng-deep .ss-field.ss-invalido .ss-icono {
+  color: var(--danger-fg) !important;
+}
+:host ::ng-deep .ss-error {
+  color: var(--danger-fg);
+  font-weight: 600;
 }
 
 /* Misma altura que el resto de campos del formulario: es lo que alinea las

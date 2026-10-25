@@ -5,6 +5,7 @@ import Swal from 'sweetalert2';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from './historial-dialog/historial-dialog.component';
 
@@ -69,6 +70,7 @@ export class AutorizacionDinamicaComponent implements OnInit {
     private route: ActivatedRoute,
     private dialog: MatDialog,
     private cdr: ChangeDetectorRef,
+    private sedeScope: SedeScopeService,
   ) { }
 
   ngOnInit(): void {
@@ -76,7 +78,9 @@ export class AutorizacionDinamicaComponent implements OnInit {
     if (this.user) {
       this.rolUsuario = this.user.rol?.nombre ?? '';
       this.correoUsuario = this.user.correo_electronico ?? '';
-      this.sede = this.user?.sede?.nombre ?? null;
+      // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) la oficina se elige por
+      // persona al cargarla: la autorización no puede quedar etiquetada con esa sede.
+      this.sede = this.sedeScope.trabajaDesdeTransversal() ? null : (this.user?.sede?.nombre ?? null);
     }
 
     this.tipoAutorizacion = this.route.snapshot.data['tipoAutorizacion'] || 'prestamo';
@@ -138,7 +142,13 @@ export class AutorizacionDinamicaComponent implements OnInit {
     this.cargarPersona(doc);
   }
 
-  private cargarPersona(doc: string): void {
+  private async cargarPersona(doc: string): Promise<void> {
+    // La oficina hace falta ya: las reglas de cupo pueden ser por sede.
+    if (this.sedeScope.trabajaDesdeTransversal()) {
+      const oficina = await this.sedeScope.oficinaParaRegistrar({ que: 'de esta autorización' });
+      if (!oficina) return;
+      this.sede = oficina;
+    }
     this.evaluando = true;
     this.cdr.markForCheck();
 

@@ -23,6 +23,8 @@
       "electron-db.js",
       "electron-security.js",
       "endpoint-agent.js",
+      "!**/node_modules/**/android/**",
+      "!**/node_modules/**/ios/**",
       {
         "from": "csharp",
         "to": "csharp",
@@ -57,7 +59,9 @@
       "allowToChangeInstallationDirectory": false,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
-      "differentialPackage": true
+      "differentialPackage": true,
+      "include": "installer/cerrar-app-en-ejecucion.nsh",
+      "artifactName": "Gestion-Tesoreria-Setup-${version}.${ext}"
     },
     "asar": true,
     "asarUnpack": [
@@ -65,10 +69,8 @@
     ],
     "publish": [
       {
-        "provider": "github",
-        "owner": "sebastian0912",
-        "repo": "ControlPrestamos",
-        "releaseType": "release"
+        "provider": "generic",
+        "url": "https://tesoro.tuapo.co/downloads/"
       }
     ]
   },

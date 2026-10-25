@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -16,7 +17,7 @@ import { TrainingOffline } from '../../service/training-offline';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-my-courses',
-  imports: [CommonModule, MatIconModule, MatProgressBarModule],
+  imports: [CommonModule, MatIconModule, MatProgressBarModule, RouterLink],
   templateUrl: './my-courses.html',
   styleUrl: './my-courses.css'
 })
@@ -29,6 +30,12 @@ export class MyCourses implements OnInit {
   readonly cargando = signal(true);
   /** Cursos que ya aprobé pero que cambiaron después. Vacío casi siempre, y así debe verse. */
   readonly actualizados = signal<CursoDesactualizado[]>([]);
+  /** Cuántos grupos dicto. 0 para casi todo el mundo, y entonces no se pinta nada. */
+  readonly gruposQueDicto = signal(0);
+
+  irAProfesor(): void {
+    this.router.navigate(['/dashboard/capacitaciones/profesor']);
+  }
   readonly error = signal<string | null>(null);
 
   /** Lo pendiente primero: es lo que la persona vino a hacer. */
@@ -55,6 +62,9 @@ export class MyCourses implements OnInit {
       this.api.cursosActualizados()
         .then(a => this.actualizados.set(a))
         .catch(() => this.actualizados.set([]));
+      this.api.misGruposComoInstructor()
+        .then(g => this.gruposQueDicto.set(g.length))
+        .catch(() => this.gruposQueDicto.set(0));
     } catch {
       // El interceptor ya sirve la última versión cacheada si la hay; si llegamos aquí es que
       // no hay ni caché, y decirlo claro vale más que una pantalla vacía.

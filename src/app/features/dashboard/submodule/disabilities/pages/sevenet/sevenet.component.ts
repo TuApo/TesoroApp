@@ -5,16 +5,21 @@
  * con un archivo plano (Excel con la ruta de cada PDF) mas los PDF de SOLO la primera hoja de
  * cada incapacidad (no la historia clinica).
  *
- * Fase 1 (esta pantalla): con fecha inicial y final se genera una CARPETA COMPRIMIDA con la
- * primera hoja de TODAS las incapacidades del rango, consolidada (Apoyo y Alianza juntas). Se
+ * Fase 1: con fecha inicial y final se genera una CARPETA COMPRIMIDA con la primera hoja de
+ * TODAS las incapacidades del rango (en la fase 2 ya separada por empleador, ver abajo). Se
  * trabaja por semanas: los atajos dan la semana de lunes a DOMINGO (la de cartera es de lunes a sabado,
  * pero aqui el domingo no puede quedar fuera de toda semana: lo registrado ese dia se perderia). El rango se mira
  * por fecha de REGISTRO (lo cargado esa semana, lo normal) o por fecha de inicio.
  *
  * El ZIP lo arma el servidor como trabajo asincrono (`ZIP_SEVENET`): el gateway corta a los
- * 30 s, asi que se crea el trabajo, se sondea cada 2,5 s y al terminar se descarga solo. El
- * boton del archivo plano queda deshabilitado hasta definir con Angela la estructura del
- * "archivo arbol".
+ * 30 s, asi que se crea el trabajo, se sondea cada 2,5 s y al terminar se descarga solo.
+ *
+ * Fase 2 (respuesta de la funcional 2026-10-07, con sus 4 Excel de cargue): el ZIP sale separado
+ * por empleador (`SEMANA {N} APOYO|ALIANZA/{CEDULA}.pdf`) con el ARCHIVO PLANO de cada uno (hoja
+ * "Plantilla_original_ok"), cuya `ruta_imagen` = carpeta base + carpeta de la semana + cedula.
+ * Por eso aqui se piden la semana SEVENET (obligatoria) y la carpeta base del computador donde se
+ * descomprime; las dos se recuerdan en localStorage (la semana con su fecha, para sugerir la
+ * siguiente). "Solo archivo plano" pide unicamente los Excel, sin bajar PDF.
  */
 import {
   ChangeDetectionStrategy,
@@ -37,6 +42,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatRadioModule } from '@angular/material/radio';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subscription, of, timer } from 'rxjs';
 import {
@@ -51,11 +57,13 @@ import {
 } from 'rxjs/operators';
 import { saveAs } from 'file-saver';
 
-import { ExportJob } from '../../models/incapacidad-v2.model';
+import { getLocalStorageItem, setLocalStorageItem } from '../../../../../../core/utils/safe-storage';
+import { ExportJob, ExportOpcionesSevenet } from '../../models/incapacidad-v2.model';
 import { IncapacidadV2Service } from '../../services/incapacidad-v2/incapacidad-v2.service';
 import { aIsoCorto } from '../../utils/fechas';
 import type { FiltrosConsultaIncapacidad } from '../consulta-incapacidades/consulta-incapacidades.model';
 import { INTERVALO_SONDEO_MS } from '../consulta-incapacidades/dialogos/dialogo-export-masivo/dialogo-export-masivo.component';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Fecha por la que se mira el rango. */
 export type EjeSevenet = 'REGISTRO' | 'INICIO';
@@ -68,8 +76,113 @@ export interface RangoSemana {
 /** Espera tras el ultimo cambio del rango antes de contar (no pedir en cada tecla). */
 export const MS_ESPERA_CONTEO = 300;
 
-/** Aviso del boton del archivo plano (fase 2, pendiente de la reunion con Angela). */
-export const AVISO_ARCHIVO_PLANO = 'Pendiente: se define con Ángela (estructura del archivo árbol)';
+/** Carpeta del computador de cartera que usan las plantillas de cargue de la funcional. */
+export const CARPETA_BASE_POR_DEFECTO = 'C:\\Users\\AUXCART1\\Desktop\\SEVENET\\';
+/** Topes del contrato de `opciones` (ms-hr los valida igual). */
+export const MAX_CARPETA_BASE = 200;
+export const MAX_SEMANA_SEVENET = 9999;
+/**
+ * Donde se recuerdan la ultima semana usada (con su fecha) y la carpeta base. Esta en
+ * `CLAVES_DE_DISPOSITIVO` de safe-storage: el logout borra el localStorage y sin eso la semana
+ * nunca se podria sugerir de una semana a la siguiente.
+ */
+export const CLAVE_MEMORIA_SEVENET = 'tuapo.incapacidades.sevenet';
+
+/** Lo que se recuerda entre visitas (por navegador). */
+export interface MemoriaSevenet {
+  /** 0 = no hay semana recordada (solo la carpeta). */
+  semana: number;
+  /** `yyyy-MM-dd` del dia en que se uso esa semana. */
+  fecha: string;
+  carpetaBase: string;
+  /** Reunion 2026-10-20: Apoyo y Alianza en una sola carpeta (por defecto si nunca se eligio). */
+  unirTemporales?: boolean;
+}
+
+/** '' si la semana sirve (entero de 1 a 9999); si no, que le pasa. */
+export function problemaSemana(semana: number | null | undefined): string {
+  if (semana === null || semana === undefined || Number.isNaN(semana)) return 'Escribe la semana SEVENET.';
+  if (!Number.isInteger(semana) || semana < 1 || semana > MAX_SEMANA_SEVENET) {
+    return `La semana SEVENET debe ser un número entero entre 1 y ${MAX_SEMANA_SEVENET}.`;
+  }
+  return '';
+}
+
+/** Carpeta sin espacios sobrantes; vacia = la de las plantillas (lo que el backend usa por defecto). */
+export function normalizarCarpetaBase(carpeta: string | null | undefined): string {
+  const limpia = (carpeta ?? '').trim();
+  return limpia || CARPETA_BASE_POR_DEFECTO;
+}
+
+/**
+ * Como quedara `ruta_imagen` en el archivo plano (espejo de `OpcionesSevenet.normalizar` de ms-hr:
+ * quita las barras finales, '\' o '/', y deja UNA '\'). Sirve para que quien carga vea donde debe
+ * descomprimir; con solo "termina en '\'" el ejemplo mostraba `D:\SEV/\SEMANA...` o `\\` dobles
+ * que el archivo plano no trae.
+ */
+export function rutaImagenEjemplo(
+  carpeta: string,
+  semana: number | null,
+  grupo: 'APOYO' | 'ALIANZA' | null,
+): string {
+  const conBarra = `${normalizarCarpetaBase(carpeta).replace(/[\\/]+$/, '')}\\`;
+  const n = problemaSemana(semana) ? 'N' : String(semana);
+  // grupo null = Apoyo y Alianza unidas (reunion 2026-10-20): SEMANA {N}\CEDULA.pdf
+  return grupo ? `${conBarra}SEMANA ${n} ${grupo}\\CEDULA.pdf` : `${conBarra}SEMANA ${n}\\CEDULA.pdf`;
+}
+
+/**
+ * Lee la memoria tolerando todo: sin almacenamiento, JSON roto o valores fuera de rango dan
+ * `null` (o se ignora el campo malo) y la pantalla arranca con los valores por defecto.
+ */
+export function leerMemoriaSevenet(): MemoriaSevenet | null {
+  try {
+    const crudo = getLocalStorageItem(CLAVE_MEMORIA_SEVENET);
+    if (!crudo) return null;
+    const dato = JSON.parse(crudo) as Partial<MemoriaSevenet> | null;
+    if (!dato || typeof dato !== 'object') return null;
+    const semana = typeof dato.semana === 'number' && !problemaSemana(dato.semana) ? dato.semana : null;
+    const fecha = typeof dato.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dato.fecha) ? dato.fecha : null;
+    const carpeta =
+      typeof dato.carpetaBase === 'string' && dato.carpetaBase.trim() && dato.carpetaBase.length <= MAX_CARPETA_BASE
+        ? dato.carpetaBase
+        : CARPETA_BASE_POR_DEFECTO;
+    // Sin semana valida y con su fecha no hay que sugerir; la carpeta igual se recuerda.
+    const unir = typeof dato.unirTemporales === 'boolean' ? dato.unirTemporales : undefined;
+    return {
+      semana: semana && fecha ? semana : 0,
+      fecha: semana && fecha ? fecha : '',
+      carpetaBase: carpeta,
+      ...(unir === undefined ? {} : { unirTemporales: unir }),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Guarda la memoria; si el navegador no deja (cuota, modo privado), no pasa nada. */
+export function guardarMemoriaSevenet(memoria: MemoriaSevenet): void {
+  try {
+    setLocalStorageItem(CLAVE_MEMORIA_SEVENET, JSON.stringify(memoria));
+  } catch {
+    /* sin memoria: la proxima vez se escribe la semana a mano */
+  }
+}
+
+/**
+ * Semana a sugerir: la ultima usada mas las semanas (lunes a domingo) transcurridas desde
+ * entonces. Misma semana = mismo numero (rehacer el cargue). `null` si no hay memoria.
+ */
+export function semanaSugerida(memoria: MemoriaSevenet | null, hoy: Date): number | null {
+  if (!memoria || !memoria.semana || !memoria.fecha) return null;
+  const [a, m, d] = memoria.fecha.split('-').map(Number);
+  const lunesUsada = semanaCartera(new Date(a, m - 1, d)).inicio.getTime();
+  const lunesHoy = semanaCartera(hoy).inicio.getTime();
+  // round: un cambio de horario (si lo hubiera) no debe restar una semana.
+  const semanas = Math.round((lunesHoy - lunesUsada) / (7 * 24 * 60 * 60 * 1000));
+  // Fecha guardada en el futuro (reloj cambiado): se sugiere la misma, nunca una menor.
+  return Math.min(MAX_SEMANA_SEVENET, memoria.semana + Math.max(0, semanas));
+}
 
 /**
  * Semana que contiene `referencia`: de LUNES a DOMINGO. El domingo pertenece a la semana que
@@ -120,12 +233,15 @@ interface RangoGenerado {
   desde: string;
   hasta: string;
   eje: EjeSevenet;
+  semana: number;
+  soloPlano: boolean;
 }
 
 @Component({
   selector: 'app-sevenet',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     DecimalPipe,
     ReactiveFormsModule,
     MatButtonModule,
@@ -137,6 +253,7 @@ interface RangoGenerado {
     MatProgressBarModule,
     MatProgressSpinnerModule,
     MatRadioModule,
+    MatSlideToggleModule,
     MatTooltipModule,
   ],
   providers: [provideNativeDateAdapter(), { provide: MAT_DATE_LOCALE, useValue: 'es-CO' }],
@@ -147,8 +264,6 @@ interface RangoGenerado {
 export class SevenetComponent {
   private readonly srv = inject(IncapacidadV2Service);
   private readonly destroyRef = inject(DestroyRef);
-
-  readonly avisoArchivoPlano = AVISO_ARCHIVO_PLANO;
 
   // ── Rango ─────────────────────────────────────────────────────────────
 
@@ -192,6 +307,62 @@ export class SevenetComponent {
     return null;
   });
 
+  // ── Datos del cargue (semana SEVENET y carpeta base) ──────────────────
+
+  /** Lo recordado de la vez anterior (se lee una vez al abrir). */
+  private readonly memoria = leerMemoriaSevenet();
+
+  readonly cargue = new FormGroup({
+    semana: new FormControl<number | null>(semanaSugerida(this.memoria, new Date())),
+    carpetaBase: new FormControl<string>(this.memoria?.carpetaBase ?? CARPETA_BASE_POR_DEFECTO, {
+      nonNullable: true,
+    }),
+  });
+
+  private readonly valoresCargue = toSignal(
+    this.cargue.valueChanges.pipe(
+      startWith(null),
+      map(() => this.cargue.getRawValue()),
+    ),
+    { requireSync: true },
+  );
+
+  readonly semana = computed(() => this.valoresCargue().semana);
+  /** Para los textos: la semana o 'N' mientras no sirva. */
+  readonly semanaTexto = computed(() => (problemaSemana(this.semana()) ? 'N' : String(this.semana())));
+  /** La carpeta que se enviara (vacia = la de las plantillas). */
+  readonly carpetaBase = computed(() => normalizarCarpetaBase(this.valoresCargue().carpetaBase));
+
+  /** '' si semana y carpeta sirven; si no, que falta (la semana es obligatoria para generar). */
+  readonly problemaCargue = computed(() => {
+    const semana = problemaSemana(this.semana());
+    if (semana) return semana;
+    if (this.valoresCargue().carpetaBase.trim().length > MAX_CARPETA_BASE) {
+      return `La carpeta base admite hasta ${MAX_CARPETA_BASE} caracteres.`;
+    }
+    return '';
+  });
+
+  /**
+   * Reunion 2026-10-20: "se puede unir ambas temporales". Por defecto UNIDAS (una sola carpeta
+   * `SEMANA {N}`); se recuerda lo ultimo que eligio quien carga.
+   */
+  readonly unirTemporales = signal(this.memoria?.unirTemporales ?? true);
+
+  readonly rutaEjemplo = computed(() =>
+    rutaImagenEjemplo(
+      this.valoresCargue().carpetaBase,
+      this.semana(),
+      this.unirTemporales() ? null : 'APOYO',
+    ),
+  );
+
+  /** De donde salio la semana sugerida (o que se recordara para la proxima). */
+  readonly ayudaSemana =
+    this.memoria?.semana && this.memoria.fecha
+      ? `Sugerida a partir de la ${this.memoria.semana}, usada el ${legible(this.memoria.fecha)}.`
+      : 'La de SEVENET; se recuerda para sugerir la siguiente.';
+
   // ── Conteo previo ─────────────────────────────────────────────────────
 
   /** Cuantas incapacidades hay en el rango (`null` = sin calcular o sin rango). */
@@ -220,9 +391,12 @@ export class SevenetComponent {
 
   readonly enCurso = computed(() => this.generando() || this.fase() === 'progreso');
 
-  /** Con 0 incapacidades no hay nada que comprimir; si el conteo fallo, se deja intentar. */
+  /**
+   * Con 0 incapacidades no hay nada que comprimir; si el conteo fallo, se deja intentar. La
+   * semana SEVENET es obligatoria: nombra las carpetas y arma las rutas del archivo plano.
+   */
   readonly puedeGenerar = computed(
-    () => !!this.filtros() && !this.enCurso() && this.conteo() !== 0,
+    () => !!this.filtros() && !this.enCurso() && this.conteo() !== 0 && !this.problemaCargue(),
   );
 
   readonly progresoDeterminado = computed(() => (this.job()?.totalRegistros ?? 0) > 0);
@@ -238,8 +412,12 @@ export class SevenetComponent {
     const r = this.rangoGenerado();
     if (!r) return '';
     const eje = r.eje === 'REGISTRO' ? 'por fecha de registro' : 'por fecha de inicio';
-    return `Del ${legible(r.desde)} al ${legible(r.hasta)}, ${eje}`;
+    const plano = r.soloPlano ? ' (solo archivo plano)' : '';
+    return `Semana ${r.semana}${plano}: del ${legible(r.desde)} al ${legible(r.hasta)}, ${eje}`;
   });
+
+  /** Lo que se esta armando o quedo listo: carpeta completa o solo el archivo plano. */
+  readonly soloPlanoGenerado = computed(() => this.rangoGenerado()?.soloPlano ?? false);
 
   constructor() {
     // Arranca con la semana en curso: es lo que se carga a SEVENET cada semana.
@@ -304,20 +482,36 @@ export class SevenetComponent {
       });
   }
 
+  /** Vuelve a la carpeta de las plantillas de la funcional. */
+  restablecerCarpeta(): void {
+    this.cargue.controls.carpetaBase.setValue(CARPETA_BASE_POR_DEFECTO);
+  }
+
   // ── Generar, sondear y descargar ──────────────────────────────────────
 
-  generar(): void {
+  /**
+   * `soloPlano = false`: carpeta por empleador con los PDF + archivo plano. `true`: solo los
+   * archivos planos (sin bajar PDF; util si las carpetas ya se cargaron).
+   */
+  generar(soloPlano = false): void {
     const filtros = this.filtros();
-    if (!filtros || !this.puedeGenerar()) return;
+    const semana = this.semana();
+    if (!filtros || !this.puedeGenerar() || semana === null) return;
+    const carpetaBase = this.carpetaBase();
+    const unirTemporales = this.unirTemporales();
+    const opciones: ExportOpcionesSevenet = { semanaSevenet: semana, carpetaBase, soloPlano, unirTemporales };
+    // Se recuerda al usarla: la proxima vez se sugiere la siguiente semana.
+    guardarMemoriaSevenet({ semana, fecha: aIsoCorto(new Date()), carpetaBase, unirTemporales });
+
     this.sondeo?.unsubscribe();
     this.descargaAutomaticaHecha = false;
     this.errorJob.set('');
     this.job.set(null);
     this.generando.set(true);
-    this.rangoGenerado.set({ desde: this.desde(), hasta: this.hasta(), eje: this.eje() });
+    this.rangoGenerado.set({ desde: this.desde(), hasta: this.hasta(), eje: this.eje(), semana, soloPlano });
 
     this.srv
-      .crearExport('ZIP_SEVENET', filtros)
+      .crearExport('ZIP_SEVENET', filtros, opciones)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (job) => {
@@ -388,7 +582,7 @@ export class SevenetComponent {
   /** Mismo patron de nombre que usa el servidor, por si no lo informa. */
   private nombreRespaldo(): string {
     const r = this.rangoGenerado();
-    return r ? `sevenet_${r.desde}_${r.hasta}.zip` : 'sevenet-incapacidades.zip';
+    return r ? `sevenet_semana${r.semana}_${r.desde}_${r.hasta}.zip` : 'sevenet-incapacidades.zip';
   }
 
   /** Tamano legible del resultado ('' si el servidor no lo informa). */

@@ -31,6 +31,8 @@ import { HiringService } from '../../service/hiring.service';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ReportesService } from '../../service/reportes/reportes.service';
 import { compararOficinas, ordenarPorOficina } from './oficinas-orden';
+import { SedesSeleccionService } from '@/app/shared/services/sedes-seleccion/sedes-seleccion.service';
+import { claveOficina } from '@/app/shared/utils/sedes-seleccion';
 import { ColumnDefinition } from '@/app/shared/models/advanced-table-interface';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
@@ -101,10 +103,10 @@ const STATUS_SIN_CONTRATACION = 'Sin contratación';
 const STATUS_NO_REPORTO = 'No reportó';
 
 // ADMINISTRATIVOS sí se muestra, pero va de última (ver oficinas-orden.ts).
+// ANDES y MONTE_VERDE ya no están aquí: las esconde el flag `opera_seleccion` del
+// catálogo de sedes (ms-auth-admin V129), ver `sedesFueraSeleccion`.
 const EXCLUDED_SEDES = new Set<string>([
-  'ANDES',
   'FORANEOS',
-  'MONTE_VERDE',
   'VIRTUAL',
 ]);
 
@@ -305,11 +307,20 @@ export class ViewReportsComponent implements OnInit {
     { name: 'mensaje', header: 'Detalle del error', type: 'text', align: 'left' },
   ];
 
+  /**
+   * Claves (`claveOficina`) de las sedes que Selección ya no opera (V129
+   * `opera_seleccion = 0`: ANDES, MONTE_VERDE). Salen del consolidado cuando no
+   * reportaron —no se les va a pedir reporte—, pero si en el rango consultado SÍ
+   * reportaron (datos históricos) la fila se sigue viendo.
+   */
+  private sedesFueraSeleccion = new Set<string>();
+
   constructor(
     private readonly hiringService: HiringService,
     private readonly reportesService: ReportesService,
     private readonly dialog: MatDialog,
     private readonly utilityService: UtilityServiceService,
+    private readonly sedesSeleccion: SedesSeleccionService,
     private readonly cdr: ChangeDetectorRef,
     private readonly destroyRef: DestroyRef,
     @Inject(PLATFORM_ID) private readonly platformId: object,
@@ -319,6 +330,9 @@ export class ViewReportsComponent implements OnInit {
 
   async ngOnInit(): Promise<void> {
     if (!this.isBrowser) return;
+
+    // Antes del primer consolidado: decide qué sedes sin reporte se esconden.
+    this.sedesFueraSeleccion = await firstValueFrom(this.sedesSeleccion.clavesFuera());
 
     const user = await this.utilityService.getUser();
     if (user) {
@@ -496,6 +510,12 @@ export class ViewReportsComponent implements OnInit {
                   !EXCLUDED_SEDES.has(
                     String(item?.sede ?? '').trim().toUpperCase(),
                   ),
+              )
+              // Sedes fuera de Selección: solo si en el rango sí reportaron (histórico).
+              .filter(
+                (item: any) =>
+                  !this.sedesFueraSeleccion.has(claveOficina(item?.sede)) ||
+                  this.normalizeStatus(item?.status) !== STATUS_NO_REPORTO,
               )
               .map((item: any) => ({
                 ...item,

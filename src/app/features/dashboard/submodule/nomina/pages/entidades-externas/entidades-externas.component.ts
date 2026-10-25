@@ -14,7 +14,7 @@ import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 
 import Swal from 'sweetalert2';
 
-import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { NominaService, EntidadExterna, TipoEntidadExterna } from '../../service/nomina/nomina.service';
 import { EntidadExternaFormDialogComponent, TIPOS_ENTIDAD } from './entidad-externa-form-dialog.component';
 
@@ -80,6 +80,41 @@ export class EntidadesExternasComponent implements OnInit {
 
   readonly idEntidad = (e: EntidadExterna) => e.id;
   readonly claseFila = (e: EntidadExterna) => (e.activo ? '' : 'te-fila--atenuada');
+
+  /**
+   * Acciones sobre lo marcado (estándar de la tabla): desactivar o reactivar
+   * varias de una vez. Cada una actúa solo sobre las que están en el estado
+   * contrario; la tabla pone el botón, la confirmación, el avance y el cierre.
+   */
+  readonly accionesMasivas: AccionMasiva<EntidadExterna>[] = [
+    {
+      id: 'desactivar', etiqueta: 'Desactivar', icono: 'block', tono: 'aviso',
+      aplicaA: (e) => !!e.activo,
+      confirmar: {
+        icono: 'warning',
+        texto: (entidades) => {
+          const conDatos = entidades.filter(
+            (e) => (e.contratos_count ?? 0) > 0 || (e.centros_costo_count ?? 0) > 0).length;
+          return 'Ninguna se elimina: quedan inactivas y no aparecerán para nuevas operaciones. '
+            + 'Las relaciones históricas se conservan.'
+            + (conDatos ? ` ${conDatos} de ellas tienen contratos o centros de costo asociados.` : '');
+        },
+      },
+      ejecutar: (e) => this.nominaService.desactivarEntidadExterna(e.id),
+      etiquetaFila: (e) => e.nombre,
+      verbo: 'desactivada(s)',
+      alTerminar: () => this.cargar(),
+    },
+    {
+      id: 'reactivar', etiqueta: 'Reactivar', icono: 'check_circle', tono: 'primario',
+      aplicaA: (e) => !e.activo,
+      confirmar: { icono: 'question', texto: 'Vuelven a estar disponibles para nuevas operaciones de nómina, según su tipo.' },
+      ejecutar: (e) => this.nominaService.reactivarEntidadExterna(e.id),
+      etiquetaFila: (e) => e.nombre,
+      verbo: 'reactivada(s)',
+      alTerminar: () => this.cargar(),
+    },
+  ];
 
   constructor(
     private nominaService: NominaService,

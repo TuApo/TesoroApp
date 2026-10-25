@@ -1,0 +1,37 @@
+<div class="pz" [class.pz--fija]="!!espacioFijo">
+  @if (!espacioFijo) {
+    <div class="pz-pizarras">
+      @for (p of pizarras(); track p.id) {
+        <button type="button" class="pz-tab" [class.activo]="actual()?.id === p.id" (click)="abrir(p)">{{ p.nombre }}</button>
+      }
+      <button type="button" class="pz-tab pz-tab--nueva" (click)="nueva()"><mat-icon>add</mat-icon> Pizarra</button>
+    </div>
+  }
+  @if (actual()) {
+    <div class="pz-herramientas" role="toolbar" aria-label="Herramientas de la pizarra">
+      @for (h of herramientas; track h.id) {
+        <button type="button" class="pz-h" [class.activo]="herramienta() === h.id" (click)="herramienta.set(h.id)" [title]="h.nombre" [attr.aria-label]="h.nombre">
+          <mat-icon>{{ h.icono }}</mat-icon>
+        </button>
+      }
+      <span class="pz-sep"></span>
+      @for (c of colores; track c) {
+        <button type="button" class="pz-color" [class.activo]="color() === c" [style.background]="c" (click)="color.set(c)" [attr.aria-label]="'Color ' + c"></button>
+      }
+      <input type="range" min="2" max="24" [value]="grosor()" (input)="grosor.set(+$any($event.target).value)" aria-label="Grosor" />
+      <span class="pz-sep"></span>
+      <button type="button" class="pz-h" (click)="deshacer()" title="Deshacer mi último trazo" aria-label="Deshacer"><mat-icon>undo</mat-icon></button>
+      <button type="button" class="pz-h" (click)="exportar()" title="Descargar como imagen" aria-label="Descargar"><mat-icon>download</mat-icon></button>
+      @if (dirijo && !espacioFijo && actual()) {
+        <button type="button" class="pz-h" (click)="alEscenario.emit(actual()!.id)" title="Al escenario: que todos la vean grande" aria-label="Al escenario"><mat-icon>present_to_all</mat-icon></button>
+      }
+      @if (dirijo || equipoId) {
+        <button type="button" class="pz-h pz-h--peligro" (click)="limpiar()" title="Borrar todo" aria-label="Borrar todo"><mat-icon>delete_sweep</mat-icon></button>
+      }
+    </div>
+  }
+  <div class="pz-marco" #marco>
+    <canvas #lienzo [class.oculto]="!actual()" (pointerdown)="abajo($event)" (pointermove)="mover($event)" (pointerup)="arriba()" (pointerleave)="arriba()"></canvas>
+    @if (!actual()) { <p class="pz-vacio">Sin pizarras. Crea una con <strong>+ Pizarra</strong>: todos dibujan a la vez.</p> }
+  </div>
+</div>

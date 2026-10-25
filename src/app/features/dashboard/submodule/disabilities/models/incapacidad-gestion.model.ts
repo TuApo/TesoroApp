@@ -19,7 +19,13 @@ export interface CorreoConfig {
   envioModo: ModoEnvioCorreo;
   envioHora: string;
   ventanaDias: number;
+  /** `yyyy-MM-dd` del ultimo envio de la hora (lote DIARIO o resumen INMEDIATO); '' si nunca. */
   ultimaCorrida: string;
+  /**
+   * Solo en INMEDIATO (respuesta de la funcional 2026-10-07): ademas del correo al registrar, a
+   * `envioHora` sale el resumen del dia por finca. El backend da `true` si la clave no existe.
+   */
+  resumenDiario: boolean;
   /** off | prueba | activo — en prueba TODO sale a `destinoPrueba`. */
   modoPlataforma: 'off' | 'prueba' | 'activo';
   destinoPrueba: string | null;
@@ -29,6 +35,7 @@ export interface CorreoConfigRequest {
   envioModo?: ModoEnvioCorreo;
   envioHora?: string;
   ventanaDias?: number;
+  resumenDiario?: boolean;
   actor?: string;
 }
 
@@ -93,6 +100,7 @@ export interface GrupoLotePreview {
   incapacidades: FilaIncapacidadCorreo[];
 }
 
+/** Previsualizacion del lote (DIARIO) y del resumen del dia (INMEDIATO): misma forma. */
 export interface LotePreview {
   fecha: string;
   modoEnvio: ModoEnvioCorreo;
@@ -141,6 +149,7 @@ export interface LoteCorreo {
   incapacidades: NotificacionCorreo[];
 }
 
+/** Resultado del envio del lote y del resumen del dia (misma forma). */
 export interface ResultadoEnvioLote {
   fecha: string;
   grupos: number;

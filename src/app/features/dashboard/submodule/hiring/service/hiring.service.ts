@@ -27,6 +27,25 @@ export class HiringService {
     );
   }
 
+  /**
+   * Consulta de formularios: mismos valores que el Excel de cruce, por cédula(s)
+   * y/o rango de fecha de inscripción (YYYY-MM-DD, `hasta` inclusive).
+   */
+  public consultaFormularios(filtro: { cedula?: string; desde?: string; hasta?: string }): Observable<any> {
+    let params = new HttpParams();
+    for (const [k, v] of Object.entries(filtro)) if (v) params = params.set(k, v);
+    return this.http.get(`${this.apiUrl}/gestion_contratacion/consulta-formularios/`, { params }).pipe(
+      catchError(this.handleError)
+    );
+  }
+
+  /** Sugerencias del buscador de la consulta de formularios: cédula que empieza o nombre. */
+  public sugerenciasFormularios(q: string): Observable<{ cedula: string; nombre: string; fecha_inscripcion: string }[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/gestion_contratacion/consulta-formularios/sugerencias/`, {
+      params: new HttpParams().set('q', q),
+    }).pipe(catchError(this.handleError));
+  }
+
   // Buscar en contratacion 2.0 por cédula (con datos completos)
   public buscarEnContratacion2(cedula: string): Observable<any> {
     return this.http.get(`${this.apiUrl}/gestion_contratacion/candidatos/by-document/${cedula}/?full=1`).pipe(

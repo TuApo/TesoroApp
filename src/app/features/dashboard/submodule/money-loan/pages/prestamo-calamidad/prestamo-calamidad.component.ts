@@ -1,10 +1,11 @@
-import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import Swal from 'sweetalert2';
 import { SharedModule } from '../../../../../../shared/shared.module';
 import { AutorizacionesService } from '../../../authorizations/services/autorizaciones/autorizaciones.service';
 import { HistorialService } from '../../../history/service/historial/historial.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 import { MatDialog } from '@angular/material/dialog';
 import { HistorialDialogComponent } from '../../../authorizations/pages/autorizacion-dinamica/historial-dialog/historial-dialog.component';
 
@@ -32,6 +33,8 @@ export class PrestamoCalamidadComponent implements OnInit {
 
   user: any;
   rolUsuario: string = '';
+
+  private sedeScope = inject(SedeScopeService);
 
   constructor(
     private fb: FormBuilder,
@@ -233,6 +236,11 @@ export class PrestamoCalamidadComponent implements OnInit {
 
     if (!confirmar.isConfirmed) return;
 
+    // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) se elige la oficina a la que
+    // pertenece el registro, para que no quede etiquetado con esa sede.
+    const oficina = await this.sedeScope.oficinaParaRegistrar({ sugerida: this.transaccionSeleccionada?.sede_autorizacion, que: 'donde se entrega el préstamo' });
+    if (!oficina && this.sedeScope.trabajaDesdeTransversal()) return;
+
     Swal.fire({
       title: 'Procesando...', icon: 'info', text: 'Ejecutando la autorización...',
       allowOutsideClick: false, allowEscapeKey: false, showConfirmButton: false,
@@ -241,7 +249,7 @@ export class PrestamoCalamidadComponent implements OnInit {
 
     try {
       const userName = `${this.user.datos_basicos.nombres} ${this.user.datos_basicos.apellidos}`;
-      const sedeEjecucion = this.user?.sede?.nombre || '';
+      const sedeEjecucion = oficina || '';
 
       const response = await this.autorizacionesService.ejecutarTransaccion(
         this.transaccionSeleccionada.codigo_autorizacion,

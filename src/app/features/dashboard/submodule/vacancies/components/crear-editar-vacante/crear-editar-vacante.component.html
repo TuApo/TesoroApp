@@ -35,7 +35,32 @@
     (que es el que TRAE empresa, dirección y temporal), luego la vacante, la
     vinculación, el reparto por municipio y por último las oficinas.
   -->
-  <form [formGroup]="vacanteForm" class="vac-form">
+  <!-- Aviso de obligatorios. Sale al pulsar Guardar con algo pendiente, se queda
+       pegado arriba mientras se baja por el formulario y se va vaciando a medida
+       que se llena. Cada ítem lleva al campo. -->
+  @if (intentoGuardar() && faltantes().length) {
+    <div class="vac-faltan" role="alert" aria-live="polite">
+      <div class="vac-faltan-head">
+        <mat-icon>error_outline</mat-icon>
+        <div>
+          <strong>
+            {{ faltantes().length === 1 ? 'Falta 1 campo obligatorio' : 'Faltan ' + faltantes().length + ' campos obligatorios' }}
+          </strong>
+          <span>Están marcados en rojo. Pulsa uno para ir a él.</span>
+        </div>
+      </div>
+      <div class="vac-faltan-lista">
+        @for (f of faltantes(); track $index) {
+          <button type="button" class="vac-faltan-item" (click)="irAFaltante(f)">
+            @if (f.seccion) { <span class="vac-faltan-sec">{{ f.seccion }}</span> }
+            {{ f.etiqueta }}
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <form [formGroup]="vacanteForm" class="vac-form" [class.vac-intento]="intentoGuardar()">
 
     <!-- ══════════ 1 · Origen: temporal, empresa y centro de costo ══════════ -->
     <!--
@@ -230,11 +255,11 @@
           }
 
           <app-smart-select
-            label="Perfil vacante" icono="local_florist" [requerido]="true" [multiple]="true"
+            label="Producto finca" icono="local_florist" [multiple]="true"
             formControlName="area"
             [opciones]="areas"
-            placeholderBuscar="Buscar perfil…"
-            ayuda="Puedes elegir varios.">
+            placeholderBuscar="Buscar producto…"
+            ayuda="Opcional. Puedes elegir varios; si no aplica, deja «No aplica».">
           </app-smart-select>
 
           <mat-form-field>
@@ -355,6 +380,23 @@
             [opciones]="OPC_TIPO_CONTRATACION"
             [ayuda]="rolSoloObraLabor ? 'Tu rol publica por Obra Labor.' : undefined">
           </app-smart-select>
+
+          <!-- SALARIO — obligatorio. Arranca en el mínimo del año (Parametrización
+               de vacantes › Salario mínimo) o en el del centro si su ficha trae uno, y
+               se puede cambiar: es el salario ACORDADO que la remisión pone en el
+               proceso y que imprimen el contrato y las fichas (número y letras). El
+               control guarda un entero limpio; el input solo lo muestra con puntos. -->
+          <mat-form-field>
+            <mat-label>Salario</mat-label>
+            <mat-icon matPrefix class="vac-icono">payments</mat-icon>
+            <input matInput type="text" inputmode="numeric" formControlName="salario" required
+                   (input)="formatSalary($event)" (blur)="onBlur($event)">
+            @if (vacanteForm.get('salario')?.hasError('required') || vacanteForm.get('salario')?.hasError('min')) {
+              <mat-error>El salario es obligatorio.</mat-error>
+            } @else {
+              <mat-hint>Mínimo {{ anioMinimo }}: {{ minimoSugeridoTexto }}. Editable si la vacante paga otro valor.</mat-hint>
+            }
+          </mat-form-field>
 
           <app-smart-select
             label="Requiere Experiencia" icono="workspace_premium" [requerido]="true"

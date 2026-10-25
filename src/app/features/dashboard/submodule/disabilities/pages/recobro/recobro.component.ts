@@ -59,11 +59,13 @@ import {
   tonoSituacion,
   ultimoRecobro,
 } from './recobro.utils';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 @Component({
   selector: 'app-recobro',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     FormsModule,
     RouterLink,
     MatButtonModule,

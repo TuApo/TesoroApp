@@ -15,6 +15,7 @@ import {
   LiquidacionIncapacidad,
   RadicadoItem,
 } from '../../../../models/incapacidad-salud.model';
+import { RadicacionIncapacidad } from '../../../../models/incapacidad-v2.model';
 import { IncapacidadResumenExtendido } from '../../consulta-incapacidades.model';
 import {
   DatosDialogoDetalle,
@@ -111,6 +112,29 @@ const LIQUIDACION: LiquidacionIncapacidad = {
   valorPagadoTotal: 350184,
   terminacion: 'RECOBRO EN CURSO',
 };
+
+/** Estado de radicacion (V44) de una incapacidad aun sin radicado ni paquete. */
+function radicacionDe(parcial: Partial<RadicacionIncapacidad> = {}): RadicacionIncapacidad {
+  return {
+    id: 7,
+    codigoUnico: '100120260901',
+    estado: 'RECIBIDA',
+    estadoEtiqueta: 'Recibida',
+    epsDestino: 'SALUD TOTAL EPS',
+    formaCargue: 'UN_SOLO_PDF',
+    formaCargueEtiqueta: 'Un solo PDF',
+    entidadGrupo: null,
+    entidadGrupoEtiqueta: null,
+    semanaRadicacion: null,
+    numeroRadicado: null,
+    fechaRadicado: null,
+    dondeRadicado: null,
+    dondeRadicadoEtiqueta: null,
+    radicadoPor: null,
+    archivos: [],
+    ...parcial,
+  };
+}
 
 describe('DialogoDetalleIncapacidadComponent', () => {
   let fixture: ComponentFixture<DialogoDetalleIncapacidadComponent>;
@@ -284,6 +308,116 @@ describe('DialogoDetalleIncapacidadComponent', () => {
       terminacion: '',
     });
     expect(texto()).toContain('La EPS todavía no ha respondido');
+  });
+
+  // Respuesta 1 de la funcional (2026-10-07): se puede radicar en estado RECIBIDA.
+  describe('radicar en RECIBIDA', () => {
+    /** Arranque de una RECIBIDA cuya radicacion SI responde (sin radicado ni paquete). */
+    function arrancarRecibida(): void {
+      crear({ ...RESUMEN, estado: 'RECIBIDA' });
+      http.expectOne(`${BASE}/7/radicacion`).flush(radicacionDe());
+      http.expectOne(`${BASE}/7`).flush({ id: 7, cedula: '1001', nombreCompleto: 'PEREZ GOMEZ JUAN CARLOS', estado: 'RECIBIDA' });
+    }
+
+    function botones(): string[] {
+      fixture.detectChanges();
+      return Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.rad-acciones button')).map((b) =>
+        (b.textContent ?? '').trim(),
+      );
+    }
+
+    it('muestra la seccion y el boton Radicar, sin "Pasar a pendiente" ni "debe validarse"', () => {
+      arrancarRecibida();
+
+      expect(comp.muestraRadicacion()).toBeTrue();
+      expect(comp.puedeRadicar()).toBeTrue();
+      expect(comp.puedePasarAPendiente()).toBeFalse();
+      expect(botones().some((b) => b.includes('Radicar'))).toBeTrue();
+      expect(botones().some((b) => b.includes('pendiente'))).toBeFalse();
+      const t = texto();
+      // Sin paquete: el aviso explica que sale al registrar el radicado (no al pasar a pendiente),
+      // y que sin todos los soportes el radicado se registra igual, sin paquete.
+      expect(t).toContain('Al registrar el radicado se generan');
+      expect(t).toContain('si falta alguno, el radicado se registra igual');
+      expect(t).not.toContain('Al pasar a "Pendiente');
+      expect(t).not.toContain('quedó radicada sin el paquete');
+      expect(t.toLowerCase()).not.toContain('debe validarse');
+    });
+
+    it('el formulario registra el radicado y relee el detalle', () => {
+      arrancarRecibida();
+
+      comp.abrirRadicar();
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.rad-form')).not.toBeNull();
+      comp.radicarNumero.set('  RAD-900 ');
+      comp.radicarFecha.set('2026-10-07');
+      comp.radicarDonde.set('CORREO');
+      comp.confirmarRadicar();
+
+      const req = http.expectOne(`${BASE}/7/radicar`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual(
+        jasmine.objectContaining({ numeroRadicado: 'RAD-900', fechaRadicado: '2026-10-07', dondeRadicado: 'CORREO' }),
+      );
+      req.flush(radicacionDe({ estado: 'RADICADA', estadoEtiqueta: 'Radicada', numeroRadicado: 'RAD-900', fechaRadicado: '2026-10-07' }));
+      http.expectOne(`${BASE}/7`).flush({ id: 7, cedula: '1001', nombreCompleto: 'PEREZ GOMEZ JUAN CARLOS', estado: 'RADICADA' });
+
+      expect(comp.radicarAbierto()).toBeFalse();
+      expect(comp.yaRadicada()).toBeTrue();
+      const t = texto();
+      expect(t).toContain('RAD-900');
+      // Faltaban soportes y ms-hr la radico sin paquete: el aviso no puede seguir diciendo que el
+      // paquete sale "al registrar el radicado" (ya se registro).
+      expect(t).toContain('quedó radicada sin el paquete de PDF');
+      expect(t).not.toContain('Al registrar el radicado se generan');
+      // Al cerrar, la pagina recarga el listado.
+      comp.cerrar();
+      expect(comp.ref.close).toHaveBeenCalledWith({ accion: 'recargar' });
+    });
+
+    it('en VALIDADA el paquete sigue saliendo al pasar a pendiente (aviso y boton de siempre)', () => {
+      crear({ ...RESUMEN, estado: 'VALIDADA' });
+      http.expectOne(`${BASE}/7/radicacion`).flush(radicacionDe({ estado: 'VALIDADA', estadoEtiqueta: 'Validada' }));
+      http.expectOne(`${BASE}/7`).flush({ id: 7, cedula: '1001', nombreCompleto: 'PEREZ GOMEZ JUAN CARLOS', estado: 'VALIDADA' });
+
+      expect(botones().some((b) => b.includes('Pasar a pendiente'))).toBeTrue();
+      const t = texto().replace(/\s+/g, ' ');
+      expect(t).toContain('Aún no se ha generado el paquete de radicación. Al pasar a "Pendiente de radicación"');
+      expect(t).not.toContain('Al registrar el radicado se generan');
+      expect(t).not.toContain('quedó radicada sin el paquete');
+    });
+
+    it('en CANCELADA sigue sin poder radicar', () => {
+      crear({ ...RESUMEN, estado: 'CANCELADA' });
+      responderArranque({ estado: 'CANCELADA' });
+      expect(comp.puedeRadicar()).toBeFalse();
+      expect(comp.muestraRadicacion()).toBeFalse();
+    });
+  });
+
+  // Respuesta 2 de la funcional (2026-10-07): la causal de lo no reconocido siempre debe verse.
+  it('cada pago muestra la causal EPS de los dias no reconocidos (y no pinta la linea si no la trae)', () => {
+    crear();
+    responderArranque();
+
+    http.expectOne(`${BASE}/7/radicados`).flush([]);
+    http.expectOne(`${BASE}/7/liquidacion`).flush({
+      ...LIQUIDACION,
+      pagos: [
+        { ...LIQUIDACION.pagos[0], causalTexto: '  NO SE RECONOCEN LOS DIAS 1 Y 2 ' },
+        { ...LIQUIDACION.pagos[0], id: 32, causalTexto: null },
+        // Un ms-hr anterior a la V64_2 no manda la clave.
+        { ...LIQUIDACION.pagos[0], id: 33 },
+      ],
+    });
+
+    fixture.detectChanges();
+    const lineas = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.det-salud-causal')).map((l) =>
+      (l.textContent ?? '').replace(/\s+/g, ' ').trim(),
+    );
+    expect(lineas).toEqual(['Causal EPS (días no reconocidos): NO SE RECONOCEN LOS DIAS 1 Y 2']);
+    expect(comp.causalPago(LIQUIDACION.pagos[0])).toBe('');
   });
 
   it('sin cargo (incapacidades anteriores) la ficha no pinta la fila de cargo', () => {

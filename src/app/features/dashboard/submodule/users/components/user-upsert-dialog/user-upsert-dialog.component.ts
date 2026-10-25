@@ -174,8 +174,8 @@ export class UserUpsertDialogComponent implements OnInit {
     });
 
     if (this.isCreate()) {
-      this.form.get('password')?.addValidators([Validators.required, Validators.minLength(12)]);
-      this.form.get('password2')?.addValidators([Validators.required, Validators.minLength(12)]);
+      this.form.get('password')?.addValidators([Validators.required]);
+      this.form.get('password2')?.addValidators([Validators.required]);
       this.form.get('password')?.updateValueAndValidity();
       this.form.get('password2')?.updateValueAndValidity();
     }
@@ -488,8 +488,8 @@ export class UserUpsertDialogComponent implements OnInit {
     const pw = this.form.get('password')!;
     const pw2 = this.form.get('password2')!;
     if (checked) {
-      pw.setValidators([Validators.required, Validators.minLength(12)]);
-      pw2.setValidators([Validators.required, Validators.minLength(12)]);
+      pw.setValidators([Validators.required]);
+      pw2.setValidators([Validators.required]);
     } else {
       pw.clearValidators(); pw.reset('');
       pw2.clearValidators(); pw2.reset('');

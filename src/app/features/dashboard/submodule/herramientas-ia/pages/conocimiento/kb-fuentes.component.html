@@ -1,0 +1,272 @@
+<div class="kbf">
+  <section class="kbf-intro">
+    <div>
+      <h3><mat-icon>travel_explore</mat-icon> Fuentes externas</h3>
+      <p>
+        Lo que la IA trae de internet y mantiene al día solo: normas laborales, tasas, festivos, clima de las sedes,
+        páginas oficiales y conectores MCP. Cada fuente deja sus bases asignadas a los módulos que elijas y solo se
+        reprocesa cuando el contenido cambia.
+      </p>
+    </div>
+    <div class="kbf-intro-acc">
+      <button mat-stroked-button (click)="verSugerencias.set(!verSugerencias())"><mat-icon>auto_awesome</mat-icon> Sugerir con IA</button>
+      <button mat-flat-button color="primary" (click)="nueva()"><mat-icon>add</mat-icon> Nueva fuente</button>
+    </div>
+  </section>
+
+  @if (error()) {
+    <div class="kbf-msg err" role="alert"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+      <button mat-icon-button (click)="error.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button></div>
+  }
+  @if (aviso()) {
+    <div class="kbf-msg ok"><mat-icon>info</mat-icon><span>{{ aviso() }}</span>
+      <button mat-icon-button (click)="aviso.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button></div>
+  }
+
+  <!-- ── Sugerencias de la IA ─────────────────────────────────────────── -->
+  @if (verSugerencias()) {
+    <section class="kbf-card kbf-sug">
+      <h4><mat-icon>auto_awesome</mat-icon> ¿Qué debería saber la IA de afuera?</h4>
+      <p class="kbf-ayuda">La IA mira qué hace cada módulo y qué hay ya en la base, propone fuentes oficiales y prueba cada URL antes de mostrarla.</p>
+      <div class="kbf-fila">
+        <select [ngModel]="moduloSug()" (ngModelChange)="moduloSug.set($event)" aria-label="Módulo">
+          <option value="">Toda la plataforma</option>
+          @for (m of modulos(); track m.clave) { @if (m.clave !== 'todos') { <option [value]="m.clave">{{ m.nombre }}</option> } }
+        </select>
+        <input class="kbf-grow" placeholder="Opcional: qué necesitas (p. ej. «tarifas de la UGPP», «noticias de EPS»)"
+               [ngModel]="necesidad()" (ngModelChange)="necesidad.set($event)" (keydown.enter)="pedirSugerencias()">
+        <button mat-flat-button color="primary" (click)="pedirSugerencias()" [disabled]="sugiriendo()">
+          @if (sugiriendo()) { <mat-progress-spinner mode="indeterminate" diameter="16"></mat-progress-spinner> } @else { <mat-icon>lightbulb</mat-icon> }
+          Sugerir
+        </button>
+      </div>
+      @if (sugiriendo()) { <p class="kbf-ayuda">Pensando y verificando cada URL… puede tardar unos segundos.</p> }
+      @if (sugerencias(); as ss) {
+        <div class="kbf-sug-grid">
+          @for (s of ss; track $index) {
+            <article class="kbf-sug-item" [class.mala]="!s.verificada">
+              <header>
+                <mat-icon>{{ tipo(s.tipo).icono }}</mat-icon>
+                <b>{{ s.nombre }}</b>
+                <span class="kbf-ver" [class.ok]="s.verificada" [matTooltip]="s.verificacion">
+                  <mat-icon>{{ s.verificada ? 'verified' : 'link_off' }}</mat-icon>{{ s.verificada ? 'Verificada' : 'No responde' }}
+                </span>
+              </header>
+              <p>{{ s.descripcion }}</p>
+              @if (s.porque) { <p class="kbf-porque"><mat-icon>tips_and_updates</mat-icon>{{ s.porque }}</p> }
+              <footer>
+                <span>{{ frecuencia(s.frecuenciaMin) }} · {{ modulosTexto(s.modulos) }}</span>
+                <button mat-stroked-button (click)="usarSugerencia(s)">Usar</button>
+              </footer>
+            </article>
+          } @empty { <p class="kbf-ayuda">La IA no propuso nada nuevo.</p> }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ── Editor ───────────────────────────────────────────────────────── -->
+  @if (borrador(); as b) {
+    <section class="kbf-card kbf-editor">
+      <header class="kbf-ed-cab">
+        <h4>{{ b.id ? 'Editar fuente' : 'Nueva fuente' }}</h4>
+        <button mat-icon-button (click)="cancelar()" aria-label="Cerrar editor"><mat-icon>close</mat-icon></button>
+      </header>
+
+      <div class="kbf-tipos" role="radiogroup" aria-label="Tipo de fuente">
+        @for (t of TIPOS; track t.clave) {
+          <button type="button" class="kbf-tipo" [class.on]="b.tipo === t.clave" (click)="cambiar('tipo', t.clave)"
+                  role="radio" [attr.aria-checked]="b.tipo === t.clave" [disabled]="!!b.id && b.tipo !== t.clave">
+            <mat-icon>{{ t.icono }}</mat-icon><b>{{ t.nombre }}</b><small>{{ t.ayuda }}</small>
+          </button>
+        }
+      </div>
+
+      <div class="kbf-campos">
+        <label class="kbf-campo kbf-ancho"><span>Nombre</span>
+          <input [ngModel]="b.nombre" (ngModelChange)="cambiar('nombre', $event)" placeholder="Ej.: Salario mínimo y auxilio de transporte"></label>
+        <label class="kbf-campo kbf-ancho"><span>Para qué sirve (la IA lo lee)</span>
+          <input [ngModel]="b.descripcion" (ngModelChange)="cambiar('descripcion', $event)" placeholder="Qué trae y cuándo usarlo"></label>
+
+        @switch (b.tipo) {
+          @case ('WEB') {
+            <label class="kbf-campo kbf-ancho"><span>URLs (una por línea; admite {{ '{' }}anio{{ '}' }})</span>
+              <textarea rows="4" [ngModel]="b.urls" (ngModelChange)="cambiar('urls', $event)" placeholder="https://www.secretariasenado.gov.co/…"></textarea></label>
+            <mat-slide-toggle [checked]="b.unaBasePorUrl" (change)="cambiar('unaBasePorUrl', $event.checked)">Una base por cada URL (para documentos largos en varias páginas)</mat-slide-toggle>
+          }
+          @case ('API') {
+            <label class="kbf-campo kbf-ancho"><span>URL</span>
+              <input [ngModel]="b.url" (ngModelChange)="cambiar('url', $event)" placeholder="https://www.datos.gov.co/resource/…json"></label>
+            <label class="kbf-campo"><span>Método</span>
+              <select [ngModel]="b.metodo" (ngModelChange)="cambiar('metodo', $event)"><option value="GET">GET</option><option value="POST">POST</option></select></label>
+            <label class="kbf-campo"><span>Ruta de los datos (opcional)</span>
+              <input [ngModel]="b.rutaDatos" (ngModelChange)="cambiar('rutaDatos', $event)" placeholder="data.items"></label>
+            <label class="kbf-campo kbf-ancho"><span>Cabeceras (JSON, opcional)</span>
+              <textarea rows="2" class="kbf-mono" [ngModel]="b.cabeceras" (ngModelChange)="cambiar('cabeceras', $event)" placeholder='{"Accept": "application/json"}'></textarea></label>
+            <label class="kbf-campo"><span>Cabecera con clave</span>
+              <input [ngModel]="b.cabeceraSecreta" (ngModelChange)="cambiar('cabeceraSecreta', $event)" placeholder="X-Api-Key"></label>
+            <label class="kbf-campo"><span>Clave {{ b.tieneSecreto ? '(guardada, cifrada)' : '' }}</span>
+              <input type="password" autocomplete="new-password" [ngModel]="b.secreto" (ngModelChange)="cambiar('secreto', $event)"
+                     [placeholder]="b.tieneSecreto ? 'Escribe solo para cambiarla' : 'Se guarda cifrada'"></label>
+            @if (b.tieneSecreto) {
+              <mat-slide-toggle [checked]="b.borrarSecreto" (change)="cambiar('borrarSecreto', $event.checked)">Quitar la clave guardada</mat-slide-toggle>
+            }
+            @if (b.metodo === 'POST') {
+              <label class="kbf-campo kbf-ancho"><span>Cuerpo (JSON)</span>
+                <textarea rows="3" class="kbf-mono" [ngModel]="b.cuerpo" (ngModelChange)="cambiar('cuerpo', $event)"></textarea></label>
+            }
+          }
+          @case ('MCP') {
+            @if (mcp().length === 0) {
+              <p class="kbf-ayuda kbf-ancho">No hay conectores MCP registrados. Regístralos en Configuración › Conectores y sincroniza sus herramientas.</p>
+            } @else {
+              <label class="kbf-campo"><span>Conector</span>
+                <select [ngModel]="b.servidorId" (ngModelChange)="cambiar('servidorId', $event); cambiar('herramienta', '')">
+                  @for (s of mcp(); track s.id) { <option [value]="s.id">{{ s.nombre }} ({{ s.estado }})</option> }
+                </select></label>
+              <label class="kbf-campo"><span>Herramienta</span>
+                <select [ngModel]="b.herramienta" (ngModelChange)="cambiar('herramienta', $event)">
+                  <option value="">Elige…</option>
+                  @for (h of herramientasMcp(); track h.nombre) { <option [value]="h.nombre">{{ h.titulo || h.nombre }}</option> }
+                </select></label>
+              <label class="kbf-campo kbf-ancho"><span>Argumentos (JSON)</span>
+                <textarea rows="3" class="kbf-mono" [ngModel]="b.argumentos" (ngModelChange)="cambiar('argumentos', $event)"></textarea></label>
+            }
+          }
+          @case ('CLIMA') {
+            <label class="kbf-campo kbf-ancho"><span>Municipios (uno por línea; «Madrid, Cundinamarca» para desempatar)</span>
+              <textarea rows="5" [ngModel]="b.ciudades" (ngModelChange)="cambiar('ciudades', $event)"></textarea></label>
+            <label class="kbf-campo"><span>Días de pronóstico</span>
+              <input type="number" min="1" max="7" [ngModel]="b.dias" (ngModelChange)="cambiar('dias', +$event)"></label>
+          }
+        }
+
+        <label class="kbf-campo"><span>Actualizar</span>
+          <select [ngModel]="b.frecuenciaMin" (ngModelChange)="cambiar('frecuenciaMin', +$event)">
+            @for (f of FRECUENCIAS; track f.min) { <option [value]="f.min">{{ f.nombre }}</option> }
+          </select></label>
+
+        <div class="kbf-campo kbf-ancho"><span>La usa la IA de</span>
+          <div class="kbf-chips">
+            @for (m of modulos(); track m.clave) {
+              <button type="button" class="kbf-chip" [class.on]="b.modulos.includes(m.clave)" (click)="toggleModulo(m.clave)">
+                <mat-icon>{{ b.modulos.includes(m.clave) ? 'check' : m.icono }}</mat-icon>{{ m.nombre }}</button>
+            }
+          </div>
+        </div>
+
+        <div class="kbf-campo kbf-ancho">
+          <mat-button-toggle-group [value]="b.transformacion" (change)="cambiar('transformacion', $event.value)" aria-label="Transformación">
+            <mat-button-toggle value="ninguna">Guardar tal cual</mat-button-toggle>
+            <mat-button-toggle value="ia">Que la IA lo resuma/organice</mat-button-toggle>
+          </mat-button-toggle-group>
+          @if (b.transformacion === 'ia') {
+            <textarea rows="2" [ngModel]="b.instruccionesIa" (ngModelChange)="cambiar('instruccionesIa', $event)"
+                      placeholder="Ej.: quédate con las noticias sobre salario, jornada y seguridad social; fecha y 2 frases por cada una"></textarea>
+          }
+        </div>
+
+        <div class="kbf-toggles kbf-ancho">
+          <mat-slide-toggle [checked]="b.conRed" (change)="cambiar('conRed', $event.checked)"
+                            matTooltip="Extrae conceptos para la red semántica cada vez que cambie (cuesta una llamada a la IA)">Red semántica</mat-slide-toggle>
+          <mat-slide-toggle [checked]="b.activo" (change)="cambiar('activo', $event.checked)">Activa</mat-slide-toggle>
+        </div>
+      </div>
+
+      <footer class="kbf-ed-pie">
+        <button mat-stroked-button (click)="probar()" [disabled]="probando()">
+          @if (probando()) { <mat-progress-spinner mode="indeterminate" diameter="16"></mat-progress-spinner> } @else { <mat-icon>visibility</mat-icon> }
+          Probar
+        </button>
+        <span class="kbf-esp"></span>
+        <button mat-button (click)="cancelar()">Cancelar</button>
+        <button mat-stroked-button (click)="guardar(false)" [disabled]="guardando()">Guardar</button>
+        <button mat-flat-button color="primary" (click)="guardar(true)" [disabled]="guardando()"><mat-icon>cloud_sync</mat-icon> Guardar y traer ahora</button>
+      </footer>
+
+      @if (prueba(); as p) {
+        <div class="kbf-prueba">
+          <p class="kbf-ayuda">Vista previa ({{ p.milisegundos / 1000 | number: '1.0-1' }} s){{ p.partes.length ? ', hasta 2 partes' : '' }} — así lo leería la IA:</p>
+          @for (a of p.avisos; track $index) { <div class="kbf-msg warn"><mat-icon>warning</mat-icon><span>{{ a }}</span></div> }
+          @for (x of htmlPrueba(); track $index) {
+            <details [open]="$first">
+              <summary><b>{{ x.titulo }}</b> · {{ x.caracteres | number }} caracteres</summary>
+              <div class="kbf-md" [innerHTML]="x.html"></div>
+            </details>
+          }
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ── Listado ──────────────────────────────────────────────────────── -->
+  @if (cargando() && fuentes().length === 0) {
+    <div class="kbf-centro"><mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner></div>
+  } @else {
+    <div class="kbf-grid">
+      @for (f of fuentes(); track f.id) {
+        <article [class]="'kbf-item est-' + (f.ultimoEstado ?? 'NUEVA') + (f.activo ? '' : ' inactiva')">
+          <header>
+            <span class="kbf-ico"><mat-icon>{{ tipo(f.tipo).icono }}</mat-icon></span>
+            <div class="kbf-tit">
+              <b>{{ f.nombre }}</b>
+              <small>{{ tipo(f.tipo).nombre }} · {{ origenFuente(f) }}</small>
+            </div>
+            <mat-slide-toggle [checked]="f.activo" (change)="alternarActiva(f, $event.checked)" [matTooltip]="f.activo ? 'Activa' : 'Pausada'" aria-label="Activa"></mat-slide-toggle>
+          </header>
+          @if (f.descripcion) { <p class="kbf-desc">{{ f.descripcion }}</p> }
+          <div class="kbf-mods">
+            @for (m of f.modulos; track m) { <span>{{ nombreModulo(m) }}</span> }
+            @if (f.transformacion === 'ia') { <span class="ia">IA</span> }
+            @if (f.conRed) { <span class="red">Red</span> }
+          </div>
+          <div class="kbf-estado">
+            @if (f.ultimoEstado === 'EJECUTANDO') { <mat-progress-spinner mode="indeterminate" diameter="14"></mat-progress-spinner> }
+            @else { <span class="kbf-dot"></span> }
+            <b>{{ etiquetaEstado(f.ultimoEstado) }}</b>
+            @if (f.ultimaEjecucion) { <span>{{ f.ultimaEjecucion | date: 'dd/MM HH:mm' }}</span> }
+            <span class="kbf-frec">{{ frecuencia(f.frecuenciaMin) }}@if (f.activo && f.proximaEjecucion) { · próxima {{ f.proximaEjecucion | date: 'dd/MM HH:mm' }} }</span>
+          </div>
+          @if (f.ultimoDetalle) { <p class="kbf-detalle" [matTooltip]="f.ultimoDetalle">{{ f.ultimoDetalle }}</p> }
+
+          @if (f.bases.length) {
+            <button type="button" class="kbf-bases-btn" (click)="alternarBases(f.id)">
+              <mat-icon>{{ abiertas().has(f.id) ? 'expand_less' : 'expand_more' }}</mat-icon>{{ f.bases.length }} {{ f.bases.length === 1 ? 'base' : 'bases' }}
+            </button>
+            @if (abiertas().has(f.id)) {
+              <ul class="kbf-bases">
+                @for (d of f.bases; track d.id) {
+                  <li><button type="button" class="kbf-link" (click)="abrirBase.emit(d.id)">{{ d.nombre }}</button>
+                    <small>{{ d.estado === 'PROCESANDO' ? 'procesando…' : (d.updatedAt | date: 'dd/MM HH:mm') }}</small></li>
+                }
+              </ul>
+            }
+          }
+
+          <footer>
+            <button mat-button (click)="ejecutar(f)" [disabled]="f.ultimoEstado === 'EJECUTANDO'"><mat-icon>sync</mat-icon> Traer ahora</button>
+            <button mat-icon-button (click)="editar(f)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+            <button mat-icon-button (click)="verHistorial(f)" matTooltip="Historial" aria-label="Historial"><mat-icon>history</mat-icon></button>
+            <button mat-icon-button (click)="eliminar(f)" matTooltip="Eliminar" aria-label="Eliminar"><mat-icon>delete</mat-icon></button>
+          </footer>
+
+          @if (historialDe() === f.id) {
+            <ul class="kbf-hist">
+              @for (h of historial(); track h.id) {
+                <li [class]="'h-' + h.estado">
+                  <b>{{ etiquetaEstado(h.estado) }}</b> {{ h.inicio | date: 'dd/MM HH:mm' }} · {{ h.disparo }} · {{ h.documentos }} bases
+                  @if (h.detalle) { <small>{{ h.detalle }}</small> }
+                </li>
+              } @empty { <li><small>Aún no se ha ejecutado.</small></li> }
+            </ul>
+          }
+        </article>
+      } @empty {
+        <div class="kbf-vacio">
+          <mat-icon>travel_explore</mat-icon>
+          <p>No hay fuentes externas. Crea una o pide sugerencias a la IA.</p>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -1,0 +1,354 @@
+<div class="tienda-pagina dom-pagina">
+  <div class="cabecera">
+    <div class="titulo">
+      <h1 class="tienda-titulo"><mat-icon>two_wheeler</mat-icon> Domicilios</h1>
+      @if (repartidor(); as r) {
+        <button type="button" class="perfil" (click)="abrirPerfil()" aria-label="Mis datos de domiciliario">
+          <mat-icon>badge</mat-icon>{{ r.vehiculo ? (r.vehiculo === 'A_PIE' ? 'A pie' : r.vehiculo.toLowerCase()) : 'Mis datos' }}{{ r.placa ? ' · ' + r.placa : '' }}
+        </button>
+      }
+    </div>
+    <div class="herramientas">
+      <app-impresora />
+      <button type="button" class="conexion" [class.on]="disponible()" [disabled]="ocupado()" (click)="alternarDisponible()" [attr.aria-pressed]="disponible()">
+        <span class="punto"></span> {{ disponible() ? 'Conectado' : 'Desconectado' }}
+      </button>
+    </div>
+  </div>
+
+  @if (perfilAbierto()) {
+    <section class="tienda-tarjeta perfil-form">
+      <h2><mat-icon>badge</mat-icon> Mis datos de domiciliario</h2>
+      <div class="vehiculos">
+        @for (v of VEHICULOS; track v[0]) {
+          <button type="button" [class.on]="perfil().vehiculo === v[0]" (click)="perfil.set({ ...perfil(), vehiculo: v[0] })">{{ v[1] }}</button>
+        }
+      </div>
+      <label class="campo-col">Placa <input class="campo-texto" [ngModel]="perfil().placa" (ngModelChange)="perfil.set({ ...perfil(), placa: $event })" maxlength="12" /></label>
+      <label class="campo-col">Celular <input class="campo-texto" inputmode="tel" [ngModel]="perfil().telefono" (ngModelChange)="perfil.set({ ...perfil(), telefono: $event })" maxlength="30" /></label>
+      <div class="acciones-grandes">
+        <button type="button" class="boton secundario" (click)="perfilAbierto.set(false)">Cancelar</button>
+        <button type="button" class="boton" [disabled]="ocupado()" (click)="guardarPerfil()">Guardar</button>
+      </div>
+    </section>
+  }
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (papeles().length) {
+    <button type="button" class="papeles-aviso" (click)="pestana.set('ruta')">
+      <mat-icon>assignment_return</mat-icon>
+      <span>Tiene <b>{{ papeles().length }}</b> formato{{ papeles().length === 1 ? '' : 's' }} de mercado firmado{{ papeles().length === 1 ? '' : 's' }} por entregar en la tienda
+        @if (papelesSinEscanear()) { · <b>{{ papelesSinEscanear() }} sin escanear</b> }</span>
+    </button>
+  }
+
+  <div class="pestanas" role="tablist">
+    <button type="button" role="tab" [class.activa]="pestana() === 'bolsa'" (click)="pestana.set('bolsa')">
+      Disponibles <span>{{ pedidosBolsa().length }}</span>
+    </button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'ruta'" (click)="pestana.set('ruta')">
+      Mi ruta <span>{{ ruta()?.paradas?.length ?? 0 }}</span>
+    </button>
+  </div>
+
+  @if (cargando()) {
+    <div class="tienda-vacio">Cargando…</div>
+  } @else if (pestana() === 'bolsa') {
+    <!-- ═════════ BOLSA ═════════ -->
+    @if (!disponible()) {
+      <div class="desconectado">
+        <mat-icon>wifi_off</mat-icon>
+        <span>Está desconectado. Conéctese para que le avisemos (sonido y vibración) cuando haya domicilios nuevos.</span>
+        <button type="button" class="boton" [disabled]="ocupado()" (click)="alternarDisponible()">Conectarme</button>
+      </div>
+    }
+    @if (bloqueadoPorRuta()) {
+      <div class="desconectado"><mat-icon>route</mat-icon><span>Está en ruta. Termine sus entregas para tomar más pedidos.</span></div>
+    }
+    @if (bolsa()?.sin_tiendas) {
+      <div class="tienda-vacio">No tiene tiendas asignadas para domiciliar. Pida a la administración que lo agregue.</div>
+    } @else if (!pedidosBolsa().length) {
+      <div class="tienda-vacio vacio-bolsa"><mat-icon>inventory_2</mat-icon> No hay domicilios por tomar en este momento.</div>
+    } @else {
+      <div class="bolsa-cuerpo">
+      <div class="mapa-bolsa">
+        <eco-mapa [puntos]="puntosBolsa()" [alto]="300" (marcaTocada)="alternarId($event)" />
+        <small class="muted">Ordenados por cercanía al centro de distribución (T). Toque un número para escogerlo.
+          <span class="ley"><i class="l-listo"></i> listo <i class="l-espera"></i> alistándose <i class="l-escogido"></i> escogido</span></small>
+      </div>
+      <ul class="bolsa">
+        @for (p of pedidosBolsa(); track p.id; let i = $index) {
+          <li class="pedido" [class.escogido]="seleccion().has(p.id)" [class.inactivo]="!escogible(p)" (click)="alternar(p)">
+            <div class="marca"><span class="n" [class.listo]="p.listo">{{ i + 1 }}</span><mat-icon>{{ seleccion().has(p.id) ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon></div>
+            <div class="cuerpo">
+              <div class="fila1">
+                <b>{{ p.tienda }}</b>
+                @if (p.km_a_tienda != null) { <small>a {{ km(p.km_a_tienda) }}</small> }
+                <span class="estado" [class.listo]="p.listo">{{ p.listo ? 'Listo para recoger' : (p.estado === 'ALISTANDO' ? 'Alistando' : 'Por alistar') }}</span>
+              </div>
+              <div class="destino"><mat-icon>place</mat-icon> <span>{{ p.direccion_texto || 'Sin dirección' }}</span></div>
+              <div class="chips">
+                <span><mat-icon>inventory_2</mat-icon> {{ p.bultos || '?' }} {{ (p.bultos || 0) === 1 ? 'bulto' : 'bultos' }} · {{ p.lineas }} art.</span>
+                @if (p.km_entrega != null) { <span><mat-icon>route</mat-icon> {{ km(p.km_entrega) }}</span> }
+                @if (+p.por_cobrar > 0) { <span class="cobrar"><mat-icon>payments</mat-icon> Cobrar {{ pesos(p.por_cobrar) }}</span> }
+                @else { <span class="pagado"><mat-icon>verified</mat-icon> Pagado</span> }
+                @if (p.prestamo_estado === 'PENDIENTE_FIRMA') { <span class="firma"><mat-icon>draw</mat-icon> Firma autorización</span> }
+                @if (+p.pagos_sin_verificar > 0) { <span class="alerta"><mat-icon>hourglass_top</mat-icon> Pago por verificar</span> }
+                @if (+p.costo_domicilio > 0) { <span>Domicilio {{ pesos(p.costo_domicilio) }}</span> }
+                @if (compromiso(p.fecha_compromiso); as c) { <span class="comp" [attr.data-t]="c.tono"><mat-icon>event</mat-icon> {{ c.texto }}</span> }
+                @if (franja(p); as f) { <span class="pagado"><mat-icon>event_available</mat-icon> {{ f }}</span> }
+                @if (+(p.casos_abiertos ?? 0)) { <span class="alerta"><mat-icon>report</mat-icon> {{ p.casos_abiertos }} caso{{ +(p.casos_abiertos ?? 0) === 1 ? '' : 's' }}</span> }
+              </div>
+              <small class="muted">{{ p.numero }} · {{ esperando(p) }}@if (!p.listo && p.alistador_nombre) { · alista {{ p.alistador_nombre }} }</small>
+            </div>
+            <button type="button" class="icono caso-btn" (click)="$event.stopPropagation(); casoDe.set(p.id)" aria-label="Ver el caso del pedido"><mat-icon>manage_search</mat-icon></button>
+          </li>
+        }
+      </ul>
+      </div>
+      @if (seleccion().size) {
+        <div class="barra-tomar">
+          <div>
+            <b>{{ seleccion().size }} {{ seleccion().size === 1 ? 'pedido' : 'pedidos' }}</b>
+            <small>{{ escogidos()[0]?.tienda }}@if (cobroEscogidos() > 0) { · cobrar {{ pesos(cobroEscogidos()) }} }</small>
+          </div>
+          <button type="button" class="boton exito" [disabled]="ocupado()" (click)="tomar()"><mat-icon>pan_tool</mat-icon> Tomar</button>
+        </div>
+      }
+    }
+  } @else {
+    <!-- ═════════ MI RUTA ═════════ -->
+    @let r = ruta();
+    @if (!r || r.estado === 'CARGANDO') {
+      <section class="tienda-tarjeta escaneo">
+        <h2><mat-icon>qr_code_scanner</mat-icon> {{ r?.paradas?.length ? 'Recoger en ' + r!.tienda.nombre : 'Recoger pedidos' }}</h2>
+        @if (r?.paradas?.length) {
+          <p class="muted">Escanee el sticker de <b>cada bulto</b>. Sale a ruta cuando todo esté recogido.</p>
+          <div class="acciones-grandes">
+            @if (irATienda(); as url) { <a class="boton secundario" [href]="url" target="_blank" rel="noopener"><mat-icon>storefront</mat-icon> Ir a la tienda</a> }
+            @if (r!.tienda.telefono) { <a class="boton secundario" [href]="tel(r!.tienda.telefono)"><mat-icon>call</mat-icon> Llamar a la tienda</a> }
+          </div>
+        } @else {
+          <p class="muted">Tome pedidos en <b>Disponibles</b>, o escanee el sticker de un pedido que le entreguen.</p>
+        }
+        <div class="escanear-stickers"><app-escaner-codigo modo="continuo" formatoMira="qr" etiqueta="Escanear stickers" titulo="Recoger bultos" [procesar]="procesarSticker" /></div>
+        <form class="manual" (submit)="$event.preventDefault(); manual()">
+          <input class="campo-texto" placeholder="o escriba el número del pedido" [ngModel]="codigoManual()" (ngModelChange)="codigoManual.set($event)" name="codigo" />
+          <button type="submit" class="boton secundario" [disabled]="ocupado()">Recoger</button>
+        </form>
+      </section>
+    }
+
+    @if (papeles().length) {
+      <section class="tienda-tarjeta papeles">
+        <h2><mat-icon>assignment_return</mat-icon> Formatos firmados por entregar</h2>
+        <p class="muted">Escanee cada formato firmado (si no lo hizo en la entrega) y entréguelo en la tienda al final del día o cuando pueda. Allá lo reciben y queda en custodia.</p>
+        <ul>
+          @for (p of papeles(); track p.id) {
+            <li>
+              <div class="pa-datos">
+                <b>{{ p.nombre }} <small>{{ p.pedido_numero }}</small></b>
+                <small>{{ p.numero }} · {{ pesos(p.monto) }} · {{ p.tienda }}</small>
+                @if (p.escaneo_doc_id) { <small class="ok-txt"><mat-icon class="mini">task_alt</mat-icon> Escaneado · falta entregarlo en la tienda</small> }
+                @else { <small class="warn">Sin escanear</small> }
+              </div>
+              <label class="mini-btn" [class.listo]="p.escaneo_doc_id">
+                <mat-icon>{{ p.escaneo_doc_id ? 'refresh' : 'document_scanner' }}</mat-icon>
+                {{ escaneandoPapel() === p.id ? 'Subiendo…' : p.escaneo_doc_id ? 'Repetir' : 'Escanear' }}
+                <input type="file" accept="image/*" capture="environment" hidden (change)="escanearPapel(p, $event)" />
+              </label>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (r) {
+      @if (r.estado === 'EN_CURSO' && siguiente(); as p) {
+        <!-- La parada que sigue -->
+        <section class="tienda-tarjeta siguiente">
+          <div class="sig-cabeza">
+            <span class="orden">{{ r.paradas.indexOf(p) + 1 }}</span>
+            <div>
+              <small>Siguiente entrega · {{ p.numero }}</small>
+              <h2>{{ p.cliente_nombre }}</h2>
+            </div>
+          </div>
+          <p class="dir"><mat-icon>place</mat-icon> {{ p.direccion_texto || 'Sin dirección' }}</p>
+          @if (p.indicaciones) { <p class="ind"><mat-icon>info</mat-icon> {{ p.indicaciones }}</p> }
+          @if (p.observacion) { <p class="ind"><mat-icon>sticky_note_2</mat-icon> {{ p.observacion }}</p> }
+          <div class="datos">
+            <span><mat-icon>inventory_2</mat-icon> {{ p.bultos || 1 }} {{ (p.bultos || 1) === 1 ? 'bulto' : 'bultos' }}</span>
+            @if (+p.por_cobrar > 0) { <span class="cobrar"><mat-icon>payments</mat-icon> Cobrar {{ pesos(p.por_cobrar) }}</span> }
+            @else { <span class="pagado"><mat-icon>verified</mat-icon> Pagado</span> }
+            @if (p.km_desde_anterior) { <span><mat-icon>straighten</mat-icon> {{ km(p.km_desde_anterior) }}</span> }
+            @if (p.prestamo_estado === 'PENDIENTE_FIRMA') { <span class="firma"><mat-icon>draw</mat-icon> Debe firmar la autorización</span> }
+            @else if (p.prestamo_numero) { <span class="pagado"><mat-icon>draw</mat-icon> Autorización firmada</span> }
+            @if (p.llegada_en) { <span><mat-icon>where_to_vote</mat-icon> Llegó {{ hora(p.llegada_en) | date:'shortTime' }}</span> }
+            @if (franja(p); as f) { <span class="pagado"><mat-icon>event_available</mat-icon> {{ f }}</span> }
+            @if (compromiso(p.fecha_compromiso); as c) { <span class="comp" [attr.data-t]="c.tono"><mat-icon>event</mat-icon> {{ c.texto }}</span> }
+            @if (+(p.casos_abiertos ?? 0)) { <span class="alerta"><mat-icon>report</mat-icon> {{ p.casos_abiertos }} caso abierto</span> }
+          </div>
+
+          <div class="contacto">
+            <a class="boton" [href]="navegar(p)" target="_blank" rel="noopener"><mat-icon>navigation</mat-icon> Maps</a>
+            <a class="boton secundario" [href]="waze(p)" target="_blank" rel="noopener"><mat-icon>directions_car</mat-icon> Waze</a>
+            @if (p.cliente_telefono) {
+              <a class="boton secundario" [href]="tel(p.cliente_telefono)" (click)="registrarContacto(p, 'LLAMADA')"><mat-icon>call</mat-icon> Llamar</a>
+              <button type="button" class="boton wa" (click)="contactoDe.set(contactoDe() === p.pedido_id ? null : p.pedido_id)"><mat-icon>chat</mat-icon> WhatsApp</button>
+            }
+          </div>
+          @if (contactoDe() === p.pedido_id) {
+            <div class="mensajes">
+              @for (m of mensajes(p); track m.etiqueta) {
+                <a [href]="wa(p.cliente_telefono, m.texto)" target="_blank" rel="noopener" (click)="registrarContacto(p, 'WHATSAPP')">
+                  <mat-icon>send</mat-icon> {{ m.etiqueta }}
+                </a>
+              }
+              <a [href]="wa(p.cliente_telefono, '')" target="_blank" rel="noopener" (click)="registrarContacto(p, 'WHATSAPP')"><mat-icon>edit</mat-icon> Escribir otro</a>
+            </div>
+          }
+          @if (!p.cliente_telefono) { <p class="warn">El pedido no trae teléfono del cliente.</p> }
+          @if (terceros(p).length) {
+            <div class="terceros">
+              <small>También pueden recibir:</small>
+              @for (t of terceros(p); track t.id) {
+                <div class="tercero">
+                  <span><b>{{ t.nombre }}</b>{{ t.parentesco ? ' · ' + t.parentesco : '' }}</span>
+                  @if (t.telefono) {
+                    <a [href]="tel(t.telefono)" (click)="registrarContacto(p, 'LLAMADA', 'TERCERO')" aria-label="Llamar"><mat-icon>call</mat-icon></a>
+                    <a [href]="wa(t.telefono, 'Hola ' + t.nombre.split(' ')[0] + ', tengo el pedido ' + p.numero + ' de ' + (p.cliente_nombre || '') + ' y usted está autorizado(a) para recibirlo. ¿Dónde lo encuentro?')"
+                       target="_blank" rel="noopener" (click)="registrarContacto(p, 'WHATSAPP', 'TERCERO')" aria-label="WhatsApp"><mat-icon>chat</mat-icon></a>
+                  }
+                </div>
+              }
+            </div>
+          }
+          @if (r.tienda.telefono) {
+            <a class="enlace" [href]="tel(r.tienda.telefono)" (click)="registrarContacto(p, 'LLAMADA', 'TIENDA')"><mat-icon>storefront</mat-icon> Llamar a la tienda ({{ r.tienda.telefono }})</a>
+          }
+
+          @if (p.prestamo_estado === 'PENDIENTE_FIRMA') {
+            <div class="papel">
+              <span><mat-icon>description</mat-icon> Autorización {{ p.prestamo_numero }}: el titular la firma en pantalla (con su rostro) o en el papel del paquete.</span>
+              <div class="acciones-grandes">
+                <button type="button" class="boton secundario" [disabled]="ocupado() || !imp.lista()" (click)="autorizacionPortatil(p)" [title]="imp.lista() ? '' : 'Conecte la impresora portátil'"><mat-icon>print</mat-icon> Portátil</button>
+                <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="autorizacionPdf(p)"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
+              </div>
+            </div>
+          }
+
+          <button type="button" class="enlace" (click)="casoDe.set(p.pedido_id)"><mat-icon>manage_search</mat-icon> Ver caso: todo lo que ha pasado con el pedido</button>
+
+          @if (fallando() === p.pedido_id) {
+            <div class="fallo">
+              <b>¿Por qué no se pudo entregar?</b>
+              <div class="motivos">
+                @for (m of MOTIVOS; track m) { <button type="button" [class.activo]="motivo() === m" (click)="motivo.set(m)">{{ m }}</button> }
+              </div>
+              <input class="campo-texto" placeholder="Otro motivo" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)" />
+              @if (!p.contactos) { <small class="warn">Aún no ha llamado ni escrito a la persona desde aquí.</small> }
+              <div class="acciones-grandes">
+                <button type="button" class="boton peligro" [disabled]="!motivo().trim() || ocupado()" (click)="fallar(p)">Confirmar</button>
+                <button type="button" class="boton secundario" (click)="fallando.set(null)">Volver</button>
+              </div>
+            </div>
+          } @else if (actaDe() === p.pedido_id) {
+            <app-acta-entrega [pedidoId]="p.pedido_id" canal="DOMICILIO" (listo)="entregar(p, $event)" (cancelar)="actaDe.set(null)" />
+          } @else {
+            <div class="acciones-grandes tres">
+              @if (!p.llegada_en) { <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="llegue(p)"><mat-icon>where_to_vote</mat-icon> Llegué</button> }
+              <button type="button" class="boton exito" [disabled]="ocupado()" (click)="actaDe.set(p.pedido_id)"><mat-icon>task_alt</mat-icon> Entregar</button>
+              <button type="button" class="boton peligro-suave" [disabled]="ocupado()" (click)="fallando.set(p.pedido_id); motivo.set('')"><mat-icon>block</mat-icon> No se pudo</button>
+            </div>
+          }
+        </section>
+      }
+
+      @if (r.paradas.length) {
+        <eco-mapa [puntos]="puntos()" [unir]="true" [alto]="280" />
+        @if (r.estado === 'EN_CURSO' && rutaCompleta(); as url) {
+          <a class="boton secundario ancho" [href]="url" target="_blank" rel="noopener"><mat-icon>map</mat-icon> Abrir toda la ruta en Google Maps</a>
+        }
+      }
+
+      <section class="tienda-tarjeta">
+        <div class="lista-cabeza">
+          <h2>Paradas · {{ r.numero }}</h2>
+          @if (porCobrar() > 0) { <span class="cobrar">Por cobrar {{ pesos(porCobrar()) }}</span> }
+        </div>
+        @if (r.distancia_km) { <p class="muted">~{{ km(r.distancia_km) }} · ~{{ r.minutos_estimados }} min · {{ r.tienda.nombre }}</p> }
+        <ol class="paradas">
+          @for (p of r.paradas; track p.pedido_id; let i = $index) {
+            <li [class]="p.estado.toLowerCase()">
+              <span class="orden">{{ i + 1 }}</span>
+              <div class="pa-datos">
+                <b>{{ p.cliente_nombre }} <small>{{ p.numero }}</small></b>
+                <span>{{ p.direccion_texto }}</span>
+                @if (r.estado === 'CARGANDO') {
+                  @if (p.recogido_en) {
+                    <small class="ok-txt"><mat-icon class="mini">inventory</mat-icon> Recogido{{ +(p.recogida_manual ?? 0) ? ' (sin escanear)' : '' }}</small>
+                  } @else if (p.estado_pedido !== 'LISTO') {
+                    <small class="warn">Aún se está alistando ({{ p.estado_pedido === 'ALISTANDO' ? 'en curso' : 'por empezar' }})</small>
+                  } @else {
+                    <small class="warn">Por recoger: {{ recogidos(p) }} de {{ p.bultos || 1 }} bultos escaneados</small>
+                  }
+                }
+                @if (p.lat == null) { <small class="warn">Sin ubicación en el mapa: va al final</small> }
+                @if (p.nota) { <small>{{ p.nota }}</small> }
+                @if (p.estado === 'CARGADO') {
+                  @if (franja(p); as f) { <small class="ok-txt"><mat-icon class="mini">event_available</mat-icon> Hora acordada: {{ f }}</small> }
+                  @else { <small class="warn">Hora de entrega sin confirmar</small> }
+                  @if (compromiso(p.fecha_compromiso); as c) { <small class="comp-txt" [attr.data-t]="c.tono">{{ c.texto }}</small> }
+                }
+                <div class="pa-acciones">
+                  @if (p.estado === 'CARGADO') {
+                    <button type="button" class="mini-btn" (click)="horaDe.set(horaDe() === p.pedido_id ? null : p.pedido_id)">
+                      <mat-icon>event_available</mat-icon> {{ p.hora_confirmada_en ? 'Cambiar hora' : 'Confirmar hora' }}</button>
+                  }
+                  <button type="button" class="mini-btn" (click)="casoDe.set(p.pedido_id)"><mat-icon>manage_search</mat-icon> Caso
+                    @if (+(p.casos_abiertos ?? 0)) { <b class="rojo">{{ p.casos_abiertos }}</b> }</button>
+                </div>
+              </div>
+              @if (p.estado === 'ENTREGADO') {
+                @if (imp.lista()) { <button type="button" class="icono" (click)="comprobante(p)" aria-label="Imprimir comprobante"><mat-icon>receipt_long</mat-icon></button> }
+                <mat-icon class="ok">task_alt</mat-icon>
+              }
+              @else if (p.estado === 'FALLIDO') { <mat-icon class="falla">cancel</mat-icon> }
+              @else if (r.estado === 'CARGANDO') { <button type="button" class="icono" (click)="liberar(p)" aria-label="Soltar el pedido"><mat-icon>remove_circle_outline</mat-icon></button> }
+              @else if (+p.por_cobrar > 0) { <small class="cobrar">{{ pesos(p.por_cobrar) }}</small> }
+              @if (horaDe() === p.pedido_id) {
+                  <app-confirmar-hora [pedido]="{ id: p.pedido_id, numero: p.numero, cliente_nombre: p.cliente_nombre, cliente_telefono: p.cliente_telefono,
+                    fecha_compromiso: p.fecha_compromiso, programado_en: p.programado_en, programado_hasta: p.programado_hasta, hora_confirmada_en: p.hora_confirmada_en }"
+                    (confirmada)="horaConfirmada()" (cancelar)="horaDe.set(null)" />
+                }
+            </li>
+          }
+        </ol>
+        @if (r.estado === 'CARGANDO') {
+          <button type="button" class="boton ancho" [disabled]="!r.paradas.length || sinRecoger().length > 0 || sinHora().length > 0 || ocupado()" (click)="salir()">
+            <mat-icon>two_wheeler</mat-icon> Salir a ruta con {{ r.paradas.length }} {{ r.paradas.length === 1 ? 'pedido' : 'pedidos' }}
+          </button>
+          @if (sinRecoger().length) { <small class="muted">Falta recoger {{ sinRecoger().length }} {{ sinRecoger().length === 1 ? 'pedido' : 'pedidos' }}.</small> }
+          @else if (sinHora().length) { <small class="muted">Confirme con la persona la hora de entrega de {{ sinHora().length === 1 ? 'un pedido' : sinHora().length + ' pedidos' }} (botón "Confirmar hora").</small> }
+          @else { <small class="muted">Al salir ordenamos las paradas desde donde está y avisamos a cada cliente.</small> }
+        }
+        @if (r.estado === 'FINALIZADA') {
+          <button type="button" class="boton ancho" (click)="nuevaRuta()"><mat-icon>add</mat-icon> Tomar más domicilios</button>
+        }
+      </section>
+    } @else {
+      <div class="tienda-vacio">No tiene ruta abierta. Tome pedidos en <b>Disponibles</b>.</div>
+    }
+  }
+</div>
+
+@if (casoDe(); as id) {
+  <div class="capa-caso" (click)="casoDe.set(null)">
+    <div class="capa-cuerpo" (click)="$event.stopPropagation()">
+      <app-caso-pedido [pedidoId]="id" (cerrar)="casoDe.set(null)" />
+    </div>
+  </div>
+}

@@ -12,6 +12,7 @@ import {
   output,
   PLATFORM_ID,
   signal,
+  untracked,
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
@@ -27,7 +28,7 @@ import {
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
-import { Observable, firstValueFrom, map, merge, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
+import { Observable, combineLatest, firstValueFrom, map, merge, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
@@ -51,10 +52,16 @@ import {
   SeccionFicha,
 } from '../ficha-campos/ficha-campos.component';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { SedesSeleccionService } from '@/app/shared/services/sedes-seleccion/sedes-seleccion.service';
+import { RobotsService } from '../../service/robots/robots.service';
+import { SaludAdres, saludAdresDe } from '../../shared/salud-adres.util';
 import { docParaEnviar } from '@/app/shared/utils/tipo-doc.util';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import { AnalisisIaService, AnalisisCandidato, PuntoAnalisis } from '../../service/analisis-ia/analisis-ia.service';
+import { graficasAnalisisMd, informeAnalisisMd } from '../../service/analisis-ia/analisis-informe';
+import { MarkdownMessageComponent } from '../../../nomina/pages/analitica-nomina-ia/markdown-message.component';
+import { inlineMarkdownToHtml } from '../../../nomina/pages/analitica-nomina-ia/markdown-lite';
 import { Router } from '@angular/router';
 import {
   GestionParametrizacionService,
@@ -65,12 +72,33 @@ import { Avance, avanceDeForm } from '../../shared/progreso.util';
 import { AutoGuardado, GuardadoIncompleto } from '../../shared/auto-guardado';
 import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
 import { AsistenteIaComponent } from '../../../herramientas-ia/pages/asistente-ia/asistente-ia.component';
+import { cedulaPrecargable, nombresDesdeAdres } from './precarga-antecedentes.util';
+
+/**
+ * Año de finalización: 4 cifras, desde 1950 hasta el año actual; quien estudia
+ * anota el año en que termina, así que a él se le permiten hasta 10 más.
+ * Vacío es válido (el campo no es obligatorio). Mismo rango que ms-hr.
+ */
+export const anioFinalizacionValidator: ValidatorFn = (c: AbstractControl): ValidationErrors | null => {
+  const v = c.value;
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  // Solo se pinta con escolaridad OTROS: un rojo en una casilla oculta bloquearía
+  // el envío sin que se vea por qué (el payload descarta igual el año inválido).
+  if (c.parent && c.parent.get('nivel')?.value !== 'OTROS') return null;
+  const anio = Number(v);
+  const estudia = c.parent?.get('estudiaActualmente')?.value === true;
+  const max = new Date().getFullYear() + (estudia ? 10 : 0);
+  return Number.isInteger(anio) && anio >= 1950 && anio <= max
+    ? null
+    : { anioFinalizacion: { min: 1950, max } };
+};
 
 @Component({
   selector: 'app-form-entrevista',
   standalone: true,
   imports: [
     MatIconModule, SharedModule, AsistenteIaComponent, FichaCamposComponent, AutoGuardadoEstadoComponent,
+    MarkdownMessageComponent,
     // `cdkTextareaAutosize` de los motivos de NO APLICA / EN ESPERA.
     TextFieldModule,
   ],
@@ -139,6 +167,8 @@ export class FormEntrevistaComponent implements OnInit {
   );
   private readonly route = inject(ActivatedRoute);
   private readonly util = inject(UtilityServiceService);
+  private readonly sedesSeleccion = inject(SedesSeleccionService);
+  private readonly robots = inject(RobotsService);
   private readonly candidateService = inject(RegistroProcesoContratacion);
   private readonly catalogos = inject(GestionParametrizacionService);
   /** SSR no tiene DOM: el salto de scroll solo corre en el navegador. */
@@ -193,6 +223,19 @@ export class FormEntrevistaComponent implements OnInit {
 
   dominioCorreoOpciones$: Observable<CatalogValue[]> = this.safeCatalog('DOMINIOS', 'Dominios de Correo');
   comoSeEnteroOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CATALOGO_MARKETING', '¿Cómo se enteró?');
+  private readonly comoSeEnteroCatalogo = toSignal(this.comoSeEnteroOpciones$, { initialValue: [] as CatalogValue[] });
+  /**
+   * Respuesta del formulario que no es ninguna opción ACTIVA del catálogo: las que el
+   * catálogo dio de baja ("RED SOCIAL (FACEBOOK, INSTAGRAM, TIKTOK)") y las que llegan
+   * del Excel/legacy sin tildes ni paréntesis. El mat-select pinta en blanco un valor
+   * que no está entre sus opciones, así que se añade como opción para que se vea.
+   */
+  private readonly comoSeEnteroHistorico = signal<string>('');
+  readonly comoSeEnteroVista = computed<CatalogValue[]>(() => {
+    const ops = this.comoSeEnteroCatalogo();
+    const h = this.comoSeEnteroHistorico();
+    return h ? [...ops, { codigo: h, descripcion: `${h} (respuesta del formulario)` }] : ops;
+  });
   parentescosOpciones$: Observable<CatalogValue[]> = this.safeCatalog('PARENTESCOS_FAMILIARES', 'Parentescos');
   /**
    * Ocupaciones. Es el mismo catálogo que usa el formulario de la vacante en
@@ -201,6 +244,10 @@ export class FormEntrevistaComponent implements OnInit {
    * lista, y los dos valores no volverían a coincidir.
    */
   ocupacionesOpciones$: Observable<CatalogValue[]> = this.safeCatalog('OCUPACIONES', 'Ocupaciones');
+  /** Catálogos del bloque de hijos: los mismos que usa el formulario de la vacante. */
+  sexoOpciones$: Observable<CatalogValue[]> = this.safeCatalog('SEXO', 'Sexo');
+  tipoDocHijoOpciones$: Observable<CatalogValue[]> = this.safeCatalog('TIPOS_DOC_DEPENDIENTE', 'Tipo de documento del hijo');
+  custodiaHijoOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CUSTODIA_HIJO', 'Custodia del hijo');
   /**
    * Los tres catálogos del bloque de experiencia laboral de la hoja de
    * entrevista. Son LOS MISMOS que usa el formulario de la vacante: si aquí se
@@ -209,6 +256,10 @@ export class FormEntrevistaComponent implements OnInit {
    */
   areasExperienciaOpciones$: Observable<CatalogValue[]> = this.safeCatalog('AREAS_EXPERIENCIA', 'Áreas de experiencia');
   tiempoExperienciaOpciones$: Observable<CatalogValue[]> = this.safeCatalog('TIEMPO_EXPERIENCIA', 'Tiempo de experiencia');
+  /** Un valor guardado con la lista vieja se sigue mostrando aunque ya no esté en el catálogo. */
+  tiempoEnCatalogo(ops: CatalogValue[], v: string): boolean {
+    return ops.some(t => (t['codigo'] || t['nombre']) === v);
+  }
   motivosRetiroOpciones$: Observable<CatalogValue[]> = this.safeCatalog('CATALOGO_MOTIVOS_RETIRO', 'Motivos de retiro');
 
   // ====== Form / estado ======
@@ -241,31 +292,6 @@ export class FormEntrevistaComponent implements OnInit {
   readonly SEED_EXP_COUNT = 0;
 
   readonly sexos = ['M', 'F'] as const;
-  // Fuente de verdad: gestion_admin.Sede == NUMERO_POR_OFICINA del backend
-  // (GET /gestion_contratacion/oficinas/). Toda oficina de esta lista TIENE
-  // rango de numeracion de contratos; si se agrega una que no lo tenga, el
-  // backend rechaza el guardado con 400.
-  readonly oficinas = [
-    'ADMINISTRATIVOS',
-    'ANDES',
-    'BOSA',
-    'CARTAGENITA',
-    'FACA_PRIMERA',
-    'FACA_PRINCIPAL',
-    'FONTIBÓN',
-    'FORANEOS',
-    'FUNZA',
-    'MADRID',
-    'MONTE_VERDE',
-    'ROSAL',
-    'SOACHA',
-    'SOTAQUIRA',
-    'SUBA',
-    'TOCANCIPÁ',
-    'USME',
-    'VIRTUAL',
-    'ZIPAQUIRÁ',
-  ] as const;
 
   // ==========================================================================
   // FICHA DEL CANDIDATO — panel lateral vivo + área de trabajo por pestañas
@@ -477,8 +503,51 @@ export class FormEntrevistaComponent implements OnInit {
    * hace también aquí: si algún día devuelve doce, la tarjeta de la entrevista
    * no se convierte en un muro que nadie lee con la persona esperando.
    */
-  get aFavorTop(): PuntoAnalisis[] { return (this.analisis()?.aFavor ?? []).slice(0, 5); }
-  get enContraTop(): PuntoAnalisis[] { return (this.analisis()?.enContra ?? []).slice(0, 5); }
+  get aFavorTop(): PuntoAnalisis[] { return (this.analisis()?.aFavor ?? []).filter(p => p?.punto).slice(0, 5); }
+  get enContraTop(): PuntoAnalisis[] { return (this.analisis()?.enContra ?? []).filter(p => p?.punto).slice(0, 5); }
+
+  /**
+   * La lectura completa como informe en Markdown. Antes el panel pintaba cada
+   * campo suelto y, cuando el modelo cortaba la respuesta, el resumen salía
+   * siendo el JSON crudo; ahora el formato lo pone `informeAnalisisMd`.
+   */
+  readonly informeMd = computed(() => {
+    const a = this.analisis();
+    return a ? informeAnalisisMd(a) : '';
+  });
+
+  /** Balance y semáforo del análisis (y las gráficas que haya mandado la IA). */
+  readonly graficasMd = computed(() => {
+    const a = this.analisis();
+    return a ? graficasAnalisisMd(a) : [];
+  });
+
+  /** Negritas y cursivas del modelo en textos sueltos (tarjeta de la entrevista, pastillas). */
+  mdEnLinea(s?: string | null): string {
+    return inlineMarkdownToHtml(s ?? '');
+  }
+
+  /** "medio" → "Medio" para las pastillas del semáforo. */
+  nivelTxt(n?: string | null): string {
+    const t = (n ?? '').trim();
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Sin datos';
+  }
+
+  /** "Copiar informe" pasa a "Copiado" un momento, para que se vea que funcionó. */
+  readonly informeCopiado = signal(false);
+
+  /** El informe tal cual, en Markdown: pega bien en una nota, un correo o el chat. */
+  async copiarInforme(): Promise<void> {
+    const md = this.informeMd();
+    if (!md) return;
+    try {
+      await navigator.clipboard.writeText(md);
+      this.informeCopiado.set(true);
+      setTimeout(() => this.informeCopiado.set(false), 2000);
+    } catch (e) {
+      console.error('[analisis-ia] no se pudo copiar', e);
+    }
+  }
 
   /**
    * Pasa del resumen al chat, llevándose lo que ya se leyó del expediente.
@@ -915,6 +984,24 @@ export class FormEntrevistaComponent implements OnInit {
       // el guardado sin enseñar dónde está el hueco. El valor sigue cargándose
       // y guardándose igual.
       oficina: [''],
+      // Vivienda, residencia anterior, mano dominante y personas a cargo: los
+      // llena la persona en el formulario público. Aquí se ven y se corrigen;
+      // ninguno es obligatorio.
+      zurdoDiestro: [''],
+      tipoVivienda: [''],
+      caracteristicasVivienda: [''],
+      numHabitaciones: [null as number | null],
+      personasPorHabitacion: [null as number | null],
+      serviciosVivienda: [''],
+      lugarAnterior: [''],
+      razonMudanza: [''],
+      zonasDelPais: [''],
+      dondeLeGustariaVivir: [''],
+      resAnteriorDepartamento: [''],
+      resAnteriorMunicipio: [''],
+      resAnteriorDireccion: [''],
+      resAnteriorBarrio: [''],
+      personasACargo: [''],
       tipo_doc: ['', Validators.required],
       numero_documento: [
         '',
@@ -1036,7 +1123,7 @@ export class FormEntrevistaComponent implements OnInit {
       estudiosExtra: [''],
       tituloObtenido: ['', [Validators.maxLength(255)]],
       institucionEstudio: ['', [Validators.maxLength(255)]],
-      anioFinalizacion: [null],
+      anioFinalizacion: [null, anioFinalizacionValidator],
       estudiaActualmente: [null, Validators.required],
       proyeccion1Ano: ['', Validators.required],
       /**
@@ -1168,6 +1255,11 @@ export class FormEntrevistaComponent implements OnInit {
         this.refreshSteps();
       });
 
+    // "¿Estudia actualmente?" mueve el tope del año de finalización, y la
+    // escolaridad decide si la casilla se ve (y por tanto si se valida).
+    merge(this.ctrl('estudiaActualmente').valueChanges, this.ctrl('nivel').valueChanges)
+      .subscribe(() => this.ctrl('anioFinalizacion').updateValueAndValidity({ emitEvent: false }));
+
     // Referenciado -> nombreReferenciado requerido si "SI"
     this.ctrl('referenciado')
       .valueChanges.pipe(startWith(this.ctrl('referenciado').value))
@@ -1209,6 +1301,12 @@ export class FormEntrevistaComponent implements OnInit {
       // no tienen por qué seguir abiertas.
       this.seccionesExtra.set([]);
       this.rellenarForm(cand);
+      // HTTP fuera del contexto reactivo: si no, el effect queda suscrito a las
+      // señales que lean los interceptores (ver tormenta de 429).
+      untracked(() => this.cargarSaludAdres(cand));
+      // Persona nueva: si ya se consultaron sus antecedentes (Consulta de
+      // antecedentes), se proponen la cédula y los nombres que trajo ADRES.
+      if (!cand) untracked(() => this.precargarDesdeAntecedentes());
     });
 
     // Populate signature
@@ -1338,6 +1436,30 @@ export class FormEntrevistaComponent implements OnInit {
    * (el lápiz de la ficha del pipeline). Empiezan vacías en cada persona.
    */
   private readonly seccionesExtra = signal<readonly SeccionFicha[]>([]);
+
+  /**
+   * Las secciones extra que todavía no se ven, para ofrecerlas con un botón en
+   * la propia entrevista. Antes solo se abrían con el lápiz de la ficha del
+   * pipeline; esa ficha quedó reducida a la identidad y sin estos botones los
+   * datos (que sí se cargan) no había forma de verlos.
+   */
+  private static readonly ROTULO_EXTRA: Record<string, string> = {
+    pareja: 'Estado civil y pareja',
+    padres: 'Datos de sus padres',
+    emergencia: 'Contacto de emergencia',
+    dotacion: 'Tallas de dotación',
+  };
+
+  readonly seccionesExtraPendientes = computed(() =>
+    SECCIONES_FICHA_EXTRA
+      .filter((s) => !this.seccionesExtra().includes(s))
+      .map((id) => ({ id, label: FormEntrevistaComponent.ROTULO_EXTRA[id] ?? id })),
+  );
+
+  mostrarSeccionExtra(id: SeccionFicha): void {
+    this.seccionesExtra.update((s) => (s.includes(id) ? s : [...s, id]));
+    this.irASeccion(id);
+  }
 
   /** Lo que se le pasa a la ficha en línea: los datos de la hoja + lo pedido. */
   readonly seccionesDatos = computed<readonly SeccionFicha[]>(() => [
@@ -1622,13 +1744,11 @@ export class FormEntrevistaComponent implements OnInit {
 
   private buildHijoGroup(): FormGroup {
     return this.fb.group({
-      // SIN `required`: de los hijos, la entrevista solo pregunta cuántos son y
-      // quién los cuida, así que el detalle de cada uno ya no se pinta. Un
-      // obligatorio que no está en pantalla bloquea el guardado y el aviso
-      // "revise los campos en rojo" señala un rojo que nadie puede ver. Las
-      // filas incompletas las descarta el servicio antes de enviar, y el
-      // backend deja intactos los hijos ya guardados cuando la lista llega
-      // vacía: el detalle que traiga el registro no se pierde.
+      // Los mismos campos del bloque de hijos del formulario de la vacante
+      // (CAMPOS_HIJO de form-vacancies-v2), editables aquí. SIN `required`:
+      // los hijos migrados solo traen documento y fecha, y un obligatorio los
+      // dejaría a todos sin poder guardar la entrevista. Las filas sin
+      // documento o sin fecha las descarta el servicio antes de enviar.
       numero_de_documento: [
         '',
         [
@@ -1647,7 +1767,38 @@ export class FormEntrevistaComponent implements OnInit {
       primer_apellido: [''],
       segundo_apellido: [''],
       sexo: [''],
+      ocupacion: [''],
+      curso: [''],
+      // Sí/No como 'SI' | 'NO' | '' (en blanco = no contestó, distinto de "no").
+      vive_con_trabajador: [''],
+      tiene_discapacidad: [''],
+      cual_discapacidad: [''],
+      es_hijastro: [''],
+      custodia_legal: [''],
+      otro_padre_nombre: [''],
+      otro_padre_documento: ['', [Validators.pattern(/^\d+$/), Validators.maxLength(15)]],
+      otro_padre_en_compania: [''],
+      // Ficha técnica, req. 13 (V76 de ms-hr). Opcionales.
+      estudia_fundacion: [''],
+      nivel_educativo: [''],
     });
+  }
+
+  /** "Agregar hijo": una tarjeta vacía al final; el conteo sigue a la lista. */
+  agregarHijo(): void {
+    if (this.hijosFA.length >= FormEntrevistaComponent.MAX_HIJOS) return;
+    if (this.ctrl('tieneHijos').value !== true) this.ctrl('tieneHijos').setValue(true);
+    this.hijosFA.push(this.buildHijoGroup());
+    this.ctrl('numeroHijos').setValue(this.hijosFA.length);
+    this.hijosFA.markAsDirty();
+  }
+
+  /** Quita ESE hijo (no el último, que es lo que hace bajar el número). */
+  quitarHijo(i: number): void {
+    if (i < 0 || i >= this.hijosFA.length) return;
+    this.hijosFA.removeAt(i);
+    this.ctrl('numeroHijos').setValue(this.hijosFA.length);
+    this.hijosFA.markAsDirty();
   }
 
   /** Tope duro de filas de hijos: por encima de esto es un error de digitación. */
@@ -1935,8 +2086,96 @@ export class FormEntrevistaComponent implements OnInit {
       .toUpperCase();
   }
 
+  // =======================
+  // Salud según ADRES (pedido #6)
+  // =======================
+  /**
+   * Régimen especial/excepción o "ADRES sin registro" del candidato abierto, para el
+   * chip de la ficha. Mismo dato que el aviso ámbar del pipeline
+   * (`/Robots/resultados-antecedentes`; ms-automation ya leyó el PDF de ADRES).
+   */
+  readonly saludAdres = signal<SaludAdres | null>(null);
+  private saludAdresClave = '';
+  /** Por cédula en esta sesión (null = revisada, nada que avisar). */
+  private static readonly saludAdresCache = new Map<string, SaludAdres | null>();
+
+  /** Llave de la última precarga pedida: si la persona cambia mientras responde, se descarta. */
+  private precargaClave = '';
+
+  /**
+   * Cédula buscada sin candidato: si los robots ya la consultaron, la entrevista
+   * arranca con la cédula y los nombres de ADRES en vez de en blanco. Solo llena
+   * campos VACÍOS y no marca el formulario como editado (no dispara guardado):
+   * el operador los revisa y guarda como siempre.
+   */
+  private precargarDesdeAntecedentes(): void {
+    const doc = cedulaPrecargable(this.documentoBuscado());
+    const clave = doc ? `${doc}#${this.consultaSeq()}` : '';
+    this.precargaClave = clave;
+    if (!doc || !isPlatformBrowser(this.platformId)) return;
+
+    this.robots.getResultadosLote([doc])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (r) => {
+          if (this.precargaClave !== clave || this.candidatoSeleccionado()) return;
+          const nombres = nombresDesdeAdres(r?.[doc]?.nombre, r?.[doc]?.apellido);
+          if (!nombres) return;
+          const patch: Record<string, string> = {};
+          const vacio = (c: string) => !String(this.formVacante.get(c)?.value ?? '').trim();
+          if (vacio('numero_documento')) patch['numero_documento'] = doc;
+          for (const [k, v] of Object.entries(nombres)) {
+            if (v && vacio(k)) patch[k] = v.slice(0, 30);
+          }
+          if (!Object.keys(patch).length) return;
+          this.formVacante.patchValue(patch);
+          this.refreshSteps();
+          Swal.fire({
+            toast: true, position: 'top-end', timer: 6000, showConfirmButton: false,
+            icon: 'info',
+            title: 'Datos precargados de ADRES',
+            text: 'La cédula ya tenía consulta de antecedentes. Verifica los nombres antes de guardar.',
+          });
+        },
+        // Es una ayuda: sin respuesta, la entrevista queda en blanco como siempre.
+        error: () => { },
+      });
+  }
+
+  private cargarSaludAdres(cand: any): void {
+    const doc = String(cand?.numero_documento ?? '').trim();
+    const tipo = String(cand?.tipo_doc ?? '').trim() || null;
+    const clave = doc ? `${tipo ?? ''}|${doc}` : '';
+    this.saludAdresClave = clave;
+    const enCache = FormEntrevistaComponent.saludAdresCache.get(clave);
+    this.saludAdres.set(enCache ?? null);
+    if (!clave || enCache !== undefined || !isPlatformBrowser(this.platformId)) return;
+
+    this.robots.getResultadosAntecedentes(doc, tipo)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (r) => {
+          const v = saludAdresDe(r);
+          FormEntrevistaComponent.saludAdresCache.set(clave, v);
+          // El candidato pudo cambiar mientras respondía.
+          if (this.saludAdresClave === clave) this.saludAdres.set(v);
+        },
+        // Es un aviso, no un requisito: sin respuesta no se muestra nada.
+        error: () => { },
+      });
+  }
+
   private hydrateOfficeFromQuery() {
-    this.route.queryParamMap.subscribe((params) => {
+    // Oficinas que Selección ofrece para registros NUEVOS: `GET /gestion_admin/sedes/?seleccion=1`
+    // (ms-auth-admin V129: activa = 1 AND opera_seleccion = 1). Antes era una lista fija en
+    // este componente; ANDES y MONTE_VERDE salieron (pedido #3) sin dejar de ser sedes. Solo
+    // canoniza el `?oficina=` de la URL: la oficina que ya trae una entrevista vieja (aunque
+    // sea una de esas) se conserva tal cual al editar (ver `oficina:` en el patch).
+    // La lista es asíncrona: se espera a tenerla. Si falla del todo llega vacía y no se
+    // preasigna nada.
+    combineLatest([this.route.queryParamMap, this.sedesSeleccion.nombres()])
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(([params, oficinas]) => {
       const raw = (params.get('oficina') || params.get('o') || '').trim();
 
       // La oficina siempre queda editable: el query param solo la preasigna.
@@ -1948,11 +2187,15 @@ export class FormEntrevistaComponent implements OnInit {
 
       const norm = this.normalizeOffice(raw);
       const mapOficinas = new Map(
-        this.oficinas.map((o) => [this.normalizeOffice(o), o])
+        oficinas.map((o) => [this.normalizeOffice(o), o])
       );
       const match = mapOficinas.get(norm);
 
-      if (match) {
+      // Como la lista llega después, el candidato pudo cargarse antes con la oficina
+      // de su entrevista: el query param solo preasigna si el campo está vacío o sigue
+      // con lo que él mismo puso (igual que antes, cuando corría antes del patch).
+      const actual = String(this.ctrl('oficina').value ?? '');
+      if (match && (!actual || actual === this.lockedOffice)) {
         this.ctrl('oficina').setValue(match, { emitEvent: false });
         this.lockedOffice = match;
       }
@@ -2160,6 +2403,19 @@ export class FormEntrevistaComponent implements OnInit {
       .map((x: string) => x.trim())
       .filter((x: string) => !!x && !VALID_TIPO_FLORES.includes(x.toUpperCase()));
 
+    // Formación: la MISMA que imprime la ficha técnica (la que tiene institución,
+    // si no la que tiene año, si no la primera). Antes se tomaba formaciones[0]
+    // —sin orden en el backend— y el año de la entrevista no casaba con la ficha.
+    const forms: any[] = Array.isArray(cand?.formaciones) ? cand.formaciones : [];
+    const formacion = forms.find((f) => String(f?.institucion ?? '').trim())
+      ?? forms.find((f) => f?.anio_finalizacion != null && String(f.anio_finalizacion).trim() !== '')
+      ?? forms[0];
+    // Un año fuera de rango (p. ej. 30122020) no se precarga: saldría en rojo sin
+    // que la persona lo haya escrito; queda vacío para diligenciarlo.
+    const anioCargado = Number(formacion?.anio_finalizacion);
+    const anioCargadoValido = Number.isInteger(anioCargado) && anioCargado >= 1950
+      && anioCargado <= new Date().getFullYear() + 10;
+
     // 1) patchValue sin emitir eventos
     this.formVacante.patchValue(
       {
@@ -2188,11 +2444,11 @@ export class FormEntrevistaComponent implements OnInit {
         whatsapp: contacto?.whatsapp || '',
         hace_cuanto_vive: haceCuantoVive || '',
 
-        nivel: cand?.formaciones?.[0]?.nivel || '',
-        estudiosExtra: this.nivelSuperiorNormalizado(cand?.formaciones?.[0]?.estudios_extra),
-        tituloObtenido: cand?.formaciones?.[0]?.titulo_obtenido || '',
-        institucionEstudio: cand?.formaciones?.[0]?.institucion || '',
-        anioFinalizacion: cand?.formaciones?.[0]?.anio_finalizacion ?? null,
+        nivel: formacion?.nivel || '',
+        estudiosExtra: this.nivelSuperiorNormalizado(formacion?.estudios_extra),
+        tituloObtenido: formacion?.titulo_obtenido || '',
+        institucionEstudio: formacion?.institucion || '',
+        anioFinalizacion: anioCargadoValido ? anioCargado : null,
         proyeccion1Ano: entrevistas?.[0]?.como_se_proyecta || evalAux?.motivacion || '',
         estudiaActualmente: !!cand?.vivienda?.estudia_actualmente,
         experienciaLaboral: cand?.experiencia_resumen?.tiene_experiencia === true ? 'SI'
@@ -2202,7 +2458,8 @@ export class FormEntrevistaComponent implements OnInit {
         areaExperiencia: areasGuardadas,
         tiempoExperiencia: cand?.experiencia_resumen?.tiempo_experiencia_texto || '',
 
-        comoSeEntero: entrevistas?.[0]?.como_se_entero || '',
+        // Se resuelve contra el catálogo más abajo (1.2), cuando llegue la lista.
+        comoSeEntero: '',
         // Backend guarda 'SI' | 'NO' (CharField). El bug previo trataba el valor
         // como booleano, así que cualquier string truthy ('NO' incluido) caía a 'SI'.
         // Normalizamos: 'SI'/'SÍ' -> 'SI', 'NO' -> 'NO', resto -> null (sin selección).
@@ -2216,6 +2473,24 @@ export class FormEntrevistaComponent implements OnInit {
         aplicaObservacion: entrevistas?.[0]?.proceso?.aplica_o_no_aplica || '',
         motivoEspera: entrevistas?.[0]?.proceso?.motivo_espera || '',
         motivoNoAplica: entrevistas?.[0]?.proceso?.motivo_no_aplica || '',
+
+        // Del formulario público (vivienda, residencia anterior, mano, a cargo).
+        zurdoDiestro: cand?.zurdo_diestro || '',
+        tipoVivienda: cand?.vivienda?.tipo_vivienda || '',
+        caracteristicasVivienda: cand?.vivienda?.caracteristicas_vivienda || '',
+        numHabitaciones: cand?.vivienda?.num_habitaciones ?? null,
+        personasPorHabitacion: cand?.vivienda?.personas_por_habitacion ?? null,
+        serviciosVivienda: cand?.vivienda?.servicios || '',
+        lugarAnterior: residencia?.lugar_anterior || '',
+        razonMudanza: residencia?.razon_mudanza || '',
+        zonasDelPais: residencia?.zonas_del_pais || '',
+        dondeLeGustariaVivir: residencia?.donde_le_gustaria_vivir || '',
+        resAnteriorDepartamento: residencia?.residencia_anterior_departamento || '',
+        resAnteriorMunicipio: residencia?.residencia_anterior_municipio || '',
+        resAnteriorDireccion: residencia?.residencia_anterior_direccion || '',
+        resAnteriorBarrio: residencia?.residencia_anterior_barrio || '',
+        // El GET lo serializa `personas_acargo`; el upsert lo recibe `personas_a_cargo`.
+        personasACargo: evalAux?.personas_acargo || evalAux?.personas_a_cargo || '',
 
         // Opcionales evaluacion
         relacionFamiliar: evalAux?.relacion_familiar || '',
@@ -2245,6 +2520,39 @@ export class FormEntrevistaComponent implements OnInit {
           this.refreshSteps();
         }
       });
+
+    // 1.2) "¿Cómo se enteró de la vacante?" del formulario de contratación.
+    // `entrevistas[0]` es la más reciente, pero cuando se abre un proceso nuevo nace
+    // vacía y la respuesta queda en una anterior: se toma la más reciente que la tenga.
+    // '0', 'SI' y 'NO' son basura del Excel/legacy, no una respuesta.
+    const respuestaEntero = (v: any): string => {
+      const s = String(v ?? '').trim();
+      return ['', '0', 'SI', 'NO'].includes(s.toUpperCase()) ? '' : s;
+    };
+    const comoSeEnteroRaw =
+      entrevistas.map((e: any) => respuestaEntero(e?.como_se_entero)).find(Boolean) ?? '';
+    this.comoSeEnteroHistorico.set('');
+    if (comoSeEnteroRaw) {
+      // Compara sin tildes ni signos: el Excel trae "VOLANTES A PIE" y el catálogo
+      // "VOLANTES (A PIE)"; "PUNTO FISICO DIRECTO PREGUNTO..." frente a "PUNTO FÍSICO...".
+      const clave = (v: any) => normalizeText(v).replace(/[^A-Z0-9]+/g, ' ').trim();
+      this.comoSeEnteroOpciones$
+        .pipe(
+          filter((opts): opts is CatalogValue[] => Array.isArray(opts)),
+          take(1)
+        )
+        .subscribe((opts) => {
+          const buscada = clave(comoSeEnteroRaw);
+          const op = opts.find((o) => clave(o?.codigo) === buscada || clave(o?.descripcion) === buscada);
+          const ctrl = this.formVacante.get('comoSeEntero');
+          // No pisar lo que el evaluador ya haya escogido mientras cargaba la lista.
+          if (ctrl?.value) return;
+          if (!op) this.comoSeEnteroHistorico.set(comoSeEnteroRaw);
+          ctrl?.setValue(op ? op.codigo : comoSeEnteroRaw, { emitEvent: false });
+          ctrl?.updateValueAndValidity({ emitEvent: false });
+          this.cdr.markForCheck();
+        });
+    }
 
     // 2) Validar secciones inmediatamente después del patch
     this.forceValidateStep(this.step1Ctrl, this.step1Fields);
@@ -2406,6 +2714,7 @@ export class FormEntrevistaComponent implements OnInit {
 
     this.setHijosCount(hijosArr.length);
 
+    const siNo = (v: any): string => (v === true ? 'SI' : v === false ? 'NO' : '');
     hijosArr.forEach((h: any, i: number) => {
       const fg = this.hijosFA.at(i) as FormGroup;
       fg?.patchValue(
@@ -2418,6 +2727,18 @@ export class FormEntrevistaComponent implements OnInit {
           primer_apellido: h?.primer_apellido || '',
           segundo_apellido: h?.segundo_apellido || '',
           sexo: h?.sexo || '',
+          ocupacion: h?.ocupacion || '',
+          curso: h?.curso || '',
+          vive_con_trabajador: siNo(h?.vive_con_trabajador),
+          tiene_discapacidad: siNo(h?.tiene_discapacidad),
+          cual_discapacidad: h?.cual_discapacidad || '',
+          es_hijastro: siNo(h?.es_hijastro),
+          custodia_legal: h?.custodia_legal || '',
+          otro_padre_nombre: h?.otro_padre_nombre || '',
+          otro_padre_documento: onlyDigits(h?.otro_padre_documento),
+          otro_padre_en_compania: siNo(h?.otro_padre_en_compania),
+          estudia_fundacion: siNo(h?.estudia_fundacion),
+          nivel_educativo: h?.nivel_educativo || '',
         },
         { emitEvent: false }
       );
@@ -2516,6 +2837,18 @@ export class FormEntrevistaComponent implements OnInit {
    * existía. Era la fábrica activa de duplicados: cada entrevista guardada así
    * sumaba una fila. Se canoniza antes de comparar.
    */
+  /**
+   * La lista de experiencias es el estado ENTERO (y una vacía debe borrar) solo
+   * si se cargó de la ficha de esta misma persona. Con el formulario en blanco
+   * —persona aún no consultada— una lista vacía no dice nada y no debe borrar.
+   */
+  private experienciasCompletas(raw: any): boolean {
+    // La X de "no es cédula" puede venir en un lado y no en el otro.
+    const doc = (v: any) => String(v ?? '').trim().replace(/^X/i, '');
+    const ced = doc(this.candidatoSeleccionado()?.numero_documento);
+    return !!ced && ced === doc(raw?.numero_documento);
+  }
+
   /** Guardado automático de la entrevista (ver `onSubmit`). */
   private async guardarEntrevistaSola(): Promise<void> {
     const raw = this.formVacante.getRawValue();
@@ -2533,6 +2866,7 @@ export class FormEntrevistaComponent implements OnInit {
       experiencias: Array.isArray(raw.experiencias)
         ? raw.experiencias.map((e: any) => ({ ...e, fecha_retiro: this.toYMD(e?.fecha_retiro) }))
         : [],
+      experiencias_completas: this.experienciasCompletas(raw),
       brigadaDe: raw.brigadaDe ?? '',
     };
 
@@ -2662,6 +2996,7 @@ export class FormEntrevistaComponent implements OnInit {
             fecha_retiro: this.toYMD(e?.fecha_retiro),
           }))
           : [],
+        experiencias_completas: this.experienciasCompletas(raw),
 
         // Por si el backend espera string plano, no Date
         brigadaDe: raw.brigadaDe ?? '',

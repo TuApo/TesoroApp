@@ -20,6 +20,7 @@ import {
 const ICONOS: Record<string, string> = {
   tienda: 'storefront', 'herramientas-ia': 'smart_toy', nomina: 'payments', general: 'forum', tesoreria: 'account_balance',
   hiring: 'person_search', afiliaciones: 'health_and_safety', tareas: 'task_alt', contratacion: 'person_search', documentos: 'description',
+  operador: 'graphic_eq', economiapp: 'shopping_bag',
 };
 
 /**

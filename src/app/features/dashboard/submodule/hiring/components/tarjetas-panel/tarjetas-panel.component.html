@@ -1,0 +1,103 @@
+<div class="tp-panel">
+
+  <div class="tp-barra">
+    <button mat-raised-button color="primary" (click)="onCreate()">
+      <mat-icon>add</mat-icon> Nueva tarjeta
+    </button>
+    <button mat-stroked-button color="primary" (click)="abrirCarga()"
+            matTooltip="El archivo se valida y se simula antes de guardar nada">
+      <mat-icon>cloud_upload</mat-icon> Cargar Excel
+    </button>
+    <button mat-stroked-button [disabled]="exportando()" (click)="exportarExcel()"
+            matTooltip="Exporta todas las tarjetas que cumplen el filtro, no solo la página visible">
+      <mat-icon>file_download</mat-icon> Exportar Excel
+    </button>
+    <button mat-stroked-button (click)="abrirHistorial()"
+            matTooltip="Quién cargó qué archivo, cuándo y qué pasó fila a fila">
+      <mat-icon>history</mat-icon> Historial de cargas
+    </button>
+  </div>
+
+  <div class="tp-filtros">
+    <mat-form-field appearance="outline" class="tp-filtro">
+      <mat-label>Desde (fecha de creación)</mat-label>
+      <input matInput [matDatepicker]="pDesde" [ngModel]="desde()" (ngModelChange)="desde.set($event)">
+      <mat-datepicker-toggle matIconSuffix [for]="pDesde"></mat-datepicker-toggle>
+      <mat-datepicker #pDesde></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="tp-filtro">
+      <mat-label>Hasta</mat-label>
+      <input matInput [matDatepicker]="pHasta" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)">
+      <mat-datepicker-toggle matIconSuffix [for]="pHasta"></mat-datepicker-toggle>
+      <mat-datepicker #pHasta></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="tp-filtro">
+      <mat-label>Origen</mat-label>
+      <mat-select [ngModel]="origen()" (ngModelChange)="origen.set($event)">
+        <mat-option value="">Todos</mat-option>
+        <mat-option value="MANUAL">Creadas a mano</mat-option>
+        <mat-option value="IMPORTACION">Cargadas por Excel</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="tp-filtro tp-filtro--corto">
+      <mat-label>Lote de carga</mat-label>
+      <input matInput type="number" [ngModel]="loteId()" (ngModelChange)="loteId.set($event)" placeholder="N.º">
+    </mat-form-field>
+
+    <button mat-flat-button color="primary" (click)="aplicarFiltros()">
+      <mat-icon>filter_alt</mat-icon> Filtrar
+    </button>
+    @if (hayFiltros()) {
+      <button mat-button (click)="limpiarFiltros()">
+        <mat-icon>filter_alt_off</mat-icon> Limpiar
+      </button>
+    }
+  </div>
+
+  <app-standard-filter-table
+    [data]="data()"
+    [columnDefinitions]="columns"
+    [totalCount]="total()"
+    [isLoading]="isLoading()"
+    [serverSide]="true"
+    [defaultPageSize]="tamanoPagina()"
+    tableTitle="Listado de Tarjetas"
+    storageKey="contratacion-tarjetas-listado"
+    (pageChange)="alCambiarPagina($event)"
+    (searchChange)="alBuscar($event)"
+    (sortChange)="alOrdenar($event)">
+
+    <ng-template appCellTemplate="creado_por" let-row>
+      <span class="tp-usuario" [matTooltip]="row.imported_by ? 'Cargada desde Excel' : 'Creada a mano'">
+        {{ row.imported_by || row.created_by || '—' }}
+      </span>
+    </ng-template>
+
+    <ng-template appCellTemplate="import_batch_id" let-row>
+      @if (row.import_batch_id) {
+        <button mat-button class="tp-lote" (click)="verLote(row.import_batch_id)"
+                matTooltip="Ver todas las tarjetas de esta carga">
+          #{{ row.import_batch_id }}
+        </button>
+      } @else {
+        <span class="tp-sin-lote">—</span>
+      }
+    </ng-template>
+
+    <!-- La columna «Acciones» va por nombre de plantilla, no por directiva. -->
+    <ng-template #actionsTemplate let-row>
+      <div class="tp-acciones">
+        <button mat-icon-button color="primary" (click)="onEdit(row)" matTooltip="Editar">
+          <mat-icon>edit</mat-icon>
+        </button>
+        <button mat-icon-button color="warn" (click)="onDelete(row)" matTooltip="Eliminar">
+          <mat-icon>delete</mat-icon>
+        </button>
+      </div>
+    </ng-template>
+
+  </app-standard-filter-table>
+</div>

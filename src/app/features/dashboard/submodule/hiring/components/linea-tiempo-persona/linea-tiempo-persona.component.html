@@ -1,0 +1,155 @@
+<section class="lt" [attr.aria-busy]="estado() === 'cargando'">
+
+  <!-- Filtro por tipo. Los conteos son SIN filtrar: dicen cuánto hay de cada
+       cosa aunque se esté mirando solo una. Solo salen los tipos que tienen algo. -->
+  @if (estado() !== 'error' && (total() > 0 || filtrando())) {
+    <div class="lt-filtros" role="toolbar" aria-label="Filtrar por tipo">
+      <button type="button" class="lt-chip" [class.lt-chip-activo]="!filtrando()"
+              [attr.aria-pressed]="!filtrando()" (click)="verTodo()">
+        <mat-icon>select_all</mat-icon>
+        Todo
+        <span class="lt-chip-n">{{ total() }}</span>
+      </button>
+      @for (c of chips(); track c.tipo) {
+        <button type="button" class="lt-chip" [attr.data-tipo]="c.tipo"
+                [class.lt-chip-activo]="c.activo" [attr.aria-pressed]="c.activo"
+                (click)="alternar(c.tipo)">
+          <mat-icon>{{ c.icono }}</mat-icon>
+          {{ c.etiqueta }}
+          <span class="lt-chip-n">{{ c.n }}</span>
+        </button>
+      }
+    </div>
+  }
+
+  <!-- Una fuente que no se pudo leer no tumba la línea: se dice cuál falta. -->
+  @if (avisos().length) {
+    <div class="lt-aviso" role="status">
+      <mat-icon>warning_amber</mat-icon>
+      <div>
+        @for (a of avisos(); track a) { <p>{{ a }}</p> }
+        <p class="lt-aviso-pie">Lo demás se muestra completo.</p>
+      </div>
+    </div>
+  }
+
+  <!-- Lo que se desplaza: los filtros de arriba se quedan quietos. -->
+  <div class="lt-scroll">
+  @switch (estado()) {
+    @case ('cargando') {
+      <div class="lt-esqueleto" aria-label="Cargando la línea de tiempo">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="lt-esq-fila">
+            <span class="lt-esq-punto"></span>
+            <span class="lt-esq-tarjeta">
+              <span class="lt-esq-linea lt-esq-corta"></span>
+              <span class="lt-esq-linea"></span>
+            </span>
+          </div>
+        }
+      </div>
+    }
+
+    @case ('error') {
+      <div class="lt-vacio lt-error" role="alert">
+        <mat-icon>cloud_off</mat-icon>
+        <p class="lt-vacio-titulo">{{ error() }}</p>
+        <button type="button" class="lt-boton" (click)="recargar()">
+          <mat-icon>refresh</mat-icon> Reintentar
+        </button>
+      </div>
+    }
+
+    @default {
+      @if (!eventos().length) {
+        <div class="lt-vacio">
+          <mat-icon>{{ filtrando() ? 'filter_alt_off' : 'history_toggle_off' }}</mat-icon>
+          @if (filtrando()) {
+            <p class="lt-vacio-titulo">No hay nada de ese tipo para esta persona.</p>
+            <button type="button" class="lt-boton" (click)="verTodo()">Ver todo</button>
+          } @else {
+            <p class="lt-vacio-titulo">Todavía no hay nada registrado para esta persona.</p>
+            @if (meta() && !meta()!.encontrado) {
+              <p class="lt-vacio-sub">Esta cédula no tiene ficha en la plataforma.</p>
+            }
+          }
+        </div>
+      } @else {
+        <ol class="lt-dias">
+          @for (g of grupos(); track g.dia) {
+            <li class="lt-dia">
+              <h3 class="lt-dia-titulo" [class.lt-dia-futuro]="g.futuro">
+                {{ g.etiqueta }}
+                @if (g.futuro) { <span class="lt-tag">Programado</span> }
+              </h3>
+
+              <ol class="lt-eventos">
+                @for (e of g.eventos; track $index) {
+                  <li class="lt-evento" [attr.data-nivel]="e.nivel">
+                    <span class="lt-punto" aria-hidden="true">
+                      <mat-icon>{{ icono(e) }}</mat-icon>
+                    </span>
+
+                    <div class="lt-tarjeta">
+                      <div class="lt-cab">
+                        <span class="lt-titulo">{{ e.titulo }}</span>
+                        @if (hora(e); as h) { <time class="lt-hora">{{ h }}</time> }
+                      </div>
+
+                      @if (e.detalle) { <p class="lt-detalle">{{ e.detalle }}</p> }
+
+                      <div class="lt-meta">
+                        <span class="lt-meta-tipo" [attr.data-tipo]="e.tipo">{{ etiquetaTipo(e.tipo) }}</span>
+                        @if (e.oficina) {
+                          <span matTooltip="Oficina"><mat-icon>store</mat-icon>{{ e.oficina }}</span>
+                        }
+                        @if (e.usuario) {
+                          <span matTooltip="Quién lo registró"><mat-icon>person</mat-icon>{{ e.usuario }}</span>
+                        }
+                        @if (e.contrato) {
+                          <span matTooltip="Código de contrato"><mat-icon>tag</mat-icon>{{ e.contrato }}</span>
+                        }
+                        @if (e.proceso_id) {
+                          <span class="lt-meta-proceso"
+                                matTooltip="Los hitos con el mismo número son del mismo proceso">
+                            <mat-icon>folder_open</mat-icon>Proceso {{ e.proceso_id }}
+                          </span>
+                        }
+                      </div>
+                    </div>
+                  </li>
+                }
+              </ol>
+            </li>
+          }
+        </ol>
+
+        <footer class="lt-pie">
+          <span class="lt-cuenta">
+            {{ eventos().length }} de {{ meta()?.count ?? eventos().length }}
+            {{ filtrando() ? 'con el filtro' : 'en total' }}
+          </span>
+          @if (hayMas()) {
+            <button type="button" class="lt-boton" [disabled]="cargandoMas()" (click)="cargarMas()">
+              @if (cargandoMas()) {
+                <mat-spinner diameter="16"></mat-spinner> Cargando…
+              } @else {
+                <mat-icon>expand_more</mat-icon> Cargar más
+              }
+            </button>
+          } @else {
+            <span class="lt-fin">{{ filtrando() ? 'No hay más con este filtro.' : 'No hay más: este es el primer registro.' }}</span>
+          }
+          @if (errorMas()) { <span class="lt-error-mas" role="alert">{{ errorMas() }}</span> }
+        </footer>
+      }
+    }
+  }
+
+  @if (notas().length && estado() === 'listo') {
+    <ul class="lt-notas">
+      @for (n of notas(); track n) { <li><mat-icon>info</mat-icon>{{ n }}</li> }
+    </ul>
+  }
+  </div>
+</section>

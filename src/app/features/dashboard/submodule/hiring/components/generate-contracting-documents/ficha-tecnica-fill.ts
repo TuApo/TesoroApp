@@ -18,6 +18,7 @@ import { centroDeCostosDe } from '../../shared/contrato-campos';
 import { esReferenciaFamiliar, separarReferencias } from './referencias.util';
 import { sanitizedString } from './winansi.util';
 import { tituloOUltimoGrado } from './escolaridad.util';
+import { salarioAcordado, salarioDelContrato } from './salario.util';
 
 type Cand = any;
 
@@ -79,26 +80,11 @@ export interface FichaTecnicaContext {
   centroCosto: string;
   /** Cargo de la vacante tal como sale impreso en el contrato. */
   cargo: string;
-  /** Pool de descripciones aleatorias para referencias personales (REFERENCIAS_A). */
-  referenciasA: readonly string[];
-  /** Pool de descripciones aleatorias para referencias familiares (REFERENCIAS_F). */
-  referenciasF: readonly string[];
   /**
    * Salario minimo del año de creacion del contrato (Parametrizacion de vacantes ›
-   * Salario minimo). Si llega, es el sueldo impreso; `null` = el de la vacante.
+   * Salario minimo): el sueldo impreso solo si no hay salario acordado.
    */
   salarioMinimo?: number | null;
-}
-
-/** Saca 2 strings distintos de un pool (con normalización). */
-function pickTwoDistinct(arr: readonly string[]): [string, string] {
-  const norm = (x: unknown) => String(x ?? '').trim().replace(/\s+/g, ' ');
-  const unique = Array.from(new Set((arr ?? []).map(norm).filter(v => v.length > 0)));
-  if (unique.length === 0) return ['', ''];
-  if (unique.length === 1) return [unique[0], ''];
-  const i = Math.floor(Math.random() * unique.length);
-  const j = (i + 1 + Math.floor(Math.random() * (unique.length - 1))) % unique.length;
-  return [unique[i], unique[j]];
 }
 
 export function fillFichaTecnicaPdf(
@@ -235,7 +221,9 @@ export function fillFichaTecnicaPdf(
   // el ajuste no llegaba a ningún documento, así que editarlo no servía de nada.
   const fechaIngreso = s(contrato.fecha_ingreso || vac.fechadeIngreso);
   setText('Fecha de Ingreso', parseDateToDDMMYYYY(fechaIngreso));
-  setText('Sueldo Básico', formatMoneyCOP(ctx.salarioMinimo ?? (vac.salario || proceso.vacante_salario || '')));
+  // El acordado (proceso al remitir → vacante) y, sin él, el mínimo del año: lo mismo
+  // que imprime el contrato (2026-10-14).
+  setText('Sueldo Básico', formatMoneyCOP(salarioDelContrato(salarioAcordado(proceso.vacante_salario, vac.salario), ctx.salarioMinimo ?? null)));
 
   setText('Nombre de la RutaUsa Ruta', s(ctx.usaRuta));
   setText('Nombre de la RutaAuxilio Trasporte', s(ctx.auxilio_transporte));
@@ -324,15 +312,18 @@ export function fillFichaTecnicaPdf(
     if (sx === 'M' || sx === 'MASCULINO' || sx === 'HOMBRE') setText(`Gen${idx}`, 'M');
     else if (sx === 'F' || sx === 'FEMENINO' || sx === 'MUJER') setText(`Gen${idx}`, 'F');
     setText(`Vive con el Trabajador${idx}`, 'SI');
-    setText(`Estudia en la Fundación SN${idx}`, 'NO');
+    // Req. 13 (V76 de ms-hr): lo contestado en la entrevista; en blanco si no se preguntó.
+    const sn = (v: unknown) => (v === true ? 'SI' : v === false ? 'NO' : '');
+    setText(`Estudia en la Fundación SN${idx}`, sn(h.estudia_fundacion));
     if (h.estudia_trabaja === true && s(h.curso)) {
       setText(`Ocupación${idx}`, 'ESTUDIA');
     }
     setText(`Curso${idx}`, norm(h.curso));
     // Bloque extendido (Nivel Educativo, Otro Padre, etc.)
-    setText(`Nivel Educativo${idx}`, norm(h.curso));
+    setText(`Nivel Educativo${idx}`, norm(h.nivel_educativo));
     setText(`Posee alguna Discapacidad SN${idx}`, 'NO');
-    setText(`Es Empleado de la Compañía${idx}`, 'NO');
+    // Calculado por ms-hr con el padrón de activos de nómina.
+    setText(`Es Empleado de la Compañía${idx}`, sn(h.es_empleado_compania));
     if (conyuge) {
       setText(
         `Nombre Otro Padre${idx}`,
@@ -421,14 +412,12 @@ export function fillFichaTecnicaPdf(
   setText('nombre-referencia-familiar1', norm(refsF[0]?.nombre));
   setText('nombre-referencia-familiar2', norm(refsF[1]?.nombre));
 
-  // Descripciones aleatorias del pool (sin repetir en el par)
-  const [descPersonal1, descPersonal2] = pickTwoDistinct(ctx.referenciasA);
-  setText('descripcion-personal1', descPersonal1);
-  setText('descripcion-personal2', descPersonal2);
-
-  const [descFamiliar1, descFamiliar2] = pickTwoDistinct(ctx.referenciasF);
-  setText('descripcion-familiar1', descFamiliar1);
-  setText('descripcion-familiar2', descFamiliar2);
+  // Resultado REAL de la referencia (req. 15-16, 2026-10-22). Antes salía un texto
+  // al azar de un pool fijo; sin resultado, queda en blanco para llenarlo a mano.
+  setText('descripcion-personal1', s(refsP[0]?.referenciacion));
+  setText('descripcion-personal2', s(refsP[1]?.referenciacion));
+  setText('descripcion-familiar1', s(refsF[0]?.referenciacion));
+  setText('descripcion-familiar2', s(refsF[1]?.referenciacion));
 
   // Parentesco / relación de las referencias
   setText('parentesco_familiar_1', upper(refsF[0]?.parentesco));

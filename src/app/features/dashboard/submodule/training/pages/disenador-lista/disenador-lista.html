@@ -1,0 +1,110 @@
+<section class="dl">
+  <header class="dl-hero">
+    <div class="dl-hero__texto">
+      <span class="dl-eyebrow"><mat-icon>auto_awesome</mat-icon> Diseñador de cursos con IA</span>
+      <h1>Convierte lo que sabes en un curso</h1>
+      <p>Sube tu material como lo tengas. La IA lo lee, te hace las preguntas de un diseñador
+        instruccional y organiza módulos, clases y quices. Tú decides en cada paso.</p>
+    </div>
+    <ol class="dl-pasos">
+      @for (p of pasos; track p.titulo; let i = $index) {
+        <li>
+          <span class="dl-pasos__n">{{ i + 1 }}</span>
+          <mat-icon>{{ p.icono }}</mat-icon>
+          <strong>{{ p.titulo }}</strong>
+          <em>{{ p.texto }}</em>
+        </li>
+      }
+    </ol>
+  </header>
+
+  <div class="dl-grid">
+    <form class="dl-nuevo" (ngSubmit)="empezar()">
+      <h2>Empezar un diseño</h2>
+      <label class="dl-campo">
+        <span>¿Cómo se llama el curso?</span>
+        <input name="titulo" [(ngModel)]="titulo" maxlength="300" required placeholder="Ej.: Trabajo seguro en alturas" />
+      </label>
+
+      <fieldset class="dl-contexto">
+        <legend>¿Para qué es?</legend>
+        <label [class.activo]="contexto === 'CORPORATIVO'">
+          <input type="radio" name="contexto" value="CORPORATIVO" [(ngModel)]="contexto" />
+          <mat-icon>business_center</mat-icon>
+          <strong>Corporativo</strong>
+          <em>Inducción, seguridad, procesos, cumplimiento</em>
+        </label>
+        <label [class.activo]="contexto === 'EDUCATIVO'">
+          <input type="radio" name="contexto" value="EDUCATIVO" [(ngModel)]="contexto" />
+          <mat-icon>school</mat-icon>
+          <strong>Educativo</strong>
+          <em>Clases, cursos abiertos, programación, talleres</em>
+        </label>
+      </fieldset>
+
+      <label class="dl-campo">
+        <span>Cuéntale la idea (opcional)</span>
+        <textarea name="idea" rows="4" [(ngModel)]="idea" maxlength="4000"
+          placeholder="Ej.: Es para los operarios nuevos de las fincas; tienen que aprender a revisar el arnés y a subir con línea de vida. Tengo el manual y unas diapositivas."></textarea>
+      </label>
+
+      <div class="dl-acciones">
+        <app-grabadora-voz etiqueta="Contarlo hablando" [deshabilitada]="dictando() || creando()"
+          [maximoSeg]="240" (grabado)="dictarIdea($event)" />
+        <button type="submit" class="dl-btn dl-btn--primario" [disabled]="!titulo.trim() || creando() || dictando()">
+          <mat-icon>arrow_forward</mat-icon>
+          {{ creando() || dictando() ? 'Preparando…' : 'Empezar' }}
+        </button>
+      </div>
+    </form>
+
+    <div class="dl-mios">
+      <div class="dl-mios__cab">
+        <h2>Mis diseños</h2>
+        <button type="button" class="dl-btn dl-btn--suave" (click)="cargar()" [disabled]="cargando()">
+          <mat-icon>refresh</mat-icon>
+        </button>
+      </div>
+      @if (cargando()) {
+        <p class="dl-vacio">Cargando…</p>
+      } @else if (error()) {
+        <p class="dl-error"><mat-icon>error_outline</mat-icon> {{ error() }}</p>
+      } @else if (!disenos().length) {
+        <div class="dl-vacio">
+          <mat-icon>draw</mat-icon>
+          <p>Todavía no tienes diseños. Empieza uno a la izquierda: toma unos minutos.</p>
+        </div>
+      } @else {
+        <ul class="dl-lista">
+          @for (d of disenos(); track d.id) {
+            <li>
+              <button type="button" class="dl-item" (click)="abrir(d)">
+                <span class="dl-item__icono" [class.corp]="d.contexto === 'CORPORATIVO'">
+                  <mat-icon>{{ d.contexto === 'CORPORATIVO' ? 'business_center' : 'school' }}</mat-icon>
+                </span>
+                <span class="dl-item__cuerpo">
+                  <strong>{{ d.titulo }}</strong>
+                  <em>
+                    {{ etiquetaEstado[d.estado] }} · {{ d.fuentes }} material{{ d.fuentes === 1 ? '' : 'es' }}
+                    @if (d.lecciones) { · {{ d.lecciones }} clases }
+                    · {{ d.updated_at | date: 'd MMM, h:mm a' }}
+                  </em>
+                  <span class="dl-item__barra" aria-hidden="true">
+                    @for (n of [1, 2, 3, 4, 5]; track n) { <i [class.hecho]="n <= progreso(d)"></i> }
+                  </span>
+                  @if (d.trabajo && (d.trabajo.estado === 'EN_COLA' || d.trabajo.estado === 'PROCESANDO')) {
+                    <span class="dl-item__trabajo"><span class="punto"></span> {{ d.trabajo.mensaje }}</span>
+                  }
+                </span>
+                <span class="dl-item__borrar" role="button" tabindex="0" title="Borrar"
+                      (click)="borrar(d, $event)" (keydown.enter)="borrar(d, $event)">
+                  <mat-icon>delete_outline</mat-icon>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+</section>

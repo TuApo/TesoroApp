@@ -1,0 +1,168 @@
+@if (!propuesta) {
+  <div class="pz-tarjeta pz-vacio">
+    <mat-icon>account_tree</mat-icon>
+    <p>Todavía no hay estructura. La IA la propone con lo que leyó y lo que respondiste.</p>
+    <button type="button" class="pz-btn pz-btn--primario" [disabled]="ocupado || !diseno.ia_disponible" (click)="armar()">
+      <mat-icon>auto_awesome</mat-icon> Armar la estructura
+    </button>
+  </div>
+} @else {
+  <div class="pes" [class.pes--bloqueada]="ocupado">
+    <div class="pz-tarjeta pes-curso">
+      <div class="pes-curso__cab">
+        <h2>El curso</h2>
+        <div class="pes-cifras">
+          <span><strong>{{ propuesta.modulos.length }}</strong> módulos</span>
+          <span><strong>{{ totalLecciones() }}</strong> clases</span>
+          <span><strong>{{ (totalMinutos() / 60) | number: '1.0-1' }}</strong> h</span>
+          <span><strong>{{ totalPreguntas() }}</strong> preguntas</span>
+        </div>
+      </div>
+      <div class="pes-grid2">
+        <label class="pz-campo"><span>Nombre</span>
+          <input [(ngModel)]="propuesta.curso!.titulo" (ngModelChange)="tocar()" maxlength="200" [placeholder]="diseno.titulo" /></label>
+        <label class="pz-campo"><span>Modalidad</span>
+          <select [(ngModel)]="propuesta.curso!.modalidad" (ngModelChange)="tocar()">
+            <option value="AUTOGESTIONADO">A su ritmo (autogestionado)</option>
+            <option value="VIRTUAL_SINCRONICO">En vivo (virtual sincrónico)</option>
+            <option value="PRESENCIAL">Presencial</option>
+          </select></label>
+      </div>
+      <label class="pz-campo"><span>Descripción</span>
+        <textarea rows="2" [(ngModel)]="propuesta.curso!.descripcion" (ngModelChange)="tocar()"></textarea></label>
+      <label class="pz-campo"><span>Para quién</span>
+        <input [(ngModel)]="propuesta.curso!.publico" (ngModelChange)="tocar()" /></label>
+      <div class="pz-campo"><span>Objetivos del curso <em>(lo que sabrán HACER al terminar)</em></span>
+        @for (o of propuesta.curso!.objetivos ?? []; track trackIndex($index); let i = $index) {
+          <div class="pes-fila">
+            <input class="pz-input" [ngModel]="o" (ngModelChange)="cambiarObjetivo(propuesta.curso!, i, $event)" />
+            <button type="button" class="pz-btn pz-btn--icono" (click)="quitar(propuesta.curso!.objetivos!, i)" aria-label="Quitar objetivo"><mat-icon>close</mat-icon></button>
+          </div>
+        }
+        <button type="button" class="pz-btn pz-btn--chico pes-agregar" (click)="agregarObjetivo(propuesta.curso!.objetivos, propuesta.curso!)"><mat-icon>add</mat-icon> Objetivo</button>
+      </div>
+    </div>
+
+    @if (propuesta.avisos?.length) {
+      <div class="pes-avisos"><mat-icon>tips_and_updates</mat-icon>
+        <div><strong>La IA te sugiere revisar</strong>
+          <ul>@for (a of propuesta.avisos; track $index) { <li>{{ a }}</li> }</ul></div></div>
+    }
+
+    @for (m of propuesta.modulos; track m.clave; let mi = $index) {
+      <section class="pz-tarjeta pes-modulo">
+        <header class="pes-modulo__cab">
+          <span class="pes-num">{{ mi + 1 }}</span>
+          <div class="pes-modulo__campos">
+            <input class="pes-titulo" [(ngModel)]="m.titulo" (ngModelChange)="tocar()" maxlength="200" aria-label="Nombre del módulo" />
+            <input class="pes-sub" [(ngModel)]="m.objetivo" (ngModelChange)="tocar()" placeholder="Objetivo del módulo" aria-label="Objetivo del módulo" />
+          </div>
+          <div class="pes-orden">
+            <button type="button" class="pz-btn pz-btn--icono" (click)="mover(propuesta.modulos, mi, -1)" [disabled]="mi === 0" aria-label="Subir módulo"><mat-icon>arrow_upward</mat-icon></button>
+            <button type="button" class="pz-btn pz-btn--icono" (click)="mover(propuesta.modulos, mi, 1)" [disabled]="mi === propuesta.modulos.length - 1" aria-label="Bajar módulo"><mat-icon>arrow_downward</mat-icon></button>
+            <button type="button" class="pz-btn pz-btn--icono pz-btn--peligro" (click)="quitar(propuesta.modulos, mi)" [disabled]="propuesta.modulos.length === 1" aria-label="Quitar módulo"><mat-icon>delete_outline</mat-icon></button>
+          </div>
+        </header>
+
+        <ol class="pes-lecciones">
+          @for (l of m.lecciones; track l.clave; let li = $index) {
+            <li class="pes-leccion" [class.abierta]="abierta() === l.clave">
+              <div class="pes-leccion__fila">
+                <span class="pes-leccion__n">{{ mi + 1 }}.{{ li + 1 }}</span>
+                <input class="pes-leccion__titulo" [(ngModel)]="l.titulo" (ngModelChange)="tocar()" maxlength="200" aria-label="Nombre de la clase" />
+                <label class="pes-mini" title="Duración en minutos"><mat-icon>schedule</mat-icon>
+                  <input type="number" min="5" max="120" [(ngModel)]="l.duracion_min" (ngModelChange)="tocar()" aria-label="Minutos" /> min</label>
+                <label class="pes-mini" title="Preguntas del quiz"><mat-icon>quiz</mat-icon>
+                  <input type="number" min="0" max="10" [(ngModel)]="l.preguntas_quiz" (ngModelChange)="tocar()" aria-label="Preguntas" /></label>
+                @for (a of l.actividades ?? []; track $index) {
+                  <span class="pes-act" [title]="a.titulo"><mat-icon>{{ icono(a.tipo) }}</mat-icon></span>
+                }
+                @if (l.estado_detalle === 'LISTO') { <span class="pz-estado pz-estado--ok" title="Clase escrita"><mat-icon>check</mat-icon></span> }
+                <div class="pes-orden">
+                  <button type="button" class="pz-btn pz-btn--icono" (click)="alternar(l.clave)" [attr.aria-expanded]="abierta() === l.clave" aria-label="Detalles"><mat-icon>{{ abierta() === l.clave ? 'expand_less' : 'tune' }}</mat-icon></button>
+                  <button type="button" class="pz-btn pz-btn--icono" (click)="mover(m.lecciones, li, -1)" [disabled]="li === 0" aria-label="Subir"><mat-icon>arrow_upward</mat-icon></button>
+                  <button type="button" class="pz-btn pz-btn--icono" (click)="mover(m.lecciones, li, 1)" [disabled]="li === m.lecciones.length - 1" aria-label="Bajar"><mat-icon>arrow_downward</mat-icon></button>
+                  <button type="button" class="pz-btn pz-btn--icono pz-btn--peligro" (click)="quitar(m.lecciones, li)" [disabled]="m.lecciones.length === 1" aria-label="Quitar"><mat-icon>delete_outline</mat-icon></button>
+                </div>
+              </div>
+              @if (abierta() === l.clave) {
+                <div class="pes-detalle">
+                  <label class="pz-campo"><span>Resumen</span>
+                    <textarea rows="2" [(ngModel)]="l.resumen" (ngModelChange)="tocar()"></textarea></label>
+                  <div class="pz-campo"><span>Objetivos de la clase</span>
+                    @for (o of l.objetivos ?? []; track trackIndex($index); let i = $index) {
+                      <div class="pes-fila">
+                        <input class="pz-input" [ngModel]="o" (ngModelChange)="cambiarObjetivo(l, i, $event)" />
+                        <button type="button" class="pz-btn pz-btn--icono" (click)="quitar(l.objetivos!, i)" aria-label="Quitar"><mat-icon>close</mat-icon></button>
+                      </div>
+                    }
+                    <button type="button" class="pz-btn pz-btn--chico pes-agregar" (click)="agregarObjetivo(l.objetivos, l)"><mat-icon>add</mat-icon> Objetivo</button>
+                  </div>
+                  <div class="pz-campo"><span>Actividades</span>
+                    @for (a of l.actividades ?? []; track $index; let ai = $index) {
+                      <div class="pes-actividad">
+                        <input class="pz-input" [(ngModel)]="a.titulo" (ngModelChange)="tocar()" aria-label="Título de la actividad" />
+                        <select class="pz-input" [(ngModel)]="a.tipo" (ngModelChange)="tocar()" aria-label="Tipo de entrega">
+                          @for (t of tiposActividad; track t.valor) { <option [value]="t.valor">{{ t.etiqueta }}</option> }
+                        </select>
+                        <button type="button" class="pz-btn pz-btn--icono" (click)="quitar(l.actividades!, ai)" aria-label="Quitar"><mat-icon>close</mat-icon></button>
+                        <textarea class="pz-input" rows="2" [(ngModel)]="a.instrucciones" (ngModelChange)="tocar()" placeholder="Instrucciones"></textarea>
+                      </div>
+                    }
+                    <button type="button" class="pz-btn pz-btn--chico pes-agregar" (click)="agregarActividad(l)"><mat-icon>add</mat-icon> Actividad</button>
+                  </div>
+                </div>
+              }
+            </li>
+          }
+        </ol>
+        <button type="button" class="pz-btn pz-btn--chico pes-agregar" (click)="agregarLeccion(m)"><mat-icon>add</mat-icon> Clase</button>
+      </section>
+    }
+
+    <div class="pes-acciones-arbol">
+      <button type="button" class="pz-btn" (click)="agregarModulo()"><mat-icon>add</mat-icon> Agregar módulo</button>
+    </div>
+
+    <div class="pz-tarjeta pes-final">
+      <label class="pes-switch">
+        <input type="checkbox" [(ngModel)]="propuesta.evaluacion_final!.incluir" (ngModelChange)="tocar()" />
+        <span><strong>Evaluación final</strong><em>Un examen al cierre con preguntas de todo el curso (sin copiar y pegar).</em></span>
+      </label>
+      @if (propuesta.evaluacion_final!.incluir) {
+        <div class="pes-grid2">
+          <label class="pz-campo"><span>Preguntas</span>
+            <input type="number" min="5" max="40" [(ngModel)]="propuesta.evaluacion_final!.preguntas" (ngModelChange)="tocar()" /></label>
+          <label class="pz-campo"><span>Nota mínima (0–100)</span>
+            <input type="number" min="0" max="100" [(ngModel)]="propuesta.evaluacion_final!.nota_minima" (ngModelChange)="tocar()" /></label>
+        </div>
+      }
+    </div>
+
+    @if (rehaciendo()) {
+      <div class="pz-tarjeta pes-rehacer">
+        <label class="pz-campo"><span>¿Qué quieres distinto?</span>
+          <textarea rows="3" [(ngModel)]="indicaciones" placeholder="Ej.: menos módulos; una clase de práctica al final de cada módulo; separar el tema de rescate"></textarea></label>
+        <div class="pz-pie__der">
+          <button type="button" class="pz-btn pz-btn--chico" (click)="rehaciendo.set(false)">Cancelar</button>
+          <button type="button" class="pz-btn pz-btn--primario pz-btn--chico" [disabled]="ocupado" (click)="rehacer()"><mat-icon>auto_awesome</mat-icon> Rehacer</button>
+        </div>
+      </div>
+    }
+
+    <div class="pz-tarjeta pes-pie">
+      <div class="pes-pie__izq">
+        @if (sucio()) { <span class="pz-estado pz-estado--aviso"><mat-icon>edit</mat-icon> Cambios sin guardar</span> }
+        @if (!rehaciendo()) {
+          <button type="button" class="pz-btn pz-btn--chico" [disabled]="ocupado" (click)="rehaciendo.set(true)"><mat-icon>autorenew</mat-icon> Rehacer con indicaciones</button>
+        }
+      </div>
+      <div class="pz-pie__der">
+        <button type="button" class="pz-btn" [disabled]="!sucio() || guardando() || ocupado" (click)="guardar()"><mat-icon>save</mat-icon> Guardar</button>
+        <button type="button" class="pz-btn pz-btn--primario" [disabled]="ocupado || guardando() || !diseno.ia_disponible" (click)="escribirClases()">
+          <mat-icon>auto_stories</mat-icon> {{ yaDetalladas() ? 'Escribir las clases que faltan' : 'Escribir las clases' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

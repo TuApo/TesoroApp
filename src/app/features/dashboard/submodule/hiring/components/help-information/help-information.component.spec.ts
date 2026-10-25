@@ -19,6 +19,7 @@ import Swal from 'sweetalert2';
 import { HelpInformationComponent } from './help-information.component';
 import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
+import { CodigoCentroVacanteService } from '../../service/vacantes/codigo-centro-vacante.service';
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
@@ -62,6 +63,11 @@ describe('HelpInformationComponent', () => {
           },
         },
         { provide: MatDialog, useValue: dialog },
+        // Abreviatura = código de costo del centro; aquí, por finca.
+        {
+          provide: CodigoCentroVacanteService,
+          useValue: { resolver: () => of((v: any) => (v?.finca === 'EL CLAVEL' ? 'CLVPOM' : null)) },
+        },
       ],
     }).compileComponents();
 
@@ -257,11 +263,10 @@ describe('HelpInformationComponent', () => {
       ]);
     });
 
-    /** Los cargos que quedan visibles, aplanando el árbol empresa → finca. */
+    /** Los cargos que quedan visibles, aplanando el árbol empresa → vacantes. */
     function cargos(): string[] {
       return comp.vacantesAgrupadas()
-        .flatMap((e: any) => e.fincas)
-        .flatMap((f: any) => f.vacantes)
+        .flatMap((e: any) => e.vacantes)
         .map((v: any) => v.cargo);
     }
 
@@ -288,6 +293,23 @@ describe('HelpInformationComponent', () => {
     it('busca sin tildes y por código', () => {
       comp.searchVacanteCtrl.setValue('FA-01');
       expect(cargos()).toEqual(['SUPERVISOR']);
+    });
+
+    it('busca por la abreviatura (código del centro) y la muestra', () => {
+      comp.searchVacanteCtrl.setValue('clvpom');
+      expect(cargos()).toEqual(['POSCOSECHA']);
+      expect(comp.abreviatura({ finca: 'EL CLAVEL' })).toBe('CLVPOM');
+      expect(comp.abreviatura({ finca: 'LA ROSA' })).toBeNull();
+    });
+
+    it('con búsqueda, la vacante ya elegida que no coincide no se cuela en la lista', () => {
+      comp.selectedVacanteId.set(3);
+      comp.searchVacanteCtrl.setValue('jardines rosa');
+      expect(cargos()).toEqual(['COSECHA']);
+      // Sigue seleccionada (opción oculta) para que el campo no se vacíe.
+      expect(comp.seleccionFueraDeLista()).toBe(3);
+      comp.searchVacanteCtrl.setValue('');
+      expect(comp.seleccionFueraDeLista()).toBeNull();
     });
 
     it('no ofrece las inactivas ni las completas', () => {

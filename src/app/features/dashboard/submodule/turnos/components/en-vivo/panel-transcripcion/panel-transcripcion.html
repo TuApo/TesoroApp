@@ -1,0 +1,89 @@
+<section class="tx" [class.tx--viva]="estado() === 'transcribiendo'" [attr.data-captura]="metodo()" aria-label="Transcripción en vivo">
+  <header class="tx__cab">
+    <div class="tx__titulo">
+      <span class="tx__punto" [class.tx__punto--on]="estado() === 'transcribiendo'" [class.tx__punto--error]="estado() === 'error'" aria-hidden="true"></span>
+      <h3>Transcripción en vivo</h3>
+      <span class="tx__estado" [attr.data-estado]="estado()">{{ etiquetaEstado() }}</span>
+    </div>
+    <div class="tx__acciones">
+      @switch (estado()) {
+        @case ('transcribiendo') { <button type="button" class="tx__btn" (click)="pausar.emit()"><mat-icon>pause</mat-icon> Pausar</button> }
+        @case ('conectando') { <button type="button" class="tx__btn" (click)="pausar.emit()"><mat-icon>pause</mat-icon> Pausar</button> }
+        @case ('pausada') { <button type="button" class="tx__btn tx__btn--primario" (click)="reanudar.emit()"><mat-icon>play_arrow</mat-icon> Reanudar</button> }
+        @case ('error') { <button type="button" class="tx__btn tx__btn--primario" (click)="reintentar.emit()"><mat-icon>refresh</mat-icon> Reintentar</button> }
+        @case ('apagada') {
+          @if (enLlamada()) { <button type="button" class="tx__btn tx__btn--primario" (click)="iniciar.emit()"><mat-icon>subtitles</mat-icon> Transcribir esta llamada</button> }
+        }
+      }
+      <button type="button" class="tx__btn tx__btn--icono" (click)="alternarSeguir()" [attr.aria-pressed]="seguir()"
+              [title]="seguir() ? 'Siguiendo lo último (clic para dejar de seguir)' : 'Seguir lo último'" aria-label="Seguir lo último">
+        <mat-icon>keyboard_double_arrow_down</mat-icon>
+      </button>
+    </div>
+  </header>
+
+  <div class="tx__canales" role="group" aria-label="Quién habla">
+    @for (h of HABLANTES; track h) {
+      @let c = canales()[h];
+      <div class="canal" [attr.data-h]="claseHablante(h)" [class.canal--vivo]="c.estado === 'transcribiendo'" [class.canal--error]="c.estado === 'error'">
+        <span class="canal__medidor" [style.--nivel]="c.estado === 'transcribiendo' ? niveles()[h] : 0" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="canal__quien" [title]="h === 'ASESOR' ? 'Usted · su micrófono' : 'Persona · audio de la llamada'">
+          <b>{{ nombres()[h] }}</b>
+          <small>{{ h === 'ASESOR' ? 'Usted · su micrófono' : 'Persona · audio de la llamada' }}</small>
+        </span>
+        <span class="canal__estado" [title]="c.detalle || ''">{{ etiquetaCanal(c) }}</span>
+      </div>
+    }
+  </div>
+
+  @if (visibleAviso()) {
+    <p class="tx__aviso"><mat-icon>graphic_eq</mat-icon> Se está transcribiendo esta atención. La persona ve el aviso en su celular.</p>
+  }
+  @if (audioBloqueado()) {
+    <button type="button" class="tx__desbloquear" (click)="activarAudio.emit()"><mat-icon>volume_off</mat-icon> El navegador pausó el audio de la transcripción. Toque aquí para activarlo.</button>
+  }
+  @if (motivo(); as m) {
+    <p class="tx__motivo" [class.tx__motivo--error]="estado() === 'error'" role="status"><mat-icon>{{ estado() === 'error' ? 'error' : 'sync' }}</mat-icon> {{ m }}</p>
+  }
+  @if (errorGuardado(); as eg) {
+    <p class="tx__motivo" role="status"><mat-icon>cloud_off</mat-icon> {{ eg }}</p>
+  }
+
+  <div class="tx__marco">
+    <ol class="tx__lista" #lista (scroll)="alDesplazar()" aria-label="Conversación">
+      @for (it of items(); track it.clave) {
+        <li class="frase" [attr.data-h]="claseHablante(it.hablante)" [class.frase--provisional]="it.provisional"
+            [class.frase--grupo]="it.primeroDelGrupo" [class.frase--destello]="destello() === it.clave" [attr.data-clave]="it.clave">
+          <span class="frase__hora">{{ formato(it.inicio_ms) }}</span>
+          <div class="frase__burbuja">
+            @if (it.primeroDelGrupo) { <span class="frase__quien">{{ nombres()[it.hablante] }}</span> }
+            <p>{{ it.texto }}@if (it.provisional) {<span class="frase__cursor" aria-hidden="true"></span>}</p>
+          </div>
+        </li>
+      } @empty {
+        <li class="tx__vacio">
+          <mat-icon>{{ estado() === 'pausada' ? 'pause_circle' : estado() === 'error' ? 'error_outline' : 'forum' }}</mat-icon>
+          <span>
+            @switch (estado()) {
+              @case ('conectando') { Conectando con el servicio de transcripción… }
+              @case ('transcribiendo') { Escuchando. Lo que diga cada uno aparece aquí con su nombre y el minuto. }
+              @case ('pausada') { En pausa: no se está transcribiendo. }
+              @case ('error') { La transcripción no pudo arrancar. Revise el motivo arriba y reintente. }
+              @default {
+                @if (enLlamada()) { La transcripción está apagada para esta llamada. } @else { Cuando la videollamada se conecte, aquí aparece lo que dice cada uno, con su nombre y el minuto. }
+              }
+            }
+          </span>
+        </li>
+      }
+    </ol>
+    @if (!seguir() && nuevas() > 0) {
+      <button type="button" class="tx__nuevas" (click)="irAlFinal()"><mat-icon>arrow_downward</mat-icon> {{ nuevas() }} {{ nuevas() === 1 ? 'frase nueva' : 'frases nuevas' }}</button>
+    }
+  </div>
+
+  <footer class="tx__pie">
+    <label class="tx__auto"><input type="checkbox" [checked]="automatica()" (change)="automaticaCambio.emit(!automatica())"> Transcribir sola al conectar la llamada</label>
+  </footer>
+  <span class="solo-lector" aria-live="polite">{{ anuncio() }}</span>
+</section>

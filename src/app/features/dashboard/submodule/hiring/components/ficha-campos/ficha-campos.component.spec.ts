@@ -1,10 +1,11 @@
 import { Component, Input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
 import { anclaSeccion, FichaCamposComponent, SeccionFicha } from './ficha-campos.component';
+import { SaludAdres } from '../../shared/salud-adres.util';
 
 /**
  * Vienen del diálogo que este componente sustituye. Lo que cambia es el
@@ -23,7 +24,7 @@ import { anclaSeccion, FichaCamposComponent, SeccionFicha } from './ficha-campos
   imports: [ReactiveFormsModule, FichaCamposComponent],
   template: `
     <form [formGroup]="form">
-      <app-ficha-campos [secciones]="secciones" [ciudades]="ciudades" [hijos]="hijos"
+      <app-ficha-campos [secciones]="secciones" [ciudades]="ciudades" [hijos]="hijos" [saludAdres]="saludAdres"
                         [tipoDoc$]="cat" [conQuienVive$]="cat" [estadoCivil$]="cat"
                         [parentescos$]="cat" [ocupaciones$]="cat"></app-ficha-campos>
     </form>
@@ -33,6 +34,7 @@ class HostPrueba {
   @Input() form!: FormGroup;
   @Input() secciones: readonly SeccionFicha[] = [];
   @Input() hijos: ReadonlyArray<{ nombre: string; edad: string }> = [];
+  @Input() saludAdres: SaludAdres | null = null;
   ciudades = ['BOGOTÁ', 'CHÍA', 'SOACHA'];
   cat = of([{ codigo: 'CC', descripcion: 'Cédula' }] as any);
 }
@@ -40,7 +42,7 @@ class HostPrueba {
 describe('FichaCamposComponent', () => {
   let form: FormGroup;
 
-  function crear(secciones: readonly SeccionFicha[]): ComponentFixture<HostPrueba> {
+  function crear(secciones: readonly SeccionFicha[], saludAdres: SaludAdres | null = null): ComponentFixture<HostPrueba> {
     const fb = new FormBuilder();
     form = fb.group({
       oficina: ['SOACHA', Validators.required],
@@ -100,6 +102,7 @@ describe('FichaCamposComponent', () => {
     const f = TestBed.createComponent(HostPrueba);
     f.componentInstance.form = form;
     f.componentInstance.secciones = secciones;
+    f.componentInstance.saludAdres = saludAdres;
     f.detectChanges();
     return f;
   }
@@ -159,27 +162,47 @@ describe('FichaCamposComponent', () => {
     expect(f.nativeElement.querySelector('[formControlName="edad"]')).not.toBeNull();
   });
 
-  it('de los hijos solo la cantidad: no se pinta el detalle editable de cada uno', () => {
+  function hijo(fb: FormBuilder, v: Record<string, any>): FormGroup {
+    return fb.group({
+      numero_de_documento: [''], fecha_nac: [null], tipo_documento: ['RC'],
+      primer_nombre: [''], segundo_nombre: [''], primer_apellido: [''], segundo_apellido: [''],
+      sexo: [''], ocupacion: [''], curso: [''], vive_con_trabajador: [''], tiene_discapacidad: [''],
+      cual_discapacidad: [''], es_hijastro: [''], custodia_legal: [''], otro_padre_nombre: [''],
+      otro_padre_documento: [''], otro_padre_en_compania: [''], estudia_fundacion: [''], nivel_educativo: [''], ...v,
+    });
+  }
+
+  it('cada hijo trae los campos del formulario de la vacante, editables', () => {
     const f = crear(['hijos']);
     for (const c of ['relacionFamiliar', 'tieneHijos', 'numeroHijos', 'cuidadorHijos']) {
       expect(f.nativeElement.querySelector('[formControlName="' + c + '"]')).not.toBeNull();
     }
-    expect(f.nativeElement.querySelector('[formArrayName="hijos"]')).toBeNull();
+    const fb = new FormBuilder();
+    (form.get('hijos') as FormArray).push(hijo(fb, { primer_nombre: 'SARA', primer_apellido: 'GÓMEZ' }));
+    f.componentInstance.hijos = [{ nombre: 'SARA GÓMEZ', edad: '' }];
+    f.detectChanges();
+    const tarjeta: HTMLElement = f.nativeElement.querySelector('.fe-hijo');
+    expect(tarjeta.textContent).toContain('SARA GÓMEZ');
+    // Cerrada por defecto: solo la cabecera. Se abre al tocarla.
+    expect(tarjeta.querySelector('[formControlName="primer_nombre"]')).toBeNull();
+    (tarjeta.querySelector('.fe-hijo-toggle') as HTMLElement).click();
+    f.detectChanges();
+    for (const c of ['primer_nombre', 'sexo', 'fecha_nac', 'tipo_documento', 'numero_de_documento',
+      'ocupacion', 'curso', 'vive_con_trabajador', 'tiene_discapacidad', 'es_hijastro',
+      'custodia_legal', 'otro_padre_nombre', 'otro_padre_documento', 'otro_padre_en_compania',
+      'estudia_fundacion', 'nivel_educativo']) {
+      expect(tarjeta.querySelector('[formControlName="' + c + '"]')).not.toBeNull();
+    }
   });
 
-  it('lista el nombre y la edad de cada hijo', () => {
+  it('la edad del hijo sale de la fecha: meses por debajo del año', () => {
     const f = crear(['hijos']);
-    f.componentInstance.hijos = [
-      { nombre: 'SARA GÓMEZ', edad: '7 años' },
-      { nombre: 'LUIS GÓMEZ', edad: '8 meses' },
-    ];
+    const hace8Meses = new Date();
+    hace8Meses.setMonth(hace8Meses.getMonth() - 8);
+    (form.get('hijos') as FormArray).push(hijo(new FormBuilder(), { fecha_nac: hace8Meses }));
+    f.componentInstance.hijos = [{ nombre: '', edad: '' }];
     f.detectChanges();
-    const filas: HTMLElement[] = Array.from(f.nativeElement.querySelectorAll('.fe-hijo-fila'));
-    expect(filas.length).toBe(2);
-    expect(filas[0].textContent).toContain('SARA GÓMEZ');
-    expect(filas[0].textContent).toContain('7 años');
-    // Menor de un año: la edad se dice en meses, no en "0 años".
-    expect(filas[1].textContent).toContain('8 meses');
+    expect(f.nativeElement.querySelector('.fe-hijo-edad').textContent).toContain('8 meses');
   });
 
   it('las referencias son DOS personales y DOS familiares, con nombre y parentesco', () => {
@@ -220,5 +243,28 @@ describe('FichaCamposComponent', () => {
     input.dispatchEvent(new Event('input'));
     f.detectChanges();
     expect(form.get('primer_nombre')!.value).toBe('LUZ');
+  });
+
+  // Pedido #6: salud según ADRES en el bloque de identificación.
+  it('sin datos de ADRES no pinta chip ni aviso', () => {
+    const f = crear(['identificacion']);
+    expect(f.nativeElement.querySelector('.fc-adres')).toBeNull();
+  });
+
+  it('régimen de excepción: chip "Régimen especial/excepción" con el detalle', () => {
+    const f = crear(['identificacion'], {
+      excepcion: { regimen: 'ESPECIAL', entidad: 'FOMAG', estado: null, fecha: null },
+      sinRegistro: false,
+    });
+    const txt = (f.nativeElement.querySelector('.fc-adres--excepcion') as HTMLElement).textContent!;
+    expect(txt).toContain('Régimen especial/excepción');
+    expect(txt).toContain('Entidad: FOMAG');
+  });
+
+  it('ADRES sin registro: aviso suave de verificar la afiliación', () => {
+    const f = crear(['identificacion'], { excepcion: null, sinRegistro: true });
+    const el = f.nativeElement.querySelector('.fc-adres--verificar') as HTMLElement;
+    expect(el.textContent).toContain('Verificar afiliación: ADRES sin registro');
+    expect(f.nativeElement.querySelector('.fc-adres--excepcion')).toBeNull();
   });
 });

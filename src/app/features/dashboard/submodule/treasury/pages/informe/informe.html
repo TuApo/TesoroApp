@@ -1,0 +1,380 @@
+<div class="tsr-pagina">
+
+  <header class="tsr-cabecera">
+    <div>
+      <h1>Informe de tesorería</h1>
+      <p>
+        Capacidad de crédito de los activos, uso del crédito en el tiempo y listas de personas
+        para actuar. La capacidad sale del <b>corte</b>: lo que el motor de reglas le respondería
+        hoy a cada activo si pidiera mercado o préstamo.
+      </p>
+    </div>
+    <div class="tsr-acciones">
+      @if (cortes().length) {
+        <label class="selector-corte">
+          <span>Corte</span>
+          <select [ngModel]="corteId() ?? ''" (ngModelChange)="elegirCorte($event)">
+            @for (c of cortes(); track c.id) {
+              <option [value]="c.id">{{ c.fecha_corte }}{{ $first ? ' (último)' : '' }}</option>
+            }
+          </select>
+        </label>
+      }
+      <button type="button" class="tsr-boton principal" (click)="generarCorte()" [disabled]="generando()">
+        <mat-icon [class.girando]="generando()">{{ generando() ? 'autorenew' : 'refresh' }}</mat-icon>
+        {{ generando() ? 'Calculando…' : 'Actualizar corte de hoy' }}
+      </button>
+    </div>
+  </header>
+
+  @if (error()) {
+    <div class="tsr-alerta critica">
+      <mat-icon>error</mat-icon>
+      <div><span class="titulo">No se pudo cargar el informe</span><span class="detalle">{{ error() }}</span></div>
+    </div>
+  }
+
+  @if (corte(); as c) {
+    <p class="pie-corte">
+      Corte del <b>{{ c.fecha_corte }}</b> · {{ num(c.personas_evaluadas) }} activos evaluados ·
+      {{ c.origen === 'AUTOMATICO' ? 'automático' : 'generado por ' + (c.generado_por || '—') }} a las {{ c.generado_en.slice(11, 16) }}
+      @if (!esUltimo()) { · <b>no es el último corte</b> }
+    </p>
+  } @else if (!cargando() && !error()) {
+    <div class="tsr-alerta info">
+      <mat-icon>info</mat-icon>
+      <div>
+        <span class="titulo">Todavía no hay cortes</span>
+        <span class="detalle">El corte se genera solo cada madrugada (5:30). Para ver la capacidad ya, usa «Actualizar corte de hoy».
+          El uso histórico sí está disponible.</span>
+      </div>
+    </div>
+  }
+
+  @for (a of alertas(); track a.titulo) {
+    <div class="tsr-alerta" [class]="a.tono">
+      <mat-icon>{{ a.tono === 'info' ? 'info' : 'warning' }}</mat-icon>
+      <div><span class="titulo">{{ a.titulo }}</span><span class="detalle">{{ a.detalle }}</span></div>
+    </div>
+  }
+
+  <nav class="pestanas" role="tablist">
+    <button type="button" role="tab" [class.activa]="pestana() === 'capacidad'" (click)="irA('capacidad')">
+      <mat-icon>account_balance_wallet</mat-icon> Capacidad
+    </button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'uso'" (click)="irA('uso')">
+      <mat-icon>query_stats</mat-icon> Uso histórico
+    </button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'segmentos'" (click)="irA('segmentos')">
+      <mat-icon>donut_small</mat-icon> Segmentos
+    </button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'personas'" (click)="irA('personas')">
+      <mat-icon>groups</mat-icon> Personas
+    </button>
+  </nav>
+
+  @if (cargando()) {
+    <div class="tsr-vacio">Cargando…</div>
+  }
+
+  <!-- ═══════════════════════════ CAPACIDAD ═══════════════════════════ -->
+  @if (pestana() === 'capacidad' && !cargando()) {
+    @if (resumen(); as r) {
+      <section class="tsr-tarjeta">
+        <h2><mat-icon>groups</mat-icon> Personas</h2>
+        <div class="tsr-cifras">
+          <div class="tsr-cifra"><span class="valor">{{ num(r.personas_activas) }}</span><span class="etiqueta">Activos</span></div>
+          <div class="tsr-cifra" [class.buena]="(r.uso.penetracion_90d ?? 0) >= 0.5" [class.aviso]="(r.uso.penetracion_90d ?? 0) < 0.5">
+            <span class="valor">{{ pct(r.uso.penetracion_90d) }}</span>
+            <span class="etiqueta">Usaron el crédito en 90 días</span>
+            <span class="nota">{{ num(r.uso.usaron_90d) }} personas · {{ num(r.uso.usaron_30d) }} en 30 días</span>
+          </div>
+          <div class="tsr-cifra"><span class="valor">{{ num(r.uso.nunca_usaron) }}</span><span class="etiqueta">Nunca lo han usado</span></div>
+          <div class="tsr-cifra"><span class="valor">{{ num(r.con_deuda) }}</span><span class="etiqueta">Con deuda</span>
+            <span class="nota">{{ proporcion(r.con_deuda, r.personas_activas) }} de los activos</span></div>
+          <div class="tsr-cifra" [class.mala]="r.bloqueadas > 0"><span class="valor">{{ num(r.bloqueadas) }}</span><span class="etiqueta">Bloqueados</span></div>
+        </div>
+      </section>
+
+      <div class="dos-columnas">
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>shopping_basket</mat-icon> Mercado</h2>
+          <div class="tsr-cifras">
+            <div class="tsr-cifra buena"><span class="valor">{{ num(r.mercado.con_cupo) }}</span><span class="etiqueta">Pueden pedir hoy</span>
+              <span class="nota">{{ proporcion(r.mercado.con_cupo, r.personas_activas) }} de los activos</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ compacto(r.mercado.cupo_disponible) }}</span><span class="etiqueta">Cupo disponible</span>
+              <span class="nota">promedio {{ dinero(r.mercado.cupo_promedio) }}</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ compacto(r.mercado.capacidad) }}</span><span class="etiqueta">Capacidad (topes)</span></div>
+            <div class="tsr-cifra" [class.aviso]="(r.mercado.utilizacion ?? 0) > 0.7"><span class="valor">{{ pct(r.mercado.utilizacion) }}</span>
+              <span class="etiqueta">Utilización</span><span class="nota">deuda y pendientes sobre la capacidad</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ num(r.mercado.cupo_agotado) }}</span><span class="etiqueta">Cupo agotado</span></div>
+            <div class="tsr-cifra" [class.mala]="r.mercado.no_elegibles > 0"><span class="valor">{{ num(r.mercado.no_elegibles) }}</span><span class="etiqueta">No elegibles</span></div>
+          </div>
+        </section>
+
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>payments</mat-icon> Préstamo</h2>
+          <div class="tsr-cifras">
+            <div class="tsr-cifra buena"><span class="valor">{{ num(r.prestamo.con_cupo) }}</span><span class="etiqueta">Pueden pedir hoy</span>
+              <span class="nota">{{ proporcion(r.prestamo.con_cupo, r.personas_activas) }} de los activos</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ compacto(r.prestamo.cupo_disponible) }}</span><span class="etiqueta">Cupo disponible</span>
+              <span class="nota">promedio {{ dinero(r.prestamo.cupo_promedio) }}</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ compacto(r.prestamo.capacidad) }}</span><span class="etiqueta">Capacidad (topes)</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ pct(r.prestamo.utilizacion) }}</span><span class="etiqueta">Utilización</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ num(r.prestamo.cupo_agotado) }}</span><span class="etiqueta">Cupo agotado</span></div>
+            <div class="tsr-cifra" [class.mala]="r.prestamo.no_elegibles > 0"><span class="valor">{{ num(r.prestamo.no_elegibles) }}</span><span class="etiqueta">No elegibles</span></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="tsr-tarjeta">
+        <h2><mat-icon>insights</mat-icon> Dinero y oportunidad</h2>
+        <div class="tsr-cifras">
+          <div class="tsr-cifra mala"><span class="valor">{{ compacto(r.deuda_total) }}</span><span class="etiqueta">Deuda de los activos</span>
+            <span class="nota">mercado {{ compacto(r.deuda_mercado) }} · préstamos {{ compacto(r.deuda_prestamo) }}</span></div>
+          <div class="tsr-cifra aviso"><span class="valor">{{ compacto(r.comprometido_total) }}</span><span class="etiqueta">Autorizado sin recoger</span>
+            <span class="nota">{{ num(r.con_comprometido) }} personas · resta cupo</span></div>
+          <div class="tsr-cifra buena destacada">
+            <span class="valor">{{ compacto(r.oportunidad.cupo_mercado) }}</span>
+            <span class="etiqueta">Cupo de mercado sin usar</span>
+            <span class="nota">{{ num(r.oportunidad.personas) }} personas con cupo que no usan el crédito hace 90 días</span>
+            <button type="button" class="tsr-boton pequeno" (click)="elegirLista('OPORTUNIDAD'); irA('personas')">
+              <mat-icon>list</mat-icon> Ver la lista
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div class="graficas">
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>block</mat-icon> ¿Por qué no pueden pedir?</h2>
+          <p class="explica">Personas por motivo. Toca una barra para ver la lista.</p>
+          @if (opcionesMotivos(); as o) {
+            <div echarts [options]="o" class="grafica alta" (chartClick)="clicMotivo($event)"></div>
+          } @else { <div class="tsr-vacio">Todos los activos tienen cupo.</div> }
+        </section>
+
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>bar_chart</mat-icon> Cupo de mercado disponible</h2>
+          <p class="explica">Cuántas personas hay en cada tramo de cupo.</p>
+          @if (opcionesCupo(); as o) {
+            <div echarts [options]="o" class="grafica"></div>
+          } @else { <div class="tsr-vacio">Sin datos.</div> }
+        </section>
+
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>schedule</mat-icon> Antigüedad, cupo y uso</h2>
+          <p class="explica">Activos por antigüedad, cuántos tienen cupo y qué porcentaje usó el crédito en 90 días.</p>
+          @if (opcionesAntiguedad(); as o) {
+            <div echarts [options]="o" class="grafica"></div>
+          } @else { <div class="tsr-vacio">Sin datos.</div> }
+        </section>
+
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>timeline</mat-icon> Evolución de la capacidad</h2>
+          @if (opcionesTendencia(); as o) {
+            <p class="explica">Un punto por corte diario.</p>
+            <div echarts [options]="o" class="grafica"></div>
+          } @else {
+            <div class="tsr-vacio">
+              La serie se arma con un corte por día (automático a las 5:30). Hoy hay {{ cortesSerie().length }}.
+              Vuelve en unos días para ver la tendencia.
+            </div>
+          }
+        </section>
+      </div>
+    }
+  }
+
+  <!-- ═══════════════════════════ USO HISTÓRICO ═══════════════════════════ -->
+  @if (pestana() === 'uso') {
+    <section class="tsr-tarjeta filtros">
+      <div class="tsr-campo">
+        <label>Desde</label>
+        <input type="date" [ngModel]="usoDesde()" (ngModelChange)="usoDesde.set($event)" />
+      </div>
+      <div class="tsr-campo">
+        <label>Hasta</label>
+        <input type="date" [ngModel]="usoHasta()" (ngModelChange)="usoHasta.set($event)" />
+      </div>
+      <div class="tsr-campo">
+        <label>Agrupar por</label>
+        <select [ngModel]="usoPeriodo()" (ngModelChange)="usoPeriodo.set($event)">
+          <option value="MES">Mes</option>
+          <option value="QUINCENA">Quincena</option>
+          <option value="SEMANA">Semana</option>
+        </select>
+      </div>
+      <button type="button" class="tsr-boton principal" (click)="cargarUso()" [disabled]="cargandoUso()">
+        <mat-icon>search</mat-icon> Consultar
+      </button>
+      <div class="rapidos">
+        <button type="button" class="tsr-boton pequeno" (click)="rangoRapido(3)">3 meses</button>
+        <button type="button" class="tsr-boton pequeno" (click)="rangoRapido(12)">12 meses</button>
+        <button type="button" class="tsr-boton pequeno" (click)="rangoRapido('todo')">Todo</button>
+      </div>
+    </section>
+
+    @if (cargandoUso()) { <div class="tsr-vacio">Consultando…</div> }
+
+    @if (historico(); as h) {
+      @if (totalesUso(); as t) {
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>summarize</mat-icon> Del {{ h.desde }} al {{ h.hasta }}</h2>
+          <div class="tsr-cifras">
+            <div class="tsr-cifra"><span class="valor">{{ compacto(t.monto) }}</span><span class="etiqueta">Ejecutado</span>
+              <span class="nota">mercado {{ compacto(t.mercado) }} · préstamo {{ compacto(t.prestamo) }}</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ compacto(t.promedioPeriodo) }}</span>
+              <span class="etiqueta">Promedio por {{ h.periodo === 'MES' ? 'mes' : h.periodo === 'QUINCENA' ? 'quincena' : 'semana' }}</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ num(t.ops) }}</span><span class="etiqueta">Operaciones</span>
+              <span class="nota">ticket promedio {{ dinero(t.ticket) }}</span></div>
+            <div class="tsr-cifra buena"><span class="valor">{{ num(t.nuevas) }}</span><span class="etiqueta">Usaron el crédito por primera vez</span></div>
+            <div class="tsr-cifra"><span class="valor">{{ pct(t.conversion) }}</span><span class="etiqueta">Autorizado que se ejecutó</span>
+              <span class="nota">{{ num(t.aut) }} autorizadas · {{ num(t.pend) }} siguen pendientes</span></div>
+          </div>
+          @if (h.atipicos.registros > 0) {
+            <p class="explica">
+              <mat-icon inline>info</mat-icon>
+              {{ h.atipicos.registros }} registros con montos por encima de {{ dinero(h.atipicos.umbral) }} quedaron fuera de las sumas
+              (ids {{ h.atipicos.ids }}).
+            </p>
+          }
+        </section>
+      }
+
+      <div class="graficas">
+        <section class="tsr-tarjeta ancha">
+          <h2><mat-icon>stacked_bar_chart</mat-icon> Ejecutado por periodo</h2>
+          @if (opcionesUsoMonto(); as o) {
+            <div echarts [options]="o" class="grafica"></div>
+          } @else { <div class="tsr-vacio">Sin operaciones en el rango.</div> }
+        </section>
+        <section class="tsr-tarjeta ancha">
+          <h2><mat-icon>person_add</mat-icon> Personas, primeras veces y ticket</h2>
+          @if (opcionesUsoPersonas(); as o) {
+            <div echarts [options]="o" class="grafica"></div>
+          } @else { <div class="tsr-vacio">Sin operaciones en el rango.</div> }
+        </section>
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>store</mat-icon> Por sede o tienda</h2>
+          @if (opcionesSedes(); as o) {
+            <div echarts [options]="o" class="grafica alta"></div>
+          } @else { <div class="tsr-vacio">Sin datos.</div> }
+        </section>
+        <section class="tsr-tarjeta">
+          <h2><mat-icon>call_split</mat-icon> Por canal</h2>
+          @if (opcionesOrigen(); as o) {
+            <div echarts [options]="o" class="grafica alta"></div>
+          } @else { <div class="tsr-vacio">Sin datos.</div> }
+        </section>
+      </div>
+
+      <app-tabla-estandar
+        id="tesoreria-informe-uso"
+        titulo="Uso del crédito por periodo"
+        modulo="Tesorería"
+        [datos]="h.periodos"
+        [columnas]="columnasUso"
+        [filaId]="idPeriodo"
+        [filasPorPagina]="0" />
+    }
+  }
+
+  <!-- ═══════════════════════════ SEGMENTOS ═══════════════════════════ -->
+  @if (pestana() === 'segmentos' && !cargando()) {
+    @if (corte()) {
+      <div class="chips">
+        @for (d of dimensiones; track d.id) {
+          <button type="button" class="chip" [class.activo]="dimension() === d.id" (click)="elegirDimension(d.id)">{{ d.texto }}</button>
+        }
+      </div>
+      <section class="tsr-tarjeta">
+        <h2><mat-icon>trending_up</mat-icon> Dónde está el cupo sin usar</h2>
+        <p class="explica">Los 15 grupos con más cupo de mercado de personas que no usaron el crédito en 90 días.</p>
+        @if (opcionesOportunidad(); as o) {
+          <div echarts [options]="o" class="grafica alta"></div>
+        } @else { <div class="tsr-vacio">Sin cupo sin usar en este corte.</div> }
+      </section>
+      <app-tabla-estandar
+        id="tesoreria-informe-segmentos"
+        titulo="Capacidad por segmento"
+        modulo="Tesorería"
+        [datos]="segmentos()"
+        [columnas]="columnasSeg"
+        [filaId]="idSeg"
+        [cargando]="cargandoSeg()"
+        [filasPorPagina]="50" />
+    }
+  }
+
+  <!-- ═══════════════════════════ PERSONAS ═══════════════════════════ -->
+  @if (pestana() === 'personas' && !cargando()) {
+    <div class="chips">
+      @for (l of listas; track l.id) {
+        <button type="button" class="chip" [class.activo]="lista() === l.id" (click)="elegirLista(l.id)">{{ l.texto }}</button>
+      }
+    </div>
+    <p class="explica">{{ ayudaLista() }}</p>
+
+    @if (lista() === 'NO_ELEGIBLES') {
+      <div class="tsr-campo motivo">
+        <label>Motivo</label>
+        <select [ngModel]="motivo()" (ngModelChange)="elegirMotivo($event)">
+          <option value="">Todos los motivos</option>
+          @for (m of motivosNoElegible(); track m.codigo) {
+            <option [value]="m.codigo">{{ m.nombre }} ({{ num(m.mercado > m.prestamo ? m.mercado : m.prestamo) }})</option>
+          }
+        </select>
+      </div>
+    }
+
+    @if (lista() === 'PENDIENTES') {
+      @if (puedeAnular && pendientes().length) {
+        <div class="anular-viejas">
+          <p>
+            Marca personas para anular sus pendientes, o anula todas las de más de {{ diasViejas }} días.
+            Antes se muestra exactamente qué se cierra. No se borra nada: quedan anuladas con tu usuario,
+            el motivo y un código de lote.
+          </p>
+          <button type="button" class="tsr-boton peligro" (click)="anularTodas()" [disabled]="anulando()">
+            <mat-icon>block</mat-icon> {{ anulando() ? 'Anulando…' : 'Anular todas…' }}
+          </button>
+        </div>
+      }
+      <app-tabla-estandar
+        id="tesoreria-informe-pendientes"
+        titulo="Autorizaciones pendientes viejas"
+        modulo="Tesorería"
+        [datos]="pendientes()"
+        [columnas]="columnasPendientes"
+        [filaId]="idPendiente"
+        [cargando]="cargandoPersonas()"
+        [accionesMasivas]="accionesPendientes"
+        (filaClick)="abrirFicha($event.numero_documento)" />
+    } @else {
+      <app-tabla-estandar
+        id="tesoreria-informe-personas"
+        [titulo]="'Personas - ' + (ayudaLista() || 'informe')"
+        modulo="Tesorería"
+        [datos]="personas()"
+        [columnas]="columnasPersonas"
+        [filaId]="idPersona"
+        [cargando]="cargandoPersonas()"
+        (filaClick)="abrirFicha($event.numero_documento)" />
+    }
+  }
+
+  @if (fichaDoc(); as doc) {
+    <div class="panel-fondo" (click)="fichaDoc.set(null)"></div>
+    <aside class="panel-ficha" role="dialog" aria-label="Ficha de la persona">
+      <header>
+        <span>Ficha de {{ doc }}</span>
+        <button type="button" class="tsr-boton pequeno" (click)="fichaDoc.set(null)"><mat-icon>close</mat-icon> Cerrar</button>
+      </header>
+      <app-ficha-persona [documento]="doc" [sede]="null" />
+    </aside>
+  }
+</div>
+
+<!-- Chat de IA de la plataforma con el contexto del informe (corte, pestaña, filtros). -->
+<app-chat-ia-acceso [contexto]="contextoChat()" />

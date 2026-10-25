@@ -11,9 +11,11 @@
  * Sin dependencias nativas nuevas: usa os/crypto/child_process y las APIs de Electron. El token de
  * la máquina se cifra con safeStorage cuando está disponible.
  *
- * NO hace: keylogging, captura silenciosa, robo de credenciales ni anti-desinstalación.
+ * Captura de texto/portapapeles/documentos SOLO si la política cap_texto está activa (apagada por
+ * defecto) y con aviso visible; el servidor enmascara credenciales antes de guardar. NO hace:
+ * keylogging oculto, captura silenciosa, robo de credenciales ni anti-desinstalación.
  */
-const { app, Tray, Menu, nativeImage, Notification, powerMonitor, safeStorage, desktopCapturer, screen } = require('electron');
+const { app, Tray, Menu, nativeImage, Notification, powerMonitor, safeStorage, desktopCapturer, screen, dialog, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -31,9 +33,16 @@ const MS_INVENTARIO = 6 * 60 * 60 * 1000; // inventario cada 6 h
 const MS_PROCESOS = 30 * 60 * 1000;   // foto de procesos cada 30 min (el servidor la descarta si la política lo pide)
 const MS_MUESTREO = 15 * 1000;        // muestreo de ventana activa cada 15 s (capa de uso)
 const MS_FLUSH_USO = 2 * 60 * 1000;   // enviar los tramos de uso cada 2 min
+const MS_TEXTO = 4 * 1000;            // sondeo del portapapeles cada 4 s (capa cap_texto)
+const MS_FLUSH_FRAG = 2 * 60 * 1000;  // enviar los fragmentos cada 2 min
+
+const RE_DOC = /[\w .()\-]+\.(docx?|xlsx?|pptx?|pdf|csv|txt|odt|ods)/i; // título que delata un documento
 
 let segmento = null;                  // tramo de uso en curso {app, titulo, ini, ultimo}
 let bufferUso = [];                   // tramos cerrados pendientes de enviar
+let bufferFrag = [];                  // fragmentos (portapapeles/documento) pendientes de enviar
+let ultimoClip = '';                  // último texto del portapapeles visto (para no repetir)
+let ultimoDoc = '';                   // último documento reportado (para no repetir)
 
 let tray = null;
 let estado = { enrolado: false, endpointId: null, capas: null, ultimoError: null };
@@ -41,10 +50,12 @@ let token = null;
 let timers = [];
 let logger = { info() {}, warn() {}, error() {} };
 let assertSender = () => {};
+let abrirVentana = null;              // la pone app.js: muestra (o recrea) la ventana principal
 
 function initEndpointAgent(opts = {}) {
   if (opts.logger) logger = opts.logger;
   if (typeof opts.assertSender === 'function') assertSender = opts.assertSender;
+  if (typeof opts.abrirVentana === 'function') abrirVentana = opts.abrirVentana;
   try {
     cargarToken();
     autostart(true);
@@ -163,6 +174,8 @@ function arrancarCiclos() {
   timers.push(setInterval(enviarProcesos, MS_PROCESOS));
   timers.push(setInterval(muestrearUso, MS_MUESTREO));
   timers.push(setInterval(flushUso, MS_FLUSH_USO));
+  timers.push(setInterval(muestrearTexto, MS_TEXTO));
+  timers.push(setInterval(flushFragmentos, MS_FLUSH_FRAG));
 }
 
 async function latido() {
@@ -283,6 +296,51 @@ async function flushUso() {
   catch (e) { logger.warn('uso: ' + e.message); }
 }
 
+// ── Captura de texto/portapapeles/documentos → fragmentos (capa cap_texto, con aviso) ──
+
+/** Sondea el portapapeles y el documento en primer plano; SOLO si la política cap_texto está activa.
+ *  No es un keylogger: registra lo que se copia/pega y qué documento se trabaja, con su procedencia.
+ *  El servidor enmascara credenciales antes de guardar. */
+async function muestrearTexto() {
+  if (!estado.enrolado || !estado.capas || !estado.capas.texto) return;
+  // 1) Portapapeles (copia/pega). readText es síncrono y barato.
+  let clip = '';
+  try { clip = (clipboard.readText() || '').trim(); } catch { clip = ''; }
+  if (clip && clip !== ultimoClip && clip.length >= 3 && clip.length <= 20000) {
+    ultimoClip = clip;
+    const v = await ventanaActiva();
+    empujarFragmento('CLIP', clip, v);
+  }
+  // 2) Documento abierto: se deduce del título ya muestreado (sin coste extra de PowerShell).
+  if (segmento && segmento.titulo && RE_DOC.test(segmento.titulo)) {
+    const m = segmento.titulo.match(RE_DOC);
+    const doc = (m ? m[0] : segmento.titulo).trim();
+    if (doc && doc !== ultimoDoc) {
+      ultimoDoc = doc;
+      empujarFragmento('DOC', doc, { app: segmento.app, titulo: segmento.titulo });
+    }
+  }
+}
+
+function empujarFragmento(origen, contenido, v) {
+  bufferFrag.push({
+    ts: isoLocal(new Date()),
+    origen,
+    app: (v && v.app) || (segmento && segmento.app) || null,
+    tituloVentana: (v && v.titulo) || null,
+    contenido,
+  });
+  if (bufferFrag.length > 100) bufferFrag = bufferFrag.slice(-100);
+}
+
+async function flushFragmentos() {
+  if (!estado.enrolado || !estado.capas || !estado.capas.texto) { bufferFrag = []; return; }
+  if (!bufferFrag.length) return;
+  const lote = bufferFrag.splice(0, bufferFrag.length);
+  try { await pedir('POST', RUTA + '/fragmentos', { items: lote }); }
+  catch (e) { logger.warn('fragmentos: ' + e.message); }
+}
+
 async function recogerComandos() {
   let cmds = [];
   try { cmds = await pedir('GET', RUTA + '/comandos'); } catch (e) { return; }
@@ -374,6 +432,8 @@ function construirBandeja() {
   try {
     const img = iconoBandeja();
     tray = new Tray(img);
+    // En Windows el clic izquierdo no abre el menú: que abra la app, como en el resto de programas de la bandeja.
+    tray.on('click', () => { if (abrirVentana) abrirVentana(); });
     actualizarBandeja();
   } catch (e) { logger.warn('no se pudo crear la bandeja: ' + e.message); }
 }
@@ -381,7 +441,7 @@ function construirBandeja() {
 function actualizarBandeja() {
   if (!tray) return;
   const c = estado.capas || {};
-  const capasTxt = ['inventario', 'procesos', 'uso', 'eventos', 'captura'].filter(k => c[k]).join(', ') || 'ninguna';
+  const capasTxt = ['inventario', 'procesos', 'uso', 'eventos', 'captura', 'texto'].filter(k => c[k]).join(', ') || 'ninguna';
   const menu = Menu.buildFromTemplate([
     { label: estado.enrolado ? 'Monitoreo TI: activo' : 'Monitoreo TI: sin activar', enabled: false },
     { label: 'Equipo: ' + os.hostname(), enabled: false },
@@ -390,15 +450,40 @@ function actualizarBandeja() {
     { label: 'Ver aviso de privacidad', click: mostrarAviso },
     { type: 'separator' },
     { label: 'Sincronizar ahora', enabled: estado.enrolado, click: () => { latido(); enviarInventario(); } },
+    { type: 'separator' },
+    { label: 'Abrir Gestión Tesorería', enabled: !!abrirVentana, click: () => { if (abrirVentana) abrirVentana(); } },
+    { label: 'Salir de Gestión Tesorería', click: salir },
   ]);
   tray.setToolTip('Soporte TI · ' + (estado.enrolado ? 'activo' : 'sin activar'));
   tray.setContextMenu(menu);
 }
 
+// Con el agente enrolado, cerrar la ventana deja la app en la bandeja y esta es la única salida
+// limpia. Se pide confirmación porque el monitoreo se pausa hasta que la app vuelva a abrirse (a mano
+// o al iniciar sesión en Windows). app.quit() explícito: window-all-closed no cierra con el agente activo.
+async function salir() {
+  if (estado.enrolado) {
+    let r = { response: 1 };
+    try {
+      r = await dialog.showMessageBox({
+        type: 'question',
+        buttons: ['Salir', 'Cancelar'],
+        defaultId: 1,
+        cancelId: 1,
+        title: 'Gestión Tesorería',
+        message: '¿Salir de Gestión Tesorería?',
+        detail: 'El monitoreo TI de este equipo se pausará hasta que vuelvas a abrir la aplicación o inicies sesión de nuevo en Windows.',
+      });
+    } catch (e) { logger.warn('dialogo de salida: ' + e.message); r = { response: 0 }; }
+    if (r.response !== 0) return;
+  }
+  app.quit();
+}
+
 function mostrarAviso() {
   const c = estado.capas || {};
   const txt = (c.consentimientoTxt || 'Equipo corporativo monitoreado para soporte y seguridad.') +
-    '\n\nCapas activas: ' + (['inventario', 'procesos', 'uso', 'eventos', 'captura'].filter(k => c[k]).join(', ') || 'ninguna');
+    '\n\nCapas activas: ' + (['inventario', 'procesos', 'uso', 'eventos', 'captura', 'texto'].filter(k => c[k]).join(', ') || 'ninguna');
   notificar('Aviso de privacidad', txt);
 }
 
@@ -502,6 +587,7 @@ function aCapas(p) {
   return {
     inventario: v('capInventario', 'inventario'), procesos: v('capProcesos', 'procesos'),
     uso: v('capUso', 'uso'), eventos: v('capEventos', 'eventos'), captura: v('capCaptura', 'captura'),
+    texto: v('capTexto', 'texto'),
     consentimientoTxt: p.consentimientoTxt || p.consentimiento_txt || null,
   };
 }
@@ -540,4 +626,4 @@ function tryRequireVersion() {
   try { return require(path.resolve(__dirname, 'package.json')).version; } catch { return null; }
 }
 
-module.exports = { initEndpointAgent, isActive };
+module.exports = { initEndpointAgent, isActive, stop };

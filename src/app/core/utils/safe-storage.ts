@@ -63,9 +63,12 @@ export function removeLocalStorageItem(key: string): void {
  * Preferencias del DISPOSITIVO, no de la sesión: sobreviven al logout. El
  * cierre de sesión borra todo el localStorage, y sin esta lista el tema
  * elegido (claro/oscuro) volvía a claro cada vez que alguien salía y entraba.
- * Solo van aquí ajustes de apariencia, nunca datos del usuario ni tokens.
+ * Solo van aquí ajustes de apariencia o del equipo, nunca datos del usuario ni tokens.
+ * `tuapo.incapacidades.sevenet` = carpeta de este computador donde se descomprime el ZIP de
+ * SEVENET y la última semana usada (para sugerir la siguiente): sin conservarla, cada logout
+ * la borraba y la semana nunca se podía sugerir de una semana a otra.
  */
-const CLAVES_DE_DISPOSITIVO = ['tuapo.ui.tema', 'tuapo.ui.menu', 'tuapo.ui.acciones'];
+const CLAVES_DE_DISPOSITIVO = ['tuapo.ui.tema', 'tuapo.ui.menu', 'tuapo.ui.acciones', 'tuapo.incapacidades.sevenet'];
 /** Prefijos de lo mismo: la vista tabla/tarjetas que eligió cada quien por pantalla. */
 const PREFIJOS_DE_DISPOSITIVO = ['tabla:'];
 

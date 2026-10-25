@@ -47,6 +47,8 @@ export interface EnviarMensajeAstReq {
   cedulaContexto?: string;
   /** Solo el rótulo con el que llamarla en la respuesta. */
   nombreContexto?: string;
+  /** Contexto adicional en texto libre (p. ej. la conversación en curso); ms-ai lo recorta a 4000. */
+  contexto?: string;
 }
 
 @Injectable({ providedIn: 'root' })

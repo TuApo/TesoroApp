@@ -24,7 +24,7 @@ import { EmptyStateComponent } from '../../../../../shared/components/empty-stat
     } @else {
       <app-empty-state
         icon="view_kanban"
-        title="Sin Pipeline"
+        title="Sin procesos de contratación"
         description="No hay eventos de contratacion para estos filtros.">
       </app-empty-state>
     }

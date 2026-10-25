@@ -1,0 +1,104 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>point_of_sale</mat-icon> Caja</h1>
+      <p class="tienda-subtitulo">Abra el turno con la base, registre gastos, retiros e ingresos con su soporte, y cierre contando billetes y monedas. El sistema le dice cuánto debe haber.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (ctx.tiendaId()) {
+    @if (!cajas().length) {
+      <section class="tienda-tarjeta fila-form">
+        <span>Esta tienda no tiene cajas.</span>
+        <input class="campo-texto" [ngModel]="nuevaCaja()" (ngModelChange)="nuevaCaja.set($event)" />
+        <button type="button" class="boton" (click)="crearCaja()"><mat-icon>add</mat-icon> Crear caja</button>
+      </section>
+    } @else {
+      @if (cajas().length > 1) {
+        <div class="segmentos">@for (c of cajas(); track c.id) { <button type="button" [class.activo]="cajaId() === c.id" (click)="cajaId.set(c.id); cargar(ctx.tiendaId())">{{ c.nombre }}</button> }</div>
+      }
+
+      @if (!abierto()) {
+        <section class="tienda-tarjeta fila-form">
+          <mat-icon class="grande">lock_open</mat-icon>
+          <label class="col">Base inicial (efectivo con que abre)<input class="campo-texto" type="number" min="0" step="1000" [ngModel]="base()" (ngModelChange)="base.set($event)" /></label>
+          <button type="button" class="boton" [disabled]="ocupado()" (click)="abrir()"><mat-icon>play_arrow</mat-icon> Abrir turno</button>
+        </section>
+      } @else if (cuadre(); as c) {
+        <div class="kpis">
+          <div class="kpi destacado"><span>Debe haber en el cajón</span><b>{{ pesos(c.efectivo_esperado) }}</b><small>base {{ pesos(c.base_inicial) }} · abierto {{ c.abierto_en | date:'shortTime' }} por {{ c.usuario_nombre }}</small></div>
+          @for (v of c.ventas_por_metodo; track v.metodo) {
+            <div class="kpi"><span>{{ METODO[v.metodo] || v.metodo }}</span><b>{{ pesos(v.total) }}</b>
+              <small>{{ v.ventas }} {{ v.ventas === 1 ? 'venta' : 'ventas' }}@if (+v.por_verificar) { · {{ pesos(v.por_verificar) }} por verificar }</small></div>
+          }
+          @if (!c.ventas_por_metodo.length) { <div class="kpi"><span>Ventas</span><b>0</b><small>aún no hay ventas en este turno</small></div> }
+        </div>
+
+        <div class="rejilla">
+          <section class="tienda-tarjeta">
+            <h3>Movimientos de efectivo</h3>
+            <div class="tipos">
+              @for (t of LISTA_TIPOS; track t) {
+                <button type="button" class="tipo" [class.activo]="tipo() === t" (click)="tipo.set(t)"><mat-icon>{{ TIPOS[t].icono }}</mat-icon> {{ TIPOS[t].nombre }}</button>
+              }
+            </div>
+            <small class="muted">{{ TIPOS[tipo()].ayuda }}</small>
+            <div class="form-mov">
+              <label class="col">Concepto<input class="campo-texto" [ngModel]="concepto()" (ngModelChange)="concepto.set($event)" [placeholder]="tipo() === 'GASTO' ? 'Ej. bolsas, aseo' : tipo() === 'RETIRO' ? 'Ej. a caja fuerte, lo recibe Ana' : ''" /></label>
+              <label class="col">Monto<input class="campo-texto" type="number" min="0" step="500" [ngModel]="monto()" (ngModelChange)="monto.set($event)" /></label>
+              <label class="col">Referencia<input class="campo-texto" [ngModel]="referencia()" (ngModelChange)="referencia.set($event)" placeholder="N.º de factura o comprobante" /></label>
+              <button type="button" class="boton" [disabled]="ocupado() || !monto() || !concepto().trim()" (click)="registrar()">Registrar</button>
+            </div>
+            <ul class="movs">
+              @for (m of c.movimientos; track m.id) {
+                <li>
+                  <div class="m-fila"><span><mat-icon>{{ TIPOS[m.tipo]?.icono }}</mat-icon> <b>{{ TIPOS[m.tipo]?.nombre || m.tipo }}</b> · {{ m.concepto }}</span>
+                    <b [class.sale]="TIPOS[m.tipo]?.signo === -1">{{ TIPOS[m.tipo]?.signo === -1 ? '−' : '+' }}{{ pesos(m.monto) }}</b></div>
+                  <small>{{ m.creado_en | date:'shortTime' }} · {{ m.creado_por_nombre }}@if (m.referencia) { · {{ m.referencia }} }</small>
+                  <app-fotos-evidencia entidadTipo="CAJA_MOVIMIENTO" [entidadId]="m.id" etiqueta="Foto del soporte" />
+                </li>
+              } @empty { <li class="vacio">Sin movimientos en este turno.</li> }
+            </ul>
+          </section>
+
+          <section class="tienda-tarjeta cierre">
+            <h3>Cierre del turno</h3>
+            @if (!cerrando()) {
+              <p class="muted">Cuando termine, cuente billetes y monedas: el sistema compara con lo que debe haber.</p>
+              <button type="button" class="boton" (click)="cerrando.set(true)"><mat-icon>calculate</mat-icon> Contar y cerrar</button>
+            } @else {
+              <div class="conteo">
+                <b>Billetes</b>
+                @for (d of BILLETES; track d) { <label>{{ pesos(d) }}<input class="campo-texto" type="number" min="0" [ngModel]="conteo()['b' + d] || null" (ngModelChange)="ponerConteo('b' + d, $event)" placeholder="0" /></label> }
+                <b>Monedas</b>
+                @for (d of MONEDAS; track d) { <label>{{ pesos(d) }}<input class="campo-texto" type="number" min="0" [ngModel]="conteo()['m' + d] || null" (ngModelChange)="ponerConteo('m' + d, $event)" placeholder="0" /></label> }
+              </div>
+              <div class="resultado" [class.ok]="diferencia() > -1 && diferencia() < 1" [class.falta]="diferencia() <= -1" [class.sobra]="diferencia() >= 1">
+                <div><span>Contado</span><b>{{ pesos(contado()) }}</b></div>
+                <div><span>Debe haber</span><b>{{ pesos(c.efectivo_esperado) }}</b></div>
+                <div><span>{{ diferencia() <= -1 ? 'Falta' : diferencia() >= 1 ? 'Sobra' : 'Cuadra' }}</span><b>{{ pesos(diferencia()) }}</b></div>
+              </div>
+              <label class="col">Observación {{ diferencia() <= -1 || diferencia() >= 1 ? '(obligatoria: explique la diferencia)' : '' }}<textarea class="campo-texto" rows="2" [ngModel]="observacion()" (ngModelChange)="observacion.set($event)"></textarea></label>
+              <div class="pie"><button type="button" class="boton secundario" (click)="cerrando.set(false)">Cancelar</button>
+                <button type="button" class="boton" [disabled]="ocupado()" (click)="cerrar()"><mat-icon>lock</mat-icon> Cerrar turno</button></div>
+            }
+          </section>
+        </div>
+      }
+
+      <section class="tienda-tarjeta">
+        <h3>Turnos anteriores</h3>
+        <div class="tabla"><table>
+          <tr><th>Abierto</th><th>Cerrado</th><th>Cajero</th><th class="n">Base</th><th class="n">Contado</th><th class="n">Diferencia</th><th>Observación</th></tr>
+          @for (t of historial(); track t.id) {
+            <tr><td>{{ t.abierto_en | date:'short' }}</td><td>{{ t.cerrado_en | date:'shortTime' }}</td><td>{{ t.usuario_nombre }}</td><td class="n">{{ pesos(t.base_inicial) }}</td>
+              <td class="n">{{ pesos(declarado(t)) }}</td><td class="n" [class.rojo]="+(t.diferencia ?? 0) < 0" [class.verde]="+(t.diferencia ?? 0) > 0">{{ pesos(t.diferencia) }}</td><td>{{ t.observacion_cierre }}</td></tr>
+          } @empty { <tr><td colspan="7" class="vacio">Sin turnos cerrados.</td></tr> }
+        </table></div>
+      </section>
+    }
+  } @else { <div class="tienda-vacio">Elija una tienda.</div> }
+</div>

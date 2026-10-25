@@ -1,0 +1,319 @@
+<div class="aia">
+  <header class="aia-hero ava-hero">
+    <div class="aia-hero-txt">
+      @if (presidente(); as apo) {
+        <app-avatar-agente [personaje]="apo" [tam]="56" [insignia]="true" />
+      } @else {
+        <span class="aia-hero-ico"><mat-icon>groups</mat-icon></span>
+      }
+      <div>
+        <h1>Avatar Agent</h1>
+        <p>El equipo que le da cara a la IA. <b>{{ presidente()?.nombre || 'El presidente' }}</b> es la IA general; al entrar a un
+          módulo responde su <b>director</b>, con su carácter y su forma de presentar los datos. Si un tema toca dos áreas, cada
+          director firma su parte de la respuesta.</p>
+      </div>
+    </div>
+    <div class="aia-hero-datos">
+      <div><b>{{ directores().length }}</b><small>directores</small></div>
+      <div><b>{{ personajes().length }}</b><small>en el elenco</small></div>
+    </div>
+    <button type="button" class="aia-primario" (click)="nuevo()"><mat-icon>person_add</mat-icon> Nuevo personaje</button>
+  </header>
+
+  @if (aviso() && !borrador()) {
+    <div class="aia-aviso" role="status"><mat-icon>info</mat-icon><span>{{ aviso() }}</span>
+      <button type="button" class="aia-x" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button></div>
+  }
+  @if (error()) {
+    <div class="aia-aviso error" role="alert"><mat-icon>error</mat-icon><span>{{ error() }}</span>
+      <button type="button" class="aia-secundario" (click)="cargar()">Reintentar</button></div>
+  }
+
+  @if (cargando() && !personajes().length) {
+    <div class="aia-grid"><div class="aia-card esqueleto"></div><div class="aia-card esqueleto"></div><div class="aia-card esqueleto"></div></div>
+  } @else {
+    <!-- Organigrama: presidente arriba, directores debajo y sus asesores con ellos. -->
+    @if (presidente(); as apo) {
+      <section class="aia-seccion">
+        <h2><mat-icon>workspace_premium</mat-icon> Presidencia</h2>
+        <div class="ava-presidente">
+          <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: apo }" />
+        </div>
+      </section>
+    }
+    <section class="aia-seccion">
+      <h2><mat-icon>account_tree</mat-icon> Directores por módulo</h2>
+      <div class="aia-grid">
+        @for (d of directores(); track d.clave) {
+          <div class="ava-rama">
+            <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: d }" />
+            @for (a of asesoresDe(d.clave); track a.clave) {
+              <div class="ava-asesor"><ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: a }" /></div>
+            }
+          </div>
+        } @empty {
+          <div class="aia-vacio"><mat-icon>groups</mat-icon><p>Aún no hay directores. Cree el primero.</p></div>
+        }
+      </div>
+    </section>
+    @if (huerfanos().length) {
+      <section class="aia-seccion">
+        <h2><mat-icon>support_agent</mat-icon> Asesores</h2>
+        <div class="aia-grid">
+          @for (a of huerfanos(); track a.clave) { <ng-container *ngTemplateOutlet="tarjeta; context: { $implicit: a }" /> }
+        </div>
+      </section>
+    }
+  }
+</div>
+
+<ng-template #tarjeta let-p>
+  <article class="aia-card ava-card" [class.ava-inactivo]="!p.activo" [style.--ava-c]="p.colorPrimario || '#4F46E5'">
+    <div class="aia-card-cab">
+      <app-avatar-agente [personaje]="p" [tam]="52" [insignia]="true" [animado]="false" />
+      <div class="aia-card-tit"><b>{{ p.nombre }}</b><small>{{ p.cargo }}</small></div>
+      <span class="aia-estado" [class.apagado]="!p.activo">{{ etiquetaEstado(p) }}</span>
+    </div>
+    @if (p.descripcion) { <p class="aia-instr">{{ p.descripcion }}</p> }
+    <div class="ava-modulos">
+      <mat-icon>apps</mat-icon><span>{{ modulosDe(p) }}</span>
+    </div>
+    @if (p.colegas.length) {
+      <div class="ava-modulos"><mat-icon>handshake</mat-icon><span>Resuelve con: {{ p.colegas.join(', ') }}</span></div>
+    }
+    <div class="aia-card-acc">
+      <span class="ava-medios">
+        @if (p.assets?.ESTATICO) { <mat-icon matTooltip="Tiene retrato">portrait</mat-icon> }
+        @if (p.assets?.IDLE) { <mat-icon matTooltip="Tiene clip en reposo">animation</mat-icon> }
+        @if (p.assets?.HABLANDO) { <mat-icon matTooltip="Tiene clip hablando">record_voice_over</mat-icon> }
+      </span>
+      <span class="aia-sp"></span>
+      <button type="button" class="aia-btn" (click)="editar(p, 'avatar')"><mat-icon>face_retouching_natural</mat-icon> Avatar</button>
+      <button type="button" class="aia-ico" (click)="editar(p)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+    </div>
+  </article>
+</ng-template>
+
+@if (borrador(); as b) {
+  <div class="aia-fondo" (click)="cerrar()" animate.enter="aia-fundir"></div>
+  <div class="aia-dialogo ava-dialogo" role="dialog" aria-modal="true" [attr.aria-label]="b.nuevo ? 'Nuevo personaje' : 'Editar ' + b.nombre"
+       animate.enter="aia-surgir" [style.--ava-c]="b.colorPrimario">
+    <header>
+      @if (vistaPrevia(); as vp) { <app-avatar-agente [personaje]="vp" [tam]="44" [insignia]="true" [estado]="estadoVista()" /> }
+      <div>
+        <h3>{{ b.nuevo ? 'Nuevo personaje' : b.nombre }}</h3>
+        <small>{{ b.cargo || 'Nombre, cargo, carácter y avatar' }}</small>
+      </div>
+      <button type="button" class="aia-ico" (click)="cerrar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+
+    <nav class="ava-pestanas" role="tablist">
+      <button type="button" role="tab" [class.sel]="pestana() === 'identidad'" (click)="irA('identidad')"><mat-icon>badge</mat-icon> Identidad</button>
+      <button type="button" role="tab" [class.sel]="pestana() === 'caracter'" (click)="irA('caracter')"><mat-icon>psychology</mat-icon> Carácter y respuestas</button>
+      <button type="button" role="tab" [class.sel]="pestana() === 'avatar'" (click)="irA('avatar')" [disabled]="b.nuevo"
+              [matTooltip]="b.nuevo ? 'Guárdelo primero' : ''"><mat-icon>face_retouching_natural</mat-icon> Avatar</button>
+      <button type="button" role="tab" [class.sel]="pestana() === 'prompt'" (click)="irA('prompt')" [disabled]="b.nuevo"><mat-icon>code</mat-icon> Prompt</button>
+    </nav>
+
+    <div class="ava-cuerpo">
+      @switch (pestana()) {
+        @case ('identidad') {
+          <div class="ava-dos">
+            <label>Nombre
+              <input type="text" [ngModel]="b.nombre" (ngModelChange)="cambiar('nombre', $event)" maxlength="80" placeholder="Camila Reyes" />
+            </label>
+            <label>Clave
+              <input type="text" [ngModel]="b.clave" (ngModelChange)="cambiar('clave', $event)" maxlength="40" [disabled]="!b.nuevo"
+                     placeholder="contratacion" pattern="[a-z0-9][a-z0-9._-]+" />
+            </label>
+          </div>
+          <label>Cargo
+            <input type="text" [ngModel]="b.cargo" (ngModelChange)="cambiar('cargo', $event)" maxlength="120" placeholder="Directora de Talento y Contratación" />
+          </label>
+          <div class="ava-dos">
+            <label>Rango
+              <select [ngModel]="b.rango" (ngModelChange)="cambiar('rango', $event)" [disabled]="b.clave === 'presidente'">
+                @for (r of estado()?.rangos ?? ['DIRECTOR', 'ASESOR']; track r) {
+                  @if (r !== 'PRESIDENTE' || b.clave === 'presidente') { <option [value]="r">{{ nombreRango[r] }}</option> }
+                }
+              </select>
+            </label>
+            <label>Le reporta a
+              <select [ngModel]="b.padreClave ?? ''" (ngModelChange)="cambiar('padreClave', $event || null)">
+                <option value="">Nadie</option>
+                @for (p of personajes(); track p.clave) {
+                  @if (p.clave !== b.clave) { <option [value]="p.clave">{{ p.nombre }} · {{ p.cargo }}</option> }
+                }
+              </select>
+            </label>
+          </div>
+          <label>Módulos del chat que atiende
+            <input type="text" [ngModel]="b.modulos" (ngModelChange)="cambiar('modulos', $event)" placeholder="tienda, tienda.*" />
+            <small class="aia-nota">Claves del catálogo del chat, separadas por coma. <code>tienda.*</code> incluye todos los submódulos.</small>
+          </label>
+          <label>Pantallas que atiende (una ruta por línea)
+            <textarea rows="3" [ngModel]="b.rutas" (ngModelChange)="cambiar('rutas', $event)" placeholder="/dashboard/tienda"></textarea>
+            <small class="aia-nota">El asistente global cambia a este personaje cuando la persona está en una de estas pantallas (gana la ruta más larga).</small>
+          </label>
+          <div class="aia-cuando">
+            <span>Colegas con los que resuelve en conjunto</span>
+            <div class="ava-colegas">
+              @for (p of personajes(); track p.clave) {
+                @if (p.clave !== b.clave) {
+                  <button type="button" [class.sel]="b.colegas.includes(p.clave)" (click)="alternarColega(p.clave)" [attr.aria-pressed]="b.colegas.includes(p.clave)">
+                    <app-avatar-agente [personaje]="p" [tam]="22" [animado]="false" [conTitulo]="false" /> {{ p.nombreCorto || p.nombre }}
+                  </button>
+                }
+              }
+            </div>
+          </div>
+          <div class="ava-tres">
+            <label>Color principal <input type="color" [ngModel]="b.colorPrimario" (ngModelChange)="cambiar('colorPrimario', $event.toUpperCase())" /></label>
+            <label>Color secundario <input type="color" [ngModel]="b.colorSecundario" (ngModelChange)="cambiar('colorSecundario', $event.toUpperCase())" /></label>
+            <label>Ícono <input type="text" [ngModel]="b.icono" (ngModelChange)="cambiar('icono', $event)" maxlength="40" placeholder="storefront" /></label>
+          </div>
+          <div class="ava-dos">
+            <label>Orden <input type="number" [ngModel]="b.orden" (ngModelChange)="cambiar('orden', +$event)" min="0" max="9999" /></label>
+            <label class="ava-check"><input type="checkbox" [ngModel]="b.activo" (ngModelChange)="cambiar('activo', $event)" [disabled]="b.clave === 'presidente'" /> Activo</label>
+          </div>
+        }
+        @case ('caracter') {
+          <label>Qué lleva (descripción corta)
+            <input type="text" [ngModel]="b.descripcion" (ngModelChange)="cambiar('descripcion', $event)" maxlength="400" />
+          </label>
+          <label>Carácter y personalidad
+            <textarea rows="3" [ngModel]="b.personalidad" (ngModelChange)="cambiar('personalidad', $event)" maxlength="3000"
+                      placeholder="Cálida, ágil y práctica. Piensa en embudo…"></textarea>
+          </label>
+          <div class="ava-dos">
+            <label>Tono
+              <select [ngModel]="b.tono" (ngModelChange)="cambiar('tono', $event)">
+                @for (t of estado()?.tonos ?? ['cercano', 'formal', 'neutral', 'motivador']; track t) { <option [value]="t">{{ t }}</option> }
+              </select>
+            </label>
+            <label>Voz
+              <select [ngModel]="b.voz ?? ''" (ngModelChange)="cambiar('voz', $event || null)">
+                <option value="">La del sistema</option>
+                @for (v of estado()?.voces ?? []; track v) { <option [value]="v">{{ v }}</option> }
+              </select>
+            </label>
+          </div>
+          <label>Saludo
+            <input type="text" [ngModel]="b.saludo" (ngModelChange)="cambiar('saludo', $event)" maxlength="400" />
+          </label>
+          <label>Instrucciones del área
+            <textarea rows="3" [ngModel]="b.instrucciones" (ngModelChange)="cambiar('instrucciones', $event)" maxlength="6000"
+                      placeholder="Habla siempre por oficina y por periodo. Cuando algo afecta el primer pago, invita a Nómina…"></textarea>
+          </label>
+          <label>Estructura de las respuestas con datos
+            <textarea rows="3" [ngModel]="b.plantillaRespuesta" (ngModelChange)="cambiar('plantillaRespuesta', $event)" maxlength="4000"></textarea>
+            <small class="aia-nota">Bloques disponibles: <code>```kpis</code>, <code>```echarts</code>, tablas, <code>```filtros</code> (chips para afinar) y
+              <code>```formulario</code> (registro prellenado que lleva a su pantalla).</small>
+          </label>
+          @if (vistaPrevia(); as vp) {
+            <div class="ava-muestra">
+              <small>Así se ve una respuesta de {{ vp.nombreCorto }} en el chat</small>
+              <div class="ava-muestra-fila">
+                <app-avatar-agente [personaje]="vp" [tam]="32" />
+                <div class="ava-muestra-burbuja">
+                  <b>{{ vp.nombre }}</b> <span class="aia-nota">· {{ vp.cargo }}</span>
+                  @if (vp.saludo) { <p>{{ vp.saludo }}</p> }
+                  <app-markdown-message [content]="muestra" />
+                </div>
+              </div>
+            </div>
+          }
+        }
+        @case ('avatar') {
+          <div class="ava-escenario">
+            @if (vistaPrevia(); as vp) { <app-avatar-agente [personaje]="vp" [tam]="132" [estado]="estadoVista()" [nivel]="estadoVista() === 'hablando' ? .6 : 0" /> }
+            <div class="ava-estados" role="group" aria-label="Probar estado">
+              <button type="button" [class.sel]="estadoVista() === 'reposo'" (click)="estadoVista.set('reposo')">En reposo</button>
+              <button type="button" [class.sel]="estadoVista() === 'pensando'" (click)="estadoVista.set('pensando')">Pensando</button>
+              <button type="button" [class.sel]="estadoVista() === 'hablando'" (click)="estadoVista.set('hablando')">Hablando</button>
+            </div>
+          </div>
+
+          <div class="aia-cuando">
+            <span>Generar con Higgsfield</span>
+            @if (estado()?.generacion) {
+              <label>Cómo se ve (prompt visual)
+                <textarea rows="2" [ngModel]="b.promptVisual" (ngModelChange)="cambiar('promptVisual', $event)" maxlength="2000"
+                          placeholder="Mujer colombiana de unos 35 años, cabello castaño ondulado, blazer blanco…"></textarea>
+              </label>
+              <div class="ava-generar">
+                <label>Variantes
+                  <select [ngModel]="variantes()" (ngModelChange)="variantes.set(+$event)">
+                    @for (n of [1, 2, 3, 4]; track n) { <option [value]="n">{{ n }}</option> }
+                  </select>
+                </label>
+                <button type="button" class="aia-primario" (click)="generar()" [disabled]="generando() || !b.promptVisual.trim()">
+                  <mat-icon>auto_awesome</mat-icon> {{ generando() ? 'Enviando…' : 'Generar retratos' }}
+                </button>
+              </div>
+              <small class="aia-nota">Cada retrato y cada clip consume créditos de Higgsfield. El retrato elegido se anima desde su tarjeta (dura ~7 días allá).</small>
+            } @else {
+              <p class="aia-nota">Higgsfield no está configurado en ms-ai (<code>AI_HIGGSFIELD_KEY</code>). Puede subir los archivos a mano.</p>
+            }
+          </div>
+
+          @for (t of tipos; track t) {
+            <div class="aia-cuando">
+              <span>{{ nombreTipo[t] }}
+                <label class="ava-subir">
+                  <mat-icon>upload</mat-icon> Subir
+                  <input type="file" hidden [attr.accept]="t === 'ESTATICO' ? 'image/png,image/jpeg,image/webp' : 'video/mp4,video/webm,image/gif'" (change)="subir(t, $event)" />
+                </label>
+              </span>
+              <div class="ava-galeria">
+                @for (a of assetsDe(t); track a.id) {
+                  <figure class="ava-asset" [class.sel]="a.seleccionado" [class.error]="a.estado === 'ERROR'">
+                    @switch (a.estado) {
+                      @case ('LISTO') {
+                        @if (url(a)(); as u) {
+                          @if (a.mime?.startsWith('video/')) {
+                            <video [src]="u" autoplay loop muted playsinline></video>
+                          } @else {
+                            <img [src]="u" alt="">
+                          }
+                        } @else { <span class="ava-cargando"></span> }
+                      }
+                      @case ('ERROR') { <span class="ava-asset-msg"><mat-icon>error</mat-icon>{{ a.error || 'Falló' }}</span> }
+                      @default { <span class="ava-asset-msg"><span class="ava-cargando"></span>Generando…</span> }
+                    }
+                    <figcaption>
+                      @if (a.seleccionado) { <span class="ava-sel"><mat-icon>check_circle</mat-icon> En uso</span> }
+                      @else if (a.estado === 'LISTO') { <button type="button" class="aia-btn" (click)="seleccionar(a)">Usar</button> }
+                      @if (a.animable && estado()?.generacion) {
+                        <button type="button" class="aia-ico" (click)="animar(a, 'IDLE')" matTooltip="Animar en reposo" aria-label="Animar en reposo"><mat-icon>animation</mat-icon></button>
+                        <button type="button" class="aia-ico" (click)="animar(a, 'HABLANDO')" matTooltip="Animar hablando" aria-label="Animar hablando"><mat-icon>record_voice_over</mat-icon></button>
+                      }
+                      <span class="aia-sp"></span>
+                      <button type="button" class="aia-ico peligro" (click)="eliminar(a)" matTooltip="Eliminar" aria-label="Eliminar"><mat-icon>delete</mat-icon></button>
+                    </figcaption>
+                  </figure>
+                } @empty {
+                  <p class="aia-nota">Sin archivos: el chat usa {{ t === 'ESTATICO' ? 'el retrato que trae la app o sus iniciales' : 'el retrato quieto' }}.</p>
+                }
+              </div>
+            </div>
+          }
+        }
+        @case ('prompt') {
+          <p class="aia-nota">Así empieza el prompt del chat cuando responde este personaje (después vienen los datos del módulo y las reglas).</p>
+          @if (prompt(); as p) { <pre class="ava-prompt">{{ p }}</pre> } @else { <span class="ava-cargando"></span> }
+        }
+      }
+    </div>
+
+    @if (aviso()) { <p class="aia-dlg-aviso" role="status">{{ aviso() }}</p> }
+    <footer>
+      <button type="button" class="aia-secundario" (click)="cerrar()">Cerrar</button>
+      @if (pestana() === 'identidad' || pestana() === 'caracter') {
+        <button type="button" class="aia-primario" (click)="guardar()" [disabled]="guardando() || !b.nombre.trim() || !b.cargo.trim() || (b.nuevo && !b.clave.trim())">
+          <mat-icon>check</mat-icon> {{ b.nuevo ? 'Crear personaje' : 'Guardar cambios' }}
+        </button>
+      }
+    </footer>
+  </div>
+}

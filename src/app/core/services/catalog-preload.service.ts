@@ -5,6 +5,7 @@ import { environment } from '@/environments/environment';
 import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
 import { getLocalStorageItem, setLocalStorageItem } from '../utils/safe-storage';
+import { tokenVigente } from '../utils/sesion-vigente';
 import {
   CatalogEndpoint,
   META_TABLAS_PATH,
@@ -97,7 +98,10 @@ export class CatalogPreloadService {
 
   /** True si la última precarga es lo bastante reciente como para no repetirla. */
   get estaAlDia(): boolean {
-    const last = this.lastRun$.value;
+    // Del storage y no de lastRun$: el logout (clearLocalStorage) y el 401 borran la caché y esta
+    // marca, pero lastRun$ vive en memoria hasta recargar, y al volver a entrar los catálogos se
+    // daban por "al día" con la caché vacía durante 6 h.
+    const last = getLocalStorageItem(CatalogPreloadService.LAST_RUN_KEY);
     if (!last) return false;
     const t = new Date(last).getTime();
     if (Number.isNaN(t)) return false;
@@ -119,6 +123,8 @@ export class CatalogPreloadService {
     if (this.preloading) return vacio('ya en curso');
     if (!this.networkService.isOnline) return vacio('sin conexión');
     if (!this.haySesion()) return vacio('sin sesión');
+    // Token vencido: el primer 401 borraría toda la caché offline (auth.interceptor).
+    if (!tokenVigente()) return vacio('sesión vencida');
     if (!force && this.estaAlDia) return vacio('al día');
 
     this.preloading = true;

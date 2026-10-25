@@ -1,0 +1,459 @@
+<div class="id">
+  <!-- ═══ Filtros (fijos arriba, aplican a todo) ═══ -->
+  <section class="id-filtros">
+    <div class="id-fila">
+      <div class="id-seg" role="group" aria-label="Periodo">
+        @for (p of periodos; track p.id) {
+          <button type="button" [class.on]="periodo() === p.id" (click)="elegirPeriodo(p.id)">{{ p.t }}</button>
+        }
+      </div>
+      <div class="id-fecha">
+        <button mat-icon-button (click)="irDia(-1)" [matTooltip]="esDia() ? 'Día anterior' : 'Periodo anterior'"><mat-icon>chevron_left</mat-icon></button>
+        @if (!esDia() || periodo() === 'rango') {
+          <label class="id-fecha-campo">
+            <mat-icon>first_page</mat-icon>
+            <input type="date" [value]="desde()" [max]="fecha()" (change)="elegirDesde($any($event.target).value)" aria-label="Desde">
+          </label>
+        }
+        <label class="id-fecha-campo">
+          <mat-icon>event</mat-icon>
+          <input type="date" [value]="fecha()" (change)="elegirFecha($any($event.target).value)" [attr.aria-label]="esDia() ? 'Fecha de contratación' : 'Hasta'">
+        </label>
+        <button mat-icon-button (click)="irDia(1)" [disabled]="esHoy()" [matTooltip]="esDia() ? 'Día siguiente' : 'Periodo siguiente'"><mat-icon>chevron_right</mat-icon></button>
+        @if (inf(); as i) { <span class="id-fecha-txt">{{ i.fecha_texto }}</span> }
+      </div>
+      <div class="id-seg" role="group" aria-label="Días del histórico">
+        <span class="id-seg-lab">Histórico</span>
+        @for (n of opcionesDias; track n) {
+          <button type="button" [class.on]="dias() === n" (click)="elegirDias(n)">{{ n }} d</button>
+        }
+      </div>
+      <div class="id-seg" role="group" aria-label="Temporal">
+        <button type="button" [class.on]="!temporal()" (click)="set('temporal', null)">Todas</button>
+        <button type="button" [class.on]="temporal() === 'AL'" (click)="set('temporal', 'AL')"><i class="pt AL"></i>Apoyo</button>
+        <button type="button" [class.on]="temporal() === 'TA'" (click)="set('temporal', 'TA')"><i class="pt TA"></i>Alianza</button>
+      </div>
+    </div>
+    <div class="id-fila">
+      <mat-form-field appearance="outline" class="id-ff" subscriptSizing="dynamic">
+        <mat-label>Oficinas</mat-label>
+        <mat-select multiple [value]="oficinas()" (selectionChange)="setOficinas($event.value)">
+          @for (o of opcionesCon(inf()?.opciones?.oficinas, oficinas()); track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="id-ff id-ff-ancho" subscriptSizing="dynamic">
+        <mat-label>Finca</mat-label>
+        <mat-select multiple [value]="fincas()" (selectionChange)="setLista('fincas', $event.value)" placeholder="Todas">
+          @for (o of opcionesCon(inf()?.opciones?.fincas, fincas()); track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="id-ff" subscriptSizing="dynamic">
+        <mat-label>Quién contrató</mat-label>
+        <mat-select multiple [value]="usuariosFiltro()" (selectionChange)="setLista('usuariosFiltro', $event.value)" placeholder="Todos">
+          @for (o of opcionesCon(inf()?.opciones?.usuarios, usuariosFiltro()); track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+        </mat-select>
+      </mat-form-field>
+      @if (hayFiltros()) {
+        <button mat-button class="id-limpiar" (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon> Limpiar filtros</button>
+      }
+      <span class="id-espacio"></span>
+      <button mat-stroked-button (click)="descargarExcel()" [disabled]="ocupado()"><mat-icon>download</mat-icon> Excel</button>
+    </div>
+    @if (cargando() || ocupado()) { <mat-progress-bar mode="indeterminate" class="id-barra" /> }
+  </section>
+
+  <!-- ═══ Pestañas ═══ -->
+  <nav class="id-tabs" role="tablist">
+    <button type="button" role="tab" [class.on]="pestana() === 'informe'" (click)="irPestana('informe')"><mat-icon>dashboard</mat-icon> Informe</button>
+    <button type="button" role="tab" [class.on]="pestana() === 'bases'" (click)="irPestana('bases')"><mat-icon>table_view</mat-icon> Bases y tablas</button>
+    <button type="button" role="tab" [class.on]="pestana() === 'auto'" (click)="irPestana('auto')"><mat-icon>schedule_send</mat-icon> Automatización
+      @if (config()?.activo) { <span class="id-dot on" matTooltip="Envío automático activo"></span> } @else if (config()) { <span class="id-dot" matTooltip="Envío automático apagado"></span> }
+    </button>
+  </nav>
+
+  @if (error()) { <div class="id-error"><mat-icon>error_outline</mat-icon> {{ error() }}</div> }
+
+  @if (inf(); as i) {
+    @if ((hayFiltros() || !esDia()) && pestana() !== 'auto') {
+      <div class="id-aviso"><mat-icon>filter_alt</mat-icon> Todos los indicadores muestran {{ esDia() ? 'el día' : 'el periodo ' + i.fecha_texto }}{{ hayFiltros() ? ' con los filtros elegidos' : '' }}. El correo automático va siempre con el día completo, sin filtros.</div>
+    }
+
+    <!-- ═══════════════ INFORME ═══════════════ -->
+    @if (pestana() === 'informe') {
+      <app-resumen-ia [titulo]="esDia() ? 'Resumen con IA del día' : 'Resumen con IA del periodo'" [clave]="claveResumen()" [fuente]="fuenteResumen" />
+
+      <div class="id-kpis">
+        @for (k of tarjetas(); track k.t) {
+          <div [class]="'id-kpi ' + k.cls">
+            <div class="id-kpi-cab"><mat-icon>{{ k.i }}</mat-icon><span>{{ k.t }}</span></div>
+            <b>{{ k.v }}</b>
+            @if (k.var) { <em>{{ k.pre ?? 'Hoy' }} {{ k.var }}</em> }
+            <small>{{ k.d }}</small>
+          </div>
+        }
+      </div>
+
+      <div class="id-grid">
+        <section class="id-card">
+          <div class="id-card-cab"><h3>Ingresos por oficina</h3><small>{{ i.es_dia === false ? 'contratación ' + i.fecha_texto : 'fecha de contratación ' + fechaCorta(i.fecha) }}</small></div>
+          <div class="id-scroll">
+            <table class="id-tabla">
+              <thead>
+                <tr><th class="izq">Oficina</th><th>{{ i.es_dia === false ? 'Días' : 'Hora' }}</th><th>Alianza</th><th>Apoyo</th><th class="tot">Total</th><th>Cédulas</th><th>Traslados</th><th class="sec">{{ i.es_dia === false ? 'Per. ant.' : 'Sem. pas.' }}</th><th class="sec">Prom. 30 d</th></tr>
+              </thead>
+              <tbody>
+                @for (o of i.oficinas; track o.oficina) {
+                  <tr [class.sin]="!o.reporto" (click)="filtrarOficina(o.oficina)" matTooltip="Filtrar por {{ o.oficina }}" matTooltipPosition="left">
+                    <td class="of">@if (!o.reporto) { <i class="id-alerta"></i> }{{ o.oficina }}</td>
+                    <td class="hora">{{ i.es_dia === false ? (o.dias_cargue ?? '—') : (o.hora_cargue ?? '—') }}</td>
+                    <td>{{ o.ta }}</td>
+                    <td>{{ o.al }}</td>
+                    <td class="tot">{{ o.total }}</td>
+                    <td [class.falta]="o.cedulas < o.total">{{ o.cedulas }}</td>
+                    <td>{{ o.traslados }}</td>
+                    <td class="sec">{{ i.es_dia === false ? o.ayer : (o.semana_pasada ?? '—') }}</td>
+                    <td class="sec">{{ o.promedio_30 }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr><td class="izq">TOTAL</td><td></td><td>{{ i.totales.ta }}</td><td>{{ i.totales.al }}</td><td class="tot">{{ i.totales.total }}</td><td>{{ i.totales.cedulas }}</td><td>{{ i.totales.traslados }}</td><td></td><td></td></tr>
+              </tfoot>
+            </table>
+          </div>
+          <p class="id-nota"><i class="id-alerta"></i> {{ i.es_dia === false ? 'Sin cargue en el periodo · Días = días con contratos cargados' : 'Sin cargue ese día · Hora = primera carga del informe de la oficina' }} · Clic en una fila para filtrar.</p>
+        </section>
+
+        <section class="id-card">
+          <div class="id-card-cab"><h3>Ingresos por finca</h3>@if (i.fecha_ingreso_principal) { <small>ingreso {{ fechaCorta(i.fecha_ingreso_principal) }}</small> }</div>
+          <div class="id-fincas">
+            @for (tp of [['TA','Tu Alianza'],['AL','Apoyo Laboral']]; track tp[0]) {
+              <div>
+                <h4><i [class]="'pt ' + tp[0]"></i>{{ tp[1] }} <b>{{ tp[0] === 'TA' ? i.totales.ta : i.totales.al }}</b></h4>
+                <ul>
+                  @for (f of $any(i.fincas)[tp[0]]; track f.finca) {
+                    <li (click)="setLista('fincas', [f.finca])"><span [matTooltip]="f.finca">{{ f.finca }}</span><div class="id-bar"><i [class]="tp[0]" [style.width.%]="f.total / maxFinca() * 100"></i></div><b>{{ f.total }}</b></li>
+                  } @empty { <li class="vacio">Sin ingresos</li> }
+                </ul>
+              </div>
+            }
+          </div>
+        </section>
+      </div>
+
+      @if (i.proceso; as p) {
+        <section class="id-card id-proceso">
+          <div class="id-card-cab">
+            <h3>Proceso de selección {{ esDia() ? 'de hoy' : 'del periodo' }}</h3>
+            <small>quién va llegando a cada oficina y hasta dónde va · clic en una oficina para verla sola</small>
+          </div>
+          <div class="id-embudo">
+            @for (e of embudoGeneral(); track e.k) {
+              <div class="id-emb-etapa">
+                <span>{{ e.t }}</span>
+                <b>{{ e.v }}</b>
+                <div class="id-emb-bar"><i [style.width.%]="e.ancho" [style.background]="e.c"></i></div>
+                <small>{{ e.pct != null ? e.pct + '% de la etapa anterior' : (p.general.oficinas_con_llegadas + ' oficinas con llegadas') }}</small>
+              </div>
+            }
+            <div class="id-emb-etapa id-emb-ing">
+              <span>Contratos cargados</span><b>{{ p.general.ingresos }}</b>
+              <small>{{ p.general.no_aplica }} no aplican · {{ p.general.en_espera }} en espera · {{ p.general.sin_evaluar }} sin evaluar</small>
+            </div>
+          </div>
+
+          <div class="id-ofs-grid">
+            @for (o of tarjetasOficina(); track o.oficina) {
+              <button type="button" class="id-of-card" [class.sin]="o.sin" (click)="filtrarOficina(o.oficina)">
+                <div class="id-of-cab">
+                  <b>{{ o.oficina }}</b>
+                  @if (esDia() && o.primera_llegada) { <small>{{ o.primera_llegada }} – {{ o.ultima_llegada }}</small> }
+                </div>
+                <div class="id-of-nums">
+                  <div><span>Llegaron</span><strong>{{ o.llegaron }}</strong></div>
+                  <div><span>Contratos</span><strong class="ok">{{ o.ingresos }}</strong></div>
+                </div>
+                <div class="id-of-barras">
+                  @for (b of o.barras; track b.k) {
+                    <div [matTooltip]="b.t + ': ' + b.v"><i [style.height.%]="b.ancho" [style.background]="b.c"></i><em>{{ b.v }}</em></div>
+                  }
+                </div>
+                <div class="id-of-pie">Eval · Aplica · Remit · Exám · Contr</div>
+              </button>
+            }
+          </div>
+
+          <div class="id-card-cab id-linea-cab">
+            <h4>Línea de tiempo {{ p.modo === 'hora' ? 'del día (por hora)' : 'del periodo (por día)' }}</h4>
+            <span class="id-espacio"></span>
+            <div class="id-seg id-seg-sm">
+              <button type="button" [class.on]="metricaLinea() === 'llegadas'" (click)="metricaLinea.set('llegadas')">Llegadas</button>
+              <button type="button" [class.on]="metricaLinea() === 'contratos'" (click)="metricaLinea.set('contratos')">Contratos cargados</button>
+            </div>
+          </div>
+          @if (chartLinea(); as o) { <div echarts [options]="o" class="id-ch" (chartClick)="clicOficina($event)"></div> }
+          @else { <p class="id-vacio">Aún no hay {{ metricaLinea() === 'llegadas' ? 'llegadas' : 'contratos cargados' }} en {{ esDia() ? 'el día' : 'el periodo' }}.</p> }
+        </section>
+      }
+
+      <section class="id-card">
+        <div class="id-card-cab"><h3>Histórico de {{ i.dias ?? 30 }} días</h3><small>contratados por día de contratación</small></div>
+        @if (chartSerie(); as o) { <div echarts [options]="o" class="id-ch"></div> }
+      </section>
+
+      <section class="id-card">
+        <div class="id-card-cab">
+          <h3>Comparación entre oficinas</h3><small>contratados por día · clic en una línea para filtrar</small>
+          <span class="id-espacio"></span>
+          <div class="id-seg id-seg-sm">
+            <button type="button" [class.on]="modoOficinas() === 'diario'" (click)="modoOficinas.set('diario')">Por día</button>
+            <button type="button" [class.on]="modoOficinas() === 'acumulado'" (click)="modoOficinas.set('acumulado')">Acumulado</button>
+          </div>
+        </div>
+        <div class="id-comp">
+          @if (chartOficinas(); as o) { <div echarts [options]="o" class="id-ch id-ch-alto" (chartClick)="clicOficina($event)"></div> }
+          @else { <p class="id-vacio">Sin contratos en la ventana.</p> }
+          <ol class="id-rank">
+            @for (r of rankingOficinas(); track r.oficina) {
+              <li (click)="filtrarOficina(r.oficina)">
+                <i [style.background]="r.color"></i>
+                <div><b>{{ r.oficina }}</b><div class="id-bar"><i [style.width.%]="r.ancho" [style.background]="r.color"></i></div>
+                  <small>prom. {{ r.promedio }}/día · mejor día {{ r.maximo }}</small></div>
+                <em>{{ r.total }}</em>
+              </li>
+            }
+          </ol>
+        </div>
+      </section>
+
+      <section class="id-card">
+        <div class="id-card-cab"><h3>Quién contrató más</h3><small>usuario que firmó el contrato · clic para filtrar</small></div>
+        <div class="id-lideres">
+          @for (blq of [{ t: i.es_dia === false ? 'Periodo seleccionado' : 'Hoy', l: topDia() }, { t: 'Últimos ' + (i.dias ?? 30) + ' días', l: topPeriodo() }]; track blq.t) {
+            <div>
+              <h4>{{ blq.t }}</h4>
+              <ol class="id-lider">
+                @for (c of blq.l; track c.nombre) {
+                  <li (click)="filtrarUsuario(c.nombre)" [class.oro]="c.pos === 1">
+                    <span class="id-pos">{{ c.pos }}</span>
+                    <span class="id-av">{{ c.iniciales }}</span>
+                    <div class="id-lider-txt">
+                      <div><b>{{ c.nombre }}</b><em>{{ c.total }}</em></div>
+                      <div class="id-bar id-bar-doble" [style.width.%]="c.ancho"><i class="AL" [style.width.%]="c.pAl"></i><i class="TA" [style.width.%]="100 - c.pAl"></i></div>
+                      <small>Apoyo {{ c.al }} · Alianza {{ c.ta }} · {{ c.oficinas }}</small>
+                    </div>
+                  </li>
+                } @empty { <li class="vacio">Sin contratos.</li> }
+              </ol>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="id-card">
+        <div class="id-card-cab"><h3>Cumplimiento de vacantes</h3><small>estimado por temporal y finca</small>
+          <span class="id-espacio"></span><button mat-button (click)="irPestana('bases'); base.set('vacantes')">Ver todas <mat-icon iconPositionEnd>arrow_forward</mat-icon></button></div>
+        <div class="id-vac-res">
+          <div class="destacado"><b>{{ i.vacantes.resumen.cumplimiento ?? '—' }}{{ i.vacantes.resumen.cumplimiento != null ? '%' : '' }}</b><span>cumplimiento</span>
+            <div class="id-bar"><i class="ok" [style.width.%]="i.vacantes.resumen.cumplimiento ?? 0"></i></div></div>
+          <div><b>{{ i.vacantes.resumen.contratados }} / {{ i.vacantes.resumen.solicitadas }}</b><span>contratados / solicitados</span></div>
+          <div><b>{{ i.vacantes.resumen.pendientes }}</b><span>personas pendientes</span></div>
+          <div><b>{{ i.vacantes.resumen.vacantes }}</b><span>vacantes vigentes · {{ i.vacantes.resumen.completas }} completas</span></div>
+        </div>
+        @if (vacantesPendientes().length) {
+          <ul class="id-vac-lista">
+            @for (v of vacantesPendientes(); track v.id) {
+              <li>
+                <div><b>{{ v.finca }}</b><small>{{ v.cargo }} · {{ v.temporal ? TEMPORAL_TEXTO[v.temporal] : '' }} · hace {{ v.dias_abierta }} días{{ v.remitidos_periodo ? ' · ' + v.remitidos_periodo + ' remitidos ' + (esDia() ? 'hoy' : 'en el periodo') : '' }}{{ v.contratados_hoy ? ' · +' + v.contratados_hoy + ' contratados' : '' }}</small></div>
+                <div class="id-bar"><i [class.ok]="(v.cumplimiento ?? 0) >= 80" [class.medio]="(v.cumplimiento ?? 0) >= 50 && (v.cumplimiento ?? 0) < 80" [class.bajo]="(v.cumplimiento ?? 0) < 50" [style.width.%]="v.cumplimiento ?? 0"></i></div>
+                <em>{{ v.contratados }}/{{ v.solicitadas }}</em>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+    }
+
+    <!-- ═══════════════ BASES Y TABLAS ═══════════════ -->
+    @if (pestana() === 'bases') {
+      <div class="id-bases-nav">
+        @for (b of bases; track b.id) {
+          <button type="button" [class.on]="base() === b.id" (click)="base.set(b.id)"><mat-icon>{{ b.icono }}</mat-icon>{{ b.texto }}</button>
+        }
+        <span class="id-espacio"></span>
+        <button mat-flat-button color="primary" (click)="descargarExcel()" [disabled]="ocupado()"><mat-icon>download</mat-icon> Excel con todas las hojas</button>
+      </div>
+      <section class="id-card id-card-tabla">
+        @switch (base()) {
+          @case ('oficinas') {
+            <app-tabla-estandar id="informe-diario-oficinas" titulo="Ingresos por oficina" modulo="Informe diario de contratación"
+              [datos]="i.oficinas" [columnas]="columnasOficinas" [filaId]="idOficina" [filasPorPagina]="50" [seleccionable]="false" />
+          }
+          @case ('oficinas_dia') {
+            <app-tabla-estandar id="informe-diario-oficinas-dia" titulo="Oficinas por día" modulo="Informe diario de contratación"
+              [datos]="tablaOficinasDia().filas" [columnas]="tablaOficinasDia().columnas" [filaId]="idFilaOficinaDia" [filasPorPagina]="50" [seleccionable]="false" />
+          }
+          @case ('fincas') {
+            <app-tabla-estandar id="informe-diario-fincas" titulo="Ingresos por finca" modulo="Informe diario de contratación"
+              [datos]="filasFincas()" [columnas]="columnasFincas" [filaId]="idFinca" [filasPorPagina]="50" [seleccionable]="false" vacio="Sin ingresos." />
+          }
+          @case ('contrataron') {
+            <app-tabla-estandar id="informe-diario-contrataron" titulo="Quién contrató" modulo="Informe diario de contratación"
+              [datos]="filasContrataron()" [columnas]="columnasContrataron" [filaId]="idContratador" [filasPorPagina]="50" [seleccionable]="false" />
+          }
+          @case ('vacantes') {
+            <app-tabla-estandar id="informe-diario-vacantes" titulo="Cumplimiento de vacantes" modulo="Informe diario de contratación"
+              [datos]="i.vacantes.filas" [columnas]="columnasVacantes" [filaId]="idVacante" [filasPorPagina]="25" [seleccionable]="false" vacio="No hay vacantes vigentes." />
+            <p class="id-nota">Estimado: los contratos del informe diario no traen la vacante; se asignan a las de la misma temporal y finca, de la más antigua a la más reciente.</p>
+          }
+          @case ('detalle') {
+            <app-tabla-estandar id="informe-diario-detalle" [titulo]="esDia() ? 'Contratados del día' : 'Contratados del periodo'" modulo="Informe diario de contratación"
+              [datos]="i.detalle" [columnas]="columnasDetalle" [filaId]="idDetalle" [filasPorPagina]="50" [seleccionable]="false"
+              textoDetalle="Ver ficha" [vacio]="esDia() ? 'Nadie contratado ese día.' : 'Nadie contratado en el periodo.'" (filaClick)="abrirFicha($event)" />
+          }
+          @case ('historico') {
+            <app-tabla-estandar id="informe-diario-historico" titulo="Histórico diario" modulo="Informe diario de contratación"
+              [datos]="filasHistorico()" [columnas]="columnasHistorico" [filaId]="idHistorico" [filasPorPagina]="50" [seleccionable]="false" />
+          }
+        }
+      </section>
+    }
+  }
+
+  <!-- ═══════════════ AUTOMATIZACIÓN ═══════════════ -->
+  @if (pestana() === 'auto') {
+    @if (config(); as c) {
+      <div class="id-auto-res">
+        <div [class.on]="c.activo"><mat-icon>{{ c.activo ? 'check_circle' : 'pause_circle' }}</mat-icon>
+          <div><b>{{ c.activo ? 'Envío automático activo' : 'Envío automático apagado' }}</b>
+            <small>{{ c.activo ? 'Sale a las ' + c.hora_envio + ' los días marcados' : 'Actívelo cuando tenga los destinatarios' }}</small></div></div>
+        <div><mat-icon>group</mat-icon><div><b>{{ destinatarios().length }} destinatarios</b>
+          <small>{{ conteoDest().correo }} correo · {{ conteoDest().whatsapp }} WhatsApp activos</small></div></div>
+        <div><mat-icon>history</mat-icon><div><b>{{ resumenBitacora().ok }} envíos correctos</b>
+          <small>{{ resumenBitacora().fallos }} fallidos · último {{ resumenBitacora().ultimo || '—' }}</small></div></div>
+        @if (puedeGestionar()) {
+          <div class="id-auto-acc">
+            <button mat-stroked-button (click)="enviarPrueba()" [disabled]="ocupado()"><mat-icon>science</mat-icon> Enviar prueba</button>
+            <button mat-flat-button color="primary" (click)="enviarAhora()" [disabled]="ocupado()"><mat-icon>send</mat-icon> Enviar ahora</button>
+          </div>
+        }
+      </div>
+
+      @if (resultado(); as r) {
+        <section class="id-card id-resultado">
+          <div class="id-card-cab"><h3>Envío del {{ fechaCorta(r.fecha) }}</h3><span class="id-espacio"></span><button mat-icon-button (click)="resultado.set(null)"><mat-icon>close</mat-icon></button></div>
+          <p>{{ r.enviados }} correo(s) enviados{{ r.fallidos ? ', ' + r.fallidos + ' fallidos' : '' }}.</p>
+          <ul class="id-lista">
+            @for (x of r.resultados; track x.destinatario) {
+              <li><mat-icon [class.ok]="x.enviado" [class.mal]="!x.enviado">{{ x.enviado ? 'check_circle' : 'error' }}</mat-icon><div><b>{{ x.destinatario }}</b><small>{{ x.detalle }}</small></div></li>
+            }
+            @for (w of r.whatsapp; track w.celular) {
+              <li><mat-icon [class.ok]="w.encolado" class="wa">{{ w.encolado ? 'mark_chat_read' : 'chat' }}</mat-icon>
+                <div><b>{{ w.nombre }}</b><small>{{ w.celular }} · {{ w.encolado ? 'En cola de WhatsApp' : (w.detalle || 'Envíelo con el enlace') }}</small></div>
+                @if (!w.encolado) { <a mat-stroked-button [href]="w.enlace" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon> WhatsApp</a> }</li>
+            }
+          </ul>
+        </section>
+      }
+
+      <div class="id-auto-grid">
+        <div class="id-auto-col">
+          <section class="id-card">
+            <div class="id-card-cab"><h3>Programación</h3></div>
+            <div class="id-prog">
+              <mat-slide-toggle [checked]="c.activo" [disabled]="!puedeGestionar()" (change)="guardarConfig({ activo: $event.checked })">
+                {{ c.activo ? 'Activo' : 'Apagado' }}
+              </mat-slide-toggle>
+              <label>Hora <input type="time" [value]="c.hora_envio" [disabled]="!puedeGestionar()" (change)="guardarConfig({ hora_envio: $any($event.target).value })"></label>
+              <div class="id-dias">
+                @for (d of DIAS; track d.id) {
+                  <button type="button" [class.on]="c.dias.includes(d.id)" [disabled]="!puedeGestionar()" (click)="alternarDia(d.id)">{{ d.t }}</button>
+                }
+              </div>
+              <mat-slide-toggle [checked]="c.incluir_excel" [disabled]="!puedeGestionar()" (change)="guardarConfig({ incluir_excel: $event.checked })">Adjuntar Excel</mat-slide-toggle>
+            </div>
+            <p class="id-nota">Envía el informe del mismo día a la hora indicada. Programe la hora después de que cargan las oficinas (la última suele cargar entre 19:00 y 20:00).
+              @if (c.ultima_corrida) { Último envío automático: {{ fechaCorta(c.ultima_corrida) }}. }</p>
+
+            @if (c.oficinas) {
+              <h4>Oficinas del cuadro <small class="id-sub">en este orden; otra oficina sale al final solo si contrató ese día</small></h4>
+              <div class="id-ofs">
+                @for (o of c.oficinas; track o; let first = $first; let last = $last) {
+                  <span class="id-of">{{ o }}
+                    @if (puedeGestionar()) {
+                      <button type="button" [disabled]="first" (click)="moverOficina(o, -1)" aria-label="Subir">‹</button>
+                      <button type="button" [disabled]="last" (click)="moverOficina(o, 1)" aria-label="Bajar">›</button>
+                      <button type="button" (click)="quitarOficina(o)" aria-label="Quitar">×</button>
+                    }
+                  </span>
+                }
+                @if (puedeGestionar()) {
+                  <input class="id-input id-of-nueva" list="id-ofs-sug" [(ngModel)]="nuevaOficina" (keydown.enter)="agregarOficina()" placeholder="Agregar oficina">
+                  <datalist id="id-ofs-sug">@for (o of oficinasSugeridas(); track o) { <option [value]="o"></option> }</datalist>
+                  <button mat-stroked-button (click)="agregarOficina()"><mat-icon>add</mat-icon> Agregar</button>
+                }
+              </div>
+            }
+          </section>
+
+          <section class="id-card">
+            <div class="id-card-cab"><h3>A quién le llega</h3><small>{{ destinatarios().length }}</small></div>
+            <ul class="id-lista">
+              @for (d of destinatarios(); track d.id) {
+                <li [class.inactivo]="!d.activo">
+                  <mat-icon [class.wa]="d.canal === 'WHATSAPP'">{{ d.canal === 'CORREO' ? 'mail' : 'chat' }}</mat-icon>
+                  <div><b>{{ d.nombre || d.valor }}</b><small>{{ d.valor }}{{ d.usuario_id ? ' · usuario de la plataforma' : '' }}</small></div>
+                  @if (puedeGestionar()) {
+                    <mat-slide-toggle [checked]="!!d.activo" (change)="activar(d, $event.checked)" [matTooltip]="d.activo ? 'Recibe' : 'Pausado'" />
+                    <button mat-icon-button (click)="quitar(d)" matTooltip="Quitar"><mat-icon>delete_outline</mat-icon></button>
+                  }
+                </li>
+              } @empty { <li class="vacio">Aún no hay destinatarios.</li> }
+            </ul>
+            @if (puedeGestionar()) {
+              <h4>Agregar de la plataforma</h4>
+              <input class="id-input" type="search" placeholder="Buscar usuario por nombre, correo o cédula" [value]="busqueda()" (input)="buscar($any($event.target).value)">
+              <ul class="id-lista id-usuarios">
+                @for (u of usuarios(); track u.usuario_id) {
+                  <li>
+                    <div><b>{{ u.nombre || u.correo }}</b><small>{{ u.correo }}{{ u.celular ? ' · ' + u.celular : '' }}</small></div>
+                    <button mat-stroked-button [disabled]="!u.correo || yaEsta('CORREO', u.correo)" (click)="agregarUsuario(u, 'CORREO')"><mat-icon>mail</mat-icon> Correo</button>
+                    <button mat-stroked-button [disabled]="!u.celular || yaEsta('WHATSAPP', u.celular)" (click)="agregarUsuario(u, 'WHATSAPP')"><mat-icon>chat</mat-icon> WhatsApp</button>
+                  </li>
+                }
+              </ul>
+              <h4>O un correo / celular específico</h4>
+              <div class="id-manual">
+                <select [(ngModel)]="nuevoCanal" aria-label="Canal"><option value="CORREO">Correo</option><option value="WHATSAPP">WhatsApp</option></select>
+                <input class="id-input" [(ngModel)]="nuevoValor" [placeholder]="nuevoCanal === 'CORREO' ? 'correo@empresa.com' : '3101234567'">
+                <input class="id-input" [(ngModel)]="nuevoNombre" placeholder="Nombre (opcional)">
+                <button mat-flat-button color="primary" (click)="agregarManual()"><mat-icon>add</mat-icon> Agregar</button>
+              </div>
+            }
+          </section>
+        </div>
+
+        <section class="id-card id-plantilla">
+          <div class="id-card-cab"><h3>Plantilla del envío</h3><small>así llega hoy</small><span class="id-espacio"></span>
+            <button mat-button (click)="verCorreo()"><mat-icon>refresh</mat-icon> Actualizar</button></div>
+          @if (vista(); as v) {
+            <div class="id-asunto"><small>Asunto</small><b>{{ v.asunto }}</b></div>
+            <div class="id-correo" [innerHTML]="v.html"></div>
+            <h4>Mensaje de WhatsApp</h4>
+            <pre class="id-wa-txt">{{ v.whatsapp }}</pre>
+            <button mat-stroked-button (click)="copiarWhatsapp()"><mat-icon>content_copy</mat-icon> Copiar texto</button>
+          } @else { <p class="id-vacio">Cargando la plantilla…</p> }
+        </section>
+      </div>
+
+      <section class="id-card id-card-tabla">
+        <div class="id-card-cab"><h3>Historial de envíos</h3><small>lo que ya se envió, a quién y con qué resultado (últimos 30 días)</small></div>
+        <app-tabla-estandar id="informe-diario-bitacora" titulo="Historial de envíos del informe diario" modulo="Informe diario de contratación"
+          [datos]="bitacora()" [columnas]="columnasBitacora" [filaId]="idBitacora" [filasPorPagina]="25" [seleccionable]="false"
+          vacio="Todavía no se ha enviado el informe." />
+      </section>
+    } @else {
+      <p class="id-vacio">Cargando la configuración…</p>
+    }
+  }
+</div>

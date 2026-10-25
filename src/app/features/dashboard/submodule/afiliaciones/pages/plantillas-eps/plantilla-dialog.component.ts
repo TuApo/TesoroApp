@@ -143,7 +143,7 @@ export interface PlantillaDialogData {
               <div class="placeholders-ref">
                 <strong>Placeholders disponibles en el editor:</strong>
                 <div class="ph-chips">
-                  @for (c of camposActuales; track c.placeholder) {
+                  @for (c of camposActuales; track $index) {
                     @if (c.activo) {
                       <span class="ph-chip" (click)="copiarPlaceholder(c.placeholder)">
                         {{ '{' + '{' + c.placeholder + '}' + '}' }}
@@ -357,6 +357,8 @@ export class PlantillaDialogComponent implements OnInit {
       fontBold:   c.fontBold,
       fontItalic: c.fontItalic,
       textAlign:  c.textAlign,
+      pasoCasilla: c.pasoCasilla ?? null,
+      condicion:   c.condicion ?? null,
     }));
 
     const req: PlantillaRequest = {

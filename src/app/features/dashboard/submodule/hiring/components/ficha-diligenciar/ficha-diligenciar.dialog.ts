@@ -3,7 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { NgxExtendedPdfViewerModule } from 'ngx-extended-pdf-viewer';
+import { type FormDataType, NgxExtendedPdfViewerModule } from 'ngx-extended-pdf-viewer';
 import { take } from 'rxjs';
 
 import { aplanarPdfDiligenciado } from '../generate-contracting-documents/pdf-aplanado.util';
@@ -13,7 +13,16 @@ export interface FichaDiligenciarData {
   /** PDF generado con los datos de la persona y los campos SIN aplanar. */
   bytes: Uint8Array;
   nombreArchivo: string;
+  /**
+   * Identifica el borrador (documento + persona). Con él, lo escrito se recuerda en el
+   * navegador y al volver a abrir la ficha aparece como se dejó.
+   */
+  claveBorrador?: string;
 }
+
+const BORRADOR_PREFIJO = 'ficha-diligenciar-borrador:';
+/** Un borrador más viejo que esto se descarta. */
+const BORRADOR_VIGENCIA_MS = 90 * 24 * 60 * 60 * 1000;
 
 /** Cierra con el PDF ya diligenciado y aplanado; `undefined` = se canceló. */
 export type FichaDiligenciarResultado = { file: File } | undefined;
@@ -47,6 +56,13 @@ export class FichaDiligenciarDialogComponent {
   /** El visor ya pintó el documento: antes no hay nada que guardar. */
   readonly cargado = signal(false);
 
+  private readonly claveBorrador = this.data.claveBorrador ? BORRADOR_PREFIJO + this.data.claveBorrador : null;
+  /** Lo que se diligenció la última vez: el visor lo pone en los campos al abrir. */
+  readonly formInicial: FormDataType = this.leerBorrador();
+  private ultimoForm: FormDataType | null = null;
+  /** Solo se recuerda después de que la persona escribió o marcó algo (no lo que trae el PDF). */
+  private tocado = false;
+
   constructor() {
     // Se pasa una URL y NO los bytes: el visor guarda el ArrayBuffer una sola vez
     // y pdf.js lo transfiere a su worker al abrirlo. Si abre dos veces (pasa
@@ -71,6 +87,37 @@ export class FichaDiligenciarDialogComponent {
   alFallar(e: unknown): void {
     console.error('[ficha-diligenciar] el visor no pudo abrir la ficha:', e);
     this.error.set('No se pudo mostrar la ficha: ' + ((e as Error)?.message || String(e)));
+  }
+
+  alCambiarForm(f: FormDataType): void {
+    this.ultimoForm = f;
+    if (this.tocado) this.guardarBorrador();
+  }
+
+  /** Escribió o marcó en el documento: el visor avisa el cambio justo después. */
+  alTocar(): void {
+    this.tocado = true;
+    setTimeout(() => this.guardarBorrador(), 50);
+  }
+
+  private leerBorrador(): FormDataType {
+    if (!this.claveBorrador || !this.isBrowser) return {};
+    try {
+      const raw = localStorage.getItem(this.claveBorrador);
+      if (!raw) return {};
+      const b = JSON.parse(raw) as { form?: FormDataType; ts?: number };
+      if (Date.now() - (b.ts ?? 0) > BORRADOR_VIGENCIA_MS) return {};
+      return b.form ?? {};
+    } catch {
+      return {};
+    }
+  }
+
+  private guardarBorrador(): void {
+    if (!this.claveBorrador || !this.ultimoForm) return;
+    try {
+      localStorage.setItem(this.claveBorrador, JSON.stringify({ form: this.ultimoForm, ts: Date.now() }));
+    } catch { /* sin almacenamiento la ficha funciona igual, solo no se recuerda */ }
   }
 
   async guardar(): Promise<void> {

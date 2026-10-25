@@ -19,13 +19,14 @@ import { MatChipsModule } from '@angular/material/chips';
 import {
   CampoDto, CampoDisponible, PaginaPlantilla,
   FuentePersonalizada, FuenteRequest,
-  TAMANOS_PAGINA, FUENTES_ESTANDAR, CANVAS_SCALE_PX_PER_MM,
+  TAMANOS_PAGINA, FUENTES_ESTANDAR, CANVAS_SCALE_PX_PER_MM, TamanoPagina,
 } from '../../../models/plantilla-eps.models';
 import { PlantillaEpsService } from '../../../services/plantilla-eps.service';
 
-const DIMENSIONES: Record<'CARTA' | 'OFICIO', { w: number; h: number }> = {
+const DIMENSIONES: Record<TamanoPagina, { w: number; h: number }> = {
   CARTA:  { w: 215.9, h: 279.4 },
   OFICIO: { w: 215.9, h: 330.2 },
+  A4:     { w: 210,   h: 297   },
 };
 
 type DragMode =
@@ -218,7 +219,7 @@ export class CanvasEditorComponent implements OnInit, AfterViewInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
-  cambiarTamanoPagina(numPagina: number, tamano: 'CARTA' | 'OFICIO') {
+  cambiarTamanoPagina(numPagina: number, tamano: TamanoPagina) {
     const pag = this.paginas.find(p => p.numero === numPagina);
     if (pag) {
       pag.tamano = tamano;

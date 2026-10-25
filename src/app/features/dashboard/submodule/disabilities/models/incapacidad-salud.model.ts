@@ -231,6 +231,7 @@ export interface FilaLiquidacion {
   numeroIncapacidadEps: string | null;
   soporteContable: string | null;
   fechaRespuesta: string | null;
+  /** NEGACIONES: la causal de la negacion. PAGOS (V64_2): la causal de los dias no reconocidos. */
   causalTexto: string | null;
   causalId: number | null;
   causalCodigo: string | null;
@@ -277,6 +278,13 @@ export interface PagoItem {
   fechaPago: string;
   numeroIncapacidadEps: string | null;
   soporteContable: string | null;
+  /**
+   * Causal de la EPS para los dias que NO reconocio (p. ej. paga desde el dia 3 y niega 1 y 2):
+   * columna "Causal EPS (días no reconocidos)" de la hoja Pagos (V64_2, respuesta 2 de la funcional
+   * 2026-10-07: todas se radican y la causal SIEMPRE debe verse). Opcional: un ms-hr anterior a
+   * la V64_2 no la envia.
+   */
+  causalTexto?: string | null;
   observaciones: string | null;
   cargaId: number | null;
   creadoPor: string | null;

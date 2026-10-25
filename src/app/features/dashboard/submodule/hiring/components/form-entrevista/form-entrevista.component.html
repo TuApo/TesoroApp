@@ -98,6 +98,7 @@
                     <mat-icon>error_outline</mat-icon> {{ errorAnalisis() }}
                   </div>
                 } @else if (analisis(); as a) {
+                  @if (a.aviso) { <p class="sug-vacia">{{ a.aviso }}</p> }
 
                   @if (a.cargoSugerido?.cargo) {
                     <div class="sug-cargo">
@@ -105,14 +106,14 @@
                       <div>
                         <strong class="sug-cargo-nombre">{{ a.cargoSugerido?.cargo }}</strong>
                         @if (a.cargoSugerido?.porque) {
-                          <span class="sug-cargo-porque">{{ a.cargoSugerido?.porque }}</span>
+                          <span class="sug-cargo-porque" [innerHTML]="mdEnLinea(a.cargoSugerido?.porque)"></span>
                         }
                       </div>
                     </div>
                   } @else if (a.cargoSugerido?.porque) {
                     <div class="sug-cargo sug-cargo-sin">
                       <mat-icon>help_outline</mat-icon>
-                      <span class="sug-cargo-porque">{{ a.cargoSugerido?.porque }}</span>
+                      <span class="sug-cargo-porque" [innerHTML]="mdEnLinea(a.cargoSugerido?.porque)"></span>
                     </div>
                   }
 
@@ -121,7 +122,7 @@
                       <h5><mat-icon>thumb_up</mat-icon> A favor</h5>
                       @for (x of aFavorTop; track x.punto) {
                         <div class="sug-item">
-                          <span class="sug-punto">{{ x.punto }}</span>
+                          <span class="sug-punto" [innerHTML]="mdEnLinea(x.punto)"></span>
                           @if (x.evidencia) { <span class="sug-evi">{{ x.evidencia }}</span> }
                         </div>
                       } @empty { <p class="ia-vacio">El registro no da puntos a favor.</p> }
@@ -131,7 +132,7 @@
                       <h5><mat-icon>thumb_down</mat-icon> En contra</h5>
                       @for (x of enContraTop; track x.punto) {
                         <div class="sug-item">
-                          <span class="sug-punto">{{ x.punto }}</span>
+                          <span class="sug-punto" [innerHTML]="mdEnLinea(x.punto)"></span>
                           @if (x.evidencia) { <span class="sug-evi">{{ x.evidencia }}</span> }
                         </div>
                       } @empty { <p class="ia-vacio">El registro no da puntos en contra.</p> }
@@ -192,7 +193,7 @@
                   <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
                     <mat-label>¿Cómo se enteró de la vacante? *</mat-label>
                     <mat-select formControlName="comoSeEntero" required>
-                      @for (op of (comoSeEnteroOpciones$ | async) ?? []; track op['codigo']) {
+                      @for (op of comoSeEnteroVista(); track op['codigo']) {
                         <mat-option [value]="op['codigo']">
                           {{ op['descripcion'] || op['codigo'] }}
                         </mat-option>
@@ -208,7 +209,13 @@
 
               <app-ficha-campos
                 [secciones]="seccionesDatos()"
+                [saludAdres]="saludAdres()"
                 [hijos]="hijosResumen()"
+                [sexo$]="sexoOpciones$"
+                [tipoDocHijo$]="tipoDocHijoOpciones$"
+                [custodiaHijo$]="custodiaHijoOpciones$"
+                (agregarHijo)="agregarHijo()"
+                (quitarHijo)="quitarHijo($event)"
                 [ciudades]="allCities"
                 [tipoDoc$]="tipoDocOpciones$"
                 [conQuienVive$]="conQuienViveOpciones$"
@@ -216,6 +223,101 @@
                 [parentescos$]="parentescosOpciones$"
                 [ocupaciones$]="ocupacionesOpciones$">
               </app-ficha-campos>
+
+              <!-- ═══ Vivienda y residencia ═══
+                   Lo llena la persona en el formulario público; aquí se ve y
+                   se corrige. Nada es obligatorio. -->
+              <section class="fe-bloque" id="ficha-sec-vivienda">
+                <header class="fe-bloque-head">
+                  <span class="fe-dot fe-dot-cyan"></span>
+                  <h3>Vivienda y residencia</h3>
+                </header>
+
+                <div class="fe-grid">
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Mano dominante</mat-label>
+                    <mat-select formControlName="zurdoDiestro">
+                      <mat-option [value]="''">— Sin dato —</mat-option>
+                      @for (m of ['DIESTRO', 'ZURDO', 'AMBIDIESTRO']; track m) {
+                        <mat-option [value]="m">{{ m }}</mat-option>
+                      }
+                      @let mano = formVacante.get('zurdoDiestro')?.value;
+                      @if (mano && !['DIESTRO', 'ZURDO', 'AMBIDIESTRO'].includes(mano)) {
+                        <mat-option [value]="mano">{{ mano }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Personas a cargo</mat-label>
+                    <input matInput maxlength="500" formControlName="personasACargo" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Tipo de vivienda</mat-label>
+                    <input matInput maxlength="255" formControlName="tipoVivienda" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Características de la vivienda</mat-label>
+                    <input matInput maxlength="255" formControlName="caracteristicasVivienda" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Número de habitaciones</mat-label>
+                    <input matInput type="number" inputmode="numeric" min="0" formControlName="numHabitaciones" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Personas por habitación</mat-label>
+                    <input matInput type="number" inputmode="numeric" min="0" formControlName="personasPorHabitacion" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Servicios y comodidades</mat-label>
+                    <input matInput maxlength="500" formControlName="serviciosVivienda" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Dónde vivía antes?</mat-label>
+                    <input matInput maxlength="255" formControlName="lugarAnterior" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Razón de la mudanza</mat-label>
+                    <input matInput maxlength="255" formControlName="razonMudanza" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Residencia anterior · departamento</mat-label>
+                    <input matInput maxlength="120" formControlName="resAnteriorDepartamento" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Residencia anterior · municipio</mat-label>
+                    <input matInput maxlength="120" formControlName="resAnteriorMunicipio" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Residencia anterior · dirección</mat-label>
+                    <input matInput maxlength="255" formControlName="resAnteriorDireccion" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Residencia anterior · barrio</mat-label>
+                    <input matInput maxlength="255" formControlName="resAnteriorBarrio" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>Zonas del país donde ha vivido</mat-label>
+                    <input matInput maxlength="255" formControlName="zonasDelPais" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-label>¿Dónde le gustaría vivir?</mat-label>
+                    <input matInput maxlength="255" formControlName="dondeLeGustariaVivir" />
+                  </mat-form-field>
+                </div>
+              </section>
+
+              <!-- Datos que la hoja no pregunta pero la persona sí llenó en el
+                   formulario de la vacante: se abren aquí, a demanda. -->
+              @if (seccionesExtraPendientes().length) {
+                <div class="fe-extras">
+                  <span class="fe-extras-rotulo">Ver también:</span>
+                  @for (s of seccionesExtraPendientes(); track s.id) {
+                    <button type="button" class="fe-extras-btn" (click)="mostrarSeccionExtra(s.id)">
+                      <mat-icon>add</mat-icon>{{ s.label }}
+                    </button>
+                  }
+                </div>
+              }
 
               <!-- ═══ Formación ═══ -->
               <section class="fe-bloque" id="ficha-sec-formacion">
@@ -297,8 +399,11 @@
                         {{ formVacante.get('estudiaActualmente')?.value === true
                             ? '¿En qué año termina?' : 'Año en que terminó' }}
                       </mat-label>
-                      <input matInput type="number" inputmode="numeric"
-                             min="1950" max="2100" formControlName="anioFinalizacion" />
+                      <input matInput type="number" inputmode="numeric" step="1"
+                             min="1950" formControlName="anioFinalizacion" />
+                      @if (formVacante.get('anioFinalizacion')?.errors?.['anioFinalizacion']; as e) {
+                        <mat-error>Escriba solo el año (4 cifras), entre {{ e.min }} y {{ e.max }}.</mat-error>
+                      }
                     </mat-form-field>
                   }
                 </div>
@@ -375,8 +480,13 @@
                     <mat-label>Tiempo de experiencia</mat-label>
                     <mat-select formControlName="tiempoExperiencia">
                       <mat-option [value]="''">— Sin dato —</mat-option>
-                      @for (t of (tiempoExperienciaOpciones$ | async) ?? []; track t['codigo']) {
-                        <mat-option [value]="t['codigo']">{{ t['descripcion'] || t['codigo'] }}</mat-option>
+                      @let tiempos = (tiempoExperienciaOpciones$ | async) ?? [];
+                      @let tiempoActual = formVacante.get('tiempoExperiencia')?.value;
+                      @if (tiempoActual && !tiempoEnCatalogo(tiempos, tiempoActual)) {
+                        <mat-option [value]="tiempoActual">{{ tiempoActual }}</mat-option>
+                      }
+                      @for (t of tiempos; track $index) {
+                        <mat-option [value]="t['codigo'] || t['nombre']">{{ t['descripcion'] || t['nombre'] || t['codigo'] }}</mat-option>
                       }
                     </mat-select>
                   </mat-form-field>
@@ -809,6 +919,13 @@
                         [disabled]="analizando()" (click)="pedirAnalisis(true)">
                   <mat-icon>refresh</mat-icon> Rehacer
                 </button>
+                @if (informeMd()) {
+                  <button type="button" class="ia-btn ia-btn-ghost" (click)="copiarInforme()"
+                          matTooltip="Copia el informe en Markdown para pegarlo en una nota o un correo">
+                    <mat-icon>{{ informeCopiado() ? 'check' : 'content_copy' }}</mat-icon>
+                    {{ informeCopiado() ? 'Copiado' : 'Copiar informe' }}
+                  </button>
+                }
                 <button type="button" class="ia-btn" (click)="continuarEnChat()">
                   <mat-icon>forum</mat-icon> Seguir en el chat
                 </button>
@@ -824,83 +941,51 @@
                   <mat-icon>error_outline</mat-icon> {{ errorAnalisis() }}
                 </div>
               } @else if (analisis(); as a) {
-                @if (a.resumen) {
-                  <p class="ia-resumen">{{ a.resumen }}</p>
-                }
-
-                @if (a.ajusteVacante?.nivel) {
-                  <div class="ia-ajuste" [attr.data-nivel]="a.ajusteVacante?.nivel">
-                    <strong>Ajuste a la vacante: {{ a.ajusteVacante?.nivel }}</strong>
-                    @if (a.ajusteVacante?.porque) { <span>· {{ a.ajusteVacante?.porque }}</span> }
+                <!-- La lectura vino cortada o no vino: se dice, en vez de pintar
+                     lo que haya llegado como si fuera la lectura completa. -->
+                @if (a.aviso) {
+                  <div class="ia-aviso">
+                    <mat-icon>warning_amber</mat-icon> {{ a.aviso }}
                   </div>
                 }
 
-                <!-- Cuánto dura en los trabajos, con cifras: contratos con nosotros,
-                     reingresos y lo que dice de sus empleos anteriores. -->
-                @if (a.estabilidadLaboral?.nivel || a.estabilidadLaboral?.porque) {
-                  <div class="ia-ajuste" [attr.data-nivel]="a.estabilidadLaboral?.nivel">
-                    <strong>Estabilidad laboral: {{ a.estabilidadLaboral?.nivel || 'sin datos' }}</strong>
-                    @if (a.estabilidadLaboral?.porque) { <span>· {{ a.estabilidadLaboral?.porque }}</span> }
-                  </div>
-                }
-
-                <!-- Disponibilidad: con quién vive y quién responde por los hijos
-                     mientras trabaja. Se rotula como logística a propósito: no es
-                     un criterio para descartar a nadie. -->
-                @if (a.redDeApoyo?.resumen) {
-                  <div class="ia-ajuste ia-apoyo">
-                    <strong>Red de apoyo y disponibilidad</strong>
-                    <span>· {{ a.redDeApoyo?.resumen }}</span>
-                    @if (a.redDeApoyo?.evidencia) {
-                      <span class="ia-evi">{{ a.redDeApoyo?.evidencia }}</span>
+                <!-- Semáforo de un vistazo; el porqué de cada uno va en la tabla
+                     de "Indicadores clave" del informe. -->
+                @if (a.ajusteVacante?.nivel || a.estabilidadLaboral?.nivel || a.cargoSugerido?.cargo) {
+                  <div class="ia-indicadores">
+                    @if (a.ajusteVacante?.nivel) {
+                      <span class="ia-chip" [attr.data-nivel]="a.ajusteVacante?.nivel">
+                        <mat-icon>track_changes</mat-icon>
+                        Ajuste a la vacante <strong>{{ nivelTxt(a.ajusteVacante?.nivel) }}</strong>
+                      </span>
+                    }
+                    @if (a.estabilidadLaboral?.nivel) {
+                      <span class="ia-chip" [attr.data-nivel]="a.estabilidadLaboral?.nivel">
+                        <mat-icon>timeline</mat-icon>
+                        Estabilidad laboral <strong>{{ nivelTxt(a.estabilidadLaboral?.nivel) }}</strong>
+                      </span>
+                    }
+                    @if (a.cargoSugerido?.cargo) {
+                      <span class="ia-chip ia-chip-cargo">
+                        <mat-icon>work</mat-icon>
+                        Cargo sugerido <strong>{{ a.cargoSugerido?.cargo }}</strong>
+                      </span>
                     }
                   </div>
                 }
 
-                <div class="ia-cols">
-                  <div class="ia-col ia-col-ok">
-                    <h4><mat-icon>thumb_up</mat-icon> A favor</h4>
-                    @for (x of a.aFavor ?? []; track x.punto) {
-                      <div class="ia-item">
-                        <span class="ia-punto">{{ x.punto }}</span>
-                        @if (x.evidencia) { <span class="ia-evi">{{ x.evidencia }}</span> }
-                      </div>
-                    } @empty { <p class="ia-vacio">Sin puntos a favor registrados.</p> }
-                  </div>
-
-                  <div class="ia-col ia-col-no">
-                    <h4><mat-icon>thumb_down</mat-icon> En contra</h4>
-                    @for (x of a.enContra ?? []; track x.punto) {
-                      <div class="ia-item">
-                        <span class="ia-punto">{{ x.punto }}</span>
-                        @if (x.evidencia) { <span class="ia-evi">{{ x.evidencia }}</span> }
-                      </div>
-                    } @empty { <p class="ia-vacio">Sin puntos en contra registrados.</p> }
-                  </div>
-
-                  <div class="ia-col ia-col-riesgo">
-                    <h4><mat-icon>report_problem</mat-icon> Riesgos</h4>
-                    @for (x of a.riesgos ?? []; track x.punto) {
-                      <div class="ia-item">
-                        <span class="ia-punto">{{ x.punto }}</span>
-                        @if (x.evidencia) { <span class="ia-evi">{{ x.evidencia }}</span> }
-                      </div>
-                    } @empty { <p class="ia-vacio">Sin riesgos señalados.</p> }
-                  </div>
-                </div>
-
-                @if ((a.datosQueFaltan ?? []).length) {
-                  <div class="ia-bloque">
-                    <h4><mat-icon>help_outline</mat-icon> Datos que faltan</h4>
-                    <ul>@for (d of a.datosQueFaltan ?? []; track d) { <li>{{ d }}</li> }</ul>
+                @if (graficasMd().length) {
+                  <div class="ia-graficas">
+                    @for (g of graficasMd(); track $index) {
+                      <app-markdown-message [content]="g"></app-markdown-message>
+                    }
                   </div>
                 }
 
-                @if ((a.preguntasSugeridas ?? []).length) {
-                  <div class="ia-bloque">
-                    <h4><mat-icon>quiz</mat-icon> Para preguntarle en la entrevista</h4>
-                    <ul>@for (q of a.preguntasSugeridas ?? []; track q) { <li>{{ q }}</li> }</ul>
-                  </div>
+                @if (informeMd()) {
+                  <article class="ia-informe">
+                    <app-markdown-message [content]="informeMd()"></app-markdown-message>
+                  </article>
                 }
 
                 <p class="ia-nota">

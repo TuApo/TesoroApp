@@ -2,6 +2,7 @@ import {
   Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, inject, viewChild
 } from '@angular/core';
 import { CommonModule, formatDate } from '@angular/common';
+import Swal from 'sweetalert2';
 import { FormsModule, ReactiveFormsModule, FormControl } from '@angular/forms';
 import { Router } from '@angular/router';
 
@@ -16,7 +17,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 
 import {
-  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+  AccionMasiva, ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
 } from '../../../../../../shared/components/tabla-estandar';
 import { LegalService } from '../../services/legal.service';
 import { ProcesoLegal, ProcesoTipo, ProcesoEstado } from '../../models/legal.models';
@@ -95,6 +96,47 @@ export class BandejaComponent implements OnInit {
   ];
 
   readonly idProceso = (p: ProcesoLegal) => p.id;
+
+  /**
+   * Acción sobre lo marcado (estándar de la tabla): mover varios procesos al
+   * mismo estado. Los estados dependen del tipo, así que solo vale dentro del
+   * mismo tipo: `preparar` lo comprueba y la confirmación ofrece los estados
+   * de ese tipo. Sin documentos: radicar el mismo soporte en varios
+   * expedientes es otra operación, y se hace desde cada uno.
+   */
+  readonly accionesMasivas: AccionMasiva<ProcesoLegal>[] = [
+    {
+      id: 'cambiar-estado', etiqueta: 'Cambiar estado', icono: 'swap_horiz', tono: 'primario',
+      preparar: async (marcados) => {
+        const tipo = marcados[0]?.tipo_id;
+        if (!marcados.every((p) => p.tipo_id === tipo)) {
+          await Swal.fire('Hay tipos de proceso mezclados',
+            'Los estados dependen del tipo de proceso. Marca solo procesos del mismo tipo.', 'info');
+          return undefined;
+        }
+        if (!this.estados.some((e) => e.tipo_id === tipo)) {
+          await Swal.fire('Sin estados', 'Este tipo de proceso no tiene estados configurados.', 'info');
+          return undefined;
+        }
+        return { tipo };
+      },
+      confirmar: {
+        texto: 'El mismo estado y el mismo motivo quedan en todos. Los documentos se radican '
+          + 'desde cada expediente, no aquí.',
+        opciones: {
+          etiqueta: 'Nuevo estado',
+          valores: (marcados) => this.estados
+            .filter((e) => e.tipo_id === marcados[0]?.tipo_id)
+            .map((e) => ({ valor: String(e.id), texto: e.nombre })),
+        },
+        nota: 'Motivo (queda registrado en todos)',
+      },
+      ejecutar: (p, ctx) => this.svc.cambiarEstado(p.id, { estado_id: +(ctx.opcion ?? 0), motivo: ctx.nota }),
+      etiquetaFila: (p) => p.radicado ?? String(p.id),
+      verbo: 'actualizado(s)',
+      alTerminar: () => this.cargar(),
+    },
+  ];
 
   ngOnInit(): void {
     this.cargarCatalogos();

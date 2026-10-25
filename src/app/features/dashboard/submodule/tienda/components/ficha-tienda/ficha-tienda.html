@@ -1,0 +1,73 @@
+<section class="tienda-tarjeta ficha">
+  <h3 class="titulo-seccion pequeno"><mat-icon>storefront</mat-icon> Ficha de la tienda</h3>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <p class="ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</p> }
+  @if (f(); as t) {
+    <div class="rejilla">
+      <label>Nombre<input class="campo-texto" [ngModel]="t.nombre" (ngModelChange)="poner('nombre', $event)" /></label>
+      <label>Tipo
+        <select class="campo-texto" [ngModel]="t.tipo" (ngModelChange)="poner('tipo', $event)">
+          <option value="FISICA">Física — mostrador con inventario</option>
+          <option value="VIRTUAL">Virtual — vende sin local (servicios, pedidos)</option>
+          <option value="GLOBAL">Global — catálogo central; surte a sus puntos y a las demás</option>
+          <option value="BODEGA">Bodega — guarda inventario, no vende</option>
+        </select></label>
+      <label class="ancho">Descripción (la ve la persona)<textarea rows="2" class="campo-texto" [ngModel]="t.descripcion" (ngModelChange)="poner('descripcion', $event)"></textarea></label>
+    </div>
+
+    <div class="bloque">
+      <b>¿A quién atiende?</b>
+      <label class="chk"><input type="checkbox" [ngModel]="t.atiende_todas_oficinas" (ngModelChange)="poner('atiende_todas_oficinas', $event)" [disabled]="!!t.tienda_madre_id" />
+        A todas las oficinas (sus servicios y catálogo salen en EconomiAPP para todos)</label>
+      @if (madres().length || t.tienda_madre_id) {
+        <label>Es un punto (inventario en sitio) de
+          <select class="campo-texto" [ngModel]="t.tienda_madre_id" (ngModelChange)="ponerMadre($event)">
+            <option [ngValue]="null">— No, es una tienda independiente —</option>
+            @for (m of madres(); track m.id) { <option [ngValue]="m.id">{{ m.nombre }} ({{ m.tipo.toLowerCase() }})</option> }
+          </select></label>
+        <small class="muted">Un punto vende con el catálogo de su tienda madre: lo que tiene en sitio se recoge ahí mismo y lo demás se pide a la madre.</small>
+      }
+      <div class="oficinas">
+        <span>Oficinas que atiende:</span>
+        @for (o of t.oficinas; track o.oficina) { <span class="chip">{{ o.oficina }} <button type="button" (click)="quitarOficina(o.oficina)" aria-label="Quitar"><mat-icon>close</mat-icon></button></span> }
+        @if (!t.oficinas.length) { <small class="muted">{{ t.atiende_todas_oficinas ? 'todas' : 'ninguna asignada' }}</small> }
+      </div>
+      <div class="agregar">
+        <input class="campo-texto" list="oficinas-conocidas" placeholder="Nombre de la oficina (como en contratación)" [ngModel]="nuevaOficina()" (ngModelChange)="nuevaOficina.set($event)" />
+        <datalist id="oficinas-conocidas">@for (o of oficinasConocidas(); track o) { <option [value]="o"></option> }</datalist>
+        <button type="button" class="boton secundario" [disabled]="!nuevaOficina().trim()" (click)="agregarOficina()">Asignar oficina</button>
+      </div>
+      @if (t.puntos_lista.length) {
+        <div class="puntos"><b>Puntos en oficinas</b>
+          @for (p of t.puntos_lista; track p.id) { <span class="chip">{{ p.nombre }} · {{ p.oficinas || 'sin oficina' }}</span> }
+        </div>
+      }
+    </div>
+
+    <div class="bloque">
+      <b>Dónde queda y cómo entrega</b>
+      <div class="rejilla">
+        <label>Dirección<input class="campo-texto" [ngModel]="t.direccion" (ngModelChange)="poner('direccion', $event)" /></label>
+        <label>Municipio<input class="campo-texto" [ngModel]="t.municipio" (ngModelChange)="poner('municipio', $event)" /></label>
+        <label>Teléfono<input class="campo-texto" [ngModel]="t.telefono" (ngModelChange)="poner('telefono', $event)" /></label>
+        <label>Costo del domicilio<input class="campo-texto" type="number" min="0" step="500" [ngModel]="t.costo_domicilio" (ngModelChange)="poner('costo_domicilio', $event)" /></label>
+        <label>Días hábiles para entregar un domicilio<input class="campo-texto" type="number" min="0" max="30" [ngModel]="t.dias_habiles_entrega" (ngModelChange)="poner('dias_habiles_entrega', +$event)" /></label>
+      </div>
+      <div class="ubic">
+        <span>Ubicación (origen de las rutas){{ t.latitud == null ? ': sin marcar' : '' }}</span>
+        <button type="button" class="boton secundario" (click)="usarGps()"><mat-icon>my_location</mat-icon> Estoy en la tienda</button>
+      </div>
+      <eco-mapa [puntos]="t.latitud != null ? [{ lat: +t.latitud, lng: +t.longitud!, tono: 'origen', etiqueta: 'T' }] : []" [alto]="200" [seleccionable]="true"
+                (elegido)="poner('latitud', $event.lat); poner('longitud', $event.lng)" />
+      <small class="muted">Toque el mapa para marcar o corregir el punto.</small>
+      <div class="casillas">
+        <label class="chk"><input type="checkbox" [ngModel]="t.publicada_en_virtual" (ngModelChange)="poner('publicada_en_virtual', $event)" /> Visible en EconomiAPP</label>
+        <label class="chk"><input type="checkbox" [ngModel]="t.permite_recogida" (ngModelChange)="poner('permite_recogida', $event)" /> Se puede recoger</label>
+        <label class="chk"><input type="checkbox" [ngModel]="t.permite_domicilio" (ngModelChange)="poner('permite_domicilio', $event)" /> Hace domicilios</label>
+        <label class="chk"><input type="checkbox" [ngModel]="t.entrega_sabado" (ngModelChange)="poner('entrega_sabado', $event)" /> Entrega domicilios los sábados</label>
+        <label class="chk"><input type="checkbox" [ngModel]="t.activa" (ngModelChange)="poner('activa', $event)" /> Activa</label>
+      </div>
+    </div>
+    <div class="pie"><button type="button" class="boton" [disabled]="guardando()" (click)="guardar()"><mat-icon>save</mat-icon> Guardar ficha</button></div>
+  } @else if (!error()) { <p class="muted">Cargando…</p> }
+</section>

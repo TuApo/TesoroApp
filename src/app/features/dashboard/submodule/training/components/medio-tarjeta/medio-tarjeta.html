@@ -1,0 +1,139 @@
+<article class="mt" [class.mt--descartado]="medio.estado === 'DESCARTADO'" [class.mt--abierta]="expandida()">
+  <header class="mt-cab" (click)="expandida.set(!expandida())">
+    <span class="mt-icono" [attr.data-tipo]="medio.tipo"><mat-icon>{{ iconos[medio.tipo] }}</mat-icon></span>
+    <div class="mt-cab__texto">
+      <strong>{{ medio.titulo }}</strong>
+      <em>{{ nombres[medio.tipo] }}@if (medio.tipo === 'CLIP' && medio.modo) { · {{ medio.modo === 'ESCENA' ? 'escena con Higgsfield' : 'diapositiva narrada' }} }
+        @if (medio.proposito) { · {{ medio.proposito }} }</em>
+    </div>
+    <span class="mt-estado" [attr.data-estado]="medio.estado">
+      @if (ocupadoServidor) { <span class="mt-punto"></span> }
+      {{ estados[medio.estado] }}
+    </span>
+    @if (medio.block_id) { <span class="mt-estado" data-estado="EN_CLASE" title="Ya está en la clase"><mat-icon>check</mat-icon> En la clase</span> }
+    <mat-icon class="mt-flecha">{{ expandida() ? 'expand_less' : 'expand_more' }}</mat-icon>
+  </header>
+
+  @if (expandida()) {
+    <div class="mt-cuerpo">
+      @if (medio.error && medio.estado === 'ERROR') { <p class="mt-error"><mat-icon>error_outline</mat-icon> {{ medio.error }}</p> }
+
+      <div class="mt-fila2">
+        <label class="mt-campo"><span>Título</span><input [(ngModel)]="titulo" (ngModelChange)="tocar()" maxlength="300" /></label>
+        <label class="mt-campo"><span>Para qué sirve</span><input [(ngModel)]="proposito" (ngModelChange)="tocar()" maxlength="600" /></label>
+      </div>
+
+      @switch (medio.tipo) {
+        @case ('FICHA') {
+          <div class="mt-ficha">
+            <div class="mt-lista">
+              @for (t of tarjetas; track trackI($index); let i = $index) {
+                <div class="mt-tarjeta">
+                  <input [(ngModel)]="t.frente" (ngModelChange)="tocar()" placeholder="Pregunta o concepto" />
+                  <textarea rows="2" [(ngModel)]="t.reverso" (ngModelChange)="tocar()" placeholder="Respuesta"></textarea>
+                  <button type="button" class="mt-mini" (click)="quitar(tarjetas, i)" aria-label="Quitar tarjeta"><mat-icon>close</mat-icon></button>
+                </div>
+              }
+              <button type="button" class="mt-btn mt-btn--chico" (click)="agregarTarjeta()"><mat-icon>add</mat-icon> Tarjeta</button>
+            </div>
+            <div class="mt-vista"><span class="mt-vista__t">Así se verá</span><app-bloque-ficha [contenido]="tarjetas" /></div>
+          </div>
+        }
+        @case ('AUDIO') {
+          <label class="mt-campo"><span>Lo que se narra <em>({{ palabras }} palabras · ~{{ segundosEstimados }} s)</em></span>
+            <textarea rows="6" [(ngModel)]="guion" (ngModelChange)="tocar()"></textarea></label>
+        }
+        @case ('PODCAST') {
+          <div class="mt-campo"><span>Diálogo <em>(A enseña · B pregunta)</em></span>
+            @for (l of dialogo; track trackI($index); let i = $index) {
+              <div class="mt-linea">
+                <select [(ngModel)]="l.voz" (ngModelChange)="tocar()" aria-label="Voz"><option value="A">A</option><option value="B">B</option></select>
+                <textarea rows="2" [(ngModel)]="l.texto" (ngModelChange)="tocar()"></textarea>
+                <button type="button" class="mt-mini" (click)="quitar(dialogo, i)" aria-label="Quitar línea"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            <button type="button" class="mt-btn mt-btn--chico" (click)="agregarLinea()"><mat-icon>add</mat-icon> Línea</button>
+          </div>
+        }
+        @case ('CLIP') {
+          @if (medio.modo !== 'DIAPOSITIVA') {
+            <label class="mt-campo"><span>Escena <em>(descripción para el generador de video; en inglés rinde mejor)</em></span>
+              <textarea rows="3" [(ngModel)]="promptVisual" (ngModelChange)="tocar()"></textarea></label>
+          }
+          <label class="mt-campo"><span>Narración <em>({{ palabras }} palabras · ~{{ segundosEstimados }} s)</em></span>
+            <textarea rows="3" [(ngModel)]="guion" (ngModelChange)="tocar()"></textarea></label>
+          <div class="mt-campo"><span>Puntos de la diapositiva</span>
+            @for (p of puntos; track trackI($index); let i = $index) {
+              <div class="mt-linea mt-linea--simple">
+                <input [ngModel]="p" (ngModelChange)="setPunto(i, $event)" />
+                <button type="button" class="mt-mini" (click)="quitar(puntos, i)" aria-label="Quitar punto"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            @if (puntos.length < 4) { <button type="button" class="mt-btn mt-btn--chico" (click)="agregarPunto()"><mat-icon>add</mat-icon> Punto</button> }
+          </div>
+          @if (medio.costo_estimado && medio.modo === 'ESCENA') {
+            <p class="mt-nota"><mat-icon>payments</mat-icon> Costo aproximado en Higgsfield: US$ {{ medio.costo_estimado | number: '1.2-2' }}</p>
+          }
+        }
+        @case ('YOUTUBE') {
+          <div class="mt-fila2">
+            <label class="mt-campo"><span>Búsqueda</span><input [(ngModel)]="consulta" (ngModelChange)="tocar()" /></label>
+            <label class="mt-campo"><span>O pega el enlace</span><input [(ngModel)]="videoUrl" (ngModelChange)="tocar()" placeholder="https://youtu.be/…" /></label>
+          </div>
+          @if (medio.candidatos?.length) {
+            <div class="mt-candidatos">
+              @for (c of medio.candidatos; track c.video_id) {
+                <button type="button" class="mt-cand" [class.elegido]="medio.video?.video_id === c.video_id" (click)="elegirVideo(c.video_id)">
+                  @if (c.miniatura) { <img [src]="c.miniatura" alt="" loading="lazy" referrerpolicy="no-referrer" /> }
+                  <strong>{{ c.titulo }}</strong><em>{{ c.canal }}</em>
+                </button>
+              }
+            </div>
+          }
+          <div class="mt-fila2">
+            <label class="mt-campo"><span>Desde (m:ss)</span><input [(ngModel)]="inicio" (ngModelChange)="tocar()" placeholder="0:00" /></label>
+            <label class="mt-campo"><span>Hasta (m:ss, opcional)</span><input [(ngModel)]="fin" (ngModelChange)="tocar()" placeholder="" /></label>
+          </div>
+          @if (medio.video?.video_id) { <app-bloque-youtube [contenido]="youtubeContenido()" /> }
+        }
+      }
+
+      @if (medio.document_id && (medio.tipo === 'AUDIO' || medio.tipo === 'PODCAST' || medio.tipo === 'CLIP')) {
+        <div class="mt-resultado">
+          @if (archivoUrl(); as u) {
+            @if (medio.tipo === 'CLIP') { <video [src]="u" controls class="mt-video"></video> }
+            @else { <audio [src]="u" controls class="mt-audio"></audio> }
+          } @else {
+            <button type="button" class="mt-btn" (click)="cargarArchivo()" [disabled]="cargandoArchivo()">
+              <mat-icon>{{ medio.tipo === 'CLIP' ? 'play_circle' : 'headphones' }}</mat-icon>
+              {{ cargandoArchivo() ? 'Cargando…' : medio.tipo === 'CLIP' ? 'Ver el clip' : 'Escuchar' }}
+              @if (medio.duracion_seg) { · {{ medio.duracion_seg }} s }
+            </button>
+          }
+        </div>
+      }
+
+      <footer class="mt-pie">
+        @if (medio.estado === 'DESCARTADO') {
+          <button type="button" class="mt-btn mt-btn--chico" (click)="restaurar()" [disabled]="ocupada()"><mat-icon>undo</mat-icon> Recuperar</button>
+        } @else if (!ocupadoServidor) {
+          <button type="button" class="mt-btn mt-btn--chico" (click)="descartar()" [disabled]="ocupada()"><mat-icon>block</mat-icon> Descartar</button>
+        }
+        <button type="button" class="mt-btn mt-btn--chico mt-btn--peligro" (click)="eliminar()" [disabled]="ocupada() || ocupadoServidor" aria-label="Quitar"><mat-icon>delete_outline</mat-icon></button>
+        <span class="mt-espacio"></span>
+        @if (sucio()) {
+          <button type="button" class="mt-btn" (click)="guardar()" [disabled]="ocupada()"><mat-icon>save</mat-icon> Guardar</button>
+        }
+        @if (medio.estado === 'PROPUESTO' || medio.estado === 'ERROR') {
+          <button type="button" class="mt-btn mt-btn--primario" (click)="aprobar()" [disabled]="ocupada()">
+            <mat-icon>{{ medio.tipo === 'FICHA' ? 'check' : 'auto_awesome' }}</mat-icon>
+            {{ medio.tipo === 'FICHA' ? 'Aprobar' : medio.tipo === 'YOUTUBE' && !capacidades?.youtube ? 'Aprobar' : medio.estado === 'ERROR' ? 'Reintentar' : 'Generar' }}
+          </button>
+        }
+        @if (puedeInsertar && medio.estado === 'LISTO' && !medio.block_id && medio.lesson_id) {
+          <button type="button" class="mt-btn mt-btn--lima" (click)="insertar()" [disabled]="ocupada()"><mat-icon>add_to_queue</mat-icon> Poner en la clase</button>
+        }
+      </footer>
+    </div>
+  }
+</article>

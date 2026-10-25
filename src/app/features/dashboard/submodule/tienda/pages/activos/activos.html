@@ -1,0 +1,153 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>devices_other</mat-icon> Activos de oficina</h1>
+      <p class="tienda-subtitulo">Equipos y elementos de cada punto: quién los tiene, en qué estado y su historial. Se entregan y reciben con identidad verificada y firma.</p>
+    </div>
+    <div class="cab-acciones">
+      <app-selector-tienda />
+      <button type="button" class="boton" (click)="creando.set(!creando())"><mat-icon>add</mat-icon> Nuevo activo</button>
+    </div>
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  @if (creando()) {
+    <section class="tienda-tarjeta alta">
+      <h3>Nuevo activo en {{ ctx.tienda()?.nombre || 'la tienda elegida' }}</h3>
+      <div class="rej">
+        <label>Placa / código *<span class="con-escaner"><input class="campo-texto" [(ngModel)]="nuevo.codigo" /><app-escaner-codigo titulo="Leer la placa del activo" (leido)="nuevo.codigo = $event" /></span></label>
+        <label>Nombre *<input class="campo-texto" [(ngModel)]="nuevo.nombre" placeholder="Portátil, silla, radio, dotación…" /></label>
+        <label>Categoría<input class="campo-texto" [(ngModel)]="nuevo.categoria" /></label>
+        <label>Marca<input class="campo-texto" [(ngModel)]="nuevo.marca" /></label>
+        <label>Modelo<input class="campo-texto" [(ngModel)]="nuevo.modelo" /></label>
+        <label>Serial<input class="campo-texto" [(ngModel)]="nuevo.serial" /></label>
+        <label>Valor<input class="campo-texto" type="number" min="0" [(ngModel)]="nuevo.valor" /></label>
+        <label>Fecha de compra<input class="campo-texto" type="date" [(ngModel)]="nuevo.fecha_compra" /></label>
+      </div>
+      <div class="pie"><button type="button" class="boton secundario" (click)="creando.set(false)">Cancelar</button>
+        <button type="button" class="boton" [disabled]="!nuevo.codigo || !nuevo.nombre || ocupado()" (click)="crear()">Crear</button></div>
+    </section>
+  }
+
+  <div class="kpis">
+    @for (e of ['', 'DISPONIBLE', 'ASIGNADO', 'MANTENIMIENTO', 'BAJA']; track e) {
+      <button type="button" class="kpi" [class.activo]="estado() === e" (click)="estado.set(e)">
+        <b>{{ e ? cuenta(e) : lista().length }}</b><span>{{ e ? ESTADOS[e] : 'Todos' }}</span></button>
+    }
+    <span class="con-escaner buscar"><input class="campo-texto" placeholder="Buscar placa, nombre, serial, cédula" [ngModel]="q()" (ngModelChange)="q.set($event)" (keyup.enter)="cargar()" /><app-escaner-codigo titulo="Buscar activo por placa" (leido)="q.set($event); cargar()" /></span>
+  </div>
+
+  <div class="rejilla" [class.con-detalle]="sel()">
+    <ul class="lista">
+      @for (a of lista(); track a.id) {
+        <li [class.activa]="sel()?.id === a.id" (click)="abrir(a.id)">
+          <div class="fila"><b>{{ a.nombre }}</b><span class="est" [attr.data-e]="a.estado">{{ ESTADOS[a.estado] }}</span></div>
+          <small>{{ a.codigo }}@if (a.serial) { · SN {{ a.serial }} } · {{ a.tienda }}</small>
+          @if (a.asignado_nombre || a.asignado_cedula) { <small><mat-icon>person</mat-icon> {{ a.asignado_nombre || a.asignado_cedula }}</small> }
+        </li>
+      } @empty { <li class="vacio">No hay activos con estos filtros.</li> }
+    </ul>
+
+    @if (sel(); as s) {
+      <section class="tienda-tarjeta detalle">
+        <div class="d-cab">
+          <button type="button" class="atras-movil" (click)="sel.set(null)"><mat-icon>arrow_back</mat-icon></button>
+          <div><h2>{{ s.nombre }}</h2><small>{{ s.codigo }} · {{ ESTADOS[s.estado] }} · estado físico {{ s.estado_fisico.toLowerCase() }} · {{ s.tienda }}</small>
+            @if (s.asignado_cedula) { <small class="asig"><mat-icon>person</mat-icon> Lo tiene {{ s.asignado_nombre }} ({{ s.asignado_cedula }}) desde {{ s.asignado_en | date:'mediumDate' }}</small> }</div>
+        </div>
+
+        @if (!accion()) {
+          <div class="botones">
+            @if (s.estado === 'DISPONIBLE') { <button type="button" class="boton" (click)="empezar('entregar')"><mat-icon>how_to_reg</mat-icon> Entregar a una persona</button> }
+            @if (s.estado === 'ASIGNADO') { <button type="button" class="boton" (click)="empezar('devolver')"><mat-icon>assignment_return</mat-icon> Recibir devolución</button> }
+            @if (s.estado !== 'ASIGNADO' && s.estado !== 'BAJA') {
+              <button type="button" class="boton secundario" (click)="empezar('trasladar')"><mat-icon>swap_horiz</mat-icon> Trasladar</button>
+              <button type="button" class="boton secundario" (click)="empezar('estado')"><mat-icon>build</mat-icon> Mantenimiento / baja</button>
+            }
+          </div>
+        }
+
+        @if (accion() === 'entregar' || accion() === 'devolver') {
+          <div class="flujo">
+            <h3>{{ accion() === 'entregar' ? 'Entregar' : 'Recibir de vuelta' }}</h3>
+            <label class="col">Cédula de la persona
+              <div class="fila-in"><input class="campo-texto" inputmode="numeric" [ngModel]="cedula()" (ngModelChange)="cedula.set($event)" [disabled]="accion() === 'devolver'" />
+                @if (accion() === 'entregar') { <button type="button" class="boton secundario" (click)="buscarPersona()">Buscar</button> }</div></label>
+            @if (persona(); as p) {
+              <p class="muted"><mat-icon>badge</mat-icon> {{ p.nombre || 'No aparece en contratación' }} {{ p.foto_doc_id ? '· tiene foto de contratación' : '· sin foto: verifique con cédula' }}</p>
+              @if (verificacion()?.aprueba) {
+                <p class="ok"><mat-icon>verified_user</mat-icon> Verificado {{ verificacion()!.via === 'BIOMETRIA' ? 'con rostro' : 'con cédula en persona' }}</p>
+              } @else {
+                <div class="segmentos">
+                  <button type="button" [class.activo]="modo() === 'rostro'" (click)="modo.set('rostro')" [disabled]="!p.foto_doc_id">Rostro</button>
+                  <button type="button" [class.activo]="modo() === 'cedula'" (click)="modo.set('cedula')">Cédula en persona</button>
+                </div>
+                @if (modo() === 'rostro' && p.foto_doc_id) {
+                  @if (!acepta()) {
+                    <div class="legal">{{ TEXTO }}</div>
+                    <label class="chk"><input type="checkbox" (change)="acepta.set($any($event.target).checked)" /> La persona autoriza la verificación con su rostro</label>
+                  } @else { <eco-captura-rostro [frontal]="false" [conVivacidad]="true" (capturado)="conRostro($event)" /> }
+                } @else {
+                  <label class="col">Qué verificó<input class="campo-texto" [ngModel]="nota()" (ngModelChange)="nota.set($event)" placeholder="Cédula original: foto y datos coinciden" /></label>
+                  <button type="button" class="boton" [disabled]="ocupado()" (click)="conCedula()">Registrar verificación</button>
+                }
+              }
+              @if (verificacion()?.aprueba) {
+                @if (accion() === 'entregar') {
+                  <label class="foto" [class.lista]="fotoDocumento()"><mat-icon>{{ fotoDocumento() ? 'check_circle' : 'badge' }}</mat-icon>
+                    {{ fotoDocumento() ? 'Documento fotografiado' : 'Foto de la cédula de quien recibe *' }}<input type="file" accept="image/*" capture="environment" (change)="foto('documento', $event)" hidden /></label>
+                }
+                <label class="foto" [class.lista]="fotoEstado()"><mat-icon>{{ fotoEstado() ? 'check_circle' : 'photo_camera' }}</mat-icon>
+                  {{ fotoEstado() ? 'Foto del activo tomada' : 'Foto del activo (estado en que ' + (accion() === 'entregar' ? 'sale' : 'llega') + ')' }}<input type="file" accept="image/*" capture="environment" (change)="foto('estado', $event)" hidden /></label>
+                <label class="col">Estado físico
+                  <select class="campo-texto" [ngModel]="estadoFisico()" (ngModelChange)="estadoFisico.set($event)">
+                    <option value="BUENO">Bueno</option><option value="REGULAR">Regular</option><option value="MALO">Malo (va a mantenimiento)</option></select></label>
+                <eco-firma [texto]="accion() === 'entregar' ? 'Firma de quien recibe' : 'Firma de quien devuelve'" [pie]="(persona()?.nombre || cedula()) + ' · ' + s.codigo" (firma)="firma.set($event)" />
+                <label class="col">Nota<input class="campo-texto" [ngModel]="nota()" (ngModelChange)="nota.set($event)" /></label>
+              }
+            }
+            <div class="pie"><button type="button" class="boton secundario" (click)="cancelarAccion()">Cancelar</button>
+              <button type="button" class="boton" [disabled]="!listoEntregar() || ocupado()" (click)="confirmar()">{{ accion() === 'entregar' ? 'Registrar entrega' : 'Registrar devolución' }}</button></div>
+          </div>
+        }
+
+        @if (accion() === 'trasladar') {
+          <div class="flujo">
+            <label class="col">Llevar a
+              <select class="campo-texto" [ngModel]="destino()" (ngModelChange)="destino.set($event)">
+                <option value="">Elija…</option>
+                @for (t of ctx.tiendas(); track t.id) { @if (t.id !== s.tienda_id) { <option [value]="t.id">{{ t.nombre }}</option> } }
+              </select></label>
+            <label class="col">Nota<input class="campo-texto" [ngModel]="nota()" (ngModelChange)="nota.set($event)" /></label>
+            <div class="pie"><button type="button" class="boton secundario" (click)="cancelarAccion()">Cancelar</button><button type="button" class="boton" [disabled]="!destino()" (click)="trasladar()">Trasladar</button></div>
+          </div>
+        }
+        @if (accion() === 'estado') {
+          <div class="flujo">
+            <label class="col">Nuevo estado
+              <select class="campo-texto" [ngModel]="nuevoEstado()" (ngModelChange)="nuevoEstado.set($event)">
+                <option value="MANTENIMIENTO">Mantenimiento</option><option value="DISPONIBLE">Disponible</option><option value="BAJA">Dar de baja</option></select></label>
+            <label class="col">Motivo / nota<input class="campo-texto" [ngModel]="nota()" (ngModelChange)="nota.set($event)" /></label>
+            <div class="pie"><button type="button" class="boton secundario" (click)="cancelarAccion()">Cancelar</button><button type="button" class="boton" [class.peligro]="nuevoEstado() === 'BAJA'" (click)="cambiarEstado()">Guardar</button></div>
+          </div>
+        }
+
+        <h3>Historial</h3>
+        <ol class="historial">
+          @for (m of s.movimientos; track m.id) {
+            <li><b>{{ MOVS[m.tipo] || m.tipo }}</b>
+              <small>{{ m.creado_en | date:'short' }} · {{ m.responsable || '—' }}
+                @if (m.nombre || m.cedula) { · {{ m.nombre || m.cedula }} } @if (m.de_tienda) { · {{ m.de_tienda }} → {{ m.a_tienda }} }
+                @if (m.via) { · {{ m.via === 'BIOMETRIA' ? 'rostro' : 'cédula' }} } @if (m.estado_fisico) { · {{ m.estado_fisico.toLowerCase() }} } @if (m.nota) { · {{ m.nota }} }</small>
+              <span class="docs">
+                @if (m.foto_documento_doc_id) { <button type="button" class="enlace" (click)="ver(m.foto_documento_doc_id)">documento</button> }
+                @if (m.firma_doc_id) { <button type="button" class="enlace" (click)="ver(m.firma_doc_id)">firma</button> }
+                @if (m.foto_estado_doc_id) { <button type="button" class="enlace" (click)="ver(m.foto_estado_doc_id)">foto</button> }
+              </span>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  </div>
+</div>

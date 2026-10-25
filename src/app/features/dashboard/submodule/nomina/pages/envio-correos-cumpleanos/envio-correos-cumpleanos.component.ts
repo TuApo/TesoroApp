@@ -15,6 +15,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
@@ -26,6 +27,8 @@ import {
   CumpleanosService, DetalleEnvioCumpleanos, EnvioCumpleanos, ItemEnvioCumpleanos, PadronPage,
   PersonaCumpleanos, PlantillaEmpresa, PreviewCumpleanos,
 } from '../../service/cumpleanos/cumpleanos.service';
+import { PersonaCelebradaAdmin } from '../../../../components/celebracion/celebracion.models';
+import { CelebracionService } from '../../../../components/celebracion/celebracion.service';
 
 /** Una casilla del calendario. `null` = hueco de relleno antes del día 1. */
 interface Celda {
@@ -66,7 +69,7 @@ interface Celda {
     CommonModule, FormsModule, MatButtonModule, MatCardModule, MatChipsModule,
     MatFormFieldModule, MatIconModule, MatInputModule,
     MatProgressBarModule, MatSelectModule, MatSlideToggleModule, MatTabsModule,
-    MatTooltipModule,
+    MatTooltipModule, RouterLink,
     ...TABLA_ESTANDAR,
   ],
   templateUrl: './envio-correos-cumpleanos.component.html',
@@ -74,6 +77,40 @@ interface Celda {
 })
 export class EnvioCorreosCumpleanosComponent implements OnInit {
   private srv = inject(CumpleanosService);
+  private celebracion = inject(CelebracionService);
+  private ruta = inject(ActivatedRoute, { optional: true });
+
+  /**
+   * Dentro de Marketing › Cumpleaños la pantalla va sin su cabecera (el módulo ya tiene una)
+   * y cruza cada día con la celebración de la plataforma.
+   */
+  readonly incrustado = this.ruta?.snapshot.data?.['incrustado'] === true;
+
+  /**
+   * Quiénes salen ese día en la celebración de la plataforma (Marketing). Null = esta persona
+   * no administra la celebración (403) o ms-marketing no respondió: la pantalla no dice nada.
+   */
+  readonly celebradosDia = signal<PersonaCelebradaAdmin[] | null>(null);
+  private readonly docsCelebrados = computed(() =>
+    new Set((this.celebradosDia() ?? []).map((p) => cedulaPlana(p.documento)).filter((x): x is string => !!x)));
+  /** Celebrados ese día que NO están en el padrón: a ellos no les llega el correo. */
+  readonly celebradosSinCorreo = computed(() => {
+    const enPadron = new Set((this.hoy()?.personas ?? []).map((p) => cedulaPlana(p.cedula)));
+    return (this.celebradosDia() ?? []).filter((p) => !enPadron.has(cedulaPlana(p.documento)));
+  });
+  nombresCelebrados(l: PersonaCelebradaAdmin[]): string {
+    const n = l.map((p) => p.nombre);
+    return n.length <= 1 ? (n[0] ?? '') : `${n.slice(0, -1).join(', ')} y ${n[n.length - 1]}`;
+  }
+
+  celebradoEnPlataforma(p: PersonaCumpleanos): boolean { return this.docsCelebrados().has(cedulaPlana(p.cedula) ?? '-'); }
+
+  private cargarCelebrados(fecha: string): void {
+    this.celebracion.calendario(fecha, fecha).subscribe({
+      next: (c) => this.celebradosDia.set(c.dias.find((d) => d.fecha === fecha)?.personas ?? []),
+      error: () => this.celebradosDia.set(null),
+    });
+  }
   private titulo = inject(Title);
   private sanitizer = inject(DomSanitizer);
 
@@ -123,6 +160,8 @@ export class EnvioCorreosCumpleanosComponent implements OnInit {
     { id: 'correo', header: 'Correo', valor: (p) => p.correo ?? '', tarjeta: 'cuerpo' },
     { id: 'edad', header: 'Edad', valor: (p) => p.edad, formato: (p) => (p.edad ?? '—').toString(),
       align: 'right', prioridad: 2, tarjeta: 'meta' },
+    { id: 'plataforma', header: 'Celebración', valor: (p) => (this.celebradoEnPlataforma(p) ? 'En la plataforma' : ''),
+      prioridad: 2, tarjeta: 'badge' },
   ];
 
   /** Coincidencias del buscador en todo el mes. */
@@ -263,14 +302,17 @@ export class EnvioCorreosCumpleanosComponent implements OnInit {
   readonly avisoConfig = computed<string | null>(() => {
     const c = this.configuracion();
     if (!c) return null;
-    const elegidas = c.plantillas.filter((p) => p.plantilla_id).length;
-    if (c.config.auto_activo && elegidas === 0) {
+    // Si la respuesta llega sin `plantillas`, el error revienta la detección de
+    // cambios de toda la pantalla (zoneless): mejor tratarlo como lista vacía.
+    const plantillas = c.plantillas ?? [];
+    const elegidas = plantillas.filter((p) => p.plantilla_id).length;
+    if (c.config?.auto_activo && elegidas === 0) {
       return 'El envío automático está encendido pero no hay ninguna plantilla elegida: no saldrá ningún correo.';
     }
-    if (!c.config.auto_activo) {
+    if (!c.config?.auto_activo) {
       return 'El envío automático está apagado. Los saludos solo saldrán si alguien los manda a mano.';
     }
-    const huerfanos = c.plantillas.find((p) => !p.plantilla_id && p.personas > 0);
+    const huerfanos = plantillas.find((p) => !p.plantilla_id && p.personas > 0);
     if (huerfanos) {
       return `${huerfanos.personas} persona(s) de "${huerfanos.empresa_nombre}" no tienen plantilla asignada y no recibirán el saludo.`;
     }
@@ -292,6 +334,7 @@ export class EnvioCorreosCumpleanosComponent implements OnInit {
         firstValueFrom(this.srv.configuracion()),
       ]);
       this.hoy.set(hoy);
+      this.cargarCelebrados(this.fechaSel());
       this.calendario.set(cal);
       this.configuracion.set(cfg);
       await Promise.all([this.recargarPadron(), this.recargarHistorial(), this.recargarCargas()]);
@@ -364,6 +407,7 @@ export class EnvioCorreosCumpleanosComponent implements OnInit {
     try {
       this.hoy.set(await firstValueFrom(
         this.srv.delDia(this.fechaSel(), this.busqueda() || null)));
+      this.cargarCelebrados(this.fechaSel());
     } catch (e: any) {
       this.error(this.mensaje(e, 'No se pudo consultar esa fecha.'));
     }
@@ -667,4 +711,10 @@ export class EnvioCorreosCumpleanosComponent implements OnInit {
   private error(mensaje: string): void {
     Swal.fire({ icon: 'error', title: 'Error', text: mensaje });
   }
+}
+
+/** «1.023.456-789» → «1023456789»: el padrón y la celebración no escriben igual la cédula. */
+function cedulaPlana(v: string | null | undefined): string | null {
+  const t = (v ?? '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+  return t || null;
 }

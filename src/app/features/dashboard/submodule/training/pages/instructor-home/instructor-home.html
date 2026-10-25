@@ -1,0 +1,326 @@
+<section class="pantalla">
+  @if (!grupoActivo()) {
+    <header class="cabecera">
+      <div class="titulo-con-volver">
+        <button type="button" class="btn-icono" (click)="volverAMisCursos()" aria-label="Volver a mis cursos">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <div>
+          <h1>Mis grupos como profesor</h1>
+          <p class="subtitulo">
+            Los grupos que dictas: la planilla de notas de tu gente, lo que te entregaron para
+            revisar y la lista de asistencia.
+          </p>
+        </div>
+      </div>
+      @if (totalPorRevisar() > 0) {
+        <span class="chip chip-aviso"><mat-icon>rate_review</mat-icon>{{ totalPorRevisar() }} entrega(s) por revisar</span>
+      }
+    </header>
+
+    @if (cargando()) {
+      <p class="cargando">Buscando tus grupos…</p>
+    } @else if (error()) {
+      <div class="aviso-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+        <button type="button" class="btn-primario" (click)="cargar()">Reintentar</button>
+      </div>
+    } @else if (grupos().length === 0) {
+      <div class="vacio">
+        <mat-icon>co_present</mat-icon>
+        <p>No dictas ningún grupo.</p>
+        <p class="vacio-detalle">Cuando te pongan como instructor de un grupo, aparecerá aquí.</p>
+      </div>
+    } @else {
+      <ul class="grupos">
+        @for (g of grupos(); track g.id) {
+          <li class="grupo" (click)="abrir(g.id)">
+            <div class="grupo-cab">
+              <div>
+                <h2>{{ g.nombre }}</h2>
+                <p class="grupo-curso">{{ g.curso_nombre }} · v{{ g.version }} · {{ g.modalidad }}</p>
+              </div>
+              <span class="chip" [class]="'chip ' + claseEstadoGrupo(g.estado)">{{ g.estado }}</span>
+            </div>
+            <div class="grupo-cifras">
+              <span><strong>{{ g.matriculados }}</strong> persona(s)</span>
+              <span><strong>{{ g.aprobados }}</strong> aprobada(s)</span>
+              <span [class.pendiente]="g.entregas_por_revisar > 0">
+                <strong>{{ g.entregas_por_revisar }}</strong> por revisar
+              </span>
+              <span><strong>{{ g.sesiones }}</strong> sesión(es)</span>
+            </div>
+            <p class="grupo-meta">
+              @if (g.fecha_inicio) { {{ g.fecha_inicio }}@if (g.fecha_fin) { → {{ g.fecha_fin }} } · }
+              @if (g.org_unit_nombre) { {{ g.org_unit_nombre }} · }
+              {{ g.principal ? 'Instructor principal' : 'Instructor' }}
+            </p>
+          </li>
+        }
+      </ul>
+    }
+  } @else {
+    <!-- ── Un grupo ── -->
+    <header class="cabecera">
+      <div class="titulo-con-volver">
+        <button type="button" class="btn-icono" (click)="cerrar()" aria-label="Volver a mis grupos">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
+        <div>
+          <h1>{{ grupoActivo()!.nombre }}</h1>
+          <p class="subtitulo">
+            {{ grupoActivo()!.curso_nombre }} · {{ grupoActivo()!.modalidad }}
+            · {{ grupoActivo()!.matriculados }} persona(s)
+            @if (grupoActivo()!.org_unit_nombre) { · {{ grupoActivo()!.org_unit_nombre }} }
+          </p>
+        </div>
+      </div>
+      <span class="chip" [class]="'chip ' + claseEstadoGrupo(grupoActivo()!.estado)">{{ grupoActivo()!.estado }}</span>
+    </header>
+
+    <div class="pestanas">
+      <button type="button" [class.activa]="pestana() === 'planilla'" (click)="irA('planilla')">
+        <mat-icon>grading</mat-icon> Planilla
+      </button>
+      <button type="button" [class.activa]="pestana() === 'entregas'" (click)="irA('entregas')">
+        <mat-icon>rate_review</mat-icon> Entregas
+      </button>
+      <button type="button" [class.activa]="pestana() === 'asistencia'" (click)="irA('asistencia')">
+        <mat-icon>fact_check</mat-icon> Asistencia
+      </button>
+    </div>
+
+    <!-- ── Planilla ── -->
+    @if (pestana() === 'planilla') {
+      @if (cargandoPlanilla()) {
+        <p class="cargando">Calculando las notas…</p>
+      } @else if (planilla(); as p) {
+        <p class="ayuda">
+          Cada nota va de 0 a 100. Lo que no se ha presentado cuenta como cero, así que la nota
+          sube a medida que la gente entrega.
+          @if (p.nota_minima != null) { Se aprueba con <strong>{{ p.nota_minima }}</strong>. }
+          @if (p.asistencia_minima != null) { Asistencia mínima <strong>{{ p.asistencia_minima }} %</strong> sobre {{ p.sesiones }} sesión(es). }
+          Toca una fila para ver el detalle.
+        </p>
+        <div class="tabla-envoltura">
+          <table class="planilla">
+            <thead>
+              <tr>
+                <th>Persona</th>
+                @for (m of modulosConNota(); track m.module_id) {
+                  <th class="num" [title]="m.nombre">
+                    {{ m.nombre }}
+                    @if (m.peso_efectivo != null) { <small>{{ m.peso_efectivo }} %</small> }
+                  </th>
+                }
+                <th class="num">Nota</th>
+                <th class="num">Asist.</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (f of p.filas; track f.enrollment_id) {
+                <tr class="fila" [class.abierta]="boletinAbierto() === f.enrollment_id" (click)="alternarBoletin(f)">
+                  <td>
+                    <strong>{{ f.persona_nombre || '(sin nombre)' }}</strong>
+                    <small class="mono">{{ f.cedula }}</small>
+                    @if (f.entregas_por_revisar > 0) {
+                      <span class="chip chip-aviso pequeno">{{ f.entregas_por_revisar }} por revisar</span>
+                    }
+                  </td>
+                  @for (m of modulosConNota(); track m.module_id) {
+                    <td class="num" [class.mal]="notaDeModulo(f, m.module_id)?.aprobado === false">
+                      {{ notaDeModulo(f, m.module_id)?.nota ?? '—' }}
+                    </td>
+                  }
+                  <td class="num nota" [class.ok]="f.aprobado" [class.parcial]="!f.nota_definitiva">
+                    {{ f.nota ?? '—' }}
+                    @if (!f.nota_definitiva && f.nota != null) { <small>parcial</small> }
+                  </td>
+                  <td class="num">{{ f.asistencia != null ? f.asistencia + ' %' : '—' }}</td>
+                  <td>
+                    <span class="estado" [class]="'estado estado-' + f.estado_matricula.toLowerCase()">
+                      {{ etiquetaEstado(f.estado_matricula) }}
+                    </span>
+                  </td>
+                </tr>
+                @if (boletinAbierto() === f.enrollment_id) {
+                  <tr class="detalle">
+                    <td [attr.colspan]="modulosConNota().length + 4">
+                      @if (cargandoBoletin()) {
+                        <p class="cargando">Cargando el boletín…</p>
+                      } @else if (boletin(); as b) {
+                        <div class="boletin">
+                          <ul class="requisitos">
+                            @for (r of requisitosQueAplican(b); track r.clave) {
+                              <li [class.ok]="r.cumplido">
+                                <mat-icon>{{ r.cumplido ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                                <span>{{ r.descripcion }}</span>
+                                <em>{{ r.valor }}{{ r.requerido && r.requerido !== '—' ? ' · pide ' + r.requerido : '' }}</em>
+                              </li>
+                            }
+                          </ul>
+                          @for (m of b.modulos; track m.module_id) {
+                            @if (m.tiene_calificables) {
+                              <div class="boletin-modulo">
+                                <div class="boletin-modulo__cab">
+                                  <strong>{{ m.nombre }}</strong>
+                                  <span>{{ m.nota ?? '—' }} @if (m.nota_minima != null) { · mínimo {{ m.nota_minima }} }</span>
+                                </div>
+                                <ul>
+                                  @for (it of m.items; track it.id) {
+                                    <li>
+                                      <mat-icon>{{ it.tipo_item === 'QUIZ' ? 'quiz' : 'assignment_turned_in' }}</mat-icon>
+                                      <span>{{ it.titulo }}</span>
+                                      <em>{{ etiquetaItem(it) }}@if (it.peso != null) { · {{ it.peso }} % }</em>
+                                      <strong>{{ it.nota ?? '—' }}</strong>
+                                    </li>
+                                  }
+                                </ul>
+                              </div>
+                            }
+                          }
+                        </div>
+                      } @else {
+                        <p class="ayuda">No se pudo cargar el boletín.</p>
+                      }
+                    </td>
+                  </tr>
+                }
+              } @empty {
+                <tr><td [attr.colspan]="modulosConNota().length + 4" class="vacio-tabla">Todavía no hay nadie matriculado.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+
+    <!-- ── Entregas ── -->
+    @if (pestana() === 'entregas') {
+      <div class="barra">
+        <p class="ayuda">
+          Lo que tu gente entregó en las actividades. Aprobar o rechazar actualiza su nota al
+          momento; un rechazo necesita decir qué corregir.
+        </p>
+        <label class="check">
+          <input type="checkbox" [checked]="verTodas()" (change)="alternarTodas()" />
+          <span>Ver también las ya revisadas</span>
+        </label>
+      </div>
+
+      @if (cargandoEntregas()) {
+        <p class="cargando">Cargando entregas…</p>
+      } @else {
+        <ul class="entregas">
+          @for (e of entregas(); track e.id) {
+            <li class="entrega" [class.revisada]="e.estado !== 'ENVIADA'">
+              <div class="entrega-cab">
+                <div>
+                  <strong>{{ e.persona_nombre }}</strong> <small class="mono">{{ e.cedula }}</small>
+                  <p class="entrega-act"><mat-icon>assignment_turned_in</mat-icon>{{ e.actividad_titulo }}</p>
+                </div>
+                <span class="estado" [class]="'estado estado-' + e.estado.toLowerCase()">
+                  {{ e.estado === 'ENVIADA' ? 'Por revisar' : e.estado === 'APROBADA' ? 'Aprobada' : 'Rechazada' }}
+                  @if (e.nota != null) { · {{ e.nota }} }
+                </span>
+              </div>
+              @if (e.texto) { <p class="entrega-texto">{{ e.texto }}</p> }
+              @if (e.feedback && e.estado !== 'ENVIADA') { <p class="entrega-feedback"><mat-icon>chat</mat-icon>{{ e.feedback }}</p> }
+              <div class="entrega-acciones">
+                @if (e.document_id) {
+                  <button type="button" class="btn-secundario pequeno" (click)="verEvidencia(e)">
+                    <mat-icon>attach_file</mat-icon> Ver evidencia
+                  </button>
+                }
+                <small class="entrega-fecha">{{ (e.ocurrido_at || e.created_at) | date:'d MMM y, HH:mm' }}</small>
+                @if (revision()?.entrega?.id !== e.id) {
+                  <button type="button" class="btn-primario pequeno" (click)="abrirRevision(e)">
+                    <mat-icon>rate_review</mat-icon> {{ e.estado === 'ENVIADA' ? 'Revisar' : 'Volver a revisar' }}
+                  </button>
+                }
+              </div>
+
+              @if (revision(); as r) {
+                @if (r.entrega.id === e.id) {
+                  <div class="revision">
+                    <label class="campo campo-corto">
+                      <span>Nota</span>
+                      <input type="number" min="0" step="0.5" [ngModel]="r.nota"
+                             (ngModelChange)="editarRevision({ nota: $event === '' ? null : $event })"
+                             placeholder="opcional" />
+                      <small>Sobre el puntaje máximo de la actividad. Vacío = todo el puntaje.</small>
+                    </label>
+                    <label class="campo">
+                      <span>Comentario</span>
+                      <textarea rows="2" [ngModel]="r.feedback" (ngModelChange)="editarRevision({ feedback: $event })"
+                                placeholder="Qué estuvo bien, o qué hay que corregir"></textarea>
+                    </label>
+                    <div class="revision-acciones">
+                      <button type="button" class="btn-secundario pequeno" (click)="revision.set(null)">Cancelar</button>
+                      <button type="button" class="btn-secundario pequeno peligro" [disabled]="ocupado()" (click)="revisar('RECHAZADA')">
+                        <mat-icon>close</mat-icon> Rechazar
+                      </button>
+                      <button type="button" class="btn-primario pequeno" [disabled]="ocupado()" (click)="revisar('APROBADA')">
+                        <mat-icon>check</mat-icon> Aprobar
+                      </button>
+                    </div>
+                  </div>
+                }
+              }
+            </li>
+          } @empty {
+            <li class="vacio">
+              <mat-icon>inbox</mat-icon>
+              <p>{{ verTodas() ? 'Nadie ha entregado nada todavía.' : 'No hay entregas por revisar.' }}</p>
+            </li>
+          }
+        </ul>
+      }
+    }
+
+    <!-- ── Asistencia ── -->
+    @if (pestana() === 'asistencia') {
+      <div class="barra">
+        <label class="campo campo-corto">
+          <span>Fecha de la sesión</span>
+          <input type="date" [ngModel]="fechaLista()" (ngModelChange)="fechaLista.set($event); cargarAsistencia()" />
+        </label>
+        <p class="ayuda">
+          Pasar lista dos veces el mismo día <strong>corrige</strong>, no duplica. No se admiten
+          fechas futuras. Una ausencia justificada no cuenta en contra.
+        </p>
+      </div>
+
+      @if (cargandoLista()) {
+        <p class="cargando">Cargando la lista…</p>
+      } @else if (matriculados().length === 0) {
+        <div class="vacio"><mat-icon>fact_check</mat-icon><p>No hay nadie matriculado en el grupo.</p></div>
+      } @else {
+        <div class="marcar-todos">
+          <button type="button" class="btn-secundario pequeno" (click)="marcarTodos('PRESENTE')">Todos presentes</button>
+          <button type="button" class="btn-secundario pequeno" (click)="marcarTodos('AUSENTE')">Todos ausentes</button>
+        </div>
+        <ul class="lista">
+          @for (m of matriculados(); track m.id) {
+            <li>
+              <div class="lista-persona">
+                <strong>{{ m.persona_nombre || '(sin nombre)' }}</strong>
+                <small class="mono">{{ m.cedula }}</small>
+              </div>
+              <div class="marcas">
+                <button type="button" class="marca presente" [class.elegida]="marcaDe(m.id) === 'PRESENTE'" (click)="marcar(m.id, 'PRESENTE')">Presente</button>
+                <button type="button" class="marca ausente" [class.elegida]="marcaDe(m.id) === 'AUSENTE'" (click)="marcar(m.id, 'AUSENTE')">Ausente</button>
+                <button type="button" class="marca justificado" [class.elegida]="marcaDe(m.id) === 'JUSTIFICADO'" (click)="marcar(m.id, 'JUSTIFICADO')">Justificado</button>
+              </div>
+            </li>
+          }
+        </ul>
+        <div class="acciones-panel">
+          <button type="button" class="btn-primario" [disabled]="ocupado()" (click)="guardarLista()">
+            {{ ocupado() ? 'Guardando…' : 'Guardar lista' }}
+          </button>
+        </div>
+      }
+    }
+  }
+</section>

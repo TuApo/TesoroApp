@@ -1,0 +1,304 @@
+<div class="pagina">
+  <a class="enlace atras" routerLink="/economiapp/pedidos"><mat-icon>arrow_back</mat-icon> Mis pedidos</a>
+
+  @if (cargando()) {
+    <div class="esqueleto"></div>
+  } @else if (error()) {
+    <div class="estado-vacio">
+      <mat-icon>receipt_long</mat-icon><h2>No encontramos este pedido</h2><p>{{ error() }}</p>
+      <a class="eco-btn" routerLink="/economiapp/pedidos">Ver mis pedidos</a>
+    </div>
+  } @else if (d(); as det) {
+    @if (nuevo && !cerrado()) {
+      <section class="exito">
+        <span class="exito-icono"><mat-icon>celebration</mat-icon></span>
+        <div>
+          <h2>¡Listo! Su pedido {{ det.pedido.numero }} quedó {{ det.pedido.tipo_entrega === 'DOMICILIO' ? 'pedido' : 'apartado' }}</h2>
+          <p>La tienda lo va a confirmar y alistar. Le avisamos cada cambio aquí.
+            @if (det.pedido.metodo_pago_previsto === 'NOMINA') { Su bono mercado queda apartado; se descuenta solo cuando lo reciba. }
+          </p>
+        </div>
+      </section>
+    }
+
+    <!-- Estado -->
+    <section class="tarjeta estado" [attr.data-tono]="ESTADO[det.pedido.estado]?.tono || 'neutro'">
+      <div class="estado-cabeza">
+        <span class="estado-icono"><mat-icon>{{ ESTADO[det.pedido.estado]?.icono || 'local_mall' }}</mat-icon></span>
+        <div class="estado-texto">
+          <small>Pedido {{ det.pedido.numero }} · {{ det.pedido.creado_en | date: 'd MMM y, h:mm a' : undefined : 'es-CO' }}</small>
+          <h1>{{ ESTADO[det.pedido.estado]?.texto || det.pedido.estado }}</h1>
+        </div>
+        <button type="button" class="icono-btn" (click)="cargar()" aria-label="Actualizar"><mat-icon>refresh</mat-icon></button>
+      </div>
+
+      @if (det.pedido.estado === 'RECHAZADO' && det.pedido.motivo_rechazo) {
+        <p class="aviso danger"><mat-icon>block</mat-icon><span>{{ det.pedido.motivo_rechazo }}</span></p>
+      }
+
+      @if (!['CANCELADO', 'RECHAZADO'].includes(det.pedido.estado)) {
+        <ol class="pasos">
+          @for (p of pasos(); track p.estado) {
+            <li [class.hecho]="p.hecho" [class.actual]="p.actual">
+              <span class="punto"><mat-icon>{{ p.hecho ? 'check' : ESTADO[p.estado]?.icono }}</mat-icon></span>
+              <span class="paso-texto">{{ p.estado === 'CREADO' ? 'Recibido' : p.estado === 'CONFIRMADO' ? 'Confirmado' : p.estado === 'ALISTANDO' ? 'Alistando' : p.estado === 'LISTO' ? 'Listo' : p.estado === 'EN_RUTA' ? 'En camino' : 'Entregado' }}</span>
+            </li>
+          }
+        </ol>
+      }
+    </section>
+
+    @if (det.activaciones?.length) {
+      <section class="tarjeta codigos">
+        <h2><mat-icon>qr_code_2</mat-icon> Sus códigos para reclamar</h2>
+        <p class="muted">Muéstrelos en la tienda. Le pedirán verificar su identidad (o la de quien usted autorizó) y ahí se descuenta de su bono mercado.</p>
+        <div class="lista-codigos">
+          @for (a of det.activaciones; track a.id) {
+            <article class="codigo" [attr.data-estado]="a.estado">
+              @if (qr()[a.id]) { <img [src]="qr()[a.id]" [alt]="'Código ' + a.codigo" /> }
+              <div class="codigo-texto">
+                <b>{{ a.descripcion }}</b>
+                <span class="codigo-valor">{{ a.codigo.slice(0, 4) }} {{ a.codigo.slice(4) }}</span>
+                @switch (a.estado) {
+                  @case ('ACTIVA') { <small>Vigente hasta el {{ a.vence_en | date: "d 'de' MMMM" : undefined : 'es-CO' }}</small> }
+                  @case ('REDIMIDA') { <small class="ok">Reclamado el {{ a.redimida_en | date: 'd MMM, h:mm a' : undefined : 'es-CO' }}</small> }
+                  @case ('VENCIDA') { <small class="mal">Venció sin reclamarse · el bono mercado se devolvió</small> }
+                  @case ('ANULADA') { <small class="mal">Anulado{{ a.anulada_motivo ? ': ' + a.anulada_motivo : '' }}</small> }
+                  @default { <small>Se activa cuando la tienda confirme</small> }
+                }
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    }
+
+    @if (det.grupo && grupoPedidos().length > 1) {
+      <section class="tarjeta grupo">
+        <h2><mat-icon>apartment</mat-icon> Pedido de oficina {{ det.grupo.numero }}</h2>
+        <p class="muted">Un solo pedido, repartido entre {{ grupoPedidos().length }} órdenes. Cada tienda alista la suya.</p>
+        <ul>
+          @for (g of grupoPedidos(); track g.id) {
+            <li [class.actual]="g.id === det.pedido.id">
+              <a [routerLink]="['/economiapp/pedidos', g.id]">
+                <span>{{ g.numero }}</span>
+                <span class="chip">{{ ESTADO[g.estado]?.texto || g.estado }}</span>
+                <b>{{ pesos(g.total) }}</b>
+              </a>
+            </li>
+          }
+        </ul>
+        <div class="grupo-total"><span>Total del pedido</span><b>{{ pesos(det.grupo.total) }}</b></div>
+      </section>
+    }
+
+    <div class="layout">
+      <div class="columna">
+        <!-- Entrega y cita -->
+        <section class="tarjeta bloque">
+          <h2><mat-icon>{{ ENTREGA[det.pedido.tipo_entrega]?.icono }}</mat-icon> {{ ENTREGA[det.pedido.tipo_entrega]?.texto || det.pedido.tipo_entrega }}</h2>
+          @if (det.pedido.tipo_entrega === 'DOMICILIO') {
+            <p>{{ det.pedido.direccion_texto }}</p>
+            @if (det.pedido.indicaciones) { <p class="muted">{{ det.pedido.indicaciones }}</p> }
+          } @else if (det.pedido.tipo_entrega === 'RECOGE_TIENDA') {
+            <p>{{ store.tienda()?.nombre }}{{ store.tienda()?.direccion ? ' · ' + store.tienda()?.direccion : '' }}</p>
+          } @else {
+            <p>{{ store.inicio()?.oficina || 'Su oficina' }}</p>
+          }
+
+          @if (det.pedido.bajo_pedido && det.pedido.fecha_estimada) {
+            <p class="aviso warn"><mat-icon>local_shipping</mat-icon>
+              <span>Tiene productos por encargo: estarían listos aprox. el <b>{{ det.pedido.fecha_estimada | date: 'EEEE d MMMM' : undefined : 'es-CO' }}</b>.</span></p>
+          }
+
+          @if (editandoCita()) {
+            <div class="cita-form">
+              <label class="campo"><span>Día</span><input type="date" [ngModel]="fecha()" (ngModelChange)="fecha.set($event)" /></label>
+              <label class="campo"><span>Hora</span><input type="time" [ngModel]="hora()" (ngModelChange)="hora.set($event)" /></label>
+              <div class="acciones">
+                <button type="button" class="eco-btn secundario" (click)="editandoCita.set(false)">Cancelar</button>
+                <button type="button" class="eco-btn" (click)="guardarCita()" [disabled]="!fecha() || trabajando()">Guardar</button>
+              </div>
+            </div>
+          } @else {
+            <div class="cita">
+              <mat-icon>event</mat-icon>
+              <span>
+                @if (det.pedido.programado_en) {
+                  <b>{{ det.pedido.programado_en | date: "EEEE d 'de' MMMM, h:mm a" : undefined : 'es-CO' }}</b>
+                  <small>{{ det.pedido.tipo_entrega === 'DOMICILIO' ? 'Hora de entrega' : 'Hora en que pasa a recoger' }}</small>
+                } @else {
+                  <b>Sin hora acordada</b>
+                  <small>La tienda le avisa cuando esté listo</small>
+                }
+              </span>
+              @if (!cerrado()) { <button type="button" class="enlace" (click)="abrirCita()">{{ det.pedido.programado_en ? 'Cambiar' : 'Elegir hora' }}</button> }
+            </div>
+          }
+        </section>
+
+        <!-- Productos -->
+        <section class="tarjeta bloque">
+          <h2><mat-icon>shopping_bag</mat-icon> Productos</h2>
+          <ul class="lineas">
+            @for (l of det.lineas; track l.id) {
+              <li>
+                <span class="cant">{{ l.cantidad }}×</span>
+                <span class="desc">{{ l.descripcion }}
+                  @if (l.disponibilidad === 'BAJO_PEDIDO') { <i class="chip warn">Por encargo</i> }
+                </span>
+                <b>{{ pesos(l.total) }}</b>
+              </li>
+            }
+          </ul>
+          <dl class="totales">
+            @if (det.pedido.costo_domicilio) { <div><dt>Domicilio</dt><dd>{{ pesos(det.pedido.costo_domicilio) }}</dd></div> }
+            <div class="total"><dt>Total</dt><dd>{{ pesos(det.pedido.total) }}</dd></div>
+          </dl>
+          @if (cerrado()) {
+            <button type="button" class="eco-btn secundario" (click)="repetir()" [disabled]="trabajando()"><mat-icon>replay</mat-icon> Volver a pedir</button>
+          }
+        </section>
+
+        <!-- Seguimiento -->
+        @if (det.seguimiento.length) {
+          <section class="tarjeta bloque">
+            <h2><mat-icon>timeline</mat-icon> Seguimiento</h2>
+            <ol class="timeline">
+              @for (e of det.seguimiento; track e.id) {
+                <li>
+                  <b>{{ ESTADO[e.estado]?.texto || e.estado }}</b>
+                  <small>{{ e.ocurrido_en | date: 'd MMM, h:mm a' : undefined : 'es-CO' }}{{ e.usuario_nombre ? ' · ' + e.usuario_nombre : '' }}</small>
+                  @if (e.comentario) { <p>{{ e.comentario }}</p> }
+                </li>
+              }
+            </ol>
+          </section>
+        }
+      </div>
+
+      <div class="columna">
+        @if (!cerrado()) { <eco-firmar-prestamo [pedidoId]="det.pedido.id" /> }
+
+        <!-- Pagarle a la tienda -->
+        @if (!cerrado() && porPagar(det).length) {
+          <section class="tarjeta bloque pagar-tienda">
+            <h2><mat-icon>payments</mat-icon> Pague a la tienda</h2>
+            @if (esperandoPago(det)) { <p class="aviso warn"><mat-icon>hourglass_top</mat-icon><span><b>Su pedido queda listo cuando termine de pagar.</b> En cuanto la tienda confirme el pago, lo empieza a alistar.</span></p> }
+            <p class="muted">Su pedido sale cuando la tienda confirme estos pagos. Pague y cuéntenos con el número de la transacción o la foto del comprobante.</p>
+            @for (pg of porPagar(det); track pg.id) {
+              <div class="pp" [attr.data-estado]="pg.estado">
+                <div class="pp-cabeza"><b>{{ NOMBRE_METODO[pg.metodo] || pg.metodo }}</b><span class="precio">{{ pesos(pg.monto) }}</span></div>
+                @if (pg.estado === 'RECHAZADO') { <p class="pp-rech"><mat-icon>error</mat-icon> La tienda no lo encontró{{ pg.nota ? ': ' + pg.nota : '' }}. Revise y repórtelo de nuevo.</p> }
+                @for (m of mediosPara(pg.metodo); track m.id) {
+                  <div class="pp-medio">
+                    @if (m.nombre || m.entidad) { <small>{{ m.nombre || m.entidad }}</small> }
+                    @if (m.numero) {
+                      <div class="pp-numero"><b>{{ m.numero }}</b><button type="button" class="icono-btn" (click)="copiar(m.numero)" aria-label="Copiar"><mat-icon>content_copy</mat-icon></button></div>
+                    }
+                    @if (m.titular) { <small>A nombre de {{ m.titular }}{{ m.tipo_cuenta ? ' · cuenta ' + m.tipo_cuenta.toLowerCase() : '' }}</small> }
+                    @if (qrs()[m.id]) { <img class="pp-qr" [src]="qrs()[m.id]" alt="Código QR para pagar" /> <small>Escanéelo con la app de su banco o billetera.</small> }
+                    @if (m.enlace_pago) { <a class="eco-btn" [href]="m.enlace_pago" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon> Pagar con {{ NOMBRE_METODO[pg.metodo] || pg.metodo }}</a> }
+                    @if (m.instrucciones) { <small class="pp-ins">{{ m.instrucciones }}</small> }
+                  </div>
+                } @empty {
+                  <small class="muted">La tienda le indica cómo pagar por {{ NOMBRE_METODO[pg.metodo] || pg.metodo }}.</small>
+                }
+                @if (pg.reportado_en && pg.estado === 'PREVISTO') {
+                  <p class="pp-ok"><mat-icon>hourglass_top</mat-icon> Reportado {{ pg.reportado_en | date:'d MMM, h:mm a' }}@if (pg.referencia) { · Ref. {{ pg.referencia }} }. La tienda lo está verificando.</p>
+                } @else {
+                  <label class="campo"><span>Número de la transacción</span>
+                    <input type="text" maxlength="120" [ngModel]="refPago()[pg.id] || ''" (ngModelChange)="ponerRef(pg.id, $event)" [name]="'ref' + pg.id" /></label>
+                  <label class="pp-archivo"><mat-icon>photo_camera</mat-icon> {{ archivoPago()[pg.id]?.name || 'Foto o PDF del comprobante' }}
+                    <input type="file" accept="image/*,application/pdf" (change)="elegirComprobante(pg.id, $event)" hidden /></label>
+                  <button type="button" class="eco-btn" [disabled]="reportando() === pg.id" (click)="yaPague(pg)">{{ reportando() === pg.id ? 'Enviando…' : 'Ya pagué' }}</button>
+                }
+              </div>
+            }
+          </section>
+        }
+
+        <!-- Pago -->
+        <section class="tarjeta bloque">
+          <h2><mat-icon>account_balance_wallet</mat-icon> Pago</h2>
+          @if (det.pagos?.length) {
+            <ul class="pagos">
+              @for (pg of det.pagos; track pg.id) {
+                <li [attr.data-estado]="pg.estado">
+                  <span class="pg-texto"><b>{{ NOMBRE_METODO[pg.metodo] || pg.metodo }}</b>
+                    <small>@if (pg.estado === 'VERIFICADO') { Verificado por la tienda } @else if (pg.estado === 'RECHAZADO') { Rechazado{{ pg.nota ? ': ' + pg.nota : '' }} } @else { {{ pg.metodo === 'NOMINA' ? 'Se aparta al confirmar' : pg.metodo === 'EFECTIVO' || pg.metodo === 'TARJETA' ? 'Paga al recibir' : (pg.reportado_en ? 'La tienda lo está verificando' : 'Pendiente de pago') }} }
+                      @if (pg.referencia) { · Ref. {{ pg.referencia }} }</small></span>
+                  <span class="pg-monto">{{ pesos(pg.monto) }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p>{{ NOMBRE_METODO[det.pedido.metodo_pago_previsto || ''] || 'Efectivo al recibir' }}</p>
+          }
+          @if (det.cupo_bloqueado; as c) {
+            <div class="cupo-estado" [attr.data-estado]="c.estado">
+              <b>{{ CUPO[c.estado] || c.estado }}</b>
+              <small>{{ pesos(c.monto) }}{{ c.cuotas > 1 ? ' en ' + c.cuotas + ' cuotas' : '' }}</small>
+              @if (c.error_mensaje) { <small class="err">{{ c.error_mensaje }}</small> }
+            </div>
+          } @else if (det.pedido.metodo_pago_previsto === 'NOMINA' && !cerrado()) {
+            <p class="muted">Su bono mercado se aparta cuando la tienda confirme el pedido.</p>
+          }
+          @if (det.estado_pago_temporal; as ep) {
+            <div class="cupo-estado temporal">
+              <b>Descuento en nómina: {{ ep.estado === 'PAGADO' ? 'aplicado' : ep.estado === 'PENDIENTE' ? 'pendiente' : ep.estado.toLowerCase() }}</b>
+              @if (ep.periodo) { <small>Periodo {{ ep.periodo }}</small> }
+              @if (ep.comentario) { <small>{{ ep.comentario }}</small> }
+            </div>
+          }
+        </section>
+
+        <!-- Quién recoge -->
+        @if (det.pedido.tipo_entrega !== 'DOMICILIO' && !cerrado()) {
+          <section class="tarjeta bloque">
+            <h2><mat-icon>badge</mat-icon> ¿Quién recoge?</h2>
+            <p class="muted">Usted, con su cédula. Si no puede ir, autorice a otra persona: en la tienda verificarán su cara y su cédula.</p>
+            @for (t of det.terceros; track t.id) {
+              <div class="tercero">
+                <mat-icon>person</mat-icon>
+                <span><b>{{ t.nombre }}</b><small>C.C. {{ t.cedula }}{{ t.parentesco ? ' · ' + t.parentesco : '' }}</small></span>
+                <button type="button" class="icono-btn" (click)="quitarTercero(t)" [disabled]="trabajando()" aria-label="Quitar"><mat-icon>close</mat-icon></button>
+              </div>
+            }
+            @if (formTercero()) {
+              <eco-autorizar-tercero [pedidoId]="det.pedido.id" (listo)="autorizado()" (cancelar)="formTercero.set(false)" />
+            } @else {
+              <button type="button" class="eco-btn secundario" (click)="formTercero.set(true)"><mat-icon>person_add</mat-icon> Autorizar a alguien</button>
+            }
+          </section>
+        }
+
+        <!-- Ayuda con este pedido -->
+        <section class="tarjeta bloque ayuda-pedido">
+          <b><mat-icon>support_agent</mat-icon> ¿Algún problema con este pedido?</b>
+          <div class="acciones">
+            <a class="eco-btn secundario" routerLink="/economiapp/asesor" [queryParams]="{ q: 'Tengo un problema con mi pedido ' + det.pedido.numero }">Contarle a MatIA</a>
+            <a class="enlace" routerLink="/economiapp/soporte" [queryParams]="{ pedido: det.pedido.id }">Abrir solicitud</a>
+          </div>
+        </section>
+
+        <!-- Cancelar -->
+        @if (cancelable()) {
+          <section class="tarjeta bloque">
+            @if (confirmandoCancelar()) {
+              <h2>¿Cancelar el pedido?</h2>
+              <p class="muted">La tienda deja de apartarlo y, si había bono mercado apartado, vuelve a quedar disponible.</p>
+              <label class="campo"><span>Motivo (opcional)</span><input type="text" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)" /></label>
+              <div class="acciones">
+                <button type="button" class="eco-btn secundario" (click)="confirmandoCancelar.set(false)">No, mantener</button>
+                <button type="button" class="eco-btn peligro" (click)="cancelar()" [disabled]="trabajando()">Sí, cancelar</button>
+              </div>
+            } @else {
+              <button type="button" class="enlace cancelar" (click)="confirmandoCancelar.set(true)">Cancelar pedido</button>
+            }
+          </section>
+        }
+      </div>
+    </div>
+  }
+</div>

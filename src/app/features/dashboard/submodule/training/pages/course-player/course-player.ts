@@ -1,3 +1,7 @@
+import { BloqueFicha } from '../../components/bloque-ficha/bloque-ficha';
+import { BloqueYoutube } from '../../components/bloque-youtube/bloque-youtube';
+import { ResolverEjercicio } from '../../components/codigo/resolver-ejercicio';
+import { ResultadoPruebas } from '../../components/codigo/resultado-pruebas';
 import {
   Component, ChangeDetectionStrategy, OnInit, OnDestroy, ElementRef, inject, signal, computed
 } from '@angular/core';
@@ -9,8 +13,11 @@ import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import Swal from 'sweetalert2';
 import {
   TrainingS, PaqueteCurso, LeccionOffline, PreguntaPresentacion, RecursoOffline,
-  RespuestaEnviada, BloqueOffline, CitaMaterial, OpcionPresentacion
+  RespuestaEnviada, BloqueOffline, CitaMaterial, OpcionPresentacion, Boletin, ItemBoletin,
+  RequisitoBoletin, QuizPresentacion, Comentario, ModuloOffline, DetalleRespuesta, ResultadoIntento,
+  Actividad, EntregaMia
 } from '../../service/training-s';
+import { TrainingAdminService } from '../../service/training-admin.service';
 import { TrainingOffline } from '../../service/training-offline';
 import { TutorIaService } from '../../service/tutor-ia.service';
 
@@ -28,12 +35,13 @@ import { TutorIaService } from '../../service/tutor-ia.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-course-player',
-  imports: [CommonModule, MatIconModule, MatProgressBarModule],
+  imports: [CommonModule, MatIconModule, MatProgressBarModule, BloqueFicha, BloqueYoutube, ResolverEjercicio, ResultadoPruebas],
   templateUrl: './course-player.html',
   styleUrl: './course-player.css'
 })
 export class CoursePlayer implements OnInit, OnDestroy {
   private api = inject(TrainingS);
+  private adminApi = inject(TrainingAdminService);
   private ruta = inject(ActivatedRoute);
   private router = inject(Router);
   private sanitizer = inject(DomSanitizer);
@@ -48,17 +56,26 @@ export class CoursePlayer implements OnInit, OnDestroy {
   readonly indiceAbierto = signal(false);
   readonly guardando = signal(false);
 
+  /**
+   * Vista previa: el curso sin matrícula, para quien lo arma. Nada se guarda —ni progreso, ni
+   * intentos, ni entregas—; el quiz se puede recorrer y ver la corrección local.
+   */
+  readonly preview = signal(false);
+  private courseId = '';
+  private versionId = '';
+
   /** Respuestas del quiz en curso: preguntaId -> opcionIds elegidas. */
   readonly respuestas = signal<Record<string, string[]>>({});
-  readonly resultadoQuiz = signal<{ nota: number; correctas: number; total: number } | null>(null);
+  /** Resultado por quiz (una lección puede tener varios): quizId -> resultado con su detalle. */
+  readonly resultados = signal<Record<string, ResultadoLocal>>({});
 
   /**
-   * En qué pregunta va, cuando el quiz se responde de a una.
+   * En qué pregunta va cada quiz, cuando se responde de a una: quizId -> índice.
    *
    * Las respuestas SIGUEN enviándose todas juntas al final: el quiz se contesta sin conexión y
    * una petición por pregunta rompería eso. "De a una" es cómo se ve, no cómo se envía.
    */
-  readonly indicePregunta = signal(0);
+  readonly indices = signal<Record<string, number>>({});
   /** Preguntas ya confirmadas. Una confirmada muestra su corrección y no se puede cambiar. */
   readonly confirmadas = signal<Set<string>>(new Set());
 
@@ -95,6 +112,9 @@ export class CoursePlayer implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     this.enrollmentId = this.ruta.snapshot.paramMap.get('enrollmentId') ?? '';
+    this.courseId = this.ruta.snapshot.paramMap.get('courseId') ?? '';
+    this.versionId = this.ruta.snapshot.paramMap.get('versionId') ?? '';
+    this.preview.set(!!this.versionId);
     await this.cargar();
     await this.offline.refrescarPendientes();
 
@@ -117,12 +137,15 @@ export class CoursePlayer implements OnInit, OnDestroy {
     this.cargando.set(true);
     this.error.set(null);
     try {
-      const p = await this.api.paqueteDelCurso(this.enrollmentId);
+      const p = this.preview()
+        ? await this.adminApi.previsualizarVersion(this.courseId, this.versionId)
+        : await this.api.paqueteDelCurso(this.enrollmentId);
       this.paquete.set(p);
       // Se abre donde la persona se quedó, no en la primera: retomar es el caso normal.
       const pendiente = p.modulos.flatMap(m => m.lecciones).find(l => l.estado !== 'COMPLETADA');
       this.leccionActivaId.set((pendiente ?? p.modulos[0]?.lecciones[0])?.id ?? null);
       this.publicarContexto();
+      void this.cargarEntregasDeCodigo();
     } catch {
       this.error.set('No pudimos abrir el curso. Conéctate una vez para descargarlo y '
         + 'después podrás estudiarlo sin internet.');
@@ -163,7 +186,7 @@ export class CoursePlayer implements OnInit, OnDestroy {
 
   /** El video se ve en la página; lo demás se abre aparte, que es lo que espera la gente. */
   private mostrar(recurso: RecursoOffline, url: string): void {
-    if (recurso.tipo !== 'VIDEO') {
+    if (recurso.tipo !== 'VIDEO' && recurso.tipo !== 'AUDIO') {
       window.open(url, '_blank');
     }
   }
@@ -216,6 +239,9 @@ export class CoursePlayer implements OnInit, OnDestroy {
       case 'ENLACE':       return 'link';
       case 'ACTIVIDAD':    return 'assignment_turned_in';
       case 'QUIZ':         return 'quiz';
+      case 'AUDIO':        return 'headphones';
+      case 'YOUTUBE':      return 'smart_display';
+      case 'FICHA':        return 'style';
       default:             return 'description';
     }
   }
@@ -223,11 +249,213 @@ export class CoursePlayer implements OnInit, OnDestroy {
   seleccionar(leccion: LeccionOffline): void {
     this.leccionActivaId.set(leccion.id);
     this.respuestas.set({});
-    this.resultadoQuiz.set(null);
-    this.indicePregunta.set(0);
+    this.resultados.set({});
+    this.indices.set({});
     this.confirmadas.set(new Set());
     this.indiceAbierto.set(false);
     this.publicarContexto();
+    void this.cargarComentarios();
+    void this.cargarEntregasDeCodigo();
+    // Arriba del todo: en el celular, cambiar de lección con el scroll a mitad deja a la
+    // persona mirando el final de la clase nueva.
+    this.host.nativeElement.querySelector('.cp-leccion')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  /** Las lecciones en orden plano, para "anterior / siguiente". */
+  readonly indiceLeccion = computed(() =>
+    this.lecciones().findIndex(l => l.id === this.leccion()?.id));
+
+  readonly porcentajeCurso = computed(() =>
+    Math.round(this.completadas() * 100 / (this.lecciones().length || 1)));
+
+  /** Módulos plegados en el temario. Lo que no está aquí se ve desplegado. */
+  readonly modulosPlegados = signal<ReadonlySet<string>>(new Set());
+
+  moduloPlegado(id: string): boolean {
+    return this.modulosPlegados().has(id);
+  }
+
+  alternarModulo(id: string): void {
+    this.modulosPlegados.update(s => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+
+  progresoModulo(m: ModuloOffline): { hechas: number; total: number; pct: number } {
+    const total = m.lecciones.length;
+    const hechas = m.lecciones.filter(l => l.estado === 'COMPLETADA').length;
+    return { hechas, total, pct: total ? Math.round(hechas * 100 / total) : 0 };
+  }
+
+  moduloDe(l: LeccionOffline): ModuloOffline | null {
+    return this.paquete()?.modulos.find(m => m.lecciones.some(x => x.id === l.id)) ?? null;
+  }
+
+  numeroModuloDe(l: LeccionOffline): number {
+    const mods = this.paquete()?.modulos ?? [];
+    return mods.findIndex(m => m.lecciones.some(x => x.id === l.id)) + 1;
+  }
+
+  nombreBloque(tipo: string): string {
+    switch (tipo) {
+      case 'TEXTO':        return 'Lectura';
+      case 'VIDEO':        return 'Vídeo';
+      case 'DOCUMENTO':    return 'Documento';
+      case 'PRESENTACION': return 'Presentación';
+      case 'IMAGEN':       return 'Imagen';
+      case 'ENLACE':       return 'Enlace';
+      case 'ACTIVIDAD':    return 'Actividad';
+      case 'QUIZ':         return 'Quiz';
+      case 'AUDIO':        return 'Audio';
+      case 'YOUTUBE':      return 'Video de YouTube';
+      case 'FICHA':        return 'Fichas de repaso';
+      default:             return 'Material';
+    }
+  }
+
+  /** Desplaza hasta el bloque, que es lo que hace el paso del recorrido al tocarlo. */
+  irAlBloque(id: string): void {
+    this.host.nativeElement.querySelector(`[data-bloque="${id}"]`)
+      ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  /**
+   * El gesto de un curso: cerrar la lección y pasar a la siguiente. Si era la última, se
+   * da por terminado el contenido y se abre la calificación.
+   */
+  async completarYContinuar(l: LeccionOffline): Promise<void> {
+    await this.completar(l);
+    const sig = this.siguienteLeccion;
+    if (sig) {
+      this.seleccionar(sig);
+    } else {
+      await this.terminarCurso();
+    }
+  }
+
+  async terminarCurso(): Promise<void> {
+    if (this.preview()) {
+      await Swal.fire('Fin de la vista previa', 'Así termina el curso para quien lo curse.', 'info');
+      return;
+    }
+    await Swal.fire({
+      title: '¡Terminaste el contenido!',
+      text: 'Revisa tu calificación: si cumples todo, el curso queda aprobado y el certificado aparece en "Mis certificados".',
+      icon: 'success', confirmButtonText: 'Ver mi calificación',
+    });
+    if (!this.boletinAbierto()) await this.alternarBoletin();
+    this.host.nativeElement.querySelector('.boletin')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+
+  get anteriorLeccion(): LeccionOffline | null {
+    const i = this.indiceLeccion();
+    return i > 0 ? this.lecciones()[i - 1] : null;
+  }
+
+  get siguienteLeccion(): LeccionOffline | null {
+    const i = this.indiceLeccion();
+    return i >= 0 && i < this.lecciones().length - 1 ? this.lecciones()[i + 1] : null;
+  }
+
+  /** Cuántos bloques trae la lección, por tipo, para el temario. */
+  resumenDe(l: LeccionOffline): string {
+    const b = this.bloquesDe(l);
+    const partes: string[] = [];
+    const n = (t: string) => b.filter(x => x.tipo === t).length;
+    if (n('VIDEO')) partes.push(`${n('VIDEO')} vídeo`);
+    if (n('QUIZ')) partes.push(`${n('QUIZ')} quiz`);
+    if (n('ACTIVIDAD')) partes.push(`${n('ACTIVIDAD')} actividad`);
+    if (l.duracion_min) partes.push(`${l.duracion_min} min`);
+    return partes.join(' · ');
+  }
+
+  // ── Comentarios de la clase ───────────────────────────────────────────────
+
+  readonly comentarios = signal<Comentario[]>([]);
+  readonly cargandoComentarios = signal(false);
+  readonly comentariosAbiertos = signal(false);
+  readonly nuevoComentario = signal('');
+  /** El hilo al que se está respondiendo, y lo escrito. null = ninguno. */
+  readonly respondiendoA = signal<string | null>(null);
+  readonly textoRespuesta = signal('');
+  readonly enviandoComentario = signal(false);
+
+  readonly totalComentarios = computed(() =>
+    this.comentarios().reduce((n, c) => n + 1 + (c.respuestas?.length ?? 0), 0));
+
+  /**
+   * Los comentarios necesitan conexión y se piden aparte del paquete: no se cachean offline
+   * (cambian a cada rato) y sin señal la sección simplemente no aparece.
+   */
+  async cargarComentarios(): Promise<void> {
+    const l = this.leccion();
+    this.comentarios.set([]);
+    this.respondiendoA.set(null);
+    if (!l || !this.offline.enLinea) return;
+    this.cargandoComentarios.set(true);
+    try {
+      this.comentarios.set(await this.api.comentarios(l.id));
+    } catch {
+      this.comentarios.set([]);
+    } finally {
+      this.cargandoComentarios.set(false);
+    }
+  }
+
+  async comentar(): Promise<void> {
+    const l = this.leccion();
+    const texto = this.nuevoComentario().trim();
+    if (!l || !texto || this.enviandoComentario()) return;
+    this.enviandoComentario.set(true);
+    try {
+      await this.api.comentar(l.id, texto);
+      this.nuevoComentario.set('');
+      await this.cargarComentarios();
+    } catch (e: any) {
+      Swal.fire('No se pudo comentar', e?.error?.message ?? 'Revisa la conexión e intenta de nuevo.', 'error');
+    } finally {
+      this.enviandoComentario.set(false);
+    }
+  }
+
+  async responder(c: Comentario): Promise<void> {
+    const l = this.leccion();
+    const texto = this.textoRespuesta().trim();
+    if (!l || !texto || this.enviandoComentario()) return;
+    this.enviandoComentario.set(true);
+    try {
+      await this.api.comentar(l.id, texto, c.id);
+      this.textoRespuesta.set('');
+      this.respondiendoA.set(null);
+      await this.cargarComentarios();
+    } catch (e: any) {
+      Swal.fire('No se pudo responder', e?.error?.message ?? 'Revisa la conexión e intenta de nuevo.', 'error');
+    } finally {
+      this.enviandoComentario.set(false);
+    }
+  }
+
+  async borrarComentario(c: Comentario): Promise<void> {
+    const r = await Swal.fire({
+      title: '¿Borrar el comentario?',
+      text: c.parent_id ? '' : 'Se borran también sus respuestas.',
+      icon: 'warning', showCancelButton: true, confirmButtonText: 'Borrar', cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#c62828',
+    });
+    if (!r.isConfirmed) return;
+    try {
+      await this.api.borrarComentario(c.id);
+      await this.cargarComentarios();
+    } catch (e: any) {
+      Swal.fire('No se pudo borrar', e?.error?.message ?? 'Inténtalo de nuevo.', 'error');
+    }
+  }
+
+  abrirRespuesta(c: Comentario): void {
+    this.respondiendoA.set(this.respondiendoA() === c.id ? null : c.id);
+    this.textoRespuesta.set('');
   }
 
   /**
@@ -302,6 +530,10 @@ export class CoursePlayer implements OnInit, OnDestroy {
   }
 
   volver(): void {
+    if (this.preview()) {
+      this.router.navigate(['/dashboard/capacitaciones/catalogo', this.courseId]);
+      return;
+    }
     this.router.navigate(['/dashboard/capacitaciones']);
   }
 
@@ -317,6 +549,11 @@ export class CoursePlayer implements OnInit, OnDestroy {
    */
   async completar(leccion: LeccionOffline): Promise<void> {
     if (leccion.estado === 'COMPLETADA' || this.guardando()) return;
+    if (this.preview()) {
+      // En vista previa no hay matrícula que avanzar: se marca solo en pantalla.
+      this.marcarLocalmente(leccion.id);
+      return;
+    }
     this.guardando.set(true);
     const idEvento = this.offline.idDeEvento('progreso', leccion.id);
     try {
@@ -356,6 +593,43 @@ export class CoursePlayer implements OnInit, OnDestroy {
     });
   }
 
+  // ── Mi calificación ───────────────────────────────────────────────────────
+
+  readonly boletinAbierto = signal(false);
+  readonly boletin = signal<Boletin | null>(null);
+  readonly cargandoBoletin = signal(false);
+
+  async alternarBoletin(): Promise<void> {
+    const abrir = !this.boletinAbierto();
+    this.boletinAbierto.set(abrir);
+    if (!abrir) return;
+    const id = this.paquete()?.enrollment_id;
+    if (!id) return;
+    this.cargandoBoletin.set(true);
+    try {
+      this.boletin.set(await this.api.miBoletin(id));
+    } catch {
+      this.boletin.set(null);
+    } finally {
+      this.cargandoBoletin.set(false);
+    }
+  }
+
+  /** Solo lo que este curso pide: listar lo que no aplica confunde. */
+  requisitosQueAplican(b: Boletin): RequisitoBoletin[] {
+    return b.requisitos.filter(r => r.aplica);
+  }
+
+  etiquetaItem(it: ItemBoletin): string {
+    switch (it.estado) {
+      case 'SIN_PRESENTAR':      return 'sin presentar';
+      case 'PENDIENTE_REVISION': return 'esperando revisión';
+      case 'RECHAZADO':          return 'rechazada';
+      case 'APROBADO':           return 'aprobada';
+      default:                   return it.intentos ? `${it.intentos} intento(s)` : '';
+    }
+  }
+
   // ── Quiz ──────────────────────────────────────────────────────────────────
 
   elegir(pregunta: PreguntaPresentacion, opcionId: string): void {
@@ -385,6 +659,17 @@ export class CoursePlayer implements OnInit, OnDestroy {
     return p.tipo === 'TEXTO_ABIERTO' || p.tipo === 'NUMERO';
   }
 
+  /** Las de programación: se responden con código y las califican sus pruebas en el servidor. */
+  esCodigo(p: PreguntaPresentacion): boolean {
+    return p.tipo === 'PROGRAMACION';
+  }
+
+  /** El código va tal cual (sin recortar: la indentación importa), en el mismo mapa. */
+  escribirCodigo(pregunta: PreguntaPresentacion, codigo: string): void {
+    if (this.confirmada(pregunta)) return;
+    this.respuestas.update(actual => ({ ...actual, [pregunta.id]: (codigo ?? '').trim() ? [codigo] : [] }));
+  }
+
   escribir(pregunta: PreguntaPresentacion, texto: string): void {
     if (this.confirmada(pregunta)) return;
     const limpio = (texto ?? '').trim();
@@ -400,30 +685,85 @@ export class CoursePlayer implements OnInit, OnDestroy {
   }
 
   // ── Quiz de a una pregunta ────────────────────────────────────────────────
+  // Todo recibe el quiz: una lección puede tener varios y cada bloque pinta el suyo.
 
-  get quiz() {
-    return this.leccion()?.quiz ?? null;
+  /** El quiz al que pertenece una pregunta, entre los de la lección abierta. */
+  quizDePregunta(p: PreguntaPresentacion): QuizPresentacion | null {
+    const l = this.leccion();
+    if (!l) return null;
+    for (const b of this.bloquesDe(l)) {
+      if (b.quiz?.preguntas.some(x => x.id === p.id)) return b.quiz;
+    }
+    return null;
   }
 
-  get unaPorUna(): boolean {
-    return this.quiz?.modo_presentacion === 'UNA_POR_UNA';
+  indiceDe(q: QuizPresentacion): number {
+    return this.indices()[q.quiz_id] ?? 0;
+  }
+
+  resultadoDe(q: QuizPresentacion): ResultadoLocal | null {
+    return this.resultados()[q.quiz_id] ?? null;
+  }
+
+  /** Qué pasó con una pregunta en el resultado de su quiz. Null si no vino en el detalle. */
+  detalleDe(q: QuizPresentacion, p: PreguntaPresentacion): DetalleRespuesta | null {
+    return this.resultadoDe(q)?.detalle?.find(d => d.question_id === p.id) ?? null;
+  }
+
+  /** Lo que la persona contestó, en palabras, para la revisión. */
+  respuestaTexto(p: PreguntaPresentacion): string {
+    if (this.esAbierta(p)) return this.escrito(p.id) || '(en blanco)';
+    if (this.esCodigo(p)) {
+      const lineas = this.escrito(p.id).split('\n').filter(l => l.trim()).length;
+      return lineas ? `${lineas} línea(s) de código` : '(en blanco)';
+    }
+    if (this.esEmparejar(p)) {
+      const pares = this.parejasDe(p);
+      if (!pares.length) return '(sin unir)';
+      const texto = (id: string) => p.opciones.find(o => o.id === id)?.texto ?? '?';
+      return pares.map(x => `${texto(x.a)} → ${texto(x.b)}`).join(' · ');
+    }
+    const marcadas = this.respuestas()[p.id] ?? [];
+    if (!marcadas.length) return '(en blanco)';
+    return marcadas.map(id => p.opciones.find(o => o.id === id)?.texto ?? '?').join(' · ');
+  }
+
+  /** La respuesta correcta en palabras, SOLO si el quiz la revela. */
+  correctasTexto(p: PreguntaPresentacion): string | null {
+    if (!p.opciones_correctas?.length || this.esEmparejar(p)) return null;
+    return p.opciones_correctas.map(id => p.opciones.find(o => o.id === id)?.texto ?? '?').join(' · ');
+  }
+
+  /**
+   * Modo examen: no se pega ni se suelta texto en las respuestas escritas. Es una barrera
+   * contra el pegar reflejo, no seguridad; la decide quien arma el quiz.
+   */
+  bloquearPegado(evento: Event, q: QuizPresentacion): void {
+    if (!q.bloquea_pegado) return;
+    evento.preventDefault();
+    void Swal.fire({
+      toast: true, position: 'top', timer: 2200, showConfirmButton: false, icon: 'info',
+      title: 'Modo examen: escribe tu respuesta, no se puede pegar.',
+    });
+  }
+
+  unaPorUna(q: QuizPresentacion): boolean {
+    return q.modo_presentacion === 'UNA_POR_UNA';
   }
 
   /** Las que se pintan ahora: todas, o solo la que toca. */
-  get preguntasVisibles(): PreguntaPresentacion[] {
-    const q = this.quiz;
-    if (!q) return [];
-    if (!this.unaPorUna) return q.preguntas;
-    const p = q.preguntas[this.indicePregunta()];
+  preguntasVisibles(q: QuizPresentacion): PreguntaPresentacion[] {
+    if (!this.unaPorUna(q)) return q.preguntas;
+    const p = q.preguntas[this.indiceDe(q)];
     return p ? [p] : [];
   }
 
-  get puedeVolver(): boolean {
-    return this.unaPorUna && !!this.quiz?.permite_volver && this.indicePregunta() > 0;
+  puedeVolver(q: QuizPresentacion): boolean {
+    return this.unaPorUna(q) && !!q.permite_volver && this.indiceDe(q) > 0;
   }
 
-  get esUltimaPregunta(): boolean {
-    return !this.unaPorUna || this.indicePregunta() >= (this.quiz?.preguntas.length ?? 1) - 1;
+  esUltimaPregunta(q: QuizPresentacion): boolean {
+    return !this.unaPorUna(q) || this.indiceDe(q) >= (q.preguntas.length ?? 1) - 1;
   }
 
   /**
@@ -551,13 +891,17 @@ export class CoursePlayer implements OnInit, OnDestroy {
     this.confirmadas.update(s => new Set(s).add(p.id));
   }
 
-  siguientePregunta(p: PreguntaPresentacion): void {
+  siguientePregunta(q: QuizPresentacion, p: PreguntaPresentacion): void {
     this.confirmar(p);
-    if (!this.esUltimaPregunta) this.indicePregunta.update(i => i + 1);
+    if (!this.esUltimaPregunta(q)) {
+      this.indices.update(m => ({ ...m, [q.quiz_id]: this.indiceDe(q) + 1 }));
+    }
   }
 
-  preguntaAnterior(): void {
-    if (this.puedeVolver) this.indicePregunta.update(i => i - 1);
+  preguntaAnterior(q: QuizPresentacion): void {
+    if (this.puedeVolver(q)) {
+      this.indices.update(m => ({ ...m, [q.quiz_id]: this.indiceDe(q) - 1 }));
+    }
   }
 
   // ── Dónde se explica lo que fallé ─────────────────────────────────────────
@@ -574,7 +918,7 @@ export class CoursePlayer implements OnInit, OnDestroy {
    * nada.
    */
   async buscarDondeSeExplica(p: PreguntaPresentacion): Promise<void> {
-    const quiz = this.quiz;
+    const quiz = this.quizDePregunta(p);
     if (!quiz || this.buscandoCitas()) return;
     this.buscandoCitas.set(p.id);
     try {
@@ -640,16 +984,115 @@ export class CoursePlayer implements OnInit, OnDestroy {
     return (this.respuestas()[p.id] ?? []).length > 0;
   }
 
-  get quizCompleto(): boolean {
-    const quiz = this.quiz;
-    if (!quiz) return false;
+  quizCompleto(quiz: QuizPresentacion): boolean {
     return quiz.preguntas.every(p => this.respondida(p));
   }
 
-  async enviarQuiz(): Promise<void> {
+  // ── Actividades de código ─────────────────────────────────────────────────
+  // Se resuelven y entregan aquí mismo (no en la app del celular): las califican sus pruebas
+  // en el servidor, y la nota llega unos segundos después.
+
+  readonly entregas = signal<Record<string, EntregaMia | null>>({});
+  readonly entregando = signal<string | null>(null);
+
+  entregaDe(activityId: string): EntregaMia | null {
+    return this.entregas()[activityId] ?? null;
+  }
+
+  private async cargarEntregasDeCodigo(): Promise<void> {
+    const l = this.leccion();
+    if (!l || this.preview()) return;
+    const deCodigo = this.bloquesDe(l).map(b => b.actividad).filter((a): a is Actividad => !!a && a.tipo === 'CODIGO');
+    for (const a of deCodigo) {
+      try {
+        const e = await this.api.miEntrega(a.id);
+        this.entregas.update(m => ({ ...m, [a.id]: e }));
+        if (e.calificando) void this.seguirEntrega(a.id);
+      } catch {
+        this.entregas.update(m => ({ ...m, [a.id]: null }));
+      }
+    }
+  }
+
+  async entregarCodigo(a: Actividad, codigo: string): Promise<void> {
+    if (this.preview() || this.entregando()) return;
+    this.entregando.set(a.id);
+    try {
+      const e = await this.api.entregarActividad(a.id, {
+        client_event_id: this.offline.idDeEvento('actividad', a.id + ':' + Date.now()),
+        texto: codigo, ocurrido_at: new Date().toISOString(),
+      }) as EntregaMia;
+      this.entregas.update(m => ({ ...m, [a.id]: e }));
+      void this.seguirEntrega(a.id);
+    } catch (err: any) {
+      Swal.fire('No se pudo entregar', err?.error?.message ?? 'Revisa la conexión e intenta de nuevo.', 'error');
+    } finally {
+      this.entregando.set(null);
+    }
+  }
+
+  private async seguirEntrega(activityId: string): Promise<void> {
+    const limite = Date.now() + 240_000;
+    while (Date.now() < limite) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const e = await this.api.miEntrega(activityId);
+        this.entregas.update(m => ({ ...m, [activityId]: e }));
+        if (!e.calificando) return;
+      } catch {
+        return;
+      }
+    }
+  }
+
+  private ponerResultado(quizId: string, r: ResultadoIntento): void {
+    this.resultados.update(m => ({ ...m, [quizId]: {
+      nota: r.nota,
+      correctas: r.preguntas_correctas,
+      total: r.preguntas_totales,
+      detalle: r.detalle ?? [],
+      calificando: !!r.calificando,
+    } }));
+  }
+
+  /** Pide el resultado cada 2 s mientras el código se califica (hasta 4 minutos). */
+  private async seguirCalificacion(quizId: string, attemptId: string): Promise<void> {
+    const limite = Date.now() + 240_000;
+    while (Date.now() < limite) {
+      await new Promise(r => setTimeout(r, 2000));
+      try {
+        const r = await this.api.resultadoIntento(attemptId);
+        this.ponerResultado(quizId, r);
+        if (!r.calificando) return;
+      } catch {
+        return;
+      }
+    }
+  }
+
+  async enviarQuiz(quiz: QuizPresentacion): Promise<void> {
     const leccion = this.leccion();
-    const quiz = leccion?.quiz;
     if (!quiz || !leccion || this.guardando()) return;
+
+    if (this.preview()) {
+      // Sin matrícula no hay intento que guardar: se corrige con lo que trae el paquete, que
+      // es lo que vería la persona sin conexión. Las abiertas no se pueden corregir aquí.
+      const corregibles = quiz.preguntas.filter(p => p.opciones_correctas);
+      const correctas = corregibles.filter(p => this.acerto(p) === true).length;
+      const total = quiz.preguntas.length;
+      this.confirmadas.update(s => { const n = new Set(s); quiz.preguntas.forEach(p => n.add(p.id)); return n; });
+      const detalle: DetalleRespuesta[] = quiz.preguntas.map(p => {
+        const ok = this.acerto(p);
+        return { question_id: p.id, enunciado: p.enunciado, correcta: ok === true, puntaje: ok ? 1 : 0,
+                 motivo: ok === null ? 'La corrige el servidor cuando alguien la presenta de verdad.' : null };
+      });
+      this.resultados.update(m => ({ ...m, [quiz.quiz_id]: {
+        nota: total ? Math.round(correctas * 100 / total) : 0, correctas, total, detalle } }));
+      Swal.fire('Vista previa', corregibles.length < total
+        ? 'Aquí solo se corrigen las preguntas de marcar; las escritas las califica el servidor cuando alguien las presenta de verdad.'
+        : 'Nada se guarda: es la corrección tal como la vería la persona.', 'info');
+      return;
+    }
 
     this.guardando.set(true);
     const idEvento = this.offline.idDeEvento('quiz', quiz.quiz_id);
@@ -657,7 +1100,7 @@ export class CoursePlayer implements OnInit, OnDestroy {
     // el mismo que califica los exámenes de Formularios Dinámicos. Aquí no viaja su criterio,
     // y por eso tampoco se puede corregir sin conexión.
     const respuestas: RespuestaEnviada[] = quiz.preguntas.map(p => {
-      if (this.esAbierta(p)) return { question_id: p.id, texto: this.escrito(p.id) || null };
+      if (this.esAbierta(p) || this.esCodigo(p)) return { question_id: p.id, texto: this.escrito(p.id) || null };
       if (this.esEmparejar(p)) {
         return {
           question_id: p.id,
@@ -670,11 +1113,12 @@ export class CoursePlayer implements OnInit, OnDestroy {
     try {
       const resultado = await this.api.responderQuiz(quiz.quiz_id, idEvento, respuestas);
       this.offline.confirmar('quiz', quiz.quiz_id);
-      this.resultadoQuiz.set({
-        nota: resultado.nota,
-        correctas: resultado.preguntas_correctas,
-        total: resultado.preguntas_totales
-      });
+      // Con el resultado se fijan todas las preguntas: la revisión muestra cómo quedó cada
+      // una y ya no se cambia nada.
+      this.confirmadas.update(s => { const n = new Set(s); quiz.preguntas.forEach(p => n.add(p.id)); return n; });
+      this.ponerResultado(quiz.quiz_id, resultado);
+      // Con código por calificar la nota llega después: se sigue el intento hasta que termine.
+      if (resultado.calificando) void this.seguirCalificacion(quiz.quiz_id, resultado.id);
     } catch {
       await this.offline.refrescarPendientes();
       Swal.fire('Respuestas guardadas',
@@ -686,4 +1130,14 @@ export class CoursePlayer implements OnInit, OnDestroy {
       await this.offline.refrescarPendientes();
     }
   }
+}
+
+/** El resultado de un quiz tal como lo guarda la pantalla: la nota y qué pasó con cada pregunta. */
+interface ResultadoLocal {
+  nota: number;
+  correctas: number;
+  total: number;
+  detalle: DetalleRespuesta[];
+  /** true = hay código calificándose y la nota todavía puede subir. */
+  calificando?: boolean;
 }
