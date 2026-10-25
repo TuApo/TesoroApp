@@ -50,11 +50,20 @@
       @if (enviado()) {
         <!-- ÉXITO: pantalla de gracias -->
         <section class="runtime-gracias" role="status">
-          <span class="material-symbols-outlined runtime-gracias__icono" aria-hidden="true">task_alt</span>
-          <h2 class="runtime-gracias__titulo">¡Respuesta enviada!</h2>
-          <p class="runtime-gracias__texto">
-            Gracias por diligenciar «{{ structure()?.form_name }}». Tu respuesta quedó registrada correctamente.
-          </p>
+          @if (enCola()) {
+            <span class="material-symbols-outlined runtime-gracias__icono" aria-hidden="true">schedule_send</span>
+            <h2 class="runtime-gracias__titulo">Guardada en el teléfono</h2>
+            <p class="runtime-gracias__texto">
+              No hay señal: tu respuesta a «{{ structure()?.form_name }}» quedó guardada con sus fotos y firmas,
+              y se enviará sola apenas vuelva la conexión. Puedes cerrar la app tranquilo.
+            </p>
+          } @else {
+            <span class="material-symbols-outlined runtime-gracias__icono" aria-hidden="true">task_alt</span>
+            <h2 class="runtime-gracias__titulo">¡Respuesta enviada!</h2>
+            <p class="runtime-gracias__texto">
+              Gracias por diligenciar «{{ structure()?.form_name }}». Tu respuesta quedó registrada correctamente.
+            </p>
+          }
           <div class="runtime-gracias__acciones">
             <button type="button" class="btn btn--primario" (click)="enviarOtra()">
               <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>

@@ -79,6 +79,12 @@
         </div>
         @if (qrMotivo() && !qrOk()) { <p class="ayuda">{{ qrMotivo() }}</p> }
 
+        @if (campo.consentimientoUbicacion() === null) {
+          <app-aviso-ubicacion (respondido)="alResponderUbicacion($event)" />
+        } @else if (campo.consentimientoUbicacion() === false) {
+          <p class="ayuda">Elegiste no compartir tu ubicación: la marcación quedará "sin ubicación" para tu supervisor.</p>
+          <button type="button" class="boton bloque" (click)="compartirUbicacion()"><mat-icon>my_location</mat-icon> Compartir ubicación</button>
+        } @else {
         <div class="mapa-paso">
           <app-mapa-campo [tilesUrl]="campo.paquete()?.config?.tiles_url || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'"
                           [atribucion]="campo.paquete()?.config?.tiles_atribucion || '© OpenStreetMap'"
@@ -114,6 +120,7 @@
             <button type="button" class="boton" (click)="elegirEnMapa()"><mat-icon>touch_app</mat-icon> Elegir en el mapa</button>
           }
         </div>
+        }
         <button type="button" class="boton primario bloque grande-btn" (click)="continuarASelfie()" [disabled]="buscandoGps() && lat() == null">
           Continuar <mat-icon>arrow_forward</mat-icon>
         </button>

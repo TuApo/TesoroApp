@@ -1,16 +1,12 @@
 /**
- * Lo nativo del dispositivo, sin plugins nuevos: en el APK (Capacitor 7) la WebView ya da
- * GPS, cámara, micrófono, vibración y red con las APIs estándar —los permisos
- * ACCESS_FINE_LOCATION, CAMERA y RECORD_AUDIO están en el AndroidManifest—, y si algún día se
- * instala @capacitor/geolocation o @capacitor/haptics se usan solos (se detectan en
- * `Capacitor.Plugins`), sin cambiar este código.
+ * Utilidades de campo sobre lo nativo del teléfono. GPS, vibración, batería y modelo salen de
+ * los plugins de Capacitor (`core/nativo`); en web caen a las APIs del navegador.
  */
 
 import { Capacitor } from '@capacitor/core';
+import { infoDispositivo, posicionNativa, vibrarNativo } from '../../../../../core/nativo/nativo';
 
 export interface Posicion { lat: number; lon: number; precision_m: number | null; capturado_ms: number; fuente: 'GPS' | 'RED' }
-
-const plugins = (): Record<string, any> => ((Capacitor as any)?.Plugins ?? {}) as Record<string, any>;
 
 export function plataforma(): string {
   try {
@@ -31,29 +27,9 @@ export function descripcionDispositivo(): string {
   return `${plataforma()} · ${m ? m[1].trim() : (ua.split(') ')[0] || '').slice(0, 80)}`.slice(0, 160);
 }
 
-/**
- * Posición actual. El GPS no necesita internet: funciona en modo avión. Primero alta
- * precisión (GPS); si no responde a tiempo, la de la red/wifi.
- */
-export async function posicionActual(timeoutMs = 20_000): Promise<Posicion> {
-  const geo = plugins()['Geolocation'];
-  if (geo?.getCurrentPosition && esNativo()) {
-    try {
-      const p = await geo.getCurrentPosition({ enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 15_000 });
-      return { lat: p.coords.latitude, lon: p.coords.longitude, precision_m: Math.round(p.coords.accuracy ?? 0) || null, capturado_ms: p.timestamp || Date.now(), fuente: 'GPS' };
-    } catch { /* cae a la web */ }
-  }
-  if (typeof navigator === 'undefined' || !navigator.geolocation) throw new Error('Este dispositivo no tiene ubicación');
-  const pedir = (alta: boolean, t: number) => new Promise<GeolocationPosition>((ok, mal) =>
-    navigator.geolocation.getCurrentPosition(ok, mal, { enableHighAccuracy: alta, timeout: t, maximumAge: alta ? 15_000 : 120_000 }));
-  try {
-    const p = await pedir(true, timeoutMs);
-    return { lat: p.coords.latitude, lon: p.coords.longitude, precision_m: Math.round(p.coords.accuracy) || null, capturado_ms: p.timestamp || Date.now(), fuente: 'GPS' };
-  } catch (e: any) {
-    if (e?.code === 1) throw new Error('Permiso de ubicación denegado. Actívalo en los ajustes del teléfono.');
-    const p = await pedir(false, 10_000);
-    return { lat: p.coords.latitude, lon: p.coords.longitude, precision_m: Math.round(p.coords.accuracy) || null, capturado_ms: p.timestamp || Date.now(), fuente: 'RED' };
-  }
+/** Posición actual con el GPS nativo del teléfono (funciona sin internet). Ver core/nativo. */
+export function posicionActual(timeoutMs = 20_000): Promise<Posicion> {
+  return posicionNativa(timeoutMs);
 }
 
 /** Sigue la posición mientras la pantalla esté abierta. Devuelve cómo dejar de seguirla. */
@@ -66,10 +42,7 @@ export function seguirPosicion(cb: (p: Posicion) => void, error?: (e: unknown) =
 }
 
 export async function bateria(): Promise<number | null> {
-  try {
-    const b = await (navigator as any).getBattery?.();
-    return b ? Math.round(b.level * 100) : null;
-  } catch { return null; }
+  return (await infoDispositivo()).bateria;
 }
 
 /** Tipo de red: 'sin-red', 'wifi', '4g', '3g', '2g' o 'en-linea' cuando no se sabe más. */
@@ -82,9 +55,7 @@ export function red(): string {
 }
 
 export function vibrar(patron: number | number[] = 40): void {
-  const h = plugins()['Haptics'];
-  if (h?.vibrate && esNativo()) { h.vibrate({ duration: Array.isArray(patron) ? patron[0] : patron }).catch(() => undefined); return; }
-  try { navigator.vibrate?.(patron); } catch { /* no vibra */ }
+  vibrarNativo(patron);
 }
 
 export function uuid(): string {

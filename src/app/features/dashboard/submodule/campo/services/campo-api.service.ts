@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../../../../environments/environment';
 import {
-  Canal, EstadoRostro, Finca, Marcacion, MarcacionPendiente, Miembro, Paquete, Punto, Rastro, Tablero, Tarea, Visita, Zona,
+  Canal, EstadoRostro, Finca, Historico, Marcacion, MarcacionPendiente, Miembro, Paquete, Punto, Rastro, Tablero, Tarea, Visita, Zona,
 } from '../campo.models';
 
 /** HTTP del trabajo de campo. El JWT lo pone el interceptor. */
@@ -77,6 +77,15 @@ export class CampoApiService {
   jerarquia(): Observable<Miembro[]> { return this.http.get<Miembro[]>(`${this.base}/jerarquia`); }
   guardarMiembro(usuario: string, c: { jefe_id?: string | null; cargo_campo?: string; zona_id?: number | null; activo?: boolean; quitar_jefe?: boolean }): Observable<Miembro[]> {
     return this.http.put<Miembro[]>(`${this.base}/jerarquia/${usuario}`, c);
+  }
+
+  historico(f: { desde?: string; hasta?: string; coordinador?: string; fincaId?: number; tipo?: string; oficina?: string; pagina?: number; tamano?: number }): Observable<Historico> {
+    return this.http.get<Historico>(`${this.base}/historico`, { params: this.params(f) });
+  }
+
+  /** Foto de la planilla (ms-documents); el JWT lo pone el interceptor. */
+  documento(id: number): Observable<Blob> {
+    return this.http.get(`${environment.apiUrl}/api/v1/documents/${id}/download`, { responseType: 'blob' });
   }
 
   // ─── Agenda y tareas ────────────────────────────────────────────────────

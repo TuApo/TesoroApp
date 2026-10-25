@@ -18,6 +18,8 @@
       <button type="button" class="boton" (click)="actualizar()">Reintentar</button></div>
   }
 
+  @if (campo.consentimientoUbicacion() === null) { <app-aviso-ubicacion /> }
+
   <!-- La acción principal: llegar o salir -->
   <section class="accion" [class.dentro]="!!abierta()">
     @if (abierta(); as a) {
@@ -164,10 +166,23 @@
     <ul class="checks">
       <li [class.ok]="!!campo.paquete()"><mat-icon>{{ campo.paquete() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
         Fincas, agenda y tareas guardadas {{ campo.paquete() ? '(' + paqueteHace() + ')' : '' }}</li>
+      <li [class.ok]="!!personal.datos()"><mat-icon>{{ personal.datos() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        Tu personal {{ personal.datos() ? '(' + personal.datos()!.total + ' personas, ' + hace(personal.datos()!.generado_ms) + ')' : 'sin descargar' }}</li>
+      <li [class.ok]="formulariosGuardados() > 0"><mat-icon>{{ formulariosGuardados() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        Formularios para llenar sin señal {{ formulariosGuardados() ? '(' + formulariosGuardados() + ')' : '' }}</li>
+      @if (formsOffline.pendientes().length) {
+        <li><mat-icon>schedule_send</mat-icon> {{ formsOffline.pendientes().length }} formulario(s) esperando señal
+          {{ formsOffline.conError().length ? '· ' + formsOffline.conError().length + ' rechazado(s)' : '' }}</li>
+      }
       <li [class.ok]="mapaListo()"><mat-icon>{{ mapaListo() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
         Mapa de tus fincas descargado {{ mosaicos() ? '(' + mosaicos() + ' partes)' : '' }}</li>
-      <li [class.ok]="!campo.errorUbicacion()"><mat-icon>{{ campo.errorUbicacion() ? 'location_disabled' : 'check_circle' }}</mat-icon>
-        {{ campo.errorUbicacion() || 'GPS disponible' }}</li>
+      @if (campo.consentimientoUbicacion() === false) {
+        <li><mat-icon>location_disabled</mat-icon> No compartes tu ubicación
+          <button type="button" class="boton chico" (click)="campo.responderUbicacion(true)">Compartir</button></li>
+      } @else {
+        <li [class.ok]="!campo.errorUbicacion()"><mat-icon>{{ campo.errorUbicacion() ? 'location_disabled' : 'check_circle' }}</mat-icon>
+          {{ campo.errorUbicacion() || 'GPS disponible' }}</li>
+      }
       <li [class.ok]="!pendientesCola()"><mat-icon>{{ pendientesCola() ? 'schedule_send' : 'check_circle' }}</mat-icon>
         {{ pendientesCola() ? pendientesCola() + ' registro(s) esperando señal' : 'Nada pendiente por enviar' }}
         @if (campo.puntosPendientes()) { · {{ campo.puntosPendientes() }} posiciones guardadas }</li>
@@ -177,6 +192,9 @@
       <small>Descargando mapa… {{ d.hechos }}/{{ d.total }}</small>
     }
     @if (avisoDescarga()) { <p class="ayuda">{{ avisoDescarga() }}</p> }
+    <button type="button" class="boton primario bloque" (click)="prepararSinSenal()" [disabled]="!!preparando() || !campo.enLinea()">
+      <mat-icon>{{ preparando() ? 'sync' : 'offline_bolt' }}</mat-icon> {{ preparando() || 'Descargar todo para trabajar sin señal' }}
+    </button>
     <div class="barra">
       <button type="button" class="boton" (click)="descargarMapa()" [disabled]="!!descargando() || !campo.enLinea()">
         <mat-icon>download_for_offline</mat-icon> {{ mapaListo() ? 'Actualizar mapa sin señal' : 'Descargar mapa de mis fincas' }}

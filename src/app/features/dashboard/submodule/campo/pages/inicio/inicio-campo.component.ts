@@ -5,8 +5,14 @@ import { MatIconModule } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { ETIQUETA_ROSTRO, ETIQUETA_VISITA, Tablero, Tarea, Visita } from '../../campo.models';
+import { AvisoUbicacionComponent } from '../../components/aviso-ubicacion/aviso-ubicacion.component';
 import { MapaCampoComponent } from '../../components/mapa-campo/mapa-campo.component';
 import { CampoApiService } from '../../services/campo-api.service';
+import { PersonalService } from '../../services/personal.service';
+import { CoordinadoresFormulariosService } from '../../../coordinadores/services/coordinadores-formularios.service';
+import { PlacementService } from '../../../dynamic-forms/services/placement.service';
+import { DynamicFormService } from '../../../dynamic-forms/services/dynamic-form.service';
+import { FormulariosOfflineService } from '../../../dynamic-forms/services/formularios-offline.service';
 import { CampoService, haceCuanto, horaCorta, mensajeDe } from '../../services/campo.service';
 import { distanciaM, esNativo, plataforma } from '../../services/dispositivo';
 
@@ -14,6 +20,7 @@ import { distanciaM, esNativo, plataforma } from '../../services/dispositivo';
 interface Acceso { ruta: string; icono: string; nombre: string; detalle: string; soloSupervisa?: boolean; soloAdmin?: boolean }
 
 const ACCESOS: readonly Acceso[] = [
+  { ruta: '/dashboard/campo/personal', icono: 'groups', nombre: 'Mi personal', detalle: 'Tu gente, también sin señal' },
   { ruta: '/dashboard/campo/radio', icono: 'settings_input_antenna', nombre: 'Radio', detalle: 'Pulsa para hablar con el equipo' },
   { ruta: '/dashboard/campo/agenda', icono: 'calendar_month', nombre: 'Agenda', detalle: 'Visitas programadas' },
   { ruta: '/dashboard/campo/tareas', icono: 'task_alt', nombre: 'Tareas', detalle: 'Lo que te asignaron' },
@@ -21,6 +28,7 @@ const ACCESOS: readonly Acceso[] = [
   { ruta: '/dashboard/campo/revision', icono: 'how_to_reg', nombre: 'Revisión', detalle: 'Selfies y alertas de marcación', soloSupervisa: true },
   { ruta: '/dashboard/campo/equipo', icono: 'account_tree', nombre: 'Equipo', detalle: 'Jerarquía y zonas', soloSupervisa: true },
   { ruta: '/dashboard/campo/fincas', icono: 'agriculture', nombre: 'Fincas y QR', detalle: 'Ubicación, geocerca y carteles', soloSupervisa: true },
+  { ruta: '/dashboard/campo/historico', icono: 'history', nombre: 'Histórico de visitas', detalle: 'Informes diarios desde 2023' },
   { ruta: '/dashboard/campo/indicadores', icono: 'insights', nombre: 'Formularios', detalle: 'Indicadores y pendientes' },
 ];
 
@@ -37,7 +45,7 @@ const ACCESOS: readonly Acceso[] = [
 @Component({
   selector: 'app-inicio-campo',
   standalone: true,
-  imports: [MatIconModule, RouterLink, DecimalPipe, MapaCampoComponent],
+  imports: [MatIconModule, RouterLink, DecimalPipe, MapaCampoComponent, AvisoUbicacionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './inicio-campo.component.html',
   styleUrls: ['../../campo-ui.css', './inicio-campo.component.css'],
@@ -46,6 +54,15 @@ export class InicioCampoComponent {
   readonly campo = inject(CampoService);
   private readonly api = inject(CampoApiService);
   private readonly destroy = inject(DestroyRef);
+  readonly personal = inject(PersonalService);
+  readonly formsOffline = inject(FormulariosOfflineService);
+  private readonly formsMenu = inject(CoordinadoresFormulariosService);
+  private readonly placement = inject(PlacementService);
+  private readonly forms = inject(DynamicFormService);
+
+  /** Paso en curso de «descargar todo» (null = quieto). */
+  readonly preparando = signal<string | null>(null);
+  readonly formulariosGuardados = signal(0);
 
   readonly tablero = signal<Tablero | null>(null);
   readonly descargando = signal<{ hechos: number; total: number } | null>(null);
@@ -115,6 +132,9 @@ export class InicioCampoComponent {
 
   constructor() {
     this.campo.iniciar();
+    this.formsOffline.iniciar();
+    void this.personal.cargarLocal();
+    void this.formsOffline.formulariosGuardados().then(l => this.formulariosGuardados.set(l.length));
     void MapaCampoComponent.mosaicosGuardados().then(n => this.mosaicos.set(n));
     const reloj = setInterval(() => this.ahora.set(Date.now()), 60_000);
     this.destroy.onDestroy(() => clearInterval(reloj));
@@ -172,6 +192,37 @@ export class InicioCampoComponent {
       this.avisoDescarga.set(mensajeDe(e, 'No se pudo descargar el mapa'));
     } finally {
       this.descargando.set(null);
+    }
+  }
+
+  /**
+   * Deja el teléfono listo para la jornada sin señal: paquete de campo (fincas, agenda,
+   * tareas), lista del personal, los formularios del menú (ruta + estructura) y el mapa.
+   */
+  async prepararSinSenal(): Promise<void> {
+    if (this.preparando() || !this.campo.enLinea()) return;
+    try {
+      this.preparando.set('Fincas, agenda y tareas…');
+      await this.campo.sincronizar();
+      await this.campo.refrescar();
+      this.preparando.set('Tu personal…');
+      await this.personal.descargar();
+      const lista = this.formsMenu.formulariosDelMenu().formularios;
+      let n = 0;
+      for (const f of lista) {
+        this.preparando.set(`Formularios ${++n}/${lista.length}…`);
+        const r = await firstValueFrom(this.placement.resolveRoute(f.rutaRelativa)).catch(() => null);
+        const id = (r as any)?.form_id;
+        if (!id) continue;
+        const st = await firstValueFrom(this.forms.structure(id)).catch(() => null);
+        if (st) await this.formsOffline.guardarEstructura(st);
+      }
+      this.formulariosGuardados.set((await this.formsOffline.formulariosGuardados()).length);
+      this.preparando.set('Mapa de tus fincas…');
+      await this.descargarMapa();
+      this.avisoDescarga.set('Listo: puedes trabajar sin señal. Lo que hagas se enviará solo al volver la conexión.');
+    } finally {
+      this.preparando.set(null);
     }
   }
 

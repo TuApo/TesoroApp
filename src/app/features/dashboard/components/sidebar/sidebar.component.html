@@ -130,11 +130,13 @@
           <!-- Descarga de la app: antes vivía dentro de Parametrización (una pantalla de
                administración), así que quien la necesitaba en su equipo o su teléfono no
                tenía dónde encontrarla. Aquí la ve cualquier usuario. -->
-          <button mat-menu-item class="perfil-menu-descargar" (click)="abrirDescargas()">
-            <mat-icon>download</mat-icon> Descargar aplicación
-          </button>
+          @if (!enAppNativa) {
+            <button mat-menu-item class="perfil-menu-descargar" (click)="abrirDescargas()">
+              <mat-icon>download</mat-icon> Descargar aplicación
+            </button>
 
-          <div class="perfil-menu-sep"></div>
+            <div class="perfil-menu-sep"></div>
+          }
 
           <button mat-menu-item class="perfil-menu-salir" (click)="cerrarSesion()">
             <mat-icon>logout</mat-icon> Cerrar sesión

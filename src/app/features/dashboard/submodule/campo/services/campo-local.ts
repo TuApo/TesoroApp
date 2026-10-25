@@ -1,3 +1,4 @@
+import { ArchivosNativos } from '../../../../../core/nativo/archivos-nativos';
 import { ElementoCola, Paquete, Punto } from '../campo.models';
 
 /**
@@ -6,6 +7,9 @@ import { ElementoCola, Paquete, Punto } from '../campo.models';
  *  · `kv`     → el último paquete descargado (fincas, agenda, tareas, canales).
  *  · `cola`   → marcaciones, cierres de tarea y transmisiones de radio por mandar.
  *  · `puntos` → posiciones tomadas sin señal.
+ * Las selfies y los audios NO van dentro de la cola: en el APK se guardan como archivos en la
+ * carpeta privada de la app (Filesystem nativo, `core/nativo/archivos-nativos`) y la cola guarda
+ * solo su ruta; al leer la cola se vuelven a armar.
  * Los mosaicos del mapa van aparte, en Cache Storage (ver mapa-campo).
  *
  * Todo se separa por usuario: un mismo teléfono puede compartirse entre turnos.
@@ -59,22 +63,27 @@ export const CampoLocal = {
   },
 
   async encolar(usuario: string, e: ElementoCola): Promise<void> {
-    await req((await tienda('cola', 'readwrite')).put({ ...e, usuario }));
+    await req((await tienda('cola', 'readwrite')).put(await sinBlobs(usuario, e)));
   },
 
   async cola(usuario: string): Promise<ElementoCola[]> {
     try {
-      const l = (await req((await tienda('cola')).index('usuario').getAll(usuario))) as ElementoCola[];
-      return l.sort((a, b) => a.creado_ms - b.creado_ms);
+      const l = (await req((await tienda('cola')).index('usuario').getAll(usuario))) as FilaCola[];
+      const armada = await Promise.all(l.map(f => conBlobs(usuario, f)));
+      return armada.sort((a, b) => a.creado_ms - b.creado_ms);
     } catch { return []; }
   },
 
   async actualizar(usuario: string, e: ElementoCola): Promise<void> {
-    await req((await tienda('cola', 'readwrite')).put({ ...e, usuario }));
+    await req((await tienda('cola', 'readwrite')).put(await sinBlobs(usuario, e)));
   },
 
-  async quitar(id: string): Promise<void> {
+  async quitar(id: string, usuario?: string): Promise<void> {
     await req((await tienda('cola', 'readwrite')).delete(id));
+    if (usuario) {
+      await ArchivosNativos.borrar(usuario, `campo/cola/${id}.selfie`);
+      await ArchivosNativos.borrar(usuario, `campo/cola/${id}.audio`);
+    }
   },
 
   async guardarPunto(usuario: string, p: Punto): Promise<void> {
@@ -103,3 +112,22 @@ export const CampoLocal = {
     try { return await req((await tienda('puntos')).index('usuario').count(usuario)); } catch { return 0; }
   },
 };
+
+/** Fila guardada: igual al elemento, pero con la ruta del archivo en vez del Blob. */
+type FilaCola = Omit<ElementoCola, 'selfie' | 'audio'> & { usuario: string; selfie_archivo?: string; audio_archivo?: string };
+
+async function sinBlobs(usuario: string, e: ElementoCola): Promise<FilaCola> {
+  const { selfie, audio, ...resto } = e as ElementoCola & { selfie?: Blob; audio?: Blob };
+  const fila: FilaCola = { ...(resto as any), usuario };
+  if (selfie instanceof Blob) fila.selfie_archivo = await ArchivosNativos.guardar(usuario, `campo/cola/${e.id}.selfie`, selfie);
+  if (audio instanceof Blob) fila.audio_archivo = await ArchivosNativos.guardar(usuario, `campo/cola/${e.id}.audio`, audio);
+  return fila;
+}
+
+async function conBlobs(usuario: string, f: FilaCola & { selfie?: Blob; audio?: Blob }): Promise<ElementoCola> {
+  const e: any = { ...f };
+  // Filas viejas (de antes de los archivos nativos) traen el Blob adentro: se respetan.
+  if (f.selfie_archivo && !f.selfie) e.selfie = (await ArchivosNativos.leer(usuario, f.selfie_archivo)) ?? undefined;
+  if (f.audio_archivo && !f.audio) e.audio = (await ArchivosNativos.leer(usuario, f.audio_archivo)) ?? undefined;
+  return e as ElementoCola;
+}

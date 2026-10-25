@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { Component, OnInit, ChangeDetectionStrategy, inject, signal } from '@angular/core';
 import {
   AbstractControl, FormBuilder, FormGroup,
@@ -195,6 +196,12 @@ export class LoginComponent implements OnInit {
       this.accesoRapidoPosible.set(false);
     }
   }
+
+  /**
+   * Dentro de la app instalada desde Google Play no se ofrece descargar el APK ni el .exe:
+   * Play prohíbe que una app se actualice o se reinstale por fuera de la tienda.
+   */
+  readonly enAppNativa = (() => { try { return Capacitor.isNativePlatform(); } catch { return false; } })();
 
   descargarEscritorio(): void {
     const r = this.desktopRelease();

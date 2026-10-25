@@ -108,6 +108,11 @@ export interface DocumentRef {
   filename: string;
   mime_type: string;
   size: number;
+  /**
+   * Archivo capturado SIN SEÑAL que todavía vive en el teléfono (document_id negativo).
+   * Al sincronizar se sube a ms-documents y la referencia se reemplaza por la real.
+   */
+  local_id?: string;
 }
 
 export interface LocationValue {

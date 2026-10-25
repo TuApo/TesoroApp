@@ -1,9 +1,10 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Observable, from, of } from 'rxjs';
+import { catchError, map, tap } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 import { ModuleNode, Placement, PlacementRequest, RouteResolution } from '../models/placement.models';
+import { FormulariosOfflineService } from './formularios-offline.service';
 
 /**
  * Ubicación de formularios dinámicos como vista de un módulo (endpoints /placement,
@@ -12,6 +13,7 @@ import { ModuleNode, Placement, PlacementRequest, RouteResolution } from '../mod
 @Injectable({ providedIn: 'root' })
 export class PlacementService {
   private http = inject(HttpClient);
+  private offline = inject(FormulariosOfflineService);
   private base = `${environment.apiUrl}/api/dynamic-forms`;
 
   /** Árbol de módulos donde el usuario puede colgar un formulario (hoja o raíz). */
@@ -60,7 +62,11 @@ export class PlacementService {
   resolveRoute(routePath: string): Observable<RouteResolution | null> {
     const params = new HttpParams().set('route_path', routePath);
     return this.http.get<RouteResolution>(`${this.base}/forms/resolve`, { params }).pipe(
-      catchError(() => of(null)),
+      // Lo resuelto con red queda en el teléfono: sin señal, la misma ruta abre el formulario.
+      tap(r => { if (r) void this.offline.guardarRuta(routePath, r).catch(() => undefined); }),
+      catchError((err) => err?.status === 0 || err?.status >= 500
+        ? from(this.offline.rutaGuardada(routePath).catch(() => null))
+        : of(null)),
       map((r) => r ?? null),
     );
   }

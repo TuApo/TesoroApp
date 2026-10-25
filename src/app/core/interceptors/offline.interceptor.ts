@@ -79,6 +79,10 @@ const NEVER_QUEUE_PATHS = [
   '/Incapacidades/v2/radicados/',
   '/Incapacidades/v2/recobros',
   '/Incapacidades/v2/liquidacion/',
+  // Trabajo de campo: tiene SU propia cola (submodule/campo, con la hora real de la marcación,
+  // selfie y audio en el teléfono). Si este interceptor también la encolara, una marcación
+  // quedaría en dos colas y el 200 falso la sacaría de la buena.
+  '/api/v1/comunicaciones/campo/',
 ];
 
 const isNeverQueueable = (url: string): boolean =>

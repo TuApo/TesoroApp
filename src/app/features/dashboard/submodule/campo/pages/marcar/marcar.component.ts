@@ -4,10 +4,12 @@ import { MatIconModule } from '@angular/material/icon';
 
 import { CoordinadoresFormulariosService } from '../../../coordinadores/services/coordinadores-formularios.service';
 import { ETIQUETA_ROSTRO, Finca, FuenteUbicacion, Marcacion, TipoMarcacion } from '../../campo.models';
+import { AvisoUbicacionComponent } from '../../components/aviso-ubicacion/aviso-ubicacion.component';
 import { CamaraCampoComponent } from '../../components/camara-campo/camara-campo.component';
 import { CirculoMapa, MapaCampoComponent, MarcadorMapa } from '../../components/mapa-campo/mapa-campo.component';
 import { CampoService, horaCorta } from '../../services/campo.service';
 import { posicionActual, vibrar } from '../../services/dispositivo';
+import { esNativo as esNativoCampo, fotoNativa, leerQrNativo } from '../../../../../../core/nativo/nativo';
 
 type Paso = 'qr' | 'finca' | 'ubicacion' | 'selfie' | 'confirmar' | 'listo';
 
@@ -25,7 +27,7 @@ type Paso = 'qr' | 'finca' | 'ubicacion' | 'selfie' | 'confirmar' | 'listo';
 @Component({
   selector: 'app-campo-marcar',
   standalone: true,
-  imports: [MatIconModule, RouterLink, CamaraCampoComponent, MapaCampoComponent],
+  imports: [MatIconModule, RouterLink, CamaraCampoComponent, MapaCampoComponent, AvisoUbicacionComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './marcar.component.html',
   styleUrls: ['../../campo-ui.css', './marcar.component.css'],
@@ -115,7 +117,7 @@ export class MarcarComponent {
     const q = this.ruta.snapshot.queryParamMap;
     if (q.get('tipo') === 'SALIDA' || q.get('tipo') === 'ENTRADA') this.tipo.set(q.get('tipo') as TipoMarcacion);
     const f = q.get('f'), t = q.get('t');
-    if (!f) this.camara.set('qr');
+    if (!f) void this.escanear();
     // El paquete guardado en el teléfono puede tardar un instante en cargar: sin él no se valida el QR.
     void this.campo.esperar().then(() => {
       // ¿Hay una entrada abierta? Entonces lo natural es marcar la salida de esa finca.
@@ -133,7 +135,7 @@ export class MarcarComponent {
       }
     });
     // Ubicación en paralelo desde ya: cuando llegue al paso, ya la tiene.
-    void this.tomarUbicacion(true);
+    if (this.campo.consentimientoUbicacion() === true) void this.tomarUbicacion(true);
     this.formularios.formulariosDelMenu().formularios
       .filter(x => x.grupo === 'visitas' && /finca|visita/i.test(x.nombre))
       .slice(0, 1).forEach(x => this.planillaRuta.set(x.ruta));
@@ -162,9 +164,16 @@ export class MarcarComponent {
     this.paso.set(this.finca() ? 'ubicacion' : 'finca');
   }
 
-  escanear(): void {
+  /** En el APK, el lector de QR nativo (ML Kit); si no hay, el visor web. */
+  async escanear(): Promise<void> {
     this.qrMotivo.set(null);
-    this.camara.set('qr');
+    try {
+      const nativo = await leerQrNativo();
+      if (nativo === undefined) { this.camara.set('qr'); return; }
+      if (nativo) void this.alLeerQr(nativo);
+    } catch (e: any) {
+      this.qrMotivo.set(e?.message || 'No se pudo abrir el lector de QR');
+    }
   }
 
   elegirFinca(f: Finca): void {
@@ -175,6 +184,7 @@ export class MarcarComponent {
   // ─── Ubicación ──────────────────────────────────────────────────────────
 
   async tomarUbicacion(silencioso = false): Promise<void> {
+    if (this.campo.consentimientoUbicacion() !== true) return;
     this.buscandoGps.set(true);
     if (!silencioso) this.errorGps.set(null);
     try {
@@ -193,6 +203,15 @@ export class MarcarComponent {
     }
   }
 
+  alResponderUbicacion(acepta: boolean): void {
+    if (acepta) void this.tomarUbicacion();
+  }
+
+  compartirUbicacion(): void {
+    this.campo.responderUbicacion(true);
+    void this.tomarUbicacion();
+  }
+
   elegirEnMapa(): void {
     this.eligiendoEnMapa.set(true);
   }
@@ -209,7 +228,7 @@ export class MarcarComponent {
 
   continuarASelfie(): void {
     this.paso.set('selfie');
-    if (!this.selfie() && !this.sinSelfie()) this.camara.set('selfie');
+    if (!this.selfie() && !this.sinSelfie()) void this.repetirSelfie();
   }
 
   // ─── Selfie ─────────────────────────────────────────────────────────────
@@ -223,7 +242,16 @@ export class MarcarComponent {
     this.paso.set('confirmar');
   }
 
-  repetirSelfie(): void { this.camara.set('selfie'); }
+  /** En el APK, la cámara frontal del sistema; si no es nativo, el visor web. */
+  async repetirSelfie(): Promise<void> {
+    try {
+      const b = await fotoNativa({ frontal: true, maxLado: 900, calidad: 80 });
+      if (b) { this.alFoto(b); return; }
+      if (!esNativoCampo()) this.camara.set('selfie');
+    } catch {
+      this.camara.set('selfie');
+    }
+  }
 
   seguirSinSelfie(): void {
     this.sinSelfie.set(true);
@@ -271,7 +299,7 @@ export class MarcarComponent {
     this.nota.set('');
     this.tipo.set(this.tipo() === 'ENTRADA' ? 'SALIDA' : 'ENTRADA');
     this.paso.set('qr');
-    this.camara.set('qr');
+    void this.escanear();
   }
 
   cambiarTipo(t: TipoMarcacion): void { this.tipo.set(t); }
