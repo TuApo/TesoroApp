@@ -11,7 +11,10 @@
 #   falla: deja el .aab como artefacto. El estado de esas subidas lo da la
 #   variable del repo PLAY_ESTADO (draft por defecto; completed cuando la app
 #   ya esté publicada, para que llegue sola a los verificadores).
-#   El versionCode es el número de corrida: siempre crece.
+#   versionCode = (M·10000 + m·100 + p)·1000 + n, con M.m.p de package.json y
+#   n = run_number % 1000 (12.2.5 en la corrida 18 → 120205018). El APK directo
+#   del servidor (build-android.sh) usa la misma fórmula con n = APP_BUILD_NUMBER
+#   o 0, así que una versión nueva siempre supera a la anterior en los dos canales.
 #
 # El repo no trae /android, capacitor.config.ts ni src/environments
 # (están en .gitignore), así que el workflow los reconstruye:
@@ -126,7 +129,8 @@ jobs:
         run: |
           VER=$(node -p "require('./package.json').version")
           echo "name=$VER" >> "$GITHUB_OUTPUT"
-          echo "code=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          BASE=$(echo "$VER" | awk -F. '{printf "%d%02d%02d",$1,$2,$3}')
+          echo "code=$(( BASE*1000 + ${{ github.run_number }} % 1000 ))" >> "$GITHUB_OUTPUT"
           for f in src/environments/environment.ts src/environments/environment.development.ts; do
             [ -f "$f" ] && sed -i -E "s/appVersion:[[:space:]]*'[^']*'/appVersion: '$VER'/" "$f"
           done
@@ -174,8 +178,9 @@ jobs:
 
       - name: Versión en build.gradle
         run: |
-          sed -i -E "s/versionCode [0-9]+/versionCode ${{ steps.version.outputs.code }}/; s/versionName \"[^\"]*\"/versionName \"${{ steps.version.outputs.name }}\"/" android/app/build.gradle
-          grep -E 'applicationId|versionCode|versionName' android/app/build.gradle
+          # build.gradle calcula versionCode desde verName y APP_BUILD_NUMBER (paso de compilación).
+          sed -i -E "s/^def verName = \"[^\"]*\"/def verName = \"${{ steps.version.outputs.name }}\"/" android/app/build.gradle
+          grep -E 'verName|applicationId|versionCode|versionName' android/app/build.gradle
 
       - name: Compilar .aab y .apk firmados
         env:
@@ -183,6 +188,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          APP_BUILD_NUMBER: ${{ github.run_number }}
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
           cd android
